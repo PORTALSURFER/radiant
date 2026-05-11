@@ -93,8 +93,9 @@ pub(in crate::gui::layout_core::engine) fn allocate_fill_sizes(
     let mut remaining_weight = total_weight;
     while !unresolved.is_empty() {
         let mut changed = false;
-        let mut next_unresolved = Vec::with_capacity(unresolved.len());
-        for index in unresolved {
+        let mut retained = 0;
+        for read in 0..unresolved.len() {
+            let index = unresolved[read];
             let state = &mut states[index];
             let SizeModeMain::Fill(weight) = state.slot_child.slot.size_main else {
                 continue;
@@ -111,11 +112,13 @@ pub(in crate::gui::layout_core::engine) fn allocate_fill_sizes(
                 remaining_space = (remaining_space - clamped).max(0.0);
                 remaining_weight = (remaining_weight - weight).max(0.0);
             } else {
-                next_unresolved.push(index);
+                unresolved[retained] = index;
+                retained += 1;
             }
         }
+        unresolved.truncate(retained);
         if !changed {
-            for index in next_unresolved {
+            for &index in &unresolved {
                 let state = &mut states[index];
                 let SizeModeMain::Fill(weight) = state.slot_child.slot.size_main else {
                     continue;
@@ -128,7 +131,6 @@ pub(in crate::gui::layout_core::engine) fn allocate_fill_sizes(
             }
             break;
         }
-        unresolved = next_unresolved;
     }
 }
 

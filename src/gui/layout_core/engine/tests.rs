@@ -87,6 +87,48 @@ fn fill_children_compress_before_fixed_children() {
 }
 
 #[test]
+fn fill_children_redistribute_after_constrained_child_clamps() {
+    let fill_slot = |max_w| SlotParams {
+        size_main: SizeModeMain::Fill(1.0),
+        size_cross: SizeModeCross::Fill,
+        constraints: Constraints::new(0.0, max_w, 0.0, f32::INFINITY),
+        margin: Default::default(),
+        align_cross_override: None,
+        allow_fixed_compress: false,
+    };
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::Row,
+            ..ContainerPolicy::default()
+        },
+        vec![
+            SlotChild {
+                slot: fill_slot(20.0),
+                child: LayoutNode::widget(2, Vector2::new(10.0, 10.0)),
+            },
+            SlotChild {
+                slot: fill_slot(f32::INFINITY),
+                child: LayoutNode::widget(3, Vector2::new(10.0, 10.0)),
+            },
+            SlotChild {
+                slot: fill_slot(f32::INFINITY),
+                child: LayoutNode::widget(4, Vector2::new(10.0, 10.0)),
+            },
+        ],
+    );
+
+    let output = layout_tree(
+        &root,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 40.0)),
+    );
+
+    assert!((output.rects[&2].width() - 20.0).abs() < 0.5);
+    assert!((output.rects[&3].width() - 50.0).abs() < 0.5);
+    assert!((output.rects[&4].width() - 50.0).abs() < 0.5);
+}
+
+#[test]
 fn switch_layout_selects_breakpoint_child() {
     let root = LayoutNode::container(
         1,

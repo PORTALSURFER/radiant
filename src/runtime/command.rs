@@ -177,9 +177,24 @@ impl<Message> Command<Message> {
     /// repaint, and exit are intentionally not flattened. Execute the command
     /// through `SurfaceRuntime` when those effects must be preserved.
     pub fn into_messages(self) -> Vec<Message> {
-        let mut messages = Vec::new();
+        let capacity = self.message_capacity_hint();
+        let mut messages = Vec::with_capacity(capacity);
         self.collect_messages(&mut messages);
         messages
+    }
+
+    fn message_capacity_hint(&self) -> usize {
+        match self {
+            Self::Message(_) => 1,
+            Self::Batch(commands) => commands.len(),
+            Self::None
+            | Self::RequestRepaint
+            | Self::RequestPaintOnly
+            | Self::After { .. }
+            | Self::Perform { .. }
+            | Self::Focus(_)
+            | Self::Exit => 0,
+        }
     }
 
     fn collect_messages(self, messages: &mut Vec<Message>) {
@@ -234,6 +249,24 @@ mod tests {
         assert!(matches!(commands[0], Command::Message("first")));
         assert!(matches!(commands[1], Command::Message("second")));
         assert_eq!(command.into_messages(), vec!["first", "second"]);
+    }
+
+    #[test]
+    fn message_flattening_presizes_nested_message_output() {
+        let command = Command::batch([
+            Command::message("first"),
+            Command::request_repaint(),
+            Command::batch([
+                Command::message("second"),
+                Command::none(),
+                Command::batch([Command::message("third")]),
+            ]),
+        ]);
+
+        let messages = command.into_messages();
+
+        assert_eq!(messages, vec!["first", "second", "third"]);
+        assert!(messages.capacity() >= 3);
     }
 
     #[test]

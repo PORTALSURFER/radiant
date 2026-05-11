@@ -135,7 +135,7 @@ fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFram
     for echo in visual.echoes {
         push_ratio_rect(
             &mut frame,
-            inset(track, 0.0, 8.0),
+            inset(track, 0.0, 10.0),
             echo.start,
             echo.width,
             echo.color,
@@ -143,14 +143,14 @@ fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFram
     }
     push_ratio_rect(
         &mut frame,
-        inset(track, 0.0, 5.0),
+        inset(track, 0.0, 6.0),
         visual.glow_start,
         visual.glow_width,
         visual.glow_color,
     );
     push_ratio_rect(
         &mut frame,
-        inset(track, 0.0, 3.0),
+        inset(track, 0.0, 4.0),
         visual.core_start,
         visual.core_width,
         theme.highlight_orange,
@@ -233,9 +233,9 @@ impl PulseMeterVisual {
     fn resolve(phase: f32) -> Self {
         let phase = phase.clamp(0.0, 1.0);
         let pulse = (phase * std::f32::consts::TAU).sin() * 0.5 + 0.5;
-        let marker_width = 0.01;
-        let core_width = 0.045 + pulse * 0.02;
-        let glow_width = core_width * 1.85;
+        let marker_width = 0.014;
+        let core_width = 0.055 + pulse * 0.018;
+        let glow_width = 0.135 + pulse * 0.035;
         let marker_center = phase * (1.0 - marker_width) + marker_width * 0.5;
         let marker_start = (marker_center - marker_width * 0.5).clamp(0.0, 1.0 - marker_width);
         let core_start = (marker_center - core_width * 0.5).clamp(0.0, 1.0 - core_width);
@@ -243,9 +243,9 @@ impl PulseMeterVisual {
 
         Self {
             echoes: [
-                Self::echo(marker_center, 0.10, 0.035, 55),
-                Self::echo(marker_center, 0.18, 0.028, 38),
-                Self::echo(marker_center, 0.26, 0.022, 26),
+                Self::echo(marker_center, 0.11, 0.045, 72),
+                Self::echo(marker_center, 0.20, 0.036, 48),
+                Self::echo(marker_center, 0.29, 0.028, 32),
             ],
             glow_start,
             glow_width,
@@ -263,7 +263,7 @@ impl PulseMeterVisual {
     }
 
     fn echo(marker_center: f32, delay: f32, width: f32, alpha: u8) -> PulseEcho {
-        let center = (marker_center - delay).max(0.0);
+        let center = (marker_center + 1.0 - delay).fract();
         let start = (center - width * 0.5).clamp(0.0, 1.0 - width);
         PulseEcho {
             start,
@@ -311,7 +311,8 @@ mod tests {
         assert!(peak.core_width > start.core_width);
         assert!(peak.glow_width > peak.core_width);
         assert_eq!(start.marker_width, end.marker_width);
-        assert!(far_edge.echoes[0].start > start.echoes[0].start + 0.20);
+        assert!(far_edge.echoes[0].start > peak.echoes[0].start + 0.20);
+        assert!(start.echoes[0].start > 0.80);
         assert!(start.echoes[0].color.a > start.echoes[1].color.a);
     }
 
@@ -340,6 +341,10 @@ mod tests {
         );
         assert!(fills.iter().any(|fill| fill.color.a < 70));
         assert!(fills.iter().any(|fill| fill.rect.width() < 6.0));
+        assert!(
+            fills.iter().filter(|fill| fill.rect.width() > 80.0).count() <= 4,
+            "pulse paint should not collapse into one large filled slab"
+        );
         assert_ne!(fills[0].color, fills[1].color);
     }
 
@@ -385,6 +390,33 @@ mod tests {
         click_widget(&mut runtime, 41);
         assert!(!runtime.bridge_mut().needs_animation());
         assert_status_contains(&runtime, "Paused | frame 0 | phase 0.00");
+    }
+
+    #[test]
+    fn animation_controls_survive_pending_frame_between_press_and_release() {
+        let bridge = animation_test_bridge(AnimationState {
+            running: true,
+            frame: 42,
+            phase: 0.5,
+        });
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 220.0));
+        let rect = runtime.layout().rects[&40];
+        let point = rect.center();
+
+        assert!(runtime.bridge_mut().needs_animation());
+        runtime.dispatch_event(Event::PointerPress {
+            position: point,
+            button: PointerButton::Primary,
+        });
+        let outcome = runtime.drain_runtime_messages();
+        assert_eq!(outcome.messages_dispatched, 1);
+        runtime.dispatch_event(Event::PointerRelease {
+            position: point,
+            button: PointerButton::Primary,
+        });
+
+        assert!(!runtime.bridge_mut().needs_animation());
+        assert_status_contains(&runtime, "Paused | frame 43 | phase 0.18");
     }
 
     fn animation_test_bridge(

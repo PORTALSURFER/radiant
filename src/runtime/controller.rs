@@ -31,7 +31,7 @@ use crate::{
     theme::ThemeTokens,
     widgets::{WidgetId, WidgetInput, WidgetKey, WidgetState},
 };
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
 /// Direction for deterministic keyboard focus traversal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -69,7 +69,7 @@ where
     pointer_hit_rank: HashMap<WidgetId, usize>,
     visible_pointer_hit_order: Vec<WidgetId>,
     widget_paths: HashMap<WidgetId, WidgetPath>,
-    container_hover_suppression: BTreeSet<WidgetId>,
+    container_hover_suppression: HashSet<WidgetId>,
     keyboard_focus_order: Vec<WidgetId>,
     keyboard_focus_rank: HashMap<WidgetId, usize>,
     wheel_hit_order: Vec<WidgetId>,
@@ -79,9 +79,9 @@ where
     styled_container_hit_rank: HashMap<NodeId, usize>,
     visible_styled_container_hit_order: Vec<NodeId>,
     scroll_hit_order: Vec<NodeId>,
-    widget_clip_ancestors: BTreeMap<WidgetId, ClipAncestors>,
-    container_clip_ancestors: BTreeMap<NodeId, ClipAncestors>,
-    scroll_content_by_container: BTreeMap<NodeId, NodeId>,
+    widget_clip_ancestors: HashMap<WidgetId, ClipAncestors>,
+    container_clip_ancestors: HashMap<NodeId, ClipAncestors>,
+    scroll_content_by_container: HashMap<NodeId, NodeId>,
     scroll_clamp_updates: Vec<(NodeId, Vector2)>,
     focused_widget: Option<WidgetId>,
     pending_key_chord: Option<KeyPress>,

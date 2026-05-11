@@ -272,6 +272,22 @@ fn negative_widget_intrinsic_emits_diagnostic() {
 }
 
 #[test]
+fn static_layout_diagnostics_borrow_messages() {
+    let root = LayoutNode::widget(1, Vector2::new(-32.0, 24.0));
+    let output = layout_tree(
+        &root,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 40.0)),
+    );
+    let diagnostic = output
+        .diagnostics
+        .iter()
+        .find(|item| item.code == LayoutDiagnosticCode::NegativeSizeClamped)
+        .expect("negative size should emit diagnostic");
+
+    assert!(matches!(diagnostic.message, std::borrow::Cow::Borrowed(_)));
+}
+
+#[test]
 fn contradictory_constraints_emit_diagnostic() {
     let root = LayoutNode::container(
         1,

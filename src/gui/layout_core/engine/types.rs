@@ -3,6 +3,7 @@
 use super::super::model::{MainAlign, OverflowPolicy};
 use super::super::tree::NodeId;
 use crate::gui::types::{Rect, Vector2};
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Stable diagnostic category emitted during measure/layout normalization.
@@ -35,8 +36,9 @@ pub struct LayoutDiagnostic {
     pub node_id: NodeId,
     /// Stable diagnostic category.
     pub code: LayoutDiagnosticCode,
-    /// Human-readable diagnostic message.
-    pub message: String,
+    /// Human-readable diagnostic message. Static engine diagnostics are
+    /// borrowed to keep normal layout passes allocation-lean.
+    pub message: Cow<'static, str>,
 }
 
 /// Overflow metadata recorded for one node.

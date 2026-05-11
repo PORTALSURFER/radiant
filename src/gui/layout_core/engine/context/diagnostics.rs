@@ -6,6 +6,7 @@ use crate::gui::layout_core::engine::{
 use crate::gui::layout_core::model::{Insets, OverflowPolicy};
 use crate::gui::layout_core::tree::NodeId;
 use crate::gui::types::{Point, Rect};
+use std::borrow::Cow;
 
 impl<'a> LayoutContext<'a> {
     pub(crate) fn record_overflow(
@@ -101,7 +102,7 @@ impl<'a> LayoutContext<'a> {
         &mut self,
         node_id: NodeId,
         code: LayoutDiagnosticCode,
-        message: impl Into<String>,
+        message: impl Into<Cow<'static, str>>,
     ) {
         self.output.diagnostics.push(LayoutDiagnostic {
             node_id,

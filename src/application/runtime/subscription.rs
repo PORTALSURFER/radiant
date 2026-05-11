@@ -75,6 +75,7 @@ impl<Message> Subscription<Message> {
         match self {
             Self::None => {}
             Self::Batch(nested) => {
+                subscriptions.reserve(nested.len());
                 for subscription in nested {
                     subscription.append_to_batch(subscriptions);
                 }

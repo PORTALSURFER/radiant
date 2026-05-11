@@ -80,8 +80,10 @@ impl<Message> UiSurface<Message> {
     /// Primitives are emitted in declarative tree order so backends and tests can
     /// compare output deterministically without depending on the native shell.
     pub fn paint_plan(&self, layout: &LayoutOutput, theme: &ThemeTokens) -> SurfacePaintPlan {
-        let mut plan =
-            SurfacePaintPlan::empty_with_capacity(theme, layout.rects.len().saturating_mul(2));
+        let mut plan = SurfacePaintPlan::empty_with_capacity(
+            theme,
+            estimated_paint_primitive_capacity(layout),
+        );
         self.paint_plan_into(layout, theme, &mut plan);
         plan
     }
@@ -107,7 +109,7 @@ impl<Message> UiSurface<Message> {
         active_scroll_affordance: Option<NodeId>,
         plan: &mut SurfacePaintPlan,
     ) {
-        plan.clear_for_theme_with_capacity(theme, layout.rects.len().saturating_mul(2));
+        plan.clear_for_theme_with_capacity(theme, estimated_paint_primitive_capacity(layout));
         self.root.append_paint(
             layout,
             theme,
@@ -216,4 +218,8 @@ impl<Message> UiSurface<Message> {
             previous_paths,
         );
     }
+}
+
+pub(in crate::runtime) fn estimated_paint_primitive_capacity(layout: &LayoutOutput) -> usize {
+    layout.rects.len().saturating_mul(3)
 }

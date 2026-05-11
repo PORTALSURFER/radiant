@@ -2,7 +2,7 @@ use super::*;
 
 /// Builder for toggles that can emit messages or mutate state directly.
 pub struct ToggleBuilder {
-    label: String,
+    label: PaintText,
     checked: bool,
     compact: bool,
     style: Option<WidgetStyle>,
@@ -38,13 +38,9 @@ impl ToggleBuilder {
         self,
         map: impl Fn(bool) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
+        let sizing = default_toggle_sizing(&self.label, self.compact);
         let mut node = view_node_from_widget(MappedWidget::new(
-            ToggleWidget::new(
-                0,
-                &self.label,
-                default_toggle_sizing(&self.label, self.compact),
-            )
-            .with_checked(self.checked),
+            ToggleWidget::new(0, self.label, sizing).with_checked(self.checked),
             WidgetMessageMapper::toggle(move |message| match message {
                 crate::widgets::ToggleMessage::ValueChanged { checked } => map(checked),
             }),
@@ -67,7 +63,7 @@ impl ToggleBuilder {
 }
 
 /// Build a toggle.
-pub fn toggle(label: impl Into<String>, checked: bool) -> ToggleBuilder {
+pub fn toggle(label: impl Into<PaintText>, checked: bool) -> ToggleBuilder {
     ToggleBuilder {
         label: label.into(),
         checked,
@@ -79,7 +75,7 @@ pub fn toggle(label: impl Into<String>, checked: bool) -> ToggleBuilder {
 /// Build a compact checkbox.
 pub fn checkbox(checked: bool) -> ToggleBuilder {
     ToggleBuilder {
-        label: String::new(),
+        label: PaintText::default(),
         checked,
         compact: true,
         style: None,
@@ -88,7 +84,7 @@ pub fn checkbox(checked: bool) -> ToggleBuilder {
 
 /// Build a toggle that maps value changes by checked state.
 pub fn toggle_mapped<Message: 'static>(
-    label: impl Into<String>,
+    label: impl Into<PaintText>,
     checked: bool,
     map: impl Fn(bool) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {

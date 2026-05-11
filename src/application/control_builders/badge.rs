@@ -2,7 +2,7 @@ use super::*;
 
 /// Builder for badges that can emit messages or mutate state directly.
 pub struct BadgeBuilder {
-    label: String,
+    label: PaintText,
     style: Option<WidgetStyle>,
 }
 
@@ -44,8 +44,9 @@ impl BadgeBuilder {
         self,
         map: impl Fn(crate::widgets::BadgeMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
+        let sizing = default_badge_sizing(&self.label);
         let mut node = view_node_from_widget(MappedWidget::new(
-            BadgeWidget::new(0, &self.label, default_badge_sizing(&self.label)),
+            BadgeWidget::new(0, self.label, sizing),
             WidgetMessageMapper::badge(map),
         ));
         node.style = self.style;
@@ -62,7 +63,7 @@ impl BadgeBuilder {
 }
 
 /// Build a badge or pill.
-pub fn badge(label: impl Into<String>) -> BadgeBuilder {
+pub fn badge(label: impl Into<PaintText>) -> BadgeBuilder {
     BadgeBuilder {
         label: label.into(),
         style: None,
@@ -70,7 +71,7 @@ pub fn badge(label: impl Into<String>) -> BadgeBuilder {
 }
 
 /// Build a badge that emits one cloned host message when activated.
-pub fn badge_message<Message>(label: impl Into<String>, message: Message) -> ViewNode<Message>
+pub fn badge_message<Message>(label: impl Into<PaintText>, message: Message) -> ViewNode<Message>
 where
     Message: Clone + Send + Sync + 'static,
 {
@@ -79,7 +80,7 @@ where
 
 /// Build a badge with a custom widget-message mapper.
 pub fn badge_mapped<Message: 'static>(
-    label: impl Into<String>,
+    label: impl Into<PaintText>,
     map: impl Fn(crate::widgets::BadgeMessage) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
     badge(label).mapped(map)

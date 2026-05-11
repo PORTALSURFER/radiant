@@ -104,6 +104,23 @@ pub(in crate::runtime) struct SurfaceTraversalIndex {
 }
 
 impl SurfaceTraversalIndex {
+    pub(in crate::runtime) fn new() -> Self {
+        Self {
+            widget_paint_order: Vec::new(),
+            focusable_widget_order: Vec::new(),
+            keyboard_focus_order: Vec::new(),
+            pointer_hit_order: Vec::new(),
+            wheel_hit_order: Vec::new(),
+            widget_paths: HashMap::new(),
+            container_hover_suppression: HashSet::new(),
+            styled_container_order: Vec::new(),
+            scroll_container_order: Vec::new(),
+            widget_clip_ancestors: HashMap::new(),
+            container_clip_ancestors: HashMap::new(),
+            scroll_content_by_container: HashMap::new(),
+        }
+    }
+
     pub(in crate::runtime) fn with_stats(stats: SurfaceTraversalStats) -> Self {
         Self {
             widget_paint_order: Vec::with_capacity(stats.widgets),

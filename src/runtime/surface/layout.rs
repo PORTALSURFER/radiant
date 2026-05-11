@@ -8,13 +8,10 @@ pub(in crate::runtime) struct SurfaceRuntimeProjection {
 
 impl<Message> UiSurface<Message> {
     pub(in crate::runtime) fn runtime_projection(&self) -> SurfaceRuntimeProjection {
-        let stats = self.root.runtime_traversal_stats();
-        let mut traversal = SurfaceTraversalIndex::with_stats(stats);
-        let layout_root = self.root.project_runtime(
-            &mut Vec::with_capacity(stats.max_scroll_depth),
-            &mut Vec::with_capacity(stats.max_depth),
-            &mut traversal,
-        );
+        let mut traversal = SurfaceTraversalIndex::new();
+        let layout_root =
+            self.root
+                .project_runtime(&mut Vec::new(), &mut Vec::new(), &mut traversal);
         SurfaceRuntimeProjection {
             layout_root,
             traversal,

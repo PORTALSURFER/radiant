@@ -448,3 +448,64 @@ fn layout_engine_reuses_scratch_maps_between_passes() {
     assert!(engine.scratch.measured_by_node.capacity() >= measured_by_node_capacity);
     assert!(engine.scratch.linear_windows.capacity() >= linear_window_capacity);
 }
+
+#[test]
+fn dirty_subtree_invalidates_virtual_metrics_cache_for_whole_marked_set() {
+    let children = (0..64)
+        .map(|index| {
+            SlotChild::new(
+                SlotParams {
+                    size_main: SizeModeMain::Fixed(12.0),
+                    size_cross: SizeModeCross::Fill,
+                    constraints: Constraints::unconstrained(),
+                    margin: Default::default(),
+                    align_cross_override: None,
+                    allow_fixed_compress: false,
+                },
+                LayoutNode::widget(index + 10, Vector2::new(40.0, 12.0)),
+            )
+        })
+        .collect();
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            overflow: OverflowPolicy::Scroll,
+            virtualization: Some(VirtualizationPolicy {
+                enabled: true,
+                axis: VirtualizationAxis::Vertical,
+                overscan_px: 8.0,
+            }),
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild::new(
+            SlotParams::fill(),
+            LayoutNode::container(
+                2,
+                ContainerPolicy {
+                    kind: ContainerKind::Column,
+                    ..ContainerPolicy::default()
+                },
+                children,
+            ),
+        )],
+    );
+    let viewport = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 64.0));
+    let mut engine = LayoutEngine::default();
+
+    let first = engine.layout_with_state(
+        &root,
+        viewport,
+        &LayoutState::default(),
+        LayoutDebugOptions::default(),
+    );
+    assert!(first.virtual_windows.contains_key(&1));
+    assert!(!engine.virtual_cache.is_empty());
+
+    engine.mark_layout_dirty_subtree(&root, 2);
+
+    assert!(
+        engine.virtual_cache.is_empty(),
+        "dirtying virtualized content should drop cached span metrics"
+    );
+}

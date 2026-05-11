@@ -313,6 +313,13 @@ where
             .and_then(|child_path| self.surface.find_widget_at_path(widget_id, child_path))
             .or_else(|| self.surface.find_widget(widget_id))
     }
+
+    fn surface_widget_mut(&mut self, widget_id: WidgetId) -> Option<&mut SurfaceWidget<Message>> {
+        if let Some(child_path) = self.widget_paths.get(&widget_id).cloned() {
+            return self.surface.find_widget_mut_at_path(widget_id, &child_path);
+        }
+        self.surface.find_widget_mut(widget_id)
+    }
 }
 
 fn hit_rank(order: &[NodeId]) -> HashMap<NodeId, usize> {

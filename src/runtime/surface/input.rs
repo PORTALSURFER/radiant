@@ -129,7 +129,7 @@ impl<Message> SurfaceNode<Message> {
         }
     }
 
-    fn find_widget_mut_at_path(
+    pub(super) fn find_widget_mut_at_path(
         &mut self,
         child_path: &[usize],
     ) -> Option<&mut SurfaceWidget<Message>> {

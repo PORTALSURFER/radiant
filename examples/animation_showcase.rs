@@ -168,13 +168,11 @@ struct PulseMeterVisual {
 impl PulseMeterVisual {
     fn resolve(phase: f32) -> Self {
         let phase = phase.clamp(0.0, 1.0);
-        let angle = phase * std::f32::consts::TAU;
-        let travel = (1.0 - angle.cos()) * 0.5;
-        let pulse = angle.sin() * 0.5 + 0.5;
-        let fill_width = (0.16 + pulse * 0.68).clamp(0.12, 0.88);
-        let marker_width = 0.024 + pulse * 0.02;
-        let marker_offset = (travel * (1.0 - marker_width)).clamp(0.0, 1.0 - marker_width);
-        let glow_width = 0.14 + pulse * 0.16;
+        let pulse = (phase * std::f32::consts::TAU).sin() * 0.5 + 0.5;
+        let fill_width = (phase * 0.96).clamp(0.0, 0.96);
+        let marker_width = 0.018 + pulse * 0.008;
+        let marker_offset = (phase * (1.0 - marker_width)).clamp(0.0, 1.0 - marker_width);
+        let glow_width = 0.08 + pulse * 0.08;
         let marker_center = marker_offset + marker_width * 0.5;
         let glow_offset = (marker_center - glow_width * 0.5).clamp(0.0, 1.0 - glow_width);
 
@@ -217,10 +215,11 @@ mod tests {
         let end = PulseMeterVisual::resolve(1.0);
 
         assert!(peak.fill_width > start.fill_width + 0.2);
-        assert_eq!(start.fill_width, end.fill_width);
+        assert!(end.fill_width > far_edge.fill_width + 0.4);
         assert!(peak.glow_width > start.glow_width);
         assert!(peak.marker_width > start.marker_width);
-        assert!(far_edge.marker_offset > start.marker_offset + 0.9);
+        assert!(far_edge.marker_offset > start.marker_offset + 0.45);
+        assert!(end.marker_offset > far_edge.marker_offset + 0.45);
     }
 
     #[test]

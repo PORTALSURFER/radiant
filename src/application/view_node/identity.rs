@@ -11,11 +11,13 @@ impl<Message> ViewNode<Message> {
         let child_scope = self.child_scope(scope);
         match &self.kind {
             ViewNodeKind::Row { children, .. } | ViewNodeKind::Column { children, .. } => {
+                ids.reserve(children.len());
                 for child in children {
                     child.collect_reserved_ids(child_scope, ids);
                 }
             }
             ViewNodeKind::Stack { children } => {
+                ids.reserve(children.len());
                 for child in children {
                     child.collect_reserved_ids(child_scope, ids);
                 }
@@ -37,5 +39,27 @@ impl<Message> ViewNode<Message> {
 
     fn child_scope(&self, parent_scope: u64) -> u64 {
         self.resolved_id(parent_scope).unwrap_or(parent_scope)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::application::{ROOT_KEY_SCOPE, column, row_key};
+
+    #[test]
+    fn reserved_id_collection_presizes_for_large_child_groups() {
+        let view = column((0..64).map(|index| {
+            row_key(
+                format!("row-{index}"),
+                Vec::<crate::application::ViewNode<()>>::new(),
+            )
+        }));
+        let mut ids = HashSet::new();
+
+        view.collect_reserved_ids(ROOT_KEY_SCOPE, &mut ids);
+
+        assert_eq!(ids.len(), 64);
+        assert!(ids.capacity() >= 64);
     }
 }

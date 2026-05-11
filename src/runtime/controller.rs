@@ -324,10 +324,11 @@ where
     }
 
     fn surface_widget_mut(&mut self, widget_id: WidgetId) -> Option<&mut SurfaceWidget<Message>> {
-        if let Some(child_path) = self.widget_paths.get(&widget_id).cloned() {
-            return self.surface.find_widget_mut_at_path(widget_id, &child_path);
+        let surface = &mut self.surface;
+        if let Some(child_path) = self.widget_paths.get(&widget_id) {
+            return surface.find_widget_mut_at_path(widget_id, child_path);
         }
-        self.surface.find_widget_mut(widget_id)
+        surface.find_widget_mut(widget_id)
     }
 }
 

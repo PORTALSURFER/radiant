@@ -125,19 +125,28 @@ fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFram
     let visual = PulseMeterVisual::resolve(phase);
     let track = inset(bounds, 2.0, 7.0);
     let mut frame = PaintFrame::default();
-    frame.primitives.reserve(9);
+    frame.primitives.reserve(13);
     push_rect(&mut frame, track, theme.surface_base);
     push_rect(
         &mut frame,
         inset(track, 1.0, 9.0),
         with_alpha(theme.grid_soft, 120),
     );
+    for echo in visual.echoes {
+        push_ratio_rect(
+            &mut frame,
+            inset(track, 0.0, 8.0),
+            echo.start,
+            echo.width,
+            echo.color,
+        );
+    }
     push_ratio_rect(
         &mut frame,
-        track,
-        visual.trail_start,
-        visual.trail_width,
-        with_alpha(theme.highlight_orange_soft, 150),
+        inset(track, 0.0, 5.0),
+        visual.glow_start,
+        visual.glow_width,
+        visual.glow_color,
     );
     push_ratio_rect(
         &mut frame,
@@ -203,33 +212,68 @@ fn with_alpha(mut color: Rgba8, alpha: u8) -> Rgba8 {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct PulseMeterVisual {
-    trail_start: f32,
-    trail_width: f32,
+    echoes: [PulseEcho; 3],
+    glow_start: f32,
+    glow_width: f32,
+    glow_color: Rgba8,
     core_start: f32,
     core_width: f32,
     marker_start: f32,
     marker_width: f32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PulseEcho {
+    start: f32,
+    width: f32,
+    color: Rgba8,
+}
+
 impl PulseMeterVisual {
     fn resolve(phase: f32) -> Self {
         let phase = phase.clamp(0.0, 1.0);
         let pulse = (phase * std::f32::consts::TAU).sin() * 0.5 + 0.5;
-        let marker_width = 0.008;
-        let core_width = 0.08 + pulse * 0.04;
-        let trail_width = 0.24;
+        let marker_width = 0.01;
+        let core_width = 0.045 + pulse * 0.02;
+        let glow_width = core_width * 1.85;
         let marker_center = phase * (1.0 - marker_width) + marker_width * 0.5;
         let marker_start = (marker_center - marker_width * 0.5).clamp(0.0, 1.0 - marker_width);
         let core_start = (marker_center - core_width * 0.5).clamp(0.0, 1.0 - core_width);
-        let trail_start = (marker_center - trail_width).clamp(0.0, 1.0 - trail_width);
+        let glow_start = (marker_center - glow_width * 0.5).clamp(0.0, 1.0 - glow_width);
 
         Self {
-            trail_start,
-            trail_width,
+            echoes: [
+                Self::echo(marker_center, 0.10, 0.035, 55),
+                Self::echo(marker_center, 0.18, 0.028, 38),
+                Self::echo(marker_center, 0.26, 0.022, 26),
+            ],
+            glow_start,
+            glow_width,
+            glow_color: Rgba8 {
+                r: 255,
+                g: 104,
+                b: 60,
+                a: 96,
+            },
             core_start,
             core_width,
             marker_start,
             marker_width,
+        }
+    }
+
+    fn echo(marker_center: f32, delay: f32, width: f32, alpha: u8) -> PulseEcho {
+        let center = (marker_center - delay).max(0.0);
+        let start = (center - width * 0.5).clamp(0.0, 1.0 - width);
+        PulseEcho {
+            start,
+            width,
+            color: Rgba8 {
+                r: 255,
+                g: 112,
+                b: 72,
+                a: alpha,
+            },
         }
     }
 }
@@ -239,7 +283,7 @@ mod tests {
     use super::*;
     use radiant::{
         layout::{Point, Rect, Vector2},
-        runtime::{Event, PaintPrimitive, SurfaceRuntime},
+        runtime::{Event, PaintPrimitive, RuntimeBridge, SurfaceRuntime},
         theme::ThemeTokens,
         widgets::PointerButton,
     };
@@ -265,8 +309,10 @@ mod tests {
         assert!(far_edge.marker_start > peak.marker_start + 0.20);
         assert!(end.marker_start > far_edge.marker_start + 0.45);
         assert!(peak.core_width > start.core_width);
+        assert!(peak.glow_width > peak.core_width);
         assert_eq!(start.marker_width, end.marker_width);
-        assert!(far_edge.trail_start > start.trail_start + 0.20);
+        assert!(far_edge.echoes[0].start > start.echoes[0].start + 0.20);
+        assert!(start.echoes[0].color.a > start.echoes[1].color.a);
     }
 
     #[test]
@@ -285,34 +331,25 @@ mod tests {
             })
             .collect();
 
-        assert_eq!(fills.len(), 9);
+        assert_eq!(fills.len(), 12);
         assert!(fills.iter().any(|fill| fill.rect.width() > 410.0));
-        assert!(fills.iter().any(|fill| fill.rect.width() > 90.0));
         assert!(
             fills
                 .iter()
-                .any(|fill| fill.rect.width() > 30.0 && fill.rect.width() < 60.0)
+                .any(|fill| fill.rect.width() > 25.0 && fill.rect.width() < 45.0)
         );
+        assert!(fills.iter().any(|fill| fill.color.a < 70));
         assert!(fills.iter().any(|fill| fill.rect.width() < 6.0));
         assert_ne!(fills[0].color, fills[1].color);
     }
 
     #[test]
     fn animation_controls_pause_resume_and_reset_state() {
-        let bridge = radiant::app(AnimationState {
+        let bridge = animation_test_bridge(AnimationState {
             running: true,
             frame: 42,
             phase: 0.5,
-        })
-        .view(animation_view)
-        .animation(|state| state.running)
-        .on_frame(|| AnimationMessage::Frame)
-        .update(|state, message| match message {
-            AnimationMessage::Toggle => state.running = !state.running,
-            AnimationMessage::Frame => state.tick(),
-            AnimationMessage::Reset => state.reset(),
-        })
-        .into_bridge();
+        });
         let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 220.0));
 
         click_widget(&mut runtime, 40);
@@ -323,6 +360,46 @@ mod tests {
 
         click_widget(&mut runtime, 40);
         assert_status_contains(&runtime, "Running | frame 0 | phase 0.00");
+    }
+
+    #[test]
+    fn animation_controls_disable_and_reset_frame_driven_updates() {
+        let bridge = animation_test_bridge(AnimationState {
+            running: true,
+            frame: 42,
+            phase: 0.5,
+        });
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 220.0));
+
+        assert!(runtime.bridge_mut().needs_animation());
+        let outcome = runtime.drain_runtime_messages();
+        assert_eq!(outcome.messages_dispatched, 1);
+        assert_status_contains(&runtime, "Running | frame 43 | phase 0.18");
+
+        click_widget(&mut runtime, 40);
+        assert!(!runtime.bridge_mut().needs_animation());
+        let outcome = runtime.drain_runtime_messages();
+        assert_eq!(outcome.messages_dispatched, 0);
+        assert_status_contains(&runtime, "Paused | frame 43 | phase 0.18");
+
+        click_widget(&mut runtime, 41);
+        assert!(!runtime.bridge_mut().needs_animation());
+        assert_status_contains(&runtime, "Paused | frame 0 | phase 0.00");
+    }
+
+    fn animation_test_bridge(
+        state: AnimationState,
+    ) -> impl radiant::runtime::RuntimeBridge<AnimationMessage> {
+        radiant::app(state)
+            .view(animation_view)
+            .animation(|state| state.running)
+            .on_frame(|| AnimationMessage::Frame)
+            .update(|state, message| match message {
+                AnimationMessage::Toggle => state.running = !state.running,
+                AnimationMessage::Frame => state.tick(),
+                AnimationMessage::Reset => state.reset(),
+            })
+            .into_bridge()
     }
 
     fn click_widget<Bridge>(runtime: &mut SurfaceRuntime<Bridge, AnimationMessage>, widget_id: u64)

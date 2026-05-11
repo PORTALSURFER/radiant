@@ -12,6 +12,7 @@ mod text_input_selection;
 pub(in crate::gui_runtime::native_vello) use cache::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,
 };
+pub(in crate::gui_runtime::native_vello) use frame::SceneTextRunBuffer;
 use frame::{encode_paint_frame_to_scene, flush_text_runs};
 use image::encode_image;
 use shape::{encode_polygon_fill, encode_polygon_stroke, encode_polyline_stroke, encode_rect};
@@ -176,7 +177,7 @@ pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, 'p
     pub bridge: &'a mut Bridge,
     pub viewport: Vector2,
     pub retained_cache: &'a mut RetainedSurfaceFrameCache,
-    pub text_runs: &'a mut Vec<SceneTextRun<'plan>>,
+    pub text_runs: &'a mut SceneTextRunBuffer<'plan>,
     pub gpu_surface_interaction_regions: &'a mut Vec<GpuSurfaceInteractionRegion>,
     pub animation_time: Duration,
 }

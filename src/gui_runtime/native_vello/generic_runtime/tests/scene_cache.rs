@@ -8,7 +8,7 @@ fn generic_paint_plan_encodes_to_vello_scene() {
     let mut scene = Scene::new();
     let mut text_renderer = NativeTextRenderer::new();
     let mut retained_cache = RetainedSurfaceFrameCache::default();
-    let mut text_runs = Vec::new();
+    let mut text_runs = SceneTextRunBuffer::new();
     let viewport = core.runtime.viewport();
 
     let plan = core.paint_plan();
@@ -37,7 +37,7 @@ fn generic_paint_plan_encodes_to_vello_scene() {
     assert_eq!(stats.text_input_count, expected_text_inputs);
     assert!(stats.text_run_count >= expected_text_primitives);
     assert!(text_runs.is_empty());
-    assert!(text_runs.capacity() >= expected_text_primitives);
+    assert_eq!(text_runs.overflow_capacity(), 0);
 }
 
 #[test]
@@ -46,7 +46,7 @@ fn scene_encoding_collects_fast_pointer_gpu_surface_hit_rects() {
     let mut scene = Scene::new();
     let mut text_renderer = NativeTextRenderer::new();
     let mut retained_cache = RetainedSurfaceFrameCache::default();
-    let mut text_runs = Vec::new();
+    let mut text_runs = SceneTextRunBuffer::new();
     let mut interaction_regions = Vec::new();
     let rect = Rect::from_min_size(Point::new(8.0, 12.0), Vector2::new(64.0, 32.0));
     let plan = SurfacePaintPlan {
@@ -102,7 +102,7 @@ fn retained_custom_surface_cache_skips_unchanged_bridge_render() {
     let mut scene = Scene::new();
     let mut text_renderer = NativeTextRenderer::new();
     let mut retained_cache = RetainedSurfaceFrameCache::default();
-    let mut text_runs = Vec::new();
+    let mut text_runs = SceneTextRunBuffer::new();
     let viewport = core.runtime.viewport();
     let plan = core.paint_plan();
 
@@ -143,7 +143,7 @@ fn retained_custom_surface_cache_keeps_multiple_stable_surfaces() {
     let mut scene = Scene::new();
     let mut text_renderer = NativeTextRenderer::new();
     let mut retained_cache = RetainedSurfaceFrameCache::default();
-    let mut text_runs = Vec::new();
+    let mut text_runs = SceneTextRunBuffer::new();
     let viewport = core.runtime.viewport();
     let plan = core.paint_plan();
 
@@ -181,7 +181,7 @@ fn retained_custom_surface_cache_rejects_current_dirty_descriptor() {
     let mut scene = Scene::new();
     let mut text_renderer = NativeTextRenderer::new();
     let mut retained_cache = RetainedSurfaceFrameCache::default();
-    let mut text_runs = Vec::new();
+    let mut text_runs = SceneTextRunBuffer::new();
     let viewport = core.runtime.viewport();
     let plan = core.paint_plan();
 
@@ -221,7 +221,7 @@ fn retained_custom_surface_cache_invalidates_dirty_descriptor_key() {
     let mut scene = Scene::new();
     let mut text_renderer = NativeTextRenderer::new();
     let mut retained_cache = RetainedSurfaceFrameCache::default();
-    let mut text_runs = Vec::new();
+    let mut text_runs = SceneTextRunBuffer::new();
     let viewport = core.runtime.viewport();
     let plan = core.paint_plan();
 
@@ -278,7 +278,7 @@ fn retained_custom_surface_cache_rejects_volatile_descriptor() {
     let mut scene = Scene::new();
     let mut text_renderer = NativeTextRenderer::new();
     let mut retained_cache = RetainedSurfaceFrameCache::default();
-    let mut text_runs = Vec::new();
+    let mut text_runs = SceneTextRunBuffer::new();
     let viewport = core.runtime.viewport();
     let plan = core.paint_plan();
 
@@ -315,7 +315,7 @@ fn encode_plan<'plan, Bridge, Message>(
     bridge: &mut Bridge,
     viewport: Vector2,
     retained_cache: &mut RetainedSurfaceFrameCache,
-    text_runs: &mut Vec<SceneTextRun<'plan>>,
+    text_runs: &mut SceneTextRunBuffer<'plan>,
 ) -> RetainedSurfaceEncodeStats
 where
     Bridge: RuntimeBridge<Message>,

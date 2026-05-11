@@ -107,9 +107,27 @@ pub trait RuntimeBridge<Message> {
         Vec::new()
     }
 
+    /// Drain commands into caller-owned scratch storage.
+    ///
+    /// Implementations can override this to avoid allocating a new vector for
+    /// every runtime drain. The default preserves compatibility with bridges
+    /// that only implement [`Self::take_runtime_commands`].
+    fn drain_runtime_commands_into(&mut self, commands: &mut Vec<Command<Message>>) {
+        commands.extend(self.take_runtime_commands());
+    }
+
     /// Drain messages delivered by app-level tasks, timers, or subscriptions.
     fn take_runtime_messages(&mut self) -> Vec<Message> {
         Vec::new()
+    }
+
+    /// Drain messages into caller-owned scratch storage.
+    ///
+    /// Implementations can override this to avoid allocating a new vector for
+    /// every runtime drain. The default preserves compatibility with bridges
+    /// that only implement [`Self::take_runtime_messages`].
+    fn drain_runtime_messages_into(&mut self, messages: &mut Vec<Message>) {
+        messages.extend(self.take_runtime_messages());
     }
 
     /// Return whether the host currently needs animation-driven redraws.

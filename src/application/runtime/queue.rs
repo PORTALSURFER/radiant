@@ -56,8 +56,17 @@ impl<Message> AppRuntime<Message> {
         pending
     }
 
+    pub(super) fn drain_pending_into(&self, pending: &mut Vec<Message>) {
+        drain_runtime_vec_into(&self.pending, pending);
+        self.frame_pending.store(false, Ordering::Release);
+    }
+
     pub(super) fn take_commands(&self) -> Vec<Command<Message>> {
         drain_runtime_vec(&self.commands)
+    }
+
+    pub(super) fn drain_commands_into(&self, commands: &mut Vec<Command<Message>>) {
+        drain_runtime_vec_into(&self.commands, commands);
     }
 
     pub(super) fn install_repaint(&self, signal: Arc<dyn RepaintSignal>) {
@@ -93,6 +102,11 @@ fn drain_runtime_vec<T>(state: &Mutex<Vec<T>>) -> Vec<T> {
     let mut queued = lock_runtime_state(state);
     let retained_capacity = queued.capacity();
     std::mem::replace(&mut *queued, Vec::with_capacity(retained_capacity))
+}
+
+fn drain_runtime_vec_into<T>(state: &Mutex<Vec<T>>, out: &mut Vec<T>) {
+    let mut queued = lock_runtime_state(state);
+    out.extend(queued.drain(..));
 }
 
 #[cfg(test)]
@@ -196,5 +210,43 @@ mod tests {
 
         let retained_capacity = runtime.commands.lock().expect("commands lock").capacity();
         assert_eq!(retained_capacity, capacity);
+    }
+
+    #[test]
+    fn pending_message_queue_drains_into_reused_output_without_replacing_queue_storage() {
+        let runtime = AppRuntime::<u32>::default();
+        for message in 0..32 {
+            assert!(runtime.enqueue(message));
+        }
+        let queue_capacity = runtime.pending.lock().expect("pending lock").capacity();
+        let mut pending = Vec::with_capacity(64);
+        let output_capacity = pending.capacity();
+
+        runtime.drain_pending_into(&mut pending);
+
+        assert_eq!(pending, (0..32).collect::<Vec<_>>());
+        assert_eq!(pending.capacity(), output_capacity);
+        let queue = runtime.pending.lock().expect("pending lock");
+        assert!(queue.is_empty());
+        assert_eq!(queue.capacity(), queue_capacity);
+    }
+
+    #[test]
+    fn command_queue_drains_into_reused_output_without_replacing_queue_storage() {
+        let runtime = AppRuntime::<u32>::default();
+        for message in 0..32 {
+            assert!(runtime.enqueue_command(Command::message(message)));
+        }
+        let queue_capacity = runtime.commands.lock().expect("commands lock").capacity();
+        let mut commands = Vec::with_capacity(64);
+        let output_capacity = commands.capacity();
+
+        runtime.drain_commands_into(&mut commands);
+
+        assert_eq!(commands.len(), 32);
+        assert_eq!(commands.capacity(), output_capacity);
+        let queue = runtime.commands.lock().expect("commands lock");
+        assert!(queue.is_empty());
+        assert_eq!(queue.capacity(), queue_capacity);
     }
 }

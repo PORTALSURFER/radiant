@@ -52,12 +52,24 @@ where
     /// Dispatch any messages queued by bridge-owned runtime work.
     pub fn drain_runtime_messages(&mut self) -> CommandOutcome {
         let mut outcome = CommandOutcome::default();
-        for command in self.bridge.take_runtime_commands() {
+        self.runtime_commands.clear();
+        self.bridge
+            .drain_runtime_commands_into(&mut self.runtime_commands);
+        let mut commands = std::mem::take(&mut self.runtime_commands);
+        for command in commands.drain(..) {
             self.execute_command_inner(command, &mut outcome);
         }
-        for message in self.bridge.take_runtime_messages() {
+        self.runtime_commands = commands;
+
+        self.runtime_messages.clear();
+        self.bridge
+            .drain_runtime_messages_into(&mut self.runtime_messages);
+        let mut messages = std::mem::take(&mut self.runtime_messages);
+        for message in messages.drain(..) {
             self.dispatch_message_inner(message, &mut outcome);
         }
+        self.runtime_messages = messages;
+
         self.refresh_if_requested(outcome.surface_refresh_requested);
         if outcome.surface_refresh_requested {
             self.repaint_requested = true;

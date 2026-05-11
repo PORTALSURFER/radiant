@@ -7,6 +7,7 @@ use radiant::{
         SizeModeCross, SizeModeMain, SlotChild, SlotParams, Vector2, VirtualizationAxis,
         VirtualizationPolicy, layout_tree, layout_tree_with_state,
     },
+    prelude::{IntoView, button, list_row, virtual_list},
     runtime::{
         Event, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent, PaintPrimitive,
         RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
@@ -42,6 +43,11 @@ fn main() {
         "layout_virtualized_fixed_scroll_10k",
         LAYOUT_ITERATIONS,
         move || fixed_scroll.step(),
+    );
+    run_scenario(
+        "app_virtual_list_projection_10k",
+        RUNTIME_ITERATIONS,
+        bench_app_virtual_list_projection_10k,
     );
     let runtime_surface = StatefulRuntimeSurfaceBench::new();
     run_scenario(
@@ -279,6 +285,27 @@ fn virtualized_scroll_tree(count: u64, size_main: SizeModeMain) -> LayoutNode {
             ),
         )],
     )
+}
+
+fn bench_app_virtual_list_projection_10k() {
+    let surface = virtual_list(
+        0..10_000_u64,
+        |index| {
+            list_row(
+                index,
+                [button(format!("Row {index:05}"))
+                    .message(())
+                    .fill_width()
+                    .height(28.0)],
+            )
+            .height(32.0)
+        },
+        96.0,
+    )
+    .into_surface();
+    let layout = surface.layout_node();
+    assert_eq!(layout.id(), 1);
+    black_box((surface, layout));
 }
 
 struct StatefulRuntimeSurfaceBench {

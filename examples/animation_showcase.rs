@@ -480,6 +480,7 @@ mod tests {
         let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 220.0));
 
         assert!(runtime.bridge_mut().needs_animation());
+        assert!(runtime.bridge_mut().queue_animation_frame());
         let outcome = runtime.drain_runtime_messages();
         assert_eq!(outcome.messages_dispatched, 1);
         assert_status_contains(&runtime, "Running | frame 43 | phase 0.24");
@@ -539,6 +540,7 @@ mod tests {
         let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 220.0));
 
         assert!(runtime.bridge_mut().needs_animation());
+        assert!(runtime.bridge_mut().queue_animation_frame());
         click_widget(&mut runtime, 41);
 
         let outcome = runtime.drain_runtime_messages();
@@ -561,6 +563,7 @@ mod tests {
         let point = rect.center();
 
         assert!(runtime.bridge_mut().needs_animation());
+        assert!(runtime.bridge_mut().queue_animation_frame());
         runtime.dispatch_event(Event::PointerPress {
             position: point,
             button: PointerButton::Primary,

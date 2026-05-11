@@ -293,6 +293,8 @@ fn application_builder_animation_frames_route_through_public_app_path() {
 
     assert!(runtime.bridge_mut().needs_animation());
     assert!(runtime.bridge_mut().needs_animation());
+    assert!(runtime.bridge_mut().queue_animation_frame());
+    assert!(!runtime.bridge_mut().queue_animation_frame());
     let drained = runtime.drain_runtime_messages();
 
     assert_eq!(drained.messages_dispatched, 1);

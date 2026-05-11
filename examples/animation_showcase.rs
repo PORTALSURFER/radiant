@@ -38,8 +38,14 @@ impl AnimationState {
     fn tick(&mut self) {
         if self.running {
             self.frame = self.frame.saturating_add(1);
-            self.phase = ((self.frame % 120) as f32) / 119.0;
+            self.phase = ((self.frame % 180) as f32) / 180.0;
         }
+    }
+
+    fn reset(&mut self) {
+        self.running = false;
+        self.frame = 0;
+        self.phase = 0.0;
     }
 }
 
@@ -54,10 +60,7 @@ fn main() -> radiant::Result {
         .update(|state, message| match message {
             AnimationMessage::Toggle => state.running = !state.running,
             AnimationMessage::Frame => state.tick(),
-            AnimationMessage::Reset => {
-                state.frame = 0;
-                state.phase = 0.0;
-            }
+            AnimationMessage::Reset => state.reset(),
         })
         .run()
 }
@@ -165,14 +168,15 @@ struct PulseMeterVisual {
 impl PulseMeterVisual {
     fn resolve(phase: f32) -> Self {
         let phase = phase.clamp(0.0, 1.0);
-        let eased = smoothstep(phase);
-        let pulse = (phase * std::f32::consts::TAU).sin() * 0.5 + 0.5;
-        let fill_width = (0.08 + eased * 0.9).clamp(0.02, 1.0);
-        let marker_width = 0.01 + pulse * 0.018;
-        let marker_offset = (fill_width - marker_width * 0.5).clamp(0.0, 1.0);
-        let glow_width = 0.08 + pulse * 0.12;
-        let glow_offset =
-            (marker_offset + marker_width * 0.5 - glow_width * 0.5).clamp(0.0, 1.0 - glow_width);
+        let angle = phase * std::f32::consts::TAU;
+        let travel = (1.0 - angle.cos()) * 0.5;
+        let pulse = angle.sin() * 0.5 + 0.5;
+        let fill_width = (0.16 + pulse * 0.68).clamp(0.12, 0.88);
+        let marker_width = 0.024 + pulse * 0.02;
+        let marker_offset = (travel * (1.0 - marker_width)).clamp(0.0, 1.0 - marker_width);
+        let glow_width = 0.14 + pulse * 0.16;
+        let marker_center = marker_offset + marker_width * 0.5;
+        let glow_offset = (marker_center - glow_width * 0.5).clamp(0.0, 1.0 - glow_width);
 
         Self {
             fill_width,
@@ -182,11 +186,6 @@ impl PulseMeterVisual {
             marker_width,
         }
     }
-}
-
-fn smoothstep(value: f32) -> f32 {
-    let value = value.clamp(0.0, 1.0);
-    value * value * (3.0 - 2.0 * value)
 }
 
 #[cfg(test)]
@@ -213,14 +212,15 @@ mod tests {
     #[test]
     fn pulse_meter_resolves_visible_motion_geometry() {
         let start = PulseMeterVisual::resolve(0.0);
-        let mid = PulseMeterVisual::resolve(0.5);
+        let peak = PulseMeterVisual::resolve(0.25);
+        let far_edge = PulseMeterVisual::resolve(0.5);
         let end = PulseMeterVisual::resolve(1.0);
 
-        assert!(mid.fill_width > start.fill_width + 0.2);
-        assert!(end.fill_width > mid.fill_width + 0.2);
-        assert!(mid.glow_width >= 0.08);
-        assert!(mid.marker_width >= 0.01);
-        assert!(mid.marker_offset > mid.glow_offset);
+        assert!(peak.fill_width > start.fill_width + 0.2);
+        assert_eq!(start.fill_width, end.fill_width);
+        assert!(peak.glow_width > start.glow_width);
+        assert!(peak.marker_width > start.marker_width);
+        assert!(far_edge.marker_offset > start.marker_offset + 0.9);
     }
 
     #[test]
@@ -279,10 +279,7 @@ mod tests {
         .update(|state, message| match message {
             AnimationMessage::Toggle => state.running = !state.running,
             AnimationMessage::Frame => state.tick(),
-            AnimationMessage::Reset => {
-                state.frame = 0;
-                state.phase = 0.0;
-            }
+            AnimationMessage::Reset => state.reset(),
         })
         .into_bridge();
         let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 220.0));

@@ -22,6 +22,9 @@ where
         let mut outcome = CommandOutcome::default();
         self.dispatch_message_inner(message, &mut outcome);
         self.refresh_if_requested(outcome.surface_refresh_requested);
+        if outcome.surface_refresh_requested {
+            self.repaint_requested = true;
+        }
         if outcome.exit_requested {
             self.exit_requested = true;
         }
@@ -37,6 +40,9 @@ where
         let mut outcome = CommandOutcome::default();
         self.execute_command_inner(command, &mut outcome);
         self.refresh_if_requested(outcome.surface_refresh_requested);
+        if outcome.surface_refresh_requested {
+            self.repaint_requested = true;
+        }
         if outcome.exit_requested {
             self.exit_requested = true;
         }
@@ -53,6 +59,9 @@ where
             self.dispatch_message_inner(message, &mut outcome);
         }
         self.refresh_if_requested(outcome.surface_refresh_requested);
+        if outcome.surface_refresh_requested {
+            self.repaint_requested = true;
+        }
         if outcome.exit_requested {
             self.exit_requested = true;
         }

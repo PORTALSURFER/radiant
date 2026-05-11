@@ -20,13 +20,21 @@ where
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello) struct GenericRouteOutcome {
     pub(in crate::gui_runtime::native_vello) routed: bool,
+    pub(in crate::gui_runtime::native_vello) redraw_requested: bool,
     pub(in crate::gui_runtime::native_vello) repaint_requested: bool,
     pub(in crate::gui_runtime::native_vello) exit_requested: bool,
 }
 
 impl GenericRouteOutcome {
     pub(super) fn needs_redraw(self) -> bool {
-        self.routed || self.repaint_requested
+        self.redraw_requested || self.repaint_requested
+    }
+
+    pub(super) fn merge(&mut self, other: Self) {
+        self.routed |= other.routed;
+        self.redraw_requested |= other.redraw_requested;
+        self.repaint_requested |= other.repaint_requested;
+        self.exit_requested |= other.exit_requested;
     }
 }
 
@@ -62,6 +70,7 @@ where
     fn route_outcome(&mut self, routed: bool) -> GenericRouteOutcome {
         GenericRouteOutcome {
             routed,
+            redraw_requested: routed,
             repaint_requested: self.runtime.take_repaint_requested(),
             exit_requested: self.runtime.take_exit_requested(),
         }
@@ -71,11 +80,22 @@ where
         &mut self,
         position: Point,
     ) -> GenericRouteOutcome {
+        let previous_hovered_widget = self.runtime.hovered_widget();
+        let previous_hovered_container = self.runtime.hovered_container();
         let routed = self
             .runtime
             .dispatch_event(crate::runtime::Event::PointerMove { position })
             .is_some();
-        self.route_outcome(routed)
+        let repaint_requested = self.runtime.take_repaint_requested();
+        let exit_requested = self.runtime.take_exit_requested();
+        let hover_changed = previous_hovered_widget != self.runtime.hovered_widget()
+            || previous_hovered_container != self.runtime.hovered_container();
+        GenericRouteOutcome {
+            routed,
+            redraw_requested: hover_changed || self.runtime.pointer_capture().is_some(),
+            repaint_requested,
+            exit_requested,
+        }
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_pointer_press(
@@ -164,6 +184,7 @@ where
         let outcome = self.runtime.drain_runtime_messages();
         GenericRouteOutcome {
             routed: outcome.messages_dispatched > 0,
+            redraw_requested: outcome.messages_dispatched > 0,
             repaint_requested: outcome.repaint_requested || self.runtime.take_repaint_requested(),
             exit_requested: outcome.exit_requested,
         }

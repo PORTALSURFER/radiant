@@ -32,8 +32,10 @@ pub use crate::gui_runtime::{
     run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
 };
 pub use bridge::{
-    App, DeclarativeCommandRuntimeBridge, DeclarativeRuntimeBridge, RuntimeBridge,
-    declarative_command_runtime_bridge, declarative_runtime_bridge,
+    App, DeclarativeCommandRuntimeBridge, DeclarativeOwnedCommandRuntimeBridge,
+    DeclarativeOwnedRuntimeBridge, DeclarativeRuntimeBridge, RuntimeBridge,
+    declarative_command_runtime_bridge, declarative_owned_command_runtime_bridge,
+    declarative_owned_runtime_bridge, declarative_runtime_bridge,
 };
 pub use command::Command;
 pub use controller::{

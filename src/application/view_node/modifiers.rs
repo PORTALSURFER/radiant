@@ -10,6 +10,7 @@ impl<Message> ViewNode<Message> {
     pub fn id(mut self, id: NodeId) -> Self {
         self.id = Some(id);
         self.key = None;
+        self.has_reserved_identity = true;
         self
     }
 
@@ -19,6 +20,7 @@ impl<Message> ViewNode<Message> {
     /// use names such as `"done"` or `"delete"` without colliding with sibling rows.
     pub fn key(mut self, key: impl ToString) -> Self {
         self.key = Some(key.to_string());
+        self.has_reserved_identity = true;
         self
     }
 

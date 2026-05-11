@@ -5,8 +5,26 @@ use std::collections::HashSet;
 
 impl<Message> ViewNode<Message> {
     pub(super) fn collect_reserved_ids(&self, scope: u64, ids: &mut HashSet<NodeId>) {
-        if let Some(id) = self.resolved_id(scope) {
-            ids.insert(id);
+        if !self.has_reserved_identity_in_subtree() {
+            return;
+        }
+        if self.has_reserved_identity {
+            match &self.kind {
+                ViewNodeKind::Runtime(node) => {
+                    if let Some(id) = self.resolved_id(scope) {
+                        ids.insert(id);
+                    }
+                    ids.insert(node.id());
+                }
+                _ => {
+                    if let Some(id) = self.resolved_id(scope) {
+                        ids.insert(id);
+                    }
+                }
+            }
+        }
+        if !self.has_reserved_descendant_identity {
+            return;
         }
         let child_scope = self.child_scope(scope);
         match &self.kind {
@@ -25,9 +43,6 @@ impl<Message> ViewNode<Message> {
             ViewNodeKind::Scroll { child } | ViewNodeKind::VirtualScroll { child, .. } => {
                 child.collect_reserved_ids(child_scope, ids)
             }
-            ViewNodeKind::Runtime(node) => {
-                ids.insert(node.id());
-            }
             _ => {}
         }
     }
@@ -45,7 +60,7 @@ impl<Message> ViewNode<Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::application::{ROOT_KEY_SCOPE, column, row_key};
+    use crate::application::{ROOT_KEY_SCOPE, column, row_key, text};
 
     #[test]
     fn reserved_id_collection_presizes_for_large_child_groups() {
@@ -61,5 +76,16 @@ mod tests {
 
         assert_eq!(ids.len(), 64);
         assert!(ids.capacity() >= 64);
+    }
+
+    #[test]
+    fn reserved_id_collection_skips_unreserved_descendants() {
+        let view: ViewNode<()> = row_key("row", [text("unreserved child")]);
+        let mut ids = HashSet::new();
+
+        view.collect_reserved_ids(ROOT_KEY_SCOPE, &mut ids);
+
+        assert_eq!(ids.len(), 1);
+        assert!(ids.contains(&view.resolved_id(ROOT_KEY_SCOPE).unwrap()));
     }
 }

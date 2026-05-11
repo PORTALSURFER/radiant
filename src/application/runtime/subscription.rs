@@ -41,7 +41,8 @@ impl<Message> Subscription<Message> {
 
     /// Batch multiple subscriptions.
     pub fn batch(subscription_iter: impl IntoIterator<Item = Subscription<Message>>) -> Self {
-        let mut subscriptions = Vec::new();
+        let subscription_iter = subscription_iter.into_iter();
+        let mut subscriptions = Vec::with_capacity(subscription_iter.size_hint().0);
         for subscription in subscription_iter {
             subscription.append_to_batch(&mut subscriptions);
         }

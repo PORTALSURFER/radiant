@@ -77,7 +77,8 @@ impl<Message> Command<Message> {
 
     /// Build a command that dispatches multiple commands in order.
     pub fn batch(command_iter: impl IntoIterator<Item = Command<Message>>) -> Self {
-        let mut commands = Vec::new();
+        let command_iter = command_iter.into_iter();
+        let mut commands = Vec::with_capacity(command_iter.size_hint().0);
         for command in command_iter {
             command.append_to_batch(&mut commands);
         }

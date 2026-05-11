@@ -3,8 +3,8 @@
 use radiant::{
     gui::types::ImageRgba,
     layout::{
-        ContainerKind, ContainerPolicy, LayoutDebugOptions, LayoutEngine, LayoutNode, LayoutState,
-        Point, Rect, SizeModeCross, SizeModeMain, SlotChild, SlotParams, Vector2,
+        ContainerKind, ContainerPolicy, LayoutDebugOptions, LayoutEngine, LayoutNode, LayoutOutput,
+        LayoutState, Point, Rect, SizeModeCross, SizeModeMain, SlotChild, SlotParams, Vector2,
         VirtualizationAxis, VirtualizationPolicy, layout_tree, layout_tree_with_state,
     },
     prelude::{
@@ -85,6 +85,12 @@ fn main() {
         "runtime_text_paint_plan_1k",
         RUNTIME_ITERATIONS,
         move || text_surface.step(),
+    );
+    let horizontal_scroll_surface = StatefulHorizontalScrollPaintBench::new();
+    run_scenario(
+        "runtime_horizontal_scroll_paint_1k",
+        RUNTIME_ITERATIONS,
+        move || horizontal_scroll_surface.step(),
     );
     let mut virtualized_wheel = StatefulVirtualizedWheelBench::new();
     run_scenario(
@@ -510,6 +516,35 @@ impl StatefulTextPaintPlanBench {
     }
 }
 
+struct StatefulHorizontalScrollPaintBench {
+    surface: UiSurface<()>,
+    layout: LayoutOutput,
+    theme: ThemeTokens,
+}
+
+impl StatefulHorizontalScrollPaintBench {
+    fn new() -> Self {
+        let surface = UiSurface::<()>::new(horizontal_scroll_surface_node(1_000));
+        let layout_node = surface.layout_node();
+        let layout = layout_tree(&layout_node, viewport(320.0, 80.0));
+        Self {
+            surface,
+            layout,
+            theme: ThemeTokens::default(),
+        }
+    }
+
+    fn step(&self) {
+        let plan = self.surface.paint_plan(&self.layout, &self.theme);
+        let stats = plan.stats();
+        assert!(
+            stats.text > 0 && stats.text < 16,
+            "horizontal clipped row paint should stay bounded to the visible clip"
+        );
+        black_box(plan);
+    }
+}
+
 struct StatefulVirtualizedWheelBench {
     runtime: SurfaceRuntime<VirtualWheelBridge, ()>,
     offset: f32,
@@ -830,6 +865,40 @@ fn text_paint_surface_node(count: u64) -> SurfaceNode<()> {
                 ..ContainerPolicy::default()
             },
             rows,
+        ),
+    )
+}
+
+fn horizontal_scroll_surface_node(count: u64) -> SurfaceNode<()> {
+    let items = (0..count)
+        .map(|index| {
+            SurfaceChild::new(
+                SlotParams {
+                    size_main: SizeModeMain::Fixed(88.0),
+                    size_cross: SizeModeCross::Fill,
+                    constraints: radiant::layout::Constraints::unconstrained(),
+                    margin: Default::default(),
+                    align_cross_override: None,
+                    allow_fixed_compress: false,
+                },
+                SurfaceNode::static_widget(TextWidget::new(
+                    90_000 + index,
+                    format!("Clip {index:04}"),
+                    WidgetSizing::fixed(Vector2::new(88.0, 24.0)),
+                )),
+            )
+        })
+        .collect();
+    SurfaceNode::scroll_area(
+        80_000,
+        SurfaceNode::container(
+            80_001,
+            ContainerPolicy {
+                kind: ContainerKind::Row,
+                spacing: 2.0,
+                ..ContainerPolicy::default()
+            },
+            items,
         ),
     )
 }

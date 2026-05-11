@@ -73,13 +73,14 @@ impl<'a> SurfacePaintContext<'a> {
         let Some(clip_rect) = self.clip_rect else {
             return false;
         };
-        if container.policy.kind != ContainerKind::Column {
+        let Some(rect) = self.layout.rects.get(&child_id) else {
             return false;
+        };
+        match container.policy.kind {
+            ContainerKind::Column => rect.min.y >= clip_rect.max.y,
+            ContainerKind::Row => rect.min.x >= clip_rect.max.x,
+            _ => false,
         }
-        self.layout
-            .rects
-            .get(&child_id)
-            .is_some_and(|rect| rect.min.y >= clip_rect.max.y)
     }
 }
 
@@ -267,5 +268,79 @@ impl<Message> SurfaceNode<Message> {
                 child.child.append_paint_with_context(context, plan);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        gui::types::{Point, Vector2},
+        layout::{ContainerPolicy, LayoutOutput},
+    };
+
+    fn child_is_past_ordered_clip_for(
+        kind: ContainerKind,
+        clip_rect: Rect,
+        child_id: NodeId,
+        child_rect: Rect,
+    ) -> bool {
+        let mut layout = LayoutOutput::default();
+        layout.rects.insert(child_id, child_rect);
+        let theme = ThemeTokens::default();
+        let context = SurfacePaintContext {
+            layout: &layout,
+            theme: &theme,
+            hovered_container: None,
+            active_scroll_affordance: None,
+            clip_rect: Some(clip_rect),
+        };
+        let container = SurfaceContainer::<()>::new(
+            1,
+            ContainerPolicy {
+                kind,
+                ..ContainerPolicy::default()
+            },
+            Vec::new(),
+        );
+        context.child_is_past_ordered_clip(&container, child_id)
+    }
+
+    #[test]
+    fn ordered_clip_detects_row_children_past_right_edge() {
+        let clip_rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 40.0));
+        let child_rect = Rect::from_min_size(Point::new(100.0, 0.0), Vector2::new(24.0, 20.0));
+
+        assert!(child_is_past_ordered_clip_for(
+            ContainerKind::Row,
+            clip_rect,
+            20,
+            child_rect
+        ));
+        assert!(!child_is_past_ordered_clip_for(
+            ContainerKind::Column,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 40.0)),
+            20,
+            Rect::from_min_size(Point::new(100.0, 0.0), Vector2::new(24.0, 20.0))
+        ));
+    }
+
+    #[test]
+    fn ordered_clip_detects_column_children_past_bottom_edge() {
+        let clip_rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 40.0));
+        let child_rect = Rect::from_min_size(Point::new(0.0, 40.0), Vector2::new(24.0, 20.0));
+
+        assert!(child_is_past_ordered_clip_for(
+            ContainerKind::Column,
+            clip_rect,
+            20,
+            child_rect
+        ));
+        assert!(!child_is_past_ordered_clip_for(
+            ContainerKind::Row,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 40.0)),
+            20,
+            Rect::from_min_size(Point::new(0.0, 40.0), Vector2::new(24.0, 20.0))
+        ));
     }
 }

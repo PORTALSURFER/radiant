@@ -162,10 +162,9 @@ impl GpuSurfaceRenderer {
         let Some(pipeline) = self.signal_pipeline.as_ref() else {
             return;
         };
-        let values = summary_buckets_as_f32s(buckets);
         let sample_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("radiant_gpu_signal_summary_buckets"),
-            contents: summary_bucket_bytes(&values),
+            contents: summary_bucket_bytes(buckets),
             usage: wgpu::BufferUsages::STORAGE,
         });
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -191,7 +190,7 @@ impl GpuSurfaceRenderer {
             key,
             SignalBuffer {
                 revision,
-                sample_count: values.len(),
+                sample_count,
                 pipeline_generation: self.signal_pipeline_generation,
                 _sample_buffer: sample_buffer,
                 uniform_buffer,

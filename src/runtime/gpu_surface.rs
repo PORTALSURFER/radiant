@@ -79,6 +79,7 @@ pub struct GpuSignalSummaryLevel {
 }
 
 /// Min/max summary for one band in one bucket.
+#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct GpuSignalSummaryBucket {
     /// Minimum sample value inside the bucket.

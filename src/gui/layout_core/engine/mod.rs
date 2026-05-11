@@ -65,20 +65,28 @@ impl LayoutEngine {
             .retain(|_, entry| !entry.dependencies.contains(&node_id));
     }
 
+    fn invalidate_virtual_cache_for_any(&mut self, node_ids: &HashSet<NodeId>) {
+        if node_ids.is_empty() {
+            return;
+        }
+        self.virtual_cache
+            .retain(|_, entry| entry.dependencies.is_disjoint(node_ids));
+    }
+
     fn mark_subtree_dirty(&mut self, root: &LayoutNode, node_id: NodeId, measure: bool) {
         let mut marked = HashSet::new();
         let mut path = Vec::new();
         if !dirty::collect_path_and_descendants(root, node_id, &mut path, &mut marked) {
             marked.insert(node_id);
         }
-        for id in marked {
+        for id in &marked {
             if measure {
-                self.measure_dirty.insert(id);
+                self.measure_dirty.insert(*id);
             } else {
-                self.layout_dirty.insert(id);
+                self.layout_dirty.insert(*id);
             }
-            self.invalidate_virtual_cache_for(id);
         }
+        self.invalidate_virtual_cache_for_any(&marked);
     }
 
     /// Compute layout output for `root` in `root_rect` using default state/options.

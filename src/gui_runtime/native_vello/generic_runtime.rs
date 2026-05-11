@@ -215,7 +215,6 @@ where
 
     fn rebuild_scene(&mut self) {
         let plan = self.core.paint_plan();
-        self.update_gpu_surface_hit_rects(&plan.primitives);
         let viewport = self.core.runtime.viewport();
         let mut scene_text_runs = Vec::with_capacity(plan.primitives.len().min(64));
         self.last_scene_stats = encode_surface_paint_plan_to_scene(
@@ -227,6 +226,8 @@ where
                 viewport,
                 retained_cache: &mut self.retained_surface_cache,
                 text_runs: &mut scene_text_runs,
+                fast_pointer_move_gpu_surface_hit_rects: &mut self
+                    .fast_pointer_move_gpu_surface_hit_rects,
                 animation_time: self.animation_origin.elapsed(),
             },
         );
@@ -243,13 +244,6 @@ where
             self.rebuild_scene();
             self.request_redraw_if_needed();
         }
-    }
-
-    fn update_gpu_surface_hit_rects(&mut self, primitives: &[PaintPrimitive]) {
-        collect_fast_pointer_move_gpu_surface_hit_rects(
-            primitives,
-            &mut self.fast_pointer_move_gpu_surface_hit_rects,
-        );
     }
 }
 

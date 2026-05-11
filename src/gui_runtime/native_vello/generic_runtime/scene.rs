@@ -1,6 +1,7 @@
 //! Scene encoding for generic runtime paint plans.
 
 use crate::gui_runtime::native_vello::*;
+use crate::layout::Rect;
 
 mod cache;
 mod frame;
@@ -34,10 +35,12 @@ where
         viewport,
         retained_cache,
         text_runs,
+        fast_pointer_move_gpu_surface_hit_rects,
         animation_time,
     } = context;
     scene.reset();
     text_runs.clear();
+    fast_pointer_move_gpu_surface_hit_rects.clear();
     let mut stats = RetainedSurfaceEncodeStats {
         paint_plan_primitives: plan.primitives.len(),
         ..RetainedSurfaceEncodeStats::default()
@@ -121,8 +124,11 @@ where
                     draw.rect,
                 );
             }
-            PaintPrimitive::GpuSurface(_) => {
+            PaintPrimitive::GpuSurface(surface) => {
                 stats.gpu_surface_count = stats.gpu_surface_count.saturating_add(1);
+                if surface.capabilities.fast_pointer_move {
+                    fast_pointer_move_gpu_surface_hit_rects.push(surface.rect);
+                }
             }
             PaintPrimitive::CustomSurface(custom) => {
                 stats.custom_surface_count = stats.custom_surface_count.saturating_add(1);
@@ -171,5 +177,6 @@ pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, 'p
     pub viewport: Vector2,
     pub retained_cache: &'a mut RetainedSurfaceFrameCache,
     pub text_runs: &'a mut Vec<SceneTextRun<'plan>>,
+    pub fast_pointer_move_gpu_surface_hit_rects: &'a mut Vec<Rect>,
     pub animation_time: Duration,
 }

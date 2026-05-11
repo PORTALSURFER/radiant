@@ -38,12 +38,16 @@ where
             ),
         );
         self.relayout_current_surface();
+        let offset = self.layout_state.scroll_offset(node_id);
+        if offset == current {
+            return true;
+        }
         let update = ScrollUpdate {
             node_id,
             position: point,
             delta,
             previous_offset: current,
-            offset: self.layout_state.scroll_offset(node_id),
+            offset,
         };
         self.report_scroll_update(update);
         true

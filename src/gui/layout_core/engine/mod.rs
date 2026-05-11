@@ -15,7 +15,7 @@ use crate::gui::types::{Point, Rect, Vector2};
 use std::collections::{BTreeSet, HashMap};
 
 use cache::{CachedVirtualMetrics, MeasureCacheKey, VirtualizationCacheKey};
-use context::LayoutContext;
+use context::{LayoutContext, LayoutScratch};
 pub use types::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
     LayoutDiagnosticCode, LayoutOutput, LayoutState, LayoutStats, OverflowInfo, VirtualWindowInfo,
@@ -26,6 +26,7 @@ pub use types::{
 pub struct LayoutEngine {
     measure_cache: HashMap<MeasureCacheKey, Vector2>,
     virtual_cache: HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
+    scratch: LayoutScratch,
     layout_dirty: BTreeSet<NodeId>,
     measure_dirty: BTreeSet<NodeId>,
 }
@@ -114,6 +115,7 @@ impl LayoutEngine {
             let mut context = LayoutContext::new(
                 &mut self.measure_cache,
                 &mut self.virtual_cache,
+                &mut self.scratch,
                 &self.measure_dirty,
                 state,
                 debug,

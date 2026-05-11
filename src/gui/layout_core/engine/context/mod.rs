@@ -18,17 +18,25 @@ use crate::gui::layout_core::tree::NodeId;
 use crate::gui::types::Vector2;
 use std::collections::{BTreeSet, HashMap};
 
+/// Reusable scratch maps cleared at the start of each layout evaluation.
+#[derive(Default)]
+pub(super) struct LayoutScratch {
+    pub(super) measured: HashMap<MeasureCacheKey, Vector2>,
+    pub(super) measured_by_node: HashMap<NodeId, Vector2>,
+    pub(super) linear_windows: HashMap<NodeId, ResolvedLinearWindow>,
+}
+
 /// Shared mutable scratch state for one layout-engine evaluation.
 ///
 /// This type centralizes the transient caches, diagnostic sinks, and debug
 /// recording needed by the engine's measure and layout passes so those passes
 /// can share one consistent view of normalization and overflow state.
 pub(super) struct LayoutContext<'a> {
-    measured: HashMap<MeasureCacheKey, Vector2>,
-    measured_by_node: HashMap<NodeId, Vector2>,
+    measured: &'a mut HashMap<MeasureCacheKey, Vector2>,
+    measured_by_node: &'a mut HashMap<NodeId, Vector2>,
     cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
     virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
-    linear_windows: HashMap<NodeId, ResolvedLinearWindow>,
+    linear_windows: &'a mut HashMap<NodeId, ResolvedLinearWindow>,
     measure_dirty: &'a BTreeSet<NodeId>,
     state: &'a LayoutState,
     debug_options: LayoutDebugOptions,
@@ -41,17 +49,21 @@ impl<'a> LayoutContext<'a> {
     pub(super) fn new(
         cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
         virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
+        scratch: &'a mut LayoutScratch,
         measure_dirty: &'a BTreeSet<NodeId>,
         state: &'a LayoutState,
         debug_options: LayoutDebugOptions,
         debug_node_filter: Option<&'a BTreeSet<NodeId>>,
     ) -> Self {
+        scratch.measured.clear();
+        scratch.measured_by_node.clear();
+        scratch.linear_windows.clear();
         Self {
-            measured: HashMap::new(),
-            measured_by_node: HashMap::new(),
+            measured: &mut scratch.measured,
+            measured_by_node: &mut scratch.measured_by_node,
             cache,
             virtual_cache,
-            linear_windows: HashMap::new(),
+            linear_windows: &mut scratch.linear_windows,
             measure_dirty,
             state,
             debug_options,

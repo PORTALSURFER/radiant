@@ -193,6 +193,21 @@ impl SurfaceTraversalIndex {
                 .saturating_sub(self.scroll_content_by_container.capacity()),
         );
     }
+
+    pub(in crate::runtime) fn clear_for_reuse(&mut self) {
+        self.widget_paint_order.clear();
+        self.focusable_widget_order.clear();
+        self.keyboard_focus_order.clear();
+        self.pointer_hit_order.clear();
+        self.wheel_hit_order.clear();
+        self.widget_paths.clear();
+        self.container_hover_suppression.clear();
+        self.styled_container_order.clear();
+        self.scroll_container_order.clear();
+        self.widget_clip_ancestors.clear();
+        self.container_clip_ancestors.clear();
+        self.scroll_content_by_container.clear();
+    }
 }
 
 impl<Message> SurfaceNode<Message> {

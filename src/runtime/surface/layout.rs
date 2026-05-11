@@ -34,8 +34,9 @@ impl<Message> UiSurface<Message> {
         &self,
         traversal: &mut SurfaceTraversalIndex,
     ) -> LayoutNode {
-        let stats = self.root.runtime_traversal_stats();
-        self.runtime_projection_into(traversal, stats)
+        traversal.clear_for_reuse();
+        self.root
+            .project_runtime(&mut Vec::new(), &mut Vec::new(), traversal)
     }
 }
 

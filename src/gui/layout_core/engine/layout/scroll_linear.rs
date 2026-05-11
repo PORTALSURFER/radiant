@@ -46,9 +46,10 @@ pub(super) fn build_linear_metrics(
         allocate_fill_sizes(horizontal, remaining, summary.fill_weight, &mut states);
     }
 
-    let (mut sizes, mut total_main) = resolved_main_sizes(&states);
+    let mut total_main = resolved_main_total(&states);
     total_main += summary.margin_total + spacing_total;
-    if total_main > available_main {
+    let adjusted_sizes = if total_main > available_main {
+        let (mut sizes, _) = resolved_main_sizes(&states);
         apply_linear_overflow_policy(
             content,
             horizontal,
@@ -59,7 +60,10 @@ pub(super) fn build_linear_metrics(
             context,
         );
         total_main = sizes.iter().sum::<f32>() + summary.margin_total + spacing_total;
-    }
+        Some(sizes)
+    } else {
+        None
+    };
 
     let (leading_offset, distributed_spacing) = align_main_offsets(
         content.policy.align_main,
@@ -85,7 +89,10 @@ pub(super) fn build_linear_metrics(
             slot_child.slot.margin.bottom
         };
         cursor += margin_before;
-        let size = sizes[index].max(0.0);
+        let size = adjusted_sizes
+            .as_ref()
+            .map_or_else(|| resolved_main_size(state), |sizes| sizes[index])
+            .max(0.0);
         spans.push(VirtualSpan {
             start: cursor,
             end: cursor + size,
@@ -101,6 +108,18 @@ pub(super) fn build_linear_metrics(
         total_main,
         leading_offset,
         distributed_spacing,
+    }
+}
+
+fn resolved_main_total(states: &[LinearLayoutState<'_>]) -> f32 {
+    states.iter().map(resolved_main_size).sum()
+}
+
+fn resolved_main_size(state: &LinearLayoutState<'_>) -> f32 {
+    if state.fill > 0.0 {
+        state.fill
+    } else {
+        state.main
     }
 }
 

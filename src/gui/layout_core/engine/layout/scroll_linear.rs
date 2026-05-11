@@ -11,7 +11,7 @@ use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{SizeModeMain, VirtualizationAxis};
 use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, NodeId, SlotChild, WidgetNode};
 use crate::gui::types::Vector2;
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 /// Resolve full linear sizing/alignment and return virtualizable span metrics.
 pub(super) fn build_linear_metrics(
@@ -265,7 +265,7 @@ pub(super) fn metrics_is_valid(metrics: &LinearVirtualMetrics, expected_len: usi
 /// Collect all node ids under a content container for precise cache invalidation.
 pub(super) fn collect_subtree_ids_from_container(
     container: &ContainerNode,
-    out: &mut BTreeSet<NodeId>,
+    out: &mut HashSet<NodeId>,
 ) {
     out.insert(container.id);
     for child in &container.children {
@@ -328,7 +328,7 @@ fn resolve_main_for_virtual(
     )
 }
 
-fn collect_subtree_ids(node: &LayoutNode, out: &mut BTreeSet<NodeId>) {
+fn collect_subtree_ids(node: &LayoutNode, out: &mut HashSet<NodeId>) {
     out.insert(node.id());
     if let LayoutNode::Container(container) = node {
         for child in &container.children {

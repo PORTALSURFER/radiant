@@ -124,15 +124,13 @@ fn pulse_meter_revision(phase: f32) -> u64 {
 fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFrame {
     let visual = PulseMeterVisual::resolve(phase);
     let track = inset(bounds, 2.0, 7.0);
+    let rail = inset(track, 8.0, 10.0);
+    let trail = inset(track, 8.0, 6.0);
     let center_y = (track.min.y + track.max.y) * 0.5;
     let mut frame = PaintFrame::default();
     frame.primitives.reserve(13);
     push_rect(&mut frame, track, theme.surface_base);
-    push_rect(
-        &mut frame,
-        inset(track, 1.0, 9.0),
-        with_alpha(theme.grid_soft, 120),
-    );
+    push_rect(&mut frame, rail, with_alpha(theme.grid_soft, 120));
     for echo in visual.echoes {
         push_ratio_circle(
             &mut frame,
@@ -145,10 +143,10 @@ fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFram
     }
     push_ratio_rect(
         &mut frame,
-        inset(track, 0.0, 6.0),
-        visual.glow_start,
-        visual.glow_width,
-        visual.glow_color,
+        trail,
+        visual.trail_start,
+        visual.trail_width,
+        visual.trail_color,
     );
     push_ratio_circle(
         &mut frame,
@@ -160,7 +158,7 @@ fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFram
     );
     push_ratio_rect(
         &mut frame,
-        track,
+        inset(track, 2.0, 3.0),
         visual.marker_start,
         visual.marker_width,
         theme.text_primary,
@@ -235,9 +233,9 @@ fn with_alpha(mut color: Rgba8, alpha: u8) -> Rgba8 {
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct PulseMeterVisual {
     echoes: [PulseEcho; 3],
-    glow_start: f32,
-    glow_width: f32,
-    glow_color: Rgba8,
+    trail_start: f32,
+    trail_width: f32,
+    trail_color: Rgba8,
     core_center: f32,
     core_radius: f32,
     marker_start: f32,
@@ -255,26 +253,26 @@ impl PulseMeterVisual {
     fn resolve(phase: f32) -> Self {
         let phase = phase.clamp(0.0, 1.0);
         let pulse = smoothstep(0.0, 1.0, 1.0 - (phase * 2.0 - 1.0).abs());
-        let marker_width = 0.018;
-        let core_radius = 4.5 + pulse * 3.0;
-        let glow_width = 0.060 + pulse * 0.032;
+        let marker_width = 0.012;
+        let core_radius = 5.5 + pulse * 2.5;
+        let trail_width = 0.14 + pulse * 0.05;
         let marker_center = phase * (1.0 - marker_width) + marker_width * 0.5;
         let marker_start = (marker_center - marker_width * 0.5).clamp(0.0, 1.0 - marker_width);
-        let glow_start = (marker_center - glow_width * 0.5).clamp(0.0, 1.0 - glow_width);
+        let trail_start = (marker_center - trail_width).clamp(0.0, 1.0 - trail_width);
 
         Self {
             echoes: [
-                Self::echo(marker_center, 0.10, 4.0, 72),
-                Self::echo(marker_center, 0.18, 3.2, 48),
-                Self::echo(marker_center, 0.26, 2.6, 32),
+                Self::echo(marker_center, 0.09, 4.0, 80),
+                Self::echo(marker_center, 0.16, 3.2, 56),
+                Self::echo(marker_center, 0.23, 2.6, 36),
             ],
-            glow_start,
-            glow_width,
-            glow_color: Rgba8 {
+            trail_start,
+            trail_width,
+            trail_color: Rgba8 {
                 r: 255,
                 g: 104,
                 b: 60,
-                a: 96,
+                a: 120,
             },
             core_center: marker_center,
             core_radius,
@@ -335,7 +333,7 @@ mod tests {
         assert!(far_edge.marker_start > peak.marker_start + 0.20);
         assert!(end.marker_start > far_edge.marker_start + 0.45);
         assert!(peak.core_radius > start.core_radius);
-        assert!(peak.glow_width > start.glow_width);
+        assert!(peak.trail_width > start.trail_width);
         assert_eq!(start.marker_width, end.marker_width);
         assert!(far_edge.echoes[0].center > peak.echoes[0].center + 0.20);
         assert_eq!(start.echoes[0].radius, 0.0);
@@ -373,7 +371,7 @@ mod tests {
         assert!(
             fills
                 .iter()
-                .any(|fill| fill.rect.width() > 25.0 && fill.rect.width() < 45.0)
+                .any(|fill| fill.rect.width() > 60.0 && fill.rect.width() < 90.0)
         );
         assert!(circles.iter().any(|circle| circle.radius > 6.0));
         assert!(circles.iter().any(|circle| circle.color.a < 70));
@@ -382,6 +380,13 @@ mod tests {
                 .iter()
                 .all(|fill| fill.color != ThemeTokens::default().highlight_orange),
             "pulse paint should not collapse into one large filled slab"
+        );
+        assert!(
+            fills
+                .iter()
+                .filter(|fill| fill.color.r > 240 && fill.color.g < 140)
+                .all(|fill| fill.rect.width() < 90.0),
+            "pulse accent should stay localized instead of reading as a progress bar"
         );
         assert_ne!(fills[0].color, fills[1].color);
     }

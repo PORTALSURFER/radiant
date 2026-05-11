@@ -3,7 +3,7 @@
 use super::super::constraints::Constraints;
 use super::super::model::VirtualizationAxis;
 use super::super::tree::{ContainerNode, LayoutNode, NodeId};
-use std::{collections::BTreeSet, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(in crate::gui::layout_core::engine) struct ConstraintKey {
@@ -128,7 +128,7 @@ pub(in crate::gui::layout_core::engine) struct ResolvedLinearWindow {
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::gui::layout_core::engine) struct CachedVirtualMetrics {
     pub(super) metrics: Arc<LinearVirtualMetrics>,
-    pub(super) dependencies: BTreeSet<NodeId>,
+    pub(super) dependencies: HashSet<NodeId>,
 }
 
 pub(in crate::gui::layout_core::engine) fn virtualization_policy_fingerprint(

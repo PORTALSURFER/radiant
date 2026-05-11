@@ -3,6 +3,21 @@ use crate::runtime::paint::resolve_scroll_affordance;
 
 const SCROLLBAR_HIT_WIDTH: f32 = 10.0;
 
+/// Runtime-owned scroll movement reported to host bridges.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScrollUpdate {
+    /// Scroll container node that accepted the movement.
+    pub node_id: NodeId,
+    /// Pointer position that selected the scroll container.
+    pub position: Point,
+    /// Requested logical scroll delta.
+    pub delta: Vector2,
+    /// Scroll offset before the movement.
+    pub previous_offset: Vector2,
+    /// Scroll offset after layout clamping.
+    pub offset: Vector2,
+}
+
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
@@ -23,6 +38,18 @@ where
             ),
         );
         self.relayout_current_surface();
+        let update = ScrollUpdate {
+            node_id,
+            position: point,
+            delta,
+            previous_offset: current,
+            offset: self.layout_state.scroll_offset(node_id),
+        };
+        let command = self.bridge.scroll_updated(update);
+        let outcome = self.execute_command(command);
+        if outcome.repaint_requested || outcome.surface_refresh_requested {
+            self.repaint_requested = true;
+        }
         true
     }
 

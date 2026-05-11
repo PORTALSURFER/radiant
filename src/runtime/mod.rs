@@ -37,7 +37,8 @@ pub use bridge::{
 };
 pub use command::Command;
 pub use controller::{
-    CommandOutcome, Event, FocusTraversal, RuntimeContext, RuntimeSurfaceFrame, SurfaceRuntime,
+    CommandOutcome, Event, FocusTraversal, RuntimeContext, RuntimeSurfaceFrame, ScrollUpdate,
+    SurfaceRuntime,
 };
 pub use gpu_surface::{
     GpuHoverCursor, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,

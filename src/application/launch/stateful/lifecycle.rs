@@ -1,6 +1,6 @@
 use super::StatefulAppWithView;
 use crate::application::{
-    AppAnimation, AppBridgeLifecycle, AppCloseRequested, AppFrameMessage, AppShortcuts,
+    AppAnimation, AppBridgeLifecycle, AppCloseRequested, AppFrameMessage, AppScroll, AppShortcuts,
     AppShutdown, AppStartup, AppSubscriptions, RetainedPainter,
 };
 use crate::{
@@ -15,6 +15,7 @@ pub(super) struct StatefulLifecycle<State, Message> {
     pub(super) frame_message: Option<AppFrameMessage<Message>>,
     pub(super) subscriptions: Option<AppSubscriptions<State, Message>>,
     pub(super) shortcuts: Option<AppShortcuts<State, Message>>,
+    pub(super) scroll: Option<AppScroll<State, Message>>,
     pub(super) startup: Option<AppStartup<State, Message>>,
     pub(super) shutdown: Option<AppShutdown<State>>,
     pub(super) close_requested: Option<AppCloseRequested<State>>,
@@ -28,6 +29,7 @@ impl<State, Message> Default for StatefulLifecycle<State, Message> {
             frame_message: None,
             subscriptions: None,
             shortcuts: None,
+            scroll: None,
             startup: None,
             shutdown: None,
             close_requested: None,
@@ -43,6 +45,7 @@ impl<State, Message> StatefulLifecycle<State, Message> {
             frame_message: self.frame_message,
             subscriptions: self.subscriptions,
             shortcuts: self.shortcuts,
+            scroll: self.scroll,
             startup: self.startup,
             shutdown: self.shutdown,
             close_requested: self.close_requested,
@@ -91,6 +94,16 @@ where
         + 'static,
     ) -> Self {
         self.lifecycle.shortcuts = Some(Box::new(shortcuts));
+        self
+    }
+
+    /// Observe runtime-owned scroll movement before the next paint.
+    pub fn on_scroll(
+        mut self,
+        scroll: impl FnMut(&mut State, crate::runtime::ScrollUpdate, &mut UpdateContext<Message>)
+        + 'static,
+    ) -> Self {
+        self.lifecycle.scroll = Some(Box::new(scroll));
         self
     }
 

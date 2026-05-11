@@ -15,6 +15,7 @@ mod state;
 pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame};
 pub use events::Event;
+pub use scroll::ScrollUpdate;
 
 use super::{
     ClipAncestors, Command, RuntimeBridge, SurfaceFrame, SurfacePaintPlan,

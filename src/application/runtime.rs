@@ -4,6 +4,7 @@ use crate::{
         shortcuts::ShortcutResolution, types::Rect,
     },
     layout::Vector2,
+    runtime::ScrollUpdate,
     widgets::RetainedSurfaceDescriptor,
 };
 use std::sync::Arc;
@@ -35,6 +36,8 @@ pub(in crate::application) type AppShutdown<State> =
 pub(in crate::application) type AppCloseRequested<State> = Box<dyn FnMut(&mut State) -> bool>;
 pub(in crate::application) type AppUpdate<State, Message> =
     Box<dyn FnMut(&mut State, Message, &mut UpdateContext<Message>)>;
+pub(in crate::application) type AppScroll<State, Message> =
+    Box<dyn FnMut(&mut State, ScrollUpdate, &mut UpdateContext<Message>)>;
 pub(in crate::application) type StateStringCallback<State> =
     Arc<dyn Fn(&mut State, String) + Send + Sync>;
 pub(in crate::application) type StateCallback<State> = Arc<dyn Fn(&mut State) + Send + Sync>;

@@ -91,9 +91,8 @@ fn lock_runtime_state<T>(state: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 
 fn drain_runtime_vec<T>(state: &Mutex<Vec<T>>) -> Vec<T> {
     let mut queued = lock_runtime_state(state);
-    let mut drained = Vec::with_capacity(queued.len());
-    drained.extend(queued.drain(..));
-    drained
+    let retained_capacity = queued.capacity();
+    std::mem::replace(&mut *queued, Vec::with_capacity(retained_capacity))
 }
 
 #[cfg(test)]
@@ -175,7 +174,9 @@ mod tests {
         }
         let capacity = runtime.pending.lock().expect("pending lock").capacity();
 
-        assert_eq!(runtime.take_pending().len(), 32);
+        let pending = runtime.take_pending();
+        assert_eq!(pending.len(), 32);
+        assert_eq!(pending.capacity(), capacity);
 
         let retained_capacity = runtime.pending.lock().expect("pending lock").capacity();
         assert_eq!(retained_capacity, capacity);
@@ -189,7 +190,9 @@ mod tests {
         }
         let capacity = runtime.commands.lock().expect("commands lock").capacity();
 
-        assert_eq!(runtime.take_commands().len(), 32);
+        let commands = runtime.take_commands();
+        assert_eq!(commands.len(), 32);
+        assert_eq!(commands.capacity(), capacity);
 
         let retained_capacity = runtime.commands.lock().expect("commands lock").capacity();
         assert_eq!(retained_capacity, capacity);

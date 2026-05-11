@@ -55,8 +55,13 @@ where
             .dispatch_event(crate::runtime::Event::Resize { viewport });
     }
 
+    #[cfg(test)]
     pub(super) fn paint_plan(&self) -> crate::runtime::SurfacePaintPlan {
         self.runtime.paint_plan(&self.theme)
+    }
+
+    pub(super) fn paint_plan_into(&self, plan: &mut crate::runtime::SurfacePaintPlan) {
+        self.runtime.paint_plan_into(&self.theme, plan);
     }
 
     pub(super) fn refresh_surface(&mut self) {

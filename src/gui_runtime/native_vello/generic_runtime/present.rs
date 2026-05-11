@@ -45,7 +45,7 @@ where
             self.deferred_surface_refresh = false;
             profile.refresh_surface = started.elapsed();
             let started = Instant::now();
-            self.last_paint_plan = self.core.paint_plan();
+            self.core.paint_plan_into(&mut self.last_paint_plan);
             profile.paint_plan = started.elapsed();
             collect_gpu_surface_interaction_regions(
                 &self.last_paint_plan.primitives,

@@ -213,11 +213,11 @@ where
     }
 
     fn rebuild_scene(&mut self) {
-        let plan = self.core.paint_plan();
+        self.core.paint_plan_into(&mut self.last_paint_plan);
         let viewport = self.core.runtime.viewport();
-        let mut scene_text_runs = Vec::with_capacity(plan.primitives.len().min(64));
+        let mut scene_text_runs = Vec::with_capacity(self.last_paint_plan.primitives.len().min(64));
         self.last_scene_stats = encode_surface_paint_plan_to_scene(
-            &plan,
+            &self.last_paint_plan,
             SurfaceSceneEncodeContext {
                 scene: &mut self.scene,
                 text_renderer: &mut self.text_renderer,
@@ -230,7 +230,6 @@ where
             },
         );
         self.scene_texture_dirty = true;
-        self.last_paint_plan = plan;
     }
 
     fn handle_route_outcome(&mut self, event_loop: &ActiveEventLoop, outcome: GenericRouteOutcome) {

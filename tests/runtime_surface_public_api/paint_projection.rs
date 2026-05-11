@@ -58,6 +58,25 @@ fn retained_canvas_metadata_reaches_backend_neutral_paint_plan() {
 }
 
 #[test]
+fn surface_paint_plan_into_reuses_existing_primitive_storage() {
+    let surface = project_surface(&mut DemoState::default());
+    let output = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(420.0, 32.0)),
+    );
+    let theme = ThemeTokens::default();
+    let expected = surface.paint_plan(&output, &theme);
+    let mut plan = SurfacePaintPlan::empty(&theme);
+    plan.primitives.reserve(128);
+    let capacity = plan.primitives.capacity();
+
+    surface.paint_plan_into(&output, &theme, &mut plan);
+
+    assert_eq!(plan, expected);
+    assert_eq!(plan.primitives.capacity(), capacity);
+}
+
+#[test]
 fn view_and_element_aliases_match_runtime_surface_types() {
     let surface: Arc<View<DemoMessage>> = project_surface(&mut DemoState::default());
     let root: &Element<DemoMessage> = surface.root();

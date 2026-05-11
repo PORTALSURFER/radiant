@@ -56,12 +56,24 @@ where
 
     /// Project the current surface and layout into backend-neutral paint data.
     pub fn paint_plan(&self, theme: &ThemeTokens) -> SurfacePaintPlan {
-        self.surface.paint_plan_with_hover(
+        let mut plan =
+            SurfacePaintPlan::empty_with_capacity(theme, self.layout.rects.len().saturating_mul(2));
+        self.paint_plan_into(theme, &mut plan);
+        plan
+    }
+
+    /// Project the current runtime paint data into an existing plan buffer.
+    ///
+    /// This avoids reallocating primitive storage for renderers that rebuild a
+    /// paint plan every frame.
+    pub fn paint_plan_into(&self, theme: &ThemeTokens, plan: &mut SurfacePaintPlan) {
+        self.surface.paint_plan_with_hover_into(
             &self.layout,
             theme,
             self.hovered_container,
             self.hovered_scroll_affordance,
-        )
+            plan,
+        );
     }
 
     /// Package the current runtime viewport, layout, and paint plan for a host renderer.

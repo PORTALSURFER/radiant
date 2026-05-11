@@ -1,53 +1,46 @@
 use crate::layout::NodeId;
-use std::collections::HashSet;
 
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 pub(in crate::application) struct IdGenerator {
     next: NodeId,
-    reserved: HashSet<NodeId>,
-    sorted_reserved: Option<Vec<NodeId>>,
-    sorted_reserved_cursor: usize,
+    reserved: Vec<NodeId>,
+    reserved_cursor: usize,
 }
 
 impl IdGenerator {
-    pub(in crate::application) fn new(reserved: HashSet<NodeId>) -> Self {
+    pub(in crate::application) fn new(mut reserved: Vec<NodeId>) -> Self {
+        reserved.sort_unstable();
+        reserved.dedup();
         Self {
             next: 1,
             reserved,
-            sorted_reserved: None,
-            sorted_reserved_cursor: 0,
+            reserved_cursor: 0,
         }
     }
 
     pub(in crate::application) fn next(&mut self) -> NodeId {
-        while self.reserved.contains(&self.next) {
-            self.skip_reserved_run();
-        }
+        self.skip_reserved_run();
         let id = self.next;
-        self.reserved.insert(id);
         self.next += 1;
         id
     }
 
     fn skip_reserved_run(&mut self) {
-        let sorted_reserved = self.sorted_reserved.get_or_insert_with(|| {
-            let mut ids: Vec<NodeId> = self.reserved.iter().copied().collect();
-            ids.sort_unstable();
-            ids
-        });
-        while sorted_reserved
-            .get(self.sorted_reserved_cursor)
+        while self
+            .reserved
+            .get(self.reserved_cursor)
             .is_some_and(|reserved| *reserved < self.next)
         {
-            self.sorted_reserved_cursor += 1;
+            self.reserved_cursor += 1;
         }
-        while sorted_reserved
-            .get(self.sorted_reserved_cursor)
+        while self
+            .reserved
+            .get(self.reserved_cursor)
             .is_some_and(|reserved| *reserved == self.next)
         {
             self.next = self.next.saturating_add(1);
-            self.sorted_reserved_cursor += 1;
+            self.reserved_cursor += 1;
         }
     }
 }
@@ -85,7 +78,7 @@ mod tests {
 
     #[test]
     fn id_generator_preserves_sparse_generation_before_collision() {
-        let reserved = [8, 20].into_iter().collect();
+        let reserved = vec![8, 20];
         let mut ids = IdGenerator::new(reserved);
 
         assert_eq!(
@@ -93,5 +86,13 @@ mod tests {
             (1..=7).collect::<Vec<_>>()
         );
         assert_eq!(ids.next(), 9);
+    }
+
+    #[test]
+    fn id_generator_deduplicates_reserved_ids_before_generation() {
+        let mut ids = IdGenerator::new(vec![1, 1, 2, 4]);
+
+        assert_eq!(ids.next(), 3);
+        assert_eq!(ids.next(), 5);
     }
 }

@@ -68,6 +68,7 @@ fn main() -> radiant::Result {
         .retained_painter(30, |state, _descriptor, rect, _viewport| {
             Some(pulse_meter_frame(
                 state.phase,
+                state.running,
                 rect,
                 &ThemeTokens::default(),
             ))
@@ -84,7 +85,7 @@ fn animation_view(state: &mut AnimationState) -> View<AnimationMessage> {
     column([
         text("Animation Showcase").height(28.0).fill_width(),
         text(state.status()).id(20).height(26.0).fill_width(),
-        phase_meter(state.phase),
+        phase_meter(state.phase, state.running),
         row([
             button(if state.running { "Pause" } else { "Run" })
                 .primary()
@@ -109,28 +110,29 @@ fn animation_view(state: &mut AnimationState) -> View<AnimationMessage> {
     .fill_height()
 }
 
-fn phase_meter(phase: f32) -> View<AnimationMessage> {
-    retained_canvas_with(30, pulse_meter_revision(phase), 0, true)
+fn phase_meter(phase: f32, running: bool) -> View<AnimationMessage> {
+    retained_canvas_with(30, pulse_meter_revision(phase, running), 0, true)
         .view()
         .height(42.0)
         .key("phase-meter")
         .fill_width()
 }
 
-fn pulse_meter_revision(phase: f32) -> u64 {
-    (phase.clamp(0.0, 1.0) * 10_000.0).round() as u64
+fn pulse_meter_revision(phase: f32, running: bool) -> u64 {
+    let phase_revision = (phase.clamp(0.0, 1.0) * 10_000.0).round() as u64;
+    (phase_revision << 1) | u64::from(running)
 }
 
-fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFrame {
-    let visual = PulseMeterVisual::resolve(phase);
+fn pulse_meter_frame(phase: f32, running: bool, bounds: Rect, theme: &ThemeTokens) -> PaintFrame {
+    let visual = PulseMeterVisual::resolve(phase, running);
     let track = inset(bounds, 2.0, 7.0);
     let rail = inset(track, 8.0, 10.0);
     let pulse_lane = inset(track, 8.0, 6.0);
     let center_y = (track.min.y + track.max.y) * 0.5;
     let mut frame = PaintFrame::default();
-    frame.primitives.reserve(18);
-    push_rect(&mut frame, track, theme.surface_base);
-    push_rect(&mut frame, rail, with_alpha(theme.grid_soft, 95));
+    frame.primitives.reserve(22);
+    push_rect(&mut frame, track, visual.track_color(theme));
+    push_rect(&mut frame, rail, visual.rail_color(theme));
     for marker in visual.beat_markers {
         push_ratio_rect(
             &mut frame,
@@ -141,7 +143,7 @@ fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFram
         );
     }
     for pulse in visual.pulses {
-        push_ratio_bar(
+        push_wrapped_ratio_bar(
             &mut frame,
             pulse_lane,
             pulse.center,
@@ -156,7 +158,7 @@ fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFram
         visual.playhead_center,
         center_y,
         visual.glow_radius,
-        with_alpha(theme.highlight_orange, 70),
+        visual.glow_color(theme),
     );
     push_ratio_circle(
         &mut frame,
@@ -164,14 +166,14 @@ fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFram
         visual.playhead_center,
         center_y,
         visual.playhead_radius,
-        theme.highlight_orange,
+        visual.playhead_color(theme),
     );
     push_ratio_rect(
         &mut frame,
         inset(track, 2.0, 3.0),
         visual.playhead_start,
         visual.playhead_width,
-        theme.text_primary,
+        visual.playhead_line_color(theme),
     );
     frame.primitives.extend(
         border_fill_rects(track, theme.border_emphasis, 1.0, BorderSides::ALL)
@@ -181,7 +183,7 @@ fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFram
     frame
 }
 
-fn push_ratio_bar(
+fn push_wrapped_ratio_bar(
     frame: &mut PaintFrame,
     lane: Rect,
     center_ratio: f32,
@@ -193,9 +195,32 @@ fn push_ratio_bar(
     if width <= 0.0 {
         return;
     }
-    let center = center_ratio.clamp(0.0, 1.0);
-    let start = (center - width * 0.5).clamp(0.0, 1.0);
-    let end = (center + width * 0.5).clamp(0.0, 1.0);
+    let center = wrap01(center_ratio);
+    let start = center - width * 0.5;
+    let end = center + width * 0.5;
+    if start < 0.0 {
+        push_ratio_bar_segment(frame, lane, start + 1.0, 1.0, height_ratio, color);
+        push_ratio_bar_segment(frame, lane, 0.0, end, height_ratio, color);
+        return;
+    }
+    if end > 1.0 {
+        push_ratio_bar_segment(frame, lane, start, 1.0, height_ratio, color);
+        push_ratio_bar_segment(frame, lane, 0.0, end - 1.0, height_ratio, color);
+        return;
+    }
+    push_ratio_bar_segment(frame, lane, start, end, height_ratio, color);
+}
+
+fn push_ratio_bar_segment(
+    frame: &mut PaintFrame,
+    lane: Rect,
+    start: f32,
+    end: f32,
+    height_ratio: f32,
+    color: Rgba8,
+) {
+    let start = start.clamp(0.0, 1.0);
+    let end = end.clamp(0.0, 1.0);
     let height = lane.height() * height_ratio.clamp(0.0, 1.0);
     if end <= start || height <= 0.0 {
         return;
@@ -209,6 +234,10 @@ fn push_ratio_bar(
         ),
         color,
     );
+}
+
+fn wrap01(value: f32) -> f32 {
+    value.rem_euclid(1.0)
 }
 
 fn push_ratio_circle(
@@ -279,6 +308,7 @@ struct PulseMeterVisual {
     glow_radius: f32,
     playhead_start: f32,
     playhead_width: f32,
+    running: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -297,7 +327,7 @@ struct PulseBar {
 }
 
 impl PulseMeterVisual {
-    fn resolve(phase: f32) -> Self {
+    fn resolve(phase: f32, running: bool) -> Self {
         let phase = phase.clamp(0.0, 1.0);
         let beat = smoothstep(0.0, 1.0, 1.0 - (phase * 2.0 - 1.0).abs());
         let playhead_width = 0.012;
@@ -314,16 +344,23 @@ impl PulseMeterVisual {
                 Self::marker(0.875, 48),
             ],
             pulses: [
-                Self::bar(playhead_center - 0.18, 0.016, 0.36, 52),
-                Self::bar(playhead_center - 0.11, 0.018, 0.52, 72),
-                Self::bar(playhead_center - 0.055, 0.022, 0.70 + beat * 0.18, 104),
-                Self::bar(playhead_center, 0.026, 0.84 + beat * 0.16, 150),
+                Self::bar(playhead_center - 0.22, 0.014, 0.34, 46, running),
+                Self::bar(playhead_center - 0.145, 0.017, 0.50, 68, running),
+                Self::bar(
+                    playhead_center - 0.07,
+                    0.021,
+                    0.68 + beat * 0.16,
+                    96,
+                    running,
+                ),
+                Self::bar(playhead_center, 0.028, 0.82 + beat * 0.16, 154, running),
             ],
             playhead_center,
-            playhead_radius: 4.8 + beat * 1.4,
-            glow_radius: 9.0 + beat * 2.0,
+            playhead_radius: if running { 4.8 + beat * 1.4 } else { 4.2 },
+            glow_radius: if running { 9.0 + beat * 2.0 } else { 6.5 },
             playhead_start,
             playhead_width,
+            running,
         }
     }
 
@@ -340,17 +377,57 @@ impl PulseMeterVisual {
         }
     }
 
-    fn bar(center: f32, width: f32, height_ratio: f32, alpha: u8) -> PulseBar {
+    fn bar(center: f32, width: f32, height_ratio: f32, alpha: u8, running: bool) -> PulseBar {
         PulseBar {
-            center: center.clamp(0.0, 1.0),
+            center: wrap01(center),
             width,
             height_ratio,
             color: Rgba8 {
                 r: 255,
                 g: 116,
                 b: 76,
-                a: alpha,
+                a: if running { alpha } else { alpha / 3 },
             },
+        }
+    }
+
+    fn track_color(self, theme: &ThemeTokens) -> Rgba8 {
+        if self.running {
+            theme.surface_base
+        } else {
+            with_alpha(theme.surface_base, 210)
+        }
+    }
+
+    fn rail_color(self, theme: &ThemeTokens) -> Rgba8 {
+        if self.running {
+            with_alpha(theme.grid_soft, 95)
+        } else {
+            with_alpha(theme.grid_soft, 48)
+        }
+    }
+
+    fn glow_color(self, theme: &ThemeTokens) -> Rgba8 {
+        if self.running {
+            with_alpha(theme.highlight_orange, 70)
+        } else {
+            with_alpha(theme.highlight_orange, 32)
+        }
+    }
+
+    fn playhead_color(self, theme: &ThemeTokens) -> Rgba8 {
+        if self.running {
+            theme.highlight_orange
+        } else {
+            with_alpha(theme.highlight_orange, 115)
+        }
+    }
+
+    fn playhead_line_color(self, theme: &ThemeTokens) -> Rgba8 {
+        if self.running {
+            theme.text_primary
+        } else {
+            with_alpha(theme.text_primary, 150)
         }
     }
 }
@@ -382,10 +459,10 @@ mod tests {
 
     #[test]
     fn pulse_meter_resolves_visible_motion_geometry() {
-        let start = PulseMeterVisual::resolve(0.0);
-        let peak = PulseMeterVisual::resolve(0.25);
-        let far_edge = PulseMeterVisual::resolve(0.5);
-        let end = PulseMeterVisual::resolve(1.0);
+        let start = PulseMeterVisual::resolve(0.0, true);
+        let peak = PulseMeterVisual::resolve(0.25, true);
+        let far_edge = PulseMeterVisual::resolve(0.5, true);
+        let end = PulseMeterVisual::resolve(1.0, true);
 
         assert!(peak.playhead_start > start.playhead_start + 0.20);
         assert!(far_edge.playhead_start > peak.playhead_start + 0.20);
@@ -400,9 +477,39 @@ mod tests {
     }
 
     #[test]
+    fn pulse_meter_wraps_trailing_pulses_without_edge_clamping() {
+        let early = PulseMeterVisual::resolve(0.02, true);
+        let late = PulseMeterVisual::resolve(0.96, true);
+
+        assert!(early.pulses[0].center > 0.75);
+        assert!(early.pulses[1].center > 0.80);
+        assert!(late.pulses[3].center > 0.90);
+        assert!(
+            early
+                .pulses
+                .iter()
+                .chain(late.pulses.iter())
+                .all(|pulse| (0.0..1.0).contains(&pulse.center))
+        );
+    }
+
+    #[test]
+    fn paused_pulse_meter_keeps_position_but_dims_activity() {
+        let running = PulseMeterVisual::resolve(0.45, true);
+        let paused = PulseMeterVisual::resolve(0.45, false);
+
+        assert_eq!(running.playhead_center, paused.playhead_center);
+        assert_eq!(running.playhead_start, paused.playhead_start);
+        assert!(paused.playhead_radius < running.playhead_radius);
+        assert!(paused.glow_radius < running.glow_radius);
+        assert!(paused.pulses[3].color.a < running.pulses[3].color.a);
+    }
+
+    #[test]
     fn phase_meter_paints_rail_pulses_playhead_and_marker() {
         let frame = pulse_meter_frame(
             0.5,
+            true,
             Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(420.0, 48.0)),
             &ThemeTokens::default(),
         );
@@ -449,6 +556,31 @@ mod tests {
             "pulse accents should stay localized instead of reading as a progress bar"
         );
         assert_ne!(fills[0].color, fills[1].color);
+    }
+
+    #[test]
+    fn paused_phase_meter_paints_dimmed_activity() {
+        let running = pulse_meter_frame(
+            0.5,
+            true,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(420.0, 48.0)),
+            &ThemeTokens::default(),
+        );
+        let paused = pulse_meter_frame(
+            0.5,
+            false,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(420.0, 48.0)),
+            &ThemeTokens::default(),
+        );
+
+        let running_orange_alpha = max_orange_alpha(&running);
+        let paused_orange_alpha = max_orange_alpha(&paused);
+
+        assert!(paused_orange_alpha < running_orange_alpha);
+        assert_ne!(
+            pulse_meter_revision(0.5, true),
+            pulse_meter_revision(0.5, false)
+        );
     }
 
     #[test]
@@ -608,6 +740,23 @@ mod tests {
             position: point,
             button: PointerButton::Primary,
         });
+    }
+
+    fn max_orange_alpha(frame: &PaintFrame) -> u8 {
+        frame
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                Primitive::Rect(fill) if fill.color.r > 240 && fill.color.g < 140 => {
+                    Some(fill.color.a)
+                }
+                Primitive::Circle(fill) if fill.color.r > 240 && fill.color.g < 140 => {
+                    Some(fill.color.a)
+                }
+                _ => None,
+            })
+            .max()
+            .unwrap_or(0)
     }
 
     fn assert_status_contains<Bridge>(

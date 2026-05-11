@@ -20,9 +20,8 @@ pub(in crate::gui_runtime::native_vello) struct TextLayoutProfileCounters {
 }
 
 pub(super) struct TextLayoutCache {
-    layout_cache: HashMap<TextLayoutKey, TextLayout>,
+    layout_cache: HashMap<TextLayoutKey, CachedTextLayout>,
     layout_cache_order: VecDeque<(TextLayoutKey, u64)>,
-    layout_cache_stamps: HashMap<TextLayoutKey, u64>,
     layout_cache_clock: u64,
     atom_cache: HashMap<Arc<str>, u64>,
     atom_cache_order: VecDeque<(Arc<str>, u64)>,
@@ -35,12 +34,17 @@ pub(super) struct TextLayoutCache {
     text_atom_evictions: u64,
 }
 
+#[derive(Clone, Debug)]
+struct CachedTextLayout {
+    layout: TextLayout,
+    stamp: u64,
+}
+
 impl TextLayoutCache {
     pub(super) fn new() -> Self {
         Self {
             layout_cache: HashMap::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY / 2),
             layout_cache_order: VecDeque::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY),
-            layout_cache_stamps: HashMap::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY / 2),
             layout_cache_clock: 0,
             atom_cache: HashMap::with_capacity(TEXT_ATOM_CACHE_CAPACITY / 2),
             atom_cache_order: VecDeque::with_capacity(TEXT_ATOM_CACHE_CAPACITY),
@@ -66,12 +70,18 @@ impl TextLayoutCache {
             font_size_bits: font_size.to_bits(),
         };
 
-        // Split hit detection from the returned borrow so cache profiling can
-        // stay safe without extending an immutable borrow across the miss path.
         if self.layout_cache.contains_key(&key) {
-            self.touch_layout_cache_key(&key);
+            self.layout_cache_clock = self.layout_cache_clock.saturating_add(1);
+            let stamp = self.layout_cache_clock;
+            self.compact_layout_cache_order_if_needed();
+            self.layout_cache_order.push_back((key.clone(), stamp));
+            let cached_layout = self
+                .layout_cache
+                .get_mut(&key)
+                .expect("layout cache key should exist after hit check");
+            cached_layout.stamp = stamp;
             self.text_layout_hits = self.text_layout_hits.saturating_add(1);
-            return self.layout_cache.get(&key);
+            return Some(&cached_layout.layout);
         }
 
         self.text_layout_misses = self.text_layout_misses.saturating_add(1);
@@ -80,8 +90,14 @@ impl TextLayoutCache {
 
         let layout = compute_layout(font, text, font_size)?;
         self.touch_layout_cache_key(&key);
-        let cached_layout = self.layout_cache.entry(key).or_insert(layout);
-        Some(cached_layout)
+        self.layout_cache.insert(
+            key.clone(),
+            CachedTextLayout {
+                layout,
+                stamp: self.layout_cache_clock,
+            },
+        );
+        self.layout_cache.get(&key).map(|entry| &entry.layout)
     }
 
     pub(super) fn take_profile_counters(&mut self) -> TextLayoutProfileCounters {
@@ -130,7 +146,9 @@ impl TextLayoutCache {
     pub(super) fn touch_layout_cache_key(&mut self, key: &TextLayoutKey) {
         self.layout_cache_clock = self.layout_cache_clock.saturating_add(1);
         let stamp = self.layout_cache_clock;
-        self.layout_cache_stamps.insert(key.clone(), stamp);
+        if let Some(entry) = self.layout_cache.get_mut(key) {
+            entry.stamp = stamp;
+        }
         self.layout_cache_order.push_back((key.clone(), stamp));
         self.compact_layout_cache_order_if_needed();
     }
@@ -140,12 +158,12 @@ impl TextLayoutCache {
         if self.layout_cache_order.len() <= TEXT_LAYOUT_CACHE_CAPACITY.saturating_mul(2) {
             return;
         }
-        let mut compacted = VecDeque::with_capacity(self.layout_cache_stamps.len());
+        let mut compacted = VecDeque::with_capacity(self.layout_cache.len());
         for (key, queued_stamp) in mem::take(&mut self.layout_cache_order) {
             if self
-                .layout_cache_stamps
+                .layout_cache
                 .get(&key)
-                .is_some_and(|current_stamp| *current_stamp == queued_stamp)
+                .is_some_and(|entry| entry.stamp == queued_stamp)
             {
                 compacted.push_back((key, queued_stamp));
             }
@@ -159,13 +177,12 @@ impl TextLayoutCache {
             let Some((candidate, queued_stamp)) = self.layout_cache_order.pop_front() else {
                 break;
             };
-            let Some(current_stamp) = self.layout_cache_stamps.get(&candidate) else {
+            let Some(entry) = self.layout_cache.get(&candidate) else {
                 continue;
             };
-            if *current_stamp != queued_stamp {
+            if entry.stamp != queued_stamp {
                 continue;
             }
-            self.layout_cache_stamps.remove(&candidate);
             if self.layout_cache.remove(&candidate).is_some() {
                 self.text_layout_evictions = self.text_layout_evictions.saturating_add(1);
             }
@@ -212,6 +229,13 @@ impl TextLayoutCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn cached_layout(text: &str, stamp: u64) -> CachedTextLayout {
+        CachedTextLayout {
+            layout: TextLayout::empty_for(text),
+            stamp,
+        }
+    }
 
     fn layout_key(label: &str) -> TextLayoutKey {
         TextLayoutKey {
@@ -273,7 +297,7 @@ mod tests {
             let key = layout_key(&format!("label-{index}"));
             cache
                 .layout_cache
-                .insert(key.clone(), TextLayout::empty_for(key.text.as_ref()));
+                .insert(key.clone(), cached_layout(key.text.as_ref(), 0));
             cache.touch_layout_cache_key(&key);
         }
 
@@ -282,10 +306,9 @@ mod tests {
         cache.evict_stale_layouts();
 
         let fresh_key = layout_key("label-fresh");
-        cache.layout_cache.insert(
-            fresh_key.clone(),
-            TextLayout::empty_for(fresh_key.text.as_ref()),
-        );
+        cache
+            .layout_cache
+            .insert(fresh_key.clone(), cached_layout(fresh_key.text.as_ref(), 0));
         cache.touch_layout_cache_key(&fresh_key);
 
         assert!(cache.layout_cache.contains_key(&hot_key));
@@ -300,7 +323,7 @@ mod tests {
         let key = layout_key("content row");
         cache
             .layout_cache
-            .insert(key.clone(), TextLayout::empty_for(key.text.as_ref()));
+            .insert(key.clone(), cached_layout(key.text.as_ref(), 0));
         cache.touch_layout_cache_key(&key);
 
         for _ in 0..=TEXT_LAYOUT_CACHE_CAPACITY.saturating_mul(2) {

@@ -81,7 +81,7 @@ fn run_host_surface_frame_demo() -> HostFrameReport {
         position: point,
         button: PointerButton::Primary,
     });
-    let frame = runtime.frame(&theme);
+    let frame = runtime.borrowed_frame(&theme);
     let stats = frame.paint_plan.stats();
 
     HostFrameReport {

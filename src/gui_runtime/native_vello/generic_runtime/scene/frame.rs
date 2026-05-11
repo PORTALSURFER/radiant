@@ -10,11 +10,18 @@ pub(in crate::gui_runtime::native_vello) struct SceneTextRunBuffer<'a> {
 }
 
 impl<'a> SceneTextRunBuffer<'a> {
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn new() -> Self {
+        Self::with_overflow_capacity(0)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn with_overflow_capacity(
+        overflow_capacity: usize,
+    ) -> Self {
         Self {
             inline: [None; INLINE_SCENE_TEXT_RUNS],
             len: 0,
-            overflow: Vec::new(),
+            overflow: Vec::with_capacity(overflow_capacity),
         }
     }
 
@@ -46,7 +53,6 @@ impl<'a> SceneTextRunBuffer<'a> {
         self.len + self.overflow.len()
     }
 
-    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn overflow_capacity(&self) -> usize {
         self.overflow.capacity()
     }

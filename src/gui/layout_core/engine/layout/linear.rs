@@ -101,9 +101,10 @@ pub(super) fn layout_linear(
         allocate_fill_sizes(horizontal, remaining, summary.fill_weight, &mut states);
     }
 
-    let (mut sizes, mut total_main) = resolved_main_sizes(&states);
+    let mut total_main = resolved_main_total(&states);
     total_main += summary.margin_total + spacing_total;
     if total_main > available_main {
+        let (mut sizes, _) = resolved_main_sizes(&states);
         apply_linear_overflow_policy(
             container,
             horizontal,
@@ -114,6 +115,29 @@ pub(super) fn layout_linear(
             context,
         );
         total_main = sizes.iter().sum::<f32>() + summary.margin_total + spacing_total;
+        let (leading, distributed_spacing) = align_main_offsets(
+            policy.align_main,
+            available_main,
+            total_main,
+            spacing,
+            states.len(),
+        );
+        place_linear_children(
+            container,
+            content,
+            horizontal,
+            available_cross,
+            &states,
+            LinearChildSizes::Slice(&sizes),
+            leading,
+            distributed_spacing,
+            context,
+        );
+        if total_main > available_main {
+            let (x, y) = axis.overflow_flags();
+            context.record_overflow(container.id, policy.overflow, x, y);
+        }
+        return;
     }
 
     let (leading, distributed_spacing) = align_main_offsets(
@@ -129,36 +153,46 @@ pub(super) fn layout_linear(
         horizontal,
         available_cross,
         &states,
-        LinearChildSizes::Slice(&sizes),
+        LinearChildSizes::Resolved,
         leading,
         distributed_spacing,
         context,
     );
-
-    if total_main > available_main {
-        let (x, y) = axis.overflow_flags();
-        context.record_overflow(container.id, policy.overflow, x, y);
-    }
 }
 
 enum LinearChildSizes<'a> {
     Slice(&'a [f32]),
     Uniform { main_size: f32, len: usize },
+    Resolved,
 }
 
 impl LinearChildSizes<'_> {
-    fn len(&self) -> usize {
+    fn matches_len(&self, states_len: usize) -> bool {
         match self {
-            Self::Slice(sizes) => sizes.len(),
-            Self::Uniform { len, .. } => *len,
+            Self::Slice(sizes) => sizes.len() == states_len,
+            Self::Uniform { len, .. } => *len == states_len,
+            Self::Resolved => true,
         }
     }
 
-    fn get(&self, index: usize) -> Option<f32> {
+    fn get(&self, index: usize, state: &LinearLayoutState<'_>) -> Option<f32> {
         match self {
             Self::Slice(sizes) => sizes.get(index).copied(),
             Self::Uniform { main_size, len } => (index < *len).then_some(*main_size),
+            Self::Resolved => Some(resolved_main_size(state)),
         }
+    }
+}
+
+fn resolved_main_total(states: &[LinearLayoutState<'_>]) -> f32 {
+    states.iter().map(resolved_main_size).sum()
+}
+
+fn resolved_main_size(state: &LinearLayoutState<'_>) -> f32 {
+    if state.fill > 0.0 {
+        state.fill
+    } else {
+        state.main
     }
 }
 
@@ -203,7 +237,7 @@ fn place_linear_children(
     distributed_spacing: f32,
     context: &mut LayoutContext,
 ) {
-    if sizes.len() != states.len() {
+    if !sizes.matches_len(states.len()) {
         return;
     }
     let mut cursor = leading;
@@ -221,7 +255,7 @@ fn place_linear_children(
             slot.margin.bottom
         };
         cursor += main_margin_before;
-        let Some(child_main) = sizes.get(index).map(|size| size.max(0.0)) else {
+        let Some(child_main) = sizes.get(index, state).map(|size| size.max(0.0)) else {
             return;
         };
         let child_cross = resolve_cross_layout(

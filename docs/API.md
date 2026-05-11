@@ -549,9 +549,11 @@ Run `cargo run --example layout_diagnostics` for a layout diagnostics sandbox
 that collects `LayoutDiagnostic` entries and debug primitives from
 `LayoutDebugOptions::all_enabled()`.
 Run `cargo run --example virtualized_list` for a large application-builder list
-sandbox that projects 10k selectable rows through `virtual_list(...)`; hosts
-that already own logical list scroll state can use `virtual_list_window(...)`
-to keep projection bounded to a `VirtualListWindow`.
+sandbox that keeps 10k selectable rows responsive through
+`virtual_list_window(...)`. Use the windowed helper for large fixed-height
+lists so projection stays bounded to a `VirtualListWindow`; reserve
+`virtual_list(...)` for smaller lists where eagerly building every row remains
+acceptable.
 Run `cargo run --example inspector_panel` for a compact inspector/property
 panel sandbox that uses `PropertyRow`, `property_panel(...)`, and
 `selectable_property_panel(...)` on the same application-builder path as other

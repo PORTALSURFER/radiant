@@ -9,6 +9,7 @@ const HASH_RESERVED_IDS_THRESHOLD: usize = 256;
 pub(in crate::application) struct IdGenerator {
     next: NodeId,
     reserved: ReservedIds,
+    reserved_range: Option<(NodeId, NodeId)>,
 }
 
 enum ReservedIds {
@@ -17,9 +18,11 @@ enum ReservedIds {
 }
 
 impl IdGenerator {
-    pub(in crate::application) fn new(mut reserved: Vec<NodeId>) -> Self {
+    pub(in crate::application) fn new(reserved: Vec<NodeId>) -> Self {
+        let reserved_range = reserved_id_range(&reserved);
+        let mut reserved = reserved;
         let reserved = if reserved.len() >= HASH_RESERVED_IDS_THRESHOLD {
-            ReservedIds::Hashed(reserved.into_iter().collect())
+            ReservedIds::Hashed(hashed_reserved_ids(reserved))
         } else {
             reserved.sort_unstable();
             reserved.dedup();
@@ -28,7 +31,11 @@ impl IdGenerator {
                 cursor: 0,
             }
         };
-        Self { next: 1, reserved }
+        Self {
+            next: 1,
+            reserved,
+            reserved_range,
+        }
     }
 
     pub(in crate::application) fn next(&mut self) -> NodeId {
@@ -39,6 +46,9 @@ impl IdGenerator {
     }
 
     fn skip_reserved_run(&mut self) {
+        if self.next_is_outside_reserved_range() {
+            return;
+        }
         match &mut self.reserved {
             ReservedIds::Sorted { ids, cursor } => {
                 while ids
@@ -62,6 +72,28 @@ impl IdGenerator {
             }
         }
     }
+
+    fn next_is_outside_reserved_range(&self) -> bool {
+        self.reserved_range
+            .is_none_or(|(min, max)| self.next < min || self.next > max)
+    }
+}
+
+fn hashed_reserved_ids(reserved: Vec<NodeId>) -> HashSet<NodeId> {
+    let mut ids = HashSet::with_capacity(reserved.len());
+    ids.extend(reserved);
+    ids
+}
+
+fn reserved_id_range(reserved: &[NodeId]) -> Option<(NodeId, NodeId)> {
+    let mut ids = reserved.iter().copied();
+    let first = ids.next()?;
+    let (mut min, mut max) = (first, first);
+    for id in ids {
+        min = min.min(id);
+        max = max.max(id);
+    }
+    Some((min, max))
 }
 
 pub(in crate::application) fn scoped_key_id(scope: u64, key: &str) -> NodeId {
@@ -120,6 +152,7 @@ mod tests {
         let ids = IdGenerator::new((10_000..=10_512).rev().collect());
 
         assert!(matches!(ids.reserved, ReservedIds::Hashed(_)));
+        assert_eq!(ids.reserved_range, Some((10_000, 10_512)));
     }
 
     #[test]
@@ -133,5 +166,25 @@ mod tests {
             }
             ReservedIds::Hashed(_) => panic!("small reserved sets should stay sorted vectors"),
         }
+    }
+
+    #[test]
+    fn id_generator_skips_probing_when_next_id_is_below_reserved_range() {
+        let mut ids = IdGenerator::new((10_000..=10_512).collect());
+
+        assert_eq!(ids.next(), 1);
+        assert_eq!(ids.next(), 2);
+        assert_eq!(ids.next(), 3);
+    }
+
+    #[test]
+    fn id_generator_skips_probing_after_reserved_range_is_exhausted() {
+        let mut ids = IdGenerator::new((4..=512).collect());
+
+        assert_eq!(ids.next(), 1);
+        assert_eq!(ids.next(), 2);
+        assert_eq!(ids.next(), 3);
+        assert_eq!(ids.next(), 513);
+        assert_eq!(ids.next(), 514);
     }
 }

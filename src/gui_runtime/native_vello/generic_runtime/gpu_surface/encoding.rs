@@ -8,28 +8,19 @@ pub(super) fn signal_uniforms_as_bytes(uniforms: &SignalUniforms) -> &[u8] {
     gpu_upload_value_as_bytes(uniforms)
 }
 
-pub(super) fn summary_buckets_as_f32s(buckets: &[GpuSignalSummaryBucket]) -> Vec<f32> {
-    let mut values = Vec::with_capacity(buckets.len().saturating_mul(2));
-    for bucket in buckets {
-        values.push(bucket.min);
-        values.push(bucket.max);
-    }
-    values
-}
-
 pub(super) fn summary_bucket_value_count(buckets: &[GpuSignalSummaryBucket]) -> usize {
     buckets.len().saturating_mul(2)
 }
 
-pub(super) fn summary_bucket_bytes(values: &[f32]) -> &[u8] {
-    gpu_upload_slice_as_bytes(values)
+pub(super) fn summary_bucket_bytes(buckets: &[GpuSignalSummaryBucket]) -> &[u8] {
+    gpu_upload_slice_as_bytes(buckets)
 }
 
 trait GpuUploadData {}
 
 impl GpuUploadData for GpuSurfaceUniforms {}
 impl GpuUploadData for SignalUniforms {}
-impl GpuUploadData for f32 {}
+impl GpuUploadData for GpuSignalSummaryBucket {}
 
 fn gpu_upload_value_as_bytes<T: GpuUploadData>(value: &T) -> &[u8] {
     gpu_upload_slice_as_bytes(std::slice::from_ref(value))
@@ -64,7 +55,7 @@ mod tests {
     }
 
     #[test]
-    fn summary_bucket_encoding_flattens_min_max_pairs() {
+    fn summary_bucket_encoding_exposes_min_max_pairs_without_flattening() {
         let buckets = [
             GpuSignalSummaryBucket {
                 min: -0.25,
@@ -76,13 +67,14 @@ mod tests {
             },
         ];
 
-        let values = summary_buckets_as_f32s(&buckets);
+        let bytes = summary_bucket_bytes(&buckets);
+        let values = bytes
+            .chunks_exact(std::mem::size_of::<f32>())
+            .map(|chunk| f32::from_ne_bytes(chunk.try_into().expect("f32 byte chunk")))
+            .collect::<Vec<_>>();
 
         assert_eq!(values, vec![-0.25, 0.75, -1.0, 1.0]);
         assert_eq!(summary_bucket_value_count(&buckets), values.len());
-        assert_eq!(
-            summary_bucket_bytes(&values).len(),
-            values.len() * std::mem::size_of::<f32>()
-        );
+        assert_eq!(bytes.len(), values.len() * std::mem::size_of::<f32>());
     }
 }

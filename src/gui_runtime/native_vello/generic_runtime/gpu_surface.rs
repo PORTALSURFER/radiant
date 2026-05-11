@@ -5,6 +5,7 @@ use crate::runtime::{
     GpuSignalSummary, GpuSignalSummaryBucket, GpuSurfaceContent, GpuSurfaceOverlay,
     PaintGpuSurface, PaintPrimitive,
 };
+use std::collections::HashSet;
 
 mod atlas;
 mod encoding;
@@ -47,6 +48,7 @@ impl GpuSurfaceRenderer {
         primitives: &[PaintPrimitive],
     ) -> GpuSurfaceRenderStats {
         let mut stats = GpuSurfaceRenderStats::default();
+        let mut active_keys = None;
         for primitive in primitives {
             let PaintPrimitive::GpuSurface(surface) = primitive else {
                 continue;
@@ -74,7 +76,67 @@ impl GpuSurfaceRenderer {
                     self.render_signal(target, surface, &mut stats);
                 }
             }
+            active_keys
+                .get_or_insert_with(|| HashSet::with_capacity(primitives.len().min(64)))
+                .insert(surface.key);
+        }
+        if let Some(active_keys) = active_keys {
+            self.prune_inactive_resources(&active_keys);
+        } else {
+            self.clear_resources();
         }
         stats
+    }
+
+    fn prune_inactive_resources(&mut self, active_keys: &HashSet<u64>) {
+        self.textures.retain(|key, _| active_keys.contains(key));
+        self.signal_bodies
+            .retain(|key, _| active_keys.contains(key));
+        self.signals.retain(|key, _| active_keys.contains(key));
+        self.signal_summaries
+            .retain(|key, _| active_keys.contains(key));
+    }
+
+    fn clear_resources(&mut self) {
+        self.textures.clear();
+        self.signal_bodies.clear();
+        self.signals.clear();
+        self.signal_summaries.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gpu_surface_renderer_prunes_inactive_signal_summaries() {
+        let mut renderer = GpuSurfaceRenderer::default();
+        let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
+        let mut stats = GpuSurfaceRenderStats::default();
+
+        renderer.cached_signal_summary(7, 1, 4, 1, &samples, &mut stats);
+        renderer.cached_signal_summary(8, 1, 4, 1, &samples, &mut stats);
+
+        renderer.prune_inactive_resources(&HashSet::from([8]));
+
+        assert!(!renderer.signal_summaries.contains_key(&7));
+        assert!(renderer.signal_summaries.contains_key(&8));
+    }
+
+    #[test]
+    fn gpu_surface_renderer_prunes_every_resource_map_to_active_keys() {
+        let mut renderer = GpuSurfaceRenderer::default();
+        let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
+        let mut stats = GpuSurfaceRenderStats::default();
+
+        renderer.cached_signal_summary(7, 1, 4, 1, &samples, &mut stats);
+
+        renderer.prune_inactive_resources(&HashSet::new());
+
+        assert!(renderer.textures.is_empty());
+        assert!(renderer.signal_bodies.is_empty());
+        assert!(renderer.signals.is_empty());
+        assert!(renderer.signal_summaries.is_empty());
     }
 }

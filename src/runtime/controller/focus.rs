@@ -10,7 +10,7 @@ where
     /// focus. Focus changes are routed into affected widgets so their retained
     /// interaction state can update before the next paint plan.
     pub fn focus_widget(&mut self, widget_id: WidgetId) -> bool {
-        if !self.focusable_widget_order.contains(&widget_id) {
+        if !self.focusable_widget_rank.contains_key(&widget_id) {
             return false;
         }
         if self.focused_widget == Some(widget_id) {
@@ -37,7 +37,12 @@ where
     /// Traversal uses stable tree order and wraps at either end. Returns the new
     /// focus target, or `None` when no keyboard-focusable widgets are projected.
     pub fn traverse_focus(&mut self, direction: FocusTraversal) -> Option<WidgetId> {
-        let next = next_focus_target(self.focused_widget, &self.keyboard_focus_order, direction)?;
+        let next = next_focus_target(
+            self.focused_widget,
+            &self.keyboard_focus_order,
+            &self.keyboard_focus_rank,
+            direction,
+        )?;
         self.focus_widget(next).then_some(next)
     }
 
@@ -108,12 +113,13 @@ where
 fn next_focus_target(
     current: Option<WidgetId>,
     order: &[WidgetId],
+    rank: &HashMap<WidgetId, usize>,
     direction: FocusTraversal,
 ) -> Option<WidgetId> {
     if order.is_empty() {
         return None;
     }
-    let current_index = current.and_then(|widget_id| order.iter().position(|id| *id == widget_id));
+    let current_index = current.and_then(|widget_id| rank.get(&widget_id).copied());
     let next_index = match (current_index, direction) {
         (Some(index), FocusTraversal::Forward) => (index + 1) % order.len(),
         (Some(0), FocusTraversal::Backward) => order.len() - 1,

@@ -12,8 +12,9 @@ use radiant::{
         virtual_list, virtual_list_window,
     },
     runtime::{
-        Event, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent, PaintPrimitive,
-        RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
+        Command, Event, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent,
+        PaintPrimitive, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface,
+        WidgetMessageMapper,
     },
     theme::ThemeTokens,
     widgets::{ButtonWidget, GpuSurfaceWidget, TextWidget, WidgetSizing},
@@ -97,6 +98,11 @@ fn main() {
         "runtime_refresh_large_tree",
         RUNTIME_ITERATIONS,
         move || refresh_large_tree.step(),
+    );
+    run_scenario(
+        "runtime_command_flattening_512",
+        RUNTIME_ITERATIONS,
+        bench_command_flattening_512,
     );
     run_scenario(
         "gpu_signal_summary",
@@ -614,6 +620,25 @@ fn runtime_surface_node(count: u64) -> SurfaceNode<()> {
             rows,
         ),
     )
+}
+
+fn bench_command_flattening_512() {
+    let command = Command::batch((0..512).map(|index| {
+        if index % 8 == 0 {
+            Command::batch([
+                Command::message(index),
+                Command::request_repaint(),
+                Command::message(index + 10_000),
+            ])
+        } else if index % 5 == 0 {
+            Command::request_paint_only()
+        } else {
+            Command::message(index)
+        }
+    }));
+    let messages = command.into_messages();
+    assert_eq!(messages.len(), 486);
+    black_box(messages);
 }
 
 fn bench_gpu_signal_summary() {

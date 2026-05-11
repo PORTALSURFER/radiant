@@ -72,6 +72,12 @@ fn main() {
         RUNTIME_ITERATIONS,
         move || virtualized_hover.step(),
     );
+    let mut virtualized_stable_hover = StatefulVirtualizedStableHoverBench::new();
+    run_scenario(
+        "runtime_virtualized_list_stable_hover_10k",
+        RUNTIME_ITERATIONS,
+        move || virtualized_stable_hover.step(),
+    );
     let mut virtualized_hover_paint = StatefulVirtualizedHoverPaintBench::new();
     run_scenario(
         "runtime_virtualized_list_hover_paint_10k",
@@ -411,6 +417,31 @@ impl StatefulVirtualizedHoverBench {
         assert!(scrolled);
         let hovered = self.runtime.dispatch_event(Event::PointerMove {
             position: Point::new(24.0, 24.0),
+        });
+        assert!(hovered.is_some());
+        black_box(self.runtime.layout());
+    }
+}
+
+struct StatefulVirtualizedStableHoverBench {
+    runtime: SurfaceRuntime<VirtualWheelBridge, ()>,
+    x: f32,
+}
+
+impl StatefulVirtualizedStableHoverBench {
+    fn new() -> Self {
+        let mut runtime = SurfaceRuntime::new(VirtualWheelBridge, Vector2::new(220.0, 120.0));
+        let hovered = runtime.dispatch_event(Event::PointerMove {
+            position: Point::new(24.0, 24.0),
+        });
+        assert!(hovered.is_some());
+        Self { runtime, x: 24.0 }
+    }
+
+    fn step(&mut self) {
+        self.x = if self.x < 28.0 { self.x + 1.0 } else { 24.0 };
+        let hovered = self.runtime.dispatch_event(Event::PointerMove {
+            position: Point::new(self.x, 24.0),
         });
         assert!(hovered.is_some());
         black_box(self.runtime.layout());

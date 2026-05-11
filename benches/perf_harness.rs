@@ -20,6 +20,7 @@ use radiant::{
     widgets::{ButtonWidget, GpuSurfaceWidget, TextWidget, WidgetSizing},
 };
 use std::{
+    env,
     hint::black_box,
     sync::Arc,
     time::{Duration, Instant},
@@ -30,123 +31,171 @@ const RUNTIME_ITERATIONS: usize = 100;
 const GPU_ITERATIONS: usize = 60;
 
 fn main() {
-    run_scenario("layout_deep_nesting", LAYOUT_ITERATIONS, bench_deep_nesting);
-    run_scenario("layout_wrap_1k", LAYOUT_ITERATIONS, bench_wrap_1k);
-    run_scenario(
-        "layout_virtualized_10k",
-        LAYOUT_ITERATIONS,
-        bench_virtualized_10k,
-    );
-    run_scenario(
-        "layout_virtualized_fixed_10k",
-        LAYOUT_ITERATIONS,
-        bench_virtualized_fixed_10k,
-    );
-    let mut fixed_scroll = StatefulVirtualizedScrollBench::new();
-    run_scenario(
+    let mut runner = ScenarioRunner::from_args(env::args());
+    runner.run_scenario("layout_deep_nesting", LAYOUT_ITERATIONS, || {
+        bench_deep_nesting
+    });
+    runner.run_scenario("layout_wrap_1k", LAYOUT_ITERATIONS, || bench_wrap_1k);
+    runner.run_scenario("layout_virtualized_10k", LAYOUT_ITERATIONS, || {
+        bench_virtualized_10k
+    });
+    runner.run_scenario("layout_virtualized_fixed_10k", LAYOUT_ITERATIONS, || {
+        bench_virtualized_fixed_10k
+    });
+    runner.run_scenario(
         "layout_virtualized_fixed_scroll_10k",
         LAYOUT_ITERATIONS,
-        move || fixed_scroll.step(),
+        || {
+            let mut fixed_scroll = StatefulVirtualizedScrollBench::new();
+            move || fixed_scroll.step()
+        },
     );
-    let mut dirty_subtree = StatefulDirtySubtreeBench::new();
-    run_scenario(
-        "layout_mark_dirty_subtree_10k",
-        LAYOUT_ITERATIONS,
-        move || dirty_subtree.step(),
-    );
-    run_scenario(
+    runner.run_scenario("layout_mark_dirty_subtree_10k", LAYOUT_ITERATIONS, || {
+        let mut dirty_subtree = StatefulDirtySubtreeBench::new();
+        move || dirty_subtree.step()
+    });
+    runner.run_scenario(
         "app_virtual_list_projection_10k",
         RUNTIME_ITERATIONS,
-        bench_app_virtual_list_projection_10k,
+        || bench_app_virtual_list_projection_10k,
     );
-    run_scenario(
+    runner.run_scenario(
         "app_virtual_list_projection_generated_child_ids_10k",
         RUNTIME_ITERATIONS,
-        bench_app_virtual_list_projection_generated_child_ids_10k,
+        || bench_app_virtual_list_projection_generated_child_ids_10k,
     );
-    run_scenario(
+    runner.run_scenario(
         "app_virtual_selectable_list_projection_10k",
         RUNTIME_ITERATIONS,
-        bench_app_virtual_selectable_list_projection_10k,
+        || bench_app_virtual_selectable_list_projection_10k,
     );
-    run_scenario(
+    runner.run_scenario(
         "app_virtual_list_window_projection_10k",
         RUNTIME_ITERATIONS,
-        bench_app_virtual_list_window_projection_10k,
+        || bench_app_virtual_list_window_projection_10k,
     );
-    let runtime_surface = StatefulRuntimeSurfaceBench::new();
-    run_scenario(
-        "runtime_surface_large_tree",
-        RUNTIME_ITERATIONS,
-        move || runtime_surface.step(),
-    );
-    let text_surface = StatefulTextPaintPlanBench::new();
-    run_scenario(
-        "runtime_text_paint_plan_1k",
-        RUNTIME_ITERATIONS,
-        move || text_surface.step(),
-    );
-    let horizontal_scroll_surface = StatefulHorizontalScrollPaintBench::new();
-    run_scenario(
+    runner.run_scenario("runtime_surface_large_tree", RUNTIME_ITERATIONS, || {
+        let runtime_surface = StatefulRuntimeSurfaceBench::new();
+        move || runtime_surface.step()
+    });
+    runner.run_scenario("runtime_text_paint_plan_1k", RUNTIME_ITERATIONS, || {
+        let text_surface = StatefulTextPaintPlanBench::new();
+        move || text_surface.step()
+    });
+    runner.run_scenario(
         "runtime_horizontal_scroll_paint_1k",
         RUNTIME_ITERATIONS,
-        move || horizontal_scroll_surface.step(),
+        || {
+            let horizontal_scroll_surface = StatefulHorizontalScrollPaintBench::new();
+            move || horizontal_scroll_surface.step()
+        },
     );
-    let mut virtualized_wheel = StatefulVirtualizedWheelBench::new();
-    run_scenario(
+    runner.run_scenario(
         "runtime_virtualized_list_wheel_10k",
         RUNTIME_ITERATIONS,
-        move || virtualized_wheel.step(),
+        || {
+            let mut virtualized_wheel = StatefulVirtualizedWheelBench::new();
+            move || virtualized_wheel.step()
+        },
     );
-    let mut virtualized_hover = StatefulVirtualizedHoverBench::new();
-    run_scenario(
+    runner.run_scenario(
         "runtime_virtualized_list_hover_10k",
         RUNTIME_ITERATIONS,
-        move || virtualized_hover.step(),
+        || {
+            let mut virtualized_hover = StatefulVirtualizedHoverBench::new();
+            move || virtualized_hover.step()
+        },
     );
-    let mut virtualized_stable_hover = StatefulVirtualizedStableHoverBench::new();
-    run_scenario(
+    runner.run_scenario(
         "runtime_virtualized_list_stable_hover_10k",
         RUNTIME_ITERATIONS,
-        move || virtualized_stable_hover.step(),
+        || {
+            let mut virtualized_stable_hover = StatefulVirtualizedStableHoverBench::new();
+            move || virtualized_stable_hover.step()
+        },
     );
-    let mut virtualized_hover_paint = StatefulVirtualizedHoverPaintBench::new();
-    run_scenario(
+    runner.run_scenario(
         "runtime_virtualized_list_hover_paint_10k",
         RUNTIME_ITERATIONS,
-        move || virtualized_hover_paint.step(),
+        || {
+            let mut virtualized_hover_paint = StatefulVirtualizedHoverPaintBench::new();
+            move || virtualized_hover_paint.step()
+        },
     );
-    let mut virtualized_nested_scroll_hover = StatefulVirtualizedNestedScrollHoverBench::new();
-    run_scenario(
+    runner.run_scenario(
         "runtime_virtualized_nested_scroll_hover_10k",
         RUNTIME_ITERATIONS,
-        move || virtualized_nested_scroll_hover.step(),
+        || {
+            let mut virtualized_nested_scroll_hover =
+                StatefulVirtualizedNestedScrollHoverBench::new();
+            move || virtualized_nested_scroll_hover.step()
+        },
     );
-    let mut refresh_large_tree = StatefulRefreshBench::new();
-    run_scenario(
-        "runtime_refresh_large_tree",
-        RUNTIME_ITERATIONS,
-        move || refresh_large_tree.step(),
-    );
-    let mut resize_large_tree = StatefulResizeBench::new();
-    run_scenario("runtime_resize_large_tree", RUNTIME_ITERATIONS, move || {
-        resize_large_tree.step()
+    runner.run_scenario("runtime_refresh_large_tree", RUNTIME_ITERATIONS, || {
+        let mut refresh_large_tree = StatefulRefreshBench::new();
+        move || refresh_large_tree.step()
     });
-    run_scenario(
-        "runtime_command_flattening_512",
-        RUNTIME_ITERATIONS,
-        bench_command_flattening_512,
-    );
-    run_scenario(
-        "gpu_signal_summary",
-        GPU_ITERATIONS,
-        bench_gpu_signal_summary,
-    );
-    run_scenario(
-        "gpu_surface_projection",
-        GPU_ITERATIONS,
-        bench_gpu_surface_projection,
-    );
+    runner.run_scenario("runtime_resize_large_tree", RUNTIME_ITERATIONS, || {
+        let mut resize_large_tree = StatefulResizeBench::new();
+        move || resize_large_tree.step()
+    });
+    runner.run_scenario("runtime_command_flattening_512", RUNTIME_ITERATIONS, || {
+        bench_command_flattening_512
+    });
+    runner.run_scenario("gpu_signal_summary", GPU_ITERATIONS, || {
+        bench_gpu_signal_summary
+    });
+    runner.run_scenario("gpu_surface_projection", GPU_ITERATIONS, || {
+        bench_gpu_surface_projection
+    });
+    runner.finish();
+}
+
+struct ScenarioRunner {
+    filters: Vec<String>,
+    matched: usize,
+}
+
+impl ScenarioRunner {
+    fn from_args(args: impl IntoIterator<Item = String>) -> Self {
+        Self {
+            filters: scenario_filters_from_args(args),
+            matched: 0,
+        }
+    }
+
+    fn run_scenario<Build, Bench>(&mut self, name: &str, iterations: usize, build: Build)
+    where
+        Build: FnOnce() -> Bench,
+        Bench: FnMut(),
+    {
+        if !scenario_matches_filters(name, &self.filters) {
+            return;
+        }
+        self.matched += 1;
+        run_scenario(name, iterations, build());
+    }
+
+    fn finish(self) {
+        if self.matched == 0 && !self.filters.is_empty() {
+            eprintln!(
+                "no radiant_perf scenarios matched filters: {:?}",
+                self.filters
+            );
+            std::process::exit(2);
+        }
+    }
+}
+
+fn scenario_filters_from_args(args: impl IntoIterator<Item = String>) -> Vec<String> {
+    args.into_iter()
+        .skip(1)
+        .filter(|arg| !arg.starts_with('-') && !arg.is_empty())
+        .collect()
+}
+
+fn scenario_matches_filters(name: &str, filters: &[String]) -> bool {
+    filters.is_empty() || filters.iter().any(|filter| name.contains(filter))
 }
 
 fn run_scenario(name: &str, iterations: usize, mut bench: impl FnMut()) {

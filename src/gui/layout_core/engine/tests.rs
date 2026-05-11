@@ -7,7 +7,7 @@ use super::{
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{
     ContainerKind, ContainerPolicy, GridPolicy, OverflowPolicy, SizeModeCross, SizeModeMain,
-    SlotParams, SwitchBreakpoint, WrapPolicy,
+    SlotParams, SwitchBreakpoint, VirtualizationAxis, VirtualizationPolicy, WrapPolicy,
 };
 use crate::gui::layout_core::tree::{LayoutNode, SlotChild};
 use crate::gui::types::{Point, Rect, Vector2};
@@ -334,4 +334,75 @@ fn debug_primitives_are_emitted_when_enabled() {
             .iter()
             .any(|item| item.kind == DebugPrimitiveKind::ContentBounds)
     );
+}
+
+#[test]
+fn layout_engine_reuses_scratch_maps_between_passes() {
+    let children = (0..64)
+        .map(|index| {
+            SlotChild::new(
+                SlotParams {
+                    size_main: SizeModeMain::Fixed(12.0),
+                    size_cross: SizeModeCross::Fill,
+                    constraints: Constraints::unconstrained(),
+                    margin: Default::default(),
+                    align_cross_override: None,
+                    allow_fixed_compress: false,
+                },
+                LayoutNode::widget(index + 10, Vector2::new(40.0, 12.0)),
+            )
+        })
+        .collect();
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            overflow: OverflowPolicy::Scroll,
+            virtualization: Some(VirtualizationPolicy {
+                enabled: true,
+                axis: VirtualizationAxis::Vertical,
+                overscan_px: 8.0,
+            }),
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild::new(
+            SlotParams::fill(),
+            LayoutNode::container(
+                2,
+                ContainerPolicy {
+                    kind: ContainerKind::Column,
+                    ..ContainerPolicy::default()
+                },
+                children,
+            ),
+        )],
+    );
+    let viewport = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 64.0));
+    let mut engine = LayoutEngine::default();
+
+    let first = engine.layout_with_state(
+        &root,
+        viewport,
+        &LayoutState::default(),
+        LayoutDebugOptions::default(),
+    );
+    assert!(first.virtual_windows.contains_key(&1));
+    let measured_capacity = engine.scratch.measured.capacity();
+    let measured_by_node_capacity = engine.scratch.measured_by_node.capacity();
+    let linear_window_capacity = engine.scratch.linear_windows.capacity();
+    assert!(measured_capacity > 0);
+    assert!(measured_by_node_capacity > 0);
+    assert!(linear_window_capacity > 0);
+
+    let second = engine.layout_with_state(
+        &root,
+        viewport,
+        &LayoutState::default(),
+        LayoutDebugOptions::default(),
+    );
+
+    assert!(second.virtual_windows.contains_key(&1));
+    assert!(engine.scratch.measured.capacity() >= measured_capacity);
+    assert!(engine.scratch.measured_by_node.capacity() >= measured_by_node_capacity);
+    assert!(engine.scratch.linear_windows.capacity() >= linear_window_capacity);
 }

@@ -77,6 +77,36 @@ fn surface_paint_plan_into_reuses_existing_primitive_storage() {
 }
 
 #[test]
+fn control_heavy_paint_plan_presizes_for_button_chrome() {
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::row(
+        1,
+        2.0,
+        (0..100)
+            .map(|index| {
+                SurfaceChild::fill(SurfaceNode::button(
+                    10 + index,
+                    "Run",
+                    WidgetSizing::fixed(Vector2::new(48.0, 24.0)),
+                    DemoMessage::Increment,
+                ))
+            })
+            .collect(),
+    ));
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(5_000.0, 32.0)),
+    );
+
+    let plan = surface.paint_plan(&layout, &ThemeTokens::default());
+
+    assert_eq!(plan.primitives.len(), 300);
+    assert!(
+        plan.primitives.capacity() <= layout.rects.len().saturating_mul(3),
+        "control-heavy paint plans should not grow beyond the initial estimate"
+    );
+}
+
+#[test]
 fn view_and_element_aliases_match_runtime_surface_types() {
     let surface: Arc<View<DemoMessage>> = project_surface(&mut DemoState::default());
     let root: &Element<DemoMessage> = surface.root();

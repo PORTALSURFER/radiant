@@ -20,7 +20,7 @@ pub use scroll::ScrollUpdate;
 use super::{
     ClipAncestors, Command, RuntimeBridge, SurfaceFrame, SurfacePaintPlan,
     SurfaceRuntimeProjection, SurfaceTraversalIndex, SurfaceWidget, UiSurface,
-    WidgetDispatchResult, WidgetPath,
+    WidgetDispatchResult, WidgetPath, estimated_paint_primitive_capacity,
 };
 use crate::{
     gui::{

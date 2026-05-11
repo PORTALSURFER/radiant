@@ -59,7 +59,7 @@ pub(crate) use paint::{
 pub use resource::{ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot};
 pub(in crate::runtime) use surface::{
     ClipAncestors, SurfaceRuntimeProjection, SurfaceTraversalIndex, WidgetDispatchResult,
-    WidgetPath,
+    WidgetPath, estimated_paint_primitive_capacity,
 };
 pub use surface::{
     Element, MessageMapper, SurfaceChild, SurfaceContainer, SurfaceFrame, SurfaceNode,

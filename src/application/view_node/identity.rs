@@ -1,10 +1,9 @@
 use super::{ViewNode, ViewNodeKind};
 use crate::application::scoped_key_id;
 use crate::layout::NodeId;
-use std::collections::HashSet;
 
 impl<Message> ViewNode<Message> {
-    pub(super) fn collect_reserved_ids(&self, scope: u64, ids: &mut HashSet<NodeId>) {
+    pub(super) fn collect_reserved_ids(&self, scope: u64, ids: &mut Vec<NodeId>) {
         if !self.has_reserved_identity_in_subtree() {
             return;
         }
@@ -12,13 +11,13 @@ impl<Message> ViewNode<Message> {
             match &self.kind {
                 ViewNodeKind::Runtime(node) => {
                     if let Some(id) = self.resolved_id(scope) {
-                        ids.insert(id);
+                        ids.push(id);
                     }
-                    ids.insert(node.id());
+                    ids.push(node.id());
                 }
                 _ => {
                     if let Some(id) = self.resolved_id(scope) {
-                        ids.insert(id);
+                        ids.push(id);
                     }
                 }
             }
@@ -70,7 +69,7 @@ mod tests {
                 Vec::<crate::application::ViewNode<()>>::new(),
             )
         }));
-        let mut ids = HashSet::new();
+        let mut ids = Vec::new();
 
         view.collect_reserved_ids(ROOT_KEY_SCOPE, &mut ids);
 
@@ -81,7 +80,7 @@ mod tests {
     #[test]
     fn reserved_id_collection_skips_unreserved_descendants() {
         let view: ViewNode<()> = row_key("row", [text("unreserved child")]);
-        let mut ids = HashSet::new();
+        let mut ids = Vec::new();
 
         view.collect_reserved_ids(ROOT_KEY_SCOPE, &mut ids);
 

@@ -8,14 +8,13 @@ use crate::{
     runtime::{SurfaceChild, SurfaceNode},
     widgets::WidgetStyle,
 };
-use std::collections::HashSet;
 
 impl<Message> IntoView<Message> for ViewNode<Message>
 where
     Message: 'static,
 {
     fn into_node(self) -> SurfaceNode<Message> {
-        let mut reserved = HashSet::new();
+        let mut reserved = Vec::new();
         self.collect_reserved_ids(ROOT_KEY_SCOPE, &mut reserved);
         let mut ids = IdGenerator::new(reserved);
         ViewLowering::new(&mut ids).lower_node(self, ROOT_KEY_SCOPE)

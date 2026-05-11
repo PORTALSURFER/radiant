@@ -263,6 +263,30 @@ fn host_controlled_surface_frame_packages_layout_and_paint_plan() {
 }
 
 #[test]
+fn runtime_borrowed_frame_reuses_current_layout_without_cloning() {
+    let theme = ThemeTokens::default();
+    let bridge = declarative_runtime_bridge(
+        DemoState {
+            count: 5,
+            name: String::from("Borrowed"),
+        },
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::CanvasInput(_) => {}
+        },
+    );
+    let runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+
+    let frame: radiant::runtime::RuntimeSurfaceFrame<'_> = runtime.borrowed_frame(&theme);
+
+    assert_eq!(frame.viewport, runtime.context().viewport);
+    assert!(std::ptr::eq(frame.layout, runtime.layout()));
+    assert_eq!(frame.paint_plan, runtime.paint_plan(&theme));
+}
+
+#[test]
 fn host_controlled_surface_frame_can_collect_layout_debug_output() {
     let surface: UiSurface<()> = radiant::prelude::scroll(
         radiant::prelude::column((0..10).map(|index| {

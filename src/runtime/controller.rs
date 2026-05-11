@@ -13,7 +13,7 @@ mod scroll;
 mod state;
 
 pub use commands::CommandOutcome;
-pub use context::RuntimeContext;
+pub use context::{RuntimeContext, RuntimeSurfaceFrame};
 pub use events::Event;
 
 use super::{

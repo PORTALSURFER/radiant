@@ -15,6 +15,22 @@ pub struct RuntimeContext<'a, Message> {
     pub layout: &'a LayoutOutput,
 }
 
+/// Borrowed runtime frame for host renderers that do not need owned layout data.
+///
+/// Unlike [`SurfaceFrame`], this frame borrows the runtime's current layout
+/// output while owning the freshly generated paint plan. It is useful for
+/// embedded hosts and custom renderers that render immediately and want to
+/// avoid cloning potentially large layout maps on every frame.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RuntimeSurfaceFrame<'a> {
+    /// Current logical viewport rectangle.
+    pub viewport: Rect,
+    /// Borrowed resolved layout for the runtime's current surface.
+    pub layout: &'a LayoutOutput,
+    /// Backend-neutral paint plan for the borrowed layout.
+    pub paint_plan: SurfacePaintPlan,
+}
+
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
@@ -53,6 +69,19 @@ where
         SurfaceFrame {
             viewport: self.viewport,
             layout: self.layout.clone(),
+            paint_plan: self.paint_plan(theme),
+        }
+    }
+
+    /// Package the current runtime viewport, borrowed layout, and paint plan.
+    ///
+    /// This is the lower-allocation counterpart to [`Self::frame`] for hosts
+    /// that render synchronously and do not need to retain owned layout output
+    /// after borrowing the runtime.
+    pub fn borrowed_frame(&self, theme: &ThemeTokens) -> RuntimeSurfaceFrame<'_> {
+        RuntimeSurfaceFrame {
+            viewport: self.viewport,
+            layout: &self.layout,
             paint_plan: self.paint_plan(theme),
         }
     }

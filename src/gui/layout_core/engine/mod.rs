@@ -12,7 +12,7 @@ mod types;
 use super::constraints::Constraints;
 use super::tree::{LayoutNode, NodeId};
 use crate::gui::types::{Point, Rect, Vector2};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
 use cache::{CachedVirtualMetrics, MeasureCacheKey, VirtualizationCacheKey};
 use context::{LayoutContext, LayoutScratch};
@@ -27,8 +27,8 @@ pub struct LayoutEngine {
     measure_cache: HashMap<MeasureCacheKey, Vector2>,
     virtual_cache: HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
     scratch: LayoutScratch,
-    layout_dirty: BTreeSet<NodeId>,
-    measure_dirty: BTreeSet<NodeId>,
+    layout_dirty: HashSet<NodeId>,
+    measure_dirty: HashSet<NodeId>,
 }
 
 impl LayoutEngine {
@@ -66,7 +66,7 @@ impl LayoutEngine {
     }
 
     fn mark_subtree_dirty(&mut self, root: &LayoutNode, node_id: NodeId, measure: bool) {
-        let mut marked = BTreeSet::new();
+        let mut marked = HashSet::new();
         let mut path = Vec::new();
         if !dirty::collect_path_and_descendants(root, node_id, &mut path, &mut marked) {
             marked.insert(node_id);

@@ -16,7 +16,7 @@ use super::cache::{
 use super::{LayoutDebugOptions, LayoutOutput, LayoutState};
 use crate::gui::layout_core::tree::NodeId;
 use crate::gui::types::Vector2;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
 /// Reusable scratch maps cleared at the start of each layout evaluation.
 #[derive(Default)]
@@ -37,10 +37,10 @@ pub(super) struct LayoutContext<'a> {
     cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
     virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
     linear_windows: &'a mut HashMap<NodeId, ResolvedLinearWindow>,
-    measure_dirty: &'a BTreeSet<NodeId>,
+    measure_dirty: &'a HashSet<NodeId>,
     state: &'a LayoutState,
     debug_options: LayoutDebugOptions,
-    debug_node_filter: Option<&'a BTreeSet<NodeId>>,
+    debug_node_filter: Option<&'a HashSet<NodeId>>,
     pub(super) output: LayoutOutput,
 }
 
@@ -50,10 +50,10 @@ impl<'a> LayoutContext<'a> {
         cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
         virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
         scratch: &'a mut LayoutScratch,
-        measure_dirty: &'a BTreeSet<NodeId>,
+        measure_dirty: &'a HashSet<NodeId>,
         state: &'a LayoutState,
         debug_options: LayoutDebugOptions,
-        debug_node_filter: Option<&'a BTreeSet<NodeId>>,
+        debug_node_filter: Option<&'a HashSet<NodeId>>,
     ) -> Self {
         scratch.measured.clear();
         scratch.measured_by_node.clear();

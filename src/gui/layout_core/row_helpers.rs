@@ -40,17 +40,16 @@ pub fn visible_suffix_widths(widths: &[f32], available_width: f32, gap: f32) -> 
         return Vec::new();
     }
     let mut used = 0.0;
-    let mut reversed = Vec::new();
+    let mut first_visible = widths.len();
     for (index, width) in widths.iter().rev().enumerate() {
         let candidate = used + width + if index > 0 { gap } else { 0.0 };
         if candidate >= available_width {
             break;
         }
-        reversed.push(*width);
+        first_visible -= 1;
         used = candidate;
     }
-    reversed.reverse();
-    reversed
+    widths[first_visible..].to_vec()
 }
 
 /// Return the width of one fixed-width control group.
@@ -122,22 +121,20 @@ fn fixed_width_row_rects(bounds: Rect, gap: f32, widths: &[f32], align_end: bool
         bounds.min.x
     };
 
-    widths
-        .iter()
-        .enumerate()
-        .map(|(index, _)| {
-            if index > 0 {
-                x += gap;
-            }
-            let width = widths[index].max(0.0);
-            let rect = Rect {
-                min: Point::new(x, bounds.min.y),
-                max: Point::new(x + width, bounds.max.y),
-            };
-            x += width;
-            rect.clamp_to(bounds)
-        })
-        .collect()
+    let mut rects = Vec::with_capacity(widths.len());
+    for (index, width) in widths.iter().copied().enumerate() {
+        if index > 0 {
+            x += gap;
+        }
+        let width = width.max(0.0);
+        let rect = Rect {
+            min: Point::new(x, bounds.min.y),
+            max: Point::new(x + width, bounds.max.y),
+        };
+        x += width;
+        rects.push(rect.clamp_to(bounds));
+    }
+    rects
 }
 
 #[cfg(test)]
@@ -193,6 +190,15 @@ mod tests {
         );
         assert!(visible_suffix_widths(&[20.0], 20.0, 4.0).is_empty());
         assert_eq!(visible_suffix_widths(&[20.0], 20.1, 4.0), [20.0]);
+    }
+
+    #[test]
+    fn fixed_width_row_rects_presizes_output() {
+        let bounds = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(120.0, 20.0));
+        let rects = fixed_width_row_rects_start(bounds, 2.0, &[10.0, 20.0, 30.0], 1, 10);
+
+        assert_eq!(rects.len(), 3);
+        assert!(rects.capacity() >= 3);
     }
 
     #[test]

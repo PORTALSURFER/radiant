@@ -359,6 +359,9 @@ fn hit_rank(order: &[NodeId]) -> HashMap<NodeId, usize> {
 
 fn collect_hit_rank(order: &[NodeId], out: &mut HashMap<NodeId, usize>) {
     out.clear();
+    if order.len() > out.capacity() {
+        out.reserve(order.len());
+    }
     out.extend(
         order
             .iter()
@@ -502,5 +505,17 @@ mod tests {
         assert_eq!(rank.get(&9), Some(&2));
         assert!(!rank.contains_key(&999));
         assert!(rank.capacity() >= capacity);
+    }
+
+    #[test]
+    fn hit_rank_presizes_reused_map_for_growth() {
+        let mut rank = HashMap::with_capacity(4);
+        let order = (0..96).collect::<Vec<_>>();
+
+        collect_hit_rank(&order, &mut rank);
+
+        assert_eq!(rank.len(), 96);
+        assert!(rank.capacity() >= 96);
+        assert_eq!(rank.get(&95), Some(&95));
     }
 }

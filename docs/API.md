@@ -299,6 +299,9 @@ Large item-indexed lists can use `VirtualListWindowRequest` and
 `VirtualListWindow` from `radiant::gui::list` before projecting widgets. This
 keeps host-side list projection bounded while `layout::VirtualizationPolicy`
 continues to handle pixel-based scroll-container virtualization.
+Application-builder code that owns a resolved logical window can use
+`virtual_list_window(...)` for fixed-height rows; it preserves full scroll
+extent with spacer rows while only projecting the materialized item range.
 `virtual_list_view_start_after_scroll_delta` applies signed logical-row scroll
 deltas to virtual-list viewport starts with the same allocation-free clamping
 contract, leaving hit testing and platform input normalization to the host or
@@ -490,9 +493,10 @@ cargo bench --bench perf_harness
 The harness prints parseable `radiant_perf` metric lines for layout, runtime
 surface, and GPU-surface data preparation scenarios. It currently covers deep
 layout trees, 1k wrap layout, 10k virtualized scroll layout, fixed-size 10k
-virtualized scroll layout, large declarative surface layout plus paint-plan
-generation, GPU signal-summary construction, and GPU-surface primitive
-projection. The harness performs sanity assertions, but it does not enforce machine-dependent pass/fail timing thresholds; use the output for local
+virtualized scroll layout, eager and windowed 10k application-list projection,
+large declarative surface layout plus paint-plan generation, GPU signal-summary
+construction, and GPU-surface primitive projection. The harness performs sanity
+assertions, but it does not enforce machine-dependent pass/fail timing thresholds; use the output for local
 comparisons, profiling runs, and regression investigation.
 Run `cargo run --example rendering_benchmark` for a checked public-API sandbox
 that builds a large declarative surface, runs layout plus paint-plan generation,
@@ -543,7 +547,9 @@ Run `cargo run --example layout_diagnostics` for a layout diagnostics sandbox
 that collects `LayoutDiagnostic` entries and debug primitives from
 `LayoutDebugOptions::all_enabled()`.
 Run `cargo run --example virtualized_list` for a large application-builder list
-sandbox that projects 10k selectable rows through `virtual_list(...)`.
+sandbox that projects 10k selectable rows through `virtual_list(...)`; hosts
+that already own logical list scroll state can use `virtual_list_window(...)`
+to keep projection bounded to a `VirtualListWindow`.
 Run `cargo run --example inspector_panel` for a compact inspector/property
 panel sandbox that uses `PropertyRow`, `property_panel(...)`, and
 `selectable_property_panel(...)` on the same application-builder path as other

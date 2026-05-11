@@ -1,5 +1,6 @@
 use crate::{
-    application::{ViewNode, ViewNodeKind, primary_style},
+    application::{ViewNode, ViewNodeKind, primary_style, spacer},
+    gui::list::VirtualListWindow,
     layout::Vector2,
     widgets::WidgetStyle,
 };
@@ -149,6 +150,43 @@ pub fn virtual_list<Message, Item>(
         .fill_height()
 }
 
+/// Build a vertically virtualized fixed-row list from a pre-resolved logical window.
+///
+/// Unlike [`virtual_list`], this helper only calls `project` for
+/// `window.window_start..window.window_end`. It is intended for large
+/// item-indexed lists whose host state already owns logical scroll position or
+/// focus-follow navigation through [`VirtualListWindow`].
+pub fn virtual_list_window<Message: 'static>(
+    window: VirtualListWindow,
+    row_height: f32,
+    mut project: impl FnMut(usize) -> ViewNode<Message>,
+    overscan_px: f32,
+) -> ViewNode<Message> {
+    let row_height = row_height.max(0.0);
+    let projected_len = window.window_len();
+    let mut children = Vec::with_capacity(projected_len + 2);
+
+    let top_spacer_height = row_height * window.window_start as f32;
+    if top_spacer_height > 0.0 {
+        children.push(spacer().height(top_spacer_height).fill_width());
+    }
+
+    children.extend(
+        (window.window_start..window.window_end)
+            .map(|index| project(index).height(row_height).fill_width()),
+    );
+
+    let bottom_items = window.total_items.saturating_sub(window.window_end);
+    let bottom_spacer_height = row_height * bottom_items as f32;
+    if bottom_spacer_height > 0.0 {
+        children.push(spacer().height(bottom_spacer_height).fill_width());
+    }
+
+    virtual_scroll(column(children).spacing(0.0), overscan_px)
+        .style(WidgetStyle::default())
+        .fill_height()
+}
+
 /// Build a keyed list row with full-width, fixed-height defaults.
 pub fn list_row<Message>(
     key: impl ToString,
@@ -189,4 +227,60 @@ fn collect_children<Message>(
         })
         .collect();
     (children, has_reserved_descendant_identity)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        application::{IntoView, button, list_row_id},
+        layout::{LayoutNode, NodeId},
+    };
+
+    #[test]
+    fn virtual_list_window_projects_only_materialized_range() {
+        let window = VirtualListWindow {
+            total_items: 10_000,
+            viewport_start: 120,
+            viewport_end: 128,
+            window_start: 116,
+            window_end: 132,
+        };
+        let mut projected = Vec::new();
+
+        let view: ViewNode<()> = virtual_list_window(
+            window,
+            32.0,
+            |index| {
+                projected.push(index);
+                list_row_id(
+                    10_000 + index as NodeId,
+                    [button(format!("Row {index:05}"))
+                        .message(())
+                        .id(20_000 + index as NodeId)],
+                )
+            },
+            64.0,
+        );
+
+        assert_eq!(projected, (116..132).collect::<Vec<_>>());
+        let layout = view.into_surface().layout_node();
+        assert!(
+            count_layout_nodes(&layout) < 64,
+            "windowed projection should stay bounded to materialized rows"
+        );
+    }
+
+    fn count_layout_nodes(node: &LayoutNode) -> usize {
+        match node {
+            LayoutNode::Widget(_) => 1,
+            LayoutNode::Container(container) => {
+                1 + container
+                    .children
+                    .iter()
+                    .map(|child| count_layout_nodes(&child.child))
+                    .sum::<usize>()
+            }
+        }
+    }
 }

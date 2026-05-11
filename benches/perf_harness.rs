@@ -7,7 +7,10 @@ use radiant::{
         SizeModeCross, SizeModeMain, SlotChild, SlotParams, Vector2, VirtualizationAxis,
         VirtualizationPolicy, layout_tree, layout_tree_with_state,
     },
-    prelude::{IntoView, button, list_row_id, virtual_list},
+    prelude::{
+        IntoView, VirtualListWindowRequest, button, list_row_id, resolve_virtual_list_window,
+        virtual_list, virtual_list_window,
+    },
     runtime::{
         Event, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent, PaintPrimitive,
         RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
@@ -53,6 +56,11 @@ fn main() {
         "app_virtual_list_projection_generated_child_ids_10k",
         RUNTIME_ITERATIONS,
         bench_app_virtual_list_projection_generated_child_ids_10k,
+    );
+    run_scenario(
+        "app_virtual_list_window_projection_10k",
+        RUNTIME_ITERATIONS,
+        bench_app_virtual_list_window_projection_10k,
     );
     let runtime_surface = StatefulRuntimeSurfaceBench::new();
     run_scenario(
@@ -338,6 +346,35 @@ fn bench_app_virtual_list_projection_generated_child_ids_10k() {
                     .height(28.0)],
             )
             .height(32.0)
+        },
+        96.0,
+    )
+    .into_surface();
+    let layout = surface.layout_node();
+    assert_eq!(layout.id(), 1);
+    black_box((surface, layout));
+}
+
+fn bench_app_virtual_list_window_projection_10k() {
+    let window = resolve_virtual_list_window(VirtualListWindowRequest {
+        total_items: 10_000,
+        viewport_len: 18,
+        requested_start: 4_000,
+        overscan: 4,
+        ..VirtualListWindowRequest::default()
+    });
+    let surface = virtual_list_window(
+        window,
+        32.0,
+        |index| {
+            list_row_id(
+                index as u64 + 10_000,
+                [button(format!("Row {index:05}"))
+                    .message(())
+                    .id(index as u64 + 20_000)
+                    .fill_width()
+                    .height(28.0)],
+            )
         },
         96.0,
     )

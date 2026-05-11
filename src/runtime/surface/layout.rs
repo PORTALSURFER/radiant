@@ -30,13 +30,17 @@ impl<Message> UiSurface<Message> {
         )
     }
 
-    pub(in crate::runtime) fn runtime_projection_reusing(
+    pub(in crate::runtime) fn runtime_projection_reusing_with_scratch(
         &self,
         traversal: &mut SurfaceTraversalIndex,
+        scroll_stack: &mut Vec<NodeId>,
+        child_path: &mut Vec<usize>,
     ) -> LayoutNode {
         traversal.clear_for_reuse();
+        scroll_stack.clear();
+        child_path.clear();
         self.root
-            .project_runtime(&mut Vec::new(), &mut Vec::new(), traversal)
+            .project_runtime(scroll_stack, child_path, traversal)
     }
 }
 
@@ -230,7 +234,13 @@ mod tests {
         let widget_order_capacity = traversal.widget_paint_order.capacity();
         let widget_path_capacity = traversal.widget_paths.capacity();
 
-        let layout_root = surface.runtime_projection_reusing(&mut traversal);
+        let mut scroll_stack = Vec::new();
+        let mut child_path = Vec::new();
+        let layout_root = surface.runtime_projection_reusing_with_scratch(
+            &mut traversal,
+            &mut scroll_stack,
+            &mut child_path,
+        );
 
         assert_eq!(layout_root.id(), 1);
         assert_eq!(traversal.widget_paint_order, vec![10]);
@@ -239,5 +249,53 @@ mod tests {
         assert!(!traversal.widget_paths.contains_key(&999));
         assert!(traversal.widget_paint_order.capacity() >= widget_order_capacity);
         assert!(traversal.widget_paths.capacity() >= widget_path_capacity);
+    }
+
+    #[test]
+    fn runtime_projection_reusing_preserves_scratch_stack_capacity() {
+        let surface: UiSurface<()> = UiSurface::new(SurfaceNode::virtual_scroll_area(
+            1,
+            SurfaceNode::column(
+                2,
+                4.0,
+                vec![SurfaceChild::fill(SurfaceNode::row(
+                    3,
+                    0.0,
+                    vec![SurfaceChild::fill(SurfaceNode::widget(
+                        ButtonWidget::new(
+                            10,
+                            "Action",
+                            WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    ))],
+                ))],
+            ),
+            VirtualizationAxis::Vertical,
+            16.0,
+        ));
+        let mut traversal = SurfaceTraversalIndex::with_stats(SurfaceTraversalStats {
+            widgets: 1,
+            scroll_containers: 1,
+            styled_hoverable_containers: 0,
+            max_depth: 4,
+            max_scroll_depth: 1,
+        });
+        let mut scroll_stack = Vec::with_capacity(8);
+        let mut child_path = Vec::with_capacity(8);
+        let scroll_capacity = scroll_stack.capacity();
+        let path_capacity = child_path.capacity();
+
+        let layout_root = surface.runtime_projection_reusing_with_scratch(
+            &mut traversal,
+            &mut scroll_stack,
+            &mut child_path,
+        );
+
+        assert_eq!(layout_root.id(), 1);
+        assert_eq!(scroll_stack.capacity(), scroll_capacity);
+        assert_eq!(child_path.capacity(), path_capacity);
+        assert!(scroll_stack.is_empty());
+        assert!(child_path.is_empty());
     }
 }

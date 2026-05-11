@@ -32,7 +32,11 @@ where
 
     pub(super) fn relayout(&mut self) {
         let mut traversal = self.take_reusable_traversal_index(true);
-        self.layout_root = self.surface.runtime_projection_reusing(&mut traversal);
+        self.layout_root = self.surface.runtime_projection_reusing_with_scratch(
+            &mut traversal,
+            &mut self.projection_scroll_stack,
+            &mut self.projection_child_path,
+        );
         self.relayout_with_traversal(traversal);
     }
 

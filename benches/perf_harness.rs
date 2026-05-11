@@ -443,7 +443,10 @@ impl StatefulTextPaintPlanBench {
         let output = layout_tree(&self.layout_node, viewport(960.0, 720.0));
         let plan = self.surface.paint_plan(&output, &self.theme);
         let stats = plan.stats();
-        assert_eq!(stats.text, 1_000);
+        assert!(
+            stats.text > 0 && stats.text < 64,
+            "text-heavy scroll paint should stay bounded to the visible clip"
+        );
         assert!(
             stats.total >= stats.text,
             "text-heavy paint plan should retain all text primitives"

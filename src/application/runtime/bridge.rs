@@ -134,6 +134,10 @@ where
         Arc::new((self.project)(&mut self.state).into_surface())
     }
 
+    fn pull_surface(&mut self) -> UiSurface<Message> {
+        (self.project)(&mut self.state).into_surface()
+    }
+
     fn update(&mut self, message: Message) -> Command<Message> {
         self.run_update(message)
     }

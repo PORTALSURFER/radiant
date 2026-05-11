@@ -28,6 +28,10 @@ pub trait RuntimeBridge<Message> {
     fn project_surface(&mut self) -> Arc<UiSurface<Message>>;
 
     /// Pull the latest immutable UI surface snapshot as an owned value.
+    ///
+    /// Bridges that can project owned surfaces directly should override this
+    /// method so runtime refreshes do not allocate a temporary [`Arc`] or clone
+    /// a shared surface snapshot.
     fn pull_surface(&mut self) -> UiSurface<Message> {
         Arc::unwrap_or_clone(self.project_surface())
     }

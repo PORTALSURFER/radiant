@@ -507,6 +507,37 @@ fn application_builders_support_direct_callbacks_scroll_and_sizing_helpers() {
 }
 
 #[test]
+fn application_bridge_pulls_owned_surfaces_for_runtime_projection() {
+    use radiant::prelude as ui;
+
+    let mut bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::column([ui::text(format!("Count: {}", state.count))
+                .id(10)
+                .fixed(120.0, 24.0)
+                .baseline(17.0)])
+            .id(1)
+        })
+        .update(|state, DemoMessage::Increment| {
+            state.count += 1;
+        })
+        .into_bridge();
+
+    let before = bridge.pull_surface();
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&before, 10, "text").text,
+        "Count: 0"
+    );
+
+    bridge.update(DemoMessage::Increment);
+    let after = bridge.pull_surface();
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&after, 10, "text").text,
+        "Count: 1"
+    );
+}
+
+#[test]
 fn details_columns_use_logical_widths() {
     use radiant::prelude::DetailsColumn;
 

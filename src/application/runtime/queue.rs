@@ -51,13 +51,13 @@ impl<Message> AppRuntime<Message> {
     }
 
     pub(super) fn take_pending(&self) -> Vec<Message> {
-        let pending = std::mem::take(&mut *lock_runtime_state(&self.pending));
+        let pending = drain_runtime_vec(&self.pending);
         self.frame_pending.store(false, Ordering::Release);
         pending
     }
 
     pub(super) fn take_commands(&self) -> Vec<Command<Message>> {
-        std::mem::take(&mut *lock_runtime_state(&self.commands))
+        drain_runtime_vec(&self.commands)
     }
 
     pub(super) fn install_repaint(&self, signal: Arc<dyn RepaintSignal>) {
@@ -87,6 +87,13 @@ fn lock_runtime_state<T>(state: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     state
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn drain_runtime_vec<T>(state: &Mutex<Vec<T>>) -> Vec<T> {
+    let mut queued = lock_runtime_state(state);
+    let mut drained = Vec::with_capacity(queued.len());
+    drained.extend(queued.drain(..));
+    drained
 }
 
 #[cfg(test)]
@@ -158,5 +165,33 @@ mod tests {
         assert!(runtime.enqueue(1));
 
         assert!(called.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn pending_message_queue_retains_capacity_after_drain() {
+        let runtime = AppRuntime::<u32>::default();
+        for message in 0..32 {
+            assert!(runtime.enqueue(message));
+        }
+        let capacity = runtime.pending.lock().expect("pending lock").capacity();
+
+        assert_eq!(runtime.take_pending().len(), 32);
+
+        let retained_capacity = runtime.pending.lock().expect("pending lock").capacity();
+        assert_eq!(retained_capacity, capacity);
+    }
+
+    #[test]
+    fn command_queue_retains_capacity_after_drain() {
+        let runtime = AppRuntime::<u32>::default();
+        for message in 0..32 {
+            assert!(runtime.enqueue_command(Command::message(message)));
+        }
+        let capacity = runtime.commands.lock().expect("commands lock").capacity();
+
+        assert_eq!(runtime.take_commands().len(), 32);
+
+        let retained_capacity = runtime.commands.lock().expect("commands lock").capacity();
+        assert_eq!(retained_capacity, capacity);
     }
 }

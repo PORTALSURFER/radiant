@@ -160,6 +160,7 @@ where
     animation_origin: Instant,
     last_redraw: Instant,
     last_scene_stats: RetainedSurfaceEncodeStats,
+    scene_text_run_overflow_capacity: usize,
     gpu_surface_interaction_regions: Vec<GpuSurfaceInteractionRegion>,
     scene_texture_dirty: bool,
     deferred_surface_refresh: bool,
@@ -195,6 +196,7 @@ where
             animation_origin: Instant::now(),
             last_redraw: Instant::now(),
             last_scene_stats: RetainedSurfaceEncodeStats::default(),
+            scene_text_run_overflow_capacity: 0,
             gpu_surface_interaction_regions: Vec::new(),
             scene_texture_dirty: true,
             deferred_surface_refresh: false,
@@ -215,7 +217,8 @@ where
     fn rebuild_scene(&mut self) {
         self.core.paint_plan_into(&mut self.last_paint_plan);
         let viewport = self.core.runtime.viewport();
-        let mut scene_text_runs = SceneTextRunBuffer::new();
+        let mut scene_text_runs =
+            SceneTextRunBuffer::with_overflow_capacity(self.scene_text_run_overflow_capacity);
         self.last_scene_stats = encode_surface_paint_plan_to_scene(
             &self.last_paint_plan,
             SurfaceSceneEncodeContext {
@@ -229,6 +232,7 @@ where
                 animation_time: self.animation_origin.elapsed(),
             },
         );
+        self.scene_text_run_overflow_capacity = scene_text_runs.overflow_capacity();
         self.scene_texture_dirty = true;
     }
 

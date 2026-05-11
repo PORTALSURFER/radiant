@@ -41,6 +41,13 @@ fn generic_paint_plan_encodes_to_vello_scene() {
 }
 
 #[test]
+fn scene_text_run_buffer_presizes_overflow_storage() {
+    let text_runs = SceneTextRunBuffer::with_overflow_capacity(32);
+
+    assert!(text_runs.overflow_capacity() >= 32);
+}
+
+#[test]
 fn scene_encoding_collects_fast_pointer_gpu_surface_hit_rects() {
     let mut bridge = demo_bridge();
     let mut scene = Scene::new();

@@ -1,17 +1,72 @@
 use super::{RetainedSurfaceEncodeStats, encode_image, encode_rect};
 use crate::gui_runtime::native_vello::*;
 
+const INLINE_SCENE_TEXT_RUNS: usize = 64;
+
+pub(in crate::gui_runtime::native_vello) struct SceneTextRunBuffer<'a> {
+    inline: [Option<SceneTextRun<'a>>; INLINE_SCENE_TEXT_RUNS],
+    len: usize,
+    overflow: Vec<SceneTextRun<'a>>,
+}
+
+impl<'a> SceneTextRunBuffer<'a> {
+    pub(in crate::gui_runtime::native_vello) fn new() -> Self {
+        Self {
+            inline: [None; INLINE_SCENE_TEXT_RUNS],
+            len: 0,
+            overflow: Vec::new(),
+        }
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn clear(&mut self) {
+        for slot in &mut self.inline[..self.len] {
+            *slot = None;
+        }
+        self.len = 0;
+        self.overflow.clear();
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn push(
+        &mut self,
+        run: SceneTextRun<'a>,
+    ) {
+        if self.len < INLINE_SCENE_TEXT_RUNS {
+            self.inline[self.len] = Some(run);
+            self.len += 1;
+            return;
+        }
+        self.overflow.push(run);
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn is_empty(&self) -> bool {
+        self.len == 0 && self.overflow.is_empty()
+    }
+
+    fn len(&self) -> usize {
+        self.len + self.overflow.len()
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello) fn overflow_capacity(&self) -> usize {
+        self.overflow.capacity()
+    }
+}
+
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn flush_text_runs(
     scene: &mut Scene,
     text_renderer: &mut NativeTextRenderer,
-    text_runs: &mut Vec<SceneTextRun<'_>>,
+    text_runs: &mut SceneTextRunBuffer<'_>,
     stats: &mut RetainedSurfaceEncodeStats,
 ) {
     if text_runs.is_empty() {
         return;
     }
     stats.record_text_runs(text_runs.len());
-    text_renderer.draw_scene_text_runs(scene, text_runs.iter().copied());
+    text_renderer.draw_scene_text_runs(
+        scene,
+        text_runs.inline[..text_runs.len].iter().flatten().copied(),
+    );
+    text_renderer.draw_scene_text_runs(scene, text_runs.overflow.iter().copied());
     text_runs.clear();
 }
 

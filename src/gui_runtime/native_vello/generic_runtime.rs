@@ -29,8 +29,8 @@ use runtime_helpers::{
     maybe_log_route_profile, render_profile_enabled, scroll_delta_to_logical,
 };
 pub(in crate::gui_runtime::native_vello) use scene::{
-    RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SurfaceSceneEncodeContext,
-    encode_surface_paint_plan_to_scene,
+    RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneTextRunBuffer,
+    SurfaceSceneEncodeContext, encode_surface_paint_plan_to_scene,
 };
 use window::generic_window_attributes;
 
@@ -215,7 +215,7 @@ where
     fn rebuild_scene(&mut self) {
         self.core.paint_plan_into(&mut self.last_paint_plan);
         let viewport = self.core.runtime.viewport();
-        let mut scene_text_runs = Vec::with_capacity(self.last_paint_plan.primitives.len().min(64));
+        let mut scene_text_runs = SceneTextRunBuffer::new();
         self.last_scene_stats = encode_surface_paint_plan_to_scene(
             &self.last_paint_plan,
             SurfaceSceneEncodeContext {

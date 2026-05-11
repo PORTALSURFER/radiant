@@ -43,8 +43,8 @@ fn project_surface(state: &mut DemoState) -> View<Message> {
                 } else {
                     format!("Row {index:05}")
                 };
-                list_row(
-                    index,
+                list_row_id(
+                    index as u64 + 10_000,
                     [button(label)
                         .message(Message::Select(index))
                         .fill_width()

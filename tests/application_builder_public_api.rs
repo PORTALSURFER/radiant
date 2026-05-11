@@ -642,6 +642,24 @@ fn application_builder_virtual_list_records_virtual_window() {
 }
 
 #[test]
+fn application_builder_list_row_id_uses_direct_numeric_identity() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::list_row_id(
+        42,
+        [ui::button("Open").message(DemoMessage::Increment).id(420)],
+    )
+    .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 64.0)),
+    );
+
+    assert!(layout.rects.contains_key(&42));
+    assert!(surface.find_widget(420).is_some());
+}
+
+#[test]
 fn application_builder_grid_lowers_to_fixed_column_tile_layout() {
     use radiant::prelude::{self as ui, IntoView};
 

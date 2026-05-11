@@ -144,8 +144,22 @@ pub fn list_row<Message>(
     key: impl ToString,
     children: impl IntoIterator<Item = ViewNode<Message>>,
 ) -> ViewNode<Message> {
-    row_key(key, children)
-        .style(WidgetStyle::default())
+    apply_list_row_chrome(row_key(key, children))
+}
+
+/// Build a list row with a direct numeric id instead of a string key.
+///
+/// Prefer this for large numeric collections when the caller already owns
+/// stable item ids; it avoids per-row key string allocation during projection.
+pub fn list_row_id<Message>(
+    id: u64,
+    children: impl IntoIterator<Item = ViewNode<Message>>,
+) -> ViewNode<Message> {
+    apply_list_row_chrome(row(children).id(id))
+}
+
+fn apply_list_row_chrome<Message>(row: ViewNode<Message>) -> ViewNode<Message> {
+    row.style(WidgetStyle::default())
         .hoverable()
         .fill_width()
         .height(52.0)

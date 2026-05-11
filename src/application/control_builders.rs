@@ -6,7 +6,7 @@ use super::{
     default_toggle_sizing, primary_style, view_node_from_widget,
 };
 use crate::{
-    runtime::WidgetMessageMapper,
+    runtime::{PaintText, WidgetMessageMapper},
     widgets::{
         BadgeWidget, ButtonWidget, DragHandleWidget, SelectableWidget, TextInputWidget,
         ToggleWidget, WidgetProminence, WidgetStyle,

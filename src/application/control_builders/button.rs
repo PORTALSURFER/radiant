@@ -2,7 +2,7 @@ use super::*;
 
 /// Builder for buttons that can emit messages or mutate state directly.
 pub struct ButtonBuilder {
-    label: String,
+    label: PaintText,
     style: Option<WidgetStyle>,
     secondary_click: bool,
     drag: bool,
@@ -58,7 +58,8 @@ impl ButtonBuilder {
         self,
         map: impl Fn(crate::widgets::ButtonMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
-        let mut button = ButtonWidget::new(0, &self.label, default_button_sizing(&self.label));
+        let sizing = default_button_sizing(&self.label);
+        let mut button = ButtonWidget::new(0, self.label, sizing);
         if self.secondary_click {
             button = button.with_secondary_click();
         }
@@ -169,7 +170,7 @@ impl ButtonBuilder {
 }
 
 /// Build a button.
-pub fn button(label: impl Into<String>) -> ButtonBuilder {
+pub fn button(label: impl Into<PaintText>) -> ButtonBuilder {
     ButtonBuilder {
         label: label.into(),
         style: None,
@@ -179,7 +180,7 @@ pub fn button(label: impl Into<String>) -> ButtonBuilder {
 }
 
 /// Build a button that emits one cloned host message when activated.
-pub fn button_message<Message>(label: impl Into<String>, message: Message) -> ViewNode<Message>
+pub fn button_message<Message>(label: impl Into<PaintText>, message: Message) -> ViewNode<Message>
 where
     Message: Clone + Send + Sync + 'static,
 {
@@ -188,7 +189,7 @@ where
 
 /// Build a button with a custom widget-message mapper.
 pub fn button_mapped<Message: 'static>(
-    label: impl Into<String>,
+    label: impl Into<PaintText>,
     map: impl Fn(crate::widgets::ButtonMessage) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
     button(label).mapped(map)

@@ -2,7 +2,7 @@ use super::*;
 
 /// Builder for selectable controls that can emit messages or mutate state directly.
 pub struct SelectableBuilder {
-    label: String,
+    label: PaintText,
     selected: bool,
     style: Option<WidgetStyle>,
 }
@@ -47,13 +47,9 @@ impl SelectableBuilder {
         self,
         map: impl Fn(crate::widgets::SelectableMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
+        let sizing = default_selectable_sizing(&self.label);
         let mut node = view_node_from_widget(MappedWidget::new(
-            SelectableWidget::new(
-                0,
-                &self.label,
-                self.selected,
-                default_selectable_sizing(&self.label),
-            ),
+            SelectableWidget::new(0, self.label, self.selected, sizing),
             WidgetMessageMapper::selectable(map),
         ));
         node.style = self.style;
@@ -74,7 +70,7 @@ impl SelectableBuilder {
 }
 
 /// Build a selectable control.
-pub fn selectable(label: impl Into<String>, selected: bool) -> SelectableBuilder {
+pub fn selectable(label: impl Into<PaintText>, selected: bool) -> SelectableBuilder {
     SelectableBuilder {
         label: label.into(),
         selected,
@@ -84,7 +80,7 @@ pub fn selectable(label: impl Into<String>, selected: bool) -> SelectableBuilder
 
 /// Build a selectable control that maps value changes by selected state.
 pub fn selectable_mapped<Message: 'static>(
-    label: impl Into<String>,
+    label: impl Into<PaintText>,
     selected: bool,
     map: impl Fn(bool) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {

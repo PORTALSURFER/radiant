@@ -93,7 +93,7 @@ impl GpuSignalSummary {
     pub fn from_interleaved_samples(samples: &[f32], frames: usize, band_count: usize) -> Self {
         let frames = frames.min(samples.len() / band_count.max(1));
         let band_count = band_count.max(1);
-        let mut levels = Vec::new();
+        let mut levels = Vec::with_capacity(signal_summary_level_count(frames));
         let mut bucket_frames = 1usize;
         let mut previous_buckets: Option<Arc<[GpuSignalSummaryBucket]>> = None;
         while bucket_frames <= frames.max(1) {
@@ -136,6 +136,11 @@ impl GpuSignalSummary {
             .map(|(index, _)| index)
             .unwrap_or_default()
     }
+}
+
+fn signal_summary_level_count(frames: usize) -> usize {
+    let frames = frames.max(1);
+    usize::BITS as usize - frames.leading_zeros() as usize
 }
 
 fn build_signal_summary_level(
@@ -297,5 +302,22 @@ mod tests {
                 GpuSignalSummaryBucket::default(),
             ]
         );
+    }
+
+    #[test]
+    fn signal_summary_presizes_level_vector_for_power_of_two_pyramid() {
+        let samples = [0.0; 16];
+        let summary = GpuSignalSummary::from_interleaved_samples(&samples, 16, 1);
+
+        assert_eq!(summary.levels.len(), 5);
+        assert!(summary.levels.capacity() >= 5);
+    }
+
+    #[test]
+    fn signal_summary_presizes_level_vector_for_empty_input() {
+        let summary = GpuSignalSummary::from_interleaved_samples(&[], 0, 2);
+
+        assert_eq!(summary.levels.len(), 1);
+        assert!(summary.levels.capacity() >= 1);
     }
 }

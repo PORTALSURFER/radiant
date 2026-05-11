@@ -50,10 +50,13 @@ pub(in crate::gui_runtime::native_vello) fn build_text_field_layout(
 ) -> TextFieldLayoutState {
     editor.clamp_to_text(text);
     let width = available_width.max(1.0);
-    let layout = renderer
-        .layout_text(text, font_size)
-        .cloned()
-        .unwrap_or_else(|| TextLayout::empty_for(text));
+    let fallback_layout;
+    let layout = if let Some(layout) = renderer.layout_text(text, font_size) {
+        layout
+    } else {
+        fallback_layout = TextLayout::empty_for(text);
+        &fallback_layout
+    };
     let left_padding = (font_size * 0.35).clamp(4.0, 12.0);
     let right_padding = left_padding;
     let caret_x = cursor_stop_x(&layout.cursor_stops, editor.cursor_byte);

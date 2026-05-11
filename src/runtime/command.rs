@@ -186,7 +186,10 @@ impl<Message> Command<Message> {
     fn message_capacity_hint(&self) -> usize {
         match self {
             Self::Message(_) => 1,
-            Self::Batch(commands) => commands.len(),
+            Self::Batch(commands) => commands
+                .iter()
+                .map(Self::message_capacity_hint)
+                .sum::<usize>(),
             Self::None
             | Self::RequestRepaint
             | Self::RequestPaintOnly
@@ -253,20 +256,26 @@ mod tests {
 
     #[test]
     fn message_flattening_presizes_nested_message_output() {
-        let command = Command::batch([
-            Command::message("first"),
-            Command::request_repaint(),
-            Command::batch([
+        let command = Command::Batch(vec![
+            Command::Batch(vec![
+                Command::message("first"),
+                Command::request_repaint(),
+                Command::Batch(vec![
+                    Command::message("second"),
+                    Command::none(),
+                    Command::Batch(vec![Command::message("third")]),
+                ]),
+            ]),
+            Command::Batch(vec![
+                Command::request_paint_only(),
                 Command::message("second"),
-                Command::none(),
-                Command::batch([Command::message("third")]),
             ]),
         ]);
 
         let messages = command.into_messages();
 
-        assert_eq!(messages, vec!["first", "second", "third"]);
-        assert!(messages.capacity() >= 3);
+        assert_eq!(messages, vec!["first", "second", "third", "second"]);
+        assert_eq!(messages.capacity(), 4);
     }
 
     #[test]

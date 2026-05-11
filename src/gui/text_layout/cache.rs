@@ -2,6 +2,7 @@
 
 use crate::gui::text_layout::{TextLineInsets, TextLineMode};
 use crate::gui::types::Rect;
+use std::collections::VecDeque;
 
 const CACHE_LIMIT: usize = 128;
 
@@ -48,7 +49,7 @@ struct TextLineEntry {
 /// hot paths reuse repeated label placement calculations.
 #[derive(Debug)]
 pub struct TextLineLayoutCache {
-    entries: Vec<TextLineEntry>,
+    entries: VecDeque<TextLineEntry>,
     limit: usize,
     #[cfg(test)]
     misses: usize,
@@ -80,7 +81,7 @@ impl TextLineLayoutCache {
     pub fn with_capacity(limit: usize) -> Self {
         let limit = limit.clamp(1, CACHE_LIMIT);
         Self {
-            entries: Vec::with_capacity(limit),
+            entries: VecDeque::with_capacity(limit),
             limit,
             #[cfg(test)]
             misses: 0,
@@ -112,8 +113,11 @@ impl TextLineLayoutCache {
         compute: impl FnOnce() -> Rect,
     ) -> Rect {
         if let Some(index) = self.entries.iter().position(|entry| entry.key == key) {
-            let entry = self.entries.remove(index);
-            self.entries.push(entry);
+            let entry = self
+                .entries
+                .remove(index)
+                .expect("cache position came from the same entry deque");
+            self.entries.push_back(entry);
             return entry.rect;
         }
 
@@ -123,9 +127,9 @@ impl TextLineLayoutCache {
             self.misses += 1;
         }
         if self.entries.len() == self.limit {
-            self.entries.remove(0);
+            self.entries.pop_front();
         }
-        self.entries.push(TextLineEntry { key, rect });
+        self.entries.push_back(TextLineEntry { key, rect });
         rect
     }
 

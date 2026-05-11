@@ -94,6 +94,43 @@ fn explicit_cache_eviction_keeps_capacity_bounded() {
 }
 
 #[test]
+fn cache_hit_refreshes_text_line_eviction_order() {
+    let mut cache = TextLineLayoutCache::with_capacity(2);
+    let bounds = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(120.0, 40.0));
+
+    for family_id in 1..=2 {
+        let _ = top_text_line_with_cache(
+            &mut cache,
+            bounds,
+            12.0,
+            TextLineInsets::horizontal(4.0),
+            family_id,
+        );
+    }
+    assert_eq!(cache.misses_for_test(), 2);
+
+    let _ = top_text_line_with_cache(&mut cache, bounds, 12.0, TextLineInsets::horizontal(4.0), 1);
+    assert_eq!(cache.misses_for_test(), 2);
+
+    let _ = top_text_line_with_cache(&mut cache, bounds, 12.0, TextLineInsets::horizontal(4.0), 3);
+    assert_eq!(cache.misses_for_test(), 3);
+
+    let _ = top_text_line_with_cache(&mut cache, bounds, 12.0, TextLineInsets::horizontal(4.0), 1);
+    assert_eq!(
+        cache.misses_for_test(),
+        3,
+        "the recently reused entry should survive eviction"
+    );
+
+    let _ = top_text_line_with_cache(&mut cache, bounds, 12.0, TextLineInsets::horizontal(4.0), 2);
+    assert_eq!(
+        cache.misses_for_test(),
+        4,
+        "the least recently used entry should be evicted"
+    );
+}
+
+#[test]
 fn custom_cache_capacity_is_clamped_to_default_limit() {
     let mut cache = TextLineLayoutCache::with_capacity(usize::MAX);
     let bounds = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(120.0, 40.0));

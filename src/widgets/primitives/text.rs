@@ -78,6 +78,10 @@ impl Widget for TextWidget {
         None
     }
 
+    fn needs_state_synchronization(&self) -> bool {
+        false
+    }
+
     fn set_text_wrap(&mut self, wrap: TextWrap) -> bool {
         self.wrap = wrap;
         true

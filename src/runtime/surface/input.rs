@@ -14,11 +14,15 @@ pub(in crate::runtime) enum WidgetDispatchResult<Message> {
 impl<Message> SurfaceNode<Message> {
     pub(super) fn synchronize_widget_state_from_paths(
         &mut self,
+        stateful_widget_order: &[WidgetId],
         current_paths: &HashMap<WidgetId, WidgetPath>,
         previous: &Self,
         previous_paths: &HashMap<WidgetId, WidgetPath>,
     ) {
-        for (widget_id, current_path) in current_paths {
+        for widget_id in stateful_widget_order {
+            let Some(current_path) = current_paths.get(widget_id) else {
+                continue;
+            };
             let Some(previous_path) = previous_paths.get(widget_id) else {
                 continue;
             };
@@ -282,7 +286,12 @@ mod tests {
             (20, WidgetPath::from_slice(&[0])),
             (10, WidgetPath::from_slice(&[1])),
         ]);
-        current.synchronize_widget_state_from_paths(&current_paths, &previous, &previous_paths);
+        current.synchronize_widget_state_from_paths(
+            &[20],
+            &current_paths,
+            &previous,
+            &previous_paths,
+        );
 
         let moved = current
             .find_widget_at_path(&[0])

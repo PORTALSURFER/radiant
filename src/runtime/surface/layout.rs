@@ -118,6 +118,9 @@ impl<Message> SurfaceNode<Message> {
                 if widget.receives_wheel_input() {
                     traversal.wheel_hit_order.push(widget.id());
                 }
+                if widget.needs_state_synchronization() {
+                    traversal.stateful_widget_order.push(widget.id());
+                }
                 if widget.suppresses_container_hover() {
                     traversal.container_hover_suppression.insert(widget.id());
                 }
@@ -179,6 +182,10 @@ mod tests {
             projection.traversal.widget_paint_order,
             traversal.widget_paint_order
         );
+        assert_eq!(
+            projection.traversal.stateful_widget_order,
+            traversal.stateful_widget_order
+        );
         assert_eq!(projection.traversal.widget_paths, traversal.widget_paths);
         assert_eq!(
             projection.traversal.pointer_hit_order,
@@ -221,6 +228,7 @@ mod tests {
         ));
         let mut traversal = SurfaceTraversalIndex::with_stats(SurfaceTraversalStats {
             widgets: 8,
+            stateful_widgets: 8,
             scroll_containers: 2,
             clipped_containers: 0,
             styled_hoverable_containers: 0,
@@ -245,6 +253,7 @@ mod tests {
 
         assert_eq!(layout_root.id(), 1);
         assert_eq!(traversal.widget_paint_order, vec![10]);
+        assert_eq!(traversal.stateful_widget_order, vec![10]);
         assert_eq!(traversal.pointer_hit_order, vec![10]);
         assert!(traversal.widget_paths.contains_key(&10));
         assert!(!traversal.widget_paths.contains_key(&999));
@@ -277,6 +286,7 @@ mod tests {
         ));
         let mut traversal = SurfaceTraversalIndex::with_stats(SurfaceTraversalStats {
             widgets: 1,
+            stateful_widgets: 1,
             scroll_containers: 1,
             clipped_containers: 1,
             styled_hoverable_containers: 0,

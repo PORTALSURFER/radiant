@@ -144,6 +144,10 @@ impl<Message> SurfaceWidget<Message> {
         !self.widget.common().state.disabled && self.widget.accepts_pointer_move()
     }
 
+    pub(in crate::runtime) fn needs_state_synchronization(&self) -> bool {
+        self.widget.needs_state_synchronization()
+    }
+
     pub(in crate::runtime) fn suppresses_container_hover(&self) -> bool {
         let common = self.widget.common();
         !common.state.disabled

@@ -44,9 +44,37 @@ struct CountingRepaintSignal {
     called: Arc<AtomicBool>,
 }
 
+#[derive(Default)]
+struct DrainIntoBridge {
+    commands: Vec<Command<DemoMessage>>,
+    messages: Vec<DemoMessage>,
+    drained_commands_into: bool,
+    drained_messages_into: bool,
+}
+
 impl RepaintSignal for CountingRepaintSignal {
     fn request_repaint(&self) {
         self.called.store(true, Ordering::Release);
+    }
+}
+
+impl RuntimeBridge<DemoMessage> for DrainIntoBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        Arc::new(UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
+            10,
+            "DrainInto",
+            WidgetSizing::fixed(Vector2::new(120.0, 20.0)).with_baseline(14.0),
+        ))))
+    }
+
+    fn drain_runtime_commands_into(&mut self, commands: &mut Vec<Command<DemoMessage>>) {
+        self.drained_commands_into = true;
+        commands.append(&mut self.commands);
+    }
+
+    fn drain_runtime_messages_into(&mut self, messages: &mut Vec<DemoMessage>) {
+        self.drained_messages_into = true;
+        messages.append(&mut self.messages);
     }
 }
 
@@ -370,6 +398,23 @@ fn active_animation_frame_messages_are_coalesced_until_drained() {
     assert!(runtime.bridge_mut().needs_animation());
     let drained = runtime.drain_runtime_messages();
     assert_eq!(drained.messages_dispatched, 1);
+}
+
+#[test]
+fn surface_runtime_uses_bridge_drain_into_hooks_for_runtime_work() {
+    let bridge = DrainIntoBridge {
+        commands: vec![Command::request_repaint()],
+        messages: vec![DemoMessage::Increment],
+        ..DrainIntoBridge::default()
+    };
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 40.0));
+
+    let drained = runtime.drain_runtime_messages();
+
+    assert_eq!(drained.messages_dispatched, 1);
+    assert!(drained.repaint_requested);
+    assert!(runtime.bridge().drained_commands_into);
+    assert!(runtime.bridge().drained_messages_into);
 }
 
 fn button_label<Message>(surface: &UiSurface<Message>, widget_id: u64) -> String {

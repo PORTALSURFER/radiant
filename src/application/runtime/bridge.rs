@@ -203,8 +203,16 @@ where
         self.runtime.take_commands()
     }
 
+    fn drain_runtime_commands_into(&mut self, commands: &mut Vec<Command<Message>>) {
+        self.runtime.drain_commands_into(commands);
+    }
+
     fn take_runtime_messages(&mut self) -> Vec<Message> {
         self.runtime.take_pending()
+    }
+
+    fn drain_runtime_messages_into(&mut self, messages: &mut Vec<Message>) {
+        self.runtime.drain_pending_into(messages);
     }
 
     fn needs_animation(&mut self) -> bool {

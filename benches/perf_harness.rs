@@ -128,6 +128,10 @@ fn main() {
         RUNTIME_ITERATIONS,
         move || refresh_large_tree.step(),
     );
+    let mut resize_large_tree = StatefulResizeBench::new();
+    run_scenario("runtime_resize_large_tree", RUNTIME_ITERATIONS, move || {
+        resize_large_tree.step()
+    });
     run_scenario(
         "runtime_command_flattening_512",
         RUNTIME_ITERATIONS,
@@ -783,6 +787,31 @@ impl StatefulRefreshBench {
 
     fn step(&mut self) {
         self.runtime.refresh();
+        black_box(self.runtime.layout());
+    }
+}
+
+struct StatefulResizeBench {
+    runtime: SurfaceRuntime<RefreshBridge, ()>,
+    wide: bool,
+}
+
+impl StatefulResizeBench {
+    fn new() -> Self {
+        Self {
+            runtime: SurfaceRuntime::new(RefreshBridge { revision: 0 }, Vector2::new(960.0, 720.0)),
+            wide: false,
+        }
+    }
+
+    fn step(&mut self) {
+        self.wide = !self.wide;
+        let viewport = if self.wide {
+            Vector2::new(960.0, 720.0)
+        } else {
+            Vector2::new(720.0, 540.0)
+        };
+        self.runtime.set_viewport(viewport);
         black_box(self.runtime.layout());
     }
 }

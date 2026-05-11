@@ -215,7 +215,7 @@ where
     /// Replace the viewport and recompute layout for the current surface.
     pub fn set_viewport(&mut self, viewport: Vector2) {
         self.viewport = state::normalized_viewport(viewport);
-        self.relayout();
+        self.relayout_current_surface();
     }
 
     /// Reproject the latest host state into a fresh immutable surface snapshot.

@@ -1,6 +1,14 @@
 //! Frame-driven animation through the application builder.
 
 use radiant::prelude::*;
+use radiant::{
+    gui::{
+        paint::{BorderSides, FillRect, PaintFrame, Primitive, border_fill_rects},
+        types::Rgba8,
+    },
+    layout::Rect,
+    theme::ThemeTokens,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AnimationMessage {
@@ -38,7 +46,7 @@ impl AnimationState {
     fn tick(&mut self) {
         if self.running {
             self.frame = self.frame.saturating_add(1);
-            self.phase = ((self.frame % 180) as f32) / 180.0;
+            self.phase = ((self.frame % 240) as f32) / 240.0;
         }
     }
 
@@ -57,6 +65,13 @@ fn main() -> radiant::Result {
         .view(animation_view)
         .animation(|state| state.running)
         .on_frame(|| AnimationMessage::Frame)
+        .retained_painter(30, |state, _descriptor, rect, _viewport| {
+            Some(pulse_meter_frame(
+                state.phase,
+                rect,
+                &ThemeTokens::default(),
+            ))
+        })
         .update(|state, message| match message {
             AnimationMessage::Toggle => state.running = !state.running,
             AnimationMessage::Frame => state.tick(),
@@ -95,73 +110,104 @@ fn animation_view(state: &mut AnimationState) -> View<AnimationMessage> {
 }
 
 fn phase_meter(phase: f32) -> View<AnimationMessage> {
+    retained_canvas_with(30, pulse_meter_revision(phase), 0, true)
+        .view()
+        .height(42.0)
+        .key("phase-meter")
+        .fill_width()
+}
+
+fn pulse_meter_revision(phase: f32) -> u64 {
+    (phase.clamp(0.0, 1.0) * 10_000.0).round() as u64
+}
+
+fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFrame {
     let visual = PulseMeterVisual::resolve(phase);
-    stack([
-        row(Vec::<View<AnimationMessage>>::new())
-            .style(WidgetStyle {
-                tone: WidgetTone::Neutral,
-                prominence: WidgetProminence::Subtle,
-            })
-            .id(30)
-            .height(42.0)
-            .fill_width(),
-        row([
-            row(Vec::<View<AnimationMessage>>::new())
-                .primary()
-                .id(31)
-                .width_percent(visual.fill_width)
-                .height(42.0),
-            spacer().fill_width(),
-        ])
-        .id(32)
-        .spacing(0.0)
-        .height(42.0)
-        .fill_width(),
-        row([
-            spacer().width_percent(visual.glow_offset),
-            row(Vec::<View<AnimationMessage>>::new())
-                .style(WidgetStyle {
-                    tone: WidgetTone::Warning,
-                    prominence: WidgetProminence::Strong,
-                })
-                .id(33)
-                .width_percent(visual.glow_width)
-                .height(34.0),
-            spacer().fill_width(),
-        ])
-        .id(34)
-        .spacing(0.0)
-        .padding_y(4.0)
-        .height(42.0)
-        .fill_width(),
-        row([
-            spacer().width_percent(visual.marker_offset),
-            row(Vec::<View<AnimationMessage>>::new())
-                .style(WidgetStyle {
-                    tone: WidgetTone::Neutral,
-                    prominence: WidgetProminence::Strong,
-                })
-                .id(35)
-                .width_percent(visual.marker_width)
-                .height(42.0),
-            spacer().fill_width(),
-        ])
-        .id(36)
-        .spacing(0.0)
-        .height(42.0)
-        .fill_width(),
-    ])
-    .height(42.0)
-    .key("phase-meter")
-    .fill_width()
+    let track = inset(bounds, 2.0, 7.0);
+    let mut frame = PaintFrame::default();
+    frame.primitives.reserve(9);
+    push_rect(&mut frame, track, theme.surface_base);
+    push_rect(
+        &mut frame,
+        inset(track, 1.0, 9.0),
+        with_alpha(theme.grid_soft, 120),
+    );
+    push_ratio_rect(
+        &mut frame,
+        track,
+        visual.trail_start,
+        visual.trail_width,
+        with_alpha(theme.highlight_orange_soft, 150),
+    );
+    push_ratio_rect(
+        &mut frame,
+        inset(track, 0.0, 3.0),
+        visual.core_start,
+        visual.core_width,
+        theme.highlight_orange,
+    );
+    push_ratio_rect(
+        &mut frame,
+        track,
+        visual.marker_start,
+        visual.marker_width,
+        theme.text_primary,
+    );
+    frame.primitives.extend(
+        border_fill_rects(track, theme.border_emphasis, 1.0, BorderSides::ALL)
+            .into_iter()
+            .map(Primitive::Rect),
+    );
+    frame
+}
+
+fn push_ratio_rect(
+    frame: &mut PaintFrame,
+    track: Rect,
+    start_ratio: f32,
+    width_ratio: f32,
+    color: Rgba8,
+) {
+    let start = start_ratio.clamp(0.0, 1.0);
+    let end = (start + width_ratio.max(0.0)).clamp(0.0, 1.0);
+    if end <= start {
+        return;
+    }
+    push_rect(
+        frame,
+        Rect::from_min_max(
+            radiant::layout::Point::new(track.min.x + track.width() * start, track.min.y),
+            radiant::layout::Point::new(track.min.x + track.width() * end, track.max.y),
+        ),
+        color,
+    );
+}
+
+fn push_rect(frame: &mut PaintFrame, rect: Rect, color: Rgba8) {
+    frame
+        .primitives
+        .push(Primitive::Rect(FillRect { rect, color }));
+}
+
+fn inset(rect: Rect, x: f32, y: f32) -> Rect {
+    Rect::from_min_max(
+        radiant::layout::Point::new(rect.min.x + x, rect.min.y + y),
+        radiant::layout::Point::new(rect.max.x - x, rect.max.y - y),
+    )
+}
+
+fn with_alpha(mut color: Rgba8, alpha: u8) -> Rgba8 {
+    color.a = alpha;
+    color
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct PulseMeterVisual {
-    fill_width: f32,
-    glow_offset: f32,
-    glow_width: f32,
-    marker_offset: f32,
+    trail_start: f32,
+    trail_width: f32,
+    core_start: f32,
+    core_width: f32,
+    marker_start: f32,
     marker_width: f32,
 }
 
@@ -169,18 +215,20 @@ impl PulseMeterVisual {
     fn resolve(phase: f32) -> Self {
         let phase = phase.clamp(0.0, 1.0);
         let pulse = (phase * std::f32::consts::TAU).sin() * 0.5 + 0.5;
-        let fill_width = (phase * 0.96).clamp(0.0, 0.96);
-        let marker_width = 0.018 + pulse * 0.008;
-        let marker_offset = (phase * (1.0 - marker_width)).clamp(0.0, 1.0 - marker_width);
-        let glow_width = 0.08 + pulse * 0.08;
-        let marker_center = marker_offset + marker_width * 0.5;
-        let glow_offset = (marker_center - glow_width * 0.5).clamp(0.0, 1.0 - glow_width);
+        let marker_width = 0.008;
+        let core_width = 0.08 + pulse * 0.04;
+        let trail_width = 0.24;
+        let marker_center = phase * (1.0 - marker_width) + marker_width * 0.5;
+        let marker_start = (marker_center - marker_width * 0.5).clamp(0.0, 1.0 - marker_width);
+        let core_start = (marker_center - core_width * 0.5).clamp(0.0, 1.0 - core_width);
+        let trail_start = (marker_center - trail_width).clamp(0.0, 1.0 - trail_width);
 
         Self {
-            fill_width,
-            glow_offset,
-            glow_width,
-            marker_offset,
+            trail_start,
+            trail_width,
+            core_start,
+            core_width,
+            marker_start,
             marker_width,
         }
     }
@@ -191,7 +239,6 @@ mod tests {
     use super::*;
     use radiant::{
         layout::{Point, Rect, Vector2},
-        prelude::IntoView,
         runtime::{Event, PaintPrimitive, SurfaceRuntime},
         theme::ThemeTokens,
         widgets::PointerButton,
@@ -214,55 +261,40 @@ mod tests {
         let far_edge = PulseMeterVisual::resolve(0.5);
         let end = PulseMeterVisual::resolve(1.0);
 
-        assert!(peak.fill_width > start.fill_width + 0.2);
-        assert!(end.fill_width > far_edge.fill_width + 0.4);
-        assert!(peak.glow_width > start.glow_width);
-        assert!(peak.marker_width > start.marker_width);
-        assert!(far_edge.marker_offset > start.marker_offset + 0.45);
-        assert!(end.marker_offset > far_edge.marker_offset + 0.45);
+        assert!(peak.marker_start > start.marker_start + 0.20);
+        assert!(far_edge.marker_start > peak.marker_start + 0.20);
+        assert!(end.marker_start > far_edge.marker_start + 0.45);
+        assert!(peak.core_width > start.core_width);
+        assert_eq!(start.marker_width, end.marker_width);
+        assert!(far_edge.trail_start > start.trail_start + 0.20);
     }
 
     #[test]
-    fn phase_meter_paints_track_fill_glow_and_marker() {
-        let surface = phase_meter(0.5).into_surface();
-        let frame = surface.frame(
+    fn phase_meter_paints_track_trail_core_and_marker() {
+        let frame = pulse_meter_frame(
+            0.5,
             Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(420.0, 48.0)),
-            &Default::default(),
+            &ThemeTokens::default(),
         );
         let fills: Vec<_> = frame
-            .paint_plan
             .primitives
             .iter()
             .filter_map(|primitive| match primitive {
-                PaintPrimitive::FillRect(fill) if [30, 31, 33, 35].contains(&fill.widget_id) => {
-                    Some((fill.widget_id, fill))
-                }
+                Primitive::Rect(fill) => Some(fill),
                 _ => None,
             })
             .collect();
 
-        assert_eq!(fills.len(), 4);
+        assert_eq!(fills.len(), 9);
+        assert!(fills.iter().any(|fill| fill.rect.width() > 410.0));
+        assert!(fills.iter().any(|fill| fill.rect.width() > 90.0));
         assert!(
             fills
                 .iter()
-                .any(|(id, fill)| *id == 30 && fill.rect.width() == 420.0)
+                .any(|fill| fill.rect.width() > 30.0 && fill.rect.width() < 60.0)
         );
-        assert!(
-            fills
-                .iter()
-                .any(|(id, fill)| *id == 31 && fill.rect.width() > 180.0)
-        );
-        assert!(
-            fills
-                .iter()
-                .any(|(id, fill)| *id == 33 && fill.rect.width() > 30.0)
-        );
-        assert!(
-            fills
-                .iter()
-                .any(|(id, fill)| *id == 35 && fill.rect.width() >= 4.0)
-        );
-        assert_ne!(fills[0].1.color, fills[1].1.color);
+        assert!(fills.iter().any(|fill| fill.rect.width() < 6.0));
+        assert_ne!(fills[0].color, fills[1].color);
     }
 
     #[test]

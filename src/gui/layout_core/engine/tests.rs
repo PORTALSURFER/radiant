@@ -433,7 +433,10 @@ fn layout_engine_reuses_scratch_maps_between_passes() {
     let measured_by_node_capacity = engine.scratch.measured_by_node.capacity();
     let linear_window_capacity = engine.scratch.linear_windows.capacity();
     assert!(measured_capacity > 0);
-    assert!(measured_by_node_capacity > 0);
+    assert_eq!(
+        measured_by_node_capacity, 0,
+        "default layout should not populate measured-by-node debug storage"
+    );
     assert!(linear_window_capacity > 0);
 
     let second = engine.layout_with_state(
@@ -445,8 +448,18 @@ fn layout_engine_reuses_scratch_maps_between_passes() {
 
     assert!(second.virtual_windows.contains_key(&1));
     assert!(engine.scratch.measured.capacity() >= measured_capacity);
-    assert!(engine.scratch.measured_by_node.capacity() >= measured_by_node_capacity);
+    assert_eq!(engine.scratch.measured_by_node.capacity(), 0);
     assert!(engine.scratch.linear_windows.capacity() >= linear_window_capacity);
+
+    let debug = engine.layout_with_state(
+        &root,
+        viewport,
+        &LayoutState::default(),
+        LayoutDebugOptions::all_enabled(),
+    );
+
+    assert!(debug.virtual_windows.contains_key(&1));
+    assert!(engine.scratch.measured_by_node.capacity() > 0);
 }
 
 #[test]

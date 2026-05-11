@@ -29,7 +29,9 @@ impl<'a> LayoutContext<'a> {
     pub(crate) fn remember_measure(&mut self, key: MeasureCacheKey, value: Vector2) {
         self.measured.insert(key, value);
         self.cache.insert(key, value);
-        self.measured_by_node.insert(key.node_id, value);
+        if self.records_measured_bounds() {
+            self.measured_by_node.insert(key.node_id, value);
+        }
     }
 
     pub(crate) fn cached_virtual_metrics(
@@ -57,7 +59,9 @@ impl<'a> LayoutContext<'a> {
     }
 
     pub(crate) fn record_measured_size(&mut self, node_id: NodeId, value: Vector2) {
-        self.measured_by_node.insert(node_id, value);
+        if self.records_measured_bounds() {
+            self.measured_by_node.insert(node_id, value);
+        }
     }
 
     pub(crate) fn set_linear_window(&mut self, node_id: NodeId, window: ResolvedLinearWindow) {
@@ -74,5 +78,9 @@ impl<'a> LayoutContext<'a> {
 
     pub(crate) fn scroll_offset(&self, node_id: NodeId) -> Vector2 {
         self.state.scroll_offset(node_id)
+    }
+
+    fn records_measured_bounds(&self) -> bool {
+        self.debug_options.enabled && self.debug_options.show_measured
     }
 }

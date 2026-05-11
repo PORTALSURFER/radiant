@@ -61,9 +61,13 @@ pub(in crate::runtime) fn resolve_scroll_affordance(
         Point::new(track_x, viewport.min.y + y_inset),
         Point::new(track_x + track_w, viewport.max.y - y_inset),
     );
+    if track.height() <= 0.0 {
+        return None;
+    }
     let max_scroll = (content_h - viewport_h).max(1.0);
     let scroll_y = (viewport.min.y - content.min.y).clamp(0.0, max_scroll);
-    let thumb_h = ((viewport_h / content_h) * track.height()).clamp(24.0, track.height());
+    let min_thumb_h = 24.0_f32.min(track.height());
+    let thumb_h = ((viewport_h / content_h) * track.height()).clamp(min_thumb_h, track.height());
     let thumb_y = track.min.y + ((track.height() - thumb_h) * (scroll_y / max_scroll));
     let thumb = Rect::from_min_size(
         Point::new(track.min.x, thumb_y),
@@ -89,4 +93,62 @@ pub(in crate::runtime) fn scroll_content_clip_rect(
         return viewport;
     }
     viewport
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::layout::OverflowInfo;
+
+    #[test]
+    fn scroll_affordance_clamps_thumb_to_cramped_track() {
+        let mut layout = LayoutOutput::default();
+        layout.rects.insert(
+            1,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 20.0)),
+        );
+        layout.rects.insert(
+            2,
+            Rect::from_min_size(Point::new(0.0, -20.0), Vector2::new(120.0, 80.0)),
+        );
+        layout.overflow_flags.insert(
+            1,
+            OverflowInfo {
+                x: false,
+                y: true,
+                policy: OverflowPolicy::Scroll,
+            },
+        );
+
+        let affordance = resolve_scroll_affordance(1, 2, &layout)
+            .expect("cramped overflowing scroll area should still resolve a thumb");
+
+        assert_eq!(affordance.track.height(), 8.0);
+        assert_eq!(affordance.thumb.height(), affordance.track.height());
+        assert_eq!(affordance.thumb.min.y, affordance.track.min.y);
+        assert_eq!(affordance.thumb.max.y, affordance.track.max.y);
+    }
+
+    #[test]
+    fn scroll_affordance_omits_degenerate_track() {
+        let mut layout = LayoutOutput::default();
+        layout.rects.insert(
+            1,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 12.0)),
+        );
+        layout.rects.insert(
+            2,
+            Rect::from_min_size(Point::new(0.0, -20.0), Vector2::new(120.0, 80.0)),
+        );
+        layout.overflow_flags.insert(
+            1,
+            OverflowInfo {
+                x: false,
+                y: true,
+                policy: OverflowPolicy::Scroll,
+            },
+        );
+
+        assert_eq!(resolve_scroll_affordance(1, 2, &layout), None);
+    }
 }

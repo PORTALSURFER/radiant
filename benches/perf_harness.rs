@@ -110,6 +110,12 @@ fn main() {
         RUNTIME_ITERATIONS,
         move || virtualized_hover_paint.step(),
     );
+    let mut virtualized_nested_scroll_hover = StatefulVirtualizedNestedScrollHoverBench::new();
+    run_scenario(
+        "runtime_virtualized_nested_scroll_hover_10k",
+        RUNTIME_ITERATIONS,
+        move || virtualized_nested_scroll_hover.step(),
+    );
     let mut refresh_large_tree = StatefulRefreshBench::new();
     run_scenario(
         "runtime_refresh_large_tree",
@@ -642,6 +648,87 @@ impl RuntimeBridge<()> for VirtualWheelBridge {
         Arc::new(UiSurface::new(SurfaceNode::virtual_scroll_area(
             1,
             SurfaceNode::column(2, 4.0, rows),
+            VirtualizationAxis::Vertical,
+            96.0,
+        )))
+    }
+}
+
+struct StatefulVirtualizedNestedScrollHoverBench {
+    runtime: SurfaceRuntime<NestedScrollBridge, ()>,
+    offset: f32,
+}
+
+impl StatefulVirtualizedNestedScrollHoverBench {
+    fn new() -> Self {
+        Self {
+            runtime: SurfaceRuntime::new(NestedScrollBridge, Vector2::new(240.0, 140.0)),
+            offset: 0.0,
+        }
+    }
+
+    fn step(&mut self) {
+        self.offset = (self.offset + 280.0) % 120_000.0;
+        let scrolled = self
+            .runtime
+            .wheel_or_scroll_at(Point::new(20.0, 20.0), Vector2::new(0.0, self.offset));
+        assert!(scrolled);
+        self.runtime.dispatch_event(Event::PointerMove {
+            position: Point::new(232.0, 20.0),
+        });
+        assert!(self.runtime.hovered_scroll_affordance().is_some());
+        black_box(self.runtime.layout());
+    }
+}
+
+struct NestedScrollBridge;
+
+impl RuntimeBridge<()> for NestedScrollBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        let rows = (0..10_000_u64)
+            .map(|index| {
+                SurfaceChild::new(
+                    SlotParams {
+                        size_main: SizeModeMain::Fixed(32.0),
+                        size_cross: SizeModeCross::Fill,
+                        constraints: radiant::layout::Constraints::unconstrained(),
+                        margin: Default::default(),
+                        align_cross_override: None,
+                        allow_fixed_compress: false,
+                    },
+                    SurfaceNode::scroll_area(
+                        20_000 + index,
+                        SurfaceNode::column(
+                            40_000 + index,
+                            0.0,
+                            (0..4)
+                                .map(|child_index| {
+                                    SurfaceChild::new(
+                                        SlotParams {
+                                            size_main: SizeModeMain::Fixed(18.0),
+                                            size_cross: SizeModeCross::Fill,
+                                            constraints:
+                                                radiant::layout::Constraints::unconstrained(),
+                                            margin: Default::default(),
+                                            align_cross_override: None,
+                                            allow_fixed_compress: false,
+                                        },
+                                        SurfaceNode::text(
+                                            80_000 + index * 4 + child_index,
+                                            format!("Nested {index:05}.{child_index}"),
+                                            WidgetSizing::fixed(Vector2::new(180.0, 18.0)),
+                                        ),
+                                    )
+                                })
+                                .collect(),
+                        ),
+                    ),
+                )
+            })
+            .collect();
+        Arc::new(UiSurface::new(SurfaceNode::virtual_scroll_area(
+            1,
+            SurfaceNode::column(2, 2.0, rows),
             VirtualizationAxis::Vertical,
             96.0,
         )))

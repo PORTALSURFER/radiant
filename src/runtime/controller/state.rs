@@ -96,6 +96,13 @@ where
             &mut self.visible_styled_container_hit_order,
         );
         self.scroll_hit_order = traversal.scroll_container_order;
+        collect_hit_rank(&self.scroll_hit_order, &mut self.scroll_hit_rank);
+        collect_visible_hit_order(
+            &self.layout,
+            &self.scroll_hit_order,
+            &self.scroll_hit_rank,
+            &mut self.visible_scroll_hit_order,
+        );
         self.widget_clip_ancestors = traversal.widget_clip_ancestors;
         self.container_clip_ancestors = traversal.container_clip_ancestors;
         self.scroll_content_by_container = traversal.scroll_content_by_container;
@@ -120,6 +127,12 @@ where
             &self.styled_container_hit_order,
             &self.styled_container_hit_rank,
             &mut self.visible_styled_container_hit_order,
+        );
+        collect_visible_hit_order(
+            &self.layout,
+            &self.scroll_hit_order,
+            &self.scroll_hit_rank,
+            &mut self.visible_scroll_hit_order,
         );
     }
 

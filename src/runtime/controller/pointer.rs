@@ -71,6 +71,9 @@ where
     }
 
     pub(super) fn dispatch_pointer_move(&mut self, position: Point) -> Option<WidgetId> {
+        if self.drag_scrollbar_to(position) {
+            return None;
+        }
         let pointer_widget = self.widget_at(position);
         let hover_container = if self.widget_suppresses_container_hover(pointer_widget) {
             None

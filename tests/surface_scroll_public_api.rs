@@ -7,10 +7,10 @@ use radiant::{
         layout_tree_with_state,
     },
     runtime::{
-        PaintPrimitive, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface,
+        Event, PaintPrimitive, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface,
         declarative_runtime_bridge,
     },
-    widgets::{WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone},
+    widgets::{PointerButton, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone},
 };
 use std::sync::Arc;
 
@@ -192,6 +192,59 @@ fn surface_runtime_routes_scroll_delta_to_scroll_view_under_pointer() {
 
     assert!(after.min.y < before.min.y);
     assert_eq!(before.min.y - after.min.y, 48.0);
+}
+
+#[test]
+fn surface_runtime_drags_painted_scrollbar_thumb() {
+    let bridge = declarative_runtime_bridge(
+        Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+            31,
+            SurfaceNode::column(
+                32,
+                2.0,
+                (0..20)
+                    .map(|index| {
+                        SurfaceChild::new(
+                            intrinsic_slot(),
+                            SurfaceNode::text(
+                                100 + index,
+                                format!("Row {index}"),
+                                WidgetSizing::fixed(Vector2::new(180.0, 24.0)),
+                            ),
+                        )
+                    })
+                    .collect(),
+            ),
+        ))),
+        |surface| Arc::clone(surface),
+        |_, _message| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
+    let before = runtime.layout().rects[&100];
+    let thumb = runtime
+        .paint_plan(&Default::default())
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill) if fill.widget_id == 31 => Some(fill.rect),
+            _ => None,
+        })
+        .expect("scroll area should paint a draggable thumb");
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: thumb.center(),
+        button: PointerButton::Primary,
+    });
+    runtime.dispatch_event(Event::PointerMove {
+        position: Point::new(thumb.center().x, thumb.center().y + 36.0),
+    });
+    runtime.dispatch_event(Event::PointerRelease {
+        position: Point::new(thumb.center().x, thumb.center().y + 36.0),
+        button: PointerButton::Primary,
+    });
+
+    let after = runtime.layout().rects[&100];
+    assert!(after.min.y < before.min.y);
 }
 
 #[test]

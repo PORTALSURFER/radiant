@@ -1,4 +1,7 @@
 use super::*;
+use crate::runtime::paint::resolve_scroll_affordance;
+
+const SCROLLBAR_HIT_WIDTH: f32 = 10.0;
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
@@ -114,4 +117,75 @@ where
                 && self.container_clip_contains_point(*node_id, point)
         })
     }
+
+    pub(super) fn start_scrollbar_drag_at(&mut self, point: Point) -> bool {
+        let Some(capture) = self.scrollbar_drag_capture_at(point) else {
+            return false;
+        };
+        self.scroll_drag_capture = Some(capture);
+        true
+    }
+
+    pub(super) fn drag_scrollbar_to(&mut self, point: Point) -> bool {
+        let Some(capture) = self.scroll_drag_capture else {
+            return false;
+        };
+        let Some(content_id) = self
+            .scroll_content_by_container
+            .get(&capture.node_id)
+            .copied()
+        else {
+            self.scroll_drag_capture = None;
+            return false;
+        };
+        let Some(affordance) = resolve_scroll_affordance(capture.node_id, content_id, &self.layout)
+        else {
+            self.scroll_drag_capture = None;
+            return false;
+        };
+        let travel = (affordance.track.height() - affordance.thumb.height()).max(0.0);
+        if travel <= f32::EPSILON {
+            return true;
+        }
+        let thumb_y = (point.y - affordance.thumb.height() * capture.grip_fraction)
+            .clamp(affordance.track.min.y, affordance.track.min.y + travel);
+        let offset_fraction = (thumb_y - affordance.track.min.y) / travel;
+        let current = self.layout_state.scroll_offset(capture.node_id);
+        self.layout_state.scroll_offsets.insert(
+            capture.node_id,
+            Vector2::new(current.x, offset_fraction * affordance.max_scroll),
+        );
+        self.relayout_current_surface();
+        true
+    }
+
+    fn scrollbar_drag_capture_at(&self, point: Point) -> Option<ScrollDragCapture> {
+        self.scroll_hit_order
+            .iter()
+            .rev()
+            .copied()
+            .find_map(|node_id| {
+                let content_id = self.scroll_content_by_container.get(&node_id).copied()?;
+                let affordance = resolve_scroll_affordance(node_id, content_id, &self.layout)?;
+                if !scrollbar_thumb_hit_rect(affordance.thumb).contains(point)
+                    || !self.container_clip_contains_point(node_id, point)
+                {
+                    return None;
+                }
+                let grip_fraction = ((point.y - affordance.thumb.min.y)
+                    / affordance.thumb.height())
+                .clamp(0.0, 1.0);
+                Some(ScrollDragCapture {
+                    node_id,
+                    grip_fraction,
+                })
+            })
+    }
+}
+
+fn scrollbar_thumb_hit_rect(thumb: Rect) -> Rect {
+    Rect::from_min_max(
+        Point::new(thumb.max.x - SCROLLBAR_HIT_WIDTH, thumb.min.y),
+        Point::new(thumb.max.x, thumb.max.y),
+    )
 }

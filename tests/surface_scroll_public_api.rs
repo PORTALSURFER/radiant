@@ -7,8 +7,8 @@ use radiant::{
         layout_tree_with_state,
     },
     runtime::{
-        Event, PaintPrimitive, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface,
-        declarative_runtime_bridge,
+        Command, Event, PaintPrimitive, RuntimeBridge, ScrollUpdate, SurfaceChild, SurfaceNode,
+        SurfaceRuntime, UiSurface, declarative_runtime_bridge,
     },
     widgets::{PointerButton, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone},
 };
@@ -17,6 +17,22 @@ use std::sync::Arc;
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
     Increment,
+}
+
+struct ScrollObserverBridge {
+    surface: Arc<UiSurface<DemoMessage>>,
+    updates: usize,
+}
+
+impl RuntimeBridge<DemoMessage> for ScrollObserverBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        Arc::clone(&self.surface)
+    }
+
+    fn scroll_updated(&mut self, _update: ScrollUpdate) -> Option<Command<DemoMessage>> {
+        self.updates += 1;
+        None
+    }
 }
 
 fn intrinsic_slot() -> SlotParams {
@@ -28,6 +44,42 @@ fn intrinsic_slot() -> SlotParams {
         align_cross_override: None,
         allow_fixed_compress: false,
     }
+}
+
+#[test]
+fn surface_runtime_skips_scroll_update_when_clamped_offset_is_unchanged() {
+    let surface = Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+        31,
+        SurfaceNode::column(
+            32,
+            2.0,
+            (0..12)
+                .map(|index| {
+                    SurfaceChild::new(
+                        intrinsic_slot(),
+                        SurfaceNode::text(
+                            100 + index,
+                            format!("Row {index}"),
+                            WidgetSizing::fixed(Vector2::new(180.0, 24.0)),
+                        ),
+                    )
+                })
+                .collect(),
+        ),
+    )));
+    let bridge = ScrollObserverBridge {
+        surface,
+        updates: 0,
+    };
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
+
+    assert!(runtime.scroll_at(Point::new(20.0, 20.0), Vector2::new(0.0, 0.0)));
+
+    assert_eq!(runtime.bridge().updates, 0);
+    assert!(
+        !runtime.take_repaint_requested(),
+        "unchanged scroll offsets should not notify the host or request repaint"
+    );
 }
 
 #[test]

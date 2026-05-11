@@ -98,6 +98,35 @@ fn border_fill_rects_omits_degenerate_rectangles() {
 }
 
 #[test]
+fn push_border_fill_rects_appends_to_existing_buffer() {
+    let color = Rgba8 {
+        r: 1,
+        g: 2,
+        b: 3,
+        a: 4,
+    };
+    let rect = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(20.0, 12.0));
+    let mut fills = vec![FillRect { rect, color }];
+
+    push_border_fill_rects(
+        &mut fills,
+        rect,
+        color,
+        2.0,
+        BorderSides {
+            top: true,
+            bottom: false,
+            left: true,
+            right: false,
+        },
+    );
+
+    assert_eq!(fills.len(), 3);
+    assert_eq!(fills[1].rect.height(), 2.0);
+    assert_eq!(fills[2].rect.width(), 2.0);
+}
+
+#[test]
 fn text_field_paint_emits_chrome_selection_text_and_caret() {
     let color = Rgba8 {
         r: 1,

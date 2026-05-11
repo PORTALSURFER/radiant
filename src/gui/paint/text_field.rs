@@ -1,6 +1,8 @@
 use crate::gui::types::{Point, Rect, Rgba8};
 
-use super::{BorderSides, FillRect, Primitive, TextAlign, TextRun, border_fill_rects};
+use super::{
+    BorderSides, FillRect, Primitive, TextAlign, TextRun, shapes::for_each_border_fill_rect,
+};
 
 /// Inputs for painting one active single-line text field.
 #[derive(Clone, Debug, PartialEq)]
@@ -42,20 +44,17 @@ pub struct TextFieldPaintOutput {
 
 /// Build backend-neutral paint primitives for an active single-line text field.
 pub fn text_field_paint(input: TextFieldPaint) -> TextFieldPaintOutput {
-    let mut primitives = Vec::new();
+    let mut primitives = Vec::with_capacity(6);
     primitives.push(Primitive::Rect(FillRect {
         rect: input.field_rect,
         color: input.fill_color,
     }));
-    primitives.extend(
-        border_fill_rects(
-            input.field_rect,
-            input.border_color,
-            input.stroke_width,
-            BorderSides::ALL,
-        )
-        .into_iter()
-        .map(Primitive::Rect),
+    for_each_border_fill_rect(
+        input.field_rect,
+        input.border_color,
+        input.stroke_width,
+        BorderSides::ALL,
+        |rect| primitives.push(Primitive::Rect(rect)),
     );
 
     if let Some((start, end)) = input.selection_offsets

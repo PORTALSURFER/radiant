@@ -39,37 +39,58 @@ pub fn border_fill_rects(
     stroke: f32,
     sides: BorderSides,
 ) -> Vec<FillRect> {
+    let mut fills = Vec::with_capacity(4);
+    push_border_fill_rects(&mut fills, rect, color, stroke, sides);
+    fills
+}
+
+/// Push filled rectangles for the requested border edges into an existing buffer.
+pub fn push_border_fill_rects(
+    fills: &mut Vec<FillRect>,
+    rect: Rect,
+    color: Rgba8,
+    stroke: f32,
+    sides: BorderSides,
+) {
+    for_each_border_fill_rect(rect, color, stroke, sides, |fill| fills.push(fill));
+}
+
+pub(super) fn for_each_border_fill_rect(
+    rect: Rect,
+    color: Rgba8,
+    stroke: f32,
+    sides: BorderSides,
+    mut emit: impl FnMut(FillRect),
+) {
     let stroke = stroke.max(1.0);
     if rect.width() <= stroke * 2.0 || rect.height() <= stroke * 2.0 {
-        return Vec::new();
+        return;
     }
 
-    let mut fills = Vec::with_capacity(4);
     if sides.top {
-        fills.push(FillRect {
+        emit(FillRect {
             rect: Rect::from_min_max(rect.min, Point::new(rect.max.x, rect.min.y + stroke)),
             color,
         });
     }
     if sides.bottom {
-        fills.push(FillRect {
+        emit(FillRect {
             rect: Rect::from_min_max(Point::new(rect.min.x, rect.max.y - stroke), rect.max),
             color,
         });
     }
     if sides.left {
-        fills.push(FillRect {
+        emit(FillRect {
             rect: Rect::from_min_max(rect.min, Point::new(rect.min.x + stroke, rect.max.y)),
             color,
         });
     }
     if sides.right {
-        fills.push(FillRect {
+        emit(FillRect {
             rect: Rect::from_min_max(Point::new(rect.max.x - stroke, rect.min.y), rect.max),
             color,
         });
     }
-    fills
 }
 
 /// Filled circle draw primitive.

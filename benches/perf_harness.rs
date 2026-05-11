@@ -72,6 +72,12 @@ fn main() {
         RUNTIME_ITERATIONS,
         move || virtualized_hover.step(),
     );
+    let mut virtualized_hover_paint = StatefulVirtualizedHoverPaintBench::new();
+    run_scenario(
+        "runtime_virtualized_list_hover_paint_10k",
+        RUNTIME_ITERATIONS,
+        move || virtualized_hover_paint.step(),
+    );
     let mut refresh_large_tree = StatefulRefreshBench::new();
     run_scenario(
         "runtime_refresh_large_tree",
@@ -408,6 +414,40 @@ impl StatefulVirtualizedHoverBench {
         });
         assert!(hovered.is_some());
         black_box(self.runtime.layout());
+    }
+}
+
+struct StatefulVirtualizedHoverPaintBench {
+    runtime: SurfaceRuntime<VirtualWheelBridge, ()>,
+    theme: ThemeTokens,
+    offset: f32,
+}
+
+impl StatefulVirtualizedHoverPaintBench {
+    fn new() -> Self {
+        Self {
+            runtime: SurfaceRuntime::new(VirtualWheelBridge, Vector2::new(220.0, 120.0)),
+            theme: ThemeTokens::default(),
+            offset: 0.0,
+        }
+    }
+
+    fn step(&mut self) {
+        self.offset = (self.offset + 360.0) % 120_000.0;
+        let scrolled = self
+            .runtime
+            .wheel_or_scroll_at(Point::new(24.0, 24.0), Vector2::new(0.0, self.offset));
+        assert!(scrolled);
+        let hovered = self.runtime.dispatch_event(Event::PointerMove {
+            position: Point::new(24.0, 24.0),
+        });
+        assert!(hovered.is_some());
+        let plan = self.runtime.paint_plan(&self.theme);
+        assert!(
+            plan.primitives.len() < 128,
+            "virtualized hover paint should stay bounded to the visible window"
+        );
+        black_box(plan);
     }
 }
 

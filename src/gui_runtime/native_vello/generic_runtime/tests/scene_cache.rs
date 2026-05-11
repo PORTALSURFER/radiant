@@ -1,4 +1,5 @@
 use super::*;
+use crate::gui::types::ImageRgba;
 
 #[test]
 fn generic_paint_plan_encodes_to_vello_scene() {
@@ -37,6 +38,53 @@ fn generic_paint_plan_encodes_to_vello_scene() {
     assert!(stats.text_run_count >= expected_text_primitives);
     assert!(text_runs.is_empty());
     assert!(text_runs.capacity() >= expected_text_primitives);
+}
+
+#[test]
+fn scene_encoding_collects_fast_pointer_gpu_surface_hit_rects() {
+    let mut bridge = demo_bridge();
+    let mut scene = Scene::new();
+    let mut text_renderer = NativeTextRenderer::new();
+    let mut retained_cache = RetainedSurfaceFrameCache::default();
+    let mut text_runs = Vec::new();
+    let mut hit_rects = Vec::new();
+    let rect = Rect::from_min_size(Point::new(8.0, 12.0), Vector2::new(64.0, 32.0));
+    let plan = SurfacePaintPlan {
+        clear_color: ThemeTokens::default().clear_color,
+        primitives: vec![PaintPrimitive::GpuSurface(PaintGpuSurface {
+            widget_id: 42,
+            key: 42,
+            revision: 1,
+            rect,
+            content: GpuSurfaceContent::RgbaAtlas {
+                source_rect: rect,
+                atlas: Arc::new(ImageRgba::new(1, 1, vec![255; 4]).expect("valid test image")),
+            },
+            capabilities: GpuSurfaceCapabilities {
+                fast_pointer_move: true,
+                coalesce_vertical_wheel: false,
+                native_hover_cursor: None,
+            },
+            overlays: Vec::new(),
+        })],
+    };
+
+    let stats = encode_surface_paint_plan_to_scene(
+        &plan,
+        SurfaceSceneEncodeContext {
+            scene: &mut scene,
+            text_renderer: &mut text_renderer,
+            bridge: &mut bridge,
+            viewport: Vector2::new(320.0, 180.0),
+            retained_cache: &mut retained_cache,
+            text_runs: &mut text_runs,
+            fast_pointer_move_gpu_surface_hit_rects: &mut hit_rects,
+            animation_time: Duration::ZERO,
+        },
+    );
+
+    assert_eq!(stats.gpu_surface_count, 1);
+    assert_eq!(hit_rects, [rect]);
 }
 
 #[test]
@@ -264,6 +312,7 @@ fn encode_plan<'plan, Bridge, Message>(
 where
     Bridge: RuntimeBridge<Message>,
 {
+    let mut fast_pointer_move_gpu_surface_hit_rects = Vec::new();
     encode_surface_paint_plan_to_scene(
         plan,
         SurfaceSceneEncodeContext {
@@ -273,6 +322,7 @@ where
             viewport,
             retained_cache,
             text_runs,
+            fast_pointer_move_gpu_surface_hit_rects: &mut fast_pointer_move_gpu_surface_hit_rects,
             animation_time: Duration::ZERO,
         },
     )

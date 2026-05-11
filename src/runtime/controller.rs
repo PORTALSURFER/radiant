@@ -203,19 +203,19 @@ where
         }
         if self
             .pointer_capture
-            .is_some_and(|widget_id| !self.widget_hit_order.contains(&widget_id))
+            .is_some_and(|widget_id| !self.widget_paths.contains_key(&widget_id))
         {
             self.pointer_capture = None;
         }
         if self
             .hovered_widget
-            .is_some_and(|widget_id| !self.widget_hit_order.contains(&widget_id))
+            .is_some_and(|widget_id| !self.widget_paths.contains_key(&widget_id))
         {
             self.hovered_widget = None;
         }
         if self
             .hovered_container
-            .is_some_and(|node_id| !self.styled_container_hit_order.contains(&node_id))
+            .is_some_and(|node_id| !self.styled_container_hit_rank.contains_key(&node_id))
         {
             self.hovered_container = None;
         }

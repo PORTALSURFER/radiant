@@ -17,7 +17,7 @@ pub(in crate::widgets::primitives) fn push_button_chrome(
     let points = diagonal_cut_rect_points(bounds);
     primitives.push(PaintPrimitive::FillPolygon(PaintFillPolygon {
         widget_id: common.id,
-        points: points.clone(),
+        points: std::sync::Arc::clone(&points),
         color: tokens.fill,
     }));
     primitives.push(PaintPrimitive::StrokePolygon(PaintStrokePolygon {
@@ -104,11 +104,12 @@ pub(in crate::widgets::primitives) fn push_checkbox_chrome(
     if checked {
         primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
             widget_id,
-            points: vec![
+            points: [
                 Point::new(bounds.min.x + side * 0.25, bounds.min.y + side * 0.55),
                 Point::new(bounds.min.x + side * 0.43, bounds.min.y + side * 0.72),
                 Point::new(bounds.min.x + side * 0.76, bounds.min.y + side * 0.30),
-            ],
+            ]
+            .into(),
             color: theme.accent_danger,
             width: 2.0,
         }));

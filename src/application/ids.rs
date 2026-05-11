@@ -1,22 +1,34 @@
 use crate::layout::NodeId;
+use std::collections::HashSet;
 
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+// Small surfaces keep the compact sorted cursor path; large projected trees avoid
+// sorting every reserved-id set during app view lowering.
+const HASH_RESERVED_IDS_THRESHOLD: usize = 256;
 
 pub(in crate::application) struct IdGenerator {
     next: NodeId,
-    reserved: Vec<NodeId>,
-    reserved_cursor: usize,
+    reserved: ReservedIds,
+}
+
+enum ReservedIds {
+    Sorted { ids: Vec<NodeId>, cursor: usize },
+    Hashed(HashSet<NodeId>),
 }
 
 impl IdGenerator {
     pub(in crate::application) fn new(mut reserved: Vec<NodeId>) -> Self {
-        reserved.sort_unstable();
-        reserved.dedup();
-        Self {
-            next: 1,
-            reserved,
-            reserved_cursor: 0,
-        }
+        let reserved = if reserved.len() >= HASH_RESERVED_IDS_THRESHOLD {
+            ReservedIds::Hashed(reserved.into_iter().collect())
+        } else {
+            reserved.sort_unstable();
+            reserved.dedup();
+            ReservedIds::Sorted {
+                ids: reserved,
+                cursor: 0,
+            }
+        };
+        Self { next: 1, reserved }
     }
 
     pub(in crate::application) fn next(&mut self) -> NodeId {
@@ -27,20 +39,27 @@ impl IdGenerator {
     }
 
     fn skip_reserved_run(&mut self) {
-        while self
-            .reserved
-            .get(self.reserved_cursor)
-            .is_some_and(|reserved| *reserved < self.next)
-        {
-            self.reserved_cursor += 1;
-        }
-        while self
-            .reserved
-            .get(self.reserved_cursor)
-            .is_some_and(|reserved| *reserved == self.next)
-        {
-            self.next = self.next.saturating_add(1);
-            self.reserved_cursor += 1;
+        match &mut self.reserved {
+            ReservedIds::Sorted { ids, cursor } => {
+                while ids
+                    .get(*cursor)
+                    .is_some_and(|reserved| *reserved < self.next)
+                {
+                    *cursor += 1;
+                }
+                while ids
+                    .get(*cursor)
+                    .is_some_and(|reserved| *reserved == self.next)
+                {
+                    self.next = self.next.saturating_add(1);
+                    *cursor += 1;
+                }
+            }
+            ReservedIds::Hashed(ids) => {
+                while ids.contains(&self.next) {
+                    self.next = self.next.saturating_add(1);
+                }
+            }
         }
     }
 }
@@ -94,5 +113,25 @@ mod tests {
 
         assert_eq!(ids.next(), 3);
         assert_eq!(ids.next(), 5);
+    }
+
+    #[test]
+    fn id_generator_uses_hashed_reserved_ids_for_large_sets() {
+        let ids = IdGenerator::new((10_000..=10_512).rev().collect());
+
+        assert!(matches!(ids.reserved, ReservedIds::Hashed(_)));
+    }
+
+    #[test]
+    fn id_generator_keeps_sorted_reserved_ids_for_small_sets() {
+        let ids = IdGenerator::new(vec![8, 4, 4]);
+
+        match ids.reserved {
+            ReservedIds::Sorted { ids, cursor } => {
+                assert_eq!(ids, vec![4, 8]);
+                assert_eq!(cursor, 0);
+            }
+            ReservedIds::Hashed(_) => panic!("small reserved sets should stay sorted vectors"),
+        }
     }
 }

@@ -7,7 +7,7 @@ use radiant::{
         SizeModeCross, SizeModeMain, SlotChild, SlotParams, Vector2, VirtualizationAxis,
         VirtualizationPolicy, layout_tree, layout_tree_with_state,
     },
-    prelude::{IntoView, button, list_row, virtual_list},
+    prelude::{IntoView, button, list_row_id, virtual_list},
     runtime::{
         Event, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent, PaintPrimitive,
         RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
@@ -291,8 +291,8 @@ fn bench_app_virtual_list_projection_10k() {
     let surface = virtual_list(
         0..10_000_u64,
         |index| {
-            list_row(
-                index,
+            list_row_id(
+                index + 10_000,
                 [button(format!("Row {index:05}"))
                     .message(())
                     .fill_width()

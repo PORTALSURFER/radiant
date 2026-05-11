@@ -138,13 +138,11 @@ where
         self.run_update(message)
     }
 
-    fn scroll_updated(&mut self, update: crate::runtime::ScrollUpdate) -> Command<Message> {
-        let Some(scroll) = self.scroll.as_mut() else {
-            return Command::none();
-        };
+    fn scroll_updated(&mut self, update: crate::runtime::ScrollUpdate) -> Option<Command<Message>> {
+        let scroll = self.scroll.as_mut()?;
         let mut context = UpdateContext::default();
         scroll(&mut self.state, update, &mut context);
-        context.into_command()
+        Some(context.into_command())
     }
 
     fn resolve_key_press(

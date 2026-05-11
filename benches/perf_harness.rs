@@ -295,6 +295,7 @@ fn bench_app_virtual_list_projection_10k() {
                 index + 10_000,
                 [button(format!("Row {index:05}"))
                     .message(())
+                    .id(index + 20_000)
                     .fill_width()
                     .height(28.0)],
             )

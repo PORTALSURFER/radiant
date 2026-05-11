@@ -47,6 +47,7 @@ fn project_surface(state: &mut DemoState) -> View<Message> {
                     index as u64 + 10_000,
                     [button(label)
                         .message(Message::Select(index))
+                        .id(index as u64 + 20_000)
                         .fill_width()
                         .height(28.0)],
                 )

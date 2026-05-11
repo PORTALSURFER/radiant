@@ -2,6 +2,7 @@ use super::widget::SurfaceWidget;
 use crate::{
     gui::types::Rect,
     layout::{ContainerPolicy, NodeId, SlotParams},
+    runtime::PaintText,
     widgets::WidgetStyle,
 };
 
@@ -95,7 +96,7 @@ pub enum SurfaceNode<Message> {
 pub struct SurfaceOverlay {
     pub(super) id: NodeId,
     pub(super) rect: Rect,
-    pub(super) label: Option<String>,
+    pub(super) label: Option<PaintText>,
     pub(super) style: WidgetStyle,
 }
 

@@ -63,15 +63,15 @@ impl BadgeBuilder {
 }
 
 /// Build a badge or pill.
-pub fn badge(label: impl Into<PaintText>) -> BadgeBuilder {
+pub fn badge(label: impl Into<String>) -> BadgeBuilder {
     BadgeBuilder {
-        label: label.into(),
+        label: PaintText::from(label.into()),
         style: None,
     }
 }
 
 /// Build a badge that emits one cloned host message when activated.
-pub fn badge_message<Message>(label: impl Into<PaintText>, message: Message) -> ViewNode<Message>
+pub fn badge_message<Message>(label: impl Into<String>, message: Message) -> ViewNode<Message>
 where
     Message: Clone + Send + Sync + 'static,
 {
@@ -80,7 +80,7 @@ where
 
 /// Build a badge with a custom widget-message mapper.
 pub fn badge_mapped<Message: 'static>(
-    label: impl Into<PaintText>,
+    label: impl Into<String>,
     map: impl Fn(crate::widgets::BadgeMessage) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
     badge(label).mapped(map)

@@ -170,9 +170,9 @@ impl ButtonBuilder {
 }
 
 /// Build a button.
-pub fn button(label: impl Into<PaintText>) -> ButtonBuilder {
+pub fn button(label: impl Into<String>) -> ButtonBuilder {
     ButtonBuilder {
-        label: label.into(),
+        label: PaintText::from(label.into()),
         style: None,
         secondary_click: false,
         drag: false,
@@ -180,7 +180,7 @@ pub fn button(label: impl Into<PaintText>) -> ButtonBuilder {
 }
 
 /// Build a button that emits one cloned host message when activated.
-pub fn button_message<Message>(label: impl Into<PaintText>, message: Message) -> ViewNode<Message>
+pub fn button_message<Message>(label: impl Into<String>, message: Message) -> ViewNode<Message>
 where
     Message: Clone + Send + Sync + 'static,
 {
@@ -189,7 +189,7 @@ where
 
 /// Build a button with a custom widget-message mapper.
 pub fn button_mapped<Message: 'static>(
-    label: impl Into<PaintText>,
+    label: impl Into<String>,
     map: impl Fn(crate::widgets::ButtonMessage) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
     button(label).mapped(map)

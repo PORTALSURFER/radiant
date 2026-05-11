@@ -63,9 +63,9 @@ impl ToggleBuilder {
 }
 
 /// Build a toggle.
-pub fn toggle(label: impl Into<PaintText>, checked: bool) -> ToggleBuilder {
+pub fn toggle(label: impl Into<String>, checked: bool) -> ToggleBuilder {
     ToggleBuilder {
-        label: label.into(),
+        label: PaintText::from(label.into()),
         checked,
         compact: false,
         style: None,
@@ -84,7 +84,7 @@ pub fn checkbox(checked: bool) -> ToggleBuilder {
 
 /// Build a toggle that maps value changes by checked state.
 pub fn toggle_mapped<Message: 'static>(
-    label: impl Into<PaintText>,
+    label: impl Into<String>,
     checked: bool,
     map: impl Fn(bool) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {

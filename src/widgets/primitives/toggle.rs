@@ -140,9 +140,8 @@ impl<Message> SurfaceNode<Message> {
         sizing: WidgetSizing,
         map: impl Fn(ToggleMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
-        let label = label.into();
         Self::widget(
-            ToggleWidget::new(id, label, sizing).with_checked(checked),
+            ToggleWidget::new(id, PaintText::from(label.into()), sizing).with_checked(checked),
             WidgetMessageMapper::toggle(map),
         )
     }

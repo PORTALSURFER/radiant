@@ -79,8 +79,11 @@ impl<Message> WidgetMessageMapper<Message> {
 impl<Message> SurfaceNode<Message> {
     /// Build a non-emitting list item leaf node.
     pub fn list_item(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
-        let label = label.into();
-        Self::static_widget(ListItemWidget::new(id, label, sizing))
+        Self::static_widget(ListItemWidget::new(
+            id,
+            PaintText::from(label.into()),
+            sizing,
+        ))
     }
 
     /// Build an invoking list item leaf node that emits one cloned host message.
@@ -103,9 +106,8 @@ impl<Message> SurfaceNode<Message> {
         sizing: WidgetSizing,
         map: impl Fn(ListItemMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
-        let label = label.into();
         Self::widget(
-            ListItemWidget::new(id, label, sizing),
+            ListItemWidget::new(id, PaintText::from(label.into()), sizing),
             WidgetMessageMapper::list_item(map),
         )
     }

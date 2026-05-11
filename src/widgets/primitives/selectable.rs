@@ -106,9 +106,8 @@ impl<Message> SurfaceNode<Message> {
         sizing: WidgetSizing,
         map: impl Fn(SelectableMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
-        let label = label.into();
         Self::widget(
-            SelectableWidget::new(id, label, selected, sizing),
+            SelectableWidget::new(id, PaintText::from(label.into()), selected, sizing),
             WidgetMessageMapper::selectable(map),
         )
     }

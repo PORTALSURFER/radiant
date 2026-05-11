@@ -9,7 +9,7 @@ use radiant::{
     },
     prelude::{
         IntoView, VirtualListWindowRequest, button, list_row_id, resolve_virtual_list_window,
-        virtual_list, virtual_list_window,
+        selectable, virtual_list, virtual_list_window,
     },
     runtime::{
         Command, Event, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent,
@@ -63,6 +63,11 @@ fn main() {
         "app_virtual_list_projection_generated_child_ids_10k",
         RUNTIME_ITERATIONS,
         bench_app_virtual_list_projection_generated_child_ids_10k,
+    );
+    run_scenario(
+        "app_virtual_selectable_list_projection_10k",
+        RUNTIME_ITERATIONS,
+        bench_app_virtual_selectable_list_projection_10k,
     );
     run_scenario(
         "app_virtual_list_window_projection_10k",
@@ -384,6 +389,24 @@ fn bench_app_virtual_list_projection_generated_child_ids_10k() {
                     .height(28.0)],
             )
             .height(32.0)
+        },
+        96.0,
+    )
+    .into_surface();
+    let layout = surface.layout_node();
+    assert_eq!(layout.id(), 1);
+    black_box((surface, layout));
+}
+
+fn bench_app_virtual_selectable_list_projection_10k() {
+    let surface = virtual_list(
+        0..10_000_u64,
+        |index| {
+            selectable(format!("Row {index:05}"), false)
+                .message(move |_| ())
+                .id(index + 10_000)
+                .fill_width()
+                .height(32.0)
         },
         96.0,
     )

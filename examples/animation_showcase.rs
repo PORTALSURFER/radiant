@@ -46,12 +46,11 @@ impl AnimationState {
     fn tick(&mut self) {
         if self.running {
             self.frame = self.frame.saturating_add(1);
-            self.phase = ((self.frame % 240) as f32) / 240.0;
+            self.phase = ((self.frame % 180) as f32) / 180.0;
         }
     }
 
     fn reset(&mut self) {
-        self.running = false;
         self.frame = 0;
         self.phase = 0.0;
     }
@@ -232,10 +231,10 @@ struct PulseEcho {
 impl PulseMeterVisual {
     fn resolve(phase: f32) -> Self {
         let phase = phase.clamp(0.0, 1.0);
-        let pulse = (phase * std::f32::consts::TAU).sin() * 0.5 + 0.5;
-        let marker_width = 0.014;
-        let core_width = 0.055 + pulse * 0.018;
-        let glow_width = 0.135 + pulse * 0.035;
+        let pulse = smoothstep(0.0, 1.0, 1.0 - (phase * 2.0 - 1.0).abs());
+        let marker_width = 0.018;
+        let core_width = 0.050 + pulse * 0.026;
+        let glow_width = 0.115 + pulse * 0.045;
         let marker_center = phase * (1.0 - marker_width) + marker_width * 0.5;
         let marker_start = (marker_center - marker_width * 0.5).clamp(0.0, 1.0 - marker_width);
         let core_start = (marker_center - core_width * 0.5).clamp(0.0, 1.0 - core_width);
@@ -263,8 +262,10 @@ impl PulseMeterVisual {
     }
 
     fn echo(marker_center: f32, delay: f32, width: f32, alpha: u8) -> PulseEcho {
-        let center = (marker_center + 1.0 - delay).fract();
-        let start = (center - width * 0.5).clamp(0.0, 1.0 - width);
+        let center = marker_center - delay;
+        let start = (center - width * 0.5).max(0.0);
+        let end = (center + width * 0.5).min(1.0);
+        let width = (end - start).max(0.0);
         PulseEcho {
             start,
             width,
@@ -276,6 +277,11 @@ impl PulseMeterVisual {
             },
         }
     }
+}
+
+fn smoothstep(edge0: f32, edge1: f32, value: f32) -> f32 {
+    let t = ((value - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
 }
 
 #[cfg(test)]
@@ -312,7 +318,8 @@ mod tests {
         assert!(peak.glow_width > peak.core_width);
         assert_eq!(start.marker_width, end.marker_width);
         assert!(far_edge.echoes[0].start > peak.echoes[0].start + 0.20);
-        assert!(start.echoes[0].start > 0.80);
+        assert_eq!(start.echoes[0].width, 0.0);
+        assert!(peak.echoes[0].width > 0.0);
         assert!(start.echoes[0].color.a > start.echoes[1].color.a);
     }
 
@@ -379,17 +386,35 @@ mod tests {
         assert!(runtime.bridge_mut().needs_animation());
         let outcome = runtime.drain_runtime_messages();
         assert_eq!(outcome.messages_dispatched, 1);
-        assert_status_contains(&runtime, "Running | frame 43 | phase 0.18");
+        assert_status_contains(&runtime, "Running | frame 43 | phase 0.24");
 
         click_widget(&mut runtime, 40);
         assert!(!runtime.bridge_mut().needs_animation());
         let outcome = runtime.drain_runtime_messages();
         assert_eq!(outcome.messages_dispatched, 0);
-        assert_status_contains(&runtime, "Paused | frame 43 | phase 0.18");
+        assert_status_contains(&runtime, "Paused | frame 43 | phase 0.24");
 
         click_widget(&mut runtime, 41);
         assert!(!runtime.bridge_mut().needs_animation());
         assert_status_contains(&runtime, "Paused | frame 0 | phase 0.00");
+    }
+
+    #[test]
+    fn animation_control_labels_track_running_state() {
+        let bridge = animation_test_bridge(AnimationState {
+            running: true,
+            frame: 12,
+            phase: 0.25,
+        });
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 220.0));
+
+        assert_button_label(&runtime, 40, "Pause");
+        click_widget(&mut runtime, 40);
+        assert_button_label(&runtime, 40, "Run");
+        click_widget(&mut runtime, 41);
+        assert_button_label(&runtime, 40, "Run");
+        click_widget(&mut runtime, 40);
+        assert_button_label(&runtime, 40, "Pause");
     }
 
     #[test]
@@ -416,7 +441,7 @@ mod tests {
         });
 
         assert!(!runtime.bridge_mut().needs_animation());
-        assert_status_contains(&runtime, "Paused | frame 43 | phase 0.18");
+        assert_status_contains(&runtime, "Paused | frame 43 | phase 0.24");
     }
 
     fn animation_test_bridge(
@@ -463,6 +488,23 @@ mod tests {
                 PaintPrimitive::Text(text) if text.widget_id == 20 && text.text == expected
             )),
             "expected status text {expected:?}"
+        );
+    }
+
+    fn assert_button_label<Bridge>(
+        runtime: &SurfaceRuntime<Bridge, AnimationMessage>,
+        widget_id: u64,
+        expected: &str,
+    ) where
+        Bridge: radiant::runtime::RuntimeBridge<AnimationMessage>,
+    {
+        let plan = runtime.paint_plan(&ThemeTokens::default());
+        assert!(
+            plan.primitives.iter().any(|primitive| matches!(
+                primitive,
+                PaintPrimitive::Text(text) if text.widget_id == widget_id && text.text == expected
+            )),
+            "expected button {widget_id} label {expected:?}"
         );
     }
 }

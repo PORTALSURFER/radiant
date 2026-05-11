@@ -3,10 +3,10 @@
 use radiant::prelude::*;
 use radiant::{
     gui::{
-        paint::{BorderSides, FillRect, PaintFrame, Primitive, border_fill_rects},
+        paint::{BorderSides, FillCircle, FillRect, PaintFrame, Primitive, border_fill_rects},
         types::Rgba8,
     },
-    layout::Rect,
+    layout::{Point, Rect},
     theme::ThemeTokens,
 };
 
@@ -51,6 +51,7 @@ impl AnimationState {
     }
 
     fn reset(&mut self) {
+        self.running = false;
         self.frame = 0;
         self.phase = 0.0;
     }
@@ -123,6 +124,7 @@ fn pulse_meter_revision(phase: f32) -> u64 {
 fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFrame {
     let visual = PulseMeterVisual::resolve(phase);
     let track = inset(bounds, 2.0, 7.0);
+    let center_y = (track.min.y + track.max.y) * 0.5;
     let mut frame = PaintFrame::default();
     frame.primitives.reserve(13);
     push_rect(&mut frame, track, theme.surface_base);
@@ -132,11 +134,12 @@ fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFram
         with_alpha(theme.grid_soft, 120),
     );
     for echo in visual.echoes {
-        push_ratio_rect(
+        push_ratio_circle(
             &mut frame,
-            inset(track, 0.0, 10.0),
-            echo.start,
-            echo.width,
+            track,
+            echo.center,
+            center_y,
+            echo.radius,
             echo.color,
         );
     }
@@ -147,11 +150,12 @@ fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFram
         visual.glow_width,
         visual.glow_color,
     );
-    push_ratio_rect(
+    push_ratio_circle(
         &mut frame,
-        inset(track, 0.0, 4.0),
-        visual.core_start,
-        visual.core_width,
+        track,
+        visual.core_center,
+        center_y,
+        visual.core_radius,
         theme.highlight_orange,
     );
     push_ratio_rect(
@@ -167,6 +171,25 @@ fn pulse_meter_frame(phase: f32, bounds: Rect, theme: &ThemeTokens) -> PaintFram
             .map(Primitive::Rect),
     );
     frame
+}
+
+fn push_ratio_circle(
+    frame: &mut PaintFrame,
+    track: Rect,
+    center_ratio: f32,
+    center_y: f32,
+    radius: f32,
+    color: Rgba8,
+) {
+    if radius <= 0.0 {
+        return;
+    }
+    let center_x = track.min.x + track.width() * center_ratio.clamp(0.0, 1.0);
+    frame.primitives.push(Primitive::Circle(FillCircle {
+        center: Point::new(center_x, center_y),
+        radius,
+        color,
+    }));
 }
 
 fn push_ratio_rect(
@@ -215,16 +238,16 @@ struct PulseMeterVisual {
     glow_start: f32,
     glow_width: f32,
     glow_color: Rgba8,
-    core_start: f32,
-    core_width: f32,
+    core_center: f32,
+    core_radius: f32,
     marker_start: f32,
     marker_width: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct PulseEcho {
-    start: f32,
-    width: f32,
+    center: f32,
+    radius: f32,
     color: Rgba8,
 }
 
@@ -233,18 +256,17 @@ impl PulseMeterVisual {
         let phase = phase.clamp(0.0, 1.0);
         let pulse = smoothstep(0.0, 1.0, 1.0 - (phase * 2.0 - 1.0).abs());
         let marker_width = 0.018;
-        let core_width = 0.050 + pulse * 0.026;
-        let glow_width = 0.115 + pulse * 0.045;
+        let core_radius = 4.5 + pulse * 3.0;
+        let glow_width = 0.060 + pulse * 0.032;
         let marker_center = phase * (1.0 - marker_width) + marker_width * 0.5;
         let marker_start = (marker_center - marker_width * 0.5).clamp(0.0, 1.0 - marker_width);
-        let core_start = (marker_center - core_width * 0.5).clamp(0.0, 1.0 - core_width);
         let glow_start = (marker_center - glow_width * 0.5).clamp(0.0, 1.0 - glow_width);
 
         Self {
             echoes: [
-                Self::echo(marker_center, 0.11, 0.045, 72),
-                Self::echo(marker_center, 0.20, 0.036, 48),
-                Self::echo(marker_center, 0.29, 0.028, 32),
+                Self::echo(marker_center, 0.10, 4.0, 72),
+                Self::echo(marker_center, 0.18, 3.2, 48),
+                Self::echo(marker_center, 0.26, 2.6, 32),
             ],
             glow_start,
             glow_width,
@@ -254,21 +276,19 @@ impl PulseMeterVisual {
                 b: 60,
                 a: 96,
             },
-            core_start,
-            core_width,
+            core_center: marker_center,
+            core_radius,
             marker_start,
             marker_width,
         }
     }
 
-    fn echo(marker_center: f32, delay: f32, width: f32, alpha: u8) -> PulseEcho {
+    fn echo(marker_center: f32, delay: f32, radius: f32, alpha: u8) -> PulseEcho {
         let center = marker_center - delay;
-        let start = (center - width * 0.5).max(0.0);
-        let end = (center + width * 0.5).min(1.0);
-        let width = (end - start).max(0.0);
+        let visible = center >= 0.0;
         PulseEcho {
-            start,
-            width,
+            center: center.max(0.0),
+            radius: if visible { radius } else { 0.0 },
             color: Rgba8 {
                 r: 255,
                 g: 112,
@@ -314,12 +334,12 @@ mod tests {
         assert!(peak.marker_start > start.marker_start + 0.20);
         assert!(far_edge.marker_start > peak.marker_start + 0.20);
         assert!(end.marker_start > far_edge.marker_start + 0.45);
-        assert!(peak.core_width > start.core_width);
-        assert!(peak.glow_width > peak.core_width);
+        assert!(peak.core_radius > start.core_radius);
+        assert!(peak.glow_width > start.glow_width);
         assert_eq!(start.marker_width, end.marker_width);
-        assert!(far_edge.echoes[0].start > peak.echoes[0].start + 0.20);
-        assert_eq!(start.echoes[0].width, 0.0);
-        assert!(peak.echoes[0].width > 0.0);
+        assert!(far_edge.echoes[0].center > peak.echoes[0].center + 0.20);
+        assert_eq!(start.echoes[0].radius, 0.0);
+        assert!(peak.echoes[0].radius > 0.0);
         assert!(start.echoes[0].color.a > start.echoes[1].color.a);
     }
 
@@ -338,18 +358,29 @@ mod tests {
                 _ => None,
             })
             .collect();
+        let circles: Vec<_> = frame
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                Primitive::Circle(fill) => Some(fill),
+                _ => None,
+            })
+            .collect();
 
-        assert_eq!(fills.len(), 12);
+        assert_eq!(fills.len(), 8);
+        assert_eq!(circles.len(), 4);
         assert!(fills.iter().any(|fill| fill.rect.width() > 410.0));
         assert!(
             fills
                 .iter()
                 .any(|fill| fill.rect.width() > 25.0 && fill.rect.width() < 45.0)
         );
-        assert!(fills.iter().any(|fill| fill.color.a < 70));
-        assert!(fills.iter().any(|fill| fill.rect.width() < 6.0));
+        assert!(circles.iter().any(|circle| circle.radius > 6.0));
+        assert!(circles.iter().any(|circle| circle.color.a < 70));
         assert!(
-            fills.iter().filter(|fill| fill.rect.width() > 80.0).count() <= 4,
+            fills
+                .iter()
+                .all(|fill| fill.color != ThemeTokens::default().highlight_orange),
             "pulse paint should not collapse into one large filled slab"
         );
         assert_ne!(fills[0].color, fills[1].color);
@@ -415,6 +446,22 @@ mod tests {
         assert_button_label(&runtime, 40, "Run");
         click_widget(&mut runtime, 40);
         assert_button_label(&runtime, 40, "Pause");
+    }
+
+    #[test]
+    fn reset_stops_running_animation_on_first_frame() {
+        let bridge = animation_test_bridge(AnimationState {
+            running: true,
+            frame: 88,
+            phase: 0.75,
+        });
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 220.0));
+
+        click_widget(&mut runtime, 41);
+
+        assert!(!runtime.bridge_mut().needs_animation());
+        assert_status_contains(&runtime, "Paused | frame 0 | phase 0.00");
+        assert_button_label(&runtime, 40, "Run");
     }
 
     #[test]

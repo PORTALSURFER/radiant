@@ -216,6 +216,16 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
         false
     }
 
+    /// Return whether this widget needs pointer-move events after hover state is stable.
+    ///
+    /// Widgets that only use pointer motion to maintain hover/pressed state can
+    /// return `false`; the runtime still routes enter, leave, and captured drag
+    /// motion. Custom widgets default to `true` so richer pointer-driven
+    /// behavior is preserved unless a widget explicitly opts out.
+    fn accepts_pointer_move(&self) -> bool {
+        true
+    }
+
     /// Return the selected text for focused text-editing widgets.
     fn selected_text(&self) -> Option<String> {
         None

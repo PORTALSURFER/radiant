@@ -76,6 +76,10 @@ impl Widget for ButtonWidget {
         ButtonWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+
     fn append_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,

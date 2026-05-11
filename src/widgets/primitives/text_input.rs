@@ -79,6 +79,10 @@ impl Widget for TextInputWidget {
         self.accepts_editing_input()
     }
 
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+
     fn selected_text(&self) -> Option<String> {
         self.selected_text()
     }

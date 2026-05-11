@@ -140,6 +140,10 @@ impl<Message> SurfaceWidget<Message> {
         !self.widget.common().state.disabled && self.widget.accepts_wheel_input()
     }
 
+    pub(in crate::runtime) fn accepts_pointer_move(&self) -> bool {
+        !self.widget.common().state.disabled && self.widget.accepts_pointer_move()
+    }
+
     pub(in crate::runtime) fn suppresses_container_hover(&self) -> bool {
         let common = self.widget.common();
         !common.state.disabled

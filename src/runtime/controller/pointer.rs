@@ -98,7 +98,8 @@ where
                     .then_some(pointer_widget)
                     .flatten()
             });
-        if self.hovered_widget != hover_widget {
+        let hover_changed = self.hovered_widget != hover_widget;
+        if hover_changed {
             if let Some(previous) = self.hovered_widget {
                 let _ = self.dispatch_input(previous, WidgetInput::PointerMove { position });
             }
@@ -106,6 +107,12 @@ where
         }
 
         let target = self.pointer_capture.or(pointer_widget)?;
+        if !hover_changed
+            && self.pointer_capture.is_none()
+            && !self.widget_accepts_stable_pointer_move(target)
+        {
+            return Some(target);
+        }
         self.dispatch_input(target, WidgetInput::PointerMove { position })
             .then_some(target)
     }
@@ -115,5 +122,10 @@ where
             return false;
         };
         self.container_hover_suppression.contains(&widget_id)
+    }
+
+    fn widget_accepts_stable_pointer_move(&self, widget_id: WidgetId) -> bool {
+        self.surface_widget(widget_id)
+            .is_some_and(SurfaceWidget::accepts_pointer_move)
     }
 }

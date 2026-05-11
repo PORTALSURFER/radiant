@@ -32,8 +32,7 @@ where
                 keypress_from_input(key, self.modifiers),
                 WidgetKey::from_key_code(key),
             );
-            route_outcome.routed |= outcome.routed;
-            route_outcome.repaint_requested |= outcome.repaint_requested;
+            route_outcome.merge(outcome);
         }
         if let Some(text) = event.text.as_ref() {
             self.route_text_input(text, &mut route_outcome);
@@ -44,13 +43,11 @@ where
         }
         if !route_outcome.routed && matches!(event.logical_key, Key::Named(NamedKey::Backspace)) {
             let outcome = self.core.route_widget_key(WidgetKey::Backspace);
-            route_outcome.routed |= outcome.routed;
-            route_outcome.repaint_requested |= outcome.repaint_requested;
+            route_outcome.merge(outcome);
         }
         if !route_outcome.routed && matches!(event.logical_key, Key::Named(NamedKey::Delete)) {
             let outcome = self.core.route_widget_key(WidgetKey::Delete);
-            route_outcome.routed |= outcome.routed;
-            route_outcome.repaint_requested |= outcome.repaint_requested;
+            route_outcome.merge(outcome);
         }
         self.handle_route_outcome(event_loop, route_outcome);
     }
@@ -83,8 +80,7 @@ where
         match key {
             crate::gui::input::KeyCode::A => {
                 let outcome = self.core.route_text_edit(TextEditCommand::SelectAll);
-                route_outcome.routed |= outcome.routed;
-                route_outcome.repaint_requested |= outcome.repaint_requested;
+                route_outcome.merge(outcome);
                 outcome.routed
             }
             crate::gui::input::KeyCode::C => {
@@ -103,8 +99,7 @@ where
                         let _ = clipboard.set_text(selection);
                     }
                     let outcome = self.core.route_text_edit(TextEditCommand::CutSelection);
-                    route_outcome.routed |= outcome.routed;
-                    route_outcome.repaint_requested |= outcome.repaint_requested;
+                    route_outcome.merge(outcome);
                     return outcome.routed;
                 }
                 false
@@ -117,8 +112,7 @@ where
                     return false;
                 };
                 let outcome = self.core.route_text_edit(TextEditCommand::InsertText(text));
-                route_outcome.routed |= outcome.routed;
-                route_outcome.repaint_requested |= outcome.repaint_requested;
+                route_outcome.merge(outcome);
                 outcome.routed
             }
             _ => false,
@@ -141,8 +135,7 @@ where
             _ => return false,
         };
         let outcome = self.core.route_text_edit(command);
-        route_outcome.routed |= outcome.routed;
-        route_outcome.repaint_requested |= outcome.repaint_requested;
+        route_outcome.merge(outcome);
         outcome.routed
     }
 
@@ -153,8 +146,7 @@ where
                 break;
             }
             let outcome = self.core.route_character(character);
-            route_outcome.routed |= outcome.routed;
-            route_outcome.repaint_requested |= outcome.repaint_requested;
+            route_outcome.merge(outcome);
         }
     }
 }

@@ -2,6 +2,10 @@ use crate::{
     gui::types::{Point, Rect, Rgba8},
     widgets::WidgetId,
 };
+use std::sync::Arc;
+
+/// Shared immutable point list used by polygon and polyline paint primitives.
+pub type PaintPointList = Arc<[Point]>;
 
 /// Filled rectangle primitive in logical surface coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -33,7 +37,7 @@ pub struct PaintFillPolygon {
     /// Widget or node that produced this primitive.
     pub widget_id: WidgetId,
     /// Polygon points in clockwise or counter-clockwise order.
-    pub points: Vec<Point>,
+    pub points: PaintPointList,
     /// Fill color.
     pub color: Rgba8,
 }
@@ -44,7 +48,7 @@ pub struct PaintStrokePolygon {
     /// Widget or node that produced this primitive.
     pub widget_id: WidgetId,
     /// Polygon points in clockwise or counter-clockwise order.
-    pub points: Vec<Point>,
+    pub points: PaintPointList,
     /// Stroke color.
     pub color: Rgba8,
     /// Stroke width in logical pixels.
@@ -57,7 +61,7 @@ pub struct PaintStrokePolyline {
     /// Widget or node that produced this primitive.
     pub widget_id: WidgetId,
     /// Connected line points in paint order.
-    pub points: Vec<Point>,
+    pub points: PaintPointList,
     /// Stroke color.
     pub color: Rgba8,
     /// Stroke width in logical pixels.

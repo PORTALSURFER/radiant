@@ -30,10 +30,11 @@ pub(super) fn push_drag_handle_widget_paint(
     for y in [center_y - 5.0, center_y, center_y + 5.0] {
         primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
             widget_id: handle.common.id,
-            points: vec![
+            points: [
                 Point::new(bounds.min.x + bounds.width() * 0.25, y),
                 Point::new(bounds.max.x - bounds.width() * 0.25, y),
-            ],
+            ]
+            .into(),
             color,
             width: if handle.common.state.pressed {
                 2.0

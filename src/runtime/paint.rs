@@ -163,15 +163,16 @@ fn blend_channel(from: u8, to: u8, amount: f32) -> u8 {
     ((from as f32) + (((to as f32) - (from as f32)) * amount)).round() as u8
 }
 
-pub(crate) fn diagonal_cut_rect_points(rect: Rect) -> Vec<Point> {
+pub(crate) fn diagonal_cut_rect_points(rect: Rect) -> PaintPointList {
     let cut = (rect.height().min(rect.width()) * 0.18).clamp(4.0, 8.0);
-    vec![
+    [
         Point::new(rect.min.x, rect.min.y),
         Point::new(rect.max.x, rect.min.y),
         Point::new(rect.max.x, rect.max.y - cut),
         Point::new(rect.max.x - cut, rect.max.y),
         Point::new(rect.min.x, rect.max.y),
     ]
+    .into()
 }
 
 pub(crate) fn push_axis_stroke(

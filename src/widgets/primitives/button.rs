@@ -137,6 +137,7 @@ impl<Message> SurfaceNode<Message> {
 #[cfg(test)]
 mod tests {
     use crate::gui::types::{Point, Vector2};
+    use std::sync::Arc;
 
     use super::*;
     use crate::widgets::interaction::{DragHandleMessage, PointerButton, WidgetInput, WidgetKey};
@@ -250,6 +251,35 @@ mod tests {
             Some(ButtonMessage::Drag(DragHandleMessage::Ended {
                 position: Point::new(20.0, 22.0)
             }))
+        );
+    }
+
+    #[test]
+    fn button_chrome_shares_fill_and_stroke_point_storage() {
+        let button = ButtonWidget::new(10, "Play", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0));
+        let mut primitives = Vec::new();
+
+        button.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        let fill_points = primitives.iter().find_map(|primitive| match primitive {
+            PaintPrimitive::FillPolygon(fill) => Some(&fill.points),
+            _ => None,
+        });
+        let stroke_points = primitives.iter().find_map(|primitive| match primitive {
+            PaintPrimitive::StrokePolygon(stroke) => Some(&stroke.points),
+            _ => None,
+        });
+
+        assert!(
+            fill_points
+                .zip(stroke_points)
+                .is_some_and(|(fill, stroke)| Arc::ptr_eq(fill, stroke))
         );
     }
 }

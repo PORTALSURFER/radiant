@@ -369,13 +369,10 @@ fn collect_visible_hit_order(
 ) {
     const SPARSE_LAYOUT_SCAN_FACTOR: usize = 4;
     out.clear();
-    out.reserve(
-        layout
-            .rects
-            .len()
-            .min(order.len())
-            .saturating_sub(out.capacity()),
-    );
+    let visible_capacity = layout.rects.len().min(order.len());
+    if visible_capacity > out.capacity() {
+        out.reserve(visible_capacity);
+    }
     if order.len() <= layout.rects.len().saturating_mul(SPARSE_LAYOUT_SCAN_FACTOR) {
         out.extend(
             order
@@ -464,6 +461,25 @@ mod tests {
 
         assert_eq!(visible, vec![100, 50, 2]);
         assert!(visible.capacity() >= 3);
+    }
+
+    #[test]
+    fn visible_hit_order_grows_reused_output_buffer_to_visible_capacity() {
+        let mut layout = LayoutOutput::default();
+        for node_id in 0..64 {
+            layout.rects.insert(
+                node_id,
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(10.0, 10.0)),
+            );
+        }
+        let order = (0..128).collect::<Vec<_>>();
+        let rank = hit_rank(&order);
+        let mut visible = Vec::with_capacity(8);
+
+        collect_visible_hit_order(&layout, &order, &rank, &mut visible);
+
+        assert_eq!(visible.len(), 64);
+        assert!(visible.capacity() >= 64);
     }
 
     #[test]

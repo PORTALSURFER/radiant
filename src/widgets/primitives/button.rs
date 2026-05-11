@@ -76,6 +76,14 @@ impl Widget for ButtonWidget {
         ButtonWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
+            return;
+        };
+        self.common.state = previous.common.state;
+        self.state = previous.state;
+    }
+
     fn accepts_pointer_move(&self) -> bool {
         false
     }

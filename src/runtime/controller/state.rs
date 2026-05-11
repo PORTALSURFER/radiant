@@ -8,7 +8,7 @@ where
         if self.pointer_capture != Some(widget_id) {
             return;
         }
-        let Some(widget) = self.surface.find_widget(widget_id) else {
+        let Some(widget) = self.surface_widget(widget_id) else {
             self.pointer_capture_state = None;
             return;
         };
@@ -23,7 +23,7 @@ where
             self.pointer_capture_state = None;
             return;
         }
-        let Some(widget) = self.surface.find_widget_mut(widget_id) else {
+        let Some(widget) = self.surface_widget_mut(widget_id) else {
             self.pointer_capture_state = None;
             return;
         };

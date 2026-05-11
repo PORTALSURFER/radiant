@@ -72,6 +72,31 @@ fn generic_core_routes_pointer_and_key_input_to_host_messages() {
 }
 
 #[test]
+fn nested_button_activation_survives_surface_refresh_between_press_and_release() {
+    let bridge = demo_bridge();
+    let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));
+    let button_point = core
+        .runtime
+        .layout()
+        .rects
+        .get(&11)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("button should be laid out");
+
+    assert!(
+        core.route_pointer_press(button_point, PointerButton::Primary)
+            .routed
+    );
+    core.runtime.refresh();
+    assert!(
+        core.route_pointer_release(button_point, PointerButton::Primary)
+            .routed
+    );
+
+    assert_eq!(core.runtime.bridge().state.count, 1);
+}
+
+#[test]
 fn pointer_move_inside_same_widget_does_not_request_redundant_redraw() {
     let bridge = demo_bridge();
     let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));

@@ -287,12 +287,20 @@ where
 }
 
 fn hit_rank(order: &[NodeId]) -> HashMap<NodeId, usize> {
-    order
-        .iter()
-        .copied()
-        .enumerate()
-        .map(|(index, node_id)| (node_id, index))
-        .collect()
+    let mut rank = HashMap::with_capacity(order.len());
+    collect_hit_rank(order, &mut rank);
+    rank
+}
+
+fn collect_hit_rank(order: &[NodeId], out: &mut HashMap<NodeId, usize>) {
+    out.clear();
+    out.extend(
+        order
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(index, node_id)| (node_id, index)),
+    );
 }
 
 fn collect_visible_hit_order(
@@ -372,5 +380,20 @@ mod tests {
 
         assert_eq!(visible, vec![100, 50, 2]);
         assert_eq!(visible.capacity(), capacity);
+    }
+
+    #[test]
+    fn hit_rank_reuses_output_map() {
+        let mut rank = HashMap::with_capacity(8);
+        rank.insert(999, 999);
+        let capacity = rank.capacity();
+
+        collect_hit_rank(&[5, 1, 9], &mut rank);
+
+        assert_eq!(rank.get(&5), Some(&0));
+        assert_eq!(rank.get(&1), Some(&1));
+        assert_eq!(rank.get(&9), Some(&2));
+        assert!(!rank.contains_key(&999));
+        assert!(rank.capacity() >= capacity);
     }
 }

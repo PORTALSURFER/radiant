@@ -247,13 +247,13 @@ where
         }
         if self
             .scroll_drag_capture
-            .is_some_and(|capture| !self.scroll_hit_order.contains(&capture.node_id))
+            .is_some_and(|capture| !self.scroll_hit_rank.contains_key(&capture.node_id))
         {
             self.scroll_drag_capture = None;
         }
         if self
             .hovered_scroll_affordance
-            .is_some_and(|node_id| !self.scroll_hit_order.contains(&node_id))
+            .is_some_and(|node_id| !self.scroll_hit_rank.contains_key(&node_id))
         {
             self.hovered_scroll_affordance = None;
         }

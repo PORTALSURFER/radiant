@@ -364,6 +364,69 @@ fn surface_runtime_highlights_painted_scrollbar_thumb_on_hover() {
 }
 
 #[test]
+fn surface_runtime_clears_scrollbar_hover_when_refresh_removes_scroll_area() {
+    let bridge = declarative_runtime_bridge(
+        0_u8,
+        |state| {
+            let node = if *state == 0 {
+                SurfaceNode::scroll_area(
+                    31,
+                    SurfaceNode::column(
+                        32,
+                        2.0,
+                        (0..20)
+                            .map(|index| {
+                                SurfaceChild::new(
+                                    intrinsic_slot(),
+                                    SurfaceNode::text(
+                                        100 + index,
+                                        format!("Row {index}"),
+                                        WidgetSizing::fixed(Vector2::new(180.0, 24.0)),
+                                    ),
+                                )
+                            })
+                            .collect(),
+                    ),
+                )
+            } else {
+                SurfaceNode::text(
+                    40,
+                    "No scroll",
+                    WidgetSizing::fixed(Vector2::new(180.0, 24.0)),
+                )
+            };
+            Arc::new(UiSurface::<DemoMessage>::new(node))
+        },
+        |state, message| match message {
+            DemoMessage::Increment => *state = state.saturating_add(1),
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
+    let thumb = runtime
+        .paint_plan(&Default::default())
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill) if fill.widget_id == 31 => Some(fill.rect),
+            _ => None,
+        })
+        .expect("scroll area should paint a hoverable thumb");
+
+    runtime.dispatch_event(Event::PointerMove {
+        position: thumb.center(),
+    });
+    assert_eq!(runtime.hovered_scroll_affordance(), Some(31));
+
+    runtime.dispatch_message(DemoMessage::Increment);
+
+    assert_eq!(runtime.hovered_scroll_affordance(), None);
+    assert!(
+        !runtime.layout().rects.contains_key(&31),
+        "the refreshed layout should no longer contain the hovered scroll area"
+    );
+}
+
+#[test]
 fn surface_runtime_does_not_hit_scrolled_content_outside_scroll_viewport() {
     let bridge = declarative_runtime_bridge(
         Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::column(

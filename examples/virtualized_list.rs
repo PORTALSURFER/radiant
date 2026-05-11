@@ -27,10 +27,9 @@ fn main() -> radiant::Result {
         .size(420, 420)
         .min_size(320, 260)
         .view(project_surface)
-        .on_scroll(|state, update, context| {
+        .on_scroll(|state, update, _context| {
             if update.node_id == LIST_ID {
                 state.view_start = view_start_for_offset(update.offset.y);
-                context.request_paint_only();
             }
         })
         .update(|state, message| {

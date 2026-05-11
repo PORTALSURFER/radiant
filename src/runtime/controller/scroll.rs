@@ -123,6 +123,7 @@ where
             return false;
         };
         self.scroll_drag_capture = Some(capture);
+        self.repaint_requested = true;
         true
     }
 
@@ -156,6 +157,7 @@ where
             Vector2::new(current.x, offset_fraction * affordance.max_scroll),
         );
         self.relayout_current_surface();
+        self.repaint_requested = true;
         true
     }
 

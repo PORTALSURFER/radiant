@@ -271,9 +271,17 @@ fn surface_runtime_drags_painted_scrollbar_thumb() {
         position: thumb.center(),
         button: PointerButton::Primary,
     });
+    assert!(
+        runtime.take_repaint_requested(),
+        "pressing the painted scroll thumb should request a redraw"
+    );
     runtime.dispatch_event(Event::PointerMove {
         position: Point::new(thumb.center().x, thumb.center().y + 36.0),
     });
+    assert!(
+        runtime.take_repaint_requested(),
+        "dragging the painted scroll thumb should request a redraw"
+    );
     runtime.dispatch_event(Event::PointerRelease {
         position: Point::new(thumb.center().x, thumb.center().y + 36.0),
         button: PointerButton::Primary,

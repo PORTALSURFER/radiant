@@ -90,6 +90,8 @@ where
     container_clip_ancestors: HashMap<NodeId, ClipAncestors>,
     scroll_content_by_container: HashMap<NodeId, NodeId>,
     scroll_clamp_updates: Vec<(NodeId, Vector2)>,
+    projection_scroll_stack: Vec<NodeId>,
+    projection_child_path: Vec<usize>,
     focused_widget: Option<WidgetId>,
     pending_key_chord: Option<KeyPress>,
     hovered_container: Option<NodeId>,
@@ -177,6 +179,8 @@ where
             container_clip_ancestors: traversal.container_clip_ancestors,
             scroll_content_by_container: traversal.scroll_content_by_container,
             scroll_clamp_updates: Vec::new(),
+            projection_scroll_stack: Vec::new(),
+            projection_child_path: Vec::new(),
             focused_widget: None,
             pending_key_chord: None,
             hovered_container: None,
@@ -200,7 +204,11 @@ where
         let mut next_surface = self.bridge.pull_surface();
         std::mem::swap(&mut self.previous_widget_paths, &mut self.widget_paths);
         let mut traversal = self.take_reusable_traversal_index(true);
-        let layout_root = next_surface.runtime_projection_reusing(&mut traversal);
+        let layout_root = next_surface.runtime_projection_reusing_with_scratch(
+            &mut traversal,
+            &mut self.projection_scroll_stack,
+            &mut self.projection_child_path,
+        );
         next_surface.synchronize_widget_state_from_paths(
             &self.surface,
             &traversal.widget_paths,

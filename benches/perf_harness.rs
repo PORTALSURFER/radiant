@@ -29,9 +29,18 @@ use std::{
 const LAYOUT_ITERATIONS: usize = 120;
 const RUNTIME_ITERATIONS: usize = 100;
 const GPU_ITERATIONS: usize = 60;
+const RUN_ALL_IN_DEBUG_ENV: &str = "RADIANT_PERF_RUN_ALL_IN_DEBUG";
 
 fn main() {
-    let mut runner = ScenarioRunner::from_args(env::args());
+    let filters = scenario_filters_from_args(env::args());
+    if should_skip_unfiltered_debug_run(&filters) {
+        println!(
+            "radiant_perf skipped unfiltered debug run; pass a scenario filter or set {RUN_ALL_IN_DEBUG_ENV}=1"
+        );
+        return;
+    }
+
+    let mut runner = ScenarioRunner::new(filters);
     runner.run_scenario("layout_deep_nesting", LAYOUT_ITERATIONS, || {
         bench_deep_nesting
     });
@@ -157,9 +166,9 @@ struct ScenarioRunner {
 }
 
 impl ScenarioRunner {
-    fn from_args(args: impl IntoIterator<Item = String>) -> Self {
+    fn new(filters: Vec<String>) -> Self {
         Self {
-            filters: scenario_filters_from_args(args),
+            filters,
             matched: 0,
         }
     }
@@ -196,6 +205,10 @@ fn scenario_filters_from_args(args: impl IntoIterator<Item = String>) -> Vec<Str
 
 fn scenario_matches_filters(name: &str, filters: &[String]) -> bool {
     filters.is_empty() || filters.iter().any(|filter| name.contains(filter))
+}
+
+fn should_skip_unfiltered_debug_run(filters: &[String]) -> bool {
+    cfg!(debug_assertions) && filters.is_empty() && env::var_os(RUN_ALL_IN_DEBUG_ENV).is_none()
 }
 
 fn run_scenario(name: &str, iterations: usize, mut bench: impl FnMut()) {

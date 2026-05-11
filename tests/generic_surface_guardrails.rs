@@ -16,8 +16,6 @@ use radiant::{
     widgets::{TextWidget, WidgetOutput, WidgetSizing},
 };
 
-const DOMAIN_EXTRACTION_INVENTORY: &str = include_str!("../domain_extraction_inventory.tsv");
-
 const GENERIC_SOURCE_ROOTS: &[&str] = &[
     "src/runtime",
     "src/widgets",
@@ -431,28 +429,6 @@ fn api_docs_soft_deprecate_only_first_use_runtime_boilerplate() {
     );
 }
 
-#[test]
-fn domain_extraction_inventory_is_closed_out() {
-    let rules = parse_extraction_inventory();
-    assert!(
-        rules.is_empty(),
-        "domain extraction inventory should have no active migration rules"
-    );
-    assert!(
-        DOMAIN_EXTRACTION_INVENTORY.contains("no longer an active")
-            && DOMAIN_EXTRACTION_INVENTORY.contains("migration backlog"),
-        "domain extraction inventory should be retained only as a final boundary note"
-    );
-}
-
-#[allow(dead_code)]
-#[derive(Debug)]
-struct ExtractionRule {
-    pattern: String,
-    disposition: String,
-    owner: String,
-}
-
 fn public_module_names(source: &str) -> BTreeSet<String> {
     source
         .lines()
@@ -497,27 +473,4 @@ fn strip_toml_comments(source: &str) -> String {
         .map(|line| line.split_once('#').map_or(line, |(before, _)| before))
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-fn parse_extraction_inventory() -> Vec<ExtractionRule> {
-    let mut rules = Vec::new();
-    for (line_index, line) in DOMAIN_EXTRACTION_INVENTORY.lines().enumerate() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') || line.starts_with("pattern\t") {
-            continue;
-        }
-        let columns = line.split('\t').collect::<Vec<_>>();
-        assert_eq!(
-            columns.len(),
-            4,
-            "domain extraction inventory line {} should have four tab-separated columns",
-            line_index + 1
-        );
-        rules.push(ExtractionRule {
-            pattern: columns[0].to_owned(),
-            disposition: columns[1].to_owned(),
-            owner: columns[2].to_owned(),
-        });
-    }
-    rules
 }

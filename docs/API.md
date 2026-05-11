@@ -11,8 +11,6 @@ must not depend on host crates, host modules, product assets, or product-domain
 model names. In short: host -> Radiant, never Radiant -> host. Radiant now
 exposes only generic GUI and native runtime APIs; host-shaped compatibility
 facades and native-shell composition trees belong in the consuming application.
-`domain_extraction_inventory.tsv` is retained as a boundary-closeout artifact,
-not an active migration backlog.
 Boundary tests prove that dependency direction, public exports, examples, and
 runtime behavior stay generic; they intentionally avoid enforcing product
 neutrality through lists of forbidden host-domain words.

@@ -135,20 +135,24 @@ where
     }
 
     fn scroll_container_at(&self, point: Point) -> Option<NodeId> {
-        self.scroll_hit_order.iter().rev().copied().find(|node_id| {
-            self.layout
-                .rects
-                .get(node_id)
-                .is_some_and(|rect| rect.contains(point))
-                && self
-                    .layout
-                    .overflow_flags
+        self.visible_scroll_hit_order
+            .iter()
+            .rev()
+            .copied()
+            .find(|node_id| {
+                self.layout
+                    .rects
                     .get(node_id)
-                    .is_some_and(|overflow| {
-                        overflow.policy == OverflowPolicy::Scroll && (overflow.x || overflow.y)
-                    })
-                && self.container_clip_contains_point(*node_id, point)
-        })
+                    .is_some_and(|rect| rect.contains(point))
+                    && self
+                        .layout
+                        .overflow_flags
+                        .get(node_id)
+                        .is_some_and(|overflow| {
+                            overflow.policy == OverflowPolicy::Scroll && (overflow.x || overflow.y)
+                        })
+                    && self.container_clip_contains_point(*node_id, point)
+            })
     }
 
     pub(super) fn start_scrollbar_drag_at(&mut self, point: Point) -> bool {
@@ -215,7 +219,7 @@ where
     }
 
     fn scrollbar_drag_capture_at(&self, point: Point) -> Option<ScrollDragCapture> {
-        self.scroll_hit_order
+        self.visible_scroll_hit_order
             .iter()
             .rev()
             .copied()

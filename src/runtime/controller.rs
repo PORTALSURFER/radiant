@@ -87,6 +87,8 @@ where
     styled_container_hit_rank: HashMap<NodeId, usize>,
     visible_styled_container_hit_order: Vec<NodeId>,
     scroll_hit_order: Vec<NodeId>,
+    scroll_hit_rank: HashMap<NodeId, usize>,
+    visible_scroll_hit_order: Vec<NodeId>,
     widget_clip_ancestors: HashMap<WidgetId, ClipAncestors>,
     container_clip_ancestors: HashMap<NodeId, ClipAncestors>,
     scroll_content_by_container: HashMap<NodeId, NodeId>,
@@ -130,6 +132,7 @@ where
         let keyboard_focus_rank = hit_rank(&traversal.keyboard_focus_order);
         let wheel_hit_rank = hit_rank(&traversal.wheel_hit_order);
         let styled_container_hit_rank = hit_rank(&traversal.styled_container_order);
+        let scroll_hit_rank = hit_rank(&traversal.scroll_container_order);
         let mut visible_pointer_hit_order = Vec::new();
         collect_visible_hit_order(
             &layout,
@@ -150,6 +153,13 @@ where
             &traversal.styled_container_order,
             &styled_container_hit_rank,
             &mut visible_styled_container_hit_order,
+        );
+        let mut visible_scroll_hit_order = Vec::new();
+        collect_visible_hit_order(
+            &layout,
+            &traversal.scroll_container_order,
+            &scroll_hit_rank,
+            &mut visible_scroll_hit_order,
         );
         Self {
             bridge,
@@ -177,6 +187,8 @@ where
             styled_container_hit_rank,
             visible_styled_container_hit_order,
             scroll_hit_order: traversal.scroll_container_order,
+            scroll_hit_rank,
+            visible_scroll_hit_order,
             widget_clip_ancestors: traversal.widget_clip_ancestors,
             container_clip_ancestors: traversal.container_clip_ancestors,
             scroll_content_by_container: traversal.scroll_content_by_container,

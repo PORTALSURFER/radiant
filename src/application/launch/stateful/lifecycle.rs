@@ -98,6 +98,10 @@ where
     }
 
     /// Observe runtime-owned scroll movement before the next paint.
+    ///
+    /// Mutating app state from this hook refreshes the projected surface
+    /// automatically. Use the context only for follow-up work such as repaint
+    /// signals, messages, focus changes, or background tasks.
     pub fn on_scroll(
         mut self,
         scroll: impl FnMut(&mut State, crate::runtime::ScrollUpdate, &mut UpdateContext<Message>)

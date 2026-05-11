@@ -209,12 +209,11 @@ fn app_scroll_hook_observes_runtime_scroll_offsets() {
                 ),
             ))
         })
-        .on_scroll(move |state, update, context| {
+        .on_scroll(move |state, update, _context| {
             state.last_scroll_y = update.offset.y;
             *observed_scroll_y_for_hook
                 .lock()
                 .expect("scroll observer lock should be available") = Some(update.offset.y);
-            context.request_paint_only();
         })
         .update_with(|_state, _message: DemoMessage, _context| {})
         .into_bridge();
@@ -259,12 +258,11 @@ fn app_scroll_hook_observes_scrollbar_drag_offsets() {
                 ),
             ))
         })
-        .on_scroll(move |state, update, context| {
+        .on_scroll(move |state, update, _context| {
             state.last_scroll_y = update.offset.y;
             *observed_scroll_y_for_hook
                 .lock()
                 .expect("scroll observer lock should be available") = Some(update.offset.y);
-            context.request_paint_only();
         })
         .update_with(|_state, _message: DemoMessage, _context| {})
         .into_bridge();

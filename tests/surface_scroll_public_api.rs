@@ -271,6 +271,7 @@ fn surface_runtime_drags_painted_scrollbar_thumb() {
         position: thumb.center(),
         button: PointerButton::Primary,
     });
+    assert_eq!(runtime.hovered_scroll_affordance(), Some(31));
     assert!(
         runtime.take_repaint_requested(),
         "pressing the painted scroll thumb should request a redraw"
@@ -289,6 +290,77 @@ fn surface_runtime_drags_painted_scrollbar_thumb() {
 
     let after = runtime.layout().rects[&100];
     assert!(after.min.y < before.min.y);
+}
+
+#[test]
+fn surface_runtime_highlights_painted_scrollbar_thumb_on_hover() {
+    let bridge = declarative_runtime_bridge(
+        Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+            31,
+            SurfaceNode::column(
+                32,
+                2.0,
+                (0..20)
+                    .map(|index| {
+                        SurfaceChild::new(
+                            intrinsic_slot(),
+                            SurfaceNode::text(
+                                100 + index,
+                                format!("Row {index}"),
+                                WidgetSizing::fixed(Vector2::new(180.0, 24.0)),
+                            ),
+                        )
+                    })
+                    .collect(),
+            ),
+        ))),
+        |surface| Arc::clone(surface),
+        |_, _message| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
+    let theme = radiant::theme::ThemeTokens::default();
+    let thumb = runtime
+        .paint_plan(&theme)
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill) if fill.widget_id == 31 => Some(fill.rect),
+            _ => None,
+        })
+        .expect("scroll area should paint a hoverable thumb");
+
+    runtime.dispatch_event(Event::PointerMove {
+        position: thumb.center(),
+    });
+
+    let hovered_color = runtime
+        .paint_plan(&theme)
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill) if fill.widget_id == 31 => Some(fill.color),
+            _ => None,
+        })
+        .expect("hovered scroll area should still paint a thumb");
+    assert_eq!(runtime.hovered_scroll_affordance(), Some(31));
+    assert!(runtime.take_repaint_requested());
+    assert_eq!(hovered_color, theme.accent_copper);
+
+    runtime.dispatch_event(Event::PointerMove {
+        position: Point::new(8.0, 8.0),
+    });
+    let idle_color = runtime
+        .paint_plan(&theme)
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill) if fill.widget_id == 31 => Some(fill.color),
+            _ => None,
+        })
+        .expect("idle scroll area should still paint a thumb");
+    assert_eq!(runtime.hovered_scroll_affordance(), None);
+    assert!(runtime.take_repaint_requested());
+    assert_eq!(idle_color, theme.grid_strong);
 }
 
 #[test]

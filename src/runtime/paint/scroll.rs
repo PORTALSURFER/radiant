@@ -19,6 +19,7 @@ pub(in crate::runtime) fn push_scroll_affordance(
     content_id: NodeId,
     layout: &LayoutOutput,
     theme: &ThemeTokens,
+    active: bool,
 ) {
     let Some(affordance) = resolve_scroll_affordance(node_id, content_id, layout) else {
         return;
@@ -27,7 +28,11 @@ pub(in crate::runtime) fn push_scroll_affordance(
     primitives.push(PaintPrimitive::FillRect(PaintFillRect {
         widget_id: node_id,
         rect: affordance.thumb,
-        color: theme.grid_strong,
+        color: if active {
+            theme.accent_copper
+        } else {
+            theme.grid_strong
+        },
     }));
 }
 

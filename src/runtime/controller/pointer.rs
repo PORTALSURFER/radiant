@@ -74,6 +74,11 @@ where
         if self.drag_scrollbar_to(position) {
             return None;
         }
+        let hovered_scroll_affordance = self.scroll_affordance_at(position);
+        if self.hovered_scroll_affordance != hovered_scroll_affordance {
+            self.hovered_scroll_affordance = hovered_scroll_affordance;
+            self.repaint_requested = true;
+        }
         let pointer_widget = self.widget_at(position);
         let hover_container = if self.widget_suppresses_container_hover(pointer_widget) {
             None

@@ -56,8 +56,12 @@ where
 
     /// Project the current surface and layout into backend-neutral paint data.
     pub fn paint_plan(&self, theme: &ThemeTokens) -> SurfacePaintPlan {
-        self.surface
-            .paint_plan_with_hover(&self.layout, theme, self.hovered_container)
+        self.surface.paint_plan_with_hover(
+            &self.layout,
+            theme,
+            self.hovered_container,
+            self.hovered_scroll_affordance,
+        )
     }
 
     /// Package the current runtime viewport, layout, and paint plan for a host renderer.
@@ -109,6 +113,11 @@ where
     /// Return the styled container currently receiving hover chrome.
     pub fn hovered_container(&self) -> Option<NodeId> {
         self.hovered_container
+    }
+
+    /// Return the scroll affordance currently receiving hover or drag emphasis.
+    pub fn hovered_scroll_affordance(&self) -> Option<NodeId> {
+        self.hovered_scroll_affordance
     }
 
     /// Return whether the host update flow requested another repaint.

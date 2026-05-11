@@ -80,7 +80,7 @@ impl<Message> UiSurface<Message> {
     /// Primitives are emitted in declarative tree order so backends and tests can
     /// compare output deterministically without depending on the native shell.
     pub fn paint_plan(&self, layout: &LayoutOutput, theme: &ThemeTokens) -> SurfacePaintPlan {
-        self.paint_plan_with_hover(layout, theme, None)
+        self.paint_plan_with_hover(layout, theme, None, None)
     }
 
     pub(super) fn paint_plan_with_hover(
@@ -88,11 +88,17 @@ impl<Message> UiSurface<Message> {
         layout: &LayoutOutput,
         theme: &ThemeTokens,
         hovered_container: Option<NodeId>,
+        active_scroll_affordance: Option<NodeId>,
     ) -> SurfacePaintPlan {
         let mut plan =
             SurfacePaintPlan::empty_with_capacity(theme, layout.rects.len().saturating_mul(2));
-        self.root
-            .append_paint(layout, theme, &mut plan, hovered_container);
+        self.root.append_paint(
+            layout,
+            theme,
+            &mut plan,
+            hovered_container,
+            active_scroll_affordance,
+        );
         plan
     }
 

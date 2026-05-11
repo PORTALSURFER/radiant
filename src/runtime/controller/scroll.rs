@@ -123,6 +123,7 @@ where
             return false;
         };
         self.scroll_drag_capture = Some(capture);
+        self.hovered_scroll_affordance = Some(capture.node_id);
         self.repaint_requested = true;
         true
     }
@@ -131,6 +132,10 @@ where
         let Some(capture) = self.scroll_drag_capture else {
             return false;
         };
+        if self.hovered_scroll_affordance != Some(capture.node_id) {
+            self.hovered_scroll_affordance = Some(capture.node_id);
+            self.repaint_requested = true;
+        }
         let Some(content_id) = self
             .scroll_content_by_container
             .get(&capture.node_id)
@@ -159,6 +164,11 @@ where
         self.relayout_current_surface();
         self.repaint_requested = true;
         true
+    }
+
+    pub(super) fn scroll_affordance_at(&self, point: Point) -> Option<NodeId> {
+        self.scrollbar_drag_capture_at(point)
+            .map(|capture| capture.node_id)
     }
 
     fn scrollbar_drag_capture_at(&self, point: Point) -> Option<ScrollDragCapture> {

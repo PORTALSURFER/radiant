@@ -14,6 +14,7 @@ pub(super) struct SurfacePaintContext<'a> {
     layout: &'a LayoutOutput,
     theme: &'a ThemeTokens,
     hovered_container: Option<NodeId>,
+    active_scroll_affordance: Option<NodeId>,
     clip_rect: Option<Rect>,
 }
 
@@ -22,11 +23,13 @@ impl<'a> SurfacePaintContext<'a> {
         layout: &'a LayoutOutput,
         theme: &'a ThemeTokens,
         hovered_container: Option<NodeId>,
+        active_scroll_affordance: Option<NodeId>,
     ) -> Self {
         Self {
             layout,
             theme,
             hovered_container,
+            active_scroll_affordance,
             clip_rect: None,
         }
     }
@@ -47,6 +50,7 @@ impl<'a> SurfacePaintContext<'a> {
             layout: self.layout,
             theme: self.theme,
             hovered_container: self.hovered_container,
+            active_scroll_affordance: self.active_scroll_affordance,
             clip_rect: Some(clip_rect),
         }
     }
@@ -142,6 +146,7 @@ impl<Message> SurfaceContainer<Message> {
             content_id,
             context.layout,
             context.theme,
+            context.active_scroll_affordance == Some(self.id),
         );
     }
 }
@@ -170,8 +175,10 @@ impl<Message> SurfaceNode<Message> {
         theme: &ThemeTokens,
         plan: &mut SurfacePaintPlan,
         hovered_container: Option<NodeId>,
+        active_scroll_affordance: Option<NodeId>,
     ) {
-        let context = SurfacePaintContext::new(layout, theme, hovered_container);
+        let context =
+            SurfacePaintContext::new(layout, theme, hovered_container, active_scroll_affordance);
         self.append_paint_with_context(&context, plan);
     }
 

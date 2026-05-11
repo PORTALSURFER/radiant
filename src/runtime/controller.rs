@@ -98,6 +98,7 @@ where
     hovered_widget: Option<WidgetId>,
     pointer_capture: Option<WidgetId>,
     pointer_capture_state: Option<(WidgetId, WidgetState)>,
+    hovered_scroll_affordance: Option<NodeId>,
     scroll_drag_capture: Option<ScrollDragCapture>,
     repaint_requested: bool,
     exit_requested: bool,
@@ -187,6 +188,7 @@ where
             hovered_widget: None,
             pointer_capture: None,
             pointer_capture_state: None,
+            hovered_scroll_affordance: None,
             scroll_drag_capture: None,
             repaint_requested: false,
             exit_requested: false,
@@ -235,6 +237,12 @@ where
             .is_some_and(|capture| !self.scroll_hit_order.contains(&capture.node_id))
         {
             self.scroll_drag_capture = None;
+        }
+        if self
+            .hovered_scroll_affordance
+            .is_some_and(|node_id| !self.scroll_hit_order.contains(&node_id))
+        {
+            self.hovered_scroll_affordance = None;
         }
         if self
             .hovered_widget

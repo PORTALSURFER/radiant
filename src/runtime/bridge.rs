@@ -15,7 +15,9 @@ use crate::widgets::RetainedSurfaceDescriptor;
 use std::{sync::Arc, time::Duration};
 
 pub use declarative::{
-    DeclarativeCommandRuntimeBridge, DeclarativeRuntimeBridge, declarative_command_runtime_bridge,
+    DeclarativeCommandRuntimeBridge, DeclarativeOwnedCommandRuntimeBridge,
+    DeclarativeOwnedRuntimeBridge, DeclarativeRuntimeBridge, declarative_command_runtime_bridge,
+    declarative_owned_command_runtime_bridge, declarative_owned_runtime_bridge,
     declarative_runtime_bridge,
 };
 

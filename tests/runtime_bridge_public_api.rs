@@ -6,7 +6,8 @@ use radiant::{
     runtime::{
         App, Command, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot,
         RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
-        declarative_command_runtime_bridge, declarative_runtime_bridge,
+        declarative_command_runtime_bridge, declarative_owned_command_runtime_bridge,
+        declarative_owned_runtime_bridge, declarative_runtime_bridge,
     },
     widgets::{
         ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, Widget,
@@ -88,6 +89,32 @@ fn generic_runtime_bridge_projects_and_reduces_host_defined_messages() {
 }
 
 #[test]
+fn owned_runtime_bridge_projects_without_shared_surface_requirement() {
+    let mut bridge = declarative_owned_runtime_bridge(
+        DemoState::default(),
+        project_owned_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+        },
+    );
+
+    let before = bridge.pull_surface();
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&before, 10, "text").text,
+        "Untitled (0)"
+    );
+
+    bridge.reduce_message(DemoMessage::Rename(String::from("Owned")));
+    bridge.reduce_message(DemoMessage::Increment);
+    let after = bridge.pull_surface();
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&after, 10, "text").text,
+        "Owned (1)"
+    );
+}
+
+#[test]
 fn runtime_bridge_is_the_public_app_contract() {
     let mut bridge = declarative_runtime_bridge(
         DemoState::default(),
@@ -160,6 +187,37 @@ fn declarative_command_bridge_supports_command_update_flow() {
 }
 
 #[test]
+fn owned_command_bridge_supports_runtime_command_flow() {
+    let bridge = declarative_owned_command_runtime_bridge(
+        DemoState::default(),
+        project_owned_command_surface,
+        |state: &mut DemoState, message| match message {
+            CommandDemoMessage::Start => Command::batch([
+                Command::message(CommandDemoMessage::Rename(String::from("Owned"))),
+                Command::message(CommandDemoMessage::Increment),
+                Command::request_repaint(),
+            ]),
+            CommandDemoMessage::Increment => {
+                state.count += 1;
+                Command::none()
+            }
+            CommandDemoMessage::Rename(name) => {
+                state.name = name;
+                Command::none()
+            }
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+
+    let outcome = runtime.dispatch_message(CommandDemoMessage::Start);
+
+    assert_eq!(outcome.messages_dispatched, 3);
+    assert!(outcome.repaint_requested);
+    assert_eq!(runtime.bridge().state().count, 1);
+    assert_eq!(runtime.bridge().state().name, "Owned");
+}
+
+#[test]
 fn runtime_resource_slot_tracks_host_owned_background_results() {
     let mut preview = ResourceSlot::new("preview");
 
@@ -223,6 +281,10 @@ fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {
             )),
         ],
     )))
+}
+
+fn project_owned_surface(state: &mut DemoState) -> UiSurface<DemoMessage> {
+    Arc::unwrap_or_clone(project_surface(state))
 }
 
 fn display_name(state: &DemoState) -> &str {
@@ -312,4 +374,8 @@ fn project_command_surface(state: &mut DemoState) -> Arc<UiSurface<CommandDemoMe
             SurfaceChild::fill(SurfaceNode::widget(input, WidgetMessageMapper::none())),
         ],
     )))
+}
+
+fn project_owned_command_surface(state: &mut DemoState) -> UiSurface<CommandDemoMessage> {
+    Arc::unwrap_or_clone(project_command_surface(state))
 }

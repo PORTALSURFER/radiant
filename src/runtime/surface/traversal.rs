@@ -83,6 +83,7 @@ impl ClipAncestors {
 #[derive(Clone, Copy, Debug, Default)]
 pub(in crate::runtime) struct SurfaceTraversalStats {
     pub(in crate::runtime) widgets: usize,
+    pub(in crate::runtime) stateful_widgets: usize,
     pub(in crate::runtime) scroll_containers: usize,
     pub(in crate::runtime) clipped_containers: usize,
     pub(in crate::runtime) styled_hoverable_containers: usize,
@@ -96,6 +97,7 @@ pub(in crate::runtime) struct SurfaceTraversalIndex {
     pub(in crate::runtime) keyboard_focus_order: Vec<WidgetId>,
     pub(in crate::runtime) pointer_hit_order: Vec<WidgetId>,
     pub(in crate::runtime) wheel_hit_order: Vec<WidgetId>,
+    pub(in crate::runtime) stateful_widget_order: Vec<WidgetId>,
     pub(in crate::runtime) widget_paths: HashMap<WidgetId, WidgetPath>,
     pub(in crate::runtime) container_hover_suppression: HashSet<WidgetId>,
     pub(in crate::runtime) styled_container_order: Vec<NodeId>,
@@ -113,6 +115,7 @@ impl SurfaceTraversalIndex {
             keyboard_focus_order: Vec::with_capacity(stats.widgets),
             pointer_hit_order: Vec::with_capacity(stats.widgets),
             wheel_hit_order: Vec::with_capacity(stats.widgets),
+            stateful_widget_order: Vec::with_capacity(stats.stateful_widgets),
             widget_paths: HashMap::with_capacity(stats.widgets),
             container_hover_suppression: HashSet::with_capacity(stats.widgets),
             styled_container_order: Vec::with_capacity(stats.styled_hoverable_containers),
@@ -138,6 +141,8 @@ impl SurfaceTraversalIndex {
         reserve_vec_capacity(&mut self.pointer_hit_order, stats.widgets);
         self.wheel_hit_order.clear();
         reserve_vec_capacity(&mut self.wheel_hit_order, stats.widgets);
+        self.stateful_widget_order.clear();
+        reserve_vec_capacity(&mut self.stateful_widget_order, stats.stateful_widgets);
         self.widget_paths.clear();
         reserve_map_capacity(&mut self.widget_paths, stats.widgets);
         self.container_hover_suppression.clear();
@@ -171,6 +176,7 @@ impl SurfaceTraversalIndex {
         self.keyboard_focus_order.clear();
         self.pointer_hit_order.clear();
         self.wheel_hit_order.clear();
+        self.stateful_widget_order.clear();
         self.widget_paths.clear();
         self.container_hover_suppression.clear();
         self.styled_container_order.clear();
@@ -241,8 +247,11 @@ impl<Message> SurfaceNode<Message> {
                     );
                 }
             }
-            Self::Widget(_) => {
+            Self::Widget(widget) => {
                 stats.widgets += 1;
+                if widget.needs_state_synchronization() {
+                    stats.stateful_widgets += 1;
+                }
             }
             Self::Overlay(_) => {}
         }
@@ -303,6 +312,9 @@ impl<Message> SurfaceNode<Message> {
                 if widget.receives_wheel_input() {
                     index.wheel_hit_order.push(widget.id());
                 }
+                if widget.needs_state_synchronization() {
+                    index.stateful_widget_order.push(widget.id());
+                }
                 if widget.suppresses_container_hover() {
                     index.container_hover_suppression.insert(widget.id());
                 }
@@ -333,6 +345,7 @@ impl<Message> UiSurface<Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::widgets::{ButtonWidget, TextWidget, WidgetSizing};
 
     #[test]
     fn widget_path_uses_inline_storage_for_common_shallow_paths() {
@@ -393,9 +406,41 @@ mod tests {
     }
 
     #[test]
+    fn traversal_tracks_only_widgets_that_need_state_synchronization() {
+        let surface: UiSurface<()> = UiSurface::new(SurfaceNode::column(
+            1,
+            0.0,
+            vec![
+                SurfaceChild::fill(SurfaceNode::static_widget(TextWidget::new(
+                    10,
+                    "Stateless label",
+                    WidgetSizing::fixed(crate::layout::Vector2::new(120.0, 20.0)),
+                ))),
+                SurfaceChild::fill(SurfaceNode::widget(
+                    ButtonWidget::new(
+                        20,
+                        "Stateful button",
+                        WidgetSizing::fixed(crate::layout::Vector2::new(120.0, 28.0)),
+                    ),
+                    WidgetMessageMapper::none(),
+                )),
+            ],
+        ));
+
+        let stats = surface.root.runtime_traversal_stats();
+        let index = surface.runtime_traversal_index();
+
+        assert_eq!(stats.widgets, 2);
+        assert_eq!(stats.stateful_widgets, 1);
+        assert_eq!(index.widget_paint_order, vec![10, 20]);
+        assert_eq!(index.stateful_widget_order, vec![20]);
+    }
+
+    #[test]
     fn traversal_index_clear_for_stats_grows_reused_storage_to_requested_capacity() {
         let mut index = SurfaceTraversalIndex::with_stats(SurfaceTraversalStats {
             widgets: 4,
+            stateful_widgets: 4,
             styled_hoverable_containers: 1,
             scroll_containers: 1,
             clipped_containers: 1,
@@ -405,6 +450,7 @@ mod tests {
 
         index.clear_for_stats(SurfaceTraversalStats {
             widgets: 96,
+            stateful_widgets: 24,
             styled_hoverable_containers: 12,
             scroll_containers: 8,
             clipped_containers: 16,
@@ -417,6 +463,7 @@ mod tests {
         assert!(index.keyboard_focus_order.capacity() >= 96);
         assert!(index.pointer_hit_order.capacity() >= 96);
         assert!(index.wheel_hit_order.capacity() >= 96);
+        assert!(index.stateful_widget_order.capacity() >= 24);
         assert!(index.widget_paths.capacity() >= 96);
         assert!(index.container_hover_suppression.capacity() >= 96);
         assert!(index.styled_container_order.capacity() >= 12);

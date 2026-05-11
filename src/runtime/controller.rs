@@ -83,6 +83,7 @@ where
     wheel_hit_order: Vec<WidgetId>,
     wheel_hit_rank: HashMap<WidgetId, usize>,
     visible_wheel_hit_order: Vec<WidgetId>,
+    stateful_widget_order: Vec<WidgetId>,
     styled_container_hit_order: Vec<NodeId>,
     styled_container_hit_rank: HashMap<NodeId, usize>,
     visible_styled_container_hit_order: Vec<NodeId>,
@@ -185,6 +186,7 @@ where
             wheel_hit_order: traversal.wheel_hit_order,
             wheel_hit_rank,
             visible_wheel_hit_order,
+            stateful_widget_order: traversal.stateful_widget_order,
             styled_container_hit_order: traversal.styled_container_order,
             styled_container_hit_rank,
             visible_styled_container_hit_order,
@@ -230,6 +232,7 @@ where
         );
         next_surface.synchronize_widget_state_from_paths(
             &self.surface,
+            &traversal.stateful_widget_order,
             &traversal.widget_paths,
             &self.previous_widget_paths,
         );

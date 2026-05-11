@@ -206,6 +206,16 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
     /// requiring the runtime controller to know concrete widget types.
     fn synchronize_from_previous(&mut self, _previous: &dyn Widget) {}
 
+    /// Return whether this widget needs refresh-time state reconciliation.
+    ///
+    /// Custom widgets default to `true` so existing widgets keep their previous
+    /// behavior unless they explicitly declare that they are stateless. Passive
+    /// built-in widgets can return `false` to keep large refreshes from spending
+    /// work on guaranteed no-op state synchronization.
+    fn needs_state_synchronization(&self) -> bool {
+        true
+    }
+
     /// Return whether this widget accepts text-editing input while focused.
     fn accepts_text_input(&self) -> bool {
         false

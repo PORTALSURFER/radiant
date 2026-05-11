@@ -77,6 +77,7 @@ where
         self.keyboard_focus_order = traversal.keyboard_focus_order;
         collect_hit_rank(&self.keyboard_focus_order, &mut self.keyboard_focus_rank);
         self.wheel_hit_order = traversal.wheel_hit_order;
+        self.stateful_widget_order = traversal.stateful_widget_order;
         collect_hit_rank(&self.wheel_hit_order, &mut self.wheel_hit_rank);
         collect_visible_hit_order(
             &self.layout,
@@ -182,6 +183,7 @@ where
             keyboard_focus_order: std::mem::take(&mut self.keyboard_focus_order),
             pointer_hit_order: std::mem::take(&mut self.pointer_hit_order),
             wheel_hit_order: std::mem::take(&mut self.wheel_hit_order),
+            stateful_widget_order: std::mem::take(&mut self.stateful_widget_order),
             widget_paths: if reuse_widget_paths {
                 std::mem::take(&mut self.widget_paths)
             } else {

@@ -88,7 +88,10 @@ impl<Message> SurfaceNode<Message> {
                 .children
                 .iter()
                 .find_map(|child| child.child.dispatch_output(widget_id, output)),
-            Self::Widget(widget) => widget.dispatch_output(widget_id, output.clone()),
+            Self::Widget(widget) if widget.id() == widget_id => {
+                widget.dispatch_output(widget_id, output.clone())
+            }
+            Self::Widget(_) => None,
             Self::Overlay(_) => None,
         }
     }

@@ -1,6 +1,7 @@
 use super::*;
 use crate::layout::ContainerKind;
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 
 const INLINE_WIDGET_PATH_LEN: usize = 4;
 const INLINE_CLIP_ANCESTOR_LEN: usize = 2;
@@ -128,75 +129,39 @@ impl SurfaceTraversalIndex {
 
     pub(in crate::runtime) fn clear_for_stats(&mut self, stats: SurfaceTraversalStats) {
         self.widget_paint_order.clear();
-        self.widget_paint_order.reserve(
-            stats
-                .widgets
-                .saturating_sub(self.widget_paint_order.capacity()),
-        );
+        reserve_vec_capacity(&mut self.widget_paint_order, stats.widgets);
         self.focusable_widget_order.clear();
-        self.focusable_widget_order.reserve(
-            stats
-                .widgets
-                .saturating_sub(self.focusable_widget_order.capacity()),
-        );
+        reserve_vec_capacity(&mut self.focusable_widget_order, stats.widgets);
         self.keyboard_focus_order.clear();
-        self.keyboard_focus_order.reserve(
-            stats
-                .widgets
-                .saturating_sub(self.keyboard_focus_order.capacity()),
-        );
+        reserve_vec_capacity(&mut self.keyboard_focus_order, stats.widgets);
         self.pointer_hit_order.clear();
-        self.pointer_hit_order.reserve(
-            stats
-                .widgets
-                .saturating_sub(self.pointer_hit_order.capacity()),
-        );
+        reserve_vec_capacity(&mut self.pointer_hit_order, stats.widgets);
         self.wheel_hit_order.clear();
-        self.wheel_hit_order.reserve(
-            stats
-                .widgets
-                .saturating_sub(self.wheel_hit_order.capacity()),
-        );
+        reserve_vec_capacity(&mut self.wheel_hit_order, stats.widgets);
         self.widget_paths.clear();
-        self.widget_paths
-            .reserve(stats.widgets.saturating_sub(self.widget_paths.capacity()));
+        reserve_map_capacity(&mut self.widget_paths, stats.widgets);
         self.container_hover_suppression.clear();
-        self.container_hover_suppression.reserve(
-            stats
-                .widgets
-                .saturating_sub(self.container_hover_suppression.capacity()),
-        );
+        reserve_set_capacity(&mut self.container_hover_suppression, stats.widgets);
         self.styled_container_order.clear();
-        self.styled_container_order.reserve(
-            stats
-                .styled_hoverable_containers
-                .saturating_sub(self.styled_container_order.capacity()),
+        reserve_vec_capacity(
+            &mut self.styled_container_order,
+            stats.styled_hoverable_containers,
         );
         self.scroll_container_order.clear();
-        self.scroll_container_order.reserve(
-            stats
-                .scroll_containers
-                .saturating_sub(self.scroll_container_order.capacity()),
-        );
+        reserve_vec_capacity(&mut self.scroll_container_order, stats.scroll_containers);
         self.widget_clip_ancestors.clear();
         let clip_capacity = if stats.scroll_containers == 0 {
             0
         } else {
             stats.widgets
         };
-        self.widget_clip_ancestors
-            .reserve(clip_capacity.saturating_sub(self.widget_clip_ancestors.capacity()));
+        reserve_map_capacity(&mut self.widget_clip_ancestors, clip_capacity);
         self.container_clip_ancestors.clear();
-        self.container_clip_ancestors.reserve(
-            stats
-                .clipped_containers
-                .saturating_sub(self.container_clip_ancestors.capacity()),
-        );
+        reserve_map_capacity(&mut self.container_clip_ancestors, stats.clipped_containers);
         self.scroll_content_by_container.clear();
-        self.scroll_content_by_container.reserve(
-            stats
-                .scroll_containers
-                .saturating_sub(self.scroll_content_by_container.capacity()),
+        reserve_map_capacity(
+            &mut self.scroll_content_by_container,
+            stats.scroll_containers,
         );
     }
 
@@ -213,6 +178,30 @@ impl SurfaceTraversalIndex {
         self.widget_clip_ancestors.clear();
         self.container_clip_ancestors.clear();
         self.scroll_content_by_container.clear();
+    }
+}
+
+fn reserve_vec_capacity<T>(values: &mut Vec<T>, desired_capacity: usize) {
+    if desired_capacity > values.capacity() {
+        values.reserve(desired_capacity);
+    }
+}
+
+fn reserve_map_capacity<K, V>(values: &mut HashMap<K, V>, desired_capacity: usize)
+where
+    K: Eq + Hash,
+{
+    if desired_capacity > values.capacity() {
+        values.reserve(desired_capacity);
+    }
+}
+
+fn reserve_set_capacity<T>(values: &mut HashSet<T>, desired_capacity: usize)
+where
+    T: Eq + Hash,
+{
+    if desired_capacity > values.capacity() {
+        values.reserve(desired_capacity);
     }
 }
 
@@ -401,5 +390,39 @@ mod tests {
         index.clear_for_stats(stats);
 
         assert!(index.container_clip_ancestors.capacity() >= 2);
+    }
+
+    #[test]
+    fn traversal_index_clear_for_stats_grows_reused_storage_to_requested_capacity() {
+        let mut index = SurfaceTraversalIndex::with_stats(SurfaceTraversalStats {
+            widgets: 4,
+            styled_hoverable_containers: 1,
+            scroll_containers: 1,
+            clipped_containers: 1,
+            max_depth: 1,
+            max_scroll_depth: 1,
+        });
+
+        index.clear_for_stats(SurfaceTraversalStats {
+            widgets: 96,
+            styled_hoverable_containers: 12,
+            scroll_containers: 8,
+            clipped_containers: 16,
+            max_depth: 4,
+            max_scroll_depth: 2,
+        });
+
+        assert!(index.widget_paint_order.capacity() >= 96);
+        assert!(index.focusable_widget_order.capacity() >= 96);
+        assert!(index.keyboard_focus_order.capacity() >= 96);
+        assert!(index.pointer_hit_order.capacity() >= 96);
+        assert!(index.wheel_hit_order.capacity() >= 96);
+        assert!(index.widget_paths.capacity() >= 96);
+        assert!(index.container_hover_suppression.capacity() >= 96);
+        assert!(index.styled_container_order.capacity() >= 12);
+        assert!(index.scroll_container_order.capacity() >= 8);
+        assert!(index.widget_clip_ancestors.capacity() >= 96);
+        assert!(index.container_clip_ancestors.capacity() >= 16);
+        assert!(index.scroll_content_by_container.capacity() >= 8);
     }
 }

@@ -106,8 +106,9 @@ impl SurfacePaintPlan {
     ) {
         self.clear_color = theme.clear_color;
         self.primitives.clear();
-        self.primitives
-            .reserve(primitive_capacity.saturating_sub(self.primitives.capacity()));
+        if primitive_capacity > self.primitives.capacity() {
+            self.primitives.reserve(primitive_capacity);
+        }
     }
 
     /// Count primitive categories in this paint plan.
@@ -164,5 +165,15 @@ mod tests {
 
         assert!(plan.primitives.is_empty());
         assert_eq!(plan.primitives.capacity(), capacity);
+    }
+
+    #[test]
+    fn clear_for_theme_with_capacity_grows_to_requested_capacity() {
+        let theme = ThemeTokens::default();
+        let mut plan = SurfacePaintPlan::empty_with_capacity(&theme, 32);
+
+        plan.clear_for_theme_with_capacity(&theme, 96);
+
+        assert!(plan.primitives.capacity() >= 96);
     }
 }

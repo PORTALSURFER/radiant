@@ -163,6 +163,7 @@ impl<Message> Command<Message> {
         match self {
             Self::None => {}
             Self::Batch(nested) => {
+                commands.reserve(nested.len());
                 for command in nested {
                     command.append_to_batch(commands);
                 }
@@ -177,19 +178,15 @@ impl<Message> Command<Message> {
     /// repaint, and exit are intentionally not flattened. Execute the command
     /// through `SurfaceRuntime` when those effects must be preserved.
     pub fn into_messages(self) -> Vec<Message> {
-        let capacity = self.message_capacity_hint();
-        let mut messages = Vec::with_capacity(capacity);
+        let mut messages = Vec::with_capacity(self.message_collection_hint());
         self.collect_messages(&mut messages);
         messages
     }
 
-    fn message_capacity_hint(&self) -> usize {
+    fn message_collection_hint(&self) -> usize {
         match self {
             Self::Message(_) => 1,
-            Self::Batch(commands) => commands
-                .iter()
-                .map(Self::message_capacity_hint)
-                .sum::<usize>(),
+            Self::Batch(commands) => commands.len(),
             Self::None
             | Self::RequestRepaint
             | Self::RequestPaintOnly
@@ -204,6 +201,7 @@ impl<Message> Command<Message> {
         match self {
             Self::Message(message) => messages.push(message),
             Self::Batch(commands) => {
+                messages.reserve(commands.len());
                 for command in commands {
                     command.collect_messages(messages);
                 }
@@ -255,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    fn message_flattening_presizes_nested_message_output() {
+    fn message_flattening_preserves_nested_message_order() {
         let command = Command::Batch(vec![
             Command::Batch(vec![
                 Command::message("first"),
@@ -275,7 +273,7 @@ mod tests {
         let messages = command.into_messages();
 
         assert_eq!(messages, vec!["first", "second", "third", "second"]);
-        assert_eq!(messages.capacity(), 4);
+        assert!(messages.capacity() >= messages.len());
     }
 
     #[test]

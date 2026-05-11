@@ -47,9 +47,9 @@ where
             let started = Instant::now();
             self.last_paint_plan = self.core.paint_plan();
             profile.paint_plan = started.elapsed();
-            collect_fast_pointer_move_gpu_surface_hit_rects(
+            collect_gpu_surface_interaction_regions(
                 &self.last_paint_plan.primitives,
-                &mut self.fast_pointer_move_gpu_surface_hit_rects,
+                &mut self.gpu_surface_interaction_regions,
             );
         }
         let Some(surface) = self.render_surface.as_mut() else {

@@ -3,20 +3,54 @@
 use super::GenericRouteOutcome;
 use crate::{
     layout::{Rect, Vector2},
-    runtime::PaintPrimitive,
+    runtime::{GpuHoverCursor, PaintGpuSurface, PaintPrimitive},
 };
 use std::time::Duration;
 use tracing::info;
 use winit::event::MouseScrollDelta;
 
-pub(super) fn collect_fast_pointer_move_gpu_surface_hit_rects(
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::gui_runtime::native_vello) struct GpuSurfaceInteractionRegion {
+    pub(in crate::gui_runtime::native_vello) rect: Rect,
+    pub(in crate::gui_runtime::native_vello) fast_pointer_move: bool,
+    pub(in crate::gui_runtime::native_vello) coalesce_vertical_wheel: bool,
+    pub(in crate::gui_runtime::native_vello) native_hover_cursor: Option<GpuHoverCursor>,
+}
+
+impl GpuSurfaceInteractionRegion {
+    pub(in crate::gui_runtime::native_vello) fn from_gpu_surface(
+        surface: &PaintGpuSurface,
+    ) -> Option<Self> {
+        if !surface.capabilities.fast_pointer_move
+            && !surface.capabilities.coalesce_vertical_wheel
+            && surface.capabilities.native_hover_cursor.is_none()
+        {
+            return None;
+        }
+        Some(Self {
+            rect: surface.rect,
+            fast_pointer_move: surface.capabilities.fast_pointer_move,
+            coalesce_vertical_wheel: surface.capabilities.coalesce_vertical_wheel,
+            native_hover_cursor: surface.capabilities.native_hover_cursor,
+        })
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn contains(
+        self,
+        point: crate::layout::Point,
+    ) -> bool {
+        self.rect.contains(point)
+    }
+}
+
+pub(super) fn collect_gpu_surface_interaction_regions(
     primitives: &[PaintPrimitive],
-    hit_rects: &mut Vec<Rect>,
+    regions: &mut Vec<GpuSurfaceInteractionRegion>,
 ) {
-    hit_rects.clear();
-    hit_rects.extend(primitives.iter().filter_map(|primitive| match primitive {
-        PaintPrimitive::GpuSurface(surface) if surface.capabilities.fast_pointer_move => {
-            Some(surface.rect)
+    regions.clear();
+    regions.extend(primitives.iter().filter_map(|primitive| match primitive {
+        PaintPrimitive::GpuSurface(surface) => {
+            GpuSurfaceInteractionRegion::from_gpu_surface(surface)
         }
         _ => None,
     }));
@@ -63,21 +97,30 @@ pub(super) fn render_profile_enabled() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::types::ImageRgba;
+    use crate::gui::types::{ImageRgba, Rgba8};
     use crate::runtime::{GpuSurfaceCapabilities, PaintGpuSurface};
     use std::sync::Arc;
 
     #[test]
-    fn gpu_surface_hit_rect_collection_reuses_existing_buffer() {
-        let mut hit_rects = Vec::with_capacity(8);
-        hit_rects.push(Rect::from_min_size(
-            crate::layout::Point::new(99.0, 99.0),
-            Vector2::new(1.0, 1.0),
-        ));
-        let initial_capacity = hit_rects.capacity();
+    fn gpu_surface_interaction_region_collection_reuses_existing_buffer() {
+        let mut regions = Vec::with_capacity(8);
+        regions.push(GpuSurfaceInteractionRegion {
+            rect: Rect::from_min_size(
+                crate::layout::Point::new(99.0, 99.0),
+                Vector2::new(1.0, 1.0),
+            ),
+            fast_pointer_move: true,
+            coalesce_vertical_wheel: false,
+            native_hover_cursor: None,
+        });
+        let initial_capacity = regions.capacity();
         let rect = Rect::from_min_size(crate::layout::Point::new(1.0, 2.0), Vector2::new(3.0, 4.0));
         let ignored_rect =
             Rect::from_min_size(crate::layout::Point::new(5.0, 6.0), Vector2::new(7.0, 8.0));
+        let native_hover_rect = Rect::from_min_size(
+            crate::layout::Point::new(9.0, 10.0),
+            Vector2::new(11.0, 12.0),
+        );
         let surface = PaintGpuSurface {
             widget_id: 7,
             key: 7,
@@ -89,7 +132,7 @@ mod tests {
             },
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,
-                coalesce_vertical_wheel: false,
+                coalesce_vertical_wheel: true,
                 native_hover_cursor: None,
             },
             overlays: Vec::new(),
@@ -97,14 +140,54 @@ mod tests {
         let mut ignored_surface = surface.clone();
         ignored_surface.rect = ignored_rect;
         ignored_surface.capabilities.fast_pointer_move = false;
+        ignored_surface.capabilities.coalesce_vertical_wheel = false;
+        let mut native_hover_surface = surface.clone();
+        native_hover_surface.rect = native_hover_rect;
+        native_hover_surface.capabilities.fast_pointer_move = false;
+        native_hover_surface.capabilities.coalesce_vertical_wheel = false;
+        native_hover_surface.capabilities.native_hover_cursor =
+            Some(crate::runtime::GpuHoverCursor {
+                color: Rgba8 {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    a: 255,
+                },
+                width: 1.0,
+            });
         let primitives = [
             PaintPrimitive::GpuSurface(ignored_surface),
             PaintPrimitive::GpuSurface(surface),
+            PaintPrimitive::GpuSurface(native_hover_surface),
         ];
 
-        collect_fast_pointer_move_gpu_surface_hit_rects(&primitives, &mut hit_rects);
+        collect_gpu_surface_interaction_regions(&primitives, &mut regions);
 
-        assert_eq!(hit_rects, [rect]);
-        assert_eq!(hit_rects.capacity(), initial_capacity);
+        assert_eq!(
+            regions,
+            [
+                GpuSurfaceInteractionRegion {
+                    rect,
+                    fast_pointer_move: true,
+                    coalesce_vertical_wheel: true,
+                    native_hover_cursor: None,
+                },
+                GpuSurfaceInteractionRegion {
+                    rect: native_hover_rect,
+                    fast_pointer_move: false,
+                    coalesce_vertical_wheel: false,
+                    native_hover_cursor: Some(crate::runtime::GpuHoverCursor {
+                        color: Rgba8 {
+                            r: 255,
+                            g: 255,
+                            b: 255,
+                            a: 255,
+                        },
+                        width: 1.0,
+                    }),
+                }
+            ]
+        );
+        assert_eq!(regions.capacity(), initial_capacity);
     }
 }

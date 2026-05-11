@@ -97,34 +97,21 @@ where
         let Some(previous) = previous else {
             return false;
         };
-        self.fast_pointer_move_gpu_surface_hit_rects
-            .iter()
-            .any(|rect| rect.contains(previous) && rect.contains(position))
+        self.gpu_surface_interaction_regions.iter().any(|region| {
+            region.fast_pointer_move && region.contains(previous) && region.contains(position)
+        })
     }
 
     pub(super) fn paint_plan_has_coalescing_gpu_surface_at(&self, position: Point) -> bool {
-        self.last_paint_plan
-            .primitives
+        self.gpu_surface_interaction_regions
             .iter()
-            .any(|primitive| match primitive {
-                PaintPrimitive::GpuSurface(surface) => {
-                    surface.rect.contains(position) && surface.capabilities.coalesce_vertical_wheel
-                }
-                _ => false,
-            })
+            .any(|region| region.coalesce_vertical_wheel && region.contains(position))
     }
 
     pub(super) fn native_hover_surface_contains(&self, position: Point) -> bool {
-        self.last_paint_plan
-            .primitives
+        self.gpu_surface_interaction_regions
             .iter()
-            .any(|primitive| match primitive {
-                PaintPrimitive::GpuSurface(surface) => {
-                    surface.rect.contains(position)
-                        && surface.capabilities.native_hover_cursor.is_some()
-                }
-                _ => false,
-            })
+            .any(|region| region.native_hover_cursor.is_some() && region.contains(position))
     }
 
     pub(super) fn can_coalesce_gpu_surface_wheel(&self, position: Point, delta: Vector2) -> bool {

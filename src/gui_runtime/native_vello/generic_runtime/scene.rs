@@ -1,7 +1,7 @@
 //! Scene encoding for generic runtime paint plans.
 
+use super::runtime_helpers::GpuSurfaceInteractionRegion;
 use crate::gui_runtime::native_vello::*;
-use crate::layout::Rect;
 
 mod cache;
 mod frame;
@@ -35,12 +35,12 @@ where
         viewport,
         retained_cache,
         text_runs,
-        fast_pointer_move_gpu_surface_hit_rects,
+        gpu_surface_interaction_regions,
         animation_time,
     } = context;
     scene.reset();
     text_runs.clear();
-    fast_pointer_move_gpu_surface_hit_rects.clear();
+    gpu_surface_interaction_regions.clear();
     let mut stats = RetainedSurfaceEncodeStats {
         paint_plan_primitives: plan.primitives.len(),
         ..RetainedSurfaceEncodeStats::default()
@@ -126,8 +126,8 @@ where
             }
             PaintPrimitive::GpuSurface(surface) => {
                 stats.gpu_surface_count = stats.gpu_surface_count.saturating_add(1);
-                if surface.capabilities.fast_pointer_move {
-                    fast_pointer_move_gpu_surface_hit_rects.push(surface.rect);
+                if let Some(region) = GpuSurfaceInteractionRegion::from_gpu_surface(surface) {
+                    gpu_surface_interaction_regions.push(region);
                 }
             }
             PaintPrimitive::CustomSurface(custom) => {
@@ -177,6 +177,6 @@ pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, 'p
     pub viewport: Vector2,
     pub retained_cache: &'a mut RetainedSurfaceFrameCache,
     pub text_runs: &'a mut Vec<SceneTextRun<'plan>>,
-    pub fast_pointer_move_gpu_surface_hit_rects: &'a mut Vec<Rect>,
+    pub gpu_surface_interaction_regions: &'a mut Vec<GpuSurfaceInteractionRegion>,
     pub animation_time: Duration,
 }

@@ -50,18 +50,16 @@ pub struct ContainerNode {
 impl ContainerNode {
     /// Construct a container node with ordered slot children.
     pub fn new(id: NodeId, policy: ContainerPolicy, children: Vec<SlotChild>) -> Self {
-        let state_version = container_state_version(id, &policy, &children);
-        let horizontal_metrics = known_main_metrics(true, policy.spacing, &children);
-        let vertical_metrics = known_main_metrics(false, policy.spacing, &children);
+        let derived = container_derived_state(id, &policy, &children);
         Self {
             id,
             policy,
             children,
-            state_version,
-            known_main_extent_horizontal: horizontal_metrics.extent,
-            known_main_extent_vertical: vertical_metrics.extent,
-            known_uniform_main_horizontal: horizontal_metrics.uniform_main,
-            known_uniform_main_vertical: vertical_metrics.uniform_main,
+            state_version: derived.state_version,
+            known_main_extent_horizontal: derived.horizontal_metrics.extent,
+            known_main_extent_vertical: derived.vertical_metrics.extent,
+            known_uniform_main_horizontal: derived.horizontal_metrics.uniform_main,
+            known_uniform_main_vertical: derived.vertical_metrics.uniform_main,
         }
     }
 }
@@ -125,7 +123,18 @@ impl LayoutNode {
     }
 }
 
-fn container_state_version(id: NodeId, policy: &ContainerPolicy, children: &[SlotChild]) -> u64 {
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ContainerDerivedState {
+    state_version: u64,
+    horizontal_metrics: KnownMainMetrics,
+    vertical_metrics: KnownMainMetrics,
+}
+
+fn container_derived_state(
+    id: NodeId,
+    policy: &ContainerPolicy,
+    children: &[SlotChild],
+) -> ContainerDerivedState {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     id.hash(&mut hasher);
     policy_hash(policy, &mut hasher);
@@ -135,7 +144,21 @@ fn container_state_version(id: NodeId, policy: &ContainerPolicy, children: &[Slo
         child.child.state_version().hash(&mut hasher);
         slot_hash(&child.slot, &mut hasher);
     }
-    hasher.finish()
+    let horizontal_metrics = if policy.kind == ContainerKind::Row {
+        known_main_metrics(true, policy.spacing, children)
+    } else {
+        KnownMainMetrics::default()
+    };
+    let vertical_metrics = if policy.kind == ContainerKind::Column {
+        known_main_metrics(false, policy.spacing, children)
+    } else {
+        KnownMainMetrics::default()
+    };
+    ContainerDerivedState {
+        state_version: hasher.finish(),
+        horizontal_metrics,
+        vertical_metrics,
+    }
 }
 
 fn policy_hash(policy: &ContainerPolicy, hasher: &mut impl Hasher) {
@@ -368,5 +391,41 @@ mod tests {
             container.known_main_extent_vertical,
             Some(24.0 * 4.0 + 2.0 * 3.0)
         );
+        assert_eq!(container.known_main_extent_horizontal, None);
+    }
+
+    #[test]
+    fn container_precomputes_only_matching_linear_axis() {
+        let children = (0..3_u64)
+            .map(|index| {
+                SlotChild::new(
+                    SlotParams {
+                        size_main: SizeModeMain::Fixed(18.0),
+                        size_cross: SizeModeCross::Fill,
+                        constraints: Constraints::unconstrained(),
+                        margin: Default::default(),
+                        align_cross_override: None,
+                        allow_fixed_compress: false,
+                    },
+                    LayoutNode::widget(index + 10, Vector2::new(8.0, 8.0)),
+                )
+            })
+            .collect();
+        let container = ContainerNode::new(
+            1,
+            ContainerPolicy {
+                kind: ContainerKind::Row,
+                spacing: 3.0,
+                ..ContainerPolicy::default()
+            },
+            children,
+        );
+
+        assert_eq!(container.known_uniform_main_horizontal, Some(18.0));
+        assert_eq!(
+            container.known_main_extent_horizontal,
+            Some(18.0 * 3.0 + 3.0 * 2.0)
+        );
+        assert_eq!(container.known_main_extent_vertical, None);
     }
 }

@@ -140,6 +140,47 @@ fn surface_runtime_keeps_disabled_widgets_out_of_focus_order() {
     assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(12));
 }
 
+#[test]
+fn surface_runtime_clears_focus_when_refresh_removes_widget() {
+    let bridge = declarative_runtime_bridge(
+        DemoState::default(),
+        |state: &mut DemoState| {
+            let child = if state.count == 0 {
+                SurfaceNode::text_input(
+                    12,
+                    state.name.clone(),
+                    WidgetSizing::new(Vector2::new(120.0, 28.0), Vector2::new(180.0, 28.0)),
+                    DemoMessage::Rename,
+                )
+            } else {
+                SurfaceNode::static_widget(TextWidget::new(
+                    10,
+                    "Removed",
+                    WidgetSizing::fixed(Vector2::new(120.0, 20.0)).with_baseline(14.0),
+                ))
+            };
+            Arc::new(UiSurface::new(child))
+        },
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::CanvasInput(_) => {}
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 40.0));
+
+    assert!(runtime.focus_widget(12));
+    assert_eq!(runtime.focused_widget(), Some(12));
+
+    runtime.dispatch_message(DemoMessage::Increment);
+
+    assert_eq!(runtime.focused_widget(), None);
+    assert!(
+        runtime.surface().find_widget(12).is_none(),
+        "the refreshed surface should no longer contain the focused widget"
+    );
+}
+
 fn text_input_runtime(
     disabled: bool,
     read_only: bool,

@@ -64,12 +64,14 @@ where
     layout_state: LayoutState,
     widget_hit_order: Vec<WidgetId>,
     focusable_widget_order: Vec<WidgetId>,
+    focusable_widget_rank: HashMap<WidgetId, usize>,
     pointer_hit_order: Vec<WidgetId>,
     pointer_hit_rank: HashMap<WidgetId, usize>,
     visible_pointer_hit_order: Vec<WidgetId>,
     widget_paths: HashMap<WidgetId, WidgetPath>,
     container_hover_suppression: BTreeSet<WidgetId>,
     keyboard_focus_order: Vec<WidgetId>,
+    keyboard_focus_rank: HashMap<WidgetId, usize>,
     wheel_hit_order: Vec<WidgetId>,
     wheel_hit_rank: HashMap<WidgetId, usize>,
     visible_wheel_hit_order: Vec<WidgetId>,
@@ -111,7 +113,9 @@ where
             &layout_state,
             LayoutDebugOptions::default(),
         );
+        let focusable_widget_rank = hit_rank(&traversal.focusable_widget_order);
         let pointer_hit_rank = hit_rank(&traversal.pointer_hit_order);
+        let keyboard_focus_rank = hit_rank(&traversal.keyboard_focus_order);
         let wheel_hit_rank = hit_rank(&traversal.wheel_hit_order);
         let styled_container_hit_rank = hit_rank(&traversal.styled_container_order);
         let mut visible_pointer_hit_order = Vec::new();
@@ -145,12 +149,14 @@ where
             layout_state,
             widget_hit_order: traversal.widget_paint_order,
             focusable_widget_order: traversal.focusable_widget_order,
+            focusable_widget_rank,
             pointer_hit_order: traversal.pointer_hit_order,
             pointer_hit_rank,
             visible_pointer_hit_order,
             widget_paths: traversal.widget_paths,
             container_hover_suppression: traversal.container_hover_suppression,
             keyboard_focus_order: traversal.keyboard_focus_order,
+            keyboard_focus_rank,
             wheel_hit_order: traversal.wheel_hit_order,
             wheel_hit_rank,
             visible_wheel_hit_order,
@@ -197,7 +203,7 @@ where
         self.relayout_with_traversal(traversal);
         if self
             .focused_widget
-            .is_some_and(|widget_id| !self.focusable_widget_order.contains(&widget_id))
+            .is_some_and(|widget_id| !self.focusable_widget_rank.contains_key(&widget_id))
         {
             self.focused_widget = None;
         }

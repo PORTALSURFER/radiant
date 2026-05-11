@@ -58,6 +58,10 @@ where
         self.widget_hit_order = traversal.widget_paint_order;
         self.widget_paths = traversal.widget_paths;
         self.focusable_widget_order = traversal.focusable_widget_order;
+        collect_hit_rank(
+            &self.focusable_widget_order,
+            &mut self.focusable_widget_rank,
+        );
         self.pointer_hit_order = traversal.pointer_hit_order;
         collect_hit_rank(&self.pointer_hit_order, &mut self.pointer_hit_rank);
         collect_visible_hit_order(
@@ -68,6 +72,7 @@ where
         );
         self.container_hover_suppression = traversal.container_hover_suppression;
         self.keyboard_focus_order = traversal.keyboard_focus_order;
+        collect_hit_rank(&self.keyboard_focus_order, &mut self.keyboard_focus_rank);
         self.wheel_hit_order = traversal.wheel_hit_order;
         collect_hit_rank(&self.wheel_hit_order, &mut self.wheel_hit_rank);
         collect_visible_hit_order(

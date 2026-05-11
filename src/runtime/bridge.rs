@@ -2,7 +2,7 @@
 
 mod declarative;
 
-use super::{Command, surface::UiSurface};
+use super::{Command, ScrollUpdate, surface::UiSurface};
 use crate::gui::{
     focus::FocusSurface,
     input::KeyPress,
@@ -42,6 +42,16 @@ pub trait RuntimeBridge<Message> {
     /// [`Command`] values without moving side-effect ownership into Radiant.
     fn update(&mut self, message: Message) -> Command<Message> {
         self.reduce_message(message);
+        Command::none()
+    }
+
+    /// Observe runtime-owned scroll movement and optionally return follow-up work.
+    ///
+    /// Hosts with logical virtual-list windows can use this hook to synchronize
+    /// application-owned viewport state from the runtime scroll offset while
+    /// hosts that only need runtime-owned scrolling can rely on the default
+    /// no-op implementation.
+    fn scroll_updated(&mut self, _update: ScrollUpdate) -> Command<Message> {
         Command::none()
     }
 

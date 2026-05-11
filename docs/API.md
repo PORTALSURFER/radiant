@@ -127,9 +127,10 @@ converts the no-state launch builder into the same manifest shape.
 
 Serious apps use the same builder API. `radiant::app(...)` supports
 `.subscriptions(...)` for interval and worker-message sources, `.animation(...)`
-with `.on_frame(...)` for frame-driven UI, `.on_startup(...)`,
-`.on_shutdown(...)`, `.on_close_requested(...)`, `.run_with_artifacts()`, and
-retained-surface painters registered through `.retained_painter(...)`.
+with `.on_frame(...)` for frame-driven UI, `.on_scroll(...)` for observing
+runtime-owned scroll offsets, `.on_startup(...)`, `.on_shutdown(...)`,
+`.on_close_requested(...)`, `.run_with_artifacts()`, and retained-surface
+painters registered through `.retained_painter(...)`.
 Retained canvas views reserve stable cached surfaces with
 `retained_canvas(key).revision(...).dirty_mask(...).volatile(...).on_input(...)`, while the
 app painter owns the corresponding backend-neutral `PaintFrame`.
@@ -302,6 +303,9 @@ continues to handle pixel-based scroll-container virtualization.
 Application-builder code that owns a resolved logical window can use
 `virtual_list_window(...)` for fixed-height rows; it preserves full scroll
 extent with spacer rows while only projecting the materialized item range.
+Apps that drive a host-owned logical window from native scrolling can observe
+runtime-owned scroll containers with `.on_scroll(...)` or, for custom bridges,
+`RuntimeBridge::scroll_updated(ScrollUpdate)`.
 `virtual_list_view_start_after_scroll_delta` applies signed logical-row scroll
 deltas to virtual-list viewport starts with the same allocation-free clamping
 contract, leaving hit testing and platform input normalization to the host or

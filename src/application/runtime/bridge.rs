@@ -21,6 +21,7 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
     pub(in crate::application) frame_message: Option<AppFrameMessage<Message>>,
     pub(in crate::application) subscriptions: Option<AppSubscriptions<State, Message>>,
     pub(in crate::application) shortcuts: Option<AppShortcuts<State, Message>>,
+    pub(in crate::application) scroll: Option<AppScroll<State, Message>>,
     pub(in crate::application) startup: Option<AppStartup<State, Message>>,
     pub(in crate::application) shutdown: Option<AppShutdown<State>>,
     pub(in crate::application) close_requested: Option<AppCloseRequested<State>>,
@@ -40,6 +41,8 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) subscriptions: Option<AppSubscriptions<State, Message>>,
     /// App-level shortcut resolver.
     pub(in crate::application) shortcuts: Option<AppShortcuts<State, Message>>,
+    /// Runtime scroll observer.
+    pub(in crate::application) scroll: Option<AppScroll<State, Message>>,
     /// Startup hook.
     pub(in crate::application) startup: Option<AppStartup<State, Message>>,
     /// Shutdown artifact hook.
@@ -72,6 +75,7 @@ where
             frame_message: lifecycle.frame_message,
             subscriptions: lifecycle.subscriptions,
             shortcuts: lifecycle.shortcuts,
+            scroll: lifecycle.scroll,
             startup: lifecycle.startup,
             shutdown: lifecycle.shutdown,
             close_requested: lifecycle.close_requested,
@@ -132,6 +136,15 @@ where
 
     fn update(&mut self, message: Message) -> Command<Message> {
         self.run_update(message)
+    }
+
+    fn scroll_updated(&mut self, update: crate::runtime::ScrollUpdate) -> Command<Message> {
+        let Some(scroll) = self.scroll.as_mut() else {
+            return Command::none();
+        };
+        let mut context = UpdateContext::default();
+        scroll(&mut self.state, update, &mut context);
+        context.into_command()
     }
 
     fn resolve_key_press(

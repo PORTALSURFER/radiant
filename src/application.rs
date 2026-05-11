@@ -24,9 +24,9 @@ pub(in crate::application) use state::OptionalBaseline;
 pub use state::StateAction;
 mod runtime;
 pub(in crate::application) use runtime::{
-    AppAnimation, AppBridge, AppBridgeLifecycle, AppCloseRequested, AppFrameMessage, AppShortcuts,
-    AppShutdown, AppStartup, AppSubscriptions, AppUpdate, RetainedPainter, StateCallback,
-    StateDragCallback, StateStringCallback,
+    AppAnimation, AppBridge, AppBridgeLifecycle, AppCloseRequested, AppFrameMessage, AppScroll,
+    AppShortcuts, AppShutdown, AppStartup, AppSubscriptions, AppUpdate, RetainedPainter,
+    StateCallback, StateDragCallback, StateStringCallback,
 };
 pub use runtime::{Subscription, UpdateContext};
 mod launch;

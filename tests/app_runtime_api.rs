@@ -7,8 +7,9 @@ use radiant::{
         input::{KeyCode, KeyPress},
         repaint::RepaintSignal,
         shortcuts::ShortcutResolution,
-        types::{ImageRgba, Rect, Vector2},
+        types::{ImageRgba, Point, Rect, Vector2},
     },
+    layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams},
     prelude::{GpuSurfaceContent, IntoView, gpu_surface, gpu_surface_input},
     runtime::{
         Command, PaintPrimitive, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime,
@@ -18,7 +19,7 @@ use radiant::{
     widgets::{ButtonWidget, TextInputWidget, TextWidget, WidgetInput, WidgetKey, WidgetSizing},
 };
 use std::sync::{
-    Arc,
+    Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
 use std::time::Duration;
@@ -33,6 +34,7 @@ enum DemoMessage {
 struct DemoState {
     count: usize,
     name: String,
+    last_scroll_y: f32,
 }
 
 struct CountingRepaintSignal {
@@ -164,6 +166,67 @@ fn app_startup_runs_once_when_repaint_signal_is_reinstalled() {
     let surface = bridge.project_surface();
 
     assert_eq!(text_value(&surface, 10), "Startup runs: 1");
+}
+
+fn intrinsic_slot() -> SlotParams {
+    SlotParams {
+        size_main: SizeModeMain::Intrinsic,
+        size_cross: SizeModeCross::Fill,
+        constraints: Constraints::unconstrained(),
+        margin: Default::default(),
+        align_cross_override: None,
+        allow_fixed_compress: false,
+    }
+}
+
+#[test]
+fn app_scroll_hook_observes_runtime_scroll_offsets() {
+    let observed_scroll_y = Arc::new(Mutex::new(None));
+    let observed_scroll_y_for_hook = Arc::clone(&observed_scroll_y);
+    let bridge = app(DemoState::default())
+        .view(|state: &mut DemoState| {
+            let _ = state;
+            UiSurface::new(SurfaceNode::scroll_area(
+                20,
+                SurfaceNode::column(
+                    21,
+                    0.0,
+                    (0..12)
+                        .map(|index| {
+                            SurfaceChild::new(
+                                intrinsic_slot(),
+                                SurfaceNode::static_widget(TextWidget::new(
+                                    100 + index,
+                                    format!("Row {index}"),
+                                    WidgetSizing::fixed(Vector2::new(160.0, 28.0))
+                                        .with_baseline(18.0),
+                                )),
+                            )
+                        })
+                        .collect(),
+                ),
+            ))
+        })
+        .on_scroll(move |state, update, context| {
+            state.last_scroll_y = update.offset.y;
+            *observed_scroll_y_for_hook
+                .lock()
+                .expect("scroll observer lock should be available") = Some(update.offset.y);
+            context.request_paint_only();
+        })
+        .update_with(|_state, _message: DemoMessage, _context| {})
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
+
+    assert!(runtime.scroll_at(Point::new(20.0, 56.0), Vector2::new(0.0, 48.0)));
+
+    assert_eq!(
+        *observed_scroll_y
+            .lock()
+            .expect("scroll observer lock should be available"),
+        Some(48.0)
+    );
+    assert!(runtime.take_repaint_requested());
 }
 
 #[test]

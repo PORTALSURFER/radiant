@@ -80,26 +80,41 @@ impl<Message> UiSurface<Message> {
     /// Primitives are emitted in declarative tree order so backends and tests can
     /// compare output deterministically without depending on the native shell.
     pub fn paint_plan(&self, layout: &LayoutOutput, theme: &ThemeTokens) -> SurfacePaintPlan {
-        self.paint_plan_with_hover(layout, theme, None, None)
+        let mut plan =
+            SurfacePaintPlan::empty_with_capacity(theme, layout.rects.len().saturating_mul(2));
+        self.paint_plan_into(layout, theme, &mut plan);
+        plan
     }
 
-    pub(super) fn paint_plan_with_hover(
+    /// Project backend-neutral paint data into an existing plan buffer.
+    ///
+    /// This is the allocation-lean counterpart to [`Self::paint_plan`] for
+    /// hosts and renderers that rebuild paint data every frame.
+    pub fn paint_plan_into(
+        &self,
+        layout: &LayoutOutput,
+        theme: &ThemeTokens,
+        plan: &mut SurfacePaintPlan,
+    ) {
+        self.paint_plan_with_hover_into(layout, theme, None, None, plan);
+    }
+
+    pub(super) fn paint_plan_with_hover_into(
         &self,
         layout: &LayoutOutput,
         theme: &ThemeTokens,
         hovered_container: Option<NodeId>,
         active_scroll_affordance: Option<NodeId>,
-    ) -> SurfacePaintPlan {
-        let mut plan =
-            SurfacePaintPlan::empty_with_capacity(theme, layout.rects.len().saturating_mul(2));
+        plan: &mut SurfacePaintPlan,
+    ) {
+        plan.clear_for_theme_with_capacity(theme, layout.rects.len().saturating_mul(2));
         self.root.append_paint(
             layout,
             theme,
-            &mut plan,
+            plan,
             hovered_container,
             active_scroll_affordance,
         );
-        plan
     }
 
     /// Map one widget output back into a host-defined message.

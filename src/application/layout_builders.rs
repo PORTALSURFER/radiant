@@ -140,6 +140,11 @@ pub fn list<Message, Item>(
 }
 
 /// Build a vertically virtualized list with stable intrinsic-height rows.
+///
+/// This helper still projects every item before the layout engine virtualizes
+/// the scroll viewport. Prefer [`virtual_list_window`] for large fixed-height
+/// lists when the host can resolve a [`VirtualListWindow`] from logical scroll
+/// state.
 pub fn virtual_list<Message, Item>(
     items: impl IntoIterator<Item = Item>,
     project: impl FnMut(Item) -> ViewNode<Message>,

@@ -8,6 +8,7 @@ use crate::{
         ContainerKind, ContainerPolicy, GridPolicy, NodeId, OverflowPolicy, VirtualizationAxis,
         VirtualizationPolicy,
     },
+    runtime::PaintText,
     widgets::{Widget, WidgetStyle},
 };
 
@@ -179,7 +180,7 @@ impl<Message> SurfaceNode<Message> {
         Self::Overlay(SurfaceOverlay {
             id,
             rect,
-            label: Some(label.into()),
+            label: Some(PaintText::from(label.into())),
             style,
         })
     }

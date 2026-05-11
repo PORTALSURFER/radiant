@@ -34,8 +34,11 @@ pub fn text<Message: 'static>(value: impl Into<String>) -> ViewNode<Message> {
 /// Build a passive button view for retained surfaces that need button chrome
 /// without host messages.
 pub fn passive_button<Message: 'static>(label: impl Into<String>) -> ViewNode<Message> {
-    let label = label.into();
-    view_node_from_widget(ButtonWidget::new(0, label, default_button_sizing("")))
+    view_node_from_widget(ButtonWidget::new(
+        0,
+        PaintText::from(label.into()),
+        default_button_sizing(""),
+    ))
 }
 
 /// Build a passive toggle view for retained surfaces that need toggle chrome
@@ -44,9 +47,13 @@ pub fn passive_toggle<Message: 'static>(
     label: impl Into<String>,
     checked: bool,
 ) -> ViewNode<Message> {
-    let label = label.into();
     view_node_from_widget(
-        ToggleWidget::new(0, label, default_toggle_sizing("", true)).with_checked(checked),
+        ToggleWidget::new(
+            0,
+            PaintText::from(label.into()),
+            default_toggle_sizing("", true),
+        )
+        .with_checked(checked),
     )
 }
 

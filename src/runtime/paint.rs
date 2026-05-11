@@ -84,7 +84,7 @@ pub(super) fn push_overlay_panel(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: WidgetId,
     rect: Rect,
-    label: Option<String>,
+    label: Option<PaintText>,
     theme: &ThemeTokens,
     style: WidgetStyle,
 ) {
@@ -127,7 +127,7 @@ pub(super) fn push_overlay_panel(
                 primitives,
                 PaintTextRun {
                     widget_id,
-                    text: label.into(),
+                    text: label,
                     rect: inset_rect(rect, 48.0, 4.0),
                     baseline: optical_centered_baseline(
                         inset_rect(rect, 48.0, 4.0),

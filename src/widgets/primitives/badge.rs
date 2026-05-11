@@ -108,9 +108,8 @@ impl<Message> SurfaceNode<Message> {
         sizing: WidgetSizing,
         map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
-        let label = label.into();
         Self::widget(
-            BadgeWidget::new(id, label, sizing),
+            BadgeWidget::new(id, PaintText::from(label.into()), sizing),
             WidgetMessageMapper::badge(map),
         )
     }

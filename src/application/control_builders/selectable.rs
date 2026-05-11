@@ -70,9 +70,9 @@ impl SelectableBuilder {
 }
 
 /// Build a selectable control.
-pub fn selectable(label: impl Into<PaintText>, selected: bool) -> SelectableBuilder {
+pub fn selectable(label: impl Into<String>, selected: bool) -> SelectableBuilder {
     SelectableBuilder {
-        label: label.into(),
+        label: PaintText::from(label.into()),
         selected,
         style: None,
     }
@@ -80,7 +80,7 @@ pub fn selectable(label: impl Into<PaintText>, selected: bool) -> SelectableBuil
 
 /// Build a selectable control that maps value changes by selected state.
 pub fn selectable_mapped<Message: 'static>(
-    label: impl Into<PaintText>,
+    label: impl Into<String>,
     selected: bool,
     map: impl Fn(bool) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {

@@ -370,10 +370,11 @@ direct embedded-host path when the application or plugin framework owns the
 window, native surface, or render pass; `UiSurface::frame_with_layout_options(...)`
 keeps layout state, debug primitives, and diagnostics available for hosts that
 need scroll offsets, virtualization state, or layout debugging.
-`SurfaceRuntime::frame(...)` packages the same frame shape from the current
-event-driven runtime state, including hover-aware paint and refreshed layout, so
-custom host loops do not need to stitch viewport, layout, and paint data
-manually after dispatching events.
+`SurfaceRuntime::borrowed_frame(...)` is the preferred immediate-render path for
+custom host loops because it borrows the runtime's current layout instead of
+cloning the resolved layout maps every frame. `SurfaceRuntime::frame(...)`
+packages the same event-driven runtime state into an owned `SurfaceFrame` for
+hosts that need to retain the frame after borrowing the runtime.
 `SurfacePaintPlan::stats()` returns `SurfacePaintStats` primitive counts for
 diagnostics, benchmarks, and host renderers that need to inspect Vello-friendly,
 custom retained, and GPU-surface frame shape without duplicating primitive

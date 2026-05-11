@@ -143,6 +143,9 @@ fn build_signal_summary_level(
     band_count: usize,
     bucket_frames: usize,
 ) -> Arc<[GpuSignalSummaryBucket]> {
+    if bucket_frames.max(1) == 1 {
+        return build_signal_summary_base_level(samples, frames, band_count);
+    }
     let bucket_count = frames.div_ceil(bucket_frames.max(1)).max(1);
     let mut buckets = Vec::with_capacity(bucket_count.saturating_mul(band_count));
     for bucket in 0..bucket_count {
@@ -167,6 +170,29 @@ fn build_signal_summary_level(
                 summary = GpuSignalSummaryBucket::default();
             }
             buckets.push(summary);
+        }
+    }
+    buckets.into()
+}
+
+fn build_signal_summary_base_level(
+    samples: &[f32],
+    frames: usize,
+    band_count: usize,
+) -> Arc<[GpuSignalSummaryBucket]> {
+    if frames == 0 {
+        return vec![GpuSignalSummaryBucket::default(); band_count].into();
+    }
+    let sample_count = frames.saturating_mul(band_count);
+    let mut buckets = Vec::with_capacity(sample_count);
+    for value in samples.iter().copied().take(sample_count) {
+        if value.is_finite() {
+            buckets.push(GpuSignalSummaryBucket {
+                min: value,
+                max: value,
+            });
+        } else {
+            buckets.push(GpuSignalSummaryBucket::default());
         }
     }
     buckets.into()
@@ -246,6 +272,28 @@ mod tests {
                     max: -0.5
                 },
                 GpuSignalSummaryBucket { min: 0.1, max: 0.1 },
+            ]
+        );
+    }
+
+    #[test]
+    fn signal_summary_base_level_maps_samples_without_merging() {
+        let samples = [0.25, f32::NAN, -0.5, f32::INFINITY];
+        let summary = GpuSignalSummary::from_interleaved_samples(&samples, 2, 2);
+
+        assert_eq!(
+            &summary.levels[0].buckets[..],
+            &[
+                GpuSignalSummaryBucket {
+                    min: 0.25,
+                    max: 0.25,
+                },
+                GpuSignalSummaryBucket::default(),
+                GpuSignalSummaryBucket {
+                    min: -0.5,
+                    max: -0.5,
+                },
+                GpuSignalSummaryBucket::default(),
             ]
         );
     }

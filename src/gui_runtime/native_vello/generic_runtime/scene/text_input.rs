@@ -47,16 +47,7 @@ pub(super) fn encode_text_input(
             );
         }
         let caret_offset = if selection.has_selection {
-            let mut caret_editor = SingleLineTextEditorState::collapsed_at_end(text);
-            caret_editor.set_cursor(text, selection.caret_byte, false);
-            build_text_field_layout(
-                text_renderer,
-                &mut caret_editor,
-                text,
-                input.font_size,
-                text_rect.width(),
-            )
-            .caret_offset
+            layout.local_x_for_byte(selection.caret_byte)
         } else {
             layout.caret_offset
         };
@@ -65,7 +56,7 @@ pub(super) fn encode_text_input(
             scene,
             text_renderer,
             input,
-            layout.visible_text.as_str(),
+            layout.visible_text(text),
             input.color,
         );
     } else {

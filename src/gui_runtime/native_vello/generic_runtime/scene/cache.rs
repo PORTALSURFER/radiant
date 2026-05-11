@@ -1,10 +1,11 @@
 use crate::gui_runtime::native_vello::*;
+use std::collections::VecDeque;
 
 const MAX_RETAINED_SURFACE_FRAMES: usize = 64;
 
 #[derive(Clone, Debug, Default)]
 pub(in crate::gui_runtime::native_vello) struct RetainedSurfaceFrameCache {
-    entries: Vec<RetainedSurfaceFrameCacheEntry>,
+    entries: VecDeque<RetainedSurfaceFrameCacheEntry>,
 }
 
 #[derive(Clone, Debug)]
@@ -90,14 +91,14 @@ impl RetainedSurfaceFrameCache {
         }
         self.entries
             .retain(|entry| !entry.same_surface_geometry(descriptor, rect, viewport));
-        self.entries.push(RetainedSurfaceFrameCacheEntry {
+        self.entries.push_back(RetainedSurfaceFrameCacheEntry {
             descriptor,
             rect,
             viewport,
             frame,
         });
         if self.entries.len() > MAX_RETAINED_SURFACE_FRAMES {
-            self.entries.remove(0);
+            self.entries.pop_front();
         }
     }
 
@@ -132,4 +133,60 @@ impl RetainedSurfaceFrameCacheEntry {
 
 fn cacheable_descriptor(descriptor: RetainedSurfaceDescriptor) -> bool {
     !descriptor.volatile && descriptor.dirty_mask == 0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn descriptor(key: u64) -> RetainedSurfaceDescriptor {
+        RetainedSurfaceDescriptor {
+            key,
+            revision: 1,
+            dirty_mask: 0,
+            volatile: false,
+        }
+    }
+
+    fn frame(red: u8) -> PaintFrame {
+        PaintFrame {
+            clear_color: Rgba8 {
+                r: red,
+                g: 0,
+                b: 0,
+                a: 255,
+            },
+            ..PaintFrame::default()
+        }
+    }
+
+    #[test]
+    fn retained_frame_cache_evicts_oldest_entry_without_shifting_storage() {
+        let rect = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(20.0, 20.0));
+        let viewport = Vector2::new(100.0, 100.0);
+        let mut cache = RetainedSurfaceFrameCache::default();
+
+        for key in 0..=MAX_RETAINED_SURFACE_FRAMES as u64 {
+            cache.store(descriptor(key), rect, viewport, frame(key as u8));
+        }
+
+        assert_eq!(cache.entries.len(), MAX_RETAINED_SURFACE_FRAMES);
+        assert!(cache.cached_frame(descriptor(0), rect, viewport).is_none());
+        assert_eq!(
+            cache
+                .cached_frame(descriptor(1), rect, viewport)
+                .map(|frame| frame.clear_color.r),
+            Some(1)
+        );
+        assert_eq!(
+            cache
+                .cached_frame(
+                    descriptor(MAX_RETAINED_SURFACE_FRAMES as u64),
+                    rect,
+                    viewport,
+                )
+                .map(|frame| frame.clear_color.r),
+            Some(MAX_RETAINED_SURFACE_FRAMES as u8)
+        );
+    }
 }

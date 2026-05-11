@@ -45,12 +45,18 @@ where
             previous_offset: current,
             offset: self.layout_state.scroll_offset(node_id),
         };
-        let command = self.bridge.scroll_updated(update);
-        let outcome = self.execute_command(command);
-        if outcome.repaint_requested || outcome.surface_refresh_requested {
+        self.report_scroll_update(update);
+        true
+    }
+
+    fn report_scroll_update(&mut self, update: ScrollUpdate) {
+        if let Some(command) = self.bridge.scroll_updated(update) {
+            let outcome = self.execute_command(command);
+            if !outcome.surface_refresh_requested {
+                self.refresh();
+            }
             self.repaint_requested = true;
         }
-        true
     }
 
     /// Route wheel input to the topmost widget under `point`, then fall back to
@@ -183,12 +189,22 @@ where
         let thumb_y = (point.y - affordance.thumb.height() * capture.grip_fraction)
             .clamp(affordance.track.min.y, affordance.track.min.y + travel);
         let offset_fraction = (thumb_y - affordance.track.min.y) / travel;
-        let current = self.layout_state.scroll_offset(capture.node_id);
+        let previous_offset = self.layout_state.scroll_offset(capture.node_id);
         self.layout_state.scroll_offsets.insert(
             capture.node_id,
-            Vector2::new(current.x, offset_fraction * affordance.max_scroll),
+            Vector2::new(previous_offset.x, offset_fraction * affordance.max_scroll),
         );
         self.relayout_current_surface();
+        let offset = self.layout_state.scroll_offset(capture.node_id);
+        if offset != previous_offset {
+            self.report_scroll_update(ScrollUpdate {
+                node_id: capture.node_id,
+                position: point,
+                delta: Vector2::new(offset.x - previous_offset.x, offset.y - previous_offset.y),
+                previous_offset,
+                offset,
+            });
+        }
         self.repaint_requested = true;
         true
     }

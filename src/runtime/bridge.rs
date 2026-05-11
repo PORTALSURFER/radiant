@@ -51,8 +51,8 @@ pub trait RuntimeBridge<Message> {
     /// application-owned viewport state from the runtime scroll offset while
     /// hosts that only need runtime-owned scrolling can rely on the default
     /// no-op implementation.
-    fn scroll_updated(&mut self, _update: ScrollUpdate) -> Command<Message> {
-        Command::none()
+    fn scroll_updated(&mut self, _update: ScrollUpdate) -> Option<Command<Message>> {
+        None
     }
 
     /// Resolve one keyboard press against a host-owned shortcut catalog.

@@ -31,9 +31,8 @@ where
     }
 
     pub(super) fn relayout(&mut self) {
-        let projection = self.surface.runtime_projection();
-        self.layout_root = projection.layout_root;
-        let traversal = projection.traversal;
+        let mut traversal = self.take_reusable_traversal_index(true);
+        self.layout_root = self.surface.runtime_projection_reusing(&mut traversal);
         self.relayout_with_traversal(traversal);
     }
 
@@ -153,6 +152,30 @@ where
         );
         for (node_id, offset) in self.scroll_clamp_updates.drain(..) {
             self.layout_state.scroll_offsets.insert(node_id, offset);
+        }
+    }
+
+    pub(super) fn take_reusable_traversal_index(
+        &mut self,
+        reuse_widget_paths: bool,
+    ) -> SurfaceTraversalIndex {
+        SurfaceTraversalIndex {
+            widget_paint_order: std::mem::take(&mut self.widget_hit_order),
+            focusable_widget_order: std::mem::take(&mut self.focusable_widget_order),
+            keyboard_focus_order: std::mem::take(&mut self.keyboard_focus_order),
+            pointer_hit_order: std::mem::take(&mut self.pointer_hit_order),
+            wheel_hit_order: std::mem::take(&mut self.wheel_hit_order),
+            widget_paths: if reuse_widget_paths {
+                std::mem::take(&mut self.widget_paths)
+            } else {
+                Default::default()
+            },
+            container_hover_suppression: std::mem::take(&mut self.container_hover_suppression),
+            styled_container_order: std::mem::take(&mut self.styled_container_hit_order),
+            scroll_container_order: std::mem::take(&mut self.scroll_hit_order),
+            widget_clip_ancestors: std::mem::take(&mut self.widget_clip_ancestors),
+            container_clip_ancestors: std::mem::take(&mut self.container_clip_ancestors),
+            scroll_content_by_container: std::mem::take(&mut self.scroll_content_by_container),
         }
     }
 }

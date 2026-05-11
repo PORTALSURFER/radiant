@@ -115,7 +115,7 @@ pub fn scroll_column<Message, Item>(
     items: impl IntoIterator<Item = Item>,
     project: impl FnMut(Item) -> ViewNode<Message>,
 ) -> ViewNode<Message> {
-    scroll(column(items.into_iter().map(project).collect::<Vec<_>>()))
+    scroll(column(items.into_iter().map(project)))
 }
 
 /// Build a scrollable vertical list with stable intrinsic-height rows.
@@ -134,12 +134,9 @@ pub fn virtual_list<Message, Item>(
     project: impl FnMut(Item) -> ViewNode<Message>,
     overscan_px: f32,
 ) -> ViewNode<Message> {
-    virtual_scroll(
-        column(items.into_iter().map(project).collect::<Vec<_>>()),
-        overscan_px,
-    )
-    .style(WidgetStyle::default())
-    .fill_height()
+    virtual_scroll(column(items.into_iter().map(project)), overscan_px)
+        .style(WidgetStyle::default())
+        .fill_height()
 }
 
 /// Build a keyed list row with full-width, fixed-height defaults.

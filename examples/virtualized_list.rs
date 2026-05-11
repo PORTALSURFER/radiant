@@ -43,15 +43,11 @@ fn project_surface(state: &mut DemoState) -> View<Message> {
                 } else {
                     format!("Row {index:05}")
                 };
-                list_row_id(
-                    index as u64 + 10_000,
-                    [button(label)
-                        .message(Message::Select(index))
-                        .id(index as u64 + 20_000)
-                        .fill_width()
-                        .height(28.0)],
-                )
-                .height(32.0)
+                selectable(label, Some(index) == state.selected)
+                    .message(move |_| Message::Select(index))
+                    .id(index as u64 + 10_000)
+                    .fill_width()
+                    .height(32.0)
             },
             96.0,
         )

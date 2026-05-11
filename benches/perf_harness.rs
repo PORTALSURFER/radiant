@@ -69,6 +69,12 @@ fn main() {
         RUNTIME_ITERATIONS,
         move || runtime_surface.step(),
     );
+    let text_surface = StatefulTextPaintPlanBench::new();
+    run_scenario(
+        "runtime_text_paint_plan_1k",
+        RUNTIME_ITERATIONS,
+        move || text_surface.step(),
+    );
     let mut virtualized_wheel = StatefulVirtualizedWheelBench::new();
     run_scenario(
         "runtime_virtualized_list_wheel_10k",
@@ -416,6 +422,36 @@ impl StatefulRuntimeSurfaceBench {
     }
 }
 
+struct StatefulTextPaintPlanBench {
+    surface: UiSurface<()>,
+    layout_node: LayoutNode,
+    theme: ThemeTokens,
+}
+
+impl StatefulTextPaintPlanBench {
+    fn new() -> Self {
+        let surface = UiSurface::<()>::new(text_paint_surface_node(1_000));
+        let layout_node = surface.layout_node();
+        Self {
+            surface,
+            layout_node,
+            theme: ThemeTokens::default(),
+        }
+    }
+
+    fn step(&self) {
+        let output = layout_tree(&self.layout_node, viewport(960.0, 720.0));
+        let plan = self.surface.paint_plan(&output, &self.theme);
+        let stats = plan.stats();
+        assert_eq!(stats.text, 1_000);
+        assert!(
+            stats.total >= stats.text,
+            "text-heavy paint plan should retain all text primitives"
+        );
+        black_box((output, plan));
+    }
+}
+
 struct StatefulVirtualizedWheelBench {
     runtime: SurfaceRuntime<VirtualWheelBridge, ()>,
     offset: f32,
@@ -615,6 +651,43 @@ fn runtime_surface_node(count: u64) -> SurfaceNode<()> {
             ContainerPolicy {
                 kind: ContainerKind::Column,
                 spacing: 2.0,
+                ..ContainerPolicy::default()
+            },
+            rows,
+        ),
+    )
+}
+
+fn text_paint_surface_node(count: u64) -> SurfaceNode<()> {
+    let rows = (0..count)
+        .map(|index| {
+            SurfaceChild::new(
+                SlotParams {
+                    size_main: SizeModeMain::Fixed(22.0),
+                    size_cross: SizeModeCross::Fill,
+                    constraints: radiant::layout::Constraints::unconstrained(),
+                    margin: Default::default(),
+                    align_cross_override: None,
+                    allow_fixed_compress: false,
+                },
+                SurfaceNode::static_widget(TextWidget::new(
+                    40_000 + index,
+                    format!(
+                        "Track {index:04}  position {index:04}.{:02}  cached text row",
+                        index % 97
+                    ),
+                    WidgetSizing::fixed(Vector2::new(520.0, 22.0)),
+                )),
+            )
+        })
+        .collect();
+    SurfaceNode::scroll_area(
+        30_000,
+        SurfaceNode::container(
+            30_001,
+            ContainerPolicy {
+                kind: ContainerKind::Column,
+                spacing: 1.0,
                 ..ContainerPolicy::default()
             },
             rows,

@@ -3,9 +3,9 @@
 use radiant::{
     gui::types::ImageRgba,
     layout::{
-        ContainerKind, ContainerPolicy, LayoutDebugOptions, LayoutNode, LayoutState, Point, Rect,
-        SizeModeCross, SizeModeMain, SlotChild, SlotParams, Vector2, VirtualizationAxis,
-        VirtualizationPolicy, layout_tree, layout_tree_with_state,
+        ContainerKind, ContainerPolicy, LayoutDebugOptions, LayoutEngine, LayoutNode, LayoutState,
+        Point, Rect, SizeModeCross, SizeModeMain, SlotChild, SlotParams, Vector2,
+        VirtualizationAxis, VirtualizationPolicy, layout_tree, layout_tree_with_state,
     },
     prelude::{
         IntoView, VirtualListWindowRequest, button, list_row_id, resolve_virtual_list_window,
@@ -47,6 +47,12 @@ fn main() {
         "layout_virtualized_fixed_scroll_10k",
         LAYOUT_ITERATIONS,
         move || fixed_scroll.step(),
+    );
+    let mut dirty_subtree = StatefulDirtySubtreeBench::new();
+    run_scenario(
+        "layout_mark_dirty_subtree_10k",
+        LAYOUT_ITERATIONS,
+        move || dirty_subtree.step(),
     );
     run_scenario(
         "app_virtual_list_projection_10k",
@@ -233,7 +239,7 @@ fn bench_virtualized_fixed_10k() {
 
 struct StatefulVirtualizedScrollBench {
     root: LayoutNode,
-    engine: radiant::layout::LayoutEngine,
+    engine: LayoutEngine,
     state: LayoutState,
     offset: f32,
 }
@@ -241,7 +247,7 @@ struct StatefulVirtualizedScrollBench {
 impl StatefulVirtualizedScrollBench {
     fn new() -> Self {
         let root = virtualized_scroll_tree(10_000, SizeModeMain::Fixed(28.0));
-        let mut engine = radiant::layout::LayoutEngine::default();
+        let mut engine = LayoutEngine::default();
         let state = LayoutState::default();
         let output = engine.layout_with_state(
             &root,
@@ -277,6 +283,26 @@ impl StatefulVirtualizedScrollBench {
         assert!(output.stats.materialized_nodes < 256);
         assert!(output.stats.measured_nodes < 64);
         black_box(output);
+    }
+}
+
+struct StatefulDirtySubtreeBench {
+    root: LayoutNode,
+    engine: LayoutEngine,
+}
+
+impl StatefulDirtySubtreeBench {
+    fn new() -> Self {
+        Self {
+            root: virtualized_scroll_tree(10_000, SizeModeMain::Fixed(28.0)),
+            engine: LayoutEngine::default(),
+        }
+    }
+
+    fn step(&mut self) {
+        self.engine.mark_measure_dirty_subtree(&self.root, 2);
+        self.engine.clear_dirty();
+        black_box(&self.engine);
     }
 }
 

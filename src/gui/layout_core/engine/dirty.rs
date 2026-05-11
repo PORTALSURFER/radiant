@@ -1,7 +1,7 @@
 //! Dirty-subtree traversal helpers for layout and measure invalidation.
 
 use crate::gui::layout_core::tree::{LayoutNode, NodeId};
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 /// Collect ancestor-path ids and all descendants for `target` in `root`.
 ///
@@ -10,7 +10,7 @@ pub(super) fn collect_path_and_descendants(
     node: &LayoutNode,
     target: NodeId,
     path: &mut Vec<NodeId>,
-    out: &mut BTreeSet<NodeId>,
+    out: &mut HashSet<NodeId>,
 ) -> bool {
     path.push(node.id());
     if node.id() == target {
@@ -31,7 +31,7 @@ pub(super) fn collect_path_and_descendants(
     false
 }
 
-fn collect_descendants(node: &LayoutNode, out: &mut BTreeSet<NodeId>) {
+fn collect_descendants(node: &LayoutNode, out: &mut HashSet<NodeId>) {
     out.insert(node.id());
     if let LayoutNode::Container(container) = node {
         for child in &container.children {

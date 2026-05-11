@@ -5,7 +5,9 @@ mod scroll;
 mod text;
 
 pub use primitives::*;
-pub(super) use scroll::{push_scroll_affordance, scroll_content_clip_rect};
+pub(super) use scroll::{
+    push_scroll_affordance, resolve_scroll_affordance, scroll_content_clip_rect,
+};
 pub(crate) use text::{
     button_font_size, input_font_size, optical_centered_baseline, push_text_run, text_font_size,
 };

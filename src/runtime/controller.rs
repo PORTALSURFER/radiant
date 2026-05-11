@@ -42,6 +42,12 @@ pub enum FocusTraversal {
     Backward,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ScrollDragCapture {
+    node_id: NodeId,
+    grip_fraction: f32,
+}
+
 /// Stateful generic runtime controller for message-driven Radiant hosts.
 ///
 /// The controller preserves one-way data flow:
@@ -89,6 +95,7 @@ where
     hovered_widget: Option<WidgetId>,
     pointer_capture: Option<WidgetId>,
     pointer_capture_state: Option<(WidgetId, WidgetState)>,
+    scroll_drag_capture: Option<ScrollDragCapture>,
     repaint_requested: bool,
     exit_requested: bool,
 }
@@ -174,6 +181,7 @@ where
             hovered_widget: None,
             pointer_capture: None,
             pointer_capture_state: None,
+            scroll_drag_capture: None,
             repaint_requested: false,
             exit_requested: false,
         }
@@ -212,6 +220,12 @@ where
             .is_some_and(|widget_id| !self.widget_paths.contains_key(&widget_id))
         {
             self.pointer_capture = None;
+        }
+        if self
+            .scroll_drag_capture
+            .is_some_and(|capture| !self.scroll_hit_order.contains(&capture.node_id))
+        {
+            self.scroll_drag_capture = None;
         }
         if self
             .hovered_widget

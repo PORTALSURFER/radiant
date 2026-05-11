@@ -66,9 +66,16 @@ where
             }
             Event::PointerMove { position } => self.dispatch_pointer_move(position),
             Event::PointerPress { position, button } => {
+                if self.start_scrollbar_drag_at(position) {
+                    self.pointer_capture = None;
+                    self.pointer_capture_state = None;
+                    self.clear_focus();
+                    return None;
+                }
                 let Some(widget_id) = self.widget_at(position) else {
                     self.pointer_capture = None;
                     self.pointer_capture_state = None;
+                    self.scroll_drag_capture = None;
                     self.clear_focus();
                     return None;
                 };
@@ -76,6 +83,9 @@ where
                 self.dispatch_input_at(position, WidgetInput::PointerPress { position, button })
             }
             Event::PointerRelease { position, button } => {
+                if self.scroll_drag_capture.take().is_some() {
+                    return None;
+                }
                 let widget_id = self
                     .pointer_capture
                     .take()

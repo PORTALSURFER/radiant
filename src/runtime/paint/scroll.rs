@@ -6,6 +6,13 @@ use crate::theme::ThemeTokens;
 
 use super::{PaintFillRect, PaintPrimitive};
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::runtime) struct ScrollAffordance {
+    pub(in crate::runtime) track: Rect,
+    pub(in crate::runtime) thumb: Rect,
+    pub(in crate::runtime) max_scroll: f32,
+}
+
 pub(in crate::runtime) fn push_scroll_affordance(
     primitives: &mut Vec<PaintPrimitive>,
     node_id: NodeId,
@@ -13,23 +20,33 @@ pub(in crate::runtime) fn push_scroll_affordance(
     layout: &LayoutOutput,
     theme: &ThemeTokens,
 ) {
-    let Some(viewport) = layout.rects.get(&node_id).copied() else {
+    let Some(affordance) = resolve_scroll_affordance(node_id, content_id, layout) else {
         return;
     };
-    let Some(content) = layout.rects.get(&content_id).copied() else {
-        return;
-    };
-    let Some(overflow) = layout.overflow_flags.get(&node_id) else {
-        return;
-    };
+
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id: node_id,
+        rect: affordance.thumb,
+        color: theme.grid_strong,
+    }));
+}
+
+pub(in crate::runtime) fn resolve_scroll_affordance(
+    node_id: NodeId,
+    content_id: NodeId,
+    layout: &LayoutOutput,
+) -> Option<ScrollAffordance> {
+    let viewport = layout.rects.get(&node_id).copied()?;
+    let content = layout.rects.get(&content_id).copied()?;
+    let overflow = layout.overflow_flags.get(&node_id)?;
     if overflow.policy != OverflowPolicy::Scroll || !overflow.y {
-        return;
+        return None;
     }
 
     let viewport_h = viewport.height().max(0.0);
     let content_h = content.height().max(viewport_h);
     if viewport_h <= 0.0 || content_h <= viewport_h {
-        return;
+        return None;
     }
 
     let track_w = 3.0;
@@ -48,11 +65,11 @@ pub(in crate::runtime) fn push_scroll_affordance(
         Vector2::new(track.width(), thumb_h),
     );
 
-    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-        widget_id: node_id,
-        rect: thumb,
-        color: theme.grid_strong,
-    }));
+    Some(ScrollAffordance {
+        track,
+        thumb,
+        max_scroll,
+    })
 }
 
 pub(in crate::runtime) fn scroll_content_clip_rect(

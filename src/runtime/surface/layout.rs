@@ -222,6 +222,7 @@ mod tests {
         let mut traversal = SurfaceTraversalIndex::with_stats(SurfaceTraversalStats {
             widgets: 8,
             scroll_containers: 2,
+            clipped_containers: 0,
             styled_hoverable_containers: 0,
             max_depth: 4,
             max_scroll_depth: 2,
@@ -277,6 +278,7 @@ mod tests {
         let mut traversal = SurfaceTraversalIndex::with_stats(SurfaceTraversalStats {
             widgets: 1,
             scroll_containers: 1,
+            clipped_containers: 1,
             styled_hoverable_containers: 0,
             max_depth: 4,
             max_scroll_depth: 1,

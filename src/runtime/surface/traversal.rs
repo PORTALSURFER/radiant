@@ -83,6 +83,7 @@ impl ClipAncestors {
 pub(in crate::runtime) struct SurfaceTraversalStats {
     pub(in crate::runtime) widgets: usize,
     pub(in crate::runtime) scroll_containers: usize,
+    pub(in crate::runtime) clipped_containers: usize,
     pub(in crate::runtime) styled_hoverable_containers: usize,
     pub(in crate::runtime) max_depth: usize,
     pub(in crate::runtime) max_scroll_depth: usize,
@@ -120,7 +121,7 @@ impl SurfaceTraversalIndex {
             } else {
                 stats.widgets
             }),
-            container_clip_ancestors: HashMap::new(),
+            container_clip_ancestors: HashMap::with_capacity(stats.clipped_containers),
             scroll_content_by_container: HashMap::with_capacity(stats.scroll_containers),
         }
     }
@@ -186,6 +187,11 @@ impl SurfaceTraversalIndex {
         self.widget_clip_ancestors
             .reserve(clip_capacity.saturating_sub(self.widget_clip_ancestors.capacity()));
         self.container_clip_ancestors.clear();
+        self.container_clip_ancestors.reserve(
+            stats
+                .clipped_containers
+                .saturating_sub(self.container_clip_ancestors.capacity()),
+        );
         self.scroll_content_by_container.clear();
         self.scroll_content_by_container.reserve(
             stats
@@ -228,6 +234,9 @@ impl<Message> SurfaceNode<Message> {
         match self {
             Self::Container(container) => {
                 let is_scroll = container.policy.kind == ContainerKind::ScrollView;
+                if scroll_depth > 0 {
+                    stats.clipped_containers += 1;
+                }
                 if is_scroll {
                     stats.scroll_containers += 1;
                 }
@@ -356,5 +365,41 @@ mod tests {
         let deep = ClipAncestors::from_slice(&[10, 20, 30]);
         assert!(!deep.is_inline());
         assert_eq!(deep.as_slice(), &[10, 20, 30]);
+    }
+
+    #[test]
+    fn traversal_stats_presize_clipped_container_ancestors() {
+        let surface = UiSurface::new(SurfaceNode::container(
+            1,
+            crate::layout::ContainerPolicy {
+                kind: ContainerKind::ScrollView,
+                ..Default::default()
+            },
+            vec![SurfaceChild::new(
+                crate::layout::SlotParams::fill(),
+                SurfaceNode::container(
+                    2,
+                    crate::layout::ContainerPolicy::default(),
+                    vec![SurfaceChild::new(
+                        crate::layout::SlotParams::fill(),
+                        SurfaceNode::container(
+                            3,
+                            crate::layout::ContainerPolicy::default(),
+                            Vec::<SurfaceChild<()>>::new(),
+                        ),
+                    )],
+                ),
+            )],
+        ));
+
+        let stats = surface.root.runtime_traversal_stats();
+        let mut index = SurfaceTraversalIndex::with_stats(stats);
+
+        assert_eq!(stats.clipped_containers, 2);
+        assert!(index.container_clip_ancestors.capacity() >= 2);
+
+        index.clear_for_stats(stats);
+
+        assert!(index.container_clip_ancestors.capacity() >= 2);
     }
 }

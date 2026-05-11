@@ -124,6 +124,75 @@ impl SurfaceTraversalIndex {
             scroll_content_by_container: HashMap::with_capacity(stats.scroll_containers),
         }
     }
+
+    pub(in crate::runtime) fn clear_for_stats(&mut self, stats: SurfaceTraversalStats) {
+        self.widget_paint_order.clear();
+        self.widget_paint_order.reserve(
+            stats
+                .widgets
+                .saturating_sub(self.widget_paint_order.capacity()),
+        );
+        self.focusable_widget_order.clear();
+        self.focusable_widget_order.reserve(
+            stats
+                .widgets
+                .saturating_sub(self.focusable_widget_order.capacity()),
+        );
+        self.keyboard_focus_order.clear();
+        self.keyboard_focus_order.reserve(
+            stats
+                .widgets
+                .saturating_sub(self.keyboard_focus_order.capacity()),
+        );
+        self.pointer_hit_order.clear();
+        self.pointer_hit_order.reserve(
+            stats
+                .widgets
+                .saturating_sub(self.pointer_hit_order.capacity()),
+        );
+        self.wheel_hit_order.clear();
+        self.wheel_hit_order.reserve(
+            stats
+                .widgets
+                .saturating_sub(self.wheel_hit_order.capacity()),
+        );
+        self.widget_paths.clear();
+        self.widget_paths
+            .reserve(stats.widgets.saturating_sub(self.widget_paths.capacity()));
+        self.container_hover_suppression.clear();
+        self.container_hover_suppression.reserve(
+            stats
+                .widgets
+                .saturating_sub(self.container_hover_suppression.capacity()),
+        );
+        self.styled_container_order.clear();
+        self.styled_container_order.reserve(
+            stats
+                .styled_hoverable_containers
+                .saturating_sub(self.styled_container_order.capacity()),
+        );
+        self.scroll_container_order.clear();
+        self.scroll_container_order.reserve(
+            stats
+                .scroll_containers
+                .saturating_sub(self.scroll_container_order.capacity()),
+        );
+        self.widget_clip_ancestors.clear();
+        let clip_capacity = if stats.scroll_containers == 0 {
+            0
+        } else {
+            stats.widgets
+        };
+        self.widget_clip_ancestors
+            .reserve(clip_capacity.saturating_sub(self.widget_clip_ancestors.capacity()));
+        self.container_clip_ancestors.clear();
+        self.scroll_content_by_container.clear();
+        self.scroll_content_by_container.reserve(
+            stats
+                .scroll_containers
+                .saturating_sub(self.scroll_content_by_container.capacity()),
+        );
+    }
 }
 
 impl<Message> SurfaceNode<Message> {

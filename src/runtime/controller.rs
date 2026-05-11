@@ -75,6 +75,7 @@ where
     pointer_hit_rank: HashMap<WidgetId, usize>,
     visible_pointer_hit_order: Vec<WidgetId>,
     widget_paths: HashMap<WidgetId, WidgetPath>,
+    previous_widget_paths: HashMap<WidgetId, WidgetPath>,
     container_hover_suppression: HashSet<WidgetId>,
     keyboard_focus_order: Vec<WidgetId>,
     keyboard_focus_rank: HashMap<WidgetId, usize>,
@@ -161,6 +162,7 @@ where
             pointer_hit_rank,
             visible_pointer_hit_order,
             widget_paths: traversal.widget_paths,
+            previous_widget_paths: HashMap::new(),
             container_hover_suppression: traversal.container_hover_suppression,
             keyboard_focus_order: traversal.keyboard_focus_order,
             keyboard_focus_rank,
@@ -196,14 +198,13 @@ where
     /// Reproject the latest host state into a fresh immutable surface snapshot.
     pub fn refresh(&mut self) {
         let mut next_surface = self.bridge.pull_surface();
-        let SurfaceRuntimeProjection {
-            layout_root,
-            traversal,
-        } = next_surface.runtime_projection();
+        std::mem::swap(&mut self.previous_widget_paths, &mut self.widget_paths);
+        let mut traversal = self.take_reusable_traversal_index(true);
+        let layout_root = next_surface.runtime_projection_reusing(&mut traversal);
         next_surface.synchronize_widget_state_from_paths(
             &self.surface,
             &traversal.widget_paths,
-            &self.widget_paths,
+            &self.previous_widget_paths,
         );
         self.surface = next_surface;
         self.layout_root = layout_root;

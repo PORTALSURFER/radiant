@@ -10,15 +10,32 @@ impl<Message> UiSurface<Message> {
     pub(in crate::runtime) fn runtime_projection(&self) -> SurfaceRuntimeProjection {
         let stats = self.root.runtime_traversal_stats();
         let mut traversal = SurfaceTraversalIndex::with_stats(stats);
-        let layout_root = self.root.project_runtime(
-            &mut Vec::with_capacity(stats.max_scroll_depth),
-            &mut Vec::with_capacity(stats.max_depth),
-            &mut traversal,
-        );
+        let layout_root = self.runtime_projection_into(&mut traversal, stats);
         SurfaceRuntimeProjection {
             layout_root,
             traversal,
         }
+    }
+
+    pub(in crate::runtime) fn runtime_projection_into(
+        &self,
+        traversal: &mut SurfaceTraversalIndex,
+        stats: SurfaceTraversalStats,
+    ) -> LayoutNode {
+        traversal.clear_for_stats(stats);
+        self.root.project_runtime(
+            &mut Vec::with_capacity(stats.max_scroll_depth),
+            &mut Vec::with_capacity(stats.max_depth),
+            traversal,
+        )
+    }
+
+    pub(in crate::runtime) fn runtime_projection_reusing(
+        &self,
+        traversal: &mut SurfaceTraversalIndex,
+    ) -> LayoutNode {
+        let stats = self.root.runtime_traversal_stats();
+        self.runtime_projection_into(traversal, stats)
     }
 }
 
@@ -166,5 +183,60 @@ mod tests {
             projection.traversal.scroll_content_by_container,
             traversal.scroll_content_by_container
         );
+    }
+
+    #[test]
+    fn runtime_projection_reusing_clears_stale_traversal_without_shrinking_buffers() {
+        let surface: UiSurface<()> = UiSurface::new(SurfaceNode::virtual_scroll_area(
+            1,
+            SurfaceNode::column(
+                2,
+                4.0,
+                vec![SurfaceChild::new(
+                    SlotParams {
+                        size_main: SizeModeMain::Fixed(28.0),
+                        size_cross: SizeModeCross::Fill,
+                        constraints: crate::layout::Constraints::unconstrained(),
+                        margin: Default::default(),
+                        align_cross_override: None,
+                        allow_fixed_compress: false,
+                    },
+                    SurfaceNode::widget(
+                        ButtonWidget::new(
+                            10,
+                            "Action",
+                            WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    ),
+                )],
+            ),
+            VirtualizationAxis::Vertical,
+            16.0,
+        ));
+        let mut traversal = SurfaceTraversalIndex::with_stats(SurfaceTraversalStats {
+            widgets: 8,
+            scroll_containers: 2,
+            styled_hoverable_containers: 0,
+            max_depth: 4,
+            max_scroll_depth: 2,
+        });
+        traversal.widget_paint_order.push(999);
+        traversal.pointer_hit_order.push(999);
+        traversal
+            .widget_paths
+            .insert(999, WidgetPath::from_slice(&[9]));
+        let widget_order_capacity = traversal.widget_paint_order.capacity();
+        let widget_path_capacity = traversal.widget_paths.capacity();
+
+        let layout_root = surface.runtime_projection_reusing(&mut traversal);
+
+        assert_eq!(layout_root.id(), 1);
+        assert_eq!(traversal.widget_paint_order, vec![10]);
+        assert_eq!(traversal.pointer_hit_order, vec![10]);
+        assert!(traversal.widget_paths.contains_key(&10));
+        assert!(!traversal.widget_paths.contains_key(&999));
+        assert!(traversal.widget_paint_order.capacity() >= widget_order_capacity);
+        assert!(traversal.widget_paths.capacity() >= widget_path_capacity);
     }
 }

@@ -363,6 +363,8 @@ Compact toolbars and action strips can use
 `layout::fixed_width_row_rects_start`, `layout::fixed_width_row_rects_end`, and
 `layout::visible_suffix_widths` to place fixed-width controls through the
 generic layout engine while preserving stable widget IDs.
+Hot paths can use the matching `*_into` variants to reuse caller-owned buffers
+instead of allocating geometry vectors on every layout or paint pass.
 `layout::grouped_fixed_width_row_width` computes grouped control-cluster widths
 for compact toolbars without baking product-specific toolbar concepts into the
 layout adapter. `layout::fixed_width_item_extent_for_available_width` resolves

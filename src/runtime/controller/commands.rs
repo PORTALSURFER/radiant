@@ -11,15 +11,16 @@ pub struct CommandOutcome {
     pub surface_refresh_requested: bool,
     /// Whether any command requested runtime exit.
     pub exit_requested: bool,
-    /// Whether runtime-owned background work still has queued messages.
+    /// Whether runtime-owned background work still has queued commands/messages.
     ///
     /// Native backends use this to keep the UI/event/render owner responsive:
-    /// one drain pass handles a bounded slice of background messages, then
-    /// schedules another wakeup instead of monopolizing the UI path.
+    /// one drain pass handles a bounded slice of background commands/messages,
+    /// then schedules another wakeup instead of monopolizing the UI path.
     pub runtime_work_remaining: bool,
 }
 
 const MAX_RUNTIME_MESSAGES_PER_DRAIN: usize = 64;
+const MAX_RUNTIME_COMMANDS_PER_DRAIN: usize = 64;
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
@@ -60,14 +61,17 @@ where
     /// Dispatch any messages queued by bridge-owned runtime work.
     pub fn drain_runtime_messages(&mut self) -> CommandOutcome {
         let mut outcome = CommandOutcome::default();
-        self.runtime_commands.clear();
         self.bridge
             .drain_runtime_commands_into(&mut self.runtime_commands);
-        let mut commands = std::mem::take(&mut self.runtime_commands);
-        for command in commands.drain(..) {
+        take_runtime_command_batch_into(
+            &mut self.runtime_commands,
+            &mut self.runtime_command_batch,
+        );
+        let mut command_batch = std::mem::take(&mut self.runtime_command_batch);
+        while let Some(command) = command_batch.pop() {
             self.execute_command_inner(command, &mut outcome);
         }
-        self.runtime_commands = commands;
+        self.runtime_command_batch = command_batch;
 
         self.bridge
             .drain_runtime_messages_into(&mut self.runtime_messages);
@@ -79,7 +83,7 @@ where
             self.dispatch_message_inner(message, &mut outcome);
         }
 
-        if !self.runtime_messages.is_empty() {
+        if !self.runtime_commands.is_empty() || !self.runtime_messages.is_empty() {
             outcome.runtime_work_remaining = true;
             outcome.repaint_requested = true;
             self.repaint_requested = true;
@@ -158,6 +162,19 @@ where
     }
 }
 
+fn take_runtime_command_batch_into<Message>(
+    commands: &mut Vec<Command<Message>>,
+    batch: &mut Vec<Command<Message>>,
+) {
+    debug_assert!(batch.is_empty());
+    if commands.len() <= MAX_RUNTIME_COMMANDS_PER_DRAIN {
+        batch.extend(commands.drain(..).rev());
+        return;
+    }
+    batch.extend(commands.drain(..MAX_RUNTIME_COMMANDS_PER_DRAIN).rev());
+    debug_assert_eq!(batch.len(), MAX_RUNTIME_COMMANDS_PER_DRAIN);
+}
+
 fn take_runtime_message_batch_into<Message>(messages: &mut Vec<Message>, batch: &mut Vec<Message>) {
     debug_assert!(batch.is_empty());
     if messages.len() <= MAX_RUNTIME_MESSAGES_PER_DRAIN {
@@ -185,6 +202,97 @@ fn command_requests_paint_only<Message>(command: &Command<Message>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::layout::ContainerPolicy;
+    use crate::runtime::SurfaceNode;
+    use std::sync::Arc;
+
+    #[derive(Default)]
+    struct QueuedCommandBridge {
+        commands: Vec<Command<usize>>,
+        dispatched: Vec<usize>,
+    }
+
+    impl RuntimeBridge<usize> for QueuedCommandBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+            Arc::new(UiSurface::new(SurfaceNode::container(
+                1,
+                ContainerPolicy::default(),
+                Vec::new(),
+            )))
+        }
+
+        fn reduce_message(&mut self, message: usize) {
+            self.dispatched.push(message);
+        }
+
+        fn drain_runtime_commands_into(&mut self, commands: &mut Vec<Command<usize>>) {
+            commands.append(&mut self.commands);
+        }
+    }
+
+    #[test]
+    fn runtime_command_batch_preserves_order_and_keeps_remainder() {
+        let mut commands = (0..70).map(Command::message).collect::<Vec<_>>();
+        let mut batch = Vec::with_capacity(8);
+
+        take_runtime_command_batch_into(&mut commands, &mut batch);
+
+        let mut drained = Vec::new();
+        while let Some(command) = batch.pop() {
+            let Command::Message(message) = command else {
+                panic!("test command should be a message");
+            };
+            drained.push(message);
+        }
+        assert_eq!(drained, (0..64).collect::<Vec<_>>());
+        assert_eq!(commands.len(), 6);
+        assert!(commands
+            .iter()
+            .enumerate()
+            .all(|(offset, command)| matches!(command, Command::Message(message) if *message == offset + 64)));
+        assert!(batch.capacity() >= 64);
+    }
+
+    #[test]
+    fn runtime_command_batch_reuses_output_storage_for_small_drains() {
+        let mut commands = vec![
+            Command::message(1),
+            Command::message(2),
+            Command::message(3),
+        ];
+        let mut batch = Vec::with_capacity(64);
+        let capacity = batch.capacity();
+
+        take_runtime_command_batch_into(&mut commands, &mut batch);
+
+        assert!(commands.is_empty());
+        assert_eq!(batch.capacity(), capacity);
+        assert!(matches!(batch.pop(), Some(Command::Message(1))));
+        assert!(matches!(batch.pop(), Some(Command::Message(2))));
+        assert!(matches!(batch.pop(), Some(Command::Message(3))));
+        assert!(batch.pop().is_none());
+    }
+
+    #[test]
+    fn runtime_command_drains_are_bounded_and_request_followup_wakeup() {
+        let bridge = QueuedCommandBridge {
+            commands: (0..70).map(Command::message).collect(),
+            dispatched: Vec::new(),
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+
+        let first = runtime.drain_runtime_messages();
+
+        assert_eq!(first.messages_dispatched, 64);
+        assert!(first.runtime_work_remaining);
+        assert_eq!(runtime.bridge().dispatched, (0..64).collect::<Vec<_>>());
+
+        let second = runtime.drain_runtime_messages();
+
+        assert_eq!(second.messages_dispatched, 6);
+        assert!(!second.runtime_work_remaining);
+        assert_eq!(runtime.bridge().dispatched, (0..70).collect::<Vec<_>>());
+    }
 
     #[test]
     fn runtime_message_batch_preserves_order_and_keeps_remainder() {

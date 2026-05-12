@@ -71,6 +71,17 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             ],
         ),
         (
+            "sample_source_list",
+            vec![
+                "list(",
+                "list_row_id(",
+                "selectable(",
+                "button(\"+\")",
+                "button(\"-\")",
+                "selected_id",
+            ],
+        ),
+        (
             "animation_showcase",
             vec![".animation(", ".on_frame(", "AnimationMessage::Frame"],
         ),

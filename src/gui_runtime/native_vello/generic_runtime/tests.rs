@@ -225,6 +225,17 @@ fn generic_core_drains_command_repaint_requests_after_routing() {
 }
 
 #[test]
+fn generic_core_empty_runtime_wakeup_does_not_need_redraw() {
+    let mut core = GenericNativeRuntimeCore::new(demo_bridge(), Vector2::new(320.0, 40.0));
+
+    let outcome = core.drain_runtime_messages();
+
+    assert!(!outcome.routed);
+    assert!(!outcome.needs_redraw());
+    assert!(!outcome.runtime_work_remaining);
+}
+
+#[test]
 fn generic_core_is_repaint_driven_when_host_reports_no_animation() {
     let mut core = GenericNativeRuntimeCore::new(demo_bridge(), Vector2::new(320.0, 40.0));
 

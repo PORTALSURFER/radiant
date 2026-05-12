@@ -7,14 +7,12 @@ use super::super::cache::{
 use super::super::helpers::LayoutAxis;
 use super::super::{LayoutContext, LayoutDiagnosticCode, VirtualWindowInfo};
 use super::layout_node;
+use super::scroll_cache::collect_virtual_metric_dependencies;
 use super::scroll_helpers::{
     clamp_scroll_offset, compute_virtual_window, cursor_before_first, record_window_debug,
     sanitize_overscan,
 };
-use super::scroll_linear::{
-    build_linear_metrics, collect_subtree_ids_from_container, known_linear_main_extent,
-    metrics_is_valid,
-};
+use super::scroll_linear::{build_linear_metrics, known_linear_main_extent, metrics_is_valid};
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{ContainerKind, VirtualizationAxis};
 use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, SlotChild};
@@ -269,7 +267,7 @@ fn cached_or_build_metrics(
 
     let metrics = Arc::new(build_linear_metrics(content, constraints, axis, context));
     let mut dependencies = HashSet::with_capacity(content.children.len().saturating_add(1));
-    collect_subtree_ids_from_container(content, &mut dependencies);
+    collect_virtual_metric_dependencies(content, &mut dependencies);
     context.remember_virtual_metrics(key, Arc::clone(&metrics), dependencies);
     metrics
 }

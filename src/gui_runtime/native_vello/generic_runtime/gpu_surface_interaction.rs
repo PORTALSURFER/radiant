@@ -76,8 +76,9 @@ where
             return;
         }
         if self.can_fast_path_gpu_surface_pointer_move(previous, position) {
-            self.update_gpu_surface_cursor_overlay(position);
-            self.request_redraw_if_needed();
+            if self.update_gpu_surface_cursor_overlay(position) {
+                self.request_redraw_if_needed();
+            }
             return;
         }
         self.rebuild_scene();
@@ -129,6 +130,21 @@ where
         };
         let ratio =
             ((position.x - surface.rect.min.x) / surface.rect.width().max(1.0)).clamp(0.0, 1.0);
+        let mut cursor_count = 0;
+        let mut cursor_is_current = false;
+        for overlay in &surface.overlays {
+            let GpuSurfaceOverlay::VerticalCursor {
+                ratio: current_ratio,
+                color,
+                width,
+            } = overlay;
+            cursor_count += 1;
+            cursor_is_current |=
+                *current_ratio == ratio && *color == cursor.color && *width == cursor.width;
+        }
+        if cursor_count == 1 && cursor_is_current {
+            return false;
+        }
         surface
             .overlays
             .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::VerticalCursor { .. }));

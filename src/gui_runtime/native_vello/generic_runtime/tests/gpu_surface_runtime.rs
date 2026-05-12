@@ -91,6 +91,62 @@ fn native_gpu_hover_updates_cached_overlay_without_refreshing_surface() {
 }
 
 #[test]
+fn native_gpu_hover_skips_unchanged_cached_overlay() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+
+    assert!(runner.update_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
+    assert!(!runner.update_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
+    assert!(runner.update_gpu_surface_cursor_overlay(Point::new(80.0, 20.0)));
+}
+
+#[test]
+fn native_gpu_hover_collapses_duplicate_cursor_overlays() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+
+    assert!(runner.update_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
+    let surface = runner
+        .last_paint_plan
+        .primitives
+        .iter_mut()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::GpuSurface(surface) => Some(surface),
+            _ => None,
+        })
+        .expect("gpu surface primitive");
+    let cursor = surface.overlays[0];
+    surface.overlays.push(cursor);
+
+    assert!(runner.update_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
+    let surface = runner
+        .last_paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::GpuSurface(surface) => Some(surface),
+            _ => None,
+        })
+        .expect("gpu surface primitive");
+    assert_eq!(
+        surface
+            .overlays
+            .iter()
+            .filter(|overlay| matches!(overlay, GpuSurfaceOverlay::VerticalCursor { .. }))
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn native_gpu_hover_clear_hides_cached_cursor_without_rebuild() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

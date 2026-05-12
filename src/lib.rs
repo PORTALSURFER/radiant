@@ -56,6 +56,7 @@ pub mod prelude {
         toggle, toggle_mapped, tree_list, tree_list_with_drag, virtual_list, virtual_list_window,
         virtual_scroll, widget, window,
     };
+    pub use crate::gui::types::{ImageRgba, Point, Rect, Rgba8, Vector2};
     pub use crate::gui::{
         chrome::{ContentViewChrome, StatusSegments},
         focus::FocusSurface,
@@ -63,6 +64,7 @@ pub mod prelude {
         list::{VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window},
         shortcuts::ShortcutResolution,
     };
+    pub use crate::layout::LayoutOutput;
     pub use crate::runtime::{
         Command, EmbeddedFont, GpuHoverCursor, GpuSignalRenderShape, GpuSignalSummary,
         GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent,
@@ -70,6 +72,7 @@ pub mod prelude {
         PaintTextAlign, PaintTextRun, ResourceKey, ResourceLoad, ResourceLoadState,
         ResourceRequest, ResourceSlot, ScrollUpdate, SurfaceFrame, WindowManifest, WindowSpec,
     };
+    pub use crate::theme::ThemeTokens;
     pub use crate::widgets::{
         DragHandleMessage, FocusBehavior, GpuSurfaceMessage, GpuSurfaceWidget, PointerButton,
         SliderMessage, SliderWidget, TextAlign, TextWrap, Widget, WidgetCommon, WidgetInput,

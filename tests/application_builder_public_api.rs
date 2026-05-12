@@ -730,6 +730,28 @@ fn prelude_exports_custom_widget_authoring_contract() {
 }
 
 #[test]
+fn prelude_exports_custom_widget_signature_types() {
+    use radiant::prelude as ui;
+
+    let rect = ui::Rect::from_min_size(ui::Point::new(0.0, 0.0), ui::Vector2::new(8.0, 4.0));
+    let layout = ui::LayoutOutput::default();
+    let theme = ui::ThemeTokens::default();
+    let color = ui::Rgba8 {
+        r: 1,
+        g: 2,
+        b: 3,
+        a: 255,
+    };
+    let image = ui::ImageRgba::new(1, 1, vec![255, 255, 255, 255]).expect("valid image");
+
+    assert_eq!(rect.width(), 8.0);
+    assert!(layout.rects.is_empty());
+    assert_eq!(theme.text_primary.a, 255);
+    assert_eq!(color.g, 2);
+    assert_eq!(image.width, 1);
+}
+
+#[test]
 fn hello_world_example_stays_on_application_builders() {
     let source = include_str!("../examples/hello_world.rs");
 

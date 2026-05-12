@@ -72,6 +72,10 @@ name = "sample_source_list"
 path = "examples/sample_source_list.rs"
 
 [[example]]
+name = "toolbar_icons"
+path = "examples/toolbar_icons.rs"
+
+[[example]]
 name = "layout_rows_columns"
 path = "examples/layout_rows_columns.rs"
 

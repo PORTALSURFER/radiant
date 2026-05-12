@@ -1,15 +1,18 @@
 use super::threading::BusinessThreadPool;
+use super::timer::TimerLane;
 use crate::{gui::repaint::RepaintSignal, runtime::Command};
 use std::sync::{
-    Arc, Mutex,
+    Arc, Mutex, OnceLock,
     atomic::{AtomicBool, Ordering},
 };
+use std::time::Duration;
 
 pub(in crate::application) struct AppRuntime<Message> {
     pending: Mutex<Vec<Message>>,
     commands: Mutex<Vec<Command<Message>>>,
     repaint: Mutex<Option<Arc<dyn RepaintSignal>>>,
     business: BusinessThreadPool,
+    timers: OnceLock<TimerLane<Message>>,
     alive: AtomicBool,
     frame_pending: AtomicBool,
 }
@@ -21,6 +24,7 @@ impl<Message> Default for AppRuntime<Message> {
             commands: Mutex::new(Vec::new()),
             repaint: Mutex::new(None),
             business: BusinessThreadPool::default(),
+            timers: OnceLock::new(),
             alive: AtomicBool::new(true),
             frame_pending: AtomicBool::new(false),
         }
@@ -106,6 +110,20 @@ impl<Message> AppRuntime<Message> {
     }
 }
 
+impl<Message> AppRuntime<Message>
+where
+    Message: Send + 'static,
+{
+    pub(super) fn schedule_message(self: &Arc<Self>, delay: Duration, message: Message) -> bool {
+        if !self.is_alive() {
+            return false;
+        }
+        self.timers
+            .get_or_init(TimerLane::new)
+            .schedule(Arc::downgrade(self), delay, message)
+    }
+}
+
 fn lock_runtime_state<T>(state: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     state
         .lock()
@@ -132,6 +150,7 @@ mod tests {
             atomic::{AtomicBool, Ordering},
         },
         thread,
+        time::{Duration, Instant},
     };
 
     struct TestRepaintSignal {
@@ -262,5 +281,35 @@ mod tests {
         let queue = runtime.commands.lock().expect("commands lock");
         assert!(queue.is_empty());
         assert_eq!(queue.capacity(), queue_capacity);
+    }
+
+    #[test]
+    fn delayed_messages_use_runtime_timer_lane() {
+        let runtime = Arc::new(AppRuntime::<u32>::default());
+
+        assert!(runtime.schedule_message(Duration::from_millis(1), 7));
+
+        let started = Instant::now();
+        let mut delivered = Vec::new();
+        while started.elapsed() < Duration::from_secs(1) {
+            delivered = runtime.take_pending();
+            if !delivered.is_empty() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+
+        assert_eq!(delivered, vec![7]);
+    }
+
+    #[test]
+    fn delayed_messages_stop_after_runtime_shutdown() {
+        let runtime = Arc::new(AppRuntime::<u32>::default());
+
+        runtime.shutdown();
+
+        assert!(!runtime.schedule_message(Duration::ZERO, 7));
+        thread::sleep(Duration::from_millis(1));
+        assert!(runtime.take_pending().is_empty());
     }
 }

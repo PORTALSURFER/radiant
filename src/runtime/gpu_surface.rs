@@ -177,6 +177,15 @@ pub enum GpuSurfaceOverlay {
         /// Cursor width in logical pixels.
         width: f32,
     },
+    /// Runtime-owned vertical hover cursor line positioned inside the destination rect.
+    NativeHoverCursor {
+        /// Horizontal cursor position as a 0..1 ratio inside the destination rect.
+        ratio: f32,
+        /// Cursor color.
+        color: Rgba8,
+        /// Cursor width in logical pixels.
+        width: f32,
+    },
 }
 
 #[cfg(test)]

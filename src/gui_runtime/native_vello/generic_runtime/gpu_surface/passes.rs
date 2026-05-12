@@ -59,14 +59,48 @@ pub(super) fn set_surface_scissor(pass: &mut wgpu::RenderPass<'_>, rect: UiRect)
     pass.set_scissor_rect(x, y, width, height);
 }
 
-pub(super) fn vertical_cursor(overlays: &[GpuSurfaceOverlay]) -> Option<(f32, Rgba8, f32)> {
-    overlays.first().map(|overlay| match *overlay {
+pub(super) fn vertical_overlays(
+    overlays: &[GpuSurfaceOverlay],
+) -> (
+    [f32; MAX_GPU_SURFACE_OVERLAYS],
+    [f32; MAX_GPU_SURFACE_OVERLAYS],
+    [[f32; 4]; MAX_GPU_SURFACE_OVERLAYS],
+) {
+    let mut ratios = [-1.0; MAX_GPU_SURFACE_OVERLAYS];
+    let mut widths = [1.0; MAX_GPU_SURFACE_OVERLAYS];
+    let mut colors = [[1.0, 1.0, 1.0, 0.0]; MAX_GPU_SURFACE_OVERLAYS];
+    for (index, overlay) in overlays
+        .iter()
+        .filter(|overlay| matches!(overlay, GpuSurfaceOverlay::VerticalCursor { .. }))
+        .chain(
+            overlays
+                .iter()
+                .filter(|overlay| matches!(overlay, GpuSurfaceOverlay::NativeHoverCursor { .. })),
+        )
+        .take(MAX_GPU_SURFACE_OVERLAYS)
+        .enumerate()
+    {
+        let (ratio, color, width) = vertical_overlay_parts(*overlay);
+        ratios[index] = ratio;
+        widths[index] = width;
+        colors[index] = rgba_to_float(color);
+    }
+    (ratios, widths, colors)
+}
+
+fn vertical_overlay_parts(overlay: GpuSurfaceOverlay) -> (f32, Rgba8, f32) {
+    match overlay {
         GpuSurfaceOverlay::VerticalCursor {
             ratio,
             color,
             width,
+        }
+        | GpuSurfaceOverlay::NativeHoverCursor {
+            ratio,
+            color,
+            width,
         } => (ratio, color, width),
-    })
+    }
 }
 
 pub(super) fn rgba_to_float(color: Rgba8) -> [f32; 4] {

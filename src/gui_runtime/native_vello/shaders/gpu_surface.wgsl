@@ -2,9 +2,9 @@ struct Params {
     dest: vec4<f32>,
     source: vec4<f32>,
     target_size: vec2<f32>,
-    cursor_ratio: f32,
-    cursor_width: f32,
-    cursor_color: vec4<f32>,
+    overlay_ratios: vec4<f32>,
+    overlay_widths: vec4<f32>,
+    overlay_colors: array<vec4<f32>, 4>,
 };
 
 @group(0) @binding(0)
@@ -48,9 +48,12 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOut {
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     var color = textureSample(surface_texture, surface_sampler, in.uv);
-    let cursor_half_width = max(params.cursor_width / max(params.dest.z, 1.0), 0.0005);
-    if (params.cursor_ratio >= 0.0 && abs(in.local.x - params.cursor_ratio) <= cursor_half_width) {
-        color = params.cursor_color;
+    for (var index = 0u; index < 4u; index = index + 1u) {
+        let ratio = params.overlay_ratios[index];
+        let half_width = max(params.overlay_widths[index] / max(params.dest.z, 1.0), 0.0005);
+        if (ratio >= 0.0 && abs(in.local.x - ratio) <= half_width) {
+            color = params.overlay_colors[index];
+        }
     }
     return color;
 }

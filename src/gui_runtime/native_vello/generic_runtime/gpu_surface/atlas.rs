@@ -40,16 +40,14 @@ impl GpuSurfaceRenderer {
         let Some(pipeline) = self.pipeline.as_ref() else {
             return;
         };
-        let cursor = vertical_cursor(&surface.overlays);
+        let (overlay_ratios, overlay_widths, overlay_colors) = vertical_overlays(&surface.overlays);
         let uniforms = GpuSurfaceUniforms {
             dest: surface_dest(surface),
             source,
             target_size: [target.size.x.max(1.0), target.size.y.max(1.0)],
-            cursor_ratio: cursor.map(|cursor| cursor.0).unwrap_or(-1.0),
-            cursor_width: cursor.map(|cursor| cursor.2).unwrap_or(1.0),
-            cursor_color: cursor
-                .map(|cursor| rgba_to_float(cursor.1))
-                .unwrap_or([1.0, 1.0, 1.0, 0.92]),
+            overlay_ratios,
+            overlay_widths,
+            overlay_colors,
         };
         let uniform_buffer = target
             .device

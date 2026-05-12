@@ -101,9 +101,9 @@ pub(super) struct GpuSurfaceUniforms {
     pub(super) dest: [f32; 4],
     pub(super) source: [f32; 4],
     pub(super) target_size: [f32; 2],
-    pub(super) cursor_ratio: f32,
-    pub(super) cursor_width: f32,
-    pub(super) cursor_color: [f32; 4],
+    pub(super) overlay_ratios: [f32; MAX_GPU_SURFACE_OVERLAYS],
+    pub(super) overlay_widths: [f32; MAX_GPU_SURFACE_OVERLAYS],
+    pub(super) overlay_colors: [[f32; 4]; MAX_GPU_SURFACE_OVERLAYS],
 }
 
 #[repr(C)]
@@ -117,3 +117,5 @@ pub(super) struct SignalUniforms {
     pub(super) cursor_width: f32,
     pub(super) cursor_color: [f32; 4],
 }
+
+pub(super) const MAX_GPU_SURFACE_OVERLAYS: usize = 4;

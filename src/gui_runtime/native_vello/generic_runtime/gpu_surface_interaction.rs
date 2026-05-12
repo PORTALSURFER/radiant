@@ -133,11 +133,14 @@ where
         let mut cursor_count = 0;
         let mut cursor_is_current = false;
         for overlay in &surface.overlays {
-            let GpuSurfaceOverlay::VerticalCursor {
+            let GpuSurfaceOverlay::NativeHoverCursor {
                 ratio: current_ratio,
                 color,
                 width,
-            } = overlay;
+            } = overlay
+            else {
+                continue;
+            };
             cursor_count += 1;
             cursor_is_current |=
                 *current_ratio == ratio && *color == cursor.color && *width == cursor.width;
@@ -147,8 +150,8 @@ where
         }
         surface
             .overlays
-            .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::VerticalCursor { .. }));
-        surface.overlays.push(GpuSurfaceOverlay::VerticalCursor {
+            .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::NativeHoverCursor { .. }));
+        surface.overlays.push(GpuSurfaceOverlay::NativeHoverCursor {
             ratio,
             color: cursor.color,
             width: cursor.width,
@@ -167,7 +170,7 @@ where
         let previous_len = surface.overlays.len();
         surface
             .overlays
-            .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::VerticalCursor { .. }));
+            .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::NativeHoverCursor { .. }));
         previous_len != surface.overlays.len()
     }
 }

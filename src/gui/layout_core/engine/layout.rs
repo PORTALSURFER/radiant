@@ -4,6 +4,7 @@ mod boxes;
 mod grid;
 mod linear;
 mod scroll;
+mod scroll_cache;
 mod scroll_helpers;
 mod scroll_linear;
 mod wrap;

@@ -47,10 +47,10 @@ pub use gpu_surface::{
     GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay,
 };
 pub use paint::{
-    PaintCustomSurface, PaintFillPolygon, PaintFillRect, PaintGpuSurface, PaintImage,
-    PaintOverlayPanel, PaintPointList, PaintPrimitive, PaintStrokePolygon, PaintStrokePolyline,
-    PaintStrokeRect, PaintText, PaintTextAlign, PaintTextInput, PaintTextRun, Renderer,
-    SurfacePaintPlan, SurfacePaintStats,
+    PaintCustomSurface, PaintFillPath, PaintFillPolygon, PaintFillRect, PaintFillRule,
+    PaintGpuSurface, PaintImage, PaintOverlayPanel, PaintPath, PaintPointList, PaintPrimitive,
+    PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintText, PaintTextAlign,
+    PaintTextInput, PaintTextRun, Renderer, SurfacePaintPlan, SurfacePaintStats,
 };
 pub(crate) use paint::{
     blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,

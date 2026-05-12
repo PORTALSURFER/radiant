@@ -752,6 +752,33 @@ fn prelude_exports_custom_widget_signature_types() {
 }
 
 #[test]
+fn prelude_exports_svg_icon_vector_painting() {
+    use radiant::prelude as ui;
+
+    let icon = ui::SvgIcon::from_svg(
+        r#"<svg viewBox="0 0 4 4"><rect x="0" y="0" width="4" height="4"/></svg>"#,
+    )
+    .expect("filled SVG rect should parse");
+    let mut primitives = Vec::new();
+    icon.append_fill_paint(
+        &mut primitives,
+        1,
+        ui::Rect::from_min_size(ui::Point::new(2.0, 3.0), ui::Vector2::new(4.0, 4.0)),
+        ui::Rgba8 {
+            r: 8,
+            g: 16,
+            b: 24,
+            a: 255,
+        },
+    );
+
+    assert!(matches!(
+        primitives.as_slice(),
+        [ui::PaintPrimitive::FillPath(_)]
+    ));
+}
+
+#[test]
 fn hello_world_example_stays_on_application_builders() {
     let source = include_str!("../examples/hello_world.rs");
 

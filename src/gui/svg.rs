@@ -8,10 +8,12 @@
 mod transform;
 
 use vello::kurbo::{
-    Affine, BezPath, Circle as KurboCircle, Point as KurboPoint, Rect as KurboRect, Shape,
+    Affine, BezPath, Circle as KurboCircle, Point as KurboPoint, Rect as KurboRect, Shape, Vec2,
 };
 
-use crate::gui::types::{ImageRgba, Rgba8};
+use crate::gui::types::Rgba8;
+use crate::runtime::{PaintFillPath, PaintFillRule, PaintPrimitive};
+use crate::widgets::WidgetId;
 use transform::{parse_attr_f64, parse_number_list, parse_points, parse_transform_list};
 
 /// Parsed SVG document ready for rasterization.
@@ -40,6 +42,56 @@ pub struct SvgShape {
 enum SvgFillRule {
     NonZero,
     EvenOdd,
+}
+
+/// Retained vector SVG icon parsed into backend-neutral paint paths.
+#[derive(Clone, Debug)]
+pub struct SvgIcon {
+    document: SvgDocument,
+}
+
+impl SvgIcon {
+    /// Parse an SVG icon from embedded source text.
+    pub fn from_svg(svg: &str) -> Option<Self> {
+        Some(Self {
+            document: parse_svg_document(svg)?,
+        })
+    }
+
+    /// Append this icon as filled vector paint primitives inside `rect`.
+    pub fn append_fill_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        widget_id: WidgetId,
+        rect: crate::gui::types::Rect,
+        color: Rgba8,
+    ) {
+        let scale_x = rect.width() / self.document.view_box_width.max(f32::EPSILON);
+        let scale_y = rect.height() / self.document.view_box_height.max(f32::EPSILON);
+        let transform = Affine::translate(Vec2::new(rect.min.x as f64, rect.min.y as f64))
+            * Affine::scale_non_uniform(scale_x as f64, scale_y as f64)
+            * Affine::translate(Vec2::new(
+                -self.document.view_box_min_x as f64,
+                -self.document.view_box_min_y as f64,
+            ));
+        for shape in &self.document.shapes {
+            primitives.push(PaintPrimitive::FillPath(PaintFillPath {
+                widget_id,
+                path: std::sync::Arc::new(transform * shape.path.clone()),
+                fill_rule: shape.fill_rule.into(),
+                color,
+            }));
+        }
+    }
+}
+
+impl From<SvgFillRule> for PaintFillRule {
+    fn from(value: SvgFillRule) -> Self {
+        match value {
+            SvgFillRule::NonZero => Self::NonZero,
+            SvgFillRule::EvenOdd => Self::EvenOdd,
+        }
+    }
 }
 
 /// Parse one SVG document from an asset file.
@@ -73,42 +125,6 @@ pub fn parse_svg_document(svg: &str) -> Option<SvgDocument> {
         view_box_height: view_box_values[3] as f32,
         shapes,
     })
-}
-
-/// Rasterize a filled SVG icon into a square RGBA image.
-///
-/// This helper is intended for small retained icon assets that use the same SVG
-/// subset accepted by [`parse_svg_document`]. Unsupported SVG input returns
-/// `None` instead of falling back to a partially rendered icon.
-pub fn rasterize_svg_icon(svg: &str, size: usize, color: Rgba8) -> Option<ImageRgba> {
-    let document = parse_svg_document(svg)?;
-    rasterize_svg_document(&document, size, color)
-}
-
-/// Rasterize a parsed filled SVG document into a square RGBA image.
-pub fn rasterize_svg_document(
-    document: &SvgDocument,
-    size: usize,
-    color: Rgba8,
-) -> Option<ImageRgba> {
-    if size == 0 {
-        return None;
-    }
-    let mut pixels = Vec::with_capacity(size.saturating_mul(size).saturating_mul(4));
-    for y in 0..size {
-        for x in 0..size {
-            let sample_x = document.view_box_min_x
-                + ((x as f32 + 0.5) / size as f32) * document.view_box_width;
-            let sample_y = document.view_box_min_y
-                + ((y as f32 + 0.5) / size as f32) * document.view_box_height;
-            if point_in_svg_shapes(sample_x, sample_y, &document.shapes) {
-                pixels.extend_from_slice(&[color.r, color.g, color.b, color.a]);
-            } else {
-                pixels.extend_from_slice(&[0, 0, 0, 0]);
-            }
-        }
-    }
-    ImageRgba::new(size, size, pixels)
 }
 
 fn collect_shapes(
@@ -217,19 +233,6 @@ fn extract_style_property<'a>(node: roxmltree::Node<'a, 'a>, property: &str) -> 
     })
 }
 
-/// Determine whether one point lands inside any parsed SVG shape.
-pub fn point_in_svg_shapes(x: f32, y: f32, shapes: &[SvgShape]) -> bool {
-    let point = KurboPoint::new(x as f64, y as f64);
-    shapes.iter().any(|shape| point_in_svg_shape(point, shape))
-}
-
-fn point_in_svg_shape(point: KurboPoint, shape: &SvgShape) -> bool {
-    match shape.fill_rule {
-        SvgFillRule::NonZero => shape.path.contains(point),
-        SvgFillRule::EvenOdd => shape.path.winding(point).abs() % 2 == 1,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -247,44 +250,46 @@ mod tests {
         let document = parse_svg_document(svg).expect("document should parse");
 
         assert_eq!(document.shapes.len(), 1);
-        assert!(point_in_svg_shapes(5.0, 5.0, &document.shapes));
-        assert!(!point_in_svg_shapes(3.0, 3.0, &document.shapes));
+        assert_eq!(
+            document.shapes[0].path.bounding_box(),
+            KurboRect::new(4.0, 4.0, 8.0, 8.0)
+        );
     }
 
     #[test]
-    fn rasterizes_svg_icon_to_square_rgba_image() {
+    fn svg_icon_appends_scaled_fill_path_primitives() {
         let svg = r#"
             <svg viewBox="0 0 4 4" xmlns="http://www.w3.org/2000/svg">
               <rect x="0" y="0" width="2" height="4" />
             </svg>
         "#;
-        let image = rasterize_svg_icon(
-            svg,
-            4,
+        let icon = SvgIcon::from_svg(svg).expect("icon should parse");
+        let mut primitives = Vec::new();
+
+        icon.append_fill_paint(
+            &mut primitives,
+            9,
+            crate::gui::types::Rect::from_min_size(
+                crate::gui::types::Point::new(10.0, 20.0),
+                crate::gui::types::Vector2::new(8.0, 8.0),
+            ),
             Rgba8 {
                 r: 10,
                 g: 20,
                 b: 30,
                 a: 255,
             },
-        )
-        .expect("icon should rasterize");
+        );
 
-        assert_eq!(image.width, 4);
-        assert_eq!(image.height, 4);
-        assert_eq!(&image.pixels[0..4], &[10, 20, 30, 255]);
-        assert_eq!(&image.pixels[12..16], &[0, 0, 0, 0]);
-    }
-
-    #[test]
-    fn rasterize_svg_icon_rejects_zero_size() {
-        let svg = r#"
-            <svg viewBox="0 0 4 4" xmlns="http://www.w3.org/2000/svg">
-              <rect x="0" y="0" width="4" height="4" />
-            </svg>
-        "#;
-
-        assert!(rasterize_svg_icon(svg, 0, Rgba8::default()).is_none());
+        let [PaintPrimitive::FillPath(fill)] = primitives.as_slice() else {
+            panic!("svg icon should append one filled path");
+        };
+        assert_eq!(fill.widget_id, 9);
+        assert_eq!(fill.color.r, 10);
+        assert_eq!(
+            fill.path.bounding_box(),
+            KurboRect::new(10.0, 20.0, 14.0, 28.0)
+        );
     }
 
     #[test]

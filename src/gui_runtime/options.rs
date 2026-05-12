@@ -101,6 +101,10 @@ impl EmbeddedFont {
         &self.bytes
     }
 
+    pub(crate) fn shared_bytes(&self) -> Arc<[u8]> {
+        Arc::clone(&self.bytes)
+    }
+
     /// Return the font index used for this embedded font.
     pub const fn index(&self) -> u32 {
         self.index
@@ -129,6 +133,21 @@ impl fmt::Debug for EmbeddedFont {
             .field("len", &self.bytes.len())
             .field("index", &self.index)
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::EmbeddedFont;
+    use std::sync::Arc;
+
+    #[test]
+    fn embedded_font_shared_bytes_reuses_storage() {
+        let font = EmbeddedFont::from_static(b"font bytes");
+        let first = font.shared_bytes();
+        let second = font.shared_bytes();
+
+        assert!(Arc::ptr_eq(&first, &second));
     }
 }
 

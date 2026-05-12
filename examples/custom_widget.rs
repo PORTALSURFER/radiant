@@ -3,9 +3,7 @@
 use radiant::prelude::*;
 use radiant::{
     layout::{LayoutOutput, Rect, Vector2},
-    runtime::{PaintFillRect, PaintPrimitive, PaintTextAlign, PaintTextRun},
     theme::ThemeTokens,
-    widgets::{FocusBehavior, PointerButton, TextWrap, WidgetCommon, WidgetInput, WidgetSizing},
 };
 
 #[derive(Default)]
@@ -51,9 +49,7 @@ impl Widget for StatusChip {
                 position,
                 button: PointerButton::Primary,
             } if bounds.contains(position) => Some(WidgetOutput::custom(ChipOutput::Toggle)),
-            WidgetInput::KeyPress(radiant::widgets::WidgetKey::Enter)
-                if self.common.state.focused =>
-            {
+            WidgetInput::KeyPress(WidgetKey::Enter) if self.common.state.focused => {
                 Some(WidgetOutput::custom(ChipOutput::Toggle))
             }
             WidgetInput::FocusChanged(focused) => {

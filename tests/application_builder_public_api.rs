@@ -1,10 +1,13 @@
 //! Public API coverage for Radiant application builder ergonomics.
 
 use radiant::{
+    gui::types::Rgba8,
     layout::{
-        LayoutDebugOptions, LayoutState, Point, Rect, Vector2, layout_tree, layout_tree_with_state,
+        LayoutDebugOptions, LayoutOutput, LayoutState, Point, Rect, Vector2, layout_tree,
+        layout_tree_with_state,
     },
     runtime::{RuntimeBridge, UiSurface, WidgetMessageMapper},
+    theme::ThemeTokens,
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, SelectableMessage,
         SelectableWidget, SliderMessage, SliderWidget, TextInputMessage, TextInputWidget,
@@ -656,6 +659,74 @@ fn prelude_exports_application_chrome_models() {
     assert_eq!(status.center, "Autosave on");
     assert_eq!(status.right, "Idle");
     assert_eq!(chrome.item_column_label, "Item");
+}
+
+#[test]
+fn prelude_exports_custom_widget_authoring_contract() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    #[derive(Clone)]
+    struct AuthorWidget {
+        common: ui::WidgetCommon,
+    }
+
+    impl ui::Widget for AuthorWidget {
+        fn common(&self) -> &ui::WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut ui::WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(
+            &mut self,
+            _bounds: Rect,
+            input: ui::WidgetInput,
+        ) -> Option<ui::WidgetOutput> {
+            match input {
+                ui::WidgetInput::KeyPress(ui::WidgetKey::Enter) => {
+                    Some(ui::WidgetOutput::custom(()))
+                }
+                ui::WidgetInput::PointerRelease {
+                    button: ui::PointerButton::Primary,
+                    ..
+                } => Some(ui::WidgetOutput::custom(())),
+                _ => None,
+            }
+        }
+
+        fn append_paint(
+            &self,
+            primitives: &mut Vec<ui::PaintPrimitive>,
+            bounds: Rect,
+            _layout: &LayoutOutput,
+            _theme: &ThemeTokens,
+        ) {
+            primitives.push(ui::PaintPrimitive::FillRect(ui::PaintFillRect {
+                widget_id: self.common.id,
+                rect: bounds,
+                color: Rgba8 {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    a: 255,
+                },
+            }));
+        }
+    }
+
+    let mut common = ui::WidgetCommon::new(77, ui::WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+    common.focus = ui::FocusBehavior::Keyboard;
+    common.state = ui::WidgetState {
+        hovered: true,
+        ..ui::WidgetState::default()
+    };
+    let widget = AuthorWidget { common };
+    let surface: ui::View<()> = ui::widget(widget);
+    let surface = surface.into_surface();
+
+    assert!(surface.find_widget(1).is_some());
 }
 
 #[test]

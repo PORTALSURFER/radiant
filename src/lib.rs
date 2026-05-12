@@ -66,12 +66,15 @@ pub mod prelude {
     pub use crate::runtime::{
         Command, EmbeddedFont, GpuHoverCursor, GpuSignalRenderShape, GpuSignalSummary,
         GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent,
-        GpuSurfaceOverlay, ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest,
-        ResourceSlot, ScrollUpdate, SurfaceFrame, WindowManifest, WindowSpec,
+        GpuSurfaceOverlay, PaintFillRect, PaintImage, PaintPrimitive, PaintStrokeRect,
+        PaintTextAlign, PaintTextRun, ResourceKey, ResourceLoad, ResourceLoadState,
+        ResourceRequest, ResourceSlot, ScrollUpdate, SurfaceFrame, WindowManifest, WindowSpec,
     };
     pub use crate::widgets::{
-        DragHandleMessage, GpuSurfaceMessage, GpuSurfaceWidget, SliderMessage, SliderWidget,
-        TextAlign, Widget, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
+        DragHandleMessage, FocusBehavior, GpuSurfaceMessage, GpuSurfaceWidget, PointerButton,
+        SliderMessage, SliderWidget, TextAlign, TextWrap, Widget, WidgetCommon, WidgetInput,
+        WidgetKey, WidgetOutput, WidgetProminence, WidgetSizing, WidgetState, WidgetStyle,
+        WidgetTone, WidgetVisualTokens, resolve_widget_visual_tokens,
     };
 }
 

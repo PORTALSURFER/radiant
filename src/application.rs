@@ -53,8 +53,8 @@ pub use builders::{
 };
 pub(in crate::application) use builders::{
     danger_style, default_badge_sizing, default_button_sizing, default_canvas_sizing,
-    default_drag_handle_sizing, default_selectable_sizing, default_text_input_sizing,
-    default_toggle_sizing, primary_style, view_node_from_widget,
+    default_drag_handle_sizing, default_selectable_sizing, default_slider_sizing,
+    default_text_input_sizing, default_toggle_sizing, primary_style, view_node_from_widget,
 };
 mod control_builders;
 pub use control_builders::*;

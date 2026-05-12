@@ -7,8 +7,8 @@ use radiant::{
     runtime::{RuntimeBridge, UiSurface, WidgetMessageMapper},
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, SelectableMessage,
-        SelectableWidget, TextInputMessage, TextInputWidget, TextWidget, ToggleWidget, Widget,
-        WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
+        SelectableWidget, SliderMessage, SliderWidget, TextInputMessage, TextInputWidget,
+        TextWidget, ToggleWidget, Widget, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
     },
 };
 
@@ -580,6 +580,7 @@ fn application_builders_expose_padding_style_and_text_policy_helpers() {
             .placeholder("What needs to be done?")
             .message(|_| ())
             .id(14),
+        ui::slider(0.4).primary().message(|_| ()).id(15),
     ])
     .id(1)
     .padding(16.0)
@@ -615,6 +616,17 @@ fn application_builders_expose_padding_style_and_text_policy_helpers() {
             .placeholder
             .as_deref(),
         Some("What needs to be done?")
+    );
+    let slider = widget_ref::<SliderWidget, _>(&surface, 15, "slider");
+    assert_eq!(slider.state.value, 0.4);
+    assert_eq!(slider.common.style.tone, WidgetTone::Accent);
+    assert_eq!(slider.common.style.prominence, WidgetProminence::Strong);
+    assert_eq!(
+        surface.dispatch_widget_output(
+            15,
+            radiant::widgets::WidgetOutput::typed(SliderMessage::ValueChanged { value: 0.75 }),
+        ),
+        Some(())
     );
 }
 

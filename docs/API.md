@@ -318,9 +318,11 @@ business work should use `Command::perform(...)`, `UpdateContext::spawn(...)`,
 work to runtime-managed business threads and returns results through the normal
 message queue. Finite `Command::perform(...)` jobs run on a bounded business
 worker lane so bursts of host work do not create unbounded OS threads beside the
-UI path. If an app explicitly needs immediate synchronous behavior, it can
-dispatch a normal message and do that short work in the reducer, but the default
-architecture is UI-first and non-blocking.
+UI path. If that lane cannot be started or a job cannot be queued, Radiant
+reports the offload failure instead of running the work synchronously on the
+UI/event/render owner. If an app explicitly needs immediate synchronous
+behavior, it can dispatch a normal message and do that short work in the
+reducer, but the default architecture is UI-first and non-blocking.
 
 The current native runtime keeps Vello/window rendering on the event-loop path
 because those backend/platform constraints require it. Future render-worker or

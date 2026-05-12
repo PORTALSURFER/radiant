@@ -12,8 +12,13 @@ const DEFAULT_BUSINESS_WORKERS: usize = 2;
 
 type BusinessJob = Box<dyn FnOnce() + Send + 'static>;
 
+/// Runtime-owned lane for application business work.
+///
+/// The UI/event/render path must be able to start even when background worker
+/// capacity is unavailable. Work submission reports failure instead of falling
+/// back to synchronous execution on the UI owner.
 pub(super) struct BusinessThreadPool {
-    sender: Sender<BusinessJob>,
+    sender: Option<Sender<BusinessJob>>,
     _workers: Vec<thread::JoinHandle<()>>,
 }
 
@@ -32,12 +37,17 @@ impl BusinessThreadPool {
         for worker_index in 0..worker_count {
             let receiver = Arc::clone(&receiver);
             let name = business_thread_name(format!("worker-{worker_index}"));
-            let worker = thread::Builder::new()
+            match thread::Builder::new()
                 .name(name.clone())
                 .spawn(move || worker_loop(receiver))
-                .unwrap_or_else(|error| panic!("failed to spawn {name}: {error}"));
-            workers.push(worker);
+            {
+                Ok(worker) => workers.push(worker),
+                Err(error) => {
+                    eprintln!("Radiant app runtime: failed to spawn {name}: {error}");
+                }
+            }
         }
+        let sender = (!workers.is_empty()).then_some(sender);
         Self {
             sender,
             _workers: workers,
@@ -45,12 +55,26 @@ impl BusinessThreadPool {
     }
 
     pub(super) fn spawn(&self, name: &'static str, work: impl FnOnce() + Send + 'static) -> bool {
-        match self.sender.send(Box::new(work)) {
+        let Some(sender) = &self.sender else {
+            eprintln!(
+                "Radiant app runtime: no business workers are available to run {name}; refusing to block the UI path"
+            );
+            return false;
+        };
+        match sender.send(Box::new(work)) {
             Ok(()) => true,
             Err(_) => {
                 eprintln!("Radiant app runtime: failed to queue {name} on business workers");
                 false
             }
+        }
+    }
+
+    #[cfg(test)]
+    fn without_workers_for_test() -> Self {
+        Self {
+            sender: None,
+            _workers: Vec::new(),
         }
     }
 }
@@ -178,6 +202,19 @@ mod tests {
                 .iter()
                 .all(|(_, name)| name.starts_with("radiant-business-worker-"))
         );
+    }
+
+    #[test]
+    fn business_thread_pool_rejects_work_when_no_workers_are_available() {
+        let pool = BusinessThreadPool::without_workers_for_test();
+        let ran = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let ran_task = Arc::clone(&ran);
+
+        assert!(!pool.spawn("test-job", move || {
+            ran_task.store(true, std::sync::atomic::Ordering::Release);
+        }));
+
+        assert!(!ran.load(std::sync::atomic::Ordering::Acquire));
     }
 
     #[test]

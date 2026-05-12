@@ -82,8 +82,8 @@ impl NativeTextRenderer {
     pub(super) fn with_options(options: &NativeTextOptions) -> Self {
         let loaded_font = font::load_native_font(options).map(|font| LoadedFont { font });
         if loaded_font.is_none() {
-            eprintln!(
-                "Native vello text renderer: no fallback font found; text runs will be skipped"
+            tracing::warn!(
+                "Native vello text renderer found no fallback font; text runs will be skipped"
             );
         }
         Self {

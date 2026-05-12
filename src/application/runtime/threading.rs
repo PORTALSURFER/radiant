@@ -43,7 +43,11 @@ impl BusinessThreadPool {
             {
                 Ok(worker) => workers.push(worker),
                 Err(error) => {
-                    eprintln!("Radiant app runtime: failed to spawn {name}: {error}");
+                    tracing::warn!(
+                        thread.name = %name,
+                        error = %error,
+                        "Radiant app runtime failed to spawn business worker"
+                    );
                 }
             }
         }
@@ -56,15 +60,19 @@ impl BusinessThreadPool {
 
     pub(super) fn spawn(&self, name: &'static str, work: impl FnOnce() + Send + 'static) -> bool {
         let Some(sender) = &self.sender else {
-            eprintln!(
-                "Radiant app runtime: no business workers are available to run {name}; refusing to block the UI path"
+            tracing::warn!(
+                work.name = name,
+                "Radiant app runtime has no business workers available; refusing to block the UI path"
             );
             return false;
         };
         match sender.send(Box::new(work)) {
             Ok(()) => true,
             Err(_) => {
-                eprintln!("Radiant app runtime: failed to queue {name} on business workers");
+                tracing::warn!(
+                    work.name = name,
+                    "Radiant app runtime failed to queue work on business workers"
+                );
                 false
             }
         }
@@ -114,7 +122,11 @@ fn spawn_named_thread(name: String, work: impl FnOnce() + Send + 'static) -> boo
     match thread::Builder::new().name(name.clone()).spawn(work) {
         Ok(_) => true,
         Err(error) => {
-            eprintln!("Radiant app runtime: failed to spawn {name}: {error}");
+            tracing::warn!(
+                thread.name = %name,
+                error = %error,
+                "Radiant app runtime failed to spawn business thread"
+            );
             false
         }
     }

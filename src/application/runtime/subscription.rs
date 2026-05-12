@@ -103,7 +103,10 @@ pub(super) fn spawn_subscription<Message>(
                 return;
             };
             if !runtime.schedule_interval(every.max(min_timer_delay()), message) {
-                eprintln!("Radiant app runtime: failed to start interval subscription {id}");
+                tracing::warn!(
+                    subscription.id = id,
+                    "Radiant app runtime failed to start interval subscription"
+                );
             }
         }
         Subscription::Worker { id, receiver } => {

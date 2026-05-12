@@ -13,6 +13,7 @@ mod bridge;
 mod queue;
 mod subscription;
 mod threading;
+mod timer;
 mod update_context;
 
 pub(in crate::application) use bridge::{AppBridge, AppBridgeLifecycle};

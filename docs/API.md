@@ -323,6 +323,9 @@ reports the offload failure instead of running the work synchronously on the
 UI/event/render owner. If an app explicitly needs immediate synchronous
 behavior, it can dispatch a normal message and do that short work in the
 reducer, but the default architecture is UI-first and non-blocking.
+Delayed messages use a runtime-owned timer lane rather than one sleeping OS
+thread per delay, so timer bursts do not monopolize the UI path or create
+unbounded background threads.
 
 The current native runtime keeps Vello/window rendering on the event-loop path
 because those backend/platform constraints require it. Future render-worker or

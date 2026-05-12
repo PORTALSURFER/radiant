@@ -7,10 +7,9 @@ use radiant::{
         input::{KeyCode, KeyPress},
         repaint::RepaintSignal,
         shortcuts::ShortcutResolution,
-        types::{ImageRgba, Point, Rect, Vector2},
+        types::{Point, Vector2},
     },
     layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams},
-    prelude::{GpuSurfaceContent, IntoView, gpu_surface, gpu_surface_input},
     runtime::{
         Command, Event, PaintPrimitive, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime,
         UiSurface,
@@ -26,6 +25,9 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 use std::time::{Duration, Instant};
+
+#[path = "app_runtime_api/gpu_surface.rs"]
+mod gpu_surface;
 
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
@@ -543,96 +545,4 @@ fn paint_only_command_skips_surface_reprojection() {
     assert_eq!(runtime.bridge().count, 1);
     assert_eq!(runtime.bridge().project_count, 1);
     assert_eq!(text_value(runtime.surface(), 10), "PaintOnly (0)");
-}
-
-#[test]
-fn app_gpu_surface_builder_lowers_through_normal_view_path() {
-    let atlas = Arc::new(ImageRgba::new(2, 1, vec![255; 8]).expect("valid atlas"));
-    let view = radiant::prelude::row([gpu_surface::<DemoMessage>(
-        41,
-        7,
-        GpuSurfaceContent::RgbaAtlas {
-            source_rect: Rect::from_min_size(
-                radiant::layout::Point::new(0.0, 0.0),
-                Vector2::new(2.0, 1.0),
-            ),
-            atlas: Arc::clone(&atlas),
-        },
-    )
-    .id(90)
-    .size(240.0, 120.0)
-    .width(240.0)
-    .height(120.0)])
-    .align_cross(radiant::layout::CrossAlign::Start);
-    let surface = view.into_surface();
-    let layout = radiant::layout::layout_tree(
-        &surface.layout_node(),
-        Rect::from_min_size(
-            radiant::layout::Point::new(0.0, 0.0),
-            Vector2::new(320.0, 160.0),
-        ),
-    );
-
-    let plan = surface.paint_plan(&layout, &ThemeTokens::default());
-
-    let Some(PaintPrimitive::GpuSurface(gpu)) = plan.primitives.first() else {
-        panic!("app GPU surface should emit a retained GPU paint primitive");
-    };
-    assert_eq!(gpu.widget_id, 90);
-    assert_eq!(gpu.key, 41);
-    assert_eq!(gpu.revision, 7);
-    assert_eq!(
-        gpu.rect,
-        Rect::from_min_size(
-            radiant::layout::Point::new(0.0, 0.0),
-            Vector2::new(240.0, 120.0)
-        )
-    );
-    let GpuSurfaceContent::RgbaAtlas { atlas: emitted, .. } = &gpu.content else {
-        panic!("expected RGBA atlas content");
-    };
-    assert!(Arc::ptr_eq(&atlas, emitted));
-}
-
-#[test]
-fn app_gpu_surface_input_helper_routes_through_normal_message_path() {
-    let atlas = Arc::new(ImageRgba::new(2, 1, vec![255; 8]).expect("valid atlas"));
-    let bridge = app(DemoState::default())
-        .view(move |state: &mut DemoState| {
-            radiant::prelude::column([
-                radiant::prelude::text(format!("GPU inputs: {}", state.count)).id(91),
-                gpu_surface_input(
-                    41,
-                    7,
-                    GpuSurfaceContent::RgbaAtlas {
-                        source_rect: Rect::from_min_size(
-                            radiant::layout::Point::new(0.0, 0.0),
-                            Vector2::new(2.0, 1.0),
-                        ),
-                        atlas: Arc::clone(&atlas),
-                    },
-                    DemoMessage::GpuInput,
-                )
-                .id(90)
-                .size(240.0, 120.0),
-            ])
-        })
-        .update_with(|state, message, _context| {
-            if let DemoMessage::GpuInput(WidgetInput::PointerPress { .. }) = message {
-                state.count += 1;
-            }
-        })
-        .into_bridge();
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(320.0, 160.0));
-
-    let handled = runtime.dispatch_input(
-        90,
-        WidgetInput::PointerPress {
-            position: radiant::layout::Point::new(24.0, 24.0),
-            button: radiant::widgets::PointerButton::Primary,
-        },
-    );
-
-    assert!(handled);
-    assert_eq!(text_value(runtime.surface(), 91), "GPU inputs: 1");
 }

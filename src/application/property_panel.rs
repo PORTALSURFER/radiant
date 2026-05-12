@@ -55,8 +55,7 @@ pub fn selectable_property_panel<State: 'static>(
         text(title.into()).height(24.0).fill_width(),
         column(
             rows.into_iter()
-                .map(|row| property_row(row, on_select.as_ref().map(Arc::clone)))
-                .collect::<Vec<_>>(),
+                .map(|row| property_row(row, on_select.as_ref().map(Arc::clone))),
         )
         .fill_width()
         .spacing(2.0),

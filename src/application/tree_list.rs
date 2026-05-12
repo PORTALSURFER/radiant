@@ -100,20 +100,15 @@ pub fn tree_list_with_drag<State: 'static>(
         on_drag.map(|on_drag| Arc::new(on_drag) as StateDragCallback<State>);
 
     scroll(
-        column(
-            items
-                .into_iter()
-                .map(|item| {
-                    tree_list_row(
-                        item,
-                        Arc::clone(&on_select),
-                        Arc::clone(&on_toggle),
-                        on_context.as_ref().map(Arc::clone),
-                        on_drag.as_ref().map(Arc::clone),
-                    )
-                })
-                .collect::<Vec<_>>(),
-        )
+        column(items.into_iter().map(|item| {
+            tree_list_row(
+                item,
+                Arc::clone(&on_select),
+                Arc::clone(&on_toggle),
+                on_context.as_ref().map(Arc::clone),
+                on_drag.as_ref().map(Arc::clone),
+            )
+        }))
         .fill_width()
         .spacing(1.0),
     )

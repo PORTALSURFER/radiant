@@ -44,7 +44,11 @@ where
                 worker: Some(worker),
             },
             Err(error) => {
-                eprintln!("Radiant app runtime: failed to spawn {TIMER_THREAD_NAME}: {error}");
+                tracing::warn!(
+                    thread.name = TIMER_THREAD_NAME,
+                    error = %error,
+                    "Radiant app runtime failed to spawn timer lane"
+                );
                 Self {
                     state: None,
                     worker: None,
@@ -60,8 +64,8 @@ where
         message: Message,
     ) -> bool {
         let Some(state) = &self.state else {
-            eprintln!(
-                "Radiant app runtime: no timer lane is available for delayed message; refusing to block the UI path"
+            tracing::warn!(
+                "Radiant app runtime has no timer lane available for delayed message; refusing to block the UI path"
             );
             return false;
         };
@@ -75,8 +79,8 @@ where
         message: Arc<dyn Fn() -> Message + Send + Sync>,
     ) -> bool {
         let Some(state) = &self.state else {
-            eprintln!(
-                "Radiant app runtime: no timer lane is available for interval subscription; refusing to block the UI path"
+            tracing::warn!(
+                "Radiant app runtime has no timer lane available for interval subscription; refusing to block the UI path"
             );
             return false;
         };

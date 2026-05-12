@@ -11,7 +11,15 @@ pub struct CommandOutcome {
     pub surface_refresh_requested: bool,
     /// Whether any command requested runtime exit.
     pub exit_requested: bool,
+    /// Whether runtime-owned background work still has queued messages.
+    ///
+    /// Native backends use this to keep the UI/event/render owner responsive:
+    /// one drain pass handles a bounded slice of background messages, then
+    /// schedules another wakeup instead of monopolizing the UI path.
+    pub runtime_work_remaining: bool,
 }
+
+const MAX_RUNTIME_MESSAGES_PER_DRAIN: usize = 64;
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
@@ -61,14 +69,18 @@ where
         }
         self.runtime_commands = commands;
 
-        self.runtime_messages.clear();
         self.bridge
             .drain_runtime_messages_into(&mut self.runtime_messages);
-        let mut messages = std::mem::take(&mut self.runtime_messages);
+        let mut messages = take_runtime_message_batch(&mut self.runtime_messages);
         for message in messages.drain(..) {
             self.dispatch_message_inner(message, &mut outcome);
         }
-        self.runtime_messages = messages;
+
+        if !self.runtime_messages.is_empty() {
+            outcome.runtime_work_remaining = true;
+            outcome.repaint_requested = true;
+            self.repaint_requested = true;
+        }
 
         self.refresh_if_requested(outcome.surface_refresh_requested);
         if outcome.surface_refresh_requested {
@@ -141,6 +153,17 @@ where
             }
         }
     }
+}
+
+fn take_runtime_message_batch<Message>(messages: &mut Vec<Message>) -> Vec<Message> {
+    if messages.len() <= MAX_RUNTIME_MESSAGES_PER_DRAIN {
+        return std::mem::take(messages);
+    }
+
+    let remaining = messages.split_off(MAX_RUNTIME_MESSAGES_PER_DRAIN);
+    let batch = std::mem::replace(messages, remaining);
+    debug_assert_eq!(batch.len(), MAX_RUNTIME_MESSAGES_PER_DRAIN);
+    batch
 }
 
 fn command_requests_paint_only<Message>(command: &Command<Message>) -> bool {

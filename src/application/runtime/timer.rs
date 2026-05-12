@@ -65,7 +65,22 @@ where
             );
             return false;
         };
-        state.schedule(runtime, delay, message)
+        state.schedule_once(runtime, delay, message)
+    }
+
+    pub(super) fn schedule_interval(
+        &self,
+        runtime: Weak<AppRuntime<Message>>,
+        every: Duration,
+        message: Arc<dyn Fn() -> Message + Send + Sync>,
+    ) -> bool {
+        let Some(state) = &self.state else {
+            eprintln!(
+                "Radiant app runtime: no timer lane is available for interval subscription; refusing to block the UI path"
+            );
+            return false;
+        };
+        state.schedule_interval(runtime, every, message)
     }
 
     #[cfg(test)]
@@ -103,11 +118,29 @@ impl<Message> Default for TimerState<Message> {
 }
 
 impl<Message> TimerState<Message> {
-    fn schedule(
+    fn schedule_once(
         &self,
         runtime: Weak<AppRuntime<Message>>,
         delay: Duration,
         message: Message,
+    ) -> bool {
+        self.schedule_payload(runtime, delay, TimerPayload::Once(Some(message)))
+    }
+
+    fn schedule_interval(
+        &self,
+        runtime: Weak<AppRuntime<Message>>,
+        every: Duration,
+        message: Arc<dyn Fn() -> Message + Send + Sync>,
+    ) -> bool {
+        self.schedule_payload(runtime, every, TimerPayload::Interval { every, message })
+    }
+
+    fn schedule_payload(
+        &self,
+        runtime: Weak<AppRuntime<Message>>,
+        delay: Duration,
+        payload: TimerPayload<Message>,
     ) -> bool {
         let mut queue = lock_timer_queue(&self.queue);
         if queue.closed {
@@ -119,7 +152,7 @@ impl<Message> TimerState<Message> {
             due: due_in(delay),
             order,
             runtime,
-            message: Some(message),
+            payload,
         });
         self.wake.notify_one();
         true
@@ -151,7 +184,15 @@ struct TimerEntry<Message> {
     due: Instant,
     order: u64,
     runtime: Weak<AppRuntime<Message>>,
-    message: Option<Message>,
+    payload: TimerPayload<Message>,
+}
+
+enum TimerPayload<Message> {
+    Once(Option<Message>),
+    Interval {
+        every: Duration,
+        message: Arc<dyn Fn() -> Message + Send + Sync>,
+    },
 }
 
 impl<Message> Eq for TimerEntry<Message> {}
@@ -199,25 +240,45 @@ where
                 queue = wait_until_timer_due(&state, queue, due.saturating_duration_since(now));
             }
         };
-        deliver_timer_message(entry);
+        deliver_timer_message(&state, entry);
     }
 }
 
-fn deliver_timer_message<Message>(mut entry: TimerEntry<Message>) {
+fn deliver_timer_message<Message>(state: &TimerState<Message>, mut entry: TimerEntry<Message>)
+where
+    Message: Send + 'static,
+{
     let Some(runtime) = entry.runtime.upgrade() else {
         return;
     };
     if !runtime.is_alive() {
         return;
     }
-    if let Some(message) = entry.message.take() {
-        let _ = runtime.enqueue(message);
+    match entry.payload {
+        TimerPayload::Once(ref mut message) => {
+            if let Some(message) = message.take() {
+                let _ = runtime.enqueue(message);
+            }
+        }
+        TimerPayload::Interval { every, message } => {
+            if runtime.enqueue(message()) {
+                let _ = state.schedule_interval(
+                    Arc::downgrade(&runtime),
+                    every.max(min_timer_delay()),
+                    message,
+                );
+            }
+        }
     }
 }
 
 fn due_in(delay: Duration) -> Instant {
     let now = Instant::now();
     now.checked_add(delay).unwrap_or(now)
+}
+
+pub(super) fn min_timer_delay() -> Duration {
+    Duration::from_millis(1)
 }
 
 fn lock_timer_queue<Message>(

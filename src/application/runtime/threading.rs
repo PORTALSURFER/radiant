@@ -4,9 +4,9 @@ use std::sync::{
     mpsc::{self, Sender},
 };
 use std::thread;
-use std::time::Duration;
 
-const RUNTIME_CANCEL_POLL: Duration = Duration::from_millis(50);
+#[cfg(test)]
+const RUNTIME_CANCEL_POLL: std::time::Duration = std::time::Duration::from_millis(50);
 const BUSINESS_THREAD_PREFIX: &str = "radiant-business";
 const DEFAULT_BUSINESS_WORKERS: usize = 2;
 
@@ -125,9 +125,10 @@ fn business_thread_name(name: impl Into<String>) -> String {
     format!("{BUSINESS_THREAD_PREFIX}-{name}")
 }
 
+#[cfg(test)]
 pub(super) fn sleep_while_runtime_alive<Message>(
     runtime: &Weak<AppRuntime<Message>>,
-    duration: Duration,
+    duration: std::time::Duration,
 ) -> bool {
     let mut remaining = duration;
     while !remaining.is_zero() {

@@ -31,6 +31,7 @@ pub(super) fn key_code_from_winit(key: winit::keyboard::KeyCode) -> Option<KeyCo
         WinitKeyCode::Enter | WinitKeyCode::NumpadEnter => KeyCode::Enter,
         WinitKeyCode::KeyF => KeyCode::F,
         WinitKeyCode::F1 => KeyCode::F1,
+        WinitKeyCode::F2 => KeyCode::F2,
         WinitKeyCode::KeyG => KeyCode::G,
         WinitKeyCode::KeyH => KeyCode::H,
         WinitKeyCode::KeyI => KeyCode::I,
@@ -99,6 +100,7 @@ mod tests {
         );
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyA), Some(KeyCode::A));
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyE), Some(KeyCode::E));
+        assert_eq!(key_code_from_winit(WinitKeyCode::F2), Some(KeyCode::F2));
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyV), Some(KeyCode::V));
         assert_eq!(
             key_code_from_winit(WinitKeyCode::Semicolon),

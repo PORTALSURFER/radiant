@@ -41,6 +41,8 @@ pub enum KeyCode {
     F,
     /// F1 function key.
     F1,
+    /// F2 function key.
+    F2,
     /// Latin letter G.
     G,
     /// Latin letter H.

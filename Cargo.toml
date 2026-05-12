@@ -64,6 +64,10 @@ name = "volume_slider"
 path = "examples/volume_slider.rs"
 
 [[example]]
+name = "sample_source_list"
+path = "examples/sample_source_list.rs"
+
+[[example]]
 name = "layout_rows_columns"
 path = "examples/layout_rows_columns.rs"
 

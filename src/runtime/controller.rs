@@ -122,80 +122,38 @@ where
             layout_root,
             traversal,
         } = surface.runtime_projection();
-        let layout_state = LayoutState::default();
-        let mut layout_engine = LayoutEngine::default();
-        let layout = layout_engine.layout_with_state(
-            &layout_root,
-            viewport,
-            &layout_state,
-            LayoutDebugOptions::default(),
-        );
-        let focusable_widget_rank = hit_rank(&traversal.focusable_widget_order);
-        let pointer_hit_rank = hit_rank(&traversal.pointer_hit_order);
-        let keyboard_focus_rank = hit_rank(&traversal.keyboard_focus_order);
-        let wheel_hit_rank = hit_rank(&traversal.wheel_hit_order);
-        let styled_container_hit_rank = hit_rank(&traversal.styled_container_order);
-        let scroll_hit_rank = hit_rank(&traversal.scroll_container_order);
-        let mut visible_pointer_hit_order = Vec::new();
-        collect_visible_hit_order(
-            &layout,
-            &traversal.pointer_hit_order,
-            &pointer_hit_rank,
-            &mut visible_pointer_hit_order,
-        );
-        let mut visible_wheel_hit_order = Vec::new();
-        collect_visible_hit_order(
-            &layout,
-            &traversal.wheel_hit_order,
-            &wheel_hit_rank,
-            &mut visible_wheel_hit_order,
-        );
-        let mut visible_styled_container_hit_order = Vec::new();
-        collect_visible_hit_order(
-            &layout,
-            &traversal.styled_container_order,
-            &styled_container_hit_rank,
-            &mut visible_styled_container_hit_order,
-        );
-        let mut visible_scroll_hit_order = Vec::new();
-        collect_visible_hit_order(
-            &layout,
-            &traversal.scroll_container_order,
-            &scroll_hit_rank,
-            &mut visible_scroll_hit_order,
-        );
-        Self {
+        let mut runtime = Self {
             bridge,
             viewport,
             surface,
             layout_root,
-            layout_engine,
-            layout,
-            layout_state,
-            widget_hit_order: traversal.widget_paint_order,
-            focusable_widget_order: traversal.focusable_widget_order,
-            focusable_widget_rank,
-            pointer_hit_order: traversal.pointer_hit_order,
-            pointer_hit_rank,
-            visible_pointer_hit_order,
-            widget_paths: traversal.widget_paths,
+            layout_engine: LayoutEngine::default(),
+            layout: LayoutOutput::default(),
+            layout_state: LayoutState::default(),
+            widget_hit_order: Vec::new(),
+            focusable_widget_order: Vec::new(),
+            focusable_widget_rank: HashMap::new(),
+            pointer_hit_order: Vec::new(),
+            pointer_hit_rank: HashMap::new(),
+            visible_pointer_hit_order: Vec::new(),
+            widget_paths: HashMap::new(),
             previous_widget_paths: HashMap::new(),
-            container_hover_suppression: traversal.container_hover_suppression,
-            keyboard_focus_order: traversal.keyboard_focus_order,
-            keyboard_focus_rank,
-            wheel_hit_order: traversal.wheel_hit_order,
-            wheel_hit_rank,
-            visible_wheel_hit_order,
-            stateful_widget_order: traversal.stateful_widget_order,
-            styled_container_hit_order: traversal.styled_container_order,
-            styled_container_hit_rank,
-            visible_styled_container_hit_order,
-            scroll_hit_order: traversal.scroll_container_order,
-            scroll_hit_rank,
-            visible_scroll_hit_order,
-            widget_clip_ancestors: traversal.widget_clip_ancestors,
-            container_clip_ancestors: traversal.container_clip_ancestors,
-            scroll_content_by_container: traversal.scroll_content_by_container,
+            container_hover_suppression: HashSet::new(),
+            keyboard_focus_order: Vec::new(),
+            keyboard_focus_rank: HashMap::new(),
+            wheel_hit_order: Vec::new(),
+            wheel_hit_rank: HashMap::new(),
+            visible_wheel_hit_order: Vec::new(),
+            stateful_widget_order: Vec::new(),
+            styled_container_hit_order: Vec::new(),
+            styled_container_hit_rank: HashMap::new(),
+            visible_styled_container_hit_order: Vec::new(),
+            scroll_hit_order: Vec::new(),
+            scroll_hit_rank: HashMap::new(),
+            visible_scroll_hit_order: Vec::new(),
+            widget_clip_ancestors: HashMap::new(),
+            container_clip_ancestors: HashMap::new(),
+            scroll_content_by_container: HashMap::new(),
             scroll_clamp_updates: Vec::new(),
             projection_scroll_stack: Vec::new(),
             projection_child_path: Vec::new(),
@@ -211,7 +169,9 @@ where
             exit_requested: false,
             runtime_commands: Vec::new(),
             runtime_messages: Vec::new(),
-        }
+        };
+        runtime.relayout_with_traversal(traversal);
+        runtime
     }
 
     /// Replace the viewport and recompute layout for the current surface.
@@ -351,6 +311,7 @@ where
     }
 }
 
+#[cfg(test)]
 fn hit_rank(order: &[NodeId]) -> HashMap<NodeId, usize> {
     let mut rank = HashMap::with_capacity(order.len());
     collect_hit_rank(order, &mut rank);

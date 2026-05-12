@@ -71,8 +71,11 @@ where
 
         self.bridge
             .drain_runtime_messages_into(&mut self.runtime_messages);
-        let mut messages = take_runtime_message_batch(&mut self.runtime_messages);
-        for message in messages.drain(..) {
+        take_runtime_message_batch_into(
+            &mut self.runtime_messages,
+            &mut self.runtime_message_batch,
+        );
+        while let Some(message) = self.runtime_message_batch.pop() {
             self.dispatch_message_inner(message, &mut outcome);
         }
 
@@ -155,15 +158,14 @@ where
     }
 }
 
-fn take_runtime_message_batch<Message>(messages: &mut Vec<Message>) -> Vec<Message> {
+fn take_runtime_message_batch_into<Message>(messages: &mut Vec<Message>, batch: &mut Vec<Message>) {
+    debug_assert!(batch.is_empty());
     if messages.len() <= MAX_RUNTIME_MESSAGES_PER_DRAIN {
-        return std::mem::take(messages);
+        batch.extend(messages.drain(..).rev());
+        return;
     }
-
-    let remaining = messages.split_off(MAX_RUNTIME_MESSAGES_PER_DRAIN);
-    let batch = std::mem::replace(messages, remaining);
+    batch.extend(messages.drain(..MAX_RUNTIME_MESSAGES_PER_DRAIN).rev());
     debug_assert_eq!(batch.len(), MAX_RUNTIME_MESSAGES_PER_DRAIN);
-    batch
 }
 
 fn command_requests_paint_only<Message>(command: &Command<Message>) -> bool {
@@ -177,5 +179,42 @@ fn command_requests_paint_only<Message>(command: &Command<Message>) -> bool {
         | Command::Perform { .. }
         | Command::Focus(_)
         | Command::Exit => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn runtime_message_batch_preserves_order_and_keeps_remainder() {
+        let mut messages = (0..70).collect::<Vec<_>>();
+        let mut batch = Vec::with_capacity(8);
+
+        take_runtime_message_batch_into(&mut messages, &mut batch);
+
+        let mut drained = Vec::new();
+        while let Some(message) = batch.pop() {
+            drained.push(message);
+        }
+        assert_eq!(drained, (0..64).collect::<Vec<_>>());
+        assert_eq!(messages, (64..70).collect::<Vec<_>>());
+        assert!(batch.capacity() >= 64);
+    }
+
+    #[test]
+    fn runtime_message_batch_reuses_output_storage_for_small_drains() {
+        let mut messages = vec![1, 2, 3];
+        let mut batch = Vec::with_capacity(64);
+        let capacity = batch.capacity();
+
+        take_runtime_message_batch_into(&mut messages, &mut batch);
+
+        assert!(messages.is_empty());
+        assert_eq!(batch.capacity(), capacity);
+        assert_eq!(batch.pop(), Some(1));
+        assert_eq!(batch.pop(), Some(2));
+        assert_eq!(batch.pop(), Some(3));
+        assert_eq!(batch.pop(), None);
     }
 }

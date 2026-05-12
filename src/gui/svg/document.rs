@@ -1,58 +1,38 @@
-//! Private SVG document parser for retained vector icons.
+//! Private SVG document projection for retained vector icons.
 
 use std::sync::Arc;
-use vello::kurbo::{
-    Affine, BezPath, Circle as KurboCircle, Point as KurboPoint, Rect as KurboRect, Shape,
+
+use vello_svg::{
+    usvg::{self, FillRule, Node},
+    util::{to_affine, to_bez_path},
 };
 
 use crate::runtime::PaintPath;
 
-use super::transform::{parse_attr_f64, parse_number_list, parse_points, parse_transform_list};
-
-/// Parsed SVG document ready for vector painting.
+/// Parsed SVG document ready for backend-neutral vector painting.
 #[derive(Clone, Debug)]
 pub(super) struct SvgDocument {
-    /// The minimum x coordinate in the declared view box.
-    pub(super) view_box_min_x: f32,
-    /// The minimum y coordinate in the declared view box.
-    pub(super) view_box_min_y: f32,
-    /// The width of the declared view box.
-    pub(super) view_box_width: f32,
-    /// The height of the declared view box.
-    pub(super) view_box_height: f32,
-    /// The transformed filled shapes emitted by the document.
+    /// The normalized document width produced by `usvg`.
+    pub(super) width: f32,
+    /// The normalized document height produced by `usvg`.
+    pub(super) height: f32,
+    /// Filled shapes emitted by the document.
     pub(super) shapes: Vec<SvgShape>,
 }
 
 impl SvgDocument {
     pub(super) fn parse(svg: &str) -> Option<Self> {
-        let document = roxmltree::Document::parse(svg).ok()?;
-        let root = document.root_element();
-        if root.tag_name().name() != "svg" {
-            return None;
-        }
-
-        let view_box_values = parse_number_list(root.attribute("viewBox")?)?;
-        if view_box_values.len() != 4 {
-            return None;
-        }
-
+        let tree = usvg::Tree::from_str(svg, &usvg::Options::default()).ok()?;
         let mut shapes = Vec::new();
-        collect_shapes(
-            root,
-            Affine::IDENTITY,
-            resolve_fill_rule(root, SvgFillRule::NonZero),
-            &mut shapes,
-        )?;
+        collect_shapes(tree.root(), &mut shapes);
         if shapes.is_empty() {
             return None;
         }
 
+        let size = tree.size();
         Some(Self {
-            view_box_min_x: view_box_values[0] as f32,
-            view_box_min_y: view_box_values[1] as f32,
-            view_box_width: view_box_values[2] as f32,
-            view_box_height: view_box_values[3] as f32,
+            width: size.width(),
+            height: size.height(),
             shapes,
         })
     }
@@ -71,118 +51,40 @@ pub(super) enum SvgFillRule {
     EvenOdd,
 }
 
-fn collect_shapes(
-    node: roxmltree::Node<'_, '_>,
-    inherited_transform: Affine,
-    inherited_fill_rule: SvgFillRule,
-    shapes: &mut Vec<SvgShape>,
-) -> Option<()> {
-    let local_transform = parse_transform_list(node.attribute("transform"))?;
-    let transform = inherited_transform * local_transform;
-    let fill_rule = resolve_fill_rule(node, inherited_fill_rule);
-
-    match node.tag_name().name() {
-        "svg" | "g" => {
-            for child in node.children().filter(roxmltree::Node::is_element) {
-                collect_shapes(child, transform, fill_rule, shapes)?;
+fn collect_shapes(group: &usvg::Group, shapes: &mut Vec<SvgShape>) {
+    for node in group.children() {
+        match node {
+            Node::Group(group) => collect_shapes(group, shapes),
+            Node::Path(path) if path.is_visible() => {
+                let Some(fill) = path.fill() else {
+                    continue;
+                };
+                shapes.push(SvgShape {
+                    path: Arc::new(to_affine(&path.abs_transform()) * to_bez_path(path)),
+                    fill_rule: fill.rule().into(),
+                });
             }
+            _ => {}
         }
-        "path" => {
-            if !shape_is_filled(node) {
-                return Some(());
-            }
-            let path = BezPath::from_svg(node.attribute("d")?).ok()?;
-            shapes.push(SvgShape {
-                path: Arc::new(transform * path),
-                fill_rule,
-            });
-        }
-        "rect" => {
-            if !shape_is_filled(node) {
-                return Some(());
-            }
-            let x = parse_attr_f64(node, "x").unwrap_or(0.0);
-            let y = parse_attr_f64(node, "y").unwrap_or(0.0);
-            let width = parse_attr_f64(node, "width")?;
-            let height = parse_attr_f64(node, "height")?;
-            let path = KurboRect::new(x, y, x + width, y + height).to_path(0.1);
-            shapes.push(SvgShape {
-                path: Arc::new(transform * path),
-                fill_rule,
-            });
-        }
-        "circle" => {
-            if !shape_is_filled(node) {
-                return Some(());
-            }
-            let circle = KurboCircle::new(
-                KurboPoint::new(parse_attr_f64(node, "cx")?, parse_attr_f64(node, "cy")?),
-                parse_attr_f64(node, "r")?,
-            );
-            shapes.push(SvgShape {
-                path: Arc::new(transform * circle.to_path(0.1)),
-                fill_rule,
-            });
-        }
-        "polygon" => {
-            if !shape_is_filled(node) {
-                return Some(());
-            }
-            let points = parse_points(node.attribute("points")?)?;
-            let mut path = BezPath::new();
-            let first = points.first()?;
-            path.move_to(*first);
-            for point in points.iter().skip(1) {
-                path.line_to(*point);
-            }
-            path.close_path();
-            shapes.push(SvgShape {
-                path: Arc::new(transform * path),
-                fill_rule,
-            });
-        }
-        _ => {}
-    }
-
-    Some(())
-}
-
-fn resolve_fill_rule(node: roxmltree::Node<'_, '_>, inherited: SvgFillRule) -> SvgFillRule {
-    node.attribute("fill-rule")
-        .and_then(parse_fill_rule)
-        .or_else(|| extract_style_property(node, "fill-rule").and_then(parse_fill_rule))
-        .unwrap_or(inherited)
-}
-
-fn parse_fill_rule(raw: &str) -> Option<SvgFillRule> {
-    match raw.trim() {
-        "evenodd" => Some(SvgFillRule::EvenOdd),
-        "nonzero" => Some(SvgFillRule::NonZero),
-        _ => None,
     }
 }
 
-fn shape_is_filled(node: roxmltree::Node<'_, '_>) -> bool {
-    let fill = node
-        .attribute("fill")
-        .or_else(|| extract_style_property(node, "fill"));
-    !matches!(fill.map(str::trim), Some("none"))
-}
-
-fn extract_style_property<'a>(node: roxmltree::Node<'a, 'a>, property: &str) -> Option<&'a str> {
-    let style = node.attribute("style")?;
-    style.split(';').find_map(|entry| {
-        let (name, value) = entry.split_once(':')?;
-        (name.trim() == property).then_some(value.trim())
-    })
+impl From<FillRule> for SvgFillRule {
+    fn from(value: FillRule) -> Self {
+        match value {
+            FillRule::NonZero => Self::NonZero,
+            FillRule::EvenOdd => Self::EvenOdd,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use vello::kurbo::{Rect as KurboRect, Shape};
 
     #[test]
-    fn parses_group_transformed_path_icons() {
+    fn parses_usvg_normalized_shape_icons() {
         let svg = r#"
             <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
               <g transform="matrix(2,0,0,2,4,4)" style="fill-rule:evenodd">
@@ -193,11 +95,29 @@ mod tests {
 
         let document = SvgDocument::parse(svg).expect("document should parse");
 
+        assert_eq!(document.width, 16.0);
+        assert_eq!(document.height, 16.0);
         assert_eq!(document.shapes.len(), 1);
+        assert_eq!(document.shapes[0].fill_rule, SvgFillRule::EvenOdd);
         assert_eq!(
             document.shapes[0].path.bounding_box(),
             KurboRect::new(4.0, 4.0, 8.0, 8.0)
         );
+    }
+
+    #[test]
+    fn supports_shape_elements_normalized_by_usvg() {
+        let svg = r#"
+            <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+              <rect x="1" y="2" width="3" height="4" />
+              <circle cx="10" cy="10" r="2" />
+              <polygon points="6,1 9,1 9,4" />
+            </svg>
+        "#;
+
+        let document = SvgDocument::parse(svg).expect("document should parse");
+
+        assert_eq!(document.shapes.len(), 3);
     }
 
     #[test]

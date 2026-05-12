@@ -1,7 +1,7 @@
 //! Generic `RuntimeBridge` native Vello runner.
 
 use super::*;
-use crate::gui::repaint::{CoalescingRepaintSignal, RepaintSignal, try_mark_repaint_pending};
+use crate::gui::repaint::RepaintSignal;
 use crate::runtime::SurfacePaintPlan;
 use crate::theme::ThemeTokens;
 
@@ -13,6 +13,7 @@ mod keyboard;
 mod lifecycle;
 mod present;
 mod runtime_helpers;
+mod runtime_wakeup;
 mod scene;
 mod surface;
 mod window;
@@ -28,6 +29,7 @@ use runtime_helpers::{
     GpuSurfaceInteractionRegion, animation_frame_interval, collect_gpu_surface_interaction_regions,
     maybe_log_route_profile, render_profile_enabled, scroll_delta_to_logical,
 };
+use runtime_wakeup::RuntimeWakeup;
 pub(in crate::gui_runtime::native_vello) use scene::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneTextRunBuffer,
     SurfaceSceneEncodeContext, encode_surface_paint_plan_to_scene,
@@ -82,11 +84,7 @@ where
     let viewport = initial_viewport(&options);
     let mut runner = GenericNativeVelloRunner::new(options, bridge, viewport);
     let proxy = event_loop.create_proxy();
-    runner.runtime_event_proxy = Some(proxy.clone());
-    let repaint_signal: Arc<dyn RepaintSignal> = Arc::new(CoalescingRepaintSignal::new(
-        Arc::clone(&runner.repaint_event_pending),
-        move || proxy.send_event(RuntimeUserEvent::RepaintRequested).is_ok(),
-    ));
+    let repaint_signal: Arc<dyn RepaintSignal> = runner.runtime_wakeup.install_proxy(proxy);
     runner
         .core
         .runtime
@@ -141,7 +139,7 @@ where
 {
     options: NativeRunOptions,
     core: GenericNativeRuntimeCore<Bridge, Message>,
-    runtime_event_proxy: Option<winit::event_loop::EventLoopProxy<RuntimeUserEvent>>,
+    runtime_wakeup: RuntimeWakeup,
     window_id: Option<WindowId>,
     window: Option<Arc<Window>>,
     render_ctx: Option<RenderContext>,
@@ -154,7 +152,6 @@ where
     retained_surface_cache: RetainedSurfaceFrameCache,
     last_cursor: Option<Point>,
     clipboard: Option<arboard::Clipboard>,
-    repaint_event_pending: Arc<std::sync::atomic::AtomicBool>,
     modifiers: winit::keyboard::ModifiersState,
     redraw_requested: bool,
     startup_timing: StartupTimingProfile,
@@ -178,7 +175,7 @@ where
         Self {
             options,
             core: GenericNativeRuntimeCore::new(bridge, viewport),
-            runtime_event_proxy: None,
+            runtime_wakeup: RuntimeWakeup::default(),
             window_id: None,
             window: None,
             render_ctx: None,
@@ -191,7 +188,6 @@ where
             retained_surface_cache: RetainedSurfaceFrameCache::default(),
             last_cursor: None,
             clipboard: arboard::Clipboard::new().ok(),
-            repaint_event_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             modifiers: winit::keyboard::ModifiersState::default(),
             redraw_requested: false,
             startup_timing: StartupTimingProfile::new(),
@@ -218,24 +214,8 @@ where
     }
 
     fn request_runtime_wakeup_if_needed(&self, outcome: GenericRouteOutcome) {
-        if !outcome.runtime_work_remaining {
-            return;
-        }
-        if !try_mark_repaint_pending(self.repaint_event_pending.as_ref()) {
-            return;
-        }
-        let Some(proxy) = self.runtime_event_proxy.as_ref() else {
-            self.repaint_event_pending
-                .store(false, std::sync::atomic::Ordering::Release);
-            return;
-        };
-        if proxy
-            .send_event(RuntimeUserEvent::RepaintRequested)
-            .is_err()
-        {
-            self.repaint_event_pending
-                .store(false, std::sync::atomic::Ordering::Release);
-        }
+        self.runtime_wakeup
+            .request_if(outcome.runtime_work_remaining);
     }
 
     fn rebuild_scene(&mut self) {

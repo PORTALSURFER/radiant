@@ -194,7 +194,7 @@ where
             return false;
         }
         let runtime = Arc::downgrade(&self.runtime);
-        spawn_business_thread(format!("task-{name}"), move || {
+        self.runtime.spawn_business_task(name, move || {
             let message = work();
             if let Some(runtime) = runtime.upgrade() {
                 let _ = runtime.enqueue(message);

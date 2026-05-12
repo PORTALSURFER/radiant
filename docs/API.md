@@ -316,7 +316,9 @@ they should stay short. Slow IO, decoding, indexing, analysis, loading, and othe
 business work should use `Command::perform(...)`, `UpdateContext::spawn(...)`,
 `Command::after(...)`, or `Subscription`; the application runtime offloads that
 work to runtime-managed business threads and returns results through the normal
-message queue. If an app explicitly needs immediate synchronous behavior, it can
+message queue. Finite `Command::perform(...)` jobs run on a bounded business
+worker lane so bursts of host work do not create unbounded OS threads beside the
+UI path. If an app explicitly needs immediate synchronous behavior, it can
 dispatch a normal message and do that short work in the reducer, but the default
 architecture is UI-first and non-blocking.
 

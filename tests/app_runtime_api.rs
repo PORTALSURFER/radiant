@@ -25,7 +25,7 @@ use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
@@ -114,6 +114,28 @@ fn text_value<Message>(surface: &UiSurface<Message>, widget_id: u64) -> String {
         .to_string()
 }
 
+fn drain_until_messages<Bridge>(
+    runtime: &mut SurfaceRuntime<Bridge, DemoMessage>,
+    min_messages: usize,
+) -> radiant::runtime::CommandOutcome
+where
+    Bridge: RuntimeBridge<DemoMessage>,
+{
+    let deadline = Instant::now() + Duration::from_secs(1);
+    let mut drained = radiant::runtime::CommandOutcome::default();
+    loop {
+        let outcome = runtime.drain_runtime_messages();
+        drained.messages_dispatched += outcome.messages_dispatched;
+        drained.repaint_requested |= outcome.repaint_requested;
+        drained.surface_refresh_requested |= outcome.surface_refresh_requested;
+        drained.exit_requested |= outcome.exit_requested;
+        if drained.messages_dispatched >= min_messages || Instant::now() >= deadline {
+            return drained;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
 #[test]
 fn app_startup_commands_use_full_runtime_dispatch() {
     let bridge = app(DemoState::default())
@@ -165,8 +187,7 @@ fn app_startup_commands_use_full_runtime_dispatch() {
     assert_eq!(runtime.focused_widget(), Some(11));
     assert!(repaint_called.load(Ordering::Acquire));
 
-    std::thread::sleep(Duration::from_millis(20));
-    let drained = runtime.drain_runtime_messages();
+    let drained = drain_until_messages(&mut runtime, 2);
     assert_eq!(drained.messages_dispatched, 2);
     assert_eq!(text_value(runtime.surface(), 10), "Startup (2)");
 }
@@ -353,8 +374,7 @@ fn app_runtime_effects_stop_after_runtime_exit() {
             called: Arc::new(AtomicBool::new(false)),
         }));
 
-    std::thread::sleep(Duration::from_millis(15));
-    let active = runtime.drain_runtime_messages();
+    let active = drain_until_messages(&mut runtime, 1);
     assert!(active.messages_dispatched > 0);
 
     let _ = runtime.bridge_mut().on_runtime_exit();
@@ -363,8 +383,6 @@ fn app_runtime_effects_stop_after_runtime_exit() {
         DemoMessage::Increment,
     ));
     assert!(!delayed.repaint_requested);
-    std::thread::sleep(Duration::from_millis(20));
-
     let stopped = runtime.drain_runtime_messages();
     assert_eq!(stopped.messages_dispatched, 0);
 }

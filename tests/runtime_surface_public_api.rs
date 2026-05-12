@@ -24,7 +24,7 @@ use radiant::{
     },
 };
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
@@ -50,6 +50,28 @@ where
         .as_any()
         .downcast_ref::<T>()
         .unwrap_or_else(|| panic!("expected widget {id} to be {expected}"))
+}
+
+fn drain_until_messages<Bridge>(
+    runtime: &mut SurfaceRuntime<Bridge, DemoMessage>,
+    min_messages: usize,
+) -> radiant::runtime::CommandOutcome
+where
+    Bridge: RuntimeBridge<DemoMessage>,
+{
+    let deadline = Instant::now() + Duration::from_secs(1);
+    let mut drained = radiant::runtime::CommandOutcome::default();
+    loop {
+        let outcome = runtime.drain_runtime_messages();
+        drained.messages_dispatched += outcome.messages_dispatched;
+        drained.repaint_requested |= outcome.repaint_requested;
+        drained.surface_refresh_requested |= outcome.surface_refresh_requested;
+        drained.exit_requested |= outcome.exit_requested;
+        if drained.messages_dispatched >= min_messages || Instant::now() >= deadline {
+            return drained;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
 }
 
 #[cfg(test)]
@@ -168,8 +190,7 @@ fn surface_runtime_executes_focus_exit_and_deferred_commands() {
         DemoMessage::Increment,
     ));
     assert!(deferred.repaint_requested);
-    std::thread::sleep(Duration::from_millis(20));
-    let drained = runtime.drain_runtime_messages();
+    let drained = drain_until_messages(&mut runtime, 1);
     assert_eq!(drained.messages_dispatched, 1);
     assert_eq!(runtime.bridge().count, 1);
 
@@ -179,8 +200,7 @@ fn surface_runtime_executes_focus_exit_and_deferred_commands() {
         |message| message,
     ));
     assert!(performed.repaint_requested);
-    std::thread::sleep(Duration::from_millis(20));
-    let drained = runtime.drain_runtime_messages();
+    let drained = drain_until_messages(&mut runtime, 1);
     assert_eq!(drained.messages_dispatched, 1);
     assert_eq!(runtime.bridge().count, 2);
 

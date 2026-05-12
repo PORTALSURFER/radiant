@@ -60,6 +60,10 @@ name = "form"
 path = "examples/form.rs"
 
 [[example]]
+name = "volume_slider"
+path = "examples/volume_slider.rs"
+
+[[example]]
 name = "layout_rows_columns"
 path = "examples/layout_rows_columns.rs"
 

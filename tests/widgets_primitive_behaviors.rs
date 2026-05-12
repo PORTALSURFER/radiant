@@ -7,8 +7,8 @@ use radiant::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, DragHandleMessage,
         DragHandleWidget, ImageWidget, ListItemMessage, ListItemWidget, PointerButton,
         ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, SelectableMessage, SelectableWidget,
-        TextInputMessage, TextInputWidget, ToggleMessage, ToggleWidget, Widget, WidgetInput,
-        WidgetKey, WidgetSizing,
+        SliderMessage, SliderWidget, TextInputMessage, TextInputWidget, ToggleMessage,
+        ToggleWidget, Widget, WidgetInput, WidgetKey, WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -381,5 +381,37 @@ fn scrollbar_drag_and_track_click_emit_normalized_offsets() {
         Some(ScrollbarMessage::OffsetChanged {
             offset_fraction: 0.0,
         })
+    );
+}
+
+#[test]
+fn slider_drag_and_keyboard_emit_normalized_values() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 28.0));
+    let mut slider = SliderWidget::new(14, 0.25, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
+
+    assert_eq!(
+        slider.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(60.0, 14.0),
+                button: PointerButton::Primary,
+            },
+        ),
+        Some(SliderMessage::ValueChanged { value: 0.5 })
+    );
+    assert_eq!(
+        slider.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(180.0, 14.0),
+            },
+        ),
+        Some(SliderMessage::ValueChanged { value: 1.0 })
+    );
+
+    let _ = slider.handle_input(bounds, WidgetInput::FocusChanged(true));
+    assert_eq!(
+        slider.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Home)),
+        Some(SliderMessage::ValueChanged { value: 0.0 })
     );
 }

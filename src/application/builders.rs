@@ -191,6 +191,10 @@ pub(in crate::application) fn default_text_input_sizing() -> WidgetSizing {
     WidgetSizing::new(Vector2::new(180.0, 42.0), Vector2::new(280.0, 42.0)).with_baseline(26.0)
 }
 
+pub(in crate::application) fn default_slider_sizing() -> WidgetSizing {
+    WidgetSizing::new(Vector2::new(160.0, 28.0), Vector2::new(240.0, 28.0))
+}
+
 pub(in crate::application) fn default_canvas_sizing() -> WidgetSizing {
     WidgetSizing::fixed(Vector2::new(1.0, 1.0))
 }

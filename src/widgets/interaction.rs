@@ -7,6 +7,7 @@ mod output;
 pub use input::{PointerButton, TextEditCommand, WidgetInput, WidgetKey};
 pub use messages::{
     BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, GpuSurfaceMessage,
-    ListItemMessage, ScrollbarMessage, SelectableMessage, TextInputMessage, ToggleMessage,
+    ListItemMessage, ScrollbarMessage, SelectableMessage, SliderMessage, TextInputMessage,
+    ToggleMessage,
 };
 pub use output::{CustomWidgetOutput, WidgetOutput};

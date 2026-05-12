@@ -61,6 +61,16 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             vec!["text_input(", ".bind(", "toggle(", ".on_change("],
         ),
         (
+            "volume_slider",
+            vec![
+                "slider(",
+                ".primary()",
+                ".on_change(",
+                "checkbox(",
+                "TextAlign::Right",
+            ],
+        ),
+        (
             "animation_showcase",
             vec![".animation(", ".on_frame(", "AnimationMessage::Frame"],
         ),

@@ -75,6 +75,16 @@ pub enum ScrollbarMessage {
     },
 }
 
+/// Message emitted by a reusable slider primitive.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SliderMessage {
+    /// The normalized slider value changed.
+    ValueChanged {
+        /// Clamped normalized value in the inclusive range `0.0..=1.0`.
+        value: f32,
+    },
+}
+
 /// Message emitted by a reusable drag handle primitive.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DragHandleMessage {

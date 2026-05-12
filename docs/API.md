@@ -243,6 +243,15 @@ ID and calls `Widget::synchronize_from_previous(...)`. Built-in widgets use that
 hook for transient interaction state such as text-input caret/selection and
 scrollbar drag grip state, and custom widgets can use the same hook for their
 own retained state without adding runtime downcasts or central widget cases.
+Pointer-driven custom widgets should keep transient hover and cursor state local
+when the state is only paint chrome. Leave `Widget::accepts_pointer_move()`
+enabled for widgets such as timelines, canvases, and editors that need stable
+pointer moves after hover has already entered the widget. Those stable
+`PointerMove` events request repaint even when `handle_input` returns `None`,
+so a snapped cursor, clip hover, or resize-handle preview can refresh smoothly
+without emitting host messages or forcing the app reducer to run for every mouse
+move. Emit a `WidgetOutput` only when the host-owned model changes, such as
+seek, create, move, resize, or delete.
 
 ## Message And Command
 

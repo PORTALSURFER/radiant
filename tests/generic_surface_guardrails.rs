@@ -276,6 +276,36 @@ fn clippy_quality_gate_is_documented_without_blanket_complexity_allow() {
 }
 
 #[test]
+fn pointer_move_repaint_contract_is_documented() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("Radiant API docs should be readable");
+    let contract = fs::read_to_string(manifest_dir.join("src/widgets/contract.rs"))
+        .expect("Radiant widget contract should be readable");
+
+    for required in [
+        "Widget::accepts_pointer_move()",
+        "request repaint even when `handle_input` returns `None`",
+        "without emitting host messages",
+    ] {
+        assert!(
+            docs.contains(required),
+            "API docs should explain the pointer-move repaint contract with `{required}`"
+        );
+    }
+    for required in [
+        "snapped timeline cursor",
+        "request repaint even when `handle_input` returns `None`",
+        "emit host messages",
+    ] {
+        assert!(
+            contract.contains(required),
+            "Widget contract should explain local pointer-move repaint behavior with `{required}`"
+        );
+    }
+}
+
+#[test]
 fn runtime_widgets_accept_boxed_widgets_and_dynamic_messages() {
     #[derive(Clone, Debug, PartialEq)]
     struct CustomPayload(&'static str);

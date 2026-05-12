@@ -131,12 +131,34 @@ fn pointer_move_message_inside_same_widget_still_requests_redraw() {
         .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
         .expect("pointer widget should be laid out");
 
-    assert!(core.route_pointer_move(point).needs_redraw());
+    let first = core.route_pointer_move(point);
+    assert!(first.routed);
+    assert!(first.needs_redraw());
     let second = core.route_pointer_move(Point::new(point.x + 1.0, point.y));
 
     assert!(second.routed);
     assert!(second.needs_redraw());
     assert_eq!(core.runtime.bridge().moves, 2);
+}
+
+#[test]
+fn local_pointer_move_state_inside_same_widget_requests_redraw() {
+    let mut core = GenericNativeRuntimeCore::new(LocalPointerMoveBridge, Vector2::new(120.0, 40.0));
+    let point = core
+        .runtime
+        .layout()
+        .rects
+        .get(&72)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("local pointer widget should be laid out");
+
+    let first = core.route_pointer_move(point);
+    assert!(first.routed);
+    assert!(first.needs_redraw());
+    let second = core.route_pointer_move(Point::new(point.x + 1.0, point.y));
+
+    assert!(second.routed);
+    assert!(second.needs_redraw());
 }
 
 #[test]
@@ -502,6 +524,62 @@ impl RuntimeBridge<PointerMoveMessage> for PointerMoveBridge {
     fn reduce_message(&mut self, _message: PointerMoveMessage) {
         self.moves += 1;
     }
+}
+
+#[derive(Clone, Debug)]
+struct LocalPointerMoveWidget {
+    common: WidgetCommon,
+    last_position: Option<Point>,
+}
+
+impl LocalPointerMoveWidget {
+    fn new() -> Self {
+        let mut common = WidgetCommon::new(72, WidgetSizing::fixed(Vector2::new(80.0, 24.0)));
+        common.focus = crate::widgets::FocusBehavior::Pointer;
+        Self {
+            common,
+            last_position: None,
+        }
+    }
+}
+
+impl Widget for LocalPointerMoveWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        if let WidgetInput::PointerMove { position } = input {
+            self.last_position = Some(position);
+        }
+        None
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &crate::layout::LayoutOutput,
+        _theme: &crate::theme::ThemeTokens,
+    ) {
+    }
+}
+
+struct LocalPointerMoveBridge;
+
+impl RuntimeBridge<()> for LocalPointerMoveBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+            LocalPointerMoveWidget::new(),
+            WidgetMessageMapper::none(),
+        )))
+    }
+
+    fn reduce_message(&mut self, _message: ()) {}
 }
 
 #[derive(Clone, Debug)]

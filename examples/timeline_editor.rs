@@ -37,7 +37,6 @@ struct TimelineEditorState {
     playing: bool,
     repeat_enabled: bool,
     playhead_beat: u32,
-    hover_beat: Option<u32>,
     selected_clip: Option<u32>,
     selection: Option<BeatRange>,
     next_clip_id: u32,
@@ -53,7 +52,6 @@ impl Default for TimelineEditorState {
             playing: false,
             repeat_enabled: true,
             playhead_beat: 18,
-            hover_beat: None,
             selected_clip: Some(2),
             selection: Some(BeatRange { start: 16, end: 28 }),
             next_clip_id: 5,
@@ -120,9 +118,6 @@ enum TimelineMessage {
 
 #[derive(Clone, Debug, PartialEq)]
 enum TimelineSurfaceMessage {
-    Hover {
-        beat: Option<u32>,
-    },
     Seek {
         beat: u32,
     },
@@ -198,7 +193,7 @@ impl ArrangementTimelineWidget {
             selected_clip: state.selected_clip,
             selection: state.selection,
             playhead_beat: state.playhead_beat,
-            hover_beat: state.hover_beat,
+            hover_beat: None,
             hover_clip_id: None,
             drag: None,
         }
@@ -302,7 +297,7 @@ impl Widget for ArrangementTimelineWidget {
                             range,
                         }))
                     }
-                    _ => Some(WidgetOutput::typed(TimelineSurfaceMessage::Hover { beat })),
+                    _ => None,
                 }
             }
             WidgetInput::PointerPress {
@@ -780,9 +775,6 @@ fn update(state: &mut TimelineEditorState, message: TimelineMessage) {
 
 fn update_surface(state: &mut TimelineEditorState, message: TimelineSurfaceMessage) {
     match message {
-        TimelineSurfaceMessage::Hover { beat } => {
-            state.hover_beat = beat;
-        }
         TimelineSurfaceMessage::Seek { beat } => {
             state.playhead_beat = beat.min(TOTAL_BEATS);
             state.selection = None;
@@ -924,7 +916,7 @@ fn timeline_surface(state: &TimelineEditorState) -> TimelineMotionState {
         TimelineViewport::new(0, 1_000, 0, 1_000_000, 0, 1_000_000_000),
         TimelineTransportState::new(
             Some(beat_to_normalized(state.playhead_beat)),
-            state.hover_beat.map(beat_to_normalized),
+            None,
             Some(beat_to_micros(state.playhead_beat)),
             selection,
         ),
@@ -939,7 +931,7 @@ fn timeline_surface(state: &TimelineEditorState) -> TimelineMotionState {
             selection.map(|range| range.end_micros.saturating_sub(1_000)),
             selection.map(|range| range.end_milli),
             selection.map(|range| range.end_micros),
-            state.hover_beat.map(beat_to_normalized),
+            None,
         ),
         TimelineFeedbackEvents::new(state.feedback_nonce, 0, state.revision),
         TimelinePresentationState::new(
@@ -1029,13 +1021,10 @@ fn beat_to_micros(beat: u32) -> u32 {
 
 fn timeline_label(state: &TimelineEditorState, timeline: &TimelineMotionState) -> String {
     format!(
-        "{} / clips {} / cursor {} / {}",
+        "{} / clips {} / playhead beat {} / {}",
         timeline.chrome.status_hint,
         timeline.surface.markers.len(),
-        state
-            .hover_beat
-            .map(|beat| format!("beat {beat}"))
-            .unwrap_or_else(|| "off timeline".to_string()),
+        state.playhead_beat,
         state.status
     )
 }
@@ -1290,9 +1279,9 @@ mod tests {
 
     #[test]
     fn timeline_widget_paints_one_vertical_cursor_indicator() {
-        let mut state = TimelineEditorState::default();
-        state.hover_beat = Some(24);
-        let widget = ArrangementTimelineWidget::new(&state);
+        let state = TimelineEditorState::default();
+        let mut widget = ArrangementTimelineWidget::new(&state);
+        widget.hover_beat = Some(24);
         let theme = ThemeTokens::default();
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
         let mut primitives = Vec::new();
@@ -1328,7 +1317,9 @@ mod tests {
                 position: Point::new(geometry.x_for_beat(4), geometry.lane_rect(0).center().y),
             },
         );
-        assert!(handled.is_some());
+        assert!(handled.is_none());
+        assert_eq!(widget.hover_clip_id, Some(1));
+        assert_eq!(widget.hover_beat, Some(4));
 
         let mut primitives = Vec::new();
         widget.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);

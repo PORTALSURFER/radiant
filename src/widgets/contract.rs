@@ -232,6 +232,13 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
     /// return `false`; the runtime still routes enter, leave, and captured drag
     /// motion. Custom widgets default to `true` so richer pointer-driven
     /// behavior is preserved unless a widget explicitly opts out.
+    ///
+    /// Keep this enabled when a widget updates local paint state from pointer
+    /// motion, such as a snapped timeline cursor, canvas hover highlight, or
+    /// resize handle preview. Stable pointer moves routed through this hook
+    /// request repaint even when `handle_input` returns `None`, so widgets do not need
+    /// to emit host messages merely to refresh transient hover chrome.
+    /// Widget-local pointer state does not need to emit host messages.
     fn accepts_pointer_move(&self) -> bool {
         true
     }

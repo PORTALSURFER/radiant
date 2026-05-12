@@ -112,14 +112,18 @@ where
         }
 
         let target = self.pointer_capture.or(pointer_widget)?;
-        if !hover_changed
-            && self.pointer_capture.is_none()
-            && !self.widget_accepts_stable_pointer_move(target)
-        {
+        let accepts_stable_pointer_move = self.widget_accepts_stable_pointer_move(target);
+        if !hover_changed && self.pointer_capture.is_none() && !accepts_stable_pointer_move {
             return Some(target);
         }
-        self.dispatch_input(target, WidgetInput::PointerMove { position })
-            .then_some(target)
+        let routed = self.dispatch_input(target, WidgetInput::PointerMove { position });
+        if routed && accepts_stable_pointer_move && self.pointer_capture.is_none() {
+            // Stable pointer-move widgets may update local paint-only hover
+            // state without emitting host messages. Request repaint here so
+            // cursor and handle previews stay responsive without reducer churn.
+            self.repaint_requested = true;
+        }
+        routed.then_some(target)
     }
 
     fn widget_suppresses_container_hover(&self, widget_id: Option<WidgetId>) -> bool {

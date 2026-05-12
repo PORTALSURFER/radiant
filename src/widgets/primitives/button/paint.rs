@@ -2,12 +2,14 @@
 
 use crate::gui::types::Rect;
 use crate::runtime::{
-    PaintPrimitive, PaintTextAlign, PaintTextRun, button_font_size, inset_rect,
-    optical_centered_baseline, push_text_run,
+    button_font_size, inset_rect, optical_centered_baseline, push_text_run, PaintPrimitive,
+    PaintTextAlign, PaintTextRun,
 };
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::{
-    button::ButtonWidget, support::push_button_chrome, text::TextWrap,
+    button::ButtonWidget,
+    support::push_button_chrome,
+    text::{TextAlign, TextWrap},
 };
 
 pub(super) fn push_button_widget_paint(
@@ -32,7 +34,11 @@ pub(super) fn push_button_widget_paint(
                 button.common.state,
             )
             .foreground,
-            align: PaintTextAlign::Center,
+            align: match button.props.text_align {
+                TextAlign::Left => PaintTextAlign::Left,
+                TextAlign::Center => PaintTextAlign::Center,
+                TextAlign::Right => PaintTextAlign::Right,
+            },
             wrap: TextWrap::None,
             font_size,
         },

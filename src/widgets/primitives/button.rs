@@ -12,6 +12,7 @@ use crate::theme::ThemeTokens;
 use super::support::WidgetCommon;
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{ButtonMessage, WidgetInput, WidgetOutput};
+use crate::widgets::TextAlign;
 
 pub use model::{ButtonProps, ButtonState};
 
@@ -35,6 +36,7 @@ impl ButtonWidget {
             common,
             props: ButtonProps {
                 label: label.into(),
+                text_align: TextAlign::Center,
                 secondary_click: false,
                 drag: false,
             },
@@ -86,6 +88,11 @@ impl Widget for ButtonWidget {
 
     fn accepts_pointer_move(&self) -> bool {
         false
+    }
+
+    fn set_text_align(&mut self, align: TextAlign) -> bool {
+        self.props.text_align = align;
+        true
     }
 
     fn append_paint(
@@ -276,10 +283,18 @@ mod tests {
             _ => None,
         });
 
-        assert!(
-            fill_points
-                .zip(stroke_points)
-                .is_some_and(|(fill, stroke)| Arc::ptr_eq(fill, stroke))
-        );
+        assert!(fill_points
+            .zip(stroke_points)
+            .is_some_and(|(fill, stroke)| Arc::ptr_eq(fill, stroke)));
+    }
+
+    #[test]
+    fn button_text_alignment_can_be_overridden() {
+        let mut button =
+            ButtonWidget::new(11, "Folder", WidgetSizing::fixed(Vector2::new(120.0, 24.0)));
+
+        assert_eq!(button.props.text_align, TextAlign::Center);
+        assert!(button.set_text_align(TextAlign::Left));
+        assert_eq!(button.props.text_align, TextAlign::Left);
     }
 }

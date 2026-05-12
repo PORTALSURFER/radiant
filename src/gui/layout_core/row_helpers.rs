@@ -13,7 +13,25 @@ pub fn fixed_width_row_rects_start(
     _row_id: u64,
     _first_item_id: u64,
 ) -> Vec<Rect> {
-    fixed_width_row_rects(bounds, gap, widths, false)
+    let mut rects = Vec::new();
+    fixed_width_row_rects_into(bounds, gap, widths, false, &mut rects);
+    rects
+}
+
+/// Compute start-aligned fixed-width row item rects into caller-owned storage.
+///
+/// This is the allocation-reusing counterpart to [`fixed_width_row_rects_start`]
+/// for renderers, toolbars, and dense control strips that rebuild fixed row
+/// geometry repeatedly.
+pub fn fixed_width_row_rects_start_into(
+    bounds: Rect,
+    gap: f32,
+    widths: &[f32],
+    _row_id: u64,
+    _first_item_id: u64,
+    rects: &mut Vec<Rect>,
+) {
+    fixed_width_row_rects_into(bounds, gap, widths, false, rects);
 }
 
 /// Compute fixed-width row item rects aligned to the end edge of `bounds`.
@@ -28,7 +46,25 @@ pub fn fixed_width_row_rects_end(
     _spacer_id: u64,
     _first_item_id: u64,
 ) -> Vec<Rect> {
-    fixed_width_row_rects(bounds, gap, widths, true)
+    let mut rects = Vec::new();
+    fixed_width_row_rects_into(bounds, gap, widths, true, &mut rects);
+    rects
+}
+
+/// Compute end-aligned fixed-width row item rects into caller-owned storage.
+///
+/// This preserves the public geometry contract of [`fixed_width_row_rects_end`]
+/// while allowing hot paths to reuse an existing output buffer.
+pub fn fixed_width_row_rects_end_into(
+    bounds: Rect,
+    gap: f32,
+    widths: &[f32],
+    _row_id: u64,
+    _spacer_id: u64,
+    _first_item_id: u64,
+    rects: &mut Vec<Rect>,
+) {
+    fixed_width_row_rects_into(bounds, gap, widths, true, rects);
 }
 
 /// Return the suffix of `widths` that fits in `available_width`.
@@ -36,8 +72,24 @@ pub fn fixed_width_row_rects_end(
 /// This preserves the rightmost items for compact action clusters and returns
 /// widths in their original order.
 pub fn visible_suffix_widths(widths: &[f32], available_width: f32, gap: f32) -> Vec<f32> {
+    let mut visible = Vec::new();
+    visible_suffix_widths_into(widths, available_width, gap, &mut visible);
+    visible
+}
+
+/// Write the suffix of `widths` that fits in `available_width` into `visible`.
+///
+/// The output is cleared before use and retains its allocation for callers that
+/// recalculate compact control clusters during repeated layout or paint passes.
+pub fn visible_suffix_widths_into(
+    widths: &[f32],
+    available_width: f32,
+    gap: f32,
+    visible: &mut Vec<f32>,
+) {
+    visible.clear();
     if available_width <= 0.0 || widths.is_empty() {
-        return Vec::new();
+        return;
     }
     let mut used = 0.0;
     let mut first_visible = widths.len();
@@ -49,7 +101,11 @@ pub fn visible_suffix_widths(widths: &[f32], available_width: f32, gap: f32) -> 
         first_visible -= 1;
         used = candidate;
     }
-    widths[first_visible..].to_vec()
+    let suffix = &widths[first_visible..];
+    if suffix.len() > visible.capacity() {
+        visible.reserve(suffix.len());
+    }
+    visible.extend_from_slice(suffix);
 }
 
 /// Return the width of one fixed-width control group.
@@ -103,9 +159,16 @@ pub fn fixed_width_item_extent_for_available_width(
     }
 }
 
-fn fixed_width_row_rects(bounds: Rect, gap: f32, widths: &[f32], align_end: bool) -> Vec<Rect> {
+fn fixed_width_row_rects_into(
+    bounds: Rect,
+    gap: f32,
+    widths: &[f32],
+    align_end: bool,
+    rects: &mut Vec<Rect>,
+) {
+    rects.clear();
     if widths.is_empty() || bounds.width() <= 0.0 || bounds.height() <= 0.0 {
-        return Vec::new();
+        return;
     }
 
     let gap = gap.max(0.0);
@@ -121,7 +184,9 @@ fn fixed_width_row_rects(bounds: Rect, gap: f32, widths: &[f32], align_end: bool
         bounds.min.x
     };
 
-    let mut rects = Vec::with_capacity(widths.len());
+    if widths.len() > rects.capacity() {
+        rects.reserve(widths.len());
+    }
     for (index, width) in widths.iter().copied().enumerate() {
         if index > 0 {
             x += gap;
@@ -134,15 +199,15 @@ fn fixed_width_row_rects(bounds: Rect, gap: f32, widths: &[f32], align_end: bool
         x += width;
         rects.push(rect.clamp_to(bounds));
     }
-    rects
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         fixed_width_group_width, fixed_width_item_extent_for_available_width,
-        fixed_width_row_rects_end, fixed_width_row_rects_start, grouped_fixed_width_row_width,
-        visible_suffix_widths,
+        fixed_width_row_rects_end, fixed_width_row_rects_end_into, fixed_width_row_rects_start,
+        fixed_width_row_rects_start_into, grouped_fixed_width_row_width, visible_suffix_widths,
+        visible_suffix_widths_into,
     };
     use crate::gui::types::{Point, Rect};
 
@@ -199,6 +264,47 @@ mod tests {
 
         assert_eq!(rects.len(), 3);
         assert!(rects.capacity() >= 3);
+    }
+
+    #[test]
+    fn fixed_width_row_rects_into_reuses_output_storage() {
+        let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 40.0));
+        let mut rects = Vec::with_capacity(8);
+        rects.push(Rect::from_min_max(
+            Point::new(0.0, 0.0),
+            Point::new(1.0, 1.0),
+        ));
+        let capacity = rects.capacity();
+
+        fixed_width_row_rects_start_into(bounds, 4.0, &[20.0, 30.0], 1, 10, &mut rects);
+
+        assert_eq!(rects.len(), 2);
+        assert_eq!(rects.capacity(), capacity);
+        assert_eq!(rects[0].min.x, 10.0);
+        assert_eq!(rects[1].max.x, 64.0);
+
+        fixed_width_row_rects_end_into(bounds, 4.0, &[20.0, 30.0], 1, 2, 10, &mut rects);
+
+        assert_eq!(rects.capacity(), capacity);
+        assert_eq!(rects[0].min.x, 56.0);
+        assert_eq!(rects[1].max.x, 110.0);
+    }
+
+    #[test]
+    fn visible_suffix_widths_into_reuses_output_storage() {
+        let mut visible = Vec::with_capacity(8);
+        visible.push(99.0);
+        let capacity = visible.capacity();
+
+        visible_suffix_widths_into(&[20.0, 30.0, 40.0], 80.0, 4.0, &mut visible);
+
+        assert_eq!(visible, [30.0, 40.0]);
+        assert_eq!(visible.capacity(), capacity);
+
+        visible_suffix_widths_into(&[20.0, 30.0, 40.0], 0.0, 4.0, &mut visible);
+
+        assert!(visible.is_empty());
+        assert_eq!(visible.capacity(), capacity);
     }
 
     #[test]

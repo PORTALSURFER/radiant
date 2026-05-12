@@ -604,6 +604,9 @@ checkbox-backed mute state through direct state callbacks.
 Run `cargo run --example sample_source_list` for a compact stateful list
 sandbox that emulates a sample-source picker with selectable rows, stable row
 IDs, and small `+` / `-` row actions.
+Run `cargo run --example toolbar_icons` for a horizontal SVG-icon toolbar
+sandbox that uses custom toggle buttons, state-driven active highlights, and
+muted inactive icon rasterization.
 Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that
 uses `grid_with_gaps(...)` with normal nested views and styling.
 Run `cargo run --example theme_playground` for a theme-token sandbox that

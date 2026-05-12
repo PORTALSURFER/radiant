@@ -82,6 +82,16 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             ],
         ),
         (
+            "toolbar_icons",
+            vec![
+                "parse_svg_document(",
+                "point_in_svg_shapes(",
+                "custom_widget_mapped(",
+                "IconToggleButton::new(",
+                "ToolMessage::Toggle(",
+            ],
+        ),
+        (
             "animation_showcase",
             vec![".animation(", ".on_frame(", "AnimationMessage::Frame"],
         ),
@@ -300,7 +310,7 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             "SurfaceChild",
             "Arc<UiSurface",
         ];
-        if name != "custom_widget" && name != "timeline_editor" {
+        if name != "custom_widget" && name != "timeline_editor" && name != "toolbar_icons" {
             deprecated_first_use.push("WidgetSizing");
         }
 

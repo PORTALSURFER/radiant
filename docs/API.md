@@ -33,7 +33,7 @@ Radiant's application API is designed to be easy to read without hiding the
 runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `app`, `text`, `button`, `row`, `column`, `scroll`, `scroll_column`, `list`,
 `list_row`, `toggle`, `text_input`, `custom_widget`, `IntoView`, `View`,
-`StateView`, `Command`, and the builder types needed by method chains. These
+`StateView`, `Command`, `EmbeddedFont`, and the builder types needed by method chains. These
 builders lower into the same `UiSurface`, `SurfaceNode`, `SurfaceChild`,
 `WidgetSizing`, and `RuntimeBridge` contracts available through the explicit
 runtime modules.
@@ -114,9 +114,13 @@ provide integer `.size(...)` convenience methods plus `.logical_size(...)` and
 without exposing normal app code to raw WGPU setup; the default remains WGPU's
 environment-aware adapter selection, while diagnostics or platform work can
 request a specific backend such as DX12, Vulkan, Metal, GL, or browser WebGPU.
-`NativeTextOptions` lets hosts provide preferred font files before Radiant falls
-back to environment or system fonts, keeping text/font policy explicit without
-moving application asset loading into the renderer.
+`NativeTextOptions` lets hosts provide embedded font bytes or preferred font
+files before Radiant falls back to environment or system fonts, keeping
+text/font policy explicit without moving application asset loading into the
+renderer. Use `EmbeddedFont::from_static(include_bytes!("fonts/App.ttf"))` with
+`.embedded_font(...)` on `radiant::window(...)`, `radiant::app(...)`, or
+`WindowSpec` when an application should ship as a portable package without
+depending on installed font files.
 `WindowSpec` describes one host-managed window without opening the platform
 runtime. `WindowManifest` stores ordered specs and rejects duplicate stable
 keys, so multi-window or embedded hosts can validate a window set and attach a

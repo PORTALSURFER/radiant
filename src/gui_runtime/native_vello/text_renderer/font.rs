@@ -1,16 +1,35 @@
 //! Fallback native-font discovery helpers for the Vello text renderer.
 
+use crate::gui_runtime::NativeTextOptions;
 use std::path::PathBuf;
 use vello::peniko::{Blob, FontData};
 
-pub(super) fn load_native_font(preferred_paths: &[PathBuf]) -> Option<FontData> {
+pub(super) fn load_native_font(options: &NativeTextOptions) -> Option<FontData> {
+    for embedded in &options.embedded_fonts {
+        if let Some(font) = font_data_from_bytes(embedded.bytes(), embedded.index()) {
+            return Some(font);
+        }
+    }
+
+    load_native_font_from_paths(&options.font_paths)
+}
+
+fn load_native_font_from_paths(preferred_paths: &[PathBuf]) -> Option<FontData> {
     for path in native_font_candidates(preferred_paths) {
         let Ok(bytes) = std::fs::read(&path) else {
             continue;
         };
-        return Some(FontData::new(Blob::from(bytes), 0));
+        if let Some(font) = font_data_from_bytes(bytes, 0) {
+            return Some(font);
+        }
     }
     None
+}
+
+fn font_data_from_bytes(bytes: impl AsRef<[u8]>, index: u32) -> Option<FontData> {
+    let bytes = bytes.as_ref();
+    skrifa::FontRef::from_index(bytes, index).ok()?;
+    Some(FontData::new(Blob::from(bytes.to_vec()), index))
 }
 
 pub(super) fn native_font_candidates(preferred_paths: &[PathBuf]) -> Vec<PathBuf> {
@@ -68,7 +87,7 @@ pub(super) fn native_font_candidates(preferred_paths: &[PathBuf]) -> Vec<PathBuf
 
 #[cfg(test)]
 mod tests {
-    use super::native_font_candidates;
+    use super::{font_data_from_bytes, native_font_candidates};
     use std::path::PathBuf;
 
     #[test]
@@ -76,5 +95,10 @@ mod tests {
         let candidates = native_font_candidates(&[PathBuf::from("host-font.ttf")]);
 
         assert_eq!(candidates.first(), Some(&PathBuf::from("host-font.ttf")));
+    }
+
+    #[test]
+    fn invalid_font_bytes_are_rejected_before_renderer_use() {
+        assert!(font_data_from_bytes(b"not a font", 0).is_none());
     }
 }

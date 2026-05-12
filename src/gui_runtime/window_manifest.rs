@@ -1,6 +1,6 @@
 //! Host-owned native window descriptors and manifest validation.
 
-use super::{NativeGpuBackend, NativeRunOptions, WindowIconRgba};
+use super::{EmbeddedFont, NativeGpuBackend, NativeRunOptions, WindowIconRgba};
 use std::{collections::HashSet, path::PathBuf};
 
 /// Platform-neutral descriptor for one application window.
@@ -98,6 +98,12 @@ impl WindowSpec {
     /// Add a preferred font file checked before native fallback fonts.
     pub fn font_path(mut self, path: impl Into<PathBuf>) -> Self {
         self.options.text.font_paths.push(path.into());
+        self
+    }
+
+    /// Add embedded TTF/OTF font bytes checked before file and native fallback fonts.
+    pub fn embedded_font(mut self, font: impl Into<EmbeddedFont>) -> Self {
+        self.options.text.embedded_fonts.push(font.into());
         self
     }
 

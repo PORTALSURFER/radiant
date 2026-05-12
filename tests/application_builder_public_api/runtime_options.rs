@@ -1,6 +1,6 @@
 use radiant::runtime::{
-    DEFAULT_NATIVE_WINDOW_TITLE, NativeGpuBackend, NativeGpuOptions, NativeRunOptions,
-    NativeTextOptions, WindowManifest, WindowSpec,
+    DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, NativeGpuBackend, NativeGpuOptions,
+    NativeRunOptions, NativeTextOptions, WindowManifest, WindowSpec,
 };
 
 #[test]
@@ -44,21 +44,52 @@ fn native_run_options_expose_gpu_backend_policy() {
 fn native_run_options_expose_text_font_policy() {
     let options = NativeRunOptions {
         text: NativeTextOptions {
+            embedded_fonts: vec![EmbeddedFont::from_static(b"app-font").with_index(1)],
             font_paths: vec!["fonts/App.ttf".into()],
         },
         ..NativeRunOptions::default()
     };
-    let spec = WindowSpec::new("main", "Main").font_path("fonts/Spec.ttf");
+    let spec = WindowSpec::new("main", "Main")
+        .embedded_font(EmbeddedFont::from_static(b"spec-font"))
+        .font_path("fonts/Spec.ttf");
 
+    assert!(NativeRunOptions::default().text.embedded_fonts.is_empty());
     assert!(NativeRunOptions::default().text.font_paths.is_empty());
+    assert_eq!(options.text.embedded_fonts[0].bytes(), b"app-font");
+    assert_eq!(options.text.embedded_fonts[0].index(), 1);
     assert_eq!(
         options.text.font_paths[0],
         std::path::PathBuf::from("fonts/App.ttf")
     );
     assert_eq!(
+        spec.native_options().text.embedded_fonts[0].bytes(),
+        b"spec-font"
+    );
+    assert_eq!(
         spec.native_options().text.font_paths[0],
         std::path::PathBuf::from("fonts/Spec.ttf")
     );
+}
+
+#[test]
+fn launch_builders_expose_embedded_font_policy() {
+    let no_state = radiant::window("Main")
+        .embedded_font(EmbeddedFont::from_static(b"window-font"))
+        .font_path("fonts/Window.ttf")
+        .spec("main");
+    let stateful = radiant::app(())
+        .embedded_font(EmbeddedFont::from_static(b"state-font"))
+        .font_path("fonts/State.ttf");
+
+    assert_eq!(
+        no_state.native_options().text.embedded_fonts[0].bytes(),
+        b"window-font"
+    );
+    assert_eq!(
+        no_state.native_options().text.font_paths[0],
+        std::path::PathBuf::from("fonts/Window.ttf")
+    );
+    let _ = stateful;
 }
 
 #[test]

@@ -142,13 +142,13 @@ impl GpuSurfaceRenderer {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         key: u64,
-        revision: u64,
+        cache_key: SignalBufferCacheKey,
         buckets: &[GpuSignalSummaryBucket],
         uniforms: &SignalUniforms,
     ) {
         let sample_count = summary_bucket_value_count(buckets);
         if let Some(buffer) = self.signals.get(&key).filter(|buffer| {
-            buffer.revision == revision
+            buffer.cache_key == cache_key
                 && buffer.sample_count == sample_count
                 && buffer.pipeline_generation == self.signal_pipeline_generation
         }) {
@@ -189,7 +189,7 @@ impl GpuSurfaceRenderer {
         self.signals.insert(
             key,
             SignalBuffer {
-                revision,
+                cache_key,
                 sample_count,
                 pipeline_generation: self.signal_pipeline_generation,
                 _sample_buffer: sample_buffer,

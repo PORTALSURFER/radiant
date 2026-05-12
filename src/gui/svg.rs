@@ -1,10 +1,9 @@
-//! XML-backed SVG subset parsing for retained vector icons.
+//! Vello SVG-backed parsing for retained vector icons.
 //!
 //! The public surface is [`SvgIcon`]. Parser internals stay private so Radiant
 //! can widen SVG support without exposing document or element models.
 
 mod document;
-mod transform;
 
 use vello::kurbo::{Affine, Vec2};
 
@@ -35,14 +34,10 @@ impl SvgIcon {
         rect: Rect,
         color: Rgba8,
     ) {
-        let scale_x = rect.width() / self.document.view_box_width.max(f32::EPSILON);
-        let scale_y = rect.height() / self.document.view_box_height.max(f32::EPSILON);
+        let scale_x = rect.width() / self.document.width.max(f32::EPSILON);
+        let scale_y = rect.height() / self.document.height.max(f32::EPSILON);
         let transform = Affine::translate(Vec2::new(rect.min.x as f64, rect.min.y as f64))
-            * Affine::scale_non_uniform(scale_x as f64, scale_y as f64)
-            * Affine::translate(Vec2::new(
-                -self.document.view_box_min_x as f64,
-                -self.document.view_box_min_y as f64,
-            ));
+            * Affine::scale_non_uniform(scale_x as f64, scale_y as f64);
         for shape in &self.document.shapes {
             primitives.push(PaintPrimitive::FillPath(PaintFillPath {
                 widget_id,

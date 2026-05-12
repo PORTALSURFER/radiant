@@ -486,6 +486,9 @@ compose primary and secondary glyphs.
 paint paths.
 `Rect::union` provides shared bounding-box aggregation for retained rendering,
 hit testing, and automation paths.
+`StatusSegments::new(...)`, `StatusSegments::primary(...)`, and the
+`with_left(...)` / `with_center(...)` / `with_right(...)` builders provide a
+structured left/center/right status-bar model for application chrome.
 `SurfaceRuntime::focus_widget`, `SurfaceRuntime::clear_focus`,
 `SurfaceRuntime::focused_widget`, `SurfaceRuntime::traverse_focus`, and
 `FocusTraversal` expose deterministic keyboard focus ownership and traversal.

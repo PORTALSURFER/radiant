@@ -1,5 +1,6 @@
 //! Bottom status bar with actions, toggles, and background work.
 
+use radiant::gui::chrome::StatusSegments;
 use radiant::prelude::*;
 use std::{thread, time::Duration};
 
@@ -73,14 +74,15 @@ impl StatusBarState {
         self.status = String::from("Status reset");
     }
 
-    fn status_line(&self) -> String {
-        format!(
-            "{} | autosave: {} | actions: {} | workers complete: {}",
-            self.status,
-            if self.autosave { "on" } else { "off" },
-            self.action_count,
-            self.completed_workers
-        )
+    fn status_segments(&self) -> StatusSegments {
+        StatusSegments::primary(self.status.clone())
+            .with_center(format!(
+                "Autosave {} | actions {} | workers {}",
+                if self.autosave { "on" } else { "off" },
+                self.action_count,
+                self.completed_workers
+            ))
+            .with_right(if self.worker_running { "Busy" } else { "Idle" })
     }
 }
 
@@ -146,9 +148,13 @@ fn workspace_panel(state: &StatusBarState) -> View<StatusMessage> {
 }
 
 fn status_bar(state: &StatusBarState) -> View<StatusMessage> {
+    let segments = state.status_segments();
     row([
-        text(state.status_line()).truncate().fill_width(),
-        text(if state.worker_running { "Busy" } else { "Idle" })
+        text(segments.left).truncate().fill_width(),
+        text(segments.center)
+            .align_text(TextAlign::Center)
+            .width(230.0),
+        text(segments.right)
             .align_text(TextAlign::Right)
             .width(64.0),
     ])
@@ -223,7 +229,10 @@ mod tests {
         assert!(!state.autosave);
         assert!(!state.worker_running);
         assert_eq!(state.completed_workers, 1);
-        assert!(state.status_line().contains("autosave: off"));
+        assert_eq!(
+            state.status_segments().center,
+            "Autosave off | actions 1 | workers 1"
+        );
     }
 
     #[test]

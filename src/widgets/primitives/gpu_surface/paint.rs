@@ -9,6 +9,9 @@ pub(super) fn push_gpu_surface_widget_paint(
     surface: &GpuSurfaceWidget,
     bounds: Rect,
 ) {
+    if !surface.content.is_renderable() {
+        return;
+    }
     primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {
         widget_id: surface.common.id,
         key: surface.key,

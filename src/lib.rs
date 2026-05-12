@@ -63,10 +63,10 @@ pub mod prelude {
         shortcuts::ShortcutResolution,
     };
     pub use crate::runtime::{
-        Command, GpuHoverCursor, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,
-        GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay, ResourceKey, ResourceLoad,
-        ResourceLoadState, ResourceRequest, ResourceSlot, ScrollUpdate, SurfaceFrame,
-        WindowManifest, WindowSpec,
+        Command, GpuHoverCursor, GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket,
+        GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay,
+        ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot, ScrollUpdate,
+        SurfaceFrame, WindowManifest, WindowSpec,
     };
     pub use crate::widgets::{
         DragHandleMessage, GpuSurfaceMessage, GpuSurfaceWidget, TextAlign, Widget, WidgetOutput,

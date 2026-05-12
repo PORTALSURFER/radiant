@@ -58,23 +58,17 @@ impl GpuSurfaceRenderer {
             if surface.rect.width() <= 0.0 || surface.rect.height() <= 0.0 {
                 continue;
             }
+            if !surface.content.is_renderable() {
+                continue;
+            }
             match &surface.content {
-                GpuSurfaceContent::RgbaAtlas { source_rect, atlas } => {
-                    if atlas.width == 0 || atlas.height == 0 {
-                        continue;
-                    }
+                GpuSurfaceContent::RgbaAtlas { source_rect, .. } => {
                     self.render_atlas(target, surface, *source_rect, &mut stats);
                 }
-                GpuSurfaceContent::SignalBands { samples, .. } => {
-                    if samples.is_empty() {
-                        continue;
-                    }
+                GpuSurfaceContent::SignalBands { .. } => {
                     self.render_signal(target, surface, &mut stats);
                 }
-                GpuSurfaceContent::SignalSummaryBands { summary, .. } => {
-                    if summary.levels.is_empty() {
-                        continue;
-                    }
+                GpuSurfaceContent::SignalSummaryBands { .. } => {
                     self.render_signal(target, surface, &mut stats);
                 }
             }

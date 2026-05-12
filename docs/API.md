@@ -398,6 +398,9 @@ through the same `SurfacePaintPlan` as Vello-backed widgets.
 
 `PaintGpuSurface` currently supports the built-in v1 content payloads
 `GpuSurfaceContent::RgbaAtlas`, `SignalBands`, and `SignalSummaryBands`.
+`GpuSurfaceContent::is_renderable()` and `signal_render_shape()` define the
+shared payload contract used by widget projection and native renderers, so
+invalid signal shapes or empty texture sources do not leak into backend work.
 Runtime behavior is declared explicitly through `GpuSurfaceCapabilities`:
 `fast_pointer_move` allows pointer-motion overlay updates without reprojecting
 the app surface, `coalesce_vertical_wheel` allows vertical wheel deltas to be

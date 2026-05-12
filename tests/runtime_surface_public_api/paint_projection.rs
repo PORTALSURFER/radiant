@@ -178,6 +178,34 @@ fn gpu_surface_widget_projects_generic_retained_gpu_primitive() {
 }
 
 #[test]
+fn invalid_gpu_surface_payloads_do_not_enter_paint_plan() {
+    let surface: UiSurface<()> = UiSurface::new(SurfaceNode::static_widget(GpuSurfaceWidget::new(
+        41,
+        WidgetSizing::fixed(Vector2::new(80.0, 20.0)),
+        9001,
+        7,
+        GpuSurfaceContent::SignalBands {
+            frames: 2,
+            band_count: 0,
+            frame_range: [0.0, 2.0],
+            samples: [0.0, 1.0].into(),
+        },
+    )));
+    let output = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 40.0)),
+    );
+
+    let plan = surface.paint_plan(&output, &ThemeTokens::default());
+
+    assert!(
+        plan.primitives
+            .iter()
+            .all(|primitive| !matches!(primitive, PaintPrimitive::GpuSurface(_)))
+    );
+}
+
+#[test]
 fn paint_plan_stats_count_backend_neutral_frame_shape() {
     let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::stack(
         1,

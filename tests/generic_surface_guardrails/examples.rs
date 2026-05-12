@@ -178,6 +178,7 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
                 "TimelineSurfaceState::new(",
                 "TimelineMotionState::new(",
                 "retained_canvas(",
+                "custom_widget_mapped(",
                 "drop_marker(",
             ],
         ),
@@ -270,7 +271,7 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             "SurfaceChild",
             "Arc<UiSurface",
         ];
-        if name != "custom_widget" {
+        if name != "custom_widget" && name != "timeline_editor" {
             deprecated_first_use.push("WidgetSizing");
         }
 

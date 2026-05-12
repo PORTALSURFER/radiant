@@ -7,6 +7,7 @@ use crate::theme::ThemeTokens;
 
 mod core;
 mod gpu_surface;
+mod gpu_surface_cursor;
 mod gpu_surface_interaction;
 mod input;
 mod keyboard;

@@ -113,6 +113,7 @@ enum TimelineMessage {
     ToggleRepeat(bool),
     Rewind,
     DuplicateSelection,
+    DeleteSelection,
     Surface(TimelineSurfaceMessage),
 }
 
@@ -140,6 +141,7 @@ enum TimelineSurfaceMessage {
         lane: usize,
         range: BeatRange,
     },
+    DeleteSelected,
 }
 
 #[derive(Clone, Debug)]
@@ -313,6 +315,11 @@ impl Widget for ArrangementTimelineWidget {
                     beat: self.hover_beat.unwrap_or(self.playhead_beat),
                 }))
             }
+            WidgetInput::KeyPress(WidgetKey::Delete | WidgetKey::Backspace)
+                if self.common.state.focused && self.selected_clip.is_some() =>
+            {
+                Some(WidgetOutput::typed(TimelineSurfaceMessage::DeleteSelected))
+            }
             _ => None,
         }
     }
@@ -463,43 +470,41 @@ impl Widget for ArrangementTimelineWidget {
             );
         }
 
-        if let Some(beat) = self.hover_beat {
-            let x = geometry.x_for_beat(beat);
-            push_rect(
-                primitives,
-                self.common.id,
-                Rect::from_min_max(
-                    Point::new(x - 1.0, geometry.ruler.min.y),
-                    Point::new(x + 1.0, bounds.max.y),
-                ),
-                theme.highlight_orange_soft,
-            );
+        let indicator_beat = self.hover_beat.unwrap_or(self.playhead_beat);
+        let indicator_x = geometry.x_for_beat(indicator_beat);
+        let indicator_color = if self.hover_beat.is_some() {
+            theme.highlight_orange_soft
+        } else {
+            theme.highlight_orange
+        };
+        push_rect(
+            primitives,
+            self.common.id,
+            Rect::from_min_max(
+                Point::new(indicator_x - 1.5, geometry.ruler.min.y),
+                Point::new(indicator_x + 1.5, bounds.max.y),
+            ),
+            indicator_color,
+        );
+        if self.hover_beat.is_some() {
             push_text(
                 primitives,
                 self.common.id,
-                format!("beat {beat}"),
+                format!("beat {indicator_beat}"),
                 Rect::from_min_max(
                     Point::new(
-                        (x + 8.0).min(bounds.max.x - 82.0),
+                        (indicator_x + 8.0).min(bounds.max.x - 82.0),
                         geometry.ruler.min.y + 6.0,
                     ),
-                    Point::new((x + 82.0).min(bounds.max.x - 4.0), geometry.ruler.max.y),
+                    Point::new(
+                        (indicator_x + 82.0).min(bounds.max.x - 4.0),
+                        geometry.ruler.max.y,
+                    ),
                 ),
                 theme.text_primary,
                 PaintTextAlign::Left,
             );
         }
-
-        let playhead_x = geometry.x_for_beat(self.playhead_beat);
-        push_rect(
-            primitives,
-            self.common.id,
-            Rect::from_min_max(
-                Point::new(playhead_x - 1.5, bounds.min.y),
-                Point::new(playhead_x + 1.5, bounds.max.y),
-            ),
-            theme.highlight_orange,
-        );
     }
 }
 
@@ -611,7 +616,6 @@ fn project_surface(state: &mut TimelineEditorState) -> View<TimelineMessage> {
             )
             .id(TIMELINE_WIDGET_ID)
             .fill(),
-            drop_marker(playhead_x(timeline.surface.transport), 0.0, 3.0, 252.0).id(22),
         ])
         .style(WidgetStyle::default())
         .height(252.0)
@@ -627,6 +631,11 @@ fn project_surface(state: &mut TimelineEditorState) -> View<TimelineMessage> {
                 .message(TimelineMessage::DuplicateSelection)
                 .id(31)
                 .size(108.0, 30.0),
+            button("Delete")
+                .danger()
+                .message(TimelineMessage::DeleteSelection)
+                .id(32)
+                .size(84.0, 30.0),
             text(timeline_label(state, &timeline))
                 .id(STATUS_WIDGET_ID)
                 .height(30.0)
@@ -664,6 +673,7 @@ fn update(state: &mut TimelineEditorState, message: TimelineMessage) {
             state.revision += 1;
         }
         TimelineMessage::DuplicateSelection => duplicate_selected_clip(state),
+        TimelineMessage::DeleteSelection => delete_selected_clip(state),
         TimelineMessage::Surface(message) => update_surface(state, message),
     }
 }
@@ -714,6 +724,7 @@ fn update_surface(state: &mut TimelineEditorState, message: TimelineSurfaceMessa
         TimelineSurfaceMessage::CreateClip { lane, range } => {
             create_clip(state, lane, range);
         }
+        TimelineSurfaceMessage::DeleteSelected => delete_selected_clip(state),
     }
 }
 
@@ -769,6 +780,27 @@ fn duplicate_selected_clip(state: &mut TimelineEditorState) {
         end: start + duration,
     });
     state.status = format!("duplicated clip {}", source_id);
+    state.revision += 1;
+}
+
+fn delete_selected_clip(state: &mut TimelineEditorState) {
+    let Some(clip_id) = state.selected_clip else {
+        state.status = "select a clip first".to_string();
+        return;
+    };
+    let before = state.clips.len();
+    state.clips.retain(|clip| clip.id != clip_id);
+    if state.clips.len() == before {
+        state.status = format!("clip {} was already gone", clip_id);
+        state.selected_clip = None;
+        state.selection = None;
+        state.revision += 1;
+        return;
+    }
+    state.selected_clip = None;
+    state.selection = None;
+    state.status = format!("deleted clip {}", clip_id);
+    state.feedback_nonce += 1;
     state.revision += 1;
 }
 
@@ -852,11 +884,6 @@ fn clip_range(state: &TimelineEditorState, clip_id: u32) -> Option<BeatRange> {
         .iter()
         .find(|clip| clip.id == clip_id)
         .map(|clip| clip.range)
-}
-
-fn playhead_x(transport: TimelineTransportState) -> f32 {
-    let normalized = transport.playhead_milli.unwrap_or(0) as f32 / 1_000.0;
-    HEADER_WIDTH + normalized * 704.0
 }
 
 fn beat_to_normalized(beat: u32) -> u16 {
@@ -1051,6 +1078,41 @@ mod tests {
                 }
             )
         });
+
+        let _ = widget.handle_input(bounds, WidgetInput::FocusChanged(true));
+        let deleted = widget
+            .handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Delete))
+            .expect("focused timeline delete key emits deletion");
+        assert_surface_message(&deleted, |message| {
+            matches!(message, TimelineSurfaceMessage::DeleteSelected)
+        });
+    }
+
+    #[test]
+    fn timeline_widget_paints_one_vertical_cursor_indicator() {
+        let mut state = TimelineEditorState::default();
+        state.hover_beat = Some(24);
+        let widget = ArrangementTimelineWidget::new(&state);
+        let theme = ThemeTokens::default();
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
+        let mut primitives = Vec::new();
+
+        widget.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+
+        let indicator_lines = primitives
+            .iter()
+            .filter(|primitive| {
+                matches!(
+                    primitive,
+                    PaintPrimitive::FillRect(PaintFillRect { rect, color, .. })
+                        if rect.width() <= 3.0
+                            && rect.height() >= bounds.height() - RULER_HEIGHT
+                            && (*color == theme.highlight_orange
+                                || *color == theme.highlight_orange_soft)
+                )
+            })
+            .count();
+        assert_eq!(indicator_lines, 1);
     }
 
     #[test]
@@ -1092,6 +1154,35 @@ mod tests {
 
         let status = status_text(&runtime);
         assert!(status.contains("created clip"));
+    }
+
+    #[test]
+    fn timeline_editor_deletes_selected_clip_from_toolbar() {
+        let bridge = radiant::app(TimelineEditorState::default())
+            .view(project_surface)
+            .update(update)
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(860.0, 460.0));
+
+        assert!(runtime.focus_widget(32));
+        assert!(runtime.dispatch_input(32, WidgetInput::KeyPress(WidgetKey::Enter)));
+
+        let status = status_text(&runtime);
+        assert!(status.contains("clips 3"));
+        assert!(status.contains("deleted clip 2"));
+    }
+
+    #[test]
+    fn delete_selected_clip_clears_selection_without_touching_other_clips() {
+        let mut state = TimelineEditorState::default();
+
+        delete_selected_clip(&mut state);
+
+        assert_eq!(state.clips.len(), 3);
+        assert!(state.clips.iter().all(|clip| clip.id != 2));
+        assert_eq!(state.selected_clip, None);
+        assert_eq!(state.selection, None);
+        assert_eq!(state.status, "deleted clip 2");
     }
 
     fn assert_surface_message(

@@ -136,8 +136,7 @@ pub fn selectable_sortable_details_list<State: 'static>(
         scroll(
             column(
                 rows.into_iter()
-                    .map(|row| details_row(&columns, row, on_select.as_ref().map(Arc::clone)))
-                    .collect::<Vec<_>>(),
+                    .map(|row| details_row(&columns, row, on_select.as_ref().map(Arc::clone))),
             )
             .fill_width()
             .spacing(1.0),
@@ -154,27 +153,22 @@ fn details_header<State: 'static>(
     sort: Option<&DetailsSort>,
     on_sort: StateStringCallback<State>,
 ) -> StateView<State> {
-    compact_details_row(
-        columns
-            .iter()
-            .map(|column| {
-                let id = column.id.clone();
-                let on_sort = Arc::clone(&on_sort);
-                let marker = sort
-                    .filter(|sort| sort.column_id == column.id)
-                    .map(|sort| sort.direction.marker())
-                    .unwrap_or("");
-                let label = format!("{}{}", column.label, marker);
-                sized_cell(
-                    column,
-                    button(label)
-                        .on_click(move |state: &mut State| on_sort(state, id.clone()))
-                        .key(format!("details-sort-{}", column.id))
-                        .subtle(),
-                )
-            })
-            .collect::<Vec<_>>(),
-    )
+    compact_details_row(columns.iter().map(|column| {
+        let id = column.id.clone();
+        let on_sort = Arc::clone(&on_sort);
+        let marker = sort
+            .filter(|sort| sort.column_id == column.id)
+            .map(|sort| sort.direction.marker())
+            .unwrap_or("");
+        let label = format!("{}{}", column.label, marker);
+        sized_cell(
+            column,
+            button(label)
+                .on_click(move |state: &mut State| on_sort(state, id.clone()))
+                .key(format!("details-sort-{}", column.id))
+                .subtle(),
+        )
+    }))
 }
 
 fn details_row<State: 'static>(
@@ -184,33 +178,27 @@ fn details_row<State: 'static>(
 ) -> StateView<State> {
     let row_id = row_data.id.clone();
     let selectable = on_select.is_some();
-    let mut row = compact_details_row(
-        columns
-            .iter()
-            .enumerate()
-            .map(|(index, column)| {
-                let value = row_data.cells.get(index).cloned().unwrap_or_default();
-                let cell = if let Some(on_select) = on_select.as_ref() {
-                    let row_id = row_id.clone();
-                    let on_select = Arc::clone(on_select);
-                    let mut button = button(value)
-                        .on_click(move |state: &mut State| on_select(state, row_id.clone()))
-                        .key(format!("{}-{index}", row_data.id))
-                        .fill_width()
-                        .height(20.0);
-                    if row_data.selected {
-                        button = button.primary();
-                    } else {
-                        button = button.subtle();
-                    };
-                    button
-                } else {
-                    text(value).key(format!("{}-{index}", row_data.id))
-                };
-                sized_cell(column, cell)
-            })
-            .collect::<Vec<_>>(),
-    )
+    let mut row = compact_details_row(columns.iter().enumerate().map(|(index, column)| {
+        let value = row_data.cells.get(index).cloned().unwrap_or_default();
+        let cell = if let Some(on_select) = on_select.as_ref() {
+            let row_id = row_id.clone();
+            let on_select = Arc::clone(on_select);
+            let mut button = button(value)
+                .on_click(move |state: &mut State| on_select(state, row_id.clone()))
+                .key(format!("{}-{index}", row_data.id))
+                .fill_width()
+                .height(20.0);
+            if row_data.selected {
+                button = button.primary();
+            } else {
+                button = button.subtle();
+            };
+            button
+        } else {
+            text(value).key(format!("{}-{index}", row_data.id))
+        };
+        sized_cell(column, cell)
+    }))
     .key(format!("details-row-{}", row_data.id))
     .style(if row_data.selected {
         WidgetStyle {

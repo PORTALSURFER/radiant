@@ -69,6 +69,7 @@ impl<Message> SurfaceNode<Message> {
             .expect("layout-emitting runtime projection should return a layout node")
     }
 
+    #[cfg(test)]
     pub(in crate::runtime) fn project_runtime_index(
         &self,
         scroll_stack: &mut Vec<NodeId>,

@@ -182,6 +182,7 @@ impl<Message> SurfaceNode<Message> {
 }
 
 impl<Message> UiSurface<Message> {
+    #[cfg(test)]
     pub(in crate::runtime) fn runtime_traversal_index(&self) -> SurfaceTraversalIndex {
         let stats = self.root.runtime_traversal_stats();
         let mut index = SurfaceTraversalIndex::with_stats(stats);

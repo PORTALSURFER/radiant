@@ -113,6 +113,7 @@ where
                 }
                 self.rebuild_scene();
                 self.request_redraw_if_needed();
+                self.request_runtime_wakeup_if_needed(outcome);
             }
         }
     }
@@ -142,6 +143,7 @@ where
                 }
                 self.rebuild_scene();
                 self.request_redraw_if_needed();
+                self.request_runtime_wakeup_if_needed(outcome);
             }
             event_loop.set_control_flow(ControlFlow::WaitUntil(now + interval));
         } else {

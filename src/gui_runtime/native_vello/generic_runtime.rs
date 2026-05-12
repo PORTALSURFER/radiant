@@ -1,7 +1,7 @@
 //! Generic `RuntimeBridge` native Vello runner.
 
 use super::*;
-use crate::gui::repaint::{CoalescingRepaintSignal, RepaintSignal};
+use crate::gui::repaint::{CoalescingRepaintSignal, RepaintSignal, try_mark_repaint_pending};
 use crate::runtime::SurfacePaintPlan;
 use crate::theme::ThemeTokens;
 
@@ -82,6 +82,7 @@ where
     let viewport = initial_viewport(&options);
     let mut runner = GenericNativeVelloRunner::new(options, bridge, viewport);
     let proxy = event_loop.create_proxy();
+    runner.runtime_event_proxy = Some(proxy.clone());
     let repaint_signal: Arc<dyn RepaintSignal> = Arc::new(CoalescingRepaintSignal::new(
         Arc::clone(&runner.repaint_event_pending),
         move || proxy.send_event(RuntimeUserEvent::RepaintRequested).is_ok(),
@@ -140,6 +141,7 @@ where
 {
     options: NativeRunOptions,
     core: GenericNativeRuntimeCore<Bridge, Message>,
+    runtime_event_proxy: Option<winit::event_loop::EventLoopProxy<RuntimeUserEvent>>,
     window_id: Option<WindowId>,
     window: Option<Arc<Window>>,
     render_ctx: Option<RenderContext>,
@@ -176,6 +178,7 @@ where
         Self {
             options,
             core: GenericNativeRuntimeCore::new(bridge, viewport),
+            runtime_event_proxy: None,
             window_id: None,
             window: None,
             render_ctx: None,
@@ -214,6 +217,27 @@ where
         }
     }
 
+    fn request_runtime_wakeup_if_needed(&self, outcome: GenericRouteOutcome) {
+        if !outcome.runtime_work_remaining {
+            return;
+        }
+        if !try_mark_repaint_pending(self.repaint_event_pending.as_ref()) {
+            return;
+        }
+        let Some(proxy) = self.runtime_event_proxy.as_ref() else {
+            self.repaint_event_pending
+                .store(false, std::sync::atomic::Ordering::Release);
+            return;
+        };
+        if proxy
+            .send_event(RuntimeUserEvent::RepaintRequested)
+            .is_err()
+        {
+            self.repaint_event_pending
+                .store(false, std::sync::atomic::Ordering::Release);
+        }
+    }
+
     fn rebuild_scene(&mut self) {
         self.core.paint_plan_into(&mut self.last_paint_plan);
         let viewport = self.core.runtime.viewport();
@@ -244,6 +268,7 @@ where
         if outcome.needs_redraw() {
             self.rebuild_scene();
             self.request_redraw_if_needed();
+            self.request_runtime_wakeup_if_needed(outcome);
         }
     }
 }

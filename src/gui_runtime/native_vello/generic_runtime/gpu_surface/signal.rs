@@ -9,32 +9,22 @@ impl GpuSurfaceRenderer {
         surface: &PaintGpuSurface,
         stats: &mut GpuSurfaceRenderStats,
     ) {
-        let (frames, band_count, frame_range, summary) = match &surface.content {
-            GpuSurfaceContent::SignalBands {
-                frames,
-                band_count,
-                frame_range,
+        let Some(shape) = surface.content.signal_render_shape() else {
+            return;
+        };
+        let summary = match &surface.content {
+            GpuSurfaceContent::SignalBands { samples, .. } => self.cached_signal_summary(
+                surface.key,
+                surface.revision,
+                shape.frames,
+                shape.band_count,
                 samples,
-            } => {
-                let summary = self.cached_signal_summary(
-                    surface.key,
-                    surface.revision,
-                    *frames,
-                    *band_count,
-                    samples,
-                    stats,
-                );
-                (*frames, *band_count, *frame_range, summary)
-            }
-            GpuSurfaceContent::SignalSummaryBands {
-                frames,
-                band_count,
-                frame_range,
-                summary,
-            } => (*frames, *band_count, *frame_range, Arc::clone(summary)),
+                stats,
+            ),
+            GpuSurfaceContent::SignalSummaryBands { summary, .. } => Arc::clone(summary),
             _ => return,
         };
-        let visible = (frame_range[1] - frame_range[0]).max(1.0);
+        let visible = (shape.frame_range[1] - shape.frame_range[0]).max(1.0);
         let frames_per_pixel = visible / surface.rect.width().max(1.0);
         let level_index = summary.level_for_frames_per_pixel(frames_per_pixel);
         let Some(level) = summary.levels.get(level_index) else {
@@ -42,9 +32,9 @@ impl GpuSurfaceRenderer {
         };
         let body_key = SignalBodyCacheKey::new(
             surface,
-            frames,
-            band_count,
-            frame_range,
+            shape.frames,
+            shape.band_count,
+            shape.frame_range,
             level.buckets.len(),
             level_index,
         );
@@ -71,14 +61,14 @@ impl GpuSurfaceRenderer {
         let uniforms = SignalUniforms {
             dest: [0.0, 0.0, body_key.width as f32, body_key.height as f32],
             frame_range: [
-                frame_range[0],
-                frame_range[1],
-                frames as f32,
-                band_count as f32,
+                shape.frame_range[0],
+                shape.frame_range[1],
+                shape.frames as f32,
+                shape.band_count as f32,
             ],
             summary_meta: [
                 level.bucket_frames as f32,
-                (level.buckets.len() / band_count.max(1)) as f32,
+                (level.buckets.len() / shape.band_count) as f32,
                 level_index as f32,
                 0.0,
             ],

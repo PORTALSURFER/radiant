@@ -192,6 +192,7 @@ fn push_wrapped_ratio_bar(
     color: Rgba8,
 ) {
     let width = width_ratio.max(0.0);
+    let width = width.min(0.08);
     if width <= 0.0 {
         return;
     }
@@ -330,6 +331,7 @@ impl PulseMeterVisual {
     fn resolve(phase: f32, running: bool) -> Self {
         let phase = phase.clamp(0.0, 1.0);
         let beat = smoothstep(0.0, 1.0, 1.0 - (phase * 2.0 - 1.0).abs());
+        let pulse = smoothstep(0.0, 1.0, (phase * std::f32::consts::TAU).sin() * 0.5 + 0.5);
         let playhead_width = 0.012;
         let playhead_center = phase * (1.0 - playhead_width) + playhead_width * 0.5;
         let playhead_start =
@@ -344,16 +346,16 @@ impl PulseMeterVisual {
                 Self::marker(0.875, 48),
             ],
             pulses: [
-                Self::bar(playhead_center - 0.22, 0.014, 0.34, 46, running),
-                Self::bar(playhead_center - 0.145, 0.017, 0.50, 68, running),
+                Self::bar(playhead_center - 0.18, 0.007, 0.30, 54, running),
+                Self::bar(playhead_center - 0.11, 0.009, 0.46, 84, running),
                 Self::bar(
-                    playhead_center - 0.07,
-                    0.021,
-                    0.68 + beat * 0.16,
-                    96,
+                    playhead_center - 0.052,
+                    0.011,
+                    0.62 + pulse * 0.18,
+                    120,
                     running,
                 ),
-                Self::bar(playhead_center, 0.028, 0.82 + beat * 0.16, 154, running),
+                Self::bar(playhead_center, 0.014, 0.78 + beat * 0.16, 190, running),
             ],
             playhead_center,
             playhead_radius: if running { 4.8 + beat * 1.4 } else { 4.2 },
@@ -556,6 +558,39 @@ mod tests {
             "pulse accents should stay localized instead of reading as a progress bar"
         );
         assert_ne!(fills[0].color, fills[1].color);
+    }
+
+    #[test]
+    fn late_phase_meter_keeps_activity_localized_near_playhead() {
+        let frame = pulse_meter_frame(
+            0.85,
+            true,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(740.0, 42.0)),
+            &ThemeTokens::default(),
+        );
+        let orange_fills: Vec<_> = frame
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                Primitive::Rect(fill) if fill.color.r > 240 && fill.color.g < 150 => Some(fill),
+                _ => None,
+            })
+            .collect();
+
+        assert!(
+            orange_fills.iter().all(|fill| fill.rect.width() < 18.0),
+            "late-phase activity should stay as ticks instead of painting a progress slab"
+        );
+        assert!(
+            orange_fills
+                .iter()
+                .any(|fill| fill.rect.min.x > 570.0 && fill.rect.max.x < 700.0),
+            "late-phase playhead activity should remain near the visible playhead"
+        );
+        assert!(
+            orange_fills.iter().all(|fill| fill.rect.width() > 0.0),
+            "tick clamping should not create inverted retained-canvas rectangles"
+        );
     }
 
     #[test]

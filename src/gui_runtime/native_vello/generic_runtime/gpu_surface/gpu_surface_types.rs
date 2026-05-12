@@ -33,12 +33,29 @@ pub(super) struct SignalPipeline {
 }
 
 pub(super) struct SignalBuffer {
-    pub(super) revision: u64,
+    pub(super) cache_key: SignalBufferCacheKey,
     pub(super) sample_count: usize,
     pub(super) pipeline_generation: u64,
     pub(super) _sample_buffer: wgpu::Buffer,
     pub(super) uniform_buffer: wgpu::Buffer,
     pub(super) bind_group: wgpu::BindGroup,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct SignalBufferCacheKey {
+    pub(super) revision: u64,
+    pub(super) level_index: usize,
+    pub(super) style_revision: u32,
+}
+
+impl SignalBufferCacheKey {
+    pub(super) fn new(revision: u64, level_index: usize) -> Self {
+        Self {
+            revision,
+            level_index,
+            style_revision: GPU_SIGNAL_STYLE_REVISION,
+        }
+    }
 }
 
 pub(super) struct CachedSignalSummary {
@@ -116,4 +133,17 @@ pub(super) struct SignalUniforms {
     pub(super) cursor_ratio: f32,
     pub(super) cursor_width: f32,
     pub(super) cursor_color: [f32; 4],
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn signal_buffer_cache_key_keeps_revision_and_level_independent() {
+        let high_revision = SignalBufferCacheKey::new(1_u64 << 32, 0);
+        let low_revision_high_level = SignalBufferCacheKey::new(0, 1);
+
+        assert_ne!(high_revision, low_revision_high_level);
+    }
 }

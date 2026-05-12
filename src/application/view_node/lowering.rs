@@ -2,7 +2,7 @@ use super::{ViewNode, ViewNodeKind};
 use crate::{
     application::{IdGenerator, IntoView, ROOT_KEY_SCOPE, WidgetViewContext},
     layout::{
-        ContainerKind, ContainerPolicy, CrossAlign, GridPolicy, MainAlign, NodeId,
+        ContainerKind, ContainerPolicy, CrossAlign, GridPolicy, Insets, MainAlign, NodeId,
         VirtualizationAxis, VirtualizationPolicy,
     },
     runtime::{SurfaceChild, SurfaceNode},
@@ -111,7 +111,13 @@ impl<'a> ViewLowering<'a> {
         let child_scope = id;
         let style = node.style;
         let hoverable = node.hoverable;
-        let padding = node.padding;
+        let padding = node.padding.unwrap_or_else(|| {
+            if style.is_some() {
+                Insets::all(crate::application::DEFAULT_STYLED_CONTAINER_PADDING)
+            } else {
+                Insets::default()
+            }
+        });
         let align_main = node.align_main.unwrap_or(MainAlign::Start);
         let align_cross = node.align_cross.unwrap_or(CrossAlign::Stretch);
         let base_policy = || ContainerPolicy {

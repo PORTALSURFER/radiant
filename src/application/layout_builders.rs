@@ -5,11 +5,20 @@ use crate::{
     widgets::WidgetStyle,
 };
 
+/// Default main-axis gap for Radiant application row containers.
+pub const DEFAULT_ROW_SPACING: f32 = 4.0;
+
+/// Default main-axis gap for Radiant application column containers.
+pub const DEFAULT_COLUMN_SPACING: f32 = 4.0;
+
+/// Default gap for Radiant application grid containers.
+pub const DEFAULT_GRID_GAP: f32 = 4.0;
+
 /// Build a row container with fill-slot children.
 pub fn row<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
     let (children, has_reserved_descendant_identity) = collect_children(children);
     ViewNode::new(ViewNodeKind::Row {
-        spacing: 5.0,
+        spacing: DEFAULT_ROW_SPACING,
         children,
     })
     .with_reserved_descendant_identity(has_reserved_descendant_identity)
@@ -27,7 +36,7 @@ pub fn row_key<Message>(
 pub fn column<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
     let (children, has_reserved_descendant_identity) = collect_children(children);
     ViewNode::new(ViewNodeKind::Column {
-        spacing: 4.0,
+        spacing: DEFAULT_COLUMN_SPACING,
         children,
     })
     .with_reserved_descendant_identity(has_reserved_descendant_identity)
@@ -46,7 +55,7 @@ pub fn grid<Message>(
     children: impl IntoIterator<Item = ViewNode<Message>>,
     columns: usize,
 ) -> ViewNode<Message> {
-    grid_with_gaps(children, columns, 5.0, 5.0)
+    grid_with_gaps(children, columns, DEFAULT_GRID_GAP, DEFAULT_GRID_GAP)
 }
 
 /// Build a grid container with a fixed column count and explicit gaps.

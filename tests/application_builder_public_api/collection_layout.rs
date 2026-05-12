@@ -54,7 +54,7 @@ fn application_builder_default_containers_use_dense_spacing() {
     );
     assert_eq!(
         row_layout.rects[&11].min.x,
-        row_layout.rects[&10].max.x + 5.0
+        row_layout.rects[&10].max.x + radiant::DEFAULT_ROW_SPACING
     );
 
     let column_surface: UiSurface<()> = ui::column([
@@ -69,7 +69,30 @@ fn application_builder_default_containers_use_dense_spacing() {
     );
     assert_eq!(
         column_layout.rects[&21].min.y,
-        column_layout.rects[&20].max.y + 4.0
+        column_layout.rects[&20].max.y + radiant::DEFAULT_COLUMN_SPACING
+    );
+}
+
+#[test]
+fn application_builder_styled_containers_use_default_panel_padding() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<()> = ui::column([ui::text("Panel").id(10).fixed(40.0, 20.0)])
+        .id(1)
+        .style(radiant::widgets::WidgetStyle::default())
+        .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 60.0)),
+    );
+
+    assert_eq!(
+        layout.rects[&10].min.x,
+        radiant::DEFAULT_STYLED_CONTAINER_PADDING
+    );
+    assert_eq!(
+        layout.rects[&10].min.y,
+        radiant::DEFAULT_STYLED_CONTAINER_PADDING
     );
 }
 

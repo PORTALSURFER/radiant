@@ -1,4 +1,4 @@
-//! XML-backed SVG subset parsing for retained icon rasterizers.
+//! XML-backed SVG subset parsing for retained vector icons.
 //!
 //! The toolbar loader only needs filled vector glyphs, but users edit these
 //! assets in regular tools such as Inkscape. This parser accepts the common
@@ -16,24 +16,24 @@ use crate::runtime::{PaintFillPath, PaintFillRule, PaintPath, PaintPrimitive};
 use crate::widgets::WidgetId;
 use transform::{parse_attr_f64, parse_number_list, parse_points, parse_transform_list};
 
-/// Parsed SVG document ready for rasterization.
+/// Parsed SVG document ready for vector painting.
 #[derive(Clone, Debug)]
-pub struct SvgDocument {
+struct SvgDocument {
     /// The minimum x coordinate in the declared view box.
-    pub view_box_min_x: f32,
+    view_box_min_x: f32,
     /// The minimum y coordinate in the declared view box.
-    pub view_box_min_y: f32,
+    view_box_min_y: f32,
     /// The width of the declared view box.
-    pub view_box_width: f32,
+    view_box_width: f32,
     /// The height of the declared view box.
-    pub view_box_height: f32,
+    view_box_height: f32,
     /// The transformed filled shapes emitted by the document.
-    pub shapes: Vec<SvgShape>,
+    shapes: Vec<SvgShape>,
 }
 
-/// One rasterizable filled SVG shape.
+/// One filled SVG shape retained for vector painting.
 #[derive(Clone, Debug)]
-pub struct SvgShape {
+struct SvgShape {
     path: PaintPath,
     fill_rule: SvgFillRule,
 }
@@ -95,8 +95,7 @@ impl From<SvgFillRule> for PaintFillRule {
     }
 }
 
-/// Parse one SVG document from an asset file.
-pub fn parse_svg_document(svg: &str) -> Option<SvgDocument> {
+fn parse_svg_document(svg: &str) -> Option<SvgDocument> {
     let document = roxmltree::Document::parse(svg).ok()?;
     let root = document.root_element();
     if root.tag_name().name() != "svg" {

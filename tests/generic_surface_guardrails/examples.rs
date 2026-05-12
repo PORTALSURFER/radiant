@@ -290,6 +290,7 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             "custom_widget",
             vec![
                 "use radiant::prelude::*;",
+                "fn append_paint(",
                 "impl Widget for StatusChip",
                 "WidgetOutput::custom(",
                 "dispatch_input(",

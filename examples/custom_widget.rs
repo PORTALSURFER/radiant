@@ -1,10 +1,6 @@
 //! User-authored widget object integrated through Radiant's application builder.
 
 use radiant::prelude::*;
-use radiant::{
-    layout::{LayoutOutput, Rect, Vector2},
-    theme::ThemeTokens,
-};
 
 #[derive(Default)]
 struct DemoState {
@@ -112,7 +108,6 @@ fn main() -> radiant::Result {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use radiant::layout::Point;
     use radiant::runtime::SurfaceRuntime;
 
     #[test]

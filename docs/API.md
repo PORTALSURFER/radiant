@@ -37,8 +37,10 @@ runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `ContentViewChrome`, common custom-widget authoring contracts such as
 `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`,
 `PointerButton`, `FocusBehavior`, and backend-neutral paint primitives such as
-`PaintPrimitive`, `PaintFillRect`, and `PaintTextRun`, plus the builder types
-needed by method chains. These
+`PaintPrimitive`, `PaintFillRect`, and `PaintTextRun`. It also includes the
+geometry, layout, image, color, and theme types needed in widget method
+signatures, including `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`,
+`Rgba8`, and `ThemeTokens`, plus the builder types needed by method chains. These
 builders lower into the same `UiSurface`, `SurfaceNode`, `SurfaceChild`,
 `WidgetSizing`, and `RuntimeBridge` contracts available through the explicit
 runtime modules.

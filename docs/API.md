@@ -33,7 +33,8 @@ Radiant's application API is designed to be easy to read without hiding the
 runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `app`, `text`, `button`, `row`, `column`, `scroll`, `scroll_column`, `list`,
 `list_row`, `toggle`, `text_input`, `custom_widget`, `IntoView`, `View`,
-`StateView`, `Command`, `EmbeddedFont`, and the builder types needed by method chains. These
+`StateView`, `Command`, `EmbeddedFont`, `StatusSegments`,
+`ContentViewChrome`, and the builder types needed by method chains. These
 builders lower into the same `UiSurface`, `SurfaceNode`, `SurfaceChild`,
 `WidgetSizing`, and `RuntimeBridge` contracts available through the explicit
 runtime modules.

@@ -57,6 +57,7 @@ pub mod prelude {
         virtual_scroll, widget, window,
     };
     pub use crate::gui::{
+        chrome::{ContentViewChrome, StatusSegments},
         focus::FocusSurface,
         input::{KeyCode, KeyPress},
         list::{VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window},

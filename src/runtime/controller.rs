@@ -11,6 +11,7 @@ mod focus;
 mod hit_order;
 mod input;
 mod pointer;
+mod scratch;
 mod scroll;
 mod state;
 
@@ -35,6 +36,7 @@ use crate::{
     widgets::{WidgetId, WidgetInput, WidgetKey, WidgetState},
 };
 use hit_order::HitOrderIndex;
+use scratch::RuntimeScratch;
 use std::collections::{HashMap, HashSet};
 
 /// Direction for deterministic keyboard focus traversal.
@@ -86,9 +88,7 @@ where
     widget_clip_ancestors: HashMap<WidgetId, ClipAncestors>,
     container_clip_ancestors: HashMap<NodeId, ClipAncestors>,
     scroll_content_by_container: HashMap<NodeId, NodeId>,
-    scroll_clamp_updates: Vec<(NodeId, Vector2)>,
-    projection_scroll_stack: Vec<NodeId>,
-    projection_child_path: Vec<usize>,
+    scratch: RuntimeScratch,
     focused_widget: Option<WidgetId>,
     pending_key_chord: Option<KeyPress>,
     hovered_container: Option<NodeId>,
@@ -137,9 +137,7 @@ where
             widget_clip_ancestors: HashMap::new(),
             container_clip_ancestors: HashMap::new(),
             scroll_content_by_container: HashMap::new(),
-            scroll_clamp_updates: Vec::new(),
-            projection_scroll_stack: Vec::new(),
-            projection_child_path: Vec::new(),
+            scratch: RuntimeScratch::default(),
             focused_widget: None,
             pending_key_chord: None,
             hovered_container: None,
@@ -170,8 +168,8 @@ where
         let mut traversal = self.take_reusable_traversal_index(true);
         let layout_root = next_surface.runtime_projection_reusing_with_scratch(
             &mut traversal,
-            &mut self.projection_scroll_stack,
-            &mut self.projection_child_path,
+            &mut self.scratch.projection_scroll_stack,
+            &mut self.scratch.projection_child_path,
         );
         next_surface.synchronize_widget_state_from_paths(
             &self.surface,

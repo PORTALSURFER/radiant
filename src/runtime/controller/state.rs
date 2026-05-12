@@ -34,8 +34,8 @@ where
         let mut traversal = self.take_reusable_traversal_index(true);
         self.layout_root = self.surface.runtime_projection_reusing_with_scratch(
             &mut traversal,
-            &mut self.projection_scroll_stack,
-            &mut self.projection_child_path,
+            &mut self.scratch.projection_scroll_stack,
+            &mut self.scratch.projection_child_path,
         );
         self.relayout_with_traversal(traversal);
     }
@@ -90,8 +90,8 @@ where
     }
 
     fn sync_scroll_offsets(&mut self) {
-        self.scroll_clamp_updates.clear();
-        self.scroll_clamp_updates.extend(
+        self.scratch.scroll_clamp_updates.clear();
+        self.scratch.scroll_clamp_updates.extend(
             self.layout
                 .diagnostics
                 .iter()
@@ -120,7 +120,7 @@ where
                     ))
                 }),
         );
-        for (node_id, offset) in self.scroll_clamp_updates.drain(..) {
+        for (node_id, offset) in self.scratch.scroll_clamp_updates.drain(..) {
             self.layout_state.scroll_offsets.insert(node_id, offset);
         }
     }

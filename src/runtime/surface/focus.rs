@@ -3,8 +3,7 @@ use super::*;
 impl<Message> UiSurface<Message> {
     /// Return keyboard-focusable widgets in deterministic declarative tree order.
     pub fn keyboard_focus_order(&self) -> Vec<WidgetId> {
-        let stats = self.root.runtime_traversal_stats();
-        let mut order = Vec::with_capacity(stats.widgets);
+        let mut order = Vec::new();
         self.root.append_keyboard_focus_order(&mut order);
         order
     }

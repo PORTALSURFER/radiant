@@ -30,6 +30,7 @@ pub(super) struct GpuSurfaceRenderer {
     signal_bodies: HashMap<u64, SignalBodyTexture>,
     signals: HashMap<u64, SignalBuffer>,
     signal_summaries: HashMap<u64, CachedSignalSummary>,
+    active_keys: HashSet<u64>,
 }
 
 pub(super) struct GpuSurfaceRenderTarget<'a> {
@@ -48,7 +49,8 @@ impl GpuSurfaceRenderer {
         primitives: &[PaintPrimitive],
     ) -> GpuSurfaceRenderStats {
         let mut stats = GpuSurfaceRenderStats::default();
-        let mut active_keys = None;
+        self.active_keys.clear();
+        let mut has_active_surfaces = false;
         for primitive in primitives {
             let PaintPrimitive::GpuSurface(surface) = primitive else {
                 continue;
@@ -76,19 +78,19 @@ impl GpuSurfaceRenderer {
                     self.render_signal(target, surface, &mut stats);
                 }
             }
-            active_keys
-                .get_or_insert_with(|| HashSet::with_capacity(primitives.len().min(64)))
-                .insert(surface.key);
+            has_active_surfaces = true;
+            self.active_keys.insert(surface.key);
         }
-        if let Some(active_keys) = active_keys {
-            self.prune_inactive_resources(&active_keys);
+        if has_active_surfaces {
+            self.prune_inactive_resources();
         } else {
             self.clear_resources();
         }
         stats
     }
 
-    fn prune_inactive_resources(&mut self, active_keys: &HashSet<u64>) {
+    fn prune_inactive_resources(&mut self) {
+        let active_keys = &self.active_keys;
         self.textures.retain(|key, _| active_keys.contains(key));
         self.signal_bodies
             .retain(|key, _| active_keys.contains(key));
@@ -118,7 +120,8 @@ mod tests {
         renderer.cached_signal_summary(7, 1, 4, 1, &samples, &mut stats);
         renderer.cached_signal_summary(8, 1, 4, 1, &samples, &mut stats);
 
-        renderer.prune_inactive_resources(&HashSet::from([8]));
+        renderer.active_keys.insert(8);
+        renderer.prune_inactive_resources();
 
         assert!(!renderer.signal_summaries.contains_key(&7));
         assert!(renderer.signal_summaries.contains_key(&8));
@@ -132,11 +135,26 @@ mod tests {
 
         renderer.cached_signal_summary(7, 1, 4, 1, &samples, &mut stats);
 
-        renderer.prune_inactive_resources(&HashSet::new());
+        renderer.prune_inactive_resources();
 
         assert!(renderer.textures.is_empty());
         assert!(renderer.signal_bodies.is_empty());
         assert!(renderer.signals.is_empty());
         assert!(renderer.signal_summaries.is_empty());
+    }
+
+    #[test]
+    fn gpu_surface_renderer_reuses_active_key_storage() {
+        let mut renderer = GpuSurfaceRenderer::default();
+
+        renderer.active_keys.insert(7);
+        let initial_capacity = renderer.active_keys.capacity();
+        renderer.active_keys.clear();
+        renderer.active_keys.insert(8);
+
+        assert!(initial_capacity > 0);
+        assert_eq!(renderer.active_keys.capacity(), initial_capacity);
+        assert!(!renderer.active_keys.contains(&7));
+        assert!(renderer.active_keys.contains(&8));
     }
 }

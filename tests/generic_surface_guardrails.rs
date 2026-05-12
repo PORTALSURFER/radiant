@@ -306,6 +306,38 @@ fn pointer_move_repaint_contract_is_documented() {
 }
 
 #[test]
+fn ui_first_runtime_threading_contract_is_documented() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("Radiant API docs should be readable");
+    let command = fs::read_to_string(manifest_dir.join("src/runtime/command.rs"))
+        .expect("runtime command module should be readable");
+    let threading = fs::read_to_string(manifest_dir.join("src/application/runtime/threading.rs"))
+        .expect("application threading module should be readable");
+    let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    for required in [
+        "## UI-First Runtime Threading",
+        "native UI/event/render owner as the priority path",
+        "runtime-managed business threads",
+        "default architecture is UI-first and non-blocking",
+    ] {
+        assert!(
+            normalized_docs.contains(required),
+            "API docs should document UI-first runtime threading with `{required}`"
+        );
+    }
+    assert!(
+        command.contains("UI reducers should stay short and non-blocking"),
+        "Command docs should tell reducers to avoid blocking the UI path"
+    );
+    assert!(
+        threading.contains("spawn_business_thread") && threading.contains("radiant-business"),
+        "application runtime should expose explicit business-thread spawning internally"
+    );
+}
+
+#[test]
 fn runtime_widgets_accept_boxed_widgets_and_dynamic_messages() {
     #[derive(Clone, Debug, PartialEq)]
     struct CustomPayload(&'static str);

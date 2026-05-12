@@ -8,6 +8,11 @@ use std::{fmt, time::Duration};
 /// Radiant commands are intentionally small and domain-neutral. Hosts keep
 /// ownership of IO, background work, and other side effects; this type only
 /// represents values the generic runtime can understand directly.
+///
+/// UI reducers should stay short and non-blocking. Expensive work belongs in
+/// [`Command::perform`], which the application runtime offloads to a
+/// runtime-managed business thread before delivering the resulting message back
+/// through the normal UI update path.
 #[derive(Default)]
 pub enum Command<Message> {
     /// No follow-up work is required.
@@ -28,7 +33,7 @@ pub enum Command<Message> {
         /// Message to dispatch.
         message: Message,
     },
-    /// Run host work on a background thread and dispatch the resulting message.
+    /// Run host work on a business thread and dispatch the resulting message.
     Perform {
         /// Human-readable task name for diagnostics.
         name: &'static str,
@@ -104,8 +109,13 @@ impl<Message> Command<Message> {
         Self::After { delay, message }
     }
 
-    /// Build a command that runs work on a background thread and maps its result
-    /// into a host message.
+    /// Build a command that runs work on a runtime-managed business thread and
+    /// maps its result into a host message.
+    ///
+    /// Use this for IO, decoding, analysis, slow computation, and other work
+    /// that should not block the UI/event/render path. If synchronous execution
+    /// is intentionally required, dispatch a normal [`Command::message`] and do
+    /// that short work in the reducer instead.
     pub fn perform<Output>(
         name: &'static str,
         work: impl FnOnce() -> Output + Send + 'static,

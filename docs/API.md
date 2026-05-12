@@ -566,8 +566,9 @@ The harness prints parseable `radiant_perf` metric lines for layout, runtime
 surface, and GPU-surface data preparation scenarios. It currently covers deep
 layout trees, 1k wrap layout, 10k virtualized scroll layout, fixed-size 10k
 virtualized scroll layout, eager and windowed 10k application-list projection,
-large declarative surface layout plus paint-plan generation, GPU signal-summary
-construction, and GPU-surface primitive projection. The harness performs sanity
+large declarative surface layout plus paint-plan generation, bounded runtime
+command-drain bursts, GPU signal-summary construction, and GPU-surface primitive
+projection. The harness performs sanity
 assertions, but it does not enforce machine-dependent pass/fail timing thresholds; use the output for local
 comparisons, profiling runs, and regression investigation.
 Run `cargo run --example rendering_benchmark` for a checked public-API sandbox

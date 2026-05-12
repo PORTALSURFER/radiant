@@ -23,6 +23,7 @@ pub(in crate::gui_runtime::native_vello) struct RetainedSurfaceEncodeStats {
     pub text_primitive_count: usize,
     pub text_input_count: usize,
     pub image_count: usize,
+    pub svg_document_count: usize,
     pub gpu_surface_count: usize,
     pub custom_surface_count: usize,
     pub bridge_calls: u32,

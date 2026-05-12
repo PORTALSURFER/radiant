@@ -595,6 +595,9 @@ through the application-builder API.
 Run `cargo run --example widget_gallery` for a reusable-widget gallery that
 shows `badge(...)`, `selectable(...)`, and passive `card()` composition through
 the prelude builders.
+Run `cargo run --example volume_slider` for a focused parameter-control sandbox
+that uses the prelude `slider(...)` builder, horizontal value changes, and a
+checkbox-backed mute state through direct state callbacks.
 Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that
 uses `grid_with_gaps(...)` with normal nested views and styling.
 Run `cargo run --example theme_playground` for a theme-token sandbox that

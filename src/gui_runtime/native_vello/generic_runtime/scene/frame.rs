@@ -1,5 +1,6 @@
 use super::{RetainedSurfaceEncodeStats, encode_image, encode_rect};
 use crate::gui_runtime::native_vello::*;
+use std::mem::ManuallyDrop;
 
 const INLINE_SCENE_TEXT_RUNS: usize = 64;
 
@@ -9,8 +10,13 @@ pub(in crate::gui_runtime::native_vello) struct SceneTextRunBuffer<'a> {
     overflow: Vec<SceneTextRun<'a>>,
 }
 
+impl Default for SceneTextRunBuffer<'static> {
+    fn default() -> Self {
+        Self::with_overflow_capacity(0)
+    }
+}
+
 impl<'a> SceneTextRunBuffer<'a> {
-    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn new() -> Self {
         Self::with_overflow_capacity(0)
     }
@@ -56,8 +62,28 @@ impl<'a> SceneTextRunBuffer<'a> {
         !self.overflow.is_empty()
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn overflow_capacity(&self) -> usize {
         self.overflow.capacity()
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn rebind<'next>(
+        mut self,
+    ) -> SceneTextRunBuffer<'next> {
+        self.clear();
+        let mut this = ManuallyDrop::new(self);
+        let capacity = this.overflow.capacity();
+        let ptr = this.overflow.as_mut_ptr();
+        // The buffer is always cleared before rebinding, so the overflow vector
+        // contains no borrowed text runs when its allocation is reused for the
+        // next paint plan lifetime.
+        let overflow =
+            unsafe { Vec::from_raw_parts(ptr.cast::<SceneTextRun<'next>>(), 0, capacity) };
+        SceneTextRunBuffer {
+            inline: [None; INLINE_SCENE_TEXT_RUNS],
+            len: 0,
+            overflow,
+        }
     }
 }
 
@@ -187,5 +213,19 @@ mod tests {
         text_runs.push(text_run("next"));
         assert_eq!(text_runs.len(), 1);
         assert!(!text_runs.has_overflow());
+    }
+
+    #[test]
+    fn rebind_preserves_overflow_storage_for_next_paint_plan_lifetime() {
+        let mut text_runs = SceneTextRunBuffer::with_overflow_capacity(8);
+        for _ in 0..=INLINE_SCENE_TEXT_RUNS {
+            text_runs.push(text_run("run"));
+        }
+        let capacity = text_runs.overflow_capacity();
+
+        let rebound: SceneTextRunBuffer<'static> = text_runs.rebind();
+
+        assert!(rebound.is_empty());
+        assert!(rebound.overflow_capacity() >= capacity);
     }
 }

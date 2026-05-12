@@ -1,7 +1,7 @@
 //! Interaction fast paths for retained GPU surface primitives.
 
 use super::{
-    GenericNativeVelloRunner, GenericRouteOutcome, RenderFrameProfile, maybe_log_route_profile,
+    maybe_log_route_profile, GenericNativeVelloRunner, GenericRouteOutcome, RenderFrameProfile,
 };
 use crate::{
     gui::types::{Point, Vector2},
@@ -177,7 +177,98 @@ fn gpu_surface_at_mut(
     position: Point,
 ) -> Option<&mut PaintGpuSurface> {
     primitives.iter_mut().find_map(|primitive| match primitive {
-        PaintPrimitive::GpuSurface(surface) if surface.rect.contains(position) => Some(surface),
+        PaintPrimitive::GpuSurface(surface)
+            if surface.rect.width() > 0.0
+                && surface.rect.height() > 0.0
+                && surface.content.is_renderable()
+                && surface.rect.contains(position) =>
+        {
+            Some(surface)
+        }
         _ => None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        gui::types::{ImageRgba, Rect, Rgba8},
+        runtime::{GpuHoverCursor, GpuSurfaceCapabilities, GpuSurfaceContent},
+    };
+    use std::sync::Arc;
+
+    #[test]
+    fn gpu_surface_lookup_skips_unrenderable_surface_content() {
+        let rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 20.0));
+        let capabilities = GpuSurfaceCapabilities {
+            fast_pointer_move: true,
+            coalesce_vertical_wheel: true,
+            native_hover_cursor: Some(GpuHoverCursor {
+                color: Rgba8 {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    a: 255,
+                },
+                width: 1.0,
+            }),
+        };
+        let mut primitives = vec![
+            PaintPrimitive::GpuSurface(PaintGpuSurface {
+                widget_id: 1,
+                key: 1,
+                revision: 1,
+                rect,
+                content: GpuSurfaceContent::SignalBands {
+                    frames: 1,
+                    band_count: 0,
+                    frame_range: [0.0, 1.0],
+                    samples: Arc::<[f32]>::from([0.0]),
+                },
+                capabilities,
+                overlays: Vec::new(),
+            }),
+            PaintPrimitive::GpuSurface(PaintGpuSurface {
+                widget_id: 2,
+                key: 2,
+                revision: 1,
+                rect,
+                content: GpuSurfaceContent::RgbaAtlas {
+                    source_rect: rect,
+                    atlas: Arc::new(ImageRgba::new(1, 1, vec![255; 4]).expect("valid image")),
+                },
+                capabilities,
+                overlays: Vec::new(),
+            }),
+        ];
+
+        let surface =
+            gpu_surface_at_mut(&mut primitives, Point::new(10.0, 10.0)).expect("valid surface");
+
+        assert_eq!(surface.key, 2);
+    }
+
+    #[test]
+    fn gpu_surface_lookup_skips_empty_surface_rects() {
+        let rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(0.0, 20.0));
+        let mut primitives = vec![PaintPrimitive::GpuSurface(PaintGpuSurface {
+            widget_id: 1,
+            key: 1,
+            revision: 1,
+            rect,
+            content: GpuSurfaceContent::RgbaAtlas {
+                source_rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1.0, 1.0)),
+                atlas: Arc::new(ImageRgba::new(1, 1, vec![255; 4]).expect("valid image")),
+            },
+            capabilities: GpuSurfaceCapabilities {
+                fast_pointer_move: true,
+                coalesce_vertical_wheel: true,
+                native_hover_cursor: None,
+            },
+            overlays: Vec::new(),
+        })];
+
+        assert!(gpu_surface_at_mut(&mut primitives, Point::new(0.0, 10.0)).is_none());
+    }
 }

@@ -21,6 +21,12 @@ impl GpuSurfaceInteractionRegion {
     pub(in crate::gui_runtime::native_vello) fn from_gpu_surface(
         surface: &PaintGpuSurface,
     ) -> Option<Self> {
+        if surface.rect.width() <= 0.0
+            || surface.rect.height() <= 0.0
+            || !surface.content.is_renderable()
+        {
+            return None;
+        }
         if !surface.capabilities.fast_pointer_move
             && !surface.capabilities.coalesce_vertical_wheel
             && surface.capabilities.native_hover_cursor.is_none()
@@ -98,7 +104,7 @@ pub(super) fn render_profile_enabled() -> bool {
 mod tests {
     use super::*;
     use crate::gui::types::{ImageRgba, Rgba8};
-    use crate::runtime::{GpuSurfaceCapabilities, PaintGpuSurface};
+    use crate::runtime::{GpuSurfaceCapabilities, GpuSurfaceContent, PaintGpuSurface};
     use std::sync::Arc;
 
     #[test]
@@ -141,6 +147,13 @@ mod tests {
         ignored_surface.rect = ignored_rect;
         ignored_surface.capabilities.fast_pointer_move = false;
         ignored_surface.capabilities.coalesce_vertical_wheel = false;
+        let mut invalid_surface = surface.clone();
+        invalid_surface.content = GpuSurfaceContent::SignalBands {
+            frames: 1,
+            band_count: 0,
+            frame_range: [0.0, 1.0],
+            samples: Arc::<[f32]>::from([0.0]),
+        };
         let mut native_hover_surface = surface.clone();
         native_hover_surface.rect = native_hover_rect;
         native_hover_surface.capabilities.fast_pointer_move = false;
@@ -157,6 +170,7 @@ mod tests {
             });
         let primitives = [
             PaintPrimitive::GpuSurface(ignored_surface),
+            PaintPrimitive::GpuSurface(invalid_surface),
             PaintPrimitive::GpuSurface(surface),
             PaintPrimitive::GpuSurface(native_hover_surface),
         ];

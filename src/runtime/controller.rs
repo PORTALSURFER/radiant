@@ -101,6 +101,7 @@ where
     exit_requested: bool,
     runtime_commands: Vec<Command<Message>>,
     runtime_messages: Vec<Message>,
+    runtime_message_batch: Vec<Message>,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -150,6 +151,7 @@ where
             exit_requested: false,
             runtime_commands: Vec::new(),
             runtime_messages: Vec::new(),
+            runtime_message_batch: Vec::new(),
         };
         runtime.relayout_with_traversal(traversal);
         runtime

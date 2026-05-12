@@ -644,6 +644,21 @@ fn prelude_supports_hello_world_imports() {
 }
 
 #[test]
+fn prelude_exports_application_chrome_models() {
+    use radiant::prelude as ui;
+
+    let status = ui::StatusSegments::primary("Ready")
+        .with_center("Autosave on")
+        .with_right("Idle");
+    let chrome = ui::ContentViewChrome::default();
+
+    assert_eq!(status.left, "Ready");
+    assert_eq!(status.center, "Autosave on");
+    assert_eq!(status.right, "Idle");
+    assert_eq!(chrome.item_column_label, "Item");
+}
+
+#[test]
 fn hello_world_example_stays_on_application_builders() {
     let source = include_str!("../examples/hello_world.rs");
 

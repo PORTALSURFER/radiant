@@ -1,6 +1,5 @@
 //! Bottom status bar with actions, toggles, and background work.
 
-use radiant::gui::chrome::StatusSegments;
 use radiant::prelude::*;
 use std::{thread, time::Duration};
 

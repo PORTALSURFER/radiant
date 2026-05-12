@@ -93,9 +93,11 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
         (
             "status_bar",
             vec![
+                "use radiant::prelude::*;",
                 "status_bar(",
                 "StatusMessage::ActionPressed",
                 "StatusMessage::AutosaveChanged",
+                "StatusSegments::primary(",
                 "context.spawn(",
                 "StatusMessage::WorkerFinished",
             ],

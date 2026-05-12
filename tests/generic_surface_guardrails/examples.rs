@@ -335,8 +335,10 @@ fn examples_are_checked_portable_sandboxes() {
     assert!(
         docs.contains("cargo test --examples")
             && docs.contains("RADIANT_FOLDER_BROWSER_ROOT")
-            && docs.contains("RADIANT_WAVEFORM_PATH"),
-        "API docs should describe checked examples and their optional input paths"
+            && docs.contains("RADIANT_WAVEFORM_PATH")
+            && docs.contains("cargo run --example volume_slider")
+            && docs.contains("slider(...)"),
+        "API docs should describe checked examples, parameter-control examples, and their optional input paths"
     );
 
     for path in ["examples/folder_browser.rs", "examples/waveform_view.rs"] {

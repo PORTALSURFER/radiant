@@ -13,9 +13,10 @@ pub(super) fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Opt
     let metrics = font_ref.glyph_metrics(FontSize::new(font_size), LocationRef::default());
     let fallback_glyph = charmap.map('?');
 
+    let rendered_len = rendered_line_byte_len(text);
     let mut x = 0.0_f32;
-    let mut glyphs = Vec::with_capacity(text.len());
-    let mut cursor_stops = Vec::with_capacity(text.len().saturating_add(1));
+    let mut glyphs = Vec::with_capacity(rendered_len);
+    let mut cursor_stops = Vec::with_capacity(rendered_len.saturating_add(1));
     cursor_stops.push(TextCursorStop {
         byte_index: 0,
         x: 0.0,
@@ -76,4 +77,20 @@ pub(super) fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Opt
         glyphs,
         cursor_stops,
     })
+}
+
+fn rendered_line_byte_len(text: &str) -> usize {
+    text.find(['\n', '\r']).unwrap_or(text.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rendered_line_byte_len_stops_at_line_breaks() {
+        assert_eq!(rendered_line_byte_len("title\nignored"), 5);
+        assert_eq!(rendered_line_byte_len("title\rignored"), 5);
+        assert_eq!(rendered_line_byte_len("plain"), 5);
+    }
 }

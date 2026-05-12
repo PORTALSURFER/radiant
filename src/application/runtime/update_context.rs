@@ -40,7 +40,11 @@ impl<Message> UpdateContext<Message> {
         self.command(Command::after(delay, message));
     }
 
-    /// Run background work and map the output into a host message.
+    /// Run work on a runtime-managed business thread and map the output into a
+    /// host message.
+    ///
+    /// Use this for slow work so the UI thread remains responsive. The result
+    /// returns through the normal message path after the work completes.
     pub fn spawn<Output>(
         &mut self,
         name: &'static str,

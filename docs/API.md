@@ -304,6 +304,28 @@ runtime to wire them into the UI. `Command::perform(...)`, `Command::after(...)`
 `UpdateContext`, and `Subscription` provide message delivery and repaint
 wakeups; the app still owns the work and resulting domain messages.
 
+## UI-First Runtime Threading
+
+Radiant treats the native UI/event/render owner as the priority path. The
+window event loop, input routing, repaint requests, surface refresh, and native
+Vello presentation must stay responsive and should not wait on application
+business work.
+
+Application reducers run synchronously because they decide the next UI state, so
+they should stay short. Slow IO, decoding, indexing, analysis, loading, and other
+business work should use `Command::perform(...)`, `UpdateContext::spawn(...)`,
+`Command::after(...)`, or `Subscription`; the application runtime offloads that
+work to runtime-managed business threads and returns results through the normal
+message queue. If an app explicitly needs immediate synchronous behavior, it can
+dispatch a normal message and do that short work in the reducer, but the default
+architecture is UI-first and non-blocking.
+
+The current native runtime keeps Vello/window rendering on the event-loop path
+because those backend/platform constraints require it. Future render-worker or
+scene-preparation split points should preserve the same rule: UI wakeups and
+input responsiveness take precedence, while app-owned business work stays off
+the UI path.
+
 ## Layout
 
 `radiant::layout` provides slot-based measurement and placement. Containers use

@@ -4,12 +4,16 @@ use std::thread;
 use std::time::Duration;
 
 const RUNTIME_CANCEL_POLL: Duration = Duration::from_millis(50);
+const BUSINESS_THREAD_PREFIX: &str = "radiant-business";
 
-pub(super) fn spawn_runtime_thread(
+pub(super) fn spawn_business_thread(
     name: impl Into<String>,
     work: impl FnOnce() + Send + 'static,
 ) -> bool {
-    let name = name.into();
+    spawn_named_thread(business_thread_name(name), work)
+}
+
+fn spawn_named_thread(name: String, work: impl FnOnce() + Send + 'static) -> bool {
     match thread::Builder::new().name(name.clone()).spawn(work) {
         Ok(_) => true,
         Err(error) => {
@@ -17,6 +21,11 @@ pub(super) fn spawn_runtime_thread(
             false
         }
     }
+}
+
+fn business_thread_name(name: impl Into<String>) -> String {
+    let name = name.into();
+    format!("{BUSINESS_THREAD_PREFIX}-{name}")
 }
 
 pub(super) fn sleep_while_runtime_alive<Message>(
@@ -41,7 +50,9 @@ pub(super) fn runtime_alive<Message>(runtime: &Weak<AppRuntime<Message>>) -> boo
 
 #[cfg(test)]
 mod tests {
-    use super::{AppRuntime, sleep_while_runtime_alive, spawn_runtime_thread};
+    use super::{
+        AppRuntime, business_thread_name, sleep_while_runtime_alive, spawn_business_thread,
+    };
     use std::{
         sync::{Arc, mpsc},
         thread,
@@ -49,13 +60,21 @@ mod tests {
     };
 
     #[test]
-    fn spawn_runtime_thread_reports_success_for_started_work() {
+    fn spawn_business_thread_reports_success_for_started_work() {
         let (sender, receiver) = mpsc::channel();
 
-        assert!(spawn_runtime_thread("radiant-test-thread", move || {
+        assert!(spawn_business_thread("test-thread", move || {
             let _ = sender.send(());
         }));
         assert!(receiver.recv().is_ok());
+    }
+
+    #[test]
+    fn business_thread_names_make_offloaded_work_explicit() {
+        assert_eq!(
+            business_thread_name("asset-load"),
+            "radiant-business-asset-load"
+        );
     }
 
     #[test]

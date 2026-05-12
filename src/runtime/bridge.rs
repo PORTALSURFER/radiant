@@ -94,6 +94,11 @@ pub trait RuntimeBridge<Message> {
     }
 
     /// Spawn message-producing host work through the bridge-owned app runtime.
+    ///
+    /// Application-builder bridges run this work on runtime-managed business
+    /// threads so the UI/event/render owner does not block on host work. Custom
+    /// bridges may return `false` if they intentionally own a different
+    /// scheduling policy.
     fn spawn_message_task(
         &mut self,
         _name: &'static str,

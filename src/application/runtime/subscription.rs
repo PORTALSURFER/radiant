@@ -1,5 +1,5 @@
 use super::AppRuntime;
-use super::threading::{runtime_alive, sleep_while_runtime_alive, spawn_runtime_thread};
+use super::threading::{runtime_alive, sleep_while_runtime_alive, spawn_business_thread};
 use std::{
     sync::mpsc::RecvTimeoutError,
     sync::{Arc, Weak},
@@ -99,7 +99,7 @@ pub(super) fn spawn_subscription<Message>(
         }
         Subscription::Interval { id, every, message } => {
             let delay = every.max(Duration::from_millis(1));
-            spawn_runtime_thread(format!("radiant-subscription-{id}"), move || {
+            spawn_business_thread(format!("subscription-{id}"), move || {
                 loop {
                     if !sleep_until_subscription_tick(&runtime, delay) {
                         break;
@@ -114,7 +114,7 @@ pub(super) fn spawn_subscription<Message>(
             });
         }
         Subscription::Worker { id, receiver } => {
-            spawn_runtime_thread(format!("radiant-worker-subscription-{id}"), move || {
+            spawn_business_thread(format!("worker-subscription-{id}"), move || {
                 while let WorkerSubscriptionEvent::Message(message) =
                     receive_worker_message(&runtime, &receiver)
                 {

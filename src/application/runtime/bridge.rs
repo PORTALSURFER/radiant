@@ -1,7 +1,7 @@
 use super::*;
 use super::{
     subscription::spawn_subscription,
-    threading::{sleep_while_runtime_alive, spawn_runtime_thread},
+    threading::{sleep_while_runtime_alive, spawn_business_thread},
 };
 use crate::{
     application::IntoView,
@@ -175,7 +175,7 @@ where
             return false;
         }
         let runtime = Arc::downgrade(&self.runtime);
-        spawn_runtime_thread("radiant-delayed-message", move || {
+        spawn_business_thread("delayed-message", move || {
             if !sleep_while_runtime_alive(&runtime, delay) {
                 return;
             }
@@ -194,7 +194,7 @@ where
             return false;
         }
         let runtime = Arc::downgrade(&self.runtime);
-        spawn_runtime_thread(format!("radiant-task-{name}"), move || {
+        spawn_business_thread(format!("task-{name}"), move || {
             let message = work();
             if let Some(runtime) = runtime.upgrade() {
                 let _ = runtime.enqueue(message);

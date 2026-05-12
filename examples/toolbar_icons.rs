@@ -105,17 +105,29 @@ impl ToolbarIcons {
 
 #[derive(Clone, Debug)]
 struct ToolbarIcon {
-    glyph: Arc<SvgIcon>,
-    active: Rgba8,
-    inactive: Rgba8,
+    active_glyph: Arc<SvgIcon>,
+    inactive_glyph: Arc<SvgIcon>,
 }
 
 impl ToolbarIcon {
     fn new(svg: &str, active: Rgba8, inactive: Rgba8) -> Self {
         Self {
-            glyph: Arc::new(SvgIcon::from_svg(svg).expect("toolbar icon SVG should parse")),
-            active,
-            inactive,
+            active_glyph: Arc::new(
+                SvgIcon::from_svg(&with_current_color(svg, active))
+                    .expect("active toolbar icon SVG should parse"),
+            ),
+            inactive_glyph: Arc::new(
+                SvgIcon::from_svg(&with_current_color(svg, inactive))
+                    .expect("inactive toolbar icon SVG should parse"),
+            ),
+        }
+    }
+
+    fn glyph(&self, active: bool) -> &SvgIcon {
+        if active {
+            &self.active_glyph
+        } else {
+            &self.inactive_glyph
         }
     }
 }
@@ -238,14 +250,9 @@ impl Widget for IconToggleButton {
             ),
             Vector2::new(icon_side, icon_side),
         );
-        let icon_color = if self.active {
-            self.icon.active
-        } else {
-            self.icon.inactive
-        };
         self.icon
-            .glyph
-            .append_fill_paint(primitives, self.common.id, icon_rect, icon_color);
+            .glyph(self.active)
+            .append_paint(primitives, self.common.id, icon_rect);
     }
 }
 
@@ -295,6 +302,15 @@ fn toolbar_button(state: &ToolbarState, tool: ToolId) -> View<ToolMessage> {
     )
 }
 
+fn with_current_color(svg: &str, color: Rgba8) -> String {
+    let color = format!("#{:02x}{:02x}{:02x}", color.r, color.g, color.b);
+    svg.replacen(
+        "<svg ",
+        &format!(r#"<svg color="{color}" fill="currentColor" "#),
+        1,
+    )
+}
+
 const SELECT_ICON: &str = r#"
 <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
   <polygon points="5,3 18,13 12,14 15,21 12,22 9,15 5,19" />
@@ -329,13 +345,22 @@ mod tests {
     use radiant::runtime::SurfaceRuntime;
 
     #[test]
-    fn svg_toolbar_icons_parse_as_vector_icons_with_active_and_inactive_colors() {
+    fn svg_toolbar_icons_parse_active_and_inactive_vector_icons() {
         let theme = ThemeTokens::default();
         let icons = ToolbarIcons::new(&theme);
 
-        assert_eq!(icons.select.active, theme.accent_warning);
-        assert_eq!(icons.select.inactive, theme.text_muted);
-        assert_eq!(icons.brush.active, theme.accent_warning);
+        assert!(Arc::ptr_eq(
+            &icons.select.active_glyph,
+            &icons.select.active_glyph
+        ));
+        assert!(!Arc::ptr_eq(
+            &icons.select.active_glyph,
+            &icons.select.inactive_glyph
+        ));
+        assert!(!Arc::ptr_eq(
+            &icons.brush.active_glyph,
+            &icons.brush.inactive_glyph
+        ));
     }
 
     #[test]
@@ -377,7 +402,7 @@ mod tests {
     }
 
     #[test]
-    fn toolbar_button_paints_icon_image_and_active_marker() {
+    fn toolbar_button_paints_svg_icon_and_active_marker() {
         let theme = ThemeTokens::default();
         let button = IconToggleButton::new(ToolId::Select, ToolbarIcons::new(&theme).select, true);
         let mut primitives = Vec::new();
@@ -391,7 +416,7 @@ mod tests {
         assert!(
             primitives
                 .iter()
-                .any(|primitive| matches!(primitive, PaintPrimitive::FillPath(_)))
+                .any(|primitive| matches!(primitive, PaintPrimitive::Svg(_)))
         );
         let PaintPrimitive::FillRect(background) = primitives[0] else {
             panic!("active toolbar button should paint a background first");

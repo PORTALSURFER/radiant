@@ -49,8 +49,9 @@ pub use gpu_surface::{
 pub use paint::{
     PaintCustomSurface, PaintFillPath, PaintFillPolygon, PaintFillRect, PaintFillRule,
     PaintGpuSurface, PaintImage, PaintOverlayPanel, PaintPath, PaintPointList, PaintPrimitive,
-    PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintText, PaintTextAlign,
-    PaintTextInput, PaintTextRun, PaintTransform, Renderer, SurfacePaintPlan, SurfacePaintStats,
+    PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintSvg, PaintSvgDocument,
+    PaintText, PaintTextAlign, PaintTextInput, PaintTextRun, PaintTransform, Renderer,
+    SurfacePaintPlan, SurfacePaintStats,
 };
 pub(crate) use paint::{
     blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,

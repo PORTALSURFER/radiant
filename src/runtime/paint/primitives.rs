@@ -2,6 +2,7 @@ mod clip;
 mod plan;
 mod shape;
 mod surface;
+mod svg;
 mod text;
 
 pub use clip::{PaintClipEnd, PaintClipStart};
@@ -11,4 +12,5 @@ pub use shape::{
     PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintTransform,
 };
 pub use surface::{PaintCustomSurface, PaintGpuSurface, PaintImage};
+pub use svg::{PaintSvg, PaintSvgDocument};
 pub use text::{PaintOverlayPanel, PaintText, PaintTextAlign, PaintTextInput, PaintTextRun};

@@ -86,7 +86,7 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             vec![
                 "use radiant::prelude::*;",
                 "SvgIcon::from_svg(",
-                "PaintPrimitive::FillPath(",
+                "PaintPrimitive::Svg(",
                 "custom_widget_mapped(",
                 "IconToggleButton::new(",
                 "ToolMessage::Toggle(",

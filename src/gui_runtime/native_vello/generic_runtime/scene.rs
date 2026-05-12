@@ -7,6 +7,7 @@ mod cache;
 mod frame;
 mod image;
 mod shape;
+mod svg;
 mod text_input;
 mod text_input_selection;
 pub(in crate::gui_runtime::native_vello) use cache::{
@@ -19,6 +20,7 @@ use shape::{
     encode_path_fill, encode_polygon_fill, encode_polygon_stroke, encode_polyline_stroke,
     encode_rect,
 };
+use svg::encode_svg;
 use text_input::encode_text_input;
 
 pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<
@@ -69,6 +71,11 @@ where
                     fill.fill_rule,
                     &fill.path,
                 );
+            }
+            PaintPrimitive::Svg(svg) => {
+                stats.svg_document_count = stats.svg_document_count.saturating_add(1);
+                flush_text_runs(scene, text_renderer, text_runs, &mut stats);
+                encode_svg(scene, svg);
             }
             PaintPrimitive::StrokeRect(stroke) => {
                 scene.stroke(

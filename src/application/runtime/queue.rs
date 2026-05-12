@@ -122,6 +122,21 @@ where
             .get_or_init(TimerLane::new)
             .schedule(Arc::downgrade(self), delay, message)
     }
+
+    pub(super) fn schedule_interval(
+        self: &Arc<Self>,
+        every: Duration,
+        message: Arc<dyn Fn() -> Message + Send + Sync>,
+    ) -> bool {
+        if !self.is_alive() {
+            return false;
+        }
+        self.timers.get_or_init(TimerLane::new).schedule_interval(
+            Arc::downgrade(self),
+            every,
+            message,
+        )
+    }
 }
 
 fn lock_runtime_state<T>(state: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {

@@ -1,5 +1,6 @@
 use super::AppRuntime;
-use super::threading::{runtime_alive, sleep_while_runtime_alive, spawn_business_thread};
+use super::threading::{runtime_alive, spawn_business_thread};
+use super::timer::min_timer_delay;
 use std::{
     sync::mpsc::RecvTimeoutError,
     sync::{Arc, Weak},
@@ -98,20 +99,12 @@ pub(super) fn spawn_subscription<Message>(
             }
         }
         Subscription::Interval { id, every, message } => {
-            let delay = every.max(Duration::from_millis(1));
-            spawn_business_thread(format!("subscription-{id}"), move || {
-                loop {
-                    if !sleep_until_subscription_tick(&runtime, delay) {
-                        break;
-                    }
-                    let Some(runtime) = runtime.upgrade() else {
-                        break;
-                    };
-                    if !runtime.enqueue(message()) {
-                        break;
-                    }
-                }
-            });
+            let Some(runtime) = runtime.upgrade() else {
+                return;
+            };
+            if !runtime.schedule_interval(every.max(min_timer_delay()), message) {
+                eprintln!("Radiant app runtime: failed to start interval subscription {id}");
+            }
         }
         Subscription::Worker { id, receiver } => {
             spawn_business_thread(format!("worker-subscription-{id}"), move || {
@@ -128,13 +121,6 @@ pub(super) fn spawn_subscription<Message>(
             });
         }
     }
-}
-
-fn sleep_until_subscription_tick<Message>(
-    runtime: &Weak<AppRuntime<Message>>,
-    duration: Duration,
-) -> bool {
-    sleep_while_runtime_alive(runtime, duration)
 }
 
 enum WorkerSubscriptionEvent<Message> {
@@ -163,7 +149,7 @@ fn receive_worker_message<Message>(
 mod subscription_tests {
     use super::{
         AppRuntime, Subscription, WorkerSubscriptionEvent, receive_worker_message,
-        sleep_until_subscription_tick,
+        spawn_subscription,
     };
     use std::{
         sync::{Arc, mpsc},
@@ -231,22 +217,27 @@ mod subscription_tests {
     }
 
     #[test]
-    fn interval_wait_stops_promptly_after_runtime_shutdown() {
+    fn interval_subscription_delivers_ticks_from_runtime_timer_lane() {
         let runtime = Arc::new(AppRuntime::<u32>::default());
-        let weak = Arc::downgrade(&runtime);
-        let stopper = Arc::clone(&runtime);
-        thread::spawn(move || {
-            thread::sleep(Duration::from_millis(10));
-            stopper.shutdown();
-        });
+
+        spawn_subscription(
+            Arc::downgrade(&runtime),
+            Subscription::interval("tick", Duration::from_millis(1), || 1),
+        );
 
         let started = Instant::now();
-        assert!(!sleep_until_subscription_tick(
-            &weak,
-            Duration::from_secs(60)
-        ));
+        let mut delivered = Vec::new();
+        while started.elapsed() < Duration::from_secs(1) {
+            delivered.extend(runtime.take_pending());
+            if !delivered.is_empty() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+        runtime.shutdown();
 
-        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(!delivered.is_empty());
+        assert!(delivered.iter().all(|message| *message == 1));
     }
 
     #[test]

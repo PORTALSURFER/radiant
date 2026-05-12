@@ -624,7 +624,7 @@ sandbox that emulates a sample-source picker with selectable rows, stable row
 IDs, and small `+` / `-` row actions.
 Run `cargo run --example toolbar_icons` for a horizontal SVG-icon toolbar
 sandbox that uses custom toggle buttons, state-driven active highlights, and
-muted inactive icon rasterization.
+muted inactive vector icons.
 Run `cargo run --example status_bar` for a bottom status-bar sandbox that shows
 button actions, toggle state, and background worker progress flowing into a
 thin persistent status strip.

@@ -244,8 +244,7 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
         ),
     ] {
         let path = format!("examples/{name}.rs");
-        let source = fs::read_to_string(manifest_dir.join(&path))
-            .unwrap_or_else(|_| panic!("{name} example should be readable"));
+        let source = example_source(&manifest_dir, name, &path);
 
         assert!(
             manifest.contains(&format!("name = \"{name}\""))
@@ -281,6 +280,34 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             );
         }
     }
+}
+
+fn example_source(manifest_dir: &Path, name: &str, path: &str) -> String {
+    let root_path = manifest_dir.join(path);
+    let mut source = fs::read_to_string(&root_path)
+        .unwrap_or_else(|_| panic!("{name} example should be readable"));
+    let module_dir = manifest_dir.join("examples").join(name);
+    if module_dir.exists() {
+        let mut modules = fs::read_dir(&module_dir)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", module_dir.display()))
+            .map(|entry| {
+                entry
+                    .unwrap_or_else(|err| {
+                        panic!("failed to read entry in {}: {err}", module_dir.display())
+                    })
+                    .path()
+            })
+            .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("rs"))
+            .collect::<Vec<_>>();
+        modules.sort();
+        for module in modules {
+            source.push('\n');
+            source.push_str(&fs::read_to_string(&module).unwrap_or_else(|err| {
+                panic!("failed to read example module {}: {err}", module.display())
+            }));
+        }
+    }
+    source
 }
 
 #[test]

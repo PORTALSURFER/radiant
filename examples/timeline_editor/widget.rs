@@ -1,7 +1,7 @@
 use super::{
-    BeatRange, CLIP_HEIGHT, HEADER_WIDTH, LANE_COUNT, LANE_HEIGHT, MIN_CLIP_BEATS,
-    RESIZE_HANDLE_WIDTH, RULER_HEIGHT, TOTAL_BEATS, TRACK_PAD, TimelineClip, TimelineEditorState,
-    TimelineSurfaceMessage,
+    CLIP_HEIGHT, HEADER_WIDTH, LANE_COUNT, LANE_HEIGHT, MIN_CLIP_BEATS, RESIZE_HANDLE_WIDTH,
+    RULER_HEIGHT, TOTAL_BEATS, TRACK_PAD,
+    model::{BeatRange, TimelineClip, TimelineEditorState, TimelineSurfaceMessage},
 };
 use radiant::gui::types::Rgba8;
 use radiant::layout::{LayoutOutput, Point, Rect, Vector2};

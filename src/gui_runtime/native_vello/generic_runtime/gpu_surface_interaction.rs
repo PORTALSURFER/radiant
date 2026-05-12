@@ -235,8 +235,13 @@ mod tests {
                 revision: 1,
                 rect,
                 content: GpuSurfaceContent::RgbaAtlas {
-                    source_rect: rect,
-                    atlas: Arc::new(ImageRgba::new(1, 1, vec![255; 4]).expect("valid image")),
+                    source_rect: Rect::from_min_size(
+                        Point::new(0.0, 0.0),
+                        Vector2::new(20.0, 20.0),
+                    ),
+                    atlas: Arc::new(
+                        ImageRgba::new(20, 20, vec![255; 20 * 20 * 4]).expect("valid image"),
+                    ),
                 },
                 capabilities,
                 overlays: Vec::new(),

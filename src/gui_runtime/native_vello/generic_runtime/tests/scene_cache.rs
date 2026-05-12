@@ -64,8 +64,10 @@ fn scene_encoding_collects_fast_pointer_gpu_surface_hit_rects() {
             revision: 1,
             rect,
             content: GpuSurfaceContent::RgbaAtlas {
-                source_rect: rect,
-                atlas: Arc::new(ImageRgba::new(1, 1, vec![255; 4]).expect("valid test image")),
+                source_rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(64.0, 32.0)),
+                atlas: Arc::new(
+                    ImageRgba::new(64, 32, vec![255; 64 * 32 * 4]).expect("valid test image"),
+                ),
             },
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,

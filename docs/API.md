@@ -610,6 +610,9 @@ IDs, and small `+` / `-` row actions.
 Run `cargo run --example toolbar_icons` for a horizontal SVG-icon toolbar
 sandbox that uses custom toggle buttons, state-driven active highlights, and
 muted inactive icon rasterization.
+Run `cargo run --example status_bar` for a bottom status-bar sandbox that shows
+button actions, toggle state, and background worker progress flowing into a
+thin persistent status strip.
 Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that
 uses `grid_with_gaps(...)` with normal nested views and styling.
 Run `cargo run --example theme_playground` for a theme-token sandbox that

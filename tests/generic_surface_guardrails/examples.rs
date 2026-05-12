@@ -91,6 +91,16 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             ],
         ),
         (
+            "status_bar",
+            vec![
+                "status_bar(",
+                "StatusMessage::ActionPressed",
+                "StatusMessage::AutosaveChanged",
+                "context.spawn(",
+                "StatusMessage::WorkerFinished",
+            ],
+        ),
+        (
             "animation_showcase",
             vec![".animation(", ".on_frame(", "AnimationMessage::Frame"],
         ),

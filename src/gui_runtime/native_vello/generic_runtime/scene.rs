@@ -62,7 +62,13 @@ where
             }
             PaintPrimitive::FillRect(fill) => encode_rect(scene, fill.color, fill.rect),
             PaintPrimitive::FillPath(fill) => {
-                encode_path_fill(scene, fill.color, fill.fill_rule, &fill.path);
+                encode_path_fill(
+                    scene,
+                    fill.color,
+                    fill.transform,
+                    fill.fill_rule,
+                    &fill.path,
+                );
             }
             PaintPrimitive::StrokeRect(stroke) => {
                 scene.stroke(

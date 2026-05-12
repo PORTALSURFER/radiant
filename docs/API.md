@@ -37,11 +37,11 @@ runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `ContentViewChrome`, common custom-widget authoring contracts such as
 `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`,
 `PointerButton`, `FocusBehavior`, and backend-neutral paint primitives such as
-`PaintPrimitive`, `PaintFillRect`, `PaintFillPath`, and `PaintTextRun`. It also
-includes the geometry, layout, image, color, and theme types needed in widget method
-signatures, including `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`,
-`Rgba8`, and `ThemeTokens`, plus app-facing asset helpers such as
-`SvgIcon`, plus the builder types needed by method chains. These
+`PaintPrimitive`, `PaintFillRect`, `PaintFillPath`, `PaintTransform`, and
+`PaintTextRun`. It also includes the geometry, layout, image, color, and theme
+types needed in widget method signatures, including `Rect`, `Point`, `Vector2`,
+`LayoutOutput`, `ImageRgba`, `Rgba8`, and `ThemeTokens`, plus app-facing asset
+helpers such as `SvgIcon`, plus the builder types needed by method chains. These
 builders lower into the same `UiSurface`, `SurfaceNode`, `SurfaceChild`,
 `WidgetSizing`, and `RuntimeBridge` contracts available through the explicit
 runtime modules.
@@ -487,8 +487,8 @@ half width and height for centered zero-size collapse.
 `Rect::centered_pixel_square` and `Rect::centered_odd_pixel_square` provide
 pixel-snapped icon-box geometry for reusable controls.
 The prelude `SvgIcon::from_svg(...)` parses the supported filled SVG subset into
-retained vector paths that emit backend-neutral `PaintFillPath` primitives for
-Vello and other renderers to draw directly.
+retained vector paths that emit backend-neutral `PaintFillPath` primitives with
+per-instance transforms for Vello and other renderers to draw directly.
 `Rect::stroke_aligned_rect` provides stroke-grid snapping for retained border
 geometry.
 `Rect::top_right_square` provides anchored overlay geometry for controls that

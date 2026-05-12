@@ -70,7 +70,7 @@ pub mod prelude {
         Command, EmbeddedFont, GpuHoverCursor, GpuSignalRenderShape, GpuSignalSummary,
         GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent,
         GpuSurfaceOverlay, PaintFillPath, PaintFillRect, PaintFillRule, PaintImage, PaintPrimitive,
-        PaintStrokeRect, PaintTextAlign, PaintTextRun, ResourceKey, ResourceLoad,
+        PaintStrokeRect, PaintTextAlign, PaintTextRun, PaintTransform, ResourceKey, ResourceLoad,
         ResourceLoadState, ResourceRequest, ResourceSlot, ScrollUpdate, SurfaceFrame,
         WindowManifest, WindowSpec,
     };

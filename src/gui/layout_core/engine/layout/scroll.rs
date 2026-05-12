@@ -17,7 +17,7 @@ use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{ContainerKind, VirtualizationAxis};
 use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, SlotChild};
 use crate::gui::types::{Point, Rect, Vector2};
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 /// Layout a scroll container and optionally virtualize large linear child lists.
 pub(super) fn layout_scroll_view(
@@ -266,7 +266,7 @@ fn cached_or_build_metrics(
     }
 
     let metrics = Arc::new(build_linear_metrics(content, constraints, axis, context));
-    let mut dependencies = HashSet::with_capacity(content.children.len().saturating_add(1));
+    let mut dependencies = Vec::with_capacity(content.children.len().saturating_add(1));
     collect_virtual_metric_dependencies(content, &mut dependencies);
     context.remember_virtual_metrics(key, Arc::clone(&metrics), dependencies);
     metrics

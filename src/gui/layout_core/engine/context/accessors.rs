@@ -47,7 +47,7 @@ impl<'a> LayoutContext<'a> {
         &mut self,
         key: VirtualizationCacheKey,
         metrics: Arc<LinearVirtualMetrics>,
-        dependencies: std::collections::HashSet<NodeId>,
+        dependencies: Vec<NodeId>,
     ) {
         self.virtual_cache.insert(
             key,

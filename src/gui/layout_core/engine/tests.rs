@@ -530,6 +530,19 @@ fn dirty_subtree_invalidates_virtual_metrics_cache_for_whole_marked_set() {
     );
     assert!(first.virtual_windows.contains_key(&1));
     assert!(!engine.virtual_cache.is_empty());
+    let dependencies = &engine
+        .virtual_cache
+        .values()
+        .next()
+        .expect("cached virtual metrics")
+        .dependencies;
+    assert!(dependencies.contains(&2));
+    assert!(dependencies.contains(&10));
+    assert_eq!(
+        dependencies.len(),
+        65,
+        "virtual metric dependencies should be stored as one compact subtree id list"
+    );
 
     engine.mark_layout_dirty_subtree(&root, 2);
 

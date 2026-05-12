@@ -1,7 +1,6 @@
 //! Scroll virtualization cache dependency helpers.
 
 use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, NodeId};
-use std::collections::HashSet;
 
 /// Collect all node ids under a virtualized content container.
 ///
@@ -10,16 +9,16 @@ use std::collections::HashSet;
 /// resolved linear window.
 pub(super) fn collect_virtual_metric_dependencies(
     container: &ContainerNode,
-    out: &mut HashSet<NodeId>,
+    out: &mut Vec<NodeId>,
 ) {
-    out.insert(container.id);
+    out.push(container.id);
     for child in &container.children {
         collect_subtree_ids(&child.child, out);
     }
 }
 
-fn collect_subtree_ids(node: &LayoutNode, out: &mut HashSet<NodeId>) {
-    out.insert(node.id());
+fn collect_subtree_ids(node: &LayoutNode, out: &mut Vec<NodeId>) {
+    out.push(node.id());
     if let LayoutNode::Container(container) = node {
         for child in &container.children {
             collect_subtree_ids(&child.child, out);

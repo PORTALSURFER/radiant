@@ -133,8 +133,11 @@ mod tests {
             revision: 1,
             rect,
             content: crate::runtime::GpuSurfaceContent::RgbaAtlas {
-                source_rect: rect,
-                atlas: Arc::new(ImageRgba::new(1, 1, vec![255; 4]).expect("valid image")),
+                source_rect: Rect::from_min_size(
+                    crate::layout::Point::new(0.0, 0.0),
+                    Vector2::new(3.0, 4.0),
+                ),
+                atlas: Arc::new(ImageRgba::new(3, 4, vec![255; 3 * 4 * 4]).expect("valid image")),
             },
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,

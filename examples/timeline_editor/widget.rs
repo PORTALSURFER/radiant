@@ -1,8 +1,10 @@
 use super::{
     CLIP_HEIGHT, HEADER_WIDTH, LANE_COUNT, LANE_HEIGHT, MIN_CLIP_BEATS, RESIZE_HANDLE_WIDTH,
     RULER_HEIGHT, TOTAL_BEATS, TRACK_PAD,
-    model::{BeatRange, TimelineClip, TimelineEditorState, TimelineSurfaceMessage},
+    model::{BeatRange, TimelineClip, TimelineEditorState},
 };
+#[path = "widget/input.rs"]
+mod input;
 #[path = "widget/paint.rs"]
 mod paint;
 
@@ -10,8 +12,7 @@ use radiant::layout::{LayoutOutput, Point, Rect, Vector2};
 use radiant::runtime::PaintPrimitive;
 use radiant::theme::ThemeTokens;
 use radiant::widgets::{
-    FocusBehavior, PointerButton, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput,
-    WidgetSizing,
+    FocusBehavior, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
 };
 
 #[derive(Clone, Debug)]
@@ -72,34 +73,6 @@ impl ArrangementTimelineWidget {
     pub(super) fn geometry(&self, bounds: Rect) -> TimelineGeometry {
         TimelineGeometry::new(bounds)
     }
-
-    fn clip_at(&self, geometry: TimelineGeometry, position: Point) -> Option<&TimelineClip> {
-        self.clips.iter().rev().find(|clip| {
-            geometry
-                .clip_rect(clip)
-                .inset_vertical(-4.0, -4.0)
-                .contains(position)
-        })
-    }
-
-    fn resize_edge_at(
-        &self,
-        geometry: TimelineGeometry,
-        clip: &TimelineClip,
-        position: Point,
-    ) -> Option<ResizeEdge> {
-        let rect = geometry.clip_rect(clip);
-        if !rect.inset_vertical(-4.0, -4.0).contains(position) {
-            return None;
-        }
-        if position.x <= rect.min.x + RESIZE_HANDLE_WIDTH {
-            Some(ResizeEdge::Start)
-        } else if position.x >= rect.max.x - RESIZE_HANDLE_WIDTH {
-            Some(ResizeEdge::End)
-        } else {
-            None
-        }
-    }
 }
 
 impl Widget for ArrangementTimelineWidget {
@@ -112,155 +85,7 @@ impl Widget for ArrangementTimelineWidget {
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        let geometry = self.geometry(bounds);
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                let beat = geometry.beat_at(position);
-                self.hover_clip_id = self.clip_at(geometry, position).map(|clip| clip.id);
-                self.hover_beat = beat;
-                match (self.drag, beat) {
-                    (
-                        Some(TimelineDrag::Selecting {
-                            lane: _,
-                            anchor_beat,
-                        }),
-                        Some(current),
-                    ) => {
-                        self.hover_clip_id = None;
-                        let range = BeatRange::normalized(anchor_beat, current);
-                        self.selection = Some(range);
-                        Some(WidgetOutput::typed(TimelineSurfaceMessage::SelectRange {
-                            range,
-                        }))
-                    }
-                    (
-                        Some(TimelineDrag::MovingClip {
-                            clip_id,
-                            pointer_offset,
-                            duration,
-                        }),
-                        Some(current),
-                    ) => {
-                        self.hover_clip_id = Some(clip_id);
-                        let lane = geometry.lane_at(position).unwrap_or(0);
-                        let max_start = TOTAL_BEATS.saturating_sub(duration);
-                        let start = current.saturating_sub(pointer_offset).min(max_start);
-                        Some(WidgetOutput::typed(TimelineSurfaceMessage::MoveClip {
-                            clip_id,
-                            lane,
-                            start,
-                        }))
-                    }
-                    (
-                        Some(TimelineDrag::ResizingClip {
-                            clip_id,
-                            edge,
-                            fixed_beat,
-                        }),
-                        Some(current),
-                    ) => {
-                        self.hover_clip_id = Some(clip_id);
-                        let range = resized_range(edge, fixed_beat, current);
-                        Some(WidgetOutput::typed(TimelineSurfaceMessage::ResizeClip {
-                            clip_id,
-                            range,
-                        }))
-                    }
-                    _ => None,
-                }
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-            } if bounds.contains(position) => {
-                let beat = geometry.beat_at(position)?;
-                self.common.state.pressed = true;
-                self.hover_clip_id = self.clip_at(geometry, position).map(|clip| clip.id);
-                if let Some((clip_id, clip_start, clip_end, duration, edge)) =
-                    self.clip_at(geometry, position).map(|clip| {
-                        (
-                            clip.id,
-                            clip.range.start,
-                            clip.range.end,
-                            clip.range.duration(),
-                            self.resize_edge_at(geometry, clip, position),
-                        )
-                    })
-                {
-                    self.drag = if let Some(edge) = edge {
-                        Some(TimelineDrag::ResizingClip {
-                            clip_id,
-                            edge,
-                            fixed_beat: match edge {
-                                ResizeEdge::Start => clip_end,
-                                ResizeEdge::End => clip_start,
-                            },
-                        })
-                    } else {
-                        Some(TimelineDrag::MovingClip {
-                            clip_id,
-                            pointer_offset: beat.saturating_sub(clip_start),
-                            duration,
-                        })
-                    };
-                    self.selected_clip = Some(clip_id);
-                    Some(WidgetOutput::typed(TimelineSurfaceMessage::SelectClip {
-                        clip_id,
-                        beat,
-                    }))
-                } else {
-                    let lane = geometry.lane_at(position).unwrap_or(0);
-                    self.drag = Some(TimelineDrag::Selecting {
-                        lane,
-                        anchor_beat: beat,
-                    });
-                    self.selection = Some(BeatRange {
-                        start: beat,
-                        end: beat,
-                    });
-                    Some(WidgetOutput::typed(TimelineSurfaceMessage::Seek { beat }))
-                }
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-            } => {
-                self.common.state.pressed = false;
-                let drag = self.drag.take();
-                match (drag, geometry.beat_at(position)) {
-                    (Some(TimelineDrag::Selecting { lane, anchor_beat }), Some(end)) => {
-                        let range = BeatRange::normalized(anchor_beat, end);
-                        if range.duration() >= MIN_CLIP_BEATS {
-                            Some(WidgetOutput::typed(TimelineSurfaceMessage::CreateClip {
-                                lane,
-                                range,
-                            }))
-                        } else {
-                            Some(WidgetOutput::typed(TimelineSurfaceMessage::Seek {
-                                beat: end,
-                            }))
-                        }
-                    }
-                    _ => None,
-                }
-            }
-            WidgetInput::FocusChanged(focused) => {
-                self.common.state.focused = focused;
-                None
-            }
-            WidgetInput::KeyPress(WidgetKey::Space) if self.common.state.focused => {
-                Some(WidgetOutput::typed(TimelineSurfaceMessage::Seek {
-                    beat: self.hover_beat.unwrap_or(self.playhead_beat),
-                }))
-            }
-            WidgetInput::KeyPress(WidgetKey::Delete | WidgetKey::Backspace)
-                if self.common.state.focused && self.selected_clip.is_some() =>
-            {
-                Some(WidgetOutput::typed(TimelineSurfaceMessage::DeleteSelected))
-            }
-            _ => None,
-        }
+        input::handle_timeline_input(self, bounds, input)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
@@ -349,26 +174,5 @@ impl TimelineGeometry {
 
     fn beat_width(self) -> f32 {
         ((self.lanes.width() - TRACK_PAD).max(1.0)) / TOTAL_BEATS as f32
-    }
-}
-
-fn resized_range(edge: ResizeEdge, fixed_beat: u32, pointer_beat: u32) -> BeatRange {
-    match edge {
-        ResizeEdge::Start => {
-            let start = pointer_beat.min(fixed_beat.saturating_sub(MIN_CLIP_BEATS));
-            BeatRange {
-                start,
-                end: fixed_beat,
-            }
-        }
-        ResizeEdge::End => {
-            let end = pointer_beat
-                .max(fixed_beat.saturating_add(MIN_CLIP_BEATS))
-                .min(TOTAL_BEATS);
-            BeatRange {
-                start: fixed_beat,
-                end,
-            }
-        }
     }
 }

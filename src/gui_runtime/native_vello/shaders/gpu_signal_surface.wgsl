@@ -58,21 +58,11 @@ fn band_peak_at(x: f32, band: u32, band_count: u32, start: f32, visible: f32, bu
 }
 
 fn smoothed_band_peak(x: f32, pixel_width: f32, band: u32, band_count: u32, start: f32, visible: f32, bucket_frames: f32, bucket_count: u32) -> f32 {
-    let p1 = band_peak_at(x - pixel_width, band, band_count, start, visible, bucket_frames, bucket_count);
-    let p2 = band_peak_at(x, band, band_count, start, visible, bucket_frames, bucket_count);
-    let p3 = band_peak_at(x + pixel_width, band, band_count, start, visible, bucket_frames, bucket_count);
-    return p1 * 0.24 + p2 * 0.52 + p3 * 0.24;
+    return band_peak_at(x, band, band_count, start, visible, bucket_frames, bucket_count);
 }
 
 fn projected_band_peak(x: f32, pixel_width: f32, band: u32, band_count: u32, start: f32, visible: f32, bucket_frames: f32, bucket_count: u32, frames_per_pixel: f32) -> f32 {
-    let peak = smoothed_band_peak(x, pixel_width, band, band_count, start, visible, bucket_frames, bucket_count);
-    let left = smoothed_band_peak(x - pixel_width, pixel_width, band, band_count, start, visible, bucket_frames, bucket_count);
-    let right = smoothed_band_peak(x + pixel_width, pixel_width, band, band_count, start, visible, bucket_frames, bucket_count);
-    let neighbor = max(left, right);
-    let corner_limit = mix(0.24, 0.095, smoothstep(18.0, 260.0, frames_per_pixel));
-    let corner_delta = max(peak - neighbor, 0.0);
-    let corner_strength = smoothstep(corner_limit, corner_limit * 2.8, corner_delta);
-    return mix(peak, neighbor + corner_limit, corner_strength * 0.42);
+    return smoothed_band_peak(x, pixel_width, band, band_count, start, visible, bucket_frames, bucket_count);
 }
 
 fn blend(src: vec3<f32>, alpha: f32, dst: vec4<f32>) -> vec4<f32> {
@@ -143,7 +133,7 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
         let inside = clamp(1.0 - y / max(extent, 0.001), 0.0, 1.0);
         let inner_light = inside * inside;
         let shell_light = clamp(y / max(extent, 0.001), 0.0, 1.0);
-        let edge_halo = smoothstep(extent + aa * 8.0, extent, y) * (1.0 - coverage);
+        let edge_halo = smoothstep(extent + aa * 2.0, extent, y) * (1.0 - coverage);
         let heat_mix = smoothstep(0.38, 0.96, intensity);
         var low_depth = 0.0;
         var low_lift = vec3<f32>(0.0);
@@ -177,9 +167,9 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
             heat_mix * 0.30 * (1.0 - low_band * 0.70),
         );
         let alpha_boost = 0.62 + intensity * 0.28 + inner_light * 0.15;
-        color = blend(glow_colors[band], edge_halo * band_colors[band].a * (0.06 + intensity * 0.09 + low_depth * 0.05), color);
-        color = blend(body_rgb, band_colors[band].a * coverage * alpha_boost, color);
-        color = blend(ridge_rgb, ridge * band_colors[band].a * (0.22 + intensity * 0.30), color);
+        color = blend(glow_colors[band], edge_halo * band_colors[band].a * (0.015 + intensity * 0.02), color);
+        color = blend(body_rgb, band_colors[band].a * coverage * alpha_boost * 0.82, color);
+        color = blend(ridge_rgb, ridge * band_colors[band].a * (0.34 + intensity * 0.42), color);
     }
     let heat = clamp(low_signal * 0.45 + mid_signal * 0.70 + high_signal * 1.10, 0.0, 1.0);
     let hot = smoothstep(0.52, 0.98, heat);

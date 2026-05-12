@@ -35,7 +35,7 @@ pub use native_vello::{
     run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
 };
 pub use options::{
-    DEFAULT_NATIVE_WINDOW_TITLE, NativeGpuBackend, NativeGpuOptions, NativeRunOptions,
-    NativeTextOptions, WindowIconRgba,
+    DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, NativeGpuBackend, NativeGpuOptions,
+    NativeRunOptions, NativeTextOptions, WindowIconRgba,
 };
 pub use window_manifest::{WindowManifest, WindowSpec};

@@ -90,6 +90,16 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             vec![".update_with(", "context.spawn(", "LoadingMessage::Loaded"],
         ),
         (
+            "busy_progress",
+            vec![
+                "context.spawn(",
+                ".animation(",
+                ".on_frame(",
+                "retained_canvas(",
+                "horizontal_progress_fill_rect(",
+            ],
+        ),
+        (
             "multi_window_manifest",
             vec![
                 "radiant::window(",

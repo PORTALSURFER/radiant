@@ -589,6 +589,9 @@ builder.
 Run `cargo run --example background_loading` for a background-work sandbox that
 uses `ResourceSlot`, `ResourceLoad`, and `UpdateContext::spawn(...)` to route
 worker resource results back into the normal state update path.
+Run `cargo run --example busy_progress` for a background-work progress sandbox
+that starts slow tasks with `UpdateContext::spawn(...)`, uses animation frames
+while work is active, and paints aggregate progress through a retained canvas.
 Run `cargo run --example typography` for a focused text sandbox that exercises
 wrapping, truncation, fixed text heights, fill sizing, and explicit baselines
 through the application-builder API.

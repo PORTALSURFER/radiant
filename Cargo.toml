@@ -48,6 +48,10 @@ name = "background_loading"
 path = "examples/background_loading.rs"
 
 [[example]]
+name = "busy_progress"
+path = "examples/busy_progress.rs"
+
+[[example]]
 name = "typography"
 path = "examples/typography.rs"
 

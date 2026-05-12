@@ -15,7 +15,10 @@ use radiant::{
         ToggleWidget, Widget, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
     },
 };
-use std::{thread, time::Duration};
+use std::{
+    thread,
+    time::{Duration, Instant},
+};
 
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
@@ -352,8 +355,14 @@ fn application_builder_background_spawn_routes_worker_result() {
         "Loaded: loading"
     );
 
-    thread::sleep(Duration::from_millis(10));
-    let finished = runtime.drain_runtime_messages();
+    let deadline = Instant::now() + Duration::from_secs(1);
+    let finished = loop {
+        let finished = runtime.drain_runtime_messages();
+        if finished.messages_dispatched > 0 || Instant::now() >= deadline {
+            break finished;
+        }
+        thread::sleep(Duration::from_millis(1));
+    };
     assert_eq!(finished.messages_dispatched, 1);
     assert_eq!(
         widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,

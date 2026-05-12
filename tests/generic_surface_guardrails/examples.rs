@@ -179,7 +179,6 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
                 "TimelineMotionState::new(",
                 "retained_canvas(",
                 "custom_widget_mapped(",
-                "drop_marker(",
             ],
         ),
         (

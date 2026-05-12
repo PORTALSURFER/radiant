@@ -34,7 +34,7 @@ use crate::{
     theme::ThemeTokens,
     widgets::{WidgetId, WidgetInput, WidgetKey, WidgetState},
 };
-use hit_order::{collect_hit_rank, collect_visible_hit_order};
+use hit_order::HitOrderIndex;
 use std::collections::{HashMap, HashSet};
 
 /// Direction for deterministic keyboard focus traversal.
@@ -73,26 +73,16 @@ where
     layout: LayoutOutput,
     layout_state: LayoutState,
     widget_hit_order: Vec<WidgetId>,
-    focusable_widget_order: Vec<WidgetId>,
-    focusable_widget_rank: HashMap<WidgetId, usize>,
-    pointer_hit_order: Vec<WidgetId>,
-    pointer_hit_rank: HashMap<WidgetId, usize>,
-    visible_pointer_hit_order: Vec<WidgetId>,
+    focusable_widgets: HitOrderIndex,
+    pointer_widgets: HitOrderIndex,
     widget_paths: HashMap<WidgetId, WidgetPath>,
     previous_widget_paths: HashMap<WidgetId, WidgetPath>,
     container_hover_suppression: HashSet<WidgetId>,
-    keyboard_focus_order: Vec<WidgetId>,
-    keyboard_focus_rank: HashMap<WidgetId, usize>,
-    wheel_hit_order: Vec<WidgetId>,
-    wheel_hit_rank: HashMap<WidgetId, usize>,
-    visible_wheel_hit_order: Vec<WidgetId>,
+    keyboard_focus_widgets: HitOrderIndex,
+    wheel_widgets: HitOrderIndex,
     stateful_widget_order: Vec<WidgetId>,
-    styled_container_hit_order: Vec<NodeId>,
-    styled_container_hit_rank: HashMap<NodeId, usize>,
-    visible_styled_container_hit_order: Vec<NodeId>,
-    scroll_hit_order: Vec<NodeId>,
-    scroll_hit_rank: HashMap<NodeId, usize>,
-    visible_scroll_hit_order: Vec<NodeId>,
+    styled_containers: HitOrderIndex,
+    scroll_containers: HitOrderIndex,
     widget_clip_ancestors: HashMap<WidgetId, ClipAncestors>,
     container_clip_ancestors: HashMap<NodeId, ClipAncestors>,
     scroll_content_by_container: HashMap<NodeId, NodeId>,
@@ -134,26 +124,16 @@ where
             layout: LayoutOutput::default(),
             layout_state: LayoutState::default(),
             widget_hit_order: Vec::new(),
-            focusable_widget_order: Vec::new(),
-            focusable_widget_rank: HashMap::new(),
-            pointer_hit_order: Vec::new(),
-            pointer_hit_rank: HashMap::new(),
-            visible_pointer_hit_order: Vec::new(),
+            focusable_widgets: HitOrderIndex::default(),
+            pointer_widgets: HitOrderIndex::default(),
             widget_paths: HashMap::new(),
             previous_widget_paths: HashMap::new(),
             container_hover_suppression: HashSet::new(),
-            keyboard_focus_order: Vec::new(),
-            keyboard_focus_rank: HashMap::new(),
-            wheel_hit_order: Vec::new(),
-            wheel_hit_rank: HashMap::new(),
-            visible_wheel_hit_order: Vec::new(),
+            keyboard_focus_widgets: HitOrderIndex::default(),
+            wheel_widgets: HitOrderIndex::default(),
             stateful_widget_order: Vec::new(),
-            styled_container_hit_order: Vec::new(),
-            styled_container_hit_rank: HashMap::new(),
-            visible_styled_container_hit_order: Vec::new(),
-            scroll_hit_order: Vec::new(),
-            scroll_hit_rank: HashMap::new(),
-            visible_scroll_hit_order: Vec::new(),
+            styled_containers: HitOrderIndex::default(),
+            scroll_containers: HitOrderIndex::default(),
             widget_clip_ancestors: HashMap::new(),
             container_clip_ancestors: HashMap::new(),
             scroll_content_by_container: HashMap::new(),
@@ -205,7 +185,7 @@ where
         self.relayout_with_traversal(traversal);
         if self
             .focused_widget
-            .is_some_and(|widget_id| !self.focusable_widget_rank.contains_key(&widget_id))
+            .is_some_and(|widget_id| !self.focusable_widgets.contains(widget_id))
         {
             self.focused_widget = None;
         }
@@ -217,13 +197,13 @@ where
         }
         if self
             .scroll_drag_capture
-            .is_some_and(|capture| !self.scroll_hit_rank.contains_key(&capture.node_id))
+            .is_some_and(|capture| !self.scroll_containers.contains(capture.node_id))
         {
             self.scroll_drag_capture = None;
         }
         if self
             .hovered_scroll_affordance
-            .is_some_and(|node_id| !self.scroll_hit_rank.contains_key(&node_id))
+            .is_some_and(|node_id| !self.scroll_containers.contains(node_id))
         {
             self.hovered_scroll_affordance = None;
         }
@@ -235,7 +215,7 @@ where
         }
         if self
             .hovered_container
-            .is_some_and(|node_id| !self.styled_container_hit_rank.contains_key(&node_id))
+            .is_some_and(|node_id| !self.styled_containers.contains(node_id))
         {
             self.hovered_container = None;
         }

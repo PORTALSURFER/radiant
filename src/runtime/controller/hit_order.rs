@@ -1,5 +1,47 @@
 use super::*;
 
+/// Reusable order/rank/visible buffers for one runtime hit-test family.
+#[derive(Default)]
+pub(super) struct HitOrderIndex {
+    order: Vec<NodeId>,
+    rank: HashMap<NodeId, usize>,
+    visible: Vec<NodeId>,
+}
+
+impl HitOrderIndex {
+    pub(super) fn set_order(&mut self, order: Vec<NodeId>) {
+        self.order = order;
+        collect_hit_rank(&self.order, &mut self.rank);
+        self.visible.clear();
+    }
+
+    pub(super) fn refresh_visible(&mut self, layout: &LayoutOutput) {
+        collect_visible_hit_order(layout, &self.order, &self.rank, &mut self.visible);
+    }
+
+    pub(super) fn contains(&self, node_id: NodeId) -> bool {
+        self.rank.contains_key(&node_id)
+    }
+
+    pub(super) fn order(&self) -> &[NodeId] {
+        &self.order
+    }
+
+    pub(super) fn rank(&self) -> &HashMap<NodeId, usize> {
+        &self.rank
+    }
+
+    pub(super) fn visible(&self) -> &[NodeId] {
+        &self.visible
+    }
+
+    pub(super) fn take_order(&mut self) -> Vec<NodeId> {
+        self.rank.clear();
+        self.visible.clear();
+        std::mem::take(&mut self.order)
+    }
+}
+
 pub(super) fn collect_hit_rank(order: &[NodeId], out: &mut HashMap<NodeId, usize>) {
     out.clear();
     if order.len() > out.capacity() {
@@ -167,5 +209,27 @@ mod tests {
         assert_eq!(rank.len(), 96);
         assert!(rank.capacity() >= 96);
         assert_eq!(rank.get(&95), Some(&95));
+    }
+
+    #[test]
+    fn hit_order_index_replaces_order_and_clears_visible_cache() {
+        let mut layout = LayoutOutput::default();
+        layout.rects.insert(
+            2,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(10.0, 10.0)),
+        );
+        let mut index = HitOrderIndex::default();
+        index.set_order(vec![1, 2, 3]);
+        index.refresh_visible(&layout);
+
+        assert_eq!(index.visible(), &[2]);
+        assert!(index.contains(3));
+
+        index.set_order(vec![4, 5]);
+
+        assert!(index.visible().is_empty());
+        assert!(!index.contains(3));
+        assert!(index.contains(4));
+        assert_eq!(index.order(), &[4, 5]);
     }
 }

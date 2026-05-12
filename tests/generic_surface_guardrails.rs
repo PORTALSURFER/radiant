@@ -175,6 +175,7 @@ fn performance_harness_is_registered_and_documented() {
         "layout_virtualized_10k",
         "layout_virtualized_fixed_10k",
         "runtime_surface_large_tree",
+        "runtime_command_drain_1k",
         "gpu_signal_summary",
         "gpu_surface_projection",
         "radiant_perf scenario=",

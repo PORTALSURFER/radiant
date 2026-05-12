@@ -24,6 +24,8 @@ pub(super) struct LayoutScratch {
     pub(super) measured: HashMap<MeasureCacheKey, Vector2>,
     pub(super) measured_by_node: HashMap<NodeId, Vector2>,
     pub(super) linear_windows: HashMap<NodeId, ResolvedLinearWindow>,
+    pub(super) linear_sizes: Vec<f32>,
+    pub(super) linear_unresolved: Vec<usize>,
 }
 
 /// Shared mutable scratch state for one layout-engine evaluation.
@@ -37,6 +39,8 @@ pub(super) struct LayoutContext<'a> {
     cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
     virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
     linear_windows: &'a mut HashMap<NodeId, ResolvedLinearWindow>,
+    linear_sizes: &'a mut Vec<f32>,
+    linear_unresolved: &'a mut Vec<usize>,
     measure_dirty: &'a HashSet<NodeId>,
     state: &'a LayoutState,
     debug_options: LayoutDebugOptions,
@@ -58,12 +62,16 @@ impl<'a> LayoutContext<'a> {
         scratch.measured.clear();
         scratch.measured_by_node.clear();
         scratch.linear_windows.clear();
+        scratch.linear_sizes.clear();
+        scratch.linear_unresolved.clear();
         Self {
             measured: &mut scratch.measured,
             measured_by_node: &mut scratch.measured_by_node,
             cache,
             virtual_cache,
             linear_windows: &mut scratch.linear_windows,
+            linear_sizes: &mut scratch.linear_sizes,
+            linear_unresolved: &mut scratch.linear_unresolved,
             measure_dirty,
             state,
             debug_options,

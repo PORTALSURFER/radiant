@@ -479,6 +479,76 @@ fn layout_engine_reuses_scratch_maps_between_passes() {
 }
 
 #[test]
+fn layout_engine_reuses_linear_scratch_vectors_between_passes() {
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::Column,
+            overflow: OverflowPolicy::Shrink,
+            ..ContainerPolicy::default()
+        },
+        vec![
+            SlotChild::new(
+                SlotParams {
+                    size_main: SizeModeMain::Fixed(80.0),
+                    size_cross: SizeModeCross::Fill,
+                    constraints: Constraints::unconstrained(),
+                    margin: Default::default(),
+                    align_cross_override: None,
+                    allow_fixed_compress: true,
+                },
+                LayoutNode::widget(10, Vector2::new(40.0, 80.0)),
+            ),
+            SlotChild::new(
+                SlotParams {
+                    size_main: SizeModeMain::Fill(1.0),
+                    size_cross: SizeModeCross::Fill,
+                    constraints: Constraints {
+                        min_h: 40.0,
+                        ..Constraints::unconstrained()
+                    },
+                    margin: Default::default(),
+                    align_cross_override: None,
+                    allow_fixed_compress: false,
+                },
+                LayoutNode::widget(20, Vector2::new(40.0, 40.0)),
+            ),
+            SlotChild::new(
+                SlotParams {
+                    size_main: SizeModeMain::Fixed(80.0),
+                    size_cross: SizeModeCross::Fill,
+                    constraints: Constraints::unconstrained(),
+                    margin: Default::default(),
+                    align_cross_override: None,
+                    allow_fixed_compress: true,
+                },
+                LayoutNode::widget(30, Vector2::new(40.0, 80.0)),
+            ),
+        ],
+    );
+    let viewport = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 100.0));
+    let mut engine = LayoutEngine::default();
+
+    let first = engine.layout(&root, viewport);
+    let linear_sizes_capacity = engine.scratch.linear_sizes.capacity();
+    let linear_unresolved_capacity = engine.scratch.linear_unresolved.capacity();
+
+    assert!(first.rects.contains_key(&30));
+    assert!(linear_sizes_capacity >= 3);
+    assert!(linear_unresolved_capacity >= 1);
+    assert!(engine.scratch.linear_sizes.is_empty());
+    assert!(engine.scratch.linear_unresolved.is_empty());
+
+    let second = engine.layout(&root, viewport);
+
+    assert!(second.rects.contains_key(&30));
+    assert!(engine.scratch.linear_sizes.capacity() >= linear_sizes_capacity);
+    assert!(engine.scratch.linear_unresolved.capacity() >= linear_unresolved_capacity);
+    assert!(engine.scratch.linear_sizes.is_empty());
+    assert!(engine.scratch.linear_unresolved.is_empty());
+}
+
+#[test]
 fn dirty_subtree_invalidates_virtual_metrics_cache_for_whole_marked_set() {
     let children = (0..64)
         .map(|index| {

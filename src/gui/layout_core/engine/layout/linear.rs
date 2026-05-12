@@ -2,7 +2,8 @@
 
 use super::super::helpers::{
     LayoutAxis, LinearLayoutState, align_main_offsets, allocate_fill_sizes,
-    apply_linear_overflow_policy, linear_sizing_summary, place_child_rect, resolved_main_sizes,
+    apply_linear_overflow_policy, linear_sizing_summary, place_child_rect,
+    resolved_main_sizes_into,
 };
 use super::super::{LayoutContext, LayoutDiagnosticCode};
 use super::layout_node;
@@ -98,13 +99,22 @@ pub(super) fn layout_linear(
     let remaining =
         (available_main - summary.fixed_main - summary.margin_total - spacing_total).max(0.0);
     if summary.fill_weight > 0.0 {
-        allocate_fill_sizes(horizontal, remaining, summary.fill_weight, &mut states);
+        let mut unresolved = context.take_linear_unresolved();
+        allocate_fill_sizes(
+            horizontal,
+            remaining,
+            summary.fill_weight,
+            &mut states,
+            &mut unresolved,
+        );
+        context.restore_linear_unresolved(unresolved);
     }
 
     let mut total_main = resolved_main_total(&states);
     total_main += summary.margin_total + spacing_total;
     if total_main > available_main {
-        let (mut sizes, _) = resolved_main_sizes(&states);
+        let mut sizes = context.take_linear_sizes();
+        resolved_main_sizes_into(&states, &mut sizes);
         apply_linear_overflow_policy(
             container,
             horizontal,
@@ -137,6 +147,7 @@ pub(super) fn layout_linear(
             let (x, y) = axis.overflow_flags();
             context.record_overflow(container.id, policy.overflow, x, y);
         }
+        context.restore_linear_sizes(sizes);
         return;
     }
 

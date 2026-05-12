@@ -4,7 +4,7 @@ use super::super::LayoutContext;
 use super::super::cache::{LinearVirtualMetrics, UniformVirtualMetrics, VirtualSpan};
 use super::super::helpers::{
     LinearLayoutState, align_main_offsets, allocate_fill_sizes, apply_linear_overflow_policy,
-    linear_sizing_summary, resolved_main_sizes,
+    linear_sizing_summary, resolved_main_sizes_into,
 };
 use super::super::measure::measure_node;
 use crate::gui::layout_core::constraints::Constraints;
@@ -42,13 +42,22 @@ pub(super) fn build_linear_metrics(
     let remaining =
         (available_main - summary.fixed_main - summary.margin_total - spacing_total).max(0.0);
     if summary.fill_weight > 0.0 {
-        allocate_fill_sizes(horizontal, remaining, summary.fill_weight, &mut states);
+        let mut unresolved = context.take_linear_unresolved();
+        allocate_fill_sizes(
+            horizontal,
+            remaining,
+            summary.fill_weight,
+            &mut states,
+            &mut unresolved,
+        );
+        context.restore_linear_unresolved(unresolved);
     }
 
     let mut total_main = resolved_main_total(&states);
     total_main += summary.margin_total + spacing_total;
     let adjusted_sizes = if total_main > available_main {
-        let (mut sizes, _) = resolved_main_sizes(&states);
+        let mut sizes = context.take_linear_sizes();
+        resolved_main_sizes_into(&states, &mut sizes);
         apply_linear_overflow_policy(
             content,
             horizontal,
@@ -98,6 +107,10 @@ pub(super) fn build_linear_metrics(
         });
         main_sizes.push(size);
         cursor += size + margin_after + distributed_spacing;
+    }
+
+    if let Some(sizes) = adjusted_sizes {
+        context.restore_linear_sizes(sizes);
     }
 
     LinearVirtualMetrics {

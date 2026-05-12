@@ -9,7 +9,7 @@ use crate::{
 pub fn row<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
     let (children, has_reserved_descendant_identity) = collect_children(children);
     ViewNode::new(ViewNodeKind::Row {
-        spacing: 8.0,
+        spacing: 5.0,
         children,
     })
     .with_reserved_descendant_identity(has_reserved_descendant_identity)
@@ -27,7 +27,7 @@ pub fn row_key<Message>(
 pub fn column<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
     let (children, has_reserved_descendant_identity) = collect_children(children);
     ViewNode::new(ViewNodeKind::Column {
-        spacing: 6.0,
+        spacing: 4.0,
         children,
     })
     .with_reserved_descendant_identity(has_reserved_descendant_identity)
@@ -46,7 +46,7 @@ pub fn grid<Message>(
     children: impl IntoIterator<Item = ViewNode<Message>>,
     columns: usize,
 ) -> ViewNode<Message> {
-    grid_with_gaps(children, columns, 8.0, 8.0)
+    grid_with_gaps(children, columns, 5.0, 5.0)
 }
 
 /// Build a grid container with a fixed column count and explicit gaps.
@@ -215,10 +215,10 @@ fn apply_list_row_chrome<Message>(row: ViewNode<Message>) -> ViewNode<Message> {
     row.style(WidgetStyle::default())
         .hoverable()
         .fill_width()
-        .height(52.0)
-        .padding_x(18.0)
-        .padding_y(10.0)
-        .spacing(16.0)
+        .height(44.0)
+        .padding_x(12.0)
+        .padding_y(7.0)
+        .spacing(10.0)
 }
 
 fn collect_children<Message>(

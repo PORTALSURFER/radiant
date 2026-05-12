@@ -564,7 +564,7 @@ fn application_builder_todo_layout_does_not_overlap_header_input_and_list() {
     assert!(input.min.y >= header.max.y + 12.0);
     assert!(list.min.y >= input.max.y + 12.0);
     assert!(first_row.min.y >= list.min.y);
-    assert_eq!(first_row.height(), 52.0);
+    assert_eq!(first_row.height(), 44.0);
 }
 
 #[test]

@@ -52,19 +52,19 @@ pub fn selectable_property_panel<State: 'static>(
     let on_select: Option<StateStringCallback<State>> =
         on_select.map(|on_select| Arc::new(on_select) as StateStringCallback<State>);
     column([
-        text(title.into()).height(24.0).fill_width(),
+        text(title.into()).height(20.0).fill_width(),
         column(
             rows.into_iter()
                 .map(|row| property_row(row, on_select.as_ref().map(Arc::clone)))
                 .collect::<Vec<_>>(),
         )
         .fill_width()
-        .spacing(2.0),
+        .spacing(1.0),
     ])
     .style(WidgetStyle::default())
     .fill_width()
-    .padding(10.0)
-    .spacing(6.0)
+    .padding(6.0)
+    .spacing(4.0)
 }
 
 fn property_row<State: 'static>(
@@ -87,13 +87,13 @@ fn property_row<State: 'static>(
                 as StateCallback<State>
         }),
     );
-    let mut view = row([label.size(128.0, 24.0), value.fill_width().height(24.0)])
+    let mut view = row([label.size(112.0, 20.0), value.fill_width().height(20.0)])
         .key(format!("property-row-{}", row_data.id))
         .fill_width()
-        .height(28.0)
-        .padding_x(8.0)
-        .padding_y(2.0)
-        .spacing(10.0)
+        .height(24.0)
+        .padding_x(6.0)
+        .padding_y(1.0)
+        .spacing(6.0)
         .style(if selected {
             WidgetStyle {
                 tone: WidgetTone::Accent,
@@ -120,8 +120,8 @@ fn property_cell<State: 'static>(
             .key(key)
             .subtle()
             .fill_width()
-            .height(24.0)
+            .height(20.0)
     } else {
-        text(value).key(key).fill_width().height(24.0)
+        text(value).key(key).fill_width().height(20.0)
     }
 }

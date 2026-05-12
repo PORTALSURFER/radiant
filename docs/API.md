@@ -474,6 +474,9 @@ at half width for centered zero-width collapse.
 half width and height for centered zero-size collapse.
 `Rect::centered_pixel_square` and `Rect::centered_odd_pixel_square` provide
 pixel-snapped icon-box geometry for reusable controls.
+`radiant::gui::svg::rasterize_svg_icon(...)` converts the supported filled SVG
+subset into a square `ImageRgba` for retained icon controls and toolbar-style
+widgets.
 `Rect::stroke_aligned_rect` provides stroke-grid snapping for retained border
 geometry.
 `Rect::top_right_square` provides anchored overlay geometry for controls that

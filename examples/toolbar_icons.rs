@@ -1,7 +1,7 @@
 //! Horizontal SVG-icon toolbar with state-driven toggle buttons.
 
 use radiant::gui::{
-    svg::{parse_svg_document, point_in_svg_shapes},
+    svg::rasterize_svg_icon,
     types::{ImageRgba, Rect, Rgba8},
 };
 use radiant::layout::{LayoutOutput, Point, Vector2};
@@ -124,8 +124,8 @@ struct ToolbarIcon {
 impl ToolbarIcon {
     fn new(svg: &str, active: Rgba8, inactive: Rgba8) -> Self {
         Self {
-            active: rasterize_svg_icon(svg, active),
-            inactive: rasterize_svg_icon(svg, inactive),
+            active: toolbar_icon_image(svg, active),
+            inactive: toolbar_icon_image(svg, inactive),
         }
     }
 }
@@ -308,25 +308,8 @@ fn toolbar_button(state: &ToolbarState, tool: ToolId) -> View<ToolMessage> {
     )
 }
 
-fn rasterize_svg_icon(svg: &str, color: Rgba8) -> Arc<ImageRgba> {
-    let document = parse_svg_document(svg).expect("toolbar icon SVG should parse");
-    let mut pixels = Vec::with_capacity(ICON_SIZE * ICON_SIZE * 4);
-    for y in 0..ICON_SIZE {
-        for x in 0..ICON_SIZE {
-            let sample_x = document.view_box_min_x
-                + ((x as f32 + 0.5) / ICON_SIZE as f32) * document.view_box_width;
-            let sample_y = document.view_box_min_y
-                + ((y as f32 + 0.5) / ICON_SIZE as f32) * document.view_box_height;
-            if point_in_svg_shapes(sample_x, sample_y, &document.shapes) {
-                pixels.extend_from_slice(&[color.r, color.g, color.b, color.a]);
-            } else {
-                pixels.extend_from_slice(&[0, 0, 0, 0]);
-            }
-        }
-    }
-    Arc::new(
-        ImageRgba::new(ICON_SIZE, ICON_SIZE, pixels).expect("rasterized icon dimensions match"),
-    )
+fn toolbar_icon_image(svg: &str, color: Rgba8) -> Arc<ImageRgba> {
+    Arc::new(rasterize_svg_icon(svg, ICON_SIZE, color).expect("toolbar icon SVG should rasterize"))
 }
 
 const SELECT_ICON: &str = r#"

@@ -125,7 +125,8 @@ where
     }
 
     fn wheel_widget_at(&self, point: Point) -> Option<WidgetId> {
-        self.visible_wheel_hit_order
+        self.wheel_widgets
+            .visible()
             .iter()
             .rev()
             .copied()
@@ -139,7 +140,8 @@ where
     }
 
     fn scroll_container_at(&self, point: Point) -> Option<NodeId> {
-        self.visible_scroll_hit_order
+        self.scroll_containers
+            .visible()
             .iter()
             .rev()
             .copied()
@@ -223,7 +225,8 @@ where
     }
 
     fn scrollbar_drag_capture_at(&self, point: Point) -> Option<ScrollDragCapture> {
-        self.visible_scroll_hit_order
+        self.scroll_containers
+            .visible()
             .iter()
             .rev()
             .copied()

@@ -65,6 +65,26 @@ impl<Message> SurfaceNode<Message> {
         child_path: &mut Vec<usize>,
         traversal: &mut SurfaceTraversalIndex,
     ) -> LayoutNode {
+        self.project_runtime_inner(scroll_stack, child_path, traversal, true)
+            .expect("layout-emitting runtime projection should return a layout node")
+    }
+
+    pub(in crate::runtime) fn project_runtime_index(
+        &self,
+        scroll_stack: &mut Vec<NodeId>,
+        child_path: &mut Vec<usize>,
+        traversal: &mut SurfaceTraversalIndex,
+    ) {
+        let _ = self.project_runtime_inner(scroll_stack, child_path, traversal, false);
+    }
+
+    fn project_runtime_inner(
+        &self,
+        scroll_stack: &mut Vec<NodeId>,
+        child_path: &mut Vec<usize>,
+        traversal: &mut SurfaceTraversalIndex,
+        emit_layout: bool,
+    ) -> Option<LayoutNode> {
         match self {
             Self::Container(container) => {
                 let is_scroll = container.policy.kind == ContainerKind::ScrollView;
@@ -85,20 +105,27 @@ impl<Message> SurfaceNode<Message> {
                 if container.style.is_some() && container.hoverable {
                     traversal.styled_container_order.push(container.id);
                 }
-                let mut children = Vec::with_capacity(container.children.len());
+                let mut children =
+                    emit_layout.then(|| Vec::with_capacity(container.children.len()));
                 for (child_index, child) in container.children.iter().enumerate() {
                     child_path.push(child_index);
-                    let child_layout =
-                        child
-                            .child
-                            .project_runtime(scroll_stack, child_path, traversal);
+                    let child_layout = child.child.project_runtime_inner(
+                        scroll_stack,
+                        child_path,
+                        traversal,
+                        emit_layout,
+                    );
                     child_path.pop();
-                    children.push(SlotChild::new(child.slot, child_layout));
+                    if let (Some(children), Some(child_layout)) = (&mut children, child_layout) {
+                        children.push(SlotChild::new(child.slot, child_layout));
+                    }
                 }
                 if is_scroll {
                     scroll_stack.pop();
                 }
-                LayoutNode::container(container.id, container.policy.clone(), children)
+                children.map(|children| {
+                    LayoutNode::container(container.id, container.policy.clone(), children)
+                })
             }
             Self::Widget(widget) => {
                 traversal.widget_paint_order.push(widget.id());
@@ -129,9 +156,11 @@ impl<Message> SurfaceNode<Message> {
                         .widget_clip_ancestors
                         .insert(widget.id(), ClipAncestors::from_slice(scroll_stack));
                 }
-                widget.layout_node()
+                emit_layout.then(|| widget.layout_node())
             }
-            Self::Overlay(overlay) => LayoutNode::widget(overlay.id, Vector2::new(0.0, 0.0)),
+            Self::Overlay(overlay) => {
+                emit_layout.then(|| LayoutNode::widget(overlay.id, Vector2::new(0.0, 0.0)))
+            }
         }
     }
 }

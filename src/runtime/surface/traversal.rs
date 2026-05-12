@@ -256,84 +256,13 @@ impl<Message> SurfaceNode<Message> {
             Self::Overlay(_) => {}
         }
     }
-
-    fn collect_runtime_index(
-        &self,
-        scroll_stack: &mut Vec<NodeId>,
-        child_path: &mut Vec<usize>,
-        index: &mut SurfaceTraversalIndex,
-    ) {
-        match self {
-            Self::Container(container) => {
-                let is_scroll = container.policy.kind == ContainerKind::ScrollView;
-                if !scroll_stack.is_empty() {
-                    index
-                        .container_clip_ancestors
-                        .insert(container.id, ClipAncestors::from_slice(scroll_stack));
-                }
-                if is_scroll {
-                    scroll_stack.push(container.id);
-                    index.scroll_container_order.push(container.id);
-                    if let Some(content) = container.children.first() {
-                        index
-                            .scroll_content_by_container
-                            .insert(container.id, content.child.id());
-                    }
-                }
-                if container.style.is_some() && container.hoverable {
-                    index.styled_container_order.push(container.id);
-                }
-                for (child_index, child) in container.children.iter().enumerate() {
-                    child_path.push(child_index);
-                    child
-                        .child
-                        .collect_runtime_index(scroll_stack, child_path, index);
-                    child_path.pop();
-                }
-                if is_scroll {
-                    scroll_stack.pop();
-                }
-            }
-            Self::Widget(widget) => {
-                index.widget_paint_order.push(widget.id());
-                index
-                    .widget_paths
-                    .entry(widget.id())
-                    .or_insert_with(|| WidgetPath::from_slice(child_path));
-                if widget.is_focusable() {
-                    index.focusable_widget_order.push(widget.id());
-                }
-                if widget.is_keyboard_focusable() {
-                    index.keyboard_focus_order.push(widget.id());
-                }
-                if widget.receives_pointer_hit_testing() {
-                    index.pointer_hit_order.push(widget.id());
-                }
-                if widget.receives_wheel_input() {
-                    index.wheel_hit_order.push(widget.id());
-                }
-                if widget.needs_state_synchronization() {
-                    index.stateful_widget_order.push(widget.id());
-                }
-                if widget.suppresses_container_hover() {
-                    index.container_hover_suppression.insert(widget.id());
-                }
-                if !scroll_stack.is_empty() {
-                    index
-                        .widget_clip_ancestors
-                        .insert(widget.id(), ClipAncestors::from_slice(scroll_stack));
-                }
-            }
-            Self::Overlay(_) => {}
-        }
-    }
 }
 
 impl<Message> UiSurface<Message> {
     pub(in crate::runtime) fn runtime_traversal_index(&self) -> SurfaceTraversalIndex {
         let stats = self.root.runtime_traversal_stats();
         let mut index = SurfaceTraversalIndex::with_stats(stats);
-        self.root.collect_runtime_index(
+        self.root.project_runtime_index(
             &mut Vec::with_capacity(stats.max_scroll_depth),
             &mut Vec::with_capacity(stats.max_depth),
             &mut index,

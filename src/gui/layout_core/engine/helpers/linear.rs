@@ -59,11 +59,15 @@ pub(in crate::gui::layout_core::engine) fn linear_sizing_summary(
     }
 }
 
-pub(in crate::gui::layout_core::engine) fn resolved_main_sizes(
+pub(in crate::gui::layout_core::engine) fn resolved_main_sizes_into(
     states: &[LinearLayoutState<'_>],
-) -> (Vec<f32>, f32) {
+    sizes: &mut Vec<f32>,
+) -> f32 {
+    sizes.clear();
+    if states.len() > sizes.capacity() {
+        sizes.reserve(states.len());
+    }
     let mut total_main = 0.0;
-    let mut sizes = Vec::with_capacity(states.len());
     for state in states {
         let size = if state.fill > 0.0 {
             state.fill
@@ -73,7 +77,7 @@ pub(in crate::gui::layout_core::engine) fn resolved_main_sizes(
         total_main += size;
         sizes.push(size);
     }
-    (sizes, total_main)
+    total_main
 }
 
 pub(in crate::gui::layout_core::engine) fn allocate_fill_sizes(
@@ -81,8 +85,12 @@ pub(in crate::gui::layout_core::engine) fn allocate_fill_sizes(
     remaining: f32,
     total_weight: f32,
     states: &mut [LinearLayoutState<'_>],
+    unresolved: &mut Vec<usize>,
 ) {
-    let mut unresolved = Vec::with_capacity(states.len());
+    unresolved.clear();
+    if states.len() > unresolved.capacity() {
+        unresolved.reserve(states.len());
+    }
     for (index, state) in states.iter().enumerate() {
         if matches!(state.slot_child.slot.size_main, SizeModeMain::Fill(weight) if weight > 0.0) {
             unresolved.push(index);
@@ -118,7 +126,7 @@ pub(in crate::gui::layout_core::engine) fn allocate_fill_sizes(
         }
         unresolved.truncate(retained);
         if !changed {
-            for &index in &unresolved {
+            for &index in unresolved.iter() {
                 let state = &mut states[index];
                 let SizeModeMain::Fill(weight) = state.slot_child.slot.size_main else {
                     continue;

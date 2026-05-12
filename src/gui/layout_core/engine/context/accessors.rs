@@ -76,6 +76,24 @@ impl<'a> LayoutContext<'a> {
         self.linear_windows.get(&node_id).cloned()
     }
 
+    pub(crate) fn take_linear_sizes(&mut self) -> Vec<f32> {
+        std::mem::take(self.linear_sizes)
+    }
+
+    pub(crate) fn restore_linear_sizes(&mut self, mut sizes: Vec<f32>) {
+        sizes.clear();
+        *self.linear_sizes = sizes;
+    }
+
+    pub(crate) fn take_linear_unresolved(&mut self) -> Vec<usize> {
+        std::mem::take(self.linear_unresolved)
+    }
+
+    pub(crate) fn restore_linear_unresolved(&mut self, mut unresolved: Vec<usize>) {
+        unresolved.clear();
+        *self.linear_unresolved = unresolved;
+    }
+
     pub(crate) fn scroll_offset(&self, node_id: NodeId) -> Vector2 {
         self.state.scroll_offset(node_id)
     }

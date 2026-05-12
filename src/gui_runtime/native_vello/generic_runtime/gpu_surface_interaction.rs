@@ -1,7 +1,7 @@
 //! Interaction fast paths for retained GPU surface primitives.
 
 use super::{
-    maybe_log_route_profile, GenericNativeVelloRunner, GenericRouteOutcome, RenderFrameProfile,
+    GenericNativeVelloRunner, GenericRouteOutcome, RenderFrameProfile, maybe_log_route_profile,
 };
 use crate::{
     gui::types::{Point, Vector2},

@@ -53,6 +53,10 @@ impl<'a> SceneTextRunBuffer<'a> {
         self.len + self.overflow.len()
     }
 
+    fn has_overflow(&self) -> bool {
+        !self.overflow.is_empty()
+    }
+
     pub(in crate::gui_runtime::native_vello) fn overflow_capacity(&self) -> usize {
         self.overflow.capacity()
     }
@@ -72,7 +76,9 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn flush_text_r
         scene,
         text_runs.inline[..text_runs.len].iter().flatten().copied(),
     );
-    text_renderer.draw_scene_text_runs(scene, text_runs.overflow.iter().copied());
+    if text_runs.has_overflow() {
+        text_renderer.draw_scene_text_runs(scene, text_runs.overflow.iter().copied());
+    }
     text_runs.clear();
 }
 
@@ -128,4 +134,59 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_paint
         }
     }
     text_renderer.draw_text_runs(scene, &frame.text_runs);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui::types::{Point, Rgba8};
+
+    fn text_run(text: &str) -> SceneTextRun<'_> {
+        SceneTextRun {
+            text,
+            position: Point::new(0.0, 0.0),
+            font_size: 12.0,
+            color: Rgba8 {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            max_width: None,
+            align: TextAlign::Left,
+        }
+    }
+
+    #[test]
+    fn text_run_buffer_reports_overflow_only_after_inline_capacity() {
+        let mut text_runs = SceneTextRunBuffer::new();
+
+        for _ in 0..INLINE_SCENE_TEXT_RUNS {
+            text_runs.push(text_run("inline"));
+        }
+
+        assert_eq!(text_runs.len(), INLINE_SCENE_TEXT_RUNS);
+        assert!(!text_runs.has_overflow());
+
+        text_runs.push(text_run("overflow"));
+
+        assert_eq!(text_runs.len(), INLINE_SCENE_TEXT_RUNS + 1);
+        assert!(text_runs.has_overflow());
+    }
+
+    #[test]
+    fn clear_resets_inline_and_overflow_runs_for_reuse() {
+        let mut text_runs = SceneTextRunBuffer::new();
+        for _ in 0..=INLINE_SCENE_TEXT_RUNS {
+            text_runs.push(text_run("run"));
+        }
+
+        text_runs.clear();
+
+        assert!(text_runs.is_empty());
+        assert!(!text_runs.has_overflow());
+        text_runs.push(text_run("next"));
+        assert_eq!(text_runs.len(), 1);
+        assert!(!text_runs.has_overflow());
+    }
 }

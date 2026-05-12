@@ -15,9 +15,13 @@ pub(super) fn handle_timeline_input(
     match input {
         WidgetInput::PointerMove { position } => {
             widget.common.state.hovered = bounds.contains(position);
-            let beat = geometry.beat_at(position);
+            let beat = if geometry.cursor_x_at(position).is_some() {
+                widget.cursor.set_hover(geometry, position)
+            } else {
+                widget.cursor.clear_hover();
+                None
+            };
             widget.hover_clip_id = clip_at(widget, geometry, position).map(|clip| clip.id);
-            widget.hover_beat = beat;
             match (widget.drag, beat) {
                 (
                     Some(TimelineDrag::Selecting {
@@ -150,7 +154,7 @@ pub(super) fn handle_timeline_input(
         }
         WidgetInput::KeyPress(WidgetKey::Space) if widget.common.state.focused => {
             Some(WidgetOutput::typed(TimelineSurfaceMessage::Seek {
-                beat: widget.hover_beat.unwrap_or(widget.playhead_beat),
+                beat: widget.cursor.active_beat(widget.playhead_beat),
             }))
         }
         WidgetInput::KeyPress(WidgetKey::Delete | WidgetKey::Backspace)

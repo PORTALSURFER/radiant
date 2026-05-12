@@ -171,44 +171,22 @@ pub(super) fn append_timeline_paint(
         }
     }
 
-    let indicator_beat = widget.hover_beat.unwrap_or(widget.playhead_beat);
-    let indicator_x = geometry.x_for_beat(indicator_beat);
-    let indicator_color = if widget.hover_beat.is_some() {
-        theme.highlight_orange_soft
-    } else {
-        theme.highlight_orange
-    };
-    push_rect(
+    widget.cursor.append_paint(
         primitives,
         widget.common.id,
-        Rect::from_min_max(
-            Point::new(indicator_x - 1.5, geometry.ruler.min.y),
-            Point::new(indicator_x + 1.5, bounds.max.y),
-        ),
-        indicator_color,
+        geometry,
+        bounds,
+        widget.playhead_beat,
+        theme,
     );
-    if widget.hover_beat.is_some() {
-        push_text(
-            primitives,
-            widget.common.id,
-            format!("beat {indicator_beat}"),
-            Rect::from_min_max(
-                Point::new(
-                    (indicator_x + 8.0).min(bounds.max.x - 82.0),
-                    geometry.ruler.min.y + 6.0,
-                ),
-                Point::new(
-                    (indicator_x + 82.0).min(bounds.max.x - 4.0),
-                    geometry.ruler.max.y,
-                ),
-            ),
-            theme.text_primary,
-            PaintTextAlign::Left,
-        );
-    }
 }
 
-fn push_rect(primitives: &mut Vec<PaintPrimitive>, widget_id: u64, rect: Rect, color: Rgba8) {
+pub(super) fn push_rect(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    rect: Rect,
+    color: Rgba8,
+) {
     primitives.push(PaintPrimitive::FillRect(PaintFillRect {
         widget_id,
         rect,
@@ -231,7 +209,7 @@ fn push_stroke(
     }));
 }
 
-fn push_text(
+pub(super) fn push_text(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: u64,
     text: impl Into<String>,

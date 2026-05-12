@@ -5,6 +5,8 @@ use super::{
 };
 #[path = "widget/input.rs"]
 mod input;
+#[path = "widget/overlay.rs"]
+mod overlay;
 #[path = "widget/paint.rs"]
 mod paint;
 
@@ -22,7 +24,7 @@ pub(super) struct ArrangementTimelineWidget {
     pub(super) selected_clip: Option<u32>,
     pub(super) selection: Option<BeatRange>,
     pub(super) playhead_beat: u32,
-    pub(super) hover_beat: Option<u32>,
+    pub(super) cursor: overlay::TimelineCursorOverlay,
     pub(super) hover_clip_id: Option<u32>,
     pub(super) drag: Option<TimelineDrag>,
 }
@@ -64,7 +66,7 @@ impl ArrangementTimelineWidget {
             selected_clip: state.selected_clip,
             selection: state.selection,
             playhead_beat: state.playhead_beat,
-            hover_beat: None,
+            cursor: overlay::TimelineCursorOverlay::default(),
             hover_clip_id: None,
             drag: None,
         }
@@ -88,11 +90,15 @@ impl Widget for ArrangementTimelineWidget {
         input::handle_timeline_input(self, bounds, input)
     }
 
+    fn accepts_pointer_move(&self) -> bool {
+        true
+    }
+
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
             self.common.state = previous.common.state;
             self.drag = previous.drag;
-            self.hover_beat = previous.hover_beat;
+            self.cursor = previous.cursor;
             self.hover_clip_id = previous.hover_clip_id;
         }
     }
@@ -157,10 +163,15 @@ impl TimelineGeometry {
         self.lanes.min.x + self.beat_width() * beat.min(TOTAL_BEATS) as f32
     }
 
-    fn beat_at(self, position: Point) -> Option<u32> {
+    pub(super) fn cursor_x_at(self, position: Point) -> Option<f32> {
         if position.x < self.lanes.min.x || position.x > self.lanes.max.x {
             return None;
         }
+        Some(position.x.clamp(self.lanes.min.x, self.lanes.max.x))
+    }
+
+    fn beat_at(self, position: Point) -> Option<u32> {
+        self.cursor_x_at(position)?;
         Some(((position.x - self.lanes.min.x) / self.beat_width()).round() as u32)
     }
 

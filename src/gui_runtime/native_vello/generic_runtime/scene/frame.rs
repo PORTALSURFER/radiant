@@ -26,9 +26,8 @@ impl<'a> SceneTextRunBuffer<'a> {
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn clear(&mut self) {
-        for slot in &mut self.inline[..self.len] {
-            *slot = None;
-        }
+        // `len` is the replay boundary, so stale inline copies are intentionally
+        // left in place to avoid per-flush slot writes around clip layers.
         self.len = 0;
         self.overflow.clear();
     }

@@ -106,13 +106,7 @@ where
             RuntimeUserEvent::RepaintRequested => {
                 self.runtime_wakeup.clear_pending();
                 let outcome = self.core.drain_runtime_messages();
-                if outcome.exit_requested {
-                    event_loop.exit();
-                    return;
-                }
-                self.rebuild_scene();
-                self.request_redraw_if_needed();
-                self.request_runtime_wakeup_if_needed(outcome);
+                self.handle_route_outcome(event_loop, outcome);
             }
         }
     }

@@ -196,7 +196,7 @@ impl<Message> Command<Message> {
     fn message_collection_hint(&self) -> usize {
         match self {
             Self::Message(_) => 1,
-            Self::Batch(commands) => commands.len(),
+            Self::Batch(commands) => commands.iter().map(Self::message_collection_hint).sum(),
             Self::None
             | Self::RequestRepaint
             | Self::RequestPaintOnly
@@ -211,7 +211,6 @@ impl<Message> Command<Message> {
         match self {
             Self::Message(message) => messages.push(message),
             Self::Batch(commands) => {
-                messages.reserve(commands.len());
                 for command in commands {
                     command.collect_messages(messages);
                 }
@@ -284,6 +283,24 @@ mod tests {
 
         assert_eq!(messages, vec!["first", "second", "third", "second"]);
         assert!(messages.capacity() >= messages.len());
+    }
+
+    #[test]
+    fn message_flattening_reserves_only_recursive_immediate_messages() {
+        let command = Command::Batch(vec![
+            Command::request_repaint(),
+            Command::Batch(vec![
+                Command::message("first"),
+                Command::after(std::time::Duration::from_millis(1), "delayed"),
+                Command::Batch(vec![Command::message("second"), Command::none()]),
+            ]),
+            Command::request_paint_only(),
+        ]);
+
+        let messages = command.into_messages();
+
+        assert_eq!(messages, vec!["first", "second"]);
+        assert_eq!(messages.capacity(), messages.len());
     }
 
     #[test]

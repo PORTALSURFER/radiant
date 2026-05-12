@@ -271,9 +271,16 @@ mod tests {
     fn timeline_widget_paints_one_vertical_cursor_indicator() {
         let state = TimelineEditorState::default();
         let mut widget = ArrangementTimelineWidget::new(&state);
-        widget.hover_beat = Some(24);
         let theme = ThemeTokens::default();
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
+        let geometry = widget.geometry(bounds);
+        let handled = widget.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(geometry.x_for_beat(24), bounds.center().y),
+            },
+        );
+        assert!(handled.is_none());
         let mut primitives = Vec::new();
 
         widget.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
@@ -295,6 +302,41 @@ mod tests {
     }
 
     #[test]
+    fn timeline_cursor_overlay_tracks_unsnapped_pointer_position() {
+        let mut widget = ArrangementTimelineWidget::new(&TimelineEditorState::default());
+        let theme = ThemeTokens::default();
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
+        let geometry = widget.geometry(bounds);
+        let pointer_x = geometry.x_for_beat(24) + 3.25;
+
+        let handled = widget.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(pointer_x, geometry.lane_rect(1).center().y),
+            },
+        );
+        assert!(handled.is_none());
+
+        let mut primitives = Vec::new();
+        widget.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+
+        let cursor_rect = primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::FillRect(PaintFillRect { rect, color, .. })
+                    if *color == theme.highlight_orange_soft
+                        && rect.width() <= 3.0
+                        && rect.height() >= bounds.height() - RULER_HEIGHT =>
+                {
+                    Some(*rect)
+                }
+                _ => None,
+            })
+            .expect("hover cursor line should be painted");
+        assert!((cursor_rect.center().x - pointer_x).abs() < 0.01);
+    }
+
+    #[test]
     fn timeline_widget_highlights_hovered_clip() {
         let mut widget = ArrangementTimelineWidget::new(&TimelineEditorState::default());
         let theme = ThemeTokens::default();
@@ -309,7 +351,6 @@ mod tests {
         );
         assert!(handled.is_none());
         assert_eq!(widget.hover_clip_id, Some(1));
-        assert_eq!(widget.hover_beat, Some(4));
 
         let mut primitives = Vec::new();
         widget.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);

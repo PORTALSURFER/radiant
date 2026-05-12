@@ -1,10 +1,83 @@
 use super::AppRuntime;
-use std::sync::Weak;
+use std::sync::{
+    Arc, Mutex, Weak,
+    mpsc::{self, Sender},
+};
 use std::thread;
 use std::time::Duration;
 
 const RUNTIME_CANCEL_POLL: Duration = Duration::from_millis(50);
 const BUSINESS_THREAD_PREFIX: &str = "radiant-business";
+const DEFAULT_BUSINESS_WORKERS: usize = 2;
+
+type BusinessJob = Box<dyn FnOnce() + Send + 'static>;
+
+pub(super) struct BusinessThreadPool {
+    sender: Sender<BusinessJob>,
+    _workers: Vec<thread::JoinHandle<()>>,
+}
+
+impl Default for BusinessThreadPool {
+    fn default() -> Self {
+        Self::new(default_business_worker_count())
+    }
+}
+
+impl BusinessThreadPool {
+    fn new(worker_count: usize) -> Self {
+        let worker_count = worker_count.max(1);
+        let (sender, receiver) = mpsc::channel::<BusinessJob>();
+        let receiver = Arc::new(Mutex::new(receiver));
+        let mut workers = Vec::with_capacity(worker_count);
+        for worker_index in 0..worker_count {
+            let receiver = Arc::clone(&receiver);
+            let name = business_thread_name(format!("worker-{worker_index}"));
+            let worker = thread::Builder::new()
+                .name(name.clone())
+                .spawn(move || worker_loop(receiver))
+                .unwrap_or_else(|error| panic!("failed to spawn {name}: {error}"));
+            workers.push(worker);
+        }
+        Self {
+            sender,
+            _workers: workers,
+        }
+    }
+
+    pub(super) fn spawn(&self, name: &'static str, work: impl FnOnce() + Send + 'static) -> bool {
+        match self.sender.send(Box::new(work)) {
+            Ok(()) => true,
+            Err(_) => {
+                eprintln!("Radiant app runtime: failed to queue {name} on business workers");
+                false
+            }
+        }
+    }
+}
+
+fn worker_loop(receiver: Arc<Mutex<mpsc::Receiver<BusinessJob>>>) {
+    loop {
+        let Ok(job) = lock_business_receiver(&receiver).recv() else {
+            break;
+        };
+        job();
+    }
+}
+
+fn lock_business_receiver(
+    receiver: &Mutex<mpsc::Receiver<BusinessJob>>,
+) -> std::sync::MutexGuard<'_, mpsc::Receiver<BusinessJob>> {
+    receiver
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn default_business_worker_count() -> usize {
+    thread::available_parallelism()
+        .map(|parallelism| parallelism.get().saturating_sub(1))
+        .unwrap_or(DEFAULT_BUSINESS_WORKERS)
+        .clamp(1, DEFAULT_BUSINESS_WORKERS)
+}
 
 pub(super) fn spawn_business_thread(
     name: impl Into<String>,
@@ -51,7 +124,8 @@ pub(super) fn runtime_alive<Message>(runtime: &Weak<AppRuntime<Message>>) -> boo
 #[cfg(test)]
 mod tests {
     use super::{
-        AppRuntime, business_thread_name, sleep_while_runtime_alive, spawn_business_thread,
+        AppRuntime, BusinessThreadPool, business_thread_name, default_business_worker_count,
+        sleep_while_runtime_alive, spawn_business_thread,
     };
     use std::{
         sync::{Arc, mpsc},
@@ -74,6 +148,35 @@ mod tests {
         assert_eq!(
             business_thread_name("asset-load"),
             "radiant-business-asset-load"
+        );
+    }
+
+    #[test]
+    fn default_business_worker_count_keeps_ui_capacity_available() {
+        assert!((1..=2).contains(&default_business_worker_count()));
+    }
+
+    #[test]
+    fn business_thread_pool_runs_queued_work_on_named_workers() {
+        let pool = BusinessThreadPool::new(2);
+        let (sender, receiver) = mpsc::channel();
+        for index in 0..4 {
+            let sender = sender.clone();
+            assert!(pool.spawn("test-job", move || {
+                let thread_name = thread::current().name().unwrap_or_default().to_string();
+                sender.send((index, thread_name)).expect("send work result");
+            }));
+        }
+        drop(sender);
+
+        let mut completed = receiver.iter().collect::<Vec<_>>();
+        completed.sort_by_key(|(index, _)| *index);
+
+        assert_eq!(completed.len(), 4);
+        assert!(
+            completed
+                .iter()
+                .all(|(_, name)| name.starts_with("radiant-business-worker-"))
         );
     }
 

@@ -1,3 +1,4 @@
+use super::threading::BusinessThreadPool;
 use crate::{gui::repaint::RepaintSignal, runtime::Command};
 use std::sync::{
     Arc, Mutex,
@@ -8,6 +9,7 @@ pub(in crate::application) struct AppRuntime<Message> {
     pending: Mutex<Vec<Message>>,
     commands: Mutex<Vec<Command<Message>>>,
     repaint: Mutex<Option<Arc<dyn RepaintSignal>>>,
+    business: BusinessThreadPool,
     alive: AtomicBool,
     frame_pending: AtomicBool,
 }
@@ -18,6 +20,7 @@ impl<Message> Default for AppRuntime<Message> {
             pending: Mutex::new(Vec::new()),
             commands: Mutex::new(Vec::new()),
             repaint: Mutex::new(None),
+            business: BusinessThreadPool::default(),
             alive: AtomicBool::new(true),
             frame_pending: AtomicBool::new(false),
         }
@@ -48,6 +51,17 @@ impl<Message> AppRuntime<Message> {
         lock_runtime_state(&self.commands).push(command);
         self.request_repaint();
         true
+    }
+
+    pub(super) fn spawn_business_task(
+        &self,
+        name: &'static str,
+        work: impl FnOnce() + Send + 'static,
+    ) -> bool {
+        if !self.is_alive() {
+            return false;
+        }
+        self.business.spawn(name, work)
     }
 
     pub(super) fn take_pending(&self) -> Vec<Message> {

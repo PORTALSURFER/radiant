@@ -320,6 +320,7 @@ fn ui_first_runtime_threading_contract_is_documented() {
         "## UI-First Runtime Threading",
         "native UI/event/render owner as the priority path",
         "runtime-managed business threads",
+        "bounded business worker lane",
         "default architecture is UI-first and non-blocking",
     ] {
         assert!(

@@ -1,20 +1,7 @@
 //! Horizontal SVG-icon toolbar with state-driven toggle buttons.
 
-use radiant::gui::{
-    svg::rasterize_svg_icon,
-    types::{ImageRgba, Rect, Rgba8},
-};
-use radiant::layout::{LayoutOutput, Point, Vector2};
 use radiant::prelude::*;
-use radiant::runtime::{PaintFillRect, PaintImage, PaintPrimitive, PaintStrokeRect};
-use radiant::theme::ThemeTokens;
-use radiant::widgets::{
-    FocusBehavior, PointerButton, WidgetCommon, WidgetInput, WidgetSizing, WidgetState,
-    WidgetStyle, WidgetTone, resolve_widget_visual_tokens,
-};
 use std::sync::Arc;
-
-const ICON_SIZE: usize = 32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ToolId {
@@ -97,11 +84,12 @@ struct ToolbarIcons {
 
 impl ToolbarIcons {
     fn new(theme: &ThemeTokens) -> Self {
+        let active_icon = theme.accent_warning;
         Self {
-            select: ToolbarIcon::new(SELECT_ICON, theme.highlight_cyan, theme.text_muted),
-            brush: ToolbarIcon::new(BRUSH_ICON, theme.accent_mint, theme.text_muted),
-            erase: ToolbarIcon::new(ERASE_ICON, theme.accent_warning, theme.text_muted),
-            snap: ToolbarIcon::new(SNAP_ICON, theme.accent_copper, theme.text_muted),
+            select: ToolbarIcon::new(SELECT_ICON, active_icon, theme.text_muted),
+            brush: ToolbarIcon::new(BRUSH_ICON, active_icon, theme.text_muted),
+            erase: ToolbarIcon::new(ERASE_ICON, active_icon, theme.text_muted),
+            snap: ToolbarIcon::new(SNAP_ICON, active_icon, theme.text_muted),
         }
     }
 
@@ -117,15 +105,17 @@ impl ToolbarIcons {
 
 #[derive(Clone, Debug)]
 struct ToolbarIcon {
-    active: Arc<ImageRgba>,
-    inactive: Arc<ImageRgba>,
+    glyph: Arc<SvgIcon>,
+    active: Rgba8,
+    inactive: Rgba8,
 }
 
 impl ToolbarIcon {
     fn new(svg: &str, active: Rgba8, inactive: Rgba8) -> Self {
         Self {
-            active: toolbar_icon_image(svg, active),
-            inactive: toolbar_icon_image(svg, inactive),
+            glyph: Arc::new(SvgIcon::from_svg(svg).expect("toolbar icon SVG should parse")),
+            active,
+            inactive,
         }
     }
 }
@@ -144,7 +134,7 @@ impl IconToggleButton {
         common.focus = FocusBehavior::Keyboard;
         common.state.active = active;
         common.style = WidgetStyle {
-            tone: WidgetTone::Accent,
+            tone: WidgetTone::Neutral,
             ..WidgetStyle::default()
         };
         Self {
@@ -186,8 +176,7 @@ impl Widget for IconToggleButton {
                 self.common.state.pressed = false;
                 should_toggle.then(|| WidgetOutput::custom(ToolMessage::Toggle(self.tool)))
             }
-            WidgetInput::KeyPress(radiant::widgets::WidgetKey::Enter)
-            | WidgetInput::KeyPress(radiant::widgets::WidgetKey::Space)
+            WidgetInput::KeyPress(WidgetKey::Enter) | WidgetInput::KeyPress(WidgetKey::Space)
                 if self.common.state.focused =>
             {
                 Some(WidgetOutput::custom(ToolMessage::Toggle(self.tool)))
@@ -249,16 +238,14 @@ impl Widget for IconToggleButton {
             ),
             Vector2::new(icon_side, icon_side),
         );
-        primitives.push(PaintPrimitive::Image(PaintImage {
-            widget_id: self.common.id,
-            source_rect: None,
-            rect: icon_rect,
-            image: if self.active {
-                Arc::clone(&self.icon.active)
-            } else {
-                Arc::clone(&self.icon.inactive)
-            },
-        }));
+        let icon_color = if self.active {
+            self.icon.active
+        } else {
+            self.icon.inactive
+        };
+        self.icon
+            .glyph
+            .append_fill_paint(primitives, self.common.id, icon_rect, icon_color);
     }
 }
 
@@ -308,10 +295,6 @@ fn toolbar_button(state: &ToolbarState, tool: ToolId) -> View<ToolMessage> {
     )
 }
 
-fn toolbar_icon_image(svg: &str, color: Rgba8) -> Arc<ImageRgba> {
-    Arc::new(rasterize_svg_icon(svg, ICON_SIZE, color).expect("toolbar icon SVG should rasterize"))
-}
-
 const SELECT_ICON: &str = r#"
 <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
   <polygon points="5,3 18,13 12,14 15,21 12,22 9,15 5,19" />
@@ -343,23 +326,16 @@ const SNAP_ICON: &str = r#"
 #[cfg(test)]
 mod tests {
     use super::*;
-    use radiant::runtime::{PaintPrimitive, SurfaceRuntime};
+    use radiant::runtime::SurfaceRuntime;
 
     #[test]
-    fn svg_toolbar_icons_rasterize_active_and_inactive_variants() {
-        let icons = ToolbarIcons::new(&ThemeTokens::default());
+    fn svg_toolbar_icons_parse_as_vector_icons_with_active_and_inactive_colors() {
+        let theme = ThemeTokens::default();
+        let icons = ToolbarIcons::new(&theme);
 
-        assert_eq!(icons.select.active.width, ICON_SIZE);
-        assert_eq!(icons.select.inactive.height, ICON_SIZE);
-        assert_ne!(icons.select.active.pixels, icons.select.inactive.pixels);
-        assert!(
-            icons
-                .select
-                .active
-                .pixels
-                .iter()
-                .any(|channel| *channel != 0)
-        );
+        assert_eq!(icons.select.active, theme.accent_warning);
+        assert_eq!(icons.select.inactive, theme.text_muted);
+        assert_eq!(icons.brush.active, theme.accent_warning);
     }
 
     #[test]
@@ -402,24 +378,25 @@ mod tests {
 
     #[test]
     fn toolbar_button_paints_icon_image_and_active_marker() {
-        let button = IconToggleButton::new(
-            ToolId::Select,
-            ToolbarIcons::new(&ThemeTokens::default()).select,
-            true,
-        );
+        let theme = ThemeTokens::default();
+        let button = IconToggleButton::new(ToolId::Select, ToolbarIcons::new(&theme).select, true);
         let mut primitives = Vec::new();
         button.append_paint(
             &mut primitives,
             Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(42.0, 36.0)),
             &LayoutOutput::default(),
-            &ThemeTokens::default(),
+            &theme,
         );
 
         assert!(
             primitives
                 .iter()
-                .any(|primitive| matches!(primitive, PaintPrimitive::Image(_)))
+                .any(|primitive| matches!(primitive, PaintPrimitive::FillPath(_)))
         );
+        let PaintPrimitive::FillRect(background) = primitives[0] else {
+            panic!("active toolbar button should paint a background first");
+        };
+        assert_ne!(background.color, theme.accent_warning);
         assert!(primitives.len() >= 4);
     }
 }

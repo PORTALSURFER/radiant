@@ -1,7 +1,7 @@
 use super::{
-    PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPolygon, PaintFillRect,
-    PaintGpuSurface, PaintImage, PaintOverlayPanel, PaintStrokePolygon, PaintStrokePolyline,
-    PaintStrokeRect, PaintTextInput, PaintTextRun,
+    PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillPolygon,
+    PaintFillRect, PaintGpuSurface, PaintImage, PaintOverlayPanel, PaintStrokePolygon,
+    PaintStrokePolyline, PaintStrokeRect, PaintTextInput, PaintTextRun,
 };
 use crate::{gui::types::Rgba8, theme::ThemeTokens};
 
@@ -14,6 +14,8 @@ pub enum PaintPrimitive {
     ClipEnd(PaintClipEnd),
     /// Fill a rectangle.
     FillRect(PaintFillRect),
+    /// Fill a bezier path.
+    FillPath(PaintFillPath),
     /// Stroke a rectangle.
     StrokeRect(PaintStrokeRect),
     /// Fill a polygon.
@@ -120,7 +122,9 @@ impl SurfacePaintPlan {
         for primitive in &self.primitives {
             match primitive {
                 PaintPrimitive::ClipStart(_) | PaintPrimitive::ClipEnd(_) => stats.clips += 1,
-                PaintPrimitive::FillRect(_) | PaintPrimitive::FillPolygon(_) => stats.fills += 1,
+                PaintPrimitive::FillRect(_)
+                | PaintPrimitive::FillPath(_)
+                | PaintPrimitive::FillPolygon(_) => stats.fills += 1,
                 PaintPrimitive::StrokeRect(_)
                 | PaintPrimitive::StrokePolygon(_)
                 | PaintPrimitive::StrokePolyline(_) => stats.strokes += 1,

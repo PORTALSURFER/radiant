@@ -63,14 +63,16 @@ pub mod prelude {
         input::{KeyCode, KeyPress},
         list::{VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window},
         shortcuts::ShortcutResolution,
+        svg::SvgIcon,
     };
     pub use crate::layout::LayoutOutput;
     pub use crate::runtime::{
         Command, EmbeddedFont, GpuHoverCursor, GpuSignalRenderShape, GpuSignalSummary,
         GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent,
-        GpuSurfaceOverlay, PaintFillRect, PaintImage, PaintPrimitive, PaintStrokeRect,
-        PaintTextAlign, PaintTextRun, ResourceKey, ResourceLoad, ResourceLoadState,
-        ResourceRequest, ResourceSlot, ScrollUpdate, SurfaceFrame, WindowManifest, WindowSpec,
+        GpuSurfaceOverlay, PaintFillPath, PaintFillRect, PaintFillRule, PaintImage, PaintPrimitive,
+        PaintStrokeRect, PaintTextAlign, PaintTextRun, ResourceKey, ResourceLoad,
+        ResourceLoadState, ResourceRequest, ResourceSlot, ScrollUpdate, SurfaceFrame,
+        WindowManifest, WindowSpec,
     };
     pub use crate::theme::ThemeTokens;
     pub use crate::widgets::{

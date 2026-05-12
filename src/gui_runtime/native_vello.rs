@@ -5,7 +5,9 @@ use crate::gui::{
     paint::{PaintFrame, Primitive, TextAlign},
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
-use crate::runtime::{PaintPrimitive, PaintTextAlign, PaintTextInput, RuntimeBridge};
+use crate::runtime::{
+    PaintFillRule, PaintPrimitive, PaintTextAlign, PaintTextInput, RuntimeBridge,
+};
 use crate::widgets::{RetainedSurfaceDescriptor, TextEditCommand, WidgetKey};
 use std::{
     collections::HashMap,

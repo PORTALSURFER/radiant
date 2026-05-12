@@ -84,7 +84,9 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
         (
             "toolbar_icons",
             vec![
-                "rasterize_svg_icon(",
+                "use radiant::prelude::*;",
+                "SvgIcon::from_svg(",
+                "PaintPrimitive::FillPath(",
                 "custom_widget_mapped(",
                 "IconToggleButton::new(",
                 "ToolMessage::Toggle(",

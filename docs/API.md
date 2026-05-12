@@ -335,10 +335,11 @@ scene-preparation split points should preserve the same rule: UI wakeups and
 input responsiveness take precedence, while app-owned business work stays off
 the UI path.
 
-Background messages are drained in bounded slices. If workers or subscriptions
-produce more messages than one UI pass should reduce, Radiant keeps the
-remaining messages ordered, requests another wakeup, and lets the backend return
-to input/render work before continuing the queue.
+Background commands and messages are drained in bounded slices. If startup
+hooks, timers, workers, or subscriptions produce more work than one UI pass
+should reduce, Radiant keeps the remaining commands/messages ordered, requests
+another wakeup, and lets the backend return to input/render work before
+continuing the queue.
 
 ## Layout
 

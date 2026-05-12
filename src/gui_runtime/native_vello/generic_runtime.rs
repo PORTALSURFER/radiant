@@ -173,9 +173,10 @@ where
 {
     fn new(options: NativeRunOptions, bridge: Bridge, viewport: Vector2) -> Self {
         let text_renderer = NativeTextRenderer::with_options(&options.text);
+        let debug_layout = options.debug_layout;
         Self {
             options,
-            core: GenericNativeRuntimeCore::new(bridge, viewport),
+            core: GenericNativeRuntimeCore::new_with_debug_layout(bridge, viewport, debug_layout),
             window_id: None,
             window: None,
             render_ctx: None,

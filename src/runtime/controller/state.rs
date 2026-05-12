@@ -45,7 +45,7 @@ where
             &self.layout_root,
             self.viewport,
             &self.layout_state,
-            LayoutDebugOptions::default(),
+            self.layout_debug_options,
         );
         self.refresh_visible_hit_orders();
         self.sync_scroll_offsets();
@@ -56,7 +56,7 @@ where
             &self.layout_root,
             self.viewport,
             &self.layout_state,
-            LayoutDebugOptions::default(),
+            self.layout_debug_options,
         );
         self.widget_hit_order = traversal.widget_paint_order;
         self.widget_paths = traversal.widget_paths;

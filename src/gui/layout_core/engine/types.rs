@@ -112,6 +112,18 @@ pub struct LayoutDebugOptions {
 }
 
 impl LayoutDebugOptions {
+    /// Enable node-boundary debug primitives only.
+    pub fn bounds_only() -> Self {
+        Self {
+            enabled: true,
+            show_bounds: true,
+            show_measured: false,
+            show_padding: false,
+            show_margins: false,
+            show_overflow: false,
+        }
+    }
+
     /// Enable all debug primitive categories.
     pub fn all_enabled() -> Self {
         Self {

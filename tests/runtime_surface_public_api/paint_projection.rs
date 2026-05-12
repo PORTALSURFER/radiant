@@ -364,6 +364,47 @@ fn runtime_borrowed_frame_reuses_current_layout_without_cloning() {
 }
 
 #[test]
+fn runtime_layout_debug_options_append_red_node_border_strokes() {
+    let theme = ThemeTokens::default();
+    let bridge = declarative_runtime_bridge(
+        DemoState {
+            count: 5,
+            name: String::from("Debug"),
+        },
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::CanvasInput(_) => {}
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+
+    assert!(
+        runtime.layout().debug_primitives.is_empty(),
+        "layout debug primitives should stay off by default"
+    );
+    runtime.set_layout_debug_options(radiant::layout::LayoutDebugOptions::bounds_only());
+
+    assert!(!runtime.layout().debug_primitives.is_empty());
+    let plan = runtime.paint_plan(&theme);
+    let red_debug_strokes = plan
+        .primitives
+        .iter()
+        .filter(|primitive| {
+            matches!(
+                primitive,
+                PaintPrimitive::StrokeRect(stroke)
+                    if stroke.color == (Rgba8 { r: 255, g: 0, b: 0, a: 255 })
+                        && (stroke.width - 1.0).abs() < f32::EPSILON
+            )
+        })
+        .count();
+
+    assert_eq!(red_debug_strokes, runtime.layout().debug_primitives.len());
+}
+
+#[test]
 fn host_controlled_surface_frame_can_collect_layout_debug_output() {
     let surface: UiSurface<()> = radiant::prelude::scroll(
         radiant::prelude::column((0..10).map(|index| {

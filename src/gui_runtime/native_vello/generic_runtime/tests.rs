@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    layout::{ContainerKind, ContainerPolicy, Rect, SlotParams},
+    layout::{ContainerKind, ContainerPolicy, LayoutDebugOptions, Rect, SlotParams},
     runtime::{
         Command, GpuHoverCursor, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent,
         GpuSurfaceOverlay, PaintGpuSurface, PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface,
@@ -236,6 +236,21 @@ fn generic_core_preserves_animation_when_host_requests_it() {
     let mut core = GenericNativeRuntimeCore::new(AnimatingBridge, Vector2::new(320.0, 40.0));
 
     assert!(core.needs_animation());
+}
+
+#[test]
+fn generic_core_can_enable_layout_debug_before_first_frame() {
+    let core = GenericNativeRuntimeCore::new_with_debug_layout(
+        demo_bridge(),
+        Vector2::new(320.0, 40.0),
+        true,
+    );
+
+    assert_eq!(
+        core.runtime.layout_debug_options(),
+        LayoutDebugOptions::bounds_only()
+    );
+    assert!(!core.runtime.layout().debug_primitives.is_empty());
 }
 
 #[test]

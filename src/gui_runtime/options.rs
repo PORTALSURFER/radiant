@@ -77,6 +77,8 @@ pub struct NativeRunOptions {
     pub gpu: NativeGpuOptions,
     /// Text and font policy for native renderers.
     pub text: NativeTextOptions,
+    /// Paint red layout-boundary strokes over every projected layout element.
+    pub debug_layout: bool,
 }
 
 impl Default for NativeRunOptions {
@@ -92,6 +94,7 @@ impl Default for NativeRunOptions {
             target_fps: 120,
             gpu: NativeGpuOptions::default(),
             text: NativeTextOptions::default(),
+            debug_layout: false,
         }
     }
 }

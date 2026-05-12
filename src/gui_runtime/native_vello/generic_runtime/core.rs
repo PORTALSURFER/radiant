@@ -42,9 +42,22 @@ impl<Bridge, Message> GenericNativeRuntimeCore<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn new(bridge: Bridge, viewport: Vector2) -> Self {
+        Self::new_with_debug_layout(bridge, viewport, false)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn new_with_debug_layout(
+        bridge: Bridge,
+        viewport: Vector2,
+        debug_layout: bool,
+    ) -> Self {
+        let mut runtime = SurfaceRuntime::new(bridge, viewport);
+        if debug_layout {
+            runtime.set_layout_debug_options(crate::layout::LayoutDebugOptions::bounds_only());
+        }
         Self {
-            runtime: SurfaceRuntime::new(bridge, viewport),
+            runtime,
             theme: ThemeTokens::default(),
         }
     }

@@ -1,9 +1,8 @@
 use super::AppRuntime;
-use super::threading::spawn_runtime_thread;
+use super::threading::{runtime_alive, sleep_while_runtime_alive, spawn_runtime_thread};
 use std::{
     sync::mpsc::RecvTimeoutError,
     sync::{Arc, Weak},
-    thread,
     time::Duration,
 };
 
@@ -135,16 +134,7 @@ fn sleep_until_subscription_tick<Message>(
     runtime: &Weak<AppRuntime<Message>>,
     duration: Duration,
 ) -> bool {
-    let mut remaining = duration;
-    while !remaining.is_zero() {
-        if !subscription_runtime_alive(runtime) {
-            return false;
-        }
-        let sleep_for = remaining.min(SUBSCRIPTION_CANCEL_POLL);
-        thread::sleep(sleep_for);
-        remaining = remaining.saturating_sub(sleep_for);
-    }
-    subscription_runtime_alive(runtime)
+    sleep_while_runtime_alive(runtime, duration)
 }
 
 enum WorkerSubscriptionEvent<Message> {
@@ -158,7 +148,7 @@ fn receive_worker_message<Message>(
     receiver: &std::sync::mpsc::Receiver<Message>,
 ) -> WorkerSubscriptionEvent<Message> {
     loop {
-        if !subscription_runtime_alive(runtime) {
+        if !runtime_alive(runtime) {
             return WorkerSubscriptionEvent::Stopped;
         }
         match receiver.recv_timeout(SUBSCRIPTION_CANCEL_POLL) {
@@ -167,10 +157,6 @@ fn receive_worker_message<Message>(
             Err(RecvTimeoutError::Timeout) => {}
         }
     }
-}
-
-fn subscription_runtime_alive<Message>(runtime: &Weak<AppRuntime<Message>>) -> bool {
-    runtime.upgrade().is_some_and(|runtime| runtime.is_alive())
 }
 
 #[cfg(test)]

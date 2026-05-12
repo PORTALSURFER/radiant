@@ -1,5 +1,8 @@
 use super::*;
-use super::{subscription::spawn_subscription, threading::spawn_runtime_thread};
+use super::{
+    subscription::spawn_subscription,
+    threading::{sleep_while_runtime_alive, spawn_runtime_thread},
+};
 use crate::{
     application::IntoView,
     gui::{
@@ -10,7 +13,7 @@ use crate::{
     runtime::{Command, RuntimeBridge, UiSurface},
     widgets::RetainedSurfaceDescriptor,
 };
-use std::{collections::HashMap, marker::PhantomData, sync::Arc, thread, time::Duration};
+use std::{collections::HashMap, marker::PhantomData, sync::Arc, time::Duration};
 
 pub(in crate::application) struct AppBridge<State, Message, Project, Update, View> {
     pub(in crate::application) state: State,
@@ -173,8 +176,8 @@ where
         }
         let runtime = Arc::downgrade(&self.runtime);
         spawn_runtime_thread("radiant-delayed-message", move || {
-            if !delay.is_zero() {
-                thread::sleep(delay);
+            if !sleep_while_runtime_alive(&runtime, delay) {
+                return;
             }
             if let Some(runtime) = runtime.upgrade() {
                 let _ = runtime.enqueue(message);

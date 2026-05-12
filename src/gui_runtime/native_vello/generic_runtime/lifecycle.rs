@@ -104,8 +104,7 @@ where
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: RuntimeUserEvent) {
         match event {
             RuntimeUserEvent::RepaintRequested => {
-                self.repaint_event_pending
-                    .store(false, std::sync::atomic::Ordering::Release);
+                self.runtime_wakeup.clear_pending();
                 let outcome = self.core.drain_runtime_messages();
                 if outcome.exit_requested {
                     event_loop.exit();

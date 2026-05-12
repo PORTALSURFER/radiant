@@ -3,6 +3,7 @@ use crate::gui_runtime::native_vello::*;
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_path_fill(
     scene: &mut Scene,
     color: Rgba8,
+    transform: PaintTransform,
     fill_rule: PaintFillRule,
     path: &BezPath,
 ) {
@@ -11,7 +12,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_path_
             PaintFillRule::NonZero => Fill::NonZero,
             PaintFillRule::EvenOdd => Fill::EvenOdd,
         },
-        Affine::IDENTITY,
+        transform,
         color_from_rgba(color),
         None,
         path,

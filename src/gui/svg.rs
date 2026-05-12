@@ -12,7 +12,7 @@ use vello::kurbo::{
 };
 
 use crate::gui::types::Rgba8;
-use crate::runtime::{PaintFillPath, PaintFillRule, PaintPrimitive};
+use crate::runtime::{PaintFillPath, PaintFillRule, PaintPath, PaintPrimitive};
 use crate::widgets::WidgetId;
 use transform::{parse_attr_f64, parse_number_list, parse_points, parse_transform_list};
 
@@ -34,7 +34,7 @@ pub struct SvgDocument {
 /// One rasterizable filled SVG shape.
 #[derive(Clone, Debug)]
 pub struct SvgShape {
-    path: BezPath,
+    path: PaintPath,
     fill_rule: SvgFillRule,
 }
 
@@ -77,7 +77,8 @@ impl SvgIcon {
         for shape in &self.document.shapes {
             primitives.push(PaintPrimitive::FillPath(PaintFillPath {
                 widget_id,
-                path: std::sync::Arc::new(transform * shape.path.clone()),
+                path: std::sync::Arc::clone(&shape.path),
+                transform,
                 fill_rule: shape.fill_rule.into(),
                 color,
             }));
@@ -149,7 +150,7 @@ fn collect_shapes(
             }
             let path = BezPath::from_svg(node.attribute("d")?).ok()?;
             shapes.push(SvgShape {
-                path: transform * path,
+                path: std::sync::Arc::new(transform * path),
                 fill_rule,
             });
         }
@@ -163,7 +164,7 @@ fn collect_shapes(
             let height = parse_attr_f64(node, "height")?;
             let path = KurboRect::new(x, y, x + width, y + height).to_path(0.1);
             shapes.push(SvgShape {
-                path: transform * path,
+                path: std::sync::Arc::new(transform * path),
                 fill_rule,
             });
         }
@@ -176,7 +177,7 @@ fn collect_shapes(
                 parse_attr_f64(node, "r")?,
             );
             shapes.push(SvgShape {
-                path: transform * circle.to_path(0.1),
+                path: std::sync::Arc::new(transform * circle.to_path(0.1)),
                 fill_rule,
             });
         }
@@ -193,7 +194,7 @@ fn collect_shapes(
             }
             path.close_path();
             shapes.push(SvgShape {
-                path: transform * path,
+                path: std::sync::Arc::new(transform * path),
                 fill_rule,
             });
         }
@@ -280,14 +281,34 @@ mod tests {
                 a: 255,
             },
         );
+        icon.append_fill_paint(
+            &mut primitives,
+            9,
+            crate::gui::types::Rect::from_min_size(
+                crate::gui::types::Point::new(10.0, 20.0),
+                crate::gui::types::Vector2::new(8.0, 8.0),
+            ),
+            Rgba8 {
+                r: 10,
+                g: 20,
+                b: 30,
+                a: 255,
+            },
+        );
 
-        let [PaintPrimitive::FillPath(fill)] = primitives.as_slice() else {
-            panic!("svg icon should append one filled path");
+        let [
+            PaintPrimitive::FillPath(fill),
+            PaintPrimitive::FillPath(second_fill),
+        ] = primitives.as_slice()
+        else {
+            panic!("svg icon should append filled paths");
         };
         assert_eq!(fill.widget_id, 9);
         assert_eq!(fill.color.r, 10);
+        assert!(std::sync::Arc::ptr_eq(&fill.path, &second_fill.path));
+        let transformed_path = fill.transform * (*fill.path).clone();
         assert_eq!(
-            fill.path.bounding_box(),
+            transformed_path.bounding_box(),
             KurboRect::new(10.0, 20.0, 14.0, 28.0)
         );
     }

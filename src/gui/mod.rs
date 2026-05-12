@@ -57,7 +57,7 @@ pub mod selection;
 pub mod shortcuts;
 /// Serializable visual snapshot primitives for deterministic GUI fixtures.
 pub mod snapshot;
-/// Generic SVG subset parsing helpers used by retained icon rasterizers.
+/// Generic SVG subset parsing helpers used by retained vector icons.
 pub mod svg;
 /// Retained text placement helpers for reusable layout and rendering adapters.
 pub mod text_layout;

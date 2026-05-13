@@ -8,6 +8,9 @@ pub(super) fn generic_window_attributes(options: &NativeRunOptions) -> WindowAtt
         .with_maximized(options.maximized)
         .with_decorations(options.decorations)
         .with_visible(false);
+    if let NativeWindowMode::Popup(popup) = options.window_mode {
+        attrs = apply_popup_window_attributes(attrs, popup);
+    }
     if let Some([w, h]) = options.inner_size {
         attrs = attrs.with_inner_size(Size::Logical(LogicalSize::new(w as f64, h as f64)));
     }
@@ -27,6 +30,31 @@ pub(super) fn generic_window_attributes(options: &NativeRunOptions) -> WindowAtt
     attrs
 }
 
+fn apply_popup_window_attributes(
+    mut attrs: WindowAttributes,
+    popup: NativePopupOptions,
+) -> WindowAttributes {
+    attrs = attrs
+        .with_decorations(false)
+        .with_resizable(popup.resizable)
+        .with_transparent(popup.transparent)
+        .with_active(popup.initially_focused);
+    if popup.always_on_top {
+        attrs = attrs.with_window_level(WindowLevel::AlwaysOnTop);
+    }
+    if let Some([x, y]) = popup.position {
+        attrs = attrs.with_position(Position::Logical(LogicalPosition::new(x as f64, y as f64)));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if popup.skip_taskbar {
+            use winit::platform::windows::WindowAttributesExtWindows;
+            attrs = attrs.with_skip_taskbar(true);
+        }
+    }
+    attrs
+}
+
 pub(super) fn platform_drag_and_drop_enabled(options: &NativeRunOptions) -> bool {
-    options.drag_and_drop
+    options.drag_and_drop && !options.is_popup()
 }

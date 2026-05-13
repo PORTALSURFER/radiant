@@ -1,6 +1,7 @@
 use radiant::runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, NativeGpuBackend, NativeGpuOptions,
-    NativeRunOptions, NativeTextOptions, WindowManifest, WindowSpec,
+    NativePopupOptions, NativeRunOptions, NativeTextOptions, NativeWindowMode, WindowManifest,
+    WindowSpec,
 };
 
 #[test]
@@ -20,6 +21,26 @@ fn native_run_options_expose_platform_neutral_drag_and_drop_policy() {
     };
 
     assert!(!options.drag_and_drop);
+}
+
+#[test]
+fn native_run_options_expose_floating_popup_policy() {
+    let popup_policy = NativePopupOptions::default()
+        .position(120.0, 240.0)
+        .transparent(false)
+        .always_on_top(false)
+        .resizable(true)
+        .initially_focused(true)
+        .skip_taskbar(false);
+    let options = NativeRunOptions::popup("Drag Preview").popup_policy(popup_policy);
+
+    assert!(!NativeRunOptions::default().is_popup());
+    assert!(options.is_popup());
+    assert!(!options.decorations);
+    assert!(!options.drag_and_drop);
+    assert_eq!(options.title, "Drag Preview");
+    assert_eq!(options.popup_options(), Some(&popup_policy));
+    assert_eq!(options.window_mode, NativeWindowMode::Popup(popup_policy));
 }
 
 #[test]
@@ -127,6 +148,24 @@ fn window_specs_describe_multiple_windows_without_opening_runtime() {
     let options: NativeRunOptions = inspector.into();
     assert_eq!(options.inner_size, Some([320.5, 500.25]));
     assert_eq!(options.min_inner_size, Some([300.25, 420.5]));
+}
+
+#[test]
+fn window_specs_describe_floating_popup_windows() {
+    let popup = WindowSpec::popup("drag-preview", "Drag Preview")
+        .logical_size(180.0, 64.0)
+        .popup_position(300.0, 220.0);
+
+    assert_eq!(popup.key, "drag-preview");
+    assert_eq!(popup.title(), "Drag Preview");
+    assert!(popup.is_popup());
+    assert_eq!(popup.inner_size(), Some([180.0, 64.0]));
+    assert!(!popup.native_options().decorations);
+    assert!(!popup.drag_and_drop_enabled());
+    assert_eq!(
+        popup.popup_options().and_then(|popup| popup.position),
+        Some([300.0, 220.0])
+    );
 }
 
 #[test]

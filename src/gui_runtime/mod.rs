@@ -36,6 +36,6 @@ pub use native_vello::{
 };
 pub use options::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, NativeGpuBackend, NativeGpuOptions,
-    NativeRunOptions, NativeTextOptions, WindowIconRgba,
+    NativePopupOptions, NativeRunOptions, NativeTextOptions, NativeWindowMode, WindowIconRgba,
 };
 pub use window_manifest::{WindowManifest, WindowSpec};

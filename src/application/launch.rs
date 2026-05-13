@@ -2,7 +2,7 @@
 
 use super::{AppBridge, AppUpdate, Result, StateAction, UpdateContext};
 use crate::{
-    gui_runtime::{EmbeddedFont, NativeRunOptions, WindowSpec},
+    gui_runtime::{EmbeddedFont, NativePopupOptions, NativeRunOptions, WindowSpec},
     runtime::{
         Command, RuntimeBridge, SurfaceNode, UiSurface, declarative_command_runtime_bridge,
         run_native_vello_runtime,

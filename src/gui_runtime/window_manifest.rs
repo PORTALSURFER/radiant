@@ -1,6 +1,6 @@
 //! Host-owned native window descriptors and manifest validation.
 
-use super::{EmbeddedFont, NativeGpuBackend, NativeRunOptions, WindowIconRgba};
+use super::{EmbeddedFont, NativeGpuBackend, NativePopupOptions, NativeRunOptions, WindowIconRgba};
 use std::{collections::HashSet, path::PathBuf};
 
 /// Platform-neutral descriptor for one application window.
@@ -37,6 +37,15 @@ impl WindowSpec {
         }
     }
 
+    /// Build a borderless floating popup descriptor.
+    ///
+    /// Popup specs are intended for transient Radiant surfaces such as drag
+    /// previews, context menus, tooltips, and small floating panels that must
+    /// render outside the main application window.
+    pub fn popup(key: impl Into<String>, title: impl Into<String>) -> Self {
+        Self::from_options(key, NativeRunOptions::popup(title))
+    }
+
     /// Set the initial logical window size.
     pub fn size(self, width: u32, height: u32) -> Self {
         self.logical_size(width as f32, height as f32)
@@ -68,6 +77,24 @@ impl WindowSpec {
     /// Set whether native window decorations remain enabled.
     pub fn decorations(mut self, decorations: bool) -> Self {
         self.options.decorations = decorations;
+        self
+    }
+
+    /// Configure this descriptor as a floating popup with default popup policy.
+    pub fn floating_popup(mut self) -> Self {
+        self.options = self.options.floating_popup();
+        self
+    }
+
+    /// Configure this descriptor as a floating popup with explicit popup policy.
+    pub fn popup_policy(mut self, popup: NativePopupOptions) -> Self {
+        self.options = self.options.popup_policy(popup);
+        self
+    }
+
+    /// Set the initial popup position in logical screen coordinates.
+    pub fn popup_position(mut self, x: f32, y: f32) -> Self {
+        self.options = self.options.popup_position(x, y);
         self
     }
 
@@ -125,6 +152,16 @@ impl WindowSpec {
     /// Return whether native file drag-and-drop is enabled when supported.
     pub const fn drag_and_drop_enabled(&self) -> bool {
         self.options.drag_and_drop
+    }
+
+    /// Return whether this descriptor represents a floating popup window.
+    pub const fn is_popup(&self) -> bool {
+        self.options.is_popup()
+    }
+
+    /// Borrow the popup policy when this descriptor is a floating popup.
+    pub const fn popup_options(&self) -> Option<&NativePopupOptions> {
+        self.options.popup_options()
     }
 
     /// Return the target animation frame rate for this window.

@@ -52,6 +52,90 @@ pub struct NativeTextOptions {
     pub font_paths: Vec<PathBuf>,
 }
 
+/// Native window presentation mode used by runtime adapters.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub enum NativeWindowMode {
+    /// Standard application window managed by the host runtime.
+    #[default]
+    Window,
+    /// Floating popup window for transient UI such as drag previews, tooltips,
+    /// context menus, and other borderless surfaces.
+    Popup(NativePopupOptions),
+}
+
+/// Platform-neutral policy for floating popup windows.
+///
+/// Popup windows still render normal Radiant surfaces. The policy only
+/// describes native-window behavior that differs from a regular application
+/// window: borderless chrome, optional transparency, z-order, taskbar presence,
+/// focus behavior, resizability, and optional initial screen position.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NativePopupOptions {
+    /// Initial outer-window position in logical screen coordinates.
+    pub position: Option<[f32; 2]>,
+    /// Whether the native window background should support transparency.
+    pub transparent: bool,
+    /// Whether the popup should be kept above normal windows when supported.
+    pub always_on_top: bool,
+    /// Whether the popup window should be resizable.
+    pub resizable: bool,
+    /// Whether the popup should request focus when it opens.
+    pub initially_focused: bool,
+    /// Whether the popup should stay out of the platform taskbar when supported.
+    pub skip_taskbar: bool,
+}
+
+impl Default for NativePopupOptions {
+    fn default() -> Self {
+        Self {
+            position: None,
+            transparent: true,
+            always_on_top: true,
+            resizable: false,
+            initially_focused: false,
+            skip_taskbar: true,
+        }
+    }
+}
+
+impl NativePopupOptions {
+    /// Set the initial outer-window position in logical screen coordinates.
+    pub fn position(mut self, x: f32, y: f32) -> Self {
+        self.position = Some([x, y]);
+        self
+    }
+
+    /// Set whether the popup should support background transparency.
+    pub fn transparent(mut self, transparent: bool) -> Self {
+        self.transparent = transparent;
+        self
+    }
+
+    /// Set whether the popup should stay above normal windows when supported.
+    pub fn always_on_top(mut self, always_on_top: bool) -> Self {
+        self.always_on_top = always_on_top;
+        self
+    }
+
+    /// Set whether the popup should be resizable.
+    pub fn resizable(mut self, resizable: bool) -> Self {
+        self.resizable = resizable;
+        self
+    }
+
+    /// Set whether the popup should request focus when it opens.
+    pub fn initially_focused(mut self, initially_focused: bool) -> Self {
+        self.initially_focused = initially_focused;
+        self
+    }
+
+    /// Set whether the popup should stay out of the platform taskbar when supported.
+    pub fn skip_taskbar(mut self, skip_taskbar: bool) -> Self {
+        self.skip_taskbar = skip_taskbar;
+        self
+    }
+}
+
 impl NativeTextOptions {
     /// Add embedded TTF/OTF font bytes checked before file and native fallback fonts.
     pub fn embedded_font(mut self, font: impl Into<EmbeddedFont>) -> Self {
@@ -180,6 +264,8 @@ pub struct NativeRunOptions {
     pub text: NativeTextOptions,
     /// Paint red layout-boundary strokes over every projected layout element.
     pub debug_layout: bool,
+    /// Native window presentation mode for this surface.
+    pub window_mode: NativeWindowMode,
 }
 
 impl Default for NativeRunOptions {
@@ -196,6 +282,58 @@ impl Default for NativeRunOptions {
             gpu: NativeGpuOptions::default(),
             text: NativeTextOptions::default(),
             debug_layout: false,
+            window_mode: NativeWindowMode::default(),
         }
+    }
+}
+
+impl NativeRunOptions {
+    /// Return options configured for a transient floating popup window.
+    pub fn popup(title: impl Into<String>) -> Self {
+        Self {
+            title: title.into(),
+            decorations: false,
+            drag_and_drop: false,
+            window_mode: NativeWindowMode::Popup(NativePopupOptions::default()),
+            ..Self::default()
+        }
+    }
+
+    /// Return whether these options describe a floating popup window.
+    pub const fn is_popup(&self) -> bool {
+        matches!(self.window_mode, NativeWindowMode::Popup(_))
+    }
+
+    /// Borrow the popup policy when this window is configured as a popup.
+    pub const fn popup_options(&self) -> Option<&NativePopupOptions> {
+        match &self.window_mode {
+            NativeWindowMode::Popup(options) => Some(options),
+            NativeWindowMode::Window => None,
+        }
+    }
+
+    /// Configure this window as a floating popup with default popup policy.
+    pub fn floating_popup(mut self) -> Self {
+        self.decorations = false;
+        self.drag_and_drop = false;
+        self.window_mode = NativeWindowMode::Popup(NativePopupOptions::default());
+        self
+    }
+
+    /// Configure this window as a floating popup with explicit popup policy.
+    pub fn popup_policy(mut self, popup: NativePopupOptions) -> Self {
+        self.decorations = false;
+        self.drag_and_drop = false;
+        self.window_mode = NativeWindowMode::Popup(popup);
+        self
+    }
+
+    /// Set the initial popup position, configuring this window as a popup when needed.
+    pub fn popup_position(self, x: f32, y: f32) -> Self {
+        let popup = match self.window_mode {
+            NativeWindowMode::Popup(options) => options.position(x, y),
+            NativeWindowMode::Window => NativePopupOptions::default().position(x, y),
+        };
+        self.popup_policy(popup)
     }
 }

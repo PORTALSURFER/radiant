@@ -43,6 +43,24 @@ impl WindowBuilder {
         self
     }
 
+    /// Configure this native window as a borderless floating popup.
+    pub fn floating_popup(mut self) -> Self {
+        self.options = self.options.floating_popup();
+        self
+    }
+
+    /// Configure this native window as a floating popup with explicit policy.
+    pub fn popup_policy(mut self, popup: NativePopupOptions) -> Self {
+        self.options = self.options.popup_policy(popup);
+        self
+    }
+
+    /// Set the initial popup position in logical screen coordinates.
+    pub fn popup_position(mut self, x: f32, y: f32) -> Self {
+        self.options = self.options.popup_position(x, y);
+        self
+    }
+
     /// Add embedded TTF/OTF font bytes checked before file and native fallback fonts.
     pub fn embedded_font(mut self, font: impl Into<EmbeddedFont>) -> Self {
         self.options.text.embedded_fonts.push(font.into());

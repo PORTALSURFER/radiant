@@ -167,14 +167,19 @@ previews, tooltip affordances, cursor markers, and lightweight spectrogram
 overlays. Use `.transient_overlay_animation(...)` or the combined
 `.animated_transient_overlay(...)` helper when an overlay can derive motion from
 `context.animation_time`; the native runtime then schedules paint-only frames
-over the cached surface without queuing application frame messages. Custom
-runtime bridges can report the same split explicitly with
+over the cached surface without queuing application frame messages. Use
+`.transient_overlay_animation_at(...)` or
+`.animated_transient_overlay_at(...)` when an overlay should run below the
+window's maximum native cadence; Radiant clamps the requested rate through the
+same `NativeRunOptions` frame-rate bounds and never exceeds the window target.
+Custom runtime bridges can report the same split explicitly with
 `RuntimeAnimationActivity`, distinguishing frame-message animation from
-paint-only presentation work. When a paint-only transient overlay is present,
-the native Vello runtime also caches the composed Vello scene plus retained GPU
-surfaces as a base frame, so later overlay-only frames can present that stable
-composition and draw the moving overlay without re-encoding retained GPU
-surfaces until the scene, paint plan, or runtime GPU-surface overlays change.
+paint-only presentation work and optionally carrying a per-activity target FPS.
+When a paint-only transient overlay is present, the native Vello runtime also
+caches the composed Vello scene plus retained GPU surfaces as a base frame, so
+later overlay-only frames can present that stable composition and draw the
+moving overlay without re-encoding retained GPU surfaces until the scene, paint
+plan, or runtime GPU-surface overlays change.
 Overlay painters that attach to existing content should use `context.plan` as
 the authoritative cached geometry source. For common widget anchors, use
 `SurfacePaintPlan::first_widget_rect(widget_id)` instead of matching primitive
@@ -719,10 +724,11 @@ uses `.animation(...)` and `.on_frame(...)` through the stateful application
 builder.
 Run `cargo run --example gpu_surface_stack_overlay` for a retained GPU surface
 with normal widget overlays plus a transient animated blob that repaints every
-frame through `.animated_transient_overlay(...)` without refreshing the
+frame through `.animated_transient_overlay_at(...)` without refreshing the
 declarative surface, rebuilding the cached Vello scene, or recompositing the
-stable retained GPU surface on every overlay-only frame. The overlay anchors to
-the cached GPU-surface rectangle through `SurfacePaintPlan::first_widget_rect`.
+stable retained GPU surface on every overlay-only frame. The overlay caps its
+paint-only cadence to 60 FPS and anchors to the cached GPU-surface rectangle
+through `SurfacePaintPlan::first_widget_rect`.
 Run `cargo run --example background_loading` for a background-work sandbox that
 uses `ResourceSlot`, `ResourceLoad`, and `UpdateContext::spawn(...)` to route
 worker resource results back into the normal state update path.

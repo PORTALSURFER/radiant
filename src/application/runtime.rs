@@ -4,7 +4,7 @@ use crate::{
         shortcuts::ShortcutResolution, types::Rect,
     },
     layout::Vector2,
-    runtime::{PaintPrimitive, ScrollUpdate, TransientOverlayContext},
+    runtime::{PaintPrimitive, RuntimeAnimationActivity, ScrollUpdate, TransientOverlayContext},
     widgets::RetainedSurfaceDescriptor,
 };
 use std::sync::Arc;
@@ -26,7 +26,7 @@ pub(in crate::application) type RetainedPainter<State> =
 pub(in crate::application) type TransientOverlayPainter<State> =
     Box<dyn for<'a> FnMut(&mut State, TransientOverlayContext<'a>, &mut Vec<PaintPrimitive>)>;
 pub(in crate::application) type TransientOverlayActivity<State> =
-    Box<dyn FnMut(&mut State) -> bool>;
+    Box<dyn FnMut(&mut State) -> RuntimeAnimationActivity>;
 pub(in crate::application) type AppAnimation<State> = Box<dyn FnMut(&mut State) -> bool>;
 pub(in crate::application) type AppFrameMessage<Message> = Box<dyn FnMut() -> Message>;
 pub(in crate::application) type AppSubscriptions<State, Message> =

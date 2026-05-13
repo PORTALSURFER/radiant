@@ -28,7 +28,7 @@ use composited_base::{
     BaseFramePresentState, BaseFramePresentTarget, CompositedBaseFrame, present_base_frame,
 };
 pub(in crate::gui_runtime::native_vello) use core::{GenericNativeRuntimeCore, PointerPressStamp};
-use frame_cadence::{TimedFrameCadence, timed_frame_cadence};
+use frame_cadence::{TimedFrameCadence, timed_frame_cadence, timed_frame_target_fps};
 use gpu_surface::GpuSurfaceRenderer;
 use gpu_surface_interaction::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};

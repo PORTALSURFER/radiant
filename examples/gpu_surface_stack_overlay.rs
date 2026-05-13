@@ -2,7 +2,10 @@
 
 use radiant::prelude::*;
 use radiant::widgets::{PaintBounds, WidgetId};
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
 
 const SURFACE_WIDTH: f32 = 560.0;
 const SURFACE_HEIGHT: f32 = 220.0;
@@ -361,6 +364,23 @@ fn triangle_wave(phase: f32) -> f32 {
 fn demo_gpu_content() -> GpuSurfaceContent {
     let width = SURFACE_WIDTH as usize;
     let height = SURFACE_HEIGHT as usize;
+    GpuSurfaceContent::RgbaAtlas {
+        atlas: Arc::clone(demo_gpu_atlas()),
+        source_rect: Rect::from_min_size(
+            Point::new(0.0, 0.0),
+            Vector2::new(width as f32, height as f32),
+        ),
+    }
+}
+
+fn demo_gpu_atlas() -> &'static Arc<ImageRgba> {
+    static ATLAS: OnceLock<Arc<ImageRgba>> = OnceLock::new();
+    ATLAS.get_or_init(build_demo_gpu_atlas)
+}
+
+fn build_demo_gpu_atlas() -> Arc<ImageRgba> {
+    let width = SURFACE_WIDTH as usize;
+    let height = SURFACE_HEIGHT as usize;
     let mut pixels = Vec::with_capacity(width * height * 4);
     for y in 0..height {
         let center = height as f32 * 0.5;
@@ -377,13 +397,7 @@ fn demo_gpu_content() -> GpuSurfaceContent {
             pixels.extend_from_slice(&[shade / 3, shade, shade.saturating_add(45), 255]);
         }
     }
-    GpuSurfaceContent::RgbaAtlas {
-        atlas: Arc::new(ImageRgba::new(width, height, pixels).expect("valid demo image")),
-        source_rect: Rect::from_min_size(
-            Point::new(0.0, 0.0),
-            Vector2::new(width as f32, height as f32),
-        ),
-    }
+    Arc::new(ImageRgba::new(width, height, pixels).expect("valid demo image"))
 }
 
 #[cfg(test)]
@@ -526,6 +540,24 @@ mod tests {
         assert_eq!(triangle_wave(0.25), 0.5);
         assert_eq!(triangle_wave(0.5), 1.0);
         assert_eq!(triangle_wave(0.75), 0.5);
+    }
+
+    #[test]
+    fn demo_gpu_content_reuses_static_atlas_payload() {
+        let first = demo_gpu_content();
+        let second = demo_gpu_content();
+
+        let (
+            GpuSurfaceContent::RgbaAtlas { atlas: first, .. },
+            GpuSurfaceContent::RgbaAtlas { atlas: second, .. },
+        ) = (&first, &second)
+        else {
+            panic!("demo content should remain an atlas-backed GPU surface");
+        };
+        assert!(
+            Arc::ptr_eq(first, second),
+            "view reprojection should reuse the static GPU atlas instead of rebuilding pixel data"
+        );
     }
 
     #[test]

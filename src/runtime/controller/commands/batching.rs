@@ -20,16 +20,15 @@ pub(super) fn take_runtime_command_batch_into<Message>(
         return;
     }
 
-    let mut pending = std::mem::take(commands);
-    let mut remaining = Vec::new();
+    let retained_capacity = commands.capacity();
+    let mut pending = std::mem::replace(commands, Vec::with_capacity(retained_capacity));
 
     for command in pending.drain(..) {
         let budget = MAX_RUNTIME_COMMANDS_PER_DRAIN.saturating_sub(batch.len());
-        collect_runtime_command_batch(command, batch, &mut remaining, budget);
+        collect_runtime_command_batch(command, batch, commands, budget);
     }
 
     batch.reverse();
-    *commands = remaining;
     debug_assert!(batch.len() <= MAX_RUNTIME_COMMANDS_PER_DRAIN);
 }
 

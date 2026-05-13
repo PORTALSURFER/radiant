@@ -1,4 +1,12 @@
-use super::*;
+use crate::{
+    application::{
+        MappedWidget, StateAction, ViewNode, danger_style, default_selectable_sizing,
+        primary_style, view_node_from_widget,
+    },
+    runtime::{PaintText, WidgetMessageMapper},
+    widgets::{SelectableMessage, SelectableWidget, WidgetProminence, WidgetStyle},
+};
+use std::sync::Arc;
 
 /// Builder for selectable controls that can emit messages or mutate state directly.
 pub struct SelectableBuilder {
@@ -38,14 +46,14 @@ impl SelectableBuilder {
         map: impl Fn(bool) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
         self.mapped(move |message| match message {
-            crate::widgets::SelectableMessage::SelectionChanged { selected } => map(selected),
+            SelectableMessage::SelectionChanged { selected } => map(selected),
         })
     }
 
     /// Emit a mapped host message when selection changes.
     pub fn mapped<Message: 'static>(
         self,
-        map: impl Fn(crate::widgets::SelectableMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(SelectableMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
         let sizing = default_selectable_sizing(&self.label);
         let mut node = view_node_from_widget(MappedWidget::new(

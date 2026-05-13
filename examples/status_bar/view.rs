@@ -114,9 +114,8 @@ fn log_panel(state: &StatusBarState) -> View<StatusMessage> {
     column(
         state
             .log
-            .recent_lines()
-            .into_iter()
-            .map(|line| text(line).truncate().height(22.0).fill_width()),
+            .recent_entries()
+            .map(|entry| text(entry.line()).truncate().height(22.0).fill_width()),
     )
     .spacing(2.0)
     .fill_width()

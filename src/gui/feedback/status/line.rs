@@ -1,9 +1,11 @@
+use std::collections::VecDeque;
+
 const DEFAULT_STATUS_LINE_LIMIT: usize = 5;
 
 /// Bounded one-line status message history for status bars and compact logs.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StatusLineLog {
-    entries: Vec<StatusLineEntry>,
+    entries: VecDeque<StatusLineEntry>,
     limit: usize,
 }
 
@@ -17,37 +19,42 @@ pub struct StatusLineEntry {
 impl StatusLineLog {
     /// Build a status-line log retaining at most `limit` entries.
     pub fn new(limit: usize) -> Self {
-        Self {
-            entries: vec![StatusLineEntry::new("system", "Ready")],
-            limit: limit.max(1),
-        }
+        let limit = limit.max(1);
+        let mut entries = VecDeque::with_capacity(limit);
+        entries.push_back(StatusLineEntry::new("system", "Ready"));
+        Self { entries, limit }
     }
 
     /// Publish one compact status message from a named source.
     pub fn publish(&mut self, source: impl Into<String>, message: impl Into<String>) {
-        self.entries
-            .push(StatusLineEntry::new(source.into(), message.into()));
-        let overflow = self.entries.len().saturating_sub(self.limit);
-        if overflow > 0 {
-            self.entries.drain(0..overflow);
+        if self.entries.len() == self.limit {
+            self.entries.pop_front();
         }
+        self.entries
+            .push_back(StatusLineEntry::new(source.into(), message.into()));
     }
 
     /// Return the latest status line formatted as `source: message`.
     pub fn latest(&self) -> String {
         self.entries
-            .last()
+            .back()
             .map(StatusLineEntry::line)
             .unwrap_or_else(|| "system: Ready".to_string())
     }
 
+    /// Iterate retained entries from oldest to newest without formatting them.
+    pub fn entries(&self) -> impl DoubleEndedIterator<Item = &StatusLineEntry> {
+        self.entries.iter()
+    }
+
+    /// Iterate retained entries from newest to oldest without formatting them.
+    pub fn recent_entries(&self) -> impl Iterator<Item = &StatusLineEntry> {
+        self.entries.iter().rev()
+    }
+
     /// Return recent lines newest-first.
     pub fn recent_lines(&self) -> Vec<String> {
-        self.entries
-            .iter()
-            .rev()
-            .map(StatusLineEntry::line)
-            .collect()
+        self.recent_entries().map(StatusLineEntry::line).collect()
     }
 
     /// Return the number of retained entries.
@@ -127,6 +134,27 @@ mod tests {
                 "worker: started".to_string(),
                 "button: pressed".to_string()
             ]
+        );
+    }
+
+    #[test]
+    fn status_line_log_exposes_borrowed_entries_in_both_orders() {
+        let mut log = StatusLineLog::new(2);
+
+        log.publish("worker", "started");
+        log.publish("animation", "stopped");
+
+        assert_eq!(
+            log.entries()
+                .map(|entry| entry.source())
+                .collect::<Vec<_>>(),
+            vec!["worker", "animation"]
+        );
+        assert_eq!(
+            log.recent_entries()
+                .map(|entry| entry.message())
+                .collect::<Vec<_>>(),
+            vec!["stopped", "started"]
         );
     }
 

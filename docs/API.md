@@ -115,7 +115,10 @@ other layout builders instead of introducing a separate integer sizing model.
 native runtime boundary. Common launch code can stay platform-neutral while
 still configuring window title, logical size, minimum size, maximized state,
 decorations, icon, target frame rate, and whether native file drag-and-drop is
-requested on platforms that support it. Window launch and manifest builders
+requested on platforms that support it. Native animation frame rates are
+normalized through `NativeRunOptions::normalized_target_fps()` and the exported
+`MIN_NATIVE_TARGET_FPS` / `MAX_NATIVE_TARGET_FPS` bounds before timed redraws
+or present-mode selection use them. Window launch and manifest builders
 provide integer `.size(...)` convenience methods plus `.logical_size(...)` and
 `.min_logical_size(...)` when hosts need fractional logical dimensions.
 `NativeGpuOptions` and `NativeGpuBackend` keep WGPU backend selection explicit

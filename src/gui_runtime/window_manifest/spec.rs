@@ -170,6 +170,11 @@ impl WindowSpec {
         self.options.target_fps
     }
 
+    /// Return the effective target animation frame rate after native policy clamping.
+    pub const fn normalized_target_frame_rate(&self) -> u32 {
+        self.options.normalized_target_fps()
+    }
+
     /// Borrow the native options represented by this descriptor.
     pub const fn native_options(&self) -> &NativeRunOptions {
         &self.options

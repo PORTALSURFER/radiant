@@ -51,7 +51,10 @@ where
         let supported_present_modes = surface
             .get_capabilities(render_ctx.devices[dev_id].adapter())
             .present_modes;
-        let present_mode = select_present_mode(self.options.target_fps, &supported_present_modes);
+        let present_mode = select_present_mode(
+            self.options.normalized_target_fps(),
+            &supported_present_modes,
+        );
         let render_surface = match pollster::block_on(render_ctx.create_render_surface(
             surface,
             width,

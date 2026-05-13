@@ -3,7 +3,7 @@
 use std::time::{Duration, Instant};
 
 pub(super) fn animation_frame_interval(target_fps: u32) -> Duration {
-    let fps = target_fps.clamp(1, 240);
+    let fps = crate::gui_runtime::options::normalize_native_target_fps(target_fps);
     Duration::from_secs_f64(1.0 / f64::from(fps))
 }
 

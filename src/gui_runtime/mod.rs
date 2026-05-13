@@ -35,7 +35,8 @@ pub use native_vello::{
     NativeStartupTimingArtifact, run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
 };
 pub use options::{
-    DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, NativeGpuBackend, NativeGpuOptions,
-    NativePopupOptions, NativeRunOptions, NativeTextOptions, NativeWindowMode, WindowIconRgba,
+    DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS,
+    NativeGpuBackend, NativeGpuOptions, NativePopupOptions, NativeRunOptions, NativeTextOptions,
+    NativeWindowMode, WindowIconRgba,
 };
 pub use window_manifest::{WindowManifest, WindowManifestError, WindowSpec, WindowSpecError};

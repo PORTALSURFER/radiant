@@ -1,5 +1,9 @@
 use super::*;
-use crate::widgets::{ButtonWidget, TextWidget, WidgetSizing};
+use crate::{
+    layout::ContainerKind,
+    runtime::{ClipAncestors, SurfaceChild, SurfaceNode, WidgetMessageMapper, WidgetPath},
+    widgets::{ButtonWidget, TextWidget, WidgetSizing},
+};
 
 #[test]
 fn widget_path_uses_inline_storage_for_common_shallow_paths() {

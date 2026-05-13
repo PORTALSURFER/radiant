@@ -28,10 +28,10 @@ mod surface;
 pub use crate::gui_runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS,
     NativeGenericRunError, NativeGenericRunReport, NativeGenericRuntimeArtifacts, NativeGpuBackend,
-    NativeGpuOptions, NativePopupOptions, NativeRunOptions, NativeStartupTimingArtifact,
-    NativeTextOptions, NativeWindowMode, RuntimeRunReport, WindowIconRgba, WindowManifest,
-    WindowManifestError, WindowSpec, WindowSpecError, run_native_vello_runtime,
-    run_native_vello_runtime_with_artifacts,
+    NativeGpuOptions, NativePopupOptions, NativeRunOptions, NativeRunOptionsError,
+    NativeStartupTimingArtifact, NativeTextOptions, NativeWindowMode, RuntimeRunReport,
+    WindowIconRgba, WindowManifest, WindowManifestError, WindowSpec, WindowSpecError,
+    run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
 };
 pub use bridge::{
     App, DeclarativeCommandRuntimeBridge, DeclarativeOwnedCommandRuntimeBridge,

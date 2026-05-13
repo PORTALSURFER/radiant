@@ -57,7 +57,7 @@ pub mod prelude {
         text_input_mapped, toggle, toggle_mapped, tree_list, tree_list_with_drag, virtual_list,
         virtual_list_window, virtual_scroll, widget, window,
     };
-    pub use crate::gui::types::{ImageRgba, Point, Rect, Rgba8, Vector2};
+    pub use crate::gui::types::{ImageRgba, ImageRgbaError, Point, Rect, Rgba8, Vector2};
     pub use crate::gui::{
         chrome::{ContentViewChrome, StatusSegments},
         focus::FocusSurface,

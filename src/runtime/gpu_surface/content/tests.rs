@@ -1,0 +1,83 @@
+use super::*;
+use crate::gui::types::{ImageRgba, Point, Vector2};
+
+#[test]
+fn signal_render_shape_rejects_invalid_payload_contracts() {
+    let samples: Arc<[f32]> = [0.0, 1.0].into();
+    let invalid_band_count = GpuSurfaceContent::SignalBands {
+        frames: 2,
+        band_count: 0,
+        frame_range: [0.0, 2.0],
+        samples: Arc::clone(&samples),
+    };
+    let invalid_range = GpuSurfaceContent::SignalBands {
+        frames: 2,
+        band_count: 1,
+        frame_range: [2.0, 2.0],
+        samples,
+    };
+
+    assert!(!invalid_band_count.is_renderable());
+    assert_eq!(invalid_band_count.signal_render_shape(), None);
+    assert!(!invalid_range.is_renderable());
+    assert_eq!(invalid_range.signal_render_shape(), None);
+}
+
+#[test]
+fn signal_render_shape_uses_effective_available_frame_count() {
+    let content = GpuSurfaceContent::SignalBands {
+        frames: 8,
+        band_count: 2,
+        frame_range: [0.0, 8.0],
+        samples: [0.0, 1.0, 0.5, -0.25].into(),
+    };
+
+    assert_eq!(
+        content.signal_render_shape(),
+        Some(GpuSignalRenderShape {
+            frames: 2,
+            band_count: 2,
+            frame_range: [0.0, 8.0],
+            sample_count: 4,
+        })
+    );
+}
+
+#[test]
+fn signal_summary_payload_must_match_declared_shape() {
+    let summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
+        &[0.0, 1.0, -0.5, 0.25],
+        2,
+        2,
+    ));
+    let content = GpuSurfaceContent::SignalSummaryBands {
+        frames: 2,
+        band_count: 1,
+        frame_range: [0.0, 2.0],
+        summary,
+    };
+
+    assert!(!content.is_renderable());
+    assert_eq!(content.signal_render_shape(), None);
+}
+
+#[test]
+fn rgba_atlas_source_rect_must_be_inside_atlas() {
+    let atlas = Arc::new(ImageRgba::new(8, 4, vec![255; 8 * 4 * 4]).expect("valid atlas"));
+    let valid = GpuSurfaceContent::RgbaAtlas {
+        source_rect: Rect::from_min_size(Point::new(2.0, 1.0), Vector2::new(4.0, 2.0)),
+        atlas: Arc::clone(&atlas),
+    };
+    let overflows = GpuSurfaceContent::RgbaAtlas {
+        source_rect: Rect::from_min_size(Point::new(6.0, 1.0), Vector2::new(4.0, 2.0)),
+        atlas: Arc::clone(&atlas),
+    };
+    let negative_origin = GpuSurfaceContent::RgbaAtlas {
+        source_rect: Rect::from_min_size(Point::new(-1.0, 0.0), Vector2::new(4.0, 2.0)),
+        atlas,
+    };
+
+    assert!(valid.is_renderable());
+    assert!(!overflows.is_renderable());
+    assert!(!negative_origin.is_renderable());
+}

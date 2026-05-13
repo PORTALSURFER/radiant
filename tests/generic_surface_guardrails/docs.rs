@@ -93,8 +93,8 @@ fn pointer_move_repaint_contract_is_documented() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
         .expect("Radiant API docs should be readable");
-    let contract = fs::read_to_string(manifest_dir.join("src/widgets/contract.rs"))
-        .expect("Radiant widget contract should be readable");
+    let contract = fs::read_to_string(manifest_dir.join("src/widgets/contract/widget.rs"))
+        .expect("Radiant widget trait contract should be readable");
 
     for required in [
         "Widget::accepts_pointer_move()",

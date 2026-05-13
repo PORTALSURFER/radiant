@@ -15,6 +15,7 @@ pub use frame::SurfaceFrame;
 pub(in crate::runtime) use input::WidgetDispatchResult;
 pub(in crate::runtime) use layout::SurfaceRuntimeProjection;
 pub use node::{SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceOverlay};
+pub(in crate::runtime) use paint::estimated_paint_primitive_capacity;
 pub(in crate::runtime) use path::{ClipAncestors, WidgetPath};
 pub(in crate::runtime) use traversal::{SurfaceTraversalIndex, SurfaceTraversalStats};
 pub use widget::{MessageMapper, SurfaceWidget, WidgetMessageMapper};
@@ -220,39 +221,5 @@ impl<Message> UiSurface<Message> {
             &previous.root,
             previous_paths,
         );
-    }
-}
-
-pub(in crate::runtime) fn estimated_paint_primitive_capacity(layout: &LayoutOutput) -> usize {
-    const MAX_INITIAL_PAINT_PRIMITIVE_CAPACITY: usize = 1024;
-    layout
-        .rects
-        .len()
-        .saturating_mul(3)
-        .min(MAX_INITIAL_PAINT_PRIMITIVE_CAPACITY)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn estimated_paint_primitive_capacity_scales_for_small_layouts() {
-        let mut layout = LayoutOutput::default();
-        for node_id in 0..16 {
-            layout.rects.insert(node_id, Default::default());
-        }
-
-        assert_eq!(estimated_paint_primitive_capacity(&layout), 48);
-    }
-
-    #[test]
-    fn estimated_paint_primitive_capacity_caps_large_initial_reserves() {
-        let mut layout = LayoutOutput::default();
-        for node_id in 0..10_000 {
-            layout.rects.insert(node_id, Default::default());
-        }
-
-        assert_eq!(estimated_paint_primitive_capacity(&layout), 1024);
     }
 }

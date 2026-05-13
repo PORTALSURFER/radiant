@@ -670,9 +670,6 @@ builder.
 Run `cargo run --example background_loading` for a background-work sandbox that
 uses `ResourceSlot`, `ResourceLoad`, and `UpdateContext::spawn(...)` to route
 worker resource results back into the normal state update path.
-Run `cargo run --example busy_progress` for a background-work progress sandbox
-that starts slow tasks with `UpdateContext::spawn(...)`, uses animation frames
-while work is active, and paints aggregate progress through a retained canvas.
 Run `cargo run --example typography` for a focused text sandbox that exercises
 wrapping, truncation, fixed text heights, fill sizing, and explicit baselines
 through the application-builder API.
@@ -689,8 +686,8 @@ Run `cargo run --example toolbar_icons` for a horizontal SVG-icon toolbar
 sandbox that uses custom toggle buttons, state-driven active highlights, and
 muted inactive vector icons.
 Run `cargo run --example status_bar` for a bottom status-bar sandbox that shows
-button actions, toggle state, and background worker progress flowing into a
-thin persistent status strip.
+button actions, toggle state, animation updates, and background worker progress
+flowing into a one-line log and retained-canvas progress strip.
 Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that
 uses `grid_with_gaps(...)` with normal nested views and styling.
 Run `cargo run --example theme_playground` for a theme-token sandbox that

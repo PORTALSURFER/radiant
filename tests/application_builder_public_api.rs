@@ -1,13 +1,10 @@
 //! Public API coverage for Radiant application builder ergonomics.
 
 use radiant::{
-    gui::types::Rgba8,
     layout::{
-        LayoutDebugOptions, LayoutOutput, LayoutState, Point, Rect, Vector2, layout_tree,
-        layout_tree_with_state,
+        LayoutDebugOptions, LayoutState, Point, Rect, Vector2, layout_tree, layout_tree_with_state,
     },
     runtime::{RuntimeBridge, UiSurface, WidgetMessageMapper},
-    theme::ThemeTokens,
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, SelectableMessage,
         SelectableWidget, SliderMessage, SliderWidget, TextInputMessage, TextInputWidget,
@@ -17,6 +14,8 @@ use radiant::{
 
 #[path = "application_builder_public_api/collection_layout.rs"]
 mod collection_layout;
+#[path = "application_builder_public_api/prelude_exports.rs"]
+mod prelude_exports;
 #[path = "application_builder_public_api/runtime_behavior.rs"]
 mod runtime_behavior;
 #[path = "application_builder_public_api/runtime_options.rs"]
@@ -631,157 +630,4 @@ fn application_builders_expose_padding_style_and_text_policy_helpers() {
         ),
         Some(())
     );
-}
-
-#[test]
-fn prelude_supports_hello_world_imports() {
-    use radiant::prelude::*;
-
-    fn hello_body() -> impl IntoView<()> {
-        text("Hello, world!")
-    }
-
-    let surface = hello_body().into_surface();
-
-    assert!(surface.find_widget(1).is_some());
-}
-
-#[test]
-fn prelude_exports_application_chrome_models() {
-    use radiant::prelude as ui;
-
-    let status = ui::StatusSegments::primary("Ready")
-        .with_center("Autosave on")
-        .with_right("Idle");
-    let chrome = ui::ContentViewChrome::default();
-
-    assert_eq!(status.left, "Ready");
-    assert_eq!(status.center, "Autosave on");
-    assert_eq!(status.right, "Idle");
-    assert_eq!(chrome.item_column_label, "Item");
-}
-
-#[test]
-fn prelude_exports_custom_widget_authoring_contract() {
-    use radiant::prelude::{self as ui, IntoView};
-
-    #[derive(Clone)]
-    struct AuthorWidget {
-        common: ui::WidgetCommon,
-    }
-
-    impl ui::Widget for AuthorWidget {
-        fn common(&self) -> &ui::WidgetCommon {
-            &self.common
-        }
-
-        fn common_mut(&mut self) -> &mut ui::WidgetCommon {
-            &mut self.common
-        }
-
-        fn handle_input(
-            &mut self,
-            _bounds: Rect,
-            input: ui::WidgetInput,
-        ) -> Option<ui::WidgetOutput> {
-            match input {
-                ui::WidgetInput::KeyPress(ui::WidgetKey::Enter) => {
-                    Some(ui::WidgetOutput::custom(()))
-                }
-                ui::WidgetInput::PointerRelease {
-                    button: ui::PointerButton::Primary,
-                    ..
-                } => Some(ui::WidgetOutput::custom(())),
-                _ => None,
-            }
-        }
-
-        fn append_paint(
-            &self,
-            primitives: &mut Vec<ui::PaintPrimitive>,
-            bounds: Rect,
-            _layout: &LayoutOutput,
-            _theme: &ThemeTokens,
-        ) {
-            primitives.push(ui::PaintPrimitive::FillRect(ui::PaintFillRect {
-                widget_id: self.common.id,
-                rect: bounds,
-                color: Rgba8 {
-                    r: 255,
-                    g: 255,
-                    b: 255,
-                    a: 255,
-                },
-            }));
-        }
-    }
-
-    let mut common = ui::WidgetCommon::new(77, ui::WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
-    common.focus = ui::FocusBehavior::Keyboard;
-    common.state = ui::WidgetState {
-        hovered: true,
-        ..ui::WidgetState::default()
-    };
-    let widget = AuthorWidget { common };
-    let surface: ui::View<()> = ui::widget(widget);
-    let surface = surface.into_surface();
-
-    assert!(surface.find_widget(1).is_some());
-}
-
-#[test]
-fn prelude_exports_custom_widget_signature_types() {
-    use radiant::prelude as ui;
-
-    let rect = ui::Rect::from_min_size(ui::Point::new(0.0, 0.0), ui::Vector2::new(8.0, 4.0));
-    let layout = ui::LayoutOutput::default();
-    let theme = ui::ThemeTokens::default();
-    let color = ui::Rgba8 {
-        r: 1,
-        g: 2,
-        b: 3,
-        a: 255,
-    };
-    let image = ui::ImageRgba::new(1, 1, vec![255, 255, 255, 255]).expect("valid image");
-
-    assert_eq!(rect.width(), 8.0);
-    assert!(layout.rects.is_empty());
-    assert_eq!(theme.text_primary.a, 255);
-    assert_eq!(color.g, 2);
-    assert_eq!(image.width, 1);
-}
-
-#[test]
-fn prelude_exports_svg_icon_vector_painting() {
-    use radiant::prelude as ui;
-
-    let icon = ui::SvgIcon::from_svg(
-        r#"<svg viewBox="0 0 4 4"><rect x="0" y="0" width="4" height="4"/></svg>"#,
-    )
-    .expect("filled SVG rect should parse");
-    let mut primitives = Vec::new();
-    icon.append_paint(
-        &mut primitives,
-        1,
-        ui::Rect::from_min_size(ui::Point::new(2.0, 3.0), ui::Vector2::new(4.0, 4.0)),
-    );
-
-    assert!(matches!(
-        primitives.as_slice(),
-        [ui::PaintPrimitive::Svg(_)]
-    ));
-}
-
-#[test]
-fn hello_world_example_stays_on_application_builders() {
-    let source = include_str!("../examples/hello_world.rs");
-
-    assert!(source.contains("use radiant::prelude::*;"));
-    assert!(source.contains("radiant::window(\"Radiant Hello World\")"));
-    assert!(source.contains(".run(text(\"Hello, world!\"))"));
-    assert!(!source.contains("NativeRunOptions"));
-    assert!(!source.contains("RuntimeBridge"));
-    assert!(!source.contains("SurfaceChild"));
-    assert!(!source.contains("WidgetSizing"));
-    assert!(!source.contains("declarative_command_runtime_bridge"));
 }

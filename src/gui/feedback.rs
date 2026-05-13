@@ -14,6 +14,6 @@ pub use progress::{
     horizontal_progress_track_rect,
 };
 pub use status::{
-    ConfirmPrompt, DragOverlay, HealthState, PromptIntent, RecoverySummary, UpdatePanel,
-    UpdateStatus,
+    ConfirmPrompt, DragOverlay, HealthState, PromptIntent, RecoverySummary, StatusLineEntry,
+    StatusLineLog, UpdatePanel, UpdateStatus,
 };

@@ -60,6 +60,7 @@ pub mod prelude {
     pub use crate::gui::types::{ImageRgba, ImageRgbaError, Point, Rect, Rgba8, Vector2};
     pub use crate::gui::{
         chrome::{ContentViewChrome, StatusSegments},
+        feedback::{StatusLineEntry, StatusLineLog},
         focus::FocusSurface,
         input::{KeyCode, KeyPress},
         list::{VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window},

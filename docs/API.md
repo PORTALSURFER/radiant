@@ -33,8 +33,8 @@ Radiant's application API is designed to be easy to read without hiding the
 runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `app`, `text`, `button`, `row`, `column`, `scroll`, `scroll_column`, `list`,
 `list_row`, `toggle`, `text_input`, `custom_widget`, `IntoView`, `View`,
-`StateView`, `Command`, `EmbeddedFont`, `StatusSegments`,
-`ContentViewChrome`, common custom-widget authoring contracts such as
+`StateView`, `Command`, `EmbeddedFont`, `StatusSegments`, `StatusLineLog`,
+`StatusLineEntry`, `ContentViewChrome`, common custom-widget authoring contracts such as
 `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`,
 `PointerButton`, `FocusBehavior`, and backend-neutral paint primitives such as
 `PaintPrimitive`, `PaintFillRect`, `PaintFillPath`, `PaintTransform`, and
@@ -787,8 +787,11 @@ snapshot schema is generic Radiant API.
 ## Generic Panels And Forms
 
 `radiant::gui::chrome` contains generic chrome/status models such as
-`StatusSegments` and `ContentViewChrome`. Host applications map product-specific
-copy into these slots; Radiant defaults stay product-neutral.
+`StatusSegments` and `ContentViewChrome`. `radiant::gui::feedback` contains
+compact feedback models such as `StatusLineLog` and `StatusLineEntry` for
+bounded one-line status messages from buttons, background workers, animations,
+and other app-owned systems. Host applications map product-specific copy into
+these slots; Radiant defaults stay product-neutral.
 
 `radiant::gui::panel` contains generic split-pane and sidebar models such as
 `SplitPaneSlot`, `SplitPaneAssignedRow`, `SplitPaneTreePanel`, and

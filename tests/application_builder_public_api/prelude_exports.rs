@@ -18,11 +18,16 @@ fn prelude_exports_application_chrome_models() {
     let status = ui::StatusSegments::primary("Ready")
         .with_center("Autosave on")
         .with_right("Idle");
+    let mut log = ui::StatusLineLog::new(2);
+    let entry = ui::StatusLineEntry::new("worker", "finished");
     let chrome = ui::ContentViewChrome::default();
 
+    log.publish(entry.source(), entry.message());
     assert_eq!(status.left, "Ready");
     assert_eq!(status.center, "Autosave on");
     assert_eq!(status.right, "Idle");
+    assert_eq!(log.latest(), "worker: finished");
+    assert_eq!(entry.line(), "worker: finished");
     assert_eq!(chrome.item_column_label, "Item");
 }
 

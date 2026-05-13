@@ -1,11 +1,7 @@
-use super::{
-    model::{StatusBarState, StatusLineLog},
-    paint::progress_frame,
-    view::project_surface,
-};
+use super::{model::StatusBarState, paint::progress_frame, view::project_surface};
 use radiant::{
     layout::{Point, Rect, Vector2},
-    prelude::IntoView,
+    prelude::{IntoView, StatusLineLog},
     theme::ThemeTokens,
 };
 
@@ -17,7 +13,7 @@ fn status_line_log_keeps_latest_bounded_message() {
     log.publish("worker", "started");
     log.publish("animation", "stopped");
 
-    assert_eq!(log.entries.len(), 3);
+    assert_eq!(log.len(), 3);
     assert_eq!(log.latest(), "animation: stopped");
     assert_eq!(
         log.recent_lines(),

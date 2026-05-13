@@ -1,4 +1,4 @@
-use radiant::prelude::StatusSegments;
+use radiant::prelude::{StatusLineLog, StatusSegments};
 
 const LOG_LIMIT: usize = 5;
 
@@ -32,64 +32,6 @@ pub(super) struct WorkItem {
     label: String,
     progress: f32,
     done: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct StatusLineLog {
-    pub(super) entries: Vec<StatusLineEntry>,
-    limit: usize,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct StatusLineEntry {
-    source: String,
-    message: String,
-}
-
-impl StatusLineLog {
-    pub(super) fn new(limit: usize) -> Self {
-        Self {
-            entries: vec![StatusLineEntry::new("system", "Ready")],
-            limit,
-        }
-    }
-
-    pub(super) fn publish(&mut self, source: impl Into<String>, message: impl Into<String>) {
-        self.entries
-            .push(StatusLineEntry::new(source.into(), message.into()));
-        let overflow = self.entries.len().saturating_sub(self.limit);
-        if overflow > 0 {
-            self.entries.drain(0..overflow);
-        }
-    }
-
-    pub(super) fn latest(&self) -> String {
-        self.entries
-            .last()
-            .map(StatusLineEntry::line)
-            .unwrap_or_else(|| "system: Ready".to_string())
-    }
-
-    pub(super) fn recent_lines(&self) -> Vec<String> {
-        self.entries
-            .iter()
-            .rev()
-            .map(StatusLineEntry::line)
-            .collect()
-    }
-}
-
-impl StatusLineEntry {
-    fn new(source: impl Into<String>, message: impl Into<String>) -> Self {
-        Self {
-            source: source.into(),
-            message: message.into(),
-        }
-    }
-
-    fn line(&self) -> String {
-        format!("{}: {}", self.source, self.message)
-    }
 }
 
 impl Default for StatusBarState {

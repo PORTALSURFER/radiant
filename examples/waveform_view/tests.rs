@@ -205,8 +205,11 @@ fn waveform_widget_paints_cached_body_and_cursor_overlay() {
         .collect();
     let file = Arc::new(synthetic_file(mono_samples, 48_000, 2));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(320.0, 96.0));
-    let mut widget =
-        WaveformWidget::new(Arc::clone(&file), WaveformViewport::full(file.frames), None);
+    let mut widget = WaveformWidget::new(
+        Arc::clone(&file),
+        WaveformViewport::full(file.frames),
+        Some(0.42),
+    );
     let mut primitives = Vec::new();
 
     assert_eq!(
@@ -239,6 +242,19 @@ fn waveform_widget_paints_cached_body_and_cursor_overlay() {
         "waveform body should use a GPU signal primitive so zoom does not regenerate pixels"
     );
     assert!(
+        primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::GpuSurface(PaintGpuSurface {
+                overlays,
+                ..
+            }) if matches!(
+                overlays.as_slice(),
+                [GpuSurfaceOverlay::VerticalCursor { ratio, .. }] if (*ratio - 0.42).abs() < 0.001
+            )
+        )),
+        "playhead/cursor state should render as a lightweight GPU-surface overlay"
+    );
+    assert!(
         !primitives
             .iter()
             .any(|primitive| matches!(primitive, PaintPrimitive::FillPolygon(_)))
@@ -248,6 +264,35 @@ fn waveform_widget_paints_cached_body_and_cursor_overlay() {
             .iter()
             .any(|primitive| matches!(primitive, PaintPrimitive::StrokePolyline(_))),
         "cursor line should be handled by the GPU waveform shader"
+    );
+}
+
+#[test]
+fn waveform_widget_omits_cursor_overlay_when_absent() {
+    let mono_samples: Vec<f32> = (0..512)
+        .map(|index| ((index as f32 / 16.0).sin() * 0.8).clamp(-1.0, 1.0))
+        .collect();
+    let file = Arc::new(synthetic_file(mono_samples, 48_000, 2));
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(320.0, 96.0));
+    let widget = WaveformWidget::new(Arc::clone(&file), WaveformViewport::full(file.frames), None);
+    let mut primitives = Vec::new();
+
+    widget.append_paint(
+        &mut primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+
+    assert!(
+        primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::GpuSurface(PaintGpuSurface {
+                overlays,
+                ..
+            }) if overlays.is_empty()
+        )),
+        "non-playing waveform surfaces should not carry a playhead overlay"
     );
 }
 

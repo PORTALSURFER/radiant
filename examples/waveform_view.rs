@@ -5,8 +5,8 @@ use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
     layout::LayoutOutput,
     runtime::{
-        GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceRuntimeOverlays,
-        PaintGpuSurface, PaintPrimitive,
+        GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceOverlay,
+        GpuSurfaceRuntimeOverlays, PaintGpuSurface, PaintPrimitive,
     },
     theme::ThemeTokens,
     widgets::{
@@ -175,14 +175,11 @@ struct WaveformWidget {
     common: WidgetCommon,
     file: Arc<WaveformFile>,
     viewport: WaveformViewport,
+    cursor_ratio: Option<f32>,
 }
 
 impl WaveformWidget {
-    fn new(
-        file: Arc<WaveformFile>,
-        viewport: WaveformViewport,
-        _cursor_ratio: Option<f32>,
-    ) -> Self {
+    fn new(file: Arc<WaveformFile>, viewport: WaveformViewport, cursor_ratio: Option<f32>) -> Self {
         let mut common = WidgetCommon::new(
             0,
             WidgetSizing::fixed(Vector2::new(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)),
@@ -195,6 +192,7 @@ impl WaveformWidget {
             common,
             file,
             viewport,
+            cursor_ratio,
         }
     }
 
@@ -239,6 +237,23 @@ impl Widget for WaveformWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
+        let overlays = self
+            .cursor_ratio
+            .filter(|ratio| ratio.is_finite())
+            .map(|ratio| {
+                vec![GpuSurfaceOverlay::VerticalCursor {
+                    ratio: ratio.clamp(0.0, 1.0),
+                    color: Rgba8 {
+                        r: 255,
+                        g: 232,
+                        b: 180,
+                        a: 245,
+                    },
+                    width: 2.0,
+                }]
+            })
+            .unwrap_or_default();
+
         primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {
             widget_id: self.common.id,
             key: self.file.path_hash(),
@@ -265,7 +280,7 @@ impl Widget for WaveformWidget {
                     },
                 ),
             },
-            overlays: Vec::new(),
+            overlays,
         }));
     }
 }

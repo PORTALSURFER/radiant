@@ -6,7 +6,9 @@ mod svg;
 mod text;
 
 pub use clip::{PaintClipEnd, PaintClipStart};
-pub use plan::{PaintPrimitive, Renderer, SurfacePaintPlan, SurfacePaintStats};
+pub use plan::{
+    PaintPrimitive, Renderer, SurfacePaintPlan, SurfacePaintStats, TransientOverlayContext,
+};
 pub use shape::{
     PaintFillPath, PaintFillPolygon, PaintFillRect, PaintFillRule, PaintPath, PaintPointList,
     PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintTransform,

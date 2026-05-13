@@ -2,7 +2,7 @@
 
 mod declarative;
 
-use super::{Command, PaintPrimitive, ScrollUpdate, SurfacePaintPlan, surface::UiSurface};
+use super::{Command, PaintPrimitive, ScrollUpdate, TransientOverlayContext, surface::UiSurface};
 use crate::gui::{
     focus::FocusSurface,
     input::KeyPress,
@@ -176,16 +176,15 @@ pub trait RuntimeBridge<Message> {
     /// This hook is for lightweight visuals that need frame-rate updates
     /// without changing layout or refreshing the declarative surface snapshot:
     /// drag previews, playheads, tooltip affordances, spectrogram cursors, and
-    /// other overlays that can be anchored to the latest [`SurfacePaintPlan`].
+    /// other overlays that can be anchored to the latest
+    /// [`SurfacePaintPlan`](crate::runtime::SurfacePaintPlan).
     /// Native backends render these primitives over the cached scene and GPU
     /// surfaces, so implementations should keep the output small and avoid
     /// mutating structural application state here.
     fn paint_transient_overlay(
         &mut self,
-        _plan: &SurfacePaintPlan,
+        _context: TransientOverlayContext<'_>,
         _primitives: &mut Vec<PaintPrimitive>,
-        _viewport: Vector2,
-        _animation_time: Duration,
     ) {
     }
 

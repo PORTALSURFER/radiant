@@ -6,7 +6,7 @@ use crate::{
         repaint::RepaintSignal, shortcuts::ShortcutResolution, types::Rect,
     },
     layout::Vector2,
-    runtime::{Command, PaintPrimitive, RuntimeBridge, SurfacePaintPlan, UiSurface},
+    runtime::{Command, PaintPrimitive, RuntimeBridge, TransientOverlayContext, UiSurface},
     widgets::RetainedSurfaceDescriptor,
 };
 use std::{sync::Arc, time::Duration};
@@ -124,13 +124,11 @@ where
 
     fn paint_transient_overlay(
         &mut self,
-        plan: &SurfacePaintPlan,
+        context: TransientOverlayContext<'_>,
         primitives: &mut Vec<PaintPrimitive>,
-        viewport: Vector2,
-        animation_time: Duration,
     ) {
         if let Some(paint) = self.transient_overlay.as_mut() {
-            paint(&mut self.state, plan, primitives, viewport, animation_time);
+            paint(&mut self.state, context, primitives);
         }
     }
 

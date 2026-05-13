@@ -246,8 +246,8 @@ fn main() -> radiant::Result {
         })
         .animation(|state| state.running)
         .on_frame(|| DemoMessage::AnimationFrame)
-        .transient_overlay(|state, plan, primitives, _viewport, _animation_time| {
-            paint_transient_blob(state, plan, primitives);
+        .transient_overlay(|state, context, primitives| {
+            paint_transient_blob(state, context.plan, primitives);
         })
         .update_command(|state: &mut DemoState, message| match message {
             DemoMessage::AnimationFrame => {

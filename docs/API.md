@@ -150,11 +150,12 @@ runtime-owned scroll offsets, `.on_startup(...)`, `.on_shutdown(...)`,
 `.on_close_requested(...)`, `.run_with_artifacts()`, and retained-surface
 painters registered through `.retained_painter(...)`. Apps with small
 frame-rate overlays can register `.transient_overlay(...)` to append
-backend-neutral paint primitives over the cached scene each present frame. This
-keeps structural state, layout, and Vello scene refreshes out of animation paths
-for visuals such as playheads, drag previews, tooltip affordances, cursor
-markers, and lightweight spectrogram overlays that can anchor themselves to the
-latest `SurfacePaintPlan`.
+backend-neutral paint primitives over the cached scene each present frame.
+Radiant passes a `TransientOverlayContext` with the latest `SurfacePaintPlan`,
+viewport, and animation time. This keeps structural state, layout, and Vello
+scene refreshes out of animation paths for visuals such as playheads, drag
+previews, tooltip affordances, cursor markers, and lightweight spectrogram
+overlays.
 Retained canvas views reserve stable cached surfaces with
 `retained_canvas(key).revision(...).dirty_mask(...).volatile(...).on_input(...)`, while the
 app painter owns the corresponding backend-neutral `PaintFrame`.

@@ -4,10 +4,10 @@ use crate::{
         shortcuts::ShortcutResolution, types::Rect,
     },
     layout::Vector2,
-    runtime::{PaintPrimitive, ScrollUpdate, SurfacePaintPlan},
+    runtime::{PaintPrimitive, ScrollUpdate, TransientOverlayContext},
     widgets::RetainedSurfaceDescriptor,
 };
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 mod bridge;
 mod queue;
@@ -24,7 +24,7 @@ pub use update_context::UpdateContext;
 pub(in crate::application) type RetainedPainter<State> =
     Box<dyn FnMut(&mut State, RetainedSurfaceDescriptor, Rect, Vector2) -> Option<GuiPaintFrame>>;
 pub(in crate::application) type TransientOverlayPainter<State> =
-    Box<dyn FnMut(&mut State, &SurfacePaintPlan, &mut Vec<PaintPrimitive>, Vector2, Duration)>;
+    Box<dyn for<'a> FnMut(&mut State, TransientOverlayContext<'a>, &mut Vec<PaintPrimitive>)>;
 pub(in crate::application) type AppAnimation<State> = Box<dyn FnMut(&mut State) -> bool>;
 pub(in crate::application) type AppFrameMessage<Message> = Box<dyn FnMut() -> Message>;
 pub(in crate::application) type AppSubscriptions<State, Message> =

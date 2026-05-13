@@ -5,6 +5,7 @@ use crate::gui::repaint::RepaintSignal;
 
 mod composited_base;
 mod core;
+mod event_routing;
 mod frame_cadence;
 mod gpu_surface;
 mod gpu_surface_cursor;

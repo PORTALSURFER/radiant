@@ -5,6 +5,7 @@ use crate::gui::repaint::RepaintSignal;
 
 mod composited_base;
 mod core;
+mod frame_cadence;
 mod gpu_surface;
 mod gpu_surface_cursor;
 mod gpu_surface_interaction;
@@ -26,6 +27,7 @@ use composited_base::{
 pub(in crate::gui_runtime::native_vello) use core::{
     GenericNativeRuntimeCore, GenericRouteOutcome,
 };
+use frame_cadence::{TimedFrameCadence, timed_frame_cadence};
 use gpu_surface::GpuSurfaceRenderer;
 use gpu_surface_interaction::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
@@ -33,8 +35,8 @@ use post_gpu_overlay::PostGpuOverlayRenderer;
 use present::RenderFrameProfile;
 use runner::GenericNativeVelloRunner;
 use runtime_helpers::{
-    GpuSurfaceInteractionRegion, TimedFrameCadence, collect_gpu_surface_interaction_regions,
-    maybe_log_route_profile, render_profile_enabled, scroll_delta_to_logical, timed_frame_cadence,
+    GpuSurfaceInteractionRegion, collect_gpu_surface_interaction_regions, maybe_log_route_profile,
+    render_profile_enabled, scroll_delta_to_logical,
 };
 use runtime_wakeup::RuntimeWakeup;
 pub(in crate::gui_runtime::native_vello) use scene::{

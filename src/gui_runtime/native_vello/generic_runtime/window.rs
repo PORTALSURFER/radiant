@@ -7,7 +7,7 @@ pub(super) fn generic_window_attributes(options: &NativeRunOptions) -> WindowAtt
         .with_title(options.title.clone())
         .with_maximized(options.maximized)
         .with_decorations(options.decorations)
-        .with_visible(false);
+        .with_visible(options.is_popup());
     if let NativeWindowMode::Popup(popup) = options.window_mode {
         attrs = apply_popup_window_attributes(attrs, popup);
     }

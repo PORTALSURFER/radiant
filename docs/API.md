@@ -151,8 +151,9 @@ requesting popup-native window policy. Use `WindowSpec::popup(...)`,
 borderless transient windows such as drag previews, context menus, tooltips, and
 small floating panels that need to render outside the main application window.
 `NativePopupOptions` controls the optional initial screen position,
-transparency, topmost behavior, focus-on-open behavior, resizability, and
-taskbar presence where the platform supports those hints. Direct
+transparency, topmost behavior, focus-on-open behavior, resizability, taskbar
+presence, and an optional top-edge native drag region where the platform
+supports those hints. Direct
 `NativeRunOptions` launch paths can call `.validate()` before startup, and the
 native runtime returns `NativeGenericRunError::InvalidWindowOptions` instead of
 passing non-finite or non-positive geometry into the platform window layer.
@@ -733,8 +734,9 @@ that uses `WindowManifest` to describe multiple windows and separate views
 without expanding the native runtime event loop.
 Run `cargo run --example popup_window` for a launcher-and-popup sandbox: the
 normal main window lets you choose a popup mode, starts a real borderless
-Radiant popup window in a child process, and the popup closes itself through the
-normal runtime exit command. This demonstrates the current host-owned
+Radiant popup window in a child process, and the popup can be dragged by its
+title area or closed through the normal runtime exit command. This demonstrates
+the current host-owned
 multi-window adapter boundary while keeping transient UI surfaces on the same
 Radiant app and widget model.
 Run `cargo run --example layout_diagnostics` for a layout diagnostics sandbox

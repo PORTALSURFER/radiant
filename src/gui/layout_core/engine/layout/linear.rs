@@ -1,15 +1,19 @@
 //! Row and column layout implementation.
 
+mod placement;
+mod sizing;
+
 use super::super::helpers::{
-    LayoutAxis, LinearLayoutState, align_main_offsets, allocate_fill_sizes,
-    apply_linear_overflow_policy, linear_sizing_summary, place_child_rect, resolved_main_size,
-    resolved_main_sizes_into, resolved_main_total,
+    LayoutAxis, align_main_offsets, allocate_fill_sizes, apply_linear_overflow_policy,
+    linear_sizing_summary, resolved_main_sizes_into, resolved_main_total,
 };
 use super::super::{LayoutContext, LayoutDiagnosticCode};
-use super::layout_node;
-use crate::gui::layout_core::model::{SizeModeCross, SizeModeMain, SlotParams};
-use crate::gui::layout_core::tree::{ContainerNode, NodeId, SlotChild};
-use crate::gui::types::{Rect, Vector2};
+use crate::gui::layout_core::tree::ContainerNode;
+use crate::gui::types::Rect;
+
+use placement::{LinearChildSizes, place_linear_children};
+use sizing::collect_layout_states;
+pub(super) use sizing::{resolve_cross_layout, resolve_nonfill_main};
 
 pub(super) fn layout_linear(
     container: &ContainerNode,
@@ -169,164 +173,4 @@ pub(super) fn layout_linear(
         distributed_spacing,
         context,
     );
-}
-
-enum LinearChildSizes<'a> {
-    Slice(&'a [f32]),
-    Uniform { main_size: f32, len: usize },
-    Resolved,
-}
-
-impl LinearChildSizes<'_> {
-    fn matches_len(&self, states_len: usize) -> bool {
-        match self {
-            Self::Slice(sizes) => sizes.len() == states_len,
-            Self::Uniform { len, .. } => *len == states_len,
-            Self::Resolved => true,
-        }
-    }
-
-    fn get(&self, index: usize, state: &LinearLayoutState<'_>) -> Option<f32> {
-        match self {
-            Self::Slice(sizes) => sizes.get(index).copied(),
-            Self::Uniform { main_size, len } => (index < *len).then_some(*main_size),
-            Self::Resolved => Some(resolved_main_size(state)),
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn collect_layout_states<'a>(
-    container: &'a ContainerNode,
-    context: &mut LayoutContext,
-    horizontal: bool,
-    available_main: f32,
-    start_index: usize,
-    end_index_exclusive: usize,
-) -> Vec<LinearLayoutState<'a>> {
-    let clamped_start = start_index.min(container.children.len());
-    let clamped_end = end_index_exclusive.min(container.children.len());
-    let selected = &container.children[clamped_start..clamped_end];
-    let mut states = Vec::with_capacity(selected.len());
-    for child in selected {
-        let measured =
-            super::super::measure::measure_node(&child.child, child.slot.constraints, context);
-        let main = resolve_nonfill_main(
-            horizontal,
-            child,
-            measured,
-            available_main,
-            context,
-            child.child.id(),
-        );
-        states.push(LinearLayoutState::new(child, measured, main));
-    }
-    states
-}
-
-#[allow(clippy::too_many_arguments)]
-fn place_linear_children(
-    container: &ContainerNode,
-    content: Rect,
-    horizontal: bool,
-    available_cross: f32,
-    states: &[LinearLayoutState<'_>],
-    sizes: LinearChildSizes<'_>,
-    leading: f32,
-    distributed_spacing: f32,
-    context: &mut LayoutContext,
-) {
-    if !sizes.matches_len(states.len()) {
-        return;
-    }
-    let mut cursor = leading;
-    for (index, state) in states.iter().enumerate() {
-        let slot_child = state.slot_child;
-        let slot = slot_child.slot;
-        let main_margin_before = if horizontal {
-            slot.margin.left
-        } else {
-            slot.margin.top
-        };
-        let main_margin_after = if horizontal {
-            slot.margin.right
-        } else {
-            slot.margin.bottom
-        };
-        cursor += main_margin_before;
-        let Some(child_main) = sizes.get(index, state).map(|size| size.max(0.0)) else {
-            return;
-        };
-        let child_cross = resolve_cross_layout(
-            horizontal,
-            slot.size_cross,
-            state.measured,
-            available_cross,
-            slot,
-            context,
-            slot_child.child.id(),
-        );
-        let cross_align = slot
-            .align_cross_override
-            .unwrap_or(container.policy.align_cross);
-        let child_rect = place_child_rect(
-            content,
-            horizontal,
-            cursor,
-            child_main,
-            child_cross,
-            slot,
-            cross_align,
-        );
-        context.record_slot_margin(slot_child.child.id(), child_rect, slot.margin);
-        layout_node(&slot_child.child, child_rect, context);
-        cursor += child_main + main_margin_after + distributed_spacing;
-    }
-}
-
-pub(super) fn resolve_nonfill_main(
-    horizontal: bool,
-    slot_child: &SlotChild,
-    measured: Vector2,
-    available_main: f32,
-    context: &mut LayoutContext,
-    node_id: NodeId,
-) -> f32 {
-    let slot = slot_child.slot;
-    let raw = match slot.size_main {
-        SizeModeMain::Fixed(value) => value,
-        SizeModeMain::Percent(percent) => available_main * percent.clamp(0.0, 1.0),
-        SizeModeMain::Intrinsic => {
-            if horizontal {
-                measured.x
-            } else {
-                measured.y
-            }
-        }
-        SizeModeMain::Fill(_) => available_main,
-    };
-    context.clamp_main(node_id, horizontal, slot.constraints, raw)
-}
-
-pub(super) fn resolve_cross_layout(
-    horizontal: bool,
-    mode: SizeModeCross,
-    measured: Vector2,
-    available_cross: f32,
-    slot: SlotParams,
-    context: &mut LayoutContext,
-    node_id: NodeId,
-) -> f32 {
-    let raw = match mode {
-        SizeModeCross::Fixed(value) => value,
-        SizeModeCross::Fill => available_cross,
-        SizeModeCross::Intrinsic => {
-            if horizontal {
-                measured.y
-            } else {
-                measured.x
-            }
-        }
-    };
-    context.clamp_cross(node_id, horizontal, slot.constraints, raw)
 }

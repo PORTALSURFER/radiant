@@ -274,7 +274,7 @@ mod tests {
 
     #[test]
     fn replayable_suffix_starts_after_last_gpu_surface() {
-        let primitives = vec![fill(1), gpu(2), fill(3), gpu(4), stroke(5), fill(6)];
+        let primitives = [fill(1), gpu(2), fill(3), gpu(4), stroke(5), fill(6)];
         let suffix = primitives
             .iter()
             .rposition(|primitive| matches!(primitive, PaintPrimitive::GpuSurface(_)))

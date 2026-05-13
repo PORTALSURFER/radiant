@@ -1,4 +1,4 @@
-use super::*;
+use crate::runtime::{SurfaceNode, UiSurface};
 
 /// Converts application view values into the existing runtime surface.
 pub trait IntoView<Message> {

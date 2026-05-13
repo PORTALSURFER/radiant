@@ -45,21 +45,22 @@ fn generic_core_empty_runtime_wakeup_does_not_need_redraw() {
 fn generic_core_is_repaint_driven_when_host_reports_no_animation() {
     let mut core = GenericNativeRuntimeCore::new(demo_bridge(), Vector2::new(320.0, 40.0));
 
-    assert!(!core.needs_animation());
+    assert!(!core.animation_activity().needs_animation());
 }
 
 #[test]
 fn generic_core_preserves_animation_when_host_requests_it() {
     let mut core = GenericNativeRuntimeCore::new(AnimatingBridge, Vector2::new(320.0, 40.0));
 
-    assert!(core.needs_animation());
+    assert!(core.animation_activity().needs_animation());
 }
 
 #[test]
 fn generic_core_turns_message_free_animation_into_paint_only_redraw() {
     let mut core = GenericNativeRuntimeCore::new(AnimatingBridge, Vector2::new(320.0, 40.0));
 
-    let outcome = core.drain_timed_frame(true, false);
+    let activity = core.animation_activity();
+    let outcome = core.drain_timed_frame(activity, false);
 
     assert!(!outcome.routed);
     assert!(outcome.needs_redraw());
@@ -71,7 +72,10 @@ fn generic_core_turns_scene_animation_into_scene_rebuild_redraw() {
     let mut core = GenericNativeRuntimeCore::new(demo_bridge(), Vector2::new(320.0, 40.0));
 
     assert!(core.runtime.focus_widget(12));
-    let outcome = core.drain_timed_frame(false, core.has_focused_text_input());
+    let outcome = core.drain_timed_frame(
+        crate::runtime::RuntimeAnimationActivity::idle(),
+        core.has_focused_text_input(),
+    );
 
     assert!(!outcome.routed);
     assert!(outcome.needs_redraw());

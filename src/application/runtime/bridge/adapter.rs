@@ -6,7 +6,10 @@ use crate::{
         repaint::RepaintSignal, shortcuts::ShortcutResolution, types::Rect,
     },
     layout::Vector2,
-    runtime::{Command, PaintPrimitive, RuntimeBridge, TransientOverlayContext, UiSurface},
+    runtime::{
+        Command, PaintPrimitive, RuntimeAnimationActivity, RuntimeBridge, TransientOverlayContext,
+        UiSurface,
+    },
     widgets::RetainedSurfaceDescriptor,
 };
 use std::{sync::Arc, time::Duration};
@@ -95,6 +98,10 @@ where
     }
 
     fn needs_animation(&mut self) -> bool {
+        self.animation_activity().needs_animation()
+    }
+
+    fn animation_activity(&mut self) -> RuntimeAnimationActivity {
         let app_animation = self
             .animation
             .as_mut()
@@ -103,7 +110,10 @@ where
             .transient_overlay_activity
             .as_mut()
             .is_some_and(|activity| activity(&mut self.state));
-        app_animation || transient_overlay_animation
+        RuntimeAnimationActivity::new(
+            app_animation || transient_overlay_animation,
+            app_animation && self.frame_message.is_some(),
+        )
     }
 
     fn queue_animation_frame(&mut self) -> bool {

@@ -21,6 +21,60 @@ pub use declarative::{
     declarative_runtime_bridge,
 };
 
+/// Runtime-visible animation demand for the next timed frame.
+///
+/// Frame-message animation mutates host state through [`RuntimeBridge::queue_animation_frame`].
+/// Paint-only animation only needs another presentation over the cached surface.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RuntimeAnimationActivity {
+    paint_frames: bool,
+    frame_messages: bool,
+}
+
+impl RuntimeAnimationActivity {
+    /// Return an inactive animation state.
+    pub const fn idle() -> Self {
+        Self {
+            paint_frames: false,
+            frame_messages: false,
+        }
+    }
+
+    /// Return an animation state that only needs paint-only redraws.
+    pub const fn paint_only() -> Self {
+        Self {
+            paint_frames: true,
+            frame_messages: false,
+        }
+    }
+
+    /// Return an animation state that should queue host frame messages.
+    pub const fn frame_messages() -> Self {
+        Self {
+            paint_frames: true,
+            frame_messages: true,
+        }
+    }
+
+    /// Build animation activity from explicit paint and message demands.
+    pub const fn new(paint_frames: bool, frame_messages: bool) -> Self {
+        Self {
+            paint_frames,
+            frame_messages: paint_frames && frame_messages,
+        }
+    }
+
+    /// Return whether any animation-driven presentation is currently needed.
+    pub const fn needs_animation(self) -> bool {
+        self.paint_frames
+    }
+
+    /// Return whether the next timed frame should enqueue a host frame message.
+    pub const fn needs_frame_message(self) -> bool {
+        self.frame_messages
+    }
+}
+
 /// Generic host/runtime bridge for declarative message-driven surfaces.
 ///
 /// The host projects one immutable [`UiSurface`] snapshot per frame and reduces
@@ -143,6 +197,19 @@ pub trait RuntimeBridge<Message> {
     /// while the UI is idle.
     fn needs_animation(&mut self) -> bool {
         false
+    }
+
+    /// Return the kind of animation work currently needed.
+    ///
+    /// The default preserves existing custom bridges: a bridge that overrides
+    /// only [`Self::needs_animation`] is treated as frame-message animation so
+    /// the native runtime still calls [`Self::queue_animation_frame`].
+    fn animation_activity(&mut self) -> RuntimeAnimationActivity {
+        if self.needs_animation() {
+            RuntimeAnimationActivity::frame_messages()
+        } else {
+            RuntimeAnimationActivity::idle()
+        }
     }
 
     /// Queue one host-defined animation-frame message if the host is currently

@@ -117,8 +117,8 @@ where
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
-        let needs_animation = self.core.needs_animation();
-        if !needs_animation && !self.core.has_focused_text_input() {
+        let animation_activity = self.core.animation_activity();
+        if !animation_activity.needs_animation() && !self.core.has_focused_text_input() {
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
@@ -130,7 +130,7 @@ where
                 let needs_scene_animation = self.core.has_focused_text_input();
                 let outcome = self
                     .core
-                    .drain_timed_frame(needs_animation, needs_scene_animation);
+                    .drain_timed_frame(animation_activity, needs_scene_animation);
                 if outcome.exit_requested {
                     event_loop.exit();
                     return;

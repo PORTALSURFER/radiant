@@ -164,7 +164,10 @@ previews, tooltip affordances, cursor markers, and lightweight spectrogram
 overlays. Use `.transient_overlay_animation(...)` or the combined
 `.animated_transient_overlay(...)` helper when an overlay can derive motion from
 `context.animation_time`; the native runtime then schedules paint-only frames
-over the cached surface without queuing application frame messages.
+over the cached surface without queuing application frame messages. Custom
+runtime bridges can report the same split explicitly with
+`RuntimeAnimationActivity`, distinguishing frame-message animation from
+paint-only presentation work.
 Retained canvas views reserve stable cached surfaces with
 `retained_canvas(key).revision(...).dirty_mask(...).volatile(...).on_input(...)`, while the
 app painter owns the corresponding backend-neutral `PaintFrame`.

@@ -110,12 +110,18 @@ where
         self.runtime.bridge_mut().queue_animation_frame()
     }
 
-    pub(super) fn drain_animation_frame(&mut self, needs_animation: bool) -> GenericRouteOutcome {
-        if needs_animation {
+    pub(super) fn drain_timed_frame(
+        &mut self,
+        needs_paint_animation: bool,
+        needs_scene_animation: bool,
+    ) -> GenericRouteOutcome {
+        if needs_paint_animation {
             self.queue_animation_frame();
         }
         let mut outcome = self.drain_runtime_messages();
-        if needs_animation && !outcome.needs_redraw() {
+        if !outcome.needs_redraw() && needs_scene_animation {
+            outcome.redraw_requested = true;
+        } else if !outcome.needs_redraw() && needs_paint_animation {
             outcome.paint_only_requested = true;
         }
         outcome

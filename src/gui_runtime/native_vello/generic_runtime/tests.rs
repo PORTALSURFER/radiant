@@ -59,11 +59,23 @@ fn generic_core_preserves_animation_when_host_requests_it() {
 fn generic_core_turns_message_free_animation_into_paint_only_redraw() {
     let mut core = GenericNativeRuntimeCore::new(AnimatingBridge, Vector2::new(320.0, 40.0));
 
-    let outcome = core.drain_animation_frame(true);
+    let outcome = core.drain_timed_frame(true, false);
 
     assert!(!outcome.routed);
     assert!(outcome.needs_redraw());
     assert!(!outcome.needs_scene_rebuild());
+}
+
+#[test]
+fn generic_core_turns_scene_animation_into_scene_rebuild_redraw() {
+    let mut core = GenericNativeRuntimeCore::new(demo_bridge(), Vector2::new(320.0, 40.0));
+
+    assert!(core.runtime.focus_widget(12));
+    let outcome = core.drain_timed_frame(false, core.has_focused_text_input());
+
+    assert!(!outcome.routed);
+    assert!(outcome.needs_redraw());
+    assert!(outcome.needs_scene_rebuild());
 }
 
 #[test]

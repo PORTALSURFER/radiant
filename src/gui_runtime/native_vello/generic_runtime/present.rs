@@ -102,11 +102,14 @@ where
                     label: Some("generic_native_vello_present_blit"),
                 });
         self.transient_overlay_primitives.clear();
+        let started = Instant::now();
         self.core.paint_transient_overlay(
             &self.last_paint_plan,
             &mut self.transient_overlay_primitives,
             self.animation_origin.elapsed(),
         );
+        profile.transient_overlay_paint = started.elapsed();
+        profile.transient_overlay_primitives = self.transient_overlay_primitives.len();
         let started = Instant::now();
         let gpu_surface_stats = present_base_frame(
             &mut BaseFramePresentState {
@@ -200,6 +203,8 @@ fn maybe_log_render_profile(
         gpu_surface_composite_encode_us = gpu_surface_stats.composite_encode_elapsed.as_micros(),
         composited_base_refresh_us = frame.composited_base_refresh.as_micros(),
         composited_base_cache_hit = frame.composited_base_cache_hit,
+        transient_overlay_paint_us = frame.transient_overlay_paint.as_micros(),
+        transient_overlay_primitives = frame.transient_overlay_primitives,
         submit_present_us = frame.submit_present.as_micros(),
         since_last_present_us = since_last_present.as_micros(),
         "radiant native render profile"
@@ -214,5 +219,7 @@ pub(super) struct RenderFrameProfile {
     pub(super) full_screen_blit: Duration,
     pub(super) composited_base_refresh: Duration,
     pub(super) composited_base_cache_hit: bool,
+    pub(super) transient_overlay_paint: Duration,
+    pub(super) transient_overlay_primitives: usize,
     pub(super) submit_present: Duration,
 }

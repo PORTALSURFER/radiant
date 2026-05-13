@@ -75,7 +75,7 @@ pub mod prelude {
         PaintStrokeRect, PaintSvg, PaintSvgDocument, PaintTextAlign, PaintTextRun, PaintTransform,
         ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot, ScrollUpdate,
         SurfaceFrame, SurfacePaintPlan, SvgParseError, TransientOverlayContext, WindowManifest,
-        WindowSpec,
+        WindowManifestError, WindowSpec, WindowSpecError,
     };
     pub use crate::theme::ThemeTokens;
     pub use crate::widgets::{

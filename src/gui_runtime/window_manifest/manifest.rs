@@ -1,5 +1,5 @@
-use super::WindowSpec;
-use std::collections::HashSet;
+use super::{WindowSpec, WindowSpecError};
+use std::{collections::HashSet, fmt};
 
 /// Host-managed collection of application window descriptors.
 ///
@@ -11,6 +11,18 @@ pub struct WindowManifest {
     specs: Vec<WindowSpec>,
 }
 
+/// Error returned when a window manifest contains duplicate or invalid specs.
+#[derive(Clone, Debug, PartialEq)]
+pub enum WindowManifestError {
+    /// Two descriptors use the same stable host-owned key.
+    DuplicateKey {
+        /// Duplicate stable window key.
+        key: String,
+    },
+    /// One descriptor failed its own validation.
+    InvalidSpec(WindowSpecError),
+}
+
 impl WindowManifest {
     /// Build an empty window manifest.
     pub fn new() -> Self {
@@ -18,7 +30,9 @@ impl WindowManifest {
     }
 
     /// Build a manifest from explicit specs.
-    pub fn from_specs(specs: impl IntoIterator<Item = WindowSpec>) -> Result<Self, String> {
+    pub fn from_specs(
+        specs: impl IntoIterator<Item = WindowSpec>,
+    ) -> Result<Self, WindowManifestError> {
         let mut manifest = Self::new();
         for spec in specs {
             manifest.push(spec)?;
@@ -27,9 +41,9 @@ impl WindowManifest {
     }
 
     /// Add one valid window spec, rejecting duplicate stable keys.
-    pub fn push(&mut self, spec: WindowSpec) -> Result<(), String> {
+    pub fn push(&mut self, spec: WindowSpec) -> Result<(), WindowManifestError> {
         if self.specs.iter().any(|existing| existing.key == spec.key) {
-            return Err(format!("duplicate window key '{}'", spec.key));
+            return Err(WindowManifestError::DuplicateKey { key: spec.key });
         }
         spec.validate()?;
         self.specs.push(spec);
@@ -67,14 +81,33 @@ impl WindowManifest {
     }
 
     /// Verify that all window keys are unique and all specs are valid.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), WindowManifestError> {
         let mut seen = HashSet::with_capacity(self.specs.len());
         for spec in &self.specs {
             if !seen.insert(spec.key.as_str()) {
-                return Err(format!("duplicate window key '{}'", spec.key));
+                return Err(WindowManifestError::DuplicateKey {
+                    key: spec.key.clone(),
+                });
             }
             spec.validate()?;
         }
         Ok(())
     }
 }
+
+impl From<WindowSpecError> for WindowManifestError {
+    fn from(error: WindowSpecError) -> Self {
+        Self::InvalidSpec(error)
+    }
+}
+
+impl fmt::Display for WindowManifestError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DuplicateKey { key } => write!(formatter, "duplicate window key '{key}'"),
+            Self::InvalidSpec(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for WindowManifestError {}

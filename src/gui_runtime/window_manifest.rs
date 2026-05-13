@@ -3,5 +3,5 @@
 mod manifest;
 mod spec;
 
-pub use manifest::WindowManifest;
-pub use spec::WindowSpec;
+pub use manifest::{WindowManifest, WindowManifestError};
+pub use spec::{WindowSpec, WindowSpecError};

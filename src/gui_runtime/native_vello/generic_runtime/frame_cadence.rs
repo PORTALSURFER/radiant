@@ -3,6 +3,8 @@
 use crate::runtime::RuntimeAnimationActivity;
 use std::time::{Duration, Instant};
 
+const TEXT_INPUT_CARET_TARGET_FPS: u32 = 30;
+
 pub(super) fn animation_frame_interval(target_fps: u32) -> Duration {
     let fps = crate::gui_runtime::options::normalize_native_target_fps(target_fps);
     Duration::from_secs_f64(1.0 / f64::from(fps))
@@ -38,19 +40,21 @@ pub(super) fn timed_frame_cadence(
 pub(super) fn timed_frame_target_fps(
     native_target_fps: u32,
     animation_activity: RuntimeAnimationActivity,
-    needs_scene_animation: bool,
+    needs_text_caret_animation: bool,
 ) -> u32 {
     let native_target_fps =
         crate::gui_runtime::options::normalize_native_target_fps(native_target_fps);
-    if needs_scene_animation {
+    if let Some(target_fps) = animation_activity.target_fps() {
+        return crate::gui_runtime::options::normalize_native_target_fps(target_fps)
+            .min(native_target_fps);
+    }
+    if animation_activity.needs_animation() {
         return native_target_fps;
     }
-    animation_activity
-        .target_fps()
-        .map_or(native_target_fps, |target_fps| {
-            crate::gui_runtime::options::normalize_native_target_fps(target_fps)
-                .min(native_target_fps)
-        })
+    if needs_text_caret_animation {
+        return TEXT_INPUT_CARET_TARGET_FPS.min(native_target_fps);
+    }
+    native_target_fps
 }
 
 #[cfg(test)]
@@ -106,10 +110,26 @@ mod tests {
     }
 
     #[test]
-    fn timed_frame_target_fps_keeps_native_cadence_for_scene_animation() {
+    fn timed_frame_target_fps_caps_standalone_text_caret_animation() {
+        assert_eq!(
+            timed_frame_target_fps(120, RuntimeAnimationActivity::idle(), true),
+            30
+        );
+        assert_eq!(
+            timed_frame_target_fps(24, RuntimeAnimationActivity::idle(), true),
+            24
+        );
+    }
+
+    #[test]
+    fn timed_frame_target_fps_preserves_explicit_animation_caps_with_text_focus() {
         assert_eq!(
             timed_frame_target_fps(120, RuntimeAnimationActivity::paint_only_at(24), true),
-            120
+            24
+        );
+        assert_eq!(
+            timed_frame_target_fps(120, RuntimeAnimationActivity::frame_messages_at(48), true),
+            48
         );
     }
 }

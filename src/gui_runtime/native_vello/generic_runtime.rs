@@ -27,7 +27,7 @@ use gpu_surface_interaction::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
 use post_gpu_overlay::PostGpuOverlayRenderer;
 use present::RenderFrameProfile;
-use runner::GenericNativeVelloRunner;
+use runner::{CompositedBaseFrame, GenericNativeVelloRunner};
 use runtime_helpers::{
     GpuSurfaceInteractionRegion, animation_frame_interval, collect_gpu_surface_interaction_regions,
     maybe_log_route_profile, render_profile_enabled, scroll_delta_to_logical,

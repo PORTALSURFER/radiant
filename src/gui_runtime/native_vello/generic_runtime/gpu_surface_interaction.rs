@@ -160,11 +160,15 @@ where
                 changed |= clear_surface_cursor_overlay(surface);
             }
         }
+        if changed {
+            self.composited_base_dirty = true;
+        }
         changed
     }
 
     pub(super) fn clear_gpu_surface_cursor_overlay(&mut self, position: Point) -> bool {
-        self.last_paint_plan
+        let changed = self
+            .last_paint_plan
             .primitives
             .iter_mut()
             .filter_map(|primitive| match primitive {
@@ -182,6 +186,10 @@ where
             })
             .fold(false, |changed, surface| {
                 clear_surface_cursor_overlay(surface) || changed
-            })
+            });
+        if changed {
+            self.composited_base_dirty = true;
+        }
+        changed
     }
 }

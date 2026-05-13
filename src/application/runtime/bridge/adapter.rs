@@ -95,9 +95,15 @@ where
     }
 
     fn needs_animation(&mut self) -> bool {
-        self.animation
+        let app_animation = self
+            .animation
             .as_mut()
-            .is_some_and(|animation| animation(&mut self.state))
+            .is_some_and(|animation| animation(&mut self.state));
+        let transient_overlay_animation = self
+            .transient_overlay_activity
+            .as_mut()
+            .is_some_and(|activity| activity(&mut self.state));
+        app_animation || transient_overlay_animation
     }
 
     fn queue_animation_frame(&mut self) -> bool {

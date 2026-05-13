@@ -161,9 +161,10 @@ Radiant passes a `TransientOverlayContext` with the latest `SurfacePaintPlan`,
 viewport, and animation time. This keeps structural state, layout, and Vello
 scene refreshes out of animation paths for visuals such as playheads, drag
 previews, tooltip affordances, cursor markers, and lightweight spectrogram
-overlays. A transient overlay can pair `.animation(...)` with no `.on_frame(...)`
-when the overlay can derive motion from `context.animation_time`; the native
-runtime then schedules paint-only frames over the cached surface.
+overlays. Use `.transient_overlay_animation(...)` or the combined
+`.animated_transient_overlay(...)` helper when an overlay can derive motion from
+`context.animation_time`; the native runtime then schedules paint-only frames
+over the cached surface without queuing application frame messages.
 Retained canvas views reserve stable cached surfaces with
 `retained_canvas(key).revision(...).dirty_mask(...).volatile(...).on_input(...)`, while the
 app painter owns the corresponding backend-neutral `PaintFrame`.
@@ -700,8 +701,8 @@ uses `.animation(...)` and `.on_frame(...)` through the stateful application
 builder.
 Run `cargo run --example gpu_surface_stack_overlay` for a retained GPU surface
 with normal widget overlays plus a transient animated blob that repaints every
-frame from `TransientOverlayContext::animation_time` without refreshing the
-declarative surface.
+frame through `.animated_transient_overlay(...)` without refreshing the
+declarative surface or rebuilding the cached Vello scene.
 Run `cargo run --example background_loading` for a background-work sandbox that
 uses `ResourceSlot`, `ResourceLoad`, and `UpdateContext::spawn(...)` to route
 worker resource results back into the normal state update path.

@@ -8,9 +8,14 @@ fn native_gpu_hover_updates_cached_overlay_without_refreshing_surface() {
         Vector2::new(240.0, 80.0),
     );
     runner.rebuild_scene();
+    runner.composited_base_dirty = false;
     let project_count = runner.core.runtime.bridge().project_count;
 
     assert!(runner.update_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
+    assert!(
+        runner.composited_base_dirty,
+        "cached composed frames must refresh when runtime GPU overlays change"
+    );
     assert_eq!(
         runner.core.runtime.bridge().project_count,
         project_count,

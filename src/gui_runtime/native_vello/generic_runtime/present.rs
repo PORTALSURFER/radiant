@@ -47,6 +47,7 @@ where
             let started = Instant::now();
             self.core.paint_plan_into(&mut self.last_paint_plan);
             profile.paint_plan = started.elapsed();
+            self.composited_base_dirty = true;
             collect_gpu_surface_interaction_regions(
                 &self.last_paint_plan.primitives,
                 &mut self.gpu_surface_interaction_regions,
@@ -89,6 +90,7 @@ where
                 return;
             }
             self.scene_texture_dirty = false;
+            self.composited_base_dirty = true;
             elapsed
         } else {
             Duration::ZERO
@@ -99,31 +101,78 @@ where
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("generic_native_vello_present_blit"),
                 });
-        let started = Instant::now();
-        surface.blitter.copy(
-            &dev_handle.device,
-            &mut encoder,
-            &surface.target_view,
-            &surface_view,
-        );
-        profile.full_screen_blit = started.elapsed();
-        let gpu_surface_stats = self.gpu_surface_renderer.render(
-            &mut gpu_surface::GpuSurfaceRenderTarget {
-                device: &dev_handle.device,
-                queue: &dev_handle.queue,
-                encoder: &mut encoder,
-                target_view: &surface_view,
-                format: surface.config.format,
-                size: Vector2::new(surface.config.width as f32, surface.config.height as f32),
-            },
-            &self.last_paint_plan.primitives,
-        );
         self.transient_overlay_primitives.clear();
         self.core.paint_transient_overlay(
             &self.last_paint_plan,
             &mut self.transient_overlay_primitives,
             self.animation_origin.elapsed(),
         );
+        let started = Instant::now();
+        let use_composited_base = !self.transient_overlay_primitives.is_empty();
+        let gpu_surface_stats = if use_composited_base {
+            let base_frame = CompositedBaseFrame::ensure(
+                &mut self.composited_base_frame,
+                &dev_handle.device,
+                surface.config.width,
+                surface.config.height,
+                surface.config.format,
+            );
+            let base_stats = if self.composited_base_dirty {
+                let base_started = Instant::now();
+                surface.blitter.copy(
+                    &dev_handle.device,
+                    &mut encoder,
+                    &surface.target_view,
+                    &base_frame.view,
+                );
+                let stats = self.gpu_surface_renderer.render(
+                    &mut gpu_surface::GpuSurfaceRenderTarget {
+                        device: &dev_handle.device,
+                        queue: &dev_handle.queue,
+                        encoder: &mut encoder,
+                        target_view: &base_frame.view,
+                        format: surface.config.format,
+                        size: Vector2::new(
+                            surface.config.width as f32,
+                            surface.config.height as f32,
+                        ),
+                    },
+                    &self.last_paint_plan.primitives,
+                );
+                self.composited_base_dirty = false;
+                profile.composited_base_refresh = base_started.elapsed();
+                stats
+            } else {
+                profile.composited_base_cache_hit = true;
+                gpu_surface::GpuSurfaceRenderStats::default()
+            };
+            surface.blitter.copy(
+                &dev_handle.device,
+                &mut encoder,
+                &base_frame.view,
+                &surface_view,
+            );
+            base_stats
+        } else {
+            surface.blitter.copy(
+                &dev_handle.device,
+                &mut encoder,
+                &surface.target_view,
+                &surface_view,
+            );
+            self.gpu_surface_renderer.render(
+                &mut gpu_surface::GpuSurfaceRenderTarget {
+                    device: &dev_handle.device,
+                    queue: &dev_handle.queue,
+                    encoder: &mut encoder,
+                    target_view: &surface_view,
+                    format: surface.config.format,
+                    size: Vector2::new(surface.config.width as f32, surface.config.height as f32),
+                },
+                &self.last_paint_plan.primitives,
+            )
+        };
+        profile.full_screen_blit = started.elapsed();
         self.post_gpu_overlay_renderer.render_layers(
             &mut post_gpu_overlay::PostGpuOverlayRenderTarget {
                 device: &dev_handle.device,
@@ -196,6 +245,8 @@ fn maybe_log_render_profile(
         gpu_surface_composite_binding_rebuilds = gpu_surface_stats.composite_binding_rebuilds,
         gpu_surface_composite_binding_cache_hits = gpu_surface_stats.composite_binding_cache_hits,
         gpu_surface_composite_encode_us = gpu_surface_stats.composite_encode_elapsed.as_micros(),
+        composited_base_refresh_us = frame.composited_base_refresh.as_micros(),
+        composited_base_cache_hit = frame.composited_base_cache_hit,
         submit_present_us = frame.submit_present.as_micros(),
         since_last_present_us = since_last_present.as_micros(),
         "radiant native render profile"
@@ -208,5 +259,7 @@ pub(super) struct RenderFrameProfile {
     pub(super) refresh_surface: Duration,
     pub(super) paint_plan: Duration,
     pub(super) full_screen_blit: Duration,
+    pub(super) composited_base_refresh: Duration,
+    pub(super) composited_base_cache_hit: bool,
     pub(super) submit_present: Duration,
 }

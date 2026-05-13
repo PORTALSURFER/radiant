@@ -1,5 +1,9 @@
 use super::*;
-use crate::{gui::types::ImageRgba, runtime::GpuSurfaceRuntimeOverlays};
+use crate::{
+    gui::types::ImageRgba,
+    runtime::{GpuSurfaceRuntimeOverlays, SurfacePaintPlan},
+    theme::ThemeTokens,
+};
 
 #[path = "scene_cache/retained.rs"]
 mod retained;

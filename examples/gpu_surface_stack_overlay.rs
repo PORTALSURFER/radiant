@@ -2,7 +2,7 @@
 
 use radiant::prelude::*;
 use radiant::widgets::{PaintBounds, WidgetId};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 const SURFACE_WIDTH: f32 = 560.0;
 const SURFACE_HEIGHT: f32 = 220.0;
@@ -18,7 +18,6 @@ enum ResizeHandle {
 struct DemoState {
     selected: bool,
     running: bool,
-    phase: f32,
     selection_start: f32,
     selection_end: f32,
     drag_handle: Option<ResizeHandle>,
@@ -29,7 +28,6 @@ impl Default for DemoState {
         Self {
             selected: false,
             running: true,
-            phase: 0.0,
             selection_start: 0.22,
             selection_end: 0.68,
             drag_handle: None,
@@ -38,10 +36,6 @@ impl Default for DemoState {
 }
 
 impl DemoState {
-    fn tick(&mut self) {
-        self.phase = (self.phase + 0.009) % 1.0;
-    }
-
     fn resize_selection(&mut self, ratio: f32) {
         let ratio = ratio.clamp(0.02, 0.98);
         match self.drag_handle {
@@ -58,7 +52,6 @@ impl DemoState {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum DemoMessage {
-    AnimationFrame,
     ToggleSelection,
     ToggleAnimation,
     BeginResize(ResizeHandle),
@@ -245,15 +238,10 @@ fn main() -> radiant::Result {
             .spacing(16.0)
         })
         .animation(|state| state.running)
-        .on_frame(|| DemoMessage::AnimationFrame)
         .transient_overlay(|state, context, primitives| {
-            paint_transient_blob(state, context.plan, primitives);
+            paint_transient_blob(state, context.plan, context.animation_time, primitives);
         })
         .update_command(|state: &mut DemoState, message| match message {
-            DemoMessage::AnimationFrame => {
-                state.tick();
-                Command::request_paint_only()
-            }
             DemoMessage::ToggleSelection => {
                 state.selected = !state.selected;
                 Command::request_repaint()
@@ -281,6 +269,7 @@ fn main() -> radiant::Result {
 fn paint_transient_blob(
     state: &DemoState,
     plan: &SurfacePaintPlan,
+    animation_time: Duration,
     primitives: &mut Vec<PaintPrimitive>,
 ) {
     let Some(bounds) = plan
@@ -297,7 +286,7 @@ fn paint_transient_blob(
         primitives,
         11,
         bounds,
-        state.phase,
+        (animation_time.as_secs_f32() * 0.42).fract(),
         overlay_accent(state.selected),
     );
 }

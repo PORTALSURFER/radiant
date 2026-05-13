@@ -110,6 +110,17 @@ where
         self.runtime.bridge_mut().queue_animation_frame()
     }
 
+    pub(super) fn drain_animation_frame(&mut self, needs_animation: bool) -> GenericRouteOutcome {
+        if needs_animation {
+            self.queue_animation_frame();
+        }
+        let mut outcome = self.drain_runtime_messages();
+        if needs_animation && !outcome.needs_redraw() {
+            outcome.paint_only_requested = true;
+        }
+        outcome
+    }
+
     fn route_outcome(&mut self, routed: bool) -> GenericRouteOutcome {
         GenericRouteOutcome {
             routed,

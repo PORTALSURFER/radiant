@@ -127,7 +127,10 @@ where
         let next_frame = self.last_redraw.checked_add(interval).unwrap_or(now);
         if now >= next_frame {
             if !self.redraw_requested {
-                let outcome = self.core.drain_animation_frame(needs_animation);
+                let needs_scene_animation = self.core.has_focused_text_input();
+                let outcome = self
+                    .core
+                    .drain_timed_frame(needs_animation, needs_scene_animation);
                 if outcome.exit_requested {
                     event_loop.exit();
                     return;

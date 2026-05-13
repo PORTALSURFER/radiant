@@ -127,10 +127,7 @@ where
         let next_frame = self.last_redraw.checked_add(interval).unwrap_or(now);
         if now >= next_frame {
             if !self.redraw_requested {
-                if needs_animation {
-                    self.core.queue_animation_frame();
-                }
-                let outcome = self.core.drain_runtime_messages();
+                let outcome = self.core.drain_animation_frame(needs_animation);
                 if outcome.exit_requested {
                     event_loop.exit();
                     return;

@@ -145,7 +145,8 @@ taskbar presence where the platform supports those hints.
 
 Serious apps use the same builder API. `radiant::app(...)` supports
 `.subscriptions(...)` for interval and worker-message sources, `.animation(...)`
-with `.on_frame(...)` for frame-driven UI, `.on_scroll(...)` for observing
+for frame-cadenced redraws, optional `.on_frame(...)` messages for animations
+that mutate application state, `.on_scroll(...)` for observing
 runtime-owned scroll offsets, `.on_startup(...)`, `.on_shutdown(...)`,
 `.on_close_requested(...)`, `.run_with_artifacts()`, and retained-surface
 painters registered through `.retained_painter(...)`. Apps with small
@@ -155,7 +156,9 @@ Radiant passes a `TransientOverlayContext` with the latest `SurfacePaintPlan`,
 viewport, and animation time. This keeps structural state, layout, and Vello
 scene refreshes out of animation paths for visuals such as playheads, drag
 previews, tooltip affordances, cursor markers, and lightweight spectrogram
-overlays.
+overlays. A transient overlay can pair `.animation(...)` with no `.on_frame(...)`
+when the overlay can derive motion from `context.animation_time`; the native
+runtime then schedules paint-only frames over the cached surface.
 Retained canvas views reserve stable cached surfaces with
 `retained_canvas(key).revision(...).dirty_mask(...).volatile(...).on_input(...)`, while the
 app painter owns the corresponding backend-neutral `PaintFrame`.
@@ -684,7 +687,8 @@ uses `.animation(...)` and `.on_frame(...)` through the stateful application
 builder.
 Run `cargo run --example gpu_surface_stack_overlay` for a retained GPU surface
 with normal widget overlays plus a transient animated blob that repaints every
-frame without refreshing the declarative surface.
+frame from `TransientOverlayContext::animation_time` without refreshing the
+declarative surface.
 Run `cargo run --example background_loading` for a background-work sandbox that
 uses `ResourceSlot`, `ResourceLoad`, and `UpdateContext::spawn(...)` to route
 worker resource results back into the normal state update path.

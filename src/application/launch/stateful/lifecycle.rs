@@ -65,12 +65,20 @@ where
     State: 'static,
 {
     /// Declare whether this app currently needs animation-driven frames.
+    ///
+    /// Pair this with [`Self::on_frame`] when each frame should update
+    /// application state. Pair it with [`Self::transient_overlay`] alone when
+    /// an overlay can derive motion from frame time and only needs paint-only
+    /// redraws over the cached surface.
     pub fn animation(mut self, animation: impl FnMut(&mut State) -> bool + 'static) -> Self {
         self.lifecycle.animation = Some(Box::new(animation));
         self
     }
 
     /// Declare the message emitted for each active animation frame.
+    ///
+    /// This is optional for paint-only transient overlays. Use it only when
+    /// frame ticks need to mutate host state or produce commands.
     pub fn on_frame(mut self, message: impl FnMut() -> Message + 'static) -> Self {
         self.lifecycle.frame_message = Some(Box::new(message));
         self
@@ -165,6 +173,8 @@ where
     /// transient primitives that native backends can draw over the cached scene
     /// without refreshing layout. Use this for small, continuously animated
     /// overlays such as playheads, drag previews, tooltips, or cursor markers.
+    /// Combine it with [`Self::animation`] to receive frame-cadenced paint-only
+    /// redraws without an [`Self::on_frame`] message.
     pub fn transient_overlay(
         mut self,
         paint: impl for<'a> FnMut(

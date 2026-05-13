@@ -56,6 +56,17 @@ fn generic_core_preserves_animation_when_host_requests_it() {
 }
 
 #[test]
+fn generic_core_turns_message_free_animation_into_paint_only_redraw() {
+    let mut core = GenericNativeRuntimeCore::new(AnimatingBridge, Vector2::new(320.0, 40.0));
+
+    let outcome = core.drain_animation_frame(true);
+
+    assert!(!outcome.routed);
+    assert!(outcome.needs_redraw());
+    assert!(!outcome.needs_scene_rebuild());
+}
+
+#[test]
 fn generic_core_keeps_paint_only_runtime_frames_off_scene_rebuild_path() {
     let mut core =
         GenericNativeRuntimeCore::new(PaintOnlyFrameBridge::default(), Vector2::new(320.0, 40.0));

@@ -1,7 +1,7 @@
 use radiant::runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, NativeGpuBackend, NativeGpuOptions,
     NativePopupOptions, NativeRunOptions, NativeTextOptions, NativeWindowMode, WindowManifest,
-    WindowSpec,
+    WindowManifestError, WindowSpec, WindowSpecError,
 };
 
 #[test]
@@ -192,7 +192,15 @@ fn window_manifest_rejects_duplicate_window_keys() {
         WindowSpec::new("main", "Duplicate"),
     ]);
 
-    assert_eq!(duplicate, Err(String::from("duplicate window key 'main'")));
+    let error = duplicate.expect_err("duplicate key should fail");
+
+    assert_eq!(
+        error,
+        WindowManifestError::DuplicateKey {
+            key: String::from("main"),
+        }
+    );
+    assert_eq!(error.to_string(), "duplicate window key 'main'");
 }
 
 #[test]
@@ -200,20 +208,39 @@ fn window_manifest_rejects_invalid_window_geometry() {
     let invalid_size =
         WindowManifest::from_specs([WindowSpec::new("main", "Main").logical_size(f32::NAN, 480.0)]);
 
+    let error = invalid_size.expect_err("invalid size should fail");
+
+    assert!(matches!(
+        error,
+        WindowManifestError::InvalidSpec(WindowSpecError::InvalidSize {
+            ref key,
+            field: "inner_size",
+            width,
+            height: 480.0,
+        }) if key == "main" && width.is_nan()
+    ));
     assert_eq!(
-        invalid_size,
-        Err(String::from(
-            "window 'main' has invalid inner_size [NaN, 480]; logical sizes must be finite and positive"
-        ))
+        error.to_string(),
+        "window 'main' has invalid inner_size [NaN, 480]; logical sizes must be finite and positive"
     );
 
     let invalid_popup =
         WindowSpec::popup("drag-preview", "Drag Preview").popup_position(f32::INFINITY, 220.0);
 
+    let error = invalid_popup
+        .validate()
+        .expect_err("invalid popup position should fail");
+
     assert_eq!(
-        invalid_popup.validate(),
-        Err(String::from(
-            "window 'drag-preview' has invalid popup position [inf, 220]; popup positions must be finite"
-        ))
+        error,
+        WindowSpecError::InvalidPopupPosition {
+            key: String::from("drag-preview"),
+            x: f32::INFINITY,
+            y: 220.0,
+        }
+    );
+    assert_eq!(
+        error.to_string(),
+        "window 'drag-preview' has invalid popup position [inf, 220]; popup positions must be finite"
     );
 }

@@ -38,4 +38,4 @@ pub use options::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, NativeGpuBackend, NativeGpuOptions,
     NativePopupOptions, NativeRunOptions, NativeTextOptions, NativeWindowMode, WindowIconRgba,
 };
-pub use window_manifest::{WindowManifest, WindowSpec};
+pub use window_manifest::{WindowManifest, WindowManifestError, WindowSpec, WindowSpecError};

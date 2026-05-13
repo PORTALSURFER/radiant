@@ -135,8 +135,9 @@ convenience wrapper for compact tests and examples.
 `WindowSpec` describes one host-managed window without opening the platform
 runtime. `WindowManifest` stores ordered specs and rejects duplicate stable
 keys, non-positive or non-finite logical sizes, and non-finite popup positions,
-so multi-window or embedded hosts can validate a window set and attach a
-separate bridge or view to each spec. `radiant::window(...).spec("main")`
+returning typed `WindowManifestError` / `WindowSpecError` diagnostics so
+multi-window or embedded hosts can validate a window set and attach a separate
+bridge or view to each spec. `radiant::window(...).spec("main")`
 converts the no-state launch builder into the same manifest shape.
 Floating popups use the same surface and runtime model as normal windows while
 requesting popup-native window policy. Use `WindowSpec::popup(...)`,

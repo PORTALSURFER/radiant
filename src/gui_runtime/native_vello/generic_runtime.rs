@@ -20,7 +20,9 @@ mod scene;
 mod surface;
 mod window;
 
-use composited_base::CompositedBaseFrame;
+use composited_base::{
+    BaseFramePresentState, BaseFramePresentTarget, CompositedBaseFrame, present_base_frame,
+};
 pub(in crate::gui_runtime::native_vello) use core::{
     GenericNativeRuntimeCore, GenericRouteOutcome,
 };

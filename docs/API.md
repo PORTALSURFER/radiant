@@ -562,6 +562,9 @@ structured left/center/right status-bar model for application chrome.
 `SurfaceRuntime::focus_widget`, `SurfaceRuntime::clear_focus`,
 `SurfaceRuntime::focused_widget`, `SurfaceRuntime::traverse_focus`, and
 `FocusTraversal` expose deterministic keyboard focus ownership and traversal.
+`UiSurface::keyboard_focus_order_into(...)` writes the same deterministic order
+into caller-owned storage for diagnostics or host integrations that inspect
+focus order repeatedly without reallocating.
 Pointer dispatch through `dispatch_input_at` can assign focus from hit testing;
 keyboard dispatch through `dispatch_focused_input` routes input to the focused
 widget by stable `WidgetId`.

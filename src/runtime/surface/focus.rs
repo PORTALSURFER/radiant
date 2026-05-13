@@ -1,10 +1,20 @@
 use super::*;
 
 impl<Message> UiSurface<Message> {
+    /// Append keyboard-focusable widgets in deterministic declarative tree
+    /// order into caller-owned storage.
+    ///
+    /// This is useful for diagnostics, tests, or host integrations that inspect
+    /// focus order repeatedly and want to reuse allocation capacity.
+    pub fn keyboard_focus_order_into(&self, order: &mut Vec<WidgetId>) {
+        order.clear();
+        self.root.append_keyboard_focus_order(order);
+    }
+
     /// Return keyboard-focusable widgets in deterministic declarative tree order.
     pub fn keyboard_focus_order(&self) -> Vec<WidgetId> {
         let mut order = Vec::new();
-        self.root.append_keyboard_focus_order(&mut order);
+        self.keyboard_focus_order_into(&mut order);
         order
     }
 }
@@ -66,5 +76,25 @@ mod tests {
         ));
 
         assert_eq!(surface.keyboard_focus_order(), vec![20, 40]);
+    }
+
+    #[test]
+    fn keyboard_focus_order_into_reuses_existing_storage() {
+        let surface: UiSurface<()> = UiSurface::new(SurfaceNode::row(
+            1,
+            0.0,
+            vec![SurfaceChild::fill(SurfaceNode::widget(
+                ButtonWidget::new(20, "First", WidgetSizing::fixed(Vector2::new(120.0, 28.0))),
+                WidgetMessageMapper::none(),
+            ))],
+        ));
+        let mut order = Vec::with_capacity(8);
+        order.extend([99, 100]);
+        let capacity = order.capacity();
+
+        surface.keyboard_focus_order_into(&mut order);
+
+        assert_eq!(order, vec![20]);
+        assert_eq!(order.capacity(), capacity);
     }
 }

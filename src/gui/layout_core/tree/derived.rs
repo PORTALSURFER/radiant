@@ -104,11 +104,7 @@ fn known_main_metrics(horizontal: bool, spacing: f32, children: &[SlotChild]) ->
     let mut uniform_main: Option<f32> = None;
     let mut uniform_valid = true;
     for child in children {
-        let has_main_margin = if horizontal {
-            child.slot.margin.left > 0.0 || child.slot.margin.right > 0.0
-        } else {
-            child.slot.margin.top > 0.0 || child.slot.margin.bottom > 0.0
-        };
+        let has_main_margin = has_main_axis_margin(horizontal, child);
         let size = match child.slot.size_main {
             SizeModeMain::Fixed(size) => size.max(0.0),
             SizeModeMain::Intrinsic => match direct_widget_intrinsic_main(horizontal, &child.child)
@@ -156,6 +152,15 @@ fn direct_widget_intrinsic_main(horizontal: bool, node: &LayoutNode) -> Option<f
         widget.intrinsic.y
     };
     main.is_finite().then_some(main.max(0.0))
+}
+
+fn has_main_axis_margin(horizontal: bool, child: &SlotChild) -> bool {
+    let (before, after) = if horizontal {
+        (child.slot.margin.left, child.slot.margin.right)
+    } else {
+        (child.slot.margin.top, child.slot.margin.bottom)
+    };
+    before.abs() > f32::EPSILON || after.abs() > f32::EPSILON
 }
 
 fn container_kind_code(value: ContainerKind) -> u8 {
@@ -311,5 +316,43 @@ mod tests {
             Some(18.0 * 3.0 + 3.0 * 2.0)
         );
         assert_eq!(container.known_main_extent_vertical, None);
+    }
+
+    #[test]
+    fn container_does_not_mark_margin_rows_as_uniform() {
+        let children = (0..4_u64)
+            .map(|index| {
+                SlotChild::new(
+                    SlotParams {
+                        size_main: SizeModeMain::Fixed(24.0),
+                        size_cross: SizeModeCross::Fill,
+                        constraints: Constraints::unconstrained(),
+                        margin: crate::gui::layout_core::model::Insets {
+                            top: -2.0,
+                            bottom: 2.0,
+                            ..Default::default()
+                        },
+                        align_cross_override: None,
+                        allow_fixed_compress: false,
+                    },
+                    LayoutNode::widget(index + 10, Vector2::new(8.0, 8.0)),
+                )
+            })
+            .collect();
+        let container = crate::layout::ContainerNode::new(
+            1,
+            ContainerPolicy {
+                kind: ContainerKind::Column,
+                spacing: 2.0,
+                ..ContainerPolicy::default()
+            },
+            children,
+        );
+
+        assert_eq!(container.known_uniform_main_vertical, None);
+        assert_eq!(
+            container.known_main_extent_vertical,
+            Some(24.0 * 4.0 + 2.0 * 3.0)
+        );
     }
 }

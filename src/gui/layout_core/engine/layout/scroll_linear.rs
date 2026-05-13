@@ -163,7 +163,7 @@ fn build_uniform_linear_metrics(
         });
     }
     for child in &content.children {
-        if main_margin_total_for_slot(horizontal, child) > 0.0 {
+        if has_main_axis_margin(horizontal, child) {
             return None;
         }
         let raw = match child.slot.size_main {
@@ -217,11 +217,16 @@ fn build_uniform_linear_metrics(
     })
 }
 
-fn main_margin_total_for_slot(horizontal: bool, child: &SlotChild) -> f32 {
+fn has_main_axis_margin(horizontal: bool, child: &SlotChild) -> bool {
+    let (before, after) = main_margins_for_slot(horizontal, child);
+    before.abs() > f32::EPSILON || after.abs() > f32::EPSILON
+}
+
+fn main_margins_for_slot(horizontal: bool, child: &SlotChild) -> (f32, f32) {
     if horizontal {
-        child.slot.margin.left + child.slot.margin.right
+        (child.slot.margin.left, child.slot.margin.right)
     } else {
-        child.slot.margin.top + child.slot.margin.bottom
+        (child.slot.margin.top, child.slot.margin.bottom)
     }
 }
 
@@ -273,12 +278,10 @@ pub(super) fn metrics_is_valid(metrics: &LinearVirtualMetrics, expected_len: usi
             && uniform.step.is_finite()
             && uniform.step >= 0.0;
     }
-    metrics.spans.iter().all(|span| {
-        span.start.is_finite()
-            && span.end.is_finite()
-            && span.end >= span.start
-            && span.start >= 0.0
-    })
+    metrics
+        .spans
+        .iter()
+        .all(|span| span.start.is_finite() && span.end.is_finite() && span.end >= span.start)
 }
 
 fn collect_layout_states<'a>(

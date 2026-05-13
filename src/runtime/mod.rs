@@ -53,7 +53,7 @@ pub use paint::{
     PaintGpuSurface, PaintImage, PaintOverlayPanel, PaintPath, PaintPointList, PaintPrimitive,
     PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintSvg, PaintSvgDocument,
     PaintText, PaintTextAlign, PaintTextInput, PaintTextRun, PaintTransform, Renderer,
-    SurfacePaintPlan, SurfacePaintStats, TransientOverlayContext,
+    SurfacePaintPlan, SurfacePaintStats, SvgParseError, TransientOverlayContext,
 };
 pub(crate) use paint::{
     blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,

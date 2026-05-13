@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use vello_svg::usvg;
 
@@ -14,11 +14,26 @@ pub struct PaintSvgDocument {
     tree: Arc<usvg::Tree>,
 }
 
+/// Error returned when SVG source cannot be parsed into a retained document.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SvgParseError {
+    message: String,
+}
+
 impl PaintSvgDocument {
     /// Parse SVG source into a retained document.
     pub fn from_svg(svg: &str) -> Option<Self> {
-        let tree = usvg::Tree::from_str(svg, &usvg::Options::default()).ok()?;
-        Some(Self {
+        Self::try_from_svg(svg).ok()
+    }
+
+    /// Parse SVG source into a retained document with diagnostics.
+    pub fn try_from_svg(svg: &str) -> Result<Self, SvgParseError> {
+        let tree = usvg::Tree::from_str(svg, &usvg::Options::default()).map_err(|error| {
+            SvgParseError {
+                message: error.to_string(),
+            }
+        })?;
+        Ok(Self {
             tree: Arc::new(tree),
         })
     }
@@ -27,6 +42,21 @@ impl PaintSvgDocument {
         &self.tree
     }
 }
+
+impl SvgParseError {
+    /// Return the parser diagnostic message.
+    pub fn message(&self) -> &str {
+        self.message.as_str()
+    }
+}
+
+impl fmt::Display for SvgParseError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.message.as_str())
+    }
+}
+
+impl std::error::Error for SvgParseError {}
 
 impl PartialEq for PaintSvgDocument {
     fn eq(&self, other: &Self) -> bool {

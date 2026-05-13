@@ -5,7 +5,7 @@
 //! backend scenes directly.
 
 use crate::gui::types::Rect;
-use crate::runtime::{PaintPrimitive, PaintSvg, PaintSvgDocument};
+use crate::runtime::{PaintPrimitive, PaintSvg, PaintSvgDocument, SvgParseError};
 use crate::widgets::WidgetId;
 
 /// Retained SVG icon parsed once for backend rendering.
@@ -17,8 +17,13 @@ pub struct SvgIcon {
 impl SvgIcon {
     /// Parse an SVG icon from embedded source text.
     pub fn from_svg(svg: &str) -> Option<Self> {
-        Some(Self {
-            document: PaintSvgDocument::from_svg(svg)?,
+        Self::try_from_svg(svg).ok()
+    }
+
+    /// Parse an SVG icon from embedded source text with diagnostics.
+    pub fn try_from_svg(svg: &str) -> Result<Self, SvgParseError> {
+        Ok(Self {
+            document: PaintSvgDocument::try_from_svg(svg)?,
         })
     }
 
@@ -64,5 +69,14 @@ mod tests {
         };
         assert_eq!(svg.widget_id, 9);
         assert_eq!(svg.rect.min.x, 10.0);
+    }
+
+    #[test]
+    fn svg_icon_try_from_svg_reports_parse_errors() {
+        let error = SvgIcon::try_from_svg("<svg><").expect_err("invalid svg should fail");
+
+        assert!(!error.message().is_empty());
+        assert_eq!(error.to_string(), error.message());
+        assert!(SvgIcon::from_svg("<svg><").is_none());
     }
 }

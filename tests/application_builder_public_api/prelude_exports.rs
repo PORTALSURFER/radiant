@@ -123,6 +123,7 @@ fn prelude_exports_svg_icon_vector_painting() {
         r#"<svg viewBox="0 0 4 4"><rect x="0" y="0" width="4" height="4"/></svg>"#,
     )
     .expect("filled SVG rect should parse");
+    let icon_error = ui::SvgIcon::try_from_svg("<svg><").expect_err("invalid svg");
     let mut primitives = Vec::new();
     icon.append_paint(
         &mut primitives,
@@ -134,6 +135,7 @@ fn prelude_exports_svg_icon_vector_painting() {
         primitives.as_slice(),
         [ui::PaintPrimitive::Svg(_)]
     ));
+    let _: ui::SvgParseError = icon_error;
 }
 
 #[test]

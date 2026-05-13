@@ -14,5 +14,5 @@ pub use shape::{
     PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintTransform,
 };
 pub use surface::{PaintCustomSurface, PaintGpuSurface, PaintImage};
-pub use svg::{PaintSvg, PaintSvgDocument};
+pub use svg::{PaintSvg, PaintSvgDocument, SvgParseError};
 pub use text::{PaintOverlayPanel, PaintText, PaintTextAlign, PaintTextInput, PaintTextRun};

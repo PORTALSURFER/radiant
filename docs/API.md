@@ -551,8 +551,11 @@ half width and height for centered zero-size collapse.
 `Rect::centered_pixel_square` and `Rect::centered_odd_pixel_square` provide
 pixel-snapped icon-box geometry for reusable controls.
 The prelude `SvgIcon::from_svg(...)` parses embedded SVG source into a retained
-SVG document that emits a backend-neutral `PaintSvg` primitive. The native Vello
-backend appends that document through `vello_svg` during scene encoding.
+SVG document that emits a backend-neutral `PaintSvg` primitive.
+`SvgIcon::try_from_svg(...)` and `PaintSvgDocument::try_from_svg(...)` return a
+typed `SvgParseError` when hosts need parser diagnostics. The native Vello
+backend appends retained SVG documents through `vello_svg` during scene
+encoding.
 `Rect::stroke_aligned_rect` provides stroke-grid snapping for retained border
 geometry.
 `Rect::top_right_square` provides anchored overlay geometry for controls that

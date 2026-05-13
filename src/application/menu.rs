@@ -62,8 +62,7 @@ pub fn menu<State: 'static>(
             items
                 .into_iter()
                 .enumerate()
-                .map(|(index, item)| menu_item_button(index, item))
-                .collect::<Vec<_>>(),
+                .map(|(index, item)| menu_item_button(index, item)),
         )
         .fill_width()
         .spacing(4.0),

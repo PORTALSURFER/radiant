@@ -41,6 +41,7 @@ pub(super) fn maybe_log_render_profile(
         retained_frame_primitives = stats.retained_frame_primitive_count,
         retained_frame_text_runs = stats.retained_frame_text_run_count,
         gpu_surface_atlas_texture_uploads = gpu_surface_stats.atlas_texture_uploads,
+        gpu_surface_atlas_texture_cache_hits = gpu_surface_stats.atlas_texture_cache_hits,
         gpu_signal_summary_builds = gpu_surface_stats.signal_summary_builds,
         gpu_signal_summary_cache_hits = gpu_surface_stats.signal_summary_cache_hits,
         refresh_surface_us = frame.refresh_surface.as_micros(),

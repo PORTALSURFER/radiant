@@ -12,10 +12,9 @@ impl GpuSurfaceRenderer {
             return;
         };
         if self.textures.get(&surface.key).is_some_and(|texture| {
-            texture.revision == surface.revision
-                && texture.width == atlas.width
-                && texture.height == atlas.height
+            texture.matches_atlas(surface.revision, atlas.width, atlas.height)
         }) {
+            stats.atlas_texture_cache_hits += 1;
             return;
         }
 

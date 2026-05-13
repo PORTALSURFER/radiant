@@ -13,6 +13,7 @@ mod gpu_surface_interaction;
 mod input;
 mod keyboard;
 mod lifecycle;
+mod popup_drag;
 mod post_gpu_overlay;
 mod present;
 mod render_profile;
@@ -32,6 +33,7 @@ use frame_cadence::{TimedFrameCadence, timed_frame_cadence, timed_frame_target_f
 use gpu_surface::GpuSurfaceRenderer;
 use gpu_surface_interaction::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
+use popup_drag::should_start_popup_window_drag;
 use post_gpu_overlay::PostGpuOverlayRenderer;
 use render_profile::{RenderFrameProfile, maybe_log_render_profile};
 pub(in crate::gui_runtime::native_vello) use route_outcome::GenericRouteOutcome;

@@ -25,6 +25,13 @@ pub enum WindowSpecError {
         /// Invalid logical y coordinate.
         y: f32,
     },
+    /// Popup drag region height is non-finite or negative.
+    InvalidPopupDragRegionHeight {
+        /// Stable host-owned key for the invalid window.
+        key: String,
+        /// Invalid logical drag-region height.
+        height: f32,
+    },
 }
 
 pub(super) fn validate_window_spec(spec: &WindowSpec) -> Result<(), WindowSpecError> {
@@ -48,6 +55,10 @@ impl fmt::Display for WindowSpecError {
             Self::InvalidPopupPosition { key, x, y } => write!(
                 formatter,
                 "window '{key}' has invalid popup position [{x}, {y}]; popup positions must be finite"
+            ),
+            Self::InvalidPopupDragRegionHeight { key, height } => write!(
+                formatter,
+                "window '{key}' has invalid popup drag region height [{height}]; height must be finite and non-negative"
             ),
         }
     }
@@ -73,6 +84,12 @@ impl WindowSpecError {
                     key: key.to_string(),
                     x,
                     y,
+                }
+            }
+            NativeRunOptionsError::InvalidPopupDragRegionHeight { height } => {
+                Self::InvalidPopupDragRegionHeight {
+                    key: key.to_string(),
+                    height,
                 }
             }
         }

@@ -69,6 +69,14 @@ fn native_run_options_validate_direct_launch_geometry() {
         invalid_popup.validate().unwrap_err().to_string(),
         "invalid native popup_position [10, inf]; popup positions must be finite"
     );
+
+    let invalid_drag_region = NativeRunOptions::popup("Drag Preview")
+        .popup_policy(NativePopupOptions::default().drag_region_height(f32::NAN));
+
+    assert!(matches!(
+        invalid_drag_region.validate(),
+        Err(NativeRunOptionsError::InvalidPopupDragRegionHeight { height }) if height.is_nan()
+    ));
 }
 
 #[test]
@@ -104,7 +112,8 @@ fn native_run_options_expose_floating_popup_policy() {
         .always_on_top(false)
         .resizable(true)
         .initially_focused(true)
-        .skip_taskbar(false);
+        .skip_taskbar(false)
+        .drag_region_height(36.0);
     let options = NativeRunOptions::popup("Drag Preview").popup_policy(popup_policy);
 
     assert!(!NativeRunOptions::default().is_popup());
@@ -316,5 +325,24 @@ fn window_manifest_rejects_invalid_window_geometry() {
     assert_eq!(
         error.to_string(),
         "window 'drag-preview' has invalid popup position [inf, 220]; popup positions must be finite"
+    );
+
+    let invalid_drag_region = WindowSpec::popup("drag-preview", "Drag Preview")
+        .popup_policy(NativePopupOptions::default().drag_region_height(-1.0));
+
+    let error = invalid_drag_region
+        .validate()
+        .expect_err("invalid popup drag region should fail");
+
+    assert_eq!(
+        error,
+        WindowSpecError::InvalidPopupDragRegionHeight {
+            key: String::from("drag-preview"),
+            height: -1.0,
+        }
+    );
+    assert_eq!(
+        error.to_string(),
+        "window 'drag-preview' has invalid popup drag region height [-1]; height must be finite and non-negative"
     );
 }

@@ -14,7 +14,8 @@ pub enum NativeWindowMode {
 /// Popup windows still render normal Radiant surfaces. The policy only
 /// describes native-window behavior that differs from a regular application
 /// window: borderless chrome, optional transparency, z-order, taskbar presence,
-/// focus behavior, resizability, and optional initial screen position.
+/// focus behavior, resizability, drag movement, and optional initial screen
+/// position.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NativePopupOptions {
     /// Initial outer-window position in logical screen coordinates.
@@ -29,6 +30,12 @@ pub struct NativePopupOptions {
     pub initially_focused: bool,
     /// Whether the popup should stay out of the platform taskbar when supported.
     pub skip_taskbar: bool,
+    /// Optional top-edge logical height that can initiate native window dragging.
+    ///
+    /// The native runtime only starts the drag when primary pointer press hits
+    /// otherwise inactive popup surface inside this region, so controls in the
+    /// same area can still receive normal widget input.
+    pub drag_region_height: Option<f32>,
 }
 
 impl Default for NativePopupOptions {
@@ -40,6 +47,7 @@ impl Default for NativePopupOptions {
             resizable: false,
             initially_focused: false,
             skip_taskbar: true,
+            drag_region_height: None,
         }
     }
 }
@@ -78,6 +86,12 @@ impl NativePopupOptions {
     /// Set whether the popup should stay out of the platform taskbar when supported.
     pub fn skip_taskbar(mut self, skip_taskbar: bool) -> Self {
         self.skip_taskbar = skip_taskbar;
+        self
+    }
+
+    /// Set the top-edge logical height that should allow native popup dragging.
+    pub fn drag_region_height(mut self, height: f32) -> Self {
+        self.drag_region_height = Some(height);
         self
     }
 }

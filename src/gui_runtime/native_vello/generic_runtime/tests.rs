@@ -138,6 +138,7 @@ fn generic_native_window_applies_floating_popup_policy() {
     );
 
     assert_eq!(attrs.title, "Drag Preview");
+    assert!(attrs.visible);
     assert!(!attrs.decorations);
     assert!(!attrs.resizable);
     assert!(attrs.transparent);

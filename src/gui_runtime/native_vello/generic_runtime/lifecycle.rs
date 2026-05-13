@@ -73,6 +73,18 @@ where
                     ElementState::Released => self.core.route_pointer_release(position, button),
                 };
                 maybe_log_route_profile("pointer_button", started.elapsed(), routed);
+                if state == ElementState::Pressed
+                    && should_start_popup_window_drag(
+                        &self.options,
+                        position,
+                        button,
+                        routed.routed,
+                    )
+                    && let Some(window) = self.window.as_ref()
+                    && let Err(err) = window.drag_window()
+                {
+                    warn!("radiant generic native vello: popup window drag failed: {err}");
+                }
                 self.handle_route_outcome(event_loop, routed);
             }
             WindowEvent::MouseWheel { delta, .. } => {

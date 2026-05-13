@@ -128,6 +128,7 @@ impl NativeRunOptions {
         validate_size("min_inner_size", self.min_inner_size)?;
         if let Some(popup) = self.popup_options() {
             validate_position("popup_position", popup.position)?;
+            validate_popup_drag_region(popup.drag_region_height)?;
         }
         Ok(())
     }
@@ -164,6 +165,11 @@ pub enum NativeRunOptionsError {
         /// Invalid logical y coordinate.
         y: f32,
     },
+    /// Popup drag region height is non-finite or negative.
+    InvalidPopupDragRegionHeight {
+        /// Invalid logical drag-region height.
+        height: f32,
+    },
 }
 
 impl fmt::Display for NativeRunOptionsError {
@@ -180,6 +186,10 @@ impl fmt::Display for NativeRunOptionsError {
             Self::InvalidPopupPosition { field, x, y } => write!(
                 formatter,
                 "invalid native {field} [{x}, {y}]; popup positions must be finite"
+            ),
+            Self::InvalidPopupDragRegionHeight { height } => write!(
+                formatter,
+                "invalid native popup drag region height [{height}]; height must be finite and non-negative"
             ),
         }
     }
@@ -212,4 +222,14 @@ fn validate_position(
         return Ok(());
     }
     Err(NativeRunOptionsError::InvalidPopupPosition { field, x, y })
+}
+
+fn validate_popup_drag_region(height: Option<f32>) -> Result<(), NativeRunOptionsError> {
+    let Some(height) = height else {
+        return Ok(());
+    };
+    if height.is_finite() && height >= 0.0 {
+        return Ok(());
+    }
+    Err(NativeRunOptionsError::InvalidPopupDragRegionHeight { height })
 }

@@ -1,9 +1,11 @@
 //! Normal-window launcher for a real floating popup Radiant surface.
 //!
 //! Run `cargo run --example popup_window`, then use the main window controls to
-//! open a second borderless popup window. The popup is the same example binary
-//! relaunched with `--popup`, which keeps this sandbox aligned with the current
-//! single-window native runtime while still demonstrating the operator workflow.
+//! open a second borderless popup window. Drag the popup from its title area to
+//! reposition it, or close it from the popup itself. The popup is the same
+//! example binary relaunched with `--popup`, which keeps this sandbox aligned
+//! with the current single-window native runtime while still demonstrating the
+//! operator workflow.
 
 use radiant::prelude::*;
 use std::{env, process};
@@ -81,7 +83,6 @@ impl Default for LauncherState {
 enum LauncherMessage {
     SelectMode(PopupMode),
     OpenPopup,
-    PopupStarted(std::result::Result<(), &'static str>),
 }
 
 #[derive(Clone, Debug)]
@@ -135,6 +136,7 @@ fn popup_policy() -> NativePopupOptions {
         .always_on_top(true)
         .initially_focused(true)
         .skip_taskbar(true)
+        .drag_region_height(38.0)
 }
 
 #[cfg(test)]
@@ -151,7 +153,7 @@ fn launcher_view(state: &mut LauncherState) -> View<LauncherMessage> {
             .key("title")
             .height(32.0)
             .fill_width(),
-        text("Open a real popup window, then close it from inside the popup.")
+        text("Open a real popup window, drag its title area, then close it from inside the popup.")
             .key("description")
             .wrap()
             .height(42.0)
@@ -210,7 +212,7 @@ fn mode_button(state: &LauncherState, mode: PopupMode) -> View<LauncherMessage> 
 fn update_launcher(
     state: &mut LauncherState,
     message: LauncherMessage,
-    context: &mut UpdateContext<LauncherMessage>,
+    _context: &mut UpdateContext<LauncherMessage>,
 ) {
     match message {
         LauncherMessage::SelectMode(mode) => {
@@ -219,19 +221,14 @@ fn update_launcher(
         }
         LauncherMessage::OpenPopup => {
             state.launches += 1;
-            state.status = format!("Opening {}...", state.selected_mode.label());
-            let mode = state.selected_mode;
-            context.spawn(
-                "launch-popup-window",
-                move || launch_popup_process(mode),
-                LauncherMessage::PopupStarted,
-            );
-        }
-        LauncherMessage::PopupStarted(Ok(())) => {
-            state.status = String::from("Popup process started.");
-        }
-        LauncherMessage::PopupStarted(Err(error)) => {
-            state.status = format!("Popup failed: {error}");
+            match launch_popup_process(state.selected_mode) {
+                Ok(()) => {
+                    state.status = format!("Opened {}.", state.selected_mode.label());
+                }
+                Err(error) => {
+                    state.status = format!("Popup failed: {error}");
+                }
+            }
         }
     }
 }
@@ -263,10 +260,14 @@ fn popup_view(state: &mut PopupState) -> View<PopupMessage> {
         .key("header")
         .spacing(8.0)
         .fill_width(),
+        text("Drag this title area to move the popup.")
+            .key("drag-hint")
+            .height(18.0)
+            .fill_width(),
         text(state.mode.detail())
             .key("detail")
             .wrap()
-            .height(42.0)
+            .height(34.0)
             .fill_width(),
         row([
             toggle("Pin", state.pinned)
@@ -343,6 +344,7 @@ mod tests {
         assert!(policy.always_on_top);
         assert!(policy.initially_focused);
         assert!(policy.skip_taskbar);
+        assert_eq!(policy.drag_region_height, Some(38.0));
         assert!(!policy.resizable);
     }
 

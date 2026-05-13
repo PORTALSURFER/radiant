@@ -1,0 +1,158 @@
+use super::SurfaceTraversalStats;
+use crate::{
+    layout::NodeId,
+    runtime::{ClipAncestors, WidgetPath},
+    widgets::WidgetId,
+};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+};
+
+pub(in crate::runtime) struct SurfaceTraversalIndex {
+    pub(in crate::runtime) widget_paint_order: Vec<WidgetId>,
+    pub(in crate::runtime) focusable_widget_order: Vec<WidgetId>,
+    pub(in crate::runtime) keyboard_focus_order: Vec<WidgetId>,
+    pub(in crate::runtime) pointer_hit_order: Vec<WidgetId>,
+    pub(in crate::runtime) wheel_hit_order: Vec<WidgetId>,
+    pub(in crate::runtime) stateful_widget_order: Vec<WidgetId>,
+    pub(in crate::runtime) widget_paths: HashMap<WidgetId, WidgetPath>,
+    pub(in crate::runtime) container_hover_suppression: HashSet<WidgetId>,
+    pub(in crate::runtime) styled_container_order: Vec<NodeId>,
+    pub(in crate::runtime) scroll_container_order: Vec<NodeId>,
+    pub(in crate::runtime) widget_clip_ancestors: HashMap<WidgetId, ClipAncestors>,
+    pub(in crate::runtime) container_clip_ancestors: HashMap<NodeId, ClipAncestors>,
+    pub(in crate::runtime) scroll_content_by_container: HashMap<NodeId, NodeId>,
+}
+
+impl SurfaceTraversalIndex {
+    pub(in crate::runtime) fn with_stats(stats: SurfaceTraversalStats) -> Self {
+        Self {
+            widget_paint_order: Vec::with_capacity(stats.widgets),
+            focusable_widget_order: Vec::with_capacity(stats.widgets),
+            keyboard_focus_order: Vec::with_capacity(stats.widgets),
+            pointer_hit_order: Vec::with_capacity(stats.widgets),
+            wheel_hit_order: Vec::with_capacity(stats.widgets),
+            stateful_widget_order: Vec::with_capacity(stats.stateful_widgets),
+            widget_paths: HashMap::with_capacity(stats.widgets),
+            container_hover_suppression: HashSet::with_capacity(stats.widgets),
+            styled_container_order: Vec::with_capacity(stats.styled_hoverable_containers),
+            scroll_container_order: Vec::with_capacity(stats.scroll_containers),
+            widget_clip_ancestors: HashMap::with_capacity(widget_clip_capacity(stats)),
+            container_clip_ancestors: HashMap::with_capacity(stats.clipped_containers),
+            scroll_content_by_container: HashMap::with_capacity(stats.scroll_containers),
+        }
+    }
+
+    pub(in crate::runtime) fn clear_for_stats(&mut self, stats: SurfaceTraversalStats) {
+        self.widget_paint_order.clear();
+        reserve_vec_capacity(&mut self.widget_paint_order, stats.widgets);
+        self.focusable_widget_order.clear();
+        reserve_vec_capacity(&mut self.focusable_widget_order, stats.widgets);
+        self.keyboard_focus_order.clear();
+        reserve_vec_capacity(&mut self.keyboard_focus_order, stats.widgets);
+        self.pointer_hit_order.clear();
+        reserve_vec_capacity(&mut self.pointer_hit_order, stats.widgets);
+        self.wheel_hit_order.clear();
+        reserve_vec_capacity(&mut self.wheel_hit_order, stats.widgets);
+        self.stateful_widget_order.clear();
+        reserve_vec_capacity(&mut self.stateful_widget_order, stats.stateful_widgets);
+        self.widget_paths.clear();
+        reserve_map_capacity(&mut self.widget_paths, stats.widgets);
+        self.container_hover_suppression.clear();
+        reserve_set_capacity(&mut self.container_hover_suppression, stats.widgets);
+        self.styled_container_order.clear();
+        reserve_vec_capacity(
+            &mut self.styled_container_order,
+            stats.styled_hoverable_containers,
+        );
+        self.scroll_container_order.clear();
+        reserve_vec_capacity(&mut self.scroll_container_order, stats.scroll_containers);
+        self.widget_clip_ancestors.clear();
+        reserve_map_capacity(&mut self.widget_clip_ancestors, widget_clip_capacity(stats));
+        self.container_clip_ancestors.clear();
+        reserve_map_capacity(&mut self.container_clip_ancestors, stats.clipped_containers);
+        self.scroll_content_by_container.clear();
+        reserve_map_capacity(
+            &mut self.scroll_content_by_container,
+            stats.scroll_containers,
+        );
+    }
+
+    pub(in crate::runtime) fn clear_for_reuse(&mut self) {
+        self.widget_paint_order.clear();
+        self.focusable_widget_order.clear();
+        self.keyboard_focus_order.clear();
+        self.pointer_hit_order.clear();
+        self.wheel_hit_order.clear();
+        self.stateful_widget_order.clear();
+        self.widget_paths.clear();
+        self.container_hover_suppression.clear();
+        self.styled_container_order.clear();
+        self.scroll_container_order.clear();
+        self.widget_clip_ancestors.clear();
+        self.container_clip_ancestors.clear();
+        self.scroll_content_by_container.clear();
+    }
+}
+
+fn widget_clip_capacity(stats: SurfaceTraversalStats) -> usize {
+    if stats.scroll_containers == 0 {
+        0
+    } else {
+        stats.widgets
+    }
+}
+
+fn reserve_vec_capacity<T>(values: &mut Vec<T>, desired_capacity: usize) {
+    if desired_capacity > values.capacity() {
+        values.reserve(desired_capacity);
+    }
+}
+
+fn reserve_map_capacity<K, V>(values: &mut HashMap<K, V>, desired_capacity: usize)
+where
+    K: Eq + Hash,
+{
+    if desired_capacity > values.capacity() {
+        values.reserve(desired_capacity);
+    }
+}
+
+fn reserve_set_capacity<T>(values: &mut HashSet<T>, desired_capacity: usize)
+where
+    T: Eq + Hash,
+{
+    if desired_capacity > values.capacity() {
+        values.reserve(desired_capacity);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn widget_clip_capacity_is_zero_without_scroll_containers() {
+        assert_eq!(
+            widget_clip_capacity(SurfaceTraversalStats {
+                widgets: 8,
+                scroll_containers: 0,
+                ..SurfaceTraversalStats::default()
+            }),
+            0
+        );
+    }
+
+    #[test]
+    fn widget_clip_capacity_tracks_widgets_when_scroll_containers_exist() {
+        assert_eq!(
+            widget_clip_capacity(SurfaceTraversalStats {
+                widgets: 8,
+                scroll_containers: 1,
+                ..SurfaceTraversalStats::default()
+            }),
+            8
+        );
+    }
+}

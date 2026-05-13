@@ -39,6 +39,9 @@ fn application_builder_animation_frames_route_through_public_app_path() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
     assert!(runtime.bridge_mut().needs_animation());
+    let activity = runtime.bridge_mut().animation_activity();
+    assert!(activity.needs_animation());
+    assert!(activity.needs_frame_message());
     assert!(runtime.bridge_mut().needs_animation());
     assert!(runtime.bridge_mut().queue_animation_frame());
     assert!(!runtime.bridge_mut().queue_animation_frame());
@@ -87,6 +90,9 @@ fn animated_transient_overlay_uses_paint_only_frame_activity() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
     assert!(runtime.bridge_mut().needs_animation());
+    let activity = runtime.bridge_mut().animation_activity();
+    assert!(activity.needs_animation());
+    assert!(!activity.needs_frame_message());
     assert!(!runtime.bridge_mut().queue_animation_frame());
 
     let drained = runtime.drain_runtime_messages();

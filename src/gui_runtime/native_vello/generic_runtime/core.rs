@@ -5,7 +5,7 @@ use crate::gui::{
     input::KeyPress,
     types::{Point, Vector2},
 };
-use crate::runtime::{RuntimeBridge, SurfaceRuntime};
+use crate::runtime::{RuntimeAnimationActivity, RuntimeBridge, SurfaceRuntime};
 use crate::theme::ThemeTokens;
 use crate::widgets::{PointerButton, TextEditCommand, WidgetInput, WidgetKey};
 
@@ -102,8 +102,8 @@ where
         self.runtime.refresh();
     }
 
-    pub(super) fn needs_animation(&mut self) -> bool {
-        self.runtime.bridge_mut().needs_animation()
+    pub(super) fn animation_activity(&mut self) -> RuntimeAnimationActivity {
+        self.runtime.bridge_mut().animation_activity()
     }
 
     pub(super) fn queue_animation_frame(&mut self) -> bool {
@@ -112,16 +112,16 @@ where
 
     pub(super) fn drain_timed_frame(
         &mut self,
-        needs_paint_animation: bool,
+        animation_activity: RuntimeAnimationActivity,
         needs_scene_animation: bool,
     ) -> GenericRouteOutcome {
-        if needs_paint_animation {
+        if animation_activity.needs_frame_message() {
             self.queue_animation_frame();
         }
         let mut outcome = self.drain_runtime_messages();
         if !outcome.needs_redraw() && needs_scene_animation {
             outcome.redraw_requested = true;
-        } else if !outcome.needs_redraw() && needs_paint_animation {
+        } else if !outcome.needs_redraw() && animation_activity.needs_animation() {
             outcome.paint_only_requested = true;
         }
         outcome

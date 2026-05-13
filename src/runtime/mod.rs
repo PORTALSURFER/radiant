@@ -34,8 +34,8 @@ pub use crate::gui_runtime::{
 };
 pub use bridge::{
     App, DeclarativeCommandRuntimeBridge, DeclarativeOwnedCommandRuntimeBridge,
-    DeclarativeOwnedRuntimeBridge, DeclarativeRuntimeBridge, RuntimeBridge,
-    declarative_command_runtime_bridge, declarative_owned_command_runtime_bridge,
+    DeclarativeOwnedRuntimeBridge, DeclarativeRuntimeBridge, RuntimeAnimationActivity,
+    RuntimeBridge, declarative_command_runtime_bridge, declarative_owned_command_runtime_bridge,
     declarative_owned_runtime_bridge, declarative_runtime_bridge,
 };
 pub use command::Command;

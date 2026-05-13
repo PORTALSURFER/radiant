@@ -50,6 +50,33 @@ where
             })
     }
 
+    fn pointer_widget_at_for_move(&self, point: Point) -> Option<WidgetId> {
+        self.stable_hovered_widget_at(point)
+            .or_else(|| self.widget_at(point))
+    }
+
+    fn stable_hovered_widget_at(&self, point: Point) -> Option<WidgetId> {
+        let hovered = self.hovered_widget?;
+        if !self.widget_contains_point(hovered, point) {
+            return None;
+        }
+        self.pointer_widgets
+            .visible_after(hovered)
+            .iter()
+            .rev()
+            .copied()
+            .find(|widget_id| self.widget_contains_point(*widget_id, point))
+            .or(Some(hovered))
+    }
+
+    fn widget_contains_point(&self, widget_id: WidgetId, point: Point) -> bool {
+        self.layout
+            .rects
+            .get(&widget_id)
+            .is_some_and(|rect| rect.contains(point))
+            && self.widget_clip_contains_point(widget_id, point)
+    }
+
     pub(super) fn styled_container_at(&self, point: Point) -> Option<NodeId> {
         self.styled_containers
             .visible()
@@ -124,7 +151,7 @@ where
             self.hovered_scroll_affordance = hovered_scroll_affordance;
             self.repaint_requested = true;
         }
-        let pointer_widget = self.widget_at(position);
+        let pointer_widget = self.pointer_widget_at_for_move(position);
         let hover_container = if self.widget_suppresses_container_hover(pointer_widget) {
             None
         } else {

@@ -68,15 +68,7 @@ struct PointerOverlayBridge;
 
 impl RuntimeBridge<()> for PointerOverlayBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        let mut rows = Vec::with_capacity(ROWS as usize);
-        rows.push(SurfaceChild::new(
-            fixed_row_slot(36.0),
-            SurfaceNode::custom_widget(
-                PointerOverlayProbeWidget::new(CURSOR_WIDGET_ID),
-                WidgetMessageMapper::none(),
-            ),
-        ));
-        rows.extend((1..ROWS).map(|index| {
+        let rows = (0..ROWS).map(|index| {
             SurfaceChild::new(
                 fixed_row_slot(28.0),
                 SurfaceNode::widget(
@@ -88,8 +80,17 @@ impl RuntimeBridge<()> for PointerOverlayBridge {
                     WidgetMessageMapper::none(),
                 ),
             )
-        }));
-        Arc::new(UiSurface::new(SurfaceNode::column(1, 0.0, rows)))
+        });
+        Arc::new(UiSurface::new(SurfaceNode::stack(
+            1,
+            vec![
+                SurfaceChild::fill(SurfaceNode::column(2, 0.0, rows.collect())),
+                SurfaceChild::fill(SurfaceNode::custom_widget(
+                    PointerOverlayProbeWidget::new(CURSOR_WIDGET_ID),
+                    WidgetMessageMapper::none(),
+                )),
+            ],
+        )))
     }
 }
 

@@ -122,3 +122,22 @@ fn hit_order_index_replaces_order_and_clears_visible_cache() {
     assert!(index.contains(4));
     assert_eq!(index.order(), &[4, 5]);
 }
+
+#[test]
+fn visible_after_returns_only_higher_visible_nodes() {
+    let mut layout = LayoutOutput::default();
+    for node_id in [10, 30, 40] {
+        layout.rects.insert(
+            node_id,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(10.0, 10.0)),
+        );
+    }
+    let mut index = HitOrderIndex::default();
+    index.set_order(vec![10, 20, 30, 40]);
+    index.refresh_visible(&layout);
+
+    assert_eq!(index.visible_after(10), &[30, 40]);
+    assert_eq!(index.visible_after(30), &[40]);
+    assert!(index.visible_after(40).is_empty());
+    assert!(index.visible_after(999).is_empty());
+}

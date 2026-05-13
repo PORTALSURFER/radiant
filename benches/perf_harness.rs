@@ -1,5 +1,8 @@
 //! Standalone performance harness for Radiant layout, runtime, and GPU data paths.
 
+#[path = "perf_harness/command_drain.rs"]
+mod command_drain;
+
 use radiant::{
     gui::types::ImageRgba,
     layout::{
@@ -151,17 +154,15 @@ fn main() {
     runner.run_scenario("runtime_command_flattening_512", RUNTIME_ITERATIONS, || {
         bench_command_flattening_512
     });
-    runner.run_scenario("runtime_command_drain_1k", RUNTIME_ITERATIONS, || {
-        let mut command_drain = StatefulCommandDrainBench::new();
-        move || command_drain.step()
-    });
+    runner.run_scenario(
+        "runtime_command_drain_1k",
+        RUNTIME_ITERATIONS,
+        command_drain::flat_command_drain,
+    );
     runner.run_scenario(
         "runtime_nested_command_drain_1k",
         RUNTIME_ITERATIONS,
-        || {
-            let mut nested_command_drain = StatefulNestedCommandDrainBench::new();
-            move || nested_command_drain.step()
-        },
+        command_drain::nested_command_drain,
     );
     runner.run_scenario("gpu_signal_summary", GPU_ITERATIONS, || {
         bench_gpu_signal_summary
@@ -1023,100 +1024,6 @@ fn bench_command_flattening_512() {
     let messages = command.into_messages();
     assert_eq!(messages.len(), 486);
     black_box(messages);
-}
-
-struct StatefulCommandDrainBench {
-    runtime: SurfaceRuntime<QueuedCommandDrainBridge, usize>,
-    next_message: usize,
-}
-
-impl StatefulCommandDrainBench {
-    fn new() -> Self {
-        Self {
-            runtime: SurfaceRuntime::new(
-                QueuedCommandDrainBridge::default(),
-                Vector2::new(120.0, 40.0),
-            ),
-            next_message: 0,
-        }
-    }
-
-    fn step(&mut self) {
-        let start = self.next_message;
-        let end = start + 1_024;
-        self.runtime
-            .bridge_mut()
-            .commands
-            .extend((start..end).map(Command::message));
-        loop {
-            let outcome = self.runtime.drain_runtime_messages();
-            if !outcome.runtime_work_remaining {
-                break;
-            }
-        }
-        self.next_message = end;
-        assert_eq!(self.runtime.bridge().dispatched, end);
-        black_box(self.runtime.layout());
-    }
-}
-
-struct StatefulNestedCommandDrainBench {
-    runtime: SurfaceRuntime<QueuedCommandDrainBridge, usize>,
-    next_message: usize,
-}
-
-impl StatefulNestedCommandDrainBench {
-    fn new() -> Self {
-        Self {
-            runtime: SurfaceRuntime::new(
-                QueuedCommandDrainBridge::default(),
-                Vector2::new(120.0, 40.0),
-            ),
-            next_message: 0,
-        }
-    }
-
-    fn step(&mut self) {
-        let start = self.next_message;
-        let end = start + 1_024;
-        self.runtime.bridge_mut().commands.extend([
-            Command::batch((start..end).map(Command::message)),
-            Command::message(end),
-        ]);
-        loop {
-            let outcome = self.runtime.drain_runtime_messages();
-            if !outcome.runtime_work_remaining {
-                break;
-            }
-        }
-        self.next_message = end + 1;
-        assert_eq!(self.runtime.bridge().dispatched, end + 1);
-        black_box(self.runtime.layout());
-    }
-}
-
-#[derive(Default)]
-struct QueuedCommandDrainBridge {
-    commands: Vec<Command<usize>>,
-    dispatched: usize,
-}
-
-impl RuntimeBridge<usize> for QueuedCommandDrainBridge {
-    fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
-        Arc::new(UiSurface::new(SurfaceNode::container(
-            1,
-            ContainerPolicy::default(),
-            Vec::new(),
-        )))
-    }
-
-    fn reduce_message(&mut self, message: usize) {
-        self.dispatched = message + 1;
-    }
-
-    fn drain_runtime_commands_into(&mut self, commands: &mut Vec<Command<usize>>) {
-        commands.append(&mut self.commands);
-    }
 }
 
 fn bench_gpu_signal_summary() {

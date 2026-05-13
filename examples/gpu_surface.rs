@@ -4,7 +4,7 @@ use radiant::gui::types::ImageRgba;
 use radiant::layout::{Point, Rect, Vector2};
 use radiant::prelude::*;
 use radiant::widgets::{PointerButton, WidgetInput};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 #[derive(Default)]
 struct DemoState {
@@ -16,7 +16,12 @@ enum DemoMessage {
     SurfaceInput(WidgetInput),
 }
 
-fn demo_atlas() -> Arc<ImageRgba> {
+fn demo_atlas() -> &'static Arc<ImageRgba> {
+    static ATLAS: OnceLock<Arc<ImageRgba>> = OnceLock::new();
+    ATLAS.get_or_init(build_demo_atlas)
+}
+
+fn build_demo_atlas() -> Arc<ImageRgba> {
     let width = 256usize;
     let height = 128usize;
     let mut pixels = Vec::with_capacity(width * height * 4);
@@ -37,7 +42,7 @@ fn demo_atlas() -> Arc<ImageRgba> {
 }
 
 fn demo_view(state: &DemoState) -> View<DemoMessage> {
-    let atlas = demo_atlas();
+    let atlas = Arc::clone(demo_atlas());
     let status = if state.pressed {
         "GPU surface input: pressed"
     } else {
@@ -118,6 +123,14 @@ mod tests {
         assert_eq!(gpu.revision, 1);
         assert_eq!(gpu.rect.width(), 360.0);
         assert_eq!(gpu.rect.height(), 180.0);
+    }
+
+    #[test]
+    fn gpu_surface_example_reuses_static_atlas_payload() {
+        assert!(
+            Arc::ptr_eq(demo_atlas(), demo_atlas()),
+            "view reprojection should reuse the generated GPU atlas payload"
+        );
     }
 
     #[test]

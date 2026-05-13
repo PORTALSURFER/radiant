@@ -102,20 +102,27 @@ where
     }
 
     fn animation_activity(&mut self) -> RuntimeAnimationActivity {
-        let app_animation = self
+        let app_animation_active = self
             .animation
             .as_mut()
             .is_some_and(|animation| animation(&mut self.state));
         let transient_overlay_animation = self
             .transient_overlay_activity
             .as_mut()
-            .is_some_and(|activity| activity(&mut self.state));
-        let frame_message_active = app_animation && self.frame_message.is_some();
+            .map_or_else(RuntimeAnimationActivity::idle, |activity| {
+                activity(&mut self.state)
+            });
+        let frame_message_active = app_animation_active && self.frame_message.is_some();
         self.pending_animation_frame_activity = Some(frame_message_active);
-        RuntimeAnimationActivity::new(
-            app_animation || transient_overlay_animation,
+        let mut activity = RuntimeAnimationActivity::new(
+            app_animation_active || transient_overlay_animation.needs_animation(),
             frame_message_active,
-        )
+        );
+        if !app_animation_active && let Some(target_fps) = transient_overlay_animation.target_fps()
+        {
+            activity = activity.with_target_fps(target_fps);
+        }
+        activity
     }
 
     fn queue_animation_frame(&mut self) -> bool {

@@ -120,10 +120,15 @@ where
         let animation_activity = self.core.animation_activity();
         let now = Instant::now();
         let needs_scene_animation = self.core.has_focused_text_input();
+        let frame_target_fps = timed_frame_target_fps(
+            self.options.normalized_target_fps(),
+            animation_activity,
+            needs_scene_animation,
+        );
         match timed_frame_cadence(
             now,
             self.last_redraw,
-            self.options.normalized_target_fps(),
+            frame_target_fps,
             animation_activity.needs_animation() || needs_scene_animation,
         ) {
             TimedFrameCadence::Idle => event_loop.set_control_flow(ControlFlow::Wait),

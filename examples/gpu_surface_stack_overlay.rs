@@ -237,7 +237,8 @@ fn main() -> radiant::Result {
             .padding(24.0)
             .spacing(16.0)
         })
-        .animated_transient_overlay(
+        .animated_transient_overlay_at(
+            60,
             |state| state.running,
             |state, context, primitives| {
                 paint_transient_blob(state, context.plan, context.animation_time, primitives);
@@ -424,7 +425,8 @@ mod tests {
                     .id(12)
                     .size(SURFACE_WIDTH, SURFACE_HEIGHT)
                 })
-                .animated_transient_overlay(
+                .animated_transient_overlay_at(
+                    60,
                     |state| state.running,
                     move |state, context, primitives| {
                         assert!(state.running);
@@ -445,6 +447,7 @@ mod tests {
         let activity = runtime.bridge_mut().animation_activity();
         assert!(activity.needs_animation());
         assert!(!activity.needs_frame_message());
+        assert_eq!(activity.target_fps(), Some(60));
         assert!(
             !runtime.bridge_mut().queue_animation_frame(),
             "paint-only overlay animation must not enqueue app frame messages"

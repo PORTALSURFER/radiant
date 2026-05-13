@@ -1,5 +1,6 @@
 //! Timed-frame scheduling policy for native animation and paint-only overlays.
 
+use crate::runtime::RuntimeAnimationActivity;
 use std::time::{Duration, Instant};
 
 pub(super) fn animation_frame_interval(target_fps: u32) -> Duration {
@@ -32,6 +33,24 @@ pub(super) fn timed_frame_cadence(
     } else {
         TimedFrameCadence::WaitUntil(next_frame)
     }
+}
+
+pub(super) fn timed_frame_target_fps(
+    native_target_fps: u32,
+    animation_activity: RuntimeAnimationActivity,
+    needs_scene_animation: bool,
+) -> u32 {
+    let native_target_fps =
+        crate::gui_runtime::options::normalize_native_target_fps(native_target_fps);
+    if needs_scene_animation {
+        return native_target_fps;
+    }
+    animation_activity
+        .target_fps()
+        .map_or(native_target_fps, |target_fps| {
+            crate::gui_runtime::options::normalize_native_target_fps(target_fps)
+                .min(native_target_fps)
+        })
 }
 
 #[cfg(test)]
@@ -71,6 +90,26 @@ mod tests {
             TimedFrameCadence::DrainNow {
                 next_wake: now + interval
             }
+        );
+    }
+
+    #[test]
+    fn timed_frame_target_fps_uses_activity_cap_without_exceeding_native_policy() {
+        assert_eq!(
+            timed_frame_target_fps(120, RuntimeAnimationActivity::paint_only_at(24), false),
+            24
+        );
+        assert_eq!(
+            timed_frame_target_fps(60, RuntimeAnimationActivity::paint_only_at(240), false),
+            60
+        );
+    }
+
+    #[test]
+    fn timed_frame_target_fps_keeps_native_cadence_for_scene_animation() {
+        assert_eq!(
+            timed_frame_target_fps(120, RuntimeAnimationActivity::paint_only_at(24), true),
+            120
         );
     }
 }

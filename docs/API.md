@@ -167,7 +167,11 @@ overlays. Use `.transient_overlay_animation(...)` or the combined
 over the cached surface without queuing application frame messages. Custom
 runtime bridges can report the same split explicitly with
 `RuntimeAnimationActivity`, distinguishing frame-message animation from
-paint-only presentation work.
+paint-only presentation work. When a paint-only transient overlay is present,
+the native Vello runtime also caches the composed Vello scene plus retained GPU
+surfaces as a base frame, so later overlay-only frames can present that stable
+composition and draw the moving overlay without re-encoding retained GPU
+surfaces until the scene, paint plan, or runtime GPU-surface overlays change.
 Retained canvas views reserve stable cached surfaces with
 `retained_canvas(key).revision(...).dirty_mask(...).volatile(...).on_input(...)`, while the
 app painter owns the corresponding backend-neutral `PaintFrame`.
@@ -644,9 +648,9 @@ For interactive native runs, set `RADIANT_NATIVE_RENDER_PROFILE=1` to emit a
 per-frame `radiant native render profile` tracing line. The profile separates
 paint-plan primitive counts, Vello scene encode categories, retained-surface
 bridge/cache counts, GPU-surface render/cache counts, and timing for surface
-refresh, paint-plan generation, Vello render-to-texture, composition, and
-presentation. This is a development diagnostic, not a stable public telemetry
-schema.
+refresh, paint-plan generation, Vello render-to-texture, composed-base refresh
+or cache hits for transient overlays, GPU-surface composition, and presentation.
+This is a development diagnostic, not a stable public telemetry schema.
 
 ## Examples And Sandboxes
 
@@ -708,7 +712,8 @@ builder.
 Run `cargo run --example gpu_surface_stack_overlay` for a retained GPU surface
 with normal widget overlays plus a transient animated blob that repaints every
 frame through `.animated_transient_overlay(...)` without refreshing the
-declarative surface or rebuilding the cached Vello scene.
+declarative surface, rebuilding the cached Vello scene, or recompositing the
+stable retained GPU surface on every overlay-only frame.
 Run `cargo run --example background_loading` for a background-work sandbox that
 uses `ResourceSlot`, `ResourceLoad`, and `UpdateContext::spawn(...)` to route
 worker resource results back into the normal state update path.

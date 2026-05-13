@@ -181,6 +181,26 @@ fn runtime_diagnostics_use_tracing_outside_explicit_profile_artifacts() {
 }
 
 #[test]
+fn api_docs_describe_paint_only_overlay_composition_cache() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("docs/API.md should be readable");
+    let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    for required in [
+        "paint-only presentation work",
+        "caches the composed Vello scene plus retained GPU surfaces as a base frame",
+        "composed-base refresh or cache hits for transient overlays",
+        "without refreshing the declarative surface, rebuilding the cached Vello scene, or recompositing",
+    ] {
+        assert!(
+            normalized_docs.contains(required),
+            "API docs should document the paint-only overlay composition cache with `{required}`"
+        );
+    }
+}
+
+#[test]
 fn api_docs_describe_the_structural_boundary_strategy() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))

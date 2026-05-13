@@ -45,6 +45,20 @@ where
         &self.layout
     }
 
+    /// Set the layout debug primitive policy and recompute the current layout.
+    pub fn set_layout_debug_options(&mut self, options: LayoutDebugOptions) {
+        if self.layout_debug_options == options {
+            return;
+        }
+        self.layout_debug_options = options;
+        self.relayout_current_surface();
+    }
+
+    /// Return the active layout debug primitive policy.
+    pub fn layout_debug_options(&self) -> LayoutDebugOptions {
+        self.layout_debug_options
+    }
+
     /// Return a borrowed context view of the current runtime state.
     pub fn context(&self) -> RuntimeContext<'_, Message> {
         RuntimeContext {

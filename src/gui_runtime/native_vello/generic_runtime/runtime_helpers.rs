@@ -3,7 +3,7 @@
 use super::GenericRouteOutcome;
 use crate::{
     layout::{Rect, Vector2},
-    runtime::{GpuHoverCursor, PaintGpuSurface, PaintPrimitive},
+    runtime::{GpuSurfaceRuntimeOverlays, PaintGpuSurface, PaintPrimitive},
 };
 use std::time::Duration;
 use tracing::info;
@@ -14,7 +14,7 @@ pub(in crate::gui_runtime::native_vello) struct GpuSurfaceInteractionRegion {
     pub(in crate::gui_runtime::native_vello) rect: Rect,
     pub(in crate::gui_runtime::native_vello) fast_pointer_move: bool,
     pub(in crate::gui_runtime::native_vello) coalesce_vertical_wheel: bool,
-    pub(in crate::gui_runtime::native_vello) native_hover_cursor: Option<GpuHoverCursor>,
+    pub(in crate::gui_runtime::native_vello) runtime_overlays: GpuSurfaceRuntimeOverlays,
 }
 
 impl GpuSurfaceInteractionRegion {
@@ -29,7 +29,11 @@ impl GpuSurfaceInteractionRegion {
         }
         if !surface.capabilities.fast_pointer_move
             && !surface.capabilities.coalesce_vertical_wheel
-            && surface.capabilities.native_hover_cursor.is_none()
+            && surface
+                .capabilities
+                .runtime_overlays
+                .pointer_vertical_line
+                .is_none()
         {
             return None;
         }
@@ -37,7 +41,7 @@ impl GpuSurfaceInteractionRegion {
             rect: surface.rect,
             fast_pointer_move: surface.capabilities.fast_pointer_move,
             coalesce_vertical_wheel: surface.capabilities.coalesce_vertical_wheel,
-            native_hover_cursor: surface.capabilities.native_hover_cursor,
+            runtime_overlays: surface.capabilities.runtime_overlays,
         })
     }
 
@@ -104,7 +108,10 @@ pub(super) fn render_profile_enabled() -> bool {
 mod tests {
     use super::*;
     use crate::gui::types::{ImageRgba, Rgba8};
-    use crate::runtime::{GpuSurfaceCapabilities, GpuSurfaceContent, PaintGpuSurface};
+    use crate::runtime::{
+        GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceRuntimeOverlays,
+        PaintGpuSurface,
+    };
     use std::sync::Arc;
 
     #[test]
@@ -117,7 +124,7 @@ mod tests {
             ),
             fast_pointer_move: true,
             coalesce_vertical_wheel: false,
-            native_hover_cursor: None,
+            runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
         });
         let initial_capacity = regions.capacity();
         let rect = Rect::from_min_size(crate::layout::Point::new(1.0, 2.0), Vector2::new(3.0, 4.0));
@@ -142,7 +149,7 @@ mod tests {
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,
                 coalesce_vertical_wheel: true,
-                native_hover_cursor: None,
+                runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
             },
             overlays: Vec::new(),
         };
@@ -161,8 +168,8 @@ mod tests {
         native_hover_surface.rect = native_hover_rect;
         native_hover_surface.capabilities.fast_pointer_move = false;
         native_hover_surface.capabilities.coalesce_vertical_wheel = false;
-        native_hover_surface.capabilities.native_hover_cursor =
-            Some(crate::runtime::GpuHoverCursor {
+        native_hover_surface.capabilities.runtime_overlays =
+            GpuSurfaceRuntimeOverlays::pointer_vertical_line(GpuSurfaceLineStyle {
                 color: Rgba8 {
                     r: 255,
                     g: 255,
@@ -187,21 +194,23 @@ mod tests {
                     rect,
                     fast_pointer_move: true,
                     coalesce_vertical_wheel: true,
-                    native_hover_cursor: None,
+                    runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
                 },
                 GpuSurfaceInteractionRegion {
                     rect: native_hover_rect,
                     fast_pointer_move: false,
                     coalesce_vertical_wheel: false,
-                    native_hover_cursor: Some(crate::runtime::GpuHoverCursor {
-                        color: Rgba8 {
-                            r: 255,
-                            g: 255,
-                            b: 255,
-                            a: 255,
+                    runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
+                        GpuSurfaceLineStyle {
+                            color: Rgba8 {
+                                r: 255,
+                                g: 255,
+                                b: 255,
+                                a: 255,
+                            },
+                            width: 1.0,
                         },
-                        width: 1.0,
-                    }),
+                    ),
                 }
             ]
         );

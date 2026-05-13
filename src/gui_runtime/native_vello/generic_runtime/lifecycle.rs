@@ -34,12 +34,13 @@ where
                 let position = Point::new(position.x as f32, position.y as f32);
                 let previous = self.last_cursor;
                 self.last_cursor = Some(position);
-                if self.native_hover_surface_contains(position) {
+                if self.can_fast_path_native_hover_move(position) {
                     self.update_gpu_surface_cursor_overlay(position);
                     self.request_redraw_if_needed();
                     return;
                 }
-                if previous.is_some_and(|previous| self.native_hover_surface_contains(previous))
+                if previous
+                    .is_some_and(|previous| self.runtime_pointer_line_surface_contains(previous))
                     && previous
                         .is_some_and(|previous| self.clear_gpu_surface_cursor_overlay(previous))
                 {

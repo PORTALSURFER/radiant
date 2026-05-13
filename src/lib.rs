@@ -40,21 +40,22 @@ pub mod widgets;
 pub mod prelude {
     pub use crate::Result;
     pub use crate::application::{
-        BadgeBuilder, ButtonBuilder, DetailsColumn, DetailsRow, DetailsSort, DragHandleBuilder,
-        DynamicWidget, IntoView, MappedWidget, MenuItem, PropertyRow, RetainedCanvasBuilder,
-        RunnableStatefulApp, SelectableBuilder, SliderBuilder, SortDirection, StateAction,
-        StateView, StatefulAppBuilder, StatefulAppWithView, Subscription, TextInputBuilder,
-        ToggleBuilder, TreeListItem, UpdateContext, View, ViewNode, WidgetView, WidgetViewContext,
-        WindowBuilder, app, badge, badge_mapped, badge_message, button, button_mapped,
-        button_message, canvas, card, checkbox, column, column_key, context_menu_overlay,
-        custom_widget, custom_widget_mapped, drag_handle, drag_handle_mapped, drop_marker,
-        gpu_surface, gpu_surface_input, grid, grid_with_gaps, image, list, list_row, list_row_id,
-        menu, overlay_panel, passive_button, passive_text_input, passive_toggle, property_panel,
-        retained_canvas, retained_canvas_with, row, row_key, scroll, scroll_column, selectable,
-        selectable_mapped, selectable_property_panel, selectable_sortable_details_list, slider,
-        slider_mapped, sortable_details_list, spacer, stack, text, text_input, text_input_mapped,
-        toggle, toggle_mapped, tree_list, tree_list_with_drag, virtual_list, virtual_list_window,
-        virtual_scroll, widget, window,
+        BadgeBuilder, ButtonBuilder, DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING,
+        DEFAULT_STYLED_CONTAINER_PADDING, DetailsColumn, DetailsRow, DetailsSort,
+        DragHandleBuilder, DynamicWidget, IntoView, MappedWidget, MenuItem, PropertyRow,
+        RetainedCanvasBuilder, RunnableStatefulApp, SelectableBuilder, SliderBuilder,
+        SortDirection, StateAction, StateView, StatefulAppBuilder, StatefulAppWithView,
+        Subscription, TextInputBuilder, ToggleBuilder, TreeListItem, UpdateContext, View, ViewNode,
+        WidgetView, WidgetViewContext, WindowBuilder, app, badge, badge_mapped, badge_message,
+        button, button_mapped, button_message, canvas, card, checkbox, column, column_key,
+        context_menu_overlay, custom_widget, custom_widget_mapped, drag_handle, drag_handle_mapped,
+        drop_marker, gpu_surface, gpu_surface_input, grid, grid_with_gaps, image, list, list_row,
+        list_row_id, menu, overlay_panel, passive_button, passive_text_input, passive_toggle,
+        property_panel, retained_canvas, retained_canvas_with, row, row_key, scroll, scroll_column,
+        selectable, selectable_mapped, selectable_property_panel, selectable_sortable_details_list,
+        slider, slider_mapped, sortable_details_list, spacer, stack, text, text_input,
+        text_input_mapped, toggle, toggle_mapped, tree_list, tree_list_with_drag, virtual_list,
+        virtual_list_window, virtual_scroll, widget, window,
     };
     pub use crate::gui::types::{ImageRgba, Point, Rect, Rgba8, Vector2};
     pub use crate::gui::{
@@ -67,8 +68,9 @@ pub mod prelude {
     };
     pub use crate::layout::LayoutOutput;
     pub use crate::runtime::{
-        Command, EmbeddedFont, GpuHoverCursor, GpuSignalRenderShape, GpuSignalSummary,
+        Command, EmbeddedFont, GpuSignalRenderShape, GpuSignalSummary,
         GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent,
+        GpuSurfaceLineStyle, GpuSurfaceRuntimeOverlays,
         GpuSurfaceOverlay, PaintFillPath, PaintFillRect, PaintFillRule, PaintImage, PaintPrimitive,
         PaintStrokeRect, PaintSvg, PaintSvgDocument, PaintTextAlign, PaintTextRun, PaintTransform,
         ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot, ScrollUpdate,
@@ -83,4 +85,7 @@ pub mod prelude {
     };
 }
 
-pub use application::{Result, app, window};
+pub use application::{
+    DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING,
+    DEFAULT_STYLED_CONTAINER_PADDING, Result, app, window,
+};

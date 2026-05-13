@@ -6,6 +6,9 @@
 
 const ROOT_KEY_SCOPE: u64 = 0xcbf2_9ce4_8422_2325;
 
+/// Default content padding for styled Radiant application containers.
+pub const DEFAULT_STYLED_CONTAINER_PADDING: f32 = 4.0;
+
 /// Result type used by native launch helpers.
 pub type Result<T = ()> = std::result::Result<T, String>;
 

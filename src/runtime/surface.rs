@@ -117,6 +117,7 @@ impl<Message> UiSurface<Message> {
             hovered_container,
             active_scroll_affordance,
         );
+        super::paint::push_layout_debug_overlay(layout, plan);
     }
 
     /// Map one widget output back into a host-defined message.

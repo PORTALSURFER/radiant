@@ -14,16 +14,32 @@ pub struct GpuSurfaceCapabilities {
     pub fast_pointer_move: bool,
     /// Whether vertical wheel deltas over this surface can be coalesced until redraw.
     pub coalesce_vertical_wheel: bool,
-    /// Optional native-runtime hover cursor policy for this surface.
-    pub native_hover_cursor: Option<GpuHoverCursor>,
+    /// Runtime-owned overlay policies for this surface.
+    pub runtime_overlays: GpuSurfaceRuntimeOverlays,
 }
 
-/// Native-runtime hover cursor styling for retained GPU surfaces.
+/// Runtime-owned overlay policies for retained GPU surfaces.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GpuSurfaceRuntimeOverlays {
+    /// Optional pointer-following vertical line style.
+    pub pointer_vertical_line: Option<GpuSurfaceLineStyle>,
+}
+
+impl GpuSurfaceRuntimeOverlays {
+    /// Build runtime overlays with a pointer-following vertical line enabled.
+    pub fn pointer_vertical_line(style: GpuSurfaceLineStyle) -> Self {
+        Self {
+            pointer_vertical_line: Some(style),
+        }
+    }
+}
+
+/// Generic line styling for retained GPU-surface overlays.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct GpuHoverCursor {
-    /// Cursor color.
+pub struct GpuSurfaceLineStyle {
+    /// Line color.
     pub color: Rgba8,
-    /// Cursor width in logical pixels.
+    /// Line width in logical pixels.
     pub width: f32,
 }
 
@@ -188,6 +204,24 @@ pub enum GpuSurfaceOverlay {
         color: Rgba8,
         /// Cursor width in logical pixels.
         width: f32,
+    },
+    /// Runtime-owned vertical line positioned inside the destination rect.
+    RuntimeVerticalLine {
+        /// Horizontal line position as a 0..1 ratio inside the destination rect.
+        ratio: f32,
+        /// Line color.
+        color: Rgba8,
+        /// Line width in logical pixels.
+        width: f32,
+    },
+    /// Filled horizontal range positioned as 0..1 ratios inside the destination rect.
+    HorizontalRange {
+        /// Inclusive range start as a 0..1 ratio inside the destination rect.
+        start: f32,
+        /// Inclusive range end as a 0..1 ratio inside the destination rect.
+        end: f32,
+        /// Range fill color.
+        color: Rgba8,
     },
 }
 

@@ -5,7 +5,8 @@ use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
     layout::LayoutOutput,
     runtime::{
-        GpuHoverCursor, GpuSurfaceCapabilities, GpuSurfaceContent, PaintGpuSurface, PaintPrimitive,
+        GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceRuntimeOverlays,
+        PaintGpuSurface, PaintPrimitive,
     },
     theme::ThemeTokens,
     widgets::{
@@ -252,15 +253,17 @@ impl Widget for WaveformWidget {
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,
                 coalesce_vertical_wheel: true,
-                native_hover_cursor: Some(GpuHoverCursor {
-                    color: Rgba8 {
-                        r: 255,
-                        g: 255,
-                        b: 255,
-                        a: 235,
+                runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
+                    GpuSurfaceLineStyle {
+                        color: Rgba8 {
+                            r: 255,
+                            g: 255,
+                            b: 255,
+                            a: 235,
+                        },
+                        width: 1.5,
                     },
-                    width: 1.5,
-                }),
+                ),
             },
             overlays: Vec::new(),
         }));

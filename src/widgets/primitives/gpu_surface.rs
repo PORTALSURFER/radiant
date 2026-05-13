@@ -3,8 +3,8 @@
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{
-    GpuHoverCursor, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay, PaintPrimitive,
-    SurfaceNode,
+    GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceOverlay,
+    GpuSurfaceRuntimeOverlays, PaintPrimitive, SurfaceNode,
 };
 use crate::theme::ThemeTokens;
 
@@ -67,9 +67,9 @@ impl GpuSurfaceWidget {
         self
     }
 
-    /// Enable runtime-owned hover cursor updates for this retained GPU surface.
-    pub fn with_native_hover_cursor(mut self, cursor: GpuHoverCursor) -> Self {
-        self.capabilities.native_hover_cursor = Some(cursor);
+    /// Enable runtime-owned pointer-following vertical line updates for this retained GPU surface.
+    pub fn with_runtime_pointer_line(mut self, line: GpuSurfaceLineStyle) -> Self {
+        self.capabilities.runtime_overlays = GpuSurfaceRuntimeOverlays::pointer_vertical_line(line);
         self
     }
 

@@ -80,6 +80,11 @@ where
         if !outcome.needs_redraw() {
             return;
         }
+        if outcome.routed {
+            self.rebuild_scene();
+            self.request_redraw_if_needed();
+            return;
+        }
         if self.can_fast_path_gpu_surface_pointer_move(previous, position) {
             if self.update_gpu_surface_cursor_overlay(position) {
                 self.request_redraw_if_needed();
@@ -100,6 +105,9 @@ where
         previous: Option<Point>,
         position: Point,
     ) -> bool {
+        if self.core.runtime.pointer_capture().is_some() {
+            return false;
+        }
         let Some(previous) = previous else {
             return false;
         };
@@ -114,10 +122,15 @@ where
             .any(|region| region.coalesce_vertical_wheel && region.contains(position))
     }
 
-    pub(super) fn native_hover_surface_contains(&self, position: Point) -> bool {
-        self.gpu_surface_interaction_regions
-            .iter()
-            .any(|region| region.native_hover_cursor.is_some() && region.contains(position))
+    pub(super) fn runtime_pointer_line_surface_contains(&self, position: Point) -> bool {
+        self.gpu_surface_interaction_regions.iter().any(|region| {
+            region.runtime_overlays.pointer_vertical_line.is_some() && region.contains(position)
+        })
+    }
+
+    pub(super) fn can_fast_path_native_hover_move(&self, position: Point) -> bool {
+        self.core.runtime.pointer_capture().is_none()
+            && self.runtime_pointer_line_surface_contains(position)
     }
 
     pub(super) fn can_coalesce_gpu_surface_wheel(&self, position: Point, delta: Vector2) -> bool {
@@ -133,7 +146,12 @@ where
             let PaintPrimitive::GpuSurface(surface) = primitive else {
                 continue;
             };
-            if surface.capabilities.native_hover_cursor.is_none() {
+            if surface
+                .capabilities
+                .runtime_overlays
+                .pointer_vertical_line
+                .is_none()
+            {
                 continue;
             }
             if Some(index) == target_index {
@@ -151,7 +169,11 @@ where
             .iter_mut()
             .filter_map(|primitive| match primitive {
                 PaintPrimitive::GpuSurface(surface)
-                    if surface.capabilities.native_hover_cursor.is_some()
+                    if surface
+                        .capabilities
+                        .runtime_overlays
+                        .pointer_vertical_line
+                        .is_some()
                         && surface.rect.contains(position) =>
                 {
                     Some(surface)

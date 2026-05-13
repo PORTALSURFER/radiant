@@ -127,23 +127,27 @@ impl<Message> ViewNode<Message> {
 
     /// Apply equal content padding when this node is a container.
     pub fn padding(mut self, padding: f32) -> Self {
-        self.padding = Insets::all(padding.max(0.0));
+        self.padding = Some(Insets::all(padding.max(0.0)));
         self
     }
 
     /// Apply horizontal content padding when this node is a container.
     pub fn padding_x(mut self, padding: f32) -> Self {
         let padding = padding.max(0.0);
-        self.padding.left = padding;
-        self.padding.right = padding;
+        let mut insets = self.padding.unwrap_or_default();
+        insets.left = padding;
+        insets.right = padding;
+        self.padding = Some(insets);
         self
     }
 
     /// Apply vertical content padding when this node is a container.
     pub fn padding_y(mut self, padding: f32) -> Self {
         let padding = padding.max(0.0);
-        self.padding.top = padding;
-        self.padding.bottom = padding;
+        let mut insets = self.padding.unwrap_or_default();
+        insets.top = padding;
+        insets.bottom = padding;
+        self.padding = Some(insets);
         self
     }
 

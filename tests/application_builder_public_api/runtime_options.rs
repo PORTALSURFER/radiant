@@ -23,6 +23,17 @@ fn native_run_options_expose_platform_neutral_drag_and_drop_policy() {
 }
 
 #[test]
+fn native_run_options_expose_layout_debug_overlay_policy() {
+    let options = NativeRunOptions {
+        debug_layout: true,
+        ..NativeRunOptions::default()
+    };
+
+    assert!(!NativeRunOptions::default().debug_layout);
+    assert!(options.debug_layout);
+}
+
+#[test]
 fn native_run_options_expose_gpu_backend_policy() {
     let options = NativeRunOptions {
         gpu: NativeGpuOptions {

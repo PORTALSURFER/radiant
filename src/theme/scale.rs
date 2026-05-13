@@ -1,8 +1,7 @@
 //! Viewport density and UI-scale helpers.
 
-/// Global baseline size multiplier used by compatibility shells that want a
-/// slightly larger default density than the raw host UI scale.
-pub const DEFAULT_UI_SCALE: f32 = 1.06;
+/// Global baseline size multiplier applied before host UI scale.
+pub const DEFAULT_UI_SCALE: f32 = 1.0;
 
 /// Viewport-width tier for host surfaces that choose density from available space.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

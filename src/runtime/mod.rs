@@ -43,8 +43,9 @@ pub use controller::{
     SurfaceRuntime,
 };
 pub use gpu_surface::{
-    GpuHoverCursor, GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket,
-    GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay,
+    GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,
+    GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceOverlay,
+    GpuSurfaceRuntimeOverlays,
 };
 pub use paint::{
     PaintCustomSurface, PaintFillPath, PaintFillPolygon, PaintFillRect, PaintFillRule,

@@ -1,10 +1,10 @@
 use super::*;
 use crate::{
-    layout::{ContainerKind, ContainerPolicy, Rect, SlotParams},
+    layout::{ContainerKind, ContainerPolicy, LayoutDebugOptions, Rect, SlotParams},
     runtime::{
-        Command, GpuHoverCursor, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent,
-        GpuSurfaceOverlay, PaintGpuSurface, PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface,
-        WidgetMessageMapper,
+        Command, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle,
+        GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, PaintGpuSurface, PaintPrimitive,
+        SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
     },
     widgets::{
         ButtonWidget, CanvasMessage, PointerButton, ScrollbarAxis, ScrollbarMessage,
@@ -61,6 +61,21 @@ fn generic_core_preserves_animation_when_host_requests_it() {
     let mut core = GenericNativeRuntimeCore::new(AnimatingBridge, Vector2::new(320.0, 40.0));
 
     assert!(core.needs_animation());
+}
+
+#[test]
+fn generic_core_can_enable_layout_debug_before_first_frame() {
+    let core = GenericNativeRuntimeCore::new_with_debug_layout(
+        demo_bridge(),
+        Vector2::new(320.0, 40.0),
+        true,
+    );
+
+    assert_eq!(
+        core.runtime.layout_debug_options(),
+        LayoutDebugOptions::bounds_only()
+    );
+    assert!(!core.runtime.layout().debug_primitives.is_empty());
 }
 
 #[test]
@@ -217,15 +232,17 @@ impl Default for GpuWheelBridge {
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,
                 coalesce_vertical_wheel: true,
-                native_hover_cursor: Some(GpuHoverCursor {
-                    color: Rgba8 {
-                        r: 255,
-                        g: 255,
-                        b: 255,
-                        a: 255,
+                runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
+                    GpuSurfaceLineStyle {
+                        color: Rgba8 {
+                            r: 255,
+                            g: 255,
+                            b: 255,
+                            a: 255,
+                        },
+                        width: 1.0,
                     },
-                    width: 1.0,
-                }),
+                ),
             },
         }
     }

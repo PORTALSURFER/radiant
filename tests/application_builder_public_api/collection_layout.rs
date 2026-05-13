@@ -32,10 +32,68 @@ fn application_builder_lists_keep_row_heights_stable_across_item_counts() {
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(300.0, 200.0)),
     );
 
-    assert_eq!(two.rects[&10].height(), 52.0);
-    assert_eq!(two.rects[&11].height(), 52.0);
-    assert_eq!(ten.rects[&10].height(), 52.0);
-    assert_eq!(ten.rects[&11].height(), 52.0);
+    assert_eq!(two.rects[&10].height(), 44.0);
+    assert_eq!(two.rects[&11].height(), 44.0);
+    assert_eq!(ten.rects[&10].height(), 44.0);
+    assert_eq!(ten.rects[&11].height(), 44.0);
+}
+
+#[test]
+fn application_builder_default_containers_use_dense_spacing() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let row_surface: UiSurface<()> = ui::row([
+        ui::text("Left").id(10).fixed(40.0, 20.0),
+        ui::text("Right").id(11).fixed(40.0, 20.0),
+    ])
+    .id(1)
+    .into_surface();
+    let row_layout = layout_tree(
+        &row_surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 40.0)),
+    );
+    assert_eq!(
+        row_layout.rects[&11].min.x,
+        row_layout.rects[&10].max.x + radiant::DEFAULT_ROW_SPACING
+    );
+
+    let column_surface: UiSurface<()> = ui::column([
+        ui::text("Top").id(20).fixed(40.0, 20.0),
+        ui::text("Bottom").id(21).fixed(40.0, 20.0),
+    ])
+    .id(2)
+    .into_surface();
+    let column_layout = layout_tree(
+        &column_surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 80.0)),
+    );
+    assert_eq!(
+        column_layout.rects[&21].min.y,
+        column_layout.rects[&20].max.y + radiant::DEFAULT_COLUMN_SPACING
+    );
+}
+
+#[test]
+fn application_builder_styled_containers_use_default_panel_padding() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<()> = ui::column([ui::text("Panel").id(10).fixed(40.0, 20.0)])
+        .id(1)
+        .style(radiant::widgets::WidgetStyle::default())
+        .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 60.0)),
+    );
+
+    assert_eq!(
+        layout.rects[&10].min.x,
+        radiant::DEFAULT_STYLED_CONTAINER_PADDING
+    );
+    assert_eq!(
+        layout.rects[&10].min.y,
+        radiant::DEFAULT_STYLED_CONTAINER_PADDING
+    );
 }
 
 #[test]

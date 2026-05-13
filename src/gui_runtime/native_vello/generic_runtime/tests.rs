@@ -68,6 +68,60 @@ fn generic_core_turns_message_free_animation_into_paint_only_redraw() {
 }
 
 #[test]
+fn hover_redraws_do_not_reset_timed_animation_deadline() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let interval = frame_cadence::animation_frame_interval(60);
+    let now = Instant::now();
+    runner.last_redraw = now;
+    runner.last_timed_frame_drain = now - interval;
+
+    let activity = runner.core.animation_activity();
+    let (outcome, _) = runner
+        .drain_due_timed_frame(now, 60, activity, false)
+        .expect("animation frame should be due even after a fresh hover redraw");
+
+    assert!(outcome.routed);
+    assert!(outcome.needs_redraw());
+    assert_eq!(runner.last_timed_frame_drain, now);
+}
+
+#[derive(Default)]
+struct TestFrameMessageBridge {
+    queued: bool,
+}
+
+impl RuntimeBridge<DemoMessage> for TestFrameMessageBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        demo_surface(&DemoState::default())
+    }
+
+    fn needs_animation(&mut self) -> bool {
+        true
+    }
+
+    fn queue_animation_frame(&mut self) -> bool {
+        self.queued = true;
+        true
+    }
+
+    fn take_runtime_messages(&mut self) -> Vec<DemoMessage> {
+        if std::mem::take(&mut self.queued) {
+            vec![DemoMessage::Increment]
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn update(&mut self, _message: DemoMessage) -> Command<DemoMessage> {
+        Command::request_repaint()
+    }
+}
+
+#[test]
 fn generic_core_turns_text_caret_animation_into_scene_rebuild_redraw() {
     let mut core = GenericNativeRuntimeCore::new(demo_bridge(), Vector2::new(320.0, 40.0));
 

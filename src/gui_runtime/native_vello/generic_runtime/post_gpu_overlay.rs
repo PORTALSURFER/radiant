@@ -7,7 +7,7 @@ mod target;
 mod vertex;
 
 use buffer::OverlayVertexBuffer;
-use geometry::{append_replayable_vertices, replayable_vertices_into};
+use geometry::{append_replayable_vertices, replayable_vertices_in_regions_into};
 use pipeline::PostGpuOverlayPipeline;
 pub(in crate::gui_runtime::native_vello::generic_runtime) use target::PostGpuOverlayRenderTarget;
 use vertex::{OverlayVertex, overlay_vertex_bytes};
@@ -27,16 +27,27 @@ impl PostGpuOverlayRenderer {
         overlay_primitives: &[crate::runtime::PaintPrimitive],
     ) {
         let suffix = geometry::replayable_suffix(primitives);
+        let gpu_regions = geometry::gpu_surface_overlay_regions(primitives);
         if overlay_primitives.is_empty() {
             if let Some(suffix) = suffix {
-                replayable_vertices_into(suffix, target.size, &mut self.vertices);
+                replayable_vertices_in_regions_into(
+                    suffix,
+                    target.size,
+                    &gpu_regions,
+                    &mut self.vertices,
+                );
             } else {
                 self.vertices.clear();
             }
         } else {
             self.vertices.clear();
             if let Some(suffix) = suffix {
-                append_replayable_vertices(suffix, target.size, &mut self.vertices);
+                geometry::append_replayable_vertices_in_regions(
+                    suffix,
+                    target.size,
+                    &gpu_regions,
+                    &mut self.vertices,
+                );
             }
             append_replayable_vertices(overlay_primitives, target.size, &mut self.vertices);
         }

@@ -58,7 +58,7 @@ impl RuntimeBridge<DemoMessage> for RepaintBridge {
     }
 }
 
-fn demo_surface(state: &DemoState) -> Arc<UiSurface<DemoMessage>> {
+pub(super) fn demo_surface(state: &DemoState) -> Arc<UiSurface<DemoMessage>> {
     let button = ButtonWidget::new(
         11,
         "Increment",

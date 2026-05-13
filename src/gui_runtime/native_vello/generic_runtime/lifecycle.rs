@@ -137,21 +137,24 @@ where
             animation_activity,
             needs_text_caret_animation,
         );
-        match timed_frame_cadence(
+        let cadence = timed_frame_cadence(
             now,
-            self.last_redraw,
+            self.last_timed_frame_drain,
             frame_target_fps,
             animation_activity.needs_animation() || needs_text_caret_animation,
-        ) {
+        );
+        match cadence {
             TimedFrameCadence::Idle => event_loop.set_control_flow(ControlFlow::Wait),
             TimedFrameCadence::WaitUntil(next_frame) => {
                 event_loop.set_control_flow(ControlFlow::WaitUntil(next_frame));
             }
             TimedFrameCadence::DrainNow { next_wake } => {
-                if !self.redraw_requested {
-                    let outcome = self
-                        .core
-                        .drain_timed_frame(animation_activity, needs_text_caret_animation);
+                if let Some((outcome, _)) = self.drain_due_timed_frame(
+                    now,
+                    frame_target_fps,
+                    animation_activity,
+                    needs_text_caret_animation,
+                ) {
                     if outcome.exit_requested {
                         event_loop.exit();
                         return;

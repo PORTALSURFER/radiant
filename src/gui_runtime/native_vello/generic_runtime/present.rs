@@ -118,6 +118,16 @@ where
             },
             &self.last_paint_plan.primitives,
         );
+        self.post_gpu_overlay_renderer.render(
+            &mut post_gpu_overlay::PostGpuOverlayRenderTarget {
+                device: &dev_handle.device,
+                encoder: &mut encoder,
+                target_view: &surface_view,
+                format: surface.config.format,
+                size: Vector2::new(surface.config.width as f32, surface.config.height as f32),
+            },
+            &self.last_paint_plan.primitives,
+        );
         let started = Instant::now();
         dev_handle.queue.submit(std::iter::once(encoder.finish()));
         surface_texture.present();

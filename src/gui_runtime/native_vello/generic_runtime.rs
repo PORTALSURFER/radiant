@@ -10,6 +10,7 @@ mod gpu_surface_interaction;
 mod input;
 mod keyboard;
 mod lifecycle;
+mod post_gpu_overlay;
 mod present;
 mod runner;
 mod runtime_helpers;
@@ -24,6 +25,7 @@ pub(in crate::gui_runtime::native_vello) use core::{
 use gpu_surface::GpuSurfaceRenderer;
 use gpu_surface_interaction::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
+use post_gpu_overlay::PostGpuOverlayRenderer;
 use present::RenderFrameProfile;
 use runner::GenericNativeVelloRunner;
 use runtime_helpers::{

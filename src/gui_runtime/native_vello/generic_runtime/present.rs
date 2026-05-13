@@ -108,70 +108,23 @@ where
             self.animation_origin.elapsed(),
         );
         let started = Instant::now();
-        let use_composited_base = !self.transient_overlay_primitives.is_empty();
-        let gpu_surface_stats = if use_composited_base {
-            let base_frame = CompositedBaseFrame::ensure(
-                &mut self.composited_base_frame,
-                &dev_handle.device,
-                surface.config.width,
-                surface.config.height,
-                surface.config.format,
-            );
-            let base_stats = if self.composited_base_dirty {
-                let base_started = Instant::now();
-                surface.blitter.copy(
-                    &dev_handle.device,
-                    &mut encoder,
-                    &surface.target_view,
-                    &base_frame.view,
-                );
-                let stats = self.gpu_surface_renderer.render(
-                    &mut gpu_surface::GpuSurfaceRenderTarget {
-                        device: &dev_handle.device,
-                        queue: &dev_handle.queue,
-                        encoder: &mut encoder,
-                        target_view: &base_frame.view,
-                        format: surface.config.format,
-                        size: Vector2::new(
-                            surface.config.width as f32,
-                            surface.config.height as f32,
-                        ),
-                    },
-                    &self.last_paint_plan.primitives,
-                );
-                self.composited_base_dirty = false;
-                profile.composited_base_refresh = base_started.elapsed();
-                stats
-            } else {
-                profile.composited_base_cache_hit = true;
-                gpu_surface::GpuSurfaceRenderStats::default()
-            };
-            surface.blitter.copy(
-                &dev_handle.device,
-                &mut encoder,
-                &base_frame.view,
-                &surface_view,
-            );
-            base_stats
-        } else {
-            surface.blitter.copy(
-                &dev_handle.device,
-                &mut encoder,
-                &surface.target_view,
-                &surface_view,
-            );
-            self.gpu_surface_renderer.render(
-                &mut gpu_surface::GpuSurfaceRenderTarget {
-                    device: &dev_handle.device,
-                    queue: &dev_handle.queue,
-                    encoder: &mut encoder,
-                    target_view: &surface_view,
-                    format: surface.config.format,
-                    size: Vector2::new(surface.config.width as f32, surface.config.height as f32),
-                },
-                &self.last_paint_plan.primitives,
-            )
-        };
+        let gpu_surface_stats = present_base_frame(
+            &mut BaseFramePresentState {
+                base_frame: &mut self.composited_base_frame,
+                base_dirty: &mut self.composited_base_dirty,
+                gpu_surface_renderer: &mut self.gpu_surface_renderer,
+                profile: &mut profile,
+            },
+            surface,
+            &mut BaseFramePresentTarget {
+                device: &dev_handle.device,
+                queue: &dev_handle.queue,
+                encoder: &mut encoder,
+                surface_view: &surface_view,
+            },
+            &self.last_paint_plan,
+            &self.transient_overlay_primitives,
+        );
         profile.full_screen_blit = started.elapsed();
         self.post_gpu_overlay_renderer.render_layers(
             &mut post_gpu_overlay::PostGpuOverlayRenderTarget {

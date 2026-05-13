@@ -95,7 +95,7 @@ pub fn visible_suffix_widths_into(
     let mut first_visible = widths.len();
     for (index, width) in widths.iter().rev().enumerate() {
         let candidate = used + width + if index > 0 { gap } else { 0.0 };
-        if candidate >= available_width {
+        if candidate > available_width {
             break;
         }
         first_visible -= 1;
@@ -253,8 +253,13 @@ mod tests {
             visible_suffix_widths(&[20.0, 30.0, 40.0], 80.0, 4.0),
             [30.0, 40.0]
         );
-        assert!(visible_suffix_widths(&[20.0], 20.0, 4.0).is_empty());
+        assert_eq!(visible_suffix_widths(&[20.0], 20.0, 4.0), [20.0]);
+        assert!(visible_suffix_widths(&[20.0], 19.9, 4.0).is_empty());
         assert_eq!(visible_suffix_widths(&[20.0], 20.1, 4.0), [20.0]);
+        assert_eq!(
+            visible_suffix_widths(&[20.0, 30.0, 40.0], 74.0, 4.0),
+            [30.0, 40.0]
+        );
     }
 
     #[test]

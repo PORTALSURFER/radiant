@@ -15,6 +15,7 @@ mod lifecycle;
 mod post_gpu_overlay;
 mod present;
 mod render_profile;
+mod route_outcome;
 mod runner;
 mod runtime_helpers;
 mod runtime_wakeup;
@@ -25,15 +26,14 @@ mod window;
 use composited_base::{
     BaseFramePresentState, BaseFramePresentTarget, CompositedBaseFrame, present_base_frame,
 };
-pub(in crate::gui_runtime::native_vello) use core::{
-    GenericNativeRuntimeCore, GenericRouteOutcome,
-};
+pub(in crate::gui_runtime::native_vello) use core::GenericNativeRuntimeCore;
 use frame_cadence::{TimedFrameCadence, timed_frame_cadence};
 use gpu_surface::GpuSurfaceRenderer;
 use gpu_surface_interaction::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
 use post_gpu_overlay::PostGpuOverlayRenderer;
 use render_profile::{RenderFrameProfile, maybe_log_render_profile};
+pub(in crate::gui_runtime::native_vello) use route_outcome::GenericRouteOutcome;
 use runner::GenericNativeVelloRunner;
 use runtime_helpers::{
     GpuSurfaceInteractionRegion, collect_gpu_surface_interaction_regions, maybe_log_route_profile,

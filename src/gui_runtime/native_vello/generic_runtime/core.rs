@@ -1,5 +1,6 @@
 //! Runtime state and event routing for the generic native Vello runner.
 
+use super::GenericRouteOutcome;
 use crate::gui::{
     focus::FocusSurface,
     input::KeyPress,
@@ -15,35 +16,6 @@ where
 {
     pub(in crate::gui_runtime::native_vello) runtime: SurfaceRuntime<Bridge, Message>,
     theme: ThemeTokens,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(in crate::gui_runtime::native_vello) struct GenericRouteOutcome {
-    pub(in crate::gui_runtime::native_vello) routed: bool,
-    pub(in crate::gui_runtime::native_vello) redraw_requested: bool,
-    pub(in crate::gui_runtime::native_vello) repaint_requested: bool,
-    pub(in crate::gui_runtime::native_vello) paint_only_requested: bool,
-    pub(in crate::gui_runtime::native_vello) exit_requested: bool,
-    pub(in crate::gui_runtime::native_vello) runtime_work_remaining: bool,
-}
-
-impl GenericRouteOutcome {
-    pub(super) fn needs_redraw(self) -> bool {
-        self.needs_scene_rebuild() || self.paint_only_requested
-    }
-
-    pub(super) fn needs_scene_rebuild(self) -> bool {
-        self.redraw_requested || self.repaint_requested
-    }
-
-    pub(super) fn merge(&mut self, other: Self) {
-        self.routed |= other.routed;
-        self.redraw_requested |= other.redraw_requested;
-        self.repaint_requested |= other.repaint_requested;
-        self.paint_only_requested |= other.paint_only_requested;
-        self.exit_requested |= other.exit_requested;
-        self.runtime_work_remaining |= other.runtime_work_remaining;
-    }
 }
 
 impl<Bridge, Message> GenericNativeRuntimeCore<Bridge, Message>

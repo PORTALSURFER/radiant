@@ -12,6 +12,7 @@ mod gpu_surface_interaction;
 mod input;
 mod keyboard;
 mod lifecycle;
+mod post_gpu_overlay;
 mod present;
 mod runtime_helpers;
 mod runtime_wakeup;
@@ -25,6 +26,7 @@ pub(in crate::gui_runtime::native_vello) use core::{
 use gpu_surface::GpuSurfaceRenderer;
 use gpu_surface_interaction::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
+use post_gpu_overlay::PostGpuOverlayRenderer;
 use present::RenderFrameProfile;
 use runtime_helpers::{
     GpuSurfaceInteractionRegion, animation_frame_interval, collect_gpu_surface_interaction_regions,
@@ -149,6 +151,7 @@ where
     text_renderer: NativeTextRenderer,
     scene: Scene,
     gpu_surface_renderer: GpuSurfaceRenderer,
+    post_gpu_overlay_renderer: PostGpuOverlayRenderer,
     last_paint_plan: SurfacePaintPlan,
     retained_surface_cache: RetainedSurfaceFrameCache,
     last_cursor: Option<Point>,
@@ -186,6 +189,7 @@ where
             text_renderer,
             scene: Scene::new(),
             gpu_surface_renderer: GpuSurfaceRenderer::default(),
+            post_gpu_overlay_renderer: PostGpuOverlayRenderer::default(),
             last_paint_plan: SurfacePaintPlan::empty(&ThemeTokens::default()),
             retained_surface_cache: RetainedSurfaceFrameCache::default(),
             last_cursor: None,

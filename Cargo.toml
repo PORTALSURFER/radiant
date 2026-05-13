@@ -191,6 +191,10 @@ path = "examples/custom_widget.rs"
 name = "gpu_surface"
 path = "examples/gpu_surface.rs"
 
+[[example]]
+name = "gpu_surface_stack_overlay"
+path = "examples/gpu_surface_stack_overlay.rs"
+
 [[bench]]
 name = "perf_harness"
 path = "benches/perf_harness.rs"

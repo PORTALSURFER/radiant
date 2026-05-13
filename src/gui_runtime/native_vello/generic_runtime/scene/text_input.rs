@@ -178,7 +178,7 @@ mod tests {
     }
 
     fn cramped_text_input() -> PaintTextInput {
-        let input = PaintTextInput {
+        PaintTextInput {
             widget_id: 1,
             rect: Rect::from_min_max(Point::new(0.0, 0.0), Point::new(5.0, 7.0)),
             placeholder: None,
@@ -194,7 +194,6 @@ mod tests {
             selection_color: WHITE,
             caret_color: WHITE,
             focused: true,
-        };
-        input
+        }
     }
 }

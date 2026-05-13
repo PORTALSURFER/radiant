@@ -1,7 +1,10 @@
 use super::{GenericNativeRuntimeCore, demo_bridge};
 use crate::{
     layout::{Point, Rect, Vector2},
-    runtime::{PaintPrimitive, RuntimeBridge, SurfaceNode, UiSurface, WidgetMessageMapper},
+    runtime::{
+        PaintFillRect, PaintPrimitive, RuntimeBridge, SurfaceNode, UiSurface, WidgetMessageMapper,
+    },
+    theme::ThemeTokens,
     widgets::{Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
 };
 use std::sync::Arc;
@@ -69,6 +72,41 @@ fn local_pointer_move_state_inside_same_widget_requests_redraw() {
 
     assert!(second.routed);
     assert!(second.needs_redraw());
+}
+
+#[test]
+fn paint_only_pointer_move_overlay_skips_scene_rebuild_after_hover_enters() {
+    let mut core =
+        GenericNativeRuntimeCore::new(PaintOnlyPointerMoveBridge, Vector2::new(120.0, 40.0));
+    let point = core
+        .runtime
+        .layout()
+        .rects
+        .get(&73)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("paint-only pointer widget should be laid out");
+
+    let first = core.route_pointer_move(point);
+    assert!(first.routed);
+    assert!(first.needs_scene_rebuild());
+
+    let second = core.route_pointer_move(Point::new(point.x + 11.0, point.y));
+    assert!(second.routed);
+    assert!(second.paint_only_requested);
+    assert!(!second.needs_scene_rebuild());
+    assert!(second.needs_redraw());
+
+    let mut overlay = Vec::new();
+    core.runtime
+        .runtime_overlay_paint_into(&ThemeTokens::default(), &mut overlay);
+    assert!(
+        overlay.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRect(PaintFillRect { rect, .. })
+                if (rect.center().x - point.x - 11.0).abs() < 0.01
+        )),
+        "paint-only pointer overlay should use the latest widget-local cursor position"
+    );
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -178,6 +216,83 @@ impl RuntimeBridge<()> for LocalPointerMoveBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
         Arc::new(UiSurface::new(SurfaceNode::custom_widget(
             LocalPointerMoveWidget::new(),
+            WidgetMessageMapper::none(),
+        )))
+    }
+
+    fn reduce_message(&mut self, _message: ()) {}
+}
+
+#[derive(Clone, Debug)]
+struct PaintOnlyPointerMoveWidget {
+    common: WidgetCommon,
+    last_position: Option<Point>,
+}
+
+impl PaintOnlyPointerMoveWidget {
+    fn new() -> Self {
+        let mut common = WidgetCommon::new(73, WidgetSizing::fixed(Vector2::new(80.0, 24.0)));
+        common.focus = crate::widgets::FocusBehavior::Pointer;
+        Self {
+            common,
+            last_position: None,
+        }
+    }
+}
+
+impl Widget for PaintOnlyPointerMoveWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        true
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        if let WidgetInput::PointerMove { position } = input {
+            self.last_position = Some(position);
+        }
+        None
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &crate::layout::LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+
+    fn append_runtime_overlay_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &crate::layout::LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        let Some(position) = self.last_position else {
+            return;
+        };
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: Rect::from_min_size(Point::new(position.x - 1.0, 0.0), Vector2::new(2.0, 24.0)),
+            color: theme.highlight_orange,
+        }));
+    }
+}
+
+struct PaintOnlyPointerMoveBridge;
+
+impl RuntimeBridge<()> for PaintOnlyPointerMoveBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+            PaintOnlyPointerMoveWidget::new(),
             WidgetMessageMapper::none(),
         )))
     }

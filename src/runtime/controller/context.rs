@@ -92,6 +92,22 @@ where
         );
     }
 
+    /// Append runtime-local overlay primitives for active pointer widgets.
+    ///
+    /// These primitives are painted over the cached scene by native backends
+    /// during paint-only pointer motion, so editor-style cursor and handle
+    /// affordances can move without refreshing the declarative surface.
+    pub fn runtime_overlay_paint_into(
+        &self,
+        theme: &ThemeTokens,
+        primitives: &mut Vec<PaintPrimitive>,
+    ) {
+        self.append_widget_runtime_overlay(self.hovered_widget, theme, primitives);
+        if self.pointer_capture != self.hovered_widget {
+            self.append_widget_runtime_overlay(self.pointer_capture, theme, primitives);
+        }
+    }
+
     /// Package the current runtime viewport, layout, and paint plan for a host renderer.
     ///
     /// Unlike [`UiSurface::frame`](crate::runtime::UiSurface::frame), this uses
@@ -180,5 +196,28 @@ where
     /// Consume the runtime controller and return the owned bridge.
     pub fn into_bridge(self) -> Bridge {
         self.bridge
+    }
+
+    fn append_widget_runtime_overlay(
+        &self,
+        widget_id: Option<WidgetId>,
+        theme: &ThemeTokens,
+        primitives: &mut Vec<PaintPrimitive>,
+    ) {
+        let Some(widget_id) = widget_id else {
+            return;
+        };
+        let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
+            return;
+        };
+        let Some(widget) = self.surface_widget(widget_id) else {
+            return;
+        };
+        widget.widget_object().append_runtime_overlay_paint(
+            primitives,
+            bounds,
+            &self.layout,
+            theme,
+        );
     }
 }

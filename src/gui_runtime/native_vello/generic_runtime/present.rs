@@ -108,6 +108,8 @@ where
             &mut self.transient_overlay_primitives,
             self.animation_origin.elapsed(),
         );
+        self.core
+            .paint_runtime_overlay(&mut self.transient_overlay_primitives);
         profile.transient_overlay_paint = started.elapsed();
         profile.transient_overlay_primitives = self.transient_overlay_primitives.len();
         let started = Instant::now();

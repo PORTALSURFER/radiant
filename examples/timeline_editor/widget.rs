@@ -94,6 +94,10 @@ impl Widget for ArrangementTimelineWidget {
         true
     }
 
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        true
+    }
+
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
             self.common.state = previous.common.state;
@@ -111,6 +115,16 @@ impl Widget for ArrangementTimelineWidget {
         theme: &ThemeTokens,
     ) {
         paint::append_timeline_paint(self, primitives, bounds, theme);
+    }
+
+    fn append_runtime_overlay_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        overlay::append_runtime_timeline_overlay(self, primitives, bounds, theme);
     }
 }
 

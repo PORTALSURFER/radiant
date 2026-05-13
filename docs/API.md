@@ -313,6 +313,15 @@ so a snapped cursor, clip hover, or resize-handle preview can refresh smoothly
 without emitting host messages or forcing the app reducer to run for every mouse
 move. Emit a `WidgetOutput` only when the host-owned model changes, such as
 seek, create, move, resize, or delete.
+High-frequency editor widgets can go further with
+`Widget::prefers_pointer_move_paint_only()` and
+`Widget::append_runtime_overlay_paint(...)`. Put pointer-following visuals such
+as timeline cursor lines, hover outlines, and resize handles in the runtime
+overlay hook, then keep the stable base widget paint free of those transient
+states. The native Vello runtime can then present those overlay rectangles over
+the cached scene on stable pointer motion instead of rebuilding the Vello scene
+for every mouse-move event. Widgets that paint pointer-motion state in
+`append_paint(...)` should not opt into the paint-only pointer path.
 
 ## Message And Command
 

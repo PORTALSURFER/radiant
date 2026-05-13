@@ -21,7 +21,7 @@ pub use events::Event;
 pub use scroll::ScrollUpdate;
 
 use super::{
-    ClipAncestors, Command, RuntimeBridge, SurfaceFrame, SurfacePaintPlan,
+    ClipAncestors, Command, PaintPrimitive, RuntimeBridge, SurfaceFrame, SurfacePaintPlan,
     SurfaceRuntimeProjection, SurfaceTraversalIndex, SurfaceWidget, UiSurface,
     WidgetDispatchResult, WidgetPath, estimated_paint_primitive_capacity,
 };

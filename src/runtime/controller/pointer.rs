@@ -152,4 +152,9 @@ where
         self.surface_widget(widget_id)
             .is_some_and(SurfaceWidget::accepts_pointer_move)
     }
+
+    pub(crate) fn widget_prefers_pointer_move_paint_only(&self, widget_id: WidgetId) -> bool {
+        self.surface_widget(widget_id)
+            .is_some_and(SurfaceWidget::prefers_pointer_move_paint_only)
+    }
 }

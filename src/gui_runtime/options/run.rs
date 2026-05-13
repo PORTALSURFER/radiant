@@ -1,6 +1,7 @@
 use super::{
     NativeGpuOptions, NativePopupOptions, NativeTextOptions, NativeWindowMode, WindowIconRgba,
 };
+use std::fmt;
 
 /// Default title for generic Radiant native windows.
 pub const DEFAULT_NATIVE_WINDOW_TITLE: &str = "Radiant";
@@ -120,6 +121,16 @@ impl NativeRunOptions {
     pub const fn normalized_target_fps(&self) -> u32 {
         normalize_native_target_fps(self.target_fps)
     }
+
+    /// Validate native launch geometry before handing options to a platform runtime.
+    pub fn validate(&self) -> Result<(), NativeRunOptionsError> {
+        validate_size("inner_size", self.inner_size)?;
+        validate_size("min_inner_size", self.min_inner_size)?;
+        if let Some(popup) = self.popup_options() {
+            validate_position("popup_position", popup.position)?;
+        }
+        Ok(())
+    }
 }
 
 pub(crate) const fn normalize_native_target_fps(target_fps: u32) -> u32 {
@@ -130,4 +141,75 @@ pub(crate) const fn normalize_native_target_fps(target_fps: u32) -> u32 {
     } else {
         target_fps
     }
+}
+
+/// Error returned when native launch options contain invalid geometry.
+#[derive(Clone, Debug, PartialEq)]
+pub enum NativeRunOptionsError {
+    /// Initial or minimum logical size is non-finite or non-positive.
+    InvalidSize {
+        /// Name of the invalid size field.
+        field: &'static str,
+        /// Invalid logical width.
+        width: f32,
+        /// Invalid logical height.
+        height: f32,
+    },
+    /// Popup position contains a non-finite coordinate.
+    InvalidPopupPosition {
+        /// Name of the invalid position field.
+        field: &'static str,
+        /// Invalid logical x coordinate.
+        x: f32,
+        /// Invalid logical y coordinate.
+        y: f32,
+    },
+}
+
+impl fmt::Display for NativeRunOptionsError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidSize {
+                field,
+                width,
+                height,
+            } => write!(
+                formatter,
+                "invalid native {field} [{width}, {height}]; logical sizes must be finite and positive"
+            ),
+            Self::InvalidPopupPosition { field, x, y } => write!(
+                formatter,
+                "invalid native {field} [{x}, {y}]; popup positions must be finite"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for NativeRunOptionsError {}
+
+fn validate_size(field: &'static str, size: Option<[f32; 2]>) -> Result<(), NativeRunOptionsError> {
+    let Some([width, height]) = size else {
+        return Ok(());
+    };
+    if width.is_finite() && height.is_finite() && width > 0.0 && height > 0.0 {
+        return Ok(());
+    }
+    Err(NativeRunOptionsError::InvalidSize {
+        field,
+        width,
+        height,
+    })
+}
+
+fn validate_position(
+    field: &'static str,
+    position: Option<[f32; 2]>,
+) -> Result<(), NativeRunOptionsError> {
+    let Some([x, y]) = position else {
+        return Ok(());
+    };
+    if x.is_finite() && y.is_finite() {
+        return Ok(());
+    }
+    Err(NativeRunOptionsError::InvalidPopupPosition { field, x, y })
 }

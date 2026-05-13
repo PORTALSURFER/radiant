@@ -12,5 +12,6 @@ pub use popup::{NativePopupOptions, NativeWindowMode};
 pub(crate) use run::normalize_native_target_fps;
 pub use run::{
     DEFAULT_NATIVE_WINDOW_TITLE, MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS, NativeRunOptions,
+    NativeRunOptionsError,
 };
 pub use text::{EmbeddedFont, NativeTextOptions};

@@ -85,6 +85,12 @@ where
 {
     info!("radiant generic native vello: creating event loop");
     let run_started = Instant::now();
+    if let Err(err) = options.validate() {
+        return NativeGenericRunReport {
+            artifacts: NativeGenericRuntimeArtifacts::default(),
+            result: Err(NativeGenericRunError::InvalidWindowOptions(err)),
+        };
+    }
     let event_loop = match EventLoop::<RuntimeUserEvent>::with_user_event().build() {
         Ok(event_loop) => event_loop,
         Err(err) => {
@@ -138,8 +144,10 @@ pub struct NativeGenericRuntimeArtifacts {
 }
 
 /// Typed failure reported by the generic native Vello runtime.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum NativeGenericRunError {
+    /// Native launch options failed validation before platform startup.
+    InvalidWindowOptions(NativeRunOptionsError),
     /// Creating the native event loop failed before runtime startup.
     EventLoopBuild(String),
     /// The native event loop returned an error while running.
@@ -149,6 +157,9 @@ pub enum NativeGenericRunError {
 impl std::fmt::Display for NativeGenericRunError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidWindowOptions(err) => {
+                write!(formatter, "invalid native window options: {err}")
+            }
             Self::EventLoopBuild(message) => {
                 write!(formatter, "failed to create native event loop: {message}")
             }

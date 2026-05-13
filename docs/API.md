@@ -149,7 +149,10 @@ borderless transient windows such as drag previews, context menus, tooltips, and
 small floating panels that need to render outside the main application window.
 `NativePopupOptions` controls the optional initial screen position,
 transparency, topmost behavior, focus-on-open behavior, resizability, and
-taskbar presence where the platform supports those hints.
+taskbar presence where the platform supports those hints. Direct
+`NativeRunOptions` launch paths can call `.validate()` before startup, and the
+native runtime returns `NativeGenericRunError::InvalidWindowOptions` instead of
+passing non-finite or non-positive geometry into the platform window layer.
 
 Serious apps use the same builder API. `radiant::app(...)` supports
 `.subscriptions(...)` for interval and worker-message sources, `.animation(...)`

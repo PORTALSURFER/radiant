@@ -1,5 +1,7 @@
 //! Standalone performance harness for Radiant layout, runtime, and GPU data paths.
 
+#[path = "perf_harness/app_projection.rs"]
+mod app_projection;
 #[path = "perf_harness/command_drain.rs"]
 mod command_drain;
 #[path = "perf_harness/layout_scenarios.rs"]
@@ -10,10 +12,6 @@ use radiant::{
     layout::{
         ContainerKind, ContainerPolicy, LayoutNode, LayoutOutput, Point, Rect, SizeModeCross,
         SizeModeMain, SlotParams, Vector2, VirtualizationAxis, layout_tree,
-    },
-    prelude::{
-        IntoView, VirtualListWindowRequest, button, list_row_id, resolve_virtual_list_window,
-        selectable, virtual_list, virtual_list_window,
     },
     runtime::{
         Command, Event, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent,
@@ -78,22 +76,22 @@ fn main() {
     runner.run_scenario(
         "app_virtual_list_projection_10k",
         RUNTIME_ITERATIONS,
-        || bench_app_virtual_list_projection_10k,
+        app_projection::virtual_list_projection_10k,
     );
     runner.run_scenario(
         "app_virtual_list_projection_generated_child_ids_10k",
         RUNTIME_ITERATIONS,
-        || bench_app_virtual_list_projection_generated_child_ids_10k,
+        app_projection::virtual_list_projection_generated_child_ids_10k,
     );
     runner.run_scenario(
         "app_virtual_selectable_list_projection_10k",
         RUNTIME_ITERATIONS,
-        || bench_app_virtual_selectable_list_projection_10k,
+        app_projection::virtual_selectable_list_projection_10k,
     );
     runner.run_scenario(
         "app_virtual_list_window_projection_10k",
         RUNTIME_ITERATIONS,
-        || bench_app_virtual_list_window_projection_10k,
+        app_projection::virtual_list_window_projection_10k,
     );
     runner.run_scenario("runtime_surface_large_tree", RUNTIME_ITERATIONS, || {
         let runtime_surface = StatefulRuntimeSurfaceBench::new();
@@ -248,96 +246,6 @@ fn print_metric(name: &str, iterations: usize, elapsed: Duration) {
     println!(
         "radiant_perf scenario={name} iterations={iterations} total_us={total_us} avg_us={avg_us:.3}"
     );
-}
-
-fn bench_app_virtual_list_projection_10k() {
-    let surface = virtual_list(
-        0..10_000_u64,
-        |index| {
-            list_row_id(
-                index + 10_000,
-                [button(format!("Row {index:05}"))
-                    .message(())
-                    .id(index + 20_000)
-                    .fill_width()
-                    .height(28.0)],
-            )
-            .height(32.0)
-        },
-        96.0,
-    )
-    .into_surface();
-    let layout = surface.layout_node();
-    assert_eq!(layout.id(), 1);
-    black_box((surface, layout));
-}
-
-fn bench_app_virtual_list_projection_generated_child_ids_10k() {
-    let surface = virtual_list(
-        0..10_000_u64,
-        |index| {
-            list_row_id(
-                index + 10_000,
-                [button(format!("Row {index:05}"))
-                    .message(())
-                    .fill_width()
-                    .height(28.0)],
-            )
-            .height(32.0)
-        },
-        96.0,
-    )
-    .into_surface();
-    let layout = surface.layout_node();
-    assert_eq!(layout.id(), 1);
-    black_box((surface, layout));
-}
-
-fn bench_app_virtual_selectable_list_projection_10k() {
-    let surface = virtual_list(
-        0..10_000_u64,
-        |index| {
-            selectable(format!("Row {index:05}"), false)
-                .message(move |_| ())
-                .id(index + 10_000)
-                .fill_width()
-                .height(32.0)
-        },
-        96.0,
-    )
-    .into_surface();
-    let layout = surface.layout_node();
-    assert_eq!(layout.id(), 1);
-    black_box((surface, layout));
-}
-
-fn bench_app_virtual_list_window_projection_10k() {
-    let window = resolve_virtual_list_window(VirtualListWindowRequest {
-        total_items: 10_000,
-        viewport_len: 18,
-        requested_start: 4_000,
-        overscan: 4,
-        ..VirtualListWindowRequest::default()
-    });
-    let surface = virtual_list_window(
-        window,
-        32.0,
-        |index| {
-            list_row_id(
-                index as u64 + 10_000,
-                [button(format!("Row {index:05}"))
-                    .message(())
-                    .id(index as u64 + 20_000)
-                    .fill_width()
-                    .height(28.0)],
-            )
-        },
-        96.0,
-    )
-    .into_surface();
-    let layout = surface.layout_node();
-    assert_eq!(layout.id(), 1);
-    black_box((surface, layout));
 }
 
 struct StatefulRuntimeSurfaceBench {

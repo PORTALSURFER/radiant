@@ -14,6 +14,7 @@ pub struct StatusLineLog {
 pub struct StatusLineEntry {
     source: String,
     message: String,
+    line: String,
 }
 
 impl StatusLineLog {
@@ -39,6 +40,7 @@ impl StatusLineLog {
         self.entries
             .back()
             .map(StatusLineEntry::line)
+            .map(str::to_string)
             .unwrap_or_else(|| "system: Ready".to_string())
     }
 
@@ -54,7 +56,9 @@ impl StatusLineLog {
 
     /// Return recent lines newest-first.
     pub fn recent_lines(&self) -> Vec<String> {
-        self.recent_entries().map(StatusLineEntry::line).collect()
+        self.recent_entries()
+            .map(|entry| entry.line().to_string())
+            .collect()
     }
 
     /// Return the number of retained entries.
@@ -80,9 +84,13 @@ impl StatusLineEntry {
     /// Multiline input is normalized to one trimmed display line so background
     /// workers and actions cannot break compact status-bar layout.
     pub fn new(source: impl Into<String>, message: impl Into<String>) -> Self {
+        let source = one_line(source.into());
+        let message = one_line(message.into());
+        let line = format!("{source}: {message}");
         Self {
-            source: one_line(source.into()),
-            message: one_line(message.into()),
+            source,
+            message,
+            line,
         }
     }
 
@@ -96,9 +104,9 @@ impl StatusLineEntry {
         self.message.as_str()
     }
 
-    /// Format this entry as `source: message` for compact status bars.
-    pub fn line(&self) -> String {
-        format!("{}: {}", self.source, self.message)
+    /// Return the formatted `source: message` line for compact status bars.
+    pub fn line(&self) -> &str {
+        self.line.as_str()
     }
 }
 

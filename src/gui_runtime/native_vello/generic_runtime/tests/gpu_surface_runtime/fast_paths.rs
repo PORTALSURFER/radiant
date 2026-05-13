@@ -116,11 +116,11 @@ fn native_routed_paint_only_pointer_move_skips_scene_rebuild() {
     assert!(enter.needs_scene_rebuild());
     runner.handle_gpu_surface_pointer_move_outcome(enter, None, first);
     assert!(
-        runner.scene_texture_dirty,
+        runner.frame.scene_texture_dirty,
         "initial hover enter still rebuilds the base scene"
     );
-    runner.scene_texture_dirty = false;
-    runner.composited_base_dirty = false;
+    runner.frame.scene_texture_dirty = false;
+    runner.frame.composited_base_dirty = false;
 
     let moved = runner.core.route_pointer_move(second);
     assert!(moved.routed);
@@ -129,11 +129,11 @@ fn native_routed_paint_only_pointer_move_skips_scene_rebuild() {
     runner.handle_gpu_surface_pointer_move_outcome(moved, Some(first), second);
 
     assert!(
-        !runner.scene_texture_dirty,
+        !runner.frame.scene_texture_dirty,
         "routed paint-only pointer motion should not rebuild the Vello scene"
     );
     assert!(
-        !runner.composited_base_dirty,
+        !runner.frame.composited_base_dirty,
         "routed paint-only pointer motion should keep the cached base frame"
     );
 }

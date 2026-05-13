@@ -8,12 +8,12 @@ fn native_gpu_hover_updates_cached_overlay_without_refreshing_surface() {
         Vector2::new(240.0, 80.0),
     );
     runner.rebuild_scene();
-    runner.composited_base_dirty = false;
+    runner.frame.composited_base_dirty = false;
     let project_count = runner.core.runtime.bridge().project_count;
 
     assert!(runner.update_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
     assert!(
-        runner.composited_base_dirty,
+        runner.frame.composited_base_dirty,
         "cached composed frames must refresh when runtime GPU overlays change"
     );
     assert_eq!(
@@ -22,6 +22,7 @@ fn native_gpu_hover_updates_cached_overlay_without_refreshing_surface() {
         "native cursor updates should not refresh or reproject the app surface"
     );
     let surface = runner
+        .frame
         .last_paint_plan
         .primitives
         .iter()
@@ -61,6 +62,7 @@ fn native_gpu_hover_collapses_duplicate_cursor_overlays() {
 
     assert!(runner.update_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
     let surface = runner
+        .frame
         .last_paint_plan
         .primitives
         .iter_mut()
@@ -74,6 +76,7 @@ fn native_gpu_hover_collapses_duplicate_cursor_overlays() {
 
     assert!(runner.update_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
     let surface = runner
+        .frame
         .last_paint_plan
         .primitives
         .iter()
@@ -101,6 +104,7 @@ fn native_gpu_hover_preserves_app_owned_vertical_overlays() {
     );
     runner.rebuild_scene();
     let surface = runner
+        .frame
         .last_paint_plan
         .primitives
         .iter_mut()
@@ -123,6 +127,7 @@ fn native_gpu_hover_preserves_app_owned_vertical_overlays() {
     assert!(runner.update_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
     assert!(runner.clear_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
     let surface = runner
+        .frame
         .last_paint_plan
         .primitives
         .iter()
@@ -156,6 +161,7 @@ fn native_gpu_hover_clear_hides_cached_cursor_without_rebuild() {
     assert!(runner.update_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
     assert!(runner.clear_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
     let surface = runner
+        .frame
         .last_paint_plan
         .primitives
         .iter()

@@ -35,6 +35,19 @@ impl HitOrderIndex {
         &self.visible
     }
 
+    pub(super) fn visible_after(&self, node_id: NodeId) -> &[NodeId] {
+        let Some(rank) = self.rank.get(&node_id).copied() else {
+            return &[];
+        };
+        let start = self.visible.partition_point(|visible_id| {
+            self.rank
+                .get(visible_id)
+                .copied()
+                .is_none_or(|visible_rank| visible_rank <= rank)
+        });
+        &self.visible[start..]
+    }
+
     pub(super) fn take_order(&mut self) -> Vec<NodeId> {
         self.rank.clear();
         self.visible.clear();

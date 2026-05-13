@@ -69,15 +69,27 @@ pub(in crate::gui::layout_core::engine) fn resolved_main_sizes_into(
     }
     let mut total_main = 0.0;
     for state in states {
-        let size = if state.fill > 0.0 {
-            state.fill
-        } else {
-            state.main
-        };
+        let size = resolved_main_size(state);
         total_main += size;
         sizes.push(size);
     }
     total_main
+}
+
+pub(in crate::gui::layout_core::engine) fn resolved_main_total(
+    states: &[LinearLayoutState<'_>],
+) -> f32 {
+    states.iter().map(resolved_main_size).sum()
+}
+
+pub(in crate::gui::layout_core::engine) fn resolved_main_size(
+    state: &LinearLayoutState<'_>,
+) -> f32 {
+    if state.fill > 0.0 {
+        state.fill
+    } else {
+        state.main
+    }
 }
 
 pub(in crate::gui::layout_core::engine) fn allocate_fill_sizes(

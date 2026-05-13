@@ -4,9 +4,9 @@ mod inline;
 
 pub use inline::{
     InlineBadgeMetrics, inline_badge_cluster_reserved_width, inline_badge_height,
-    inline_badge_labels, inline_badge_labels_owned, inline_badge_rects,
-    inline_badge_rects_for_labels, inline_badge_text_origin, inline_badge_text_width,
-    inline_badge_width,
+    inline_badge_labels, inline_badge_labels_owned, inline_badge_labels_owned_into,
+    inline_badge_rects, inline_badge_rects_for_labels, inline_badge_rects_for_labels_into,
+    inline_badge_rects_into, inline_badge_text_origin, inline_badge_text_width, inline_badge_width,
 };
 
 /// Selectable badge/pill model with host-chosen state semantics.
@@ -55,8 +55,9 @@ pub struct PillEditorPanel<State> {
 mod tests {
     use super::{
         InlineBadgeMetrics, PillEditorPanel, SelectablePill, inline_badge_cluster_reserved_width,
-        inline_badge_height, inline_badge_labels_owned, inline_badge_rects,
-        inline_badge_rects_for_labels, inline_badge_text_origin, inline_badge_width,
+        inline_badge_height, inline_badge_labels_owned, inline_badge_labels_owned_into,
+        inline_badge_rects, inline_badge_rects_for_labels, inline_badge_rects_for_labels_into,
+        inline_badge_rects_into, inline_badge_text_origin, inline_badge_width,
     };
     use crate::gui::selection::TriState;
     use crate::gui::types::{Point, Rect};
@@ -100,6 +101,23 @@ mod tests {
     }
 
     #[test]
+    fn inline_badge_labels_owned_into_reuses_output_storage() {
+        let mut labels = Vec::with_capacity(8);
+        labels.push(String::from("stale"));
+        let capacity = labels.capacity();
+
+        inline_badge_labels_owned_into("  One  · Two ·  · Three ", "·", &mut labels);
+
+        assert_eq!(labels, ["One", "Two", "Three"]);
+        assert_eq!(labels.capacity(), capacity);
+
+        inline_badge_labels_owned_into("", "·", &mut labels);
+
+        assert!(labels.is_empty());
+        assert_eq!(labels.capacity(), capacity);
+    }
+
+    #[test]
     fn inline_badge_rects_clamp_to_available_item_row() {
         let metrics = InlineBadgeMetrics::new(10.0, 3.0, 1.0, 3.0, 4.0, 10.0);
         let item = Rect::from_min_max(Point::new(0.0, 4.0), Point::new(100.0, 18.0));
@@ -115,6 +133,44 @@ mod tests {
             inline_badge_text_origin(rects[0], metrics),
             Point::new(49.0, 6.0)
         );
+    }
+
+    #[test]
+    fn inline_badge_rects_into_reuses_label_and_rect_storage() {
+        let metrics = InlineBadgeMetrics::new(10.0, 3.0, 1.0, 3.0, 4.0, 10.0);
+        let item = Rect::from_min_max(Point::new(0.0, 4.0), Point::new(100.0, 18.0));
+        let labels = vec![String::from("One"), String::from("Two")];
+        let mut rects = Vec::with_capacity(8);
+        rects.push(Rect::from_min_max(
+            Point::new(0.0, 0.0),
+            Point::new(1.0, 1.0),
+        ));
+        let rect_capacity = rects.capacity();
+
+        inline_badge_rects_for_labels_into(item, &labels, 5.0, metrics, &mut rects);
+
+        assert_eq!(rects.len(), 2);
+        assert_eq!(rects.capacity(), rect_capacity);
+        assert_eq!(rects[1].max.x, 95.0);
+
+        let mut owned_labels = Vec::with_capacity(8);
+        owned_labels.push(String::from("stale"));
+        let label_capacity = owned_labels.capacity();
+
+        inline_badge_rects_into(
+            item,
+            "One · Two",
+            "·",
+            5.0,
+            metrics,
+            &mut owned_labels,
+            &mut rects,
+        );
+
+        assert_eq!(owned_labels, ["One", "Two"]);
+        assert_eq!(owned_labels.capacity(), label_capacity);
+        assert_eq!(rects.len(), 2);
+        assert_eq!(rects.capacity(), rect_capacity);
     }
 
     #[test]

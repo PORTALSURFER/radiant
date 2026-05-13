@@ -770,9 +770,12 @@ project, or asset concepts onto these reusable panel structures.
 
 `radiant::gui::badge` contains compact label and pill primitives such as
 `SelectablePill`, `PillEditorPanel`, `InlineBadgeMetrics`,
-`inline_badge_rects_for_labels`, and `inline_badge_text_origin`. Hosts can use
-these to render dense badge clusters for metadata, filters, status chips, or
-other product-specific labels without embedding domain terms in Radiant.
+`inline_badge_rects_for_labels`, and `inline_badge_text_origin`. Repeated layout
+or paint paths can use `inline_badge_labels_owned_into`,
+`inline_badge_rects_for_labels_into`, and `inline_badge_rects_into` to reuse
+caller-owned buffers. Hosts can use these to render dense badge clusters for
+metadata, filters, status chips, or other product-specific labels without
+embedding domain terms in Radiant.
 
 `radiant::gui::form` contains reusable form and picker models such as
 `DecimalTextInputPolicy`, `SummaryField`, `OptionItem`, `PairedPickerTarget`,

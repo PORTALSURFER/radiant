@@ -13,7 +13,7 @@ const STANDARD_PRESENT_MODE_CANDIDATES: [wgpu::PresentMode; 1] = [wgpu::PresentM
 pub(in crate::gui_runtime::native_vello) fn present_mode_candidates(
     target_fps: u32,
 ) -> &'static [wgpu::PresentMode] {
-    if target_fps >= 120 {
+    if crate::gui_runtime::options::normalize_native_target_fps(target_fps) >= 120 {
         &HIGH_REFRESH_PRESENT_MODE_CANDIDATES
     } else {
         &STANDARD_PRESENT_MODE_CANDIDATES
@@ -50,5 +50,23 @@ pub(in crate::gui_runtime::native_vello) fn startup_renderer_options() -> Render
     RendererOptions {
         antialiasing_support: AaSupport::area_only(),
         ..RendererOptions::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn present_mode_candidates_use_normalized_frame_rate_policy() {
+        assert_eq!(present_mode_candidates(0), &[wgpu::PresentMode::AutoVsync]);
+        assert_eq!(
+            present_mode_candidates(u32::MAX),
+            &[
+                wgpu::PresentMode::Mailbox,
+                wgpu::PresentMode::Immediate,
+                wgpu::PresentMode::AutoVsync,
+            ]
+        );
     }
 }

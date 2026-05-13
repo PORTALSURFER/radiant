@@ -5,6 +5,12 @@ use super::{
 /// Default title for generic Radiant native windows.
 pub const DEFAULT_NATIVE_WINDOW_TITLE: &str = "Radiant";
 
+/// Lowest native animation frame rate Radiant will schedule.
+pub const MIN_NATIVE_TARGET_FPS: u32 = 1;
+
+/// Highest native animation frame rate Radiant will schedule.
+pub const MAX_NATIVE_TARGET_FPS: u32 = 240;
+
 /// Window configuration shared by native runtime entry points.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NativeRunOptions {
@@ -27,6 +33,9 @@ pub struct NativeRunOptions {
     /// Optional window icon.
     pub icon: Option<WindowIconRgba>,
     /// Target frame rate for animation-driven redraws.
+    ///
+    /// Native runtimes clamp this to Radiant's supported scheduling range
+    /// before using it for timed redraws or present-mode selection.
     pub target_fps: u32,
     /// GPU adapter/backend policy for native renderers.
     pub gpu: NativeGpuOptions,
@@ -105,5 +114,20 @@ impl NativeRunOptions {
             NativeWindowMode::Window => NativePopupOptions::default().position(x, y),
         };
         self.popup_policy(popup)
+    }
+
+    /// Return the effective native animation frame rate after policy clamping.
+    pub const fn normalized_target_fps(&self) -> u32 {
+        normalize_native_target_fps(self.target_fps)
+    }
+}
+
+pub(crate) const fn normalize_native_target_fps(target_fps: u32) -> u32 {
+    if target_fps < MIN_NATIVE_TARGET_FPS {
+        MIN_NATIVE_TARGET_FPS
+    } else if target_fps > MAX_NATIVE_TARGET_FPS {
+        MAX_NATIVE_TARGET_FPS
+    } else {
+        target_fps
     }
 }

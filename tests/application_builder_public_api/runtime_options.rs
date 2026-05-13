@@ -1,7 +1,7 @@
 use radiant::runtime::{
-    DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, NativeGpuBackend, NativeGpuOptions,
-    NativePopupOptions, NativeRunOptions, NativeTextOptions, NativeWindowMode, WindowManifest,
-    WindowManifestError, WindowSpec, WindowSpecError,
+    DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS,
+    NativeGpuBackend, NativeGpuOptions, NativePopupOptions, NativeRunOptions, NativeTextOptions,
+    NativeWindowMode, WindowManifest, WindowManifestError, WindowSpec, WindowSpecError,
 };
 
 #[test]
@@ -21,6 +21,23 @@ fn native_run_options_expose_platform_neutral_drag_and_drop_policy() {
     };
 
     assert!(!options.drag_and_drop);
+}
+
+#[test]
+fn native_run_options_normalize_animation_frame_rate_policy() {
+    let zero = NativeRunOptions {
+        target_fps: 0,
+        ..NativeRunOptions::default()
+    };
+    let default = NativeRunOptions::default();
+    let high = NativeRunOptions {
+        target_fps: u32::MAX,
+        ..NativeRunOptions::default()
+    };
+
+    assert_eq!(zero.normalized_target_fps(), MIN_NATIVE_TARGET_FPS);
+    assert_eq!(default.normalized_target_fps(), default.target_fps);
+    assert_eq!(high.normalized_target_fps(), MAX_NATIVE_TARGET_FPS);
 }
 
 #[test]
@@ -145,6 +162,7 @@ fn window_specs_describe_multiple_windows_without_opening_runtime() {
     assert_eq!(inspector.min_inner_size(), Some([300.25, 420.5]));
     assert!(!inspector.drag_and_drop_enabled());
     assert_eq!(inspector.target_frame_rate(), 60);
+    assert_eq!(inspector.normalized_target_frame_rate(), 60);
     let options: NativeRunOptions = inspector.into();
     assert_eq!(options.inner_size, Some([320.5, 500.25]));
     assert_eq!(options.min_inner_size, Some([300.25, 420.5]));

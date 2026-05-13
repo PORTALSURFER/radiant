@@ -123,7 +123,7 @@ where
         match timed_frame_cadence(
             now,
             self.last_redraw,
-            self.options.target_fps,
+            self.options.normalized_target_fps(),
             animation_activity.needs_animation() || needs_scene_animation,
         ) {
             TimedFrameCadence::Idle => event_loop.set_control_flow(ControlFlow::Wait),

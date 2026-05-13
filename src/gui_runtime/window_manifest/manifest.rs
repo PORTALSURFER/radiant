@@ -26,11 +26,12 @@ impl WindowManifest {
         Ok(manifest)
     }
 
-    /// Add one window spec, rejecting duplicate stable keys.
+    /// Add one valid window spec, rejecting duplicate stable keys.
     pub fn push(&mut self, spec: WindowSpec) -> Result<(), String> {
         if self.specs.iter().any(|existing| existing.key == spec.key) {
             return Err(format!("duplicate window key '{}'", spec.key));
         }
+        spec.validate()?;
         self.specs.push(spec);
         Ok(())
     }
@@ -65,13 +66,14 @@ impl WindowManifest {
         self.specs
     }
 
-    /// Verify that all window keys are unique.
+    /// Verify that all window keys are unique and all specs are valid.
     pub fn validate(&self) -> Result<(), String> {
         let mut seen = HashSet::with_capacity(self.specs.len());
         for spec in &self.specs {
             if !seen.insert(spec.key.as_str()) {
                 return Err(format!("duplicate window key '{}'", spec.key));
             }
+            spec.validate()?;
         }
         Ok(())
     }

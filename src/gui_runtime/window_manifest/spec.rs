@@ -174,6 +174,20 @@ impl WindowSpec {
         &self.options
     }
 
+    /// Validate host-authored window geometry before a platform adapter opens it.
+    pub fn validate(&self) -> Result<(), String> {
+        validate_size(self.key.as_str(), "inner_size", self.options.inner_size)?;
+        validate_size(
+            self.key.as_str(),
+            "min_inner_size",
+            self.options.min_inner_size,
+        )?;
+        if let Some(popup) = self.options.popup_options() {
+            validate_position(self.key.as_str(), popup.position)?;
+        }
+        Ok(())
+    }
+
     /// Consume this descriptor and return the native runtime options.
     pub fn into_native_options(self) -> NativeRunOptions {
         self.options
@@ -184,4 +198,28 @@ impl From<WindowSpec> for NativeRunOptions {
     fn from(spec: WindowSpec) -> Self {
         spec.into_native_options()
     }
+}
+
+fn validate_size(key: &str, field: &str, size: Option<[f32; 2]>) -> Result<(), String> {
+    let Some([width, height]) = size else {
+        return Ok(());
+    };
+    if width.is_finite() && height.is_finite() && width > 0.0 && height > 0.0 {
+        return Ok(());
+    }
+    Err(format!(
+        "window '{key}' has invalid {field} [{width}, {height}]; logical sizes must be finite and positive"
+    ))
+}
+
+fn validate_position(key: &str, position: Option<[f32; 2]>) -> Result<(), String> {
+    let Some([x, y]) = position else {
+        return Ok(());
+    };
+    if x.is_finite() && y.is_finite() {
+        return Ok(());
+    }
+    Err(format!(
+        "window '{key}' has invalid popup position [{x}, {y}]; popup positions must be finite"
+    ))
 }

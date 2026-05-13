@@ -194,3 +194,26 @@ fn window_manifest_rejects_duplicate_window_keys() {
 
     assert_eq!(duplicate, Err(String::from("duplicate window key 'main'")));
 }
+
+#[test]
+fn window_manifest_rejects_invalid_window_geometry() {
+    let invalid_size =
+        WindowManifest::from_specs([WindowSpec::new("main", "Main").logical_size(f32::NAN, 480.0)]);
+
+    assert_eq!(
+        invalid_size,
+        Err(String::from(
+            "window 'main' has invalid inner_size [NaN, 480]; logical sizes must be finite and positive"
+        ))
+    );
+
+    let invalid_popup =
+        WindowSpec::popup("drag-preview", "Drag Preview").popup_position(f32::INFINITY, 220.0);
+
+    assert_eq!(
+        invalid_popup.validate(),
+        Err(String::from(
+            "window 'drag-preview' has invalid popup position [inf, 220]; popup positions must be finite"
+        ))
+    );
+}

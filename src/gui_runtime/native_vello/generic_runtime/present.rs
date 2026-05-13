@@ -45,12 +45,12 @@ where
             self.deferred_surface_refresh = false;
             profile.refresh_surface = started.elapsed();
             let started = Instant::now();
-            self.core.paint_plan_into(&mut self.last_paint_plan);
+            self.core.paint_plan_into(&mut self.frame.last_paint_plan);
             profile.paint_plan = started.elapsed();
-            self.composited_base_dirty = true;
+            self.frame.mark_composited_base_dirty();
             collect_gpu_surface_interaction_regions(
-                &self.last_paint_plan.primitives,
-                &mut self.gpu_surface_interaction_regions,
+                &self.frame.last_paint_plan.primitives,
+                &mut self.frame.gpu_surface_interaction_regions,
             );
         }
         let Some(surface) = self.render_surface.as_mut() else {
@@ -66,15 +66,15 @@ where
         let surface_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        let render_to_texture_elapsed = if self.scene_texture_dirty {
+        let render_to_texture_elapsed = if self.frame.scene_texture_dirty {
             let render_started = Instant::now();
             let render_result = renderer.render_to_texture(
                 &dev_handle.device,
                 &dev_handle.queue,
-                &self.scene,
+                &self.frame.scene,
                 &surface.target_view,
                 &RenderParams {
-                    base_color: color_from_rgba(self.last_paint_plan.clear_color),
+                    base_color: color_from_rgba(self.frame.last_paint_plan.clear_color),
                     width: surface.config.width,
                     height: surface.config.height,
                     antialiasing_method: AaConfig::Area,
@@ -89,8 +89,8 @@ where
                 event_loop.exit();
                 return;
             }
-            self.scene_texture_dirty = false;
-            self.composited_base_dirty = true;
+            self.frame.scene_texture_dirty = false;
+            self.frame.mark_composited_base_dirty();
             elapsed
         } else {
             Duration::ZERO
@@ -101,23 +101,23 @@ where
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("generic_native_vello_present_blit"),
                 });
-        self.transient_overlay_primitives.clear();
+        self.frame.transient_overlay_primitives.clear();
         let started = Instant::now();
         self.core.paint_transient_overlay(
-            &self.last_paint_plan,
-            &mut self.transient_overlay_primitives,
+            &self.frame.last_paint_plan,
+            &mut self.frame.transient_overlay_primitives,
             self.animation_origin.elapsed(),
         );
         self.core
-            .paint_runtime_overlay(&mut self.transient_overlay_primitives);
+            .paint_runtime_overlay(&mut self.frame.transient_overlay_primitives);
         profile.transient_overlay_paint = started.elapsed();
-        profile.transient_overlay_primitives = self.transient_overlay_primitives.len();
+        profile.transient_overlay_primitives = self.frame.transient_overlay_primitives.len();
         let started = Instant::now();
         let gpu_surface_stats = present_base_frame(
             &mut BaseFramePresentState {
-                base_frame: &mut self.composited_base_frame,
-                base_dirty: &mut self.composited_base_dirty,
-                gpu_surface_renderer: &mut self.gpu_surface_renderer,
+                base_frame: &mut self.frame.composited_base_frame,
+                base_dirty: &mut self.frame.composited_base_dirty,
+                gpu_surface_renderer: &mut self.frame.gpu_surface_renderer,
                 profile: &mut profile,
             },
             surface,
@@ -127,11 +127,11 @@ where
                 encoder: &mut encoder,
                 surface_view: &surface_view,
             },
-            &self.last_paint_plan,
-            &self.transient_overlay_primitives,
+            &self.frame.last_paint_plan,
+            &self.frame.transient_overlay_primitives,
         );
         profile.full_screen_blit = started.elapsed();
-        self.post_gpu_overlay_renderer.render_layers(
+        self.frame.post_gpu_overlay_renderer.render_layers(
             &mut post_gpu_overlay::PostGpuOverlayRenderTarget {
                 device: &dev_handle.device,
                 queue: &dev_handle.queue,
@@ -140,8 +140,8 @@ where
                 format: surface.config.format,
                 size: Vector2::new(surface.config.width as f32, surface.config.height as f32),
             },
-            &self.last_paint_plan.primitives,
-            &self.transient_overlay_primitives,
+            &self.frame.last_paint_plan.primitives,
+            &self.frame.transient_overlay_primitives,
         );
         let started = Instant::now();
         dev_handle.queue.submit(std::iter::once(encoder.finish()));
@@ -149,7 +149,7 @@ where
         profile.submit_present = started.elapsed();
         maybe_log_render_profile(
             "present",
-            self.last_scene_stats,
+            self.frame.last_scene_stats,
             render_to_texture_elapsed,
             profile,
             gpu_surface_stats,

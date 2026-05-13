@@ -7,6 +7,7 @@ mod composited_base;
 mod core;
 mod event_routing;
 mod frame_cadence;
+mod frame_state;
 mod gpu_surface;
 mod gpu_surface_cursor;
 mod gpu_surface_interaction;
@@ -30,6 +31,7 @@ use composited_base::{
 };
 pub(in crate::gui_runtime::native_vello) use core::{GenericNativeRuntimeCore, PointerPressStamp};
 use frame_cadence::{TimedFrameCadence, timed_frame_cadence, timed_frame_target_fps};
+use frame_state::NativeVelloFrameState;
 use gpu_surface::GpuSurfaceRenderer;
 use gpu_surface_interaction::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};

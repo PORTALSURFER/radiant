@@ -115,21 +115,28 @@ where
         let Some(previous) = previous else {
             return false;
         };
-        self.gpu_surface_interaction_regions.iter().any(|region| {
-            region.fast_pointer_move && region.contains(previous) && region.contains(position)
-        })
+        self.frame
+            .gpu_surface_interaction_regions
+            .iter()
+            .any(|region| {
+                region.fast_pointer_move && region.contains(previous) && region.contains(position)
+            })
     }
 
     pub(super) fn paint_plan_has_coalescing_gpu_surface_at(&self, position: Point) -> bool {
-        self.gpu_surface_interaction_regions
+        self.frame
+            .gpu_surface_interaction_regions
             .iter()
             .any(|region| region.coalesce_vertical_wheel && region.contains(position))
     }
 
     pub(super) fn runtime_pointer_line_surface_contains(&self, position: Point) -> bool {
-        self.gpu_surface_interaction_regions.iter().any(|region| {
-            region.runtime_overlays.pointer_vertical_line.is_some() && region.contains(position)
-        })
+        self.frame
+            .gpu_surface_interaction_regions
+            .iter()
+            .any(|region| {
+                region.runtime_overlays.pointer_vertical_line.is_some() && region.contains(position)
+            })
     }
 
     pub(super) fn can_fast_path_native_hover_move(&self, position: Point) -> bool {
@@ -144,9 +151,9 @@ where
 
     pub(super) fn update_gpu_surface_cursor_overlay(&mut self, position: Point) -> bool {
         let target_index =
-            topmost_native_hover_surface_index(&self.last_paint_plan.primitives, position);
+            topmost_native_hover_surface_index(&self.frame.last_paint_plan.primitives, position);
         let mut changed = false;
-        for (index, primitive) in self.last_paint_plan.primitives.iter_mut().enumerate() {
+        for (index, primitive) in self.frame.last_paint_plan.primitives.iter_mut().enumerate() {
             let PaintPrimitive::GpuSurface(surface) = primitive else {
                 continue;
             };
@@ -165,13 +172,14 @@ where
             }
         }
         if changed {
-            self.composited_base_dirty = true;
+            self.frame.mark_composited_base_dirty();
         }
         changed
     }
 
     pub(super) fn clear_gpu_surface_cursor_overlay(&mut self, position: Point) -> bool {
         let changed = self
+            .frame
             .last_paint_plan
             .primitives
             .iter_mut()
@@ -192,7 +200,7 @@ where
                 clear_surface_cursor_overlay(surface) || changed
             });
         if changed {
-            self.composited_base_dirty = true;
+            self.frame.mark_composited_base_dirty();
         }
         changed
     }

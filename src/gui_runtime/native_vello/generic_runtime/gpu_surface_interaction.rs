@@ -75,6 +75,11 @@ where
         if !outcome.needs_redraw() {
             return;
         }
+        if outcome.routed {
+            self.rebuild_scene();
+            self.request_redraw_if_needed();
+            return;
+        }
         if self.can_fast_path_gpu_surface_pointer_move(previous, position) {
             if self.update_gpu_surface_cursor_overlay(position) {
                 self.request_redraw_if_needed();
@@ -95,6 +100,9 @@ where
         previous: Option<Point>,
         position: Point,
     ) -> bool {
+        if self.core.runtime.pointer_capture().is_some() {
+            return false;
+        }
         let Some(previous) = previous else {
             return false;
         };

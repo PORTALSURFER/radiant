@@ -53,6 +53,11 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
                 "StatusSegments::primary(",
                 "context.spawn(",
                 "StatusMessage::WorkerFinished",
+                ".animation(",
+                ".on_frame(",
+                "retained_canvas(",
+                "horizontal_progress_fill_rect(",
+                "StatusLineLog",
             ],
         ),
         (
@@ -62,16 +67,6 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
         (
             "background_loading",
             vec![".update_with(", "context.spawn(", "LoadingMessage::Loaded"],
-        ),
-        (
-            "busy_progress",
-            vec![
-                "context.spawn(",
-                ".animation(",
-                ".on_frame(",
-                "retained_canvas(",
-                "horizontal_progress_fill_rect(",
-            ],
         ),
         (
             "multi_window_manifest",

@@ -13,9 +13,7 @@ mod paint;
 use radiant::layout::{LayoutOutput, Point, Rect, Vector2};
 use radiant::runtime::PaintPrimitive;
 use radiant::theme::ThemeTokens;
-use radiant::widgets::{
-    FocusBehavior, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
-};
+use radiant::widgets::{Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing};
 
 #[derive(Clone, Debug)]
 pub(super) struct ArrangementTimelineWidget {
@@ -55,13 +53,12 @@ pub(super) enum ResizeEdge {
 
 impl ArrangementTimelineWidget {
     pub(super) fn new(state: &TimelineEditorState) -> Self {
-        let mut common = WidgetCommon::new(
-            0,
-            WidgetSizing::new(Vector2::new(520.0, 224.0), Vector2::new(760.0, 252.0)),
-        );
-        common.focus = FocusBehavior::Keyboard;
         Self {
-            common,
+            common: WidgetCommon::new(
+                0,
+                WidgetSizing::new(Vector2::new(520.0, 224.0), Vector2::new(760.0, 252.0)),
+            )
+            .with_keyboard_focus(),
             clips: state.clips.clone(),
             selected_clip: state.selected_clip,
             selection: state.selection,

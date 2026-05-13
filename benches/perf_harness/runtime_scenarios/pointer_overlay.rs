@@ -6,9 +6,7 @@ use radiant::{
         UiSurface, WidgetMessageMapper,
     },
     theme::ThemeTokens,
-    widgets::{
-        ButtonWidget, FocusBehavior, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
-    },
+    widgets::{ButtonWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
 };
 use std::{hint::black_box, sync::Arc};
 
@@ -114,13 +112,12 @@ struct PointerOverlayProbeWidget {
 
 impl PointerOverlayProbeWidget {
     fn new(id: u64) -> Self {
-        let mut common = WidgetCommon::new(
-            id,
-            WidgetSizing::fixed(Vector2::new(360.0, 36.0)).with_baseline(24.0),
-        );
-        common.focus = FocusBehavior::Pointer;
         Self {
-            common,
+            common: WidgetCommon::new(
+                id,
+                WidgetSizing::fixed(Vector2::new(360.0, 36.0)).with_baseline(24.0),
+            )
+            .with_pointer_focus(),
             cursor_x: 0.0,
         }
     }

@@ -36,23 +36,23 @@ pub(super) fn replayable_suffix(primitives: &[PaintPrimitive]) -> Option<&[Paint
         .and_then(|index| primitives.get(index + 1..))
 }
 
-pub(super) fn replayable_vertices(
+pub(super) fn replayable_vertices_into(
     primitives: &[PaintPrimitive],
     target_size: Vector2,
-) -> Vec<OverlayVertex> {
-    let mut vertices = Vec::new();
+    vertices: &mut Vec<OverlayVertex>,
+) {
+    vertices.clear();
     for primitive in primitives {
         match primitive {
             PaintPrimitive::FillRect(fill) => {
-                push_rect_vertices(&mut vertices, target_size, fill.rect, fill.color);
+                push_rect_vertices(vertices, target_size, fill.rect, fill.color);
             }
             PaintPrimitive::StrokeRect(stroke) => {
-                push_stroke_vertices(&mut vertices, target_size, stroke);
+                push_stroke_vertices(vertices, target_size, stroke);
             }
             _ => {}
         }
     }
-    vertices
 }
 
 fn push_stroke_vertices(
@@ -176,12 +176,27 @@ mod tests {
     #[test]
     fn replayable_vertices_batch_fill_and_stroke_rectangles() {
         let primitives = [fill(1), stroke(2)];
+        let mut vertices = Vec::new();
 
-        let vertices = replayable_vertices(&primitives, Vector2::new(100.0, 50.0));
+        replayable_vertices_into(&primitives, Vector2::new(100.0, 50.0), &mut vertices);
 
         assert_eq!(vertices.len(), 30);
         assert_eq!(vertices[0].position, [-1.0, 1.0]);
         assert_eq!(vertices[5].position, [-0.98, 0.96]);
+    }
+
+    #[test]
+    fn replayable_vertices_reuses_existing_storage() {
+        let primitives = [fill(1), stroke(2)];
+        let mut vertices = Vec::with_capacity(64);
+
+        replayable_vertices_into(&primitives, Vector2::new(100.0, 50.0), &mut vertices);
+        let capacity = vertices.capacity();
+        replayable_vertices_into(&[fill(3)], Vector2::new(100.0, 50.0), &mut vertices);
+
+        assert_eq!(capacity, 64);
+        assert_eq!(vertices.capacity(), capacity);
+        assert_eq!(vertices.len(), 6);
     }
 
     #[test]
@@ -195,7 +210,8 @@ mod tests {
 
     #[test]
     fn overlay_vertex_bytes_cover_all_vertices() {
-        let vertices = replayable_vertices(&[fill(1)], Vector2::new(100.0, 50.0));
+        let mut vertices = Vec::new();
+        replayable_vertices_into(&[fill(1)], Vector2::new(100.0, 50.0), &mut vertices);
 
         assert_eq!(
             overlay_vertex_bytes(&vertices).len(),

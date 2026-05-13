@@ -1,33 +1,9 @@
 use crate::{
     gui::types::{Point, Rect as UiRect, Rgba8, Vector2},
-    gui_runtime::native_vello::wgpu,
     runtime::{PaintPrimitive, PaintStrokeRect},
 };
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub(super) struct OverlayVertex {
-    position: [f32; 2],
-    color: [f32; 4],
-}
-
-impl OverlayVertex {
-    pub(super) fn position_attribute() -> wgpu::VertexAttribute {
-        wgpu::VertexAttribute {
-            format: wgpu::VertexFormat::Float32x2,
-            offset: 0,
-            shader_location: 0,
-        }
-    }
-
-    pub(super) fn color_attribute() -> wgpu::VertexAttribute {
-        wgpu::VertexAttribute {
-            format: wgpu::VertexFormat::Float32x4,
-            offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
-            shader_location: 1,
-        }
-    }
-}
+use super::vertex::OverlayVertex;
 
 pub(super) fn replayable_suffix(primitives: &[PaintPrimitive]) -> Option<&[PaintPrimitive]> {
     primitives
@@ -102,10 +78,7 @@ fn push_rect_vertices(
 }
 
 fn vertex(x: f32, y: f32, color: [f32; 4]) -> OverlayVertex {
-    OverlayVertex {
-        position: [x, y],
-        color,
-    }
+    OverlayVertex::new([x, y], color)
 }
 
 fn clip_x(x: f32, target_size: Vector2) -> f32 {
@@ -148,14 +121,6 @@ fn rgba_to_float(color: Rgba8) -> [f32; 4] {
         color.b as f32 / 255.0,
         color.a as f32 / 255.0,
     ]
-}
-
-pub(super) fn overlay_vertex_bytes(vertices: &[OverlayVertex]) -> &[u8] {
-    let size = std::mem::size_of_val(vertices);
-    let ptr = vertices.as_ptr() as *const u8;
-    // SAFETY: `OverlayVertex` is a repr(C) POD-like value containing only f32
-    // arrays. The slice is used only while wgpu copies the bytes into a buffer.
-    unsafe { std::slice::from_raw_parts(ptr, size) }
 }
 
 #[cfg(test)]
@@ -254,26 +219,6 @@ mod tests {
         append_replayable_vertices(&[fill(2)], Vector2::new(100.0, 50.0), &mut vertices);
 
         assert_eq!(vertices.len(), 12);
-    }
-
-    #[test]
-    fn overlay_vertices_keep_vertex_buffer_stride_stable() {
-        assert_eq!(std::mem::size_of::<OverlayVertex>(), 24);
-        assert_eq!(
-            OverlayVertex::color_attribute().offset,
-            std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress
-        );
-    }
-
-    #[test]
-    fn overlay_vertex_bytes_cover_all_vertices() {
-        let mut vertices = Vec::new();
-        replayable_vertices_into(&[fill(1)], Vector2::new(100.0, 50.0), &mut vertices);
-
-        assert_eq!(
-            overlay_vertex_bytes(&vertices).len(),
-            vertices.len() * std::mem::size_of::<OverlayVertex>()
-        );
     }
 
     fn fill(widget_id: u64) -> PaintPrimitive {

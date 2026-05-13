@@ -121,6 +121,7 @@ where
         self.post_gpu_overlay_renderer.render(
             &mut post_gpu_overlay::PostGpuOverlayRenderTarget {
                 device: &dev_handle.device,
+                queue: &dev_handle.queue,
                 encoder: &mut encoder,
                 target_view: &surface_view,
                 format: surface.config.format,
@@ -137,6 +138,7 @@ where
         self.post_gpu_overlay_renderer.render_primitives(
             &mut post_gpu_overlay::PostGpuOverlayRenderTarget {
                 device: &dev_handle.device,
+                queue: &dev_handle.queue,
                 encoder: &mut encoder,
                 target_view: &surface_view,
                 format: surface.config.format,

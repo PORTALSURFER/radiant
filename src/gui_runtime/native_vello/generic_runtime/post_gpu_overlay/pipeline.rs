@@ -1,6 +1,5 @@
 use super::{geometry::OverlayVertex, target::PostGpuOverlayRenderTarget};
 use crate::gui_runtime::native_vello::wgpu;
-use wgpu::util::DeviceExt;
 
 pub(super) struct PostGpuOverlayPipeline {
     format: wgpu::TextureFormat,
@@ -58,18 +57,6 @@ impl PostGpuOverlayPipeline {
 
     pub(super) fn format(&self) -> wgpu::TextureFormat {
         self.format
-    }
-
-    pub(super) fn create_vertex_buffer(
-        &self,
-        device: &wgpu::Device,
-        contents: &[u8],
-    ) -> wgpu::Buffer {
-        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("radiant_post_gpu_overlay_vertices"),
-            contents,
-            usage: wgpu::BufferUsages::VERTEX,
-        })
     }
 
     pub(super) fn render(

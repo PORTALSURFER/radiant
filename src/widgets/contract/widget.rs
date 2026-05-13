@@ -93,6 +93,18 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
         true
     }
 
+    /// Return whether stable pointer motion can redraw this widget through
+    /// [`Self::append_runtime_overlay_paint`] without rebuilding the base scene.
+    ///
+    /// Use this for editor affordances whose pointer-following visuals are
+    /// fully transient, such as timeline cursors, hover handles, drag previews,
+    /// or small selection markers. Widgets that paint pointer-motion state in
+    /// [`Self::append_paint`] should keep the default `false` so the runtime
+    /// rebuilds the scene when local pointer state changes.
+    fn prefers_pointer_move_paint_only(&self) -> bool {
+        false
+    }
+
     /// Return the selected text for focused text-editing widgets.
     fn selected_text(&self) -> Option<String> {
         None
@@ -116,6 +128,21 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
         layout: &LayoutOutput,
         theme: &ThemeTokens,
     );
+
+    /// Append small runtime-owned overlay primitives for the current widget state.
+    ///
+    /// Native backends draw these over the cached scene on paint-only pointer
+    /// motion. Keep this output lightweight and limited to replayable overlay
+    /// primitives such as filled and stroked rectangles; text and full widget
+    /// chrome still belong in [`Self::append_paint`].
+    fn append_runtime_overlay_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
 }
 
 impl dyn Widget {

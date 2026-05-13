@@ -48,19 +48,23 @@ where
     ) -> GenericRouteOutcome {
         let previous_hovered_widget = self.runtime.hovered_widget();
         let previous_hovered_container = self.runtime.hovered_container();
-        let routed = self
-            .runtime
-            .dispatch_event(Event::PointerMove { position })
-            .is_some();
+        let target = self.runtime.dispatch_event(Event::PointerMove { position });
+        let routed = target.is_some();
         let repaint_requested = self.runtime.take_repaint_requested();
         let exit_requested = self.runtime.take_exit_requested();
         let hover_changed = previous_hovered_widget != self.runtime.hovered_widget()
             || previous_hovered_container != self.runtime.hovered_container();
+        let can_use_paint_only_pointer_overlay = target.is_some_and(|widget_id| {
+            self.runtime
+                .widget_prefers_pointer_move_paint_only(widget_id)
+                && self.runtime.pointer_capture().is_none()
+                && !hover_changed
+        });
         GenericRouteOutcome {
             routed,
             redraw_requested: hover_changed || self.runtime.pointer_capture().is_some(),
-            repaint_requested,
-            paint_only_requested: false,
+            repaint_requested: repaint_requested && !can_use_paint_only_pointer_overlay,
+            paint_only_requested: repaint_requested && can_use_paint_only_pointer_overlay,
             exit_requested,
             runtime_work_remaining: false,
         }

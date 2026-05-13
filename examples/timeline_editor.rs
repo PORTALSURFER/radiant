@@ -283,7 +283,12 @@ mod tests {
         assert!(handled.is_none());
         let mut primitives = Vec::new();
 
-        widget.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+        widget.append_runtime_overlay_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &theme,
+        );
 
         let indicator_lines = primitives
             .iter()
@@ -318,7 +323,12 @@ mod tests {
         assert!(handled.is_none());
 
         let mut primitives = Vec::new();
-        widget.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+        widget.append_runtime_overlay_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &theme,
+        );
 
         let cursor_rect = primitives
             .iter()
@@ -353,7 +363,12 @@ mod tests {
         assert_eq!(widget.hover_clip_id, Some(1));
 
         let mut primitives = Vec::new();
-        widget.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+        widget.append_runtime_overlay_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &theme,
+        );
 
         let hover_rect = geometry.clip_rect(&widget.clips[0]);
         let hover_border = primitives.iter().any(|primitive| {

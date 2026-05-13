@@ -98,7 +98,10 @@ fn pointer_move_repaint_contract_is_documented() {
 
     for required in [
         "Widget::accepts_pointer_move()",
+        "Widget::prefers_pointer_move_paint_only()",
+        "Widget::append_runtime_overlay_paint(...)",
         "request repaint even when `handle_input` returns `None`",
+        "cached scene on stable pointer motion",
         "without emitting host messages",
     ] {
         assert!(
@@ -108,6 +111,8 @@ fn pointer_move_repaint_contract_is_documented() {
     }
     for required in [
         "snapped timeline cursor",
+        "append_runtime_overlay_paint",
+        "rebuilding the base scene",
         "request repaint even when `handle_input` returns `None`",
         "emit host messages",
     ] {

@@ -76,6 +76,14 @@ where
         );
     }
 
+    pub(super) fn paint_runtime_overlay(
+        &self,
+        primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+    ) {
+        self.runtime
+            .runtime_overlay_paint_into(&self.theme, primitives);
+    }
+
     pub(super) fn refresh_surface(&mut self) {
         self.runtime.refresh();
     }

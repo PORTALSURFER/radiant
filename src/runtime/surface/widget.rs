@@ -144,6 +144,10 @@ impl<Message> SurfaceWidget<Message> {
         !self.widget.common().state.disabled && self.widget.accepts_pointer_move()
     }
 
+    pub(in crate::runtime) fn prefers_pointer_move_paint_only(&self) -> bool {
+        !self.widget.common().state.disabled && self.widget.prefers_pointer_move_paint_only()
+    }
+
     pub(in crate::runtime) fn needs_state_synchronization(&self) -> bool {
         self.widget.needs_state_synchronization()
     }

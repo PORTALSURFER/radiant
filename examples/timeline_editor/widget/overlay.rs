@@ -1,9 +1,10 @@
 use super::TimelineGeometry;
 use radiant::layout::{Point, Rect};
-use radiant::runtime::{PaintPrimitive, PaintTextAlign};
+use radiant::runtime::PaintPrimitive;
 use radiant::theme::ThemeTokens;
 
-use super::paint::{push_rect, push_text};
+use super::paint::{push_rect, push_resize_handles, push_stroke};
+use super::{ArrangementTimelineWidget, RESIZE_HANDLE_WIDTH};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct TimelineCursorOverlay {
@@ -45,7 +46,6 @@ impl TimelineCursorOverlay {
         playhead_beat: u32,
         theme: &ThemeTokens,
     ) {
-        let indicator_beat = self.active_beat(playhead_beat);
         let indicator_x = self
             .hover
             .map(|cursor| cursor.x)
@@ -64,24 +64,39 @@ impl TimelineCursorOverlay {
             ),
             indicator_color,
         );
-        if self.hover.is_some() {
-            push_text(
-                primitives,
-                widget_id,
-                format!("beat {indicator_beat}"),
-                Rect::from_min_max(
-                    Point::new(
-                        (indicator_x + 8.0).min(bounds.max.x - 82.0),
-                        geometry.ruler.min.y + 6.0,
-                    ),
-                    Point::new(
-                        (indicator_x + 82.0).min(bounds.max.x - 4.0),
-                        geometry.ruler.max.y,
-                    ),
-                ),
-                theme.text_primary,
-                PaintTextAlign::Left,
-            );
+    }
+}
+
+pub(super) fn append_runtime_timeline_overlay(
+    widget: &ArrangementTimelineWidget,
+    primitives: &mut Vec<PaintPrimitive>,
+    bounds: Rect,
+    theme: &ThemeTokens,
+) {
+    let geometry = widget.geometry(bounds);
+    if let Some(clip_id) = widget
+        .hover_clip_id
+        .filter(|clip_id| widget.selected_clip != Some(*clip_id) && widget.drag.is_none())
+        && let Some(clip) = widget.clips.iter().find(|clip| clip.id == clip_id)
+    {
+        let rect = geometry.clip_rect(clip);
+        push_stroke(primitives, widget.common.id, rect, theme.text_primary, 2.0);
+        push_rect(
+            primitives,
+            widget.common.id,
+            rect.top_edge_strip(4.0),
+            theme.highlight_orange_soft,
+        );
+        if rect.width() >= RESIZE_HANDLE_WIDTH {
+            push_resize_handles(primitives, widget.common.id, rect, theme.highlight_orange);
         }
     }
+    widget.cursor.append_paint(
+        primitives,
+        widget.common.id,
+        geometry,
+        bounds,
+        widget.playhead_beat,
+        theme,
+    );
 }

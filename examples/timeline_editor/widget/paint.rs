@@ -103,7 +103,6 @@ pub(super) fn append_timeline_paint(
 
     for clip in &widget.clips {
         let selected = widget.selected_clip == Some(clip.id);
-        let hovered = widget.hover_clip_id == Some(clip.id);
         let rect = geometry.clip_rect(clip);
         let fill = match clip.lane {
             0 => theme.accent_mint,
@@ -115,31 +114,19 @@ pub(super) fn append_timeline_paint(
             primitives,
             widget.common.id,
             rect,
-            if selected || hovered {
-                fill
-            } else {
-                muted(fill)
-            },
+            if selected { fill } else { muted(fill) },
         );
         push_stroke(
             primitives,
             widget.common.id,
             rect,
-            if selected || hovered {
+            if selected {
                 theme.text_primary
             } else {
                 theme.border_emphasis
             },
-            if selected || hovered { 2.0 } else { 1.0 },
+            if selected { 2.0 } else { 1.0 },
         );
-        if hovered && !selected {
-            push_rect(
-                primitives,
-                widget.common.id,
-                rect.top_edge_strip(4.0),
-                theme.highlight_orange_soft,
-            );
-        }
         push_rect(
             primitives,
             widget.common.id,
@@ -157,28 +144,10 @@ pub(super) fn append_timeline_paint(
             theme.text_primary,
             PaintTextAlign::Left,
         );
-        if hovered || selected {
-            push_resize_handles(
-                primitives,
-                widget.common.id,
-                rect,
-                if hovered {
-                    theme.highlight_orange
-                } else {
-                    theme.text_primary
-                },
-            );
+        if selected {
+            push_resize_handles(primitives, widget.common.id, rect, theme.text_primary);
         }
     }
-
-    widget.cursor.append_paint(
-        primitives,
-        widget.common.id,
-        geometry,
-        bounds,
-        widget.playhead_beat,
-        theme,
-    );
 }
 
 pub(super) fn push_rect(
@@ -194,7 +163,7 @@ pub(super) fn push_rect(
     }));
 }
 
-fn push_stroke(
+pub(super) fn push_stroke(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: u64,
     rect: Rect,
@@ -229,7 +198,7 @@ pub(super) fn push_text(
     }));
 }
 
-fn push_resize_handles(
+pub(super) fn push_resize_handles(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: u64,
     rect: Rect,

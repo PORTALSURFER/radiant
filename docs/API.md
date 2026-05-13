@@ -731,10 +731,12 @@ demo atlas data.
 Run `cargo run --example multi_window_manifest` for a checked manifest sandbox
 that uses `WindowManifest` to describe multiple windows and separate views
 without expanding the native runtime event loop.
-Run `cargo run --example popup_window` for a focused floating-popup sandbox
-that launches a borderless, transparent, always-on-top Radiant window suitable
-for drag previews, tooltips, context menus, and other transient UI surfaces that
-need to render outside a main application window.
+Run `cargo run --example popup_window` for a launcher-and-popup sandbox: the
+normal main window lets you choose a popup mode, starts a real borderless
+Radiant popup window in a child process, and the popup closes itself through the
+normal runtime exit command. This demonstrates the current host-owned
+multi-window adapter boundary while keeping transient UI surfaces on the same
+Radiant app and widget model.
 Run `cargo run --example layout_diagnostics` for a layout diagnostics sandbox
 that collects `LayoutDiagnostic` entries and debug primitives from
 `LayoutDebugOptions::all_enabled()`.

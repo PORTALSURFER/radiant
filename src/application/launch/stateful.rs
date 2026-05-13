@@ -1,5 +1,6 @@
 mod builder;
 mod lifecycle;
+mod overlays;
 mod runnable;
 mod with_view;
 

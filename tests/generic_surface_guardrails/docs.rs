@@ -194,6 +194,10 @@ fn api_docs_describe_paint_only_overlay_composition_cache() {
         "transient-overlay paint callbacks",
         "transient-overlay primitive counts",
         "without refreshing the declarative surface, rebuilding the cached Vello scene, or recompositing",
+        "`waveform_view` uses a generated synthetic signal",
+        "GpuSurfaceContent::SignalSummaryBands",
+        "playback playhead",
+        "instead of queueing app frame messages",
     ] {
         assert!(
             normalized_docs.contains(required),

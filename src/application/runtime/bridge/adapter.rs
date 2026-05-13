@@ -6,7 +6,7 @@ use crate::{
         repaint::RepaintSignal, shortcuts::ShortcutResolution, types::Rect,
     },
     layout::Vector2,
-    runtime::{Command, RuntimeBridge, UiSurface},
+    runtime::{Command, PaintPrimitive, RuntimeBridge, SurfacePaintPlan, UiSurface},
     widgets::RetainedSurfaceDescriptor,
 };
 use std::{sync::Arc, time::Duration};
@@ -120,6 +120,18 @@ where
         self.retained_painters
             .get_mut(&descriptor.key)
             .and_then(|paint| paint(&mut self.state, descriptor, rect, viewport))
+    }
+
+    fn paint_transient_overlay(
+        &mut self,
+        plan: &SurfacePaintPlan,
+        primitives: &mut Vec<PaintPrimitive>,
+        viewport: Vector2,
+        animation_time: Duration,
+    ) {
+        if let Some(paint) = self.transient_overlay.as_mut() {
+            paint(&mut self.state, plan, primitives, viewport, animation_time);
+        }
     }
 
     fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {

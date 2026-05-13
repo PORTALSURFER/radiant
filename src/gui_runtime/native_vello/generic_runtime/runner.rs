@@ -21,6 +21,7 @@ where
     pub(super) gpu_surface_renderer: GpuSurfaceRenderer,
     pub(super) post_gpu_overlay_renderer: PostGpuOverlayRenderer,
     pub(super) last_paint_plan: SurfacePaintPlan,
+    pub(super) transient_overlay_primitives: Vec<crate::runtime::PaintPrimitive>,
     pub(super) retained_surface_cache: RetainedSurfaceFrameCache,
     pub(super) last_cursor: Option<Point>,
     pub(super) clipboard: Option<arboard::Clipboard>,
@@ -59,6 +60,7 @@ where
             gpu_surface_renderer: GpuSurfaceRenderer::default(),
             post_gpu_overlay_renderer: PostGpuOverlayRenderer::default(),
             last_paint_plan: SurfacePaintPlan::empty(&ThemeTokens::default()),
+            transient_overlay_primitives: Vec::new(),
             retained_surface_cache: RetainedSurfaceFrameCache::default(),
             last_cursor: None,
             clipboard: arboard::Clipboard::new().ok(),
@@ -122,10 +124,12 @@ where
             event_loop.exit();
             return;
         }
-        if outcome.needs_redraw() {
+        if outcome.needs_scene_rebuild() {
             self.rebuild_scene();
-            self.request_redraw_if_needed();
-            self.request_runtime_wakeup_if_needed(outcome);
         }
+        if outcome.needs_redraw() {
+            self.request_redraw_if_needed();
+        }
+        self.request_runtime_wakeup_if_needed(outcome);
     }
 }

@@ -148,7 +148,13 @@ Serious apps use the same builder API. `radiant::app(...)` supports
 with `.on_frame(...)` for frame-driven UI, `.on_scroll(...)` for observing
 runtime-owned scroll offsets, `.on_startup(...)`, `.on_shutdown(...)`,
 `.on_close_requested(...)`, `.run_with_artifacts()`, and retained-surface
-painters registered through `.retained_painter(...)`.
+painters registered through `.retained_painter(...)`. Apps with small
+frame-rate overlays can register `.transient_overlay(...)` to append
+backend-neutral paint primitives over the cached scene each present frame. This
+keeps structural state, layout, and Vello scene refreshes out of animation paths
+for visuals such as playheads, drag previews, tooltip affordances, cursor
+markers, and lightweight spectrogram overlays that can anchor themselves to the
+latest `SurfacePaintPlan`.
 Retained canvas views reserve stable cached surfaces with
 `retained_canvas(key).revision(...).dirty_mask(...).volatile(...).on_input(...)`, while the
 app painter owns the corresponding backend-neutral `PaintFrame`.
@@ -675,6 +681,9 @@ metadata, marker selection, and transport controls through normal app views.
 Run `cargo run --example animation_showcase` for a frame-driven UI sandbox that
 uses `.animation(...)` and `.on_frame(...)` through the stateful application
 builder.
+Run `cargo run --example gpu_surface_stack_overlay` for a retained GPU surface
+with normal widget overlays plus a transient animated blob that repaints every
+frame without refreshing the declarative surface.
 Run `cargo run --example background_loading` for a background-work sandbox that
 uses `ResourceSlot`, `ResourceLoad`, and `UpdateContext::spawn(...)` to route
 worker resource results back into the normal state update path.

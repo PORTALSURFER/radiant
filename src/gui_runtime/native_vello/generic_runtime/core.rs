@@ -22,12 +22,17 @@ pub(in crate::gui_runtime::native_vello) struct GenericRouteOutcome {
     pub(in crate::gui_runtime::native_vello) routed: bool,
     pub(in crate::gui_runtime::native_vello) redraw_requested: bool,
     pub(in crate::gui_runtime::native_vello) repaint_requested: bool,
+    pub(in crate::gui_runtime::native_vello) paint_only_requested: bool,
     pub(in crate::gui_runtime::native_vello) exit_requested: bool,
     pub(in crate::gui_runtime::native_vello) runtime_work_remaining: bool,
 }
 
 impl GenericRouteOutcome {
     pub(super) fn needs_redraw(self) -> bool {
+        self.needs_scene_rebuild() || self.paint_only_requested
+    }
+
+    pub(super) fn needs_scene_rebuild(self) -> bool {
         self.redraw_requested || self.repaint_requested
     }
 
@@ -35,6 +40,7 @@ impl GenericRouteOutcome {
         self.routed |= other.routed;
         self.redraw_requested |= other.redraw_requested;
         self.repaint_requested |= other.repaint_requested;
+        self.paint_only_requested |= other.paint_only_requested;
         self.exit_requested |= other.exit_requested;
         self.runtime_work_remaining |= other.runtime_work_remaining;
     }
@@ -79,6 +85,21 @@ where
         self.runtime.paint_plan_into(&self.theme, plan);
     }
 
+    pub(super) fn paint_transient_overlay(
+        &mut self,
+        plan: &crate::runtime::SurfacePaintPlan,
+        primitives: &mut Vec<crate::runtime::PaintPrimitive>,
+        animation_time: std::time::Duration,
+    ) {
+        let viewport = self.runtime.viewport();
+        self.runtime.bridge_mut().paint_transient_overlay(
+            plan,
+            primitives,
+            viewport,
+            animation_time,
+        );
+    }
+
     pub(super) fn refresh_surface(&mut self) {
         self.runtime.refresh();
     }
@@ -96,6 +117,7 @@ where
             routed,
             redraw_requested: routed,
             repaint_requested: self.runtime.take_repaint_requested(),
+            paint_only_requested: false,
             exit_requested: self.runtime.take_exit_requested(),
             runtime_work_remaining: false,
         }
@@ -119,6 +141,7 @@ where
             routed,
             redraw_requested: hover_changed || self.runtime.pointer_capture().is_some(),
             repaint_requested,
+            paint_only_requested: false,
             exit_requested,
             runtime_work_remaining: false,
         }
@@ -208,10 +231,12 @@ where
         &mut self,
     ) -> GenericRouteOutcome {
         let outcome = self.runtime.drain_runtime_messages();
+        let _ = self.runtime.take_repaint_requested();
         GenericRouteOutcome {
             routed: outcome.messages_dispatched > 0,
-            redraw_requested: outcome.messages_dispatched > 0,
-            repaint_requested: outcome.repaint_requested || self.runtime.take_repaint_requested(),
+            redraw_requested: outcome.surface_refresh_requested,
+            repaint_requested: outcome.surface_repaint_requested,
+            paint_only_requested: outcome.paint_only_requested,
             exit_requested: outcome.exit_requested,
             runtime_work_remaining: outcome.runtime_work_remaining,
         }

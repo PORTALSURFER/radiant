@@ -56,6 +56,18 @@ fn generic_core_preserves_animation_when_host_requests_it() {
 }
 
 #[test]
+fn generic_core_keeps_paint_only_runtime_frames_off_scene_rebuild_path() {
+    let mut core =
+        GenericNativeRuntimeCore::new(PaintOnlyFrameBridge::default(), Vector2::new(320.0, 40.0));
+
+    let outcome = core.drain_runtime_messages();
+
+    assert!(outcome.routed);
+    assert!(outcome.needs_redraw());
+    assert!(!outcome.needs_scene_rebuild());
+}
+
+#[test]
 fn generic_core_can_enable_layout_debug_before_first_frame() {
     let core = GenericNativeRuntimeCore::new_with_debug_layout(
         demo_bridge(),

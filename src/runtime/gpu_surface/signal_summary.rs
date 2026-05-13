@@ -45,7 +45,7 @@ impl GpuSignalSummary {
                 Some(previous) => {
                     merge_signal_summary_level(previous, frames, band_count, bucket_frames)
                 }
-                None => build_signal_summary_level(samples, frames, band_count, bucket_frames),
+                None => build_signal_summary_base_level(samples, frames, band_count),
             };
             levels.push(GpuSignalSummaryLevel {
                 bucket_frames,
@@ -85,44 +85,6 @@ impl GpuSignalSummary {
 fn signal_summary_level_count(frames: usize) -> usize {
     let frames = frames.max(1);
     usize::BITS as usize - frames.leading_zeros() as usize
-}
-
-fn build_signal_summary_level(
-    samples: &[f32],
-    frames: usize,
-    band_count: usize,
-    bucket_frames: usize,
-) -> Arc<[GpuSignalSummaryBucket]> {
-    if bucket_frames.max(1) == 1 {
-        return build_signal_summary_base_level(samples, frames, band_count);
-    }
-    let bucket_count = frames.div_ceil(bucket_frames.max(1)).max(1);
-    let mut buckets = Vec::with_capacity(bucket_count.saturating_mul(band_count));
-    for bucket in 0..bucket_count {
-        let start = bucket.saturating_mul(bucket_frames).min(frames);
-        let end = ((bucket + 1).saturating_mul(bucket_frames))
-            .min(frames)
-            .max(start + 1);
-        for band in 0..band_count {
-            let mut summary = GpuSignalSummaryBucket {
-                min: f32::INFINITY,
-                max: f32::NEG_INFINITY,
-            };
-            for frame in start..end {
-                let value = samples
-                    .get(frame.saturating_mul(band_count).saturating_add(band))
-                    .copied()
-                    .unwrap_or_default();
-                summary.min = summary.min.min(value);
-                summary.max = summary.max.max(value);
-            }
-            if !summary.min.is_finite() || !summary.max.is_finite() {
-                summary = GpuSignalSummaryBucket::default();
-            }
-            buckets.push(summary);
-        }
-    }
-    buckets.into()
 }
 
 fn build_signal_summary_base_level(

@@ -114,15 +114,8 @@ where
             });
         let frame_message_active = app_animation_active && self.frame_message.is_some();
         self.pending_animation_frame_activity = Some(frame_message_active);
-        let mut activity = RuntimeAnimationActivity::new(
-            app_animation_active || transient_overlay_animation.needs_animation(),
-            frame_message_active,
-        );
-        if !app_animation_active && let Some(target_fps) = transient_overlay_animation.target_fps()
-        {
-            activity = activity.with_target_fps(target_fps);
-        }
-        activity
+        RuntimeAnimationActivity::new(app_animation_active, frame_message_active)
+            .merge(transient_overlay_animation)
     }
 
     fn queue_animation_frame(&mut self) -> bool {

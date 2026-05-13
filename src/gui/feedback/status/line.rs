@@ -69,10 +69,13 @@ impl Default for StatusLineLog {
 
 impl StatusLineEntry {
     /// Build a status-line entry from source and message text.
+    ///
+    /// Multiline input is normalized to one trimmed display line so background
+    /// workers and actions cannot break compact status-bar layout.
     pub fn new(source: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
-            source: source.into(),
-            message: message.into(),
+            source: one_line(source.into()),
+            message: one_line(message.into()),
         }
     }
 
@@ -90,6 +93,17 @@ impl StatusLineEntry {
     pub fn line(&self) -> String {
         format!("{}: {}", self.source, self.message)
     }
+}
+
+fn one_line(text: String) -> String {
+    let mut line = String::with_capacity(text.len());
+    for segment in text.lines().map(str::trim).filter(|line| !line.is_empty()) {
+        if !line.is_empty() {
+            line.push(' ');
+        }
+        line.push_str(segment);
+    }
+    line
 }
 
 #[cfg(test)]
@@ -123,5 +137,14 @@ mod tests {
         assert_eq!(entry.source(), "worker");
         assert_eq!(entry.message(), "finished");
         assert_eq!(entry.line(), "worker: finished");
+    }
+
+    #[test]
+    fn status_line_entry_normalizes_multiline_text_at_boundary() {
+        let entry = StatusLineEntry::new(" worker\npool ", "\rstarted\njob ");
+
+        assert_eq!(entry.source(), "worker pool");
+        assert_eq!(entry.message(), "started job");
+        assert_eq!(entry.line(), "worker pool: started job");
     }
 }

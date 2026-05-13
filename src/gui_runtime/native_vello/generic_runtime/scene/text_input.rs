@@ -35,16 +35,9 @@ pub(super) fn encode_text_input(
             text_rect.width(),
         );
         if let Some((start, end)) = layout.selection_offsets
-            && end > start
+            && let Some(rect) = selection_rect(input, start, end)
         {
-            super::encode_rect(
-                scene,
-                input.selection_color,
-                UiRect::from_min_max(
-                    Point::new(text_rect.min.x + start, text_rect.min.y + 4.0),
-                    Point::new(text_rect.min.x + end, text_rect.max.y - 4.0),
-                ),
-            );
+            super::encode_rect(scene, input.selection_color, rect);
         }
         let caret_offset = if selection.has_selection {
             layout.local_x_for_byte(selection.caret_byte)
@@ -138,6 +131,24 @@ fn caret_size(input: &PaintTextInput) -> Option<(f32, f32)> {
     Some((caret_width, caret_height))
 }
 
+fn selection_rect(input: &PaintTextInput, start: f32, end: f32) -> Option<UiRect> {
+    if end <= start || input.rect.max.x <= input.rect.min.x || input.rect.max.y <= input.rect.min.y
+    {
+        return None;
+    }
+    let start_x = (input.rect.min.x + start).clamp(input.rect.min.x, input.rect.max.x);
+    let end_x = (input.rect.min.x + end).clamp(input.rect.min.x, input.rect.max.x);
+    if end_x <= start_x {
+        return None;
+    }
+    let height = input.rect.height();
+    let inset_y = if height < 12.0 { 0.0 } else { 2.0 };
+    Some(UiRect::from_min_max(
+        Point::new(start_x, input.rect.min.y + inset_y),
+        Point::new(end_x, input.rect.max.y - inset_y),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,6 +163,23 @@ mod tests {
 
     #[test]
     fn caret_size_clamps_to_cramped_text_input_bounds() {
+        let input = cramped_text_input();
+
+        assert_eq!(caret_size(&input), Some((5.0, 7.0)));
+    }
+
+    #[test]
+    fn selection_rect_remains_visible_for_cramped_text_input_bounds() {
+        let input = cramped_text_input();
+
+        let rect = selection_rect(&input, 1.0, 4.0).expect("visible selection rect");
+
+        assert_eq!(rect.min.y, input.rect.min.y);
+        assert_eq!(rect.max.y, input.rect.max.y);
+        assert!(rect.width() > 0.0);
+    }
+
+    fn cramped_text_input() -> PaintTextInput {
         let input = PaintTextInput {
             widget_id: 1,
             rect: Rect::from_min_max(Point::new(0.0, 0.0), Point::new(5.0, 7.0)),
@@ -169,7 +197,6 @@ mod tests {
             caret_color: WHITE,
             focused: true,
         };
-
-        assert_eq!(caret_size(&input), Some((5.0, 7.0)));
+        input
     }
 }

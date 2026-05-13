@@ -136,6 +136,14 @@ fn surface_runtime_keeps_disabled_widgets_out_of_focus_order() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 40.0));
 
     assert_eq!(runtime.surface().keyboard_focus_order(), vec![12]);
+    let mut focus_order = Vec::with_capacity(4);
+    focus_order.push(99);
+    let capacity = focus_order.capacity();
+    runtime
+        .surface()
+        .keyboard_focus_order_into(&mut focus_order);
+    assert_eq!(focus_order, vec![12]);
+    assert_eq!(focus_order.capacity(), capacity);
     assert!(!runtime.focus_widget(11));
     assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(12));
 }

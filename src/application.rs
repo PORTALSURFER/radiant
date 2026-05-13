@@ -29,7 +29,8 @@ mod runtime;
 pub(in crate::application) use runtime::{
     AppAnimation, AppBridge, AppBridgeLifecycle, AppCloseRequested, AppFrameMessage, AppScroll,
     AppShortcuts, AppShutdown, AppStartup, AppSubscriptions, AppUpdate, RetainedPainter,
-    StateCallback, StateDragCallback, StateStringCallback, TransientOverlayPainter,
+    StateCallback, StateDragCallback, StateStringCallback, TransientOverlayActivity,
+    TransientOverlayPainter,
 };
 pub use runtime::{Subscription, UpdateContext};
 mod launch;

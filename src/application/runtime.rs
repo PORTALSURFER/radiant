@@ -25,6 +25,8 @@ pub(in crate::application) type RetainedPainter<State> =
     Box<dyn FnMut(&mut State, RetainedSurfaceDescriptor, Rect, Vector2) -> Option<GuiPaintFrame>>;
 pub(in crate::application) type TransientOverlayPainter<State> =
     Box<dyn for<'a> FnMut(&mut State, TransientOverlayContext<'a>, &mut Vec<PaintPrimitive>)>;
+pub(in crate::application) type TransientOverlayActivity<State> =
+    Box<dyn FnMut(&mut State) -> bool>;
 pub(in crate::application) type AppAnimation<State> = Box<dyn FnMut(&mut State) -> bool>;
 pub(in crate::application) type AppFrameMessage<Message> = Box<dyn FnMut() -> Message>;
 pub(in crate::application) type AppSubscriptions<State, Message> =

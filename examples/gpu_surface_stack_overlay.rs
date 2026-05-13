@@ -237,10 +237,12 @@ fn main() -> radiant::Result {
             .padding(24.0)
             .spacing(16.0)
         })
-        .animation(|state| state.running)
-        .transient_overlay(|state, context, primitives| {
-            paint_transient_blob(state, context.plan, context.animation_time, primitives);
-        })
+        .animated_transient_overlay(
+            |state| state.running,
+            |state, context, primitives| {
+                paint_transient_blob(state, context.plan, context.animation_time, primitives);
+            },
+        )
         .update_command(|state: &mut DemoState, message| match message {
             DemoMessage::ToggleSelection => {
                 state.selected = !state.selected;

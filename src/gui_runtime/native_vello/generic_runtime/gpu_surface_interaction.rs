@@ -123,6 +123,11 @@ where
             .any(|region| region.native_hover_cursor.is_some() && region.contains(position))
     }
 
+    pub(super) fn can_fast_path_native_hover_move(&self, position: Point) -> bool {
+        self.core.runtime.pointer_capture().is_none()
+            && self.native_hover_surface_contains(position)
+    }
+
     pub(super) fn can_coalesce_gpu_surface_wheel(&self, position: Point, delta: Vector2) -> bool {
         let is_vertical = delta.y.abs() >= delta.x.abs() && delta.y.abs() > f32::EPSILON;
         is_vertical && self.paint_plan_has_coalescing_gpu_surface_at(position)

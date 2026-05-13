@@ -39,26 +39,6 @@ impl GpuSurfaceRenderer {
             level_index,
         );
         self.ensure_pipeline(target.device, target.format);
-        if self
-            .signal_bodies
-            .get(&surface.key)
-            .is_some_and(|body| body.cache_key == body_key)
-        {
-            stats.signal_body_cache_hits += 1;
-            let Some(body) = self.signal_bodies.get(&surface.key) else {
-                return;
-            };
-            let texture_view = body.view.clone();
-            self.render_texture_view(
-                target,
-                surface,
-                GpuSurfaceTextureIdentity::SignalBody(body_key),
-                &texture_view,
-                [0.0, 0.0, body_key.width as f32, body_key.height as f32],
-                stats,
-            );
-            return;
-        }
         self.ensure_signal_pipeline(target.device, wgpu::TextureFormat::Rgba8Unorm);
         let uniforms = SignalUniforms {
             dest: [0.0, 0.0, body_key.width as f32, body_key.height as f32],
@@ -87,17 +67,15 @@ impl GpuSurfaceRenderer {
             level.buckets.as_ref(),
             &uniforms,
         );
-        self.ensure_signal_body_texture(
+        let Some(texture_view) = self.ensure_signal_body_texture(
             target.device,
             target.encoder,
             surface.key,
             body_key,
             stats,
-        );
-        let Some(body) = self.signal_bodies.get(&surface.key) else {
+        ) else {
             return;
         };
-        let texture_view = body.view.clone();
         self.render_texture_view(
             target,
             surface,

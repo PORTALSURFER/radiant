@@ -105,15 +105,9 @@ where
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: RuntimeUserEvent) {
         match event {
             RuntimeUserEvent::RepaintRequested => {
-                self.repaint_event_pending
-                    .store(false, std::sync::atomic::Ordering::Release);
+                self.runtime_wakeup.clear_pending();
                 let outcome = self.core.drain_runtime_messages();
-                if outcome.exit_requested {
-                    event_loop.exit();
-                    return;
-                }
-                self.rebuild_scene();
-                self.request_redraw_if_needed();
+                self.handle_route_outcome(event_loop, outcome);
             }
         }
     }
@@ -143,6 +137,7 @@ where
                 }
                 self.rebuild_scene();
                 self.request_redraw_if_needed();
+                self.request_runtime_wakeup_if_needed(outcome);
             }
             event_loop.set_control_flow(ControlFlow::WaitUntil(now + interval));
         } else {

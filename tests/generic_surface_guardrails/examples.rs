@@ -82,12 +82,45 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             ],
         ),
         (
+            "toolbar_icons",
+            vec![
+                "use radiant::prelude::*;",
+                "SvgIcon::from_svg(",
+                "PaintPrimitive::Svg(",
+                "custom_widget_mapped(",
+                "IconToggleButton::new(",
+                "ToolMessage::Toggle(",
+            ],
+        ),
+        (
+            "status_bar",
+            vec![
+                "use radiant::prelude::*;",
+                "status_bar(",
+                "StatusMessage::ActionPressed",
+                "StatusMessage::AutosaveChanged",
+                "StatusSegments::primary(",
+                "context.spawn(",
+                "StatusMessage::WorkerFinished",
+            ],
+        ),
+        (
             "animation_showcase",
             vec![".animation(", ".on_frame(", "AnimationMessage::Frame"],
         ),
         (
             "background_loading",
             vec![".update_with(", "context.spawn(", "LoadingMessage::Loaded"],
+        ),
+        (
+            "busy_progress",
+            vec![
+                "context.spawn(",
+                ".animation(",
+                ".on_frame(",
+                "retained_canvas(",
+                "horizontal_progress_fill_rect(",
+            ],
         ),
         (
             "multi_window_manifest",
@@ -258,6 +291,8 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
         (
             "custom_widget",
             vec![
+                "use radiant::prelude::*;",
+                "fn append_paint(",
                 "impl Widget for StatusChip",
                 "WidgetOutput::custom(",
                 "dispatch_input(",
@@ -290,7 +325,7 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             "SurfaceChild",
             "Arc<UiSurface",
         ];
-        if name != "custom_widget" && name != "timeline_editor" {
+        if name != "custom_widget" && name != "timeline_editor" && name != "toolbar_icons" {
             deprecated_first_use.push("WidgetSizing");
         }
 

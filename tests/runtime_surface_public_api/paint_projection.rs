@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "paint_projection/advanced_surfaces.rs"]
+mod advanced_surfaces;
+
 #[derive(Default)]
 struct CountingRenderer {
     rendered_primitives: usize,
@@ -25,36 +28,6 @@ fn generic_runtime_surface_projects_layout_without_legacy_app_contracts() {
     assert!(output.rects.contains_key(&10));
     assert!(output.rects.contains_key(&11));
     assert!(output.rects.contains_key(&12));
-}
-
-#[test]
-fn retained_canvas_metadata_reaches_backend_neutral_paint_plan() {
-    let retained = RetainedSurfaceDescriptor {
-        key: 42,
-        revision: 7,
-        dirty_mask: 0b101,
-        volatile: false,
-    };
-    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::retained_canvas_mapped(
-        90,
-        WidgetSizing::fixed(Vector2::new(240.0, 120.0)),
-        retained,
-        |message| match message {
-            CanvasMessage::Input { input } => DemoMessage::CanvasInput(input),
-        },
-    ));
-    let layout = layout_tree(
-        &surface.layout_node(),
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 120.0)),
-    );
-
-    let plan = surface.paint_plan(&layout, &ThemeTokens::default());
-
-    let Some(PaintPrimitive::CustomSurface(custom)) = plan.primitives.first() else {
-        panic!("retained canvas should emit one custom surface primitive");
-    };
-    assert_eq!(custom.widget_id, 90);
-    assert_eq!(custom.retained, Some(retained));
 }
 
 #[test]
@@ -442,39 +415,6 @@ fn host_controlled_surface_frame_can_collect_layout_debug_output() {
     }));
     assert!(!frame.layout.debug_primitives.is_empty());
     assert!(!frame.paint_plan.primitives.is_empty());
-}
-
-#[test]
-fn retained_canvas_builder_projects_metadata_and_input_mapping() {
-    let surface = radiant::prelude::retained_canvas(44)
-        .revision(7)
-        .dirty_mask(3)
-        .volatile(true)
-        .on_input(|message| match message {
-            CanvasMessage::Input { input } => DemoMessage::CanvasInput(input),
-        })
-        .id(44)
-        .size(120.0, 40.0)
-        .into_surface();
-    let plan = surface.paint_plan(
-        &layout_tree(
-            &surface.layout_node(),
-            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 40.0)),
-        ),
-        &ThemeTokens::default(),
-    );
-    let Some(PaintPrimitive::CustomSurface(custom)) = plan.primitives.first() else {
-        panic!("retained canvas should project one custom surface primitive");
-    };
-    assert_eq!(
-        custom.retained,
-        Some(RetainedSurfaceDescriptor {
-            key: 44,
-            revision: 7,
-            dirty_mask: 3,
-            volatile: true,
-        })
-    );
 }
 
 #[test]

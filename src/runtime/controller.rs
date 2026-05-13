@@ -11,6 +11,7 @@ mod focus;
 mod hit_order;
 mod input;
 mod pointer;
+mod scratch;
 mod scroll;
 mod state;
 
@@ -34,7 +35,8 @@ use crate::{
     theme::ThemeTokens,
     widgets::{WidgetId, WidgetInput, WidgetKey, WidgetState},
 };
-use hit_order::{collect_hit_rank, collect_visible_hit_order};
+use hit_order::HitOrderIndex;
+use scratch::RuntimeScratch;
 use std::collections::{HashMap, HashSet};
 
 /// Direction for deterministic keyboard focus traversal.
@@ -74,32 +76,20 @@ where
     layout_state: LayoutState,
     layout_debug_options: LayoutDebugOptions,
     widget_hit_order: Vec<WidgetId>,
-    focusable_widget_order: Vec<WidgetId>,
-    focusable_widget_rank: HashMap<WidgetId, usize>,
-    pointer_hit_order: Vec<WidgetId>,
-    pointer_hit_rank: HashMap<WidgetId, usize>,
-    visible_pointer_hit_order: Vec<WidgetId>,
+    focusable_widgets: HitOrderIndex,
+    pointer_widgets: HitOrderIndex,
     widget_paths: HashMap<WidgetId, WidgetPath>,
     previous_widget_paths: HashMap<WidgetId, WidgetPath>,
     container_hover_suppression: HashSet<WidgetId>,
-    keyboard_focus_order: Vec<WidgetId>,
-    keyboard_focus_rank: HashMap<WidgetId, usize>,
-    wheel_hit_order: Vec<WidgetId>,
-    wheel_hit_rank: HashMap<WidgetId, usize>,
-    visible_wheel_hit_order: Vec<WidgetId>,
+    keyboard_focus_widgets: HitOrderIndex,
+    wheel_widgets: HitOrderIndex,
     stateful_widget_order: Vec<WidgetId>,
-    styled_container_hit_order: Vec<NodeId>,
-    styled_container_hit_rank: HashMap<NodeId, usize>,
-    visible_styled_container_hit_order: Vec<NodeId>,
-    scroll_hit_order: Vec<NodeId>,
-    scroll_hit_rank: HashMap<NodeId, usize>,
-    visible_scroll_hit_order: Vec<NodeId>,
+    styled_containers: HitOrderIndex,
+    scroll_containers: HitOrderIndex,
     widget_clip_ancestors: HashMap<WidgetId, ClipAncestors>,
     container_clip_ancestors: HashMap<NodeId, ClipAncestors>,
     scroll_content_by_container: HashMap<NodeId, NodeId>,
-    scroll_clamp_updates: Vec<(NodeId, Vector2)>,
-    projection_scroll_stack: Vec<NodeId>,
-    projection_child_path: Vec<usize>,
+    scratch: RuntimeScratch,
     focused_widget: Option<WidgetId>,
     pending_key_chord: Option<KeyPress>,
     hovered_container: Option<NodeId>,
@@ -111,7 +101,9 @@ where
     repaint_requested: bool,
     exit_requested: bool,
     runtime_commands: Vec<Command<Message>>,
+    runtime_command_batch: Vec<Command<Message>>,
     runtime_messages: Vec<Message>,
+    runtime_message_batch: Vec<Message>,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -136,32 +128,20 @@ where
             layout_state: LayoutState::default(),
             layout_debug_options: LayoutDebugOptions::default(),
             widget_hit_order: Vec::new(),
-            focusable_widget_order: Vec::new(),
-            focusable_widget_rank: HashMap::new(),
-            pointer_hit_order: Vec::new(),
-            pointer_hit_rank: HashMap::new(),
-            visible_pointer_hit_order: Vec::new(),
+            focusable_widgets: HitOrderIndex::default(),
+            pointer_widgets: HitOrderIndex::default(),
             widget_paths: HashMap::new(),
             previous_widget_paths: HashMap::new(),
             container_hover_suppression: HashSet::new(),
-            keyboard_focus_order: Vec::new(),
-            keyboard_focus_rank: HashMap::new(),
-            wheel_hit_order: Vec::new(),
-            wheel_hit_rank: HashMap::new(),
-            visible_wheel_hit_order: Vec::new(),
+            keyboard_focus_widgets: HitOrderIndex::default(),
+            wheel_widgets: HitOrderIndex::default(),
             stateful_widget_order: Vec::new(),
-            styled_container_hit_order: Vec::new(),
-            styled_container_hit_rank: HashMap::new(),
-            visible_styled_container_hit_order: Vec::new(),
-            scroll_hit_order: Vec::new(),
-            scroll_hit_rank: HashMap::new(),
-            visible_scroll_hit_order: Vec::new(),
+            styled_containers: HitOrderIndex::default(),
+            scroll_containers: HitOrderIndex::default(),
             widget_clip_ancestors: HashMap::new(),
             container_clip_ancestors: HashMap::new(),
             scroll_content_by_container: HashMap::new(),
-            scroll_clamp_updates: Vec::new(),
-            projection_scroll_stack: Vec::new(),
-            projection_child_path: Vec::new(),
+            scratch: RuntimeScratch::default(),
             focused_widget: None,
             pending_key_chord: None,
             hovered_container: None,
@@ -173,7 +153,9 @@ where
             repaint_requested: false,
             exit_requested: false,
             runtime_commands: Vec::new(),
+            runtime_command_batch: Vec::new(),
             runtime_messages: Vec::new(),
+            runtime_message_batch: Vec::new(),
         };
         runtime.relayout_with_traversal(traversal);
         runtime
@@ -192,8 +174,8 @@ where
         let mut traversal = self.take_reusable_traversal_index(true);
         let layout_root = next_surface.runtime_projection_reusing_with_scratch(
             &mut traversal,
-            &mut self.projection_scroll_stack,
-            &mut self.projection_child_path,
+            &mut self.scratch.projection_scroll_stack,
+            &mut self.scratch.projection_child_path,
         );
         next_surface.synchronize_widget_state_from_paths(
             &self.surface,
@@ -207,7 +189,7 @@ where
         self.relayout_with_traversal(traversal);
         if self
             .focused_widget
-            .is_some_and(|widget_id| !self.focusable_widget_rank.contains_key(&widget_id))
+            .is_some_and(|widget_id| !self.focusable_widgets.contains(widget_id))
         {
             self.focused_widget = None;
         }
@@ -219,13 +201,13 @@ where
         }
         if self
             .scroll_drag_capture
-            .is_some_and(|capture| !self.scroll_hit_rank.contains_key(&capture.node_id))
+            .is_some_and(|capture| !self.scroll_containers.contains(capture.node_id))
         {
             self.scroll_drag_capture = None;
         }
         if self
             .hovered_scroll_affordance
-            .is_some_and(|node_id| !self.scroll_hit_rank.contains_key(&node_id))
+            .is_some_and(|node_id| !self.scroll_containers.contains(node_id))
         {
             self.hovered_scroll_affordance = None;
         }
@@ -237,7 +219,7 @@ where
         }
         if self
             .hovered_container
-            .is_some_and(|node_id| !self.styled_container_hit_rank.contains_key(&node_id))
+            .is_some_and(|node_id| !self.styled_containers.contains(node_id))
         {
             self.hovered_container = None;
         }

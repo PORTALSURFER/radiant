@@ -1,11 +1,16 @@
 //! Interaction fast paths for retained GPU surface primitives.
 
 use super::{
-    GenericNativeVelloRunner, GenericRouteOutcome, RenderFrameProfile, maybe_log_route_profile,
+    GenericNativeVelloRunner, GenericRouteOutcome, RenderFrameProfile,
+    gpu_surface_cursor::{
+        clear_surface_cursor_overlay, topmost_native_hover_surface_index,
+        update_surface_cursor_overlay,
+    },
+    maybe_log_route_profile,
 };
 use crate::{
     gui::types::{Point, Vector2},
-    runtime::{GpuSurfaceOverlay, PaintGpuSurface, PaintPrimitive},
+    runtime::PaintPrimitive,
 };
 use std::time::Instant;
 
@@ -134,169 +139,49 @@ where
     }
 
     pub(super) fn update_gpu_surface_cursor_overlay(&mut self, position: Point) -> bool {
-        let Some(surface) = gpu_surface_at_mut(&mut self.last_paint_plan.primitives, position)
-        else {
-            return false;
-        };
-        let Some(cursor) = surface.capabilities.runtime_overlays.pointer_vertical_line else {
-            return false;
-        };
-        let ratio =
-            ((position.x - surface.rect.min.x) / surface.rect.width().max(1.0)).clamp(0.0, 1.0);
-        let mut cursor_count = 0;
-        let mut cursor_is_current = false;
-        for overlay in &surface.overlays {
-            let GpuSurfaceOverlay::RuntimeVerticalLine {
-                ratio: current_ratio,
-                color,
-                width,
-            } = overlay
-            else {
+        let target_index =
+            topmost_native_hover_surface_index(&self.last_paint_plan.primitives, position);
+        let mut changed = false;
+        for (index, primitive) in self.last_paint_plan.primitives.iter_mut().enumerate() {
+            let PaintPrimitive::GpuSurface(surface) = primitive else {
                 continue;
             };
-            cursor_count += 1;
-            cursor_is_current |=
-                *current_ratio == ratio && *color == cursor.color && *width == cursor.width;
+            if surface
+                .capabilities
+                .runtime_overlays
+                .pointer_vertical_line
+                .is_none()
+            {
+                continue;
+            }
+            if Some(index) == target_index {
+                changed |= update_surface_cursor_overlay(surface, position);
+            } else {
+                changed |= clear_surface_cursor_overlay(surface);
+            }
         }
-        if cursor_count == 1 && cursor_is_current {
-            return false;
-        }
-        surface
-            .overlays
-            .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::RuntimeVerticalLine { .. }));
-        surface
-            .overlays
-            .push(GpuSurfaceOverlay::RuntimeVerticalLine {
-                ratio,
-                color: cursor.color,
-                width: cursor.width,
-            });
-        true
+        changed
     }
 
     pub(super) fn clear_gpu_surface_cursor_overlay(&mut self, position: Point) -> bool {
-        let Some(surface) = gpu_surface_at_mut(&mut self.last_paint_plan.primitives, position)
-        else {
-            return false;
-        };
-        if surface
-            .capabilities
-            .runtime_overlays
-            .pointer_vertical_line
-            .is_none()
-        {
-            return false;
-        }
-        let previous_len = surface.overlays.len();
-        surface
-            .overlays
-            .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::RuntimeVerticalLine { .. }));
-        previous_len != surface.overlays.len()
-    }
-}
-
-fn gpu_surface_at_mut(
-    primitives: &mut [PaintPrimitive],
-    position: Point,
-) -> Option<&mut PaintGpuSurface> {
-    primitives.iter_mut().find_map(|primitive| match primitive {
-        PaintPrimitive::GpuSurface(surface)
-            if surface.rect.width() > 0.0
-                && surface.rect.height() > 0.0
-                && surface.content.is_renderable()
-                && surface.rect.contains(position) =>
-        {
-            Some(surface)
-        }
-        _ => None,
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        gui::types::{ImageRgba, Rect, Rgba8},
-        runtime::{
-            GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle,
-            GpuSurfaceRuntimeOverlays,
-        },
-    };
-    use std::sync::Arc;
-
-    #[test]
-    fn gpu_surface_lookup_skips_unrenderable_surface_content() {
-        let rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 20.0));
-        let capabilities = GpuSurfaceCapabilities {
-            fast_pointer_move: true,
-            coalesce_vertical_wheel: true,
-            runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
-                GpuSurfaceLineStyle {
-                    color: Rgba8 {
-                        r: 255,
-                        g: 255,
-                        b: 255,
-                        a: 255,
-                    },
-                    width: 1.0,
-                },
-            ),
-        };
-        let mut primitives = vec![
-            PaintPrimitive::GpuSurface(PaintGpuSurface {
-                widget_id: 1,
-                key: 1,
-                revision: 1,
-                rect,
-                content: GpuSurfaceContent::SignalBands {
-                    frames: 1,
-                    band_count: 0,
-                    frame_range: [0.0, 1.0],
-                    samples: Arc::<[f32]>::from([0.0]),
-                },
-                capabilities,
-                overlays: Vec::new(),
-            }),
-            PaintPrimitive::GpuSurface(PaintGpuSurface {
-                widget_id: 2,
-                key: 2,
-                revision: 1,
-                rect,
-                content: GpuSurfaceContent::RgbaAtlas {
-                    source_rect: rect,
-                    atlas: Arc::new(ImageRgba::new(1, 1, vec![255; 4]).expect("valid image")),
-                },
-                capabilities,
-                overlays: Vec::new(),
-            }),
-        ];
-
-        let surface =
-            gpu_surface_at_mut(&mut primitives, Point::new(10.0, 10.0)).expect("valid surface");
-
-        assert_eq!(surface.key, 2);
-    }
-
-    #[test]
-    fn gpu_surface_lookup_skips_empty_surface_rects() {
-        let rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(0.0, 20.0));
-        let mut primitives = vec![PaintPrimitive::GpuSurface(PaintGpuSurface {
-            widget_id: 1,
-            key: 1,
-            revision: 1,
-            rect,
-            content: GpuSurfaceContent::RgbaAtlas {
-                source_rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1.0, 1.0)),
-                atlas: Arc::new(ImageRgba::new(1, 1, vec![255; 4]).expect("valid image")),
-            },
-            capabilities: GpuSurfaceCapabilities {
-                fast_pointer_move: true,
-                coalesce_vertical_wheel: true,
-                runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
-            },
-            overlays: Vec::new(),
-        })];
-
-        assert!(gpu_surface_at_mut(&mut primitives, Point::new(0.0, 10.0)).is_none());
+        self.last_paint_plan
+            .primitives
+            .iter_mut()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::GpuSurface(surface)
+                    if surface
+                        .capabilities
+                        .runtime_overlays
+                        .pointer_vertical_line
+                        .is_some()
+                        && surface.rect.contains(position) =>
+                {
+                    Some(surface)
+                }
+                _ => None,
+            })
+            .fold(false, |changed, surface| {
+                clear_surface_cursor_overlay(surface) || changed
+            })
     }
 }

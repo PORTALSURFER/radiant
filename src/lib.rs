@@ -57,21 +57,31 @@ pub mod prelude {
         text_input_mapped, toggle, toggle_mapped, tree_list, tree_list_with_drag, virtual_list,
         virtual_list_window, virtual_scroll, widget, window,
     };
+    pub use crate::gui::types::{ImageRgba, Point, Rect, Rgba8, Vector2};
     pub use crate::gui::{
+        chrome::{ContentViewChrome, StatusSegments},
         focus::FocusSurface,
         input::{KeyCode, KeyPress},
         list::{VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window},
         shortcuts::ShortcutResolution,
+        svg::SvgIcon,
     };
+    pub use crate::layout::LayoutOutput;
     pub use crate::runtime::{
-        Command, GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket,
-        GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle,
-        GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, ResourceKey, ResourceLoad, ResourceLoadState,
-        ResourceRequest, ResourceSlot, ScrollUpdate, SurfaceFrame, WindowManifest, WindowSpec,
+        Command, EmbeddedFont, GpuSignalRenderShape, GpuSignalSummary,
+        GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent,
+        GpuSurfaceLineStyle, GpuSurfaceRuntimeOverlays,
+        GpuSurfaceOverlay, PaintFillPath, PaintFillRect, PaintFillRule, PaintImage, PaintPrimitive,
+        PaintStrokeRect, PaintSvg, PaintSvgDocument, PaintTextAlign, PaintTextRun, PaintTransform,
+        ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot, ScrollUpdate,
+        SurfaceFrame, WindowManifest, WindowSpec,
     };
+    pub use crate::theme::ThemeTokens;
     pub use crate::widgets::{
-        DragHandleMessage, GpuSurfaceMessage, GpuSurfaceWidget, SliderMessage, SliderWidget,
-        TextAlign, Widget, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
+        DragHandleMessage, FocusBehavior, GpuSurfaceMessage, GpuSurfaceWidget, PointerButton,
+        SliderMessage, SliderWidget, TextAlign, TextWrap, Widget, WidgetCommon, WidgetInput,
+        WidgetKey, WidgetOutput, WidgetProminence, WidgetSizing, WidgetState, WidgetStyle,
+        WidgetTone, WidgetVisualTokens, resolve_widget_visual_tokens,
     };
 }
 

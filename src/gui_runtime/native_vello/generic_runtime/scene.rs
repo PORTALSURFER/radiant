@@ -7,6 +7,7 @@ mod cache;
 mod frame;
 mod image;
 mod shape;
+mod svg;
 mod text_input;
 mod text_input_selection;
 pub(in crate::gui_runtime::native_vello) use cache::{
@@ -15,7 +16,11 @@ pub(in crate::gui_runtime::native_vello) use cache::{
 pub(in crate::gui_runtime::native_vello) use frame::SceneTextRunBuffer;
 use frame::{encode_paint_frame_to_scene, flush_text_runs};
 use image::encode_image;
-use shape::{encode_polygon_fill, encode_polygon_stroke, encode_polyline_stroke, encode_rect};
+use shape::{
+    encode_path_fill, encode_polygon_fill, encode_polygon_stroke, encode_polyline_stroke,
+    encode_rect,
+};
+use svg::encode_svg;
 use text_input::encode_text_input;
 
 pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<
@@ -58,6 +63,20 @@ where
                 scene.pop_layer();
             }
             PaintPrimitive::FillRect(fill) => encode_rect(scene, fill.color, fill.rect),
+            PaintPrimitive::FillPath(fill) => {
+                encode_path_fill(
+                    scene,
+                    fill.color,
+                    fill.transform,
+                    fill.fill_rule,
+                    &fill.path,
+                );
+            }
+            PaintPrimitive::Svg(svg) => {
+                stats.svg_document_count = stats.svg_document_count.saturating_add(1);
+                flush_text_runs(scene, text_renderer, text_runs, &mut stats);
+                encode_svg(scene, svg);
+            }
             PaintPrimitive::StrokeRect(stroke) => {
                 scene.stroke(
                     &vello::kurbo::Stroke::new(stroke.width as f64),

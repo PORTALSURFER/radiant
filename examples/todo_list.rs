@@ -304,65 +304,42 @@ fn drag_capture_handle(item_id: u64) -> ui::StateView<TodoState> {
 }
 
 fn todo_item_row(item: &TodoItem) -> ui::StateView<TodoState> {
-    let id = item.id;
-    ui::list_row(
-        item.id,
-        [
-            ui::drag_handle()
-                .on_drag(move |state: &mut TodoState, message| state.drag_item(id, message))
-                .id(drag_handle_id(id))
-                .size(22.0, 22.0),
-            ui::checkbox(item.done)
-                .on_change(move |state: &mut TodoState, done| state.set_done(id, done))
-                .key("done")
-                .size(22.0, 22.0),
-            ui::text(item.title.clone())
-                .key("title")
-                .min_size(180.0, 24.0)
-                .preferred_size(480.0, 24.0)
-                .fill_width(),
-            ui::button("DELETE")
-                .danger()
-                .subtle()
-                .on_click(move |state: &mut TodoState| state.delete(id))
-                .key("delete")
-                .size(108.0, 32.0),
-        ],
-    )
+    ui::list_row(item.id, todo_row_children(item))
 }
 
 fn passive_todo_item_row(item: &TodoItem) -> ui::StateView<TodoState> {
+    ui::row_key(item.id, todo_row_children(item))
+        .style(ui::WidgetStyle::default())
+        .fill_width()
+        .height(52.0)
+        .padding_x(18.0)
+        .padding_y(10.0)
+        .spacing(16.0)
+}
+
+fn todo_row_children(item: &TodoItem) -> [ui::StateView<TodoState>; 4] {
     let id = item.id;
-    ui::row_key(
-        item.id,
-        [
-            ui::drag_handle()
-                .on_drag(move |state: &mut TodoState, message| state.drag_item(id, message))
-                .id(drag_handle_id(id))
-                .size(22.0, 22.0),
-            ui::checkbox(item.done)
-                .on_change(move |state: &mut TodoState, done| state.set_done(id, done))
-                .key("done")
-                .size(22.0, 22.0),
-            ui::text(item.title.clone())
-                .key("title")
-                .min_size(180.0, 24.0)
-                .preferred_size(480.0, 24.0)
-                .fill_width(),
-            ui::button("DELETE")
-                .danger()
-                .subtle()
-                .on_click(move |state: &mut TodoState| state.delete(id))
-                .key("delete")
-                .size(108.0, 32.0),
-        ],
-    )
-    .style(ui::WidgetStyle::default())
-    .fill_width()
-    .height(52.0)
-    .padding_x(18.0)
-    .padding_y(10.0)
-    .spacing(16.0)
+    [
+        ui::drag_handle()
+            .on_drag(move |state: &mut TodoState, message| state.drag_item(id, message))
+            .id(drag_handle_id(id))
+            .size(22.0, 22.0),
+        ui::checkbox(item.done)
+            .on_change(move |state: &mut TodoState, done| state.set_done(id, done))
+            .key("done")
+            .size(22.0, 22.0),
+        ui::text(item.title.clone())
+            .key("title")
+            .min_size(180.0, 24.0)
+            .preferred_size(480.0, 24.0)
+            .fill_width(),
+        ui::button("DELETE")
+            .danger()
+            .subtle()
+            .on_click(move |state: &mut TodoState| state.delete(id))
+            .key("delete")
+            .size(108.0, 32.0),
+    ]
 }
 
 fn state_title(draft: &str) -> String {

@@ -4,14 +4,13 @@ use super::super::LayoutContext;
 use super::super::cache::{LinearVirtualMetrics, UniformVirtualMetrics, VirtualSpan};
 use super::super::helpers::{
     LinearLayoutState, align_main_offsets, allocate_fill_sizes, apply_linear_overflow_policy,
-    linear_sizing_summary, resolved_main_sizes,
+    linear_sizing_summary, resolved_main_size, resolved_main_sizes_into, resolved_main_total,
 };
 use super::super::measure::measure_node;
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{SizeModeMain, VirtualizationAxis};
-use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, NodeId, SlotChild, WidgetNode};
+use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, SlotChild, WidgetNode};
 use crate::gui::types::Vector2;
-use std::collections::HashSet;
 
 /// Resolve full linear sizing/alignment and return virtualizable span metrics.
 pub(super) fn build_linear_metrics(
@@ -43,13 +42,22 @@ pub(super) fn build_linear_metrics(
     let remaining =
         (available_main - summary.fixed_main - summary.margin_total - spacing_total).max(0.0);
     if summary.fill_weight > 0.0 {
-        allocate_fill_sizes(horizontal, remaining, summary.fill_weight, &mut states);
+        let mut unresolved = context.take_linear_unresolved();
+        allocate_fill_sizes(
+            horizontal,
+            remaining,
+            summary.fill_weight,
+            &mut states,
+            &mut unresolved,
+        );
+        context.restore_linear_unresolved(unresolved);
     }
 
     let mut total_main = resolved_main_total(&states);
     total_main += summary.margin_total + spacing_total;
     let adjusted_sizes = if total_main > available_main {
-        let (mut sizes, _) = resolved_main_sizes(&states);
+        let mut sizes = context.take_linear_sizes();
+        resolved_main_sizes_into(&states, &mut sizes);
         apply_linear_overflow_policy(
             content,
             horizontal,
@@ -101,6 +109,10 @@ pub(super) fn build_linear_metrics(
         cursor += size + margin_after + distributed_spacing;
     }
 
+    if let Some(sizes) = adjusted_sizes {
+        context.restore_linear_sizes(sizes);
+    }
+
     LinearVirtualMetrics {
         spans,
         main_sizes,
@@ -108,18 +120,6 @@ pub(super) fn build_linear_metrics(
         total_main,
         leading_offset,
         distributed_spacing,
-    }
-}
-
-fn resolved_main_total(states: &[LinearLayoutState<'_>]) -> f32 {
-    states.iter().map(resolved_main_size).sum()
-}
-
-fn resolved_main_size(state: &LinearLayoutState<'_>) -> f32 {
-    if state.fill > 0.0 {
-        state.fill
-    } else {
-        state.main
     }
 }
 
@@ -163,7 +163,7 @@ fn build_uniform_linear_metrics(
         });
     }
     for child in &content.children {
-        if main_margin_total_for_slot(horizontal, child) > 0.0 {
+        if has_main_axis_margin(horizontal, child) {
             return None;
         }
         let raw = match child.slot.size_main {
@@ -217,11 +217,16 @@ fn build_uniform_linear_metrics(
     })
 }
 
-fn main_margin_total_for_slot(horizontal: bool, child: &SlotChild) -> f32 {
+fn has_main_axis_margin(horizontal: bool, child: &SlotChild) -> bool {
+    let (before, after) = main_margins_for_slot(horizontal, child);
+    before.abs() > f32::EPSILON || after.abs() > f32::EPSILON
+}
+
+fn main_margins_for_slot(horizontal: bool, child: &SlotChild) -> (f32, f32) {
     if horizontal {
-        child.slot.margin.left + child.slot.margin.right
+        (child.slot.margin.left, child.slot.margin.right)
     } else {
-        child.slot.margin.top + child.slot.margin.bottom
+        (child.slot.margin.top, child.slot.margin.bottom)
     }
 }
 
@@ -273,23 +278,10 @@ pub(super) fn metrics_is_valid(metrics: &LinearVirtualMetrics, expected_len: usi
             && uniform.step.is_finite()
             && uniform.step >= 0.0;
     }
-    metrics.spans.iter().all(|span| {
-        span.start.is_finite()
-            && span.end.is_finite()
-            && span.end >= span.start
-            && span.start >= 0.0
-    })
-}
-
-/// Collect all node ids under a content container for precise cache invalidation.
-pub(super) fn collect_subtree_ids_from_container(
-    container: &ContainerNode,
-    out: &mut HashSet<NodeId>,
-) {
-    out.insert(container.id);
-    for child in &container.children {
-        collect_subtree_ids(&child.child, out);
-    }
+    metrics
+        .spans
+        .iter()
+        .all(|span| span.start.is_finite() && span.end.is_finite() && span.end >= span.start)
 }
 
 fn collect_layout_states<'a>(
@@ -345,13 +337,4 @@ fn resolve_main_for_virtual(
         slot_child.slot.constraints,
         raw,
     )
-}
-
-fn collect_subtree_ids(node: &LayoutNode, out: &mut HashSet<NodeId>) {
-    out.insert(node.id());
-    if let LayoutNode::Container(container) = node {
-        for child in &container.children {
-            collect_subtree_ids(&child.child, out);
-        }
-    }
 }

@@ -34,8 +34,8 @@ where
         let mut traversal = self.take_reusable_traversal_index(true);
         self.layout_root = self.surface.runtime_projection_reusing_with_scratch(
             &mut traversal,
-            &mut self.projection_scroll_stack,
-            &mut self.projection_child_path,
+            &mut self.scratch.projection_scroll_stack,
+            &mut self.scratch.projection_child_path,
         );
         self.relayout_with_traversal(traversal);
     }
@@ -60,50 +60,22 @@ where
         );
         self.widget_hit_order = traversal.widget_paint_order;
         self.widget_paths = traversal.widget_paths;
-        self.focusable_widget_order = traversal.focusable_widget_order;
-        collect_hit_rank(
-            &self.focusable_widget_order,
-            &mut self.focusable_widget_rank,
-        );
-        self.pointer_hit_order = traversal.pointer_hit_order;
-        collect_hit_rank(&self.pointer_hit_order, &mut self.pointer_hit_rank);
-        collect_visible_hit_order(
-            &self.layout,
-            &self.pointer_hit_order,
-            &self.pointer_hit_rank,
-            &mut self.visible_pointer_hit_order,
-        );
+        self.focusable_widgets
+            .set_order(traversal.focusable_widget_order);
+        self.pointer_widgets.set_order(traversal.pointer_hit_order);
+        self.pointer_widgets.refresh_visible(&self.layout);
         self.container_hover_suppression = traversal.container_hover_suppression;
-        self.keyboard_focus_order = traversal.keyboard_focus_order;
-        collect_hit_rank(&self.keyboard_focus_order, &mut self.keyboard_focus_rank);
-        self.wheel_hit_order = traversal.wheel_hit_order;
+        self.keyboard_focus_widgets
+            .set_order(traversal.keyboard_focus_order);
+        self.wheel_widgets.set_order(traversal.wheel_hit_order);
         self.stateful_widget_order = traversal.stateful_widget_order;
-        collect_hit_rank(&self.wheel_hit_order, &mut self.wheel_hit_rank);
-        collect_visible_hit_order(
-            &self.layout,
-            &self.wheel_hit_order,
-            &self.wheel_hit_rank,
-            &mut self.visible_wheel_hit_order,
-        );
-        self.styled_container_hit_order = traversal.styled_container_order;
-        collect_hit_rank(
-            &self.styled_container_hit_order,
-            &mut self.styled_container_hit_rank,
-        );
-        collect_visible_hit_order(
-            &self.layout,
-            &self.styled_container_hit_order,
-            &self.styled_container_hit_rank,
-            &mut self.visible_styled_container_hit_order,
-        );
-        self.scroll_hit_order = traversal.scroll_container_order;
-        collect_hit_rank(&self.scroll_hit_order, &mut self.scroll_hit_rank);
-        collect_visible_hit_order(
-            &self.layout,
-            &self.scroll_hit_order,
-            &self.scroll_hit_rank,
-            &mut self.visible_scroll_hit_order,
-        );
+        self.wheel_widgets.refresh_visible(&self.layout);
+        self.styled_containers
+            .set_order(traversal.styled_container_order);
+        self.styled_containers.refresh_visible(&self.layout);
+        self.scroll_containers
+            .set_order(traversal.scroll_container_order);
+        self.scroll_containers.refresh_visible(&self.layout);
         self.widget_clip_ancestors = traversal.widget_clip_ancestors;
         self.container_clip_ancestors = traversal.container_clip_ancestors;
         self.scroll_content_by_container = traversal.scroll_content_by_container;
@@ -111,35 +83,15 @@ where
     }
 
     pub(super) fn refresh_visible_hit_orders(&mut self) {
-        collect_visible_hit_order(
-            &self.layout,
-            &self.pointer_hit_order,
-            &self.pointer_hit_rank,
-            &mut self.visible_pointer_hit_order,
-        );
-        collect_visible_hit_order(
-            &self.layout,
-            &self.wheel_hit_order,
-            &self.wheel_hit_rank,
-            &mut self.visible_wheel_hit_order,
-        );
-        collect_visible_hit_order(
-            &self.layout,
-            &self.styled_container_hit_order,
-            &self.styled_container_hit_rank,
-            &mut self.visible_styled_container_hit_order,
-        );
-        collect_visible_hit_order(
-            &self.layout,
-            &self.scroll_hit_order,
-            &self.scroll_hit_rank,
-            &mut self.visible_scroll_hit_order,
-        );
+        self.pointer_widgets.refresh_visible(&self.layout);
+        self.wheel_widgets.refresh_visible(&self.layout);
+        self.styled_containers.refresh_visible(&self.layout);
+        self.scroll_containers.refresh_visible(&self.layout);
     }
 
     fn sync_scroll_offsets(&mut self) {
-        self.scroll_clamp_updates.clear();
-        self.scroll_clamp_updates.extend(
+        self.scratch.scroll_clamp_updates.clear();
+        self.scratch.scroll_clamp_updates.extend(
             self.layout
                 .diagnostics
                 .iter()
@@ -168,7 +120,7 @@ where
                     ))
                 }),
         );
-        for (node_id, offset) in self.scroll_clamp_updates.drain(..) {
+        for (node_id, offset) in self.scratch.scroll_clamp_updates.drain(..) {
             self.layout_state.scroll_offsets.insert(node_id, offset);
         }
     }
@@ -179,10 +131,10 @@ where
     ) -> SurfaceTraversalIndex {
         SurfaceTraversalIndex {
             widget_paint_order: std::mem::take(&mut self.widget_hit_order),
-            focusable_widget_order: std::mem::take(&mut self.focusable_widget_order),
-            keyboard_focus_order: std::mem::take(&mut self.keyboard_focus_order),
-            pointer_hit_order: std::mem::take(&mut self.pointer_hit_order),
-            wheel_hit_order: std::mem::take(&mut self.wheel_hit_order),
+            focusable_widget_order: self.focusable_widgets.take_order(),
+            keyboard_focus_order: self.keyboard_focus_widgets.take_order(),
+            pointer_hit_order: self.pointer_widgets.take_order(),
+            wheel_hit_order: self.wheel_widgets.take_order(),
             stateful_widget_order: std::mem::take(&mut self.stateful_widget_order),
             widget_paths: if reuse_widget_paths {
                 std::mem::take(&mut self.widget_paths)
@@ -190,8 +142,8 @@ where
                 Default::default()
             },
             container_hover_suppression: std::mem::take(&mut self.container_hover_suppression),
-            styled_container_order: std::mem::take(&mut self.styled_container_hit_order),
-            scroll_container_order: std::mem::take(&mut self.scroll_hit_order),
+            styled_container_order: self.styled_containers.take_order(),
+            scroll_container_order: self.scroll_containers.take_order(),
             widget_clip_ancestors: std::mem::take(&mut self.widget_clip_ancestors),
             container_clip_ancestors: std::mem::take(&mut self.container_clip_ancestors),
             scroll_content_by_container: std::mem::take(&mut self.scroll_content_by_container),

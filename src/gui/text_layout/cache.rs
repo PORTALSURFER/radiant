@@ -112,11 +112,9 @@ impl TextLineLayoutCache {
         key: TextLineKey,
         compute: impl FnOnce() -> Rect,
     ) -> Rect {
-        if let Some(index) = self.entries.iter().position(|entry| entry.key == key) {
-            let entry = self
-                .entries
-                .remove(index)
-                .expect("cache position came from the same entry deque");
+        if let Some(index) = self.entries.iter().position(|entry| entry.key == key)
+            && let Some(entry) = self.entries.remove(index)
+        {
             self.entries.push_back(entry);
             return entry.rect;
         }

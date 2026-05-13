@@ -94,14 +94,11 @@ impl GpuSurfaceContent {
     /// Return whether this payload is valid enough for a backend to render.
     pub fn is_renderable(&self) -> bool {
         match self {
-            Self::RgbaAtlas { source_rect, atlas } => {
-                atlas.width > 0
-                    && atlas.height > 0
-                    && source_rect.width().is_finite()
-                    && source_rect.height().is_finite()
-                    && source_rect.width() > 0.0
-                    && source_rect.height() > 0.0
-            }
+            Self::RgbaAtlas { source_rect, atlas } => atlas_source_rect_is_renderable(
+                *source_rect,
+                atlas.width as f32,
+                atlas.height as f32,
+            ),
             Self::SignalBands { .. } | Self::SignalSummaryBands { .. } => {
                 self.signal_render_shape().is_some()
             }
@@ -155,6 +152,21 @@ impl GpuSurfaceContent {
             Self::RgbaAtlas { .. } => None,
         }
     }
+}
+
+fn atlas_source_rect_is_renderable(source_rect: Rect, atlas_width: f32, atlas_height: f32) -> bool {
+    atlas_width > 0.0
+        && atlas_height > 0.0
+        && source_rect.min.x.is_finite()
+        && source_rect.min.y.is_finite()
+        && source_rect.max.x.is_finite()
+        && source_rect.max.y.is_finite()
+        && source_rect.width() > 0.0
+        && source_rect.height() > 0.0
+        && source_rect.min.x >= 0.0
+        && source_rect.min.y >= 0.0
+        && source_rect.max.x <= atlas_width
+        && source_rect.max.y <= atlas_height
 }
 
 fn signal_render_shape(
@@ -216,6 +228,7 @@ pub enum GpuSurfaceOverlay {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gui::types::{ImageRgba, Point, Vector2};
 
     #[test]
     fn signal_render_shape_rejects_invalid_payload_contracts() {
@@ -275,5 +288,26 @@ mod tests {
 
         assert!(!content.is_renderable());
         assert_eq!(content.signal_render_shape(), None);
+    }
+
+    #[test]
+    fn rgba_atlas_source_rect_must_be_inside_atlas() {
+        let atlas = Arc::new(ImageRgba::new(8, 4, vec![255; 8 * 4 * 4]).expect("valid atlas"));
+        let valid = GpuSurfaceContent::RgbaAtlas {
+            source_rect: Rect::from_min_size(Point::new(2.0, 1.0), Vector2::new(4.0, 2.0)),
+            atlas: Arc::clone(&atlas),
+        };
+        let overflows = GpuSurfaceContent::RgbaAtlas {
+            source_rect: Rect::from_min_size(Point::new(6.0, 1.0), Vector2::new(4.0, 2.0)),
+            atlas: Arc::clone(&atlas),
+        };
+        let negative_origin = GpuSurfaceContent::RgbaAtlas {
+            source_rect: Rect::from_min_size(Point::new(-1.0, 0.0), Vector2::new(4.0, 2.0)),
+            atlas,
+        };
+
+        assert!(valid.is_renderable());
+        assert!(!overflows.is_renderable());
+        assert!(!negative_origin.is_renderable());
     }
 }

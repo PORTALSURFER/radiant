@@ -1,9 +1,9 @@
 use super::AppRuntime;
-use super::threading::spawn_runtime_thread;
+use super::threading::{runtime_alive, spawn_business_thread};
+use super::timer::min_timer_delay;
 use std::{
     sync::mpsc::RecvTimeoutError,
     sync::{Arc, Weak},
-    thread,
     time::Duration,
 };
 
@@ -48,7 +48,10 @@ impl<Message> Subscription<Message> {
         }
         match subscriptions.len() {
             0 => Self::None,
-            1 => subscriptions.pop().expect("single subscription exists"),
+            1 => match subscriptions.pop() {
+                Some(subscription) => subscription,
+                None => Self::None,
+            },
             _ => Self::Batch(subscriptions),
         }
     }
@@ -99,23 +102,18 @@ pub(super) fn spawn_subscription<Message>(
             }
         }
         Subscription::Interval { id, every, message } => {
-            let delay = every.max(Duration::from_millis(1));
-            spawn_runtime_thread(format!("radiant-subscription-{id}"), move || {
-                loop {
-                    if !sleep_until_subscription_tick(&runtime, delay) {
-                        break;
-                    }
-                    let Some(runtime) = runtime.upgrade() else {
-                        break;
-                    };
-                    if !runtime.enqueue(message()) {
-                        break;
-                    }
-                }
-            });
+            let Some(runtime) = runtime.upgrade() else {
+                return;
+            };
+            if !runtime.schedule_interval(every.max(min_timer_delay()), message) {
+                tracing::warn!(
+                    subscription.id = id,
+                    "Radiant app runtime failed to start interval subscription"
+                );
+            }
         }
         Subscription::Worker { id, receiver } => {
-            spawn_runtime_thread(format!("radiant-worker-subscription-{id}"), move || {
+            spawn_business_thread(format!("worker-subscription-{id}"), move || {
                 while let WorkerSubscriptionEvent::Message(message) =
                     receive_worker_message(&runtime, &receiver)
                 {
@@ -131,22 +129,6 @@ pub(super) fn spawn_subscription<Message>(
     }
 }
 
-fn sleep_until_subscription_tick<Message>(
-    runtime: &Weak<AppRuntime<Message>>,
-    duration: Duration,
-) -> bool {
-    let mut remaining = duration;
-    while !remaining.is_zero() {
-        if !subscription_runtime_alive(runtime) {
-            return false;
-        }
-        let sleep_for = remaining.min(SUBSCRIPTION_CANCEL_POLL);
-        thread::sleep(sleep_for);
-        remaining = remaining.saturating_sub(sleep_for);
-    }
-    subscription_runtime_alive(runtime)
-}
-
 enum WorkerSubscriptionEvent<Message> {
     Message(Message),
     Disconnected,
@@ -158,7 +140,7 @@ fn receive_worker_message<Message>(
     receiver: &std::sync::mpsc::Receiver<Message>,
 ) -> WorkerSubscriptionEvent<Message> {
     loop {
-        if !subscription_runtime_alive(runtime) {
+        if !runtime_alive(runtime) {
             return WorkerSubscriptionEvent::Stopped;
         }
         match receiver.recv_timeout(SUBSCRIPTION_CANCEL_POLL) {
@@ -169,111 +151,5 @@ fn receive_worker_message<Message>(
     }
 }
 
-fn subscription_runtime_alive<Message>(runtime: &Weak<AppRuntime<Message>>) -> bool {
-    runtime.upgrade().is_some_and(|runtime| runtime.is_alive())
-}
-
 #[cfg(test)]
-mod subscription_tests {
-    use super::{
-        AppRuntime, Subscription, WorkerSubscriptionEvent, receive_worker_message,
-        sleep_until_subscription_tick,
-    };
-    use std::{
-        sync::{Arc, mpsc},
-        thread,
-        time::{Duration, Instant},
-    };
-
-    #[test]
-    fn batch_drops_empty_subscriptions() {
-        let subscription = Subscription::<u32>::batch([Subscription::none()]);
-
-        assert!(matches!(subscription, Subscription::None));
-    }
-
-    #[test]
-    fn batch_flattens_nested_subscriptions_in_order() {
-        let (_sender, receiver) = mpsc::channel::<u32>();
-        let subscription = Subscription::batch([
-            Subscription::interval("first", Duration::from_millis(10), || 1),
-            Subscription::batch([
-                Subscription::none(),
-                Subscription::worker("second", receiver),
-                Subscription::batch([Subscription::interval(
-                    "third",
-                    Duration::from_millis(10),
-                    || 3,
-                )]),
-            ]),
-        ]);
-
-        let Subscription::Batch(subscriptions) = subscription else {
-            panic!("non-empty subscriptions should stay batched");
-        };
-
-        assert_eq!(subscriptions.len(), 3);
-        assert!(matches!(
-            subscriptions[0],
-            Subscription::Interval { id: "first", .. }
-        ));
-        assert!(matches!(
-            subscriptions[1],
-            Subscription::Worker { id: "second", .. }
-        ));
-        assert!(matches!(
-            subscriptions[2],
-            Subscription::Interval { id: "third", .. }
-        ));
-    }
-
-    #[test]
-    fn batch_collapses_single_subscription_groups() {
-        let subscription = Subscription::batch([
-            Subscription::none(),
-            Subscription::batch([Subscription::interval(
-                "only",
-                Duration::from_millis(10),
-                || 1_u32,
-            )]),
-        ]);
-
-        assert!(matches!(
-            subscription,
-            Subscription::Interval { id: "only", .. }
-        ));
-    }
-
-    #[test]
-    fn interval_wait_stops_promptly_after_runtime_shutdown() {
-        let runtime = Arc::new(AppRuntime::<u32>::default());
-        let weak = Arc::downgrade(&runtime);
-        let stopper = Arc::clone(&runtime);
-        thread::spawn(move || {
-            thread::sleep(Duration::from_millis(10));
-            stopper.shutdown();
-        });
-
-        let started = Instant::now();
-        assert!(!sleep_until_subscription_tick(
-            &weak,
-            Duration::from_secs(60)
-        ));
-
-        assert!(started.elapsed() < Duration::from_secs(1));
-    }
-
-    #[test]
-    fn worker_receive_stops_while_sender_remains_open() {
-        let runtime = Arc::new(AppRuntime::<u32>::default());
-        let weak = Arc::downgrade(&runtime);
-        let (_sender, receiver) = mpsc::channel();
-        runtime.shutdown();
-
-        let started = Instant::now();
-        let event = receive_worker_message(&weak, &receiver);
-
-        assert!(matches!(event, WorkerSubscriptionEvent::Stopped));
-        assert!(started.elapsed() < Duration::from_secs(1));
-    }
-}
+mod tests;

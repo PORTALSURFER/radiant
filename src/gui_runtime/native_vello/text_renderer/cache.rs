@@ -1,13 +1,15 @@
 //! Layout-cache and atom-cache helpers for the native text renderer.
 
+mod atom;
+
 use super::{TextLayout, TextLayoutKey, layout::compute_layout};
+use atom::TextAtomCache;
 use std::collections::{HashMap, VecDeque};
 use std::mem;
 use std::sync::Arc;
 use vello::peniko::FontData;
 
 const TEXT_LAYOUT_CACHE_CAPACITY: usize = 2_048;
-const TEXT_ATOM_CACHE_CAPACITY: usize = 4_096;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(in crate::gui_runtime::native_vello) struct TextLayoutProfileCounters {
@@ -23,15 +25,10 @@ pub(super) struct TextLayoutCache {
     layout_cache: HashMap<TextLayoutKey, CachedTextLayout>,
     layout_cache_order: VecDeque<(TextLayoutKey, u64)>,
     layout_cache_clock: u64,
-    atom_cache: HashMap<Arc<str>, u64>,
-    atom_cache_order: VecDeque<(Arc<str>, u64)>,
-    atom_cache_clock: u64,
+    atom_cache: TextAtomCache,
     text_layout_hits: u64,
     text_layout_misses: u64,
     text_layout_evictions: u64,
-    text_atom_hits: u64,
-    text_atom_misses: u64,
-    text_atom_evictions: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -46,15 +43,10 @@ impl TextLayoutCache {
             layout_cache: HashMap::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY / 2),
             layout_cache_order: VecDeque::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY),
             layout_cache_clock: 0,
-            atom_cache: HashMap::with_capacity(TEXT_ATOM_CACHE_CAPACITY / 2),
-            atom_cache_order: VecDeque::with_capacity(TEXT_ATOM_CACHE_CAPACITY),
-            atom_cache_clock: 0,
+            atom_cache: TextAtomCache::new(),
             text_layout_hits: 0,
             text_layout_misses: 0,
             text_layout_evictions: 0,
-            text_atom_hits: 0,
-            text_atom_misses: 0,
-            text_atom_evictions: 0,
         }
     }
 
@@ -71,17 +63,7 @@ impl TextLayoutCache {
         };
 
         if self.layout_cache.contains_key(&key) {
-            self.layout_cache_clock = self.layout_cache_clock.saturating_add(1);
-            let stamp = self.layout_cache_clock;
-            self.compact_layout_cache_order_if_needed();
-            self.layout_cache_order.push_back((key.clone(), stamp));
-            let cached_layout = self
-                .layout_cache
-                .get_mut(&key)
-                .expect("layout cache key should exist after hit check");
-            cached_layout.stamp = stamp;
-            self.text_layout_hits = self.text_layout_hits.saturating_add(1);
-            return Some(&cached_layout.layout);
+            return self.record_layout_cache_hit(&key);
         }
 
         self.text_layout_misses = self.text_layout_misses.saturating_add(1);
@@ -101,45 +83,34 @@ impl TextLayoutCache {
     }
 
     pub(super) fn take_profile_counters(&mut self) -> TextLayoutProfileCounters {
+        let atom_counters = self.atom_cache.take_profile_counters();
         let counters = TextLayoutProfileCounters {
             layout_hits: self.text_layout_hits,
             layout_misses: self.text_layout_misses,
             layout_evictions: self.text_layout_evictions,
-            atom_hits: self.text_atom_hits,
-            atom_misses: self.text_atom_misses,
-            atom_evictions: self.text_atom_evictions,
+            atom_hits: atom_counters.hits,
+            atom_misses: atom_counters.misses,
+            atom_evictions: atom_counters.evictions,
         };
         self.text_layout_hits = 0;
         self.text_layout_misses = 0;
         self.text_layout_evictions = 0;
-        self.text_atom_hits = 0;
-        self.text_atom_misses = 0;
-        self.text_atom_evictions = 0;
         counters
     }
 
-    /// Intern text into a bounded atom cache so layout-key construction avoids
-    /// hot-path `String` allocations on repeated runs.
     pub(super) fn intern_text(&mut self, text: &str) -> Arc<str> {
-        self.atom_cache_clock = self.atom_cache_clock.saturating_add(1);
-        let stamp = self.atom_cache_clock;
-        if let Some((cached, _)) = self.atom_cache.get_key_value(text) {
-            let atom = Arc::clone(cached);
-            if let Some(last_seen) = self.atom_cache.get_mut(text) {
-                *last_seen = stamp;
-            }
-            self.atom_cache_order.push_back((Arc::clone(&atom), stamp));
-            self.compact_atom_cache_order_if_needed();
-            self.text_atom_hits = self.text_atom_hits.saturating_add(1);
-            return atom;
-        }
+        self.atom_cache.intern_text(text)
+    }
 
-        self.text_atom_misses = self.text_atom_misses.saturating_add(1);
-        let atom: Arc<str> = Arc::from(text);
-        self.atom_cache.insert(Arc::clone(&atom), stamp);
-        self.atom_cache_order.push_back((Arc::clone(&atom), stamp));
-        self.evict_stale_atoms();
-        atom
+    fn record_layout_cache_hit<'a>(&'a mut self, key: &TextLayoutKey) -> Option<&'a TextLayout> {
+        self.layout_cache_clock = self.layout_cache_clock.saturating_add(1);
+        let stamp = self.layout_cache_clock;
+        self.compact_layout_cache_order_if_needed();
+        self.layout_cache_order.push_back((key.clone(), stamp));
+        let cached_layout = self.layout_cache.get_mut(key)?;
+        cached_layout.stamp = stamp;
+        self.text_layout_hits = self.text_layout_hits.saturating_add(1);
+        Some(&cached_layout.layout)
     }
 
     /// Record layout-cache recency without reallocating the cached layout.
@@ -188,42 +159,6 @@ impl TextLayoutCache {
             }
         }
     }
-
-    /// Compact queued atom-order metadata after repeated cache hits append stale stamps.
-    fn compact_atom_cache_order_if_needed(&mut self) {
-        if self.atom_cache_order.len() <= TEXT_ATOM_CACHE_CAPACITY.saturating_mul(2) {
-            return;
-        }
-        let mut compacted = VecDeque::with_capacity(self.atom_cache.len());
-        for (atom, queued_stamp) in mem::take(&mut self.atom_cache_order) {
-            if self
-                .atom_cache
-                .get(atom.as_ref())
-                .is_some_and(|current_stamp| *current_stamp == queued_stamp)
-            {
-                compacted.push_back((atom, queued_stamp));
-            }
-        }
-        self.atom_cache_order = compacted;
-    }
-
-    /// Evict stale atom-cache entries using insertion stamps for bounded memory.
-    pub(super) fn evict_stale_atoms(&mut self) {
-        while self.atom_cache.len() > TEXT_ATOM_CACHE_CAPACITY {
-            let Some((candidate, queued_stamp)) = self.atom_cache_order.pop_front() else {
-                break;
-            };
-            let Some(current_stamp) = self.atom_cache.get(candidate.as_ref()) else {
-                continue;
-            };
-            if *current_stamp != queued_stamp {
-                continue;
-            }
-            if self.atom_cache.remove(candidate.as_ref()).is_some() {
-                self.text_atom_evictions = self.text_atom_evictions.saturating_add(1);
-            }
-        }
-    }
 }
 
 #[cfg(test)]
@@ -242,52 +177,6 @@ mod tests {
             text: Arc::from(label),
             font_size_bits: 12.0_f32.to_bits(),
         }
-    }
-
-    #[test]
-    fn intern_text_reuses_cached_atom_and_tracks_hits() {
-        let mut cache = TextLayoutCache::new();
-
-        let first = cache.intern_text("content row");
-        let second = cache.intern_text("content row");
-
-        assert!(Arc::ptr_eq(&first, &second));
-        assert_eq!(
-            cache.take_profile_counters(),
-            TextLayoutProfileCounters {
-                layout_hits: 0,
-                layout_misses: 0,
-                layout_evictions: 0,
-                atom_hits: 1,
-                atom_misses: 1,
-                atom_evictions: 0,
-            }
-        );
-    }
-
-    #[test]
-    fn atom_cache_eviction_drops_old_entries_once_capacity_is_exceeded() {
-        let mut cache = TextLayoutCache::new();
-        for index in 0..=TEXT_ATOM_CACHE_CAPACITY {
-            let _ = cache.intern_text(format!("label-{index}").as_str());
-        }
-
-        let counters = cache.take_profile_counters();
-        assert_eq!(counters.atom_misses, (TEXT_ATOM_CACHE_CAPACITY as u64) + 1);
-        assert!(counters.atom_evictions > 0);
-        assert!(cache.atom_cache.len() <= TEXT_ATOM_CACHE_CAPACITY);
-    }
-
-    #[test]
-    fn atom_cache_hit_queue_compacts_after_repeated_reuse() {
-        let mut cache = TextLayoutCache::new();
-        let _ = cache.intern_text("content row");
-        for _ in 0..=TEXT_ATOM_CACHE_CAPACITY.saturating_mul(2) {
-            let _ = cache.intern_text("content row");
-        }
-
-        assert_eq!(cache.atom_cache.len(), 1);
-        assert!(cache.atom_cache_order.len() <= TEXT_ATOM_CACHE_CAPACITY);
     }
 
     #[test]

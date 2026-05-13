@@ -33,7 +33,15 @@ Radiant's application API is designed to be easy to read without hiding the
 runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `app`, `text`, `button`, `row`, `column`, `scroll`, `scroll_column`, `list`,
 `list_row`, `toggle`, `text_input`, `custom_widget`, `IntoView`, `View`,
-`StateView`, `Command`, and the builder types needed by method chains. These
+`StateView`, `Command`, `EmbeddedFont`, `StatusSegments`,
+`ContentViewChrome`, common custom-widget authoring contracts such as
+`Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`,
+`PointerButton`, `FocusBehavior`, and backend-neutral paint primitives such as
+`PaintPrimitive`, `PaintFillRect`, `PaintFillPath`, `PaintTransform`, and
+`PaintTextRun`. It also includes the geometry, layout, image, color, and theme
+types needed in widget method signatures, including `Rect`, `Point`, `Vector2`,
+`LayoutOutput`, `ImageRgba`, `Rgba8`, and `ThemeTokens`, plus app-facing asset
+helpers such as `SvgIcon`, plus the builder types needed by method chains. These
 builders lower into the same `UiSurface`, `SurfaceNode`, `SurfaceChild`,
 `WidgetSizing`, and `RuntimeBridge` contracts available through the explicit
 runtime modules.
@@ -114,9 +122,13 @@ provide integer `.size(...)` convenience methods plus `.logical_size(...)` and
 without exposing normal app code to raw WGPU setup; the default remains WGPU's
 environment-aware adapter selection, while diagnostics or platform work can
 request a specific backend such as DX12, Vulkan, Metal, GL, or browser WebGPU.
-`NativeTextOptions` lets hosts provide preferred font files before Radiant falls
-back to environment or system fonts, keeping text/font policy explicit without
-moving application asset loading into the renderer.
+`NativeTextOptions` lets hosts provide embedded font bytes or preferred font
+files before Radiant falls back to environment or system fonts, keeping
+text/font policy explicit without moving application asset loading into the
+renderer. Use `EmbeddedFont::from_static(include_bytes!("fonts/App.ttf"))` with
+`.embedded_font(...)` on `radiant::window(...)`, `radiant::app(...)`, or
+`WindowSpec` when an application should ship as a portable package without
+depending on installed font files.
 `WindowSpec` describes one host-managed window without opening the platform
 runtime. `WindowManifest` stores ordered specs and rejects duplicate stable
 keys, so multi-window or embedded hosts can validate a window set and attach a
@@ -292,6 +304,43 @@ runtime to wire them into the UI. `Command::perform(...)`, `Command::after(...)`
 `UpdateContext`, and `Subscription` provide message delivery and repaint
 wakeups; the app still owns the work and resulting domain messages.
 
+## UI-First Runtime Threading
+
+Radiant treats the native UI/event/render owner as the priority path. The
+window event loop, input routing, repaint requests, surface refresh, and native
+Vello presentation must stay responsive and should not wait on application
+business work.
+
+Application reducers run synchronously because they decide the next UI state, so
+they should stay short. Slow IO, decoding, indexing, analysis, loading, and other
+business work should use `Command::perform(...)`, `UpdateContext::spawn(...)`,
+`Command::after(...)`, or `Subscription`; the application runtime offloads that
+work to runtime-managed business threads and returns results through the normal
+message queue. Finite `Command::perform(...)` jobs run on a bounded business
+worker lane so bursts of host work do not create unbounded OS threads beside the
+UI path. If that lane cannot be started or a job cannot be queued, Radiant
+reports the offload failure instead of running the work synchronously on the
+UI/event/render owner. If an app explicitly needs immediate synchronous
+behavior, it can dispatch a normal message and do that short work in the
+reducer, but the default architecture is UI-first and non-blocking.
+Delayed messages use a runtime-owned timer lane rather than one sleeping OS
+thread per delay, so timer bursts do not monopolize the UI path or create
+unbounded background threads. Interval subscriptions use the same timer lane for
+recurring ticks; receiver-backed worker subscriptions keep a dedicated thread
+only when they must wait on a host-owned blocking receiver.
+
+The current native runtime keeps Vello/window rendering on the event-loop path
+because those backend/platform constraints require it. Future render-worker or
+scene-preparation split points should preserve the same rule: UI wakeups and
+input responsiveness take precedence, while app-owned business work stays off
+the UI path.
+
+Background commands and messages are drained in bounded slices. If startup
+hooks, timers, workers, or subscriptions produce more work than one UI pass
+should reduce, Radiant keeps the remaining commands/messages ordered, requests
+another wakeup, and lets the backend return to input/render work before
+continuing the queue.
+
 ## Layout
 
 `radiant::layout` provides slot-based measurement and placement. Containers use
@@ -324,6 +373,8 @@ Compact toolbars and action strips can use
 `layout::fixed_width_row_rects_start`, `layout::fixed_width_row_rects_end`, and
 `layout::visible_suffix_widths` to place fixed-width controls through the
 generic layout engine while preserving stable widget IDs.
+Hot paths can use the matching `*_into` variants to reuse caller-owned buffers
+instead of allocating geometry vectors on every layout or paint pass.
 `layout::grouped_fixed_width_row_width` computes grouped control-cluster widths
 for compact toolbars without baking product-specific toolbar concepts into the
 layout adapter. `layout::fixed_width_item_extent_for_available_width` resolves
@@ -475,6 +526,9 @@ at half width for centered zero-width collapse.
 half width and height for centered zero-size collapse.
 `Rect::centered_pixel_square` and `Rect::centered_odd_pixel_square` provide
 pixel-snapped icon-box geometry for reusable controls.
+The prelude `SvgIcon::from_svg(...)` parses embedded SVG source into a retained
+SVG document that emits a backend-neutral `PaintSvg` primitive. The native Vello
+backend appends that document through `vello_svg` during scene encoding.
 `Rect::stroke_aligned_rect` provides stroke-grid snapping for retained border
 geometry.
 `Rect::top_right_square` provides anchored overlay geometry for controls that
@@ -484,6 +538,9 @@ compose primary and secondary glyphs.
 paint paths.
 `Rect::union` provides shared bounding-box aggregation for retained rendering,
 hit testing, and automation paths.
+`StatusSegments::new(...)`, `StatusSegments::primary(...)`, and the
+`with_left(...)` / `with_center(...)` / `with_right(...)` builders provide a
+structured left/center/right status-bar model for application chrome.
 `SurfaceRuntime::focus_widget`, `SurfaceRuntime::clear_focus`,
 `SurfaceRuntime::focused_widget`, `SurfaceRuntime::traverse_focus`, and
 `FocusTraversal` expose deterministic keyboard focus ownership and traversal.
@@ -507,13 +564,36 @@ cargo bench --bench perf_harness
 ```
 
 The harness prints parseable `radiant_perf` metric lines for layout, runtime
-surface, and GPU-surface data preparation scenarios. It currently covers deep
-layout trees, 1k wrap layout, 10k virtualized scroll layout, fixed-size 10k
-virtualized scroll layout, eager and windowed 10k application-list projection,
-large declarative surface layout plus paint-plan generation, GPU signal-summary
-construction, and GPU-surface primitive projection. The harness performs sanity
-assertions, but it does not enforce machine-dependent pass/fail timing thresholds; use the output for local
-comparisons, profiling runs, and regression investigation.
+surface, application projection, and GPU-surface data preparation scenarios.
+It currently covers:
+
+- `layout_deep_nesting`, `layout_wrap_1k`, `layout_virtualized_10k`,
+  `layout_virtualized_fixed_10k`, `layout_virtualized_fixed_scroll_10k`, and
+  `layout_mark_dirty_subtree_10k`
+- `app_virtual_list_projection_10k`,
+  `app_virtual_list_projection_generated_child_ids_10k`,
+  `app_virtual_selectable_list_projection_10k`, and
+  `app_virtual_list_window_projection_10k`
+- `runtime_surface_large_tree`, `runtime_text_paint_plan_1k`,
+  `runtime_horizontal_scroll_paint_1k`, `runtime_virtualized_list_wheel_10k`,
+  `runtime_virtualized_list_hover_10k`,
+  `runtime_virtualized_list_stable_hover_10k`,
+  `runtime_virtualized_list_hover_paint_10k`,
+  `runtime_virtualized_nested_scroll_hover_10k`,
+  `runtime_refresh_large_tree`, `runtime_resize_large_tree`,
+  `runtime_command_flattening_512`, `runtime_command_drain_1k`, and
+  `runtime_nested_command_drain_1k`
+- `gpu_signal_summary` and `gpu_surface_projection`
+
+Pass a scenario substring to run one focused slice, for example:
+
+```powershell
+cargo bench --bench perf_harness runtime_virtualized_list_hover
+```
+
+The harness performs sanity assertions, but it does not enforce machine-dependent
+pass/fail timing thresholds; use the output for local comparisons, profiling
+runs, and regression investigation.
 Run `cargo run --example rendering_benchmark` for a checked public-API sandbox
 that builds a large declarative surface, runs layout plus paint-plan generation,
 and prints parseable primitive-count diagnostics.
@@ -590,6 +670,9 @@ builder.
 Run `cargo run --example background_loading` for a background-work sandbox that
 uses `ResourceSlot`, `ResourceLoad`, and `UpdateContext::spawn(...)` to route
 worker resource results back into the normal state update path.
+Run `cargo run --example busy_progress` for a background-work progress sandbox
+that starts slow tasks with `UpdateContext::spawn(...)`, uses animation frames
+while work is active, and paints aggregate progress through a retained canvas.
 Run `cargo run --example typography` for a focused text sandbox that exercises
 wrapping, truncation, fixed text heights, fill sizing, and explicit baselines
 through the application-builder API.
@@ -602,6 +685,12 @@ checkbox-backed mute state through direct state callbacks.
 Run `cargo run --example sample_source_list` for a compact stateful list
 sandbox that emulates a sample-source picker with selectable rows, stable row
 IDs, and small `+` / `-` row actions.
+Run `cargo run --example toolbar_icons` for a horizontal SVG-icon toolbar
+sandbox that uses custom toggle buttons, state-driven active highlights, and
+muted inactive vector icons.
+Run `cargo run --example status_bar` for a bottom status-bar sandbox that shows
+button actions, toggle state, and background worker progress flowing into a
+thin persistent status strip.
 Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that
 uses `grid_with_gaps(...)` with normal nested views and styling.
 Run `cargo run --example theme_playground` for a theme-token sandbox that

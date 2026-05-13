@@ -8,6 +8,11 @@ use std::{fmt, time::Duration};
 /// Radiant commands are intentionally small and domain-neutral. Hosts keep
 /// ownership of IO, background work, and other side effects; this type only
 /// represents values the generic runtime can understand directly.
+///
+/// UI reducers should stay short and non-blocking. Expensive work belongs in
+/// [`Command::perform`], which the application runtime offloads to a
+/// runtime-managed business thread before delivering the resulting message back
+/// through the normal UI update path.
 #[derive(Default)]
 pub enum Command<Message> {
     /// No follow-up work is required.
@@ -28,7 +33,7 @@ pub enum Command<Message> {
         /// Message to dispatch.
         message: Message,
     },
-    /// Run host work on a background thread and dispatch the resulting message.
+    /// Run host work on a business thread and dispatch the resulting message.
     Perform {
         /// Human-readable task name for diagnostics.
         name: &'static str,
@@ -84,7 +89,10 @@ impl<Message> Command<Message> {
         }
         match commands.len() {
             0 => Self::None,
-            1 => commands.pop().expect("single command exists"),
+            1 => match commands.pop() {
+                Some(command) => command,
+                None => Self::None,
+            },
             _ => Self::Batch(commands),
         }
     }
@@ -104,8 +112,13 @@ impl<Message> Command<Message> {
         Self::After { delay, message }
     }
 
-    /// Build a command that runs work on a background thread and maps its result
-    /// into a host message.
+    /// Build a command that runs work on a runtime-managed business thread and
+    /// maps its result into a host message.
+    ///
+    /// Use this for IO, decoding, analysis, slow computation, and other work
+    /// that should not block the UI/event/render path. If synchronous execution
+    /// is intentionally required, dispatch a normal [`Command::message`] and do
+    /// that short work in the reducer instead.
     pub fn perform<Output>(
         name: &'static str,
         work: impl FnOnce() -> Output + Send + 'static,
@@ -186,7 +199,7 @@ impl<Message> Command<Message> {
     fn message_collection_hint(&self) -> usize {
         match self {
             Self::Message(_) => 1,
-            Self::Batch(commands) => commands.len(),
+            Self::Batch(commands) => commands.iter().map(Self::message_collection_hint).sum(),
             Self::None
             | Self::RequestRepaint
             | Self::RequestPaintOnly
@@ -201,7 +214,6 @@ impl<Message> Command<Message> {
         match self {
             Self::Message(message) => messages.push(message),
             Self::Batch(commands) => {
-                messages.reserve(commands.len());
                 for command in commands {
                     command.collect_messages(messages);
                 }
@@ -218,78 +230,4 @@ impl<Message> Command<Message> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::Command;
-
-    #[test]
-    fn batch_drops_empty_commands_and_preserves_message_order() {
-        let command = Command::batch([
-            Command::none(),
-            Command::message("first"),
-            Command::batch([Command::message("second")]),
-        ]);
-
-        assert_eq!(command.into_messages(), vec!["first", "second"]);
-    }
-
-    #[test]
-    fn batch_flattens_nested_command_groups() {
-        let command = Command::batch([
-            Command::batch([Command::message("first")]),
-            Command::batch([
-                Command::none(),
-                Command::batch([Command::message("second")]),
-            ]),
-        ]);
-
-        let Command::Batch(commands) = &command else {
-            panic!("non-empty nested batch should stay a batch");
-        };
-
-        assert_eq!(commands.len(), 2);
-        assert!(matches!(commands[0], Command::Message("first")));
-        assert!(matches!(commands[1], Command::Message("second")));
-        assert_eq!(command.into_messages(), vec!["first", "second"]);
-    }
-
-    #[test]
-    fn message_flattening_preserves_nested_message_order() {
-        let command = Command::Batch(vec![
-            Command::Batch(vec![
-                Command::message("first"),
-                Command::request_repaint(),
-                Command::Batch(vec![
-                    Command::message("second"),
-                    Command::none(),
-                    Command::Batch(vec![Command::message("third")]),
-                ]),
-            ]),
-            Command::Batch(vec![
-                Command::request_paint_only(),
-                Command::message("second"),
-            ]),
-        ]);
-
-        let messages = command.into_messages();
-
-        assert_eq!(messages, vec!["first", "second", "third", "second"]);
-        assert!(messages.capacity() >= messages.len());
-    }
-
-    #[test]
-    fn batch_collapses_single_command_groups() {
-        let command = Command::batch([Command::none(), Command::batch([Command::message("only")])]);
-
-        assert!(matches!(command, Command::Message("only")));
-    }
-
-    #[test]
-    fn repaint_requests_are_detected_through_nested_batches() {
-        let command = Command::<()>::batch([
-            Command::none(),
-            Command::batch([Command::request_repaint()]),
-        ]);
-
-        assert!(command.requests_repaint());
-    }
-}
+mod tests;

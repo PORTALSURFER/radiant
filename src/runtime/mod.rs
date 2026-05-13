@@ -26,10 +26,10 @@ mod resource;
 mod surface;
 
 pub use crate::gui_runtime::{
-    DEFAULT_NATIVE_WINDOW_TITLE, NativeGenericRunReport, NativeGenericRuntimeArtifacts,
-    NativeGpuBackend, NativeGpuOptions, NativeRunOptions, NativeStartupTimingArtifact,
-    NativeTextOptions, RuntimeRunReport, WindowIconRgba, WindowManifest, WindowSpec,
-    run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
+    DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, NativeGenericRunReport,
+    NativeGenericRuntimeArtifacts, NativeGpuBackend, NativeGpuOptions, NativeRunOptions,
+    NativeStartupTimingArtifact, NativeTextOptions, RuntimeRunReport, WindowIconRgba,
+    WindowManifest, WindowSpec, run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
 };
 pub use bridge::{
     App, DeclarativeCommandRuntimeBridge, DeclarativeOwnedCommandRuntimeBridge,
@@ -48,9 +48,10 @@ pub use gpu_surface::{
     GpuSurfaceRuntimeOverlays,
 };
 pub use paint::{
-    PaintCustomSurface, PaintFillPolygon, PaintFillRect, PaintGpuSurface, PaintImage,
-    PaintOverlayPanel, PaintPointList, PaintPrimitive, PaintStrokePolygon, PaintStrokePolyline,
-    PaintStrokeRect, PaintText, PaintTextAlign, PaintTextInput, PaintTextRun, Renderer,
+    PaintCustomSurface, PaintFillPath, PaintFillPolygon, PaintFillRect, PaintFillRule,
+    PaintGpuSurface, PaintImage, PaintOverlayPanel, PaintPath, PaintPointList, PaintPrimitive,
+    PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintSvg, PaintSvgDocument,
+    PaintText, PaintTextAlign, PaintTextInput, PaintTextRun, PaintTransform, Renderer,
     SurfacePaintPlan, SurfacePaintStats,
 };
 pub(crate) use paint::{

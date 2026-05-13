@@ -1,7 +1,8 @@
+use super::PaintSvg;
 use super::{
-    PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPolygon, PaintFillRect,
-    PaintGpuSurface, PaintImage, PaintOverlayPanel, PaintStrokePolygon, PaintStrokePolyline,
-    PaintStrokeRect, PaintTextInput, PaintTextRun,
+    PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillPolygon,
+    PaintFillRect, PaintGpuSurface, PaintImage, PaintOverlayPanel, PaintStrokePolygon,
+    PaintStrokePolyline, PaintStrokeRect, PaintTextInput, PaintTextRun,
 };
 use crate::{gui::types::Rgba8, theme::ThemeTokens};
 
@@ -14,6 +15,10 @@ pub enum PaintPrimitive {
     ClipEnd(PaintClipEnd),
     /// Fill a rectangle.
     FillRect(PaintFillRect),
+    /// Fill a bezier path.
+    FillPath(PaintFillPath),
+    /// Paint a retained SVG document.
+    Svg(PaintSvg),
     /// Stroke a rectangle.
     StrokeRect(PaintStrokeRect),
     /// Fill a polygon.
@@ -56,6 +61,8 @@ pub struct SurfacePaintStats {
     pub total: usize,
     /// Filled rectangle or polygon primitives.
     pub fills: usize,
+    /// Retained SVG document primitives.
+    pub svg_documents: usize,
     /// Stroked rectangle, polygon, or polyline primitives.
     pub strokes: usize,
     /// Text-bearing primitives, including text input paint.
@@ -120,7 +127,10 @@ impl SurfacePaintPlan {
         for primitive in &self.primitives {
             match primitive {
                 PaintPrimitive::ClipStart(_) | PaintPrimitive::ClipEnd(_) => stats.clips += 1,
-                PaintPrimitive::FillRect(_) | PaintPrimitive::FillPolygon(_) => stats.fills += 1,
+                PaintPrimitive::FillRect(_)
+                | PaintPrimitive::FillPath(_)
+                | PaintPrimitive::FillPolygon(_) => stats.fills += 1,
+                PaintPrimitive::Svg(_) => stats.svg_documents += 1,
                 PaintPrimitive::StrokeRect(_)
                 | PaintPrimitive::StrokePolygon(_)
                 | PaintPrimitive::StrokePolyline(_) => stats.strokes += 1,

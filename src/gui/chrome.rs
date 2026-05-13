@@ -11,6 +11,44 @@ pub struct StatusSegments {
     pub right: String,
 }
 
+impl StatusSegments {
+    /// Build status segments from explicit left, center, and right labels.
+    pub fn new(
+        left: impl Into<String>,
+        center: impl Into<String>,
+        right: impl Into<String>,
+    ) -> Self {
+        Self {
+            left: left.into(),
+            center: center.into(),
+            right: right.into(),
+        }
+    }
+
+    /// Build a status segment set with only the primary left label populated.
+    pub fn primary(left: impl Into<String>) -> Self {
+        Self::new(left, "", "")
+    }
+
+    /// Return these segments with a replaced left label.
+    pub fn with_left(mut self, left: impl Into<String>) -> Self {
+        self.left = left.into();
+        self
+    }
+
+    /// Return these segments with a replaced center label.
+    pub fn with_center(mut self, center: impl Into<String>) -> Self {
+        self.center = center.into();
+        self
+    }
+
+    /// Return these segments with a replaced right label.
+    pub fn with_right(mut self, right: impl Into<String>) -> Self {
+        self.right = right.into();
+        self
+    }
+}
+
 /// Product-neutral chrome copy for a searchable content view.
 ///
 /// Hosts provide product-specific wording by mapping their own labels into
@@ -71,6 +109,27 @@ mod tests {
         assert_eq!(StatusSegments::default().left, "");
         assert_eq!(StatusSegments::default().center, "");
         assert_eq!(StatusSegments::default().right, "");
+    }
+
+    #[test]
+    fn status_segments_build_explicit_and_incremental_labels() {
+        let segments = StatusSegments::new("Ready", "Autosave on", "Idle")
+            .with_left("Saved")
+            .with_center("Autosave off")
+            .with_right("Busy");
+
+        assert_eq!(segments.left, "Saved");
+        assert_eq!(segments.center, "Autosave off");
+        assert_eq!(segments.right, "Busy");
+    }
+
+    #[test]
+    fn status_segments_primary_populates_left_label_only() {
+        let segments = StatusSegments::primary("Ready");
+
+        assert_eq!(segments.left, "Ready");
+        assert_eq!(segments.center, "");
+        assert_eq!(segments.right, "");
     }
 
     #[test]

@@ -81,7 +81,7 @@ impl GpuSurfaceRenderer {
             target.device,
             target.queue,
             surface.key,
-            surface.revision ^ ((level_index as u64) << 32),
+            SignalBufferCacheKey::new(surface.revision, level_index),
             level.buckets.as_ref(),
             &uniforms,
         );

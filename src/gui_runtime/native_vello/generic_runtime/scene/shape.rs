@@ -1,5 +1,24 @@
 use crate::gui_runtime::native_vello::*;
 
+pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_path_fill(
+    scene: &mut Scene,
+    color: Rgba8,
+    transform: PaintTransform,
+    fill_rule: PaintFillRule,
+    path: &BezPath,
+) {
+    scene.fill(
+        match fill_rule {
+            PaintFillRule::NonZero => Fill::NonZero,
+            PaintFillRule::EvenOdd => Fill::EvenOdd,
+        },
+        transform,
+        color_from_rgba(color),
+        None,
+        path,
+    );
+}
+
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_rect(
     scene: &mut Scene,
     color: Rgba8,

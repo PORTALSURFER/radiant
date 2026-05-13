@@ -70,7 +70,7 @@ impl LayoutEngine {
             return;
         }
         self.virtual_cache
-            .retain(|_, entry| entry.dependencies.is_disjoint(node_ids));
+            .retain(|_, entry| entry.dependencies.iter().all(|id| !node_ids.contains(id)));
     }
 
     fn mark_subtree_dirty(&mut self, root: &LayoutNode, node_id: NodeId, measure: bool) {

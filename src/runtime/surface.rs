@@ -7,6 +7,7 @@ mod input;
 mod layout;
 mod node;
 mod paint;
+mod path;
 mod traversal;
 mod widget;
 
@@ -14,9 +15,8 @@ pub use frame::SurfaceFrame;
 pub(in crate::runtime) use input::WidgetDispatchResult;
 pub(in crate::runtime) use layout::SurfaceRuntimeProjection;
 pub use node::{SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceOverlay};
-pub(in crate::runtime) use traversal::{
-    ClipAncestors, SurfaceTraversalIndex, SurfaceTraversalStats, WidgetPath,
-};
+pub(in crate::runtime) use path::{ClipAncestors, WidgetPath};
+pub(in crate::runtime) use traversal::{SurfaceTraversalIndex, SurfaceTraversalStats};
 pub use widget::{MessageMapper, SurfaceWidget, WidgetMessageMapper};
 
 use super::paint::SurfacePaintPlan;

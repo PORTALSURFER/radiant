@@ -1,12 +1,6 @@
 //! User-authored widget object integrated through Radiant's application builder.
 
 use radiant::prelude::*;
-use radiant::{
-    layout::{LayoutOutput, Rect, Vector2},
-    runtime::{PaintFillRect, PaintPrimitive, PaintTextAlign, PaintTextRun},
-    theme::ThemeTokens,
-    widgets::{FocusBehavior, PointerButton, TextWrap, WidgetCommon, WidgetInput, WidgetSizing},
-};
 
 #[derive(Default)]
 struct DemoState {
@@ -51,9 +45,7 @@ impl Widget for StatusChip {
                 position,
                 button: PointerButton::Primary,
             } if bounds.contains(position) => Some(WidgetOutput::custom(ChipOutput::Toggle)),
-            WidgetInput::KeyPress(radiant::widgets::WidgetKey::Enter)
-                if self.common.state.focused =>
-            {
+            WidgetInput::KeyPress(WidgetKey::Enter) if self.common.state.focused => {
                 Some(WidgetOutput::custom(ChipOutput::Toggle))
             }
             WidgetInput::FocusChanged(focused) => {
@@ -116,7 +108,6 @@ fn main() -> radiant::Result {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use radiant::layout::Point;
     use radiant::runtime::SurfaceRuntime;
 
     #[test]

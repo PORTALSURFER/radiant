@@ -13,9 +13,10 @@ pub(super) fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Opt
     let metrics = font_ref.glyph_metrics(FontSize::new(font_size), LocationRef::default());
     let fallback_glyph = charmap.map('?');
 
+    let rendered_len = rendered_line_capacity_hint(text);
     let mut x = 0.0_f32;
-    let mut glyphs = Vec::with_capacity(text.len());
-    let mut cursor_stops = Vec::with_capacity(text.len().saturating_add(1));
+    let mut glyphs = Vec::with_capacity(rendered_len);
+    let mut cursor_stops = Vec::with_capacity(rendered_len.saturating_add(1));
     cursor_stops.push(TextCursorStop {
         byte_index: 0,
         x: 0.0,
@@ -76,4 +77,32 @@ pub(super) fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Opt
         glyphs,
         cursor_stops,
     })
+}
+
+fn rendered_line_capacity_hint(text: &str) -> usize {
+    let rendered_byte_len = text.find(['\n', '\r']).unwrap_or(text.len());
+    let rendered = &text[..rendered_byte_len];
+    if rendered.is_ascii() {
+        rendered.len()
+    } else {
+        rendered.chars().count()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rendered_line_capacity_hint_stops_at_line_breaks() {
+        assert_eq!(rendered_line_capacity_hint("title\nignored"), 5);
+        assert_eq!(rendered_line_capacity_hint("title\rignored"), 5);
+        assert_eq!(rendered_line_capacity_hint("plain"), 5);
+    }
+
+    #[test]
+    fn rendered_line_capacity_hint_counts_unicode_scalars_not_bytes() {
+        assert_eq!("øß猫".len(), 7);
+        assert_eq!(rendered_line_capacity_hint("øß猫"), 3);
+    }
 }

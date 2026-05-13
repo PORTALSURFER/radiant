@@ -47,7 +47,7 @@ impl<'a> LayoutContext<'a> {
         &mut self,
         key: VirtualizationCacheKey,
         metrics: Arc<LinearVirtualMetrics>,
-        dependencies: std::collections::HashSet<NodeId>,
+        dependencies: Vec<NodeId>,
     ) {
         self.virtual_cache.insert(
             key,
@@ -74,6 +74,24 @@ impl<'a> LayoutContext<'a> {
 
     pub(crate) fn linear_window(&self, node_id: NodeId) -> Option<ResolvedLinearWindow> {
         self.linear_windows.get(&node_id).cloned()
+    }
+
+    pub(crate) fn take_linear_sizes(&mut self) -> Vec<f32> {
+        std::mem::take(self.linear_sizes)
+    }
+
+    pub(crate) fn restore_linear_sizes(&mut self, mut sizes: Vec<f32>) {
+        sizes.clear();
+        *self.linear_sizes = sizes;
+    }
+
+    pub(crate) fn take_linear_unresolved(&mut self) -> Vec<usize> {
+        std::mem::take(self.linear_unresolved)
+    }
+
+    pub(crate) fn restore_linear_unresolved(&mut self, mut unresolved: Vec<usize>) {
+        unresolved.clear();
+        *self.linear_unresolved = unresolved;
     }
 
     pub(crate) fn scroll_offset(&self, node_id: NodeId) -> Vector2 {

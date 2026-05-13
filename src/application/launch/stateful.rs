@@ -51,6 +51,18 @@ impl<State> StatefulAppBuilder<State> {
         self
     }
 
+    /// Add embedded TTF/OTF font bytes checked before file and native fallback fonts.
+    pub fn embedded_font(mut self, font: impl Into<EmbeddedFont>) -> Self {
+        self.options.text.embedded_fonts.push(font.into());
+        self
+    }
+
+    /// Add a preferred font file checked after embedded fonts and before native fallbacks.
+    pub fn font_path(mut self, path: impl Into<std::path::PathBuf>) -> Self {
+        self.options.text.font_paths.push(path.into());
+        self
+    }
+
     /// Attach a state projection closure.
     pub fn view<Message, Project, View>(
         self,

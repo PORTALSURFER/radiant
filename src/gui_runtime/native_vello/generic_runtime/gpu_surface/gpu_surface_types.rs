@@ -26,6 +26,28 @@ pub(super) struct GpuSurfaceTexture {
     pub(super) view: wgpu::TextureView,
 }
 
+pub(super) struct GpuSurfaceCompositeBinding {
+    pub(super) cache_key: GpuSurfaceCompositeBindingKey,
+    pub(super) uniform_buffer: wgpu::Buffer,
+    pub(super) bind_group: wgpu::BindGroup,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct GpuSurfaceCompositeBindingKey {
+    pub(super) pipeline_generation: u64,
+    pub(super) texture: GpuSurfaceTextureIdentity,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum GpuSurfaceTextureIdentity {
+    RgbaAtlas {
+        revision: u64,
+        width: usize,
+        height: usize,
+    },
+    SignalBody(SignalBodyCacheKey),
+}
+
 pub(super) struct SignalPipeline {
     pub(super) format: wgpu::TextureFormat,
     pub(super) bind_group_layout: wgpu::BindGroupLayout,
@@ -72,7 +94,7 @@ pub(super) struct SignalBodyTexture {
     pub(super) view: wgpu::TextureView,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) struct SignalBodyCacheKey {
     pub(super) revision: u64,
     pub(super) width: u32,
@@ -149,5 +171,32 @@ mod tests {
         let low_revision_high_level = SignalBufferCacheKey::new(0, 1);
 
         assert_ne!(high_revision, low_revision_high_level);
+    }
+
+    #[test]
+    fn composite_binding_key_tracks_pipeline_and_texture_identity() {
+        let atlas = GpuSurfaceCompositeBindingKey {
+            pipeline_generation: 1,
+            texture: GpuSurfaceTextureIdentity::RgbaAtlas {
+                revision: 7,
+                width: 64,
+                height: 32,
+            },
+        };
+        let same_texture_next_pipeline = GpuSurfaceCompositeBindingKey {
+            pipeline_generation: 2,
+            ..atlas
+        };
+        let next_texture = GpuSurfaceCompositeBindingKey {
+            pipeline_generation: 1,
+            texture: GpuSurfaceTextureIdentity::RgbaAtlas {
+                revision: 8,
+                width: 64,
+                height: 32,
+            },
+        };
+
+        assert_ne!(atlas, same_texture_next_pipeline);
+        assert_ne!(atlas, next_texture);
     }
 }

@@ -23,6 +23,7 @@ where
     pub(super) first_frame_presented: bool,
     pub(super) animation_origin: Instant,
     pub(super) last_redraw: Instant,
+    pub(super) last_timed_frame_drain: Instant,
     pub(super) deferred_surface_refresh: bool,
     pub(super) pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
 }
@@ -52,6 +53,7 @@ where
             first_frame_presented: false,
             animation_origin: Instant::now(),
             last_redraw: Instant::now(),
+            last_timed_frame_drain: Instant::now(),
             deferred_surface_refresh: false,
             pending_gpu_surface_wheel: None,
         }
@@ -64,6 +66,31 @@ where
         if let Some(window) = self.window.as_ref() {
             window.request_redraw();
             self.redraw_requested = true;
+        }
+    }
+
+    pub(super) fn drain_due_timed_frame(
+        &mut self,
+        now: Instant,
+        target_fps: u32,
+        animation_activity: crate::runtime::RuntimeAnimationActivity,
+        needs_text_caret_animation: bool,
+    ) -> Option<(GenericRouteOutcome, Instant)> {
+        match timed_frame_cadence(
+            now,
+            self.last_timed_frame_drain,
+            target_fps,
+            animation_activity.needs_animation() || needs_text_caret_animation,
+        ) {
+            TimedFrameCadence::DrainNow { next_wake } => {
+                self.last_timed_frame_drain = now;
+                Some((
+                    self.core
+                        .drain_timed_frame(animation_activity, needs_text_caret_animation),
+                    next_wake,
+                ))
+            }
+            TimedFrameCadence::Idle | TimedFrameCadence::WaitUntil(_) => None,
         }
     }
 

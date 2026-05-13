@@ -118,28 +118,31 @@ where
             return;
         }
         let animation_activity = self.core.animation_activity();
-        if !animation_activity.needs_animation() && !self.core.has_focused_text_input() {
-            event_loop.set_control_flow(ControlFlow::Wait);
-            return;
-        }
         let now = Instant::now();
-        let interval = animation_frame_interval(self.options.target_fps);
-        let next_frame = self.last_redraw.checked_add(interval).unwrap_or(now);
-        if now >= next_frame {
-            if !self.redraw_requested {
-                let needs_scene_animation = self.core.has_focused_text_input();
-                let outcome = self
-                    .core
-                    .drain_timed_frame(animation_activity, needs_scene_animation);
-                if outcome.exit_requested {
-                    event_loop.exit();
-                    return;
-                }
-                self.handle_route_outcome(event_loop, outcome);
+        let needs_scene_animation = self.core.has_focused_text_input();
+        match timed_frame_cadence(
+            now,
+            self.last_redraw,
+            self.options.target_fps,
+            animation_activity.needs_animation() || needs_scene_animation,
+        ) {
+            TimedFrameCadence::Idle => event_loop.set_control_flow(ControlFlow::Wait),
+            TimedFrameCadence::WaitUntil(next_frame) => {
+                event_loop.set_control_flow(ControlFlow::WaitUntil(next_frame));
             }
-            event_loop.set_control_flow(ControlFlow::WaitUntil(now + interval));
-        } else {
-            event_loop.set_control_flow(ControlFlow::WaitUntil(next_frame));
+            TimedFrameCadence::DrainNow { next_wake } => {
+                if !self.redraw_requested {
+                    let outcome = self
+                        .core
+                        .drain_timed_frame(animation_activity, needs_scene_animation);
+                    if outcome.exit_requested {
+                        event_loop.exit();
+                        return;
+                    }
+                    self.handle_route_outcome(event_loop, outcome);
+                }
+                event_loop.set_control_flow(ControlFlow::WaitUntil(next_wake));
+            }
         }
     }
 }

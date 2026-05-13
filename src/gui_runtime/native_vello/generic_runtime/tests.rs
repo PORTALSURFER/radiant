@@ -150,13 +150,16 @@ fn generic_native_window_applies_floating_popup_policy() {
 
 #[test]
 fn generic_runtime_clamps_animation_frame_interval() {
-    assert_eq!(animation_frame_interval(0), Duration::from_secs(1));
     assert_eq!(
-        animation_frame_interval(120),
+        runtime_helpers::animation_frame_interval(0),
+        Duration::from_secs(1)
+    );
+    assert_eq!(
+        runtime_helpers::animation_frame_interval(120),
         Duration::from_secs_f64(1.0 / 120.0)
     );
     assert_eq!(
-        animation_frame_interval(1_000),
+        runtime_helpers::animation_frame_interval(1_000),
         Duration::from_secs_f64(1.0 / 240.0)
     );
 }

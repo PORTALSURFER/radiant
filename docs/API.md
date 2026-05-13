@@ -693,7 +693,13 @@ $env:RADIANT_WAVEFORM_PATH = "C:\path\to\sample.wav"
 If no folder root is supplied, `folder_browser` uses a temp-directory demo
 root. If no WAV path is supplied, `waveform_view` uses a generated synthetic
 signal while exercising the same waveform summary and GPU-surface projection
-path as real input.
+path as real input. The waveform view keeps the dense signal body in a retained
+`GpuSurfaceContent::SignalSummaryBands` surface and uses
+`.animated_transient_overlay_at(...)` for the playback playhead, anchoring the
+moving line through `SurfacePaintPlan::first_widget_rect`. That keeps playback
+on the paint-only presentation path instead of queueing app frame messages,
+reprojecting the declarative surface, or rebuilding the waveform scene for each
+playhead tick.
 Run `cargo run --example gpu_surface` for a small retained-GPU-surface sandbox
 that uses the prelude `gpu_surface(...)` application builder with generated
 demo atlas data.

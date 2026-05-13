@@ -69,6 +69,16 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             vec![".update_with(", "context.spawn(", "LoadingMessage::Loaded"],
         ),
         (
+            "waveform_view",
+            vec![
+                "GpuSurfaceContent::SignalSummaryBands",
+                ".animated_transient_overlay_at(",
+                "paint_playhead_overlay(",
+                "first_widget_rect(",
+                "waveform_playback_uses_paint_only_transient_playhead",
+            ],
+        ),
+        (
             "multi_window_manifest",
             vec![
                 "radiant::window(",
@@ -271,7 +281,10 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             "SurfaceChild",
             "Arc<UiSurface",
         ];
-        if name != "custom_widget" && name != "timeline_editor" && name != "toolbar_icons" {
+        if !matches!(
+            name,
+            "custom_widget" | "timeline_editor" | "toolbar_icons" | "waveform_view"
+        ) {
             deprecated_first_use.push("WidgetSizing");
         }
 

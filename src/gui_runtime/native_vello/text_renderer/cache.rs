@@ -63,17 +63,7 @@ impl TextLayoutCache {
         };
 
         if self.layout_cache.contains_key(&key) {
-            self.layout_cache_clock = self.layout_cache_clock.saturating_add(1);
-            let stamp = self.layout_cache_clock;
-            self.compact_layout_cache_order_if_needed();
-            self.layout_cache_order.push_back((key.clone(), stamp));
-            let cached_layout = self
-                .layout_cache
-                .get_mut(&key)
-                .expect("layout cache key should exist after hit check");
-            cached_layout.stamp = stamp;
-            self.text_layout_hits = self.text_layout_hits.saturating_add(1);
-            return Some(&cached_layout.layout);
+            return self.record_layout_cache_hit(&key);
         }
 
         self.text_layout_misses = self.text_layout_misses.saturating_add(1);
@@ -110,6 +100,17 @@ impl TextLayoutCache {
 
     pub(super) fn intern_text(&mut self, text: &str) -> Arc<str> {
         self.atom_cache.intern_text(text)
+    }
+
+    fn record_layout_cache_hit<'a>(&'a mut self, key: &TextLayoutKey) -> Option<&'a TextLayout> {
+        self.layout_cache_clock = self.layout_cache_clock.saturating_add(1);
+        let stamp = self.layout_cache_clock;
+        self.compact_layout_cache_order_if_needed();
+        self.layout_cache_order.push_back((key.clone(), stamp));
+        let cached_layout = self.layout_cache.get_mut(key)?;
+        cached_layout.stamp = stamp;
+        self.text_layout_hits = self.text_layout_hits.saturating_add(1);
+        Some(&cached_layout.layout)
     }
 
     /// Record layout-cache recency without reallocating the cached layout.

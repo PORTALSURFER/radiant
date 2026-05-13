@@ -14,6 +14,7 @@ mod keyboard;
 mod lifecycle;
 mod post_gpu_overlay;
 mod present;
+mod render_profile;
 mod runner;
 mod runtime_helpers;
 mod runtime_wakeup;
@@ -32,7 +33,7 @@ use gpu_surface::GpuSurfaceRenderer;
 use gpu_surface_interaction::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
 use post_gpu_overlay::PostGpuOverlayRenderer;
-use present::RenderFrameProfile;
+use render_profile::{RenderFrameProfile, maybe_log_render_profile};
 use runner::GenericNativeVelloRunner;
 use runtime_helpers::{
     GpuSurfaceInteractionRegion, collect_gpu_surface_interaction_regions, maybe_log_route_profile,

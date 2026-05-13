@@ -563,14 +563,35 @@ cargo bench --bench perf_harness
 ```
 
 The harness prints parseable `radiant_perf` metric lines for layout, runtime
-surface, and GPU-surface data preparation scenarios. It currently covers deep
-layout trees, 1k wrap layout, 10k virtualized scroll layout, fixed-size 10k
-virtualized scroll layout, eager and windowed 10k application-list projection,
-large declarative surface layout plus paint-plan generation, bounded runtime
-command-drain bursts, GPU signal-summary construction, and GPU-surface primitive
-projection. The harness performs sanity
-assertions, but it does not enforce machine-dependent pass/fail timing thresholds; use the output for local
-comparisons, profiling runs, and regression investigation.
+surface, application projection, and GPU-surface data preparation scenarios.
+It currently covers:
+
+- `layout_deep_nesting`, `layout_wrap_1k`, `layout_virtualized_10k`,
+  `layout_virtualized_fixed_10k`, `layout_virtualized_fixed_scroll_10k`, and
+  `layout_mark_dirty_subtree_10k`
+- `app_virtual_list_projection_10k`,
+  `app_virtual_list_projection_generated_child_ids_10k`,
+  `app_virtual_selectable_list_projection_10k`, and
+  `app_virtual_list_window_projection_10k`
+- `runtime_surface_large_tree`, `runtime_text_paint_plan_1k`,
+  `runtime_horizontal_scroll_paint_1k`, `runtime_virtualized_list_wheel_10k`,
+  `runtime_virtualized_list_hover_10k`,
+  `runtime_virtualized_list_stable_hover_10k`,
+  `runtime_virtualized_list_hover_paint_10k`,
+  `runtime_virtualized_nested_scroll_hover_10k`,
+  `runtime_refresh_large_tree`, `runtime_resize_large_tree`,
+  `runtime_command_flattening_512`, and `runtime_command_drain_1k`
+- `gpu_signal_summary` and `gpu_surface_projection`
+
+Pass a scenario substring to run one focused slice, for example:
+
+```powershell
+cargo bench --bench perf_harness runtime_virtualized_list_hover
+```
+
+The harness performs sanity assertions, but it does not enforce machine-dependent
+pass/fail timing thresholds; use the output for local comparisons, profiling
+runs, and regression investigation.
 Run `cargo run --example rendering_benchmark` for a checked public-API sandbox
 that builds a large declarative surface, runs layout plus paint-plan generation,
 and prints parseable primitive-count diagnostics.

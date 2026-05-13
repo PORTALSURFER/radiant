@@ -169,25 +169,51 @@ fn performance_harness_is_registered_and_documented() {
             "Cargo.toml should register perf harness with `{required}`"
         );
     }
-    for scenario in [
+    let perf_scenarios = [
         "layout_deep_nesting",
         "layout_wrap_1k",
         "layout_virtualized_10k",
         "layout_virtualized_fixed_10k",
+        "layout_virtualized_fixed_scroll_10k",
+        "layout_mark_dirty_subtree_10k",
+        "app_virtual_list_projection_10k",
+        "app_virtual_list_projection_generated_child_ids_10k",
+        "app_virtual_selectable_list_projection_10k",
+        "app_virtual_list_window_projection_10k",
         "runtime_surface_large_tree",
+        "runtime_text_paint_plan_1k",
+        "runtime_horizontal_scroll_paint_1k",
+        "runtime_virtualized_list_wheel_10k",
+        "runtime_virtualized_list_hover_10k",
+        "runtime_virtualized_list_stable_hover_10k",
+        "runtime_virtualized_list_hover_paint_10k",
+        "runtime_virtualized_nested_scroll_hover_10k",
+        "runtime_refresh_large_tree",
+        "runtime_resize_large_tree",
+        "runtime_command_flattening_512",
         "runtime_command_drain_1k",
         "gpu_signal_summary",
         "gpu_surface_projection",
-        "radiant_perf scenario=",
-    ] {
+    ];
+    for scenario in perf_scenarios {
         assert!(
             bench.contains(scenario),
             "perf_harness should include `{scenario}`"
         );
+        assert!(
+            docs.contains(scenario),
+            "docs/API.md should document perf scenario `{scenario}`"
+        );
     }
     assert!(
-        docs.contains("cargo bench --bench perf_harness")
-            && docs.contains("does not enforce machine-dependent pass/fail timing thresholds"),
+        bench.contains("radiant_perf scenario="),
+        "perf_harness should print parseable metric lines"
+    );
+    let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        normalized_docs.contains("cargo bench --bench perf_harness")
+            && normalized_docs
+                .contains("does not enforce machine-dependent pass/fail timing thresholds"),
         "docs/API.md should describe how to run and interpret the perf harness"
     );
 }

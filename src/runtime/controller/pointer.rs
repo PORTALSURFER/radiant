@@ -4,6 +4,36 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    /// Route pointer motion and return a redraw-oriented outcome for backend adapters.
+    ///
+    /// Use this in native or embedded backends that need to distinguish full
+    /// scene rebuilds from paint-only runtime overlays. Application-level event
+    /// routing can keep using [`Self::dispatch_event`].
+    pub fn dispatch_pointer_move_with_outcome(&mut self, position: Point) -> PointerMoveOutcome {
+        let previous_hovered_widget = self.hovered_widget();
+        let previous_hovered_container = self.hovered_container();
+        let target = self.dispatch_pointer_move_target(position);
+        let repaint_requested = self.take_repaint_requested();
+        let exit_requested = self.take_exit_requested();
+        let hover_changed = previous_hovered_widget != self.hovered_widget()
+            || previous_hovered_container != self.hovered_container();
+        let pointer_captured = self.pointer_capture().is_some();
+        let paint_only_requested = repaint_requested
+            && target.is_some_and(|widget_id| {
+                self.widget_prefers_pointer_move_paint_only(widget_id)
+                    && !pointer_captured
+                    && !hover_changed
+            });
+        PointerMoveOutcome {
+            target,
+            hover_changed,
+            pointer_captured,
+            repaint_requested: repaint_requested && !paint_only_requested,
+            paint_only_requested,
+            exit_requested,
+        }
+    }
+
     /// Return the first projected widget whose laid-out bounds contain `point`.
     pub fn widget_at(&self, point: Point) -> Option<WidgetId> {
         self.pointer_widgets
@@ -85,7 +115,7 @@ where
             .map(|emitted_output| (widget_id, emitted_output))
     }
 
-    pub(super) fn dispatch_pointer_move(&mut self, position: Point) -> Option<WidgetId> {
+    pub(super) fn dispatch_pointer_move_target(&mut self, position: Point) -> Option<WidgetId> {
         if self.drag_scrollbar_to(position) {
             return None;
         }

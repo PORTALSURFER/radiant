@@ -616,6 +616,13 @@ focus order repeatedly without reallocating.
 Pointer dispatch through `dispatch_input_at` can assign focus from hit testing;
 keyboard dispatch through `dispatch_focused_input` routes input to the focused
 widget by stable `WidgetId`.
+Backend adapters that need redraw policy can route pointer motion through
+`SurfaceRuntime::dispatch_pointer_move_with_outcome(...)`. Its
+`PointerMoveOutcome` reports the target widget, hover changes, pointer capture,
+scene-rebuild repaint requests, paint-only overlay requests, and exit requests
+in one controller-owned result. Native and embedded renderers should use that
+outcome when deciding between rebuilding the cached scene and presenting a
+runtime overlay over the existing scene.
 Application builders can register host-owned shortcut catalogs with
 `.shortcuts(...)`. The runtime supplies pending chord state, normalized
 `KeyPress`, and `FocusSurface`; returning `ShortcutResolution::action(message)`

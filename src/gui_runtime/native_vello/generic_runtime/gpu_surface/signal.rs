@@ -48,10 +48,12 @@ impl GpuSurfaceRenderer {
             let Some(body) = self.signal_bodies.get(&surface.key) else {
                 return;
             };
+            let texture_view = body.view.clone();
             self.render_texture_view(
                 target,
                 surface,
-                &body.view,
+                GpuSurfaceTextureIdentity::SignalBody(body_key),
+                &texture_view,
                 [0.0, 0.0, body_key.width as f32, body_key.height as f32],
                 stats,
             );
@@ -95,10 +97,12 @@ impl GpuSurfaceRenderer {
         let Some(body) = self.signal_bodies.get(&surface.key) else {
             return;
         };
+        let texture_view = body.view.clone();
         self.render_texture_view(
             target,
             surface,
-            &body.view,
+            GpuSurfaceTextureIdentity::SignalBody(body_key),
+            &texture_view,
             [0.0, 0.0, body_key.width as f32, body_key.height as f32],
             stats,
         );

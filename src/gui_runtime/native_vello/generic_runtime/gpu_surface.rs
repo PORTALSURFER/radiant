@@ -25,9 +25,11 @@ pub(super) use pipeline::GPU_SIGNAL_SHADER;
 #[derive(Default)]
 pub(super) struct GpuSurfaceRenderer {
     pipeline: Option<GpuSurfacePipeline>,
+    pipeline_generation: u64,
     signal_pipeline: Option<SignalPipeline>,
     signal_pipeline_generation: u64,
     textures: HashMap<u64, GpuSurfaceTexture>,
+    composite_bindings: HashMap<u64, GpuSurfaceCompositeBinding>,
     signal_bodies: HashMap<u64, SignalBodyTexture>,
     signals: HashMap<u64, SignalBuffer>,
     signal_summaries: HashMap<u64, CachedSignalSummary>,
@@ -85,6 +87,8 @@ impl GpuSurfaceRenderer {
     fn prune_inactive_resources(&mut self) {
         let active_keys = &self.active_keys;
         self.textures.retain(|key, _| active_keys.contains(key));
+        self.composite_bindings
+            .retain(|key, _| active_keys.contains(key));
         self.signal_bodies
             .retain(|key, _| active_keys.contains(key));
         self.signals.retain(|key, _| active_keys.contains(key));
@@ -94,6 +98,7 @@ impl GpuSurfaceRenderer {
 
     fn clear_resources(&mut self) {
         self.textures.clear();
+        self.composite_bindings.clear();
         self.signal_bodies.clear();
         self.signals.clear();
         self.signal_summaries.clear();
@@ -131,6 +136,7 @@ mod tests {
         renderer.prune_inactive_resources();
 
         assert!(renderer.textures.is_empty());
+        assert!(renderer.composite_bindings.is_empty());
         assert!(renderer.signal_bodies.is_empty());
         assert!(renderer.signals.is_empty());
         assert!(renderer.signal_summaries.is_empty());

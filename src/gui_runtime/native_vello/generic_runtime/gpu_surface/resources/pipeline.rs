@@ -12,6 +12,7 @@ impl GpuSurfaceRenderer {
             .is_none_or(|pipeline| pipeline.format != target_format);
         if rebuild {
             self.pipeline = Some(GpuSurfacePipeline::new(device, target_format));
+            self.pipeline_generation = self.pipeline_generation.wrapping_add(1);
         }
     }
 

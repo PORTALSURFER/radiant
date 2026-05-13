@@ -11,6 +11,10 @@ pub struct CommandOutcome {
     pub messages_dispatched: usize,
     /// Whether any command requested a repaint.
     pub repaint_requested: bool,
+    /// Whether any command requested a redraw without surface reprojection.
+    pub paint_only_requested: bool,
+    /// Whether any command requested a repaint of the projected surface.
+    pub surface_repaint_requested: bool,
     /// Whether this pass requires declarative surface reprojection and layout.
     pub surface_refresh_requested: bool,
     /// Whether any command requested runtime exit.
@@ -137,10 +141,12 @@ where
             Command::RequestRepaint => {
                 self.repaint_requested = true;
                 outcome.repaint_requested = true;
+                outcome.surface_repaint_requested = true;
             }
             Command::RequestPaintOnly => {
                 self.repaint_requested = true;
                 outcome.repaint_requested = true;
+                outcome.paint_only_requested = true;
             }
             Command::After { delay, message } => {
                 if self.bridge.schedule_message(delay, message) {
@@ -153,7 +159,9 @@ where
                 }
             }
             Command::Focus(widget_id) => {
-                outcome.repaint_requested |= self.focus_widget(widget_id);
+                let focused = self.focus_widget(widget_id);
+                outcome.repaint_requested |= focused;
+                outcome.surface_repaint_requested |= focused;
             }
             Command::Exit => {
                 outcome.exit_requested = true;

@@ -22,7 +22,15 @@ impl PostGpuOverlayRenderer {
         let Some(suffix) = geometry::replayable_suffix(primitives) else {
             return;
         };
-        let vertices = replayable_vertices(suffix, target.size);
+        self.render_primitives(target, suffix);
+    }
+
+    pub(super) fn render_primitives(
+        &mut self,
+        target: &mut PostGpuOverlayRenderTarget<'_>,
+        primitives: &[crate::runtime::PaintPrimitive],
+    ) {
+        let vertices = replayable_vertices(primitives, target.size);
         if vertices.is_empty() {
             return;
         }

@@ -70,7 +70,6 @@ enum DemoMessage {
 struct SelectionOverlay {
     common: WidgetCommon,
     selected: bool,
-    phase: f32,
     selection_start: f32,
     selection_end: f32,
     drag_handle: Option<ResizeHandle>,
@@ -89,7 +88,6 @@ impl SelectionOverlay {
         Self {
             common,
             selected: state.selected,
-            phase: state.phase,
             selection_start: state.selection_start,
             selection_end: state.selection_end,
             drag_handle: state.drag_handle,
@@ -130,21 +128,7 @@ impl SelectionOverlay {
     }
 
     fn accent(&self) -> Rgba8 {
-        if self.selected {
-            Rgba8 {
-                r: 82,
-                g: 168,
-                b: 255,
-                a: 220,
-            }
-        } else {
-            Rgba8 {
-                r: 255,
-                g: 142,
-                b: 92,
-                a: 220,
-            }
-        }
+        overlay_accent(self.selected)
     }
 }
 
@@ -219,7 +203,6 @@ impl Widget for SelectionOverlay {
                 },
             }));
         }
-        paint_bouncing_ball(primitives, self.common.id, bounds, self.phase, accent);
     }
 }
 
@@ -263,6 +246,9 @@ fn main() -> radiant::Result {
         })
         .animation(|state| state.running)
         .on_frame(|| DemoMessage::AnimationFrame)
+        .transient_overlay(|state, plan, primitives, _viewport, _animation_time| {
+            paint_transient_blob(state, plan, primitives);
+        })
         .update_command(|state: &mut DemoState, message| match message {
             DemoMessage::AnimationFrame => {
                 state.tick();
@@ -290,6 +276,48 @@ fn main() -> radiant::Result {
             }
         })
         .run()
+}
+
+fn paint_transient_blob(
+    state: &DemoState,
+    plan: &SurfacePaintPlan,
+    primitives: &mut Vec<PaintPrimitive>,
+) {
+    let Some(bounds) = plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::GpuSurface(surface) if surface.widget_id == 10 => Some(surface.rect),
+            _ => None,
+        })
+    else {
+        return;
+    };
+    paint_bouncing_ball(
+        primitives,
+        11,
+        bounds,
+        state.phase,
+        overlay_accent(state.selected),
+    );
+}
+
+fn overlay_accent(selected: bool) -> Rgba8 {
+    if selected {
+        Rgba8 {
+            r: 82,
+            g: 168,
+            b: 255,
+            a: 220,
+        }
+    } else {
+        Rgba8 {
+            r: 255,
+            g: 142,
+            b: 92,
+            a: 220,
+        }
+    }
 }
 
 fn paint_bouncing_ball(

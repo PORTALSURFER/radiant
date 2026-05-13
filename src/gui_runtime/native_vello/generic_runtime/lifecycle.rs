@@ -135,9 +135,7 @@ where
                     event_loop.exit();
                     return;
                 }
-                self.rebuild_scene();
-                self.request_redraw_if_needed();
-                self.request_runtime_wakeup_if_needed(outcome);
+                self.handle_route_outcome(event_loop, outcome);
             }
             event_loop.set_control_flow(ControlFlow::WaitUntil(now + interval));
         } else {

@@ -19,6 +19,7 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
     pub(in crate::application) shutdown: Option<AppShutdown<State>>,
     pub(in crate::application) close_requested: Option<AppCloseRequested<State>>,
     pub(in crate::application) retained_painters: HashMap<u64, RetainedPainter<State>>,
+    pub(in crate::application) transient_overlay: Option<TransientOverlayPainter<State>>,
     pub(in crate::application) subscriptions_started: bool,
     pub(in crate::application) startup_ran: bool,
     pub(in crate::application) _view: PhantomData<View>,
@@ -44,6 +45,8 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) close_requested: Option<AppCloseRequested<State>>,
     /// Retained-surface painters keyed by descriptor key.
     pub(in crate::application) retained_painters: HashMap<u64, RetainedPainter<State>>,
+    /// Lightweight frame-time overlay painter.
+    pub(in crate::application) transient_overlay: Option<TransientOverlayPainter<State>>,
 }
 
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
@@ -73,6 +76,7 @@ where
             shutdown: lifecycle.shutdown,
             close_requested: lifecycle.close_requested,
             retained_painters: lifecycle.retained_painters,
+            transient_overlay: lifecycle.transient_overlay,
             subscriptions_started: false,
             startup_ran: false,
             _view: PhantomData,

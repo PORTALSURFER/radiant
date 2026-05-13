@@ -1,7 +1,7 @@
 use super::StatefulAppWithView;
 use crate::application::{
     AppAnimation, AppBridgeLifecycle, AppCloseRequested, AppFrameMessage, AppScroll, AppShortcuts,
-    AppShutdown, AppStartup, AppSubscriptions, RetainedPainter,
+    AppShutdown, AppStartup, AppSubscriptions, RetainedPainter, TransientOverlayPainter,
 };
 use crate::{
     application::{IntoView, Subscription, UpdateContext},
@@ -20,6 +20,7 @@ pub(super) struct StatefulLifecycle<State, Message> {
     pub(super) shutdown: Option<AppShutdown<State>>,
     pub(super) close_requested: Option<AppCloseRequested<State>>,
     pub(super) retained_painters: HashMap<u64, RetainedPainter<State>>,
+    pub(super) transient_overlay: Option<TransientOverlayPainter<State>>,
 }
 
 impl<State, Message> Default for StatefulLifecycle<State, Message> {
@@ -34,6 +35,7 @@ impl<State, Message> Default for StatefulLifecycle<State, Message> {
             shutdown: None,
             close_requested: None,
             retained_painters: HashMap::new(),
+            transient_overlay: None,
         }
     }
 }
@@ -50,6 +52,7 @@ impl<State, Message> StatefulLifecycle<State, Message> {
             shutdown: self.shutdown,
             close_requested: self.close_requested,
             retained_painters: self.retained_painters,
+            transient_overlay: self.transient_overlay,
         }
     }
 }
@@ -153,6 +156,26 @@ where
         self.lifecycle
             .retained_painters
             .insert(key, Box::new(paint));
+        self
+    }
+
+    /// Register a lightweight frame-time overlay painter.
+    ///
+    /// The painter receives the latest cached surface paint plan and appends
+    /// transient primitives that native backends can draw over the cached scene
+    /// without refreshing layout. Use this for small, continuously animated
+    /// overlays such as playheads, drag previews, tooltips, or cursor markers.
+    pub fn transient_overlay(
+        mut self,
+        paint: impl FnMut(
+            &mut State,
+            &crate::runtime::SurfacePaintPlan,
+            &mut Vec<crate::runtime::PaintPrimitive>,
+            Vector2,
+            std::time::Duration,
+        ) + 'static,
+    ) -> Self {
+        self.lifecycle.transient_overlay = Some(Box::new(paint));
         self
     }
 }

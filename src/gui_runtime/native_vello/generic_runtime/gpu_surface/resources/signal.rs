@@ -9,21 +9,17 @@ impl GpuSurfaceRenderer {
         key: u64,
         body_key: SignalBodyCacheKey,
         stats: &mut GpuSurfaceRenderStats,
-    ) {
-        if self
+    ) -> Option<wgpu::TextureView> {
+        if let Some(body) = self
             .signal_bodies
             .get(&key)
-            .is_some_and(|body| body.cache_key == body_key)
+            .filter(|body| body.cache_key == body_key)
         {
             stats.signal_body_cache_hits += 1;
-            return;
+            return Some(body.view.clone());
         }
-        let Some(buffer) = self.signals.get(&key) else {
-            return;
-        };
-        let Some(pipeline) = self.signal_pipeline.as_ref() else {
-            return;
-        };
+        let buffer = self.signals.get(&key)?;
+        let pipeline = self.signal_pipeline.as_ref()?;
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("radiant_gpu_signal_body_texture"),
             size: wgpu::Extent3d {
@@ -48,6 +44,7 @@ impl GpuSurfaceRenderer {
         drop(pass);
         stats.signal_body_renders += 1;
         stats.signal_body_encode_elapsed += started.elapsed();
+        let cached_view = view.clone();
         self.signal_bodies.insert(
             key,
             SignalBodyTexture {
@@ -56,6 +53,7 @@ impl GpuSurfaceRenderer {
                 view,
             },
         );
+        Some(cached_view)
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn ensure_signal_buffer(

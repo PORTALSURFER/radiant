@@ -141,11 +141,9 @@ fn selection_rect(input: &PaintTextInput, start: f32, end: f32) -> Option<UiRect
     if end_x <= start_x {
         return None;
     }
-    let height = input.rect.height();
-    let inset_y = if height < 12.0 { 0.0 } else { 2.0 };
     Some(UiRect::from_min_max(
-        Point::new(start_x, input.rect.min.y + inset_y),
-        Point::new(end_x, input.rect.max.y - inset_y),
+        Point::new(start_x, input.rect.min.y),
+        Point::new(end_x, input.rect.max.y),
     ))
 }
 

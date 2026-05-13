@@ -4,7 +4,7 @@ use super::super::LayoutContext;
 use super::super::cache::{LinearVirtualMetrics, UniformVirtualMetrics, VirtualSpan};
 use super::super::helpers::{
     LinearLayoutState, align_main_offsets, allocate_fill_sizes, apply_linear_overflow_policy,
-    linear_sizing_summary, resolved_main_sizes_into,
+    linear_sizing_summary, resolved_main_size, resolved_main_sizes_into, resolved_main_total,
 };
 use super::super::measure::measure_node;
 use crate::gui::layout_core::constraints::Constraints;
@@ -120,18 +120,6 @@ pub(super) fn build_linear_metrics(
         total_main,
         leading_offset,
         distributed_spacing,
-    }
-}
-
-fn resolved_main_total(states: &[LinearLayoutState<'_>]) -> f32 {
-    states.iter().map(resolved_main_size).sum()
-}
-
-fn resolved_main_size(state: &LinearLayoutState<'_>) -> f32 {
-    if state.fill > 0.0 {
-        state.fill
-    } else {
-        state.main
     }
 }
 

@@ -2,8 +2,8 @@
 
 use super::super::helpers::{
     LayoutAxis, LinearLayoutState, align_main_offsets, allocate_fill_sizes,
-    apply_linear_overflow_policy, linear_sizing_summary, place_child_rect,
-    resolved_main_sizes_into,
+    apply_linear_overflow_policy, linear_sizing_summary, place_child_rect, resolved_main_size,
+    resolved_main_sizes_into, resolved_main_total,
 };
 use super::super::{LayoutContext, LayoutDiagnosticCode};
 use super::layout_node;
@@ -192,18 +192,6 @@ impl LinearChildSizes<'_> {
             Self::Uniform { main_size, len } => (index < *len).then_some(*main_size),
             Self::Resolved => Some(resolved_main_size(state)),
         }
-    }
-}
-
-fn resolved_main_total(states: &[LinearLayoutState<'_>]) -> f32 {
-    states.iter().map(resolved_main_size).sum()
-}
-
-fn resolved_main_size(state: &LinearLayoutState<'_>) -> f32 {
-    if state.fill > 0.0 {
-        state.fill
-    } else {
-        state.main
     }
 }
 

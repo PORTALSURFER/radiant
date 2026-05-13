@@ -3,8 +3,9 @@ use radiant::layout::{Point, Rect};
 use radiant::runtime::PaintPrimitive;
 use radiant::theme::ThemeTokens;
 
-use super::paint::{push_rect, push_resize_handles, push_stroke};
-use super::{ArrangementTimelineWidget, RESIZE_HANDLE_WIDTH};
+use super::paint::{push_rect, push_resize_handles, push_stroke, push_text};
+use super::{ArrangementTimelineWidget, RESIZE_HANDLE_WIDTH, TimelineDrag};
+use radiant::runtime::PaintTextAlign;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct TimelineCursorOverlay {
@@ -91,6 +92,35 @@ pub(super) fn append_runtime_timeline_overlay(
             push_resize_handles(primitives, widget.common.id, rect, theme.highlight_orange);
         }
     }
+    if let Some(TimelineDrag::Selecting { lane, .. }) = widget.drag
+        && let Some(range) = widget.selection.filter(|range| range.duration() > 0)
+    {
+        let rect = geometry.clip_rect_for_range(lane, range);
+        push_rect(
+            primitives,
+            widget.common.id,
+            rect,
+            preview_fill(theme.accent_mint),
+        );
+        push_stroke(primitives, widget.common.id, rect, theme.text_primary, 2.0);
+        push_rect(
+            primitives,
+            widget.common.id,
+            Rect::from_min_max(rect.min, Point::new(rect.min.x + 5.0, rect.max.y)),
+            theme.surface_overlay,
+        );
+        push_text(
+            primitives,
+            widget.common.id,
+            "New clip",
+            Rect::from_min_max(
+                Point::new(rect.min.x + 12.0, rect.min.y + 6.0),
+                Point::new(rect.max.x - 8.0, rect.max.y),
+            ),
+            theme.text_primary,
+            PaintTextAlign::Left,
+        );
+    }
     widget.cursor.append_paint(
         primitives,
         widget.common.id,
@@ -99,4 +129,9 @@ pub(super) fn append_runtime_timeline_overlay(
         widget.playhead_beat,
         theme,
     );
+}
+
+fn preview_fill(mut color: radiant::gui::types::Rgba8) -> radiant::gui::types::Rgba8 {
+    color.a = 210;
+    color
 }

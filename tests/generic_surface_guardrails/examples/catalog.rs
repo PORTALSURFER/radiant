@@ -88,6 +88,17 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             ],
         ),
         (
+            "popup_window",
+            vec![
+                ".floating_popup()",
+                ".popup_policy(",
+                "NativePopupOptions::default()",
+                "WindowSpec::popup(",
+                "drag-preview-popup",
+                "popup_view(",
+            ],
+        ),
+        (
             "typography",
             vec![
                 ".wrap()",

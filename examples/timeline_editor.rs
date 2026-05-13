@@ -347,6 +347,60 @@ mod tests {
     }
 
     #[test]
+    fn timeline_widget_paints_new_clip_preview_while_selecting() {
+        let mut widget = ArrangementTimelineWidget::new(&TimelineEditorState::default());
+        let theme = ThemeTokens::default();
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
+        let geometry = widget.geometry(bounds);
+
+        let _ = widget.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(geometry.x_for_beat(48), geometry.lane_rect(0).center().y),
+                button: PointerButton::Primary,
+            },
+        );
+        let _ = widget.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(geometry.x_for_beat(56), geometry.lane_rect(0).center().y),
+            },
+        );
+
+        let mut primitives = Vec::new();
+        widget.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+        widget.append_runtime_overlay_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &theme,
+        );
+
+        let preview_rect = geometry.clip_rect_for_range(0, BeatRange { start: 48, end: 56 });
+        let preview_fill = primitives.iter().any(|primitive| {
+            matches!(
+                primitive,
+                PaintPrimitive::FillRect(PaintFillRect { rect, color, .. })
+                    if *rect == preview_rect && *color == {
+                        let mut color = theme.accent_mint;
+                        color.a = 210;
+                        color
+                    }
+            )
+        });
+        let preview_stroke = primitives.iter().any(|primitive| {
+            matches!(
+                primitive,
+                PaintPrimitive::StrokeRect(PaintStrokeRect { rect, color, width, .. })
+                    if *rect == preview_rect && *color == theme.text_primary && *width == 2.0
+            )
+        });
+
+        assert!(preview_fill);
+        assert!(preview_stroke);
+    }
+
+    #[test]
     fn timeline_runtime_cursor_motion_uses_paint_only_redraw_after_hover_enter() {
         let bridge = radiant::app(TimelineEditorState::default())
             .view(project_surface)
@@ -516,6 +570,62 @@ mod tests {
         assert!(state.status.contains("resized to beats 8-30"));
     }
 
+    #[test]
+    fn creating_clip_cuts_existing_clips_on_same_lane() {
+        let mut state = TimelineEditorState::default();
+
+        update_surface(
+            &mut state,
+            TimelineSurfaceMessage::CreateClip {
+                lane: 0,
+                range: BeatRange { start: 4, end: 12 },
+            },
+        );
+
+        assert_clip(&state, 5, 0, BeatRange { start: 4, end: 12 });
+        assert_clip(&state, 1, 0, BeatRange { start: 0, end: 4 });
+        assert_clip(&state, 6, 0, BeatRange { start: 12, end: 16 });
+        assert_lane_has_no_overlaps(&state, 0);
+    }
+
+    #[test]
+    fn moving_clip_cuts_existing_clips_on_target_lane() {
+        let mut state = TimelineEditorState::default();
+
+        update_surface(
+            &mut state,
+            TimelineSurfaceMessage::MoveClip {
+                clip_id: 1,
+                lane: 1,
+                start: 16,
+            },
+        );
+
+        assert_clip(&state, 1, 1, BeatRange { start: 16, end: 32 });
+        assert_clip(&state, 2, 1, BeatRange { start: 12, end: 16 });
+        assert_lane_has_no_overlaps(&state, 1);
+    }
+
+    #[test]
+    fn resizing_clip_cuts_existing_clips_on_same_lane() {
+        let mut state = TimelineEditorState::default();
+        state
+            .clips
+            .push(TimelineClip::new(99, "Pad tail", 1, 30, 44));
+
+        update_surface(
+            &mut state,
+            TimelineSurfaceMessage::ResizeClip {
+                clip_id: 2,
+                range: BeatRange { start: 8, end: 36 },
+            },
+        );
+
+        assert_clip(&state, 2, 1, BeatRange { start: 8, end: 36 });
+        assert_clip(&state, 99, 1, BeatRange { start: 36, end: 44 });
+        assert_lane_has_no_overlaps(&state, 1);
+    }
+
     fn assert_surface_message(
         output: &WidgetOutput,
         matches: impl FnOnce(&TimelineSurfaceMessage) -> bool,
@@ -524,6 +634,34 @@ mod tests {
             .typed_ref::<TimelineSurfaceMessage>()
             .expect("timeline widget emits timeline messages");
         assert!(matches(message), "unexpected message: {message:?}");
+    }
+
+    fn assert_clip(state: &TimelineEditorState, id: u32, lane: usize, range: BeatRange) {
+        let clip = state
+            .clips
+            .iter()
+            .find(|clip| clip.id == id)
+            .unwrap_or_else(|| panic!("clip {id} should exist"));
+        assert_eq!(clip.lane, lane);
+        assert_eq!(clip.range, range);
+    }
+
+    fn assert_lane_has_no_overlaps(state: &TimelineEditorState, lane: usize) {
+        let clips = state
+            .clips
+            .iter()
+            .filter(|clip| clip.lane == lane)
+            .collect::<Vec<_>>();
+        for (index, clip) in clips.iter().enumerate() {
+            for other in clips.iter().skip(index + 1) {
+                assert!(
+                    clip.range.end <= other.range.start || other.range.end <= clip.range.start,
+                    "clips {} and {} overlap on lane {lane}",
+                    clip.id,
+                    other.id
+                );
+            }
+        }
     }
 
     fn status_text<Bridge>(runtime: &SurfaceRuntime<Bridge, TimelineMessage>) -> String

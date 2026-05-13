@@ -1,5 +1,6 @@
 use super::{
     ArrangementTimelineWidget, HEADER_WIDTH, LANE_COUNT, RESIZE_HANDLE_WIDTH, TOTAL_BEATS,
+    TimelineDrag,
 };
 use radiant::gui::types::Rgba8;
 use radiant::layout::{Point, Rect};
@@ -89,7 +90,11 @@ pub(super) fn append_timeline_paint(
         }
     }
 
-    if let Some(selection) = widget.selection.filter(|range| range.duration() > 0) {
+    if let Some(selection) = widget
+        .selection
+        .filter(|range| range.duration() > 0)
+        .filter(|_| !matches!(widget.drag, Some(TimelineDrag::Selecting { .. })))
+    {
         push_rect(
             primitives,
             widget.common.id,

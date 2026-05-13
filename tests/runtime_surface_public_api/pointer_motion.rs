@@ -94,6 +94,48 @@ fn surface_runtime_reports_paint_only_pointer_overlay_outcomes() {
 }
 
 #[test]
+fn surface_runtime_reports_captured_paint_only_pointer_overlay_outcomes() {
+    let bridge = pointer_motion_bridge_with_policy(true, true);
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(140.0, 60.0));
+
+    let _ = runtime.dispatch_event(Event::PointerPress {
+        position: Point::new(16.0, 16.0),
+        button: PointerButton::Primary,
+    });
+    let enter_drag = runtime.dispatch_pointer_move_with_outcome(Point::new(18.0, 18.0));
+    assert!(enter_drag.routed());
+    assert!(enter_drag.pointer_captured);
+    assert!(enter_drag.needs_scene_rebuild());
+
+    let preview_drag = runtime.dispatch_pointer_move_with_outcome(Point::new(20.0, 20.0));
+    assert!(preview_drag.routed());
+    assert!(preview_drag.pointer_captured);
+    assert!(preview_drag.paint_only_requested);
+    assert!(!preview_drag.repaint_requested);
+    assert!(!preview_drag.needs_scene_rebuild());
+    assert!(preview_drag.needs_redraw());
+}
+
+#[test]
+fn surface_runtime_keeps_captured_non_overlay_pointer_motion_on_scene_rebuild_path() {
+    let bridge = pointer_motion_bridge_with_policy(true, false);
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(140.0, 60.0));
+
+    let _ = runtime.dispatch_event(Event::PointerPress {
+        position: Point::new(16.0, 16.0),
+        button: PointerButton::Primary,
+    });
+    let _ = runtime.dispatch_pointer_move_with_outcome(Point::new(18.0, 18.0));
+    let preview_drag = runtime.dispatch_pointer_move_with_outcome(Point::new(20.0, 20.0));
+
+    assert!(preview_drag.routed());
+    assert!(preview_drag.pointer_captured);
+    assert!(!preview_drag.paint_only_requested);
+    assert!(preview_drag.repaint_requested);
+    assert!(preview_drag.needs_scene_rebuild());
+}
+
+#[test]
 fn surface_runtime_stable_pointer_motion_still_respects_higher_overlapping_widgets() {
     let mut runtime = SurfaceRuntime::new(OverlappingPointerBridge, Vector2::new(140.0, 60.0));
 

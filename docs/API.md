@@ -311,8 +311,10 @@ pointer moves after hover has already entered the widget. Those stable
 `PointerMove` events request repaint even when `handle_input` returns `None`,
 so a snapped cursor, clip hover, or resize-handle preview can refresh smoothly
 without emitting host messages or forcing the app reducer to run for every mouse
-move. Emit a `WidgetOutput` only when the host-owned model changes, such as
-seek, create, move, resize, or delete.
+move. Captured drag motion follows the same contract: if the active widget only
+changes local preview chrome, it can repaint locally without a host message.
+Emit a `WidgetOutput` only when the host-owned model changes, such as seek,
+create, move, resize, or delete.
 Custom widgets must still be pointer hit-test eligible before pointer hooks can
 run. Use `WidgetCommon::with_pointer_focus()` for hover, drag, tooltip, cursor,
 or paint-only overlay widgets that should skip keyboard traversal, or
@@ -321,12 +323,13 @@ keyboard input.
 High-frequency editor widgets can go further with
 `Widget::prefers_pointer_move_paint_only()` and
 `Widget::append_runtime_overlay_paint(...)`. Put pointer-following visuals such
-as timeline cursor lines, hover outlines, and resize handles in the runtime
-overlay hook, then keep the stable base widget paint free of those transient
-states. The native Vello runtime can then present those overlay rectangles over
-the cached scene on stable pointer motion instead of rebuilding the Vello scene
-for every mouse-move event. Widgets that paint pointer-motion state in
-`append_paint(...)` should not opt into the paint-only pointer path.
+as timeline cursor lines, hover outlines, captured drag previews, and resize
+handles in the runtime overlay hook, then keep the stable base widget paint free
+of those transient states. The native Vello runtime can then present those
+overlay rectangles over the cached scene on stable pointer motion and captured
+paint-only drag motion instead of rebuilding the Vello scene for every
+mouse-move event. Widgets that paint pointer-motion state in `append_paint(...)`
+should not opt into the paint-only pointer path.
 
 ## Message And Command
 
@@ -728,6 +731,10 @@ demo atlas data.
 Run `cargo run --example multi_window_manifest` for a checked manifest sandbox
 that uses `WindowManifest` to describe multiple windows and separate views
 without expanding the native runtime event loop.
+Run `cargo run --example popup_window` for a focused floating-popup sandbox
+that launches a borderless, transparent, always-on-top Radiant window suitable
+for drag previews, tooltips, context menus, and other transient UI surfaces that
+need to render outside a main application window.
 Run `cargo run --example layout_diagnostics` for a layout diagnostics sandbox
 that collects `LayoutDiagnostic` entries and debug primitives from
 `LayoutDebugOptions::all_enabled()`.

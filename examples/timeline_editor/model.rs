@@ -168,7 +168,8 @@ pub(super) fn update_surface(state: &mut TimelineEditorState, message: TimelineS
             lane,
             start,
         } => {
-            if let Some(clip) = state.clips.iter_mut().find(|clip| clip.id == clip_id) {
+            let updated = if let Some(clip) = state.clips.iter_mut().find(|clip| clip.id == clip_id)
+            {
                 let duration = clip.range.duration();
                 let start = start.min(TOTAL_BEATS.saturating_sub(duration));
                 clip.lane = lane.min(LANE_COUNT - 1);
@@ -180,10 +181,17 @@ pub(super) fn update_surface(state: &mut TimelineEditorState, message: TimelineS
                 state.selection = Some(clip.range);
                 state.status = format!("{} moved to track {}", clip.name, clip.lane + 1);
                 state.revision += 1;
+                Some((clip.id, clip.lane, clip.range))
+            } else {
+                None
+            };
+            if let Some((clip_id, lane, range)) = updated {
+                cut_overlapping_clips(state, Some(clip_id), lane, range);
             }
         }
         TimelineSurfaceMessage::ResizeClip { clip_id, range } => {
-            if let Some(clip) = state.clips.iter_mut().find(|clip| clip.id == clip_id) {
+            let updated = if let Some(clip) = state.clips.iter_mut().find(|clip| clip.id == clip_id)
+            {
                 clip.range = range;
                 state.selected_clip = Some(clip_id);
                 state.selection = Some(range);
@@ -192,6 +200,12 @@ pub(super) fn update_surface(state: &mut TimelineEditorState, message: TimelineS
                     clip.name, clip.range.start, clip.range.end
                 );
                 state.revision += 1;
+                Some((clip.id, clip.lane, clip.range))
+            } else {
+                None
+            };
+            if let Some((clip_id, lane, range)) = updated {
+                cut_overlapping_clips(state, Some(clip_id), lane, range);
             }
         }
         TimelineSurfaceMessage::SelectRange { range } => {
@@ -219,12 +233,84 @@ pub(super) fn create_clip(state: &mut TimelineEditorState, lane: usize, range: B
         lane: lane.min(LANE_COUNT - 1),
         range,
     });
+    cut_overlapping_clips(state, Some(id), lane.min(LANE_COUNT - 1), range);
     state.selected_clip = Some(id);
     state.selection = Some(range);
     state.playhead_beat = range.start;
     state.status = format!("created clip {} on track {}", id, lane + 1);
     state.feedback_nonce += 1;
     state.revision += 1;
+}
+
+fn cut_overlapping_clips(
+    state: &mut TimelineEditorState,
+    protected_clip: Option<u32>,
+    lane: usize,
+    priority: BeatRange,
+) {
+    if priority.duration() == 0 {
+        return;
+    }
+
+    let mut next_split_id = state.next_clip_id;
+    let mut cut = Vec::with_capacity(state.clips.len() + 1);
+    for clip in state.clips.drain(..) {
+        if Some(clip.id) == protected_clip || clip.lane != lane {
+            cut.push(clip);
+            continue;
+        }
+        append_cut_clip_segments(&mut cut, &mut next_split_id, clip, priority);
+    }
+    state.next_clip_id = next_split_id;
+    cut.sort_by_key(|clip| (clip.lane, clip.range.start, clip.range.end, clip.id));
+    state.clips = cut;
+}
+
+fn append_cut_clip_segments(
+    clips: &mut Vec<TimelineClip>,
+    next_split_id: &mut u32,
+    clip: TimelineClip,
+    priority: BeatRange,
+) {
+    if !ranges_overlap(clip.range, priority) {
+        clips.push(clip);
+        return;
+    }
+
+    let left = BeatRange {
+        start: clip.range.start,
+        end: priority.start.min(clip.range.end),
+    };
+    let right = BeatRange {
+        start: priority.end.max(clip.range.start),
+        end: clip.range.end,
+    };
+    let keep_left = left.duration() >= MIN_CLIP_BEATS;
+    let keep_right = right.duration() >= MIN_CLIP_BEATS;
+    if keep_left {
+        clips.push(TimelineClip {
+            range: left,
+            ..clip.clone()
+        });
+    }
+    if keep_right {
+        let id = if keep_left {
+            let id = *next_split_id;
+            *next_split_id += 1;
+            id
+        } else {
+            clip.id
+        };
+        clips.push(TimelineClip {
+            id,
+            range: right,
+            ..clip
+        });
+    }
+}
+
+fn ranges_overlap(a: BeatRange, b: BeatRange) -> bool {
+    a.start < b.end && b.start < a.end
 }
 
 pub(super) fn duplicate_selected_clip(state: &mut TimelineEditorState) {

@@ -36,6 +36,10 @@ name = "multi_window_manifest"
 path = "examples/multi_window_manifest.rs"
 
 [[example]]
+name = "popup_window"
+path = "examples/popup_window.rs"
+
+[[example]]
 name = "counter"
 path = "examples/counter.rs"
 

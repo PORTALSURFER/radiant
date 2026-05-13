@@ -162,11 +162,15 @@ impl TimelineGeometry {
     }
 
     pub(super) fn clip_rect(self, clip: &TimelineClip) -> Rect {
-        let lane = self.lane_rect(clip.lane);
-        let y = lane.min.y + (lane.height() - CLIP_HEIGHT) * 0.5;
+        self.clip_rect_for_range(clip.lane, clip.range)
+    }
+
+    pub(super) fn clip_rect_for_range(self, lane: usize, range: super::model::BeatRange) -> Rect {
+        let lane_rect = self.lane_rect(lane);
+        let y = lane_rect.min.y + (lane_rect.height() - CLIP_HEIGHT) * 0.5;
         Rect::from_min_max(
-            Point::new(self.x_for_beat(clip.range.start) + 2.0, y),
-            Point::new(self.x_for_beat(clip.range.end) - 2.0, y + CLIP_HEIGHT),
+            Point::new(self.x_for_beat(range.start) + 2.0, y),
+            Point::new(self.x_for_beat(range.end) - 2.0, y + CLIP_HEIGHT),
         )
     }
 

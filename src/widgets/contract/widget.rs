@@ -85,9 +85,12 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
     ///
     /// Keep this enabled when a widget updates local paint state from pointer
     /// motion, such as a snapped timeline cursor, canvas hover highlight, or
-    /// resize handle preview. Stable pointer moves routed through this hook
-    /// request repaint even when `handle_input` returns `None`, so widgets do
-    /// not need to emit host messages merely to refresh transient hover chrome.
+    /// resize handle preview. Stable pointer moves routed through this hook,
+    /// and captured drag moves routed to the active widget, request repaint
+    /// even when `handle_input` returns `None`, so widgets do not need to emit
+    /// host messages merely to refresh transient hover or drag chrome.
+    /// In short: request repaint even when `handle_input` returns `None` for
+    /// widget-local pointer preview state.
     /// Widget-local pointer state does not need to emit host messages.
     fn accepts_pointer_move(&self) -> bool {
         true
@@ -97,10 +100,10 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
     /// [`Self::append_runtime_overlay_paint`] without rebuilding the base scene.
     ///
     /// Use this for editor affordances whose pointer-following visuals are
-    /// fully transient, such as timeline cursors, hover handles, drag previews,
-    /// or small selection markers. Widgets that paint pointer-motion state in
-    /// [`Self::append_paint`] should keep the default `false` so the runtime
-    /// rebuilds the scene when local pointer state changes.
+    /// fully transient, such as timeline cursors, hover handles, captured drag
+    /// previews, or small selection markers. Widgets that paint pointer-motion
+    /// state in [`Self::append_paint`] should keep the default `false` so the
+    /// runtime rebuilds the scene when local pointer state changes.
     fn prefers_pointer_move_paint_only(&self) -> bool {
         false
     }

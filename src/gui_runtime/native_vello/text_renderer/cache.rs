@@ -71,15 +71,12 @@ impl TextLayoutCache {
         self.evict_stale_layouts();
 
         let layout = compute_layout(font, text, font_size)?;
-        self.touch_layout_cache_key(&key);
-        self.layout_cache.insert(
-            key.clone(),
-            CachedTextLayout {
-                layout,
-                stamp: self.layout_cache_clock,
-            },
-        );
-        self.layout_cache.get(&key).map(|entry| &entry.layout)
+        let stamp = self.record_layout_cache_access(key.clone());
+        let entry = self
+            .layout_cache
+            .entry(key)
+            .or_insert(CachedTextLayout { layout, stamp });
+        Some(&entry.layout)
     }
 
     pub(super) fn take_profile_counters(&mut self) -> TextLayoutProfileCounters {
@@ -103,8 +100,7 @@ impl TextLayoutCache {
     }
 
     fn record_layout_cache_hit<'a>(&'a mut self, key: &TextLayoutKey) -> Option<&'a TextLayout> {
-        self.layout_cache_clock = self.layout_cache_clock.saturating_add(1);
-        let stamp = self.layout_cache_clock;
+        let stamp = self.next_layout_cache_stamp();
         self.compact_layout_cache_order_if_needed();
         self.layout_cache_order.push_back((key.clone(), stamp));
         let cached_layout = self.layout_cache.get_mut(key)?;
@@ -115,13 +111,22 @@ impl TextLayoutCache {
 
     /// Record layout-cache recency without reallocating the cached layout.
     pub(super) fn touch_layout_cache_key(&mut self, key: &TextLayoutKey) {
-        self.layout_cache_clock = self.layout_cache_clock.saturating_add(1);
-        let stamp = self.layout_cache_clock;
+        let stamp = self.record_layout_cache_access(key.clone());
         if let Some(entry) = self.layout_cache.get_mut(key) {
             entry.stamp = stamp;
         }
-        self.layout_cache_order.push_back((key.clone(), stamp));
+    }
+
+    fn record_layout_cache_access(&mut self, key: TextLayoutKey) -> u64 {
+        let stamp = self.next_layout_cache_stamp();
+        self.layout_cache_order.push_back((key, stamp));
         self.compact_layout_cache_order_if_needed();
+        stamp
+    }
+
+    fn next_layout_cache_stamp(&mut self) -> u64 {
+        self.layout_cache_clock = self.layout_cache_clock.saturating_add(1);
+        self.layout_cache_clock
     }
 
     /// Compact queued layout-order metadata after repeated cache hits append stale stamps.

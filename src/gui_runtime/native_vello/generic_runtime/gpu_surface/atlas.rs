@@ -45,6 +45,7 @@ impl GpuSurfaceRenderer {
             dest: surface_dest(surface),
             source,
             target_size: [target.size.x.max(1.0), target.size.y.max(1.0)],
+            _padding: [0.0; 2],
             overlay_ratios,
             overlay_widths,
             overlay_colors,

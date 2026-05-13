@@ -101,6 +101,7 @@ pub(super) struct GpuSurfaceUniforms {
     pub(super) dest: [f32; 4],
     pub(super) source: [f32; 4],
     pub(super) target_size: [f32; 2],
+    pub(super) _padding: [f32; 2],
     pub(super) overlay_ratios: [f32; MAX_GPU_SURFACE_OVERLAYS],
     pub(super) overlay_widths: [f32; MAX_GPU_SURFACE_OVERLAYS],
     pub(super) overlay_colors: [[f32; 4]; MAX_GPU_SURFACE_OVERLAYS],

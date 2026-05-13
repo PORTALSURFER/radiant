@@ -1,16 +1,26 @@
 //! Runtime state and event routing for the generic native Vello runner.
 
 use super::GenericRouteOutcome;
-use crate::gui::types::Vector2;
+use crate::gui::types::{Point, Vector2};
 use crate::runtime::{RuntimeAnimationActivity, RuntimeBridge, SurfaceRuntime};
 use crate::theme::ThemeTokens;
+use crate::widgets::PointerButton;
+use std::time::Instant;
 
 pub(in crate::gui_runtime::native_vello) struct GenericNativeRuntimeCore<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
     pub(in crate::gui_runtime::native_vello) runtime: SurfaceRuntime<Bridge, Message>,
+    pub(in crate::gui_runtime::native_vello) last_pointer_press: Option<PointerPressStamp>,
     theme: ThemeTokens,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(in crate::gui_runtime::native_vello) struct PointerPressStamp {
+    pub(in crate::gui_runtime::native_vello) at: Instant,
+    pub(in crate::gui_runtime::native_vello) position: Point,
+    pub(in crate::gui_runtime::native_vello) button: PointerButton,
 }
 
 impl<Bridge, Message> GenericNativeRuntimeCore<Bridge, Message>
@@ -33,6 +43,7 @@ where
         }
         Self {
             runtime,
+            last_pointer_press: None,
             theme: ThemeTokens::default(),
         }
     }

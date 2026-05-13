@@ -119,6 +119,66 @@ fn generic_canvas_can_receive_keyboard_focus_and_text_input() {
 }
 
 #[test]
+fn generic_core_routes_second_nearby_press_as_double_click() {
+    let bridge = CanvasBridge::default();
+    let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));
+    let canvas_point = core
+        .runtime
+        .layout()
+        .rects
+        .get(&21)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("canvas should be laid out");
+
+    assert!(
+        core.route_pointer_press(canvas_point, PointerButton::Primary)
+            .routed
+    );
+    assert!(
+        core.route_pointer_release(canvas_point, PointerButton::Primary)
+            .routed
+    );
+    assert!(
+        core.route_pointer_press(canvas_point, PointerButton::Primary)
+            .routed
+    );
+
+    assert_eq!(core.runtime.bridge().text, "double");
+}
+
+#[test]
+fn second_press_falls_back_to_normal_press_when_widget_ignores_double_click() {
+    let bridge = demo_bridge();
+    let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));
+    let button_point = core
+        .runtime
+        .layout()
+        .rects
+        .get(&11)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("button should be laid out");
+
+    assert!(
+        core.route_pointer_press(button_point, PointerButton::Primary)
+            .routed
+    );
+    assert!(
+        core.route_pointer_release(button_point, PointerButton::Primary)
+            .routed
+    );
+    assert!(
+        core.route_pointer_press(button_point, PointerButton::Primary)
+            .routed
+    );
+    assert!(
+        core.route_pointer_release(button_point, PointerButton::Primary)
+            .routed
+    );
+
+    assert_eq!(core.runtime.bridge().state.count, 2);
+}
+
+#[test]
 fn generic_canvas_receives_wheel_before_scroll_fallback() {
     let bridge = CanvasBridge::default();
     let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));

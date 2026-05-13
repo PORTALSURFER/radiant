@@ -115,13 +115,22 @@ where
     /// Returns `true` when the interaction targeted a projected widget, even if
     /// that interaction did not emit a host-defined message.
     pub fn dispatch_input(&mut self, widget_id: WidgetId, input: WidgetInput) -> bool {
+        self.dispatch_input_output(widget_id, input).is_some()
+    }
+
+    pub(super) fn dispatch_input_output(
+        &mut self,
+        widget_id: WidgetId,
+        input: WidgetInput,
+    ) -> Option<bool> {
         let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
-            return false;
+            return None;
         };
         let Some(result) = self.dispatch_surface_input(widget_id, bounds, input) else {
-            return false;
+            return None;
         };
         self.capture_pointer_capture_state(widget_id);
+        let emitted_output = !matches!(result, WidgetDispatchResult::NoOutput);
         match result {
             WidgetDispatchResult::Message(message) => {
                 self.dispatch_message(message);
@@ -129,6 +138,6 @@ where
             WidgetDispatchResult::UnmappedOutput => self.relayout(),
             WidgetDispatchResult::NoOutput => {}
         }
-        true
+        Some(emitted_output)
     }
 }

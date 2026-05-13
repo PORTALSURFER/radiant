@@ -8,8 +8,22 @@ impl<Message> Command<Message> {
     /// through `SurfaceRuntime` when those effects must be preserved.
     pub fn into_messages(self) -> Vec<Message> {
         let mut messages = Vec::with_capacity(self.message_collection_hint());
-        self.collect_messages(&mut messages);
+        self.collect_messages_into(&mut messages);
         messages
+    }
+
+    /// Flatten immediate host-defined messages into caller-owned storage.
+    ///
+    /// This is the allocation-reusing counterpart to [`Command::into_messages`]
+    /// for dispatch loops or tests that repeatedly inspect command batches.
+    /// Existing contents are cleared before immediate messages are appended.
+    pub fn into_messages_into(self, messages: &mut Vec<Message>) {
+        messages.clear();
+        let hint = self.message_collection_hint();
+        if hint > messages.capacity() {
+            messages.reserve(hint);
+        }
+        self.collect_messages_into(messages);
     }
 
     fn message_collection_hint(&self) -> usize {
@@ -26,12 +40,12 @@ impl<Message> Command<Message> {
         }
     }
 
-    fn collect_messages(self, messages: &mut Vec<Message>) {
+    fn collect_messages_into(self, messages: &mut Vec<Message>) {
         match self {
             Self::Message(message) => messages.push(message),
             Self::Batch(commands) => {
                 for command in commands {
-                    command.collect_messages(messages);
+                    command.collect_messages_into(messages);
                 }
             }
             Self::None

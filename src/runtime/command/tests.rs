@@ -74,6 +74,27 @@ fn message_flattening_reserves_only_recursive_immediate_messages() {
 }
 
 #[test]
+fn message_flattening_into_reuses_output_storage() {
+    let command = Command::batch([
+        Command::message("first"),
+        Command::batch([Command::message("second")]),
+    ]);
+    let mut messages = Vec::with_capacity(8);
+    messages.push("stale");
+    let capacity = messages.capacity();
+
+    command.into_messages_into(&mut messages);
+
+    assert_eq!(messages, ["first", "second"]);
+    assert_eq!(messages.capacity(), capacity);
+
+    Command::<&str>::none().into_messages_into(&mut messages);
+
+    assert!(messages.is_empty());
+    assert_eq!(messages.capacity(), capacity);
+}
+
+#[test]
 fn batch_collapses_single_command_groups() {
     let command = Command::batch([Command::none(), Command::batch([Command::message("only")])]);
 

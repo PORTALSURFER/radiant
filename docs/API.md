@@ -297,7 +297,9 @@ return `CommandOutcome` with dispatched-message and repaint-request summaries.
 `Command<Message>` is the generic runtime-visible follow-up value for host
 reducers that need to queue messages, batch runtime-visible work, request
 repaint, schedule delayed messages, run background work, move focus, or request
-runtime exit.
+runtime exit. Hosts that inspect only the immediate messages in a command can
+use `Command::into_messages_into(...)` to reuse caller-owned storage, while
+`Command::into_messages()` remains the allocating convenience wrapper.
 `ResourceSlot<T>`, `ResourceRequest`, `ResourceLoad<T>`, and
 `ResourceLoadState` provide a small runtime-level state contract for host-owned
 background resource work. Radiant does not own the filesystem or asset decoder,

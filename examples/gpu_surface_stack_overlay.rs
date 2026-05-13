@@ -274,14 +274,7 @@ fn paint_transient_blob(
     animation_time: Duration,
     primitives: &mut Vec<PaintPrimitive>,
 ) {
-    let Some(bounds) = plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::GpuSurface(surface) if surface.widget_id == 10 => Some(surface.rect),
-            _ => None,
-        })
-    else {
+    let Some(bounds) = plan.first_widget_rect(10) else {
         return;
     };
     paint_bouncing_ball(

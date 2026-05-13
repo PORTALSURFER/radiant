@@ -172,6 +172,10 @@ the native Vello runtime also caches the composed Vello scene plus retained GPU
 surfaces as a base frame, so later overlay-only frames can present that stable
 composition and draw the moving overlay without re-encoding retained GPU
 surfaces until the scene, paint plan, or runtime GPU-surface overlays change.
+Overlay painters that attach to existing content should use `context.plan` as
+the authoritative cached geometry source. For common widget anchors, use
+`SurfacePaintPlan::first_widget_rect(widget_id)` instead of matching primitive
+variants in every animation frame.
 Retained canvas views reserve stable cached surfaces with
 `retained_canvas(key).revision(...).dirty_mask(...).volatile(...).on_input(...)`, while the
 app painter owns the corresponding backend-neutral `PaintFrame`.
@@ -714,7 +718,8 @@ Run `cargo run --example gpu_surface_stack_overlay` for a retained GPU surface
 with normal widget overlays plus a transient animated blob that repaints every
 frame through `.animated_transient_overlay(...)` without refreshing the
 declarative surface, rebuilding the cached Vello scene, or recompositing the
-stable retained GPU surface on every overlay-only frame.
+stable retained GPU surface on every overlay-only frame. The overlay anchors to
+the cached GPU-surface rectangle through `SurfacePaintPlan::first_widget_rect`.
 Run `cargo run --example background_loading` for a background-work sandbox that
 uses `ResourceSlot`, `ResourceLoad`, and `UpdateContext::spawn(...)` to route
 worker resource results back into the normal state update path.

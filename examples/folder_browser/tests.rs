@@ -229,7 +229,7 @@ fn opening_context_menu_records_target_folder() {
 }
 
 #[test]
-fn context_menu_position_anchors_to_cursor_and_flips_near_bottom() {
+fn context_menu_position_anchors_to_cursor_and_clamps_near_edges() {
     let cursor = radiant::layout::Point::new(300.0, 200.0);
 
     assert_eq!(
@@ -242,7 +242,7 @@ fn context_menu_position_anchors_to_cursor_and_flips_near_bottom() {
             FOLDER_MENU_WIDTH,
             FOLDER_MENU_HEIGHT
         ),
-        (300.0, 394.0)
+        (300.0, 414.0)
     );
     assert_eq!(
         anchored_context_menu_position(

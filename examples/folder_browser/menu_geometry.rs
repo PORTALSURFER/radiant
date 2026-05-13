@@ -1,6 +1,9 @@
 //! Context-menu geometry for the folder browser example.
 
-use radiant::layout::Point;
+use radiant::{
+    gui::{panel::anchored_panel_rect, types::Rect},
+    layout::{Point, Vector2},
+};
 
 const WINDOW_WIDTH: f32 = 900.0;
 const WINDOW_HEIGHT: f32 = 540.0;
@@ -17,13 +20,15 @@ pub(super) fn anchored_context_menu_position(
     menu_width: f32,
     menu_height: f32,
 ) -> (f32, f32) {
-    let position = position.unwrap_or_else(|| Point::new(0.0, 0.0));
-    let max_left = (WINDOW_WIDTH - menu_width).max(0.0);
-    let left = position.x.clamp(0.0, max_left);
-    let top = if position.y + menu_height <= WINDOW_HEIGHT {
-        position.y.max(0.0)
-    } else {
-        (position.y - menu_height).max(0.0)
-    };
-    (left, top)
+    let bounds = Rect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(WINDOW_WIDTH, WINDOW_HEIGHT),
+    );
+    let rect = anchored_panel_rect(
+        bounds,
+        position.unwrap_or_else(|| Point::new(0.0, 0.0)),
+        Vector2::new(menu_width, menu_height),
+        0.0,
+    );
+    (rect.min.x, rect.min.y)
 }

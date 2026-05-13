@@ -110,17 +110,24 @@ where
             .transient_overlay_activity
             .as_mut()
             .is_some_and(|activity| activity(&mut self.state));
+        let frame_message_active = app_animation && self.frame_message.is_some();
+        self.pending_animation_frame_activity = Some(frame_message_active);
         RuntimeAnimationActivity::new(
             app_animation || transient_overlay_animation,
-            app_animation && self.frame_message.is_some(),
+            frame_message_active,
         )
     }
 
     fn queue_animation_frame(&mut self) -> bool {
         let active = self
-            .animation
-            .as_mut()
-            .is_some_and(|animation| animation(&mut self.state));
+            .pending_animation_frame_activity
+            .take()
+            .unwrap_or_else(|| {
+                self.animation
+                    .as_mut()
+                    .is_some_and(|animation| animation(&mut self.state))
+                    && self.frame_message.is_some()
+            });
         if active && let Some(frame_message) = self.frame_message.as_mut() {
             return self.runtime.enqueue_frame(frame_message());
         }

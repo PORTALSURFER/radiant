@@ -167,12 +167,10 @@ where
     /// overlays such as playheads, drag previews, tooltips, or cursor markers.
     pub fn transient_overlay(
         mut self,
-        paint: impl FnMut(
+        paint: impl for<'a> FnMut(
             &mut State,
-            &crate::runtime::SurfacePaintPlan,
+            crate::runtime::TransientOverlayContext<'a>,
             &mut Vec<crate::runtime::PaintPrimitive>,
-            Vector2,
-            std::time::Duration,
         ) + 'static,
     ) -> Self {
         self.lifecycle.transient_overlay = Some(Box::new(paint));

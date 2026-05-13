@@ -93,10 +93,8 @@ where
     ) {
         let viewport = self.runtime.viewport();
         self.runtime.bridge_mut().paint_transient_overlay(
-            plan,
+            crate::runtime::TransientOverlayContext::new(plan, viewport, animation_time),
             primitives,
-            viewport,
-            animation_time,
         );
     }
 

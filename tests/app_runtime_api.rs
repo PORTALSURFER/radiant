@@ -236,9 +236,10 @@ fn app_transient_overlay_painter_reads_state_and_cached_plan() {
         .view(|state: &mut DemoState| {
             radiant::prelude::text(format!("Count {}", state.count)).id(10)
         })
-        .transient_overlay(|state, plan, primitives, viewport, _animation_time| {
-            assert_eq!(viewport, Vector2::new(180.0, 40.0));
-            let Some(text) = plan
+        .transient_overlay(|state, context, primitives| {
+            assert_eq!(context.viewport, Vector2::new(180.0, 40.0));
+            let Some(text) = context
+                .plan
                 .primitives
                 .iter()
                 .find_map(|primitive| match primitive {
@@ -272,10 +273,12 @@ fn app_transient_overlay_painter_reads_state_and_cached_plan() {
     let mut overlay = Vec::new();
 
     runtime.bridge_mut().paint_transient_overlay(
-        &plan,
+        radiant::runtime::TransientOverlayContext::new(
+            &plan,
+            Vector2::new(180.0, 40.0),
+            std::time::Duration::ZERO,
+        ),
         &mut overlay,
-        Vector2::new(180.0, 40.0),
-        std::time::Duration::ZERO,
     );
 
     let [PaintPrimitive::FillRect(fill)] = overlay.as_slice() else {

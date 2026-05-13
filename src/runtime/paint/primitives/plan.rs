@@ -4,7 +4,11 @@ use super::{
     PaintFillRect, PaintGpuSurface, PaintImage, PaintOverlayPanel, PaintStrokePolygon,
     PaintStrokePolyline, PaintStrokeRect, PaintTextInput, PaintTextRun,
 };
-use crate::{gui::types::Rgba8, theme::ThemeTokens};
+use crate::{
+    gui::types::{Rgba8, Vector2},
+    theme::ThemeTokens,
+};
+use std::time::Duration;
 
 /// One backend-neutral primitive emitted by a generic surface projection.
 #[derive(Clone, Debug, PartialEq)]
@@ -48,6 +52,37 @@ pub struct SurfacePaintPlan {
     pub clear_color: Rgba8,
     /// Primitives in declarative surface tree order.
     pub primitives: Vec<PaintPrimitive>,
+}
+
+/// Frame-local context for lightweight transient overlay painters.
+///
+/// Transient overlays are painted over the latest cached surface instead of
+/// refreshing the declarative surface tree. The context lets hosts anchor
+/// overlays to the current paint plan, viewport, and frame time without
+/// requiring another surface projection.
+#[derive(Clone, Copy, Debug)]
+pub struct TransientOverlayContext<'a> {
+    /// Latest cached surface paint plan.
+    pub plan: &'a SurfacePaintPlan,
+    /// Current logical viewport.
+    pub viewport: Vector2,
+    /// Elapsed animation time supplied by the native runtime.
+    pub animation_time: Duration,
+}
+
+impl<'a> TransientOverlayContext<'a> {
+    /// Build transient overlay context for one presentation frame.
+    pub const fn new(
+        plan: &'a SurfacePaintPlan,
+        viewport: Vector2,
+        animation_time: Duration,
+    ) -> Self {
+        Self {
+            plan,
+            viewport,
+            animation_time,
+        }
+    }
 }
 
 /// Primitive counts for one backend-neutral [`SurfacePaintPlan`].

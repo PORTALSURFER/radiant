@@ -89,7 +89,10 @@ impl<Message> Command<Message> {
         }
         match commands.len() {
             0 => Self::None,
-            1 => commands.pop().expect("single command exists"),
+            1 => match commands.pop() {
+                Some(command) => command,
+                None => Self::None,
+            },
             _ => Self::Batch(commands),
         }
     }

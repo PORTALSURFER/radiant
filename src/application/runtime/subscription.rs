@@ -48,7 +48,10 @@ impl<Message> Subscription<Message> {
         }
         match subscriptions.len() {
             0 => Self::None,
-            1 => subscriptions.pop().expect("single subscription exists"),
+            1 => match subscriptions.pop() {
+                Some(subscription) => subscription,
+                None => Self::None,
+            },
             _ => Self::Batch(subscriptions),
         }
     }

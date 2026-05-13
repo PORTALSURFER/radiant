@@ -239,7 +239,10 @@ where
                 };
                 let now = Instant::now();
                 if due <= now {
-                    break queue.entries.pop().expect("peeked timer entry exists");
+                    let Some(entry) = queue.entries.pop() else {
+                        continue;
+                    };
+                    break entry;
                 }
                 queue = wait_until_timer_due(&state, queue, due.saturating_duration_since(now));
             }

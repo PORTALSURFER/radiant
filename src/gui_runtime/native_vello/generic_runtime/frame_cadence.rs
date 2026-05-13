@@ -1,0 +1,76 @@
+//! Timed-frame scheduling policy for native animation and paint-only overlays.
+
+use std::time::{Duration, Instant};
+
+pub(super) fn animation_frame_interval(target_fps: u32) -> Duration {
+    let fps = target_fps.clamp(1, 240);
+    Duration::from_secs_f64(1.0 / f64::from(fps))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum TimedFrameCadence {
+    Idle,
+    WaitUntil(Instant),
+    DrainNow { next_wake: Instant },
+}
+
+pub(super) fn timed_frame_cadence(
+    now: Instant,
+    last_redraw: Instant,
+    target_fps: u32,
+    active: bool,
+) -> TimedFrameCadence {
+    if !active {
+        return TimedFrameCadence::Idle;
+    }
+    let interval = animation_frame_interval(target_fps);
+    let next_frame = last_redraw.checked_add(interval).unwrap_or(now);
+    if now >= next_frame {
+        TimedFrameCadence::DrainNow {
+            next_wake: now + interval,
+        }
+    } else {
+        TimedFrameCadence::WaitUntil(next_frame)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn timed_frame_cadence_stays_idle_without_active_animation() {
+        let now = Instant::now();
+
+        assert_eq!(
+            timed_frame_cadence(now, now - Duration::from_secs(1), 60, false),
+            TimedFrameCadence::Idle
+        );
+    }
+
+    #[test]
+    fn timed_frame_cadence_waits_for_next_frame_deadline() {
+        let last_redraw = Instant::now();
+        let now = last_redraw + Duration::from_millis(5);
+        let expected_next_frame = last_redraw + animation_frame_interval(60);
+
+        assert_eq!(
+            timed_frame_cadence(now, last_redraw, 60, true),
+            TimedFrameCadence::WaitUntil(expected_next_frame)
+        );
+    }
+
+    #[test]
+    fn timed_frame_cadence_drains_and_schedules_next_wake_when_due() {
+        let last_redraw = Instant::now();
+        let interval = animation_frame_interval(120);
+        let now = last_redraw + interval;
+
+        assert_eq!(
+            timed_frame_cadence(now, last_redraw, 120, true),
+            TimedFrameCadence::DrainNow {
+                next_wake: now + interval
+            }
+        );
+    }
+}

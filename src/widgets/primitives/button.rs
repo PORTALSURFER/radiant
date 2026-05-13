@@ -10,9 +10,9 @@ use crate::runtime::{PaintPrimitive, PaintText, SurfaceNode, WidgetMessageMapper
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
+use crate::widgets::TextAlign;
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{ButtonMessage, WidgetInput, WidgetOutput};
-use crate::widgets::TextAlign;
 
 pub use model::{ButtonProps, ButtonState};
 
@@ -283,9 +283,11 @@ mod tests {
             _ => None,
         });
 
-        assert!(fill_points
-            .zip(stroke_points)
-            .is_some_and(|(fill, stroke)| Arc::ptr_eq(fill, stroke)));
+        assert!(
+            fill_points
+                .zip(stroke_points)
+                .is_some_and(|(fill, stroke)| Arc::ptr_eq(fill, stroke))
+        );
     }
 
     #[test]

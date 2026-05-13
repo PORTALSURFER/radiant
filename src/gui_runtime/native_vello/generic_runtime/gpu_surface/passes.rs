@@ -59,13 +59,11 @@ pub(super) fn set_surface_scissor(pass: &mut wgpu::RenderPass<'_>, rect: UiRect)
     pass.set_scissor_rect(x, y, width, height);
 }
 
-pub(super) fn vertical_overlays(
-    overlays: &[GpuSurfaceOverlay],
-) -> (
-    [[f32; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS],
-    [[f32; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS],
-    [[f32; 4]; MAX_GPU_SURFACE_OVERLAYS],
-) {
+pub(super) type OverlayVec4Slots = [[f32; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS];
+pub(super) type OverlayColorSlots = [[f32; 4]; MAX_GPU_SURFACE_OVERLAYS];
+pub(super) type VerticalOverlayUniforms = (OverlayVec4Slots, OverlayVec4Slots, OverlayColorSlots);
+
+pub(super) fn vertical_overlays(overlays: &[GpuSurfaceOverlay]) -> VerticalOverlayUniforms {
     let mut ratios = [[-1.0; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS];
     let mut widths = [[1.0; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS];
     let mut colors = [[1.0, 1.0, 1.0, 0.0]; MAX_GPU_SURFACE_OVERLAYS];

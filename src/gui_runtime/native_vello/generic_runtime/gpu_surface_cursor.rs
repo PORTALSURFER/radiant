@@ -50,11 +50,13 @@ pub(super) fn update_surface_cursor_overlay(
         return false;
     }
     clear_surface_cursor_overlay(surface);
-    surface.overlays.push(GpuSurfaceOverlay::RuntimeVerticalLine {
-        ratio,
-        color: cursor.color,
-        width: cursor.width,
-    });
+    surface
+        .overlays
+        .push(GpuSurfaceOverlay::RuntimeVerticalLine {
+            ratio,
+            color: cursor.color,
+            width: cursor.width,
+        });
     true
 }
 

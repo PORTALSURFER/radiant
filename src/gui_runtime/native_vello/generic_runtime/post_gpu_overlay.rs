@@ -4,13 +4,13 @@ mod buffer;
 mod geometry;
 mod pipeline;
 mod target;
+mod vertex;
 
 use buffer::OverlayVertexBuffer;
-use geometry::{
-    OverlayVertex, append_replayable_vertices, overlay_vertex_bytes, replayable_vertices_into,
-};
+use geometry::{append_replayable_vertices, replayable_vertices_into};
 use pipeline::PostGpuOverlayPipeline;
 pub(in crate::gui_runtime::native_vello::generic_runtime) use target::PostGpuOverlayRenderTarget;
+use vertex::{OverlayVertex, overlay_vertex_bytes};
 
 #[derive(Default)]
 pub(super) struct PostGpuOverlayRenderer {

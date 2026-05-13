@@ -1,4 +1,4 @@
-use super::{geometry::OverlayVertex, target::PostGpuOverlayRenderTarget};
+use super::{target::PostGpuOverlayRenderTarget, vertex::OverlayVertex};
 use crate::gui_runtime::native_vello::wgpu;
 
 pub(super) struct PostGpuOverlayPipeline {

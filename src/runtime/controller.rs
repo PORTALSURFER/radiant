@@ -123,12 +123,8 @@ where
         widget_id: WidgetId,
         input: WidgetInput,
     ) -> Option<bool> {
-        let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
-            return None;
-        };
-        let Some(result) = self.dispatch_surface_input(widget_id, bounds, input) else {
-            return None;
-        };
+        let bounds = self.layout.rects.get(&widget_id).copied()?;
+        let result = self.dispatch_surface_input(widget_id, bounds, input)?;
         self.capture_pointer_capture_state(widget_id);
         let emitted_output = !matches!(result, WidgetDispatchResult::NoOutput);
         match result {

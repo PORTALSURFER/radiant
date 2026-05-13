@@ -44,13 +44,25 @@ pub(super) fn handle_timeline_input(
                         clip_id,
                         pointer_offset,
                         duration,
+                        ..
                     }),
                     Some(current),
                 ) => {
-                    widget.hover_clip_id = Some(clip_id);
                     let lane = geometry.lane_at(position).unwrap_or(0);
                     let max_start = TOTAL_BEATS.saturating_sub(duration);
                     let start = current.saturating_sub(pointer_offset).min(max_start);
+                    widget.hover_clip_id = Some(clip_id);
+                    widget.selection = Some(BeatRange {
+                        start,
+                        end: start + duration,
+                    });
+                    widget.drag = Some(TimelineDrag::MovingClip {
+                        clip_id,
+                        pointer_offset,
+                        duration,
+                        current_lane: lane,
+                        current_start: start,
+                    });
                     Some(WidgetOutput::typed(TimelineSurfaceMessage::MoveClip {
                         clip_id,
                         lane,
@@ -62,11 +74,19 @@ pub(super) fn handle_timeline_input(
                         clip_id,
                         edge,
                         fixed_beat,
+                        ..
                     }),
                     Some(current),
                 ) => {
-                    widget.hover_clip_id = Some(clip_id);
                     let range = resized_range(edge, fixed_beat, current);
+                    widget.hover_clip_id = Some(clip_id);
+                    widget.selection = Some(range);
+                    widget.drag = Some(TimelineDrag::ResizingClip {
+                        clip_id,
+                        edge,
+                        fixed_beat,
+                        current_range: range,
+                    });
                     Some(WidgetOutput::typed(TimelineSurfaceMessage::ResizeClip {
                         clip_id,
                         range,
@@ -92,12 +112,22 @@ pub(super) fn handle_timeline_input(
                             ResizeEdge::Start => handle.clip_end,
                             ResizeEdge::End => handle.clip_start,
                         },
+                        current_range: BeatRange {
+                            start: handle.clip_start,
+                            end: handle.clip_end,
+                        },
                     })
                 } else {
                     Some(TimelineDrag::MovingClip {
                         clip_id: handle.clip_id,
                         pointer_offset: beat.saturating_sub(handle.clip_start),
                         duration: handle.duration,
+                        current_lane: widget
+                            .clips
+                            .iter()
+                            .find(|clip| clip.id == handle.clip_id)
+                            .map_or(0, |clip| clip.lane),
+                        current_start: handle.clip_start,
                     })
                 };
                 widget.selected_clip = Some(handle.clip_id);

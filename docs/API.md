@@ -118,9 +118,12 @@ decorations, icon, target frame rate, and whether native file drag-and-drop is
 requested on platforms that support it. Native animation frame rates are
 normalized through `NativeRunOptions::normalized_target_fps()` and the exported
 `MIN_NATIVE_TARGET_FPS` / `MAX_NATIVE_TARGET_FPS` bounds before timed redraws
-or present-mode selection use them. Window launch and manifest builders
-provide integer `.size(...)` convenience methods plus `.logical_size(...)` and
-`.min_logical_size(...)` when hosts need fractional logical dimensions.
+or present-mode selection use them. Focused text-input caret animation uses a
+lower native cadence when it is the only timed animation demand, while explicit
+application or overlay animation frame-rate caps remain authoritative. Window
+launch and manifest builders provide integer `.size(...)` convenience methods
+plus `.logical_size(...)` and `.min_logical_size(...)` when hosts need
+fractional logical dimensions.
 `NativeGpuOptions` and `NativeGpuBackend` keep WGPU backend selection explicit
 without exposing normal app code to raw WGPU setup; the default remains WGPU's
 environment-aware adapter selection, while diagnostics or platform work can

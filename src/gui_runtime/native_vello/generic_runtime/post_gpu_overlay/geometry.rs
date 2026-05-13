@@ -12,6 +12,23 @@ pub(super) fn replayable_suffix(primitives: &[PaintPrimitive]) -> Option<&[Paint
         .and_then(|index| primitives.get(index + 1..))
 }
 
+pub(super) fn gpu_surface_overlay_regions(primitives: &[PaintPrimitive]) -> Vec<UiRect> {
+    primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::GpuSurface(surface)
+                if surface.rect.width() > 0.0
+                    && surface.rect.height() > 0.0
+                    && surface.content.is_renderable() =>
+            {
+                Some(surface.rect)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[cfg(test)]
 pub(super) fn replayable_vertices_into(
     primitives: &[PaintPrimitive],
     target_size: Vector2,
@@ -19,6 +36,16 @@ pub(super) fn replayable_vertices_into(
 ) {
     vertices.clear();
     append_replayable_vertices(primitives, target_size, vertices);
+}
+
+pub(super) fn replayable_vertices_in_regions_into(
+    primitives: &[PaintPrimitive],
+    target_size: Vector2,
+    regions: &[UiRect],
+    vertices: &mut Vec<OverlayVertex>,
+) {
+    vertices.clear();
+    append_replayable_vertices_in_regions(primitives, target_size, regions, vertices);
 }
 
 pub(super) fn append_replayable_vertices(
@@ -33,6 +60,32 @@ pub(super) fn append_replayable_vertices(
             }
             PaintPrimitive::StrokeRect(stroke) => {
                 push_stroke_vertices(vertices, target_size, stroke);
+            }
+            _ => {}
+        }
+    }
+}
+
+pub(super) fn append_replayable_vertices_in_regions(
+    primitives: &[PaintPrimitive],
+    target_size: Vector2,
+    regions: &[UiRect],
+    vertices: &mut Vec<OverlayVertex>,
+) {
+    if regions.is_empty() {
+        return;
+    }
+    for primitive in primitives {
+        match primitive {
+            PaintPrimitive::FillRect(fill) if rect_intersects_any(fill.rect, regions) => {
+                push_rect_vertices(vertices, target_size, fill.rect, fill.color);
+            }
+            PaintPrimitive::StrokeRect(stroke) => {
+                for edge in stroke_rect_edges(stroke.rect, stroke.width) {
+                    if rect_intersects_any(edge, regions) {
+                        push_rect_vertices(vertices, target_size, edge, stroke.color);
+                    }
+                }
             }
             _ => {}
         }
@@ -96,6 +149,15 @@ fn rect_is_outside_target(rect: UiRect, target_size: Vector2) -> bool {
         || rect.min.x >= target_width
         || rect.max.y <= 0.0
         || rect.min.y >= target_height
+}
+
+fn rect_intersects_any(rect: UiRect, regions: &[UiRect]) -> bool {
+    regions.iter().any(|region| {
+        rect.max.x > region.min.x
+            && rect.min.x < region.max.x
+            && rect.max.y > region.min.y
+            && rect.min.y < region.max.y
+    })
 }
 
 fn stroke_rect_edges(rect: UiRect, width: f32) -> [UiRect; 4] {
@@ -219,6 +281,58 @@ mod tests {
         append_replayable_vertices(&[fill(2)], Vector2::new(100.0, 50.0), &mut vertices);
 
         assert_eq!(vertices.len(), 12);
+    }
+
+    #[test]
+    fn replayable_vertices_in_regions_skip_unrelated_later_rectangles() {
+        let primitives = [
+            rect(
+                UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(10.0, 10.0)),
+                white(),
+            ),
+            rect(
+                UiRect::from_min_size(Point::new(0.0, 30.0), Vector2::new(10.0, 10.0)),
+                white(),
+            ),
+        ];
+        let regions = [UiRect::from_min_size(
+            Point::new(0.0, 0.0),
+            Vector2::new(12.0, 12.0),
+        )];
+        let mut vertices = Vec::new();
+
+        replayable_vertices_in_regions_into(
+            &primitives,
+            Vector2::new(100.0, 50.0),
+            &regions,
+            &mut vertices,
+        );
+
+        assert_eq!(vertices.len(), 6);
+    }
+
+    #[test]
+    fn replayable_vertices_in_regions_keep_overlapping_stroke_edges() {
+        let primitives = [PaintPrimitive::StrokeRect(PaintStrokeRect {
+            widget_id: 7,
+            rect: UiRect::from_min_size(Point::new(10.0, 10.0), Vector2::new(20.0, 20.0)),
+            color: white(),
+            width: 2.0,
+        })];
+        let regions = [UiRect::from_min_size(
+            Point::new(0.0, 0.0),
+            Vector2::new(40.0, 40.0),
+        )];
+        let mut vertices = Vec::new();
+
+        replayable_vertices_in_regions_into(
+            &primitives,
+            Vector2::new(100.0, 50.0),
+            &regions,
+            &mut vertices,
+        );
+
+        assert_eq!(vertices.len(), 24);
     }
 
     fn fill(widget_id: u64) -> PaintPrimitive {

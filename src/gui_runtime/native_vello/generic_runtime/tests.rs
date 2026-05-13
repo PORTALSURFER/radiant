@@ -2,9 +2,9 @@ use super::*;
 use crate::{
     layout::{ContainerKind, ContainerPolicy, LayoutDebugOptions, Rect, SlotParams},
     runtime::{
-        Command, GpuHoverCursor, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent,
-        GpuSurfaceOverlay, PaintGpuSurface, PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface,
-        WidgetMessageMapper,
+        Command, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle,
+        GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, PaintGpuSurface, PaintPrimitive,
+        SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
     },
     widgets::{
         ButtonWidget, CanvasMessage, PointerButton, ScrollbarAxis, ScrollbarMessage,
@@ -407,15 +407,17 @@ impl Default for GpuWheelBridge {
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,
                 coalesce_vertical_wheel: true,
-                native_hover_cursor: Some(GpuHoverCursor {
-                    color: Rgba8 {
-                        r: 255,
-                        g: 255,
-                        b: 255,
-                        a: 255,
+                runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
+                    GpuSurfaceLineStyle {
+                        color: Rgba8 {
+                            r: 255,
+                            g: 255,
+                            b: 255,
+                            a: 255,
+                        },
+                        width: 1.0,
                     },
-                    width: 1.0,
-                }),
+                ),
             },
         }
     }

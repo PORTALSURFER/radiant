@@ -1,5 +1,5 @@
 use super::*;
-use crate::gui::types::ImageRgba;
+use crate::{gui::types::ImageRgba, runtime::GpuSurfaceRuntimeOverlays};
 
 #[test]
 fn generic_paint_plan_encodes_to_vello_scene() {
@@ -70,7 +70,7 @@ fn scene_encoding_collects_fast_pointer_gpu_surface_hit_rects() {
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,
                 coalesce_vertical_wheel: false,
-                native_hover_cursor: None,
+                runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
             },
             overlays: Vec::new(),
         })],
@@ -97,7 +97,7 @@ fn scene_encoding_collects_fast_pointer_gpu_surface_hit_rects() {
             rect,
             fast_pointer_move: true,
             coalesce_vertical_wheel: false,
-            native_hover_cursor: None,
+            runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
         }]
     );
 }

@@ -39,7 +39,8 @@ where
                     self.request_redraw_if_needed();
                     return;
                 }
-                if previous.is_some_and(|previous| self.native_hover_surface_contains(previous))
+                if previous
+                    .is_some_and(|previous| self.runtime_pointer_line_surface_contains(previous))
                     && previous
                         .is_some_and(|previous| self.clear_gpu_surface_cursor_overlay(previous))
                 {

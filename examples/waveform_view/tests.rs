@@ -232,7 +232,7 @@ fn waveform_widget_paints_cached_body_and_cursor_overlay() {
             PaintPrimitive::GpuSurface(PaintGpuSurface {
                 capabilities,
                 ..
-            }) if capabilities.native_hover_cursor.is_some()
+            }) if capabilities.runtime_overlays.pointer_vertical_line.is_some()
                 && capabilities.fast_pointer_move
                 && capabilities.coalesce_vertical_wheel
         )),

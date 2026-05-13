@@ -13,8 +13,8 @@ use radiant::{
     },
     runtime::{
         Command, Event, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent,
-        PaintPrimitive, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface,
-        WidgetMessageMapper,
+        GpuSurfaceRuntimeOverlays, PaintPrimitive, RuntimeBridge, SurfaceChild, SurfaceNode,
+        SurfaceRuntime, UiSurface, WidgetMessageMapper,
     },
     theme::ThemeTokens,
     widgets::{ButtonWidget, GpuSurfaceWidget, TextWidget, WidgetSizing},
@@ -1037,7 +1037,7 @@ fn bench_gpu_surface_projection() {
         .with_capabilities(GpuSurfaceCapabilities {
             fast_pointer_move: true,
             coalesce_vertical_wheel: true,
-            native_hover_cursor: None,
+            runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
         }),
     ));
     let output = layout_tree(&surface.layout_node(), viewport(512.0, 64.0));

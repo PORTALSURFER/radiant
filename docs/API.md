@@ -413,8 +413,9 @@ invalid signal shapes or empty texture sources do not leak into backend work.
 Runtime behavior is declared explicitly through `GpuSurfaceCapabilities`:
 `fast_pointer_move` allows pointer-motion overlay updates without reprojecting
 the app surface, `coalesce_vertical_wheel` allows vertical wheel deltas to be
-batched until redraw, and `native_hover_cursor` lets the native runtime compose
-a lightweight vertical cursor. These capabilities are part of the GPU-surface
+batched until redraw, and `runtime_overlays.pointer_vertical_line` lets the
+native runtime compose a lightweight pointer-following vertical line. These
+capabilities are part of the GPU-surface
 contract, not side effects inferred from overlays. Future custom shader or
 program support should extend this contract rather than adding backend-specific
 runtime special cases.

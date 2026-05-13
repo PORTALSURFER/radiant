@@ -2,9 +2,9 @@ struct Params {
     dest: vec4<f32>,
     source: vec4<f32>,
     target_size: vec2<f32>,
-    overlay_ratios: vec4<f32>,
-    overlay_widths: vec4<f32>,
-    overlay_colors: array<vec4<f32>, 4>,
+    overlay_ratios: array<vec4<f32>, 2>,
+    overlay_widths: array<vec4<f32>, 2>,
+    overlay_colors: array<vec4<f32>, 8>,
 };
 
 @group(0) @binding(0)
@@ -48,11 +48,24 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOut {
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     var color = textureSample(surface_texture, surface_sampler, in.uv);
-    for (var index = 0u; index < 4u; index = index + 1u) {
-        let ratio = params.overlay_ratios[index];
-        let half_width = max(params.overlay_widths[index] / max(params.dest.z, 1.0), 0.0005);
-        if (ratio >= 0.0 && abs(in.local.x - ratio) <= half_width) {
-            color = params.overlay_colors[index];
+    for (var index = 0u; index < 8u; index = index + 1u) {
+        let slot = index / 4u;
+        let lane = index % 4u;
+        let ratio = params.overlay_ratios[slot][lane];
+        let width = params.overlay_widths[slot][lane];
+        if (ratio >= 0.0 && width < 0.0) {
+            let end = -width;
+            let start = min(ratio, end);
+            let stop = max(ratio, end);
+            if (in.local.x >= start && in.local.x <= stop) {
+                let overlay = params.overlay_colors[index];
+                color = mix(color, vec4<f32>(overlay.rgb, 1.0), overlay.a);
+            }
+        } else {
+            let half_width = max(width / max(params.dest.z, 1.0), 0.0005);
+            if (ratio >= 0.0 && abs(in.local.x - ratio) <= half_width) {
+                color = params.overlay_colors[index];
+            }
         }
     }
     return color;

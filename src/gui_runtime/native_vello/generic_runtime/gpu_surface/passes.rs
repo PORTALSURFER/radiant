@@ -62,27 +62,33 @@ pub(super) fn set_surface_scissor(pass: &mut wgpu::RenderPass<'_>, rect: UiRect)
 pub(super) fn vertical_overlays(
     overlays: &[GpuSurfaceOverlay],
 ) -> (
-    [f32; MAX_GPU_SURFACE_OVERLAYS],
-    [f32; MAX_GPU_SURFACE_OVERLAYS],
+    [[f32; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS],
+    [[f32; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS],
     [[f32; 4]; MAX_GPU_SURFACE_OVERLAYS],
 ) {
-    let mut ratios = [-1.0; MAX_GPU_SURFACE_OVERLAYS];
-    let mut widths = [1.0; MAX_GPU_SURFACE_OVERLAYS];
+    let mut ratios = [[-1.0; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS];
+    let mut widths = [[1.0; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS];
     let mut colors = [[1.0, 1.0, 1.0, 0.0]; MAX_GPU_SURFACE_OVERLAYS];
     for (index, overlay) in overlays
         .iter()
-        .filter(|overlay| matches!(overlay, GpuSurfaceOverlay::VerticalCursor { .. }))
+        .filter(|overlay| {
+            matches!(
+                overlay,
+                GpuSurfaceOverlay::HorizontalRange { .. }
+                    | GpuSurfaceOverlay::VerticalCursor { .. }
+            )
+        })
         .chain(
             overlays
                 .iter()
-                .filter(|overlay| matches!(overlay, GpuSurfaceOverlay::NativeHoverCursor { .. })),
+                .filter(|overlay| matches!(overlay, GpuSurfaceOverlay::RuntimeVerticalLine { .. })),
         )
         .take(MAX_GPU_SURFACE_OVERLAYS)
         .enumerate()
     {
         let (ratio, color, width) = vertical_overlay_parts(*overlay);
-        ratios[index] = ratio;
-        widths[index] = width;
+        ratios[index / 4][index % 4] = ratio;
+        widths[index / 4][index % 4] = width;
         colors[index] = rgba_to_float(color);
     }
     (ratios, widths, colors)
@@ -90,12 +96,15 @@ pub(super) fn vertical_overlays(
 
 fn vertical_overlay_parts(overlay: GpuSurfaceOverlay) -> (f32, Rgba8, f32) {
     match overlay {
+        GpuSurfaceOverlay::HorizontalRange { start, end, color } => {
+            (start.clamp(0.0, 1.0), color, -end.clamp(0.0, 1.0))
+        }
         GpuSurfaceOverlay::VerticalCursor {
             ratio,
             color,
             width,
         }
-        | GpuSurfaceOverlay::NativeHoverCursor {
+        | GpuSurfaceOverlay::RuntimeVerticalLine {
             ratio,
             color,
             width,

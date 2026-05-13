@@ -117,15 +117,15 @@ where
             .any(|region| region.coalesce_vertical_wheel && region.contains(position))
     }
 
-    pub(super) fn native_hover_surface_contains(&self, position: Point) -> bool {
-        self.gpu_surface_interaction_regions
-            .iter()
-            .any(|region| region.native_hover_cursor.is_some() && region.contains(position))
+    pub(super) fn runtime_pointer_line_surface_contains(&self, position: Point) -> bool {
+        self.gpu_surface_interaction_regions.iter().any(|region| {
+            region.runtime_overlays.pointer_vertical_line.is_some() && region.contains(position)
+        })
     }
 
     pub(super) fn can_fast_path_native_hover_move(&self, position: Point) -> bool {
         self.core.runtime.pointer_capture().is_none()
-            && self.native_hover_surface_contains(position)
+            && self.runtime_pointer_line_surface_contains(position)
     }
 
     pub(super) fn can_coalesce_gpu_surface_wheel(&self, position: Point, delta: Vector2) -> bool {
@@ -138,7 +138,7 @@ where
         else {
             return false;
         };
-        let Some(cursor) = surface.capabilities.native_hover_cursor else {
+        let Some(cursor) = surface.capabilities.runtime_overlays.pointer_vertical_line else {
             return false;
         };
         let ratio =
@@ -146,7 +146,7 @@ where
         let mut cursor_count = 0;
         let mut cursor_is_current = false;
         for overlay in &surface.overlays {
-            let GpuSurfaceOverlay::NativeHoverCursor {
+            let GpuSurfaceOverlay::RuntimeVerticalLine {
                 ratio: current_ratio,
                 color,
                 width,
@@ -163,12 +163,14 @@ where
         }
         surface
             .overlays
-            .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::NativeHoverCursor { .. }));
-        surface.overlays.push(GpuSurfaceOverlay::NativeHoverCursor {
-            ratio,
-            color: cursor.color,
-            width: cursor.width,
-        });
+            .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::RuntimeVerticalLine { .. }));
+        surface
+            .overlays
+            .push(GpuSurfaceOverlay::RuntimeVerticalLine {
+                ratio,
+                color: cursor.color,
+                width: cursor.width,
+            });
         true
     }
 
@@ -177,13 +179,18 @@ where
         else {
             return false;
         };
-        if surface.capabilities.native_hover_cursor.is_none() {
+        if surface
+            .capabilities
+            .runtime_overlays
+            .pointer_vertical_line
+            .is_none()
+        {
             return false;
         }
         let previous_len = surface.overlays.len();
         surface
             .overlays
-            .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::NativeHoverCursor { .. }));
+            .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::RuntimeVerticalLine { .. }));
         previous_len != surface.overlays.len()
     }
 }
@@ -210,7 +217,10 @@ mod tests {
     use super::*;
     use crate::{
         gui::types::{ImageRgba, Rect, Rgba8},
-        runtime::{GpuHoverCursor, GpuSurfaceCapabilities, GpuSurfaceContent},
+        runtime::{
+            GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle,
+            GpuSurfaceRuntimeOverlays,
+        },
     };
     use std::sync::Arc;
 
@@ -220,15 +230,17 @@ mod tests {
         let capabilities = GpuSurfaceCapabilities {
             fast_pointer_move: true,
             coalesce_vertical_wheel: true,
-            native_hover_cursor: Some(GpuHoverCursor {
-                color: Rgba8 {
-                    r: 255,
-                    g: 255,
-                    b: 255,
-                    a: 255,
+            runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
+                GpuSurfaceLineStyle {
+                    color: Rgba8 {
+                        r: 255,
+                        g: 255,
+                        b: 255,
+                        a: 255,
+                    },
+                    width: 1.0,
                 },
-                width: 1.0,
-            }),
+            ),
         };
         let mut primitives = vec![
             PaintPrimitive::GpuSurface(PaintGpuSurface {
@@ -280,7 +292,7 @@ mod tests {
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,
                 coalesce_vertical_wheel: true,
-                native_hover_cursor: None,
+                runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
             },
             overlays: Vec::new(),
         })];

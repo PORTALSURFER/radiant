@@ -133,15 +133,17 @@ fn gpu_surface_widget_projects_generic_retained_gpu_primitive() {
         .with_capabilities(GpuSurfaceCapabilities {
             fast_pointer_move: true,
             coalesce_vertical_wheel: true,
-            native_hover_cursor: Some(GpuHoverCursor {
-                color: Rgba8 {
-                    r: 255,
-                    g: 255,
-                    b: 255,
-                    a: 255,
+            runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
+                GpuSurfaceLineStyle {
+                    color: Rgba8 {
+                        r: 255,
+                        g: 255,
+                        b: 255,
+                        a: 255,
+                    },
+                    width: 1.0,
                 },
-                width: 1.0,
-            }),
+            ),
         })
         .with_overlays(vec![GpuSurfaceOverlay::VerticalCursor {
             ratio: 0.5,
@@ -169,7 +171,12 @@ fn gpu_surface_widget_projects_generic_retained_gpu_primitive() {
     assert_eq!(gpu.revision, 7);
     assert!(gpu.capabilities.fast_pointer_move);
     assert!(gpu.capabilities.coalesce_vertical_wheel);
-    assert!(gpu.capabilities.native_hover_cursor.is_some());
+    assert!(
+        gpu.capabilities
+            .runtime_overlays
+            .pointer_vertical_line
+            .is_some()
+    );
     assert_eq!(gpu.overlays.len(), 1);
     let GpuSurfaceContent::RgbaAtlas { atlas, .. } = &gpu.content else {
         panic!("expected rgba atlas gpu content");

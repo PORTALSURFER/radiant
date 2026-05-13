@@ -127,7 +127,7 @@ fn native_gpu_hover_updates_cached_overlay_without_refreshing_surface() {
         .expect("gpu surface primitive");
     assert!(surface.overlays.iter().any(|overlay| matches!(
         overlay,
-        GpuSurfaceOverlay::NativeHoverCursor { ratio, .. } if (*ratio - 0.25).abs() < 0.001
+        GpuSurfaceOverlay::RuntimeVerticalLine { ratio, .. } if (*ratio - 0.25).abs() < 0.001
     )));
 }
 
@@ -181,7 +181,7 @@ fn native_gpu_hover_collapses_duplicate_cursor_overlays() {
         surface
             .overlays
             .iter()
-            .filter(|overlay| matches!(overlay, GpuSurfaceOverlay::NativeHoverCursor { .. }))
+            .filter(|overlay| matches!(overlay, GpuSurfaceOverlay::RuntimeVerticalLine { .. }))
             .count(),
         1
     );
@@ -235,7 +235,7 @@ fn native_gpu_hover_preserves_app_owned_vertical_overlays() {
         !surface
             .overlays
             .iter()
-            .any(|overlay| matches!(overlay, GpuSurfaceOverlay::NativeHoverCursor { .. }))
+            .any(|overlay| matches!(overlay, GpuSurfaceOverlay::RuntimeVerticalLine { .. }))
     );
 }
 
@@ -259,12 +259,18 @@ fn native_gpu_hover_clear_hides_cached_cursor_without_rebuild() {
             _ => None,
         })
         .expect("gpu surface primitive");
-    assert!(surface.capabilities.native_hover_cursor.is_some());
+    assert!(
+        surface
+            .capabilities
+            .runtime_overlays
+            .pointer_vertical_line
+            .is_some()
+    );
     assert!(
         !surface
             .overlays
             .iter()
-            .any(|overlay| matches!(overlay, GpuSurfaceOverlay::NativeHoverCursor { .. }))
+            .any(|overlay| matches!(overlay, GpuSurfaceOverlay::RuntimeVerticalLine { .. }))
     );
 }
 

@@ -6,7 +6,8 @@ use radiant::{
     layout::LayoutOutput,
     runtime::{
         GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceOverlay,
-        GpuSurfaceRuntimeOverlays, PaintGpuSurface, PaintPrimitive,
+        GpuSurfaceRuntimeOverlays, PaintFillRect, PaintGpuSurface, PaintPrimitive,
+        SurfacePaintPlan,
     },
     theme::ThemeTokens,
     widgets::{
@@ -14,10 +15,11 @@ use radiant::{
         WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
     },
 };
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 const WAVEFORM_WIDTH: usize = 1200;
 const WAVEFORM_HEIGHT: usize = 320;
+const WAVEFORM_WIDGET_ID: u64 = 10;
 
 #[path = "waveform_view/source.rs"]
 mod source;
@@ -38,7 +40,6 @@ enum WaveformInteraction {
     Zoom { factor: f32 },
     Pan { visible_fraction: f32 },
     TogglePlayback,
-    Frame,
     Reset,
 }
 
@@ -57,8 +58,13 @@ fn main() -> radiant::Result {
     .size(1280, 560)
     .min_size(820, 420)
     .view(view)
-    .animation(|state| state.playing)
-    .on_frame(|| WaveformInteraction::Frame)
+    .animated_transient_overlay_at(
+        60,
+        |state| state.playing,
+        |state, context, primitives| {
+            paint_playhead_overlay(state, context.plan, context.animation_time, primitives);
+        },
+    )
     .update_with(|state, message, context| {
         state.apply_interaction(message);
         context.request_repaint();
@@ -83,13 +89,9 @@ fn view(state: &mut WaveformApp) -> ui::View<WaveformInteraction> {
         waveform_viewport(
             Arc::clone(&state.file),
             state.viewport,
-            Some(if state.playing {
-                state.playhead_ratio
-            } else {
-                state.zoom_anchor_ratio
-            }),
+            (!state.playing).then_some(state.zoom_anchor_ratio),
         )
-        .id(10)
+        .id(WAVEFORM_WIDGET_ID)
         .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
         .fill_width()
         .height(WAVEFORM_HEIGHT as f32),
@@ -111,6 +113,32 @@ fn waveform_viewport(
         WaveformWidget::new(file, viewport, cursor_ratio),
         |output| output.typed_ref::<WaveformInteraction>().copied(),
     )
+}
+
+fn paint_playhead_overlay(
+    state: &WaveformApp,
+    plan: &SurfacePaintPlan,
+    animation_time: Duration,
+    primitives: &mut Vec<PaintPrimitive>,
+) {
+    let Some(bounds) = plan.first_widget_rect(WAVEFORM_WIDGET_ID) else {
+        return;
+    };
+    let ratio = (state.playhead_ratio + animation_time.as_secs_f32() * 0.18).fract();
+    let x = bounds.min.x + bounds.width() * ratio;
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id: WAVEFORM_WIDGET_ID,
+        rect: Rect::from_min_max(
+            Point::new(x - 1.0, bounds.min.y),
+            Point::new(x + 1.0, bounds.max.y),
+        ),
+        color: Rgba8 {
+            r: 255,
+            g: 232,
+            b: 180,
+            a: 245,
+        },
+    }));
 }
 
 fn waveform_scrollbar(state: &WaveformApp) -> ui::View<WaveformInteraction> {
@@ -306,15 +334,6 @@ impl WaveformApp {
             }
             WaveformInteraction::TogglePlayback => {
                 self.playing = !self.playing;
-            }
-            WaveformInteraction::Frame => {
-                if self.playing {
-                    self.playhead_ratio += 0.01;
-                    if self.playhead_ratio > 1.0 {
-                        self.playhead_ratio = 0.0;
-                    }
-                    self.zoom_anchor_ratio = self.playhead_ratio;
-                }
             }
             WaveformInteraction::Reset => {
                 self.viewport = WaveformViewport::full(self.file.frames);

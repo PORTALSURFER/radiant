@@ -313,6 +313,11 @@ so a snapped cursor, clip hover, or resize-handle preview can refresh smoothly
 without emitting host messages or forcing the app reducer to run for every mouse
 move. Emit a `WidgetOutput` only when the host-owned model changes, such as
 seek, create, move, resize, or delete.
+Custom widgets must still be pointer hit-test eligible before pointer hooks can
+run. Use `WidgetCommon::with_pointer_focus()` for hover, drag, tooltip, cursor,
+or paint-only overlay widgets that should skip keyboard traversal, or
+`WidgetCommon::with_keyboard_focus()` when the same custom surface also handles
+keyboard input.
 High-frequency editor widgets can go further with
 `Widget::prefers_pointer_move_paint_only()` and
 `Widget::append_runtime_overlay_paint(...)`. Put pointer-following visuals such

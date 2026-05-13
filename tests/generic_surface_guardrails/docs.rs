@@ -101,6 +101,8 @@ fn pointer_move_repaint_contract_is_documented() {
         "Widget::accepts_pointer_move()",
         "Widget::prefers_pointer_move_paint_only()",
         "Widget::append_runtime_overlay_paint(...)",
+        "WidgetCommon::with_pointer_focus()",
+        "WidgetCommon::with_keyboard_focus()",
         "request repaint even when `handle_input` returns `None`",
         "cached scene on stable pointer motion",
         "without emitting host messages",

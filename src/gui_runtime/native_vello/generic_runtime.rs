@@ -2,8 +2,6 @@
 
 use super::*;
 use crate::gui::repaint::RepaintSignal;
-use crate::runtime::SurfacePaintPlan;
-use crate::theme::ThemeTokens;
 
 mod core;
 mod gpu_surface;
@@ -13,6 +11,7 @@ mod input;
 mod keyboard;
 mod lifecycle;
 mod present;
+mod runner;
 mod runtime_helpers;
 mod runtime_wakeup;
 mod scene;
@@ -26,6 +25,7 @@ use gpu_surface::GpuSurfaceRenderer;
 use gpu_surface_interaction::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
 use present::RenderFrameProfile;
+use runner::GenericNativeVelloRunner;
 use runtime_helpers::{
     GpuSurfaceInteractionRegion, animation_frame_interval, collect_gpu_surface_interaction_regions,
     maybe_log_route_profile, render_profile_enabled, scroll_delta_to_logical,
@@ -132,126 +132,6 @@ pub type NativeGenericRunReport =
 fn initial_viewport(options: &NativeRunOptions) -> Vector2 {
     let [width, height] = options.inner_size.unwrap_or([1280.0, 720.0]);
     Vector2::new(width.max(1.0), height.max(1.0))
-}
-
-struct GenericNativeVelloRunner<Bridge, Message>
-where
-    Bridge: RuntimeBridge<Message>,
-{
-    options: NativeRunOptions,
-    core: GenericNativeRuntimeCore<Bridge, Message>,
-    runtime_wakeup: RuntimeWakeup,
-    window_id: Option<WindowId>,
-    window: Option<Arc<Window>>,
-    render_ctx: Option<RenderContext>,
-    render_surface: Option<RenderSurface<'static>>,
-    renderer: Option<Renderer>,
-    text_renderer: NativeTextRenderer,
-    scene: Scene,
-    gpu_surface_renderer: GpuSurfaceRenderer,
-    last_paint_plan: SurfacePaintPlan,
-    retained_surface_cache: RetainedSurfaceFrameCache,
-    last_cursor: Option<Point>,
-    clipboard: Option<arboard::Clipboard>,
-    modifiers: winit::keyboard::ModifiersState,
-    redraw_requested: bool,
-    startup_timing: StartupTimingProfile,
-    first_frame_presented: bool,
-    animation_origin: Instant,
-    last_redraw: Instant,
-    last_scene_stats: RetainedSurfaceEncodeStats,
-    scene_text_runs: SceneTextRunBuffer<'static>,
-    gpu_surface_interaction_regions: Vec<GpuSurfaceInteractionRegion>,
-    scene_texture_dirty: bool,
-    deferred_surface_refresh: bool,
-    pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
-}
-
-impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
-where
-    Bridge: RuntimeBridge<Message>,
-{
-    fn new(options: NativeRunOptions, bridge: Bridge, viewport: Vector2) -> Self {
-        let text_renderer = NativeTextRenderer::with_options(&options.text);
-        let debug_layout = options.debug_layout;
-        Self {
-            options,
-            core: GenericNativeRuntimeCore::new_with_debug_layout(bridge, viewport, debug_layout),
-            runtime_wakeup: RuntimeWakeup::default(),
-            window_id: None,
-            window: None,
-            render_ctx: None,
-            render_surface: None,
-            renderer: None,
-            text_renderer,
-            scene: Scene::new(),
-            gpu_surface_renderer: GpuSurfaceRenderer::default(),
-            last_paint_plan: SurfacePaintPlan::empty(&ThemeTokens::default()),
-            retained_surface_cache: RetainedSurfaceFrameCache::default(),
-            last_cursor: None,
-            clipboard: arboard::Clipboard::new().ok(),
-            modifiers: winit::keyboard::ModifiersState::default(),
-            redraw_requested: false,
-            startup_timing: StartupTimingProfile::new(),
-            first_frame_presented: false,
-            animation_origin: Instant::now(),
-            last_redraw: Instant::now(),
-            last_scene_stats: RetainedSurfaceEncodeStats::default(),
-            scene_text_runs: SceneTextRunBuffer::new(),
-            gpu_surface_interaction_regions: Vec::new(),
-            scene_texture_dirty: true,
-            deferred_surface_refresh: false,
-            pending_gpu_surface_wheel: None,
-        }
-    }
-
-    fn request_redraw_if_needed(&mut self) {
-        if self.redraw_requested {
-            return;
-        }
-        if let Some(window) = self.window.as_ref() {
-            window.request_redraw();
-            self.redraw_requested = true;
-        }
-    }
-
-    fn request_runtime_wakeup_if_needed(&self, outcome: GenericRouteOutcome) {
-        self.runtime_wakeup
-            .request_if(outcome.runtime_work_remaining);
-    }
-
-    fn rebuild_scene(&mut self) {
-        self.core.paint_plan_into(&mut self.last_paint_plan);
-        let viewport = self.core.runtime.viewport();
-        let mut scene_text_runs = std::mem::take(&mut self.scene_text_runs);
-        self.last_scene_stats = encode_surface_paint_plan_to_scene(
-            &self.last_paint_plan,
-            SurfaceSceneEncodeContext {
-                scene: &mut self.scene,
-                text_renderer: &mut self.text_renderer,
-                bridge: self.core.runtime.bridge_mut(),
-                viewport,
-                retained_cache: &mut self.retained_surface_cache,
-                text_runs: &mut scene_text_runs,
-                gpu_surface_interaction_regions: &mut self.gpu_surface_interaction_regions,
-                animation_time: self.animation_origin.elapsed(),
-            },
-        );
-        self.scene_text_runs = scene_text_runs.rebind();
-        self.scene_texture_dirty = true;
-    }
-
-    fn handle_route_outcome(&mut self, event_loop: &ActiveEventLoop, outcome: GenericRouteOutcome) {
-        if outcome.exit_requested {
-            event_loop.exit();
-            return;
-        }
-        if outcome.needs_redraw() {
-            self.rebuild_scene();
-            self.request_redraw_if_needed();
-            self.request_runtime_wakeup_if_needed(outcome);
-        }
-    }
 }
 
 #[cfg(test)]

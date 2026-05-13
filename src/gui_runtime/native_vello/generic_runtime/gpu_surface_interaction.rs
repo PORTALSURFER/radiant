@@ -80,6 +80,10 @@ where
         if !outcome.needs_redraw() {
             return;
         }
+        if outcome.paint_only_requested && !outcome.needs_scene_rebuild() {
+            self.request_redraw_if_needed();
+            return;
+        }
         if outcome.routed {
             self.rebuild_scene();
             self.request_redraw_if_needed();

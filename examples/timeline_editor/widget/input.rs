@@ -3,6 +3,7 @@ use super::{
     ArrangementTimelineWidget, MIN_CLIP_BEATS, RESIZE_HANDLE_WIDTH, ResizeEdge, TOTAL_BEATS,
     TimelineDrag, TimelineGeometry,
 };
+use radiant::gui::visualization::{DragHandle, DragHandleRole, drag_handle_at_point};
 use radiant::layout::{Point, Rect};
 use radiant::widgets::{PointerButton, WidgetInput, WidgetKey, WidgetOutput};
 
@@ -21,7 +22,8 @@ pub(super) fn handle_timeline_input(
                 widget.cursor.clear_hover();
                 None
             };
-            widget.hover_clip_id = clip_at(widget, geometry, position).map(|clip| clip.id);
+            widget.hover_clip_id =
+                clip_handle_at(widget, geometry, position).map(|handle| handle.clip_id);
             match (widget.drag, beat) {
                 (
                     Some(TimelineDrag::Selecting {
@@ -79,37 +81,28 @@ pub(super) fn handle_timeline_input(
         } if bounds.contains(position) => {
             let beat = geometry.beat_at(position)?;
             widget.common.state.pressed = true;
-            widget.hover_clip_id = clip_at(widget, geometry, position).map(|clip| clip.id);
-            if let Some((clip_id, clip_start, clip_end, duration, edge)) =
-                clip_at(widget, geometry, position).map(|clip| {
-                    (
-                        clip.id,
-                        clip.range.start,
-                        clip.range.end,
-                        clip.range.duration(),
-                        resize_edge_at(geometry, clip, position),
-                    )
-                })
-            {
-                widget.drag = if let Some(edge) = edge {
+            widget.hover_clip_id =
+                clip_handle_at(widget, geometry, position).map(|handle| handle.clip_id);
+            if let Some(handle) = clip_handle_at(widget, geometry, position) {
+                widget.drag = if let Some(edge) = handle.resize_edge() {
                     Some(TimelineDrag::ResizingClip {
-                        clip_id,
+                        clip_id: handle.clip_id,
                         edge,
                         fixed_beat: match edge {
-                            ResizeEdge::Start => clip_end,
-                            ResizeEdge::End => clip_start,
+                            ResizeEdge::Start => handle.clip_end,
+                            ResizeEdge::End => handle.clip_start,
                         },
                     })
                 } else {
                     Some(TimelineDrag::MovingClip {
-                        clip_id,
-                        pointer_offset: beat.saturating_sub(clip_start),
-                        duration,
+                        clip_id: handle.clip_id,
+                        pointer_offset: beat.saturating_sub(handle.clip_start),
+                        duration: handle.duration,
                     })
                 };
-                widget.selected_clip = Some(clip_id);
+                widget.selected_clip = Some(handle.clip_id);
                 Some(WidgetOutput::typed(TimelineSurfaceMessage::SelectClip {
-                    clip_id,
+                    clip_id: handle.clip_id,
                     beat,
                 }))
             } else {
@@ -166,35 +159,58 @@ pub(super) fn handle_timeline_input(
     }
 }
 
-fn clip_at(
+#[derive(Clone, Copy)]
+struct TimelineClipHandle {
+    clip_id: u32,
+    clip_start: u32,
+    clip_end: u32,
+    duration: u32,
+    role: DragHandleRole,
+}
+
+impl TimelineClipHandle {
+    fn resize_edge(self) -> Option<ResizeEdge> {
+        match self.role {
+            DragHandleRole::Start => Some(ResizeEdge::Start),
+            DragHandleRole::End => Some(ResizeEdge::End),
+            _ => None,
+        }
+    }
+}
+
+fn clip_handle_at(
     widget: &ArrangementTimelineWidget,
     geometry: TimelineGeometry,
     position: Point,
-) -> Option<&TimelineClip> {
-    widget.clips.iter().rev().find(|clip| {
-        geometry
-            .clip_rect(clip)
-            .inset_vertical(-4.0, -4.0)
-            .contains(position)
+) -> Option<TimelineClipHandle> {
+    widget.clips.iter().rev().find_map(|clip| {
+        let role = drag_handle_at_point(&clip_drag_handles(geometry, clip), position)?.role;
+        Some(TimelineClipHandle {
+            clip_id: clip.id,
+            clip_start: clip.range.start,
+            clip_end: clip.range.end,
+            duration: clip.range.duration(),
+            role,
+        })
     })
 }
 
-fn resize_edge_at(
-    geometry: TimelineGeometry,
-    clip: &TimelineClip,
-    position: Point,
-) -> Option<ResizeEdge> {
-    let rect = geometry.clip_rect(clip);
-    if !rect.inset_vertical(-4.0, -4.0).contains(position) {
-        return None;
-    }
-    if position.x <= rect.min.x + RESIZE_HANDLE_WIDTH {
-        Some(ResizeEdge::Start)
-    } else if position.x >= rect.max.x - RESIZE_HANDLE_WIDTH {
-        Some(ResizeEdge::End)
-    } else {
-        None
-    }
+fn clip_drag_handles(geometry: TimelineGeometry, clip: &TimelineClip) -> [DragHandle; 3] {
+    let rect = geometry.clip_rect(clip).inset_vertical(-4.0, -4.0);
+    let width = RESIZE_HANDLE_WIDTH.min((rect.width() * 0.5).max(0.0));
+    [
+        DragHandle::new(DragHandleRole::Body, rect, clip.id as u64),
+        DragHandle::new(
+            DragHandleRole::Start,
+            Rect::from_min_max(rect.min, Point::new(rect.min.x + width, rect.max.y)),
+            clip.id as u64,
+        ),
+        DragHandle::new(
+            DragHandleRole::End,
+            Rect::from_min_max(Point::new(rect.max.x - width, rect.min.y), rect.max),
+            clip.id as u64,
+        ),
+    ]
 }
 
 fn resized_range(edge: ResizeEdge, fixed_beat: u32, pointer_beat: u32) -> BeatRange {
@@ -215,5 +231,46 @@ fn resized_range(edge: ResizeEdge, fixed_beat: u32, pointer_beat: u32) -> BeatRa
                 end,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::TimelineEditorState;
+    use radiant::layout::Vector2;
+
+    #[test]
+    fn clip_drag_handles_prioritize_edges_over_body() {
+        let widget = ArrangementTimelineWidget::new(&TimelineEditorState::default());
+        let geometry = widget.geometry(Rect::from_min_size(
+            Point::new(0.0, 0.0),
+            Vector2::new(860.0, 252.0),
+        ));
+        let clip = &widget.clips[0];
+        let rect = geometry.clip_rect(clip);
+
+        assert_eq!(
+            clip_handle_at(
+                &widget,
+                geometry,
+                Point::new(rect.min.x + 1.0, rect.center().y),
+            )
+            .map(TimelineClipHandle::resize_edge),
+            Some(Some(ResizeEdge::Start))
+        );
+        assert_eq!(
+            clip_handle_at(&widget, geometry, rect.center()).map(TimelineClipHandle::resize_edge),
+            Some(None)
+        );
+        assert_eq!(
+            clip_handle_at(
+                &widget,
+                geometry,
+                Point::new(rect.max.x - 1.0, rect.center().y),
+            )
+            .map(TimelineClipHandle::resize_edge),
+            Some(Some(ResizeEdge::End))
+        );
     }
 }

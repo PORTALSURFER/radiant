@@ -40,8 +40,8 @@ runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `PaintPrimitive`, `PaintFillRect`, `PaintFillPath`, `PaintTransform`, and
 `PaintTextRun`. It also includes the geometry, layout, image, color, and theme
 types needed in widget method signatures, including `Rect`, `Point`, `Vector2`,
-`LayoutOutput`, `ImageRgba`, `Rgba8`, and `ThemeTokens`, plus app-facing asset
-helpers such as `SvgIcon`, plus the builder types needed by method chains. These
+`LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, and `ThemeTokens`, plus
+app-facing asset helpers such as `SvgIcon`, plus the builder types needed by method chains. These
 builders lower into the same `UiSurface`, `SurfaceNode`, `SurfaceChild`,
 `WidgetSizing`, and `RuntimeBridge` contracts available through the explicit
 runtime modules.
@@ -129,6 +129,9 @@ renderer. Use `EmbeddedFont::from_static(include_bytes!("fonts/App.ttf"))` with
 `.embedded_font(...)` on `radiant::window(...)`, `radiant::app(...)`, or
 `WindowSpec` when an application should ship as a portable package without
 depending on installed font files.
+`ImageRgba::try_new(...)` validates row-major RGBA8 image payloads with a typed
+`ImageRgbaError`; `ImageRgba::new(...)` remains the `Option`-returning
+convenience wrapper for compact tests and examples.
 `WindowSpec` describes one host-managed window without opening the platform
 runtime. `WindowManifest` stores ordered specs and rejects duplicate stable
 keys, non-positive or non-finite logical sizes, and non-finite popup positions,

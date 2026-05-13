@@ -6,4 +6,4 @@ mod image;
 
 pub use color::Rgba8;
 pub use geometry::{Point, Rect, Vector2};
-pub use image::ImageRgba;
+pub use image::{ImageRgba, ImageRgbaError};

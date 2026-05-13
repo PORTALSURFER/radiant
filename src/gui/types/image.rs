@@ -1,5 +1,6 @@
 //! Backend-neutral image buffer types.
 
+use std::fmt;
 use std::sync::Arc;
 
 /// Owned RGBA image buffer used by the GUI layer.
@@ -15,16 +16,106 @@ pub struct ImageRgba {
     pub pixels: Arc<[u8]>,
 }
 
+/// Error returned when RGBA image bytes do not match the declared dimensions.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ImageRgbaError {
+    /// Declared image width in pixels.
+    pub width: usize,
+    /// Declared image height in pixels.
+    pub height: usize,
+    /// Actual number of provided bytes.
+    pub actual_len: usize,
+    /// Expected byte length, or `None` if the dimensions overflow `usize`.
+    pub expected_len: Option<usize>,
+}
+
 impl ImageRgba {
     /// Create an image buffer from width/height and RGBA8 bytes.
     pub fn new(width: usize, height: usize, pixels: Vec<u8>) -> Option<Self> {
-        if pixels.len() != width.saturating_mul(height).saturating_mul(4) {
-            return None;
+        Self::try_new(width, height, pixels).ok()
+    }
+
+    /// Create an image buffer from width/height and RGBA8 bytes.
+    ///
+    /// This checked constructor returns a diagnostic when the byte payload does
+    /// not match the declared row-major RGBA8 dimensions.
+    pub fn try_new(width: usize, height: usize, pixels: Vec<u8>) -> Result<Self, ImageRgbaError> {
+        let actual_len = pixels.len();
+        let expected_len = rgba_byte_len(width, height);
+        if expected_len == Some(actual_len) {
+            return Ok(Self {
+                width,
+                height,
+                pixels: pixels.into(),
+            });
         }
-        Some(Self {
+        Err(ImageRgbaError {
             width,
             height,
-            pixels: pixels.into(),
+            actual_len,
+            expected_len,
         })
+    }
+}
+
+impl fmt::Display for ImageRgbaError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.expected_len {
+            Some(expected_len) => write!(
+                formatter,
+                "invalid RGBA image {}x{}: expected {} bytes, got {}",
+                self.width, self.height, expected_len, self.actual_len
+            ),
+            None => write!(
+                formatter,
+                "invalid RGBA image {}x{}: byte length overflows usize",
+                self.width, self.height
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ImageRgbaError {}
+
+fn rgba_byte_len(width: usize, height: usize) -> Option<usize> {
+    width.checked_mul(height)?.checked_mul(4)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ImageRgba, ImageRgbaError};
+
+    #[test]
+    fn image_rgba_try_new_reports_length_mismatch() {
+        let error = ImageRgba::try_new(2, 2, vec![255; 15]).expect_err("invalid byte count");
+
+        assert_eq!(
+            error,
+            ImageRgbaError {
+                width: 2,
+                height: 2,
+                actual_len: 15,
+                expected_len: Some(16),
+            }
+        );
+        assert_eq!(
+            error.to_string(),
+            "invalid RGBA image 2x2: expected 16 bytes, got 15"
+        );
+        assert!(ImageRgba::new(2, 2, vec![255; 15]).is_none());
+    }
+
+    #[test]
+    fn image_rgba_try_new_reports_dimension_overflow() {
+        let error = ImageRgba::try_new(usize::MAX, 2, Vec::new()).expect_err("overflowing size");
+
+        assert_eq!(error.expected_len, None);
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "invalid RGBA image {}x2: byte length overflows usize",
+                usize::MAX
+            )
+        );
     }
 }

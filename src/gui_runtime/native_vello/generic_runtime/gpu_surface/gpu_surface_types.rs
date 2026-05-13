@@ -3,6 +3,7 @@ use super::*;
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct GpuSurfaceRenderStats {
     pub(crate) atlas_texture_uploads: usize,
+    pub(crate) atlas_texture_cache_hits: usize,
     pub(crate) signal_summary_builds: usize,
     pub(crate) signal_summary_cache_hits: usize,
     pub(crate) signal_body_renders: usize,
@@ -26,6 +27,30 @@ pub(super) struct GpuSurfaceTexture {
     pub(super) height: usize,
     pub(super) _texture: wgpu::Texture,
     pub(super) view: wgpu::TextureView,
+}
+
+impl GpuSurfaceTexture {
+    pub(super) fn matches_atlas(&self, revision: u64, width: usize, height: usize) -> bool {
+        atlas_texture_matches_descriptor(
+            self.revision,
+            self.width,
+            self.height,
+            revision,
+            width,
+            height,
+        )
+    }
+}
+
+fn atlas_texture_matches_descriptor(
+    stored_revision: u64,
+    stored_width: usize,
+    stored_height: usize,
+    revision: u64,
+    width: usize,
+    height: usize,
+) -> bool {
+    stored_revision == revision && stored_width == width && stored_height == height
 }
 
 pub(super) struct GpuSurfaceCompositeBinding {
@@ -208,5 +233,21 @@ mod tests {
 
         assert_eq!(stats.composite_binding_rebuilds, 0);
         assert_eq!(stats.composite_binding_cache_hits, 0);
+    }
+
+    #[test]
+    fn render_stats_track_atlas_texture_cache_activity() {
+        let stats = GpuSurfaceRenderStats::default();
+
+        assert_eq!(stats.atlas_texture_uploads, 0);
+        assert_eq!(stats.atlas_texture_cache_hits, 0);
+    }
+
+    #[test]
+    fn atlas_texture_identity_tracks_revision_and_dimensions() {
+        assert!(atlas_texture_matches_descriptor(7, 64, 32, 7, 64, 32));
+        assert!(!atlas_texture_matches_descriptor(7, 64, 32, 8, 64, 32));
+        assert!(!atlas_texture_matches_descriptor(7, 64, 32, 7, 65, 32));
+        assert!(!atlas_texture_matches_descriptor(7, 64, 32, 7, 64, 33));
     }
 }

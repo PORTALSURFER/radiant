@@ -127,6 +127,11 @@ fn main() {
         runtime_scenarios::virtualized_list_hover_paint_10k,
     );
     runner.run_scenario(
+        "runtime_pointer_overlay_paint_10k",
+        RUNTIME_ITERATIONS,
+        runtime_scenarios::pointer_overlay_paint_10k,
+    );
+    runner.run_scenario(
         "runtime_virtualized_nested_scroll_hover_10k",
         RUNTIME_ITERATIONS,
         runtime_scenarios::virtualized_nested_scroll_hover_10k,

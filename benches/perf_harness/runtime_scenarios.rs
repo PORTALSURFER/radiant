@@ -1,5 +1,7 @@
 //! Runtime surface performance scenarios.
 
+#[path = "runtime_scenarios/pointer_overlay.rs"]
+mod pointer_overlay;
 #[path = "runtime_scenarios/surface.rs"]
 mod surface;
 #[path = "runtime_scenarios/virtualized.rs"]
@@ -31,6 +33,10 @@ pub(super) fn virtualized_list_stable_hover_10k() -> impl FnMut() {
 
 pub(super) fn virtualized_list_hover_paint_10k() -> impl FnMut() {
     virtualized::virtualized_list_hover_paint_10k()
+}
+
+pub(super) fn pointer_overlay_paint_10k() -> impl FnMut() {
+    pointer_overlay::pointer_overlay_paint_10k()
 }
 
 pub(super) fn virtualized_nested_scroll_hover_10k() -> impl FnMut() {

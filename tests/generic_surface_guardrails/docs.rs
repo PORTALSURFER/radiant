@@ -39,6 +39,7 @@ fn performance_harness_is_registered_and_documented() {
         "runtime_virtualized_list_hover_10k",
         "runtime_virtualized_list_stable_hover_10k",
         "runtime_virtualized_list_hover_paint_10k",
+        "runtime_pointer_overlay_paint_10k",
         "runtime_virtualized_nested_scroll_hover_10k",
         "runtime_refresh_large_tree",
         "runtime_resize_large_tree",

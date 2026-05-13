@@ -35,16 +35,9 @@ pub(super) fn encode_text_input(
             text_rect.width(),
         );
         if let Some((start, end)) = layout.selection_offsets
-            && end > start
+            && let Some(rect) = selection_rect(input, start, end)
         {
-            super::encode_rect(
-                scene,
-                input.selection_color,
-                UiRect::from_min_max(
-                    Point::new(text_rect.min.x + start, text_rect.min.y + 4.0),
-                    Point::new(text_rect.min.x + end, text_rect.max.y - 4.0),
-                ),
-            );
+            super::encode_rect(scene, input.selection_color, rect);
         }
         let caret_offset = if selection.has_selection {
             layout.local_x_for_byte(selection.caret_byte)
@@ -109,8 +102,9 @@ fn encode_block_caret(scene: &mut Scene, input: &PaintTextInput, x: f32, animati
     let alpha = (0.42 + 0.28 * ((pulse + 1.0) * 0.5)).clamp(0.0, 1.0);
     let mut color = input.caret_color;
     color.a = ((color.a as f32) * alpha).round() as u8;
-    let caret_width = (input.font_size * 0.62).clamp(7.0, 12.0);
-    let caret_height = (input.font_size * 1.15).clamp(12.0, input.rect.height().max(0.0));
+    let Some((caret_width, caret_height)) = caret_size(input) else {
+        return;
+    };
     let caret_y = input.rect.min.y + (input.rect.height() - caret_height) * 0.5;
     let caret_x = x.clamp(
         input.rect.min.x,
@@ -124,4 +118,83 @@ fn encode_block_caret(scene: &mut Scene, input: &PaintTextInput, x: f32, animati
             Point::new(caret_x + caret_width, caret_y + caret_height),
         ),
     );
+}
+
+fn caret_size(input: &PaintTextInput) -> Option<(f32, f32)> {
+    let max_width = input.rect.width().max(0.0);
+    let max_height = input.rect.height().max(0.0);
+    if max_width <= 0.0 || max_height <= 0.0 {
+        return None;
+    }
+    let caret_width = (input.font_size * 0.62).clamp(7.0, 12.0).min(max_width);
+    let caret_height = (input.font_size * 1.15).clamp(12.0, 24.0).min(max_height);
+    Some((caret_width, caret_height))
+}
+
+fn selection_rect(input: &PaintTextInput, start: f32, end: f32) -> Option<UiRect> {
+    if end <= start || input.rect.max.x <= input.rect.min.x || input.rect.max.y <= input.rect.min.y
+    {
+        return None;
+    }
+    let start_x = (input.rect.min.x + start).clamp(input.rect.min.x, input.rect.max.x);
+    let end_x = (input.rect.min.x + end).clamp(input.rect.min.x, input.rect.max.x);
+    if end_x <= start_x {
+        return None;
+    }
+    Some(UiRect::from_min_max(
+        Point::new(start_x, input.rect.min.y),
+        Point::new(end_x, input.rect.max.y),
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{gui::types::Rect, widgets::TextInputState};
+
+    const WHITE: Rgba8 = Rgba8 {
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 255,
+    };
+
+    #[test]
+    fn caret_size_clamps_to_cramped_text_input_bounds() {
+        let input = cramped_text_input();
+
+        assert_eq!(caret_size(&input), Some((5.0, 7.0)));
+    }
+
+    #[test]
+    fn selection_rect_remains_visible_for_cramped_text_input_bounds() {
+        let input = cramped_text_input();
+
+        let rect = selection_rect(&input, 1.0, 4.0).expect("visible selection rect");
+
+        assert_eq!(rect.min.y, input.rect.min.y);
+        assert_eq!(rect.max.y, input.rect.max.y);
+        assert!(rect.width() > 0.0);
+    }
+
+    fn cramped_text_input() -> PaintTextInput {
+        let input = PaintTextInput {
+            widget_id: 1,
+            rect: Rect::from_min_max(Point::new(0.0, 0.0), Point::new(5.0, 7.0)),
+            placeholder: None,
+            state: TextInputState {
+                value: String::from("ml"),
+                caret: 2,
+                selection_anchor: 2,
+            },
+            font_size: 10.0,
+            baseline: None,
+            color: WHITE,
+            placeholder_color: WHITE,
+            selection_color: WHITE,
+            caret_color: WHITE,
+            focused: true,
+        };
+        input
+    }
 }

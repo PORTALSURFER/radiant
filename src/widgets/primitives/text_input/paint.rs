@@ -6,6 +6,8 @@ use crate::runtime::{
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::{WidgetCommon, text_input::TextInputWidget};
 
+const COMPACT_INPUT_HEIGHT: f32 = 28.0;
+
 fn push_text_input_chrome(
     primitives: &mut Vec<PaintPrimitive>,
     common: &WidgetCommon,
@@ -51,8 +53,10 @@ pub(super) fn push_text_input_widget_paint(
     bounds: Rect,
     theme: &ThemeTokens,
 ) {
+    let tokens =
+        crate::widgets::resolve_widget_visual_tokens(theme, input.common.style, input.common.state);
     push_text_input_chrome(primitives, &input.common, bounds, theme);
-    let rect = inset_rect(bounds, 16.0, 4.0);
+    let rect = text_input_content_rect(bounds);
     let font_size = input_font_size(bounds);
     primitives.push(PaintPrimitive::TextInput(PaintTextInput {
         widget_id: input.common.id,
@@ -61,15 +65,21 @@ pub(super) fn push_text_input_widget_paint(
         state: input.state.clone(),
         font_size,
         baseline: optical_centered_baseline(rect, font_size),
-        color: crate::widgets::resolve_widget_visual_tokens(
-            theme,
-            input.common.style,
-            input.common.state,
-        )
-        .foreground,
+        color: tokens.foreground,
         placeholder_color: theme.text_muted,
-        selection_color: theme.grid_strong,
+        selection_color: text_input_selection_color(theme),
         caret_color: theme.accent_danger,
         focused: input.common.state.focused,
     }));
+}
+
+fn text_input_content_rect(bounds: Rect) -> Rect {
+    if bounds.height() <= COMPACT_INPUT_HEIGHT {
+        return inset_rect(bounds, 8.0, 2.0);
+    }
+    inset_rect(bounds, 16.0, 4.0)
+}
+
+fn text_input_selection_color(theme: &ThemeTokens) -> crate::gui::types::Rgba8 {
+    blend_color(theme.bg_primary, theme.accent_danger, 0.34)
 }

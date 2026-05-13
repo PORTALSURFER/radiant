@@ -217,7 +217,7 @@ fn api_docs_describe_the_structural_boundary_strategy() {
         "Command<Message>",
         "Soft-Deprecated First-Use Boilerplate",
         "not a Rust `#[deprecated]` attribute on the explicit control objects",
-        "RuntimeRunReport<Artifacts>",
+        "RuntimeRunReport<Artifacts, Error>",
         "RuntimeBridge",
         "ThemeTokens",
         "SurfacePaintPlan",

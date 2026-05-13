@@ -61,7 +61,9 @@ where
     Bridge: RuntimeBridge<Message> + 'static,
     Message: 'static,
 {
-    run_native_vello_runtime_with_artifacts(options, bridge).result
+    run_native_vello_runtime_with_artifacts(options, bridge)
+        .result
+        .map_err(|err| err.to_string())
 }
 
 /// Run a generic [`RuntimeBridge`] through native Vello and return runtime artifacts.
@@ -80,7 +82,7 @@ where
         Err(err) => {
             return NativeGenericRunReport {
                 artifacts: NativeGenericRuntimeArtifacts::default(),
-                result: Err(err.to_string()),
+                result: Err(NativeGenericRunError::EventLoopBuild(err.to_string())),
             };
         }
     };
@@ -95,7 +97,7 @@ where
         .install_repaint_signal(repaint_signal);
     let run_result = event_loop
         .run_app(&mut runner)
-        .map_err(|err| err.to_string());
+        .map_err(|err| NativeGenericRunError::EventLoopRun(err.to_string()));
     let elapsed = run_started.elapsed();
     match &run_result {
         Ok(_) => info!(
@@ -127,9 +129,33 @@ pub struct NativeGenericRuntimeArtifacts {
     pub shutdown_timing: Option<serde_json::Value>,
 }
 
+/// Typed failure reported by the generic native Vello runtime.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum NativeGenericRunError {
+    /// Creating the native event loop failed before runtime startup.
+    EventLoopBuild(String),
+    /// The native event loop returned an error while running.
+    EventLoopRun(String),
+}
+
+impl std::fmt::Display for NativeGenericRunError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EventLoopBuild(message) => {
+                write!(formatter, "failed to create native event loop: {message}")
+            }
+            Self::EventLoopRun(message) => {
+                write!(formatter, "native event loop failed: {message}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for NativeGenericRunError {}
+
 /// Result plus structured artifacts returned by one generic native runtime execution.
 pub type NativeGenericRunReport =
-    crate::gui_runtime::RuntimeRunReport<NativeGenericRuntimeArtifacts>;
+    crate::gui_runtime::RuntimeRunReport<NativeGenericRuntimeArtifacts, NativeGenericRunError>;
 
 fn initial_viewport(options: &NativeRunOptions) -> Vector2 {
     let [width, height] = options.inner_size.unwrap_or([1280.0, 720.0]);

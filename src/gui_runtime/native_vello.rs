@@ -51,8 +51,8 @@ pub(in crate::gui_runtime::native_vello) use runtime_event::RuntimeUserEvent;
 
 pub use self::{
     generic_runtime::{
-        NativeGenericRunReport, NativeGenericRuntimeArtifacts, run_native_vello_runtime,
-        run_native_vello_runtime_with_artifacts,
+        NativeGenericRunError, NativeGenericRunReport, NativeGenericRuntimeArtifacts,
+        run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
     },
     startup::NativeStartupTimingArtifact,
 };

@@ -497,11 +497,14 @@ contract, not side effects inferred from overlays. Future custom shader or
 program support should extend this contract rather than adding backend-specific
 runtime special cases.
 
-Native runtime entry points return `RuntimeRunReport<Artifacts>` when artifact
-capture is requested. The report envelope is generic: Radiant owns the
-success/error transport while each runtime path chooses its artifact payload.
-This keeps compatibility diagnostics and generic runtime diagnostics on the same
-mechanism without coupling the public runtime API to a host application model.
+Native runtime entry points return `RuntimeRunReport<Artifacts, Error>` when
+artifact capture is requested. The report envelope is generic: Radiant owns the
+result transport while each runtime path chooses its artifact payload and typed
+error boundary. The generic Vello runtime reports `NativeGenericRunError`
+variants for event-loop build and run failures, while simple `.run()` helpers
+continue returning the compatibility `radiant::Result` string form. This keeps
+compatibility diagnostics and generic runtime diagnostics on the same mechanism
+without coupling the public runtime API to a host application model.
 `radiant::gui::paint` also exposes lower-level backend-neutral paint payloads
 such as `PaintFrame`, `Primitive`, `TextRun`, `FillRect`, `FillCircle`,
 `FillLinearGradient`, and `DrawImage` for retained renderer adapters that need

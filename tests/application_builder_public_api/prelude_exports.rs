@@ -139,6 +139,24 @@ fn prelude_exports_svg_icon_vector_painting() {
 }
 
 #[test]
+fn prelude_exports_native_run_report_error_boundary() {
+    let report: ui::RuntimeRunReport<(), ui::NativeGenericRunError> = ui::RuntimeRunReport {
+        artifacts: (),
+        result: Err(ui::NativeGenericRunError::EventLoopRun(
+            "stopped".to_string(),
+        )),
+    };
+
+    assert_eq!(
+        report
+            .result
+            .expect_err("report should carry typed error")
+            .to_string(),
+        "native event loop failed: stopped"
+    );
+}
+
+#[test]
 fn hello_world_example_stays_on_application_builders() {
     let source = include_str!("../../examples/hello_world.rs");
 

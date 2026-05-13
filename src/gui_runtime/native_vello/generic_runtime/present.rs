@@ -193,6 +193,8 @@ fn maybe_log_render_profile(
         gpu_signal_body_renders = gpu_surface_stats.signal_body_renders,
         gpu_signal_body_cache_hits = gpu_surface_stats.signal_body_cache_hits,
         gpu_signal_body_encode_us = gpu_surface_stats.signal_body_encode_elapsed.as_micros(),
+        gpu_surface_composite_binding_rebuilds = gpu_surface_stats.composite_binding_rebuilds,
+        gpu_surface_composite_binding_cache_hits = gpu_surface_stats.composite_binding_cache_hits,
         gpu_surface_composite_encode_us = gpu_surface_stats.composite_encode_elapsed.as_micros(),
         submit_present_us = frame.submit_present.as_micros(),
         since_last_present_us = since_last_present.as_micros(),

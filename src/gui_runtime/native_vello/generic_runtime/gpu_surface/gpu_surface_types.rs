@@ -7,6 +7,8 @@ pub(crate) struct GpuSurfaceRenderStats {
     pub(crate) signal_summary_cache_hits: usize,
     pub(crate) signal_body_renders: usize,
     pub(crate) signal_body_cache_hits: usize,
+    pub(crate) composite_binding_rebuilds: usize,
+    pub(crate) composite_binding_cache_hits: usize,
     pub(crate) signal_body_encode_elapsed: Duration,
     pub(crate) composite_encode_elapsed: Duration,
 }
@@ -198,5 +200,13 @@ mod tests {
 
         assert_ne!(atlas, same_texture_next_pipeline);
         assert_ne!(atlas, next_texture);
+    }
+
+    #[test]
+    fn render_stats_track_composite_binding_cache_activity() {
+        let stats = GpuSurfaceRenderStats::default();
+
+        assert_eq!(stats.composite_binding_rebuilds, 0);
+        assert_eq!(stats.composite_binding_cache_hits, 0);
     }
 }

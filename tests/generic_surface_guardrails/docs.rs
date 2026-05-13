@@ -191,6 +191,8 @@ fn api_docs_describe_paint_only_overlay_composition_cache() {
         "paint-only presentation work",
         "caches the composed Vello scene plus retained GPU surfaces as a base frame",
         "composed-base refresh or cache hits for transient overlays",
+        "transient-overlay paint callbacks",
+        "transient-overlay primitive counts",
         "without refreshing the declarative surface, rebuilding the cached Vello scene, or recompositing",
     ] {
         assert!(

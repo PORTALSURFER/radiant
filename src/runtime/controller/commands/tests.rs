@@ -136,6 +136,19 @@ fn runtime_batched_command_remainders_preserve_following_command_order() {
 }
 
 #[test]
+fn runtime_batched_command_remainders_reuse_command_storage() {
+    let mut commands = Vec::with_capacity(128);
+    commands.push(Command::batch((0..70).map(Command::message)));
+    let retained_capacity = commands.capacity();
+    let mut batch = Vec::with_capacity(64);
+
+    take_runtime_command_batch_into(&mut commands, &mut batch);
+
+    assert_eq!(commands.capacity(), retained_capacity);
+    assert_eq!(commands.len(), 6);
+}
+
+#[test]
 fn runtime_message_batch_preserves_order_and_keeps_remainder() {
     let mut messages = (0..70).collect::<Vec<_>>();
     let mut batch = Vec::with_capacity(8);

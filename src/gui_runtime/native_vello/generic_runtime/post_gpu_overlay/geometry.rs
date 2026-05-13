@@ -79,7 +79,11 @@ fn push_rect_vertices(
     rect: UiRect,
     color: Rgba8,
 ) {
-    if rect.width() <= 0.0 || rect.height() <= 0.0 || color.a == 0 {
+    if rect.width() <= 0.0
+        || rect.height() <= 0.0
+        || color.a == 0
+        || rect_is_outside_target(rect, target_size)
+    {
         return;
     }
     let color = rgba_to_float(color);
@@ -110,6 +114,15 @@ fn clip_x(x: f32, target_size: Vector2) -> f32 {
 
 fn clip_y(y: f32, target_size: Vector2) -> f32 {
     1.0 - y / target_size.y.max(1.0) * 2.0
+}
+
+fn rect_is_outside_target(rect: UiRect, target_size: Vector2) -> bool {
+    let target_width = target_size.x.max(0.0);
+    let target_height = target_size.y.max(0.0);
+    rect.max.x <= 0.0
+        || rect.min.x >= target_width
+        || rect.max.y <= 0.0
+        || rect.min.y >= target_height
 }
 
 fn stroke_rect_edges(rect: UiRect, width: f32) -> [UiRect; 4] {
@@ -208,6 +221,32 @@ mod tests {
     }
 
     #[test]
+    fn replayable_vertices_skip_fully_offscreen_rectangles() {
+        let primitives = [rect(
+            UiRect::from_min_size(Point::new(120.0, 0.0), Vector2::new(10.0, 10.0)),
+            white(),
+        )];
+        let mut vertices = Vec::new();
+
+        replayable_vertices_into(&primitives, Vector2::new(100.0, 50.0), &mut vertices);
+
+        assert!(vertices.is_empty());
+    }
+
+    #[test]
+    fn replayable_vertices_keep_partially_visible_rectangles() {
+        let primitives = [rect(
+            UiRect::from_min_size(Point::new(95.0, 0.0), Vector2::new(10.0, 10.0)),
+            white(),
+        )];
+        let mut vertices = Vec::new();
+
+        replayable_vertices_into(&primitives, Vector2::new(100.0, 50.0), &mut vertices);
+
+        assert_eq!(vertices.len(), 6);
+    }
+
+    #[test]
     fn append_replayable_vertices_preserves_existing_vertices() {
         let mut vertices = Vec::new();
 
@@ -238,10 +277,22 @@ mod tests {
     }
 
     fn fill(widget_id: u64) -> PaintPrimitive {
+        fill_rect(
+            widget_id,
+            UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1.0, 1.0)),
+            white(),
+        )
+    }
+
+    fn rect(rect: UiRect, color: Rgba8) -> PaintPrimitive {
+        fill_rect(1, rect, color)
+    }
+
+    fn fill_rect(widget_id: u64, rect: UiRect, color: Rgba8) -> PaintPrimitive {
         PaintPrimitive::FillRect(PaintFillRect {
             widget_id,
-            rect: UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1.0, 1.0)),
-            color: white(),
+            rect,
+            color,
         })
     }
 

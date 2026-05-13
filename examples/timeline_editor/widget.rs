@@ -37,11 +37,14 @@ pub(super) enum TimelineDrag {
         clip_id: u32,
         pointer_offset: u32,
         duration: u32,
+        current_lane: usize,
+        current_start: u32,
     },
     ResizingClip {
         clip_id: u32,
         edge: ResizeEdge,
         fixed_beat: u32,
+        current_range: BeatRange,
     },
 }
 

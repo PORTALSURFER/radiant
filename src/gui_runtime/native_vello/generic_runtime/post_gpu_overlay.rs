@@ -18,16 +18,13 @@ pub(super) struct PostGpuOverlayRenderTarget<'a> {
 
 struct PostGpuOverlayPipeline {
     format: wgpu::TextureFormat,
-    bind_group_layout: wgpu::BindGroupLayout,
     pipeline: wgpu::RenderPipeline,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-struct RectUniforms {
-    dest: [f32; 4],
-    target_size: [f32; 2],
-    _padding: [f32; 2],
+struct OverlayVertex {
+    position: [f32; 2],
     color: [f32; 4],
 }
 
@@ -44,15 +41,21 @@ impl PostGpuOverlayRenderer {
         else {
             return;
         };
-        if !suffix.iter().any(is_replayable_shape) {
+        let vertices = replayable_vertices(suffix, target.size);
+        if vertices.is_empty() {
             return;
         }
         self.ensure_pipeline(target.device, target.format);
         let Some(pipeline) = self.pipeline.as_ref() else {
             return;
         };
-        let device = target.device;
-        let size = target.size;
+        let vertex_buffer = target
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("radiant_post_gpu_overlay_vertices"),
+                contents: overlay_vertex_bytes(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
         let mut pass = target
             .encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -71,19 +74,8 @@ impl PostGpuOverlayRenderer {
                 occlusion_query_set: None,
             });
         pass.set_pipeline(&pipeline.pipeline);
-        for primitive in suffix {
-            match primitive {
-                PaintPrimitive::FillRect(fill) => {
-                    draw_rect(device, size, &mut pass, pipeline, fill.rect, fill.color);
-                }
-                PaintPrimitive::StrokeRect(stroke) => {
-                    for rect in stroke_rect_edges(stroke.rect, stroke.width) {
-                        draw_rect(device, size, &mut pass, pipeline, rect, stroke.color);
-                    }
-                }
-                _ => {}
-            }
-        }
+        pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+        pass.draw(0..vertices.len() as u32, 0..1);
     }
 
     fn ensure_pipeline(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat) {
@@ -98,22 +90,9 @@ impl PostGpuOverlayRenderer {
             label: Some("radiant_post_gpu_overlay_shader"),
             source: wgpu::ShaderSource::Wgsl(POST_GPU_OVERLAY_SHADER.into()),
         });
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("radiant_post_gpu_overlay_bind_group_layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-        });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("radiant_post_gpu_overlay_pipeline_layout"),
-            bind_group_layouts: &[&bind_group_layout],
+            bind_group_layouts: &[],
             push_constant_ranges: &[],
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -122,7 +101,22 @@ impl PostGpuOverlayRenderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[],
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<OverlayVertex>() as wgpu::BufferAddress,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &[
+                        wgpu::VertexAttribute {
+                            format: wgpu::VertexFormat::Float32x2,
+                            offset: 0,
+                            shader_location: 0,
+                        },
+                        wgpu::VertexAttribute {
+                            format: wgpu::VertexFormat::Float32x4,
+                            offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
+                            shader_location: 1,
+                        },
+                    ],
+                }],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -144,53 +138,65 @@ impl PostGpuOverlayRenderer {
             multiview: None,
             cache: None,
         });
-        self.pipeline = Some(PostGpuOverlayPipeline {
-            format,
-            bind_group_layout,
-            pipeline,
-        });
+        self.pipeline = Some(PostGpuOverlayPipeline { format, pipeline });
     }
 }
 
-fn is_replayable_shape(primitive: &PaintPrimitive) -> bool {
-    matches!(
-        primitive,
-        PaintPrimitive::FillRect(_) | PaintPrimitive::StrokeRect(_)
-    )
+fn replayable_vertices(primitives: &[PaintPrimitive], target_size: Vector2) -> Vec<OverlayVertex> {
+    let mut vertices = Vec::new();
+    for primitive in primitives {
+        match primitive {
+            PaintPrimitive::FillRect(fill) => {
+                push_rect_vertices(&mut vertices, target_size, fill.rect, fill.color);
+            }
+            PaintPrimitive::StrokeRect(stroke) => {
+                for rect in stroke_rect_edges(stroke.rect, stroke.width) {
+                    push_rect_vertices(&mut vertices, target_size, rect, stroke.color);
+                }
+            }
+            _ => {}
+        }
+    }
+    vertices
 }
 
-fn draw_rect(
-    device: &wgpu::Device,
+fn push_rect_vertices(
+    vertices: &mut Vec<OverlayVertex>,
     target_size: Vector2,
-    pass: &mut wgpu::RenderPass<'_>,
-    pipeline: &PostGpuOverlayPipeline,
     rect: UiRect,
     color: Rgba8,
 ) {
     if rect.width() <= 0.0 || rect.height() <= 0.0 || color.a == 0 {
         return;
     }
-    let uniforms = RectUniforms {
-        dest: [rect.min.x, rect.min.y, rect.width(), rect.height()],
-        target_size: [target_size.x.max(1.0), target_size.y.max(1.0)],
-        _padding: [0.0; 2],
-        color: rgba_to_float(color),
-    };
-    let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("radiant_post_gpu_overlay_uniforms"),
-        contents: uniform_bytes(&uniforms),
-        usage: wgpu::BufferUsages::UNIFORM,
-    });
-    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("radiant_post_gpu_overlay_bind_group"),
-        layout: &pipeline.bind_group_layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: uniform_buffer.as_entire_binding(),
-        }],
-    });
-    pass.set_bind_group(0, &bind_group, &[]);
-    pass.draw(0..6, 0..1);
+    let color = rgba_to_float(color);
+    let left = clip_x(rect.min.x, target_size);
+    let right = clip_x(rect.max.x, target_size);
+    let top = clip_y(rect.min.y, target_size);
+    let bottom = clip_y(rect.max.y, target_size);
+    vertices.extend_from_slice(&[
+        vertex(left, top, color),
+        vertex(right, top, color),
+        vertex(left, bottom, color),
+        vertex(left, bottom, color),
+        vertex(right, top, color),
+        vertex(right, bottom, color),
+    ]);
+}
+
+fn vertex(x: f32, y: f32, color: [f32; 4]) -> OverlayVertex {
+    OverlayVertex {
+        position: [x, y],
+        color,
+    }
+}
+
+fn clip_x(x: f32, target_size: Vector2) -> f32 {
+    x / target_size.x.max(1.0) * 2.0 - 1.0
+}
+
+fn clip_y(y: f32, target_size: Vector2) -> f32 {
+    1.0 - y / target_size.y.max(1.0) * 2.0
 }
 
 fn stroke_rect_edges(rect: UiRect, width: f32) -> [UiRect; 4] {
@@ -218,52 +224,35 @@ fn rgba_to_float(color: Rgba8) -> [f32; 4] {
     ]
 }
 
-fn uniform_bytes<T>(uniforms: &T) -> &[u8] {
-    let size = std::mem::size_of::<T>();
-    let ptr = uniforms as *const T as *const u8;
-    // SAFETY: `uniforms` is a plain repr(C) value used only for the duration
+fn overlay_vertex_bytes(vertices: &[OverlayVertex]) -> &[u8] {
+    let size = std::mem::size_of_val(vertices);
+    let ptr = vertices.as_ptr() as *const u8;
+    // SAFETY: `OverlayVertex` is a repr(C) POD-like value containing only f32
+    // arrays. The slice is used only for the duration
     // of this call while wgpu copies the bytes into an owned buffer.
     unsafe { std::slice::from_raw_parts(ptr, size) }
 }
 
 const POST_GPU_OVERLAY_SHADER: &str = r#"
-struct Params {
-    dest: vec4<f32>,
-    target_size: vec2<f32>,
-    color: vec4<f32>,
-};
-
-@group(0) @binding(0)
-var<uniform> params: Params;
-
 struct VertexOut {
     @builtin(position) position: vec4<f32>,
+    @location(0) color: vec4<f32>,
 };
 
 @vertex
-fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOut {
-    var corners = array<vec2<f32>, 6>(
-        vec2<f32>(0.0, 0.0),
-        vec2<f32>(1.0, 0.0),
-        vec2<f32>(0.0, 1.0),
-        vec2<f32>(0.0, 1.0),
-        vec2<f32>(1.0, 0.0),
-        vec2<f32>(1.0, 1.0),
-    );
-    let local = corners[vertex_index];
-    let pixel = params.dest.xy + local * params.dest.zw;
-    let clip = vec2<f32>(
-        pixel.x / params.target_size.x * 2.0 - 1.0,
-        1.0 - pixel.y / params.target_size.y * 2.0,
-    );
+fn vs_main(
+    @location(0) position: vec2<f32>,
+    @location(1) color: vec4<f32>,
+) -> VertexOut {
     var out: VertexOut;
-    out.position = vec4<f32>(clip, 0.0, 1.0);
+    out.position = vec4<f32>(position, 0.0, 1.0);
+    out.color = color;
     return out;
 }
 
 @fragment
-fn fs_main(_in: VertexOut) -> @location(0) vec4<f32> {
-    return params.color;
+fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
+    return in.color;
 }
 "#;
 
@@ -298,8 +287,19 @@ mod tests {
     }
 
     #[test]
-    fn rect_uniforms_keep_wgsl_vec4_alignment() {
-        assert_eq!(std::mem::size_of::<RectUniforms>(), 48);
+    fn replayable_vertices_batch_fill_and_stroke_rectangles() {
+        let primitives = [fill(1), stroke(2)];
+
+        let vertices = replayable_vertices(&primitives, Vector2::new(100.0, 50.0));
+
+        assert_eq!(vertices.len(), 30);
+        assert_eq!(vertices[0].position, [-1.0, 1.0]);
+        assert_eq!(vertices[5].position, [-0.98, 0.96]);
+    }
+
+    #[test]
+    fn overlay_vertices_keep_vertex_buffer_stride_stable() {
+        assert_eq!(std::mem::size_of::<OverlayVertex>(), 24);
     }
 
     fn fill(widget_id: u64) -> PaintPrimitive {

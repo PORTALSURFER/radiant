@@ -26,7 +26,7 @@ mod resource;
 mod surface;
 
 pub use crate::gui_runtime::{
-    DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, NativeGenericRunReport,
+    DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, NativeGenericRunError, NativeGenericRunReport,
     NativeGenericRuntimeArtifacts, NativeGpuBackend, NativeGpuOptions, NativePopupOptions,
     NativeRunOptions, NativeStartupTimingArtifact, NativeTextOptions, NativeWindowMode,
     RuntimeRunReport, WindowIconRgba, WindowManifest, WindowManifestError, WindowSpec,

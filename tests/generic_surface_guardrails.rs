@@ -263,6 +263,7 @@ fn gui_runtime_public_facade_exports_generic_runtime_entrypoints() {
 
     for required in [
         "NativeGenericRunReport",
+        "NativeGenericRunError",
         "NativeGenericRuntimeArtifacts",
         "NativeStartupTimingArtifact",
         "run_native_vello_runtime",
@@ -274,7 +275,7 @@ fn gui_runtime_public_facade_exports_generic_runtime_entrypoints() {
         );
     }
     assert!(
-        source.contains("pub struct RuntimeRunReport<Artifacts>"),
+        source.contains("pub struct RuntimeRunReport<Artifacts, Error = String>"),
         "radiant::gui_runtime should expose a generic runtime report envelope"
     );
 }

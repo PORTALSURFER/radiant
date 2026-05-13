@@ -68,7 +68,7 @@ fn generic_core_turns_message_free_animation_into_paint_only_redraw() {
 }
 
 #[test]
-fn generic_core_turns_scene_animation_into_scene_rebuild_redraw() {
+fn generic_core_turns_text_caret_animation_into_scene_rebuild_redraw() {
     let mut core = GenericNativeRuntimeCore::new(demo_bridge(), Vector2::new(320.0, 40.0));
 
     assert!(core.runtime.focus_widget(12));

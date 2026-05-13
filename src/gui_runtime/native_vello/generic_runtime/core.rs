@@ -91,13 +91,13 @@ where
     pub(super) fn drain_timed_frame(
         &mut self,
         animation_activity: RuntimeAnimationActivity,
-        needs_scene_animation: bool,
+        needs_text_caret_animation: bool,
     ) -> GenericRouteOutcome {
         if animation_activity.needs_frame_message() {
             self.queue_animation_frame();
         }
         let mut outcome = self.drain_runtime_messages();
-        if !outcome.needs_redraw() && needs_scene_animation {
+        if !outcome.needs_redraw() && needs_text_caret_animation {
             outcome.redraw_requested = true;
         } else if !outcome.needs_redraw() && animation_activity.needs_animation() {
             outcome.paint_only_requested = true;

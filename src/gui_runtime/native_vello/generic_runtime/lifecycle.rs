@@ -119,17 +119,17 @@ where
         }
         let animation_activity = self.core.animation_activity();
         let now = Instant::now();
-        let needs_scene_animation = self.core.has_focused_text_input();
+        let needs_text_caret_animation = self.core.has_focused_text_input();
         let frame_target_fps = timed_frame_target_fps(
             self.options.normalized_target_fps(),
             animation_activity,
-            needs_scene_animation,
+            needs_text_caret_animation,
         );
         match timed_frame_cadence(
             now,
             self.last_redraw,
             frame_target_fps,
-            animation_activity.needs_animation() || needs_scene_animation,
+            animation_activity.needs_animation() || needs_text_caret_animation,
         ) {
             TimedFrameCadence::Idle => event_loop.set_control_flow(ControlFlow::Wait),
             TimedFrameCadence::WaitUntil(next_frame) => {
@@ -139,7 +139,7 @@ where
                 if !self.redraw_requested {
                     let outcome = self
                         .core
-                        .drain_timed_frame(animation_activity, needs_scene_animation);
+                        .drain_timed_frame(animation_activity, needs_text_caret_animation);
                     if outcome.exit_requested {
                         event_loop.exit();
                         return;

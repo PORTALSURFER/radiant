@@ -65,11 +65,24 @@ where
     ///
     /// Returns the targeted widget id when a projected widget handled the point.
     pub fn dispatch_input_at(&mut self, point: Point, input: WidgetInput) -> Option<WidgetId> {
+        self.dispatch_input_at_output(point, input)
+            .map(|(widget_id, _)| widget_id)
+    }
+
+    pub(super) fn dispatch_input_at_output(
+        &mut self,
+        point: Point,
+        input: WidgetInput,
+    ) -> Option<(WidgetId, bool)> {
         let widget_id = self.widget_at(point)?;
-        if matches!(input, WidgetInput::PointerPress { .. }) {
+        if matches!(
+            input,
+            WidgetInput::PointerPress { .. } | WidgetInput::PointerDoubleClick { .. }
+        ) {
             let _ = self.focus_widget(widget_id);
         }
-        self.dispatch_input(widget_id, input).then_some(widget_id)
+        self.dispatch_input_output(widget_id, input)
+            .map(|emitted_output| (widget_id, emitted_output))
     }
 
     pub(super) fn dispatch_pointer_move(&mut self, position: Point) -> Option<WidgetId> {

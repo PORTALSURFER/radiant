@@ -27,7 +27,7 @@ mod window;
 use composited_base::{
     BaseFramePresentState, BaseFramePresentTarget, CompositedBaseFrame, present_base_frame,
 };
-pub(in crate::gui_runtime::native_vello) use core::GenericNativeRuntimeCore;
+pub(in crate::gui_runtime::native_vello) use core::{GenericNativeRuntimeCore, PointerPressStamp};
 use frame_cadence::{TimedFrameCadence, timed_frame_cadence};
 use gpu_surface::GpuSurfaceRenderer;
 use gpu_surface_interaction::PendingGpuSurfaceWheel;

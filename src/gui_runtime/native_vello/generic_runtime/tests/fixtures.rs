@@ -269,6 +269,9 @@ impl RuntimeBridge<String> for CanvasBridge {
                 CanvasMessage::Input {
                     input: WidgetInput::Wheel { .. },
                 } => String::from("wheel"),
+                CanvasMessage::Input {
+                    input: WidgetInput::PointerDoubleClick { .. },
+                } => String::from("double"),
                 _ => String::new(),
             },
         )))

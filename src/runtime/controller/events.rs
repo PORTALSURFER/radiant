@@ -25,6 +25,13 @@ pub enum Event {
         /// Pointer button that started the press.
         button: PointerButton,
     },
+    /// Pointer button was pressed twice in quick succession.
+    PointerDoubleClick {
+        /// Pointer position in surface logical coordinates.
+        position: Point,
+        /// Pointer button that completed the double-click.
+        button: PointerButton,
+    },
     /// Pointer press ended at the given surface position.
     PointerRelease {
         /// Pointer position in surface logical coordinates.
@@ -81,6 +88,26 @@ where
                 };
                 self.pointer_capture = Some(widget_id);
                 self.dispatch_input_at(position, WidgetInput::PointerPress { position, button })
+            }
+            Event::PointerDoubleClick { position, button } => {
+                let Some(widget_id) = self.widget_at(position) else {
+                    self.pointer_capture = None;
+                    self.pointer_capture_state = None;
+                    self.clear_focus();
+                    return None;
+                };
+                self.pointer_capture = Some(widget_id);
+                let routed = self.dispatch_input_at_output(
+                    position,
+                    WidgetInput::PointerDoubleClick { position, button },
+                );
+                match routed {
+                    Some((widget_id, true)) => Some(widget_id),
+                    _ => self.dispatch_input_at(
+                        position,
+                        WidgetInput::PointerPress { position, button },
+                    ),
+                }
             }
             Event::PointerRelease { position, button } => {
                 if self.scroll_drag_capture.take().is_some() {

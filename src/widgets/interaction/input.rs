@@ -103,6 +103,13 @@ pub enum WidgetInput {
         /// Button that started the press.
         button: PointerButton,
     },
+    /// Pointer button was pressed twice in quick succession at the given point.
+    PointerDoubleClick {
+        /// Pointer position in the widget host's logical coordinate space.
+        position: Point,
+        /// Button that completed the double-click.
+        button: PointerButton,
+    },
     /// Pointer press ended at the given point.
     PointerRelease {
         /// Pointer position in the widget host's logical coordinate space.

@@ -2,8 +2,8 @@
 
 use crate::gui::types::Rect;
 use crate::runtime::{
-    button_font_size, inset_rect, optical_centered_baseline, push_text_run, PaintPrimitive,
-    PaintTextAlign, PaintTextRun,
+    PaintPrimitive, PaintTextAlign, PaintTextRun, button_font_size, inset_rect,
+    optical_centered_baseline, push_text_run,
 };
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::{

@@ -4,13 +4,14 @@ mod geometry;
 mod pipeline;
 mod target;
 
-use geometry::{overlay_vertex_bytes, replayable_vertices};
+use geometry::{OverlayVertex, overlay_vertex_bytes, replayable_vertices_into};
 use pipeline::PostGpuOverlayPipeline;
 pub(in crate::gui_runtime::native_vello::generic_runtime) use target::PostGpuOverlayRenderTarget;
 
 #[derive(Default)]
 pub(super) struct PostGpuOverlayRenderer {
     pipeline: Option<PostGpuOverlayPipeline>,
+    vertices: Vec<OverlayVertex>,
 }
 
 impl PostGpuOverlayRenderer {
@@ -30,8 +31,8 @@ impl PostGpuOverlayRenderer {
         target: &mut PostGpuOverlayRenderTarget<'_>,
         primitives: &[crate::runtime::PaintPrimitive],
     ) {
-        let vertices = replayable_vertices(primitives, target.size);
-        if vertices.is_empty() {
+        replayable_vertices_into(primitives, target.size, &mut self.vertices);
+        if self.vertices.is_empty() {
             return;
         }
         let pipeline = self
@@ -41,7 +42,7 @@ impl PostGpuOverlayRenderer {
             *pipeline = PostGpuOverlayPipeline::new(target.device, target.format);
         }
         let vertex_buffer =
-            pipeline.create_vertex_buffer(target.device, overlay_vertex_bytes(&vertices));
-        pipeline.render(target, &vertex_buffer, vertices.len() as u32);
+            pipeline.create_vertex_buffer(target.device, overlay_vertex_bytes(&self.vertices));
+        pipeline.render(target, &vertex_buffer, self.vertices.len() as u32);
     }
 }

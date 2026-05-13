@@ -42,6 +42,14 @@ pub(super) fn replayable_vertices_into(
     vertices: &mut Vec<OverlayVertex>,
 ) {
     vertices.clear();
+    append_replayable_vertices(primitives, target_size, vertices);
+}
+
+pub(super) fn append_replayable_vertices(
+    primitives: &[PaintPrimitive],
+    target_size: Vector2,
+    vertices: &mut Vec<OverlayVertex>,
+) {
     for primitive in primitives {
         match primitive {
             PaintPrimitive::FillRect(fill) => {
@@ -197,6 +205,16 @@ mod tests {
         assert_eq!(capacity, 64);
         assert_eq!(vertices.capacity(), capacity);
         assert_eq!(vertices.len(), 6);
+    }
+
+    #[test]
+    fn append_replayable_vertices_preserves_existing_vertices() {
+        let mut vertices = Vec::new();
+
+        replayable_vertices_into(&[fill(1)], Vector2::new(100.0, 50.0), &mut vertices);
+        append_replayable_vertices(&[fill(2)], Vector2::new(100.0, 50.0), &mut vertices);
+
+        assert_eq!(vertices.len(), 12);
     }
 
     #[test]

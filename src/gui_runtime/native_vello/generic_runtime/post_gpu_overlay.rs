@@ -5,7 +5,9 @@ mod pipeline;
 mod target;
 
 use crate::gui_runtime::native_vello::wgpu;
-use geometry::{OverlayVertex, overlay_vertex_bytes, replayable_vertices_into};
+use geometry::{
+    OverlayVertex, append_replayable_vertices, overlay_vertex_bytes, replayable_vertices_into,
+};
 use pipeline::PostGpuOverlayPipeline;
 pub(in crate::gui_runtime::native_vello::generic_runtime) use target::PostGpuOverlayRenderTarget;
 
@@ -19,23 +21,30 @@ pub(super) struct PostGpuOverlayRenderer {
 }
 
 impl PostGpuOverlayRenderer {
-    pub(super) fn render(
+    pub(super) fn render_layers(
         &mut self,
         target: &mut PostGpuOverlayRenderTarget<'_>,
         primitives: &[crate::runtime::PaintPrimitive],
+        overlay_primitives: &[crate::runtime::PaintPrimitive],
     ) {
-        let Some(suffix) = geometry::replayable_suffix(primitives) else {
-            return;
-        };
-        self.render_primitives(target, suffix);
+        let suffix = geometry::replayable_suffix(primitives);
+        if overlay_primitives.is_empty() {
+            if let Some(suffix) = suffix {
+                replayable_vertices_into(suffix, target.size, &mut self.vertices);
+            } else {
+                self.vertices.clear();
+            }
+        } else {
+            self.vertices.clear();
+            if let Some(suffix) = suffix {
+                append_replayable_vertices(suffix, target.size, &mut self.vertices);
+            }
+            append_replayable_vertices(overlay_primitives, target.size, &mut self.vertices);
+        }
+        self.render_vertices(target);
     }
 
-    pub(super) fn render_primitives(
-        &mut self,
-        target: &mut PostGpuOverlayRenderTarget<'_>,
-        primitives: &[crate::runtime::PaintPrimitive],
-    ) {
-        replayable_vertices_into(primitives, target.size, &mut self.vertices);
+    fn render_vertices(&mut self, target: &mut PostGpuOverlayRenderTarget<'_>) {
         if self.vertices.is_empty() {
             return;
         }

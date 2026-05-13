@@ -60,9 +60,19 @@ pub fn inline_badge_labels<'a>(
 
 /// Materialize inline badge labels once when a cache boundary owns them.
 pub fn inline_badge_labels_owned(text: &str, delimiter: &str) -> Vec<String> {
-    inline_badge_labels(text, delimiter)
-        .map(str::to_owned)
-        .collect::<Vec<_>>()
+    let mut labels = Vec::new();
+    inline_badge_labels_owned_into(text, delimiter, &mut labels);
+    labels
+}
+
+/// Materialize inline badge labels into caller-owned storage.
+///
+/// This is the allocation-reusing counterpart to
+/// [`inline_badge_labels_owned`] for hosts that repeatedly resolve badge
+/// clusters during layout, paint, or cache refreshes.
+pub fn inline_badge_labels_owned_into(text: &str, delimiter: &str, labels: &mut Vec<String>) {
+    labels.clear();
+    labels.extend(inline_badge_labels(text, delimiter).map(str::to_owned));
 }
 
 /// Return the filled badge width needed for one inline badge label.
@@ -104,8 +114,28 @@ pub fn inline_badge_rects_for_labels(
     trailing_reserved_width: f32,
     metrics: InlineBadgeMetrics,
 ) -> Vec<Rect> {
+    let mut rects = Vec::new();
+    inline_badge_rects_for_labels_into(
+        item_label,
+        labels,
+        trailing_reserved_width,
+        metrics,
+        &mut rects,
+    );
+    rects
+}
+
+/// Compute badge rects for pre-split labels into caller-owned storage.
+pub fn inline_badge_rects_for_labels_into(
+    item_label: Rect,
+    labels: &[String],
+    trailing_reserved_width: f32,
+    metrics: InlineBadgeMetrics,
+    rects: &mut Vec<Rect>,
+) {
+    rects.clear();
     if labels.is_empty() || item_label.width() <= 0.0 || item_label.height() <= 0.0 {
-        return Vec::new();
+        return;
     }
     let total_width = labels
         .iter()
@@ -116,26 +146,26 @@ pub fn inline_badge_rects_for_labels(
     let start_x = (right_edge - total_width).max(item_label.min.x);
     let badge_height = inline_badge_height(item_label, metrics);
     if badge_height <= 0.0 || right_edge <= start_x {
-        return Vec::new();
+        return;
     }
     let min_y = item_label.min.y + ((item_label.height() - badge_height) * 0.5).floor();
     let max_y = (min_y + badge_height).min(item_label.max.y);
     if max_y <= min_y {
-        return Vec::new();
+        return;
     }
     let mut x = start_x;
-    labels
-        .iter()
-        .map(|label| {
-            let width = inline_badge_width(label, metrics);
-            let rect = Rect::from_min_max(
-                Point::new(x, min_y),
-                Point::new((x + width).min(right_edge), max_y),
-            );
-            x = (rect.max.x + metrics.badge_gap).min(right_edge);
-            rect
-        })
-        .collect()
+    if labels.len() > rects.capacity() {
+        rects.reserve(labels.len());
+    }
+    rects.extend(labels.iter().map(|label| {
+        let width = inline_badge_width(label, metrics);
+        let rect = Rect::from_min_max(
+            Point::new(x, min_y),
+            Point::new((x + width).min(right_edge), max_y),
+        );
+        x = (rect.max.x + metrics.badge_gap).min(right_edge);
+        rect
+    }));
 }
 
 /// Compute badge rects for one delimited inline badge cluster.
@@ -146,11 +176,38 @@ pub fn inline_badge_rects(
     trailing_reserved_width: f32,
     metrics: InlineBadgeMetrics,
 ) -> Vec<Rect> {
+    let mut rects = Vec::new();
+    let mut labels = Vec::new();
+    inline_badge_rects_into(
+        item_label,
+        text,
+        delimiter,
+        trailing_reserved_width,
+        metrics,
+        &mut labels,
+        &mut rects,
+    );
+    rects
+}
+
+/// Compute badge rects for one delimited inline badge cluster into
+/// caller-owned label and rect buffers.
+pub fn inline_badge_rects_into(
+    item_label: Rect,
+    text: &str,
+    delimiter: &str,
+    trailing_reserved_width: f32,
+    metrics: InlineBadgeMetrics,
+    labels: &mut Vec<String>,
+    rects: &mut Vec<Rect>,
+) {
+    rects.clear();
+    labels.clear();
     if text.is_empty() || item_label.width() <= 0.0 || item_label.height() <= 0.0 {
-        return Vec::new();
+        return;
     }
-    let labels = inline_badge_labels_owned(text, delimiter);
-    inline_badge_rects_for_labels(item_label, &labels, trailing_reserved_width, metrics)
+    inline_badge_labels_owned_into(text, delimiter, labels);
+    inline_badge_rects_for_labels_into(item_label, labels, trailing_reserved_width, metrics, rects);
 }
 
 /// Return the inset text origin for one inline badge.

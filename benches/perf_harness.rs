@@ -155,6 +155,14 @@ fn main() {
         let mut command_drain = StatefulCommandDrainBench::new();
         move || command_drain.step()
     });
+    runner.run_scenario(
+        "runtime_nested_command_drain_1k",
+        RUNTIME_ITERATIONS,
+        || {
+            let mut nested_command_drain = StatefulNestedCommandDrainBench::new();
+            move || nested_command_drain.step()
+        },
+    );
     runner.run_scenario("gpu_signal_summary", GPU_ITERATIONS, || {
         bench_gpu_signal_summary
     });
@@ -1048,6 +1056,41 @@ impl StatefulCommandDrainBench {
         }
         self.next_message = end;
         assert_eq!(self.runtime.bridge().dispatched, end);
+        black_box(self.runtime.layout());
+    }
+}
+
+struct StatefulNestedCommandDrainBench {
+    runtime: SurfaceRuntime<QueuedCommandDrainBridge, usize>,
+    next_message: usize,
+}
+
+impl StatefulNestedCommandDrainBench {
+    fn new() -> Self {
+        Self {
+            runtime: SurfaceRuntime::new(
+                QueuedCommandDrainBridge::default(),
+                Vector2::new(120.0, 40.0),
+            ),
+            next_message: 0,
+        }
+    }
+
+    fn step(&mut self) {
+        let start = self.next_message;
+        let end = start + 1_024;
+        self.runtime.bridge_mut().commands.extend([
+            Command::batch((start..end).map(Command::message)),
+            Command::message(end),
+        ]);
+        loop {
+            let outcome = self.runtime.drain_runtime_messages();
+            if !outcome.runtime_work_remaining {
+                break;
+            }
+        }
+        self.next_message = end + 1;
+        assert_eq!(self.runtime.bridge().dispatched, end + 1);
         black_box(self.runtime.layout());
     }
 }

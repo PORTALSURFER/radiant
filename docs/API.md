@@ -580,7 +580,8 @@ It currently covers:
   `runtime_virtualized_list_hover_paint_10k`,
   `runtime_virtualized_nested_scroll_hover_10k`,
   `runtime_refresh_large_tree`, `runtime_resize_large_tree`,
-  `runtime_command_flattening_512`, and `runtime_command_drain_1k`
+  `runtime_command_flattening_512`, `runtime_command_drain_1k`, and
+  `runtime_nested_command_drain_1k`
 - `gpu_signal_summary` and `gpu_surface_projection`
 
 Pass a scenario substring to run one focused slice, for example:

@@ -167,12 +167,27 @@ fn take_runtime_command_batch_into<Message>(
     batch: &mut Vec<Command<Message>>,
 ) {
     debug_assert!(batch.is_empty());
-    if commands.len() <= MAX_RUNTIME_COMMANDS_PER_DRAIN {
-        batch.extend(commands.drain(..).rev());
+    if !commands.iter().any(command_contains_runtime_batch) {
+        if commands.len() <= MAX_RUNTIME_COMMANDS_PER_DRAIN {
+            batch.extend(commands.drain(..).rev());
+            return;
+        }
+        batch.extend(commands.drain(..MAX_RUNTIME_COMMANDS_PER_DRAIN).rev());
+        debug_assert_eq!(batch.len(), MAX_RUNTIME_COMMANDS_PER_DRAIN);
         return;
     }
-    batch.extend(commands.drain(..MAX_RUNTIME_COMMANDS_PER_DRAIN).rev());
-    debug_assert_eq!(batch.len(), MAX_RUNTIME_COMMANDS_PER_DRAIN);
+
+    let mut pending = std::mem::take(commands);
+    let mut remaining = Vec::new();
+
+    for command in pending.drain(..) {
+        let budget = MAX_RUNTIME_COMMANDS_PER_DRAIN.saturating_sub(batch.len());
+        collect_runtime_command_batch(command, batch, &mut remaining, budget);
+    }
+
+    batch.reverse();
+    *commands = remaining;
+    debug_assert!(batch.len() <= MAX_RUNTIME_COMMANDS_PER_DRAIN);
 }
 
 fn take_runtime_message_batch_into<Message>(messages: &mut Vec<Message>, batch: &mut Vec<Message>) {
@@ -183,6 +198,32 @@ fn take_runtime_message_batch_into<Message>(messages: &mut Vec<Message>, batch: 
     }
     batch.extend(messages.drain(..MAX_RUNTIME_MESSAGES_PER_DRAIN).rev());
     debug_assert_eq!(batch.len(), MAX_RUNTIME_MESSAGES_PER_DRAIN);
+}
+
+fn collect_runtime_command_batch<Message>(
+    command: Command<Message>,
+    batch: &mut Vec<Command<Message>>,
+    remaining: &mut Vec<Command<Message>>,
+    budget: usize,
+) {
+    if budget == 0 {
+        remaining.push(command);
+        return;
+    }
+    match command {
+        Command::None => {}
+        Command::Batch(commands) => {
+            for command in commands {
+                let budget = MAX_RUNTIME_COMMANDS_PER_DRAIN.saturating_sub(batch.len());
+                collect_runtime_command_batch(command, batch, remaining, budget);
+            }
+        }
+        command => batch.push(command),
+    }
+}
+
+fn command_contains_runtime_batch<Message>(command: &Command<Message>) -> bool {
+    matches!(command, Command::Batch(_))
 }
 
 fn command_requests_paint_only<Message>(command: &Command<Message>) -> bool {
@@ -292,6 +333,51 @@ mod tests {
         assert_eq!(second.messages_dispatched, 6);
         assert!(!second.runtime_work_remaining);
         assert_eq!(runtime.bridge().dispatched, (0..70).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn runtime_batched_command_drains_are_bounded_and_request_followup_wakeup() {
+        let bridge = QueuedCommandBridge {
+            commands: vec![Command::batch((0..70).map(Command::message))],
+            dispatched: Vec::new(),
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+
+        let first = runtime.drain_runtime_messages();
+
+        assert_eq!(first.messages_dispatched, 64);
+        assert!(first.runtime_work_remaining);
+        assert_eq!(runtime.bridge().dispatched, (0..64).collect::<Vec<_>>());
+
+        let second = runtime.drain_runtime_messages();
+
+        assert_eq!(second.messages_dispatched, 6);
+        assert!(!second.runtime_work_remaining);
+        assert_eq!(runtime.bridge().dispatched, (0..70).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn runtime_batched_command_remainders_preserve_following_command_order() {
+        let bridge = QueuedCommandBridge {
+            commands: vec![
+                Command::batch((0..70).map(Command::message)),
+                Command::message(70),
+            ],
+            dispatched: Vec::new(),
+        };
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+
+        let first = runtime.drain_runtime_messages();
+
+        assert_eq!(first.messages_dispatched, 64);
+        assert!(first.runtime_work_remaining);
+        assert_eq!(runtime.bridge().dispatched, (0..64).collect::<Vec<_>>());
+
+        let second = runtime.drain_runtime_messages();
+
+        assert_eq!(second.messages_dispatched, 7);
+        assert!(!second.runtime_work_remaining);
+        assert_eq!(runtime.bridge().dispatched, (0..71).collect::<Vec<_>>());
     }
 
     #[test]

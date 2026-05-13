@@ -41,7 +41,7 @@ impl PointerMoveOutcome {
 
     /// Return whether the cached scene is stale.
     pub fn needs_scene_rebuild(self) -> bool {
-        self.hover_changed || self.pointer_captured || self.repaint_requested
+        self.hover_changed || self.repaint_requested
     }
 }
 

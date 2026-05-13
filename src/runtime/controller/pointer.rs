@@ -18,12 +18,9 @@ where
         let hover_changed = previous_hovered_widget != self.hovered_widget()
             || previous_hovered_container != self.hovered_container();
         let pointer_captured = self.pointer_capture().is_some();
-        let paint_only_requested = repaint_requested
-            && target.is_some_and(|widget_id| {
-                self.widget_prefers_pointer_move_paint_only(widget_id)
-                    && !pointer_captured
-                    && !hover_changed
-            });
+        let target_prefers_paint_only =
+            target.is_some_and(|widget_id| self.widget_prefers_pointer_move_paint_only(widget_id));
+        let paint_only_requested = repaint_requested && target_prefers_paint_only && !hover_changed;
         PointerMoveOutcome {
             target,
             hover_changed,
@@ -189,10 +186,12 @@ where
             return Some(target);
         }
         let routed = self.dispatch_input(target, WidgetInput::PointerMove { position });
-        if routed && accepts_stable_pointer_move && self.pointer_capture.is_none() {
+        if routed && (accepts_stable_pointer_move || self.pointer_capture.is_some()) {
             // Stable pointer-move widgets may update local paint-only hover
-            // state without emitting host messages. Request repaint here so
-            // cursor and handle previews stay responsive without reducer churn.
+            // state without emitting host messages. Captured drags can also
+            // update local preview state even when the widget opts out of
+            // stable hover motion. Request repaint here so cursor, handle, and
+            // drag previews stay responsive without reducer churn.
             self.repaint_requested = true;
         }
         routed.then_some(target)

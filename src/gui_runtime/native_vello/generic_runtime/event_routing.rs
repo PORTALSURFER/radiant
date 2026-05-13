@@ -49,7 +49,7 @@ where
         let outcome = self.runtime.dispatch_pointer_move_with_outcome(position);
         GenericRouteOutcome {
             routed: outcome.routed(),
-            redraw_requested: outcome.hover_changed || outcome.pointer_captured,
+            redraw_requested: outcome.hover_changed,
             repaint_requested: outcome.repaint_requested,
             paint_only_requested: outcome.paint_only_requested,
             exit_requested: outcome.exit_requested,

@@ -1,4 +1,11 @@
-use super::*;
+use crate::{
+    application::{
+        MappedWidget, StateAction, ViewNode, danger_style, default_badge_sizing, primary_style,
+        view_node_from_widget,
+    },
+    runtime::{PaintText, WidgetMessageMapper},
+    widgets::{BadgeMessage, BadgeWidget, WidgetProminence, WidgetStyle},
+};
 
 /// Builder for badges that can emit messages or mutate state directly.
 pub struct BadgeBuilder {
@@ -42,7 +49,7 @@ impl BadgeBuilder {
     /// Emit a mapped host message when activated.
     pub fn mapped<Message: 'static>(
         self,
-        map: impl Fn(crate::widgets::BadgeMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
         let sizing = default_badge_sizing(&self.label);
         let mut node = view_node_from_widget(MappedWidget::new(
@@ -81,7 +88,7 @@ where
 /// Build a badge with a custom widget-message mapper.
 pub fn badge_mapped<Message: 'static>(
     label: impl Into<String>,
-    map: impl Fn(crate::widgets::BadgeMessage) -> Message + Send + Sync + 'static,
+    map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
     badge(label).mapped(map)
 }

@@ -1,4 +1,11 @@
-use super::*;
+use crate::{
+    application::{
+        MappedWidget, StateAction, ViewNode, default_text_input_sizing, view_node_from_widget,
+    },
+    runtime::WidgetMessageMapper,
+    widgets::{TextInputMessage, TextInputWidget, WidgetProminence, WidgetStyle},
+};
+use std::sync::Arc;
 
 /// Builder for text inputs that can emit messages or mutate state directly.
 pub struct TextInputBuilder {
@@ -38,8 +45,9 @@ impl TextInputBuilder {
         let mut node = view_node_from_widget(MappedWidget::new(
             input,
             WidgetMessageMapper::text_input(move |message| match message {
-                crate::widgets::TextInputMessage::Changed { value }
-                | crate::widgets::TextInputMessage::Submitted { value } => map(value),
+                TextInputMessage::Changed { value } | TextInputMessage::Submitted { value } => {
+                    map(value)
+                }
             }),
         ));
         node.style = self.style;
@@ -82,10 +90,10 @@ impl TextInputBuilder {
                 let field = Arc::clone(&field);
                 let submit = Arc::clone(&submit);
                 StateAction::new(move |state| match &message {
-                    crate::widgets::TextInputMessage::Changed { value } => {
+                    TextInputMessage::Changed { value } => {
                         *field(state) = value.clone();
                     }
-                    crate::widgets::TextInputMessage::Submitted { value } => {
+                    TextInputMessage::Submitted { value } => {
                         *field(state) = value.clone();
                         submit(state);
                     }

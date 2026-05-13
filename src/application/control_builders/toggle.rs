@@ -1,4 +1,12 @@
-use super::*;
+use crate::{
+    application::{
+        MappedWidget, StateAction, ViewNode, danger_style, default_toggle_sizing, primary_style,
+        view_node_from_widget,
+    },
+    runtime::{PaintText, WidgetMessageMapper},
+    widgets::{ToggleMessage, ToggleWidget, WidgetProminence, WidgetStyle},
+};
+use std::sync::Arc;
 
 /// Builder for toggles that can emit messages or mutate state directly.
 pub struct ToggleBuilder {
@@ -42,7 +50,7 @@ impl ToggleBuilder {
         let mut node = view_node_from_widget(MappedWidget::new(
             ToggleWidget::new(0, self.label, sizing).with_checked(self.checked),
             WidgetMessageMapper::toggle(move |message| match message {
-                crate::widgets::ToggleMessage::ValueChanged { checked } => map(checked),
+                ToggleMessage::ValueChanged { checked } => map(checked),
             }),
         ));
         node.style = self.style;

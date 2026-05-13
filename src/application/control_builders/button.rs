@@ -1,4 +1,13 @@
-use super::*;
+use crate::{
+    application::{
+        MappedWidget, StateAction, ViewNode, danger_style, default_button_sizing, primary_style,
+        view_node_from_widget,
+    },
+    gui::types::Point,
+    runtime::{PaintText, WidgetMessageMapper},
+    widgets::{ButtonMessage, ButtonWidget, DragHandleMessage, WidgetProminence, WidgetStyle},
+};
+use std::sync::Arc;
 
 /// Builder for buttons that can emit messages or mutate state directly.
 pub struct ButtonBuilder {
@@ -56,7 +65,7 @@ impl ButtonBuilder {
     /// Emit a mapped host message when activated.
     pub fn mapped<Message: 'static>(
         self,
-        map: impl Fn(crate::widgets::ButtonMessage) -> Message + Send + Sync + 'static,
+        map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
         let sizing = default_button_sizing(&self.label);
         let mut button = ButtonWidget::new(0, self.label, sizing);
@@ -92,9 +101,9 @@ impl ButtonBuilder {
             let primary = Arc::clone(&primary);
             let secondary = Arc::clone(&secondary);
             StateAction::new(move |state| match message {
-                crate::widgets::ButtonMessage::Activate => primary(state),
-                crate::widgets::ButtonMessage::SecondaryActivate { .. } => secondary(state),
-                crate::widgets::ButtonMessage::Drag(_) => {}
+                ButtonMessage::Activate => primary(state),
+                ButtonMessage::SecondaryActivate { .. } => secondary(state),
+                ButtonMessage::Drag(_) => {}
             })
         })
     }
@@ -104,7 +113,7 @@ impl ButtonBuilder {
     pub fn on_click_or_secondary_at<State: 'static>(
         self,
         primary: impl Fn(&mut State) + Send + Sync + 'static,
-        secondary: impl Fn(&mut State, crate::gui::types::Point) + Send + Sync + 'static,
+        secondary: impl Fn(&mut State, Point) + Send + Sync + 'static,
     ) -> ViewNode<StateAction<State>> {
         let primary = Arc::new(primary);
         let secondary = Arc::new(secondary);
@@ -112,11 +121,11 @@ impl ButtonBuilder {
             let primary = Arc::clone(&primary);
             let secondary = Arc::clone(&secondary);
             StateAction::new(move |state| match message {
-                crate::widgets::ButtonMessage::Activate => primary(state),
-                crate::widgets::ButtonMessage::SecondaryActivate { position } => {
+                ButtonMessage::Activate => primary(state),
+                ButtonMessage::SecondaryActivate { position } => {
                     secondary(state, position);
                 }
-                crate::widgets::ButtonMessage::Drag(_) => {}
+                ButtonMessage::Drag(_) => {}
             })
         })
     }
@@ -126,7 +135,7 @@ impl ButtonBuilder {
         self,
         primary: impl Fn(&mut State) + Send + Sync + 'static,
         secondary: impl Fn(&mut State) + Send + Sync + 'static,
-        drag: impl Fn(&mut State, crate::widgets::DragHandleMessage) + Send + Sync + 'static,
+        drag: impl Fn(&mut State, DragHandleMessage) + Send + Sync + 'static,
     ) -> ViewNode<StateAction<State>> {
         let primary = Arc::new(primary);
         let secondary = Arc::new(secondary);
@@ -136,9 +145,9 @@ impl ButtonBuilder {
             let secondary = Arc::clone(&secondary);
             let drag = Arc::clone(&drag);
             StateAction::new(move |state| match message {
-                crate::widgets::ButtonMessage::Activate => primary(state),
-                crate::widgets::ButtonMessage::SecondaryActivate { .. } => secondary(state),
-                crate::widgets::ButtonMessage::Drag(message) => drag(state, message),
+                ButtonMessage::Activate => primary(state),
+                ButtonMessage::SecondaryActivate { .. } => secondary(state),
+                ButtonMessage::Drag(message) => drag(state, message),
             })
         })
     }
@@ -148,8 +157,8 @@ impl ButtonBuilder {
     pub fn on_click_secondary_at_or_drag<State: 'static>(
         self,
         primary: impl Fn(&mut State) + Send + Sync + 'static,
-        secondary: impl Fn(&mut State, crate::gui::types::Point) + Send + Sync + 'static,
-        drag: impl Fn(&mut State, crate::widgets::DragHandleMessage) + Send + Sync + 'static,
+        secondary: impl Fn(&mut State, Point) + Send + Sync + 'static,
+        drag: impl Fn(&mut State, DragHandleMessage) + Send + Sync + 'static,
     ) -> ViewNode<StateAction<State>> {
         let primary = Arc::new(primary);
         let secondary = Arc::new(secondary);
@@ -159,11 +168,11 @@ impl ButtonBuilder {
             let secondary = Arc::clone(&secondary);
             let drag = Arc::clone(&drag);
             StateAction::new(move |state| match message {
-                crate::widgets::ButtonMessage::Activate => primary(state),
-                crate::widgets::ButtonMessage::SecondaryActivate { position } => {
+                ButtonMessage::Activate => primary(state),
+                ButtonMessage::SecondaryActivate { position } => {
                     secondary(state, position);
                 }
-                crate::widgets::ButtonMessage::Drag(message) => drag(state, message),
+                ButtonMessage::Drag(message) => drag(state, message),
             })
         })
     }
@@ -190,7 +199,7 @@ where
 /// Build a button with a custom widget-message mapper.
 pub fn button_mapped<Message: 'static>(
     label: impl Into<String>,
-    map: impl Fn(crate::widgets::ButtonMessage) -> Message + Send + Sync + 'static,
+    map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
     button(label).mapped(map)
 }

@@ -12,6 +12,7 @@ use crate::{
         WidgetOutput, WidgetSizing,
     },
 };
+use winit::{dpi::Position, window::WindowLevel};
 
 #[cfg(test)]
 #[path = "tests/event_routing.rs"]
@@ -85,6 +86,27 @@ fn generic_native_window_uses_configured_drag_and_drop_policy() {
         drag_and_drop: false,
         ..NativeRunOptions::default()
     }));
+}
+
+#[test]
+fn generic_native_window_applies_floating_popup_policy() {
+    let attrs = generic_window_attributes(
+        &NativeRunOptions::popup("Drag Preview").popup_policy(
+            NativePopupOptions::default()
+                .position(64.0, 96.0)
+                .initially_focused(true),
+        ),
+    );
+
+    assert_eq!(attrs.title, "Drag Preview");
+    assert!(!attrs.decorations);
+    assert!(!attrs.resizable);
+    assert!(attrs.transparent);
+    assert!(attrs.active);
+    assert_eq!(attrs.window_level, WindowLevel::AlwaysOnTop);
+    assert!(
+        matches!(attrs.position, Some(Position::Logical(position)) if position.x == 64.0 && position.y == 96.0)
+    );
 }
 
 #[test]

@@ -134,6 +134,14 @@ runtime. `WindowManifest` stores ordered specs and rejects duplicate stable
 keys, so multi-window or embedded hosts can validate a window set and attach a
 separate bridge or view to each spec. `radiant::window(...).spec("main")`
 converts the no-state launch builder into the same manifest shape.
+Floating popups use the same surface and runtime model as normal windows while
+requesting popup-native window policy. Use `WindowSpec::popup(...)`,
+`NativeRunOptions::popup(...)`, or `.floating_popup()` on launch builders for
+borderless transient windows such as drag previews, context menus, tooltips, and
+small floating panels that need to render outside the main application window.
+`NativePopupOptions` controls the optional initial screen position,
+transparency, topmost behavior, focus-on-open behavior, resizability, and
+taskbar presence where the platform supports those hints.
 
 Serious apps use the same builder API. `radiant::app(...)` supports
 `.subscriptions(...)` for interval and worker-message sources, `.animation(...)`

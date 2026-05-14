@@ -62,7 +62,13 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
         ),
         (
             "animation_showcase",
-            vec![".animation(", ".on_frame(", "AnimationMessage::Frame"],
+            vec![
+                ".animation(",
+                ".on_frame(",
+                "AnimationMessage::Frame",
+                "examples/animation_showcase/pulse_meter.rs",
+                "examples/animation_showcase/pulse_meter/tests.rs",
+            ],
         ),
         (
             "background_loading",

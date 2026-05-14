@@ -31,54 +31,57 @@ impl LinearChildSizes<'_> {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+pub(super) struct LinearPlacement<'a, 'state> {
+    pub(super) container: &'a ContainerNode,
+    pub(super) content: Rect,
+    pub(super) horizontal: bool,
+    pub(super) available_cross: f32,
+    pub(super) states: &'a [LinearLayoutState<'state>],
+    pub(super) sizes: LinearChildSizes<'a>,
+    pub(super) leading: f32,
+    pub(super) distributed_spacing: f32,
+}
+
 pub(super) fn place_linear_children(
-    container: &ContainerNode,
-    content: Rect,
-    horizontal: bool,
-    available_cross: f32,
-    states: &[LinearLayoutState<'_>],
-    sizes: LinearChildSizes<'_>,
-    leading: f32,
-    distributed_spacing: f32,
+    placement: LinearPlacement<'_, '_>,
     context: &mut LayoutContext,
 ) {
-    if !sizes.matches_len(states.len()) {
+    if !placement.sizes.matches_len(placement.states.len()) {
         return;
     }
-    let mut cursor = leading;
-    for (index, state) in states.iter().enumerate() {
+    let mut cursor = placement.leading;
+    for (index, state) in placement.states.iter().enumerate() {
         let slot_child = state.slot_child;
         let slot = slot_child.slot;
-        let main_margin_before = if horizontal {
+        let main_margin_before = if placement.horizontal {
             slot.margin.left
         } else {
             slot.margin.top
         };
-        let main_margin_after = if horizontal {
+        let main_margin_after = if placement.horizontal {
             slot.margin.right
         } else {
             slot.margin.bottom
         };
         cursor += main_margin_before;
-        let Some(child_main) = sizes.get(index, state).map(|size| size.max(0.0)) else {
+        let Some(child_main) = placement.sizes.get(index, state).map(|size| size.max(0.0)) else {
             return;
         };
         let child_cross = resolve_cross_layout(
-            horizontal,
+            placement.horizontal,
             slot.size_cross,
             state.measured,
-            available_cross,
+            placement.available_cross,
             slot,
             context,
             slot_child.child.id(),
         );
         let cross_align = slot
             .align_cross_override
-            .unwrap_or(container.policy.align_cross);
+            .unwrap_or(placement.container.policy.align_cross);
         let child_rect = place_child_rect(
-            content,
-            horizontal,
+            placement.content,
+            placement.horizontal,
             cursor,
             child_main,
             child_cross,
@@ -87,6 +90,6 @@ pub(super) fn place_linear_children(
         );
         context.record_slot_margin(slot_child.child.id(), child_rect, slot.margin);
         layout_node(&slot_child.child, child_rect, context);
-        cursor += child_main + main_margin_after + distributed_spacing;
+        cursor += child_main + main_margin_after + placement.distributed_spacing;
     }
 }

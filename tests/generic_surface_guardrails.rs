@@ -576,6 +576,30 @@ fn public_layout_policy_models_do_not_hide_dead_code() {
     );
 }
 
+#[test]
+fn linear_layout_hot_path_uses_request_objects_instead_of_argument_suppressions() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let linear_dir = manifest_dir.join("src/gui/layout_core/engine/layout/linear");
+    let mut violations = Vec::new();
+
+    for path in [
+        linear_dir.join("placement.rs"),
+        linear_dir.join("sizing.rs"),
+    ] {
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        if source.contains("too_many_arguments") {
+            violations.push(relative_path(&manifest_dir, &path));
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "linear layout measurement and placement should use cohesive request objects instead of suppressing long parameter lists:\n{}",
+        violations.join("\n")
+    );
+}
+
 fn public_module_names(source: &str) -> BTreeSet<String> {
     source
         .lines()

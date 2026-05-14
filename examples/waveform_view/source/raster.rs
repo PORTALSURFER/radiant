@@ -1,7 +1,6 @@
 use super::{WaveformBand, WaveformFile, WaveformViewport};
 use radiant::gui::types::ImageRgba;
 
-#[allow(dead_code)]
 pub(crate) fn render_waveform_image(
     file: &WaveformFile,
     viewport: WaveformViewport,
@@ -15,14 +14,12 @@ pub(crate) fn render_waveform_image(
     image.into_image()
 }
 
-#[allow(dead_code)]
 struct WaveformRaster {
     width: usize,
     height: usize,
     pixels: Vec<u8>,
 }
 
-#[allow(dead_code)]
 impl WaveformRaster {
     fn new(width: usize, height: usize) -> Self {
         Self {
@@ -267,25 +264,21 @@ impl WaveformRaster {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[allow(dead_code)]
 struct BandStyle {
     fill: [u8; 4],
     ridge: [u8; 4],
     scale: f32,
 }
 
-#[allow(dead_code)]
 fn column_alpha(y: usize, mid: f32, half: f32) -> f32 {
     let distance = ((y as f32 - mid).abs() / half.max(1.0)).clamp(0.0, 1.0);
     lerp(0.42, 0.92, distance)
 }
 
-#[allow(dead_code)]
 fn band_alpha(peak: f32, scale: f32) -> f32 {
     (0.34 + peak * 0.72 * scale).clamp(0.28, 0.9)
 }
 
-#[allow(dead_code)]
 fn glyph_rows(ch: char) -> [u8; 7] {
     match ch {
         'd' => [0b110, 0b101, 0b101, 0b101, 0b101, 0b101, 0b110],
@@ -301,7 +294,6 @@ fn glyph_rows(ch: char) -> [u8; 7] {
     }
 }
 
-#[allow(dead_code)]
 fn lerp(from: f32, to: f32, t: f32) -> f32 {
     from + (to - from) * t.clamp(0.0, 1.0)
 }

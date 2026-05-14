@@ -8,14 +8,15 @@ use std::{
 
 #[path = "source/summary.rs"]
 mod summary;
+pub(super) use summary::WaveformBand;
 #[cfg(test)]
-pub(super) use summary::band_stats;
-pub(super) use summary::{WaveformBand, WaveformSummary};
+pub(super) use summary::{WaveformSummary, band_stats};
 
 #[path = "source/viewport.rs"]
 mod viewport;
 pub(super) use viewport::WaveformViewport;
 
+#[cfg(test)]
 #[path = "source/raster.rs"]
 mod raster;
 #[cfg(test)]
@@ -28,16 +29,17 @@ const SYNTHETIC_SAMPLE_RATE: u32 = 48_000;
 const SYNTHETIC_SECONDS: usize = 4;
 
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub(super) struct WaveformFile {
     pub(super) path: PathBuf,
     pub(super) sample_rate: u32,
     pub(super) channels: usize,
     pub(super) frames: usize,
+    #[cfg(test)]
     pub(super) mono_samples: Vec<f32>,
+    #[cfg(test)]
     pub(super) mono_summary: WaveformSummary,
+    #[cfg(test)]
     pub(super) bands: [WaveformBand; BAND_COUNT],
-    pub(super) gpu_signal_samples: Arc<[f32]>,
     pub(super) gpu_signal_summary: Arc<GpuSignalSummary>,
 }
 
@@ -133,7 +135,6 @@ fn load_waveform_file(path: PathBuf) -> Result<WaveformFile, String> {
     if mono_samples.is_empty() {
         return Err(String::from("WAV contains no complete frames"));
     }
-    let mono_summary = WaveformSummary::from_samples(&mono_samples);
     let bands = split_frequency_bands(&mono_samples, spec.sample_rate);
     let gpu_signal_samples = interleaved_band_samples(&bands);
     let gpu_signal_summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
@@ -141,16 +142,20 @@ fn load_waveform_file(path: PathBuf) -> Result<WaveformFile, String> {
         frames,
         BAND_COUNT,
     ));
+    #[cfg(test)]
+    let mono_summary = WaveformSummary::from_samples(&mono_samples);
 
     Ok(WaveformFile {
         path,
         sample_rate: spec.sample_rate,
         channels,
         frames,
+        #[cfg(test)]
         mono_samples,
+        #[cfg(test)]
         mono_summary,
+        #[cfg(test)]
         bands,
-        gpu_signal_samples,
         gpu_signal_summary,
     })
 }
@@ -173,10 +178,12 @@ pub(super) fn waveform_file_from_mono_samples(
         sample_rate,
         channels,
         frames: mono_samples.len(),
+        #[cfg(test)]
         mono_summary: WaveformSummary::from_samples(&mono_samples),
+        #[cfg(test)]
         bands,
+        #[cfg(test)]
         mono_samples,
-        gpu_signal_samples,
         gpu_signal_summary,
     }
 }

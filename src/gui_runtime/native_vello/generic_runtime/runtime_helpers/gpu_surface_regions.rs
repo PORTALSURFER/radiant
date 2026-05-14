@@ -1,13 +1,7 @@
-//! Small route and profiling helpers for the generic native runner.
-
-use super::GenericRouteOutcome;
 use crate::{
-    layout::{Rect, Vector2},
+    layout::{Point, Rect},
     runtime::{GpuSurfaceRuntimeOverlays, PaintGpuSurface, PaintPrimitive},
 };
-use std::time::Duration;
-use tracing::info;
-use winit::event::MouseScrollDelta;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::gui_runtime::native_vello) struct GpuSurfaceInteractionRegion {
@@ -45,15 +39,12 @@ impl GpuSurfaceInteractionRegion {
         })
     }
 
-    pub(in crate::gui_runtime::native_vello) fn contains(
-        self,
-        point: crate::layout::Point,
-    ) -> bool {
+    pub(in crate::gui_runtime::native_vello) fn contains(self, point: Point) -> bool {
         self.rect.contains(point)
     }
 }
 
-pub(super) fn collect_gpu_surface_interaction_regions(
+pub(in crate::gui_runtime::native_vello) fn collect_gpu_surface_interaction_regions(
     primitives: &[PaintPrimitive],
     regions: &mut Vec<GpuSurfaceInteractionRegion>,
 ) {
@@ -66,46 +57,12 @@ pub(super) fn collect_gpu_surface_interaction_regions(
     }));
 }
 
-pub(super) fn scroll_delta_to_logical(delta: MouseScrollDelta) -> Vector2 {
-    match delta {
-        MouseScrollDelta::LineDelta(x, y) => Vector2::new(-(x * 40.0), -(y * 40.0)),
-        MouseScrollDelta::PixelDelta(position) => {
-            Vector2::new(-(position.x as f32), -(position.y as f32))
-        }
-    }
-}
-
-pub(super) fn maybe_log_route_profile(
-    reason: &'static str,
-    elapsed: Duration,
-    outcome: GenericRouteOutcome,
-) {
-    if !render_profile_enabled() {
-        return;
-    }
-    info!(
-        reason,
-        event_route_us = elapsed.as_micros(),
-        routed = outcome.routed,
-        redraw_requested = outcome.redraw_requested,
-        repaint_requested = outcome.repaint_requested,
-        "radiant native input profile"
-    );
-}
-
-pub(super) fn render_profile_enabled() -> bool {
-    std::env::var("RADIANT_NATIVE_RENDER_PROFILE")
-        .ok()
-        .is_some_and(|value| crate::env_flags::is_truthy(&value))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::types::{ImageRgba, Rgba8};
+    use crate::gui::types::{ImageRgba, Rgba8, Vector2};
     use crate::runtime::{
         GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceRuntimeOverlays,
-        PaintGpuSurface,
     };
     use std::sync::Arc;
 
@@ -113,32 +70,23 @@ mod tests {
     fn gpu_surface_interaction_region_collection_reuses_existing_buffer() {
         let mut regions = Vec::with_capacity(8);
         regions.push(GpuSurfaceInteractionRegion {
-            rect: Rect::from_min_size(
-                crate::layout::Point::new(99.0, 99.0),
-                Vector2::new(1.0, 1.0),
-            ),
+            rect: Rect::from_min_size(Point::new(99.0, 99.0), Vector2::new(1.0, 1.0)),
             fast_pointer_move: true,
             coalesce_vertical_wheel: false,
             runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
         });
         let initial_capacity = regions.capacity();
-        let rect = Rect::from_min_size(crate::layout::Point::new(1.0, 2.0), Vector2::new(3.0, 4.0));
-        let ignored_rect =
-            Rect::from_min_size(crate::layout::Point::new(5.0, 6.0), Vector2::new(7.0, 8.0));
-        let native_hover_rect = Rect::from_min_size(
-            crate::layout::Point::new(9.0, 10.0),
-            Vector2::new(11.0, 12.0),
-        );
+        let rect = Rect::from_min_size(Point::new(1.0, 2.0), Vector2::new(3.0, 4.0));
+        let ignored_rect = Rect::from_min_size(Point::new(5.0, 6.0), Vector2::new(7.0, 8.0));
+        let native_hover_rect =
+            Rect::from_min_size(Point::new(9.0, 10.0), Vector2::new(11.0, 12.0));
         let surface = PaintGpuSurface {
             widget_id: 7,
             key: 7,
             revision: 1,
             rect,
-            content: crate::runtime::GpuSurfaceContent::RgbaAtlas {
-                source_rect: Rect::from_min_size(
-                    crate::layout::Point::new(0.0, 0.0),
-                    Vector2::new(3.0, 4.0),
-                ),
+            content: GpuSurfaceContent::RgbaAtlas {
+                source_rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(3.0, 4.0)),
                 atlas: Arc::new(ImageRgba::new(3, 4, vec![255; 3 * 4 * 4]).expect("valid image")),
             },
             capabilities: GpuSurfaceCapabilities {

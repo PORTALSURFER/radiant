@@ -526,6 +526,31 @@ fn native_text_edit_utf8_boundary_policy_stays_in_focused_module() {
     );
 }
 
+#[test]
+fn application_view_lowering_keeps_container_defaults_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let module = fs::read_to_string(manifest_dir.join("src/application/view_node.rs"))
+        .expect("application view node module should be readable");
+    let lowering = fs::read_to_string(manifest_dir.join("src/application/view_node/lowering.rs"))
+        .expect("application view lowering should be readable");
+    let defaults =
+        fs::read_to_string(manifest_dir.join("src/application/view_node/lowering_defaults.rs"))
+            .expect("application view lowering defaults should be readable");
+
+    assert!(
+        module.contains("mod lowering_defaults;")
+            && lowering.contains("ViewNodeContainerDefaults::new("),
+        "view lowering should consume container defaults from a focused helper"
+    );
+    assert!(
+        !lowering.contains("DEFAULT_STYLED_CONTAINER_PADDING")
+            && defaults.contains("DEFAULT_STYLED_CONTAINER_PADDING")
+            && defaults.contains("fn default_container_padding")
+            && defaults.contains("fn base_policy"),
+        "declarative container default policy should stay outside the main view lowering match"
+    );
+}
+
 fn public_module_names(source: &str) -> BTreeSet<String> {
     source
         .lines()

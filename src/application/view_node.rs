@@ -2,6 +2,8 @@
 mod identity;
 #[path = "view_node/lowering.rs"]
 mod lowering;
+#[path = "view_node/lowering_defaults.rs"]
+mod lowering_defaults;
 #[path = "view_node/modifiers.rs"]
 mod modifiers;
 #[path = "view_node/slot.rs"]

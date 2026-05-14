@@ -1,9 +1,12 @@
 use super::{ViewNode, ViewNodeKind};
 use crate::{
-    application::{IdGenerator, IntoView, ROOT_KEY_SCOPE, WidgetViewContext},
+    application::{
+        IdGenerator, IntoView, ROOT_KEY_SCOPE, WidgetViewContext,
+        view_node::lowering_defaults::ViewNodeContainerDefaults,
+    },
     layout::{
-        ContainerKind, ContainerPolicy, CrossAlign, GridPolicy, Insets, MainAlign, NodeId,
-        VirtualizationAxis, VirtualizationPolicy,
+        ContainerKind, ContainerPolicy, GridPolicy, NodeId, VirtualizationAxis,
+        VirtualizationPolicy,
     },
     runtime::{SurfaceChild, SurfaceNode},
     widgets::WidgetStyle,
@@ -111,21 +114,9 @@ impl<'a> ViewLowering<'a> {
         let child_scope = id;
         let style = node.style;
         let hoverable = node.hoverable;
-        let padding = node.padding.unwrap_or_else(|| {
-            if style.is_some() {
-                Insets::all(crate::application::DEFAULT_STYLED_CONTAINER_PADDING)
-            } else {
-                Insets::default()
-            }
-        });
-        let align_main = node.align_main.unwrap_or(MainAlign::Start);
-        let align_cross = node.align_cross.unwrap_or(CrossAlign::Stretch);
-        let base_policy = || ContainerPolicy {
-            padding,
-            align_main,
-            align_cross,
-            ..ContainerPolicy::default()
-        };
+        let defaults =
+            ViewNodeContainerDefaults::new(node.padding, node.align_main, node.align_cross, style);
+        let base_policy = || defaults.base_policy();
         let styled_container =
             |lowering: &mut Self, policy: ContainerPolicy, children: Vec<SurfaceChild<Message>>| {
                 lowering.lower_container(id, policy, style, hoverable, children)

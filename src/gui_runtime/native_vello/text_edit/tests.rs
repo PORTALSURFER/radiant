@@ -1,57 +1,26 @@
 use super::super::NativeTextRenderer;
 use super::layout::byte_index_for_local_x;
-use super::sanitize::sanitize_single_line_insert;
 use super::*;
 
 #[test]
-fn replace_selection_replaces_selected_range_and_collapses_caret() {
-    let mut editor = SingleLineTextEditorState::collapsed_at_end("item alpha");
-    editor.set_cursor("item alpha", 4, false);
-    editor.set_cursor("item alpha", 10, true);
-
-    let value = editor.replace_selection("item alpha", "beta");
-
-    assert_eq!(value, "itembeta");
-    assert_eq!(editor.selection_range(), (8, 8));
-}
-
-#[test]
-fn backspace_deletes_selection_before_single_character() {
-    let mut editor = SingleLineTextEditorState::collapsed_at_end("item");
-    editor.set_cursor("item", 1, false);
-    editor.set_cursor("item", 3, true);
-    assert_eq!(editor.backspace("item").as_deref(), Some("im"));
-    assert_eq!(editor.selection_range(), (1, 1));
-
-    assert_eq!(editor.backspace("im").as_deref(), Some("m"));
-    assert_eq!(editor.selection_range(), (0, 0));
-}
-
-#[test]
-fn selected_text_clamps_stale_byte_offsets_to_text_boundaries() {
-    let editor = SingleLineTextEditorState {
+fn editor_state_clamps_stale_offsets_to_text_boundaries() {
+    let mut editor = SingleLineTextEditorState {
         anchor_byte: 1,
         cursor_byte: usize::MAX,
         scroll_start_byte: 0,
     };
 
-    assert_eq!(editor.selected_text("aé日").as_deref(), Some("é日"));
+    editor.clamp_to_text("aé日");
+    assert_eq!(editor.selection_range(), (1, "aé日".len()));
 
-    let editor = SingleLineTextEditorState {
+    let mut editor = SingleLineTextEditorState {
         anchor_byte: 2,
         cursor_byte: 4,
         scroll_start_byte: 0,
     };
 
-    assert_eq!(editor.selected_text("aé日").as_deref(), Some("é"));
-}
-
-#[test]
-fn sanitize_single_line_insert_strips_line_breaks_and_controls() {
-    assert_eq!(
-        sanitize_single_line_insert("it\ne\tm\u{7}"),
-        String::from("ite m")
-    );
+    editor.clamp_to_text("aé日");
+    assert_eq!(editor.selection_range(), (1, 3));
 }
 
 #[test]

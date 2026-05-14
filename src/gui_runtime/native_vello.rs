@@ -38,11 +38,8 @@ use winit::{
 mod generic_runtime;
 mod runtime_config;
 mod runtime_event;
-#[allow(dead_code)]
 mod startup;
-#[allow(dead_code)]
 mod text_edit;
-#[allow(dead_code)]
 mod text_renderer;
 
 use self::{startup::*, text_renderer::*};

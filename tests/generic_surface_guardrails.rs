@@ -502,7 +502,7 @@ fn native_vello_scene_text_run_buffer_stays_in_focused_module() {
 }
 
 #[test]
-fn native_text_edit_utf8_boundary_policy_stays_in_focused_module() {
+fn native_text_input_rendering_keeps_utf8_clamping_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module = fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/text_edit.rs"))
         .expect("native text edit module should be readable");
@@ -514,15 +514,36 @@ fn native_text_edit_utf8_boundary_policy_stays_in_focused_module() {
             .expect("native text edit boundary helpers should be readable");
 
     assert!(
-        module.contains("mod boundary;") && state.contains("use super::boundary::{"),
-        "native text editor state should consume UTF-8 boundary policy from a focused module"
+        module.contains("mod boundary;") && state.contains("use super::boundary::"),
+        "native text-input rendering state should consume UTF-8 boundary policy from a focused module"
     );
     assert!(
         !state.contains("fn clamp_to_char_boundary")
             && boundary.contains("fn clamp_to_char_boundary")
-            && boundary.contains("fn previous_char_boundary")
-            && boundary.contains("fn next_char_boundary"),
-        "UTF-8 boundary navigation should stay separate from mutable editor state"
+            && !boundary.contains("fn previous_char_boundary")
+            && !boundary.contains("fn next_char_boundary"),
+        "native text-input rendering should keep only the UTF-8 boundary policy it uses"
+    );
+}
+
+#[test]
+fn native_vello_runtime_does_not_hide_dead_code() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let runtime_dir = manifest_dir.join("src/gui_runtime/native_vello");
+    let violations = rust_sources_under(&runtime_dir)
+        .into_iter()
+        .filter(|path| {
+            fs::read_to_string(path)
+                .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
+                .contains("#[allow(dead_code)]")
+        })
+        .map(|path| relative_path(&manifest_dir, &path))
+        .collect::<Vec<_>>();
+
+    assert!(
+        violations.is_empty(),
+        "native Vello runtime modules should export, test, or remove code instead of hiding dead-code warnings:\n{}",
+        violations.join("\n")
     );
 }
 

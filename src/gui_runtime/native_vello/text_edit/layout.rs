@@ -107,6 +107,7 @@ pub(in crate::gui_runtime::native_vello) fn build_text_field_layout(
 }
 
 /// Resolve the nearest text byte index for a pointer x-offset inside the field.
+#[cfg(test)]
 pub(in crate::gui_runtime::native_vello::text_edit) fn byte_index_for_local_x(
     layout: &TextFieldLayoutState,
     local_x: f32,

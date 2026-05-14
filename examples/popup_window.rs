@@ -3,11 +3,12 @@
 //! Run `cargo run --example popup_window`, then use the main window controls to
 //! reveal a second borderless popup window. Drag the popup from its title area
 //! to reposition it, or hide it from the popup itself. The popup is the same
-//! example binary relaunched with `--popup`. The launcher starts the popup
-//! hosts for every mode before waiting for their first presented frames, so the
-//! user-facing open path only reveals an already prepared native surface.
+//! example binary relaunched with `--popup`. After the launcher window starts,
+//! it prepares one offscreen popup host for every mode, so the user-facing open
+//! path only moves and focuses an already prepared native surface.
 
 use radiant::prelude::*;
+use std::time::Duration;
 
 #[path = "popup_window/host.rs"]
 mod host;
@@ -31,6 +32,7 @@ struct LauncherState {
     launches: usize,
     status: String,
     popup_hosts: PopupHosts,
+    popups_ready: bool,
 }
 
 impl Default for LauncherState {
@@ -40,25 +42,46 @@ impl Default for LauncherState {
             launches: 0,
             status: String::from("Preparing popup surfaces."),
             popup_hosts: PopupHosts::default(),
+            popups_ready: false,
         }
     }
 }
 
 impl LauncherState {
-    fn with_prewarmed_popups() -> Self {
-        let mut state = Self::default();
-        state.status = match prepare_popup_hosts(&mut state.popup_hosts) {
+    fn install_prepared_popups(&mut self, prepared: PreparedPopupHosts) {
+        self.popup_hosts = prepared.hosts;
+        self.popups_ready = prepared.ready;
+        self.status = match prepared.result {
             Ok(()) => String::from("Ready to open any popup instantly."),
             Err(error) => format!("Popup prep failed: {error}"),
         };
-        state
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Debug)]
 enum LauncherMessage {
+    PreparePopups,
+    PopupsPrepared(Box<PreparedPopupHosts>),
     SelectMode(PopupMode),
     OpenPopup,
+}
+
+#[derive(Debug)]
+struct PreparedPopupHosts {
+    hosts: PopupHosts,
+    result: std::result::Result<(), &'static str>,
+    ready: bool,
+}
+
+fn prepare_popup_hosts_for_install() -> PreparedPopupHosts {
+    let mut hosts = PopupHosts::default();
+    let result = prepare_popup_hosts(&mut hosts);
+    let ready = result.is_ok();
+    PreparedPopupHosts {
+        hosts,
+        result,
+        ready,
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -82,11 +105,14 @@ fn main() -> radiant::Result {
 }
 
 fn run_launcher_window() -> radiant::Result {
-    radiant::app(LauncherState::with_prewarmed_popups())
+    radiant::app(LauncherState::default())
         .title("Radiant Popup Launcher")
         .size(520, 300)
         .min_size(440, 260)
         .view(launcher_view)
+        .on_startup(|_state, context| {
+            context.after(Duration::from_millis(50), LauncherMessage::PreparePopups);
+        })
         .on_shutdown(|state| {
             state.popup_hosts.shutdown();
             None
@@ -136,7 +162,7 @@ fn launcher_view(state: &mut LauncherState) -> View<LauncherMessage> {
         .fill_width(),
         row([
             button("Open popup")
-                .message(LauncherMessage::OpenPopup)
+                .mapped(|_| LauncherMessage::OpenPopup)
                 .primary()
                 .id(14)
                 .key("open")
@@ -167,7 +193,7 @@ fn launcher_view(state: &mut LauncherState) -> View<LauncherMessage> {
 
 fn mode_button(state: &LauncherState, mode: PopupMode) -> View<LauncherMessage> {
     let builder = button(mode.label())
-        .message(LauncherMessage::SelectMode(mode))
+        .mapped(move |_| LauncherMessage::SelectMode(mode))
         .key(mode.arg())
         .size(148.0, 32.0);
     if state.selected_mode == mode {
@@ -183,11 +209,31 @@ fn update_launcher(
     context: &mut UpdateContext<LauncherMessage>,
 ) {
     match message {
+        LauncherMessage::PreparePopups => {
+            state.status = String::from("Preparing popup surfaces.");
+            context.spawn(
+                "popup-window-prewarm",
+                prepare_popup_hosts_for_install,
+                |prepared| LauncherMessage::PopupsPrepared(Box::new(prepared)),
+            );
+        }
+        LauncherMessage::PopupsPrepared(prepared) => {
+            state.install_prepared_popups(*prepared);
+        }
         LauncherMessage::SelectMode(mode) => {
             state.selected_mode = mode;
-            state.status = format!("Ready to open {} instantly.", mode.label());
+            state.status = if state.popups_ready {
+                format!("Ready to open {} instantly.", mode.label())
+            } else {
+                String::from("Preparing popup surfaces.")
+            };
         }
         LauncherMessage::OpenPopup => {
+            if !state.popups_ready {
+                state.status = String::from("Popup surfaces are still preparing.");
+                context.request_repaint();
+                return;
+            }
             state.launches += 1;
             match open_popup_host(&mut state.popup_hosts, state.selected_mode) {
                 Ok(()) => {
@@ -328,6 +374,7 @@ mod tests {
     #[test]
     fn launcher_view_tracks_selected_popup_mode_and_status() {
         let mut state = LauncherState::default();
+        state.popups_ready = true;
         update_launcher(
             &mut state,
             LauncherMessage::SelectMode(PopupMode::CommandPalette),

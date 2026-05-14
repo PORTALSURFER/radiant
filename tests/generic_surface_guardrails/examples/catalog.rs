@@ -109,7 +109,7 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
                 "examples/popup_window/platform.rs",
                 "examples/popup_window/policy.rs",
                 "hide_after_first_present",
-                "prime_hidden_show_path",
+                "park_visible_offscreen_show_path",
                 "wait_for_visible_popup_window",
                 "PopupHosts",
             ],

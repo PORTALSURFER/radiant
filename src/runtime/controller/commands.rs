@@ -35,14 +35,7 @@ where
     pub fn dispatch_message(&mut self, message: Message) -> CommandOutcome {
         let mut outcome = CommandOutcome::default();
         self.dispatch_message_inner(message, &mut outcome);
-        self.refresh_if_requested(outcome.surface_refresh_requested);
-        if outcome.surface_refresh_requested {
-            self.repaint_requested = true;
-        }
-        if outcome.exit_requested {
-            self.exit_requested = true;
-        }
-        outcome
+        self.finish_command_outcome(outcome)
     }
 
     /// Execute a command without an initial widget message.
@@ -53,14 +46,7 @@ where
     pub fn execute_command(&mut self, command: Command<Message>) -> CommandOutcome {
         let mut outcome = CommandOutcome::default();
         self.execute_command_inner(command, &mut outcome);
-        self.refresh_if_requested(outcome.surface_refresh_requested);
-        if outcome.surface_refresh_requested {
-            self.repaint_requested = true;
-        }
-        if outcome.exit_requested {
-            self.exit_requested = true;
-        }
-        outcome
+        self.finish_command_outcome(outcome)
     }
 
     /// Dispatch any messages queued by bridge-owned runtime work.
@@ -94,6 +80,10 @@ where
             self.repaint_requested = true;
         }
 
+        self.finish_command_outcome(outcome)
+    }
+
+    fn finish_command_outcome(&mut self, outcome: CommandOutcome) -> CommandOutcome {
         self.refresh_if_requested(outcome.surface_refresh_requested);
         if outcome.surface_refresh_requested {
             self.repaint_requested = true;

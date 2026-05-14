@@ -9,7 +9,7 @@ impl GpuSurfaceRenderer {
         let rebuild = self
             .pipeline
             .as_ref()
-            .is_none_or(|pipeline| pipeline.format != target_format);
+            .is_none_or(|pipeline| !pipeline.matches_target(device, target_format));
         if rebuild {
             self.pipeline = Some(GpuSurfacePipeline::new(device, target_format));
             self.pipeline_generation = self.pipeline_generation.wrapping_add(1);
@@ -24,7 +24,7 @@ impl GpuSurfaceRenderer {
         let rebuild = self
             .signal_pipeline
             .as_ref()
-            .is_none_or(|pipeline| pipeline.format != target_format);
+            .is_none_or(|pipeline| !pipeline.matches_target(device, target_format));
         if rebuild {
             self.signal_pipeline = Some(SignalPipeline::new(device, target_format));
             self.signal_pipeline_generation = self.signal_pipeline_generation.wrapping_add(1);

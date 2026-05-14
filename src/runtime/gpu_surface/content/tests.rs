@@ -1,5 +1,6 @@
 use super::*;
 use crate::gui::types::{ImageRgba, Point, Vector2};
+use crate::runtime::{GpuSignalSummaryBucket, GpuSignalSummaryLevel};
 
 #[test]
 fn signal_render_shape_rejects_invalid_payload_contracts() {
@@ -78,6 +79,89 @@ fn rgba_atlas_source_rect_must_be_inside_atlas() {
     };
 
     assert!(valid.is_renderable());
+    assert_eq!(valid.validate(), Ok(()));
     assert!(!overflows.is_renderable());
+    assert_eq!(
+        overflows.validate(),
+        Err(GpuSurfaceContentError::AtlasSourceRectOutOfBounds {
+            source_rect: Rect::from_min_size(Point::new(6.0, 1.0), Vector2::new(4.0, 2.0)),
+            atlas_width: 8,
+            atlas_height: 4,
+        })
+    );
     assert!(!negative_origin.is_renderable());
+}
+
+#[test]
+fn gpu_surface_content_validation_reports_signal_errors() {
+    let invalid_band_count = GpuSurfaceContent::SignalBands {
+        frames: 2,
+        band_count: 0,
+        frame_range: [0.0, 2.0],
+        samples: Arc::<[f32]>::from([0.0, 1.0]),
+    };
+    let invalid_range = GpuSurfaceContent::SignalBands {
+        frames: 2,
+        band_count: 1,
+        frame_range: [2.0, 2.0],
+        samples: Arc::<[f32]>::from([0.0, 1.0]),
+    };
+
+    assert_eq!(
+        invalid_band_count.validate(),
+        Err(GpuSurfaceContentError::InvalidSignalBandCount)
+    );
+    assert_eq!(
+        invalid_range.validate(),
+        Err(GpuSurfaceContentError::InvalidSignalFrameRange {
+            frame_range: [2.0, 2.0],
+        })
+    );
+}
+
+#[test]
+fn gpu_surface_content_validation_reports_summary_shape_errors() {
+    let summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
+        &[0.0, 1.0, -0.5, 0.25],
+        2,
+        2,
+    ));
+    let content = GpuSurfaceContent::SignalSummaryBands {
+        frames: 2,
+        band_count: 1,
+        frame_range: [0.0, 2.0],
+        summary,
+    };
+
+    assert_eq!(
+        content.validate(),
+        Err(GpuSurfaceContentError::SignalSummaryShapeMismatch {
+            frames: 2,
+            band_count: 1,
+            summary_frames: 2,
+            summary_band_count: 2,
+        })
+    );
+}
+
+#[test]
+fn gpu_surface_content_validation_rejects_zero_band_summary_before_level_checks() {
+    let content = GpuSurfaceContent::SignalSummaryBands {
+        frames: 1,
+        band_count: 0,
+        frame_range: [0.0, 1.0],
+        summary: Arc::new(GpuSignalSummary {
+            frames: 1,
+            band_count: 0,
+            levels: vec![GpuSignalSummaryLevel {
+                bucket_frames: 1,
+                buckets: Arc::<[GpuSignalSummaryBucket]>::from([GpuSignalSummaryBucket::default()]),
+            }],
+        }),
+    };
+
+    assert_eq!(
+        content.validate(),
+        Err(GpuSurfaceContentError::InvalidSignalBandCount)
+    );
 }

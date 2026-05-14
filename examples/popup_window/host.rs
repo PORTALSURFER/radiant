@@ -3,11 +3,14 @@
 #[cfg(all(target_os = "windows", not(test)))]
 use super::POPUP_POSITION;
 use super::{POPUP_ARG, POPUP_MODE_ARG, POPUP_PREWARM_ARG, PopupMode};
-#[cfg(all(target_os = "windows", not(test)))]
-use std::io::{BufRead, BufReader};
 use std::process::Child;
 #[cfg(all(target_os = "windows", not(test)))]
 use std::process::Stdio;
+
+#[path = "platform.rs"]
+mod platform;
+
+pub(super) use platform::hide_current_popup_window;
 
 #[derive(Debug, Default)]
 pub(super) struct PopupHosts {
@@ -77,11 +80,11 @@ impl PopupHost {
                 .as_ref()
                 .map(Child::id)
                 .ok_or("popup host is not running")?;
-            if show_popup_window(child_id, POPUP_POSITION, true) {
+            if platform::show_popup_window(child_id, POPUP_POSITION, true) {
                 return Ok(());
             }
-            if wait_for_popup_window(child_id, std::time::Duration::from_millis(250))
-                && show_popup_window(child_id, POPUP_POSITION, true)
+            if platform::wait_for_popup_window(child_id, std::time::Duration::from_millis(250))
+                && platform::show_popup_window(child_id, POPUP_POSITION, true)
             {
                 return Ok(());
             }
@@ -117,9 +120,10 @@ impl PopupHost {
 
     #[cfg(all(target_os = "windows", not(test)))]
     fn finish_prewarm(&self, child: &mut Child) {
-        wait_for_first_present_profile(child, std::time::Duration::from_secs(3));
+        platform::wait_for_first_present_profile(child, std::time::Duration::from_secs(3));
         let process_id = child.id();
-        let _ = wait_for_hidden_popup_window(process_id, std::time::Duration::from_secs(2));
+        let _ =
+            platform::wait_for_hidden_popup_window(process_id, std::time::Duration::from_secs(2));
     }
 
     #[cfg(all(not(target_os = "windows"), not(test)))]
@@ -133,7 +137,7 @@ impl PopupHost {
 
         #[cfg(target_os = "windows")]
         {
-            wait_for_popup_window(process_id, timeout)
+            platform::wait_for_popup_window(process_id, timeout)
         }
 
         #[cfg(not(target_os = "windows"))]
@@ -202,146 +206,6 @@ fn popup_process_args(mode: PopupMode, prewarmed: bool) -> Vec<&'static str> {
         args.push(POPUP_PREWARM_ARG);
     }
     args
-}
-
-#[cfg(target_os = "windows")]
-#[cfg(not(test))]
-fn wait_for_popup_window(process_id: u32, timeout: std::time::Duration) -> bool {
-    let start = std::time::Instant::now();
-    while start.elapsed() < timeout {
-        if popup_window_handle(process_id).is_some() {
-            return true;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(16));
-    }
-    false
-}
-
-#[cfg(target_os = "windows")]
-#[cfg(not(test))]
-fn wait_for_hidden_popup_window(process_id: u32, timeout: std::time::Duration) -> bool {
-    let start = std::time::Instant::now();
-    while start.elapsed() < timeout {
-        if popup_window_handle(process_id).is_some_and(|hwnd| !is_popup_window_visible(hwnd)) {
-            return true;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(16));
-    }
-    false
-}
-
-#[cfg(target_os = "windows")]
-#[cfg(not(test))]
-fn wait_for_first_present_profile(child: &mut Child, timeout: std::time::Duration) -> bool {
-    let Some(stderr) = child.stderr.take() else {
-        return false;
-    };
-    let (sender, receiver) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let mut lines = BufReader::new(stderr).lines();
-        let ready = lines.any(|line| {
-            line.is_ok_and(|line| {
-                line.starts_with("[native-vello-startup]") && line.contains("first_present_ms=")
-            })
-        });
-        let _ = sender.send(ready);
-    });
-    receiver.recv_timeout(timeout).unwrap_or(false)
-}
-
-#[cfg(target_os = "windows")]
-#[cfg(not(test))]
-fn show_popup_window(process_id: u32, position: [f32; 2], focus: bool) -> bool {
-    let Some(hwnd) = popup_window_handle(process_id) else {
-        return false;
-    };
-    unsafe {
-        use windows_sys::Win32::UI::WindowsAndMessaging::{
-            SW_SHOW, SW_SHOWNA, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SetForegroundWindow,
-            SetWindowPos, ShowWindow,
-        };
-
-        SetWindowPos(
-            hwnd,
-            std::ptr::null_mut(),
-            position[0].round() as i32,
-            position[1].round() as i32,
-            0,
-            0,
-            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
-        );
-        let command = if focus { SW_SHOW } else { SW_SHOWNA };
-        ShowWindow(hwnd, command);
-        if focus {
-            SetForegroundWindow(hwnd);
-        }
-    }
-    true
-}
-
-#[cfg(target_os = "windows")]
-#[cfg(not(test))]
-fn is_popup_window_visible(hwnd: windows_sys::Win32::Foundation::HWND) -> bool {
-    unsafe {
-        use windows_sys::Win32::UI::WindowsAndMessaging::IsWindowVisible;
-
-        IsWindowVisible(hwnd) != 0
-    }
-}
-
-#[cfg(target_os = "windows")]
-#[cfg(not(test))]
-fn popup_window_handle(process_id: u32) -> Option<windows_sys::Win32::Foundation::HWND> {
-    use windows_sys::Win32::Foundation::{FALSE, HWND, LPARAM, TRUE};
-    use windows_sys::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowThreadProcessId};
-
-    struct Search {
-        process_id: u32,
-        hwnd: HWND,
-    }
-
-    unsafe extern "system" fn enum_window(hwnd: HWND, lparam: LPARAM) -> i32 {
-        let search = unsafe { &mut *(lparam as *mut Search) };
-        let mut window_process_id = 0;
-        unsafe {
-            GetWindowThreadProcessId(hwnd, &mut window_process_id);
-        }
-        if window_process_id == search.process_id {
-            search.hwnd = hwnd;
-            return FALSE;
-        }
-        TRUE
-    }
-
-    let mut search = Search {
-        process_id,
-        hwnd: std::ptr::null_mut(),
-    };
-    unsafe {
-        EnumWindows(Some(enum_window), &mut search as *mut Search as LPARAM);
-    }
-    (!search.hwnd.is_null()).then_some(search.hwnd)
-}
-
-#[cfg(target_os = "windows")]
-pub(super) fn hide_current_popup_window() -> bool {
-    unsafe {
-        use windows_sys::Win32::UI::WindowsAndMessaging::{
-            GetForegroundWindow, SW_HIDE, ShowWindow,
-        };
-
-        let hwnd = GetForegroundWindow();
-        if hwnd.is_null() {
-            return false;
-        }
-        ShowWindow(hwnd, SW_HIDE);
-        true
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-pub(super) fn hide_current_popup_window() -> bool {
-    false
 }
 
 #[cfg(test)]

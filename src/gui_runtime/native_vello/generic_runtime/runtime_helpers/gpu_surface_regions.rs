@@ -3,6 +3,8 @@ use crate::{
     runtime::{GpuSurfaceRuntimeOverlays, PaintGpuSurface, PaintPrimitive},
 };
 
+use super::visible_rects_after_occlusion;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::gui_runtime::native_vello) struct GpuSurfaceInteractionRegion {
     pub(in crate::gui_runtime::native_vello) rect: Rect,
@@ -68,24 +70,8 @@ fn push_visible_interaction_regions(
     suffix: &[PaintPrimitive],
     output: &mut Vec<GpuSurfaceInteractionRegion>,
 ) {
-    let mut visible = vec![region.rect];
-    let mut next = Vec::new();
-    for primitive in suffix {
-        let PaintPrimitive::FillRect(fill) = primitive else {
-            continue;
-        };
-        if fill.color.a < OPAQUE_SUFFIX_OCCLUSION_ALPHA {
-            continue;
-        }
-        next.clear();
-        for rect in visible.drain(..) {
-            subtract_rect(rect, fill.rect, &mut next);
-        }
-        std::mem::swap(&mut visible, &mut next);
-        if visible.is_empty() {
-            break;
-        }
-    }
+    let visible =
+        visible_rects_after_occlusion(region.rect, suffix.iter().filter_map(opaque_fill_rect));
     output.extend(
         visible
             .into_iter()
@@ -93,46 +79,11 @@ fn push_visible_interaction_regions(
     );
 }
 
-fn subtract_rect(rect: Rect, occlusion: Rect, output: &mut Vec<Rect>) {
-    let Some(cut) = intersect_rect(rect, occlusion) else {
-        output.push(rect);
-        return;
+fn opaque_fill_rect(primitive: &PaintPrimitive) -> Option<Rect> {
+    let PaintPrimitive::FillRect(fill) = primitive else {
+        return None;
     };
-
-    push_positive_rect(
-        output,
-        Rect::from_min_max(rect.min, Point::new(rect.max.x, cut.min.y)),
-    );
-    push_positive_rect(
-        output,
-        Rect::from_min_max(Point::new(rect.min.x, cut.max.y), rect.max),
-    );
-    push_positive_rect(
-        output,
-        Rect::from_min_max(
-            Point::new(rect.min.x, cut.min.y),
-            Point::new(cut.min.x, cut.max.y),
-        ),
-    );
-    push_positive_rect(
-        output,
-        Rect::from_min_max(
-            Point::new(cut.max.x, cut.min.y),
-            Point::new(rect.max.x, cut.max.y),
-        ),
-    );
-}
-
-fn push_positive_rect(output: &mut Vec<Rect>, rect: Rect) {
-    if rect.width() > 0.0 && rect.height() > 0.0 {
-        output.push(rect);
-    }
-}
-
-fn intersect_rect(a: Rect, b: Rect) -> Option<Rect> {
-    let min = Point::new(a.min.x.max(b.min.x), a.min.y.max(b.min.y));
-    let max = Point::new(a.max.x.min(b.max.x), a.max.y.min(b.max.y));
-    (max.x > min.x && max.y > min.y).then(|| Rect::from_min_max(min, max))
+    (fill.color.a >= OPAQUE_SUFFIX_OCCLUSION_ALPHA).then_some(fill.rect)
 }
 
 #[cfg(test)]

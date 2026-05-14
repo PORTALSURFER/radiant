@@ -263,6 +263,8 @@ fn api_docs_describe_the_structural_boundary_strategy() {
         "instant transient UI surface",
         "prewarm one offscreen visible popup surface",
         "hide_after_first_present(true)",
+        "prime one hidden offscreen show/hide cycle",
+        "first post-hide native reveal",
         "first presented frame",
         "InvalidationMask",
         "RetainedSegmentMask",

@@ -56,6 +56,19 @@ pub(super) fn wait_for_hidden_popup_window(process_id: u32, timeout: Duration) -
 
 #[cfg(target_os = "windows")]
 #[cfg(not(test))]
+pub(super) fn wait_for_visible_popup_window(process_id: u32, timeout: Duration) -> bool {
+    let start = Instant::now();
+    while start.elapsed() < timeout {
+        if popup_window_handle(process_id).is_some_and(is_popup_window_visible) {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(16));
+    }
+    false
+}
+
+#[cfg(target_os = "windows")]
+#[cfg(not(test))]
 pub(super) fn wait_for_first_present_profile(child: &mut Child, timeout: Duration) -> bool {
     let Some(stderr) = child.stderr.take() else {
         return false;
@@ -99,6 +112,20 @@ pub(super) fn show_popup_window(process_id: u32, position: [f32; 2], focus: bool
         if focus {
             SetForegroundWindow(hwnd);
         }
+    }
+    true
+}
+
+#[cfg(target_os = "windows")]
+#[cfg(not(test))]
+pub(super) fn hide_popup_window(process_id: u32) -> bool {
+    let Some(hwnd) = popup_window_handle(process_id) else {
+        return false;
+    };
+    unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{SW_HIDE, ShowWindow};
+
+        ShowWindow(hwnd, SW_HIDE);
     }
     true
 }

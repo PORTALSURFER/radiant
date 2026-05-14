@@ -1,0 +1,754 @@
+use super::timeline_widget::TimelineGeometry;
+use super::*;
+use radiant::{
+    gui::visualization::ChannelViewMode,
+    layout::{LayoutOutput, Point, Rect, Vector2},
+    runtime::{
+        PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintTextRun, RuntimeBridge, SurfaceRuntime,
+    },
+    theme::ThemeTokens,
+    widgets::{PointerButton, TextWidget, Widget, WidgetInput, WidgetKey, WidgetOutput},
+};
+
+#[test]
+fn timeline_editor_projects_arrangement_state() {
+    let state = TimelineEditorState::default();
+    let timeline = timeline_surface(&state);
+
+    assert_eq!(timeline.surface.markers.len(), 4);
+    assert_eq!(
+        timeline.surface.transport.resolved_playhead_micros(),
+        Some(2_250_000)
+    );
+    assert_eq!(timeline.chrome.channel_view, ChannelViewMode::Stereo);
+    assert_eq!(
+        timeline.surface.transport.cursor_milli,
+        Some(beat_to_normalized(18))
+    );
+}
+
+#[test]
+fn timeline_widget_creates_and_moves_clips_from_pointer_input() {
+    let mut widget = ArrangementTimelineWidget::new(&TimelineEditorState::default());
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
+    let geometry = widget.geometry(bounds);
+
+    let press = widget
+        .handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(geometry.x_for_beat(48), geometry.lane_rect(0).center().y),
+                button: PointerButton::Primary,
+            },
+        )
+        .expect("empty track press seeks");
+    assert_surface_message(&press, |message| {
+        matches!(message, TimelineSurfaceMessage::Seek { beat: 48 })
+    });
+
+    let moved = widget
+        .handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(geometry.x_for_beat(56), geometry.lane_rect(0).center().y),
+            },
+        )
+        .expect("selection drag updates range");
+    assert_surface_message(&moved, |message| {
+        matches!(
+            message,
+            TimelineSurfaceMessage::SelectRange { range }
+                if *range == BeatRange { start: 48, end: 56 }
+        )
+    });
+
+    let created = widget
+        .handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(geometry.x_for_beat(56), geometry.lane_rect(0).center().y),
+                button: PointerButton::Primary,
+            },
+        )
+        .expect("selection release creates a clip");
+    assert_surface_message(&created, |message| {
+        matches!(
+            message,
+            TimelineSurfaceMessage::CreateClip { lane: 0, range }
+                if *range == BeatRange { start: 48, end: 56 }
+        )
+    });
+
+    let press_clip = widget
+        .handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(geometry.x_for_beat(4), geometry.lane_rect(0).center().y),
+                button: PointerButton::Primary,
+            },
+        )
+        .expect("clip press selects before moving");
+    assert_surface_message(&press_clip, |message| {
+        matches!(
+            message,
+            TimelineSurfaceMessage::SelectClip {
+                clip_id: 1,
+                beat: 4
+            }
+        )
+    });
+
+    let moved_clip = widget
+        .handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(geometry.x_for_beat(20), geometry.lane_rect(2).center().y),
+            },
+        )
+        .expect("dragged clip emits a move");
+    assert_surface_message(&moved_clip, |message| {
+        matches!(
+            message,
+            TimelineSurfaceMessage::MoveClip {
+                clip_id: 1,
+                lane: 2,
+                start: 16,
+            }
+        )
+    });
+
+    let _ = widget.handle_input(bounds, WidgetInput::FocusChanged(true));
+    let deleted = widget
+        .handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Delete))
+        .expect("focused timeline delete key emits deletion");
+    assert_surface_message(&deleted, |message| {
+        matches!(message, TimelineSurfaceMessage::DeleteSelected)
+    });
+}
+
+#[test]
+fn timeline_widget_resizes_clips_from_edge_drag() {
+    let mut widget = ArrangementTimelineWidget::new(&TimelineEditorState::default());
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
+    let geometry = widget.geometry(bounds);
+    let clip_rect = geometry.clip_rect(&widget.clips[0]);
+
+    let press_edge = widget
+        .handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(clip_rect.max.x - 2.0, clip_rect.center().y),
+                button: PointerButton::Primary,
+            },
+        )
+        .expect("clip edge press selects before resizing");
+    assert_surface_message(&press_edge, |message| {
+        matches!(
+            message,
+            TimelineSurfaceMessage::SelectClip {
+                clip_id: 1,
+                beat: 16
+            }
+        )
+    });
+
+    let resized = widget
+        .handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(geometry.x_for_beat(22), clip_rect.center().y),
+            },
+        )
+        .expect("edge drag emits resize");
+    assert_surface_message(&resized, |message| {
+        matches!(
+            message,
+            TimelineSurfaceMessage::ResizeClip { clip_id: 1, range }
+                if *range == BeatRange { start: 0, end: 22 }
+        )
+    });
+}
+
+#[test]
+fn timeline_widget_paints_one_vertical_cursor_indicator() {
+    let state = TimelineEditorState::default();
+    let mut widget = ArrangementTimelineWidget::new(&state);
+    let theme = ThemeTokens::default();
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
+    let geometry = widget.geometry(bounds);
+    let handled = widget.handle_input(
+        bounds,
+        WidgetInput::PointerMove {
+            position: Point::new(geometry.x_for_beat(24), bounds.center().y),
+        },
+    );
+    assert!(handled.is_none());
+    let mut primitives = Vec::new();
+
+    widget.append_runtime_overlay_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+
+    let indicator_lines = primitives
+        .iter()
+        .filter(|primitive| {
+            matches!(
+                primitive,
+                PaintPrimitive::FillRect(PaintFillRect { rect, color, .. })
+                    if rect.width() <= 3.0
+                        && rect.height() >= bounds.height() - RULER_HEIGHT
+                        && (*color == theme.highlight_orange
+                            || *color == theme.highlight_orange_soft)
+            )
+        })
+        .count();
+    assert_eq!(indicator_lines, 1);
+}
+
+#[test]
+fn timeline_cursor_overlay_tracks_unsnapped_pointer_position() {
+    let mut widget = ArrangementTimelineWidget::new(&TimelineEditorState::default());
+    let theme = ThemeTokens::default();
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
+    let geometry = widget.geometry(bounds);
+    let pointer_x = geometry.x_for_beat(24) + 3.25;
+
+    let handled = widget.handle_input(
+        bounds,
+        WidgetInput::PointerMove {
+            position: Point::new(pointer_x, geometry.lane_rect(1).center().y),
+        },
+    );
+    assert!(handled.is_none());
+
+    let mut primitives = Vec::new();
+    widget.append_runtime_overlay_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+
+    let cursor_rect = primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::FillRect(PaintFillRect { rect, color, .. })
+                if *color == theme.highlight_orange_soft
+                    && rect.width() <= 3.0
+                    && rect.height() >= bounds.height() - RULER_HEIGHT =>
+            {
+                Some(*rect)
+            }
+            _ => None,
+        })
+        .expect("hover cursor line should be painted");
+    assert!((cursor_rect.center().x - pointer_x).abs() < 0.01);
+}
+
+#[test]
+fn timeline_widget_paints_new_clip_preview_while_selecting() {
+    let mut widget = ArrangementTimelineWidget::new(&TimelineEditorState::default());
+    let theme = ThemeTokens::default();
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
+    let geometry = widget.geometry(bounds);
+
+    let _ = widget.handle_input(
+        bounds,
+        WidgetInput::PointerPress {
+            position: Point::new(geometry.x_for_beat(48), geometry.lane_rect(0).center().y),
+            button: PointerButton::Primary,
+        },
+    );
+    let _ = widget.handle_input(
+        bounds,
+        WidgetInput::PointerMove {
+            position: Point::new(geometry.x_for_beat(56), geometry.lane_rect(0).center().y),
+        },
+    );
+
+    let mut primitives = Vec::new();
+    widget.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+    widget.append_runtime_overlay_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+
+    let preview_rect = geometry.clip_rect_for_range(0, BeatRange { start: 48, end: 56 });
+    let preview_fill = primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::FillRect(PaintFillRect { rect, color, .. })
+                if *rect == preview_rect && *color == {
+                    let mut color = theme.accent_mint;
+                    color.a = 210;
+                    color
+                }
+        )
+    });
+    let preview_stroke = primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::StrokeRect(PaintStrokeRect { rect, color, width, .. })
+                if *rect == preview_rect && *color == theme.text_primary && *width == 2.0
+        )
+    });
+
+    assert!(preview_fill);
+    assert!(preview_stroke);
+}
+
+#[test]
+fn timeline_widget_paints_clip_preview_while_moving() {
+    let mut widget = ArrangementTimelineWidget::new(&TimelineEditorState::default());
+    let theme = ThemeTokens::default();
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
+    let geometry = widget.geometry(bounds);
+
+    let _ = widget.handle_input(
+        bounds,
+        WidgetInput::PointerPress {
+            position: Point::new(geometry.x_for_beat(4), geometry.lane_rect(0).center().y),
+            button: PointerButton::Primary,
+        },
+    );
+    let _ = widget.handle_input(
+        bounds,
+        WidgetInput::PointerMove {
+            position: Point::new(geometry.x_for_beat(20), geometry.lane_rect(2).center().y),
+        },
+    );
+
+    let mut primitives = Vec::new();
+    widget.append_runtime_overlay_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+
+    let preview_rect = geometry.clip_rect_for_range(2, BeatRange { start: 16, end: 32 });
+    assert_clip_preview(
+        &primitives,
+        preview_rect,
+        {
+            let mut color = theme.accent_copper;
+            color.a = 210;
+            color
+        },
+        "Kick loop",
+        &theme,
+    );
+}
+
+#[test]
+fn timeline_widget_keeps_move_preview_from_captured_drag_state() {
+    let mut widget = ArrangementTimelineWidget::new(&TimelineEditorState::default());
+    let theme = ThemeTokens::default();
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
+    let geometry = widget.geometry(bounds);
+
+    let _ = widget.handle_input(
+        bounds,
+        WidgetInput::PointerPress {
+            position: Point::new(geometry.x_for_beat(4), geometry.lane_rect(0).center().y),
+            button: PointerButton::Primary,
+        },
+    );
+    let _ = widget.handle_input(
+        bounds,
+        WidgetInput::PointerMove {
+            position: Point::new(geometry.x_for_beat(20), geometry.lane_rect(2).center().y),
+        },
+    );
+    widget.clips.retain(|clip| clip.id != 1);
+
+    let mut primitives = Vec::new();
+    widget.append_runtime_overlay_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+
+    assert_clip_preview(
+        &primitives,
+        geometry.clip_rect_for_range(2, BeatRange { start: 16, end: 32 }),
+        {
+            let mut color = theme.accent_copper;
+            color.a = 210;
+            color
+        },
+        "Kick loop",
+        &theme,
+    );
+}
+
+#[test]
+fn timeline_widget_paints_clip_preview_while_resizing() {
+    let mut widget = ArrangementTimelineWidget::new(&TimelineEditorState::default());
+    let theme = ThemeTokens::default();
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
+    let geometry = widget.geometry(bounds);
+    let clip_rect = geometry.clip_rect(&widget.clips[0]);
+
+    let _ = widget.handle_input(
+        bounds,
+        WidgetInput::PointerPress {
+            position: Point::new(clip_rect.max.x - 2.0, clip_rect.center().y),
+            button: PointerButton::Primary,
+        },
+    );
+    let _ = widget.handle_input(
+        bounds,
+        WidgetInput::PointerMove {
+            position: Point::new(geometry.x_for_beat(22), clip_rect.center().y),
+        },
+    );
+
+    let mut primitives = Vec::new();
+    widget.append_runtime_overlay_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+
+    let preview_rect = geometry.clip_rect_for_range(0, BeatRange { start: 0, end: 22 });
+    assert_clip_preview(
+        &primitives,
+        preview_rect,
+        {
+            let mut color = theme.accent_mint;
+            color.a = 210;
+            color
+        },
+        "Kick loop",
+        &theme,
+    );
+}
+
+#[test]
+fn timeline_widget_keeps_resize_preview_from_captured_drag_state() {
+    let mut widget = ArrangementTimelineWidget::new(&TimelineEditorState::default());
+    let theme = ThemeTokens::default();
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
+    let geometry = widget.geometry(bounds);
+    let clip_rect = geometry.clip_rect(&widget.clips[0]);
+
+    let _ = widget.handle_input(
+        bounds,
+        WidgetInput::PointerPress {
+            position: Point::new(clip_rect.max.x - 2.0, clip_rect.center().y),
+            button: PointerButton::Primary,
+        },
+    );
+    let _ = widget.handle_input(
+        bounds,
+        WidgetInput::PointerMove {
+            position: Point::new(geometry.x_for_beat(22), clip_rect.center().y),
+        },
+    );
+    widget.clips.retain(|clip| clip.id != 1);
+
+    let mut primitives = Vec::new();
+    widget.append_runtime_overlay_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+
+    assert_clip_preview(
+        &primitives,
+        geometry.clip_rect_for_range(0, BeatRange { start: 0, end: 22 }),
+        {
+            let mut color = theme.accent_mint;
+            color.a = 210;
+            color
+        },
+        "Kick loop",
+        &theme,
+    );
+}
+
+#[test]
+fn timeline_runtime_cursor_motion_uses_paint_only_redraw_after_hover_enter() {
+    let bridge = radiant::app(TimelineEditorState::default())
+        .view(project_surface)
+        .update(update)
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(860.0, 460.0));
+    let geometry = TimelineGeometry::new(Rect::from_min_size(
+        Point::new(16.0, 58.0),
+        Vector2::new(828.0, 252.0),
+    ));
+
+    let enter = runtime.dispatch_pointer_move_with_outcome(Point::new(
+        geometry.x_for_beat(20),
+        geometry.lane_rect(1).center().y,
+    ));
+    assert!(enter.routed());
+    assert!(enter.needs_scene_rebuild());
+
+    let moved = runtime.dispatch_pointer_move_with_outcome(Point::new(
+        geometry.x_for_beat(24) + 2.5,
+        geometry.lane_rect(1).center().y,
+    ));
+    assert!(moved.routed());
+    assert!(moved.paint_only_requested);
+    assert!(!moved.needs_scene_rebuild());
+}
+
+#[test]
+fn timeline_widget_highlights_hovered_clip() {
+    let mut widget = ArrangementTimelineWidget::new(&TimelineEditorState::default());
+    let theme = ThemeTokens::default();
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(860.0, 252.0));
+    let geometry = widget.geometry(bounds);
+
+    let handled = widget.handle_input(
+        bounds,
+        WidgetInput::PointerMove {
+            position: Point::new(geometry.x_for_beat(4), geometry.lane_rect(0).center().y),
+        },
+    );
+    assert!(handled.is_none());
+    assert_eq!(widget.hover_clip_id, Some(1));
+
+    let mut primitives = Vec::new();
+    widget.append_runtime_overlay_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+
+    let hover_rect = geometry.clip_rect(&widget.clips[0]);
+    let hover_border = primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::StrokeRect(PaintStrokeRect {
+                rect,
+                color,
+                width,
+                ..
+            }) if *rect == hover_rect && *color == theme.text_primary && *width == 2.0
+        )
+    });
+    let hover_strip = primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::FillRect(PaintFillRect { rect, color, .. })
+                if *rect == hover_rect.top_edge_strip(4.0)
+                    && *color == theme.highlight_orange_soft
+        )
+    });
+
+    assert!(hover_border);
+    assert!(hover_strip);
+}
+
+#[test]
+fn timeline_editor_routes_surface_messages_through_runtime() {
+    let bridge = radiant::app(TimelineEditorState::default())
+        .view(project_surface)
+        .update(update)
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(860.0, 460.0));
+
+    assert!(runtime.surface().find_widget(TIMELINE_WIDGET_ID).is_some());
+    assert!(runtime.surface().find_widget(18).is_some());
+    assert!(
+        runtime
+            .surface()
+            .keyboard_focus_order()
+            .contains(&TIMELINE_WIDGET_ID)
+    );
+
+    let geometry = TimelineGeometry::new(Rect::from_min_size(
+        Point::new(16.0, 58.0),
+        Vector2::new(828.0, 252.0),
+    ));
+    let target = Point::new(geometry.x_for_beat(48), geometry.lane_rect(0).center().y);
+    assert!(runtime.dispatch_input(
+        TIMELINE_WIDGET_ID,
+        WidgetInput::PointerPress {
+            position: target,
+            button: PointerButton::Primary,
+        },
+    ));
+    assert!(runtime.dispatch_input(
+        TIMELINE_WIDGET_ID,
+        WidgetInput::PointerRelease {
+            position: Point::new(geometry.x_for_beat(56), target.y),
+            button: PointerButton::Primary,
+        },
+    ));
+
+    let status = status_text(&runtime);
+    assert!(status.contains("created clip"));
+}
+
+#[test]
+fn timeline_editor_deletes_selected_clip_from_toolbar() {
+    let bridge = radiant::app(TimelineEditorState::default())
+        .view(project_surface)
+        .update(update)
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(860.0, 460.0));
+
+    assert!(runtime.focus_widget(32));
+    assert!(runtime.dispatch_input(32, WidgetInput::KeyPress(WidgetKey::Enter)));
+
+    let status = status_text(&runtime);
+    assert!(status.contains("clips 3"));
+    assert!(status.contains("deleted clip 2"));
+}
+
+#[test]
+fn delete_selected_clip_clears_selection_without_touching_other_clips() {
+    let mut state = TimelineEditorState::default();
+
+    delete_selected_clip(&mut state);
+
+    assert_eq!(state.clips.len(), 3);
+    assert!(state.clips.iter().all(|clip| clip.id != 2));
+    assert_eq!(state.selected_clip, None);
+    assert_eq!(state.selection, None);
+    assert_eq!(state.status, "deleted clip 2");
+}
+
+#[test]
+fn resize_clip_updates_range_and_selection() {
+    let mut state = TimelineEditorState::default();
+
+    update_surface(
+        &mut state,
+        TimelineSurfaceMessage::ResizeClip {
+            clip_id: 2,
+            range: BeatRange { start: 8, end: 30 },
+        },
+    );
+
+    let resized = state
+        .clips
+        .iter()
+        .find(|clip| clip.id == 2)
+        .expect("clip remains after resize");
+    assert_eq!(resized.range, BeatRange { start: 8, end: 30 });
+    assert_eq!(state.selected_clip, Some(2));
+    assert_eq!(state.selection, Some(BeatRange { start: 8, end: 30 }));
+    assert!(state.status.contains("resized to beats 8-30"));
+}
+
+#[test]
+fn creating_clip_cuts_existing_clips_on_same_lane() {
+    let mut state = TimelineEditorState::default();
+
+    update_surface(
+        &mut state,
+        TimelineSurfaceMessage::CreateClip {
+            lane: 0,
+            range: BeatRange { start: 4, end: 12 },
+        },
+    );
+
+    assert_clip(&state, 5, 0, BeatRange { start: 4, end: 12 });
+    assert_clip(&state, 1, 0, BeatRange { start: 0, end: 4 });
+    assert_clip(&state, 6, 0, BeatRange { start: 12, end: 16 });
+    assert_lane_has_no_overlaps(&state, 0);
+}
+
+#[test]
+fn moving_clip_cuts_existing_clips_on_target_lane() {
+    let mut state = TimelineEditorState::default();
+
+    update_surface(
+        &mut state,
+        TimelineSurfaceMessage::MoveClip {
+            clip_id: 1,
+            lane: 1,
+            start: 16,
+        },
+    );
+
+    assert_clip(&state, 1, 1, BeatRange { start: 16, end: 32 });
+    assert_clip(&state, 2, 1, BeatRange { start: 12, end: 16 });
+    assert_lane_has_no_overlaps(&state, 1);
+}
+
+#[test]
+fn resizing_clip_cuts_existing_clips_on_same_lane() {
+    let mut state = TimelineEditorState::default();
+    state
+        .clips
+        .push(TimelineClip::new(99, "Pad tail", 1, 30, 44));
+
+    update_surface(
+        &mut state,
+        TimelineSurfaceMessage::ResizeClip {
+            clip_id: 2,
+            range: BeatRange { start: 8, end: 36 },
+        },
+    );
+
+    assert_clip(&state, 2, 1, BeatRange { start: 8, end: 36 });
+    assert_clip(&state, 99, 1, BeatRange { start: 36, end: 44 });
+    assert_lane_has_no_overlaps(&state, 1);
+}
+
+fn assert_surface_message(
+    output: &WidgetOutput,
+    matches: impl FnOnce(&TimelineSurfaceMessage) -> bool,
+) {
+    let message = output
+        .typed_ref::<TimelineSurfaceMessage>()
+        .expect("timeline widget emits timeline messages");
+    assert!(matches(message), "unexpected message: {message:?}");
+}
+
+fn assert_clip_preview(
+    primitives: &[PaintPrimitive],
+    preview_rect: Rect,
+    preview_color: radiant::gui::types::Rgba8,
+    label: &str,
+    theme: &ThemeTokens,
+) {
+    let preview_fill = primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::FillRect(PaintFillRect { rect, color, .. })
+                if *rect == preview_rect && *color == preview_color
+        )
+    });
+    let preview_stroke = primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::StrokeRect(PaintStrokeRect { rect, color, width, .. })
+                if *rect == preview_rect && *color == theme.text_primary && *width == 2.0
+        )
+    });
+    let preview_label = primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::Text(PaintTextRun { text, rect, color, .. })
+                if text.as_str() == label
+                    && rect.min.x > preview_rect.min.x
+                    && rect.max.x <= preview_rect.max.x
+                    && *color == theme.text_primary
+        )
+    });
+
+    assert!(preview_fill);
+    assert!(preview_stroke);
+    assert!(preview_label);
+}
+
+fn assert_clip(state: &TimelineEditorState, id: u32, lane: usize, range: BeatRange) {
+    let clip = state
+        .clips
+        .iter()
+        .find(|clip| clip.id == id)
+        .unwrap_or_else(|| panic!("clip {id} should exist"));
+    assert_eq!(clip.lane, lane);
+    assert_eq!(clip.range, range);
+}
+
+fn assert_lane_has_no_overlaps(state: &TimelineEditorState, lane: usize) {
+    let clips = state
+        .clips
+        .iter()
+        .filter(|clip| clip.lane == lane)
+        .collect::<Vec<_>>();
+    for (index, clip) in clips.iter().enumerate() {
+        for other in clips.iter().skip(index + 1) {
+            assert!(
+                clip.range.end <= other.range.start || other.range.end <= clip.range.start,
+                "clips {} and {} overlap on lane {lane}",
+                clip.id,
+                other.id
+            );
+        }
+    }
+}
+
+fn status_text<Bridge>(runtime: &SurfaceRuntime<Bridge, TimelineMessage>) -> String
+where
+    Bridge: RuntimeBridge<TimelineMessage>,
+{
+    runtime
+        .surface()
+        .find_widget(STATUS_WIDGET_ID)
+        .expect("status widget exists")
+        .widget_object()
+        .as_any()
+        .downcast_ref::<TextWidget>()
+        .expect("status widget is text")
+        .text
+        .to_string()
+}

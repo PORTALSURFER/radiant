@@ -35,6 +35,8 @@ pub(super) enum TimelineDrag {
     },
     MovingClip {
         clip_id: u32,
+        clip_name: &'static str,
+        source_lane: usize,
         pointer_offset: u32,
         duration: u32,
         current_lane: usize,
@@ -42,6 +44,8 @@ pub(super) enum TimelineDrag {
     },
     ResizingClip {
         clip_id: u32,
+        clip_name: &'static str,
+        source_lane: usize,
         edge: ResizeEdge,
         fixed_beat: u32,
         current_range: BeatRange,

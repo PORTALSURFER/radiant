@@ -42,6 +42,8 @@ pub(super) fn handle_timeline_input(
                 (
                     Some(TimelineDrag::MovingClip {
                         clip_id,
+                        clip_name,
+                        source_lane,
                         pointer_offset,
                         duration,
                         ..
@@ -58,6 +60,8 @@ pub(super) fn handle_timeline_input(
                     });
                     widget.drag = Some(TimelineDrag::MovingClip {
                         clip_id,
+                        clip_name,
+                        source_lane,
                         pointer_offset,
                         duration,
                         current_lane: lane,
@@ -72,6 +76,8 @@ pub(super) fn handle_timeline_input(
                 (
                     Some(TimelineDrag::ResizingClip {
                         clip_id,
+                        clip_name,
+                        source_lane,
                         edge,
                         fixed_beat,
                         ..
@@ -83,6 +89,8 @@ pub(super) fn handle_timeline_input(
                     widget.selection = Some(range);
                     widget.drag = Some(TimelineDrag::ResizingClip {
                         clip_id,
+                        clip_name,
+                        source_lane,
                         edge,
                         fixed_beat,
                         current_range: range,
@@ -107,6 +115,8 @@ pub(super) fn handle_timeline_input(
                 widget.drag = if let Some(edge) = handle.resize_edge() {
                     Some(TimelineDrag::ResizingClip {
                         clip_id: handle.clip_id,
+                        clip_name: handle.clip_name,
+                        source_lane: handle.clip_lane,
                         edge,
                         fixed_beat: match edge {
                             ResizeEdge::Start => handle.clip_end,
@@ -120,13 +130,11 @@ pub(super) fn handle_timeline_input(
                 } else {
                     Some(TimelineDrag::MovingClip {
                         clip_id: handle.clip_id,
+                        clip_name: handle.clip_name,
+                        source_lane: handle.clip_lane,
                         pointer_offset: beat.saturating_sub(handle.clip_start),
                         duration: handle.duration,
-                        current_lane: widget
-                            .clips
-                            .iter()
-                            .find(|clip| clip.id == handle.clip_id)
-                            .map_or(0, |clip| clip.lane),
+                        current_lane: handle.clip_lane,
                         current_start: handle.clip_start,
                     })
                 };
@@ -192,6 +200,8 @@ pub(super) fn handle_timeline_input(
 #[derive(Clone, Copy)]
 struct TimelineClipHandle {
     clip_id: u32,
+    clip_name: &'static str,
+    clip_lane: usize,
     clip_start: u32,
     clip_end: u32,
     duration: u32,
@@ -217,6 +227,8 @@ fn clip_handle_at(
         let role = drag_handle_at_point(&clip_drag_handles(geometry, clip), position)?.role;
         Some(TimelineClipHandle {
             clip_id: clip.id,
+            clip_name: clip.name,
+            clip_lane: clip.lane,
             clip_start: clip.range.start,
             clip_end: clip.range.end,
             duration: clip.range.duration(),

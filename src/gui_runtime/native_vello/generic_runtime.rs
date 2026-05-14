@@ -23,6 +23,7 @@ mod runner;
 mod runtime_helpers;
 mod runtime_wakeup;
 mod scene;
+mod scene_texture;
 mod surface;
 mod window;
 
@@ -49,6 +50,7 @@ pub(in crate::gui_runtime::native_vello) use scene::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneTextRunBuffer,
     SurfaceSceneEncodeContext, encode_surface_paint_plan_to_scene,
 };
+use scene_texture::render_scene_texture_if_needed;
 use window::{
     generic_window_attributes, hide_window_after_first_present, reveal_window_after_first_present,
     reveal_window_after_surface_setup,

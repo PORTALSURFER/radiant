@@ -393,6 +393,35 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
     );
 }
 
+#[test]
+fn native_vello_scene_texture_rendering_stays_out_of_present_driver() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let module =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/generic_runtime.rs"))
+            .expect("generic native Vello module should be readable");
+    let present = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present.rs"),
+    )
+    .expect("present driver should be readable");
+    let scene_texture = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene_texture.rs"),
+    )
+    .expect("scene texture renderer should be readable");
+
+    assert!(
+        module.contains("mod scene_texture;")
+            && module.contains("use scene_texture::render_scene_texture_if_needed;"),
+        "generic runtime should expose the Vello scene texture renderer as a focused module"
+    );
+    assert!(
+        !present.contains("renderer.render_to_texture(")
+            && scene_texture.contains("renderer.render_to_texture(")
+            && scene_texture.contains("frame.scene_texture_dirty = false")
+            && scene_texture.contains("frame.mark_composited_base_dirty();"),
+        "present driver should delegate dirty scene texture rendering to the focused scene_texture module"
+    );
+}
+
 fn public_module_names(source: &str) -> BTreeSet<String> {
     source
         .lines()

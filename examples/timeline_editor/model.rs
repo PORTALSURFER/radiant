@@ -3,8 +3,9 @@ use radiant::gui::{
     range::NormalizedRange,
     visualization::{
         ChannelViewMode, SignalChromeState, SignalRasterPreview, SignalToolFlags, SignalToolState,
-        TimelineEditPreview, TimelineFeedbackEvents, TimelineMarkerPreview, TimelineMotionState,
-        TimelinePresentationState, TimelineSurfaceState, TimelineTransportState, TimelineViewport,
+        TimelineEditPreview, TimelineEditPreviewParts, TimelineFeedbackEvents,
+        TimelineMarkerPreview, TimelineMotionState, TimelinePresentationState,
+        TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportState, TimelineViewport,
     },
 };
 
@@ -373,43 +374,44 @@ pub(super) fn timeline_surface(state: &TimelineEditorState) -> TimelineMotionSta
     let selection = state.selection.map(|range| {
         NormalizedRange::from_micros(beat_to_micros(range.start), beat_to_micros(range.end))
     });
-    let surface = TimelineSurfaceState::new(
-        TimelineViewport::new(0, 1_000, 0, 1_000_000, 0, 1_000_000_000),
-        TimelineTransportState::new(
+    let surface = TimelineSurfaceState::from_parts(TimelineSurfaceParts {
+        viewport: TimelineViewport::new(0, 1_000, 0, 1_000_000, 0, 1_000_000_000),
+        transport: TimelineTransportState::new(
             Some(beat_to_normalized(state.playhead_beat)),
             None,
             Some(beat_to_micros(state.playhead_beat)),
             selection,
         ),
-        TimelineEditPreview::new(
+        edit_preview: TimelineEditPreview::from_parts(TimelineEditPreviewParts {
             selection,
-            selection.map(|range| range.start_milli),
-            selection.map(|range| range.start_micros),
-            selection.map(|range| range.start_milli.saturating_add(1)),
-            selection.map(|range| range.start_micros.saturating_add(1_000)),
-            selection.map(|range| range.end_milli),
-            selection.map(|range| range.end_milli.saturating_sub(1)),
-            selection.map(|range| range.end_micros.saturating_sub(1_000)),
-            selection.map(|range| range.end_milli),
-            selection.map(|range| range.end_micros),
-            None,
-        ),
-        TimelineFeedbackEvents::new(state.feedback_nonce, 0, state.revision),
-        TimelinePresentationState::new(
+            leading_end_milli: selection.map(|range| range.start_milli),
+            leading_end_micros: selection.map(|range| range.start_micros),
+            leading_inner_start_milli: selection.map(|range| range.start_milli.saturating_add(1)),
+            leading_inner_start_micros: selection
+                .map(|range| range.start_micros.saturating_add(1_000)),
+            leading_curve_milli: selection.map(|range| range.end_milli),
+            trailing_start_milli: selection.map(|range| range.end_milli.saturating_sub(1)),
+            trailing_start_micros: selection.map(|range| range.end_micros.saturating_sub(1_000)),
+            trailing_inner_end_milli: selection.map(|range| range.end_milli),
+            trailing_inner_end_micros: selection.map(|range| range.end_micros),
+            trailing_curve_milli: None,
+        }),
+        feedback_events: TimelineFeedbackEvents::new(state.feedback_nonce, 0, state.revision),
+        presentation: TimelinePresentationState::new(
             Some(beat_to_micros(4)),
             0,
             state.repeat_enabled,
             Some("Arrangement".to_string()),
             Some(format!("{} beats", TOTAL_BEATS)),
         ),
-        SignalRasterPreview::new(
+        raster_preview: SignalRasterPreview::new(
             Some("arrangement timeline atlas".to_string()),
             false,
             false,
             Some(state.revision),
             None,
         ),
-        state
+        markers: state
             .clips
             .iter()
             .map(|clip| {
@@ -420,7 +422,7 @@ pub(super) fn timeline_surface(state: &TimelineEditorState) -> TimelineMotionSta
                 )
             })
             .collect(),
-    );
+    });
 
     TimelineMotionState::new(
         state.playing,

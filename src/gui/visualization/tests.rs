@@ -2,9 +2,9 @@ use super::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, ChannelViewMode, DragHandle, DragHandleRole,
     PointRenderMode, SignalChromeState, SignalRasterPreview, SignalToolFlags, SignalToolState,
     SpatialPanel, SpatialPoint, TimelineCoordinateMapper, TimelineEditPreview,
-    TimelineFeedbackEvents, TimelineMarkerPreview, TimelineMotionState, TimelinePresentationState,
-    TimelineSurfaceState, TimelineTransportState, TimelineViewport, canvas_layer_at_point,
-    drag_handle_at_point, normalized_milli_point_in_rect,
+    TimelineEditPreviewParts, TimelineFeedbackEvents, TimelineMarkerPreview, TimelineMotionState,
+    TimelinePresentationState, TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportState,
+    TimelineViewport, canvas_layer_at_point, drag_handle_at_point, normalized_milli_point_in_rect,
 };
 use crate::gui::{
     range::{NormalizedPixelSnap, NormalizedRange, NormalizedViewport},
@@ -279,19 +279,19 @@ fn timeline_edit_preview_preserves_selection_and_handle_positions() {
         start_nanos: 200_000_000,
         end_nanos: 800_000_000,
     };
-    let preview = TimelineEditPreview::new(
-        Some(selection),
-        Some(300),
-        Some(300_000),
-        Some(240),
-        Some(240_000),
-        Some(420),
-        Some(700),
-        Some(700_000),
-        Some(760),
-        Some(760_000),
-        Some(580),
-    );
+    let preview = TimelineEditPreview::from_parts(TimelineEditPreviewParts {
+        selection: Some(selection),
+        leading_end_milli: Some(300),
+        leading_end_micros: Some(300_000),
+        leading_inner_start_milli: Some(240),
+        leading_inner_start_micros: Some(240_000),
+        leading_curve_milli: Some(420),
+        trailing_start_milli: Some(700),
+        trailing_start_micros: Some(700_000),
+        trailing_inner_end_milli: Some(760),
+        trailing_inner_end_micros: Some(760_000),
+        trailing_curve_milli: Some(580),
+    });
 
     assert_eq!(preview.selection, Some(selection));
     assert_eq!(preview.leading_end_micros, Some(300_000));
@@ -329,15 +329,21 @@ fn timeline_surface_state_aggregates_generic_timeline_parts() {
         selected: true,
         focused: false,
     };
-    let surface = TimelineSurfaceState::new(
-        TimelineViewport::new(10, 900, 10_000, 900_000, 10_000_000, 900_000_000),
-        TimelineTransportState::new(Some(20), Some(30), Some(30_500), None),
-        TimelineEditPreview::default(),
-        TimelineFeedbackEvents::new(1, 2, 3),
-        TimelinePresentationState::new(None, 0, true, Some(String::from("tempo")), None),
-        SignalRasterPreview::default(),
-        vec![marker],
-    );
+    let surface = TimelineSurfaceState::from_parts(TimelineSurfaceParts {
+        viewport: TimelineViewport::new(10, 900, 10_000, 900_000, 10_000_000, 900_000_000),
+        transport: TimelineTransportState::new(Some(20), Some(30), Some(30_500), None),
+        edit_preview: TimelineEditPreview::default(),
+        feedback_events: TimelineFeedbackEvents::new(1, 2, 3),
+        presentation: TimelinePresentationState::new(
+            None,
+            0,
+            true,
+            Some(String::from("tempo")),
+            None,
+        ),
+        raster_preview: SignalRasterPreview::default(),
+        markers: vec![marker],
+    });
 
     assert_eq!(surface.viewport.start_micros, 10_000);
     assert_eq!(surface.transport.resolved_playhead_micros(), Some(30_500));
@@ -350,15 +356,15 @@ fn timeline_surface_state_aggregates_generic_timeline_parts() {
 fn timeline_motion_state_aggregates_surface_chrome_tools_and_transport() {
     let motion = TimelineMotionState::new(
         true,
-        TimelineSurfaceState::new(
-            TimelineViewport::new(0, 500, 0, 500_000, 0, 500_000_000),
-            TimelineTransportState::new(None, Some(10), Some(10_250), None),
-            TimelineEditPreview::default(),
-            TimelineFeedbackEvents::default(),
-            TimelinePresentationState::default(),
-            SignalRasterPreview::default(),
-            Vec::<TimelineMarkerPreview>::new(),
-        ),
+        TimelineSurfaceState::from_parts(TimelineSurfaceParts {
+            viewport: TimelineViewport::new(0, 500, 0, 500_000, 0, 500_000_000),
+            transport: TimelineTransportState::new(None, Some(10), Some(10_250), None),
+            edit_preview: TimelineEditPreview::default(),
+            feedback_events: TimelineFeedbackEvents::default(),
+            presentation: TimelinePresentationState::default(),
+            raster_preview: SignalRasterPreview::default(),
+            markers: Vec::<TimelineMarkerPreview>::new(),
+        }),
         SignalChromeState::new(
             "moving",
             true,

@@ -486,7 +486,8 @@ between determinate and indeterminate progress tracks, `horizontal_meter_fill_re
 `inline_indicator_layout` for compact text-relative status indicator clusters,
 `TimelineViewport` for normalized viewport bounds,
 `TimelineTransportState` for cursor/playhead/selection positions,
-`TimelineEditPreview` for editable range and fade/curve handles,
+`TimelineEditPreview` and `TimelineEditPreviewParts` for editable range and
+fade/curve handles,
 `TimelineFeedbackEvents` for transient operation feedback tokens,
 `TimelinePresentationState` for guide spacing, repeat state, and compact labels,
 `TimelineMarkerPreview` for retained marker overlays, and
@@ -912,7 +913,7 @@ host-domain text semantics.
 `radiant::gui::visualization` contains generic visualization models such as
 `TimelineViewport`, `TimelineTransportState`, `TimelineEditPreview`,
 `TimelineFeedbackEvents`, `TimelinePresentationState`, `SignalRasterPreview`,
-`TimelineSurfaceState`, `TimelineMotionState`, and
+`TimelineSurfaceParts`, `TimelineSurfaceState`, `TimelineMotionState`, and
 `normalized_milli_point_in_rect`. Hosts can map product-specific media or
 spatial surfaces into these reusable visualization slots while keeping domain
 workflow state outside Radiant.

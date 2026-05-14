@@ -214,7 +214,10 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
         (
             "timeline_editor",
             vec![
-                "TimelineSurfaceState::new(",
+                "TimelineSurfaceParts",
+                "TimelineSurfaceState::from_parts(",
+                "TimelineEditPreviewParts",
+                "TimelineEditPreview::from_parts(",
                 "TimelineMotionState::new(",
                 "SignalToolFlags",
                 "retained_canvas(",

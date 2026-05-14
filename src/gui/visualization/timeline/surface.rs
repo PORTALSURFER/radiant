@@ -26,6 +26,29 @@ pub struct TimelineSurfaceState<Marker = TimelineMarkerPreview> {
     pub markers: Vec<Marker>,
 }
 
+/// Named parts for a renderer-facing timeline surface projection.
+///
+/// The surface combines viewport, transport, editing, presentation, raster, and
+/// marker state. Keeping those buckets named makes host projections easier to
+/// audit than a long positional constructor.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct TimelineSurfaceParts<Marker = TimelineMarkerPreview> {
+    /// Visible viewport bounds.
+    pub viewport: TimelineViewport,
+    /// Cursor, playhead, and selected range state.
+    pub transport: TimelineTransportState,
+    /// Editable range and handle preview state.
+    pub edit_preview: TimelineEditPreview,
+    /// Single-use transient feedback tokens.
+    pub feedback_events: TimelineFeedbackEvents,
+    /// Guide, repeat, and label presentation state.
+    pub presentation: TimelinePresentationState,
+    /// Retained raster preview for the timeline body.
+    pub raster_preview: SignalRasterPreview,
+    /// Host-projected markers shown on the timeline.
+    pub markers: Vec<Marker>,
+}
+
 /// Motion-frame state for a normalized timeline or signal visualization.
 ///
 /// This groups the retained timeline surface with reusable chrome and tool
@@ -43,25 +66,16 @@ pub struct TimelineMotionState<Marker = TimelineMarkerPreview, Tools = SignalToo
 }
 
 impl<Marker> TimelineSurfaceState<Marker> {
-    /// Build a timeline surface state from explicit generic parts.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        viewport: TimelineViewport,
-        transport: TimelineTransportState,
-        edit_preview: TimelineEditPreview,
-        feedback_events: TimelineFeedbackEvents,
-        presentation: TimelinePresentationState,
-        raster_preview: SignalRasterPreview,
-        markers: Vec<Marker>,
-    ) -> Self {
+    /// Build a timeline surface state from named generic parts.
+    pub fn from_parts(parts: TimelineSurfaceParts<Marker>) -> Self {
         Self {
-            viewport,
-            transport,
-            edit_preview,
-            feedback_events,
-            presentation,
-            raster_preview,
-            markers,
+            viewport: parts.viewport,
+            transport: parts.transport,
+            edit_preview: parts.edit_preview,
+            feedback_events: parts.feedback_events,
+            presentation: parts.presentation,
+            raster_preview: parts.raster_preview,
+            markers: parts.markers,
         }
     }
 }

@@ -9,8 +9,12 @@ use crate::{
         VirtualizationPolicy,
     },
     runtime::{SurfaceChild, SurfaceNode},
-    widgets::WidgetStyle,
 };
+
+#[path = "lowering/children.rs"]
+mod children;
+#[path = "lowering/containers.rs"]
+mod containers;
 
 impl<Message> IntoView<Message> for ViewNode<Message>
 where
@@ -24,7 +28,7 @@ where
     }
 }
 
-struct ViewLowering<'a> {
+pub(super) struct ViewLowering<'a> {
     ids: &'a mut IdGenerator,
 }
 
@@ -35,75 +39,6 @@ impl<'a> ViewLowering<'a> {
 
     fn next_node_id<Message>(&mut self, node: &ViewNode<Message>, scope: u64) -> NodeId {
         node.resolved_id(scope).unwrap_or_else(|| self.ids.next())
-    }
-
-    fn lower_child<Message>(
-        &mut self,
-        child: ViewNode<Message>,
-        scope: u64,
-        parent_horizontal: bool,
-    ) -> SurfaceChild<Message>
-    where
-        Message: 'static,
-    {
-        let slot = child.slot.to_slot_params(parent_horizontal);
-        SurfaceChild::new(slot, self.lower_node(child, scope))
-    }
-
-    fn lower_slot_children<Message>(
-        &mut self,
-        children: Vec<ViewNode<Message>>,
-        scope: u64,
-        parent_horizontal: bool,
-    ) -> Vec<SurfaceChild<Message>>
-    where
-        Message: 'static,
-    {
-        children
-            .into_iter()
-            .map(|child| self.lower_child(child, scope, parent_horizontal))
-            .collect()
-    }
-
-    fn lower_fill_child<Message>(
-        &mut self,
-        child: ViewNode<Message>,
-        scope: u64,
-    ) -> SurfaceChild<Message>
-    where
-        Message: 'static,
-    {
-        SurfaceChild::fill(self.lower_node(child, scope))
-    }
-
-    fn lower_fill_children<Message>(
-        &mut self,
-        children: Vec<ViewNode<Message>>,
-        scope: u64,
-    ) -> Vec<SurfaceChild<Message>>
-    where
-        Message: 'static,
-    {
-        children
-            .into_iter()
-            .map(|child| self.lower_fill_child(child, scope))
-            .collect()
-    }
-
-    fn lower_container<Message>(
-        &mut self,
-        id: NodeId,
-        policy: ContainerPolicy,
-        style: Option<WidgetStyle>,
-        hoverable: bool,
-        children: Vec<SurfaceChild<Message>>,
-    ) -> SurfaceNode<Message> {
-        if let Some(style) = style {
-            SurfaceNode::styled_container(id, policy, style, children)
-                .with_container_hoverable(hoverable)
-        } else {
-            SurfaceNode::container(id, policy, children)
-        }
     }
 
     fn lower_node<Message>(&mut self, node: ViewNode<Message>, scope: u64) -> SurfaceNode<Message>

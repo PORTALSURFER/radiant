@@ -3,9 +3,9 @@
 //! Run `cargo run --example popup_window`, then use the main window controls to
 //! reveal a second borderless popup window. Drag the popup from its title area
 //! to reposition it, or hide it from the popup itself. The popup is the same
-//! example binary relaunched with `--popup`, then rendered once offscreen per
-//! mode so the user-facing open path only reveals an already prepared native
-//! surface.
+//! example binary relaunched with `--popup`. The launcher starts the popup
+//! hosts for every mode before waiting for their first presented frames, so the
+//! user-facing open path only reveals an already prepared native surface.
 
 use radiant::prelude::*;
 

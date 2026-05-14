@@ -57,6 +57,7 @@ fn surface_runtime_keeps_captured_pointer_motion_for_opted_out_widgets() {
     let _ = runtime.dispatch_event(Event::PointerPress {
         position: Point::new(16.0, 16.0),
         button: PointerButton::Primary,
+        modifiers: Default::default(),
     });
     let _ = runtime.dispatch_event(Event::PointerMove {
         position: Point::new(18.0, 18.0),
@@ -101,6 +102,7 @@ fn surface_runtime_reports_captured_paint_only_pointer_overlay_outcomes() {
     let _ = runtime.dispatch_event(Event::PointerPress {
         position: Point::new(16.0, 16.0),
         button: PointerButton::Primary,
+        modifiers: Default::default(),
     });
     let enter_drag = runtime.dispatch_pointer_move_with_outcome(Point::new(18.0, 18.0));
     assert!(enter_drag.routed());
@@ -124,6 +126,7 @@ fn surface_runtime_keeps_captured_non_overlay_pointer_motion_on_scene_rebuild_pa
     let _ = runtime.dispatch_event(Event::PointerPress {
         position: Point::new(16.0, 16.0),
         button: PointerButton::Primary,
+        modifiers: Default::default(),
     });
     let _ = runtime.dispatch_pointer_move_with_outcome(Point::new(18.0, 18.0));
     let preview_drag = runtime.dispatch_pointer_move_with_outcome(Point::new(20.0, 20.0));

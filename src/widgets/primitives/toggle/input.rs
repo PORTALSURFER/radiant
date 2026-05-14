@@ -27,6 +27,7 @@ pub(super) fn handle_toggle_input(
         WidgetInput::PointerPress {
             position,
             button: PointerButton::Primary,
+            ..
         } if bounds.contains(position) => {
             toggle.common.state.focused = true;
             toggle.common.state.hovered = true;
@@ -37,6 +38,7 @@ pub(super) fn handle_toggle_input(
         WidgetInput::PointerRelease {
             position,
             button: PointerButton::Primary,
+            ..
         } => {
             let should_toggle =
                 toggle.common.state.pressed && toggle.state.armed && bounds.contains(position);

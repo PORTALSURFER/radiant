@@ -7,6 +7,7 @@ impl GpuSurfaceRenderer {
         target: &mut GpuSurfaceRenderTarget<'_>,
         surface: &PaintGpuSurface,
         source_rect: UiRect,
+        occlusion_regions: &[UiRect],
         stats: &mut GpuSurfaceRenderStats,
     ) {
         self.ensure_texture(target.device, target.queue, surface, stats);
@@ -31,6 +32,7 @@ impl GpuSurfaceRenderer {
                 source_rect.width(),
                 source_rect.height(),
             ],
+            occlusion_regions,
             stats,
         );
     }
@@ -42,6 +44,7 @@ impl GpuSurfaceRenderer {
         texture_identity: GpuSurfaceTextureIdentity,
         texture_view: &wgpu::TextureView,
         source: [f32; 4],
+        occlusion_regions: &[UiRect],
         stats: &mut GpuSurfaceRenderStats,
     ) {
         let Some(pipeline) = self.pipeline.as_ref() else {
@@ -110,10 +113,12 @@ impl GpuSurfaceRenderer {
             .write_buffer(&binding.uniform_buffer, 0, uniforms_as_bytes(&uniforms));
         let started = Instant::now();
         let mut pass = gpu_surface_render_pass(target.encoder, target.target_view);
-        set_surface_scissor(&mut pass, surface.rect);
         pass.set_pipeline(&pipeline.pipeline);
         pass.set_bind_group(0, &binding.bind_group, &[]);
-        pass.draw(0..6, 0..1);
+        for region in visible_surface_regions(surface.rect, occlusion_regions) {
+            set_surface_scissor(&mut pass, region);
+            pass.draw(0..6, 0..1);
+        }
         stats.composite_encode_elapsed += started.elapsed();
     }
 }

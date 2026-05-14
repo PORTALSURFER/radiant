@@ -21,6 +21,7 @@ pub(super) fn handle_list_item_input(
         WidgetInput::PointerPress {
             position,
             button: PointerButton::Primary,
+            ..
         } if bounds.contains(position) => {
             item.common.state.pressed = true;
             None
@@ -28,6 +29,7 @@ pub(super) fn handle_list_item_input(
         WidgetInput::PointerRelease {
             position,
             button: PointerButton::Primary,
+            ..
         } => {
             let was_pressed = item.common.state.pressed;
             item.common.state.pressed = false;

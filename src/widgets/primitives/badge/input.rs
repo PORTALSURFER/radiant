@@ -25,6 +25,7 @@ pub(super) fn handle_badge_input(
         WidgetInput::PointerPress {
             position,
             button: PointerButton::Primary,
+            ..
         } if bounds.contains(position) => {
             badge.common.state.focused = true;
             badge.common.state.hovered = true;
@@ -35,6 +36,7 @@ pub(super) fn handle_badge_input(
         WidgetInput::PointerRelease {
             position,
             button: PointerButton::Primary,
+            ..
         } => {
             let activated =
                 badge.common.state.pressed && badge.state.armed && bounds.contains(position);

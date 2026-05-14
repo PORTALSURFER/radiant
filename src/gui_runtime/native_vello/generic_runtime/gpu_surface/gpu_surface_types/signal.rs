@@ -77,6 +77,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) sample_count: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) level_index: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) style_revision: u32,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) gain_preview:
+        SignalGainPreviewKey,
 }
 
 impl SignalBodyCacheKey {
@@ -87,6 +89,7 @@ impl SignalBodyCacheKey {
         frame_range: [f32; 2],
         sample_count: usize,
         level_index: usize,
+        gain_preview: Option<GpuSignalGainPreview>,
     ) -> Self {
         Self {
             revision: surface.revision,
@@ -99,11 +102,43 @@ impl SignalBodyCacheKey {
             sample_count,
             level_index,
             style_revision: GPU_SIGNAL_STYLE_REVISION,
+            gain_preview: SignalGainPreviewKey::new(gain_preview),
         }
     }
 }
 
 const GPU_SIGNAL_STYLE_REVISION: u32 = 1;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct SignalGainPreviewKey {
+    bits: [u32; 12],
+}
+
+impl SignalGainPreviewKey {
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn new(
+        preview: Option<GpuSignalGainPreview>,
+    ) -> Self {
+        let Some(preview) = preview else {
+            return Self { bits: [0; 12] };
+        };
+        Self {
+            bits: [
+                1,
+                preview.start.to_bits(),
+                preview.end.to_bits(),
+                preview.gain.to_bits(),
+                preview.fade_in_length.to_bits(),
+                preview.fade_in_curve.to_bits(),
+                preview.fade_in_mute.to_bits(),
+                preview.fade_out_length.to_bits(),
+                preview.fade_out_curve.to_bits(),
+                preview.fade_out_mute.to_bits(),
+                0,
+                0,
+            ],
+        }
+    }
+}
 
 fn signal_body_matches_key(
     cached_device: usize,
@@ -139,11 +174,38 @@ mod tests {
             sample_count: 256,
             level_index: 0,
             style_revision: 1,
+            gain_preview: SignalGainPreviewKey::new(None),
         };
         let next_key = SignalBodyCacheKey { revision: 2, ..key };
 
         assert!(signal_body_matches_key(7, key, 7, key));
         assert!(!signal_body_matches_key(7, key, 8, key));
         assert!(!signal_body_matches_key(7, key, 7, next_key));
+    }
+
+    #[test]
+    fn signal_gain_preview_key_tracks_preview_parameters() {
+        let preview = GpuSignalGainPreview {
+            start: 0.1,
+            end: 0.8,
+            gain: 0.75,
+            fade_in_length: 0.25,
+            fade_in_curve: 0.4,
+            fade_in_mute: 0.0,
+            fade_out_length: 0.2,
+            fade_out_curve: 0.6,
+            fade_out_mute: 0.1,
+        };
+        let mut changed = preview;
+        changed.fade_in_length = 0.3;
+
+        assert_ne!(
+            SignalGainPreviewKey::new(None),
+            SignalGainPreviewKey::new(Some(preview))
+        );
+        assert_ne!(
+            SignalGainPreviewKey::new(Some(preview)),
+            SignalGainPreviewKey::new(Some(changed))
+        );
     }
 }

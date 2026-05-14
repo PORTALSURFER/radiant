@@ -12,23 +12,6 @@ pub(super) fn replayable_suffix(primitives: &[PaintPrimitive]) -> Option<&[Paint
         .and_then(|index| primitives.get(index + 1..))
 }
 
-pub(super) fn gpu_surface_overlay_regions_into(
-    primitives: &[PaintPrimitive],
-    regions: &mut Vec<UiRect>,
-) {
-    regions.clear();
-    regions.extend(primitives.iter().filter_map(|primitive| match primitive {
-        PaintPrimitive::GpuSurface(surface)
-            if surface.rect.width() > 0.0
-                && surface.rect.height() > 0.0
-                && surface.content.is_renderable() =>
-        {
-            Some(surface.rect)
-        }
-        _ => None,
-    }));
-}
-
 #[cfg(test)]
 pub(super) fn replayable_vertices_into(
     primitives: &[PaintPrimitive],
@@ -78,19 +61,34 @@ pub(super) fn append_replayable_vertices_in_regions(
     }
     for primitive in primitives {
         match primitive {
-            PaintPrimitive::FillRect(fill) if rect_intersects_any(fill.rect, regions) => {
-                push_rect_vertices(vertices, target_size, fill.rect, fill.color);
+            PaintPrimitive::FillRect(fill) if fill.color.a >= OPAQUE_REVEALED_FILL_ALPHA => {}
+            PaintPrimitive::FillRect(fill) => {
+                for region in regions {
+                    if let Some(rect) = intersect_rect(fill.rect, *region) {
+                        push_rect_vertices(vertices, target_size, rect, fill.color);
+                    }
+                }
             }
             PaintPrimitive::StrokeRect(stroke) => {
                 for edge in stroke_rect_edges(stroke.rect, stroke.width) {
-                    if rect_intersects_any(edge, regions) {
-                        push_rect_vertices(vertices, target_size, edge, stroke.color);
+                    for region in regions {
+                        if let Some(rect) = intersect_rect(edge, *region) {
+                            push_rect_vertices(vertices, target_size, rect, stroke.color);
+                        }
                     }
                 }
             }
             _ => {}
         }
     }
+}
+
+const OPAQUE_REVEALED_FILL_ALPHA: u8 = 240;
+
+fn intersect_rect(a: UiRect, b: UiRect) -> Option<UiRect> {
+    let min = Point::new(a.min.x.max(b.min.x), a.min.y.max(b.min.y));
+    let max = Point::new(a.max.x.min(b.max.x), a.max.y.min(b.max.y));
+    (max.x > min.x && max.y > min.y).then(|| UiRect::from_min_max(min, max))
 }
 
 fn push_stroke_vertices(
@@ -150,15 +148,6 @@ fn rect_is_outside_target(rect: UiRect, target_size: Vector2) -> bool {
         || rect.min.x >= target_width
         || rect.max.y <= 0.0
         || rect.min.y >= target_height
-}
-
-fn rect_intersects_any(rect: UiRect, regions: &[UiRect]) -> bool {
-    regions.iter().any(|region| {
-        rect.max.x > region.min.x
-            && rect.min.x < region.max.x
-            && rect.max.y > region.min.y
-            && rect.min.y < region.max.y
-    })
 }
 
 fn stroke_rect_edges(rect: UiRect, width: f32) -> [UiRect; 4] {

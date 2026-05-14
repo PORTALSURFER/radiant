@@ -2,7 +2,7 @@
 
 use super::GenericRouteOutcome;
 use crate::gui::types::{Point, Vector2};
-use crate::runtime::{RuntimeAnimationActivity, RuntimeBridge, SurfaceRuntime};
+use crate::runtime::{CommandOutcome, RuntimeAnimationActivity, RuntimeBridge, SurfaceRuntime};
 use crate::theme::ThemeTokens;
 use crate::widgets::PointerButton;
 use std::time::Instant;
@@ -117,6 +117,13 @@ where
         &mut self,
     ) -> GenericRouteOutcome {
         let outcome = self.runtime.drain_runtime_messages();
+        self.route_command_outcome(outcome)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_command_outcome(
+        &mut self,
+        outcome: CommandOutcome,
+    ) -> GenericRouteOutcome {
         let _ = self.runtime.take_repaint_requested();
         GenericRouteOutcome {
             routed: outcome.messages_dispatched > 0,

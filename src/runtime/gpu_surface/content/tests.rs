@@ -56,6 +56,7 @@ fn signal_summary_payload_must_match_declared_shape() {
         band_count: 1,
         frame_range: [0.0, 2.0],
         summary,
+        gain_preview: None,
     };
 
     assert!(!content.is_renderable());
@@ -131,6 +132,7 @@ fn gpu_surface_content_validation_reports_summary_shape_errors() {
         band_count: 1,
         frame_range: [0.0, 2.0],
         summary,
+        gain_preview: None,
     };
 
     assert_eq!(
@@ -158,6 +160,7 @@ fn gpu_surface_content_validation_rejects_zero_band_summary_before_level_checks(
                 buckets: Arc::<[GpuSignalSummaryBucket]>::from([GpuSignalSummaryBucket::default()]),
             }],
         }),
+        gain_preview: None,
     };
 
     assert_eq!(

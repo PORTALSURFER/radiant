@@ -55,12 +55,19 @@ where
         self.relayout_current_surface();
         let offset = self.layout_state.scroll_offset(capture.node_id);
         if offset != previous_offset {
+            let viewport = self
+                .layout
+                .rects
+                .get(&capture.node_id)
+                .map(|rect| Vector2::new(rect.width(), rect.height()))
+                .unwrap_or_default();
             self.report_scroll_update(ScrollUpdate {
                 node_id: capture.node_id,
                 position: point,
                 delta: Vector2::new(offset.x - previous_offset.x, offset.y - previous_offset.y),
                 previous_offset,
                 offset,
+                viewport,
             });
         }
         self.repaint_requested = true;

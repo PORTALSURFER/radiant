@@ -173,6 +173,7 @@ mod tests {
                 WidgetInput::PointerPress {
                     position: Point::new(10.0, 10.0),
                     button: PointerButton::Primary,
+                    modifiers: Default::default(),
                 },
             ),
             None
@@ -183,6 +184,7 @@ mod tests {
                 WidgetInput::PointerRelease {
                     position: Point::new(10.0, 10.0),
                     button: PointerButton::Primary,
+                    modifiers: Default::default(),
                 },
             ),
             Some(ToggleMessage::ValueChanged { checked: false })

@@ -123,6 +123,28 @@ fn application_builder_context_menu_overlay_routes_items() {
 }
 
 #[test]
+fn application_builder_drag_preview_paints_as_non_widget_overlay() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<()> = ui::stack([
+        ui::text("Content").id(10).size(120.0, 24.0),
+        ui::drag_preview_sized("kicks", Point::new(12.0, 18.0), Vector2::new(120.0, 24.0)).id(20),
+    ])
+    .into_surface();
+    let output = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 96.0)),
+    );
+    let plan = surface.paint_plan(&output, &radiant::theme::ThemeTokens::default());
+
+    assert!(surface.find_widget(20).is_none());
+    assert!(plan.primitives.iter().any(|primitive| matches!(
+        primitive,
+        radiant::runtime::PaintPrimitive::Text(text) if text.widget_id == 20 && text.text == "kicks"
+    )));
+}
+
+#[test]
 fn application_builder_todo_layout_does_not_overlap_header_input_and_list() {
     use radiant::prelude::{self as ui, IntoView};
 

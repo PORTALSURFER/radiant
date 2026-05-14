@@ -55,6 +55,7 @@ fn resize_release_commits_final_selection_once() {
             WidgetInput::PointerRelease {
                 position: Point::new(SURFACE_WIDTH * 0.74, 10.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         )
         .expect("release should emit a commit message");
@@ -106,6 +107,7 @@ fn runtime_resize_drag_previews_locally_and_commits_once() {
     runtime.dispatch_event(Event::PointerPress {
         position: handle_position,
         button: PointerButton::Primary,
+        modifiers: Default::default(),
     });
     runtime.dispatch_event(Event::PointerMove {
         position: preview_position,
@@ -123,6 +125,7 @@ fn runtime_resize_drag_previews_locally_and_commits_once() {
     runtime.dispatch_event(Event::PointerRelease {
         position: preview_position,
         button: PointerButton::Primary,
+        modifiers: Default::default(),
     });
 
     assert_eq!(selection_overlay(&runtime).drag_handle, None);

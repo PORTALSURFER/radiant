@@ -59,6 +59,8 @@ where
                     self.request_redraw_if_needed();
                 }
                 self.last_cursor = None;
+                let outcome = self.launch_external_drag_if_armed();
+                self.handle_route_outcome(event_loop, outcome);
             }
             WindowEvent::MouseInput { button, state, .. } => {
                 let Some(position) = self.last_cursor else {
@@ -67,10 +69,15 @@ where
                 let Some(button) = pointer_button_from_winit(button) else {
                     return;
                 };
+                let modifiers = pointer_modifiers_from_winit(self.modifiers);
                 let started = Instant::now();
                 let routed = match state {
-                    ElementState::Pressed => self.core.route_pointer_press(position, button),
-                    ElementState::Released => self.core.route_pointer_release(position, button),
+                    ElementState::Pressed => self
+                        .core
+                        .route_pointer_press_with_modifiers(position, button, modifiers),
+                    ElementState::Released => self
+                        .core
+                        .route_pointer_release_with_modifiers(position, button, modifiers),
                 };
                 maybe_log_route_profile("pointer_button", started.elapsed(), routed);
                 if state == ElementState::Pressed

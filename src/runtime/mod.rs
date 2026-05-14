@@ -20,6 +20,7 @@
 mod bridge;
 mod command;
 mod controller;
+mod external_drag;
 mod gpu_surface;
 mod paint;
 mod resource;
@@ -44,10 +45,15 @@ pub use controller::{
     CommandOutcome, Event, FocusTraversal, PointerMoveOutcome, RuntimeContext, RuntimeSurfaceFrame,
     RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceRuntime,
 };
+pub(crate) use external_drag::ExternalDragSession;
+pub use external_drag::{
+    ExternalDragEffect, ExternalDragOutcome, ExternalDragPayload, ExternalDragPreview,
+    ExternalDragRequest,
+};
 pub use gpu_surface::{
-    GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,
-    GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceContentError, GpuSurfaceLineStyle,
-    GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays,
+    GpuSignalGainPreview, GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket,
+    GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceContentError,
+    GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays,
 };
 pub use paint::{
     PaintCustomSurface, PaintFillPath, PaintFillPolygon, PaintFillRect, PaintFillRule,

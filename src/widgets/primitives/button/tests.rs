@@ -15,6 +15,7 @@ fn button_releases_inside_bounds_emit_activation() {
             WidgetInput::PointerPress {
                 position: Point::new(20.0, 30.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         None
@@ -27,6 +28,7 @@ fn button_releases_inside_bounds_emit_activation() {
             WidgetInput::PointerRelease {
                 position: Point::new(24.0, 32.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         Some(ButtonMessage::Activate)
@@ -58,6 +60,7 @@ fn secondary_click_only_emits_when_enabled() {
     let secondary_press = WidgetInput::PointerPress {
         position: Point::new(10.0, 10.0),
         button: PointerButton::Secondary,
+        modifiers: Default::default(),
     };
 
     assert_eq!(
@@ -84,6 +87,7 @@ fn draggable_button_emits_drag_lifecycle_instead_of_click_when_moved() {
             WidgetInput::PointerPress {
                 position: Point::new(10.0, 10.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         None
@@ -105,6 +109,7 @@ fn draggable_button_emits_drag_lifecycle_instead_of_click_when_moved() {
             WidgetInput::PointerRelease {
                 position: Point::new(20.0, 22.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         Some(ButtonMessage::Drag(DragHandleMessage::Ended {

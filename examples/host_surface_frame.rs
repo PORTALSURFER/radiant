@@ -77,10 +77,12 @@ fn run_host_surface_frame_demo() -> HostFrameReport {
     runtime.dispatch_event(Event::PointerPress {
         position: point,
         button: PointerButton::Primary,
+        modifiers: Default::default(),
     });
     let target_widget = runtime.dispatch_event(Event::PointerRelease {
         position: point,
         button: PointerButton::Primary,
+        modifiers: Default::default(),
     });
     let frame = runtime.borrowed_frame_into(&theme, &mut paint_plan);
     let stats = frame.paint_plan.stats();

@@ -106,6 +106,7 @@ fn app_scroll_hook_observes_scrollbar_drag_offsets() {
     runtime.dispatch_event(Event::PointerPress {
         position: thumb.center(),
         button: PointerButton::Primary,
+        modifiers: Default::default(),
     });
     runtime.dispatch_event(Event::PointerMove {
         position: Point::new(thumb.center().x, thumb.center().y + 36.0),

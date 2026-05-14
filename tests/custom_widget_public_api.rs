@@ -69,6 +69,7 @@ impl Widget for CustomStatusWidget {
             WidgetInput::PointerRelease {
                 position,
                 button: PointerButton::Primary,
+                ..
             } if bounds.contains(position) => {
                 self.activation_count += 1;
                 Some(WidgetOutput::custom(CustomWidgetMessage::Activated))
@@ -157,6 +158,7 @@ fn runtime_lets_custom_widgets_reconcile_retained_state_after_refresh() {
         WidgetInput::PointerRelease {
             position: Point::new(12.0, 12.0),
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         },
     ));
 
@@ -203,6 +205,7 @@ fn custom_widget_travels_through_runtime_input_message_and_paint_paths() {
             WidgetInput::PointerRelease {
                 position: Point::new(12.0, 12.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         )
         .expect("custom widget should emit output");
@@ -275,6 +278,7 @@ fn application_builder_routes_typed_custom_widget_output() {
         WidgetInput::PointerRelease {
             position: Point::new(12.0, 12.0),
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         },
     );
     let surface = runtime.surface();

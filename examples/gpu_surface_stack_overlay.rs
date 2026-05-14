@@ -143,6 +143,7 @@ impl Widget for SelectionOverlay {
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Primary,
+                ..
             } if bounds.contains(position) => {
                 if let Some(handle) = self.handle_at(bounds, position) {
                     self.drag_handle = Some(handle);

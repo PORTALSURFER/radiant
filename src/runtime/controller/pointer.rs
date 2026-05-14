@@ -96,6 +96,16 @@ where
             self.hovered_widget = hover_widget;
         }
 
+        if let (Some(captured), Some(pointer_widget)) = (self.pointer_capture, pointer_widget)
+            && pointer_widget != captured
+            && self.widget_accepts_stable_pointer_move(pointer_widget)
+        {
+            let routed = self.dispatch_input(pointer_widget, WidgetInput::PointerMove { position });
+            if routed {
+                self.repaint_requested = true;
+            }
+        }
+
         let target = self.pointer_capture.or(pointer_widget)?;
         let accepts_stable_pointer_move = self.widget_accepts_stable_pointer_move(target);
         if !hover_changed && self.pointer_capture.is_none() && !accepts_stable_pointer_move {

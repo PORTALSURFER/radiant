@@ -37,6 +37,7 @@ fn surface_runtime_routes_backend_neutral_events() {
         runtime.dispatch_event(Event::PointerPress {
             position: Point::new(150.0, 10.0),
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         }),
         Some(11)
     );
@@ -46,6 +47,7 @@ fn surface_runtime_routes_backend_neutral_events() {
         runtime.dispatch_event(Event::PointerRelease {
             position: Point::new(150.0, 10.0),
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         }),
         Some(11)
     );
@@ -193,6 +195,7 @@ fn surface_runtime_preserves_captured_drag_state_across_repaint_refreshes() {
         runtime.dispatch_event(Event::PointerPress {
             position: Point::new(12.0, 12.0),
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         }),
         Some(10)
     );

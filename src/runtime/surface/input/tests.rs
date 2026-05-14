@@ -122,6 +122,7 @@ fn synchronize_widget_state_from_paths_preserves_state_after_reorder() {
         WidgetInput::PointerPress {
             position: Point::new(8.0, 8.0),
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         },
     );
 

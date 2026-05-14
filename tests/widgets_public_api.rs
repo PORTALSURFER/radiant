@@ -191,6 +191,7 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
             WidgetInput::PointerPress {
                 position: Point::new(10.0, 10.0),
                 button: radiant::widgets::PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         radiant::widgets::DragHandleMessage::Started {

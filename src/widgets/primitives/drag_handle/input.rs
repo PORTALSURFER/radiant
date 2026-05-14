@@ -25,6 +25,7 @@ pub(super) fn handle_drag_handle_input(
         WidgetInput::PointerPress {
             position,
             button: PointerButton::Primary,
+            ..
         } if bounds.contains(position) => {
             handle.common.state.pressed = true;
             handle.common.state.active = true;
@@ -33,6 +34,7 @@ pub(super) fn handle_drag_handle_input(
         WidgetInput::PointerRelease {
             position,
             button: PointerButton::Primary,
+            ..
         } => {
             handle.common.state.pressed = false;
             handle.common.state.active = false;

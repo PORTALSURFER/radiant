@@ -57,20 +57,6 @@ fn replayable_vertices_reuses_existing_storage() {
 }
 
 #[test]
-fn gpu_surface_overlay_regions_reuse_existing_storage() {
-    let primitives = [gpu(1), fill(2), gpu(3)];
-    let mut regions = Vec::with_capacity(8);
-
-    gpu_surface_overlay_regions_into(&primitives, &mut regions);
-    let capacity = regions.capacity();
-    gpu_surface_overlay_regions_into(&[gpu(4)], &mut regions);
-
-    assert_eq!(capacity, 8);
-    assert_eq!(regions.capacity(), capacity);
-    assert_eq!(regions.len(), 1);
-}
-
-#[test]
 fn replayable_vertices_skip_fully_offscreen_rectangles() {
     let primitives = [rect(
         UiRect::from_min_size(Point::new(120.0, 0.0), Vector2::new(10.0, 10.0)),
@@ -111,11 +97,11 @@ fn replayable_vertices_in_regions_skip_unrelated_later_rectangles() {
     let primitives = [
         rect(
             UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(10.0, 10.0)),
-            white(),
+            translucent_white(),
         ),
         rect(
             UiRect::from_min_size(Point::new(0.0, 30.0), Vector2::new(10.0, 10.0)),
-            white(),
+            translucent_white(),
         ),
     ];
     let regions = [UiRect::from_min_size(
@@ -132,6 +118,53 @@ fn replayable_vertices_in_regions_skip_unrelated_later_rectangles() {
     );
 
     assert_eq!(vertices.len(), 6);
+}
+
+#[test]
+fn replayable_vertices_in_regions_clip_translucent_fills_to_gpu_regions() {
+    let primitives = [rect(
+        UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(30.0, 30.0)),
+        translucent_white(),
+    )];
+    let regions = [UiRect::from_min_size(
+        Point::new(10.0, 10.0),
+        Vector2::new(10.0, 10.0),
+    )];
+    let mut vertices = Vec::new();
+
+    replayable_vertices_in_regions_into(
+        &primitives,
+        Vector2::new(100.0, 50.0),
+        &regions,
+        &mut vertices,
+    );
+
+    assert_eq!(vertices.len(), 6);
+    assert_eq!(vertices[0].position, [-0.8, 0.6]);
+    assert!((vertices[5].position[0] - -0.6).abs() < 0.0001);
+    assert!((vertices[5].position[1] - 0.2).abs() < 0.0001);
+}
+
+#[test]
+fn replayable_vertices_in_regions_skip_opaque_fills_revealed_by_gpu_clipping() {
+    let primitives = [rect(
+        UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(30.0, 30.0)),
+        white(),
+    )];
+    let regions = [UiRect::from_min_size(
+        Point::new(10.0, 10.0),
+        Vector2::new(10.0, 10.0),
+    )];
+    let mut vertices = Vec::new();
+
+    replayable_vertices_in_regions_into(
+        &primitives,
+        Vector2::new(100.0, 50.0),
+        &regions,
+        &mut vertices,
+    );
+
+    assert!(vertices.is_empty());
 }
 
 #[test]
@@ -156,6 +189,32 @@ fn replayable_vertices_in_regions_keep_overlapping_stroke_edges() {
     );
 
     assert_eq!(vertices.len(), 24);
+}
+
+#[test]
+fn replayable_vertices_in_regions_clip_stroke_edges_to_gpu_regions() {
+    let primitives = [PaintPrimitive::StrokeRect(PaintStrokeRect {
+        widget_id: 7,
+        rect: UiRect::from_min_size(Point::new(0.0, 10.0), Vector2::new(40.0, 20.0)),
+        color: white(),
+        width: 2.0,
+    })];
+    let regions = [UiRect::from_min_size(
+        Point::new(10.0, 0.0),
+        Vector2::new(10.0, 50.0),
+    )];
+    let mut vertices = Vec::new();
+
+    replayable_vertices_in_regions_into(
+        &primitives,
+        Vector2::new(100.0, 50.0),
+        &regions,
+        &mut vertices,
+    );
+
+    assert_eq!(vertices.len(), 12);
+    assert!((vertices[0].position[0] - -0.8).abs() < 0.0001);
+    assert!((vertices[1].position[0] - -0.6).abs() < 0.0001);
 }
 
 fn fill(widget_id: u64) -> PaintPrimitive {
@@ -193,6 +252,15 @@ fn white() -> Rgba8 {
         g: 255,
         b: 255,
         a: 255,
+    }
+}
+
+fn translucent_white() -> Rgba8 {
+    Rgba8 {
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 160,
     }
 }
 

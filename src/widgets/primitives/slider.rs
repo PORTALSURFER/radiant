@@ -151,6 +151,7 @@ mod tests {
                 WidgetInput::PointerPress {
                     position: Point::new(60.0, 14.0),
                     button: PointerButton::Primary,
+                    modifiers: Default::default(),
                 },
             ),
             Some(SliderMessage::ValueChanged { value: 0.5 })

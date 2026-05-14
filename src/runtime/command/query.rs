@@ -11,6 +11,11 @@ impl<Message> Command<Message> {
             | Self::After { .. }
             | Self::Perform { .. }
             | Self::Focus(_)
+            | Self::ScrollTo { .. }
+            | Self::ScrollIntoView { .. }
+            | Self::ScrollFixedRowIntoView { .. }
+            | Self::BeginExternalDrag { .. }
+            | Self::EndExternalDrag
             | Self::Exit => false,
             Self::Batch(commands) => commands.iter().all(Self::is_empty),
         }
@@ -26,6 +31,11 @@ impl<Message> Command<Message> {
             | Self::After { .. }
             | Self::Perform { .. }
             | Self::Focus(_)
+            | Self::ScrollTo { .. }
+            | Self::ScrollIntoView { .. }
+            | Self::ScrollFixedRowIntoView { .. }
+            | Self::BeginExternalDrag { .. }
+            | Self::EndExternalDrag
             | Self::Exit => false,
         }
     }

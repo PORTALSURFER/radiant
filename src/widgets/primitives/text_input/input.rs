@@ -22,6 +22,7 @@ pub(super) fn handle_text_input(
         WidgetInput::PointerPress {
             position,
             button: PointerButton::Primary,
+            ..
         } if bounds.contains(position) => {
             text_input.common.state.focused = true;
             text_input.common.state.hovered = true;

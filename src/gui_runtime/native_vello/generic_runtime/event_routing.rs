@@ -7,7 +7,7 @@ use crate::gui::{
     types::{Point, Vector2},
 };
 use crate::runtime::{Event, RuntimeBridge};
-use crate::widgets::{PointerButton, TextEditCommand, WidgetInput, WidgetKey};
+use crate::widgets::{PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey};
 use std::time::{Duration, Instant};
 
 const DOUBLE_CLICK_MAX_INTERVAL: Duration = Duration::from_millis(500);
@@ -57,10 +57,20 @@ where
         }
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn route_pointer_press(
         &mut self,
         position: Point,
         button: PointerButton,
+    ) -> GenericRouteOutcome {
+        self.route_pointer_press_with_modifiers(position, button, PointerModifiers::default())
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_pointer_press_with_modifiers(
+        &mut self,
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
     ) -> GenericRouteOutcome {
         let now = Instant::now();
         let is_double_click = self
@@ -72,22 +82,44 @@ where
             button,
         });
         let event = if is_double_click {
-            Event::PointerDoubleClick { position, button }
+            Event::PointerDoubleClick {
+                position,
+                button,
+                modifiers,
+            }
         } else {
-            Event::PointerPress { position, button }
+            Event::PointerPress {
+                position,
+                button,
+                modifiers,
+            }
         };
         let routed = self.runtime.dispatch_event(event).is_some();
         self.route_outcome(routed)
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn route_pointer_release(
         &mut self,
         position: Point,
         button: PointerButton,
     ) -> GenericRouteOutcome {
+        self.route_pointer_release_with_modifiers(position, button, PointerModifiers::default())
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_pointer_release_with_modifiers(
+        &mut self,
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+    ) -> GenericRouteOutcome {
         let routed = self
             .runtime
-            .dispatch_event(Event::PointerRelease { position, button })
+            .dispatch_event(Event::PointerRelease {
+                position,
+                button,
+                modifiers,
+            })
             .is_some();
         self.route_outcome(routed)
     }

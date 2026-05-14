@@ -127,6 +127,7 @@ impl Widget for WaveformWidget {
                 band_count: BAND_COUNT,
                 frame_range: [self.viewport.start as f32, self.viewport.end as f32],
                 summary: Arc::clone(&self.file.gpu_signal_summary),
+                gain_preview: None,
             },
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,

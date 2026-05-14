@@ -42,7 +42,40 @@ pub enum GpuSurfaceContent {
         frame_range: [f32; 2],
         /// Precomputed min/max summary pyramid.
         summary: Arc<GpuSignalSummary>,
+        /// Optional gain envelope preview applied by the GPU renderer.
+        gain_preview: Option<GpuSignalGainPreview>,
     },
+}
+
+/// Optional GPU-side gain envelope for retained signal rendering.
+///
+/// The preview is intentionally normalized and backend-neutral: hosts can
+/// preview destructive fade/gain edits without rebuilding or re-uploading the
+/// retained signal payload on each pointer update.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GpuSignalGainPreview {
+    /// Normalized selection start.
+    pub start: f32,
+    /// Normalized selection end.
+    pub end: f32,
+    /// Gain applied inside the selection after fades.
+    pub gain: f32,
+    /// Fade-in length as a fraction of the selection width.
+    pub fade_in_length: f32,
+    /// Fade-in curve tension.
+    pub fade_in_curve: f32,
+    /// Fade-in outer extension length as a fraction of the selection width.
+    ///
+    /// Kept under the historical "mute" field name for API compatibility.
+    pub fade_in_mute: f32,
+    /// Fade-out length as a fraction of the selection width.
+    pub fade_out_length: f32,
+    /// Fade-out curve tension.
+    pub fade_out_curve: f32,
+    /// Fade-out outer extension length as a fraction of the selection width.
+    ///
+    /// Kept under the historical "mute" field name for API compatibility.
+    pub fade_out_mute: f32,
 }
 
 /// Renderable shape resolved from a retained GPU signal payload.
@@ -83,6 +116,7 @@ impl GpuSurfaceContent {
                 band_count,
                 frame_range,
                 summary,
+                gain_preview: _,
             } => {
                 validate_signal_summary_shape(*frames, *band_count, summary)?;
                 let sample_count = summary
@@ -129,6 +163,7 @@ impl GpuSurfaceContent {
                 band_count,
                 frame_range,
                 summary,
+                gain_preview: _,
             } => {
                 if validate_signal_summary_shape(*frames, *band_count, summary).is_err() {
                     return None;

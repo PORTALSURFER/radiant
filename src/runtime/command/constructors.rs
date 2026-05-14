@@ -1,5 +1,10 @@
 use super::Command;
-use crate::widgets::WidgetId;
+use crate::{
+    gui::types::Vector2,
+    layout::NodeId,
+    runtime::{ExternalDragOutcome, ExternalDragRequest},
+    widgets::WidgetId,
+};
 use std::time::Duration;
 
 impl<Message> Command<Message> {
@@ -69,6 +74,91 @@ impl<Message> Command<Message> {
     /// Build a command that moves keyboard focus to one widget.
     pub const fn focus(widget_id: WidgetId) -> Self {
         Self::Focus(widget_id)
+    }
+
+    /// Build a command that moves one scroll container to a logical offset.
+    pub const fn scroll_to(node_id: NodeId, offset: Vector2) -> Self {
+        Self::ScrollTo { node_id, offset }
+    }
+
+    /// Build a command that reveals a vertical span inside one scroll container.
+    pub const fn scroll_into_view(
+        node_id: NodeId,
+        target_y: f32,
+        target_height: f32,
+        margin_top: f32,
+        margin_bottom: f32,
+    ) -> Self {
+        Self::ScrollIntoView {
+            node_id,
+            target_y,
+            target_height,
+            margin_top,
+            margin_bottom,
+            snap_y: None,
+        }
+    }
+
+    /// Build a command that reveals a vertical span and snaps movement to a fixed row height.
+    pub const fn scroll_into_view_snapped(
+        node_id: NodeId,
+        target_y: f32,
+        target_height: f32,
+        margin_top: f32,
+        margin_bottom: f32,
+        snap_y: f32,
+    ) -> Self {
+        Self::ScrollIntoView {
+            node_id,
+            target_y,
+            target_height,
+            margin_top,
+            margin_bottom,
+            snap_y: Some(snap_y),
+        }
+    }
+
+    /// Build a command that reveals a fixed-stride row with directional context rows.
+    pub const fn scroll_fixed_row_into_view(
+        node_id: NodeId,
+        row_index: usize,
+        row_stride: f32,
+        leading_context_rows: usize,
+        trailing_context_rows: usize,
+        direction: i32,
+    ) -> Self {
+        Self::ScrollFixedRowIntoView {
+            node_id,
+            row_index,
+            row_stride,
+            leading_context_rows,
+            trailing_context_rows,
+            direction,
+        }
+    }
+
+    /// Build a command that arms a native external drag session.
+    pub fn begin_external_drag(
+        request: ExternalDragRequest,
+        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static,
+    ) -> Self {
+        Self::BeginExternalDrag {
+            request,
+            on_completed: Some(Box::new(on_completed)),
+        }
+    }
+
+    /// Build a command that arms a native external drag session without completion notification.
+    pub fn begin_external_drag_without_completion(request: ExternalDragRequest) -> Self {
+        Self::BeginExternalDrag {
+            request,
+            on_completed: None,
+        }
+    }
+
+    /// Build a command that clears any active native external drag session.
+    pub const fn end_external_drag() -> Self {
+        Self::EndExternalDrag
     }
 
     /// Build a command that asks the active runtime to exit.

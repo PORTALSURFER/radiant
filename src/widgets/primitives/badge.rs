@@ -134,6 +134,7 @@ mod tests {
                 WidgetInput::PointerPress {
                     position: Point::new(20.0, 30.0),
                     button: PointerButton::Primary,
+                    modifiers: Default::default(),
                 },
             ),
             None
@@ -146,6 +147,7 @@ mod tests {
                 WidgetInput::PointerRelease {
                     position: Point::new(24.0, 32.0),
                     button: PointerButton::Primary,
+                    modifiers: Default::default(),
                 },
             ),
             Some(BadgeMessage::Activate)

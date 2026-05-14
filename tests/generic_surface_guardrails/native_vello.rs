@@ -130,6 +130,19 @@ fn composited_base_frame_cache_avoids_post_mutation_expect() {
 }
 
 #[test]
+fn post_gpu_overlay_vertex_buffer_upload_is_non_panicking() {
+    let source = fs::read_to_string(
+        "src/gui_runtime/native_vello/generic_runtime/post_gpu_overlay/buffer.rs",
+    )
+    .expect("post GPU overlay vertex buffer should be readable");
+
+    assert!(
+        !source.contains(".expect(") && !source.contains(".unwrap("),
+        "post GPU overlay vertex buffer upload should handle missing cached buffers without panicking"
+    );
+}
+
+#[test]
 fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module = fs::read_to_string(

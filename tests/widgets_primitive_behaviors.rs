@@ -35,6 +35,7 @@ fn button_intrinsic_sizing_and_activation_are_public_and_deterministic() {
             WidgetInput::PointerPress {
                 position: Point::new(10.0, 10.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         None
@@ -45,6 +46,7 @@ fn button_intrinsic_sizing_and_activation_are_public_and_deterministic() {
             WidgetInput::PointerRelease {
                 position: Point::new(10.0, 10.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         Some(ButtonMessage::Activate)
@@ -70,6 +72,7 @@ fn badge_intrinsic_sizing_and_activation_are_public_and_deterministic() {
             WidgetInput::PointerPress {
                 position: Point::new(10.0, 10.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         None
@@ -80,6 +83,7 @@ fn badge_intrinsic_sizing_and_activation_are_public_and_deterministic() {
             WidgetInput::PointerRelease {
                 position: Point::new(10.0, 10.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         Some(BadgeMessage::Activate)
@@ -132,6 +136,7 @@ fn list_item_invocation_is_public_and_deterministic() {
             WidgetInput::PointerPress {
                 position: Point::new(12.0, 10.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         None
@@ -142,6 +147,7 @@ fn list_item_invocation_is_public_and_deterministic() {
             WidgetInput::PointerRelease {
                 position: Point::new(12.0, 10.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         Some(ListItemMessage::Invoked)
@@ -175,6 +181,7 @@ fn drag_handle_emits_captured_drag_lifecycle() {
             WidgetInput::PointerPress {
                 position: Point::new(12.0, 12.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         Some(DragHandleMessage::Started {
@@ -200,6 +207,7 @@ fn drag_handle_emits_captured_drag_lifecycle() {
             WidgetInput::PointerRelease {
                 position: Point::new(12.0, 70.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         Some(DragHandleMessage::Ended {
@@ -227,6 +235,7 @@ fn selectable_toggles_selected_state_with_pointer_and_keyboard() {
             WidgetInput::PointerPress {
                 position: Point::new(12.0, 10.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         None
@@ -237,6 +246,7 @@ fn selectable_toggles_selected_state_with_pointer_and_keyboard() {
             WidgetInput::PointerRelease {
                 position: Point::new(12.0, 10.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         Some(SelectableMessage::SelectionChanged { selected: true })

@@ -19,6 +19,48 @@ where
                 .finish(),
             Self::Perform { name, .. } => f.debug_struct("Perform").field("name", name).finish(),
             Self::Focus(widget_id) => f.debug_tuple("Focus").field(widget_id).finish(),
+            Self::ScrollTo { node_id, offset } => f
+                .debug_struct("ScrollTo")
+                .field("node_id", node_id)
+                .field("offset", offset)
+                .finish(),
+            Self::ScrollIntoView {
+                node_id,
+                target_y,
+                target_height,
+                margin_top,
+                margin_bottom,
+                snap_y,
+            } => f
+                .debug_struct("ScrollIntoView")
+                .field("node_id", node_id)
+                .field("target_y", target_y)
+                .field("target_height", target_height)
+                .field("margin_top", margin_top)
+                .field("margin_bottom", margin_bottom)
+                .field("snap_y", snap_y)
+                .finish(),
+            Self::ScrollFixedRowIntoView {
+                node_id,
+                row_index,
+                row_stride,
+                leading_context_rows,
+                trailing_context_rows,
+                direction,
+            } => f
+                .debug_struct("ScrollFixedRowIntoView")
+                .field("node_id", node_id)
+                .field("row_index", row_index)
+                .field("row_stride", row_stride)
+                .field("leading_context_rows", leading_context_rows)
+                .field("trailing_context_rows", trailing_context_rows)
+                .field("direction", direction)
+                .finish(),
+            Self::BeginExternalDrag { request, .. } => f
+                .debug_struct("BeginExternalDrag")
+                .field("request", request)
+                .finish_non_exhaustive(),
+            Self::EndExternalDrag => f.write_str("EndExternalDrag"),
             Self::Exit => f.write_str("Exit"),
         }
     }

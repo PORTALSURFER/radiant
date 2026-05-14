@@ -1,6 +1,7 @@
 //! Generic command values returned or queued by host-side runtime code.
 
-use crate::widgets::WidgetId;
+use super::external_drag::{ExternalDragOutcome, ExternalDragRequest};
+use crate::{gui::types::Vector2, layout::NodeId, widgets::WidgetId};
 use std::time::Duration;
 
 mod constructors;
@@ -47,6 +48,58 @@ pub enum Command<Message> {
     },
     /// Move keyboard focus to one widget.
     Focus(WidgetId),
+    /// Move one scroll container to a logical offset.
+    ScrollTo {
+        /// Scroll container node to move.
+        node_id: NodeId,
+        /// Requested logical scroll offset.
+        offset: Vector2,
+    },
+    /// Reveal one vertical content span inside a scroll container.
+    ScrollIntoView {
+        /// Scroll container node to move.
+        node_id: NodeId,
+        /// Logical top edge of the target span inside the scroll content.
+        target_y: f32,
+        /// Logical height of the target span.
+        target_height: f32,
+        /// Preferred space to keep above the target.
+        margin_top: f32,
+        /// Preferred space to keep below the target.
+        margin_bottom: f32,
+        /// Optional vertical snap interval for fixed-row lists.
+        snap_y: Option<f32>,
+    },
+    /// Reveal one fixed-stride row with directional context rows.
+    ScrollFixedRowIntoView {
+        /// Scroll container node to move.
+        node_id: NodeId,
+        /// Zero-based row index inside the scroll content.
+        row_index: usize,
+        /// Fixed distance between adjacent row starts in logical pixels.
+        row_stride: f32,
+        /// Rows to keep above the target while navigating upward.
+        leading_context_rows: usize,
+        /// Rows to keep below the target while navigating downward.
+        trailing_context_rows: usize,
+        /// Negative for upward navigation, positive for downward navigation.
+        direction: i32,
+    },
+    /// Arm a native external drag session.
+    ///
+    /// Native backends launch the session when the active pointer drag leaves
+    /// the application window, allowing external targets such as file managers
+    /// to accept the payload.
+    BeginExternalDrag {
+        /// Payload and preview metadata for the native drag session.
+        request: ExternalDragRequest,
+        /// Optional host callback mapped into a message when the native drag loop ends.
+        on_completed: Option<
+            Box<dyn FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static>,
+        >,
+    },
+    /// Clear any active native external drag session.
+    EndExternalDrag,
     /// Request that the active runtime exits.
     Exit,
 }

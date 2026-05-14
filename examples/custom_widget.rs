@@ -44,6 +44,7 @@ impl Widget for StatusChip {
             WidgetInput::PointerRelease {
                 position,
                 button: PointerButton::Primary,
+                ..
             } if bounds.contains(position) => Some(WidgetOutput::custom(ChipOutput::Toggle)),
             WidgetInput::KeyPress(WidgetKey::Enter) if self.common.state.focused => {
                 Some(WidgetOutput::custom(ChipOutput::Toggle))
@@ -131,6 +132,7 @@ mod tests {
             WidgetInput::PointerRelease {
                 position: Point::new(20.0, 20.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         );
         let active = runtime

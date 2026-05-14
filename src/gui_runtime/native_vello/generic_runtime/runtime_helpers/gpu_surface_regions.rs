@@ -49,12 +49,90 @@ pub(in crate::gui_runtime::native_vello) fn collect_gpu_surface_interaction_regi
     regions: &mut Vec<GpuSurfaceInteractionRegion>,
 ) {
     regions.clear();
-    regions.extend(primitives.iter().filter_map(|primitive| match primitive {
-        PaintPrimitive::GpuSurface(surface) => {
-            GpuSurfaceInteractionRegion::from_gpu_surface(surface)
+    for (index, primitive) in primitives.iter().enumerate() {
+        let PaintPrimitive::GpuSurface(surface) = primitive else {
+            continue;
+        };
+        let Some(region) = GpuSurfaceInteractionRegion::from_gpu_surface(surface) else {
+            continue;
+        };
+        let suffix = primitives.get(index + 1..).unwrap_or_default();
+        push_visible_interaction_regions(region, suffix, regions);
+    }
+}
+
+const OPAQUE_SUFFIX_OCCLUSION_ALPHA: u8 = 240;
+
+fn push_visible_interaction_regions(
+    region: GpuSurfaceInteractionRegion,
+    suffix: &[PaintPrimitive],
+    output: &mut Vec<GpuSurfaceInteractionRegion>,
+) {
+    let mut visible = vec![region.rect];
+    let mut next = Vec::new();
+    for primitive in suffix {
+        let PaintPrimitive::FillRect(fill) = primitive else {
+            continue;
+        };
+        if fill.color.a < OPAQUE_SUFFIX_OCCLUSION_ALPHA {
+            continue;
         }
-        _ => None,
-    }));
+        next.clear();
+        for rect in visible.drain(..) {
+            subtract_rect(rect, fill.rect, &mut next);
+        }
+        std::mem::swap(&mut visible, &mut next);
+        if visible.is_empty() {
+            break;
+        }
+    }
+    output.extend(
+        visible
+            .into_iter()
+            .map(|rect| GpuSurfaceInteractionRegion { rect, ..region }),
+    );
+}
+
+fn subtract_rect(rect: Rect, occlusion: Rect, output: &mut Vec<Rect>) {
+    let Some(cut) = intersect_rect(rect, occlusion) else {
+        output.push(rect);
+        return;
+    };
+
+    push_positive_rect(
+        output,
+        Rect::from_min_max(rect.min, Point::new(rect.max.x, cut.min.y)),
+    );
+    push_positive_rect(
+        output,
+        Rect::from_min_max(Point::new(rect.min.x, cut.max.y), rect.max),
+    );
+    push_positive_rect(
+        output,
+        Rect::from_min_max(
+            Point::new(rect.min.x, cut.min.y),
+            Point::new(cut.min.x, cut.max.y),
+        ),
+    );
+    push_positive_rect(
+        output,
+        Rect::from_min_max(
+            Point::new(cut.max.x, cut.min.y),
+            Point::new(rect.max.x, cut.max.y),
+        ),
+    );
+}
+
+fn push_positive_rect(output: &mut Vec<Rect>, rect: Rect) {
+    if rect.width() > 0.0 && rect.height() > 0.0 {
+        output.push(rect);
+    }
+}
+
+fn intersect_rect(a: Rect, b: Rect) -> Option<Rect> {
+    let min = Point::new(a.min.x.max(b.min.x), a.min.y.max(b.min.y));
+    let max = Point::new(a.max.x.min(b.max.x), a.max.y.min(b.max.y));
+    (max.x > min.x && max.y > min.y).then(|| Rect::from_min_max(min, max))
 }
 
 #[cfg(test)]
@@ -158,5 +236,68 @@ mod tests {
             ]
         );
         assert_eq!(regions.capacity(), initial_capacity);
+    }
+
+    #[test]
+    fn gpu_surface_interaction_regions_skip_opaque_later_panels() {
+        let surface_rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0));
+        let panel_rect = Rect::from_min_size(Point::new(30.0, 20.0), Vector2::new(40.0, 30.0));
+        let primitives = [
+            PaintPrimitive::GpuSurface(test_surface(surface_rect)),
+            PaintPrimitive::FillRect(crate::runtime::PaintFillRect {
+                widget_id: 9,
+                rect: panel_rect,
+                color: Rgba8 {
+                    r: 47,
+                    g: 47,
+                    b: 47,
+                    a: 255,
+                },
+            }),
+        ];
+        let mut regions = Vec::new();
+
+        collect_gpu_surface_interaction_regions(&primitives, &mut regions);
+
+        assert_eq!(regions.len(), 4);
+        assert!(
+            !regions
+                .iter()
+                .any(|region| region.contains(Point::new(50.0, 35.0)))
+        );
+        assert!(
+            regions
+                .iter()
+                .any(|region| region.contains(Point::new(10.0, 35.0)))
+        );
+    }
+
+    fn test_surface(rect: Rect) -> PaintGpuSurface {
+        PaintGpuSurface {
+            widget_id: 7,
+            key: 7,
+            revision: 1,
+            rect,
+            content: GpuSurfaceContent::RgbaAtlas {
+                source_rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(3.0, 4.0)),
+                atlas: Arc::new(ImageRgba::new(3, 4, vec![255; 3 * 4 * 4]).expect("valid image")),
+            },
+            capabilities: GpuSurfaceCapabilities {
+                fast_pointer_move: true,
+                coalesce_vertical_wheel: true,
+                runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
+                    GpuSurfaceLineStyle {
+                        color: Rgba8 {
+                            r: 255,
+                            g: 255,
+                            b: 255,
+                            a: 255,
+                        },
+                        width: 1.0,
+                    },
+                ),
+            },
+            overlays: Vec::new(),
+        }
     }
 }

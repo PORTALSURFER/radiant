@@ -42,6 +42,7 @@ fn surface_runtime_drags_painted_scrollbar_thumb() {
     runtime.dispatch_event(Event::PointerPress {
         position: thumb.center(),
         button: PointerButton::Primary,
+        modifiers: Default::default(),
     });
     assert_eq!(runtime.hovered_scroll_affordance(), Some(31));
     assert!(
@@ -58,6 +59,7 @@ fn surface_runtime_drags_painted_scrollbar_thumb() {
     runtime.dispatch_event(Event::PointerRelease {
         position: Point::new(thumb.center().x, thumb.center().y + 36.0),
         button: PointerButton::Primary,
+        modifiers: Default::default(),
     });
 
     let after = runtime.layout().rects[&100];

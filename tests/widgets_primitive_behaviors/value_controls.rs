@@ -96,6 +96,7 @@ fn scrollbar_drag_and_track_click_emit_normalized_offsets() {
             WidgetInput::PointerPress {
                 position: Point::new(6.0, grip_y),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         None
@@ -117,6 +118,7 @@ fn scrollbar_drag_and_track_click_emit_normalized_offsets() {
             WidgetInput::PointerRelease {
                 position: Point::new(6.0, 96.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         None
@@ -128,6 +130,7 @@ fn scrollbar_drag_and_track_click_emit_normalized_offsets() {
             WidgetInput::PointerPress {
                 position: Point::new(6.0, 12.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         Some(ScrollbarMessage::OffsetChanged {
@@ -147,6 +150,7 @@ fn slider_drag_and_keyboard_emit_normalized_values() {
             WidgetInput::PointerPress {
                 position: Point::new(60.0, 14.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ),
         Some(SliderMessage::ValueChanged { value: 0.5 })

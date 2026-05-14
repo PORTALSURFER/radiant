@@ -106,6 +106,7 @@ pub(super) fn handle_timeline_input(
         WidgetInput::PointerPress {
             position,
             button: PointerButton::Primary,
+            ..
         } if bounds.contains(position) => {
             let beat = geometry.beat_at(position)?;
             widget.common.state.pressed = true;
@@ -159,6 +160,7 @@ pub(super) fn handle_timeline_input(
         WidgetInput::PointerRelease {
             position,
             button: PointerButton::Primary,
+            ..
         } => {
             widget.common.state.pressed = false;
             let drag = widget.drag.take();

@@ -36,6 +36,7 @@ pub(super) fn handle_button_input(
         WidgetInput::PointerPress {
             position,
             button: PointerButton::Primary,
+            ..
         } if bounds.contains(position) => {
             button.common.state.focused = true;
             button.common.state.hovered = true;
@@ -47,6 +48,7 @@ pub(super) fn handle_button_input(
         WidgetInput::PointerPress {
             position,
             button: PointerButton::Secondary,
+            ..
         } if bounds.contains(position) && button.props.secondary_click => {
             button.common.state.hovered = true;
             Some(ButtonMessage::SecondaryActivate { position })
@@ -54,6 +56,7 @@ pub(super) fn handle_button_input(
         WidgetInput::PointerRelease {
             position,
             button: PointerButton::Primary,
+            ..
         } => {
             if button.state.dragged {
                 button.common.state.pressed = false;

@@ -39,6 +39,7 @@ fn timeline_widget_creates_and_moves_clips_from_pointer_input() {
             WidgetInput::PointerPress {
                 position: Point::new(geometry.x_for_beat(48), geometry.lane_rect(0).center().y),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         )
         .expect("empty track press seeks");
@@ -68,6 +69,7 @@ fn timeline_widget_creates_and_moves_clips_from_pointer_input() {
             WidgetInput::PointerRelease {
                 position: Point::new(geometry.x_for_beat(56), geometry.lane_rect(0).center().y),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         )
         .expect("selection release creates a clip");
@@ -85,6 +87,7 @@ fn timeline_widget_creates_and_moves_clips_from_pointer_input() {
             WidgetInput::PointerPress {
                 position: Point::new(geometry.x_for_beat(4), geometry.lane_rect(0).center().y),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         )
         .expect("clip press selects before moving");
@@ -139,6 +142,7 @@ fn timeline_widget_resizes_clips_from_edge_drag() {
             WidgetInput::PointerPress {
                 position: Point::new(clip_rect.max.x - 2.0, clip_rect.center().y),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         )
         .expect("clip edge press selects before resizing");
@@ -250,6 +254,7 @@ fn timeline_widget_paints_new_clip_preview_while_selecting() {
         WidgetInput::PointerPress {
             position: Point::new(geometry.x_for_beat(48), geometry.lane_rect(0).center().y),
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         },
     );
     let _ = widget.handle_input(
@@ -299,6 +304,7 @@ fn timeline_widget_paints_clip_preview_while_moving() {
         WidgetInput::PointerPress {
             position: Point::new(geometry.x_for_beat(4), geometry.lane_rect(0).center().y),
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         },
     );
     let _ = widget.handle_input(
@@ -337,6 +343,7 @@ fn timeline_widget_keeps_move_preview_from_captured_drag_state() {
         WidgetInput::PointerPress {
             position: Point::new(geometry.x_for_beat(4), geometry.lane_rect(0).center().y),
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         },
     );
     let _ = widget.handle_input(
@@ -376,6 +383,7 @@ fn timeline_widget_paints_clip_preview_while_resizing() {
         WidgetInput::PointerPress {
             position: Point::new(clip_rect.max.x - 2.0, clip_rect.center().y),
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         },
     );
     let _ = widget.handle_input(
@@ -415,6 +423,7 @@ fn timeline_widget_keeps_resize_preview_from_captured_drag_state() {
         WidgetInput::PointerPress {
             position: Point::new(clip_rect.max.x - 2.0, clip_rect.center().y),
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         },
     );
     let _ = widget.handle_input(
@@ -540,6 +549,7 @@ fn timeline_editor_routes_surface_messages_through_runtime() {
         WidgetInput::PointerPress {
             position: target,
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         },
     ));
     assert!(runtime.dispatch_input(
@@ -547,6 +557,7 @@ fn timeline_editor_routes_surface_messages_through_runtime() {
         WidgetInput::PointerRelease {
             position: Point::new(geometry.x_for_beat(56), target.y),
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         },
     ));
 

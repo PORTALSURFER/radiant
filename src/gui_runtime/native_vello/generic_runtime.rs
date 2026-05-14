@@ -7,6 +7,7 @@ mod composited_base;
 mod core;
 mod device;
 mod event_routing;
+mod external_drag;
 mod frame_cadence;
 mod frame_state;
 mod gpu_surface;
@@ -37,7 +38,10 @@ use frame_cadence::{TimedFrameCadence, timed_frame_cadence, timed_frame_target_f
 use frame_state::NativeVelloFrameState;
 use gpu_surface::GpuSurfaceRenderer;
 use gpu_surface_wheel::PendingGpuSurfaceWheel;
-use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
+use input::{
+    key_code_from_winit, keypress_from_input, pointer_button_from_winit,
+    pointer_modifiers_from_winit,
+};
 use popup_drag::should_start_popup_window_drag;
 use post_gpu_overlay::PostGpuOverlayRenderer;
 use render_profile::{RenderFrameProfile, maybe_log_render_profile};

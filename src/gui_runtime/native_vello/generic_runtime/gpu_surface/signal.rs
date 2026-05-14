@@ -7,6 +7,7 @@ impl GpuSurfaceRenderer {
         &mut self,
         target: &mut GpuSurfaceRenderTarget<'_>,
         surface: &PaintGpuSurface,
+        occlusion_regions: &[UiRect],
         stats: &mut GpuSurfaceRenderStats,
     ) {
         let Some(shape) = surface.content.signal_render_shape() else {
@@ -30,6 +31,7 @@ impl GpuSurfaceRenderer {
         let Some(level) = summary.levels.get(level_index) else {
             return;
         };
+        let gain_preview = signal_gain_preview(&surface.content);
         let body_key = SignalBodyCacheKey::new(
             surface,
             shape.frames,
@@ -37,9 +39,11 @@ impl GpuSurfaceRenderer {
             shape.frame_range,
             level.buckets.len(),
             level_index,
+            gain_preview,
         );
         self.ensure_pipeline(target.device, target.format);
         self.ensure_signal_pipeline(target.device, wgpu::TextureFormat::Rgba8Unorm);
+        let gain_uniforms = signal_gain_preview_uniforms(gain_preview);
         let uniforms = SignalUniforms {
             dest: [0.0, 0.0, body_key.width as f32, body_key.height as f32],
             frame_range: [
@@ -54,6 +58,9 @@ impl GpuSurfaceRenderer {
                 level_index as f32,
                 0.0,
             ],
+            gain_preview_a: gain_uniforms[0],
+            gain_preview_b: gain_uniforms[1],
+            gain_preview_c: gain_uniforms[2],
             target_size: [body_key.width as f32, body_key.height as f32],
             cursor_ratio: -1.0,
             cursor_width: 1.0,
@@ -82,7 +89,31 @@ impl GpuSurfaceRenderer {
             GpuSurfaceTextureIdentity::SignalBody(body_key),
             &texture_view,
             [0.0, 0.0, body_key.width as f32, body_key.height as f32],
+            occlusion_regions,
             stats,
         );
     }
+}
+
+fn signal_gain_preview(content: &GpuSurfaceContent) -> Option<GpuSignalGainPreview> {
+    match content {
+        GpuSurfaceContent::SignalSummaryBands { gain_preview, .. } => *gain_preview,
+        _ => None,
+    }
+}
+
+fn signal_gain_preview_uniforms(preview: Option<GpuSignalGainPreview>) -> [[f32; 4]; 3] {
+    let Some(preview) = preview else {
+        return [[0.0; 4]; 3];
+    };
+    [
+        [1.0, preview.start, preview.end, preview.gain],
+        [
+            preview.fade_in_length,
+            preview.fade_in_curve,
+            preview.fade_out_length,
+            preview.fade_out_curve,
+        ],
+        [preview.fade_in_mute, preview.fade_out_mute, 0.0, 0.0],
+    ]
 }

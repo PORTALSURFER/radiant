@@ -2,7 +2,7 @@ use super::{FocusTraversal, SurfaceRuntime};
 use crate::{
     gui::types::{Point, Vector2},
     runtime::RuntimeBridge,
-    widgets::{PointerButton, WidgetId, WidgetInput, WidgetKey},
+    widgets::{PointerButton, PointerModifiers, WidgetId, WidgetInput, WidgetKey},
 };
 
 /// Routing summary for one pointer-move event.
@@ -64,6 +64,8 @@ pub enum Event {
         position: Point,
         /// Pointer button that started the press.
         button: PointerButton,
+        /// Modifier state when the press started.
+        modifiers: PointerModifiers,
     },
     /// Pointer button was pressed twice in quick succession.
     PointerDoubleClick {
@@ -71,6 +73,8 @@ pub enum Event {
         position: Point,
         /// Pointer button that completed the double-click.
         button: PointerButton,
+        /// Modifier state when the double-click completed.
+        modifiers: PointerModifiers,
     },
     /// Pointer press ended at the given surface position.
     PointerRelease {
@@ -78,6 +82,8 @@ pub enum Event {
         position: Point,
         /// Pointer button that ended the press.
         button: PointerButton,
+        /// Modifier state when the press ended.
+        modifiers: PointerModifiers,
     },
     /// One non-text key intent should route to the focused widget.
     KeyPress(WidgetKey),
@@ -112,7 +118,11 @@ where
                 None
             }
             Event::PointerMove { position } => self.dispatch_pointer_move_target(position),
-            Event::PointerPress { position, button } => {
+            Event::PointerPress {
+                position,
+                button,
+                modifiers,
+            } => {
                 if self.start_scrollbar_drag_at(position) {
                     self.pointer_capture = None;
                     self.pointer_capture_state = None;
@@ -127,9 +137,20 @@ where
                     return None;
                 };
                 self.pointer_capture = Some(widget_id);
-                self.dispatch_input_at(position, WidgetInput::PointerPress { position, button })
+                self.dispatch_input_at(
+                    position,
+                    WidgetInput::PointerPress {
+                        position,
+                        button,
+                        modifiers,
+                    },
+                )
             }
-            Event::PointerDoubleClick { position, button } => {
+            Event::PointerDoubleClick {
+                position,
+                button,
+                modifiers,
+            } => {
                 let Some(widget_id) = self.widget_at(position) else {
                     self.pointer_capture = None;
                     self.pointer_capture_state = None;
@@ -139,27 +160,58 @@ where
                 self.pointer_capture = Some(widget_id);
                 let routed = self.dispatch_input_at_output(
                     position,
-                    WidgetInput::PointerDoubleClick { position, button },
+                    WidgetInput::PointerDoubleClick {
+                        position,
+                        button,
+                        modifiers,
+                    },
                 );
                 match routed {
                     Some((widget_id, true)) => Some(widget_id),
                     _ => self.dispatch_input_at(
                         position,
-                        WidgetInput::PointerPress { position, button },
+                        WidgetInput::PointerPress {
+                            position,
+                            button,
+                            modifiers,
+                        },
                     ),
                 }
             }
-            Event::PointerRelease { position, button } => {
+            Event::PointerRelease {
+                position,
+                button,
+                modifiers,
+            } => {
                 if self.scroll_drag_capture.take().is_some() {
                     return None;
                 }
-                let widget_id = self
-                    .pointer_capture
-                    .take()
-                    .or_else(|| self.widget_at(position))?;
+                let captured = self.pointer_capture.take();
+                let drop_target = captured.and_then(|captured_id| {
+                    self.widget_at(position)
+                        .filter(|target_id| *target_id != captured_id)
+                });
+                if let Some(drop_target) = drop_target {
+                    let _ = self.dispatch_input(
+                        drop_target,
+                        WidgetInput::PointerDrop {
+                            position,
+                            button,
+                            modifiers,
+                        },
+                    );
+                }
+                let widget_id = captured.or_else(|| self.widget_at(position))?;
                 self.pointer_capture_state = None;
-                self.dispatch_input(widget_id, WidgetInput::PointerRelease { position, button })
-                    .then_some(widget_id)
+                self.dispatch_input(
+                    widget_id,
+                    WidgetInput::PointerRelease {
+                        position,
+                        button,
+                        modifiers,
+                    },
+                )
+                .then_some(widget_id)
             }
             Event::KeyPress(key) => self.dispatch_focused_input(WidgetInput::KeyPress(key)),
             Event::Character(character) => {

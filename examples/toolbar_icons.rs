@@ -176,6 +176,7 @@ impl Widget for IconToggleButton {
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Primary,
+                ..
             } => {
                 self.common.state.pressed = bounds.contains(position);
                 None
@@ -183,6 +184,7 @@ impl Widget for IconToggleButton {
             WidgetInput::PointerRelease {
                 position,
                 button: PointerButton::Primary,
+                ..
             } => {
                 let should_toggle = self.common.state.pressed && bounds.contains(position);
                 self.common.state.pressed = false;
@@ -378,6 +380,7 @@ mod tests {
             WidgetInput::PointerPress {
                 position: Point::new(70.0, 60.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ));
         assert!(runtime.dispatch_input(
@@ -385,6 +388,7 @@ mod tests {
             WidgetInput::PointerRelease {
                 position: Point::new(70.0, 60.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         ));
 

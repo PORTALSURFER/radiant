@@ -21,6 +21,7 @@ pub(super) fn handle_selectable_input(
         WidgetInput::PointerPress {
             position,
             button: PointerButton::Primary,
+            ..
         } if bounds.contains(position) => {
             selectable.common.state.pressed = true;
             None
@@ -28,6 +29,7 @@ pub(super) fn handle_selectable_input(
         WidgetInput::PointerRelease {
             position,
             button: PointerButton::Primary,
+            ..
         } => {
             let was_pressed = selectable.common.state.pressed;
             selectable.common.state.pressed = false;

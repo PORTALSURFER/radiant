@@ -36,6 +36,11 @@ impl<Message> Command<Message> {
             | Self::After { .. }
             | Self::Perform { .. }
             | Self::Focus(_)
+            | Self::ScrollTo { .. }
+            | Self::ScrollIntoView { .. }
+            | Self::ScrollFixedRowIntoView { .. }
+            | Self::BeginExternalDrag { .. }
+            | Self::EndExternalDrag
             | Self::Exit => 0,
         }
     }
@@ -54,6 +59,11 @@ impl<Message> Command<Message> {
             | Self::After { .. }
             | Self::Perform { .. }
             | Self::Focus(_)
+            | Self::ScrollTo { .. }
+            | Self::ScrollIntoView { .. }
+            | Self::ScrollFixedRowIntoView { .. }
+            | Self::BeginExternalDrag { .. }
+            | Self::EndExternalDrag
             | Self::Exit => {}
         }
     }

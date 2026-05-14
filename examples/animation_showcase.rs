@@ -198,12 +198,14 @@ mod tests {
         runtime.dispatch_event(Event::PointerPress {
             position: point,
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         });
         let outcome = runtime.drain_runtime_messages();
         assert_eq!(outcome.messages_dispatched, 1);
         runtime.dispatch_event(Event::PointerRelease {
             position: point,
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         });
 
         assert!(!runtime.bridge_mut().needs_animation());
@@ -234,10 +236,12 @@ mod tests {
         runtime.dispatch_event(Event::PointerPress {
             position: point,
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         });
         runtime.dispatch_event(Event::PointerRelease {
             position: point,
             button: PointerButton::Primary,
+            modifiers: Default::default(),
         });
     }
 

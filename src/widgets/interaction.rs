@@ -4,7 +4,7 @@ mod input;
 mod messages;
 mod output;
 
-pub use input::{PointerButton, TextEditCommand, WidgetInput, WidgetKey};
+pub use input::{PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey};
 pub use messages::{
     BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, GpuSurfaceMessage,
     ListItemMessage, ScrollbarMessage, SelectableMessage, SliderMessage, TextInputMessage,

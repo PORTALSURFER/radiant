@@ -94,6 +94,7 @@ fn app_gpu_surface_input_helper_routes_through_normal_message_path() {
         WidgetInput::PointerPress {
             position: radiant::layout::Point::new(24.0, 24.0),
             button: radiant::widgets::PointerButton::Primary,
+            modifiers: Default::default(),
         },
     );
 

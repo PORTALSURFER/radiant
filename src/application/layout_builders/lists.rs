@@ -35,9 +35,12 @@ pub fn virtual_list<Message, Item>(
     project: impl FnMut(Item) -> ViewNode<Message>,
     overscan_px: f32,
 ) -> ViewNode<Message> {
-    virtual_scroll(column(items.into_iter().map(project)), overscan_px)
-        .style(WidgetStyle::default())
-        .fill_height()
+    virtual_scroll(
+        column(items.into_iter().map(project)).spacing(0.0),
+        overscan_px,
+    )
+    .style(WidgetStyle::default())
+    .fill_height()
 }
 
 /// Build a vertically virtualized fixed-row list from a pre-resolved logical window.
@@ -111,8 +114,28 @@ mod tests {
     use super::*;
     use crate::{
         application::{IntoView, button},
-        layout::{LayoutNode, NodeId},
+        layout::{ContainerKind, LayoutNode, NodeId},
     };
+
+    #[test]
+    fn virtual_list_uses_packed_rows() {
+        let layout = virtual_list(
+            0..3,
+            |index| button(format!("Row {index}")).message(()).height(22.0),
+            44.0,
+        )
+        .into_surface()
+        .layout_node();
+        let LayoutNode::Container(scroll) = layout else {
+            panic!("virtual list should lower to a scroll container");
+        };
+        assert_eq!(scroll.policy.kind, ContainerKind::ScrollView);
+        let LayoutNode::Container(content) = &scroll.children[0].child else {
+            panic!("virtual list scroll content should be a column");
+        };
+        assert_eq!(content.policy.kind, ContainerKind::Column);
+        assert_eq!(content.policy.spacing, 0.0);
+    }
 
     #[test]
     fn virtual_list_window_projects_only_materialized_range() {

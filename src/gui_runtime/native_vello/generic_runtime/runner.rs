@@ -24,6 +24,7 @@ where
     pub(super) animation_origin: Instant,
     pub(super) last_redraw: Instant,
     pub(super) last_timed_frame_drain: Instant,
+    pub(super) last_navigation_key_repeat: Option<Instant>,
     pub(super) deferred_surface_refresh: bool,
     pub(super) pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
 }
@@ -54,6 +55,7 @@ where
             animation_origin: Instant::now(),
             last_redraw: Instant::now(),
             last_timed_frame_drain: Instant::now(),
+            last_navigation_key_repeat: None,
             deferred_surface_refresh: false,
             pending_gpu_surface_wheel: None,
         }

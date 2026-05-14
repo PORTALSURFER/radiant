@@ -25,6 +25,7 @@ pub(super) fn handle_scrollbar_input(
         WidgetInput::PointerPress {
             position,
             button: PointerButton::Primary,
+            ..
         } if bounds.contains(position) => {
             scrollbar.common.state.focused = true;
             scrollbar.common.state.hovered = true;
@@ -41,6 +42,7 @@ pub(super) fn handle_scrollbar_input(
         WidgetInput::PointerRelease {
             position,
             button: PointerButton::Primary,
+            ..
         } => {
             scrollbar.common.state.hovered = bounds.contains(position);
             scrollbar.common.state.pressed = false;

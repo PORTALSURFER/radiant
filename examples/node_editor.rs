@@ -211,6 +211,7 @@ mod tests {
             WidgetInput::PointerPress {
                 position: Point::new(40.0, 40.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         );
         let released_selectable = runtime.dispatch_input(
@@ -218,6 +219,7 @@ mod tests {
             WidgetInput::PointerRelease {
                 position: Point::new(40.0, 40.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         );
         let dragged = runtime.dispatch_input(
@@ -225,6 +227,7 @@ mod tests {
             WidgetInput::PointerPress {
                 position: Point::new(34.0, 34.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         );
         let moved = runtime.dispatch_input(
@@ -238,6 +241,7 @@ mod tests {
             WidgetInput::PointerRelease {
                 position: Point::new(650.0, 64.0),
                 button: PointerButton::Primary,
+                modifiers: Default::default(),
             },
         );
 

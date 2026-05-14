@@ -2,7 +2,7 @@
 
 use crate::{
     gui::input::{KeyCode, KeyPress},
-    widgets::PointerButton,
+    widgets::{PointerButton, PointerModifiers},
 };
 use winit::event::MouseButton;
 
@@ -29,6 +29,7 @@ pub(super) fn key_code_from_winit(key: winit::keyboard::KeyCode) -> Option<KeyCo
         WinitKeyCode::KeyD => KeyCode::D,
         WinitKeyCode::KeyE => KeyCode::E,
         WinitKeyCode::Enter | WinitKeyCode::NumpadEnter => KeyCode::Enter,
+        WinitKeyCode::Escape => KeyCode::Escape,
         WinitKeyCode::Delete => KeyCode::Delete,
         WinitKeyCode::KeyF => KeyCode::F,
         WinitKeyCode::F1 => KeyCode::F1,
@@ -76,6 +77,16 @@ pub(super) fn pointer_button_from_winit(button: MouseButton) -> Option<PointerBu
     })
 }
 
+pub(super) fn pointer_modifiers_from_winit(
+    modifiers: winit::keyboard::ModifiersState,
+) -> PointerModifiers {
+    PointerModifiers {
+        command: modifiers.control_key() || modifiers.super_key(),
+        shift: modifiers.shift_key(),
+        alt: modifiers.alt_key(),
+    }
+}
+
 pub(super) fn keypress_from_input(
     key: KeyCode,
     modifiers: winit::keyboard::ModifiersState,
@@ -101,6 +112,10 @@ mod tests {
         );
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyA), Some(KeyCode::A));
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyE), Some(KeyCode::E));
+        assert_eq!(
+            key_code_from_winit(WinitKeyCode::Escape),
+            Some(KeyCode::Escape)
+        );
         assert_eq!(key_code_from_winit(WinitKeyCode::F2), Some(KeyCode::F2));
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyV), Some(KeyCode::V));
         assert_eq!(
@@ -128,7 +143,6 @@ mod tests {
 
     #[test]
     fn key_code_from_winit_returns_none_for_unsupported_code() {
-        assert_eq!(key_code_from_winit(WinitKeyCode::Escape), None);
         assert_eq!(key_code_from_winit(WinitKeyCode::Tab), None);
     }
 }

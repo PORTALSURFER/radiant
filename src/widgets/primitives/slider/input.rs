@@ -23,6 +23,7 @@ pub(super) fn handle_slider_input(
         WidgetInput::PointerPress {
             position,
             button: PointerButton::Primary,
+            ..
         } if bounds.contains(position) => {
             slider.common.state.hovered = true;
             slider.common.state.pressed = true;
@@ -32,6 +33,7 @@ pub(super) fn handle_slider_input(
         WidgetInput::PointerRelease {
             position,
             button: PointerButton::Primary,
+            ..
         } => {
             let was_pressed = slider.common.state.pressed;
             slider.common.state.pressed = false;

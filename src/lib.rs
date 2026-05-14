@@ -49,13 +49,14 @@ pub mod prelude {
         WidgetView, WidgetViewContext, WindowBuilder, app, badge, badge_mapped, badge_message,
         button, button_mapped, button_message, canvas, card, checkbox, column, column_key,
         context_menu_overlay, custom_widget, custom_widget_mapped, drag_handle, drag_handle_mapped,
-        drop_marker, gpu_surface, gpu_surface_input, grid, grid_with_gaps, image, list, list_row,
-        list_row_id, menu, overlay_panel, passive_button, passive_text_input, passive_toggle,
-        property_panel, retained_canvas, retained_canvas_with, row, row_key, scroll, scroll_column,
-        selectable, selectable_mapped, selectable_property_panel, selectable_sortable_details_list,
-        slider, slider_mapped, sortable_details_list, spacer, stack, text, text_input,
-        text_input_mapped, toggle, toggle_mapped, tree_list, tree_list_with_drag, virtual_list,
-        virtual_list_window, virtual_scroll, widget, window,
+        drag_preview, drag_preview_sized, drop_marker, gpu_surface, gpu_surface_input, grid,
+        grid_with_gaps, image, list, list_row, list_row_id, menu, overlay_panel, passive_button,
+        passive_text_input, passive_toggle, property_panel, retained_canvas, retained_canvas_with,
+        row, row_key, scroll, scroll_column, selectable, selectable_mapped,
+        selectable_property_panel, selectable_sortable_details_list, slider, slider_mapped,
+        sortable_details_list, spacer, stack, text, text_input, text_input_mapped, toggle,
+        toggle_mapped, tree_list, tree_list_with_drag, virtual_list, virtual_list_window,
+        virtual_scroll, widget, window,
     };
     pub use crate::gui::types::{ImageRgba, ImageRgbaError, Point, Rect, Rgba8, Vector2};
     pub use crate::gui::{
@@ -69,16 +70,18 @@ pub mod prelude {
     };
     pub use crate::layout::LayoutOutput;
     pub use crate::runtime::{
-        Command, EmbeddedFont, GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket,
-        GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceContentError,
-        GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, NativeGenericRunError,
-        NativeGenericRunReport, NativePopupOptions, NativeRunOptions, NativeRunOptionsError,
-        NativeWindowMode, PaintFillPath, PaintFillRect, PaintFillRule, PaintImage, PaintPath,
-        PaintPathCommand, PaintPrimitive, PaintStrokeRect, PaintSvg, PaintSvgDocument,
-        PaintTextAlign, PaintTextRun, PaintTransform, ResourceKey, ResourceLoad, ResourceLoadState,
-        ResourceRequest, ResourceSlot, RuntimeRunReport, ScrollUpdate, SurfaceFrame,
-        SurfacePaintPlan, SvgParseError, TransientOverlayContext, WindowManifest,
-        WindowManifestError, WindowSpec, WindowSpecError,
+        Command, EmbeddedFont, ExternalDragEffect, ExternalDragOutcome, ExternalDragPayload,
+        ExternalDragPreview, ExternalDragRequest, GpuSignalGainPreview, GpuSignalRenderShape,
+        GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceCapabilities,
+        GpuSurfaceContent, GpuSurfaceContentError, GpuSurfaceLineStyle, GpuSurfaceOverlay,
+        GpuSurfaceRuntimeOverlays, NativeGenericRunError, NativeGenericRunReport,
+        NativePopupOptions, NativeRunOptions, NativeRunOptionsError, NativeWindowMode,
+        PaintFillPath, PaintFillRect, PaintFillRule, PaintImage, PaintPath, PaintPathCommand,
+        PaintPrimitive, PaintStrokeRect, PaintSvg, PaintSvgDocument, PaintTextAlign, PaintTextRun,
+        PaintTransform, ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest,
+        ResourceSlot, RuntimeRunReport, ScrollUpdate, SurfaceFrame, SurfacePaintPlan,
+        SvgParseError, TransientOverlayContext, WindowManifest, WindowManifestError, WindowSpec,
+        WindowSpecError,
     };
     pub use crate::theme::ThemeTokens;
     pub use crate::widgets::{

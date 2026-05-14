@@ -183,6 +183,7 @@ mod tests {
                 WidgetInput::PointerPress {
                     position: Point::new(6.0, grip_y),
                     button: PointerButton::Primary,
+                    modifiers: Default::default(),
                 },
             ),
             None
@@ -218,6 +219,7 @@ mod tests {
                 WidgetInput::PointerPress {
                     position: Point::new(90.0, 6.0),
                     button: PointerButton::Primary,
+                    modifiers: Default::default(),
                 },
             ),
             Some(ScrollbarMessage::OffsetChanged {

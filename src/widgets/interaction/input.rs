@@ -88,6 +88,17 @@ pub enum TextEditCommand {
     CutSelection,
 }
 
+/// Modifier state captured with one pointer interaction.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PointerModifiers {
+    /// Whether the platform command modifier is held.
+    pub command: bool,
+    /// Whether Shift is held.
+    pub shift: bool,
+    /// Whether Alt is held.
+    pub alt: bool,
+}
+
 /// Backend-neutral interaction routed into a reusable widget primitive.
 #[derive(Clone, Debug, PartialEq)]
 pub enum WidgetInput {
@@ -102,6 +113,8 @@ pub enum WidgetInput {
         position: Point,
         /// Button that started the press.
         button: PointerButton,
+        /// Modifier state at press time.
+        modifiers: PointerModifiers,
     },
     /// Pointer button was pressed twice in quick succession at the given point.
     PointerDoubleClick {
@@ -109,6 +122,8 @@ pub enum WidgetInput {
         position: Point,
         /// Button that completed the double-click.
         button: PointerButton,
+        /// Modifier state at double-click time.
+        modifiers: PointerModifiers,
     },
     /// Pointer press ended at the given point.
     PointerRelease {
@@ -116,6 +131,17 @@ pub enum WidgetInput {
         position: Point,
         /// Button that ended the press.
         button: PointerButton,
+        /// Modifier state at release time.
+        modifiers: PointerModifiers,
+    },
+    /// Captured pointer release happened over this widget while another widget owned the press.
+    PointerDrop {
+        /// Pointer position in the widget host's logical coordinate space.
+        position: Point,
+        /// Button that ended the captured press.
+        button: PointerButton,
+        /// Modifier state at release time.
+        modifiers: PointerModifiers,
     },
     /// Pointer wheel or trackpad scroll occurred over the widget.
     Wheel {

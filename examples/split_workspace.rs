@@ -56,7 +56,7 @@ impl WorkspaceState {
         let label = row.label.clone();
         let detail = row.detail.clone();
         let active = self.sidebar.active_pane == pane;
-        *pane.select_mut(&mut self.sidebar.upper_pane, &mut self.sidebar.lower_pane) = pane_model(
+        *self.sidebar.pane_mut(pane) = pane_model(
             pane,
             pane_label(pane),
             format!("{label} / {detail}"),
@@ -66,8 +66,9 @@ impl WorkspaceState {
 
     fn activate_pane(&mut self, pane: SplitPaneSlot) {
         self.sidebar.active_pane = pane;
-        self.sidebar.upper_pane.active = pane == SplitPaneSlot::Upper;
-        self.sidebar.lower_pane.active = pane == SplitPaneSlot::Lower;
+        self.sidebar.upper_pane.active = false;
+        self.sidebar.lower_pane.active = false;
+        self.sidebar.active_pane_model_mut().active = true;
     }
 }
 

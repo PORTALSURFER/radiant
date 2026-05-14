@@ -222,8 +222,18 @@ impl<Row, TreeRow> SplitPaneSidebarState<Row, TreeRow> {
         pane.select(&self.upper_pane, &self.lower_pane)
     }
 
+    /// Mutably borrow one pane by id.
+    pub fn pane_mut(&mut self, pane: SplitPaneSlot) -> &mut SplitPaneTreePanel<TreeRow> {
+        pane.select_mut(&mut self.upper_pane, &mut self.lower_pane)
+    }
+
     /// Borrow the pane that currently drives the related content surface.
     pub fn active_pane_model(&self) -> &SplitPaneTreePanel<TreeRow> {
         self.pane(self.active_pane)
+    }
+
+    /// Mutably borrow the pane that currently drives the related content surface.
+    pub fn active_pane_model_mut(&mut self) -> &mut SplitPaneTreePanel<TreeRow> {
+        self.pane_mut(self.active_pane)
     }
 }

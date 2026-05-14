@@ -501,6 +501,31 @@ fn native_vello_scene_text_run_buffer_stays_in_focused_module() {
     );
 }
 
+#[test]
+fn native_text_edit_utf8_boundary_policy_stays_in_focused_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let module = fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/text_edit.rs"))
+        .expect("native text edit module should be readable");
+    let state =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/text_edit/state.rs"))
+            .expect("native text edit state should be readable");
+    let boundary =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/text_edit/boundary.rs"))
+            .expect("native text edit boundary helpers should be readable");
+
+    assert!(
+        module.contains("mod boundary;") && state.contains("use super::boundary::{"),
+        "native text editor state should consume UTF-8 boundary policy from a focused module"
+    );
+    assert!(
+        !state.contains("fn clamp_to_char_boundary")
+            && boundary.contains("fn clamp_to_char_boundary")
+            && boundary.contains("fn previous_char_boundary")
+            && boundary.contains("fn next_char_boundary"),
+        "UTF-8 boundary navigation should stay separate from mutable editor state"
+    );
+}
+
 fn public_module_names(source: &str) -> BTreeSet<String> {
     source
         .lines()

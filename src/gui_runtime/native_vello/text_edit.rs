@@ -1,5 +1,6 @@
 //! Single-line text editing helpers shared by native runtime text fields.
 
+mod boundary;
 mod layout;
 mod sanitize;
 mod state;

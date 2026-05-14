@@ -1,4 +1,6 @@
 /// Mutable selection/caret state for one single-line text field.
+use super::boundary::{clamp_to_char_boundary, next_char_boundary, previous_char_boundary};
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello) struct SingleLineTextEditorState {
     pub(in crate::gui_runtime::native_vello) anchor_byte: usize,
@@ -190,40 +192,4 @@ impl SingleLineTextEditorState {
         let end = clamp_to_char_boundary(text, self.anchor_byte.max(self.cursor_byte));
         (start, end)
     }
-}
-
-fn clamp_to_char_boundary(text: &str, byte_index: usize) -> usize {
-    let clamped = byte_index.min(text.len());
-    if text.is_char_boundary(clamped) {
-        return clamped;
-    }
-    let mut last = 0;
-    for (idx, _) in text.char_indices() {
-        if idx >= clamped {
-            break;
-        }
-        last = idx;
-    }
-    last
-}
-
-fn previous_char_boundary(text: &str, byte_index: usize) -> usize {
-    let clamped = clamp_to_char_boundary(text, byte_index);
-    text[..clamped]
-        .char_indices()
-        .last()
-        .map(|(idx, _)| idx)
-        .unwrap_or(0)
-}
-
-fn next_char_boundary(text: &str, byte_index: usize) -> usize {
-    let clamped = clamp_to_char_boundary(text, byte_index);
-    if clamped >= text.len() {
-        return text.len();
-    }
-    let mut iter = text[clamped..].char_indices();
-    let _ = iter.next();
-    iter.next()
-        .map(|(idx, _)| clamped + idx)
-        .unwrap_or(text.len())
 }

@@ -4,6 +4,7 @@ use super::runtime_helpers::GpuSurfaceInteractionRegion;
 use crate::gui_runtime::native_vello::*;
 
 mod cache;
+mod custom_surface;
 mod frame;
 mod image;
 mod shape;
@@ -13,8 +14,9 @@ mod text_input_selection;
 pub(in crate::gui_runtime::native_vello) use cache::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,
 };
+use custom_surface::encode_custom_surface;
 pub(in crate::gui_runtime::native_vello) use frame::SceneTextRunBuffer;
-use frame::{encode_paint_frame_to_scene, flush_text_runs};
+use frame::flush_text_runs;
 use image::encode_image;
 use shape::{
     encode_path_fill, encode_polygon_fill, encode_polygon_stroke, encode_polyline_stroke,
@@ -151,37 +153,14 @@ where
                 }
             }
             PaintPrimitive::CustomSurface(custom) => {
-                stats.custom_surface_count = stats.custom_surface_count.saturating_add(1);
-                if let Some(retained) = custom.retained {
-                    if let Some(frame) =
-                        retained_cache.cached_frame(retained, custom.rect, viewport)
-                    {
-                        stats.cache_hits = stats.cache_hits.saturating_add(1);
-                        stats.record_retained_frame(frame);
-                        encode_paint_frame_to_scene(frame, scene, text_renderer);
-                        continue;
-                    }
-                    stats.bridge_calls = stats.bridge_calls.saturating_add(1);
-                    if let Some(frame) =
-                        bridge.render_retained_surface(retained, custom.rect, viewport)
-                    {
-                        stats.record_retained_frame(&frame);
-                        encode_paint_frame_to_scene(&frame, scene, text_renderer);
-                        retained_cache.store(retained, custom.rect, viewport, frame);
-                        continue;
-                    }
-                }
-                scene.stroke(
-                    &vello::kurbo::Stroke::new(1.0),
-                    Affine::IDENTITY,
-                    color_from_rgba(Rgba8 {
-                        r: 96,
-                        g: 96,
-                        b: 96,
-                        a: 255,
-                    }),
-                    None,
-                    &to_kurbo_rect(custom.rect),
+                encode_custom_surface(
+                    scene,
+                    text_renderer,
+                    bridge,
+                    viewport,
+                    retained_cache,
+                    custom,
+                    &mut stats,
                 );
             }
         }

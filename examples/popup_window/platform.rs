@@ -92,27 +92,28 @@ pub(super) fn show_popup_window(process_id: u32, position: [f32; 2], focus: bool
     let Some(hwnd) = popup_window_handle(process_id) else {
         return false;
     };
+    move_window(hwnd, position);
     unsafe {
         use windows_sys::Win32::UI::WindowsAndMessaging::{
-            SW_SHOW, SW_SHOWNA, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SetForegroundWindow,
-            SetWindowPos, ShowWindow,
+            SW_SHOW, SW_SHOWNA, SetForegroundWindow, ShowWindow,
         };
 
-        SetWindowPos(
-            hwnd,
-            std::ptr::null_mut(),
-            position[0].round() as i32,
-            position[1].round() as i32,
-            0,
-            0,
-            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
-        );
         let command = if focus { SW_SHOW } else { SW_SHOWNA };
         ShowWindow(hwnd, command);
         if focus {
             SetForegroundWindow(hwnd);
         }
     }
+    true
+}
+
+#[cfg(target_os = "windows")]
+#[cfg(not(test))]
+pub(super) fn move_popup_window(process_id: u32, position: [f32; 2]) -> bool {
+    let Some(hwnd) = popup_window_handle(process_id) else {
+        return false;
+    };
+    move_window(hwnd, position);
     true
 }
 
@@ -172,4 +173,24 @@ fn popup_window_handle(process_id: u32) -> Option<windows_sys::Win32::Foundation
         EnumWindows(Some(enum_window), &mut search as *mut Search as LPARAM);
     }
     (!search.hwnd.is_null()).then_some(search.hwnd)
+}
+
+#[cfg(target_os = "windows")]
+#[cfg(not(test))]
+fn move_window(hwnd: windows_sys::Win32::Foundation::HWND, position: [f32; 2]) {
+    unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SetWindowPos,
+        };
+
+        SetWindowPos(
+            hwnd,
+            std::ptr::null_mut(),
+            position[0].round() as i32,
+            position[1].round() as i32,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+    }
 }

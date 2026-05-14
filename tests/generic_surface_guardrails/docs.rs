@@ -54,6 +54,12 @@ fn performance_harness_is_registered_and_documented() {
             bench.contains(scenario),
             "perf_harness should include `{scenario}`"
         );
+        let scenario_literal = format!("\"{scenario}\"");
+        assert_eq!(
+            bench.matches(&scenario_literal).count(),
+            1,
+            "perf_harness should register `{scenario}` in a single shared scenario catalog"
+        );
         assert!(
             docs.contains(scenario),
             "docs/API.md should document perf scenario `{scenario}`"

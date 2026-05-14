@@ -117,7 +117,17 @@ where
             },
         );
         self.frame.scene_text_runs = scene_text_runs.rebind();
+        self.restore_native_hover_cursor_overlay();
         self.frame.mark_scene_texture_dirty();
+    }
+
+    fn restore_native_hover_cursor_overlay(&mut self) {
+        let Some(position) = self.last_cursor else {
+            return;
+        };
+        if self.can_fast_path_native_hover_move(position) {
+            self.update_gpu_surface_cursor_overlay(position);
+        }
     }
 
     pub(super) fn handle_route_outcome(

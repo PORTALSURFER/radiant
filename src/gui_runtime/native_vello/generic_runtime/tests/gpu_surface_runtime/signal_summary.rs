@@ -30,10 +30,10 @@ fn gpu_signal_shader_uses_summary_sampling_without_looped_sample_scan() {
 fn gpu_signal_shader_keeps_waveform_bands_visually_distinct() {
     let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
 
-    assert!(shader.contains("band_scales = array<f32, 4>(0.94, 0.49, 0.13, 0.02)"));
-    assert!(shader.contains("band_gamma = array<f32, 4>(1.08, 0.98, 0.76, 1.70)"));
-    assert!(shader.contains("vec4<f32>(0.00, 0.18, 0.92, 0.78)"));
-    assert!(shader.contains("vec4<f32>(1.00, 0.39, 0.00, 0.76)"));
-    assert!(shader.contains("vec4<f32>(1.00, 1.00, 0.96, 0.86)"));
+    assert!(shader.contains("band_scales = array<f32, 4>(0.93, 0.45, 0.046, 0.02)"));
+    assert!(shader.contains("band_gamma = array<f32, 4>(1.05, 1.02, 0.42, 1.70)"));
+    assert!(shader.contains("vec4<f32>(0.00, 0.55, 0.84, 0.94)"));
+    assert!(shader.contains("vec4<f32>(0.84, 0.35, 0.02, 0.88)"));
+    assert!(shader.contains("vec4<f32>(1.00, 1.00, 0.99, 1.00)"));
     assert!(!shader.contains("vec4<f32>(0.08, 0.84, 0.36"));
 }

@@ -109,6 +109,23 @@ pub(super) fn show_popup_window(process_id: u32, position: [f32; 2], focus: bool
 
 #[cfg(target_os = "windows")]
 #[cfg(not(test))]
+pub(super) fn focus_popup_window(process_id: u32) -> bool {
+    let Some(hwnd) = popup_window_handle(process_id) else {
+        return false;
+    };
+    unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            SW_SHOW, SetForegroundWindow, ShowWindow,
+        };
+
+        ShowWindow(hwnd, SW_SHOW);
+        SetForegroundWindow(hwnd);
+    }
+    true
+}
+
+#[cfg(target_os = "windows")]
+#[cfg(not(test))]
 pub(super) fn hide_popup_window(process_id: u32) -> bool {
     let Some(hwnd) = popup_window_handle(process_id) else {
         return false;

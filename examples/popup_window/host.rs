@@ -99,12 +99,14 @@ impl PopupHost {
                 .as_ref()
                 .map(Child::id)
                 .ok_or("popup host is not running")?;
-            if platform::show_popup_window(child_id, POPUP_POSITION, true) {
+            if platform::show_popup_window(child_id, POPUP_POSITION, false) {
+                focus_popup_after_reveal(child_id);
                 return Ok(());
             }
             if platform::wait_for_popup_window(child_id, std::time::Duration::from_millis(250))
-                && platform::show_popup_window(child_id, POPUP_POSITION, true)
+                && platform::show_popup_window(child_id, POPUP_POSITION, false)
             {
+                focus_popup_after_reveal(child_id);
                 return Ok(());
             }
         }
@@ -156,6 +158,13 @@ impl PopupHost {
             true
         }
     }
+}
+
+#[cfg(all(target_os = "windows", not(test)))]
+fn focus_popup_after_reveal(process_id: u32) {
+    std::thread::spawn(move || {
+        let _ = platform::focus_popup_window(process_id);
+    });
 }
 
 #[cfg(all(target_os = "windows", not(test)))]

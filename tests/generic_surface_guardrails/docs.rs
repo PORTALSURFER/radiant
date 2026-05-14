@@ -248,6 +248,7 @@ fn api_docs_describe_the_structural_boundary_strategy() {
         "VirtualListWindow",
         "virtual_list_view_start_after_scroll_delta",
         "SignalChromeState",
+        "SignalToolFlags",
         "SignalToolState",
         "SignalRasterPreview",
         "TimelineViewport",

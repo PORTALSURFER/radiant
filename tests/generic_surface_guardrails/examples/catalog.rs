@@ -214,6 +214,7 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             vec![
                 "TimelineSurfaceState::new(",
                 "TimelineMotionState::new(",
+                "SignalToolFlags",
                 "retained_canvas(",
                 "custom_widget_mapped(",
                 "prefers_pointer_move_paint_only",

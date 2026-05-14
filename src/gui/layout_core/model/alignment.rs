@@ -1,7 +1,6 @@
 //! Alignment, sizing, and overflow policy enums.
 
 /// Main-axis sizing mode for a slot.
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SizeModeMain {
     /// Fixed logical pixels.
@@ -15,7 +14,6 @@ pub enum SizeModeMain {
 }
 
 /// Cross-axis sizing mode for a slot.
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SizeModeCross {
     /// Fixed logical pixels.
@@ -27,7 +25,6 @@ pub enum SizeModeCross {
 }
 
 /// Main-axis alignment within a container.
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MainAlign {
     /// Pack children toward the start edge.
@@ -45,7 +42,6 @@ pub enum MainAlign {
 }
 
 /// Cross-axis alignment for children within a container.
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CrossAlign {
     /// Align children to the start edge.
@@ -59,7 +55,6 @@ pub enum CrossAlign {
 }
 
 /// Explicit overflow policy for containers.
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OverflowPolicy {
     /// Clip child content to the container bounds.

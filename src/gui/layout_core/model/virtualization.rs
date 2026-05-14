@@ -1,7 +1,6 @@
 //! Virtualization policy values for large scrollable child lists.
 
 /// Scroll virtualization axis selection.
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum VirtualizationAxis {
     /// Virtualize children along the horizontal axis.

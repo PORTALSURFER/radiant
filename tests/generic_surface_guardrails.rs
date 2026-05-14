@@ -551,6 +551,31 @@ fn application_view_lowering_keeps_container_defaults_focused() {
     );
 }
 
+#[test]
+fn public_layout_policy_models_do_not_hide_dead_code() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let model_dir = manifest_dir.join("src/gui/layout_core/model");
+    let mut violations = Vec::new();
+
+    for path in [
+        model_dir.join("alignment.rs"),
+        model_dir.join("container.rs"),
+        model_dir.join("virtualization.rs"),
+    ] {
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        if source.contains("#[allow(dead_code)]") {
+            violations.push(relative_path(&manifest_dir, &path));
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "public layout policy models should be exported, tested, or removed instead of hiding dead-code warnings:\n{}",
+        violations.join("\n")
+    );
+}
+
 fn public_module_names(source: &str) -> BTreeSet<String> {
     source
         .lines()

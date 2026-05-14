@@ -70,8 +70,8 @@ pub mod prelude {
     pub use crate::layout::LayoutOutput;
     pub use crate::runtime::{
         Command, EmbeddedFont, GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket,
-        GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle,
-        GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, NativeGenericRunError,
+        GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceContentError,
+        GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, NativeGenericRunError,
         NativeGenericRunReport, NativePopupOptions, NativeRunOptions, NativeRunOptionsError,
         NativeWindowMode, PaintFillPath, PaintFillRect, PaintFillRule, PaintImage, PaintPath,
         PaintPathCommand, PaintPrimitive, PaintStrokeRect, PaintSvg, PaintSvgDocument,

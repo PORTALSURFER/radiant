@@ -5,6 +5,11 @@ use std::fmt;
 /// Error returned when one window descriptor contains invalid geometry.
 #[derive(Clone, Debug, PartialEq)]
 pub enum WindowSpecError {
+    /// Stable window key is empty or whitespace-only.
+    InvalidKey {
+        /// Invalid stable window key.
+        key: String,
+    },
     /// Initial or minimum logical size is non-finite or non-positive.
     InvalidSize {
         /// Stable host-owned key for the invalid window.
@@ -35,6 +40,11 @@ pub enum WindowSpecError {
 }
 
 pub(super) fn validate_window_spec(spec: &WindowSpec) -> Result<(), WindowSpecError> {
+    if spec.key.trim().is_empty() {
+        return Err(WindowSpecError::InvalidKey {
+            key: spec.key.clone(),
+        });
+    }
     spec.options
         .validate()
         .map_err(|err| WindowSpecError::from_native_options_error(spec.key.as_str(), err))
@@ -43,6 +53,10 @@ pub(super) fn validate_window_spec(spec: &WindowSpec) -> Result<(), WindowSpecEr
 impl fmt::Display for WindowSpecError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidKey { key } => write!(
+                formatter,
+                "window key '{key}' is invalid; stable window keys must not be empty"
+            ),
             Self::InvalidSize {
                 key,
                 field,

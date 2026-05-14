@@ -1,4 +1,7 @@
 use super::*;
+use crate::gui_runtime::native_vello::generic_runtime::runtime_helpers::{
+    intersect_rect, visible_rects_after_occlusion,
+};
 use crate::runtime::PaintPrimitive;
 
 const OPAQUE_SUFFIX_OCCLUSION_ALPHA: u8 = 240;
@@ -47,65 +50,7 @@ pub(crate) fn visible_surface_regions(
     surface_rect: UiRect,
     occlusion_regions: &[UiRect],
 ) -> Vec<UiRect> {
-    if occlusion_regions.is_empty() {
-        return vec![surface_rect];
-    }
-
-    let mut visible = vec![surface_rect];
-    let mut next = Vec::new();
-    for occlusion in occlusion_regions {
-        next.clear();
-        for rect in visible.drain(..) {
-            subtract_rect(rect, *occlusion, &mut next);
-        }
-        std::mem::swap(&mut visible, &mut next);
-        if visible.is_empty() {
-            break;
-        }
-    }
-    visible
-}
-
-fn subtract_rect(rect: UiRect, occlusion: UiRect, output: &mut Vec<UiRect>) {
-    let Some(cut) = intersect_rect(rect, occlusion) else {
-        output.push(rect);
-        return;
-    };
-
-    push_positive_rect(
-        output,
-        UiRect::from_min_max(rect.min, Point::new(rect.max.x, cut.min.y)),
-    );
-    push_positive_rect(
-        output,
-        UiRect::from_min_max(Point::new(rect.min.x, cut.max.y), rect.max),
-    );
-    push_positive_rect(
-        output,
-        UiRect::from_min_max(
-            Point::new(rect.min.x, cut.min.y),
-            Point::new(cut.min.x, cut.max.y),
-        ),
-    );
-    push_positive_rect(
-        output,
-        UiRect::from_min_max(
-            Point::new(cut.max.x, cut.min.y),
-            Point::new(rect.max.x, cut.max.y),
-        ),
-    );
-}
-
-fn push_positive_rect(output: &mut Vec<UiRect>, rect: UiRect) {
-    if rect.width() > 0.0 && rect.height() > 0.0 {
-        output.push(rect);
-    }
-}
-
-fn intersect_rect(a: UiRect, b: UiRect) -> Option<UiRect> {
-    let min = Point::new(a.min.x.max(b.min.x), a.min.y.max(b.min.y));
-    let max = Point::new(a.max.x.min(b.max.x), a.max.y.min(b.max.y));
-    (max.x > min.x && max.y > min.y).then(|| UiRect::from_min_max(min, max))
+    visible_rects_after_occlusion(surface_rect, occlusion_regions.iter().copied())
 }
 
 #[cfg(test)]

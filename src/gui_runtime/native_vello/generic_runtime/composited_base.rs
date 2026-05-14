@@ -132,18 +132,14 @@ impl CompositedBaseFrame {
         height: u32,
         format: wgpu::TextureFormat,
     ) -> (&'a mut Self, bool) {
-        let recreated = frame
+        if frame
             .as_ref()
-            .is_none_or(|frame| !frame.matches(width, height, format));
-        if recreated {
-            *frame = Some(Self::new(device, width, height, format));
+            .is_some_and(|frame| frame.matches(width, height, format))
+            && let Some(existing) = frame
+        {
+            return (existing, false);
         }
-        (
-            frame
-                .as_mut()
-                .expect("composited base frame is initialized"),
-            recreated,
-        )
+        (frame.insert(Self::new(device, width, height, format)), true)
     }
 
     fn new(device: &wgpu::Device, width: u32, height: u32, format: wgpu::TextureFormat) -> Self {

@@ -3,6 +3,7 @@ use crate::gui_runtime::native_vello::wgpu;
 
 pub(super) struct PostGpuOverlayPipeline {
     format: wgpu::TextureFormat,
+    device: usize,
     pipeline: wgpu::RenderPipeline,
 }
 
@@ -52,11 +53,19 @@ impl PostGpuOverlayPipeline {
             multiview: None,
             cache: None,
         });
-        Self { format, pipeline }
+        Self {
+            format,
+            device: device_id(device),
+            pipeline,
+        }
     }
 
-    pub(super) fn format(&self) -> wgpu::TextureFormat {
-        self.format
+    pub(super) fn matches_target(
+        &self,
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+    ) -> bool {
+        pipeline_matches_target(self.device, self.format, device_id(device), format)
     }
 
     pub(super) fn render(
@@ -88,6 +97,19 @@ impl PostGpuOverlayPipeline {
     }
 }
 
+fn device_id(device: &wgpu::Device) -> usize {
+    device as *const wgpu::Device as usize
+}
+
+fn pipeline_matches_target(
+    cached_device: usize,
+    cached_format: wgpu::TextureFormat,
+    target_device: usize,
+    target_format: wgpu::TextureFormat,
+) -> bool {
+    cached_device == target_device && cached_format == target_format
+}
+
 const POST_GPU_OVERLAY_SHADER: &str = r#"
 struct VertexOut {
     @builtin(position) position: vec4<f32>,
@@ -110,3 +132,21 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     return in.color;
 }
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cached_pipeline_matches_only_same_device_and_format() {
+        let format = wgpu::TextureFormat::Bgra8UnormSrgb;
+        assert!(pipeline_matches_target(7, format, 7, format));
+        assert!(!pipeline_matches_target(7, format, 8, format));
+        assert!(!pipeline_matches_target(
+            7,
+            format,
+            7,
+            wgpu::TextureFormat::Rgba8UnormSrgb
+        ));
+    }
+}

@@ -195,6 +195,20 @@ mod tests {
     }
 
     #[test]
+    fn resource_request_builds_keyed_success_and_failure_results() {
+        let mut slot = ResourceSlot::new("preview");
+        let request = slot.begin_load();
+
+        assert!(slot.apply_for(&request, request.ready("pixels")));
+        assert_eq!(slot.value(), Some(&"pixels"));
+
+        let request = slot.begin_load();
+        assert!(slot.apply_for(&request, request.failed("decode failed")));
+        assert_eq!(slot.state(), ResourceLoadState::Failed);
+        assert_eq!(slot.error(), Some("decode failed"));
+    }
+
+    #[test]
     fn resource_slot_clear_invalidates_in_flight_request() {
         let mut slot = ResourceSlot::new("preview");
 

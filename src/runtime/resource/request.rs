@@ -1,4 +1,4 @@
-use super::ResourceKey;
+use super::{ResourceKey, ResourceLoad};
 
 /// Request token for one in-flight resource load.
 ///
@@ -24,5 +24,15 @@ impl ResourceRequest {
     /// Return the monotonic request generation.
     pub fn generation(&self) -> u64 {
         self.generation
+    }
+
+    /// Build a successful load result tied to this request key.
+    pub fn ready<T>(&self, value: T) -> ResourceLoad<T> {
+        ResourceLoad::ready(self.key.clone(), value)
+    }
+
+    /// Build a failed load result tied to this request key.
+    pub fn failed<T>(&self, error: impl Into<String>) -> ResourceLoad<T> {
+        ResourceLoad::failed(self.key.clone(), error)
     }
 }

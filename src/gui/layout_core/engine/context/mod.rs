@@ -26,6 +26,8 @@ pub(super) struct LayoutScratch {
     pub(super) linear_windows: HashMap<NodeId, ResolvedLinearWindow>,
     pub(super) linear_sizes: Vec<f32>,
     pub(super) linear_unresolved: Vec<usize>,
+    pub(super) dirty_path: Vec<NodeId>,
+    pub(super) dirty_marked: HashSet<NodeId>,
 }
 
 /// Shared mutable scratch state for one layout-engine evaluation.

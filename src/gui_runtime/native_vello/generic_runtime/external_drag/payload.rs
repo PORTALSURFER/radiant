@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
-use windows::Win32::Foundation::{HGLOBAL, POINT};
+use windows::Win32::Foundation::{GlobalFree, HGLOBAL, POINT};
 use windows::Win32::System::Com::{
     DVASPECT_CONTENT, FORMATETC, STGMEDIUM, STGMEDIUM_0, TYMED_HGLOBAL,
 };
@@ -57,9 +57,7 @@ pub(super) fn drop_effect_medium(effect: DROPEFFECT) -> windows::core::Result<ST
         .map_err(|_| windows::core::Error::from_thread())?;
     let ptr = unsafe { GlobalLock(handle) } as *mut u32;
     if ptr.is_null() {
-        unsafe {
-            let _ = GlobalUnlock(handle);
-        }
+        free_hglobal(handle);
         return Err(windows::core::Error::from_thread());
     }
     unsafe {
@@ -79,9 +77,7 @@ pub(super) fn create_hglobal_for_paths(paths: &[PathBuf]) -> Result<HGLOBAL, std
         .map_err(last_error_from_win32)?;
     let ptr = unsafe { GlobalLock(handle) };
     if ptr.is_null() {
-        unsafe {
-            let _ = GlobalUnlock(handle);
-        }
+        free_hglobal(handle);
         return Err(std::io::Error::last_os_error());
     }
     unsafe {
@@ -156,6 +152,12 @@ pub(super) fn normalize_path(path: &Path) -> PathBuf {
 
 fn last_error_from_win32(err: windows::core::Error) -> std::io::Error {
     std::io::Error::from_raw_os_error(err.code().0)
+}
+
+fn free_hglobal(handle: HGLOBAL) {
+    unsafe {
+        let _ = GlobalFree(Some(handle));
+    }
 }
 
 #[cfg(test)]

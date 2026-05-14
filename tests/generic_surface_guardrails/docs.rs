@@ -63,9 +63,14 @@ fn performance_harness_is_registered_and_documented() {
         bench.contains("radiant_perf scenario="),
         "perf_harness should print parseable metric lines"
     );
+    assert!(
+        bench.contains("--list") && bench.contains("radiant_perf scenarios:"),
+        "perf_harness should expose a cheap scenario-listing mode"
+    );
     let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(
         normalized_docs.contains("cargo bench --bench perf_harness")
+            && normalized_docs.contains("cargo bench --bench perf_harness -- --list")
             && normalized_docs
                 .contains("does not enforce machine-dependent pass/fail timing thresholds"),
         "docs/API.md should describe how to run and interpret the perf harness"

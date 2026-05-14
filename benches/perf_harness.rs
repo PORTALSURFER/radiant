@@ -30,9 +30,44 @@ const LAYOUT_ITERATIONS: usize = 120;
 const RUNTIME_ITERATIONS: usize = 100;
 const GPU_ITERATIONS: usize = 60;
 const RUN_ALL_IN_DEBUG_ENV: &str = "RADIANT_PERF_RUN_ALL_IN_DEBUG";
+const LIST_ARG: &str = "--list";
+const PERF_SCENARIOS: &[&str] = &[
+    "layout_deep_nesting",
+    "layout_wrap_1k",
+    "layout_virtualized_10k",
+    "layout_virtualized_fixed_10k",
+    "layout_virtualized_fixed_scroll_10k",
+    "layout_mark_dirty_subtree_10k",
+    "app_virtual_list_projection_10k",
+    "app_virtual_list_projection_generated_child_ids_10k",
+    "app_virtual_selectable_list_projection_10k",
+    "app_virtual_list_window_projection_10k",
+    "runtime_surface_large_tree",
+    "runtime_text_paint_plan_1k",
+    "runtime_horizontal_scroll_paint_1k",
+    "runtime_virtualized_list_wheel_10k",
+    "runtime_virtualized_list_hover_10k",
+    "runtime_virtualized_list_stable_hover_10k",
+    "runtime_virtualized_list_hover_paint_10k",
+    "runtime_pointer_overlay_paint_10k",
+    "runtime_virtualized_nested_scroll_hover_10k",
+    "runtime_refresh_large_tree",
+    "runtime_resize_large_tree",
+    "runtime_command_flattening_512",
+    "runtime_command_drain_1k",
+    "runtime_nested_command_drain_1k",
+    "gpu_signal_summary",
+    "gpu_surface_projection",
+];
 
 fn main() {
-    let filters = scenario_filters_from_args(env::args());
+    let args = env::args().collect::<Vec<_>>();
+    if scenario_list_requested(&args) {
+        print_scenario_list();
+        return;
+    }
+
+    let filters = scenario_filters_from_args(args);
     if should_skip_unfiltered_debug_run(&filters) {
         println!(
             "radiant_perf skipped unfiltered debug run; pass a scenario filter or set {RUN_ALL_IN_DEBUG_ENV}=1"
@@ -211,6 +246,17 @@ fn scenario_filters_from_args(args: impl IntoIterator<Item = String>) -> Vec<Str
         .skip(1)
         .filter(|arg| !arg.starts_with('-') && !arg.is_empty())
         .collect()
+}
+
+fn scenario_list_requested(args: &[String]) -> bool {
+    args.iter().skip(1).any(|arg| arg == LIST_ARG)
+}
+
+fn print_scenario_list() {
+    println!("radiant_perf scenarios:");
+    for scenario in PERF_SCENARIOS {
+        println!("{scenario}");
+    }
 }
 
 fn scenario_matches_filters(name: &str, filters: &[String]) -> bool {

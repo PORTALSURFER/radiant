@@ -669,6 +669,12 @@ cargo bench --bench perf_harness
 
 The harness prints parseable `radiant_perf` metric lines for layout, runtime
 surface, application projection, and GPU-surface data preparation scenarios.
+List the available scenarios without running them with:
+
+```powershell
+cargo bench --bench perf_harness -- --list
+```
+
 It currently covers:
 
 - `layout_deep_nesting`, `layout_wrap_1k`, `layout_virtualized_10k`,

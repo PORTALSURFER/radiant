@@ -2,9 +2,20 @@ use super::*;
 
 pub(super) struct GpuSurfacePipeline {
     pub(super) format: wgpu::TextureFormat,
+    pub(super) device: usize,
     pub(super) bind_group_layout: wgpu::BindGroupLayout,
     pub(super) pipeline: wgpu::RenderPipeline,
     pub(super) sampler: wgpu::Sampler,
+}
+
+impl GpuSurfacePipeline {
+    pub(super) fn matches_target(
+        &self,
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+    ) -> bool {
+        pipeline_matches_target(self.device, self.format, device_id(device), format)
+    }
 }
 
 pub(super) struct GpuSurfaceTexture {
@@ -63,8 +74,19 @@ pub(super) enum GpuSurfaceTextureIdentity {
 
 pub(super) struct SignalPipeline {
     pub(super) format: wgpu::TextureFormat,
+    pub(super) device: usize,
     pub(super) bind_group_layout: wgpu::BindGroupLayout,
     pub(super) pipeline: wgpu::RenderPipeline,
+}
+
+impl SignalPipeline {
+    pub(super) fn matches_target(
+        &self,
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+    ) -> bool {
+        pipeline_matches_target(self.device, self.format, device_id(device), format)
+    }
 }
 
 pub(super) struct SignalBuffer {
@@ -147,6 +169,19 @@ impl SignalBodyCacheKey {
 
 const GPU_SIGNAL_STYLE_REVISION: u32 = 1;
 
+pub(super) fn device_id(device: &wgpu::Device) -> usize {
+    device as *const wgpu::Device as usize
+}
+
+fn pipeline_matches_target(
+    cached_device: usize,
+    cached_format: wgpu::TextureFormat,
+    target_device: usize,
+    target_format: wgpu::TextureFormat,
+) -> bool {
+    cached_device == target_device && cached_format == target_format
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
 pub(super) struct GpuSurfaceUniforms {
@@ -219,5 +254,18 @@ mod tests {
         assert!(!atlas_texture_matches_descriptor(7, 64, 32, 8, 64, 32));
         assert!(!atlas_texture_matches_descriptor(7, 64, 32, 7, 65, 32));
         assert!(!atlas_texture_matches_descriptor(7, 64, 32, 7, 64, 33));
+    }
+
+    #[test]
+    fn pipeline_cache_key_tracks_device_and_format() {
+        let format = wgpu::TextureFormat::Bgra8UnormSrgb;
+        assert!(pipeline_matches_target(7, format, 7, format));
+        assert!(!pipeline_matches_target(7, format, 8, format));
+        assert!(!pipeline_matches_target(
+            7,
+            format,
+            7,
+            wgpu::TextureFormat::Rgba8UnormSrgb
+        ));
     }
 }

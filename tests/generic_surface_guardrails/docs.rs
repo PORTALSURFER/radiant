@@ -45,6 +45,7 @@ fn performance_harness_is_registered_and_documented() {
         "runtime_resize_large_tree",
         "runtime_command_flattening_512",
         "runtime_command_drain_1k",
+        "runtime_nested_command_drain_1k",
         "gpu_signal_summary",
         "gpu_surface_projection",
     ];

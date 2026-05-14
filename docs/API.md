@@ -375,7 +375,9 @@ images, previews, manifests, fonts, or other resources through
 `Command::perform(...)` or `UpdateContext::spawn(...)`. Use
 `ResourceSlot::begin_load()` and `ResourceSlot::apply_for(...)` when repeated
 loads for the same key can overlap; stale worker completions are ignored instead
-of replacing the current result.
+of replacing the current result. `ResourceRequest::ready(...)` and
+`ResourceRequest::failed(...)` construct keyed results from the request token so
+worker code does not need to clone or duplicate resource-key text manually.
 
 Any widget can emit its own output type with `WidgetOutput::typed(...)` and
 route it with `WidgetMessageMapper::typed(...)`. Built-in primitive modules may

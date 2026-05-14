@@ -25,9 +25,20 @@ fn runtime_resource_requests_reject_stale_same_key_results() {
 
     assert!(!preview.apply_for(&stale, ResourceLoad::ready("preview", String::from("old"))));
     assert_eq!(preview.state(), ResourceLoadState::Loading);
-    assert!(preview.apply_for(
-        &current,
-        ResourceLoad::ready("preview", String::from("current"))
-    ));
+    assert!(preview.apply_for(&current, current.ready(String::from("current"))));
     assert_eq!(preview.value().map(String::as_str), Some("current"));
+}
+
+#[test]
+fn runtime_resource_request_constructs_results_for_its_key() {
+    let mut preview = ResourceSlot::new("preview");
+    let request = preview.begin_load();
+
+    assert!(preview.apply_for(&request, request.ready(String::from("decoded"))));
+    assert_eq!(preview.value().map(String::as_str), Some("decoded"));
+
+    let request = preview.begin_load();
+    assert!(preview.apply_for(&request, request.failed("decode failed")));
+    assert_eq!(preview.state(), ResourceLoadState::Failed);
+    assert_eq!(preview.error(), Some("decode failed"));
 }

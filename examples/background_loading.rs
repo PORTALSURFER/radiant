@@ -60,10 +60,7 @@ fn main() -> radiant::Result {
                     "demo-loader",
                     move || {
                         thread::sleep(Duration::from_millis(60));
-                        ResourceLoad::ready(
-                            worker_request.key().clone(),
-                            "Loaded payload from background work".to_string(),
-                        )
+                        worker_request.ready("Loaded payload from background work".to_string())
                     },
                     move |load| LoadingMessage::Loaded(request, load),
                 );

@@ -72,22 +72,22 @@ impl ExternalDragOutcome {
     }
 }
 
+pub(crate) type ExternalDragCompletion<Message> =
+    Box<dyn FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static>;
+
 /// Active external drag session owned by the runtime until it is launched or cancelled.
 pub(crate) struct ExternalDragSession<Message> {
     /// Request to launch when native drag-out begins.
     pub(crate) request: ExternalDragRequest,
     /// Optional mapper used to notify the host when the native drag loop finishes.
-    pub(crate) on_completed:
-        Option<Box<dyn FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static>>,
+    pub(crate) on_completed: Option<ExternalDragCompletion<Message>>,
 }
 
 impl<Message> ExternalDragSession<Message> {
     /// Build one active external drag session.
     pub(crate) fn new(
         request: ExternalDragRequest,
-        on_completed: Option<
-            Box<dyn FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static>,
-        >,
+        on_completed: Option<ExternalDragCompletion<Message>>,
     ) -> Self {
         Self {
             request,

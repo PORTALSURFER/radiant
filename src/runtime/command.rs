@@ -1,6 +1,6 @@
 //! Generic command values returned or queued by host-side runtime code.
 
-use super::external_drag::{ExternalDragOutcome, ExternalDragRequest};
+use super::external_drag::{ExternalDragCompletion, ExternalDragRequest};
 use crate::{gui::types::Vector2, layout::NodeId, widgets::WidgetId};
 use std::time::Duration;
 
@@ -94,9 +94,7 @@ pub enum Command<Message> {
         /// Payload and preview metadata for the native drag session.
         request: ExternalDragRequest,
         /// Optional host callback mapped into a message when the native drag loop ends.
-        on_completed: Option<
-            Box<dyn FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static>,
-        >,
+        on_completed: Option<ExternalDragCompletion<Message>>,
     },
     /// Clear any active native external drag session.
     EndExternalDrag,

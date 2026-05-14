@@ -272,7 +272,7 @@ mod tests {
         assert_eq!(regions.len(), 4);
         assert!(regions.iter().all(|region| region.width() > 0.0));
         assert!(regions.iter().all(|region| region.height() > 0.0));
-        assert!(!regions.iter().any(|region| *region == occlusion));
+        assert!(!regions.contains(&occlusion));
     }
 
     #[test]

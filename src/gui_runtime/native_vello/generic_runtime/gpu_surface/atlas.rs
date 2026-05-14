@@ -1,6 +1,14 @@
 use super::*;
 use crate::runtime::PaintGpuSurface;
 
+pub(super) struct TextureViewRenderRequest<'a> {
+    pub(super) surface: &'a PaintGpuSurface,
+    pub(super) texture_identity: GpuSurfaceTextureIdentity,
+    pub(super) texture_view: &'a wgpu::TextureView,
+    pub(super) source: [f32; 4],
+    pub(super) occlusion_regions: &'a [UiRect],
+}
+
 impl GpuSurfaceRenderer {
     pub(super) fn render_atlas(
         &mut self,
@@ -23,16 +31,18 @@ impl GpuSurfaceRenderer {
         let texture_view = texture.view.clone();
         self.render_texture_view(
             target,
-            surface,
-            texture_identity,
-            &texture_view,
-            [
-                source_rect.min.x,
-                source_rect.min.y,
-                source_rect.width(),
-                source_rect.height(),
-            ],
-            occlusion_regions,
+            TextureViewRenderRequest {
+                surface,
+                texture_identity,
+                texture_view: &texture_view,
+                source: [
+                    source_rect.min.x,
+                    source_rect.min.y,
+                    source_rect.width(),
+                    source_rect.height(),
+                ],
+                occlusion_regions,
+            },
             stats,
         );
     }
@@ -40,20 +50,17 @@ impl GpuSurfaceRenderer {
     pub(super) fn render_texture_view(
         &mut self,
         target: &mut GpuSurfaceRenderTarget<'_>,
-        surface: &PaintGpuSurface,
-        texture_identity: GpuSurfaceTextureIdentity,
-        texture_view: &wgpu::TextureView,
-        source: [f32; 4],
-        occlusion_regions: &[UiRect],
+        request: TextureViewRenderRequest<'_>,
         stats: &mut GpuSurfaceRenderStats,
     ) {
         let Some(pipeline) = self.pipeline.as_ref() else {
             return;
         };
+        let surface = request.surface;
         let (overlay_ratios, overlay_widths, overlay_colors) = vertical_overlays(&surface.overlays);
         let uniforms = GpuSurfaceUniforms {
             dest: surface_dest(surface),
-            source,
+            source: request.source,
             target_size: [target.size.x.max(1.0), target.size.y.max(1.0)],
             _padding: [0.0; 2],
             overlay_ratios,
@@ -62,7 +69,7 @@ impl GpuSurfaceRenderer {
         };
         let cache_key = GpuSurfaceCompositeBindingKey {
             pipeline_generation: self.pipeline_generation,
-            texture: texture_identity,
+            texture: request.texture_identity,
         };
         let rebuild_binding = self
             .composite_bindings
@@ -86,7 +93,7 @@ impl GpuSurfaceRenderer {
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::TextureView(texture_view),
+                        resource: wgpu::BindingResource::TextureView(request.texture_view),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
@@ -115,7 +122,7 @@ impl GpuSurfaceRenderer {
         let mut pass = gpu_surface_render_pass(target.encoder, target.target_view);
         pass.set_pipeline(&pipeline.pipeline);
         pass.set_bind_group(0, &binding.bind_group, &[]);
-        for region in visible_surface_regions(surface.rect, occlusion_regions) {
+        for region in visible_surface_regions(surface.rect, request.occlusion_regions) {
             set_surface_scissor(&mut pass, region);
             pass.draw(0..6, 0..1);
         }

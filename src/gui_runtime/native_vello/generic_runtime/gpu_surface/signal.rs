@@ -1,3 +1,4 @@
+use super::atlas::TextureViewRenderRequest;
 use super::*;
 use crate::runtime::{GpuSurfaceContent, PaintGpuSurface};
 use std::sync::Arc;
@@ -85,11 +86,13 @@ impl GpuSurfaceRenderer {
         };
         self.render_texture_view(
             target,
-            surface,
-            GpuSurfaceTextureIdentity::SignalBody(body_key),
-            &texture_view,
-            [0.0, 0.0, body_key.width as f32, body_key.height as f32],
-            occlusion_regions,
+            TextureViewRenderRequest {
+                surface,
+                texture_identity: GpuSurfaceTextureIdentity::SignalBody(body_key),
+                texture_view: &texture_view,
+                source: [0.0, 0.0, body_key.width as f32, body_key.height as f32],
+                occlusion_regions,
+            },
             stats,
         );
     }

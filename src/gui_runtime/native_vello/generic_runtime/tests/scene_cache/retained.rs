@@ -12,6 +12,11 @@ struct MultiRetainedBridge {
     render_counts: std::collections::BTreeMap<u64, usize>,
 }
 
+#[derive(Default)]
+struct MissingRetainedBridge {
+    render_count: usize,
+}
+
 impl MultiRetainedBridge {
     fn render_count_for(&self, key: u64) -> usize {
         self.render_counts.get(&key).copied().unwrap_or_default()
@@ -131,6 +136,32 @@ impl RuntimeBridge<()> for MultiRetainedBridge {
     }
 }
 
+impl RuntimeBridge<()> for MissingRetainedBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        Arc::new(UiSurface::new(SurfaceNode::retained_canvas_mapped(
+            31,
+            WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+            crate::widgets::RetainedSurfaceDescriptor {
+                key: 7,
+                revision: 1,
+                dirty_mask: 0,
+                volatile: false,
+            },
+            |_| (),
+        )))
+    }
+
+    fn render_retained_surface(
+        &mut self,
+        _descriptor: crate::widgets::RetainedSurfaceDescriptor,
+        _rect: UiRect,
+        _viewport: Vector2,
+    ) -> Option<PaintFrame> {
+        self.render_count += 1;
+        None
+    }
+}
+
 #[test]
 fn retained_custom_surface_cache_skips_unchanged_bridge_render() {
     let mut core =
@@ -208,6 +239,36 @@ fn retained_custom_surface_cache_keeps_multiple_stable_surfaces() {
     assert_eq!(second.cache_hits, 2);
     assert_eq!(core.runtime.bridge().render_count_for(7), 1);
     assert_eq!(core.runtime.bridge().render_count_for(8), 1);
+}
+
+#[test]
+fn retained_custom_surface_miss_is_counted_as_fallback() {
+    let mut core =
+        GenericNativeRuntimeCore::new(MissingRetainedBridge::default(), Vector2::new(320.0, 40.0));
+    let mut scene = Scene::new();
+    let mut text_renderer = NativeTextRenderer::new();
+    let mut retained_cache = RetainedSurfaceFrameCache::default();
+    let mut text_runs = SceneTextRunBuffer::new();
+    let viewport = core.runtime.viewport();
+    let plan = core.paint_plan();
+
+    let stats = encode_plan(
+        &plan,
+        &mut scene,
+        &mut text_renderer,
+        core.runtime.bridge_mut(),
+        viewport,
+        &mut retained_cache,
+        &mut text_runs,
+    );
+
+    assert_eq!(stats.custom_surface_count, 1);
+    assert_eq!(stats.bridge_calls, 1);
+    assert_eq!(stats.cache_hits, 0);
+    assert_eq!(stats.retained_surface_miss_count, 1);
+    assert_eq!(stats.custom_surface_fallback_count, 1);
+    assert_eq!(stats.retained_frame_primitive_count, 0);
+    assert_eq!(core.runtime.bridge().render_count, 1);
 }
 
 #[test]

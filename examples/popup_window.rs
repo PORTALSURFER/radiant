@@ -1,17 +1,17 @@
 //! Normal-window launcher for a real floating popup Radiant surface.
 //!
 //! Run `cargo run --example popup_window`, then use the main window controls to
-//! open a second borderless popup window. Drag the popup from its title area to
-//! reposition it, or close it from the popup itself. The popup is the same
-//! example binary relaunched with `--popup`, which keeps this sandbox aligned
-//! with the current single-window native runtime while still demonstrating the
-//! operator workflow.
+//! reveal a second borderless popup window. Drag the popup from its title area
+//! to reposition it, or hide it from the popup itself. The popup is the same
+//! example binary relaunched with `--popup`, then prewarmed hidden per mode so
+//! the user-facing open path only reveals an already prepared native surface.
 
 use radiant::prelude::*;
-use std::{env, process};
+use std::{env, process::Child};
 
 const POPUP_ARG: &str = "--popup";
 const POPUP_MODE_ARG: &str = "--popup-mode";
+const POPUP_PREWARM_ARG: &str = "--popup-prewarm";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PopupMode {
@@ -21,6 +21,8 @@ enum PopupMode {
 }
 
 impl PopupMode {
+    const ALL: [Self; 3] = [Self::DragPreview, Self::Tooltip, Self::CommandPalette];
+
     fn arg(self) -> &'static str {
         match self {
             Self::DragPreview => "drag-preview",
@@ -62,11 +64,11 @@ impl PopupMode {
     }
 }
 
-#[derive(Clone, Debug)]
 struct LauncherState {
     selected_mode: PopupMode,
     launches: usize,
     status: String,
+    popup_hosts: PopupHosts,
 }
 
 impl Default for LauncherState {
@@ -74,9 +76,34 @@ impl Default for LauncherState {
         Self {
             selected_mode: PopupMode::DragPreview,
             launches: 0,
-            status: String::from("Popup is closed."),
+            status: String::from("Preparing popup surfaces."),
+            popup_hosts: PopupHosts::default(),
         }
     }
+}
+
+impl LauncherState {
+    fn with_prewarmed_popups() -> Self {
+        let mut state = Self::default();
+        state.status = match prepare_popup_hosts(&mut state.popup_hosts) {
+            Ok(()) => String::from("Ready to open any popup instantly."),
+            Err(error) => format!("Popup prep failed: {error}"),
+        };
+        state
+    }
+}
+
+#[derive(Debug, Default)]
+struct PopupHosts {
+    drag_preview: PopupHost,
+    tooltip: PopupHost,
+    command_palette: PopupHost,
+}
+
+#[derive(Debug, Default)]
+struct PopupHost {
+    child: Option<Child>,
+    mode: Option<PopupMode>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,7 +125,7 @@ enum PopupMessage {
 }
 
 fn main() -> radiant::Result {
-    if popup_mode_from_args().is_some() {
+    if popup_launch_from_args().is_some() {
         run_popup_window()
     } else {
         run_launcher_window()
@@ -106,36 +133,46 @@ fn main() -> radiant::Result {
 }
 
 fn run_launcher_window() -> radiant::Result {
-    radiant::app(LauncherState::default())
+    radiant::app(LauncherState::with_prewarmed_popups())
         .title("Radiant Popup Launcher")
         .size(520, 300)
         .min_size(440, 260)
         .view(launcher_view)
+        .on_shutdown(|state| {
+            state.popup_hosts.shutdown();
+            None
+        })
+        .on_close_requested(|state| {
+            state.popup_hosts.shutdown();
+            true
+        })
         .update_with(update_launcher)
         .run()
 }
 
 fn run_popup_window() -> radiant::Result {
+    let launch = popup_launch_from_args().unwrap_or_default();
     radiant::app(PopupState {
-        mode: popup_mode_from_args().unwrap_or(PopupMode::DragPreview),
+        mode: launch.mode,
         pinned: false,
     })
     .title("Radiant Floating Popup")
     .size(340, 156)
     .floating_popup()
-    .popup_policy(popup_policy())
+    .popup_policy(popup_policy(!launch.prewarmed))
     .view(popup_view)
     .update_with(update_popup)
     .run()
 }
 
-fn popup_policy() -> NativePopupOptions {
+fn popup_policy(initially_visible: bool) -> NativePopupOptions {
     NativePopupOptions::default()
         .position(460.0, 280.0)
         .transparent(true)
         .always_on_top(true)
-        .initially_focused(true)
+        .initially_focused(initially_visible)
         .skip_taskbar(true)
+        .initially_visible(initially_visible)
         .drag_region_height(38.0)
 }
 
@@ -143,7 +180,7 @@ fn popup_policy() -> NativePopupOptions {
 fn popup_spec() -> WindowSpec {
     WindowSpec::popup("workflow-popup", "Radiant Floating Popup")
         .logical_size(340.0, 156.0)
-        .popup_policy(popup_policy())
+        .popup_policy(popup_policy(true))
 }
 
 fn launcher_view(state: &mut LauncherState) -> View<LauncherMessage> {
@@ -185,7 +222,7 @@ fn launcher_view(state: &mut LauncherState) -> View<LauncherMessage> {
         .key("actions")
         .spacing(10.0)
         .fill_width(),
-        text("Current native runtime opens one window per run; this example uses a child process as the host-owned multi-window adapter.")
+        text("Current native runtime opens one window per run; this example prewarms one child-process popup surface per mode as the host-owned multi-window adapter.")
             .key("boundary")
             .wrap()
             .height(48.0)
@@ -212,16 +249,16 @@ fn mode_button(state: &LauncherState, mode: PopupMode) -> View<LauncherMessage> 
 fn update_launcher(
     state: &mut LauncherState,
     message: LauncherMessage,
-    _context: &mut UpdateContext<LauncherMessage>,
+    context: &mut UpdateContext<LauncherMessage>,
 ) {
     match message {
         LauncherMessage::SelectMode(mode) => {
             state.selected_mode = mode;
-            state.status = format!("Ready to open {}.", mode.label());
+            state.status = format!("Ready to open {} instantly.", mode.label());
         }
         LauncherMessage::OpenPopup => {
             state.launches += 1;
-            match launch_popup_process(state.selected_mode) {
+            match open_popup_host(&mut state.popup_hosts, state.selected_mode) {
                 Ok(()) => {
                     state.status = format!("Opened {}.", state.selected_mode.label());
                 }
@@ -231,6 +268,7 @@ fn update_launcher(
             }
         }
     }
+    context.request_repaint();
 }
 
 fn popup_view(state: &mut PopupState) -> View<PopupMessage> {
@@ -299,35 +337,300 @@ fn update_popup(
 ) {
     match message {
         PopupMessage::TogglePinned => state.pinned = !state.pinned,
-        PopupMessage::Close => context.exit(),
+        PopupMessage::Close => {
+            if !hide_current_popup_window() {
+                context.exit();
+            }
+        }
     }
 }
 
-fn popup_mode_from_args() -> Option<PopupMode> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PopupLaunch {
+    mode: PopupMode,
+    prewarmed: bool,
+}
+
+impl Default for PopupLaunch {
+    fn default() -> Self {
+        Self {
+            mode: PopupMode::DragPreview,
+            prewarmed: false,
+        }
+    }
+}
+
+fn popup_launch_from_args() -> Option<PopupLaunch> {
     let mut args = env::args().skip(1);
     let mut popup = false;
+    let mut prewarmed = false;
     let mut mode = PopupMode::DragPreview;
     while let Some(arg) = args.next() {
         if arg == POPUP_ARG {
             popup = true;
+        } else if arg == POPUP_PREWARM_ARG {
+            prewarmed = true;
         } else if arg == POPUP_MODE_ARG
             && let Some(value) = args.next()
         {
             mode = PopupMode::from_arg(value.as_str());
         }
     }
-    popup.then_some(mode)
+    popup.then_some(PopupLaunch { mode, prewarmed })
 }
 
-fn launch_popup_process(mode: PopupMode) -> std::result::Result<(), &'static str> {
+impl PopupHosts {
+    fn host_mut(&mut self, mode: PopupMode) -> &mut PopupHost {
+        match mode {
+            PopupMode::DragPreview => &mut self.drag_preview,
+            PopupMode::Tooltip => &mut self.tooltip,
+            PopupMode::CommandPalette => &mut self.command_palette,
+        }
+    }
+
+    fn shutdown(&mut self) {
+        for mode in PopupMode::ALL {
+            self.host_mut(mode).shutdown();
+        }
+    }
+
+    #[cfg(not(test))]
+    fn wait_until_ready(&mut self, timeout: std::time::Duration) -> bool {
+        let deadline = std::time::Instant::now() + timeout;
+        PopupMode::ALL.into_iter().all(|mode| {
+            let now = std::time::Instant::now();
+            if now >= deadline {
+                return false;
+            }
+            self.host_mut(mode).wait_until_ready(deadline - now)
+        })
+    }
+}
+
+impl PopupHost {
+    #[cfg(not(test))]
+    fn prepare(&mut self, mode: PopupMode) -> std::result::Result<(), &'static str> {
+        self.reap_finished_child();
+        if self.mode == Some(mode) && self.child.is_some() {
+            return Ok(());
+        }
+
+        self.shutdown();
+        let child = spawn_popup_process(mode, true)?;
+        self.mode = Some(mode);
+        self.child = Some(child);
+        Ok(())
+    }
+
+    #[cfg(not(test))]
+    fn open(&mut self, mode: PopupMode) -> std::result::Result<(), &'static str> {
+        self.prepare(mode)?;
+
+        #[cfg(target_os = "windows")]
+        {
+            let child_id = self
+                .child
+                .as_ref()
+                .map(Child::id)
+                .ok_or("popup host is not running")?;
+            if show_popup_window(child_id, true) {
+                return Ok(());
+            }
+            if wait_for_popup_window(child_id, std::time::Duration::from_millis(250))
+                && show_popup_window(child_id, true)
+            {
+                return Ok(());
+            }
+        }
+
+        self.shutdown();
+        self.child = Some(spawn_popup_process(mode, false)?);
+        self.mode = Some(mode);
+        Ok(())
+    }
+
+    fn shutdown(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        self.mode = None;
+    }
+
+    #[cfg(not(test))]
+    fn reap_finished_child(&mut self) {
+        let finished = self
+            .child
+            .as_mut()
+            .and_then(|child| child.try_wait().ok())
+            .flatten()
+            .is_some();
+        if finished {
+            self.child = None;
+            self.mode = None;
+        }
+    }
+
+    #[cfg(not(test))]
+    fn wait_until_ready(&self, timeout: std::time::Duration) -> bool {
+        let Some(process_id) = self.child.as_ref().map(Child::id) else {
+            return false;
+        };
+
+        #[cfg(target_os = "windows")]
+        {
+            wait_for_popup_window(process_id, timeout)
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = timeout;
+            true
+        }
+    }
+}
+
+#[cfg(not(test))]
+fn prepare_popup_hosts(hosts: &mut PopupHosts) -> std::result::Result<(), &'static str> {
+    for mode in PopupMode::ALL {
+        hosts.host_mut(mode).prepare(mode)?;
+    }
+    if !hosts.wait_until_ready(std::time::Duration::from_secs(5)) {
+        return Err("popup hosts did not initialize");
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn prepare_popup_hosts(hosts: &mut PopupHosts) -> std::result::Result<(), &'static str> {
+    for mode in PopupMode::ALL {
+        hosts.host_mut(mode).mode = Some(mode);
+    }
+    Ok(())
+}
+
+#[cfg(not(test))]
+fn open_popup_host(
+    hosts: &mut PopupHosts,
+    mode: PopupMode,
+) -> std::result::Result<(), &'static str> {
+    hosts.host_mut(mode).open(mode)
+}
+
+#[cfg(test)]
+fn open_popup_host(
+    hosts: &mut PopupHosts,
+    mode: PopupMode,
+) -> std::result::Result<(), &'static str> {
+    hosts.host_mut(mode).mode = Some(mode);
+    Ok(())
+}
+
+#[cfg(not(test))]
+fn spawn_popup_process(
+    mode: PopupMode,
+    prewarmed: bool,
+) -> std::result::Result<Child, &'static str> {
     let executable = env::current_exe().map_err(|_| "could not resolve current executable")?;
-    process::Command::new(executable)
-        .arg(POPUP_ARG)
-        .arg(POPUP_MODE_ARG)
-        .arg(mode.arg())
-        .spawn()
-        .map(|_| ())
-        .map_err(|_| "could not start popup process")
+    let mut command = std::process::Command::new(executable);
+    command.args(popup_process_args(mode, prewarmed));
+    command.spawn().map_err(|_| "could not start popup process")
+}
+
+fn popup_process_args(mode: PopupMode, prewarmed: bool) -> Vec<&'static str> {
+    let mut args = vec![POPUP_ARG, POPUP_MODE_ARG, mode.arg()];
+    if prewarmed {
+        args.push(POPUP_PREWARM_ARG);
+    }
+    args
+}
+
+#[cfg(target_os = "windows")]
+#[cfg(not(test))]
+fn wait_for_popup_window(process_id: u32, timeout: std::time::Duration) -> bool {
+    let start = std::time::Instant::now();
+    while start.elapsed() < timeout {
+        if popup_window_handle(process_id).is_some() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(16));
+    }
+    false
+}
+
+#[cfg(target_os = "windows")]
+#[cfg(not(test))]
+fn show_popup_window(process_id: u32, focus: bool) -> bool {
+    let Some(hwnd) = popup_window_handle(process_id) else {
+        return false;
+    };
+    unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            SW_SHOW, SW_SHOWNA, SetForegroundWindow, ShowWindow,
+        };
+
+        let command = if focus { SW_SHOW } else { SW_SHOWNA };
+        ShowWindow(hwnd, command);
+        if focus {
+            SetForegroundWindow(hwnd);
+        }
+    }
+    true
+}
+
+#[cfg(target_os = "windows")]
+#[cfg(not(test))]
+fn popup_window_handle(process_id: u32) -> Option<windows_sys::Win32::Foundation::HWND> {
+    use windows_sys::Win32::Foundation::{FALSE, HWND, LPARAM, TRUE};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowThreadProcessId};
+
+    struct Search {
+        process_id: u32,
+        hwnd: HWND,
+    }
+
+    unsafe extern "system" fn enum_window(hwnd: HWND, lparam: LPARAM) -> i32 {
+        let search = unsafe { &mut *(lparam as *mut Search) };
+        let mut window_process_id = 0;
+        unsafe {
+            GetWindowThreadProcessId(hwnd, &mut window_process_id);
+        }
+        if window_process_id == search.process_id {
+            search.hwnd = hwnd;
+            return FALSE;
+        }
+        TRUE
+    }
+
+    let mut search = Search {
+        process_id,
+        hwnd: std::ptr::null_mut(),
+    };
+    unsafe {
+        EnumWindows(Some(enum_window), &mut search as *mut Search as LPARAM);
+    }
+    (!search.hwnd.is_null()).then_some(search.hwnd)
+}
+
+#[cfg(target_os = "windows")]
+fn hide_current_popup_window() -> bool {
+    unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            GetForegroundWindow, SW_HIDE, ShowWindow,
+        };
+
+        let hwnd = GetForegroundWindow();
+        if hwnd.is_null() {
+            return false;
+        }
+        ShowWindow(hwnd, SW_HIDE);
+        true
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn hide_current_popup_window() -> bool {
+    false
 }
 
 #[cfg(test)]
@@ -337,15 +640,26 @@ mod tests {
 
     #[test]
     fn popup_policy_describes_focused_transient_window() {
-        let policy = popup_policy();
+        let policy = popup_policy(true);
 
         assert_eq!(policy.position, Some([460.0, 280.0]));
         assert!(policy.transparent);
         assert!(policy.always_on_top);
         assert!(policy.initially_focused);
         assert!(policy.skip_taskbar);
+        assert!(policy.initially_visible);
         assert_eq!(policy.drag_region_height, Some(38.0));
         assert!(!policy.resizable);
+    }
+
+    #[test]
+    fn popup_policy_can_prepare_hidden_transient_window() {
+        let policy = popup_policy(false);
+
+        assert!(!policy.initially_visible);
+        assert!(!policy.initially_focused);
+        assert!(policy.always_on_top);
+        assert!(policy.skip_taskbar);
     }
 
     #[test]
@@ -361,6 +675,34 @@ mod tests {
         );
         assert!(!spec.native_options().decorations);
         assert!(!spec.drag_and_drop_enabled());
+    }
+
+    #[test]
+    fn popup_process_args_mark_prewarmed_hosts() {
+        assert_eq!(
+            popup_process_args(PopupMode::Tooltip, true),
+            vec![
+                POPUP_ARG,
+                POPUP_MODE_ARG,
+                PopupMode::Tooltip.arg(),
+                POPUP_PREWARM_ARG
+            ]
+        );
+        assert_eq!(
+            popup_process_args(PopupMode::Tooltip, false),
+            vec![POPUP_ARG, POPUP_MODE_ARG, PopupMode::Tooltip.arg()]
+        );
+    }
+
+    #[test]
+    fn popup_hosts_prepare_all_modes_without_replacing_on_selection() {
+        let mut hosts = PopupHosts::default();
+
+        prepare_popup_hosts(&mut hosts).expect("test prewarm should succeed");
+
+        assert_eq!(hosts.drag_preview.mode, Some(PopupMode::DragPreview));
+        assert_eq!(hosts.tooltip.mode, Some(PopupMode::Tooltip));
+        assert_eq!(hosts.command_palette.mode, Some(PopupMode::CommandPalette));
     }
 
     #[test]

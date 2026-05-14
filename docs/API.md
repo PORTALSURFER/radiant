@@ -150,10 +150,17 @@ requesting popup-native window policy. Use `WindowSpec::popup(...)`,
 `NativeRunOptions::popup(...)`, or `.floating_popup()` on launch builders for
 borderless transient windows such as drag previews, context menus, tooltips, and
 small floating panels that need to render outside the main application window.
+Native popup windows are revealed as soon as the window surface and initial
+Radiant scene are prepared, then the first redraw is requested immediately, so
+apps can treat one popup as an instant transient UI surface rather than a
+deferred background launch.
 `NativePopupOptions` controls the optional initial screen position,
 transparency, topmost behavior, focus-on-open behavior, resizability, taskbar
 presence, and an optional top-edge native drag region where the platform
-supports those hints. Direct
+supports those hints. Hosts that need a guaranteed instant first popup
+interaction can set `initially_visible(false)` to prewarm one hidden popup
+surface, then reveal the prepared native window on demand without rebuilding
+the GPU surface or first scene during the click. Direct
 `NativeRunOptions` launch paths can call `.validate()` before startup, and the
 native runtime returns `NativeGenericRunError::InvalidWindowOptions` instead of
 passing non-finite or non-positive geometry into the platform window layer.

@@ -14,13 +14,14 @@ mod passes;
 mod pipeline;
 mod resources;
 mod signal;
+mod stats;
 use active_keys::ActiveGpuSurfaceKeys;
 use encoding::*;
-pub(super) use gpu_surface_types::GpuSurfaceRenderStats;
 use gpu_surface_types::*;
 use passes::*;
 #[cfg(test)]
 pub(super) use pipeline::GPU_SIGNAL_SHADER;
+pub(super) use stats::GpuSurfaceRenderStats;
 
 #[derive(Default)]
 pub(super) struct GpuSurfaceRenderer {

@@ -361,6 +361,38 @@ fn composited_base_frame_cache_avoids_post_mutation_expect() {
     );
 }
 
+#[test]
+fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let module = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface.rs"),
+    )
+    .expect("GPU surface renderer module should be readable");
+    let types = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types.rs"),
+    )
+    .expect("GPU surface type bucket should be readable");
+    let stats = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/stats.rs"),
+    )
+    .expect("GPU surface stats module should be readable");
+
+    assert!(
+        module.contains("mod stats;")
+            && module.contains("pub(super) use stats::GpuSurfaceRenderStats;"),
+        "GPU surface renderer should re-export render stats from the focused stats module"
+    );
+    assert!(
+        !types.contains("struct GpuSurfaceRenderStats")
+            && stats.contains("struct GpuSurfaceRenderStats")
+            && stats.contains("atlas_texture_uploads")
+            && stats.contains("signal_body_encode_elapsed")
+            && stats.contains("composite_binding_rebuilds"),
+        "render profiling counters should stay out of resource/cache-key type definitions"
+    );
+}
+
 fn public_module_names(source: &str) -> BTreeSet<String> {
     source
         .lines()

@@ -1,0 +1,36 @@
+use super::*;
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct GpuSurfaceRenderStats {
+    pub(crate) atlas_texture_uploads: usize,
+    pub(crate) atlas_texture_cache_hits: usize,
+    pub(crate) signal_summary_builds: usize,
+    pub(crate) signal_summary_cache_hits: usize,
+    pub(crate) signal_body_renders: usize,
+    pub(crate) signal_body_cache_hits: usize,
+    pub(crate) composite_binding_rebuilds: usize,
+    pub(crate) composite_binding_cache_hits: usize,
+    pub(crate) signal_body_encode_elapsed: Duration,
+    pub(crate) composite_encode_elapsed: Duration,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn render_stats_track_composite_binding_cache_activity() {
+        let stats = GpuSurfaceRenderStats::default();
+
+        assert_eq!(stats.composite_binding_rebuilds, 0);
+        assert_eq!(stats.composite_binding_cache_hits, 0);
+    }
+
+    #[test]
+    fn render_stats_track_atlas_texture_cache_activity() {
+        let stats = GpuSurfaceRenderStats::default();
+
+        assert_eq!(stats.atlas_texture_uploads, 0);
+        assert_eq!(stats.atlas_texture_cache_hits, 0);
+    }
+}

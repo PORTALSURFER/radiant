@@ -186,7 +186,7 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             vec![
                 "SurfaceRuntime::new(",
                 "dispatch_event(Event::PointerMove",
-                "runtime.borrowed_frame(&theme)",
+                "runtime.borrowed_frame_into(&theme",
                 "paint_plan.stats()",
                 "radiant_host_surface_frame",
             ],

@@ -70,6 +70,7 @@ fn run_host_surface_frame_demo() -> HostFrameReport {
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
     let theme = ThemeTokens::default();
+    let mut paint_plan = SurfacePaintPlan::empty(&theme);
     let point = Point::new(24.0, 48.0);
 
     runtime.dispatch_event(Event::PointerMove { position: point });
@@ -81,7 +82,7 @@ fn run_host_surface_frame_demo() -> HostFrameReport {
         position: point,
         button: PointerButton::Primary,
     });
-    let frame = runtime.borrowed_frame(&theme);
+    let frame = runtime.borrowed_frame_into(&theme, &mut paint_plan);
     let stats = frame.paint_plan.stats();
 
     HostFrameReport {

@@ -256,6 +256,8 @@ fn api_docs_describe_the_structural_boundary_strategy() {
         "RuntimeBridge",
         "ThemeTokens",
         "SurfacePaintPlan",
+        "SurfaceRuntime::borrowed_frame_into(...)",
+        "reuse `SurfacePaintPlan` primitive storage",
         "SurfaceRuntime::dispatch_pointer_move_with_outcome(...)",
         "PointerMoveOutcome",
         "paint-only overlay requests",

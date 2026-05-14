@@ -31,6 +31,21 @@ pub struct RuntimeSurfaceFrame<'a> {
     pub paint_plan: SurfacePaintPlan,
 }
 
+/// Borrowed runtime frame that reuses host-owned paint-plan storage.
+///
+/// This is the lowest-allocation runtime frame view for synchronous custom
+/// hosts: both the resolved layout and backend-neutral paint plan are borrowed,
+/// while the runtime fills the caller-provided paint plan before returning.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RuntimeSurfaceFrameRef<'layout, 'paint> {
+    /// Current logical viewport rectangle.
+    pub viewport: Rect,
+    /// Borrowed resolved layout for the runtime's current surface.
+    pub layout: &'layout LayoutOutput,
+    /// Borrowed backend-neutral paint plan filled for the current layout.
+    pub paint_plan: &'paint SurfacePaintPlan,
+}
+
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
@@ -131,6 +146,24 @@ where
             viewport: self.viewport,
             layout: &self.layout,
             paint_plan: self.paint_plan(theme),
+        }
+    }
+
+    /// Fill a reusable paint plan and package borrowed frame references.
+    ///
+    /// This is the lower-allocation counterpart to [`Self::borrowed_frame`].
+    /// Use it when a host render loop can keep a `SurfacePaintPlan` scratch
+    /// buffer and render before mutating the runtime again.
+    pub fn borrowed_frame_into<'layout, 'paint>(
+        &'layout self,
+        theme: &ThemeTokens,
+        paint_plan: &'paint mut SurfacePaintPlan,
+    ) -> RuntimeSurfaceFrameRef<'layout, 'paint> {
+        self.paint_plan_into(theme, paint_plan);
+        RuntimeSurfaceFrameRef {
+            viewport: self.viewport,
+            layout: &self.layout,
+            paint_plan,
         }
     }
 

@@ -201,6 +201,37 @@ fn runtime_borrowed_frame_reuses_current_layout_without_cloning() {
 }
 
 #[test]
+fn runtime_borrowed_frame_into_reuses_layout_and_paint_plan_storage() {
+    let theme = ThemeTokens::default();
+    let bridge = declarative_runtime_bridge(
+        DemoState {
+            count: 5,
+            name: String::from("Borrowed"),
+        },
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::CanvasInput(_) => {}
+        },
+    );
+    let runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+    let mut paint_plan = SurfacePaintPlan::empty(&theme);
+    paint_plan.primitives.reserve(128);
+    let plan_ptr = std::ptr::addr_of!(paint_plan);
+    let capacity = paint_plan.primitives.capacity();
+
+    let frame: radiant::runtime::RuntimeSurfaceFrameRef<'_, '_> =
+        runtime.borrowed_frame_into(&theme, &mut paint_plan);
+
+    assert_eq!(frame.viewport, runtime.context().viewport);
+    assert!(std::ptr::eq(frame.layout, runtime.layout()));
+    assert!(std::ptr::eq(frame.paint_plan, plan_ptr));
+    assert_eq!(frame.paint_plan, &runtime.paint_plan(&theme));
+    assert_eq!(frame.paint_plan.primitives.capacity(), capacity);
+}
+
+#[test]
 fn runtime_layout_debug_options_append_red_node_border_strokes() {
     let theme = ThemeTokens::default();
     let bridge = declarative_runtime_bridge(

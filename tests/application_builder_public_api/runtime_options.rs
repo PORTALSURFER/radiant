@@ -138,6 +138,22 @@ fn native_run_options_expose_floating_popup_policy() {
 }
 
 #[test]
+fn native_run_options_expose_prewarmed_popup_policy() {
+    let popup_policy = NativePopupOptions::prewarmed_at(-32_000.0, -32_000.0);
+    let options = NativeRunOptions::prewarmed_popup("Drag Preview", -32_000.0, -32_000.0);
+
+    assert!(options.is_popup());
+    assert!(!options.decorations);
+    assert!(!options.drag_and_drop);
+    assert_eq!(options.title, "Drag Preview");
+    assert_eq!(options.popup_options(), Some(&popup_policy));
+    assert_eq!(popup_policy.position, Some([-32_000.0, -32_000.0]));
+    assert!(popup_policy.initially_visible);
+    assert!(popup_policy.hide_after_first_present);
+    assert!(!popup_policy.initially_focused);
+}
+
+#[test]
 fn native_run_options_expose_layout_debug_overlay_policy() {
     let options = NativeRunOptions {
         debug_layout: true,
@@ -219,6 +235,29 @@ fn launch_builders_expose_embedded_font_policy() {
 }
 
 #[test]
+fn launch_builders_expose_prewarmed_popup_policy() {
+    let no_state = radiant::window("Popup")
+        .prewarmed_popup(-32_000.0, -32_000.0)
+        .spec("popup");
+    let stateful = radiant::app(())
+        .title("Popup")
+        .prewarmed_popup(-32_000.0, -32_000.0);
+
+    assert_eq!(no_state.title(), "Popup");
+    assert_eq!(
+        no_state.popup_options().map(|popup| popup.position),
+        Some(Some([-32_000.0, -32_000.0]))
+    );
+    assert_eq!(
+        no_state
+            .popup_options()
+            .map(|popup| popup.hide_after_first_present),
+        Some(true)
+    );
+    let _ = stateful;
+}
+
+#[test]
 fn window_specs_describe_multiple_windows_without_opening_runtime() {
     let main = radiant::window("Main")
         .size(800, 600)
@@ -260,6 +299,26 @@ fn window_specs_describe_floating_popup_windows() {
     assert_eq!(
         popup.popup_options().and_then(|popup| popup.position),
         Some([300.0, 220.0])
+    );
+}
+
+#[test]
+fn window_specs_describe_prewarmed_popup_windows() {
+    let popup = WindowSpec::prewarmed_popup("drag-preview", "Drag Preview", -32_000.0, -32_000.0)
+        .logical_size(180.0, 64.0);
+
+    assert_eq!(popup.key, "drag-preview");
+    assert_eq!(popup.title(), "Drag Preview");
+    assert!(popup.is_popup());
+    assert_eq!(
+        popup.popup_options().map(|popup| popup.position),
+        Some(Some([-32_000.0, -32_000.0]))
+    );
+    assert_eq!(
+        popup
+            .popup_options()
+            .map(|popup| popup.hide_after_first_present),
+        Some(true)
     );
 }
 

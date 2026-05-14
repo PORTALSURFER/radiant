@@ -79,6 +79,14 @@ impl NativeRunOptions {
         }
     }
 
+    /// Return options configured for a prewarmed transient popup window.
+    ///
+    /// The popup first presents at the supplied logical screen position, hides
+    /// after that first frame, and can then be revealed by the host on demand.
+    pub fn prewarmed_popup(title: impl Into<String>, x: f32, y: f32) -> Self {
+        Self::popup(title).popup_policy(NativePopupOptions::prewarmed_at(x, y))
+    }
+
     /// Return whether these options describe a floating popup window.
     pub const fn is_popup(&self) -> bool {
         matches!(self.window_mode, NativeWindowMode::Popup(_))

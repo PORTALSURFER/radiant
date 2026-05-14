@@ -47,6 +47,19 @@ impl WindowSpec {
         Self::from_options(key, NativeRunOptions::popup(title))
     }
 
+    /// Build a prewarmed floating popup descriptor.
+    ///
+    /// The popup starts at the supplied logical screen position, presents once,
+    /// and hides itself so the host can reveal a prepared window later.
+    pub fn prewarmed_popup(
+        key: impl Into<String>,
+        title: impl Into<String>,
+        x: f32,
+        y: f32,
+    ) -> Self {
+        Self::from_options(key, NativeRunOptions::prewarmed_popup(title, x, y))
+    }
+
     /// Set the initial logical window size.
     pub fn size(self, width: u32, height: u32) -> Self {
         self.logical_size(width as f32, height as f32)

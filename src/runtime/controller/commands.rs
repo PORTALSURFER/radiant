@@ -1,6 +1,7 @@
 use super::*;
 
 mod batching;
+mod external_drag;
 mod scrolling;
 
 use batching::{take_runtime_command_batch_into, take_runtime_message_batch_into};
@@ -219,26 +220,6 @@ where
                 self.exit_requested = true;
             }
         }
-    }
-
-    /// Return whether a native external drag session is currently armed.
-    pub fn external_drag_armed(&self) -> bool {
-        self.external_drag_session.is_some()
-    }
-
-    pub(crate) fn take_external_drag_session(&mut self) -> Option<ExternalDragSession<Message>> {
-        self.external_drag_session.take()
-    }
-
-    pub(crate) fn dispatch_external_drag_result(
-        &mut self,
-        session: ExternalDragSession<Message>,
-        result: Result<ExternalDragOutcome, String>,
-    ) -> CommandOutcome {
-        let Some(map) = session.on_completed else {
-            return CommandOutcome::default();
-        };
-        self.dispatch_message(map(result))
     }
 }
 

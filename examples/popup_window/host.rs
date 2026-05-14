@@ -55,17 +55,30 @@ impl PopupHosts {
 
 impl PopupHost {
     #[cfg(not(test))]
-    fn prepare(&mut self, mode: PopupMode) -> std::result::Result<(), &'static str> {
+    fn start_prewarm(&mut self, mode: PopupMode) -> std::result::Result<(), &'static str> {
         self.reap_finished_child();
         if self.mode == Some(mode) && self.child.is_some() {
             return Ok(());
         }
 
         self.shutdown();
-        let mut child = spawn_popup_process(mode, true)?;
-        self.finish_prewarm(&mut child);
+        let child = spawn_popup_process(mode, true)?;
         self.mode = Some(mode);
         self.child = Some(child);
+        Ok(())
+    }
+
+    #[cfg(not(test))]
+    fn finish_prewarm(&mut self) {
+        if let Some(child) = self.child.as_mut() {
+            finish_prewarm_child(child);
+        }
+    }
+
+    #[cfg(not(test))]
+    fn prepare(&mut self, mode: PopupMode) -> std::result::Result<(), &'static str> {
+        self.start_prewarm(mode)?;
+        self.finish_prewarm();
         Ok(())
     }
 
@@ -118,18 +131,6 @@ impl PopupHost {
         }
     }
 
-    #[cfg(all(target_os = "windows", not(test)))]
-    fn finish_prewarm(&self, child: &mut Child) {
-        platform::wait_for_first_present_profile(child, std::time::Duration::from_secs(3));
-        let process_id = child.id();
-        let _ =
-            platform::wait_for_hidden_popup_window(process_id, std::time::Duration::from_secs(2));
-        prime_hidden_show_path(process_id);
-    }
-
-    #[cfg(all(not(target_os = "windows"), not(test)))]
-    fn finish_prewarm(&self, _child: &mut Child) {}
-
     #[cfg(not(test))]
     fn wait_until_ready(&self, timeout: std::time::Duration) -> bool {
         let Some(process_id) = self.child.as_ref().map(Child::id) else {
@@ -148,6 +149,17 @@ impl PopupHost {
         }
     }
 }
+
+#[cfg(all(target_os = "windows", not(test)))]
+fn finish_prewarm_child(child: &mut Child) {
+    platform::wait_for_first_present_profile(child, std::time::Duration::from_secs(3));
+    let process_id = child.id();
+    let _ = platform::wait_for_hidden_popup_window(process_id, std::time::Duration::from_secs(2));
+    prime_hidden_show_path(process_id);
+}
+
+#[cfg(all(not(target_os = "windows"), not(test)))]
+fn finish_prewarm_child(_child: &mut Child) {}
 
 #[cfg(all(target_os = "windows", not(test)))]
 fn prime_hidden_show_path(process_id: u32) {
@@ -205,7 +217,10 @@ fn hidden_show_prime_steps() -> [PopupPrimeStep; 9] {
 #[cfg(not(test))]
 pub(super) fn prepare_popup_hosts(hosts: &mut PopupHosts) -> std::result::Result<(), &'static str> {
     for mode in PopupMode::ALL {
-        hosts.host_mut(mode).prepare(mode)?;
+        hosts.host_mut(mode).start_prewarm(mode)?;
+    }
+    for mode in PopupMode::ALL {
+        hosts.host_mut(mode).finish_prewarm();
     }
     if !hosts.wait_until_ready(std::time::Duration::from_secs(5)) {
         return Err("popup hosts did not initialize");

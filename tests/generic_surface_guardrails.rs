@@ -337,6 +337,30 @@ fn native_vello_scene_encoder_keeps_custom_surfaces_in_focused_module() {
     );
 }
 
+#[test]
+fn composited_base_frame_cache_avoids_post_mutation_expect() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/composited_base.rs"),
+    )
+    .expect("composited base frame cache should be readable");
+    let ensure_body = source
+        .split("pub(super) fn ensure")
+        .nth(1)
+        .and_then(|tail| tail.split("fn new").next())
+        .expect("CompositedBaseFrame::ensure should be present");
+
+    assert!(
+        ensure_body.contains(".is_some_and(|frame| frame.matches(width, height, format))")
+            && ensure_body.contains("frame.insert(Self::new(device, width, height, format))"),
+        "CompositedBaseFrame::ensure should reuse matching frames and install replacements directly"
+    );
+    assert!(
+        !ensure_body.contains(".expect(") && !ensure_body.contains(".unwrap("),
+        "CompositedBaseFrame::ensure should not assert the Option state after mutating it"
+    );
+}
+
 fn public_module_names(source: &str) -> BTreeSet<String> {
     source
         .lines()

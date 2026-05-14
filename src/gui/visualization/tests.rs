@@ -1,10 +1,10 @@
 use super::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, ChannelViewMode, DragHandle, DragHandleRole,
-    PointRenderMode, SignalChromeState, SignalRasterPreview, SignalToolState, SpatialPanel,
-    SpatialPoint, TimelineCoordinateMapper, TimelineEditPreview, TimelineFeedbackEvents,
-    TimelineMarkerPreview, TimelineMotionState, TimelinePresentationState, TimelineSurfaceState,
-    TimelineTransportState, TimelineViewport, canvas_layer_at_point, drag_handle_at_point,
-    normalized_milli_point_in_rect,
+    PointRenderMode, SignalChromeState, SignalRasterPreview, SignalToolFlags, SignalToolState,
+    SpatialPanel, SpatialPoint, TimelineCoordinateMapper, TimelineEditPreview,
+    TimelineFeedbackEvents, TimelineMarkerPreview, TimelineMotionState, TimelinePresentationState,
+    TimelineSurfaceState, TimelineTransportState, TimelineViewport, canvas_layer_at_point,
+    drag_handle_at_point, normalized_milli_point_in_rect,
 };
 use crate::gui::{
     range::{NormalizedPixelSnap, NormalizedRange, NormalizedViewport},
@@ -196,7 +196,16 @@ fn signal_chrome_state_preserves_status_reference_and_channel_view() {
 
 #[test]
 fn signal_tool_state_preserves_generic_interaction_flags() {
-    let tools = SignalToolState::new(true, true, false, true, false, true, true, false);
+    let tools = SignalToolState::from_flags(SignalToolFlags {
+        lock_enabled: true,
+        alternate_preview_enabled: true,
+        primary_snap_enabled: false,
+        relative_grid_enabled: true,
+        secondary_snap_enabled: false,
+        markers_visible: true,
+        marker_mode_enabled: true,
+        batch_action_available: false,
+    });
 
     assert!(tools.lock_enabled);
     assert!(tools.alternate_preview_enabled);
@@ -356,7 +365,16 @@ fn timeline_motion_state_aggregates_surface_chrome_tools_and_transport() {
             Some(String::from("anchor")),
             ChannelViewMode::Mono,
         ),
-        SignalToolState::new(false, true, true, false, true, true, false, true),
+        SignalToolState::from_flags(SignalToolFlags {
+            lock_enabled: false,
+            alternate_preview_enabled: true,
+            primary_snap_enabled: true,
+            relative_grid_enabled: false,
+            secondary_snap_enabled: true,
+            markers_visible: true,
+            marker_mode_enabled: false,
+            batch_action_available: true,
+        }),
     );
 
     assert!(motion.transport_running);

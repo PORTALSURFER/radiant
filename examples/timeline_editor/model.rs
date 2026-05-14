@@ -2,7 +2,7 @@ use super::{LANE_COUNT, MIN_CLIP_BEATS, TOTAL_BEATS};
 use radiant::gui::{
     range::NormalizedRange,
     visualization::{
-        ChannelViewMode, SignalChromeState, SignalRasterPreview, SignalToolState,
+        ChannelViewMode, SignalChromeState, SignalRasterPreview, SignalToolFlags, SignalToolState,
         TimelineEditPreview, TimelineFeedbackEvents, TimelineMarkerPreview, TimelineMotionState,
         TimelinePresentationState, TimelineSurfaceState, TimelineTransportState, TimelineViewport,
     },
@@ -431,7 +431,16 @@ pub(super) fn timeline_surface(state: &TimelineEditorState) -> TimelineMotionSta
             Some(format!("beat {}", state.playhead_beat)),
             ChannelViewMode::Stereo,
         ),
-        SignalToolState::new(false, true, true, true, true, true, true, true),
+        SignalToolState::from_flags(SignalToolFlags {
+            lock_enabled: false,
+            alternate_preview_enabled: true,
+            primary_snap_enabled: true,
+            relative_grid_enabled: true,
+            secondary_snap_enabled: true,
+            markers_visible: true,
+            marker_mode_enabled: true,
+            batch_action_available: true,
+        }),
     )
 }
 

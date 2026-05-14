@@ -31,34 +31,56 @@ const RUNTIME_ITERATIONS: usize = 100;
 const GPU_ITERATIONS: usize = 60;
 const RUN_ALL_IN_DEBUG_ENV: &str = "RADIANT_PERF_RUN_ALL_IN_DEBUG";
 const LIST_ARG: &str = "--list";
-const PERF_SCENARIOS: &[&str] = &[
-    "layout_deep_nesting",
-    "layout_wrap_1k",
-    "layout_virtualized_10k",
-    "layout_virtualized_fixed_10k",
-    "layout_virtualized_fixed_scroll_10k",
-    "layout_mark_dirty_subtree_10k",
-    "app_virtual_list_projection_10k",
-    "app_virtual_list_projection_generated_child_ids_10k",
-    "app_virtual_selectable_list_projection_10k",
-    "app_virtual_list_window_projection_10k",
-    "runtime_surface_large_tree",
-    "runtime_text_paint_plan_1k",
-    "runtime_horizontal_scroll_paint_1k",
-    "runtime_virtualized_list_wheel_10k",
-    "runtime_virtualized_list_hover_10k",
-    "runtime_virtualized_list_stable_hover_10k",
-    "runtime_virtualized_list_hover_paint_10k",
-    "runtime_pointer_overlay_paint_10k",
-    "runtime_virtualized_nested_scroll_hover_10k",
-    "runtime_refresh_large_tree",
-    "runtime_resize_large_tree",
-    "runtime_command_flattening_512",
-    "runtime_command_drain_1k",
-    "runtime_nested_command_drain_1k",
-    "gpu_signal_summary",
-    "gpu_surface_projection",
-];
+
+macro_rules! perf_scenario_catalog {
+    ($apply:ident $($prefix:tt)*) => {
+        $apply! {
+            $($prefix)*
+            [
+            ("layout_deep_nesting", LAYOUT_ITERATIONS, layout_scenarios::deep_nesting),
+            ("layout_wrap_1k", LAYOUT_ITERATIONS, layout_scenarios::wrap_1k),
+            ("layout_virtualized_10k", LAYOUT_ITERATIONS, layout_scenarios::virtualized_10k),
+            ("layout_virtualized_fixed_10k", LAYOUT_ITERATIONS, layout_scenarios::virtualized_fixed_10k),
+            ("layout_virtualized_fixed_scroll_10k", LAYOUT_ITERATIONS, layout_scenarios::virtualized_fixed_scroll_10k),
+            ("layout_mark_dirty_subtree_10k", LAYOUT_ITERATIONS, layout_scenarios::mark_dirty_subtree_10k),
+            ("app_virtual_list_projection_10k", RUNTIME_ITERATIONS, app_projection::virtual_list_projection_10k),
+            ("app_virtual_list_projection_generated_child_ids_10k", RUNTIME_ITERATIONS, app_projection::virtual_list_projection_generated_child_ids_10k),
+            ("app_virtual_selectable_list_projection_10k", RUNTIME_ITERATIONS, app_projection::virtual_selectable_list_projection_10k),
+            ("app_virtual_list_window_projection_10k", RUNTIME_ITERATIONS, app_projection::virtual_list_window_projection_10k),
+            ("runtime_surface_large_tree", RUNTIME_ITERATIONS, runtime_scenarios::surface_large_tree),
+            ("runtime_text_paint_plan_1k", RUNTIME_ITERATIONS, runtime_scenarios::text_paint_plan_1k),
+            ("runtime_horizontal_scroll_paint_1k", RUNTIME_ITERATIONS, runtime_scenarios::horizontal_scroll_paint_1k),
+            ("runtime_virtualized_list_wheel_10k", RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_wheel_10k),
+            ("runtime_virtualized_list_hover_10k", RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_hover_10k),
+            ("runtime_virtualized_list_stable_hover_10k", RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_stable_hover_10k),
+            ("runtime_virtualized_list_hover_paint_10k", RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_hover_paint_10k),
+            ("runtime_pointer_overlay_paint_10k", RUNTIME_ITERATIONS, runtime_scenarios::pointer_overlay_paint_10k),
+            ("runtime_virtualized_nested_scroll_hover_10k", RUNTIME_ITERATIONS, runtime_scenarios::virtualized_nested_scroll_hover_10k),
+            ("runtime_refresh_large_tree", RUNTIME_ITERATIONS, runtime_scenarios::refresh_large_tree),
+            ("runtime_resize_large_tree", RUNTIME_ITERATIONS, runtime_scenarios::resize_large_tree),
+            ("runtime_command_flattening_512", RUNTIME_ITERATIONS, runtime_scenarios::command_flattening_512),
+            ("runtime_command_drain_1k", RUNTIME_ITERATIONS, command_drain::flat_command_drain),
+            ("runtime_nested_command_drain_1k", RUNTIME_ITERATIONS, command_drain::nested_command_drain),
+            ("gpu_signal_summary", GPU_ITERATIONS, || bench_gpu_signal_summary),
+            ("gpu_surface_projection", GPU_ITERATIONS, || bench_gpu_surface_projection),
+            ]
+        }
+    };
+}
+
+macro_rules! scenario_names {
+    ([$(($name:literal, $iterations:expr, $build:expr)),+ $(,)?]) => {
+        &[$($name),+]
+    };
+}
+
+macro_rules! run_registered_scenarios {
+    ($runner:ident [$(($name:literal, $iterations:expr, $build:expr)),+ $(,)?]) => {
+        $($runner.run_scenario($name, $iterations, $build);)+
+    };
+}
+
+const PERF_SCENARIOS: &[&str] = perf_scenario_catalog!(scenario_names);
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
@@ -76,132 +98,7 @@ fn main() {
     }
 
     let mut runner = ScenarioRunner::new(filters);
-    runner.run_scenario(
-        "layout_deep_nesting",
-        LAYOUT_ITERATIONS,
-        layout_scenarios::deep_nesting,
-    );
-    runner.run_scenario(
-        "layout_wrap_1k",
-        LAYOUT_ITERATIONS,
-        layout_scenarios::wrap_1k,
-    );
-    runner.run_scenario(
-        "layout_virtualized_10k",
-        LAYOUT_ITERATIONS,
-        layout_scenarios::virtualized_10k,
-    );
-    runner.run_scenario(
-        "layout_virtualized_fixed_10k",
-        LAYOUT_ITERATIONS,
-        layout_scenarios::virtualized_fixed_10k,
-    );
-    runner.run_scenario(
-        "layout_virtualized_fixed_scroll_10k",
-        LAYOUT_ITERATIONS,
-        layout_scenarios::virtualized_fixed_scroll_10k,
-    );
-    runner.run_scenario(
-        "layout_mark_dirty_subtree_10k",
-        LAYOUT_ITERATIONS,
-        layout_scenarios::mark_dirty_subtree_10k,
-    );
-    runner.run_scenario(
-        "app_virtual_list_projection_10k",
-        RUNTIME_ITERATIONS,
-        app_projection::virtual_list_projection_10k,
-    );
-    runner.run_scenario(
-        "app_virtual_list_projection_generated_child_ids_10k",
-        RUNTIME_ITERATIONS,
-        app_projection::virtual_list_projection_generated_child_ids_10k,
-    );
-    runner.run_scenario(
-        "app_virtual_selectable_list_projection_10k",
-        RUNTIME_ITERATIONS,
-        app_projection::virtual_selectable_list_projection_10k,
-    );
-    runner.run_scenario(
-        "app_virtual_list_window_projection_10k",
-        RUNTIME_ITERATIONS,
-        app_projection::virtual_list_window_projection_10k,
-    );
-    runner.run_scenario(
-        "runtime_surface_large_tree",
-        RUNTIME_ITERATIONS,
-        runtime_scenarios::surface_large_tree,
-    );
-    runner.run_scenario(
-        "runtime_text_paint_plan_1k",
-        RUNTIME_ITERATIONS,
-        runtime_scenarios::text_paint_plan_1k,
-    );
-    runner.run_scenario(
-        "runtime_horizontal_scroll_paint_1k",
-        RUNTIME_ITERATIONS,
-        runtime_scenarios::horizontal_scroll_paint_1k,
-    );
-    runner.run_scenario(
-        "runtime_virtualized_list_wheel_10k",
-        RUNTIME_ITERATIONS,
-        runtime_scenarios::virtualized_list_wheel_10k,
-    );
-    runner.run_scenario(
-        "runtime_virtualized_list_hover_10k",
-        RUNTIME_ITERATIONS,
-        runtime_scenarios::virtualized_list_hover_10k,
-    );
-    runner.run_scenario(
-        "runtime_virtualized_list_stable_hover_10k",
-        RUNTIME_ITERATIONS,
-        runtime_scenarios::virtualized_list_stable_hover_10k,
-    );
-    runner.run_scenario(
-        "runtime_virtualized_list_hover_paint_10k",
-        RUNTIME_ITERATIONS,
-        runtime_scenarios::virtualized_list_hover_paint_10k,
-    );
-    runner.run_scenario(
-        "runtime_pointer_overlay_paint_10k",
-        RUNTIME_ITERATIONS,
-        runtime_scenarios::pointer_overlay_paint_10k,
-    );
-    runner.run_scenario(
-        "runtime_virtualized_nested_scroll_hover_10k",
-        RUNTIME_ITERATIONS,
-        runtime_scenarios::virtualized_nested_scroll_hover_10k,
-    );
-    runner.run_scenario(
-        "runtime_refresh_large_tree",
-        RUNTIME_ITERATIONS,
-        runtime_scenarios::refresh_large_tree,
-    );
-    runner.run_scenario(
-        "runtime_resize_large_tree",
-        RUNTIME_ITERATIONS,
-        runtime_scenarios::resize_large_tree,
-    );
-    runner.run_scenario(
-        "runtime_command_flattening_512",
-        RUNTIME_ITERATIONS,
-        runtime_scenarios::command_flattening_512,
-    );
-    runner.run_scenario(
-        "runtime_command_drain_1k",
-        RUNTIME_ITERATIONS,
-        command_drain::flat_command_drain,
-    );
-    runner.run_scenario(
-        "runtime_nested_command_drain_1k",
-        RUNTIME_ITERATIONS,
-        command_drain::nested_command_drain,
-    );
-    runner.run_scenario("gpu_signal_summary", GPU_ITERATIONS, || {
-        bench_gpu_signal_summary
-    });
-    runner.run_scenario("gpu_surface_projection", GPU_ITERATIONS, || {
-        bench_gpu_surface_projection
-    });
+    perf_scenario_catalog!(run_registered_scenarios runner);
     runner.finish();
 }
 

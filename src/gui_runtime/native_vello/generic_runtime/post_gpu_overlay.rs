@@ -6,6 +6,7 @@ mod pipeline;
 mod target;
 mod vertex;
 
+use crate::gui::types::Rect as UiRect;
 use buffer::OverlayVertexBuffer;
 use geometry::{append_replayable_vertices, replayable_vertices_in_regions_into};
 use pipeline::PostGpuOverlayPipeline;
@@ -16,6 +17,7 @@ use vertex::{OverlayVertex, overlay_vertex_bytes};
 pub(super) struct PostGpuOverlayRenderer {
     pipeline: Option<PostGpuOverlayPipeline>,
     vertices: Vec<OverlayVertex>,
+    gpu_regions: Vec<UiRect>,
     vertex_buffer: OverlayVertexBuffer,
 }
 
@@ -27,13 +29,13 @@ impl PostGpuOverlayRenderer {
         overlay_primitives: &[crate::runtime::PaintPrimitive],
     ) {
         let suffix = geometry::replayable_suffix(primitives);
-        let gpu_regions = geometry::gpu_surface_overlay_regions(primitives);
+        geometry::gpu_surface_overlay_regions_into(primitives, &mut self.gpu_regions);
         if overlay_primitives.is_empty() {
             if let Some(suffix) = suffix {
                 replayable_vertices_in_regions_into(
                     suffix,
                     target.size,
-                    &gpu_regions,
+                    &self.gpu_regions,
                     &mut self.vertices,
                 );
             } else {
@@ -45,7 +47,7 @@ impl PostGpuOverlayRenderer {
                 geometry::append_replayable_vertices_in_regions(
                     suffix,
                     target.size,
-                    &gpu_regions,
+                    &self.gpu_regions,
                     &mut self.vertices,
                 );
             }

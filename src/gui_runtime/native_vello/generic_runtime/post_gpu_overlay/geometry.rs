@@ -12,20 +12,21 @@ pub(super) fn replayable_suffix(primitives: &[PaintPrimitive]) -> Option<&[Paint
         .and_then(|index| primitives.get(index + 1..))
 }
 
-pub(super) fn gpu_surface_overlay_regions(primitives: &[PaintPrimitive]) -> Vec<UiRect> {
-    primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::GpuSurface(surface)
-                if surface.rect.width() > 0.0
-                    && surface.rect.height() > 0.0
-                    && surface.content.is_renderable() =>
-            {
-                Some(surface.rect)
-            }
-            _ => None,
-        })
-        .collect()
+pub(super) fn gpu_surface_overlay_regions_into(
+    primitives: &[PaintPrimitive],
+    regions: &mut Vec<UiRect>,
+) {
+    regions.clear();
+    regions.extend(primitives.iter().filter_map(|primitive| match primitive {
+        PaintPrimitive::GpuSurface(surface)
+            if surface.rect.width() > 0.0
+                && surface.rect.height() > 0.0
+                && surface.content.is_renderable() =>
+        {
+            Some(surface.rect)
+        }
+        _ => None,
+    }));
 }
 
 #[cfg(test)]
@@ -245,6 +246,20 @@ mod tests {
         assert_eq!(capacity, 64);
         assert_eq!(vertices.capacity(), capacity);
         assert_eq!(vertices.len(), 6);
+    }
+
+    #[test]
+    fn gpu_surface_overlay_regions_reuse_existing_storage() {
+        let primitives = [gpu(1), fill(2), gpu(3)];
+        let mut regions = Vec::with_capacity(8);
+
+        gpu_surface_overlay_regions_into(&primitives, &mut regions);
+        let capacity = regions.capacity();
+        gpu_surface_overlay_regions_into(&[gpu(4)], &mut regions);
+
+        assert_eq!(capacity, 8);
+        assert_eq!(regions.capacity(), capacity);
+        assert_eq!(regions.len(), 1);
     }
 
     #[test]

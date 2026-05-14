@@ -280,6 +280,30 @@ fn gui_runtime_public_facade_exports_generic_runtime_entrypoints() {
     );
 }
 
+#[test]
+fn public_vector_paint_primitives_do_not_expose_vello_path_types() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source = fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/shape.rs"))
+        .expect("vector paint primitive source should be readable");
+
+    for forbidden in ["vello::kurbo", "BezPath", "pub type PaintTransform"] {
+        assert!(
+            !source.contains(forbidden),
+            "public vector paint primitives should remain backend-neutral; found `{forbidden}`"
+        );
+    }
+    for required in [
+        "pub struct PaintPath",
+        "pub enum PaintPathCommand",
+        "pub struct PaintTransform",
+    ] {
+        assert!(
+            source.contains(required),
+            "public vector paint primitives should expose backend-neutral `{required}`"
+        );
+    }
+}
+
 fn public_module_names(source: &str) -> BTreeSet<String> {
     source
         .lines()

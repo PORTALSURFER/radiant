@@ -1,0 +1,103 @@
+use super::*;
+
+impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
+where
+    Bridge: RuntimeBridge<Message>,
+{
+    /// Return the first projected widget whose laid-out bounds contain `point`.
+    pub fn widget_at(&self, point: Point) -> Option<WidgetId> {
+        self.pointer_widgets
+            .visible()
+            .iter()
+            .rev()
+            .copied()
+            .find(|widget_id| self.widget_contains_point(*widget_id, point))
+    }
+
+    pub(super) fn pointer_widget_at_for_move(&self, point: Point) -> Option<WidgetId> {
+        self.stable_hovered_widget_at(point)
+            .or_else(|| self.widget_at(point))
+    }
+
+    pub(super) fn styled_container_at(&self, point: Point) -> Option<NodeId> {
+        self.styled_containers
+            .visible()
+            .iter()
+            .rev()
+            .copied()
+            .find(|node_id| self.container_contains_point(*node_id, point))
+    }
+
+    pub(super) fn widget_clip_contains_point(&self, widget_id: WidgetId, point: Point) -> bool {
+        self.widget_clip_ancestors
+            .get(&widget_id)
+            .is_none_or(|clip_nodes| {
+                clip_nodes.as_slice().iter().all(|node_id| {
+                    self.layout
+                        .rects
+                        .get(node_id)
+                        .is_some_and(|rect| rect.contains(point))
+                })
+            })
+    }
+
+    pub(super) fn container_clip_contains_point(&self, node_id: NodeId, point: Point) -> bool {
+        self.container_clip_ancestors
+            .get(&node_id)
+            .is_none_or(|clip_nodes| {
+                clip_nodes.as_slice().iter().all(|clip_node| {
+                    self.layout
+                        .rects
+                        .get(clip_node)
+                        .is_some_and(|rect| rect.contains(point))
+                })
+            })
+    }
+
+    pub(super) fn widget_suppresses_container_hover(&self, widget_id: Option<WidgetId>) -> bool {
+        let Some(widget_id) = widget_id else {
+            return false;
+        };
+        self.container_hover_suppression.contains(&widget_id)
+    }
+
+    pub(super) fn widget_accepts_stable_pointer_move(&self, widget_id: WidgetId) -> bool {
+        self.surface_widget(widget_id)
+            .is_some_and(SurfaceWidget::accepts_pointer_move)
+    }
+
+    pub(crate) fn widget_prefers_pointer_move_paint_only(&self, widget_id: WidgetId) -> bool {
+        self.surface_widget(widget_id)
+            .is_some_and(SurfaceWidget::prefers_pointer_move_paint_only)
+    }
+
+    fn stable_hovered_widget_at(&self, point: Point) -> Option<WidgetId> {
+        let hovered = self.hovered_widget?;
+        if !self.widget_contains_point(hovered, point) {
+            return None;
+        }
+        self.pointer_widgets
+            .visible_after(hovered)
+            .iter()
+            .rev()
+            .copied()
+            .find(|widget_id| self.widget_contains_point(*widget_id, point))
+            .or(Some(hovered))
+    }
+
+    fn widget_contains_point(&self, widget_id: WidgetId, point: Point) -> bool {
+        self.layout
+            .rects
+            .get(&widget_id)
+            .is_some_and(|rect| rect.contains(point))
+            && self.widget_clip_contains_point(widget_id, point)
+    }
+
+    fn container_contains_point(&self, node_id: NodeId, point: Point) -> bool {
+        self.layout
+            .rects
+            .get(&node_id)
+            .is_some_and(|rect| rect.contains(point))
+            && self.container_clip_contains_point(node_id, point)
+    }
+}

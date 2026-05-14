@@ -9,6 +9,7 @@ mod context;
 mod events;
 mod focus;
 mod hit_order;
+mod hit_test;
 mod input;
 mod pointer;
 mod scratch;

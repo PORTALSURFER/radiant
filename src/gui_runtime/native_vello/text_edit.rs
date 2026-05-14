@@ -2,7 +2,6 @@
 
 mod boundary;
 mod layout;
-mod sanitize;
 mod state;
 
 pub(super) use layout::build_text_field_layout;

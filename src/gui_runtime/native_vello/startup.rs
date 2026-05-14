@@ -90,16 +90,6 @@ impl StartupTimingProfile {
         }
         Some("startup_exited_before_first_present")
     }
-
-    #[cfg(test)]
-    pub(super) fn did_emit_summary(&self) -> bool {
-        self.summary_emitted
-    }
-
-    #[cfg(test)]
-    pub(super) fn failure_reason_for_test(&self) -> Option<&'static str> {
-        self.failure_reason()
-    }
 }
 
 impl Drop for StartupTimingProfile {

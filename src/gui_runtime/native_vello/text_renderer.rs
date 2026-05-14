@@ -13,7 +13,9 @@ mod encoding;
 mod font;
 mod layout;
 
-use cache::{TextLayoutCache, TextLayoutProfileCounters};
+use cache::TextLayoutCache;
+#[cfg(test)]
+use cache::TextLayoutProfileCounters;
 pub(super) use encoding::{color_from_rgba, icon_from_rgba, to_kurbo_rect};
 
 #[derive(Clone, Copy, Debug)]
@@ -75,6 +77,7 @@ pub(super) struct NativeTextRenderer {
 }
 
 impl NativeTextRenderer {
+    #[cfg(test)]
     pub(super) fn new() -> Self {
         Self::with_options(&NativeTextOptions::default())
     }
@@ -148,9 +151,8 @@ impl NativeTextRenderer {
         self.layout_cache.layout_for(font, text, font_size)
     }
 
-    pub(in crate::gui_runtime::native_vello) fn take_layout_profile_counters(
-        &mut self,
-    ) -> TextLayoutProfileCounters {
+    #[cfg(test)]
+    pub(super) fn take_layout_profile_counters(&mut self) -> TextLayoutProfileCounters {
         self.layout_cache.take_profile_counters()
     }
 }

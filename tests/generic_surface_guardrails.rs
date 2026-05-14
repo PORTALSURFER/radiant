@@ -600,6 +600,24 @@ fn linear_layout_hot_path_uses_request_objects_instead_of_argument_suppressions(
     );
 }
 
+#[test]
+fn editable_tree_rows_use_named_parts_instead_of_boolean_constructor_lists() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/list/editable.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+
+    assert!(
+        source.contains("pub struct EditableTreeRowParts")
+            && source.contains("pub fn from_parts(parts: EditableTreeRowParts) -> Self"),
+        "editable tree rows should expose a named parts object for readable public construction"
+    );
+    assert!(
+        !source.contains("too_many_arguments"),
+        "editable tree rows should not hide long positional constructors behind clippy suppressions"
+    );
+}
+
 fn public_module_names(source: &str) -> BTreeSet<String> {
     source
         .lines()

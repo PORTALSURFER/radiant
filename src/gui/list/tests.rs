@@ -1,5 +1,5 @@
 use super::{
-    ColumnSummary, EditableRowKind, EditableTreeActions, EditableTreeRow,
+    ColumnSummary, EditableRowKind, EditableTreeActions, EditableTreeRow, EditableTreeRowParts,
     MaterializedVirtualListItem, VirtualGridWindow, VirtualGridWindowRequest,
     VirtualListInvalidation, VirtualListItemKey, VirtualListItemOverlay, VirtualListItemState,
     VirtualListScrollbarRequest, VirtualListStackMetrics, VirtualListWindow,
@@ -38,12 +38,24 @@ fn editable_tree_actions_default_to_unavailable() {
 
 #[test]
 fn editable_tree_row_preserves_existing_and_draft_state() {
-    let existing = EditableTreeRow::new("Root", "3 items", 0, true, false, true, true, true)
-        .with_backing_index(7);
+    let existing = EditableTreeRow::from_parts(EditableTreeRowParts {
+        depth: 0,
+        selected: true,
+        focused: false,
+        is_root: true,
+        has_children: true,
+        expanded: true,
+        ..EditableTreeRowParts::new("Root", "3 items")
+    })
+    .with_backing_index(7);
     let draft = EditableTreeRow::rename_draft(1, "Draft", "Name", None, true);
 
     assert_eq!(existing.label, "Root");
     assert_eq!(existing.detail, "3 items");
+    assert!(existing.selected);
+    assert!(existing.is_root);
+    assert!(existing.has_children);
+    assert!(existing.expanded);
     assert_eq!(existing.kind, EditableRowKind::Existing);
     assert_eq!(existing.backing_index, Some(7));
     assert_eq!(draft.kind, EditableRowKind::RenameDraft);

@@ -358,6 +358,37 @@ fn window_manifest_rejects_duplicate_window_keys() {
 }
 
 #[test]
+fn window_manifest_rejects_empty_window_keys() {
+    let empty = WindowManifest::from_specs([WindowSpec::new("", "Untitled")]);
+
+    let error = empty.expect_err("empty key should fail");
+
+    assert_eq!(
+        error,
+        WindowManifestError::InvalidSpec(WindowSpecError::InvalidKey { key: String::new() })
+    );
+    assert_eq!(
+        error.to_string(),
+        "window key '' is invalid; stable window keys must not be empty"
+    );
+
+    let whitespace = WindowManifest::from_specs([WindowSpec::new("   ", "Untitled")]);
+
+    let error = whitespace.expect_err("whitespace key should fail");
+
+    assert_eq!(
+        error,
+        WindowManifestError::InvalidSpec(WindowSpecError::InvalidKey {
+            key: String::from("   "),
+        })
+    );
+    assert_eq!(
+        error.to_string(),
+        "window key '   ' is invalid; stable window keys must not be empty"
+    );
+}
+
+#[test]
 fn window_manifest_rejects_invalid_window_geometry() {
     let invalid_size =
         WindowManifest::from_specs([WindowSpec::new("main", "Main").logical_size(f32::NAN, 480.0)]);

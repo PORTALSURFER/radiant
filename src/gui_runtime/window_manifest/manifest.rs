@@ -42,10 +42,10 @@ impl WindowManifest {
 
     /// Add one valid window spec, rejecting duplicate stable keys.
     pub fn push(&mut self, spec: WindowSpec) -> Result<(), WindowManifestError> {
+        spec.validate()?;
         if self.specs.iter().any(|existing| existing.key == spec.key) {
             return Err(WindowManifestError::DuplicateKey { key: spec.key });
         }
-        spec.validate()?;
         self.specs.push(spec);
         Ok(())
     }

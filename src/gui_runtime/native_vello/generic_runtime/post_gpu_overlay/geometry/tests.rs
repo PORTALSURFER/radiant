@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::runtime::{GpuSurfaceCapabilities, GpuSurfaceContent, PaintFillRect, PaintGpuSurface};
 use std::sync::Arc;

@@ -68,3 +68,9 @@ pub(super) fn reveal_window_after_surface_setup(options: &NativeRunOptions) -> b
 pub(super) fn reveal_window_after_first_present(_options: &NativeRunOptions) -> bool {
     false
 }
+
+pub(super) fn hide_window_after_first_present(options: &NativeRunOptions) -> bool {
+    options
+        .popup_options()
+        .is_some_and(|popup| popup.hide_after_first_present)
+}

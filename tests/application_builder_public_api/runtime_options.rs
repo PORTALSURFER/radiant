@@ -114,6 +114,7 @@ fn native_run_options_expose_floating_popup_policy() {
         .initially_focused(true)
         .skip_taskbar(false)
         .initially_visible(false)
+        .hide_after_first_present(true)
         .drag_region_height(36.0);
     let options = NativeRunOptions::popup("Drag Preview").popup_policy(popup_policy);
 
@@ -126,6 +127,12 @@ fn native_run_options_expose_floating_popup_policy() {
     assert_eq!(
         options.popup_options().map(|popup| popup.initially_visible),
         Some(false)
+    );
+    assert_eq!(
+        options
+            .popup_options()
+            .map(|popup| popup.hide_after_first_present),
+        Some(true)
     );
     assert_eq!(options.window_mode, NativeWindowMode::Popup(popup_policy));
 }

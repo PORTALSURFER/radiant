@@ -50,7 +50,8 @@ pub(in crate::gui_runtime::native_vello) use scene::{
     SurfaceSceneEncodeContext, encode_surface_paint_plan_to_scene,
 };
 use window::{
-    generic_window_attributes, reveal_window_after_first_present, reveal_window_after_surface_setup,
+    generic_window_attributes, hide_window_after_first_present, reveal_window_after_first_present,
+    reveal_window_after_surface_setup,
 };
 
 struct GenericSharedPixelBytes(Arc<[u8]>);

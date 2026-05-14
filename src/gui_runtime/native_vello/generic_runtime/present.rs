@@ -169,6 +169,11 @@ where
                 window.set_visible(true);
                 self.startup_timing.mark_window_revealed();
             }
+            if hide_window_after_first_present(&self.options)
+                && let Some(window) = self.window.as_ref()
+            {
+                window.set_visible(false);
+            }
             self.startup_timing.mark_first_presented();
             self.startup_timing.maybe_emit_summary();
         }

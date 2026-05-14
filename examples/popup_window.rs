@@ -166,7 +166,7 @@ fn popup_policy(initially_visible: bool) -> NativePopupOptions {
 
 fn popup_policy_for_launch(launch: PopupLaunch) -> NativePopupOptions {
     if launch.prewarmed {
-        popup_policy_at(POPUP_PREWARM_POSITION, true, false)
+        popup_policy_at(POPUP_PREWARM_POSITION, true, false).hide_after_first_present(true)
     } else {
         popup_policy(true)
     }
@@ -417,6 +417,7 @@ mod tests {
         });
 
         assert!(policy.initially_visible);
+        assert!(policy.hide_after_first_present);
         assert!(!policy.initially_focused);
         assert_eq!(policy.position, Some(POPUP_PREWARM_POSITION));
         assert!(policy.always_on_top);

@@ -6,6 +6,9 @@ where
 {
     pub(super) fn redraw(&mut self, event_loop: &ActiveEventLoop) {
         self.redraw_requested = false;
+        if !self.first_frame_presented {
+            self.startup_timing.mark_first_redraw_started();
+        }
         let Some(window) = self.window.clone() else {
             return;
         };
@@ -160,6 +163,12 @@ where
     fn mark_first_presented(&mut self) {
         if !self.first_frame_presented {
             self.first_frame_presented = true;
+            if reveal_window_after_first_present(&self.options)
+                && let Some(window) = self.window.as_ref()
+            {
+                window.set_visible(true);
+                self.startup_timing.mark_window_revealed();
+            }
             self.startup_timing.mark_first_presented();
             self.startup_timing.maybe_emit_summary();
         }

@@ -182,6 +182,22 @@ fn generic_native_window_uses_configured_drag_and_drop_policy() {
 }
 
 #[test]
+fn generic_native_window_reveals_regular_windows_after_surface_setup() {
+    let options = NativeRunOptions::default();
+
+    assert!(window::reveal_window_after_surface_setup(&options));
+    assert!(!window::reveal_window_after_first_present(&options));
+}
+
+#[test]
+fn generic_native_window_reveals_popups_after_first_present() {
+    let options = NativeRunOptions::popup("Drag Preview");
+
+    assert!(!window::reveal_window_after_surface_setup(&options));
+    assert!(window::reveal_window_after_first_present(&options));
+}
+
+#[test]
 fn generic_native_window_applies_floating_popup_policy() {
     let attrs = generic_window_attributes(
         &NativeRunOptions::popup("Drag Preview").popup_policy(
@@ -192,7 +208,7 @@ fn generic_native_window_applies_floating_popup_policy() {
     );
 
     assert_eq!(attrs.title, "Drag Preview");
-    assert!(attrs.visible);
+    assert!(!attrs.visible);
     assert!(!attrs.decorations);
     assert!(!attrs.resizable);
     assert!(attrs.transparent);

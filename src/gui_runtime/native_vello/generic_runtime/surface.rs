@@ -91,8 +91,10 @@ where
         self.renderer = Some(renderer);
         self.rebuild_scene();
         self.startup_timing.mark_first_scene_ready();
-        window.set_visible(true);
-        self.startup_timing.mark_window_revealed();
+        if reveal_window_after_surface_setup(&self.options) {
+            window.set_visible(true);
+            self.startup_timing.mark_window_revealed();
+        }
         self.last_redraw = Instant::now();
         self.request_redraw_if_needed();
     }

@@ -436,6 +436,37 @@ fn native_vello_scene_texture_rendering_stays_out_of_present_driver() {
     );
 }
 
+#[test]
+fn native_gpu_surface_wheel_coalescing_stays_in_focused_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let module =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/generic_runtime.rs"))
+            .expect("generic native Vello module should be readable");
+    let interaction = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface_interaction.rs"),
+    )
+    .expect("GPU surface interaction module should be readable");
+    let wheel = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface_wheel.rs"),
+    )
+    .expect("GPU surface wheel module should be readable");
+
+    assert!(
+        module.contains("mod gpu_surface_wheel;")
+            && module.contains("use gpu_surface_wheel::PendingGpuSurfaceWheel;"),
+        "generic runtime should keep pending wheel state owned by the wheel module"
+    );
+    assert!(
+        !interaction.contains("struct PendingGpuSurfaceWheel")
+            && !interaction.contains("fn flush_pending_gpu_surface_wheel")
+            && wheel.contains("struct PendingGpuSurfaceWheel")
+            && wheel.contains("fn flush_pending_gpu_surface_wheel")
+            && wheel.contains("coalesced_wheel"),
+        "wheel coalescing should stay separate from pointer hover overlay interaction"
+    );
+}
+
 fn public_module_names(source: &str) -> BTreeSet<String> {
     source
         .lines()

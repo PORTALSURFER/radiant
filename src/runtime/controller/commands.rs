@@ -335,7 +335,6 @@ where
             return None;
         }
         let visible_rows = (viewport.height().max(0.0) / row_stride).floor().max(1.0) as usize;
-        let row_index = row_index;
         let target_offset_y = if direction < 0 {
             let top_limit = row_index.saturating_sub(leading_context_rows);
             let top_limit_y = top_limit as f32 * row_stride;

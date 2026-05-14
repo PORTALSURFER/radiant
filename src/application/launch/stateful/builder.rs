@@ -1,5 +1,6 @@
-use super::{lifecycle::StatefulLifecycle, with_view::StatefulAppWithView};
+use super::with_view::StatefulAppWithView;
 use crate::{
+    application::AppBridgeLifecycle,
     application::launch::IntoView,
     gui_runtime::{EmbeddedFont, NativePopupOptions, NativeRunOptions},
 };
@@ -104,7 +105,7 @@ impl<State> StatefulAppBuilder<State> {
             state: self.state,
             options: self.options,
             project,
-            lifecycle: StatefulLifecycle::default(),
+            lifecycle: AppBridgeLifecycle::default(),
             _message: PhantomData,
             _view: PhantomData,
         }

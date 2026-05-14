@@ -1,64 +1,8 @@
 use super::StatefulAppWithView;
-use crate::application::{
-    AppAnimation, AppBridgeLifecycle, AppCloseRequested, AppFrameMessage, AppScroll, AppShortcuts,
-    AppShutdown, AppStartup, AppSubscriptions, RetainedPainter, TransientOverlayActivity,
-    TransientOverlayPainter,
-};
 use crate::{
     application::{IntoView, Subscription, UpdateContext},
     gui::{focus::FocusSurface, input::KeyPress, shortcuts::ShortcutResolution},
 };
-use std::collections::HashMap;
-
-pub(super) struct StatefulLifecycle<State, Message> {
-    pub(super) animation: Option<AppAnimation<State>>,
-    pub(super) frame_message: Option<AppFrameMessage<Message>>,
-    pub(super) subscriptions: Option<AppSubscriptions<State, Message>>,
-    pub(super) shortcuts: Option<AppShortcuts<State, Message>>,
-    pub(super) scroll: Option<AppScroll<State, Message>>,
-    pub(super) startup: Option<AppStartup<State, Message>>,
-    pub(super) shutdown: Option<AppShutdown<State>>,
-    pub(super) close_requested: Option<AppCloseRequested<State>>,
-    pub(super) retained_painters: HashMap<u64, RetainedPainter<State>>,
-    pub(super) transient_overlay_activity: Option<TransientOverlayActivity<State>>,
-    pub(super) transient_overlay: Option<TransientOverlayPainter<State>>,
-}
-
-impl<State, Message> Default for StatefulLifecycle<State, Message> {
-    fn default() -> Self {
-        Self {
-            animation: None,
-            frame_message: None,
-            subscriptions: None,
-            shortcuts: None,
-            scroll: None,
-            startup: None,
-            shutdown: None,
-            close_requested: None,
-            retained_painters: HashMap::new(),
-            transient_overlay_activity: None,
-            transient_overlay: None,
-        }
-    }
-}
-
-impl<State, Message> StatefulLifecycle<State, Message> {
-    pub(super) fn into_bridge_lifecycle(self) -> AppBridgeLifecycle<State, Message> {
-        AppBridgeLifecycle {
-            animation: self.animation,
-            frame_message: self.frame_message,
-            subscriptions: self.subscriptions,
-            shortcuts: self.shortcuts,
-            scroll: self.scroll,
-            startup: self.startup,
-            shutdown: self.shutdown,
-            close_requested: self.close_requested,
-            retained_painters: self.retained_painters,
-            transient_overlay_activity: self.transient_overlay_activity,
-            transient_overlay: self.transient_overlay,
-        }
-    }
-}
 
 impl<State, Message, Project, View> StatefulAppWithView<State, Message, Project, View>
 where

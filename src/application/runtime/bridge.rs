@@ -53,6 +53,24 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) transient_overlay: Option<TransientOverlayPainter<State>>,
 }
 
+impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
+    fn default() -> Self {
+        Self {
+            animation: None,
+            frame_message: None,
+            subscriptions: None,
+            shortcuts: None,
+            scroll: None,
+            startup: None,
+            shutdown: None,
+            close_requested: None,
+            retained_painters: HashMap::new(),
+            transient_overlay_activity: None,
+            transient_overlay: None,
+        }
+    }
+}
+
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
 where
     Project: FnMut(&mut State) -> View,

@@ -1,6 +1,5 @@
-use super::lifecycle::StatefulLifecycle;
 use crate::{
-    application::{AppBridge, Result, UpdateContext, launch::IntoView},
+    application::{AppBridge, AppBridgeLifecycle, Result, UpdateContext, launch::IntoView},
     gui_runtime::NativeRunOptions,
     runtime::{RuntimeBridge, run_native_vello_runtime},
 };
@@ -12,7 +11,7 @@ pub struct RunnableStatefulApp<State, Message, Project, Update, View> {
     pub(super) options: NativeRunOptions,
     pub(super) project: Project,
     pub(super) update: Update,
-    pub(super) lifecycle: StatefulLifecycle<State, Message>,
+    pub(super) lifecycle: AppBridgeLifecycle<State, Message>,
     pub(super) _message: PhantomData<Message>,
     pub(super) _view: PhantomData<View>,
 }
@@ -40,11 +39,6 @@ where
 
     /// Lower this app into the existing runtime bridge without opening a window.
     pub fn into_bridge(self) -> impl RuntimeBridge<Message> {
-        AppBridge::new(
-            self.state,
-            self.project,
-            self.update,
-            self.lifecycle.into_bridge_lifecycle(),
-        )
+        AppBridge::new(self.state, self.project, self.update, self.lifecycle)
     }
 }

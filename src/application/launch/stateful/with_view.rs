@@ -1,6 +1,9 @@
-use super::{lifecycle::StatefulLifecycle, runnable::RunnableStatefulApp};
+use super::runnable::RunnableStatefulApp;
 use crate::{
-    application::{AppBridge, AppUpdate, Result, StateAction, UpdateContext, launch::IntoView},
+    application::{
+        AppBridge, AppBridgeLifecycle, AppUpdate, Result, StateAction, UpdateContext,
+        launch::IntoView,
+    },
     gui_runtime::NativeRunOptions,
     runtime::{Command, RuntimeBridge, run_native_vello_runtime},
 };
@@ -11,7 +14,7 @@ pub struct StatefulAppWithView<State, Message, Project, View> {
     pub(super) state: State,
     pub(super) options: NativeRunOptions,
     pub(super) project: Project,
-    pub(super) lifecycle: StatefulLifecycle<State, Message>,
+    pub(super) lifecycle: AppBridgeLifecycle<State, Message>,
     pub(super) _message: PhantomData<Message>,
     pub(super) _view: PhantomData<View>,
 }
@@ -99,7 +102,7 @@ where
                 action.run(state);
                 context.request_repaint();
             },
-            self.lifecycle.into_bridge_lifecycle(),
+            self.lifecycle,
         )
     }
 }

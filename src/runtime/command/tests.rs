@@ -110,3 +110,15 @@ fn repaint_requests_are_detected_through_nested_batches() {
 
     assert!(command.requests_repaint());
 }
+
+#[test]
+fn paint_only_requests_are_detected_through_nested_batches() {
+    let command = Command::<()>::batch([
+        Command::request_repaint(),
+        Command::batch([Command::none(), Command::request_paint_only()]),
+    ]);
+
+    assert!(command.requests_repaint());
+    assert!(command.requests_paint_only());
+    assert!(!Command::<()>::request_repaint().requests_paint_only());
+}

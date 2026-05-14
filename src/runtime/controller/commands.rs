@@ -110,7 +110,7 @@ where
         let refresh_before = outcome.surface_refresh_requested;
         outcome.messages_dispatched += 1;
         let command = self.bridge.update(message);
-        let paint_only = command_requests_paint_only(&command);
+        let paint_only = command.requests_paint_only();
         let messages_before_command = outcome.messages_dispatched;
         self.execute_command_inner(command, outcome);
         let command_dispatched_messages = outcome.messages_dispatched > messages_before_command;
@@ -220,25 +220,6 @@ where
                 self.exit_requested = true;
             }
         }
-    }
-}
-
-fn command_requests_paint_only<Message>(command: &Command<Message>) -> bool {
-    match command {
-        Command::RequestPaintOnly => true,
-        Command::Batch(commands) => commands.iter().any(command_requests_paint_only),
-        Command::None
-        | Command::Message(_)
-        | Command::RequestRepaint
-        | Command::After { .. }
-        | Command::Perform { .. }
-        | Command::Focus(_)
-        | Command::ScrollTo { .. }
-        | Command::ScrollIntoView { .. }
-        | Command::ScrollFixedRowIntoView { .. }
-        | Command::BeginExternalDrag { .. }
-        | Command::EndExternalDrag
-        | Command::Exit => false,
     }
 }
 

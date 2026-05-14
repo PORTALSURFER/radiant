@@ -39,4 +39,24 @@ impl<Message> Command<Message> {
             | Self::Exit => false,
         }
     }
+
+    /// Return whether this command or any nested command requests paint-only redraw.
+    pub fn requests_paint_only(&self) -> bool {
+        match self {
+            Self::RequestPaintOnly => true,
+            Self::Batch(commands) => commands.iter().any(Self::requests_paint_only),
+            Self::None
+            | Self::Message(_)
+            | Self::RequestRepaint
+            | Self::After { .. }
+            | Self::Perform { .. }
+            | Self::Focus(_)
+            | Self::ScrollTo { .. }
+            | Self::ScrollIntoView { .. }
+            | Self::ScrollFixedRowIntoView { .. }
+            | Self::BeginExternalDrag { .. }
+            | Self::EndExternalDrag
+            | Self::Exit => false,
+        }
+    }
 }

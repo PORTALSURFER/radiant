@@ -1,4 +1,5 @@
 mod clip;
+mod path;
 mod plan;
 mod query;
 mod shape;
@@ -8,10 +9,11 @@ mod svg;
 mod text;
 
 pub use clip::{PaintClipEnd, PaintClipStart};
+pub use path::{PaintFillRule, PaintPath, PaintPathCommand, PaintTransform};
 pub use plan::{PaintPrimitive, Renderer, SurfacePaintPlan, TransientOverlayContext};
 pub use shape::{
-    PaintFillPath, PaintFillPolygon, PaintFillRect, PaintFillRule, PaintPath, PaintPathCommand,
-    PaintPointList, PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintTransform,
+    PaintFillPath, PaintFillPolygon, PaintFillRect, PaintPointList, PaintStrokePolygon,
+    PaintStrokePolyline, PaintStrokeRect,
 };
 pub use stats::SurfacePaintStats;
 pub use surface::{PaintCustomSurface, PaintGpuSurface, PaintImage};

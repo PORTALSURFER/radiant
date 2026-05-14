@@ -513,7 +513,9 @@ keeps layout state, debug primitives, and diagnostics available for hosts that
 need scroll offsets, virtualization state, or layout debugging.
 `SurfaceRuntime::borrowed_frame(...)` is the preferred immediate-render path for
 custom host loops because it borrows the runtime's current layout instead of
-cloning the resolved layout maps every frame. `SurfaceRuntime::frame(...)`
+cloning the resolved layout maps every frame. Hosts that render synchronously
+and keep a frame scratch buffer can call `SurfaceRuntime::borrowed_frame_into(...)`
+to reuse `SurfacePaintPlan` primitive storage as well. `SurfaceRuntime::frame(...)`
 packages the same event-driven runtime state into an owned `SurfaceFrame` for
 hosts that need to retain the frame after borrowing the runtime.
 `SurfacePaintPlan::stats()` returns `SurfacePaintStats` primitive counts for

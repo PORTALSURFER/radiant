@@ -17,7 +17,7 @@ mod scroll;
 mod state;
 
 pub use commands::CommandOutcome;
-pub use context::{RuntimeContext, RuntimeSurfaceFrame};
+pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};
 pub use events::{Event, PointerMoveOutcome};
 pub use scroll::ScrollUpdate;
 

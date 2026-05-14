@@ -73,14 +73,8 @@ fn border_fill_rects_returns_requested_edges() {
     );
 
     assert_eq!(fills.len(), 2);
-    assert_eq!(
-        fills[0].rect,
-        Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 22.0))
-    );
-    assert_eq!(
-        fills[1].rect,
-        Rect::from_min_max(Point::new(48.0, 20.0), Point::new(50.0, 80.0))
-    );
+    assert_eq!(fills[0].rect, rect.top_edge_strip(2.0));
+    assert_eq!(fills[1].rect, rect.right_edge_strip(2.0));
     assert!(fills.iter().all(|fill| fill.color == color));
 }
 

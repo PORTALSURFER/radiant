@@ -69,25 +69,25 @@ pub(super) fn for_each_border_fill_rect(
 
     if sides.top {
         emit(FillRect {
-            rect: Rect::from_min_max(rect.min, Point::new(rect.max.x, rect.min.y + stroke)),
+            rect: rect.top_edge_strip(stroke),
             color,
         });
     }
     if sides.bottom {
         emit(FillRect {
-            rect: Rect::from_min_max(Point::new(rect.min.x, rect.max.y - stroke), rect.max),
+            rect: rect.bottom_edge_strip(stroke),
             color,
         });
     }
     if sides.left {
         emit(FillRect {
-            rect: Rect::from_min_max(rect.min, Point::new(rect.min.x + stroke, rect.max.y)),
+            rect: rect.left_edge_strip(stroke),
             color,
         });
     }
     if sides.right {
         emit(FillRect {
-            rect: Rect::from_min_max(Point::new(rect.max.x - stroke, rect.min.y), rect.max),
+            rect: rect.right_edge_strip(stroke),
             color,
         });
     }

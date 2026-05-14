@@ -167,9 +167,11 @@ popup surface with `NativePopupOptions::prewarmed_at(...)`, wait until the
 runtime hides it after its first presented frame, prime the non-focusing
 show/hide path, and then park the prepared surface visible at the offscreen
 prewarm position before user input reaches the popup trigger. They can then move
-and focus the prepared native window on demand without rebuilding the GPU
+and reveal the prepared native window on demand without rebuilding the GPU
 surface, renderer, first scene, first present, first post-hide native reveal,
-first visible placement, or first native show during the click. Direct
+first visible placement, or first native show during the click. If the popup
+also needs focus, request foreground activation after the already-rendered
+surface is visible so first activation cannot delay the visual reveal. Direct
 `NativeRunOptions` launch paths can call
 `.validate()` before startup, and the native runtime returns
 `NativeGenericRunError::InvalidWindowOptions` instead of passing non-finite or

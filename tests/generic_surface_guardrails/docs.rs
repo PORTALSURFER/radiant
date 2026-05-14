@@ -280,6 +280,7 @@ fn api_docs_describe_the_structural_boundary_strategy() {
         "prime the non-focusing show/hide path",
         "park the prepared surface visible at the offscreen prewarm position",
         "first post-hide native reveal",
+        "request foreground activation after the already-rendered surface is visible",
         "first native show",
         "first presented frame",
         "InvalidationMask",

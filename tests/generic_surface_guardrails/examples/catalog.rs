@@ -110,6 +110,8 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
                 "examples/popup_window/policy.rs",
                 "hide_after_first_present",
                 "park_visible_offscreen_show_path",
+                "focus_popup_after_reveal",
+                "focus_popup_window",
                 "wait_for_visible_popup_window",
                 "PopupHosts",
             ],

@@ -144,6 +144,7 @@ where
             &self.frame.last_paint_plan.primitives,
             &mut self.frame.gpu_surface_interaction_regions,
         );
+        self.startup_timing.mark_deferred_model_refresh_done();
     }
 
     fn paint_transient_overlays(&mut self, profile: &mut RenderFrameProfile) {

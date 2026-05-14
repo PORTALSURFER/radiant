@@ -111,3 +111,29 @@ impl Drop for StartupTimingProfile {
 fn ms_between(start: Instant, end: Instant) -> f64 {
     (end - start).as_secs_f64() * 1000.0
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn startup_artifact_reports_deferred_refresh_after_first_present() {
+        let init_started_at = Instant::now();
+        let window_created_at = init_started_at + std::time::Duration::from_millis(2);
+        let first_presented_at = init_started_at + std::time::Duration::from_millis(12);
+        let deferred_done_at = init_started_at + std::time::Duration::from_millis(17);
+        let profile = StartupTimingProfile {
+            init_started_at: Some(init_started_at),
+            window_created_at: Some(window_created_at),
+            first_presented_at: Some(first_presented_at),
+            deferred_model_refresh_done_at: Some(deferred_done_at),
+            ..StartupTimingProfile::default()
+        };
+
+        let artifact = artifact::export_completed_startup_timing_artifact(&profile)
+            .expect("completed startup timing should export");
+
+        assert_eq!(artifact.deferred_model_refresh_ms, Some(5.0));
+        assert_eq!(artifact.deferred_model_refresh_total_ms, Some(17.0));
+    }
+}

@@ -5,17 +5,22 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_path_
     color: Rgba8,
     transform: PaintTransform,
     fill_rule: PaintFillRule,
-    path: &BezPath,
+    path: &PaintPath,
 ) {
+    let path = to_kurbo_path(path);
+    if path.is_empty() {
+        return;
+    }
+
     scene.fill(
         match fill_rule {
             PaintFillRule::NonZero => Fill::NonZero,
             PaintFillRule::EvenOdd => Fill::EvenOdd,
         },
-        transform,
+        Affine::new(transform.coefficients()),
         color_from_rgba(color),
         None,
-        path,
+        &path,
     );
 }
 
@@ -102,4 +107,39 @@ fn polyline_path(points: &[Point]) -> Option<BezPath> {
         path.line_to(KurboPoint::new(point.x as f64, point.y as f64));
     }
     Some(path)
+}
+
+fn to_kurbo_path(path: &PaintPath) -> BezPath {
+    let mut bezier = BezPath::new();
+    for command in path.commands() {
+        match *command {
+            PaintPathCommand::MoveTo(point) => {
+                bezier.move_to(KurboPoint::new(point.x as f64, point.y as f64));
+            }
+            PaintPathCommand::LineTo(point) => {
+                bezier.line_to(KurboPoint::new(point.x as f64, point.y as f64));
+            }
+            PaintPathCommand::QuadTo { control, to } => {
+                bezier.quad_to(
+                    KurboPoint::new(control.x as f64, control.y as f64),
+                    KurboPoint::new(to.x as f64, to.y as f64),
+                );
+            }
+            PaintPathCommand::CurveTo {
+                control1,
+                control2,
+                to,
+            } => {
+                bezier.curve_to(
+                    KurboPoint::new(control1.x as f64, control1.y as f64),
+                    KurboPoint::new(control2.x as f64, control2.y as f64),
+                    KurboPoint::new(to.x as f64, to.y as f64),
+                );
+            }
+            PaintPathCommand::Close => {
+                bezier.close_path();
+            }
+        }
+    }
+    bezier
 }

@@ -73,11 +73,12 @@ pub mod prelude {
         GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle,
         GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, NativeGenericRunError,
         NativeGenericRunReport, NativePopupOptions, NativeRunOptions, NativeRunOptionsError,
-        NativeWindowMode, PaintFillPath, PaintFillRect, PaintFillRule, PaintImage, PaintPrimitive,
-        PaintStrokeRect, PaintSvg, PaintSvgDocument, PaintTextAlign, PaintTextRun, PaintTransform,
-        ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot,
-        RuntimeRunReport, ScrollUpdate, SurfaceFrame, SurfacePaintPlan, SvgParseError,
-        TransientOverlayContext, WindowManifest, WindowManifestError, WindowSpec, WindowSpecError,
+        NativeWindowMode, PaintFillPath, PaintFillRect, PaintFillRule, PaintImage, PaintPath,
+        PaintPathCommand, PaintPrimitive, PaintStrokeRect, PaintSvg, PaintSvgDocument,
+        PaintTextAlign, PaintTextRun, PaintTransform, ResourceKey, ResourceLoad, ResourceLoadState,
+        ResourceRequest, ResourceSlot, RuntimeRunReport, ScrollUpdate, SurfaceFrame,
+        SurfacePaintPlan, SvgParseError, TransientOverlayContext, WindowManifest,
+        WindowManifestError, WindowSpec, WindowSpecError,
     };
     pub use crate::theme::ThemeTokens;
     pub use crate::widgets::{

@@ -37,8 +37,8 @@ runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `StatusLineEntry`, `ContentViewChrome`, common custom-widget authoring contracts such as
 `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`,
 `PointerButton`, `FocusBehavior`, and backend-neutral paint primitives such as
-`PaintPrimitive`, `PaintFillRect`, `PaintFillPath`, `PaintTransform`, and
-`PaintTextRun`. It also includes the geometry, layout, image, color, and theme
+`PaintPrimitive`, `PaintFillRect`, `PaintFillPath`, `PaintPathCommand`,
+`PaintTransform`, and `PaintTextRun`. It also includes the geometry, layout, image, color, and theme
 types needed in widget method signatures, including `Rect`, `Point`, `Vector2`,
 `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, and `ThemeTokens`, plus
 app-facing asset helpers such as `SvgIcon`, plus the builder types needed by method chains. These

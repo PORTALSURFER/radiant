@@ -10,8 +10,8 @@ mod text;
 pub use clip::{PaintClipEnd, PaintClipStart};
 pub use plan::{PaintPrimitive, Renderer, SurfacePaintPlan, TransientOverlayContext};
 pub use shape::{
-    PaintFillPath, PaintFillPolygon, PaintFillRect, PaintFillRule, PaintPath, PaintPointList,
-    PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintTransform,
+    PaintFillPath, PaintFillPolygon, PaintFillRect, PaintFillRule, PaintPath, PaintPathCommand,
+    PaintPointList, PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintTransform,
 };
 pub use stats::SurfacePaintStats;
 pub use surface::{PaintCustomSurface, PaintGpuSurface, PaintImage};

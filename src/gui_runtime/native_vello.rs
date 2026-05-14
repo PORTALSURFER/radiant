@@ -9,8 +9,8 @@ use crate::gui::{
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
 use crate::runtime::{
-    PaintFillRule, PaintPrimitive, PaintSvg, PaintTextAlign, PaintTextInput, PaintTransform,
-    RuntimeBridge,
+    PaintFillRule, PaintPath, PaintPathCommand, PaintPrimitive, PaintSvg, PaintTextAlign,
+    PaintTextInput, PaintTransform, RuntimeBridge,
 };
 use crate::widgets::{RetainedSurfaceDescriptor, TextEditCommand, WidgetKey};
 use std::{

@@ -11,6 +11,7 @@ mod frame_state;
 mod gpu_surface;
 mod gpu_surface_cursor;
 mod gpu_surface_interaction;
+mod gpu_surface_wheel;
 mod input;
 mod keyboard;
 mod lifecycle;
@@ -34,7 +35,7 @@ pub(in crate::gui_runtime::native_vello) use core::{GenericNativeRuntimeCore, Po
 use frame_cadence::{TimedFrameCadence, timed_frame_cadence, timed_frame_target_fps};
 use frame_state::NativeVelloFrameState;
 use gpu_surface::GpuSurfaceRenderer;
-use gpu_surface_interaction::PendingGpuSurfaceWheel;
+use gpu_surface_wheel::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
 use popup_drag::should_start_popup_window_drag;
 use post_gpu_overlay::PostGpuOverlayRenderer;

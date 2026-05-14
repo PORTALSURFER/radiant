@@ -108,14 +108,30 @@ pub(super) fn append_runtime_timeline_overlay(
             }
         }
         Some(TimelineDrag::MovingClip {
-            clip_id,
+            clip_name,
+            source_lane,
             current_lane,
             current_start,
             duration,
             ..
         }) => {
-            if let Some(clip) = widget.clips.iter().find(|clip| clip.id == clip_id) {
-                paint_clip_preview(
+            paint_clip_preview(
+                primitives,
+                widget.common.id,
+                geometry.clip_rect_for_range(
+                    current_lane,
+                    BeatRange {
+                        start: current_start,
+                        end: current_start + duration,
+                    },
+                ),
+                clip_name,
+                preview_fill(clip_fill_for_lane(current_lane, theme)),
+                theme,
+                true,
+            );
+            if source_lane != current_lane {
+                paint_lane_transfer_marker(
                     primitives,
                     widget.common.id,
                     geometry.clip_rect_for_range(
@@ -125,29 +141,25 @@ pub(super) fn append_runtime_timeline_overlay(
                             end: current_start + duration,
                         },
                     ),
-                    clip.name,
-                    preview_fill(clip_fill_for_lane(current_lane, theme)),
                     theme,
-                    true,
                 );
             }
         }
         Some(TimelineDrag::ResizingClip {
-            clip_id,
+            clip_name,
+            source_lane,
             current_range,
             ..
         }) => {
-            if let Some(clip) = widget.clips.iter().find(|clip| clip.id == clip_id) {
-                paint_clip_preview(
-                    primitives,
-                    widget.common.id,
-                    geometry.clip_rect_for_range(clip.lane, current_range),
-                    clip.name,
-                    preview_fill(clip_fill_for_lane(clip.lane, theme)),
-                    theme,
-                    true,
-                );
-            }
+            paint_clip_preview(
+                primitives,
+                widget.common.id,
+                geometry.clip_rect_for_range(source_lane, current_range),
+                clip_name,
+                preview_fill(clip_fill_for_lane(source_lane, theme)),
+                theme,
+                true,
+            );
         }
         None => {}
     }
@@ -192,6 +204,20 @@ fn paint_clip_preview(
     if handles {
         push_resize_handles(primitives, widget_id, rect, theme.text_primary);
     }
+}
+
+fn paint_lane_transfer_marker(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    rect: Rect,
+    theme: &ThemeTokens,
+) {
+    push_rect(
+        primitives,
+        widget_id,
+        rect.top_edge_strip(3.0),
+        theme.highlight_orange,
+    );
 }
 
 fn clip_fill_for_lane(lane: usize, theme: &ThemeTokens) -> radiant::gui::types::Rgba8 {

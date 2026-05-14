@@ -173,6 +173,9 @@ fn prime_hidden_show_step(process_id: u32, step: PopupPrimeStep) -> bool {
             process_id,
             std::time::Duration::from_millis(250),
         ),
+        PopupPrimeStep::MoveToRevealPosition => {
+            platform::move_popup_window(process_id, POPUP_POSITION)
+        }
     }
 }
 
@@ -182,9 +185,10 @@ enum PopupPrimeStep {
     WaitVisible,
     Hide,
     WaitHidden,
+    MoveToRevealPosition,
 }
 
-fn hidden_show_prime_steps() -> [PopupPrimeStep; 8] {
+fn hidden_show_prime_steps() -> [PopupPrimeStep; 9] {
     [
         PopupPrimeStep::Show { focus: false },
         PopupPrimeStep::WaitVisible,
@@ -194,6 +198,7 @@ fn hidden_show_prime_steps() -> [PopupPrimeStep; 8] {
         PopupPrimeStep::WaitVisible,
         PopupPrimeStep::Hide,
         PopupPrimeStep::WaitHidden,
+        PopupPrimeStep::MoveToRevealPosition,
     ]
 }
 
@@ -302,6 +307,7 @@ mod tests {
                 PopupPrimeStep::WaitVisible,
                 PopupPrimeStep::Hide,
                 PopupPrimeStep::WaitHidden,
+                PopupPrimeStep::MoveToRevealPosition,
             ]
         );
     }

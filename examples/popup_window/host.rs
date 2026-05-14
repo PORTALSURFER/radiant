@@ -151,14 +151,50 @@ impl PopupHost {
 
 #[cfg(all(target_os = "windows", not(test)))]
 fn prime_hidden_show_path(process_id: u32) {
-    if !platform::show_popup_window(process_id, POPUP_PREWARM_POSITION, false) {
-        return;
+    for step in hidden_show_prime_steps() {
+        if !prime_hidden_show_step(process_id, step) {
+            return;
+        }
     }
-    let _ =
-        platform::wait_for_visible_popup_window(process_id, std::time::Duration::from_millis(250));
-    let _ = platform::hide_popup_window(process_id);
-    let _ =
-        platform::wait_for_hidden_popup_window(process_id, std::time::Duration::from_millis(250));
+}
+
+#[cfg(all(target_os = "windows", not(test)))]
+fn prime_hidden_show_step(process_id: u32, step: PopupPrimeStep) -> bool {
+    match step {
+        PopupPrimeStep::Show { focus } => {
+            platform::show_popup_window(process_id, POPUP_PREWARM_POSITION, focus)
+        }
+        PopupPrimeStep::WaitVisible => platform::wait_for_visible_popup_window(
+            process_id,
+            std::time::Duration::from_millis(250),
+        ),
+        PopupPrimeStep::Hide => platform::hide_popup_window(process_id),
+        PopupPrimeStep::WaitHidden => platform::wait_for_hidden_popup_window(
+            process_id,
+            std::time::Duration::from_millis(250),
+        ),
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PopupPrimeStep {
+    Show { focus: bool },
+    WaitVisible,
+    Hide,
+    WaitHidden,
+}
+
+fn hidden_show_prime_steps() -> [PopupPrimeStep; 8] {
+    [
+        PopupPrimeStep::Show { focus: false },
+        PopupPrimeStep::WaitVisible,
+        PopupPrimeStep::Hide,
+        PopupPrimeStep::WaitHidden,
+        PopupPrimeStep::Show { focus: true },
+        PopupPrimeStep::WaitVisible,
+        PopupPrimeStep::Hide,
+        PopupPrimeStep::WaitHidden,
+    ]
 }
 
 #[cfg(not(test))]
@@ -251,5 +287,22 @@ mod tests {
         assert_eq!(hosts.drag_preview.mode, Some(PopupMode::DragPreview));
         assert_eq!(hosts.tooltip.mode, Some(PopupMode::Tooltip));
         assert_eq!(hosts.command_palette.mode, Some(PopupMode::CommandPalette));
+    }
+
+    #[test]
+    fn hidden_show_prime_steps_include_focused_open_path() {
+        assert_eq!(
+            hidden_show_prime_steps(),
+            [
+                PopupPrimeStep::Show { focus: false },
+                PopupPrimeStep::WaitVisible,
+                PopupPrimeStep::Hide,
+                PopupPrimeStep::WaitHidden,
+                PopupPrimeStep::Show { focus: true },
+                PopupPrimeStep::WaitVisible,
+                PopupPrimeStep::Hide,
+                PopupPrimeStep::WaitHidden,
+            ]
+        );
     }
 }

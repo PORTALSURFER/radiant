@@ -99,6 +99,8 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
                 "PopupMessage::Close",
                 "popup_view(",
                 "examples/popup_window/host.rs",
+                "examples/popup_window/platform.rs",
+                "hide_after_first_present",
                 "PopupHosts",
             ],
         ),

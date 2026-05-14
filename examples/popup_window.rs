@@ -8,69 +8,23 @@
 //! surface.
 
 use radiant::prelude::*;
-use std::env;
 
 #[path = "popup_window/host.rs"]
 mod host;
+#[path = "popup_window/model.rs"]
+mod model;
+#[path = "popup_window/policy.rs"]
+mod policy;
 
 use host::{PopupHosts, hide_current_popup_window, open_popup_host, prepare_popup_hosts};
-
-const POPUP_ARG: &str = "--popup";
-const POPUP_MODE_ARG: &str = "--popup-mode";
-const POPUP_PREWARM_ARG: &str = "--popup-prewarm";
-const POPUP_POSITION: [f32; 2] = [460.0, 280.0];
-const POPUP_PREWARM_POSITION: [f32; 2] = [-20_000.0, -20_000.0];
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum PopupMode {
-    DragPreview,
-    Tooltip,
-    CommandPalette,
-}
-
-impl PopupMode {
-    const ALL: [Self; 3] = [Self::DragPreview, Self::Tooltip, Self::CommandPalette];
-
-    fn arg(self) -> &'static str {
-        match self {
-            Self::DragPreview => "drag-preview",
-            Self::Tooltip => "tooltip",
-            Self::CommandPalette => "command-palette",
-        }
-    }
-
-    fn from_arg(value: &str) -> Self {
-        match value {
-            "tooltip" => Self::Tooltip,
-            "command-palette" => Self::CommandPalette,
-            _ => Self::DragPreview,
-        }
-    }
-
-    fn label(self) -> &'static str {
-        match self {
-            Self::DragPreview => "Drag preview",
-            Self::Tooltip => "Tooltip",
-            Self::CommandPalette => "Command palette",
-        }
-    }
-
-    fn detail(self) -> &'static str {
-        match self {
-            Self::DragPreview => "Audio Clip 04 is being dragged outside the main window.",
-            Self::Tooltip => "Transient help can use the same borderless popup surface.",
-            Self::CommandPalette => "Popup windows can host focused command surfaces too.",
-        }
-    }
-
-    fn badge(self) -> &'static str {
-        match self {
-            Self::DragPreview => "Dragging",
-            Self::Tooltip => "Hint",
-            Self::CommandPalette => "Commands",
-        }
-    }
-}
+#[cfg(test)]
+use model::{POPUP_POSITION, POPUP_PREWARM_POSITION, PopupLaunch};
+use model::{PopupMode, popup_launch_from_args};
+#[cfg(test)]
+use policy::popup_policy;
+use policy::popup_policy_for_launch;
+#[cfg(test)]
+use policy::popup_spec;
 
 struct LauncherState {
     selected_mode: PopupMode,
@@ -158,40 +112,6 @@ fn run_popup_window() -> radiant::Result {
     .view(popup_view)
     .update_with(update_popup)
     .run()
-}
-
-fn popup_policy(initially_visible: bool) -> NativePopupOptions {
-    popup_policy_at(POPUP_POSITION, initially_visible, initially_visible)
-}
-
-fn popup_policy_for_launch(launch: PopupLaunch) -> NativePopupOptions {
-    if launch.prewarmed {
-        popup_policy_at(POPUP_PREWARM_POSITION, true, false).hide_after_first_present(true)
-    } else {
-        popup_policy(true)
-    }
-}
-
-fn popup_policy_at(
-    position: [f32; 2],
-    initially_visible: bool,
-    initially_focused: bool,
-) -> NativePopupOptions {
-    NativePopupOptions::default()
-        .position(position[0], position[1])
-        .transparent(true)
-        .always_on_top(true)
-        .initially_focused(initially_focused)
-        .skip_taskbar(true)
-        .initially_visible(initially_visible)
-        .drag_region_height(38.0)
-}
-
-#[cfg(test)]
-fn popup_spec() -> WindowSpec {
-    WindowSpec::popup("workflow-popup", "Radiant Floating Popup")
-        .logical_size(340.0, 156.0)
-        .popup_policy(popup_policy(true))
 }
 
 fn launcher_view(state: &mut LauncherState) -> View<LauncherMessage> {
@@ -354,40 +274,6 @@ fn update_popup(
             }
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct PopupLaunch {
-    mode: PopupMode,
-    prewarmed: bool,
-}
-
-impl Default for PopupLaunch {
-    fn default() -> Self {
-        Self {
-            mode: PopupMode::DragPreview,
-            prewarmed: false,
-        }
-    }
-}
-
-fn popup_launch_from_args() -> Option<PopupLaunch> {
-    let mut args = env::args().skip(1);
-    let mut popup = false;
-    let mut prewarmed = false;
-    let mut mode = PopupMode::DragPreview;
-    while let Some(arg) = args.next() {
-        if arg == POPUP_ARG {
-            popup = true;
-        } else if arg == POPUP_PREWARM_ARG {
-            prewarmed = true;
-        } else if arg == POPUP_MODE_ARG
-            && let Some(value) = args.next()
-        {
-            mode = PopupMode::from_arg(value.as_str());
-        }
-    }
-    popup.then_some(PopupLaunch { mode, prewarmed })
 }
 
 #[cfg(test)]

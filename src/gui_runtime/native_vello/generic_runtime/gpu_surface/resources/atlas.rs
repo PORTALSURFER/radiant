@@ -12,7 +12,7 @@ impl GpuSurfaceRenderer {
             return;
         };
         if self.textures.get(&surface.key).is_some_and(|texture| {
-            texture.matches_atlas(surface.revision, atlas.width, atlas.height)
+            texture.matches_atlas(device, surface.revision, atlas.width, atlas.height)
         }) {
             stats.atlas_texture_cache_hits += 1;
             return;
@@ -55,6 +55,7 @@ impl GpuSurfaceRenderer {
         self.textures.insert(
             surface.key,
             GpuSurfaceTexture {
+                device: wgpu_device_id(device),
                 revision: surface.revision,
                 width: atlas.width,
                 height: atlas.height,

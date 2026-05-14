@@ -1,5 +1,6 @@
 //! Native GPU renderer for retained generic GPU-surface paint primitives.
 
+use super::device::{wgpu_device_id, wgpu_target_matches};
 use super::*;
 use crate::runtime::{
     GpuSignalSummary, GpuSignalSummaryBucket, GpuSurfaceContent, GpuSurfaceOverlay,

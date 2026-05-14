@@ -14,11 +14,12 @@ impl GpuSurfacePipeline {
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
     ) -> bool {
-        pipeline_matches_target(self.device, self.format, device_id(device), format)
+        wgpu_target_matches(self.device, self.format, device, format)
     }
 }
 
 pub(super) struct GpuSurfaceTexture {
+    pub(super) device: usize,
     pub(super) revision: u64,
     pub(super) width: usize,
     pub(super) height: usize,
@@ -27,27 +28,43 @@ pub(super) struct GpuSurfaceTexture {
 }
 
 impl GpuSurfaceTexture {
-    pub(super) fn matches_atlas(&self, revision: u64, width: usize, height: usize) -> bool {
+    pub(super) fn matches_atlas(
+        &self,
+        device: &wgpu::Device,
+        revision: u64,
+        width: usize,
+        height: usize,
+    ) -> bool {
         atlas_texture_matches_descriptor(
-            self.revision,
-            self.width,
-            self.height,
-            revision,
-            width,
-            height,
+            AtlasTextureDescriptor {
+                device: self.device,
+                revision: self.revision,
+                width: self.width,
+                height: self.height,
+            },
+            AtlasTextureDescriptor {
+                device: wgpu_device_id(device),
+                revision,
+                width,
+                height,
+            },
         )
     }
 }
 
-fn atlas_texture_matches_descriptor(
-    stored_revision: u64,
-    stored_width: usize,
-    stored_height: usize,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct AtlasTextureDescriptor {
+    device: usize,
     revision: u64,
     width: usize,
     height: usize,
+}
+
+fn atlas_texture_matches_descriptor(
+    stored: AtlasTextureDescriptor,
+    target: AtlasTextureDescriptor,
 ) -> bool {
-    stored_revision == revision && stored_width == width && stored_height == height
+    stored == target
 }
 
 pub(super) struct GpuSurfaceCompositeBinding {
@@ -85,7 +102,7 @@ impl SignalPipeline {
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
     ) -> bool {
-        pipeline_matches_target(self.device, self.format, device_id(device), format)
+        wgpu_target_matches(self.device, self.format, device, format)
     }
 }
 
@@ -124,9 +141,25 @@ pub(super) struct CachedSignalSummary {
 }
 
 pub(super) struct SignalBodyTexture {
+    pub(super) device: usize,
     pub(super) cache_key: SignalBodyCacheKey,
     pub(super) _texture: wgpu::Texture,
     pub(super) view: wgpu::TextureView,
+}
+
+impl SignalBodyTexture {
+    pub(super) fn matches_body(
+        &self,
+        device: &wgpu::Device,
+        cache_key: SignalBodyCacheKey,
+    ) -> bool {
+        signal_body_matches_key(
+            self.device,
+            self.cache_key,
+            wgpu_device_id(device),
+            cache_key,
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -169,17 +202,13 @@ impl SignalBodyCacheKey {
 
 const GPU_SIGNAL_STYLE_REVISION: u32 = 1;
 
-pub(super) fn device_id(device: &wgpu::Device) -> usize {
-    device as *const wgpu::Device as usize
-}
-
-fn pipeline_matches_target(
+fn signal_body_matches_key(
     cached_device: usize,
-    cached_format: wgpu::TextureFormat,
+    cached_key: SignalBodyCacheKey,
     target_device: usize,
-    target_format: wgpu::TextureFormat,
+    target_key: SignalBodyCacheKey,
 ) -> bool {
-    cached_device == target_device && cached_format == target_format
+    cached_device == target_device && cached_key == target_key
 }
 
 #[repr(C)]
@@ -249,23 +278,62 @@ mod tests {
     }
 
     #[test]
-    fn atlas_texture_identity_tracks_revision_and_dimensions() {
-        assert!(atlas_texture_matches_descriptor(7, 64, 32, 7, 64, 32));
-        assert!(!atlas_texture_matches_descriptor(7, 64, 32, 8, 64, 32));
-        assert!(!atlas_texture_matches_descriptor(7, 64, 32, 7, 65, 32));
-        assert!(!atlas_texture_matches_descriptor(7, 64, 32, 7, 64, 33));
+    fn atlas_texture_identity_tracks_device_revision_and_dimensions() {
+        let descriptor = AtlasTextureDescriptor {
+            device: 7,
+            revision: 8,
+            width: 64,
+            height: 32,
+        };
+        assert!(atlas_texture_matches_descriptor(descriptor, descriptor));
+        assert!(!atlas_texture_matches_descriptor(
+            descriptor,
+            AtlasTextureDescriptor {
+                device: 6,
+                ..descriptor
+            }
+        ));
+        assert!(!atlas_texture_matches_descriptor(
+            descriptor,
+            AtlasTextureDescriptor {
+                revision: 9,
+                ..descriptor
+            }
+        ));
+        assert!(!atlas_texture_matches_descriptor(
+            descriptor,
+            AtlasTextureDescriptor {
+                width: 65,
+                ..descriptor
+            }
+        ));
+        assert!(!atlas_texture_matches_descriptor(
+            descriptor,
+            AtlasTextureDescriptor {
+                height: 33,
+                ..descriptor
+            }
+        ));
     }
 
     #[test]
-    fn pipeline_cache_key_tracks_device_and_format() {
-        let format = wgpu::TextureFormat::Bgra8UnormSrgb;
-        assert!(pipeline_matches_target(7, format, 7, format));
-        assert!(!pipeline_matches_target(7, format, 8, format));
-        assert!(!pipeline_matches_target(
-            7,
-            format,
-            7,
-            wgpu::TextureFormat::Rgba8UnormSrgb
-        ));
+    fn signal_body_texture_identity_tracks_device_and_body_key() {
+        let key = SignalBodyCacheKey {
+            revision: 1,
+            width: 64,
+            height: 32,
+            frame_start_bits: 0.0f32.to_bits(),
+            frame_end_bits: 1.0f32.to_bits(),
+            frames: 128,
+            band_count: 2,
+            sample_count: 256,
+            level_index: 0,
+            style_revision: 1,
+        };
+        let next_key = SignalBodyCacheKey { revision: 2, ..key };
+
+        assert!(signal_body_matches_key(7, key, 7, key));
+        assert!(!signal_body_matches_key(7, key, 8, key));
+        assert!(!signal_body_matches_key(7, key, 7, next_key));
     }
 }

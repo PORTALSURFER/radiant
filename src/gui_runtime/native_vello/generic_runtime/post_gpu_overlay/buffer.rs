@@ -1,4 +1,5 @@
 use super::target::PostGpuOverlayRenderTarget;
+use crate::gui_runtime::native_vello::generic_runtime::device::wgpu_device_id;
 use crate::gui_runtime::native_vello::wgpu;
 
 #[derive(Default)]
@@ -15,7 +16,7 @@ impl OverlayVertexBuffer {
         vertex_bytes: &[u8],
     ) -> &wgpu::Buffer {
         let required_capacity = vertex_buffer_capacity_for(vertex_bytes.len());
-        let device_id = target.device as *const wgpu::Device as usize;
+        let device_id = wgpu_device_id(target.device);
         if self.needs_buffer(required_capacity, device_id) {
             self.buffer = Some(target.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("radiant_post_gpu_overlay_vertices"),

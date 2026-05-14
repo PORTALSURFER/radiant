@@ -80,7 +80,7 @@ impl GpuSurfacePipeline {
         });
         Self {
             format,
-            device: device_id(device),
+            device: wgpu_device_id(device),
             bind_group_layout,
             pipeline,
             sampler,
@@ -154,7 +154,7 @@ impl SignalPipeline {
         });
         Self {
             format,
-            device: device_id(device),
+            device: wgpu_device_id(device),
             bind_group_layout,
             pipeline,
         }

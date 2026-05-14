@@ -6,6 +6,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) struct CompositedBaseF
     width: u32,
     height: u32,
     format: wgpu::TextureFormat,
+    device: usize,
 }
 
 impl CompositedBaseFrame {
@@ -18,7 +19,7 @@ impl CompositedBaseFrame {
     ) -> (&'a mut Self, bool) {
         if frame
             .as_ref()
-            .is_some_and(|frame| frame.matches(width, height, format))
+            .is_some_and(|frame| frame.matches(device, width, height, format))
             && let Some(existing) = frame
         {
             return (existing, false);
@@ -50,30 +51,47 @@ impl CompositedBaseFrame {
             width: width.max(1),
             height: height.max(1),
             format,
+            device: wgpu_device_id(device),
         }
     }
 
-    fn matches(&self, width: u32, height: u32, format: wgpu::TextureFormat) -> bool {
+    fn matches(
+        &self,
+        device: &wgpu::Device,
+        width: u32,
+        height: u32,
+        format: wgpu::TextureFormat,
+    ) -> bool {
         composited_base_frame_matches_descriptor(
-            self.width,
-            self.height,
-            self.format,
-            width,
-            height,
-            format,
+            CompositedBaseFrameDescriptor {
+                device: self.device,
+                width: self.width,
+                height: self.height,
+                format: self.format,
+            },
+            CompositedBaseFrameDescriptor {
+                device: wgpu_device_id(device),
+                width: width.max(1),
+                height: height.max(1),
+                format,
+            },
         )
     }
 }
 
-fn composited_base_frame_matches_descriptor(
-    stored_width: u32,
-    stored_height: u32,
-    stored_format: wgpu::TextureFormat,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct CompositedBaseFrameDescriptor {
+    device: usize,
     width: u32,
     height: u32,
     format: wgpu::TextureFormat,
+}
+
+fn composited_base_frame_matches_descriptor(
+    stored: CompositedBaseFrameDescriptor,
+    target: CompositedBaseFrameDescriptor,
 ) -> bool {
-    stored_width == width.max(1) && stored_height == height.max(1) && stored_format == format
+    stored == target
 }
 
 #[cfg(test)]
@@ -82,29 +100,35 @@ mod tests {
 
     #[test]
     fn composited_base_frame_matches_surface_descriptor() {
+        let descriptor = CompositedBaseFrameDescriptor {
+            device: 7,
+            width: 640,
+            height: 360,
+            format: wgpu::TextureFormat::Bgra8Unorm,
+        };
         assert!(composited_base_frame_matches_descriptor(
-            640,
-            360,
-            wgpu::TextureFormat::Bgra8Unorm,
-            640,
-            360,
-            wgpu::TextureFormat::Bgra8Unorm
+            descriptor, descriptor
         ));
         assert!(!composited_base_frame_matches_descriptor(
-            640,
-            360,
-            wgpu::TextureFormat::Bgra8Unorm,
-            641,
-            360,
-            wgpu::TextureFormat::Bgra8Unorm
+            descriptor,
+            CompositedBaseFrameDescriptor {
+                device: 8,
+                ..descriptor
+            }
         ));
         assert!(!composited_base_frame_matches_descriptor(
-            640,
-            360,
-            wgpu::TextureFormat::Bgra8Unorm,
-            640,
-            360,
-            wgpu::TextureFormat::Rgba8Unorm
+            descriptor,
+            CompositedBaseFrameDescriptor {
+                width: 641,
+                ..descriptor
+            }
+        ));
+        assert!(!composited_base_frame_matches_descriptor(
+            descriptor,
+            CompositedBaseFrameDescriptor {
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                ..descriptor
+            }
         ));
     }
 }

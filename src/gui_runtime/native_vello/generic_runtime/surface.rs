@@ -106,6 +106,9 @@ where
         if let (Some(render_ctx), Some(surface)) =
             (self.render_ctx.as_ref(), self.render_surface.as_mut())
         {
+            if !surface_size_changed(surface.config.width, surface.config.height, size) {
+                return;
+            }
             render_ctx.resize_surface(surface, size.width, size.height);
             self.core
                 .set_viewport(Vector2::new(size.width as f32, size.height as f32));
@@ -113,6 +116,14 @@ where
             self.request_redraw_if_needed();
         }
     }
+}
+
+fn surface_size_changed(
+    current_width: u32,
+    current_height: u32,
+    next: winit::dpi::PhysicalSize<u32>,
+) -> bool {
+    current_width != next.width || current_height != next.height
 }
 
 fn render_context_for_options(options: &NativeRunOptions) -> RenderContext {
@@ -145,7 +156,8 @@ fn wgpu_backends(backend: NativeGpuBackend) -> Option<wgpu::Backends> {
 
 #[cfg(test)]
 mod backend_policy_tests {
-    use super::{NativeGpuBackend, wgpu, wgpu_backends};
+    use super::{NativeGpuBackend, surface_size_changed, wgpu, wgpu_backends};
+    use winit::dpi::PhysicalSize;
 
     #[test]
     fn native_gpu_backend_policy_maps_to_wgpu_backends() {
@@ -162,5 +174,12 @@ mod backend_policy_tests {
             wgpu_backends(NativeGpuBackend::Vulkan),
             Some(wgpu::Backends::VULKAN)
         );
+    }
+
+    #[test]
+    fn native_surface_resize_detects_only_real_physical_size_changes() {
+        assert!(!surface_size_changed(640, 480, PhysicalSize::new(640, 480)));
+        assert!(surface_size_changed(640, 480, PhysicalSize::new(800, 480)));
+        assert!(surface_size_changed(640, 480, PhysicalSize::new(640, 600)));
     }
 }

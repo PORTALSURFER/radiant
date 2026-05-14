@@ -13,7 +13,7 @@ impl GpuSurfaceRenderer {
         if let Some(body) = self
             .signal_bodies
             .get(&key)
-            .filter(|body| body.cache_key == body_key)
+            .filter(|body| body.matches_body(device, body_key))
         {
             stats.signal_body_cache_hits += 1;
             return Some(body.view.clone());
@@ -48,6 +48,7 @@ impl GpuSurfaceRenderer {
         self.signal_bodies.insert(
             key,
             SignalBodyTexture {
+                device: wgpu_device_id(device),
                 cache_key: body_key,
                 _texture: texture,
                 view,

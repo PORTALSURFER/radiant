@@ -1,5 +1,6 @@
 //! Cached composed frame used by paint-only transient overlay presentations.
 
+use super::device::wgpu_device_id;
 use super::*;
 use crate::runtime::{PaintPrimitive, SurfacePaintPlan};
 

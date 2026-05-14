@@ -1,4 +1,7 @@
 use super::{target::PostGpuOverlayRenderTarget, vertex::OverlayVertex};
+use crate::gui_runtime::native_vello::generic_runtime::device::{
+    wgpu_device_id, wgpu_target_matches,
+};
 use crate::gui_runtime::native_vello::wgpu;
 
 pub(super) struct PostGpuOverlayPipeline {
@@ -55,7 +58,7 @@ impl PostGpuOverlayPipeline {
         });
         Self {
             format,
-            device: device_id(device),
+            device: wgpu_device_id(device),
             pipeline,
         }
     }
@@ -65,7 +68,7 @@ impl PostGpuOverlayPipeline {
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
     ) -> bool {
-        pipeline_matches_target(self.device, self.format, device_id(device), format)
+        wgpu_target_matches(self.device, self.format, device, format)
     }
 
     pub(super) fn render(
@@ -97,11 +100,8 @@ impl PostGpuOverlayPipeline {
     }
 }
 
-fn device_id(device: &wgpu::Device) -> usize {
-    device as *const wgpu::Device as usize
-}
-
-fn pipeline_matches_target(
+#[cfg(test)]
+fn pipeline_key_matches(
     cached_device: usize,
     cached_format: wgpu::TextureFormat,
     target_device: usize,
@@ -140,9 +140,9 @@ mod tests {
     #[test]
     fn cached_pipeline_matches_only_same_device_and_format() {
         let format = wgpu::TextureFormat::Bgra8UnormSrgb;
-        assert!(pipeline_matches_target(7, format, 7, format));
-        assert!(!pipeline_matches_target(7, format, 8, format));
-        assert!(!pipeline_matches_target(
+        assert!(pipeline_key_matches(7, format, 7, format));
+        assert!(!pipeline_key_matches(7, format, 8, format));
+        assert!(!pipeline_key_matches(
             7,
             format,
             7,

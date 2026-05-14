@@ -365,9 +365,9 @@ fn composited_base_frame_cache_avoids_post_mutation_expect() {
         "cached composited base texture state should stay out of the presenter module"
     );
     assert!(
-        ensure_body.contains(".is_some_and(|frame| frame.matches(width, height, format))")
+        ensure_body.contains(".is_some_and(|frame| frame.matches(device, width, height, format))")
             && ensure_body.contains("frame.insert(Self::new(device, width, height, format))"),
-        "CompositedBaseFrame::ensure should reuse matching frames and install replacements directly"
+        "CompositedBaseFrame::ensure should reuse device-matching frames and install replacements directly"
     );
     assert!(
         !ensure_body.contains(".expect(") && !ensure_body.contains(".unwrap("),

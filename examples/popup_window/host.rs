@@ -1,8 +1,8 @@
 //! Child-process popup host management for the popup example.
 
-#[cfg(all(target_os = "windows", not(test)))]
-use super::model::POPUP_POSITION;
 use super::model::{POPUP_ARG, POPUP_MODE_ARG, POPUP_PREWARM_ARG, PopupMode};
+#[cfg(all(target_os = "windows", not(test)))]
+use super::model::{POPUP_POSITION, POPUP_PREWARM_POSITION};
 use std::process::Child;
 #[cfg(all(target_os = "windows", not(test)))]
 use std::process::Stdio;
@@ -124,6 +124,7 @@ impl PopupHost {
         let process_id = child.id();
         let _ =
             platform::wait_for_hidden_popup_window(process_id, std::time::Duration::from_secs(2));
+        prime_hidden_show_path(process_id);
     }
 
     #[cfg(all(not(target_os = "windows"), not(test)))]
@@ -146,6 +147,18 @@ impl PopupHost {
             true
         }
     }
+}
+
+#[cfg(all(target_os = "windows", not(test)))]
+fn prime_hidden_show_path(process_id: u32) {
+    if !platform::show_popup_window(process_id, POPUP_PREWARM_POSITION, false) {
+        return;
+    }
+    let _ =
+        platform::wait_for_visible_popup_window(process_id, std::time::Duration::from_millis(250));
+    let _ = platform::hide_popup_window(process_id);
+    let _ =
+        platform::wait_for_hidden_popup_window(process_id, std::time::Duration::from_millis(250));
 }
 
 #[cfg(not(test))]

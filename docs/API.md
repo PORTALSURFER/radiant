@@ -160,9 +160,11 @@ presence, first-present hiding for prewarmed surfaces, and an optional top-edge
 native drag region where the platform supports those hints. Hosts that need a
 guaranteed instant first popup interaction can prewarm one offscreen visible
 popup surface with `.hide_after_first_present(true)`, wait until the runtime
-hides it after its first presented frame, then reveal the prepared native window
-on demand without rebuilding the GPU surface, renderer, first scene, or first
-present during the click. Direct `NativeRunOptions` launch paths can call
+hides it after its first presented frame, and prime one hidden offscreen
+show/hide cycle before user input reaches the popup trigger. They can then
+reveal the prepared native window on demand without rebuilding the GPU surface,
+renderer, first scene, first present, or first post-hide native reveal during
+the click. Direct `NativeRunOptions` launch paths can call
 `.validate()` before startup, and the native runtime returns
 `NativeGenericRunError::InvalidWindowOptions` instead of passing non-finite or
 non-positive geometry into the platform window layer.

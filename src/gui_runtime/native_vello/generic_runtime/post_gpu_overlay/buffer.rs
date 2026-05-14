@@ -14,7 +14,7 @@ impl OverlayVertexBuffer {
         &mut self,
         target: &PostGpuOverlayRenderTarget<'_>,
         vertex_bytes: &[u8],
-    ) -> &wgpu::Buffer {
+    ) -> Option<&wgpu::Buffer> {
         let required_capacity = vertex_buffer_capacity_for(vertex_bytes.len());
         let device_id = wgpu_device_id(target.device);
         if self.needs_buffer(required_capacity, device_id) {
@@ -27,12 +27,9 @@ impl OverlayVertexBuffer {
             self.capacity = required_capacity;
             self.device = device_id;
         }
-        let buffer = self
-            .buffer
-            .as_ref()
-            .expect("overlay vertex buffer is created before upload");
+        let buffer = self.buffer.as_ref()?;
         target.queue.write_buffer(buffer, 0, vertex_bytes);
-        buffer
+        Some(buffer)
     }
 
     fn needs_buffer(&self, required_capacity: wgpu::BufferAddress, device: usize) -> bool {

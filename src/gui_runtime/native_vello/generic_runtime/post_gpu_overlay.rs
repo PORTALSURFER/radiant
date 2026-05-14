@@ -62,7 +62,9 @@ impl PostGpuOverlayRenderer {
             return;
         }
         let vertex_bytes = overlay_vertex_bytes(&self.vertices);
-        let vertex_buffer = self.vertex_buffer.upload(target, vertex_bytes);
+        let Some(vertex_buffer) = self.vertex_buffer.upload(target, vertex_bytes) else {
+            return;
+        };
         let pipeline = self
             .pipeline
             .get_or_insert_with(|| PostGpuOverlayPipeline::new(target.device, target.format));

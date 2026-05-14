@@ -264,7 +264,7 @@ fn api_docs_describe_the_structural_boundary_strategy() {
         "Native popup windows are revealed as soon as the window surface and initial Radiant scene are prepared",
         "instant transient UI surface",
         "prewarm one offscreen visible popup surface",
-        "hide_after_first_present(true)",
+        "NativePopupOptions::prewarmed_at(...)",
         "prime both hidden offscreen non-focusing and focusing show/hide cycles",
         "first post-hide native reveal",
         "first native focus reveal",

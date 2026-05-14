@@ -69,6 +69,20 @@ impl Default for NativePopupOptions {
 }
 
 impl NativePopupOptions {
+    /// Return a popup policy for an already-prepared transient surface.
+    ///
+    /// The popup starts visible at the supplied logical screen position so the
+    /// native runtime can create the surface, renderer, first scene, and first
+    /// present immediately. It then hides itself after that first presented
+    /// frame, letting the host reveal the prepared native window later without
+    /// paying first-render startup cost during the user interaction.
+    pub fn prewarmed_at(x: f32, y: f32) -> Self {
+        Self::default()
+            .position(x, y)
+            .initially_visible(true)
+            .hide_after_first_present(true)
+    }
+
     /// Set the initial outer-window position in logical screen coordinates.
     pub fn position(mut self, x: f32, y: f32) -> Self {
         self.position = Some([x, y]);

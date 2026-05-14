@@ -68,6 +68,14 @@ impl WindowBuilder {
         self
     }
 
+    /// Configure this native window as a prewarmed floating popup.
+    pub fn prewarmed_popup(mut self, x: f32, y: f32) -> Self {
+        self.options = self
+            .options
+            .popup_policy(NativePopupOptions::prewarmed_at(x, y));
+        self
+    }
+
     /// Add embedded TTF/OTF font bytes checked before file and native fallback fonts.
     pub fn embedded_font(mut self, font: impl Into<EmbeddedFont>) -> Self {
         self.options.text.embedded_fonts.push(font.into());

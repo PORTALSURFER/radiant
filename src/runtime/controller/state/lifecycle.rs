@@ -57,7 +57,11 @@ where
 
     /// Replace the viewport and recompute layout for the current surface.
     pub fn set_viewport(&mut self, viewport: Vector2) {
-        self.viewport = normalized_viewport(viewport);
+        let viewport = normalized_viewport(viewport);
+        if self.viewport == viewport {
+            return;
+        }
+        self.viewport = viewport;
         self.relayout_current_surface();
     }
 

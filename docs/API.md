@@ -707,8 +707,9 @@ sandbox that drives `SurfaceRuntime` with backend-neutral events, requests a
 `SurfaceFrame`, and reports `SurfacePaintStats` without opening the native
 window runtime.
 
-For interactive native runs, set `RADIANT_NATIVE_RENDER_PROFILE=1` to emit a
-per-frame `radiant native render profile` tracing line. The profile separates
+For interactive native runs, set `RADIANT_NATIVE_RENDER_PROFILE=1` before
+launch to emit a per-frame `radiant native render profile` tracing line. The
+profile separates
 paint-plan primitive counts, Vello scene encode categories, retained-surface
 bridge/cache/miss counts, custom-surface fallback counts, GPU-surface
 render/cache counts, transient-overlay primitive counts, and timing for surface

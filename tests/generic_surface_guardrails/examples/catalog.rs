@@ -98,6 +98,8 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
                 "OpenPopup",
                 "PopupMessage::Close",
                 "popup_view(",
+                "examples/popup_window/host.rs",
+                "PopupHosts",
             ],
         ),
         (
@@ -285,10 +287,17 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             "{name} should use the application prelude"
         );
         for required in required {
-            assert!(
-                source.contains(required),
-                "{name} example should exercise `{required}`"
-            );
+            if required.contains('/') {
+                assert!(
+                    manifest_dir.join(required).exists(),
+                    "{name} example should keep `{required}`"
+                );
+            } else {
+                assert!(
+                    source.contains(required),
+                    "{name} example should exercise `{required}`"
+                );
+            }
         }
         let mut deprecated_first_use = vec![
             "NativeRunOptions",

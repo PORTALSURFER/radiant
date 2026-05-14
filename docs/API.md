@@ -706,10 +706,11 @@ window runtime.
 For interactive native runs, set `RADIANT_NATIVE_RENDER_PROFILE=1` to emit a
 per-frame `radiant native render profile` tracing line. The profile separates
 paint-plan primitive counts, Vello scene encode categories, retained-surface
-bridge/cache counts, GPU-surface render/cache counts, transient-overlay
-primitive counts, and timing for surface refresh, paint-plan generation, Vello
-render-to-texture, composed-base refresh or cache hits for transient overlays,
-transient-overlay paint callbacks, GPU-surface composition, and presentation.
+bridge/cache/miss counts, custom-surface fallback counts, GPU-surface
+render/cache counts, transient-overlay primitive counts, and timing for surface
+refresh, paint-plan generation, Vello render-to-texture, composed-base refresh
+or cache hits for transient overlays, transient-overlay paint callbacks,
+GPU-surface composition, and presentation.
 This is a development diagnostic, not a stable public telemetry schema.
 
 ## Examples And Sandboxes

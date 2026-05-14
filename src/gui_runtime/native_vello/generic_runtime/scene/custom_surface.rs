@@ -29,6 +29,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_custo
     ) {
         return;
     }
+    stats.custom_surface_fallback_count = stats.custom_surface_fallback_count.saturating_add(1);
     encode_custom_surface_fallback(scene, custom);
 }
 
@@ -56,6 +57,7 @@ where
 
     stats.bridge_calls = stats.bridge_calls.saturating_add(1);
     let Some(frame) = bridge.render_retained_surface(retained, custom.rect, viewport) else {
+        stats.retained_surface_miss_count = stats.retained_surface_miss_count.saturating_add(1);
         return false;
     };
     stats.record_retained_frame(&frame);

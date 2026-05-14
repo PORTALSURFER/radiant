@@ -467,6 +467,40 @@ fn native_gpu_surface_wheel_coalescing_stays_in_focused_module() {
     );
 }
 
+#[test]
+fn native_vello_scene_text_run_buffer_stays_in_focused_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let scene = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene.rs"),
+    )
+    .expect("native Vello scene module should be readable");
+    let frame = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene/frame.rs"),
+    )
+    .expect("retained frame encoder should be readable");
+    let text_runs = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene/text_runs.rs"),
+    )
+    .expect("scene text run buffer module should be readable");
+
+    assert!(
+        scene.contains("mod text_runs;")
+            && scene.contains(
+                "pub(in crate::gui_runtime::native_vello) use text_runs::SceneTextRunBuffer;"
+            )
+            && scene.contains("use text_runs::flush_text_runs;"),
+        "scene module should route reusable text run staging through the focused text_runs module"
+    );
+    assert!(
+        !frame.contains("struct SceneTextRunBuffer")
+            && !frame.contains("fn flush_text_runs")
+            && text_runs.contains("struct SceneTextRunBuffer")
+            && text_runs.contains("fn flush_text_runs")
+            && text_runs.contains("INLINE_SCENE_TEXT_RUNS"),
+        "retained frame encoding should not own reusable text run staging buffers"
+    );
+}
+
 fn public_module_names(source: &str) -> BTreeSet<String> {
     source
         .lines()

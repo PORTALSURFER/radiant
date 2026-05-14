@@ -11,12 +11,11 @@ mod shape;
 mod svg;
 mod text_input;
 mod text_input_selection;
+mod text_runs;
 pub(in crate::gui_runtime::native_vello) use cache::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,
 };
 use custom_surface::encode_custom_surface;
-pub(in crate::gui_runtime::native_vello) use frame::SceneTextRunBuffer;
-use frame::flush_text_runs;
 use image::encode_image;
 use shape::{
     encode_path_fill, encode_polygon_fill, encode_polygon_stroke, encode_polyline_stroke,
@@ -24,6 +23,8 @@ use shape::{
 };
 use svg::encode_svg;
 use text_input::encode_text_input;
+pub(in crate::gui_runtime::native_vello) use text_runs::SceneTextRunBuffer;
+use text_runs::flush_text_runs;
 
 pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<
     'plan,

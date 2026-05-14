@@ -1,18 +1,20 @@
+#[cfg(test)]
 const SUMMARY_BLOCK_FRAMES: usize = 128;
 
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub(crate) struct WaveformBand {
     pub(super) samples: Vec<f32>,
+    #[cfg(test)]
     summary: WaveformSummary,
 }
 
+#[cfg(test)]
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub(crate) struct WaveformSummary {
     blocks: Vec<SummaryBlock>,
 }
 
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(super) struct SummaryBlock {
     peak: f32,
@@ -20,34 +22,39 @@ pub(super) struct SummaryBlock {
     count: usize,
 }
 
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[allow(dead_code)]
 pub(crate) struct BandStats {
     pub(crate) peak: f32,
     pub(crate) rms: f32,
 }
 
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-#[allow(dead_code)]
 struct StatsAccumulator {
     peak: f32,
     energy: f32,
     count: usize,
 }
 
-#[allow(dead_code)]
 impl WaveformBand {
     pub(crate) fn new(samples: Vec<f32>) -> Self {
+        #[cfg(test)]
         let summary = WaveformSummary::from_samples(&samples);
-        Self { samples, summary }
+        Self {
+            samples,
+            #[cfg(test)]
+            summary,
+        }
     }
 
+    #[cfg(test)]
     pub(super) fn stats(&self, start: usize, end: usize) -> BandStats {
         self.summary.stats(&self.samples, start, end)
     }
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 impl WaveformSummary {
     pub(crate) fn from_samples(samples: &[f32]) -> Self {
         let blocks = samples
@@ -84,7 +91,7 @@ impl WaveformSummary {
     }
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 impl SummaryBlock {
     pub(super) fn from_samples(samples: &[f32]) -> Self {
         let mut block = Self::default();
@@ -106,7 +113,7 @@ impl SummaryBlock {
     }
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 impl StatsAccumulator {
     fn add_samples(&mut self, samples: &[f32]) {
         for sample in samples {

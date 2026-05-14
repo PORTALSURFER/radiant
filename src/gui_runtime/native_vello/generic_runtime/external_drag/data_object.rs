@@ -133,19 +133,7 @@ impl windows::Win32::System::Com::IDataObject_Impl for FileDropDataObject_Impl {
         if medium.tymed != TYMED_HGLOBAL.0 as u32 {
             return Err(windows::core::Error::from(E_INVALIDARG));
         }
-        let handle = unsafe { medium.u.hGlobal };
-        let ptr = unsafe { GlobalLock(handle) } as *const u32;
-        if ptr.is_null() {
-            unsafe {
-                let _ = GlobalUnlock(handle);
-            }
-            return Err(windows::core::Error::from_thread());
-        }
-        let effect = unsafe { *ptr };
-        self.performed_effect.set(DROPEFFECT(effect));
-        unsafe {
-            let _ = GlobalUnlock(handle);
-        }
+        self.performed_effect.set(drop_effect_from_medium(medium)?);
         Ok(())
     }
 
@@ -184,5 +172,37 @@ impl windows::Win32::System::Com::IDataObject_Impl for FileDropDataObject_Impl {
         Err(windows::core::Error::from(
             windows::Win32::Foundation::E_NOTIMPL,
         ))
+    }
+}
+
+fn drop_effect_from_medium(medium: &STGMEDIUM) -> windows::core::Result<DROPEFFECT> {
+    let handle = unsafe { medium.u.hGlobal };
+    let ptr = unsafe { GlobalLock(handle) } as *const u32;
+    if ptr.is_null() {
+        return Err(windows::core::Error::from_thread());
+    }
+    let effect = unsafe { *ptr };
+    unsafe {
+        let _ = GlobalUnlock(handle);
+    }
+    Ok(DROPEFFECT(effect))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use windows::Win32::Foundation::HGLOBAL;
+
+    #[test]
+    fn drop_effect_medium_read_rejects_unlocked_null_handle() {
+        let medium = STGMEDIUM {
+            tymed: TYMED_HGLOBAL.0 as u32,
+            u: STGMEDIUM_0 {
+                hGlobal: HGLOBAL(std::ptr::null_mut()),
+            },
+            pUnkForRelease: ManuallyDrop::new(None),
+        };
+
+        assert!(drop_effect_from_medium(&medium).is_err());
     }
 }

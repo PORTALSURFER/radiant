@@ -23,6 +23,7 @@ pub(super) struct PopupHosts {
 struct PopupHost {
     child: Option<Child>,
     mode: Option<PopupMode>,
+    ready: bool,
 }
 
 impl PopupHosts {
@@ -65,13 +66,18 @@ impl PopupHost {
         let child = spawn_popup_process(mode, true)?;
         self.mode = Some(mode);
         self.child = Some(child);
+        self.ready = false;
         Ok(())
     }
 
     #[cfg(not(test))]
     fn finish_prewarm(&mut self) {
+        if self.ready {
+            return;
+        }
         if let Some(child) = self.child.as_mut() {
             finish_prewarm_child(child);
+            self.ready = true;
         }
     }
 
@@ -115,6 +121,7 @@ impl PopupHost {
             let _ = child.wait();
         }
         self.mode = None;
+        self.ready = false;
     }
 
     #[cfg(not(test))]
@@ -128,6 +135,7 @@ impl PopupHost {
         if finished {
             self.child = None;
             self.mode = None;
+            self.ready = false;
         }
     }
 
@@ -232,6 +240,7 @@ pub(super) fn prepare_popup_hosts(hosts: &mut PopupHosts) -> std::result::Result
 pub(super) fn prepare_popup_hosts(hosts: &mut PopupHosts) -> std::result::Result<(), &'static str> {
     for mode in PopupMode::ALL {
         hosts.host_mut(mode).mode = Some(mode);
+        hosts.host_mut(mode).ready = true;
     }
     Ok(())
 }
@@ -250,6 +259,7 @@ pub(super) fn open_popup_host(
     mode: PopupMode,
 ) -> std::result::Result<(), &'static str> {
     hosts.host_mut(mode).mode = Some(mode);
+    hosts.host_mut(mode).ready = true;
     Ok(())
 }
 
@@ -307,6 +317,9 @@ mod tests {
         assert_eq!(hosts.drag_preview.mode, Some(PopupMode::DragPreview));
         assert_eq!(hosts.tooltip.mode, Some(PopupMode::Tooltip));
         assert_eq!(hosts.command_palette.mode, Some(PopupMode::CommandPalette));
+        assert!(hosts.drag_preview.ready);
+        assert!(hosts.tooltip.ready);
+        assert!(hosts.command_palette.ready);
     }
 
     #[test]

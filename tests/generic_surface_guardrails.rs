@@ -311,6 +311,32 @@ fn public_vector_paint_primitives_do_not_expose_vello_path_types() {
     }
 }
 
+#[test]
+fn native_vello_scene_encoder_keeps_custom_surfaces_in_focused_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let scene = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene.rs"),
+    )
+    .expect("native Vello scene encoder should be readable");
+    let custom_surface = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene/custom_surface.rs"),
+    )
+    .expect("custom surface scene encoder should be readable");
+
+    assert!(
+        scene.contains("mod custom_surface;")
+            && scene.contains("use custom_surface::encode_custom_surface;"),
+        "central scene encoder should delegate retained custom-surface rendering"
+    );
+    assert!(
+        !scene.contains("render_retained_surface(")
+            && custom_surface.contains("render_retained_surface(")
+            && custom_surface.contains("retained_cache.cached_frame")
+            && custom_surface.contains("encode_custom_surface_fallback"),
+        "retained custom-surface cache/bridge/fallback logic should stay in the focused custom-surface encoder"
+    );
+}
+
 fn public_module_names(source: &str) -> BTreeSet<String> {
     source
         .lines()

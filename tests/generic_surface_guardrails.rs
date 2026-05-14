@@ -283,8 +283,11 @@ fn gui_runtime_public_facade_exports_generic_runtime_entrypoints() {
 #[test]
 fn public_vector_paint_primitives_do_not_expose_vello_path_types() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let source = fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/shape.rs"))
+    let source = fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/path.rs"))
         .expect("vector paint primitive source should be readable");
+    let shape_source =
+        fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/shape.rs"))
+            .expect("shape paint primitive source should be readable");
 
     for forbidden in ["vello::kurbo", "BezPath", "pub type PaintTransform"] {
         assert!(
@@ -292,6 +295,10 @@ fn public_vector_paint_primitives_do_not_expose_vello_path_types() {
             "public vector paint primitives should remain backend-neutral; found `{forbidden}`"
         );
     }
+    assert!(
+        !shape_source.contains("pub struct PaintTransform"),
+        "paint shapes should depend on the shared backend-neutral path transform instead of owning it"
+    );
     for required in [
         "pub struct PaintPath",
         "pub enum PaintPathCommand",

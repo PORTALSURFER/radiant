@@ -37,12 +37,15 @@ impl<'a> LayoutContext<'a> {
     }
 
     pub(crate) fn cached_virtual_metrics(
-        &self,
+        &mut self,
         key: VirtualizationCacheKey,
     ) -> Option<Arc<LinearVirtualMetrics>> {
-        self.virtual_cache
+        let metrics = self
+            .virtual_cache
             .get(&key)
-            .map(|entry| Arc::clone(&entry.metrics))
+            .map(|entry| Arc::clone(&entry.metrics))?;
+        self.virtual_touched.insert(key);
+        Some(metrics)
     }
 
     pub(crate) fn remember_virtual_metrics(
@@ -51,6 +54,7 @@ impl<'a> LayoutContext<'a> {
         metrics: Arc<LinearVirtualMetrics>,
         dependencies: Vec<NodeId>,
     ) {
+        self.virtual_touched.insert(key);
         self.virtual_cache.insert(
             key,
             CachedVirtualMetrics {

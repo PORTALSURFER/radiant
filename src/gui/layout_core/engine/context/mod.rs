@@ -23,6 +23,7 @@ use std::collections::{HashMap, HashSet};
 pub(super) struct LayoutScratch {
     pub(super) measured: HashMap<MeasureCacheKey, Vector2>,
     pub(super) measured_by_node: HashMap<NodeId, Vector2>,
+    pub(super) virtual_touched: HashSet<VirtualizationCacheKey>,
     pub(super) linear_windows: HashMap<NodeId, ResolvedLinearWindow>,
     pub(super) linear_sizes: Vec<f32>,
     pub(super) linear_unresolved: Vec<usize>,
@@ -38,6 +39,7 @@ pub(super) struct LayoutScratch {
 pub(super) struct LayoutContext<'a> {
     measured: &'a mut HashMap<MeasureCacheKey, Vector2>,
     measured_by_node: &'a mut HashMap<NodeId, Vector2>,
+    virtual_touched: &'a mut HashSet<VirtualizationCacheKey>,
     cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
     virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
     linear_windows: &'a mut HashMap<NodeId, ResolvedLinearWindow>,
@@ -63,12 +65,14 @@ impl<'a> LayoutContext<'a> {
     ) -> Self {
         scratch.measured.clear();
         scratch.measured_by_node.clear();
+        scratch.virtual_touched.clear();
         scratch.linear_windows.clear();
         scratch.linear_sizes.clear();
         scratch.linear_unresolved.clear();
         Self {
             measured: &mut scratch.measured,
             measured_by_node: &mut scratch.measured_by_node,
+            virtual_touched: &mut scratch.virtual_touched,
             cache,
             virtual_cache,
             linear_windows: &mut scratch.linear_windows,

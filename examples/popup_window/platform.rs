@@ -109,16 +109,6 @@ pub(super) fn show_popup_window(process_id: u32, position: [f32; 2], focus: bool
 
 #[cfg(target_os = "windows")]
 #[cfg(not(test))]
-pub(super) fn move_popup_window(process_id: u32, position: [f32; 2]) -> bool {
-    let Some(hwnd) = popup_window_handle(process_id) else {
-        return false;
-    };
-    move_window(hwnd, position);
-    true
-}
-
-#[cfg(target_os = "windows")]
-#[cfg(not(test))]
 pub(super) fn hide_popup_window(process_id: u32) -> bool {
     let Some(hwnd) = popup_window_handle(process_id) else {
         return false;

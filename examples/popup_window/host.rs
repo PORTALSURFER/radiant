@@ -147,7 +147,7 @@ impl PopupHost {
 
         #[cfg(target_os = "windows")]
         {
-            platform::wait_for_popup_window(process_id, timeout)
+            platform::wait_for_visible_popup_window(process_id, timeout)
         }
 
         #[cfg(not(target_os = "windows"))]
@@ -163,23 +163,23 @@ fn finish_prewarm_child(child: &mut Child) {
     platform::wait_for_first_present_profile(child, std::time::Duration::from_secs(3));
     let process_id = child.id();
     let _ = platform::wait_for_hidden_popup_window(process_id, std::time::Duration::from_secs(2));
-    prime_hidden_show_path(process_id);
+    park_visible_offscreen_show_path(process_id);
 }
 
 #[cfg(all(not(target_os = "windows"), not(test)))]
 fn finish_prewarm_child(_child: &mut Child) {}
 
 #[cfg(all(target_os = "windows", not(test)))]
-fn prime_hidden_show_path(process_id: u32) {
-    for step in hidden_show_prime_steps() {
-        if !prime_hidden_show_step(process_id, step) {
+fn park_visible_offscreen_show_path(process_id: u32) {
+    for step in offscreen_visible_prime_steps() {
+        if !offscreen_visible_prime_step(process_id, step) {
             return;
         }
     }
 }
 
 #[cfg(all(target_os = "windows", not(test)))]
-fn prime_hidden_show_step(process_id: u32, step: PopupPrimeStep) -> bool {
+fn offscreen_visible_prime_step(process_id: u32, step: PopupPrimeStep) -> bool {
     match step {
         PopupPrimeStep::Show { focus } => {
             platform::show_popup_window(process_id, POPUP_PREWARM_POSITION, focus)
@@ -193,9 +193,6 @@ fn prime_hidden_show_step(process_id: u32, step: PopupPrimeStep) -> bool {
             process_id,
             std::time::Duration::from_millis(250),
         ),
-        PopupPrimeStep::MoveToRevealPosition => {
-            platform::move_popup_window(process_id, POPUP_POSITION)
-        }
     }
 }
 
@@ -205,20 +202,16 @@ enum PopupPrimeStep {
     WaitVisible,
     Hide,
     WaitHidden,
-    MoveToRevealPosition,
 }
 
-fn hidden_show_prime_steps() -> [PopupPrimeStep; 9] {
+fn offscreen_visible_prime_steps() -> [PopupPrimeStep; 6] {
     [
         PopupPrimeStep::Show { focus: false },
         PopupPrimeStep::WaitVisible,
         PopupPrimeStep::Hide,
         PopupPrimeStep::WaitHidden,
-        PopupPrimeStep::Show { focus: true },
+        PopupPrimeStep::Show { focus: false },
         PopupPrimeStep::WaitVisible,
-        PopupPrimeStep::Hide,
-        PopupPrimeStep::WaitHidden,
-        PopupPrimeStep::MoveToRevealPosition,
     ]
 }
 
@@ -323,19 +316,16 @@ mod tests {
     }
 
     #[test]
-    fn hidden_show_prime_steps_include_focused_open_path() {
+    fn offscreen_visible_prime_steps_end_with_non_focused_ready_park() {
         assert_eq!(
-            hidden_show_prime_steps(),
+            offscreen_visible_prime_steps(),
             [
                 PopupPrimeStep::Show { focus: false },
                 PopupPrimeStep::WaitVisible,
                 PopupPrimeStep::Hide,
                 PopupPrimeStep::WaitHidden,
-                PopupPrimeStep::Show { focus: true },
+                PopupPrimeStep::Show { focus: false },
                 PopupPrimeStep::WaitVisible,
-                PopupPrimeStep::Hide,
-                PopupPrimeStep::WaitHidden,
-                PopupPrimeStep::MoveToRevealPosition,
             ]
         );
     }

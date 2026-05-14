@@ -5,6 +5,8 @@ use crate::{
     widgets::{PointerButton, PointerModifiers, WidgetId, WidgetInput, WidgetKey},
 };
 
+mod pointer;
+
 /// Routing summary for one pointer-move event.
 ///
 /// Backend adapters that distinguish full scene rebuilds from paint-only
@@ -122,97 +124,17 @@ where
                 position,
                 button,
                 modifiers,
-            } => {
-                if self.start_scrollbar_drag_at(position) {
-                    self.pointer_capture = None;
-                    self.pointer_capture_state = None;
-                    self.clear_focus();
-                    return None;
-                }
-                let Some(widget_id) = self.widget_at(position) else {
-                    self.pointer_capture = None;
-                    self.pointer_capture_state = None;
-                    self.scroll_drag_capture = None;
-                    self.clear_focus();
-                    return None;
-                };
-                self.pointer_capture = Some(widget_id);
-                self.dispatch_input_at(
-                    position,
-                    WidgetInput::PointerPress {
-                        position,
-                        button,
-                        modifiers,
-                    },
-                )
-            }
+            } => self.dispatch_pointer_press_event(position, button, modifiers),
             Event::PointerDoubleClick {
                 position,
                 button,
                 modifiers,
-            } => {
-                let Some(widget_id) = self.widget_at(position) else {
-                    self.pointer_capture = None;
-                    self.pointer_capture_state = None;
-                    self.clear_focus();
-                    return None;
-                };
-                self.pointer_capture = Some(widget_id);
-                let routed = self.dispatch_input_at_output(
-                    position,
-                    WidgetInput::PointerDoubleClick {
-                        position,
-                        button,
-                        modifiers,
-                    },
-                );
-                match routed {
-                    Some((widget_id, true)) => Some(widget_id),
-                    _ => self.dispatch_input_at(
-                        position,
-                        WidgetInput::PointerPress {
-                            position,
-                            button,
-                            modifiers,
-                        },
-                    ),
-                }
-            }
+            } => self.dispatch_pointer_double_click_event(position, button, modifiers),
             Event::PointerRelease {
                 position,
                 button,
                 modifiers,
-            } => {
-                if self.scroll_drag_capture.take().is_some() {
-                    return None;
-                }
-                let captured = self.pointer_capture.take();
-                let drop_target = captured.and_then(|captured_id| {
-                    self.widget_at(position)
-                        .filter(|target_id| *target_id != captured_id)
-                });
-                if let Some(drop_target) = drop_target {
-                    let _ = self.dispatch_input(
-                        drop_target,
-                        WidgetInput::PointerDrop {
-                            position,
-                            button,
-                            modifiers,
-                        },
-                    );
-                }
-                let widget_id = captured.or_else(|| self.widget_at(position))?;
-                self.pointer_capture_state = None;
-                self.dispatch_input(
-                    widget_id,
-                    WidgetInput::PointerRelease {
-                        position,
-                        button,
-                        modifiers,
-                    },
-                )
-                .then_some(widget_id)
-            }
+            } => self.dispatch_pointer_release_event(position, button, modifiers),
             Event::KeyPress(key) => self.dispatch_focused_input(WidgetInput::KeyPress(key)),
             Event::Character(character) => {
                 self.dispatch_focused_input(WidgetInput::Character(character))

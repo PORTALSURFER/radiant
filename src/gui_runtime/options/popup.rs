@@ -30,6 +30,13 @@ pub struct NativePopupOptions {
     pub initially_focused: bool,
     /// Whether the popup should stay out of the platform taskbar when supported.
     pub skip_taskbar: bool,
+    /// Whether the popup should become visible as soon as its native surface is ready.
+    ///
+    /// Hosts that prewarm a single popup surface can set this to `false`, let
+    /// Radiant build the window, GPU surface, renderer, and first scene while
+    /// hidden, then reveal the native window on demand without paying startup
+    /// cost on the user interaction.
+    pub initially_visible: bool,
     /// Optional top-edge logical height that can initiate native window dragging.
     ///
     /// The native runtime only starts the drag when primary pointer press hits
@@ -47,6 +54,7 @@ impl Default for NativePopupOptions {
             resizable: false,
             initially_focused: false,
             skip_taskbar: true,
+            initially_visible: true,
             drag_region_height: None,
         }
     }
@@ -86,6 +94,12 @@ impl NativePopupOptions {
     /// Set whether the popup should stay out of the platform taskbar when supported.
     pub fn skip_taskbar(mut self, skip_taskbar: bool) -> Self {
         self.skip_taskbar = skip_taskbar;
+        self
+    }
+
+    /// Set whether the popup should be shown after native surface preparation.
+    pub fn initially_visible(mut self, initially_visible: bool) -> Self {
+        self.initially_visible = initially_visible;
         self
     }
 

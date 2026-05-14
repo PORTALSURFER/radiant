@@ -11,8 +11,8 @@ use super::super::{LayoutContext, LayoutDiagnosticCode};
 use crate::gui::layout_core::tree::ContainerNode;
 use crate::gui::types::Rect;
 
-use placement::{LinearChildSizes, place_linear_children};
-use sizing::collect_layout_states;
+use placement::{LinearChildSizes, LinearPlacement, place_linear_children};
+use sizing::{LinearStateCollection, collect_layout_states};
 pub(super) use sizing::{resolve_cross_layout, resolve_nonfill_main};
 
 pub(super) fn layout_linear(
@@ -32,29 +32,33 @@ pub(super) fn layout_linear(
 
     if let Some(window) = context.linear_window(container.id) {
         let states = collect_layout_states(
-            container,
+            LinearStateCollection {
+                container,
+                horizontal,
+                available_main,
+                start_index: window.first,
+                end_index_exclusive: window.last_exclusive,
+            },
             context,
-            horizontal,
-            available_main,
-            window.first,
-            window.last_exclusive,
         );
         let cursor_main_start = window.cursor_main_start;
         let distributed_spacing = window.metrics.distributed_spacing;
         if let Some(uniform) = window.metrics.uniform {
             if window.last_exclusive <= uniform.count {
                 place_linear_children(
-                    container,
-                    content,
-                    horizontal,
-                    available_cross,
-                    &states,
-                    LinearChildSizes::Uniform {
-                        main_size: uniform.main_size,
-                        len: states.len(),
+                    LinearPlacement {
+                        container,
+                        content,
+                        horizontal,
+                        available_cross,
+                        states: &states,
+                        sizes: LinearChildSizes::Uniform {
+                            main_size: uniform.main_size,
+                            len: states.len(),
+                        },
+                        leading: cursor_main_start,
+                        distributed_spacing,
                     },
-                    cursor_main_start,
-                    distributed_spacing,
                     context,
                 );
                 return;
@@ -69,14 +73,16 @@ pub(super) fn layout_linear(
             };
             if sizes.len() == states.len() {
                 place_linear_children(
-                    container,
-                    content,
-                    horizontal,
-                    available_cross,
-                    &states,
-                    LinearChildSizes::Slice(sizes),
-                    cursor_main_start,
-                    distributed_spacing,
+                    LinearPlacement {
+                        container,
+                        content,
+                        horizontal,
+                        available_cross,
+                        states: &states,
+                        sizes: LinearChildSizes::Slice(sizes),
+                        leading: cursor_main_start,
+                        distributed_spacing,
+                    },
                     context,
                 );
                 return;
@@ -90,12 +96,14 @@ pub(super) fn layout_linear(
     }
 
     let mut states = collect_layout_states(
-        container,
+        LinearStateCollection {
+            container,
+            horizontal,
+            available_main,
+            start_index: 0,
+            end_index_exclusive: container.children.len(),
+        },
         context,
-        horizontal,
-        available_main,
-        0,
-        container.children.len(),
     );
     let summary = linear_sizing_summary(horizontal, &states);
 
@@ -137,14 +145,16 @@ pub(super) fn layout_linear(
             states.len(),
         );
         place_linear_children(
-            container,
-            content,
-            horizontal,
-            available_cross,
-            &states,
-            LinearChildSizes::Slice(&sizes),
-            leading,
-            distributed_spacing,
+            LinearPlacement {
+                container,
+                content,
+                horizontal,
+                available_cross,
+                states: &states,
+                sizes: LinearChildSizes::Slice(&sizes),
+                leading,
+                distributed_spacing,
+            },
             context,
         );
         if total_main > available_main {
@@ -163,14 +173,16 @@ pub(super) fn layout_linear(
         states.len(),
     );
     place_linear_children(
-        container,
-        content,
-        horizontal,
-        available_cross,
-        &states,
-        LinearChildSizes::Resolved,
-        leading,
-        distributed_spacing,
+        LinearPlacement {
+            container,
+            content,
+            horizontal,
+            available_cross,
+            states: &states,
+            sizes: LinearChildSizes::Resolved,
+            leading,
+            distributed_spacing,
+        },
         context,
     );
 }

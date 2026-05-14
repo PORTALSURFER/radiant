@@ -7,26 +7,31 @@ use crate::gui::layout_core::model::{SizeModeCross, SizeModeMain, SlotParams};
 use crate::gui::layout_core::tree::{ContainerNode, NodeId, SlotChild};
 use crate::gui::types::Vector2;
 
-#[allow(clippy::too_many_arguments)]
+pub(super) struct LinearStateCollection<'a> {
+    pub(super) container: &'a ContainerNode,
+    pub(super) horizontal: bool,
+    pub(super) available_main: f32,
+    pub(super) start_index: usize,
+    pub(super) end_index_exclusive: usize,
+}
+
 pub(super) fn collect_layout_states<'a>(
-    container: &'a ContainerNode,
+    request: LinearStateCollection<'a>,
     context: &mut LayoutContext,
-    horizontal: bool,
-    available_main: f32,
-    start_index: usize,
-    end_index_exclusive: usize,
 ) -> Vec<LinearLayoutState<'a>> {
-    let clamped_start = start_index.min(container.children.len());
-    let clamped_end = end_index_exclusive.min(container.children.len());
-    let selected = &container.children[clamped_start..clamped_end];
+    let clamped_start = request.start_index.min(request.container.children.len());
+    let clamped_end = request
+        .end_index_exclusive
+        .min(request.container.children.len());
+    let selected = &request.container.children[clamped_start..clamped_end];
     let mut states = Vec::with_capacity(selected.len());
     for child in selected {
         let measured = measure_node(&child.child, child.slot.constraints, context);
         let main = resolve_nonfill_main(
-            horizontal,
+            request.horizontal,
             child,
             measured,
-            available_main,
+            request.available_main,
             context,
             child.child.id(),
         );

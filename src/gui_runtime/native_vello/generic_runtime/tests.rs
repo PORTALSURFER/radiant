@@ -187,6 +187,7 @@ fn generic_native_window_reveals_after_surface_setup() {
 
     assert!(window::reveal_window_after_surface_setup(&options));
     assert!(!window::reveal_window_after_first_present(&options));
+    assert!(!window::hide_window_after_first_present(&options));
 }
 
 #[test]
@@ -195,6 +196,7 @@ fn generic_native_window_reveals_popups_after_surface_setup() {
 
     assert!(window::reveal_window_after_surface_setup(&options));
     assert!(!window::reveal_window_after_first_present(&options));
+    assert!(!window::hide_window_after_first_present(&options));
 }
 
 #[test]
@@ -204,6 +206,21 @@ fn generic_native_window_can_prewarm_hidden_popup_surfaces() {
 
     assert!(!window::reveal_window_after_surface_setup(&options));
     assert!(!window::reveal_window_after_first_present(&options));
+    assert!(!window::hide_window_after_first_present(&options));
+}
+
+#[test]
+fn generic_native_window_can_hide_prewarmed_popup_after_first_present() {
+    let options = NativeRunOptions::popup("Drag Preview").popup_policy(
+        NativePopupOptions::default()
+            .position(-20_000.0, -20_000.0)
+            .initially_visible(true)
+            .hide_after_first_present(true),
+    );
+
+    assert!(window::reveal_window_after_surface_setup(&options));
+    assert!(!window::reveal_window_after_first_present(&options));
+    assert!(window::hide_window_after_first_present(&options));
 }
 
 #[test]

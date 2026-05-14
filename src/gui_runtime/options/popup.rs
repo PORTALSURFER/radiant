@@ -37,6 +37,13 @@ pub struct NativePopupOptions {
     /// hidden, then reveal the native window on demand without paying startup
     /// cost on the user interaction.
     pub initially_visible: bool,
+    /// Whether the runtime should hide the popup after its first frame presents.
+    ///
+    /// Prewarmed popups can start visible at an offscreen position so the
+    /// platform and WGPU allow a real first present, then set this flag to hide
+    /// the native window once renderer, scene, and first-present work are
+    /// complete.
+    pub hide_after_first_present: bool,
     /// Optional top-edge logical height that can initiate native window dragging.
     ///
     /// The native runtime only starts the drag when primary pointer press hits
@@ -55,6 +62,7 @@ impl Default for NativePopupOptions {
             initially_focused: false,
             skip_taskbar: true,
             initially_visible: true,
+            hide_after_first_present: false,
             drag_region_height: None,
         }
     }
@@ -100,6 +108,12 @@ impl NativePopupOptions {
     /// Set whether the popup should be shown after native surface preparation.
     pub fn initially_visible(mut self, initially_visible: bool) -> Self {
         self.initially_visible = initially_visible;
+        self
+    }
+
+    /// Set whether the popup should hide itself after the first presented frame.
+    pub fn hide_after_first_present(mut self, hide_after_first_present: bool) -> Self {
+        self.hide_after_first_present = hide_after_first_present;
         self
     }
 

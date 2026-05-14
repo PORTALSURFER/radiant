@@ -65,28 +65,26 @@ impl LayoutEngine {
             .retain(|_, entry| !entry.dependencies.contains(&node_id));
     }
 
-    fn invalidate_virtual_cache_for_any(&mut self, node_ids: &HashSet<NodeId>) {
-        if node_ids.is_empty() {
-            return;
-        }
-        self.virtual_cache
-            .retain(|_, entry| entry.dependencies.iter().all(|id| !node_ids.contains(id)));
-    }
-
     fn mark_subtree_dirty(&mut self, root: &LayoutNode, node_id: NodeId, measure: bool) {
-        let mut marked = HashSet::new();
-        let mut path = Vec::new();
-        if !dirty::collect_path_and_descendants(root, node_id, &mut path, &mut marked) {
-            marked.insert(node_id);
+        self.scratch.dirty_path.clear();
+        self.scratch.dirty_marked.clear();
+        if !dirty::collect_path_and_descendants(
+            root,
+            node_id,
+            &mut self.scratch.dirty_path,
+            &mut self.scratch.dirty_marked,
+        ) {
+            self.scratch.dirty_marked.insert(node_id);
         }
-        for id in &marked {
+        for id in &self.scratch.dirty_marked {
             if measure {
                 self.measure_dirty.insert(*id);
             } else {
                 self.layout_dirty.insert(*id);
             }
         }
-        self.invalidate_virtual_cache_for_any(&marked);
+        invalidate_virtual_cache_for_any(&mut self.virtual_cache, &self.scratch.dirty_marked);
+        self.scratch.dirty_marked.clear();
     }
 
     /// Compute layout output for `root` in `root_rect` using default state/options.
@@ -166,6 +164,16 @@ pub(super) fn round_rect(rect: Rect) -> Rect {
     let width = rect.width().round().max(0.0);
     let height = rect.height().round().max(0.0);
     Rect::from_min_size(Point::new(min_x, min_y), Vector2::new(width, height))
+}
+
+fn invalidate_virtual_cache_for_any(
+    virtual_cache: &mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
+    node_ids: &HashSet<NodeId>,
+) {
+    if node_ids.is_empty() {
+        return;
+    }
+    virtual_cache.retain(|_, entry| entry.dependencies.iter().all(|id| !node_ids.contains(id)));
 }
 
 #[cfg(test)]

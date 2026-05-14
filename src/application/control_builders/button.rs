@@ -98,13 +98,7 @@ impl ButtonBuilder {
         let primary = Arc::new(primary);
         let secondary = Arc::new(secondary);
         self.secondary_clicks().mapped(move |message| {
-            let primary = Arc::clone(&primary);
-            let secondary = Arc::clone(&secondary);
-            StateAction::new(move |state| match message {
-                ButtonMessage::Activate => primary(state),
-                ButtonMessage::SecondaryActivate { .. } => secondary(state),
-                ButtonMessage::Drag(_) => {}
-            })
+            click_or_secondary_action(message, Arc::clone(&primary), Arc::clone(&secondary))
         })
     }
 
@@ -118,15 +112,7 @@ impl ButtonBuilder {
         let primary = Arc::new(primary);
         let secondary = Arc::new(secondary);
         self.secondary_clicks().mapped(move |message| {
-            let primary = Arc::clone(&primary);
-            let secondary = Arc::clone(&secondary);
-            StateAction::new(move |state| match message {
-                ButtonMessage::Activate => primary(state),
-                ButtonMessage::SecondaryActivate { position } => {
-                    secondary(state, position);
-                }
-                ButtonMessage::Drag(_) => {}
-            })
+            click_or_secondary_at_action(message, Arc::clone(&primary), Arc::clone(&secondary))
         })
     }
 
@@ -141,14 +127,12 @@ impl ButtonBuilder {
         let secondary = Arc::new(secondary);
         let drag = Arc::new(drag);
         self.secondary_clicks().draggable().mapped(move |message| {
-            let primary = Arc::clone(&primary);
-            let secondary = Arc::clone(&secondary);
-            let drag = Arc::clone(&drag);
-            StateAction::new(move |state| match message {
-                ButtonMessage::Activate => primary(state),
-                ButtonMessage::SecondaryActivate { .. } => secondary(state),
-                ButtonMessage::Drag(message) => drag(state, message),
-            })
+            click_secondary_or_drag_action(
+                message,
+                Arc::clone(&primary),
+                Arc::clone(&secondary),
+                Arc::clone(&drag),
+            )
         })
     }
 
@@ -164,18 +148,90 @@ impl ButtonBuilder {
         let secondary = Arc::new(secondary);
         let drag = Arc::new(drag);
         self.secondary_clicks().draggable().mapped(move |message| {
-            let primary = Arc::clone(&primary);
-            let secondary = Arc::clone(&secondary);
-            let drag = Arc::clone(&drag);
-            StateAction::new(move |state| match message {
-                ButtonMessage::Activate => primary(state),
-                ButtonMessage::SecondaryActivate { position } => {
-                    secondary(state, position);
-                }
-                ButtonMessage::Drag(message) => drag(state, message),
-            })
+            click_secondary_at_or_drag_action(
+                message,
+                Arc::clone(&primary),
+                Arc::clone(&secondary),
+                Arc::clone(&drag),
+            )
         })
     }
+}
+
+fn click_or_secondary_action<State, Primary, Secondary>(
+    message: ButtonMessage,
+    primary: Arc<Primary>,
+    secondary: Arc<Secondary>,
+) -> StateAction<State>
+where
+    State: 'static,
+    Primary: Fn(&mut State) + Send + Sync + 'static,
+    Secondary: Fn(&mut State) + Send + Sync + 'static,
+{
+    StateAction::new(move |state| match message {
+        ButtonMessage::Activate => primary(state),
+        ButtonMessage::SecondaryActivate { .. } => secondary(state),
+        ButtonMessage::Drag(_) => {}
+    })
+}
+
+fn click_or_secondary_at_action<State, Primary, Secondary>(
+    message: ButtonMessage,
+    primary: Arc<Primary>,
+    secondary: Arc<Secondary>,
+) -> StateAction<State>
+where
+    State: 'static,
+    Primary: Fn(&mut State) + Send + Sync + 'static,
+    Secondary: Fn(&mut State, Point) + Send + Sync + 'static,
+{
+    StateAction::new(move |state| match message {
+        ButtonMessage::Activate => primary(state),
+        ButtonMessage::SecondaryActivate { position } => {
+            secondary(state, position);
+        }
+        ButtonMessage::Drag(_) => {}
+    })
+}
+
+fn click_secondary_or_drag_action<State, Primary, Secondary, Drag>(
+    message: ButtonMessage,
+    primary: Arc<Primary>,
+    secondary: Arc<Secondary>,
+    drag: Arc<Drag>,
+) -> StateAction<State>
+where
+    State: 'static,
+    Primary: Fn(&mut State) + Send + Sync + 'static,
+    Secondary: Fn(&mut State) + Send + Sync + 'static,
+    Drag: Fn(&mut State, DragHandleMessage) + Send + Sync + 'static,
+{
+    StateAction::new(move |state| match message {
+        ButtonMessage::Activate => primary(state),
+        ButtonMessage::SecondaryActivate { .. } => secondary(state),
+        ButtonMessage::Drag(message) => drag(state, message),
+    })
+}
+
+fn click_secondary_at_or_drag_action<State, Primary, Secondary, Drag>(
+    message: ButtonMessage,
+    primary: Arc<Primary>,
+    secondary: Arc<Secondary>,
+    drag: Arc<Drag>,
+) -> StateAction<State>
+where
+    State: 'static,
+    Primary: Fn(&mut State) + Send + Sync + 'static,
+    Secondary: Fn(&mut State, Point) + Send + Sync + 'static,
+    Drag: Fn(&mut State, DragHandleMessage) + Send + Sync + 'static,
+{
+    StateAction::new(move |state| match message {
+        ButtonMessage::Activate => primary(state),
+        ButtonMessage::SecondaryActivate { position } => {
+            secondary(state, position);
+        }
+        ButtonMessage::Drag(message) => drag(state, message),
+    })
 }
 
 /// Build a button.

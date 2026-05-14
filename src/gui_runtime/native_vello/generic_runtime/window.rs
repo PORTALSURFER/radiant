@@ -7,7 +7,7 @@ pub(super) fn generic_window_attributes(options: &NativeRunOptions) -> WindowAtt
         .with_title(options.title.clone())
         .with_maximized(options.maximized)
         .with_decorations(options.decorations)
-        .with_visible(options.is_popup());
+        .with_visible(false);
     if let NativeWindowMode::Popup(popup) = options.window_mode {
         attrs = apply_popup_window_attributes(attrs, popup);
     }
@@ -57,4 +57,12 @@ fn apply_popup_window_attributes(
 
 pub(super) fn platform_drag_and_drop_enabled(options: &NativeRunOptions) -> bool {
     options.drag_and_drop && !options.is_popup()
+}
+
+pub(super) fn reveal_window_after_surface_setup(options: &NativeRunOptions) -> bool {
+    !options.is_popup()
+}
+
+pub(super) fn reveal_window_after_first_present(options: &NativeRunOptions) -> bool {
+    options.is_popup()
 }

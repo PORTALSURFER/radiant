@@ -1,8 +1,8 @@
 //! Child-process popup host management for the popup example.
 
 #[cfg(all(target_os = "windows", not(test)))]
-use super::POPUP_POSITION;
-use super::{POPUP_ARG, POPUP_MODE_ARG, POPUP_PREWARM_ARG, PopupMode};
+use super::model::POPUP_POSITION;
+use super::model::{POPUP_ARG, POPUP_MODE_ARG, POPUP_PREWARM_ARG, PopupMode};
 use std::process::Child;
 #[cfg(all(target_os = "windows", not(test)))]
 use std::process::Stdio;

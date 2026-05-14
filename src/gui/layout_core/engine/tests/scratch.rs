@@ -155,6 +155,28 @@ fn layout_engine_reuses_linear_scratch_vectors_between_passes() {
 }
 
 #[test]
+fn layout_engine_prunes_stale_measure_cache_versions() {
+    let viewport = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 64.0));
+    let mut engine = LayoutEngine::default();
+
+    for state_version in 0..16 {
+        let root = LayoutNode::Widget(crate::gui::layout_core::tree::WidgetNode {
+            id: 1,
+            intrinsic: Vector2::new(40.0, 20.0),
+            state_version,
+        });
+        let output = engine.layout(&root, viewport);
+
+        assert!(output.rects.contains_key(&1));
+        assert_eq!(
+            engine.measure_cache.len(),
+            1,
+            "persistent measure cache should retain only entries touched by the latest layout pass"
+        );
+    }
+}
+
+#[test]
 fn dirty_subtree_invalidates_virtual_metrics_cache_for_whole_marked_set() {
     let children = (0..64)
         .map(|index| {

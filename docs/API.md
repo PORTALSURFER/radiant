@@ -921,8 +921,9 @@ fine-grained hints.
 
 `SurfaceRuntime` retains a `LayoutEngine` across refreshes and viewport changes
 instead of using the stateless one-shot layout helpers internally. That lets the
-runtime preserve layout measurement and virtualization caches while still
-accepting fresh immutable `UiSurface` snapshots from the host. Direct
+runtime preserve layout measurement and virtualization caches while pruning
+stale measurement entries that were not touched by the latest layout pass.
+It can still accept fresh immutable `UiSurface` snapshots from the host. Direct
 `UiSurface::frame(...)` calls remain one-shot by design for embedded hosts that
 want a single packaged frame without owning runtime state.
 

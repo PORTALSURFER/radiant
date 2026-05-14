@@ -133,8 +133,14 @@ impl LayoutEngine {
             context.output
         };
 
+        self.prune_stale_measure_cache();
         self.clear_dirty();
         output
+    }
+
+    fn prune_stale_measure_cache(&mut self) {
+        self.measure_cache
+            .retain(|key, _| self.scratch.measured.contains_key(key));
     }
 }
 

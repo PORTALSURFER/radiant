@@ -158,9 +158,9 @@ deferred background launch.
 transparency, topmost behavior, focus-on-open behavior, resizability, taskbar
 presence, and an optional top-edge native drag region where the platform
 supports those hints. Hosts that need a guaranteed instant first popup
-interaction can set `initially_visible(false)` to prewarm one hidden popup
-surface, then reveal the prepared native window on demand without rebuilding
-the GPU surface or first scene during the click. Direct
+interaction can prewarm one offscreen visible popup surface, wait briefly for
+its first render, hide it, then reveal the prepared native window on demand
+without rebuilding the GPU surface or first scene during the click. Direct
 `NativeRunOptions` launch paths can call `.validate()` before startup, and the
 native runtime returns `NativeGenericRunError::InvalidWindowOptions` instead of
 passing non-finite or non-positive geometry into the platform window layer.

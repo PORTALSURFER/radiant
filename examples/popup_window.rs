@@ -3,8 +3,9 @@
 //! Run `cargo run --example popup_window`, then use the main window controls to
 //! reveal a second borderless popup window. Drag the popup from its title area
 //! to reposition it, or hide it from the popup itself. The popup is the same
-//! example binary relaunched with `--popup`, then prewarmed hidden per mode so
-//! the user-facing open path only reveals an already prepared native surface.
+//! example binary relaunched with `--popup`, then rendered once offscreen per
+//! mode so the user-facing open path only reveals an already prepared native
+//! surface.
 
 use radiant::prelude::*;
 use std::env;
@@ -17,6 +18,8 @@ use host::{PopupHosts, hide_current_popup_window, open_popup_host, prepare_popup
 const POPUP_ARG: &str = "--popup";
 const POPUP_MODE_ARG: &str = "--popup-mode";
 const POPUP_PREWARM_ARG: &str = "--popup-prewarm";
+const POPUP_POSITION: [f32; 2] = [460.0, 280.0];
+const POPUP_PREWARM_POSITION: [f32; 2] = [-20_000.0, -20_000.0];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PopupMode {
@@ -151,18 +154,34 @@ fn run_popup_window() -> radiant::Result {
     .title("Radiant Floating Popup")
     .size(340, 156)
     .floating_popup()
-    .popup_policy(popup_policy(!launch.prewarmed))
+    .popup_policy(popup_policy_for_launch(launch))
     .view(popup_view)
     .update_with(update_popup)
     .run()
 }
 
 fn popup_policy(initially_visible: bool) -> NativePopupOptions {
+    popup_policy_at(POPUP_POSITION, initially_visible, initially_visible)
+}
+
+fn popup_policy_for_launch(launch: PopupLaunch) -> NativePopupOptions {
+    if launch.prewarmed {
+        popup_policy_at(POPUP_PREWARM_POSITION, true, false)
+    } else {
+        popup_policy(true)
+    }
+}
+
+fn popup_policy_at(
+    position: [f32; 2],
+    initially_visible: bool,
+    initially_focused: bool,
+) -> NativePopupOptions {
     NativePopupOptions::default()
-        .position(460.0, 280.0)
+        .position(position[0], position[1])
         .transparent(true)
         .always_on_top(true)
-        .initially_focused(initially_visible)
+        .initially_focused(initially_focused)
         .skip_taskbar(true)
         .initially_visible(initially_visible)
         .drag_region_height(38.0)
@@ -380,7 +399,7 @@ mod tests {
     fn popup_policy_describes_focused_transient_window() {
         let policy = popup_policy(true);
 
-        assert_eq!(policy.position, Some([460.0, 280.0]));
+        assert_eq!(policy.position, Some(POPUP_POSITION));
         assert!(policy.transparent);
         assert!(policy.always_on_top);
         assert!(policy.initially_focused);
@@ -391,11 +410,15 @@ mod tests {
     }
 
     #[test]
-    fn popup_policy_can_prepare_hidden_transient_window() {
-        let policy = popup_policy(false);
+    fn popup_policy_can_prepare_rendered_transient_window_offscreen() {
+        let policy = popup_policy_for_launch(PopupLaunch {
+            mode: PopupMode::Tooltip,
+            prewarmed: true,
+        });
 
-        assert!(!policy.initially_visible);
+        assert!(policy.initially_visible);
         assert!(!policy.initially_focused);
+        assert_eq!(policy.position, Some(POPUP_PREWARM_POSITION));
         assert!(policy.always_on_top);
         assert!(policy.skip_taskbar);
     }
@@ -409,7 +432,7 @@ mod tests {
         assert_eq!(spec.inner_size(), Some([340.0, 156.0]));
         assert_eq!(
             spec.popup_options().and_then(|popup| popup.position),
-            Some([460.0, 280.0])
+            Some(POPUP_POSITION)
         );
         assert!(!spec.native_options().decorations);
         assert!(!spec.drag_and_drop_enabled());

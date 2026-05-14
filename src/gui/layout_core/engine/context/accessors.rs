@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 impl<'a> LayoutContext<'a> {
     pub(crate) fn cached_measure(
-        &self,
+        &mut self,
         key: MeasureCacheKey,
         node_id: NodeId,
         is_container: bool,
@@ -20,10 +20,12 @@ impl<'a> LayoutContext<'a> {
         if is_container && !self.measure_dirty.is_empty() {
             return None;
         }
-        self.measured
-            .get(&key)
-            .copied()
-            .or_else(|| self.cache.get(&key).copied())
+        if let Some(value) = self.measured.get(&key).copied() {
+            return Some(value);
+        }
+        let value = self.cache.get(&key).copied()?;
+        self.measured.insert(key, value);
+        Some(value)
     }
 
     pub(crate) fn remember_measure(&mut self, key: MeasureCacheKey, value: Vector2) {

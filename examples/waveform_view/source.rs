@@ -12,6 +12,10 @@ mod summary;
 pub(super) use summary::band_stats;
 pub(super) use summary::{WaveformBand, WaveformSummary};
 
+#[path = "source/viewport.rs"]
+mod viewport;
+pub(super) use viewport::WaveformViewport;
+
 #[path = "source/raster.rs"]
 mod raster;
 #[cfg(test)]
@@ -45,12 +49,6 @@ impl WaveformFile {
         self.sample_rate.hash(&mut hasher);
         hasher.finish()
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct WaveformViewport {
-    pub(super) start: usize,
-    pub(super) end: usize,
 }
 
 pub(super) fn resolve_sample_path() -> Option<PathBuf> {
@@ -258,51 +256,4 @@ fn normalized_band(mut samples: Vec<f32>, gain: f32) -> Vec<f32> {
         *sample = (*sample * scale).clamp(-1.0, 1.0);
     }
     samples
-}
-
-impl WaveformViewport {
-    pub(super) fn full(frames: usize) -> Self {
-        Self {
-            start: 0,
-            end: frames.max(1),
-        }
-    }
-
-    pub(super) fn visible_frames(self) -> usize {
-        self.end.saturating_sub(self.start).max(1)
-    }
-
-    pub(super) fn visible_seconds(self, sample_rate: u32) -> f32 {
-        self.visible_frames() as f32 / sample_rate.max(1) as f32
-    }
-
-    pub(super) fn visible_fraction(self, total_frames: usize) -> f32 {
-        self.visible_frames() as f32 / total_frames.max(1) as f32
-    }
-
-    pub(super) fn offset_fraction(self, total_frames: usize) -> f32 {
-        let total_frames = total_frames.max(1);
-        let free_frames = total_frames.saturating_sub(self.visible_frames());
-        if free_frames == 0 {
-            0.0
-        } else {
-            self.start as f32 / free_frames as f32
-        }
-    }
-
-    pub(super) fn is_zoomed_in(self, total_frames: usize) -> bool {
-        self.visible_frames() < total_frames.max(1)
-    }
-
-    pub(super) fn clamp(self, total_frames: usize) -> Self {
-        let total_frames = total_frames.max(1);
-        let visible = self
-            .visible_frames()
-            .clamp(MIN_VISIBLE_FRAMES.min(total_frames), total_frames);
-        let start = self.start.min(total_frames.saturating_sub(visible));
-        Self {
-            start,
-            end: start + visible,
-        }
-    }
 }

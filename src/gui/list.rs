@@ -4,7 +4,9 @@ mod editable;
 mod grid;
 mod virtual_list;
 
-pub use editable::{ColumnSummary, EditableRowKind, EditableTreeActions, EditableTreeRow};
+pub use editable::{
+    ColumnSummary, EditableRowKind, EditableTreeActions, EditableTreeRow, EditableTreeRowParts,
+};
 pub use grid::{VirtualGridWindow, VirtualGridWindowRequest, resolve_virtual_grid_window};
 pub use virtual_list::{
     MaterializedVirtualListItem, VirtualListInvalidation, VirtualListItemKey,

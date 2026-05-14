@@ -340,8 +340,12 @@ fn native_vello_scene_encoder_keeps_custom_surfaces_in_focused_module() {
 #[test]
 fn composited_base_frame_cache_avoids_post_mutation_expect() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let source = fs::read_to_string(
+    let module = fs::read_to_string(
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/composited_base.rs"),
+    )
+    .expect("composited base presenter should be readable");
+    let source = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/composited_base/frame.rs"),
     )
     .expect("composited base frame cache should be readable");
     let ensure_body = source
@@ -350,6 +354,16 @@ fn composited_base_frame_cache_avoids_post_mutation_expect() {
         .and_then(|tail| tail.split("fn new").next())
         .expect("CompositedBaseFrame::ensure should be present");
 
+    assert!(
+        module.contains("mod frame;")
+            && module.contains("pub(super) use frame::CompositedBaseFrame;"),
+        "composited base presentation should delegate cached texture ownership to the frame module"
+    );
+    assert!(
+        !module.contains("struct CompositedBaseFrame")
+            && source.contains("struct CompositedBaseFrame"),
+        "cached composited base texture state should stay out of the presenter module"
+    );
     assert!(
         ensure_body.contains(".is_some_and(|frame| frame.matches(width, height, format))")
             && ensure_body.contains("frame.insert(Self::new(device, width, height, format))"),

@@ -65,7 +65,7 @@ impl PostGpuOverlayRenderer {
         let pipeline = self
             .pipeline
             .get_or_insert_with(|| PostGpuOverlayPipeline::new(target.device, target.format));
-        if pipeline.format() != target.format {
+        if !pipeline.matches_target(target.device, target.format) {
             *pipeline = PostGpuOverlayPipeline::new(target.device, target.format);
         }
         pipeline.render(target, vertex_buffer, self.vertices.len() as u32);

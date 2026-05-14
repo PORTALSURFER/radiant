@@ -93,7 +93,7 @@ fn split_pane_tree_panel_defaults_to_empty_unassigned_panel() {
 
 #[test]
 fn split_pane_sidebar_state_routes_active_pane() {
-    let sidebar: SplitPaneSidebarState = SplitPaneSidebarState {
+    let mut sidebar: SplitPaneSidebarState = SplitPaneSidebarState {
         active_pane: SplitPaneSlot::Lower,
         lower_pane: SplitPaneTreePanel {
             title: String::from("Lower"),
@@ -103,4 +103,9 @@ fn split_pane_sidebar_state_routes_active_pane() {
     };
 
     assert_eq!(sidebar.active_pane_model().title, "Lower");
+    sidebar.pane_mut(SplitPaneSlot::Upper).title = String::from("Upper");
+    sidebar.active_pane_model_mut().item_label = String::from("Active");
+
+    assert_eq!(sidebar.upper_pane.title, "Upper");
+    assert_eq!(sidebar.lower_pane.item_label, "Active");
 }

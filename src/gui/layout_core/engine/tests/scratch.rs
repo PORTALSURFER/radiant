@@ -177,6 +177,26 @@ fn layout_engine_prunes_stale_measure_cache_versions() {
 }
 
 #[test]
+fn layout_engine_prunes_stale_virtualization_cache_entries() {
+    let viewport = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 64.0));
+    let state = LayoutState::default();
+    let mut engine = LayoutEngine::default();
+
+    for child_count in 32..48 {
+        let root = fixed_virtualized_root(child_count, 12.0);
+        let output =
+            engine.layout_with_state(&root, viewport, &state, LayoutDebugOptions::default());
+
+        assert!(output.virtual_windows.contains_key(&1));
+        assert_eq!(
+            engine.virtual_cache.len(),
+            1,
+            "persistent virtualization cache should retain only entries touched by the latest layout pass"
+        );
+    }
+}
+
+#[test]
 fn dirty_subtree_invalidates_virtual_metrics_cache_for_whole_marked_set() {
     let children = (0..64)
         .map(|index| {
@@ -248,6 +268,48 @@ fn dirty_subtree_invalidates_virtual_metrics_cache_for_whole_marked_set() {
         engine.virtual_cache.is_empty(),
         "dirtying virtualized content should drop cached span metrics"
     );
+}
+
+fn fixed_virtualized_root(child_count: u64, row_height: f32) -> LayoutNode {
+    let children = (0..child_count)
+        .map(|index| {
+            SlotChild::new(
+                SlotParams {
+                    size_main: SizeModeMain::Fixed(row_height),
+                    size_cross: SizeModeCross::Fill,
+                    constraints: Constraints::unconstrained(),
+                    margin: Default::default(),
+                    align_cross_override: None,
+                    allow_fixed_compress: false,
+                },
+                LayoutNode::widget(index + 10, Vector2::new(40.0, row_height)),
+            )
+        })
+        .collect();
+    LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            overflow: OverflowPolicy::Scroll,
+            virtualization: Some(VirtualizationPolicy {
+                enabled: true,
+                axis: VirtualizationAxis::Vertical,
+                overscan_px: 8.0,
+            }),
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild::new(
+            SlotParams::fill(),
+            LayoutNode::container(
+                2,
+                ContainerPolicy {
+                    kind: ContainerKind::Column,
+                    ..ContainerPolicy::default()
+                },
+                children,
+            ),
+        )],
+    )
 }
 
 #[test]

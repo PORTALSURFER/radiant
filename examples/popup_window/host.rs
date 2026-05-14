@@ -1,7 +1,12 @@
 //! Child-process popup host management for the popup example.
 
+#[cfg(all(target_os = "windows", not(test)))]
+use super::POPUP_POSITION;
 use super::{POPUP_ARG, POPUP_MODE_ARG, POPUP_PREWARM_ARG, PopupMode};
 use std::process::Child;
+
+#[cfg(all(target_os = "windows", not(test)))]
+const PREWARM_RENDER_WAIT: std::time::Duration = std::time::Duration::from_millis(160);
 
 #[derive(Debug, Default)]
 pub(super) struct PopupHosts {
@@ -56,6 +61,7 @@ impl PopupHost {
         let child = spawn_popup_process(mode, true)?;
         self.mode = Some(mode);
         self.child = Some(child);
+        self.finish_prewarm();
         Ok(())
     }
 
@@ -70,11 +76,11 @@ impl PopupHost {
                 .as_ref()
                 .map(Child::id)
                 .ok_or("popup host is not running")?;
-            if show_popup_window(child_id, true) {
+            if show_popup_window(child_id, POPUP_POSITION, true) {
                 return Ok(());
             }
             if wait_for_popup_window(child_id, std::time::Duration::from_millis(250))
-                && show_popup_window(child_id, true)
+                && show_popup_window(child_id, POPUP_POSITION, true)
             {
                 return Ok(());
             }
@@ -107,6 +113,20 @@ impl PopupHost {
             self.mode = None;
         }
     }
+
+    #[cfg(all(target_os = "windows", not(test)))]
+    fn finish_prewarm(&self) {
+        let Some(process_id) = self.child.as_ref().map(Child::id) else {
+            return;
+        };
+        if wait_for_popup_window(process_id, std::time::Duration::from_secs(1)) {
+            std::thread::sleep(PREWARM_RENDER_WAIT);
+            hide_popup_window(process_id);
+        }
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(test)))]
+    fn finish_prewarm(&self) {}
 
     #[cfg(not(test))]
     fn wait_until_ready(&self, timeout: std::time::Duration) -> bool {
@@ -197,20 +217,44 @@ fn wait_for_popup_window(process_id: u32, timeout: std::time::Duration) -> bool 
 
 #[cfg(target_os = "windows")]
 #[cfg(not(test))]
-fn show_popup_window(process_id: u32, focus: bool) -> bool {
+fn show_popup_window(process_id: u32, position: [f32; 2], focus: bool) -> bool {
     let Some(hwnd) = popup_window_handle(process_id) else {
         return false;
     };
     unsafe {
         use windows_sys::Win32::UI::WindowsAndMessaging::{
-            SW_SHOW, SW_SHOWNA, SetForegroundWindow, ShowWindow,
+            SW_SHOW, SW_SHOWNA, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SetForegroundWindow,
+            SetWindowPos, ShowWindow,
         };
 
+        SetWindowPos(
+            hwnd,
+            std::ptr::null_mut(),
+            position[0].round() as i32,
+            position[1].round() as i32,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
         let command = if focus { SW_SHOW } else { SW_SHOWNA };
         ShowWindow(hwnd, command);
         if focus {
             SetForegroundWindow(hwnd);
         }
+    }
+    true
+}
+
+#[cfg(target_os = "windows")]
+#[cfg(not(test))]
+fn hide_popup_window(process_id: u32) -> bool {
+    let Some(hwnd) = popup_window_handle(process_id) else {
+        return false;
+    };
+    unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{SW_HIDE, ShowWindow};
+
+        ShowWindow(hwnd, SW_HIDE);
     }
     true
 }

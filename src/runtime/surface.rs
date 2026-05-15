@@ -20,7 +20,7 @@ pub use frame::SurfaceFrame;
 pub(in crate::runtime) use input::WidgetDispatchResult;
 pub(in crate::runtime) use layout::SurfaceRuntimeProjection;
 pub use node::{SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceOverlay};
-pub(in crate::runtime) use paint::estimated_paint_primitive_capacity;
+pub(in crate::runtime) use paint::{clear_paint_plan_for_layout, empty_paint_plan_for_layout};
 pub(in crate::runtime) use path::{ClipAncestors, WidgetPath};
 pub(in crate::runtime) use traversal::{SurfaceTraversalIndex, SurfaceTraversalStats};
 pub use widget::{MessageMapper, SurfaceWidget, WidgetMessageMapper};

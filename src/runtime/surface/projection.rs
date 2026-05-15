@@ -1,4 +1,4 @@
-use super::{UiSurface, estimated_paint_primitive_capacity};
+use super::{UiSurface, clear_paint_plan_for_layout, empty_paint_plan_for_layout};
 use crate::{layout::LayoutOutput, runtime::paint::SurfacePaintPlan, theme::ThemeTokens};
 
 impl<Message> UiSurface<Message> {
@@ -7,10 +7,7 @@ impl<Message> UiSurface<Message> {
     /// Primitives are emitted in declarative tree order so backends and tests can
     /// compare output deterministically without depending on the native shell.
     pub fn paint_plan(&self, layout: &LayoutOutput, theme: &ThemeTokens) -> SurfacePaintPlan {
-        let mut plan = SurfacePaintPlan::empty_with_capacity(
-            theme,
-            estimated_paint_primitive_capacity(layout),
-        );
+        let mut plan = empty_paint_plan_for_layout(layout, theme);
         self.paint_plan_into(layout, theme, &mut plan);
         plan
     }
@@ -36,7 +33,7 @@ impl<Message> UiSurface<Message> {
         active_scroll_affordance: Option<crate::layout::NodeId>,
         plan: &mut SurfacePaintPlan,
     ) {
-        plan.clear_for_theme_with_capacity(theme, estimated_paint_primitive_capacity(layout));
+        clear_paint_plan_for_layout(plan, layout, theme);
         self.root.append_paint(
             layout,
             theme,

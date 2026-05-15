@@ -76,6 +76,16 @@ mod tests {
     }
 
     #[test]
+    fn horizontal_progress_fill_rect_rejects_nonfinite_geometry_and_fraction() {
+        let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 28.0));
+        let invalid_track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(f32::NAN, 28.0));
+
+        assert_eq!(horizontal_progress_fill_rect(invalid_track, 0.5), None);
+        assert_eq!(horizontal_progress_fill_rect(track, f32::NAN), None);
+        assert_eq!(horizontal_progress_fill_rect(track, f32::INFINITY), None);
+    }
+
+    #[test]
     fn horizontal_progress_activity_rect_resolves_moving_segment() {
         let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 28.0));
 
@@ -100,6 +110,38 @@ mod tests {
         assert_eq!(
             horizontal_progress_activity_rect(track, 0.5, 0.0, 0.0),
             None
+        );
+    }
+
+    #[test]
+    fn horizontal_progress_activity_rect_sanitizes_nonfinite_inputs() {
+        let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 28.0));
+        let invalid_track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, f32::NAN));
+
+        assert_eq!(
+            horizontal_progress_activity_rect(invalid_track, 0.5, 0.24, 18.0),
+            None
+        );
+        assert_eq!(
+            horizontal_progress_activity_rect(track, f32::NAN, 0.24, 18.0),
+            Some(Rect::from_min_max(
+                Point::new(10.0, 20.0),
+                Point::new(34.0, 28.0)
+            ))
+        );
+        assert_eq!(
+            horizontal_progress_activity_rect(track, 0.5, f32::NAN, 18.0),
+            Some(Rect::from_min_max(
+                Point::new(51.0, 20.0),
+                Point::new(69.0, 28.0)
+            ))
+        );
+        assert_eq!(
+            horizontal_progress_activity_rect(track, 0.5, 0.24, f32::NAN),
+            Some(Rect::from_min_max(
+                Point::new(48.0, 20.0),
+                Point::new(72.0, 28.0)
+            ))
         );
     }
 
@@ -133,6 +175,28 @@ mod tests {
     }
 
     #[test]
+    fn horizontal_meter_fill_rect_sanitizes_nonfinite_inputs() {
+        let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 28.0));
+        let invalid_track = Rect::from_min_max(Point::new(f32::NAN, 20.0), Point::new(110.0, 28.0));
+
+        assert_eq!(horizontal_meter_fill_rect(invalid_track, 0.5, 1.0), None);
+        assert_eq!(horizontal_meter_fill_rect(track, f32::NAN, 0.0), None);
+        assert_eq!(
+            horizontal_meter_fill_rect(track, f32::NAN, 1.0),
+            Some(Rect::from_min_max(
+                Point::new(10.0, 20.0),
+                Point::new(11.0, 28.0)
+            ))
+        );
+        assert_eq!(
+            horizontal_meter_fill_rect(track, 0.5, f32::NAN)
+                .unwrap()
+                .max,
+            Point::new(60.0, 28.0)
+        );
+    }
+
+    #[test]
     fn horizontal_discrete_meter_fill_rect_rounds_and_clamps_byte_levels() {
         let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 28.0));
 
@@ -145,5 +209,16 @@ mod tests {
 
         let full = horizontal_discrete_meter_fill_rect(track, 999, 255).expect("full meter");
         assert_eq!(full, track);
+    }
+
+    #[test]
+    fn horizontal_discrete_meter_fill_rect_rejects_nonfinite_tracks() {
+        let invalid_track =
+            Rect::from_min_max(Point::new(10.0, 20.0), Point::new(f32::INFINITY, 28.0));
+
+        assert_eq!(
+            horizontal_discrete_meter_fill_rect(invalid_track, 128, 255),
+            None
+        );
     }
 }

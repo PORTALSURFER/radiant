@@ -28,22 +28,28 @@ pub struct VirtualListScrollbar {
 pub fn resolve_virtual_list_scrollbar(
     request: VirtualListScrollbarRequest,
 ) -> Option<VirtualListScrollbar> {
+    let track_height = request.track.height();
+    let track_width = request.track.width();
     if request.total_items == 0
         || request.viewport_len == 0
         || request.total_items <= request.viewport_len
-        || request.track.height() <= 1.0
-        || request.track.width() <= 0.0
+        || !track_height.is_finite()
+        || !track_width.is_finite()
+        || track_height <= 1.0
+        || track_width <= 0.0
     {
         return None;
     }
 
     let viewport_len = request.viewport_len.min(request.total_items);
     let max_viewport_start = request.total_items.saturating_sub(viewport_len);
-    let thumb_extent = (request.track.height()
-        * (viewport_len as f32 / request.total_items as f32))
-        .round()
-        .clamp(request.min_thumb_extent.max(1.0), request.track.height());
-    let travel = (request.track.height() - thumb_extent).max(0.0);
+    let min_thumb_extent = request.min_thumb_extent.max(1.0).min(track_height);
+    let preferred_thumb_extent =
+        (track_height * (viewport_len as f32 / request.total_items as f32)).round();
+    let thumb_extent = preferred_thumb_extent
+        .max(min_thumb_extent)
+        .min(track_height);
+    let travel = (track_height - thumb_extent).max(0.0);
     let start_ratio = if max_viewport_start == 0 {
         0.0
     } else {
@@ -76,14 +82,21 @@ pub fn virtual_list_scrollbar_view_start_for_pointer(
         return None;
     }
     let max_viewport_start = total_items.saturating_sub(viewport_len);
-    let thumb_extent = scrollbar.thumb.height().max(1.0);
-    let travel = (scrollbar.track.height() - thumb_extent).max(0.0);
+    let track_height = scrollbar.track.height();
+    if !track_height.is_finite() {
+        return None;
+    }
+    let thumb_extent = scrollbar.thumb.height().max(1.0).min(track_height);
+    let travel = (track_height - thumb_extent).max(0.0);
     if travel <= f32::EPSILON || max_viewport_start == 0 {
         return Some(0);
     }
 
+    let min_thumb_y = scrollbar.track.min.y;
+    let max_thumb_y = (scrollbar.track.max.y - thumb_extent).max(min_thumb_y);
     let thumb_min_y = (pointer_y - thumb_pointer_offset_y)
-        .clamp(scrollbar.track.min.y, scrollbar.track.max.y - thumb_extent);
+        .max(min_thumb_y)
+        .min(max_thumb_y);
     let start_ratio = ((thumb_min_y - scrollbar.track.min.y) / travel).clamp(0.0, 1.0);
     Some(((start_ratio * max_viewport_start as f32).round() as usize).min(max_viewport_start))
 }

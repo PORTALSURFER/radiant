@@ -23,6 +23,7 @@ use gpu_surface_types::*;
 use passes::*;
 #[cfg(test)]
 pub(super) use pipeline::GPU_SIGNAL_SHADER;
+use resources::GpuSurfaceResourceCache;
 pub(super) use stats::GpuSurfaceRenderStats;
 use visibility::gpu_surface_opaque_suffix_regions;
 pub(super) use visibility::{gpu_surface_visible_suffix_regions_into, visible_surface_regions};
@@ -33,11 +34,7 @@ pub(super) struct GpuSurfaceRenderer {
     pipeline_generation: u64,
     signal_pipeline: Option<SignalPipeline>,
     signal_pipeline_generation: u64,
-    textures: HashMap<u64, GpuSurfaceTexture>,
-    composite_bindings: HashMap<u64, GpuSurfaceCompositeBinding>,
-    signal_bodies: HashMap<u64, SignalBodyTexture>,
-    signals: HashMap<u64, SignalBuffer>,
-    signal_summaries: HashMap<u64, CachedSignalSummary>,
+    resources: GpuSurfaceResourceCache,
     active_keys: ActiveGpuSurfaceKeys,
 }
 
@@ -100,23 +97,11 @@ impl GpuSurfaceRenderer {
     }
 
     fn prune_inactive_resources(&mut self) {
-        let active_keys = &self.active_keys;
-        self.textures.retain(|key, _| active_keys.contains(key));
-        self.composite_bindings
-            .retain(|key, _| active_keys.contains(key));
-        self.signal_bodies
-            .retain(|key, _| active_keys.contains(key));
-        self.signals.retain(|key, _| active_keys.contains(key));
-        self.signal_summaries
-            .retain(|key, _| active_keys.contains(key));
+        self.resources.prune_inactive(&self.active_keys);
     }
 
     fn clear_resources(&mut self) {
-        self.textures.clear();
-        self.composite_bindings.clear();
-        self.signal_bodies.clear();
-        self.signals.clear();
-        self.signal_summaries.clear();
+        self.resources.clear();
     }
 }
 
@@ -136,8 +121,8 @@ mod tests {
         renderer.active_keys.mark_active(8);
         renderer.prune_inactive_resources();
 
-        assert!(!renderer.signal_summaries.contains_key(&7));
-        assert!(renderer.signal_summaries.contains_key(&8));
+        assert!(!renderer.resources.signal_summaries.contains_key(&7));
+        assert!(renderer.resources.signal_summaries.contains_key(&8));
     }
 
     #[test]
@@ -150,10 +135,10 @@ mod tests {
 
         renderer.prune_inactive_resources();
 
-        assert!(renderer.textures.is_empty());
-        assert!(renderer.composite_bindings.is_empty());
-        assert!(renderer.signal_bodies.is_empty());
-        assert!(renderer.signals.is_empty());
-        assert!(renderer.signal_summaries.is_empty());
+        assert!(renderer.resources.textures.is_empty());
+        assert!(renderer.resources.composite_bindings.is_empty());
+        assert!(renderer.resources.signal_bodies.is_empty());
+        assert!(renderer.resources.signals.is_empty());
+        assert!(renderer.resources.signal_summaries.is_empty());
     }
 }

@@ -20,7 +20,7 @@ impl GpuSurfaceRenderer {
     ) {
         self.ensure_texture(target.device, target.queue, surface, stats);
         self.ensure_pipeline(target.device, target.format);
-        let Some(texture) = self.textures.get(&surface.key) else {
+        let Some(texture) = self.resources.textures.get(&surface.key) else {
             return;
         };
         let texture_identity = GpuSurfaceTextureIdentity::RgbaAtlas {
@@ -72,6 +72,7 @@ impl GpuSurfaceRenderer {
             texture: request.texture_identity,
         };
         let rebuild_binding = self
+            .resources
             .composite_bindings
             .get(&surface.key)
             .is_none_or(|binding| binding.cache_key != cache_key);
@@ -101,7 +102,7 @@ impl GpuSurfaceRenderer {
                     },
                 ],
             });
-            self.composite_bindings.insert(
+            self.resources.composite_bindings.insert(
                 surface.key,
                 GpuSurfaceCompositeBinding {
                     cache_key,
@@ -112,7 +113,7 @@ impl GpuSurfaceRenderer {
         } else {
             stats.composite_binding_cache_hits += 1;
         }
-        let Some(binding) = self.composite_bindings.get(&surface.key) else {
+        let Some(binding) = self.resources.composite_bindings.get(&surface.key) else {
             return;
         };
         target

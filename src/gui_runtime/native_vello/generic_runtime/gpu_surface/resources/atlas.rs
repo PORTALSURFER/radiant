@@ -11,9 +11,14 @@ impl GpuSurfaceRenderer {
         let GpuSurfaceContent::RgbaAtlas { atlas, .. } = &surface.content else {
             return;
         };
-        if self.textures.get(&surface.key).is_some_and(|texture| {
-            texture.matches_atlas(device, surface.revision, atlas.width, atlas.height)
-        }) {
+        if self
+            .resources
+            .textures
+            .get(&surface.key)
+            .is_some_and(|texture| {
+                texture.matches_atlas(device, surface.revision, atlas.width, atlas.height)
+            })
+        {
             stats.atlas_texture_cache_hits += 1;
             return;
         }
@@ -55,7 +60,7 @@ impl GpuSurfaceRenderer {
             },
         );
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        self.textures.insert(
+        self.resources.textures.insert(
             surface.key,
             GpuSurfaceTexture {
                 device: wgpu_device_id(device),

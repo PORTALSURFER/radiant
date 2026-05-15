@@ -22,9 +22,11 @@ pub fn visible_suffix_widths_into(
     if available_width <= 0.0 || widths.is_empty() {
         return;
     }
+    let gap = gap.max(0.0);
     let mut used = 0.0;
     let mut first_visible = widths.len();
     for (index, width) in widths.iter().rev().enumerate() {
+        let width = width.max(0.0);
         let candidate = used + width + if index > 0 { gap } else { 0.0 };
         if candidate > available_width {
             break;
@@ -36,7 +38,7 @@ pub fn visible_suffix_widths_into(
     if suffix.len() > visible.capacity() {
         visible.reserve(suffix.len());
     }
-    visible.extend_from_slice(suffix);
+    visible.extend(suffix.iter().map(|width| width.max(0.0)));
 }
 
 /// Resolve a fixed item width that fits `item_count` items after reserved gaps.
@@ -54,8 +56,8 @@ pub fn fixed_width_item_extent_for_available_width(
     if raw_width <= 0.0 {
         0.0
     } else {
-        raw_width
-            .floor()
-            .clamp(min_item_width.max(0.0), max_item_width.max(0.0))
+        let min_item_width = min_item_width.max(0.0);
+        let max_item_width = max_item_width.max(min_item_width);
+        raw_width.floor().clamp(min_item_width, max_item_width)
     }
 }

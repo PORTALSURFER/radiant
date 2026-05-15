@@ -301,6 +301,32 @@ fn native_frame_preparation_stays_out_of_present_driver() {
 }
 
 #[test]
+fn native_timed_frame_drain_does_not_recompute_selected_cadence() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let lifecycle = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs"),
+    )
+    .expect("generic native lifecycle should be readable");
+    let runner = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/runner.rs"),
+    )
+    .expect("generic native runner should be readable");
+
+    assert!(
+        lifecycle.contains("let cadence = timed_frame_cadence(")
+            && lifecycle.contains("TimedFrameCadence::DrainNow { next_wake }")
+            && lifecycle.contains("self.drain_timed_frame_now("),
+        "native lifecycle should compute timed-frame cadence once and drain directly when due"
+    );
+    assert!(
+        runner.contains("fn drain_timed_frame_now")
+            && !runner.contains("fn drain_due_timed_frame")
+            && !runner.contains("match timed_frame_cadence("),
+        "runner timed-frame drain should not recompute cadence already selected by lifecycle"
+    );
+}
+
+#[test]
 fn native_render_surface_target_size_stays_in_focused_module() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module =

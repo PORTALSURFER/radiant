@@ -159,18 +159,13 @@ where
                 event_loop.set_control_flow(ControlFlow::WaitUntil(next_frame));
             }
             TimedFrameCadence::DrainNow { next_wake } => {
-                if let Some((outcome, _)) = self.drain_due_timed_frame(
-                    now,
-                    frame_target_fps,
-                    animation_activity,
-                    needs_text_caret_animation,
-                ) {
-                    if outcome.exit_requested {
-                        event_loop.exit();
-                        return;
-                    }
-                    self.handle_route_outcome(event_loop, outcome);
+                let outcome =
+                    self.drain_timed_frame_now(now, animation_activity, needs_text_caret_animation);
+                if outcome.exit_requested {
+                    event_loop.exit();
+                    return;
                 }
+                self.handle_route_outcome(event_loop, outcome);
                 event_loop.set_control_flow(ControlFlow::WaitUntil(next_wake));
             }
         }

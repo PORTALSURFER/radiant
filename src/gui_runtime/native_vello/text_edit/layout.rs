@@ -1,4 +1,4 @@
-use super::super::{NativeTextRenderer, TextCursorStop, TextLayout};
+use super::super::{NativeTextRenderer, TextCursorStop, TextLayout, font_size_is_renderable};
 use super::state::SingleLineTextEditorState;
 use std::ops::Range;
 
@@ -49,6 +49,11 @@ pub(in crate::gui_runtime::native_vello) fn build_text_field_layout(
     available_width: f32,
 ) -> TextFieldLayoutState {
     editor.clamp_to_text(text);
+    let padding_font_size = if font_size_is_renderable(font_size) {
+        font_size
+    } else {
+        1.0
+    };
     let width = available_width.max(1.0);
     let fallback_layout;
     let layout = if let Some(layout) = renderer.layout_text(text, font_size) {
@@ -57,7 +62,7 @@ pub(in crate::gui_runtime::native_vello) fn build_text_field_layout(
         fallback_layout = TextLayout::empty_for(text);
         &fallback_layout
     };
-    let left_padding = (font_size * 0.35).clamp(4.0, 12.0);
+    let left_padding = (padding_font_size * 0.35).clamp(4.0, 12.0);
     let right_padding = left_padding;
     let caret_x = cursor_stop_x(&layout.cursor_stops, editor.cursor_byte);
     let mut scroll_x = cursor_stop_x(&layout.cursor_stops, editor.scroll_start_byte);

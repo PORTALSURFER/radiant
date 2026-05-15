@@ -147,6 +147,9 @@ impl NativeTextRenderer {
     }
 
     pub(super) fn layout_text(&mut self, text: &str, font_size: f32) -> Option<&TextLayout> {
+        if !font_size_is_renderable(font_size) {
+            return None;
+        }
         let font = &self.loaded_font.as_ref()?.font;
         self.layout_cache.layout_for(font, text, font_size)
     }
@@ -159,13 +162,16 @@ impl NativeTextRenderer {
 
 fn text_run_is_renderable(run: SceneTextRun<'_>) -> bool {
     !run.text.is_empty()
-        && run.font_size.is_finite()
-        && run.font_size > 0.0
+        && font_size_is_renderable(run.font_size)
         && run.position.x.is_finite()
         && run.position.y.is_finite()
         && run
             .max_width
             .is_none_or(|max_width| max_width.is_finite() && max_width > 0.0)
+}
+
+pub(in crate::gui_runtime::native_vello) fn font_size_is_renderable(font_size: f32) -> bool {
+    font_size.is_finite() && font_size > 0.0
 }
 
 impl TextLayout {

@@ -69,6 +69,7 @@ fn present_live_base(
     target: &mut BaseFramePresentTarget<'_>,
     paint_plan: &SurfacePaintPlan,
 ) -> gpu_surface::GpuSurfaceRenderStats {
+    let surface_size = RenderSurfacePixelSize::from_surface(surface);
     surface.blitter.copy(
         target.device,
         target.encoder,
@@ -82,7 +83,7 @@ fn present_live_base(
             encoder: target.encoder,
             target_view: target.surface_view,
             format: surface.config.format,
-            size: Vector2::new(surface.config.width as f32, surface.config.height as f32),
+            size: surface_size.logical_size(),
         },
         &paint_plan.primitives,
     )
@@ -97,6 +98,7 @@ fn refresh_composited_base_frame(
     paint_plan: &SurfacePaintPlan,
     profile: &mut RenderFrameProfile,
 ) -> gpu_surface::GpuSurfaceRenderStats {
+    let surface_size = RenderSurfacePixelSize::from_surface(surface);
     let started = Instant::now();
     surface.blitter.copy(
         target.device,
@@ -111,7 +113,7 @@ fn refresh_composited_base_frame(
             encoder: target.encoder,
             target_view: &frame.view,
             format: surface.config.format,
-            size: Vector2::new(surface.config.width as f32, surface.config.height as f32),
+            size: surface_size.logical_size(),
         },
         &paint_plan.primitives,
     );

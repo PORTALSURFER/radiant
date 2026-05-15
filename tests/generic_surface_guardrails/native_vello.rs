@@ -204,6 +204,47 @@ fn native_vello_scene_texture_rendering_stays_out_of_present_driver() {
 }
 
 #[test]
+fn native_render_surface_target_size_stays_in_focused_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let module =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/generic_runtime.rs"))
+            .expect("generic native Vello module should be readable");
+    let present = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present.rs"),
+    )
+    .expect("present driver should be readable");
+    let composited = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/composited_base.rs"),
+    )
+    .expect("composited base presenter should be readable");
+    let surface_size = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/surface_size.rs"),
+    )
+    .expect("render surface size module should be readable");
+
+    assert!(
+        module.contains("mod surface_size;")
+            && module.contains("use surface_size::RenderSurfacePixelSize;"),
+        "generic runtime should own render-surface sizing through a focused module"
+    );
+    assert!(
+        present.contains("RenderSurfacePixelSize::from_surface(surface)")
+            && composited
+                .matches("RenderSurfacePixelSize::from_surface(surface)")
+                .count()
+                == 2,
+        "present and composited-base WGPU targets should use the shared render-surface size helper"
+    );
+    assert!(
+        !present.contains("surface.config.width as f32")
+            && !composited.contains("surface.config.width as f32")
+            && surface_size.contains("pub(super) struct RenderSurfacePixelSize")
+            && surface_size.contains("fn logical_size"),
+        "direct WGPU target size conversion should stay centralized instead of repeating raw config casts"
+    );
+}
+
+#[test]
 fn native_gpu_surface_wheel_coalescing_stays_in_focused_module() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module =

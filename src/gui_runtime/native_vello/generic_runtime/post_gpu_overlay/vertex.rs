@@ -1,4 +1,7 @@
-use crate::gui_runtime::native_vello::wgpu;
+use crate::gui_runtime::native_vello::{
+    generic_runtime::gpu_upload_bytes::{GpuUploadBytes, upload_slice_as_bytes},
+    wgpu,
+};
 
 /// CPU-side vertex ABI shared by post-GPU overlay geometry and the WGPU pipeline.
 #[repr(C)]
@@ -31,12 +34,10 @@ impl OverlayVertex {
 }
 
 pub(super) fn overlay_vertex_bytes(vertices: &[OverlayVertex]) -> &[u8] {
-    let size = std::mem::size_of_val(vertices);
-    let ptr = vertices.as_ptr() as *const u8;
-    // SAFETY: `OverlayVertex` is a repr(C) POD-like value containing only f32
-    // arrays. The slice is used only while wgpu copies the bytes into a buffer.
-    unsafe { std::slice::from_raw_parts(ptr, size) }
+    upload_slice_as_bytes(vertices)
 }
+
+unsafe impl GpuUploadBytes for OverlayVertex {}
 
 #[cfg(test)]
 mod tests {

@@ -245,6 +245,42 @@ fn native_render_surface_target_size_stays_in_focused_module() {
 }
 
 #[test]
+fn native_gpu_upload_byte_casts_stay_in_focused_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let module =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/generic_runtime.rs"))
+            .expect("generic native Vello module should be readable");
+    let upload = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_upload_bytes.rs"),
+    )
+    .expect("GPU upload byte helper should be readable");
+    let encoding = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/encoding.rs"),
+    )
+    .expect("GPU surface encoding module should be readable");
+    let vertex = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/post_gpu_overlay/vertex.rs"),
+    )
+    .expect("post GPU overlay vertex module should be readable");
+
+    assert!(
+        module.contains("mod gpu_upload_bytes;")
+            && upload.contains("unsafe trait GpuUploadBytes")
+            && upload.contains("from_raw_parts"),
+        "generic runtime should own raw WGPU upload byte views in one explicit helper"
+    );
+    assert!(
+        encoding.contains("upload_value_as_bytes")
+            && encoding.contains("upload_slice_as_bytes")
+            && vertex.contains("upload_slice_as_bytes")
+            && !encoding.contains("from_raw_parts")
+            && !vertex.contains("from_raw_parts"),
+        "renderer upload structs should delegate byte casting instead of duplicating pointer logic"
+    );
+}
+
+#[test]
 fn native_gpu_surface_wheel_coalescing_stays_in_focused_module() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module =

@@ -14,6 +14,7 @@ mod gpu_surface;
 mod gpu_surface_cursor;
 mod gpu_surface_interaction;
 mod gpu_surface_wheel;
+mod gpu_upload_bytes;
 mod input;
 mod keyboard;
 mod lifecycle;

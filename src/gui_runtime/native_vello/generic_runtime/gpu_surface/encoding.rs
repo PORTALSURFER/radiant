@@ -1,11 +1,14 @@
 use super::*;
+use crate::gui_runtime::native_vello::generic_runtime::gpu_upload_bytes::{
+    GpuUploadBytes, upload_slice_as_bytes, upload_value_as_bytes,
+};
 
 pub(super) fn uniforms_as_bytes(uniforms: &GpuSurfaceUniforms) -> &[u8] {
-    gpu_upload_value_as_bytes(uniforms)
+    upload_value_as_bytes(uniforms)
 }
 
 pub(super) fn signal_uniforms_as_bytes(uniforms: &SignalUniforms) -> &[u8] {
-    gpu_upload_value_as_bytes(uniforms)
+    upload_value_as_bytes(uniforms)
 }
 
 pub(super) fn summary_bucket_value_count(buckets: &[GpuSignalSummaryBucket]) -> usize {
@@ -13,27 +16,12 @@ pub(super) fn summary_bucket_value_count(buckets: &[GpuSignalSummaryBucket]) -> 
 }
 
 pub(super) fn summary_bucket_bytes(buckets: &[GpuSignalSummaryBucket]) -> &[u8] {
-    gpu_upload_slice_as_bytes(buckets)
+    upload_slice_as_bytes(buckets)
 }
 
-trait GpuUploadData {}
-
-impl GpuUploadData for GpuSurfaceUniforms {}
-impl GpuUploadData for SignalUniforms {}
-impl GpuUploadData for GpuSignalSummaryBucket {}
-
-fn gpu_upload_value_as_bytes<T: GpuUploadData>(value: &T) -> &[u8] {
-    gpu_upload_slice_as_bytes(std::slice::from_ref(value))
-}
-
-fn gpu_upload_slice_as_bytes<T: GpuUploadData>(values: &[T]) -> &[u8] {
-    let len = std::mem::size_of_val(values);
-    let ptr = values.as_ptr().cast::<u8>();
-    // SAFETY: `GpuUploadData` is a private marker implemented only for plain
-    // old data types used by this GPU-surface module. The returned view is
-    // tied to `values`, so it cannot outlive the source storage.
-    unsafe { std::slice::from_raw_parts(ptr, len) }
-}
+unsafe impl GpuUploadBytes for GpuSurfaceUniforms {}
+unsafe impl GpuUploadBytes for SignalUniforms {}
+unsafe impl GpuUploadBytes for GpuSignalSummaryBucket {}
 
 #[cfg(test)]
 mod tests {

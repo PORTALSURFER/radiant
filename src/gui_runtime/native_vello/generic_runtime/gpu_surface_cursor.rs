@@ -66,29 +66,16 @@ fn surface_supports_native_hover(surface: &PaintGpuSurface, position: Point) -> 
         .runtime_overlays
         .pointer_vertical_line
         .is_some()
-        && rect_has_finite_positive_size(surface.rect)
-        && point_is_finite(position)
+        && surface.rect.has_finite_positive_area()
+        && position.is_finite()
         && surface.content.is_renderable()
         && surface.rect.contains(position)
 }
 
 fn pointer_ratio_for_surface(rect: Rect, position: Point) -> Option<f32> {
-    if !rect_has_finite_positive_size(rect) || !point_is_finite(position) {
+    if !rect.has_finite_positive_area() || !position.is_finite() {
         return None;
     }
     let ratio = (position.x - rect.min.x) / rect.width();
     ratio.is_finite().then_some(ratio.clamp(0.0, 1.0))
-}
-
-fn rect_has_finite_positive_size(rect: Rect) -> bool {
-    rect.min.x.is_finite()
-        && rect.min.y.is_finite()
-        && rect.max.x.is_finite()
-        && rect.max.y.is_finite()
-        && rect.width() > 0.0
-        && rect.height() > 0.0
-}
-
-fn point_is_finite(point: Point) -> bool {
-    point.x.is_finite() && point.y.is_finite()
 }

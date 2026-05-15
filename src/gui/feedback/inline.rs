@@ -58,7 +58,7 @@ pub fn inline_indicator_layout(
 ) -> Option<InlineIndicatorLayout> {
     let count = count.min(metrics.max_count).min(8);
     let content_rect = anchor.content_rect;
-    if count == 0 || !rect_has_finite_positive_size(content_rect) {
+    if count == 0 || !content_rect.has_finite_positive_area() {
         return None;
     }
     let unit_height = finite_nonnegative(metrics.unit_height).min(content_rect.height().max(1.0));
@@ -87,15 +87,6 @@ pub fn inline_indicator_layout(
         );
     }
     Some(InlineIndicatorLayout { rects, count })
-}
-
-fn rect_has_finite_positive_size(rect: Rect) -> bool {
-    rect.min.x.is_finite()
-        && rect.min.y.is_finite()
-        && rect.max.x.is_finite()
-        && rect.max.y.is_finite()
-        && rect.width() > 0.0
-        && rect.height() > 0.0
 }
 
 fn finite_nonnegative(value: f32) -> f32 {

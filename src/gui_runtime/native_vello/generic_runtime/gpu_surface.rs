@@ -62,7 +62,7 @@ impl GpuSurfaceRenderer {
             let PaintPrimitive::GpuSurface(surface) = primitive else {
                 continue;
             };
-            if !surface_rect_has_finite_positive_size(surface.rect) {
+            if !surface.rect.has_finite_positive_area() {
                 continue;
             }
             if !surface.content.is_renderable() {

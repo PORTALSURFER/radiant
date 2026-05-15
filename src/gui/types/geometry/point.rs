@@ -12,4 +12,9 @@ impl Point {
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
+
+    /// Return whether both point coordinates are finite.
+    pub fn is_finite(self) -> bool {
+        self.x.is_finite() && self.y.is_finite()
+    }
 }

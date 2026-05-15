@@ -11,7 +11,8 @@ pub(super) use composite::{
 };
 pub(super) use pipeline::{GpuSurfacePipeline, SignalPipeline};
 pub(super) use signal::{
-    CachedSignalSummary, SignalBodyCacheKey, SignalBodyTexture, SignalBuffer, SignalBufferCacheKey,
+    CachedSignalSummary, SignalBodyCacheKey, SignalBodyCacheKeyParts, SignalBodyTexture,
+    SignalBuffer, SignalBufferCacheKey,
 };
 pub(super) use texture::GpuSurfaceTexture;
 pub(super) use uniforms::{

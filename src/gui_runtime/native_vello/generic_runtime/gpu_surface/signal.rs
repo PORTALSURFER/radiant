@@ -32,16 +32,20 @@ impl GpuSurfaceRenderer {
         let Some(level) = summary.levels.get(level_index) else {
             return;
         };
+        let Some(body_extent) = surface_pixel_extent(surface.rect) else {
+            return;
+        };
         let gain_preview = signal_gain_preview(&surface.content);
-        let body_key = SignalBodyCacheKey::new(
-            surface,
-            shape.frames,
-            shape.band_count,
-            shape.frame_range,
-            level.buckets.len(),
+        let body_key = SignalBodyCacheKey::new(SignalBodyCacheKeyParts {
+            revision: surface.revision,
+            extent: body_extent,
+            frames: shape.frames,
+            band_count: shape.band_count,
+            frame_range: shape.frame_range,
+            sample_count: level.buckets.len(),
             level_index,
             gain_preview,
-        );
+        });
         self.ensure_pipeline(target.device, target.format);
         self.ensure_signal_pipeline(target.device, wgpu::TextureFormat::Rgba8Unorm);
         let gain_uniforms = signal_gain_preview_uniforms(gain_preview);

@@ -67,3 +67,22 @@ fn text_field_layout_rejects_invalid_font_size_before_cache_work() {
     assert!(layout.visible_text(text).is_empty());
     assert_eq!(layout.caret_offset, 0.0);
 }
+
+#[test]
+fn text_field_layout_sanitizes_invalid_available_width() {
+    let mut renderer = NativeTextRenderer::new();
+    let text = "item alpha beta";
+    let mut editor = SingleLineTextEditorState::collapsed_at_end(text);
+
+    let layout = build_text_field_layout(&mut renderer, &mut editor, text, 14.0, f32::INFINITY);
+
+    assert!(layout.caret_offset.is_finite());
+    assert!(layout.caret_offset <= 1.0);
+    assert!(
+        layout
+            .selection_offsets
+            .is_none_or(|(start, end)| start.is_finite() && end.is_finite())
+    );
+    assert!(layout.local_x_for_byte(0).is_finite());
+    assert!(layout.local_x_for_byte(text.len()).is_finite());
+}

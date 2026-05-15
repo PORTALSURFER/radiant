@@ -24,12 +24,11 @@ impl Rect {
         min_side: f32,
         max_side: f32,
     ) -> Option<Self> {
-        if self.width() <= 0.0 || self.height() <= 0.0 {
+        if self.width() <= 0.0 || self.height() <= 0.0 || !preferred_side.is_finite() {
             return None;
         }
-        let side = preferred_side
-            .floor()
-            .clamp(min_side.max(0.0), max_side.max(0.0));
+        let (min_side, max_side) = normalized_square_side_range(min_side, max_side)?;
+        let side = preferred_side.floor().clamp(min_side, max_side);
         if side <= 0.0 {
             return None;
         }
@@ -46,15 +45,16 @@ impl Rect {
         if self.width() <= 1.0 || self.height() <= 1.0 {
             return None;
         }
+        let (min_side, max_side) = normalized_square_side_range(min_side, max_side)?;
         let mut side = self
             .width()
             .min(self.height())
             .floor()
-            .clamp(min_side.max(0.0), max_side.max(0.0));
+            .clamp(min_side, max_side);
         if (side as i32) % 2 == 0 {
             side -= 1.0;
         }
-        if side < min_side.max(0.0) || side <= 0.0 {
+        if side < min_side || side <= 0.0 {
             return None;
         }
         let min_x = self.min.x + ((self.width() - side) * 0.5).floor();
@@ -85,4 +85,17 @@ impl Rect {
         )
         .clamp_to(self)
     }
+}
+
+fn normalized_square_side_range(min_side: f32, max_side: f32) -> Option<(f32, f32)> {
+    if !min_side.is_finite() || !max_side.is_finite() {
+        return None;
+    }
+    let min_side = min_side.max(0.0);
+    let max_side = max_side.max(0.0);
+    Some(if min_side <= max_side {
+        (min_side, max_side)
+    } else {
+        (max_side, min_side)
+    })
 }

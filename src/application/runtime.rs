@@ -12,6 +12,7 @@ use std::sync::Arc;
 mod bridge;
 mod queue;
 mod subscription;
+mod task;
 mod threading;
 mod timer;
 mod update_context;
@@ -19,6 +20,7 @@ mod update_context;
 pub(in crate::application) use bridge::{AppBridge, AppBridgeLifecycle};
 pub(in crate::application) use queue::AppRuntime;
 pub use subscription::Subscription;
+pub use task::{LatestTask, TaskCompletion, TaskTicket};
 pub use update_context::UpdateContext;
 
 pub(in crate::application) type RetainedPainter<State> =

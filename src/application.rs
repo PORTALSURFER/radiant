@@ -29,7 +29,7 @@ mod runtime;
 pub(in crate::application) use runtime::{
     AppBridge, AppBridgeLifecycle, AppUpdate, StateCallback, StateDragCallback, StateStringCallback,
 };
-pub use runtime::{Subscription, UpdateContext};
+pub use runtime::{LatestTask, Subscription, TaskCompletion, TaskTicket, UpdateContext};
 mod launch;
 pub use launch::*;
 mod widget_view;

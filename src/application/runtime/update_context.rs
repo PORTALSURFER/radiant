@@ -1,4 +1,5 @@
 use crate::{
+    application::{LatestTask, TaskCompletion},
     gui::types::Vector2,
     layout::NodeId,
     runtime::{Command, ExternalDragOutcome, ExternalDragRequest},
@@ -81,6 +82,32 @@ impl<Message> UpdateContext<Message> {
         Output: Send + 'static,
     {
         self.command(Command::perform(name, work, map));
+    }
+
+    /// Start the latest task for one host-owned resource and run work on a
+    /// runtime-managed business thread.
+    ///
+    /// The returned message receives a [`TaskCompletion`] tagged with the ticket
+    /// created before the work started. Hosts can use [`LatestTask::finish`] to
+    /// accept only the current completion and reject stale results.
+    pub fn spawn_latest<Output>(
+        &mut self,
+        latest: &mut LatestTask,
+        name: &'static str,
+        work: impl FnOnce() -> Output + Send + 'static,
+        map: impl FnOnce(TaskCompletion<Output>) -> Message + Send + 'static,
+    ) where
+        Output: Send + 'static,
+    {
+        let ticket = latest.begin();
+        self.spawn(
+            name,
+            move || TaskCompletion {
+                ticket,
+                output: work(),
+            },
+            map,
+        );
     }
 
     /// Move keyboard focus to a widget.

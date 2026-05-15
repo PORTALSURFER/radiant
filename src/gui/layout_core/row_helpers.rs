@@ -75,6 +75,15 @@ mod tests {
     }
 
     #[test]
+    fn visible_suffix_widths_normalizes_negative_dimensions() {
+        assert_eq!(
+            visible_suffix_widths(&[20.0, -30.0, 40.0], 60.0, -4.0),
+            [20.0, 0.0, 40.0]
+        );
+        assert!(visible_suffix_widths(&[20.0, -30.0, 40.0], 39.9, -4.0).is_empty());
+    }
+
+    #[test]
     fn fixed_width_row_rects_presizes_output() {
         let bounds = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(120.0, 20.0));
         let rects = fixed_width_row_rects_start(bounds, 2.0, &[10.0, 20.0, 30.0], 1, 10);
@@ -152,6 +161,10 @@ mod tests {
         assert_eq!(
             fixed_width_item_extent_for_available_width(10.0, 4, 12.0, 6.0, 20.0),
             0.0
+        );
+        assert_eq!(
+            fixed_width_item_extent_for_available_width(100.0, 4, 12.0, 30.0, 20.0),
+            30.0
         );
     }
 }

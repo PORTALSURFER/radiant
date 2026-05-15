@@ -3,7 +3,9 @@ use super::UiSurface;
 mod index;
 mod stats;
 
-pub(in crate::runtime) use index::SurfaceTraversalIndex;
+pub(in crate::runtime) use index::{
+    SurfaceContainerTraversalRecord, SurfaceTraversalIndex, SurfaceWidgetTraversalRecord,
+};
 pub(in crate::runtime) use stats::SurfaceTraversalStats;
 
 impl<Message> UiSurface<Message> {

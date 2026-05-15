@@ -30,6 +30,19 @@ pub enum ListItemMessage {
     Invoked,
 }
 
+/// Message emitted by a reusable interactive row primitive.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum InteractiveRowMessage {
+    /// The row was activated by pointer or keyboard input.
+    Activate,
+    /// The row is being used as a primary-pointer drag surface.
+    Drag(DragHandleMessage),
+    /// A primary-pointer drop landed inside this row.
+    Drop,
+    /// The row was hovered while another row drag was active.
+    HoverDropTarget,
+}
+
 /// Message emitted by a reusable selectable primitive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SelectableMessage {

@@ -4,7 +4,7 @@ use crate::{
         view_node_from_widget,
     },
     runtime::WidgetMessageMapper,
-    widgets::{SliderMessage, SliderWidget, WidgetProminence, WidgetStyle},
+    widgets::{SliderMessage, SliderWidget, WidgetProminence, WidgetSizing, WidgetStyle},
 };
 use std::sync::Arc;
 
@@ -12,6 +12,7 @@ use std::sync::Arc;
 pub struct SliderBuilder {
     value: f32,
     style: Option<WidgetStyle>,
+    sizing: Option<crate::layout::Vector2>,
 }
 
 impl SliderBuilder {
@@ -34,13 +35,25 @@ impl SliderBuilder {
         self
     }
 
+    /// Use compact toolbar-friendly slider sizing.
+    pub fn compact(mut self) -> Self {
+        self.sizing = Some(crate::layout::Vector2::new(92.0, 20.0));
+        self
+    }
+
     /// Emit a host message mapped from the normalized slider value.
     pub fn message<Message: 'static>(
         self,
         map: impl Fn(f32) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
         let mut node = view_node_from_widget(MappedWidget::new(
-            SliderWidget::new(0, self.value, default_slider_sizing()),
+            SliderWidget::new(
+                0,
+                self.value,
+                self.sizing
+                    .map(WidgetSizing::fixed)
+                    .unwrap_or_else(default_slider_sizing),
+            ),
             WidgetMessageMapper::slider(move |message| match message {
                 SliderMessage::ValueChanged { value } => map(value),
             }),
@@ -64,7 +77,11 @@ impl SliderBuilder {
 
 /// Build a horizontal normalized slider.
 pub fn slider(value: f32) -> SliderBuilder {
-    SliderBuilder { value, style: None }
+    SliderBuilder {
+        value,
+        style: None,
+        sizing: None,
+    }
 }
 
 /// Build a horizontal normalized slider that maps value changes.

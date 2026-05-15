@@ -12,6 +12,7 @@ pub struct TextInputBuilder {
     value: String,
     placeholder: Option<String>,
     style: Option<WidgetStyle>,
+    selection: Option<(usize, usize)>,
 }
 
 impl TextInputBuilder {
@@ -24,6 +25,19 @@ impl TextInputBuilder {
     /// Apply an explicit widget style before binding this text input.
     pub fn style(mut self, style: WidgetStyle) -> Self {
         self.style = Some(style);
+        self
+    }
+
+    /// Set the initial selection anchor and caret, measured in Unicode scalar values.
+    pub fn selection(mut self, anchor: usize, caret: usize) -> Self {
+        self.selection = Some((anchor, caret));
+        self
+    }
+
+    /// Select the full input value when the widget is created.
+    pub fn select_all(mut self) -> Self {
+        let end = self.value.chars().count();
+        self.selection = Some((0, end));
         self
     }
 
@@ -40,17 +54,24 @@ impl TextInputBuilder {
         self,
         map: impl Fn(String) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
-        let mut input = TextInputWidget::new(0, self.value, default_text_input_sizing());
-        input.props.placeholder = self.placeholder.map(Into::into);
+        self.message_event(move |message| match message {
+            TextInputMessage::Changed { value } | TextInputMessage::Submitted { value } => {
+                map(value)
+            }
+        })
+    }
+
+    /// Emit a host message mapped from the full text-input event.
+    pub fn message_event<Message: 'static>(
+        self,
+        map: impl Fn(TextInputMessage) -> Message + Send + Sync + 'static,
+    ) -> ViewNode<Message> {
+        let (input, style) = self.into_widget_and_style();
         let mut node = view_node_from_widget(MappedWidget::new(
             input,
-            WidgetMessageMapper::text_input(move |message| match message {
-                TextInputMessage::Changed { value } | TextInputMessage::Submitted { value } => {
-                    map(value)
-                }
-            }),
+            WidgetMessageMapper::text_input(map),
         ));
-        node.style = self.style;
+        node.style = style;
         node
     }
 
@@ -82,8 +103,7 @@ impl TextInputBuilder {
     ) -> ViewNode<StateAction<State>> {
         let field = Arc::new(field);
         let submit = Arc::new(submit);
-        let mut input = TextInputWidget::new(0, self.value, default_text_input_sizing());
-        input.props.placeholder = self.placeholder.map(Into::into);
+        let (input, style) = self.into_widget_and_style();
         let mut node = view_node_from_widget(MappedWidget::new(
             input,
             WidgetMessageMapper::text_input(move |message| {
@@ -100,8 +120,24 @@ impl TextInputBuilder {
                 })
             }),
         ));
-        node.style = self.style;
+        node.style = style;
         node
+    }
+
+    fn into_widget_and_style(self) -> (TextInputWidget, Option<WidgetStyle>) {
+        let Self {
+            value,
+            placeholder,
+            style,
+            selection,
+        } = self;
+        let mut input = TextInputWidget::new(0, value, default_text_input_sizing());
+        input.props.placeholder = placeholder.map(Into::into);
+        if let Some((anchor, caret)) = selection {
+            input.state.selection_anchor = anchor;
+            input.state.caret = caret;
+        }
+        (input, style)
     }
 }
 
@@ -111,6 +147,7 @@ pub fn text_input(value: impl Into<String>) -> TextInputBuilder {
         value: value.into(),
         placeholder: None,
         style: None,
+        selection: None,
     }
 }
 

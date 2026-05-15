@@ -67,16 +67,17 @@ pub use contract::{
 };
 pub use interaction::{
     BadgeMessage, ButtonMessage, CanvasMessage, CustomWidgetOutput, DragHandleMessage,
-    GpuSurfaceMessage, ListItemMessage, PointerButton, PointerModifiers, ScrollbarMessage,
-    SelectableMessage, SliderMessage, TextEditCommand, TextInputMessage, ToggleMessage,
-    WidgetInput, WidgetKey, WidgetOutput,
+    GpuSurfaceMessage, InteractiveRowMessage, ListItemMessage, PointerButton, PointerModifiers,
+    ScrollbarMessage, SelectableMessage, SliderMessage, TextEditCommand, TextInputMessage,
+    ToggleMessage, WidgetInput, WidgetKey, WidgetOutput,
 };
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, ButtonProps, ButtonState, ButtonWidget, CanvasWidget,
-    CardWidget, DragHandleWidget, GpuSurfaceWidget, ImageProps, ImageWidget, ListItemWidget,
-    RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget,
-    SelectableProps, SelectableWidget, SliderProps, SliderState, SliderWidget, TextAlign,
-    TextInputProps, TextInputState, TextInputWidget, TextWidget, TextWrap, ToggleProps,
-    ToggleState, ToggleWidget, WidgetCommon,
+    CardWidget, DragHandleWidget, GpuSurfaceWidget, IconButtonWidget, ImageProps, ImageWidget,
+    InteractiveRowProps, InteractiveRowWidget, ListItemWidget, RetainedSurfaceDescriptor,
+    ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget, SelectableProps,
+    SelectableWidget, SliderProps, SliderState, SliderWidget, TextAlign, TextInputProps,
+    TextInputState, TextInputWidget, TextWidget, TextWrap, ToggleProps, ToggleState, ToggleWidget,
+    WidgetCommon,
 };
 pub use theme::{WidgetVisualTokens, resolve_widget_visual_tokens};

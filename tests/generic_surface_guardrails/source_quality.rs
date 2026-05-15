@@ -219,3 +219,40 @@ fn surface_layout_projection_records_traversal_through_index_methods() {
         );
     }
 }
+
+#[test]
+fn runtime_layout_refresh_delegates_traversal_state_handoff() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let layout = fs::read_to_string(manifest_dir.join("src/runtime/controller/state/layout.rs"))
+        .expect("runtime layout state should be readable");
+    let traversal =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/state/traversal.rs"))
+            .expect("runtime traversal state should be readable");
+
+    assert!(
+        layout.contains("self.install_traversal_index(traversal)")
+            && layout.contains("self.refresh_visible_traversal_orders()"),
+        "runtime layout refresh should delegate traversal bucket installation and visible-order refresh"
+    );
+    assert!(
+        traversal.contains("fn install_traversal_index")
+            && traversal.contains("fn take_reusable_traversal_index")
+            && traversal.contains("fn refresh_visible_traversal_orders"),
+        "runtime traversal state handoff should live in a focused helper module"
+    );
+    for forbidden in [
+        "self.widget_hit_order = traversal.",
+        "self.widget_paths = traversal.",
+        "set_order(traversal.",
+        "self.container_hover_suppression = traversal.",
+        "self.stateful_widget_order = traversal.",
+        "self.widget_clip_ancestors = traversal.",
+        "self.container_clip_ancestors = traversal.",
+        "self.scroll_content_by_container = traversal.",
+    ] {
+        assert!(
+            !layout.contains(forbidden),
+            "runtime layout refresh should not directly install traversal bucket `{forbidden}`"
+        );
+    }
+}

@@ -177,3 +177,45 @@ fn surface_paint_plan_buffering_stays_with_capacity_policy() {
         "paint projection callers should not duplicate capacity-policy mechanics"
     );
 }
+
+#[test]
+fn surface_layout_projection_records_traversal_through_index_methods() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let layout = fs::read_to_string(manifest_dir.join("src/runtime/surface/layout.rs"))
+        .expect("surface layout projection should be readable");
+    let index = fs::read_to_string(manifest_dir.join("src/runtime/surface/traversal/index.rs"))
+        .expect("surface traversal index should be readable");
+
+    assert!(
+        index.contains("struct SurfaceContainerTraversalRecord")
+            && index.contains("struct SurfaceWidgetTraversalRecord")
+            && index.contains("fn record_container")
+            && index.contains("fn record_widget"),
+        "surface traversal index should own traversal bucket mutation helpers"
+    );
+    assert!(
+        layout.contains("traversal.record_container(SurfaceContainerTraversalRecord")
+            && layout.contains("traversal.record_widget(SurfaceWidgetTraversalRecord"),
+        "surface layout projection should describe traversal records instead of mutating buckets directly"
+    );
+    for forbidden in [
+        ".widget_paint_order.push",
+        ".widget_paths",
+        ".focusable_widget_order.push",
+        ".keyboard_focus_order.push",
+        ".pointer_hit_order.push",
+        ".wheel_hit_order.push",
+        ".stateful_widget_order.push",
+        ".container_hover_suppression",
+        ".widget_clip_ancestors",
+        ".container_clip_ancestors",
+        ".scroll_container_order.push",
+        ".scroll_content_by_container",
+        ".styled_container_order.push",
+    ] {
+        assert!(
+            !layout.contains(forbidden),
+            "surface layout projection should not directly mutate traversal bucket `{forbidden}`"
+        );
+    }
+}

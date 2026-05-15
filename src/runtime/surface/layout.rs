@@ -133,22 +133,18 @@ fn begin_container_runtime<Message>(
     traversal: &mut SurfaceTraversalIndex,
 ) -> bool {
     let is_scroll = container.policy.kind == ContainerKind::ScrollView;
-    if !scroll_stack.is_empty() {
-        traversal
-            .container_clip_ancestors
-            .insert(container.id, ClipAncestors::from_slice(scroll_stack));
-    }
+    traversal.record_container(SurfaceContainerTraversalRecord {
+        id: container.id,
+        clipped_by: scroll_stack,
+        scroll_content: if is_scroll {
+            container.children.first().map(|content| content.child.id())
+        } else {
+            None
+        },
+        styled_hoverable: container.style.is_some() && container.hoverable,
+    });
     if is_scroll {
         scroll_stack.push(container.id);
-        traversal.scroll_container_order.push(container.id);
-        if let Some(content) = container.children.first() {
-            traversal
-                .scroll_content_by_container
-                .insert(container.id, content.child.id());
-        }
-    }
-    if container.style.is_some() && container.hoverable {
-        traversal.styled_container_order.push(container.id);
     }
     is_scroll
 }
@@ -165,34 +161,17 @@ fn record_widget_runtime<Message>(
     child_path: &[usize],
     traversal: &mut SurfaceTraversalIndex,
 ) {
-    traversal.widget_paint_order.push(widget.id());
-    traversal
-        .widget_paths
-        .entry(widget.id())
-        .or_insert_with(|| WidgetPath::from_slice(child_path));
-    if widget.is_focusable() {
-        traversal.focusable_widget_order.push(widget.id());
-    }
-    if widget.is_keyboard_focusable() {
-        traversal.keyboard_focus_order.push(widget.id());
-    }
-    if widget.receives_pointer_hit_testing() {
-        traversal.pointer_hit_order.push(widget.id());
-    }
-    if widget.receives_wheel_input() {
-        traversal.wheel_hit_order.push(widget.id());
-    }
-    if widget.needs_state_synchronization() {
-        traversal.stateful_widget_order.push(widget.id());
-    }
-    if widget.suppresses_container_hover() {
-        traversal.container_hover_suppression.insert(widget.id());
-    }
-    if !scroll_stack.is_empty() {
-        traversal
-            .widget_clip_ancestors
-            .insert(widget.id(), ClipAncestors::from_slice(scroll_stack));
-    }
+    traversal.record_widget(SurfaceWidgetTraversalRecord {
+        id: widget.id(),
+        child_path,
+        clipped_by: scroll_stack,
+        focusable: widget.is_focusable(),
+        keyboard_focusable: widget.is_keyboard_focusable(),
+        receives_pointer_hit_testing: widget.receives_pointer_hit_testing(),
+        receives_wheel_input: widget.receives_wheel_input(),
+        needs_state_synchronization: widget.needs_state_synchronization(),
+        suppresses_container_hover: widget.suppresses_container_hover(),
+    });
 }
 
 #[cfg(test)]

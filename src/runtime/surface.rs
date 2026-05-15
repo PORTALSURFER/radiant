@@ -22,7 +22,10 @@ pub(in crate::runtime) use layout::SurfaceRuntimeProjection;
 pub use node::{SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceOverlay};
 pub(in crate::runtime) use paint::{clear_paint_plan_for_layout, empty_paint_plan_for_layout};
 pub(in crate::runtime) use path::{ClipAncestors, WidgetPath};
-pub(in crate::runtime) use traversal::{SurfaceTraversalIndex, SurfaceTraversalStats};
+pub(in crate::runtime) use traversal::{
+    SurfaceContainerTraversalRecord, SurfaceTraversalIndex, SurfaceTraversalStats,
+    SurfaceWidgetTraversalRecord,
+};
 pub use widget::{MessageMapper, SurfaceWidget, WidgetMessageMapper};
 
 pub(in crate::runtime) use crate::{layout::NodeId, widgets::WidgetId};

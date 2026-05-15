@@ -13,6 +13,9 @@ pub(super) fn encode_text_input(
     input: &PaintTextInput,
     animation_time: Duration,
 ) {
+    if !text_input_geometry_is_renderable(input) {
+        return;
+    }
     let text_rect = input.rect;
     let text = input.state.value.as_str();
     let is_placeholder = text.is_empty();
@@ -124,12 +127,7 @@ fn encode_block_caret(scene: &mut Scene, input: &PaintTextInput, x: f32, animati
 }
 
 fn caret_size(input: &PaintTextInput) -> Option<(f32, f32)> {
-    if !font_size_is_renderable(input.font_size)
-        || !input.rect.min.x.is_finite()
-        || !input.rect.min.y.is_finite()
-        || !input.rect.max.x.is_finite()
-        || !input.rect.max.y.is_finite()
-    {
+    if !text_input_geometry_is_renderable(input) {
         return None;
     }
     let max_width = input.rect.width().max(0.0);
@@ -143,7 +141,10 @@ fn caret_size(input: &PaintTextInput) -> Option<(f32, f32)> {
 }
 
 fn selection_rect(input: &PaintTextInput, start: f32, end: f32) -> Option<UiRect> {
-    if end <= start || input.rect.max.x <= input.rect.min.x || input.rect.max.y <= input.rect.min.y
+    if !text_input_geometry_is_renderable(input)
+        || !start.is_finite()
+        || !end.is_finite()
+        || end <= start
     {
         return None;
     }
@@ -156,6 +157,10 @@ fn selection_rect(input: &PaintTextInput, start: f32, end: f32) -> Option<UiRect
         Point::new(start_x, input.rect.min.y),
         Point::new(end_x, input.rect.max.y),
     ))
+}
+
+fn text_input_geometry_is_renderable(input: &PaintTextInput) -> bool {
+    font_size_is_renderable(input.font_size) && input.rect.has_finite_positive_area()
 }
 
 #[cfg(test)]
@@ -198,6 +203,31 @@ mod tests {
         input.font_size = 10.0;
         input.rect.max.x = f32::INFINITY;
         assert_eq!(caret_size(&input), None);
+    }
+
+    #[test]
+    fn selection_rect_rejects_invalid_offsets_and_geometry() {
+        let mut input = cramped_text_input();
+
+        assert_eq!(selection_rect(&input, f32::NAN, 4.0), None);
+        assert_eq!(selection_rect(&input, 4.0, f32::INFINITY), None);
+
+        input.rect.max.x = f32::NAN;
+        assert_eq!(selection_rect(&input, 1.0, 4.0), None);
+    }
+
+    #[test]
+    fn text_input_geometry_requires_renderable_font_and_rect() {
+        let mut input = cramped_text_input();
+
+        assert!(text_input_geometry_is_renderable(&input));
+
+        input.font_size = 0.0;
+        assert!(!text_input_geometry_is_renderable(&input));
+
+        input.font_size = 10.0;
+        input.rect = Rect::from_min_max(Point::new(4.0, 0.0), Point::new(2.0, 7.0));
+        assert!(!text_input_geometry_is_renderable(&input));
     }
 
     fn cramped_text_input() -> PaintTextInput {

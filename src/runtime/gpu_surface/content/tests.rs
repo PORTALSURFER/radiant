@@ -94,6 +94,34 @@ fn rgba_atlas_source_rect_must_be_inside_atlas() {
 }
 
 #[test]
+fn rgba_atlas_source_rect_rejects_invalid_geometry_before_bounds() {
+    let atlas = Arc::new(ImageRgba::new(8, 4, vec![255; 8 * 4 * 4]).expect("valid atlas"));
+    let non_finite = Rect::from_min_size(Point::new(f32::INFINITY, 0.0), Vector2::new(4.0, 2.0));
+    let inverted = Rect::from_min_max(Point::new(4.0, 1.0), Point::new(2.0, 3.0));
+
+    assert_eq!(
+        (GpuSurfaceContent::RgbaAtlas {
+            source_rect: non_finite,
+            atlas: Arc::clone(&atlas),
+        })
+        .validate(),
+        Err(GpuSurfaceContentError::NonFiniteAtlasSourceRect {
+            source_rect: non_finite,
+        })
+    );
+    assert_eq!(
+        (GpuSurfaceContent::RgbaAtlas {
+            source_rect: inverted,
+            atlas,
+        })
+        .validate(),
+        Err(GpuSurfaceContentError::EmptyAtlasSourceRect {
+            source_rect: inverted,
+        })
+    );
+}
+
+#[test]
 fn gpu_surface_content_validation_reports_signal_errors() {
     let invalid_band_count = GpuSurfaceContent::SignalBands {
         frames: 2,

@@ -67,45 +67,22 @@ impl WaveformApp {
 
     pub(super) fn zoom_around_anchor(&mut self, factor: f32, anchor_ratio: f32) {
         let total = self.file.frames.max(1);
-        let current = self.viewport.clamp(total);
-        let anchor_ratio = anchor_ratio.clamp(0.0, 1.0);
-        let anchor_frame = current.start as f32 + current.visible_frames() as f32 * anchor_ratio;
-        let next_visible = ((current.visible_frames() as f32) * factor)
-            .round()
-            .clamp(MIN_VISIBLE_FRAMES.min(total) as f32, total as f32)
-            as usize;
-        let start = (anchor_frame - next_visible as f32 * anchor_ratio)
-            .round()
-            .max(0.0) as usize;
-        self.viewport = WaveformViewport {
-            start,
-            end: start + next_visible,
-        }
-        .clamp(total);
+        self.viewport =
+            self.viewport
+                .zoom_around_anchor(total, MIN_VISIBLE_FRAMES, factor, anchor_ratio);
     }
 
     pub(super) fn pan_by_visible_fraction(&mut self, fraction: f32) {
         let total = self.file.frames.max(1);
-        let current = self.viewport.clamp(total);
-        let delta = (current.visible_frames() as f32 * fraction).round() as isize;
-        let start = current.start.saturating_add_signed(delta);
-        self.viewport = WaveformViewport {
-            start,
-            end: start + current.visible_frames(),
-        }
-        .clamp(total);
+        self.viewport = self
+            .viewport
+            .pan_by_visible_fraction(total, MIN_VISIBLE_FRAMES, fraction);
     }
 
     fn set_offset_fraction(&mut self, offset_fraction: f32) {
         let total = self.file.frames.max(1);
-        let current = self.viewport.clamp(total);
-        let visible = current.visible_frames();
-        let free_frames = total.saturating_sub(visible);
-        let start = (free_frames as f32 * offset_fraction.clamp(0.0, 1.0)).round() as usize;
-        self.viewport = WaveformViewport {
-            start,
-            end: start + visible,
-        }
-        .clamp(total);
+        self.viewport =
+            self.viewport
+                .with_offset_fraction(total, MIN_VISIBLE_FRAMES, offset_fraction);
     }
 }

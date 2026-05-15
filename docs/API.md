@@ -119,6 +119,11 @@ Higher-level application helpers follow the same logical-coordinate sizing
 model as view modifiers: fixed details-list columns use `f32` logical widths
 through `DetailsColumn::fixed(...)`, matching `.size(...)`, `.fixed(...)`, and
 other layout builders instead of introducing a separate integer sizing model.
+Timeline and waveform-style surfaces can use `IndexViewport` for generic
+integer range navigation. It owns clamping, visible fraction, scrollbar offset,
+anchor-preserving zoom, visible-span pan, and visible-to-absolute ratio
+projection so apps do not need to keep small-but-risky viewport math beside
+every custom canvas.
 `NativeRunOptions` keeps platform/window integration policy behind Radiant's
 native runtime boundary. Common launch code can stay platform-neutral while
 still configuring window title, logical size, minimum size, maximized state,

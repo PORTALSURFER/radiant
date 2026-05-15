@@ -66,6 +66,7 @@ pub mod prelude {
         focus::FocusSurface,
         input::{KeyCode, KeyPress},
         list::{VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window},
+        range::IndexViewport,
         shortcuts::{ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution},
         svg::SvgIcon,
     };

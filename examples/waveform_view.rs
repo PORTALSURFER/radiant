@@ -62,7 +62,7 @@ fn view(state: &mut WaveformApp) -> ui::View<WaveformInteraction> {
         state.file.channels,
         if state.file.channels == 1 { "" } else { "s" },
         state.file.frames,
-        state.viewport.visible_seconds(state.file.sample_rate) * 1000.0,
+        state.viewport.visible_items() as f32 / state.file.sample_rate.max(1) as f32 * 1000.0,
     );
 
     ui::column([

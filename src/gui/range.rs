@@ -1,7 +1,9 @@
 //! Normalized interval primitives for reusable UI models.
 
+mod index_viewport;
 mod viewport;
 
+pub use index_viewport::IndexViewport;
 pub use viewport::{NormalizedPixelSnap, NormalizedViewport};
 
 /// Normalized range with deterministic milli, micro, and nano projections.

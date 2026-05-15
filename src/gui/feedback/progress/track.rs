@@ -5,7 +5,7 @@ use crate::gui::types::{Point, Rect};
 /// The returned rect is clamped to `track` and omitted when either the track or
 /// the clamped progress fraction has no visible area.
 pub fn horizontal_progress_fill_rect(track: Rect, progress_fraction: f32) -> Option<Rect> {
-    if !track_has_finite_positive_size(track) {
+    if !track.has_finite_positive_area() {
         return None;
     }
     let width = track.width() * normalized_fraction(progress_fraction);
@@ -29,7 +29,7 @@ pub fn horizontal_progress_activity_rect(
     segment_fraction: f32,
     min_segment_width: f32,
 ) -> Option<Rect> {
-    if !track_has_finite_positive_size(track) {
+    if !track.has_finite_positive_area() {
         return None;
     }
     let preferred_width = track.width() * normalized_fraction(segment_fraction);
@@ -82,7 +82,7 @@ pub fn horizontal_meter_fill_rect(
     level_fraction: f32,
     min_visible_width: f32,
 ) -> Option<Rect> {
-    if !track_has_finite_positive_size(track) {
+    if !track.has_finite_positive_area() {
         return None;
     }
     let level = normalized_fraction(level_fraction);
@@ -107,7 +107,7 @@ pub fn horizontal_discrete_meter_fill_rect(
     value: u32,
     max_value: u32,
 ) -> Option<Rect> {
-    if !track_has_finite_positive_size(track) || value == 0 || max_value == 0 {
+    if !track.has_finite_positive_area() || value == 0 || max_value == 0 {
         return None;
     }
     let ratio = (value.min(max_value) as f32) / (max_value as f32);
@@ -119,15 +119,6 @@ pub fn horizontal_discrete_meter_fill_rect(
         track.min,
         Point::new(track.min.x + fill_width, track.max.y),
     ))
-}
-
-fn track_has_finite_positive_size(track: Rect) -> bool {
-    track.min.x.is_finite()
-        && track.min.y.is_finite()
-        && track.max.x.is_finite()
-        && track.max.y.is_finite()
-        && track.width() > 0.0
-        && track.height() > 0.0
 }
 
 fn normalized_fraction(value: f32) -> f32 {

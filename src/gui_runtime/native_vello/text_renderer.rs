@@ -109,7 +109,7 @@ impl NativeTextRenderer {
         };
         let font_data = &loaded_font.font;
         for run in text_runs {
-            if run.text.is_empty() || run.font_size <= 0.0 {
+            if !text_run_is_renderable(run) {
                 continue;
             }
             let Some(layout) = self
@@ -157,6 +157,17 @@ impl NativeTextRenderer {
     }
 }
 
+fn text_run_is_renderable(run: SceneTextRun<'_>) -> bool {
+    !run.text.is_empty()
+        && run.font_size.is_finite()
+        && run.font_size > 0.0
+        && run.position.x.is_finite()
+        && run.position.y.is_finite()
+        && run
+            .max_width
+            .is_none_or(|max_width| max_width.is_finite() && max_width > 0.0)
+}
+
 impl TextLayout {
     pub(super) fn empty_for(text: &str) -> Self {
         Self {
@@ -186,5 +197,38 @@ mod tests {
                 x: 0.0,
             }]
         );
+    }
+
+    #[test]
+    fn text_run_renderability_rejects_non_finite_geometry() {
+        let mut run = SceneTextRun {
+            text: "tempo",
+            position: crate::gui::types::Point::new(4.0, 8.0),
+            font_size: 12.0,
+            color: crate::gui::types::Rgba8 {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            max_width: Some(80.0),
+            align: TextAlign::Left,
+        };
+
+        assert!(text_run_is_renderable(run));
+
+        run.font_size = f32::NAN;
+        assert!(!text_run_is_renderable(run));
+
+        run.font_size = 12.0;
+        run.position.x = f32::INFINITY;
+        assert!(!text_run_is_renderable(run));
+
+        run.position.x = 4.0;
+        run.max_width = Some(0.0);
+        assert!(!text_run_is_renderable(run));
+
+        run.max_width = Some(f32::NAN);
+        assert!(!text_run_is_renderable(run));
     }
 }

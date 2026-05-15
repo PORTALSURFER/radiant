@@ -11,6 +11,7 @@ impl GpuSurfaceRenderer {
         stats: &mut GpuSurfaceRenderStats,
     ) -> Option<wgpu::TextureView> {
         if let Some(body) = self
+            .resources
             .signal_bodies
             .get(&key)
             .filter(|body| body.matches_body(device, body_key))
@@ -18,7 +19,7 @@ impl GpuSurfaceRenderer {
             stats.signal_body_cache_hits += 1;
             return Some(body.view.clone());
         }
-        let buffer = self.signals.get(&key)?;
+        let buffer = self.resources.signals.get(&key)?;
         let pipeline = self.signal_pipeline.as_ref()?;
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("radiant_gpu_signal_body_texture"),
@@ -45,7 +46,7 @@ impl GpuSurfaceRenderer {
         stats.signal_body_renders += 1;
         stats.signal_body_encode_elapsed += started.elapsed();
         let cached_view = view.clone();
-        self.signal_bodies.insert(
+        self.resources.signal_bodies.insert(
             key,
             SignalBodyTexture {
                 device: wgpu_device_id(device),
@@ -67,7 +68,7 @@ impl GpuSurfaceRenderer {
         uniforms: &SignalUniforms,
     ) {
         let sample_count = summary_bucket_value_count(buckets);
-        if let Some(buffer) = self.signals.get(&key).filter(|buffer| {
+        if let Some(buffer) = self.resources.signals.get(&key).filter(|buffer| {
             buffer.cache_key == cache_key
                 && buffer.sample_count == sample_count
                 && buffer.pipeline_generation == self.signal_pipeline_generation
@@ -106,7 +107,7 @@ impl GpuSurfaceRenderer {
                 },
             ],
         });
-        self.signals.insert(
+        self.resources.signals.insert(
             key,
             SignalBuffer {
                 cache_key,
@@ -128,7 +129,7 @@ impl GpuSurfaceRenderer {
         samples: &Arc<[f32]>,
         stats: &mut GpuSurfaceRenderStats,
     ) -> Arc<GpuSignalSummary> {
-        if let Some(cached) = self.signal_summaries.get(&key)
+        if let Some(cached) = self.resources.signal_summaries.get(&key)
             && cached.revision == revision
             && cached.frames == frames
             && cached.band_count == band_count
@@ -140,7 +141,7 @@ impl GpuSurfaceRenderer {
         let summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
             samples, frames, band_count,
         ));
-        self.signal_summaries.insert(
+        self.resources.signal_summaries.insert(
             key,
             CachedSignalSummary {
                 revision,

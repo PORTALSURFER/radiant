@@ -51,12 +51,32 @@ pub(super) fn signal_body_render_pass<'a>(
     })
 }
 
-pub(super) fn set_surface_scissor(pass: &mut wgpu::RenderPass<'_>, rect: UiRect) {
+pub(super) fn set_surface_scissor(pass: &mut wgpu::RenderPass<'_>, rect: UiRect) -> bool {
+    let Some((x, y, width, height)) = surface_scissor_rect(rect) else {
+        return false;
+    };
+    pass.set_scissor_rect(x, y, width, height);
+    true
+}
+
+pub(super) fn surface_rect_has_finite_positive_size(rect: UiRect) -> bool {
+    rect.min.x.is_finite()
+        && rect.min.y.is_finite()
+        && rect.max.x.is_finite()
+        && rect.max.y.is_finite()
+        && rect.width() > 0.0
+        && rect.height() > 0.0
+}
+
+fn surface_scissor_rect(rect: UiRect) -> Option<(u32, u32, u32, u32)> {
+    if !surface_rect_has_finite_positive_size(rect) {
+        return None;
+    }
     let x = rect.min.x.max(0.0).floor() as u32;
     let y = rect.min.y.max(0.0).floor() as u32;
-    let width = rect.width().max(1.0).ceil() as u32;
-    let height = rect.height().max(1.0).ceil() as u32;
-    pass.set_scissor_rect(x, y, width, height);
+    let width = rect.width().ceil() as u32;
+    let height = rect.height().ceil() as u32;
+    (width > 0 && height > 0).then_some((x, y, width, height))
 }
 
 pub(super) type OverlayVec4Slots = [[f32; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS];
@@ -200,5 +220,34 @@ mod tests {
         assert_eq!(widths[0][0], -0.8);
         assert_eq!(ratios[0][1], -1.0);
         assert_eq!(widths[0][1], 1.0);
+    }
+
+    #[test]
+    fn surface_scissor_rect_rejects_invalid_geometry() {
+        assert_eq!(
+            surface_scissor_rect(UiRect::from_min_size(
+                Point::new(f32::NEG_INFINITY, 0.0),
+                Vector2::new(10.0, 10.0),
+            )),
+            None
+        );
+        assert_eq!(
+            surface_scissor_rect(UiRect::from_min_size(
+                Point::new(0.0, 0.0),
+                Vector2::new(0.0, 10.0),
+            )),
+            None
+        );
+    }
+
+    #[test]
+    fn surface_scissor_rect_uses_finite_positive_pixel_bounds() {
+        assert_eq!(
+            surface_scissor_rect(UiRect::from_min_size(
+                Point::new(-2.4, 3.2),
+                Vector2::new(10.2, 6.1),
+            )),
+            Some((0, 3, 11, 7))
+        );
     }
 }

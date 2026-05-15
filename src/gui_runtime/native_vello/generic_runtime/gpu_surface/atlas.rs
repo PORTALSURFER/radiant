@@ -123,8 +123,9 @@ impl GpuSurfaceRenderer {
         pass.set_pipeline(&pipeline.pipeline);
         pass.set_bind_group(0, &binding.bind_group, &[]);
         for region in visible_surface_regions(surface.rect, request.occlusion_regions) {
-            set_surface_scissor(&mut pass, region);
-            pass.draw(0..6, 0..1);
+            if set_surface_scissor(&mut pass, region) {
+                pass.draw(0..6, 0..1);
+            }
         }
         stats.composite_encode_elapsed += started.elapsed();
     }

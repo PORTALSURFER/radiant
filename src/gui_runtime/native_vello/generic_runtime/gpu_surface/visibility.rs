@@ -34,7 +34,7 @@ pub(crate) fn gpu_surface_visible_suffix_regions_into(
         let PaintPrimitive::GpuSurface(surface) = primitive else {
             continue;
         };
-        if surface.rect.width() <= 0.0 || surface.rect.height() <= 0.0 {
+        if !surface_rect_has_finite_positive_size(surface.rect) {
             continue;
         }
         if !surface.content.is_renderable() {
@@ -119,6 +119,25 @@ mod tests {
         assert_eq!(capacity, 8);
         assert_eq!(regions.capacity(), capacity);
         assert_eq!(regions.len(), 1);
+    }
+
+    #[test]
+    fn gpu_surface_visible_suffix_regions_skip_nonfinite_surface_rects() {
+        let mut invalid = gpu_surface(1);
+        let PaintPrimitive::GpuSurface(surface) = &mut invalid else {
+            panic!("expected gpu surface");
+        };
+        surface.rect =
+            UiRect::from_min_max(Point::new(f32::NEG_INFINITY, 0.0), Point::new(1.0, 1.0));
+        let mut regions = Vec::new();
+
+        gpu_surface_visible_suffix_regions_into(&[invalid, gpu_surface(2)], &mut regions);
+
+        assert_eq!(regions.len(), 1);
+        assert_eq!(
+            regions[0],
+            UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0))
+        );
     }
 
     #[test]

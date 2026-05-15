@@ -70,6 +70,7 @@ where
             &self.frame.transient_overlay_primitives,
         );
         profile.full_screen_blit = started.elapsed();
+        let surface_size = RenderSurfacePixelSize::from_surface(surface);
         self.frame.post_gpu_overlay_renderer.render_layers(
             &mut post_gpu_overlay::PostGpuOverlayRenderTarget {
                 device: &dev_handle.device,
@@ -77,7 +78,7 @@ where
                 encoder: &mut encoder,
                 target_view: &surface_view,
                 format: surface.config.format,
-                size: Vector2::new(surface.config.width as f32, surface.config.height as f32),
+                size: surface_size.logical_size(),
             },
             &self.frame.last_paint_plan.primitives,
             &self.frame.transient_overlay_primitives,

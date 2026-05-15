@@ -83,6 +83,29 @@ fn replayable_vertices_keep_partially_visible_rectangles() {
 }
 
 #[test]
+fn replayable_vertices_reject_invalid_target_and_rect_geometry() {
+    let invalid_rect = rect(
+        UiRect::from_min_size(Point::new(f32::NAN, 0.0), Vector2::new(10.0, 10.0)),
+        white(),
+    );
+    let valid_rect = rect(
+        UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(10.0, 10.0)),
+        white(),
+    );
+    let mut vertices = Vec::new();
+
+    replayable_vertices_into(
+        std::slice::from_ref(&valid_rect),
+        Vector2::new(f32::INFINITY, 50.0),
+        &mut vertices,
+    );
+    assert!(vertices.is_empty());
+
+    replayable_vertices_into(&[invalid_rect], Vector2::new(100.0, 50.0), &mut vertices);
+    assert!(vertices.is_empty());
+}
+
+#[test]
 fn append_replayable_vertices_preserves_existing_vertices() {
     let mut vertices = Vec::new();
 
@@ -90,6 +113,28 @@ fn append_replayable_vertices_preserves_existing_vertices() {
     append_replayable_vertices(&[fill(2)], Vector2::new(100.0, 50.0), &mut vertices);
 
     assert_eq!(vertices.len(), 12);
+}
+
+#[test]
+fn replayable_vertices_in_regions_reject_invalid_region_geometry() {
+    let primitives = [rect(
+        UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(30.0, 30.0)),
+        translucent_white(),
+    )];
+    let regions = [UiRect::from_min_size(
+        Point::new(f32::NAN, 0.0),
+        Vector2::new(10.0, 10.0),
+    )];
+    let mut vertices = Vec::new();
+
+    replayable_vertices_in_regions_into(
+        &primitives,
+        Vector2::new(100.0, 50.0),
+        &regions,
+        &mut vertices,
+    );
+
+    assert!(vertices.is_empty());
 }
 
 #[test]
@@ -189,6 +234,26 @@ fn replayable_vertices_in_regions_keep_overlapping_stroke_edges() {
     );
 
     assert_eq!(vertices.len(), 24);
+}
+
+#[test]
+fn replayable_vertices_sanitize_invalid_stroke_widths() {
+    let primitives = [PaintPrimitive::StrokeRect(PaintStrokeRect {
+        widget_id: 7,
+        rect: UiRect::from_min_size(Point::new(10.0, 10.0), Vector2::new(20.0, 20.0)),
+        color: white(),
+        width: f32::NAN,
+    })];
+    let mut vertices = Vec::new();
+
+    replayable_vertices_into(&primitives, Vector2::new(100.0, 50.0), &mut vertices);
+
+    assert_eq!(vertices.len(), 24);
+    assert!(
+        vertices
+            .iter()
+            .all(|vertex| vertex.position.iter().all(|value| value.is_finite()))
+    );
 }
 
 #[test]

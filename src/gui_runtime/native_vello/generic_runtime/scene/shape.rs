@@ -43,6 +43,24 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_rect(
     );
 }
 
+pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_rect_stroke(
+    scene: &mut Scene,
+    color: Rgba8,
+    width: f32,
+    rect: UiRect,
+) {
+    if !rect.has_finite_positive_area() || !paintable_stroke_width(width) {
+        return;
+    }
+    scene.stroke(
+        &vello::kurbo::Stroke::new(width as f64),
+        Affine::IDENTITY,
+        color_from_rgba(color),
+        None,
+        &to_kurbo_rect(rect),
+    );
+}
+
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_polygon_fill(
     scene: &mut Scene,
     color: Rgba8,

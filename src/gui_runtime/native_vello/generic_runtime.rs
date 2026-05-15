@@ -9,6 +9,7 @@ mod device;
 mod event_routing;
 mod external_drag;
 mod frame_cadence;
+mod frame_prepare;
 mod frame_state;
 mod gpu_surface;
 mod gpu_surface_cursor;

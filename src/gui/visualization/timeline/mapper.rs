@@ -43,10 +43,14 @@ impl TimelineCoordinateMapper {
 
     /// Convert a local x coordinate back into normalized micro units.
     pub fn micros_for_x(self, x: f32) -> u32 {
-        if self.rect.width() <= f32::EPSILON {
+        if !x.is_finite() || !self.rect.min.x.is_finite() || !self.rect.max.x.is_finite() {
             return self.viewport.start_micros.min(1_000_000);
         }
-        let local_ratio = ((x - self.rect.min.x) / self.rect.width()).clamp(0.0, 1.0) as f64;
+        let rect_width = self.rect.width();
+        if !rect_width.is_finite() || rect_width <= f32::EPSILON {
+            return self.viewport.start_micros.min(1_000_000);
+        }
+        let local_ratio = ((x - self.rect.min.x) / rect_width).clamp(0.0, 1.0) as f64;
         let viewport = self.viewport.normalized_viewport();
         ((viewport.start_ratio + (local_ratio * viewport.width_ratio)).clamp(0.0, 1.0)
             * 1_000_000.0)

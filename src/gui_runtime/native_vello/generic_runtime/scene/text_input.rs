@@ -98,6 +98,9 @@ fn draw_text_input_text(
 }
 
 fn encode_block_caret(scene: &mut Scene, input: &PaintTextInput, x: f32, animation_time: Duration) {
+    if !x.is_finite() {
+        return;
+    }
     let pulse = (animation_time.as_secs_f32() * std::f32::consts::TAU * 0.85).sin();
     let alpha = (0.42 + 0.28 * ((pulse + 1.0) * 0.5)).clamp(0.0, 1.0);
     let mut color = input.caret_color;
@@ -121,6 +124,14 @@ fn encode_block_caret(scene: &mut Scene, input: &PaintTextInput, x: f32, animati
 }
 
 fn caret_size(input: &PaintTextInput) -> Option<(f32, f32)> {
+    if !font_size_is_renderable(input.font_size)
+        || !input.rect.min.x.is_finite()
+        || !input.rect.min.y.is_finite()
+        || !input.rect.max.x.is_finite()
+        || !input.rect.max.y.is_finite()
+    {
+        return None;
+    }
     let max_width = input.rect.width().max(0.0);
     let max_height = input.rect.height().max(0.0);
     if max_width <= 0.0 || max_height <= 0.0 {
@@ -175,6 +186,18 @@ mod tests {
         assert_eq!(rect.min.y, input.rect.min.y);
         assert_eq!(rect.max.y, input.rect.max.y);
         assert!(rect.width() > 0.0);
+    }
+
+    #[test]
+    fn caret_size_rejects_invalid_text_input_geometry() {
+        let mut input = cramped_text_input();
+
+        input.font_size = f32::NAN;
+        assert_eq!(caret_size(&input), None);
+
+        input.font_size = 10.0;
+        input.rect.max.x = f32::INFINITY;
+        assert_eq!(caret_size(&input), None);
     }
 
     fn cramped_text_input() -> PaintTextInput {

@@ -67,6 +67,18 @@ impl<'a> SceneTextRunBuffer<'a> {
         self.overflow.capacity()
     }
 
+    #[cfg(test)]
+    pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn first_for_test(
+        &self,
+    ) -> Option<SceneTextRun<'a>> {
+        self.inline[..self.len]
+            .iter()
+            .flatten()
+            .next()
+            .copied()
+            .or_else(|| self.overflow.first().copied())
+    }
+
     pub(in crate::gui_runtime::native_vello) fn rebind<'next>(
         mut self,
     ) -> SceneTextRunBuffer<'next> {

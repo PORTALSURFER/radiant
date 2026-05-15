@@ -269,6 +269,32 @@ fn native_vello_scene_text_run_buffer_stays_in_focused_module() {
 }
 
 #[test]
+fn native_vello_plain_text_encoding_stays_in_focused_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let scene = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene.rs"),
+    )
+    .expect("native Vello scene module should be readable");
+    let text = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene/text.rs"),
+    )
+    .expect("plain text scene encoder should be readable");
+
+    assert!(
+        scene.contains("mod text;") && scene.contains("use text::encode_text;"),
+        "central scene encoder should delegate plain text primitive translation"
+    );
+    assert!(
+        !scene.contains("PaintTextAlign::Left => TextAlign::Left")
+            && text.contains("fn encode_text")
+            && text.contains("PaintTextAlign::Left => TextAlign::Left")
+            && text.contains("baseline.unwrap_or(text.font_size)")
+            && text.contains("text.rect.width().max(0.0)"),
+        "plain text alignment, baseline, and width mapping should stay in the focused text encoder"
+    );
+}
+
+#[test]
 fn native_text_input_rendering_keeps_utf8_clamping_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module = fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/text_edit.rs"))

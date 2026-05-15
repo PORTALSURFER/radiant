@@ -19,7 +19,7 @@ use custom_surface::encode_custom_surface;
 use image::encode_image;
 use shape::{
     encode_path_fill, encode_polygon_fill, encode_polygon_stroke, encode_polyline_stroke,
-    encode_rect,
+    encode_rect, encode_rect_stroke,
 };
 use svg::encode_svg;
 use text_input::encode_text_input;
@@ -81,13 +81,7 @@ where
                 encode_svg(scene, svg);
             }
             PaintPrimitive::StrokeRect(stroke) => {
-                scene.stroke(
-                    &vello::kurbo::Stroke::new(stroke.width as f64),
-                    Affine::IDENTITY,
-                    color_from_rgba(stroke.color),
-                    None,
-                    &to_kurbo_rect(stroke.rect),
-                );
+                encode_rect_stroke(scene, stroke.color, stroke.width, stroke.rect);
             }
             PaintPrimitive::FillPolygon(fill) => {
                 encode_polygon_fill(scene, fill.color, &fill.points);

@@ -1,5 +1,6 @@
 use super::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, frame::encode_paint_frame_to_scene,
+    shape::encode_rect_stroke,
 };
 use crate::{gui_runtime::native_vello::*, runtime::PaintCustomSurface};
 
@@ -67,16 +68,15 @@ where
 }
 
 fn encode_custom_surface_fallback(scene: &mut Scene, custom: &PaintCustomSurface) {
-    scene.stroke(
-        &vello::kurbo::Stroke::new(1.0),
-        Affine::IDENTITY,
-        color_from_rgba(Rgba8 {
+    encode_rect_stroke(
+        scene,
+        Rgba8 {
             r: 96,
             g: 96,
             b: 96,
             a: 255,
-        }),
-        None,
-        &to_kurbo_rect(custom.rect),
+        },
+        1.0,
+        custom.rect,
     );
 }

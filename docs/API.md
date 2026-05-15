@@ -761,6 +761,14 @@ moving line through `SurfacePaintPlan::first_widget_rect`. That keeps playback
 on the paint-only presentation path instead of queueing app frame messages,
 reprojecting the declarative surface, or rebuilding the waveform scene for each
 playhead tick.
+Run `cargo run --example generic_native` for the compact native-runtime starter
+that demonstrates the current application-builder first-use path.
+Run `cargo run --example hello_world` for the smallest windowed app skeleton.
+Run `cargo run --example counter` for a minimal state-update and button message
+flow.
+Run `cargo run --example todo_list` for text input, submit binding, row
+selection, drag handles, drop markers, and scroll composition in one small app.
+Run `cargo run --example form` for text binding and boolean controls.
 Run `cargo run --example gpu_surface` for a small retained-GPU-surface sandbox
 that uses the prelude `gpu_surface(...)` application builder with generated
 demo atlas data.
@@ -818,6 +826,8 @@ through the application-builder API.
 Run `cargo run --example widget_gallery` for a reusable-widget gallery that
 shows `badge(...)`, `selectable(...)`, and passive `card()` composition through
 the prelude builders.
+Run `cargo run --example custom_widget` for a custom widget authoring sandbox
+that implements paint and input dispatch through the public widget trait.
 Run `cargo run --example volume_slider` for a focused parameter-control sandbox
 that uses the prelude `slider(...)` builder, horizontal value changes, and a
 checkbox-backed mute state through direct state callbacks.
@@ -830,12 +840,29 @@ muted inactive vector icons.
 Run `cargo run --example status_bar` for a bottom status-bar sandbox that shows
 button actions, toggle state, animation updates, and background worker progress
 flowing into a one-line log and retained-canvas progress strip.
+Run `cargo run --example layout_rows_columns` for a compact row/column layout
+sandbox with padding and fill sizing.
 Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that
 uses `grid_with_gaps(...)` with normal nested views and styling.
+Run `cargo run --example tree_and_details` for tree-list and sortable details
+list composition with drag-aware row controls.
 Run `cargo run --example theme_playground` for a theme-token sandbox that
 compares density scale, tone, prominence, and interactive state through normal
 application views. It is intended to make theme policy visually inspectable, not
 only to prove that token colors resolve.
+Run `cargo run --example paint_helpers` for direct paint helper output around
+borders and text-field chrome.
+Run `cargo run --example passive_widgets` for passive button, toggle, text
+input, canvas, and spacer surfaces that do not emit normal interaction messages.
+Run `cargo run --example list` for a basic list-row composition sandbox.
+Run `cargo run --example styling` for tone, prominence, danger, subtle, and
+hoverable styling examples.
+Run `cargo run --example scroll` for simple scroll-column composition.
+Run `cargo run --example sizing` for explicit, minimum, preferred, and fill
+sizing behavior.
+Run `cargo run --example message_routing` for command-returning update flows,
+runtime messages, and repaint requests.
+Run `cargo run --example keys` for stable keys and reversed list identity.
 Run `cargo run --example focus_controls` for an input/focus sandbox that uses
 `UpdateContext::focus(...)` and app-level `.shortcuts(...)` to move keyboard
 focus from normal app messages.

@@ -73,6 +73,16 @@ fn examples_are_checked_portable_sandboxes() {
         "API docs should describe checked examples, parameter-control examples, and their optional input paths"
     );
 
+    let undocumented = registered_example_names(&manifest)
+        .into_iter()
+        .filter(|name| !docs.contains(&format!("cargo run --example {name}")))
+        .collect::<Vec<_>>();
+    assert!(
+        undocumented.is_empty(),
+        "registered examples should be discoverable in docs/API.md:\n{}",
+        undocumented.join("\n")
+    );
+
     for path in ["examples/folder_browser.rs", "examples/waveform_view.rs"] {
         let source = fs::read_to_string(manifest_dir.join(path))
             .unwrap_or_else(|_| panic!("{path} should be readable"));
@@ -81,4 +91,30 @@ fn examples_are_checked_portable_sandboxes() {
             "{path} should not hardcode local Windows paths"
         );
     }
+}
+
+fn registered_example_names(manifest: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut in_example = false;
+
+    for line in manifest.lines().map(str::trim) {
+        match line {
+            "[[example]]" => in_example = true,
+            line if line.starts_with("[[") || line.starts_with('[') => in_example = false,
+            line if in_example && line.starts_with("name = ") => {
+                if let Some(name) = quoted_toml_value(line) {
+                    names.push(name.to_owned());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    names
+}
+
+fn quoted_toml_value(line: &str) -> Option<&str> {
+    line.split_once('"')
+        .and_then(|(_, tail)| tail.split_once('"'))
+        .map(|(value, _)| value)
 }

@@ -37,10 +37,7 @@ where
 {
     /// Project the current surface and layout into backend-neutral paint data.
     pub fn paint_plan(&self, theme: &ThemeTokens) -> SurfacePaintPlan {
-        let mut plan = SurfacePaintPlan::empty_with_capacity(
-            theme,
-            estimated_paint_primitive_capacity(&self.layout),
-        );
+        let mut plan = empty_paint_plan_for_layout(&self.layout, theme);
         self.paint_plan_into(theme, &mut plan);
         plan
     }

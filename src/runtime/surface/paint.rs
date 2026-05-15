@@ -4,7 +4,7 @@ mod capacity;
 mod context;
 mod nodes;
 
-pub(in crate::runtime) use capacity::estimated_paint_primitive_capacity;
+pub(in crate::runtime) use capacity::{clear_paint_plan_for_layout, empty_paint_plan_for_layout};
 pub(super) use context::SurfacePaintContext;
 
 #[cfg(test)]

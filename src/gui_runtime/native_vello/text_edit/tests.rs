@@ -53,3 +53,17 @@ fn text_field_layout_resolves_caret_offsets_without_second_layout_pass() {
     assert!(selection_end > selection_start);
     assert_eq!((counters.layout_hits, counters.layout_misses), (0, 1));
 }
+
+#[test]
+fn text_field_layout_rejects_invalid_font_size_before_cache_work() {
+    let mut renderer = NativeTextRenderer::new();
+    let text = "item alpha beta";
+    let mut editor = SingleLineTextEditorState::collapsed_at_end(text);
+
+    let layout = build_text_field_layout(&mut renderer, &mut editor, text, f32::NAN, 96.0);
+    let counters = renderer.take_layout_profile_counters();
+
+    assert_eq!((counters.layout_hits, counters.layout_misses), (0, 0));
+    assert!(layout.visible_text(text).is_empty());
+    assert_eq!(layout.caret_offset, 0.0);
+}

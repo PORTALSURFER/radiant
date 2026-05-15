@@ -5,10 +5,10 @@ use crate::gui::types::{Point, Rect};
 /// The returned rect is clamped to `track` and omitted when either the track or
 /// the clamped progress fraction has no visible area.
 pub fn horizontal_progress_fill_rect(track: Rect, progress_fraction: f32) -> Option<Rect> {
-    if track.width() <= 0.0 || track.height() <= 0.0 {
+    if !track_has_finite_positive_size(track) {
         return None;
     }
-    let width = track.width() * progress_fraction.clamp(0.0, 1.0);
+    let width = track.width() * normalized_fraction(progress_fraction);
     if width <= 0.0 {
         return None;
     }
@@ -29,17 +29,19 @@ pub fn horizontal_progress_activity_rect(
     segment_fraction: f32,
     min_segment_width: f32,
 ) -> Option<Rect> {
-    if track.width() <= 0.0 || track.height() <= 0.0 {
+    if !track_has_finite_positive_size(track) {
         return None;
     }
-    let preferred_width = track.width() * segment_fraction.clamp(0.0, 1.0);
-    let segment_width =
-        preferred_width.clamp(min_segment_width.max(0.0).min(track.width()), track.width());
+    let preferred_width = track.width() * normalized_fraction(segment_fraction);
+    let segment_width = preferred_width.clamp(
+        finite_nonnegative(min_segment_width).min(track.width()),
+        track.width(),
+    );
     if segment_width <= 0.0 {
         return None;
     }
     let travel = (track.width() - segment_width).max(0.0);
-    let min_x = track.min.x + (travel * position_fraction.clamp(0.0, 1.0));
+    let min_x = track.min.x + (travel * normalized_fraction(position_fraction));
     Some(Rect::from_min_max(
         Point::new(min_x, track.min.y),
         Point::new((min_x + segment_width).min(track.max.x), track.max.y),
@@ -80,15 +82,16 @@ pub fn horizontal_meter_fill_rect(
     level_fraction: f32,
     min_visible_width: f32,
 ) -> Option<Rect> {
-    if track.width() <= 0.0 || track.height() <= 0.0 {
+    if !track_has_finite_positive_size(track) {
         return None;
     }
-    let level = level_fraction.clamp(0.0, 1.0);
+    let level = normalized_fraction(level_fraction);
+    let min_visible_width = finite_nonnegative(min_visible_width);
     if level <= 0.0 && min_visible_width <= 0.0 {
         return None;
     }
     let fill_width =
-        (track.width() * level).clamp(min_visible_width.max(0.0).min(track.width()), track.width());
+        (track.width() * level).clamp(min_visible_width.min(track.width()), track.width());
     if fill_width <= 0.0 {
         return None;
     }
@@ -104,7 +107,7 @@ pub fn horizontal_discrete_meter_fill_rect(
     value: u32,
     max_value: u32,
 ) -> Option<Rect> {
-    if track.width() <= 0.0 || track.height() <= 0.0 || value == 0 || max_value == 0 {
+    if !track_has_finite_positive_size(track) || value == 0 || max_value == 0 {
         return None;
     }
     let ratio = (value.min(max_value) as f32) / (max_value as f32);
@@ -116,4 +119,29 @@ pub fn horizontal_discrete_meter_fill_rect(
         track.min,
         Point::new(track.min.x + fill_width, track.max.y),
     ))
+}
+
+fn track_has_finite_positive_size(track: Rect) -> bool {
+    track.min.x.is_finite()
+        && track.min.y.is_finite()
+        && track.max.x.is_finite()
+        && track.max.y.is_finite()
+        && track.width() > 0.0
+        && track.height() > 0.0
+}
+
+fn normalized_fraction(value: f32) -> f32 {
+    if value.is_finite() {
+        value.clamp(0.0, 1.0)
+    } else {
+        0.0
+    }
+}
+
+fn finite_nonnegative(value: f32) -> f32 {
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
+    }
 }

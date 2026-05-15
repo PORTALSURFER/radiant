@@ -59,17 +59,8 @@ pub(super) fn set_surface_scissor(pass: &mut wgpu::RenderPass<'_>, rect: UiRect)
     true
 }
 
-pub(super) fn surface_rect_has_finite_positive_size(rect: UiRect) -> bool {
-    rect.min.x.is_finite()
-        && rect.min.y.is_finite()
-        && rect.max.x.is_finite()
-        && rect.max.y.is_finite()
-        && rect.width() > 0.0
-        && rect.height() > 0.0
-}
-
 fn surface_scissor_rect(rect: UiRect) -> Option<(u32, u32, u32, u32)> {
-    if !surface_rect_has_finite_positive_size(rect) {
+    if !rect.has_finite_positive_area() {
         return None;
     }
     let x = rect.min.x.max(0.0).floor() as u32;

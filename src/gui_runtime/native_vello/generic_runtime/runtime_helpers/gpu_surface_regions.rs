@@ -17,7 +17,7 @@ impl GpuSurfaceInteractionRegion {
     pub(in crate::gui_runtime::native_vello) fn from_gpu_surface(
         surface: &PaintGpuSurface,
     ) -> Option<Self> {
-        if !rect_has_finite_positive_size(surface.rect) || !surface.content.is_renderable() {
+        if !surface.rect.has_finite_positive_area() || !surface.content.is_renderable() {
             return None;
         }
         if !surface.capabilities.fast_pointer_move
@@ -39,7 +39,7 @@ impl GpuSurfaceInteractionRegion {
     }
 
     pub(in crate::gui_runtime::native_vello) fn contains(self, point: Point) -> bool {
-        point_is_finite(point) && self.rect.contains(point)
+        point.is_finite() && self.rect.contains(point)
     }
 }
 
@@ -80,21 +80,8 @@ fn opaque_fill_rect(primitive: &PaintPrimitive) -> Option<Rect> {
     let PaintPrimitive::FillRect(fill) = primitive else {
         return None;
     };
-    (fill.color.a >= OPAQUE_SUFFIX_OCCLUSION_ALPHA && rect_has_finite_positive_size(fill.rect))
+    (fill.color.a >= OPAQUE_SUFFIX_OCCLUSION_ALPHA && fill.rect.has_finite_positive_area())
         .then_some(fill.rect)
-}
-
-fn rect_has_finite_positive_size(rect: Rect) -> bool {
-    rect.min.x.is_finite()
-        && rect.min.y.is_finite()
-        && rect.max.x.is_finite()
-        && rect.max.y.is_finite()
-        && rect.width() > 0.0
-        && rect.height() > 0.0
-}
-
-fn point_is_finite(point: Point) -> bool {
-    point.x.is_finite() && point.y.is_finite()
 }
 
 #[cfg(test)]

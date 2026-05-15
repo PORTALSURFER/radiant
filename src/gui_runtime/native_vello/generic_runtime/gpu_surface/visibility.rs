@@ -34,7 +34,7 @@ pub(crate) fn gpu_surface_visible_suffix_regions_into(
         let PaintPrimitive::GpuSurface(surface) = primitive else {
             continue;
         };
-        if !surface_rect_has_finite_positive_size(surface.rect) {
+        if !surface.rect.has_finite_positive_area() {
             continue;
         }
         if !surface.content.is_renderable() {

@@ -37,6 +37,23 @@ fn rect_center_returns_midpoint() {
 }
 
 #[test]
+fn point_and_rect_finiteness_helpers_reject_invalid_geometry() {
+    assert!(Point::new(1.0, 2.0).is_finite());
+    assert!(!Point::new(f32::NAN, 2.0).is_finite());
+
+    let valid = Rect::from_min_max(Point::new(1.0, 2.0), Point::new(3.0, 4.0));
+    let empty = Rect::from_min_max(Point::new(1.0, 2.0), Point::new(1.0, 4.0));
+    let invalid = Rect::from_min_max(Point::new(f32::NEG_INFINITY, 2.0), Point::new(3.0, 4.0));
+
+    assert!(valid.is_finite());
+    assert!(valid.has_finite_positive_area());
+    assert!(empty.is_finite());
+    assert!(!empty.has_finite_positive_area());
+    assert!(!invalid.is_finite());
+    assert!(!invalid.has_finite_positive_area());
+}
+
+#[test]
 fn rect_inset_horizontal_clamps_to_rect_edges() {
     let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 30.0));
 

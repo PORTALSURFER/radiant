@@ -38,6 +38,19 @@ impl Rect {
         self.max.y - self.min.y
     }
 
+    /// Return whether both corners and derived extents are finite.
+    pub fn is_finite(self) -> bool {
+        self.min.is_finite()
+            && self.max.is_finite()
+            && self.width().is_finite()
+            && self.height().is_finite()
+    }
+
+    /// Return whether this rectangle has finite coordinates and positive area.
+    pub fn has_finite_positive_area(self) -> bool {
+        self.is_finite() && self.width() > 0.0 && self.height() > 0.0
+    }
+
     /// Return the geometric center point.
     pub fn center(self) -> Point {
         Point::new(

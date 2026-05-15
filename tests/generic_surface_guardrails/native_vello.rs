@@ -237,6 +237,40 @@ fn native_vello_scene_texture_rendering_stays_out_of_present_driver() {
 }
 
 #[test]
+fn native_frame_preparation_stays_out_of_present_driver() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let module =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/generic_runtime.rs"))
+            .expect("generic native Vello module should be readable");
+    let present = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present.rs"),
+    )
+    .expect("present driver should be readable");
+    let frame_prepare = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/frame_prepare.rs"),
+    )
+    .expect("native frame-preparation module should be readable");
+
+    assert!(
+        module.contains("mod frame_prepare;"),
+        "generic runtime should expose frame preparation as a focused module"
+    );
+    assert!(
+        present.contains("self.refresh_deferred_surface_if_needed(&mut profile);")
+            && present.contains("self.paint_transient_overlays(&mut profile);"),
+        "present driver should orchestrate frame preparation without owning its implementation"
+    );
+    assert!(
+        !present.contains("self.core.refresh_surface()")
+            && !present.contains("paint_transient_overlay(")
+            && frame_prepare.contains("fn refresh_deferred_surface_if_needed")
+            && frame_prepare.contains("fn paint_transient_overlays")
+            && frame_prepare.contains("collect_gpu_surface_interaction_regions"),
+        "deferred model refresh, paint-plan refresh, and transient overlay painting should stay in frame_prepare"
+    );
+}
+
+#[test]
 fn native_render_surface_target_size_stays_in_focused_module() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module =

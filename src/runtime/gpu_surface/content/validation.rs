@@ -14,14 +14,10 @@ pub(super) fn validate_atlas_source_rect(
             height: atlas_height,
         });
     }
-    if !source_rect.min.x.is_finite()
-        || !source_rect.min.y.is_finite()
-        || !source_rect.max.x.is_finite()
-        || !source_rect.max.y.is_finite()
-    {
+    if !source_rect.is_finite() {
         return Err(GpuSurfaceContentError::NonFiniteAtlasSourceRect { source_rect });
     }
-    if source_rect.width() <= 0.0 || source_rect.height() <= 0.0 {
+    if !source_rect.has_finite_positive_area() {
         return Err(GpuSurfaceContentError::EmptyAtlasSourceRect { source_rect });
     }
     if source_rect.min.x < 0.0

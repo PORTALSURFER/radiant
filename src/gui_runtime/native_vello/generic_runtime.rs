@@ -39,7 +39,7 @@ use frame_state::NativeVelloFrameState;
 use gpu_surface::GpuSurfaceRenderer;
 use gpu_surface_wheel::PendingGpuSurfaceWheel;
 use input::{
-    key_code_from_winit, keypress_from_input, pointer_button_from_winit,
+    key_code_from_winit, keypress_from_input, logical_point_from_winit, pointer_button_from_winit,
     pointer_modifiers_from_winit,
 };
 use popup_drag::should_start_popup_window_drag;

@@ -2,9 +2,16 @@
 
 use crate::{
     gui::input::{KeyCode, KeyPress},
+    layout::Point,
     widgets::{PointerButton, PointerModifiers},
 };
+use winit::dpi::PhysicalPosition;
 use winit::event::MouseButton;
+
+pub(super) fn logical_point_from_winit(position: PhysicalPosition<f64>) -> Option<Point> {
+    let point = Point::new(position.x as f32, position.y as f32);
+    point.is_finite().then_some(point)
+}
 
 /// Convert a `winit` physical key code into the local backend-agnostic key representation.
 ///
@@ -144,5 +151,21 @@ mod tests {
     #[test]
     fn key_code_from_winit_returns_none_for_unsupported_code() {
         assert_eq!(key_code_from_winit(WinitKeyCode::Tab), None);
+    }
+
+    #[test]
+    fn logical_point_from_winit_rejects_nonfinite_or_overflowing_coordinates() {
+        assert_eq!(
+            logical_point_from_winit(PhysicalPosition::new(12.5, 20.25)),
+            Some(Point::new(12.5, 20.25))
+        );
+        assert_eq!(
+            logical_point_from_winit(PhysicalPosition::new(f64::NAN, 20.25)),
+            None
+        );
+        assert_eq!(
+            logical_point_from_winit(PhysicalPosition::new(f64::MAX, 20.25)),
+            None
+        );
     }
 }

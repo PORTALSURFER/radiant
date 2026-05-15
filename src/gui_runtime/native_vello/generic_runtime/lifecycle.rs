@@ -31,7 +31,10 @@ where
             WindowEvent::Resized(size) => self.resize_surface(size),
             WindowEvent::ScaleFactorChanged { .. } => self.request_redraw_if_needed(),
             WindowEvent::CursorMoved { position, .. } => {
-                let position = Point::new(position.x as f32, position.y as f32);
+                let Some(position) = logical_point_from_winit(position) else {
+                    self.last_cursor = None;
+                    return;
+                };
                 let previous = self.last_cursor;
                 self.last_cursor = Some(position);
                 if self.can_fast_path_native_hover_move(position) {

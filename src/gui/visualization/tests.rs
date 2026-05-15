@@ -145,6 +145,22 @@ fn timeline_coordinate_mapper_projects_and_back_projects_micros() {
 }
 
 #[test]
+fn timeline_coordinate_mapper_sanitizes_invalid_back_projection_inputs() {
+    let viewport = TimelineViewport::new(250, 750, 250_000, 750_000, 250_000_000, 750_000_000);
+    let rect = Rect::from_min_max(Point::new(10.0, 0.0), Point::new(210.0, 40.0));
+    let mapper = TimelineCoordinateMapper::new(viewport, rect, NormalizedPixelSnap::Nearest);
+    let invalid_rect_mapper = TimelineCoordinateMapper::new(
+        viewport,
+        Rect::from_min_max(Point::new(f32::NAN, 0.0), Point::new(210.0, 40.0)),
+        NormalizedPixelSnap::Nearest,
+    );
+
+    assert_eq!(mapper.micros_for_x(f32::NAN), 250_000);
+    assert_eq!(mapper.micros_for_x(f32::INFINITY), 250_000);
+    assert_eq!(invalid_rect_mapper.micros_for_x(110.0), 250_000);
+}
+
+#[test]
 fn canvas_invalidation_splits_scene_and_interaction_rebuilds() {
     let interaction = CanvasInvalidation {
         interaction_changed: true,

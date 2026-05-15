@@ -121,6 +121,33 @@ mod tests {
     }
 
     #[test]
+    fn normalized_viewport_projection_sanitizes_invalid_inputs() {
+        let rect = Rect::from_min_max(Point::new(10.0, 0.0), Point::new(110.0, 20.0));
+        let viewport = NormalizedViewport::from_micros(250_000, 750_000);
+
+        assert_eq!(
+            viewport.x_for_ratio(rect, f64::NAN, NormalizedPixelSnap::Nearest),
+            10.0
+        );
+        assert_eq!(
+            viewport.x_for_ratio(
+                Rect::from_min_max(Point::new(f32::NAN, 0.0), Point::new(110.0, 20.0)),
+                0.5,
+                NormalizedPixelSnap::Nearest
+            ),
+            0.0
+        );
+        assert_eq!(
+            viewport.x_for_ratio(
+                Rect::from_min_max(Point::new(10.0, 0.0), Point::new(f32::INFINITY, 20.0)),
+                0.5,
+                NormalizedPixelSnap::Nearest
+            ),
+            0.0
+        );
+    }
+
+    #[test]
     fn normalized_viewport_uses_nanos_only_when_they_match_micro_mirrors() {
         let viewport =
             NormalizedViewport::from_bounds(500_123, 500_124, Some(500_123_000), Some(500_123_200));

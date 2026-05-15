@@ -10,6 +10,7 @@ mod frame;
 mod image;
 mod shape;
 mod svg;
+mod text;
 mod text_input;
 mod text_input_selection;
 mod text_runs;
@@ -24,6 +25,7 @@ use shape::{
     encode_rect, encode_rect_stroke,
 };
 use svg::encode_svg;
+use text::encode_text;
 use text_input::encode_text_input;
 pub(in crate::gui_runtime::native_vello) use text_runs::SceneTextRunBuffer;
 use text_runs::flush_text_runs;
@@ -112,23 +114,7 @@ where
             }
             PaintPrimitive::Text(text) => {
                 stats.text_primitive_count = stats.text_primitive_count.saturating_add(1);
-                let align = match text.align {
-                    PaintTextAlign::Left => TextAlign::Left,
-                    PaintTextAlign::Center => TextAlign::Center,
-                    PaintTextAlign::Right => TextAlign::Right,
-                };
-                let baseline_offset = text.baseline.unwrap_or(text.font_size);
-                text_runs.push(SceneTextRun {
-                    text: text.text.as_ref(),
-                    position: Point::new(
-                        text.rect.min.x,
-                        text.rect.min.y + baseline_offset - text.font_size,
-                    ),
-                    font_size: text.font_size,
-                    color: text.color,
-                    max_width: Some(text.rect.width().max(0.0)),
-                    align,
-                });
+                encode_text(text_runs, text);
             }
             PaintPrimitive::OverlayPanel(panel) => {
                 encode_rect(

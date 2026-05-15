@@ -17,10 +17,7 @@ impl GpuSurfaceInteractionRegion {
     pub(in crate::gui_runtime::native_vello) fn from_gpu_surface(
         surface: &PaintGpuSurface,
     ) -> Option<Self> {
-        if surface.rect.width() <= 0.0
-            || surface.rect.height() <= 0.0
-            || !surface.content.is_renderable()
-        {
+        if !rect_has_finite_positive_size(surface.rect) || !surface.content.is_renderable() {
             return None;
         }
         if !surface.capabilities.fast_pointer_move
@@ -42,7 +39,7 @@ impl GpuSurfaceInteractionRegion {
     }
 
     pub(in crate::gui_runtime::native_vello) fn contains(self, point: Point) -> bool {
-        self.rect.contains(point)
+        point_is_finite(point) && self.rect.contains(point)
     }
 }
 
@@ -83,7 +80,21 @@ fn opaque_fill_rect(primitive: &PaintPrimitive) -> Option<Rect> {
     let PaintPrimitive::FillRect(fill) = primitive else {
         return None;
     };
-    (fill.color.a >= OPAQUE_SUFFIX_OCCLUSION_ALPHA).then_some(fill.rect)
+    (fill.color.a >= OPAQUE_SUFFIX_OCCLUSION_ALPHA && rect_has_finite_positive_size(fill.rect))
+        .then_some(fill.rect)
+}
+
+fn rect_has_finite_positive_size(rect: Rect) -> bool {
+    rect.min.x.is_finite()
+        && rect.min.y.is_finite()
+        && rect.max.x.is_finite()
+        && rect.max.y.is_finite()
+        && rect.width() > 0.0
+        && rect.height() > 0.0
+}
+
+fn point_is_finite(point: Point) -> bool {
+    point.x.is_finite() && point.y.is_finite()
 }
 
 #[cfg(test)]
@@ -221,6 +232,38 @@ mod tests {
                 .iter()
                 .any(|region| region.contains(Point::new(10.0, 35.0)))
         );
+    }
+
+    #[test]
+    fn gpu_surface_interaction_regions_reject_nonfinite_geometry() {
+        let invalid_surface_rect =
+            Rect::from_min_max(Point::new(f32::NEG_INFINITY, 0.0), Point::new(100.0, 80.0));
+        let invalid_panel_rect =
+            Rect::from_min_max(Point::new(30.0, f32::NAN), Point::new(70.0, 50.0));
+        let primitives = [
+            PaintPrimitive::GpuSurface(test_surface(invalid_surface_rect)),
+            PaintPrimitive::GpuSurface(test_surface(Rect::from_min_size(
+                Point::new(0.0, 0.0),
+                Vector2::new(100.0, 80.0),
+            ))),
+            PaintPrimitive::FillRect(crate::runtime::PaintFillRect {
+                widget_id: 9,
+                rect: invalid_panel_rect,
+                color: Rgba8 {
+                    r: 47,
+                    g: 47,
+                    b: 47,
+                    a: 255,
+                },
+            }),
+        ];
+        let mut regions = Vec::new();
+
+        collect_gpu_surface_interaction_regions(&primitives, &mut regions);
+
+        assert_eq!(regions.len(), 1);
+        assert!(regions[0].contains(Point::new(10.0, 10.0)));
+        assert!(!regions[0].contains(Point::new(f32::NAN, 10.0)));
     }
 
     fn test_surface(rect: Rect) -> PaintGpuSurface {

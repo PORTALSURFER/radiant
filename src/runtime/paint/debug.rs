@@ -31,7 +31,7 @@ pub(in crate::runtime) fn push_layout_debug_overlay(
         layout
             .debug_primitives
             .iter()
-            .filter(|primitive| primitive.rect.width() > 0.0 && primitive.rect.height() > 0.0)
+            .filter(|primitive| primitive.rect.has_finite_positive_area())
             .map(|primitive| {
                 PaintPrimitive::StrokeRect(PaintStrokeRect {
                     widget_id: primitive.node_id,

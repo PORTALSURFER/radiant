@@ -43,7 +43,7 @@ pub(in crate::runtime) fn resolve_scroll_affordance(
 ) -> Option<ScrollAffordance> {
     let viewport = layout.rects.get(&node_id).copied()?;
     let content = layout.rects.get(&content_id).copied()?;
-    if !rect_has_finite_size(viewport) || !rect_has_finite_size(content) {
+    if !viewport.is_finite() || !content.is_finite() {
         return None;
     }
     let overflow = layout.overflow_flags.get(&node_id)?;
@@ -82,15 +82,6 @@ pub(in crate::runtime) fn resolve_scroll_affordance(
         thumb,
         max_scroll,
     })
-}
-
-fn rect_has_finite_size(rect: Rect) -> bool {
-    rect.min.x.is_finite()
-        && rect.min.y.is_finite()
-        && rect.max.x.is_finite()
-        && rect.max.y.is_finite()
-        && rect.width().is_finite()
-        && rect.height().is_finite()
 }
 
 pub(in crate::runtime) fn scroll_content_clip_rect(

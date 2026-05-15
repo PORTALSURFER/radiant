@@ -95,7 +95,10 @@ pub(super) fn vertical_overlays(overlays: &[GpuSurfaceOverlay]) -> VerticalOverl
 fn vertical_overlay_parts(overlay: GpuSurfaceOverlay) -> (f32, Rgba8, f32) {
     match overlay {
         GpuSurfaceOverlay::HorizontalRange { start, end, color } => {
-            (start.clamp(0.0, 1.0), color, -end.clamp(0.0, 1.0))
+            let Some((start, end)) = normalized_range(start, end) else {
+                return hidden_overlay(color);
+            };
+            (start, color, -end)
         }
         GpuSurfaceOverlay::VerticalCursor {
             ratio,
@@ -106,8 +109,34 @@ fn vertical_overlay_parts(overlay: GpuSurfaceOverlay) -> (f32, Rgba8, f32) {
             ratio,
             color,
             width,
-        } => (ratio, color, width),
+        } => (
+            normalized_ratio(ratio).unwrap_or(-1.0),
+            color,
+            normalized_line_width(width),
+        ),
     }
+}
+
+fn normalized_range(start: f32, end: f32) -> Option<(f32, f32)> {
+    let start = normalized_ratio(start)?;
+    let end = normalized_ratio(end)?;
+    Some((start.min(end), start.max(end)))
+}
+
+fn normalized_ratio(ratio: f32) -> Option<f32> {
+    ratio.is_finite().then_some(ratio.clamp(0.0, 1.0))
+}
+
+fn normalized_line_width(width: f32) -> f32 {
+    if width.is_finite() && width > 0.0 {
+        width
+    } else {
+        1.0
+    }
+}
+
+fn hidden_overlay(color: Rgba8) -> (f32, Rgba8, f32) {
+    (-1.0, color, 1.0)
 }
 
 pub(super) fn rgba_to_float(color: Rgba8) -> [f32; 4] {
@@ -117,4 +146,59 @@ pub(super) fn rgba_to_float(color: Rgba8) -> [f32; 4] {
         color.b as f32 / 255.0,
         color.a as f32 / 255.0,
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const WHITE: Rgba8 = Rgba8 {
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 255,
+    };
+
+    #[test]
+    fn vertical_overlay_uniforms_sanitize_invalid_cursor_inputs() {
+        let (ratios, widths, colors) = vertical_overlays(&[
+            GpuSurfaceOverlay::VerticalCursor {
+                ratio: f32::NAN,
+                color: WHITE,
+                width: f32::INFINITY,
+            },
+            GpuSurfaceOverlay::RuntimeVerticalLine {
+                ratio: 1.5,
+                color: WHITE,
+                width: -2.0,
+            },
+        ]);
+
+        assert_eq!(ratios[0][0], -1.0);
+        assert_eq!(widths[0][0], 1.0);
+        assert_eq!(ratios[0][1], 1.0);
+        assert_eq!(widths[0][1], 1.0);
+        assert_eq!(colors[0], rgba_to_float(WHITE));
+    }
+
+    #[test]
+    fn vertical_overlay_uniforms_order_and_sanitize_ranges() {
+        let (ratios, widths, _) = vertical_overlays(&[
+            GpuSurfaceOverlay::HorizontalRange {
+                start: 0.8,
+                end: 0.2,
+                color: WHITE,
+            },
+            GpuSurfaceOverlay::HorizontalRange {
+                start: f32::NAN,
+                end: 0.5,
+                color: WHITE,
+            },
+        ]);
+
+        assert_eq!(ratios[0][0], 0.2);
+        assert_eq!(widths[0][0], -0.8);
+        assert_eq!(ratios[0][1], -1.0);
+        assert_eq!(widths[0][1], 1.0);
+    }
 }

@@ -43,6 +43,9 @@ pub(in crate::runtime) fn resolve_scroll_affordance(
 ) -> Option<ScrollAffordance> {
     let viewport = layout.rects.get(&node_id).copied()?;
     let content = layout.rects.get(&content_id).copied()?;
+    if !rect_has_finite_size(viewport) || !rect_has_finite_size(content) {
+        return None;
+    }
     let overflow = layout.overflow_flags.get(&node_id)?;
     if overflow.policy != OverflowPolicy::Scroll || !overflow.y {
         return None;
@@ -79,6 +82,15 @@ pub(in crate::runtime) fn resolve_scroll_affordance(
         thumb,
         max_scroll,
     })
+}
+
+fn rect_has_finite_size(rect: Rect) -> bool {
+    rect.min.x.is_finite()
+        && rect.min.y.is_finite()
+        && rect.max.x.is_finite()
+        && rect.max.y.is_finite()
+        && rect.width().is_finite()
+        && rect.height().is_finite()
 }
 
 pub(in crate::runtime) fn scroll_content_clip_rect(
@@ -147,6 +159,40 @@ mod tests {
                 y: true,
                 policy: OverflowPolicy::Scroll,
             },
+        );
+
+        assert_eq!(resolve_scroll_affordance(1, 2, &layout), None);
+    }
+
+    #[test]
+    fn scroll_affordance_rejects_nonfinite_layout_rects() {
+        let mut layout = LayoutOutput::default();
+        layout.rects.insert(
+            1,
+            Rect::from_min_max(Point::new(0.0, 0.0), Point::new(f32::NAN, 80.0)),
+        );
+        layout.rects.insert(
+            2,
+            Rect::from_min_size(Point::new(0.0, -20.0), Vector2::new(120.0, 160.0)),
+        );
+        layout.overflow_flags.insert(
+            1,
+            OverflowInfo {
+                x: false,
+                y: true,
+                policy: OverflowPolicy::Scroll,
+            },
+        );
+
+        assert_eq!(resolve_scroll_affordance(1, 2, &layout), None);
+
+        layout.rects.insert(
+            1,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 80.0)),
+        );
+        layout.rects.insert(
+            2,
+            Rect::from_min_max(Point::new(0.0, f32::INFINITY), Point::new(120.0, 160.0)),
         );
 
         assert_eq!(resolve_scroll_affordance(1, 2, &layout), None);

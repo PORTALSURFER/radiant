@@ -258,6 +258,52 @@ fn virtual_list_scrollbar_maps_viewport_and_pointer_drag() {
 }
 
 #[test]
+fn virtual_list_scrollbar_saturates_oversized_minimum_thumb() {
+    let track = Rect::from_min_max(Point::new(190.0, 10.0), Point::new(198.0, 26.0));
+    let scrollbar = resolve_virtual_list_scrollbar(VirtualListScrollbarRequest {
+        track,
+        total_items: 100,
+        viewport_len: 20,
+        viewport_start: 40,
+        min_thumb_extent: 48.0,
+    })
+    .expect("overflowing list with cramped track still has scrollbar geometry");
+
+    assert_eq!(scrollbar.thumb, track);
+    assert_eq!(
+        virtual_list_scrollbar_view_start_for_pointer(scrollbar, 20, 100, 40.0, 0.0),
+        Some(0)
+    );
+}
+
+#[test]
+fn virtual_list_scrollbar_rejects_nonfinite_track_geometry() {
+    assert_eq!(
+        resolve_virtual_list_scrollbar(VirtualListScrollbarRequest {
+            track: Rect::from_min_max(Point::new(190.0, 10.0), Point::new(198.0, f32::NAN)),
+            total_items: 100,
+            viewport_len: 20,
+            viewport_start: 40,
+            min_thumb_extent: 18.0,
+        }),
+        None
+    );
+}
+
+#[test]
+fn virtual_list_scrollbar_drag_saturates_oversized_thumb_geometry() {
+    let scrollbar = super::VirtualListScrollbar {
+        track: Rect::from_min_max(Point::new(190.0, 10.0), Point::new(198.0, 26.0)),
+        thumb: Rect::from_min_max(Point::new(190.0, 8.0), Point::new(198.0, 40.0)),
+    };
+
+    assert_eq!(
+        virtual_list_scrollbar_view_start_for_pointer(scrollbar, 20, 100, 120.0, 0.0),
+        Some(0)
+    );
+}
+
+#[test]
 fn virtual_list_item_state_and_invalidation_are_overlay_oriented() {
     let idle = VirtualListItemState::default();
     let active = VirtualListItemState {

@@ -672,7 +672,12 @@ Application builders can register host-owned shortcut catalogs with
 `KeyPress`, and `FocusSurface`; returning `ShortcutResolution::action(message)`
 dispatches a normal app message before focused-widget key routing, while
 `ShortcutResolution::handled()` suppresses the fallback without coupling Radiant
-to an application command model.
+to an application command model. `ShortcutLayer` maps normalized
+`ShortcutGesture` values to host actions, supports modal layers that consume
+unmatched keys, and offers `resolve_or_else(...)` for dynamic fallbacks such as
+shifted navigation. This keeps modal shortcut shielding and simple global
+accelerators declarative while still leaving command catalogs and focus policy
+in the host application.
 
 ## Performance Harness
 

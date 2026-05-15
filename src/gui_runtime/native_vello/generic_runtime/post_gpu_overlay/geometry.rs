@@ -86,9 +86,15 @@ pub(super) fn append_replayable_vertices_in_regions(
 const OPAQUE_REVEALED_FILL_ALPHA: u8 = 240;
 
 fn intersect_rect(a: UiRect, b: UiRect) -> Option<UiRect> {
+    if !a.has_finite_positive_area() || !b.has_finite_positive_area() {
+        return None;
+    }
     let min = Point::new(a.min.x.max(b.min.x), a.min.y.max(b.min.y));
     let max = Point::new(a.max.x.min(b.max.x), a.max.y.min(b.max.y));
-    (max.x > min.x && max.y > min.y).then(|| UiRect::from_min_max(min, max))
+    let intersection = UiRect::from_min_max(min, max);
+    intersection
+        .has_finite_positive_area()
+        .then_some(intersection)
 }
 
 fn push_stroke_vertices(
@@ -107,8 +113,8 @@ fn push_rect_vertices(
     rect: UiRect,
     color: Rgba8,
 ) {
-    if rect.width() <= 0.0
-        || rect.height() <= 0.0
+    if !rect.has_finite_positive_area()
+        || !target_has_finite_positive_size(target_size)
         || color.a == 0
         || rect_is_outside_target(rect, target_size)
     {
@@ -151,7 +157,11 @@ fn rect_is_outside_target(rect: UiRect, target_size: Vector2) -> bool {
 }
 
 fn stroke_rect_edges(rect: UiRect, width: f32) -> [UiRect; 4] {
-    let width = width.max(1.0);
+    let width = if width.is_finite() && width > 0.0 {
+        width
+    } else {
+        1.0
+    };
     [
         UiRect::from_min_size(rect.min, Vector2::new(rect.width(), width)),
         UiRect::from_min_size(
@@ -164,6 +174,13 @@ fn stroke_rect_edges(rect: UiRect, width: f32) -> [UiRect; 4] {
             Vector2::new(width, rect.height()),
         ),
     ]
+}
+
+fn target_has_finite_positive_size(target_size: Vector2) -> bool {
+    target_size.x.is_finite()
+        && target_size.y.is_finite()
+        && target_size.x > 0.0
+        && target_size.y > 0.0
 }
 
 fn rgba_to_float(color: Rgba8) -> [f32; 4] {

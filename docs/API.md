@@ -107,6 +107,10 @@ or `.update_command(...)` on the app when reducers need to return
 use `.update_with(...)` and an `UpdateContext<Message>` to emit messages,
 request repaint, move focus, start background work, schedule delayed messages,
 or request runtime exit.
+Text inputs can use `.message(...)` for value-only routing or
+`.message_event(...)` when the host needs to distinguish edits from submissions.
+Inline edit flows can seed caret and selection state with `.selection(...)` or
+`.select_all()` while staying on the application-builder path.
 Higher-level application helpers follow the same logical-coordinate sizing
 model as view modifiers: fixed details-list columns use `f32` logical widths
 through `DetailsColumn::fixed(...)`, matching `.size(...)`, `.fixed(...)`, and

@@ -168,3 +168,38 @@ fn gpu_surface_content_validation_rejects_zero_band_summary_before_level_checks(
         Err(GpuSurfaceContentError::InvalidSignalBandCount)
     );
 }
+
+#[test]
+fn gpu_surface_content_validation_rejects_non_finite_gain_preview() {
+    let summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
+        &[0.0, 1.0],
+        2,
+        1,
+    ));
+    let preview = GpuSignalGainPreview {
+        start: 0.0,
+        end: 1.0,
+        gain: f32::NAN,
+        fade_in_length: 0.0,
+        fade_in_curve: 0.5,
+        fade_in_mute: 0.0,
+        fade_out_length: 0.0,
+        fade_out_curve: 0.5,
+        fade_out_mute: 0.0,
+    };
+    let content = GpuSurfaceContent::SignalSummaryBands {
+        frames: 2,
+        band_count: 1,
+        frame_range: [0.0, 2.0],
+        summary,
+        gain_preview: Some(preview),
+    };
+
+    match content.validate() {
+        Err(GpuSurfaceContentError::InvalidSignalGainPreview { preview }) => {
+            assert!(preview.gain.is_nan());
+        }
+        other => panic!("expected invalid gain preview, got {other:?}"),
+    }
+    assert_eq!(content.signal_render_shape(), None);
+}

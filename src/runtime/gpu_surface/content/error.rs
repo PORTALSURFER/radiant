@@ -1,5 +1,6 @@
 //! Typed diagnostics for retained GPU-surface content validation.
 
+use super::GpuSignalGainPreview;
 use crate::gui::types::Rect;
 use std::fmt;
 
@@ -68,6 +69,11 @@ pub enum GpuSurfaceContentError {
         /// Expected interleaved band count.
         band_count: usize,
     },
+    /// A GPU signal gain preview contains a non-finite control value.
+    InvalidSignalGainPreview {
+        /// Invalid preview controls.
+        preview: GpuSignalGainPreview,
+    },
 }
 
 impl fmt::Display for GpuSurfaceContentError {
@@ -132,6 +138,10 @@ impl fmt::Display for GpuSurfaceContentError {
             } => write!(
                 formatter,
                 "invalid GPU signal summary level {level_index}: {bucket_count} buckets are not complete {band_count}-band groups"
+            ),
+            Self::InvalidSignalGainPreview { preview } => write!(
+                formatter,
+                "invalid GPU signal gain preview {preview:?}: preview values must be finite"
             ),
         }
     }

@@ -6,7 +6,7 @@ use radiant::{
         focus::FocusSurface,
         input::{KeyCode, KeyPress},
         repaint::RepaintSignal,
-        shortcuts::ShortcutResolution,
+        shortcuts::{ShortcutGesture, ShortcutLayer, ShortcutResolution},
         types::{Point, Rect, Rgba8, Vector2},
     },
     layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams},
@@ -211,6 +211,30 @@ fn app_shortcuts_dispatch_messages_before_focused_widget_key_routing() {
         FocusSurface::None
     ));
     assert_eq!(button_label(runtime.surface(), 10), "Count 2");
+}
+
+#[test]
+fn shortcut_layer_public_api_handles_modal_layers_and_dynamic_fallbacks() {
+    let modal = ShortcutLayer::modal().bind(KeyPress::new(KeyCode::Escape), DemoMessage::Increment);
+    assert_eq!(
+        modal.resolve(KeyPress::new(KeyCode::Escape)),
+        ShortcutResolution::action(DemoMessage::Increment)
+    );
+    assert_eq!(
+        modal.resolve(KeyPress::new(KeyCode::N)),
+        ShortcutResolution::handled()
+    );
+
+    let global = ShortcutLayer::new().bind(
+        ShortcutGesture::with_command(KeyCode::A),
+        DemoMessage::Increment,
+    );
+    assert_eq!(
+        global.resolve_or_else(KeyPress::new(KeyCode::ArrowDown), || {
+            ShortcutResolution::action(DemoMessage::Increment)
+        }),
+        ShortcutResolution::action(DemoMessage::Increment)
+    );
 }
 
 #[test]

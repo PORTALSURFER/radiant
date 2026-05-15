@@ -66,7 +66,7 @@ pub mod prelude {
         focus::FocusSurface,
         input::{KeyCode, KeyPress},
         list::{VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window},
-        shortcuts::ShortcutResolution,
+        shortcuts::{ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution},
         svg::SvgIcon,
     };
     pub use crate::layout::LayoutOutput;

@@ -376,7 +376,7 @@ fn zoom_and_pan_keep_viewport_inside_sample() {
     };
 
     app.zoom_around_anchor(0.5, 0.5);
-    assert!(app.viewport.visible_frames() < 20_000);
+    assert!(app.viewport.visible_items() < 20_000);
     app.pan_by_visible_fraction(100.0);
     assert_eq!(app.viewport.end, 20_000);
     app.pan_by_visible_fraction(-100.0);
@@ -422,11 +422,11 @@ fn zoom_around_anchor_keeps_anchor_frame_at_same_ratio() {
         playhead_ratio: 0.5,
     };
     let ratio = 0.25;
-    let before_anchor = app.viewport.start as f32 + app.viewport.visible_frames() as f32 * ratio;
+    let before_anchor = app.viewport.start as f32 + app.viewport.visible_items() as f32 * ratio;
 
     app.zoom_around_anchor(0.5, ratio);
 
-    let after_anchor = app.viewport.start as f32 + app.viewport.visible_frames() as f32 * ratio;
+    let after_anchor = app.viewport.start as f32 + app.viewport.visible_items() as f32 * ratio;
     assert!((before_anchor - after_anchor).abs() <= 1.0);
 }
 

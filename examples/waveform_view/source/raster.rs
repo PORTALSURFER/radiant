@@ -68,8 +68,8 @@ impl WaveformRaster {
     }
 
     fn draw_waveform(&mut self, file: &WaveformFile, viewport: WaveformViewport) {
-        let viewport = viewport.clamp(file.frames);
-        let visible = viewport.visible_frames().max(1);
+        let viewport = viewport.clamp(file.frames, super::MIN_VISIBLE_FRAMES);
+        let visible = viewport.visible_items().max(1);
         let mid = self.height as f32 * 0.5;
         let half = (self.height as f32 * 0.42).max(1.0);
         self.draw_band_labels();

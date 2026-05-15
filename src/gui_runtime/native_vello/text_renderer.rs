@@ -1,7 +1,10 @@
 //! Native text rendering for Vello scenes.
 
 use super::NativeTextOptions;
-use crate::gui::paint::{TextAlign, TextRun};
+use crate::{
+    gui::paint::{TextAlign, TextRun},
+    runtime::PaintText,
+};
 use std::sync::Arc;
 use vello::{
     Glyph, Scene,
@@ -18,9 +21,9 @@ use cache::TextLayoutCache;
 use cache::TextLayoutProfileCounters;
 pub(super) use encoding::{color_from_rgba, icon_from_rgba, to_kurbo_rect};
 
-#[derive(Clone, Copy, Debug)]
-pub(super) struct SceneTextRun<'a> {
-    pub(super) text: &'a str,
+#[derive(Clone, Debug)]
+pub(super) struct SceneTextRun {
+    pub(super) text: PaintText,
     pub(super) position: crate::gui::types::Point,
     pub(super) font_size: f32,
     pub(super) color: crate::gui::types::Rgba8,
@@ -28,10 +31,10 @@ pub(super) struct SceneTextRun<'a> {
     pub(super) align: TextAlign,
 }
 
-impl<'a> From<&'a TextRun> for SceneTextRun<'a> {
-    fn from(run: &'a TextRun) -> Self {
+impl From<&TextRun> for SceneTextRun {
+    fn from(run: &TextRun) -> Self {
         Self {
-            text: run.text.as_str(),
+            text: run.text.as_str().into(),
             position: run.position,
             font_size: run.font_size,
             color: run.color,
@@ -99,22 +102,22 @@ impl NativeTextRenderer {
         self.draw_scene_text_runs(scene, text_runs.iter().map(SceneTextRun::from));
     }
 
-    pub(super) fn draw_scene_text_runs<'a>(
+    pub(super) fn draw_scene_text_runs(
         &mut self,
         scene: &mut Scene,
-        text_runs: impl IntoIterator<Item = SceneTextRun<'a>>,
+        text_runs: impl IntoIterator<Item = SceneTextRun>,
     ) {
         let Some(loaded_font) = self.loaded_font.as_ref() else {
             return;
         };
         let font_data = &loaded_font.font;
         for run in text_runs {
-            if !text_run_is_renderable(run) {
+            if !text_run_is_renderable(&run) {
                 continue;
             }
-            let Some(layout) = self
-                .layout_cache
-                .layout_for(font_data, run.text, run.font_size)
+            let Some(layout) =
+                self.layout_cache
+                    .layout_for(font_data, run.text.as_ref(), run.font_size)
             else {
                 continue;
             };
@@ -160,7 +163,7 @@ impl NativeTextRenderer {
     }
 }
 
-fn text_run_is_renderable(run: SceneTextRun<'_>) -> bool {
+fn text_run_is_renderable(run: &SceneTextRun) -> bool {
     !run.text.is_empty()
         && font_size_is_renderable(run.font_size)
         && run.position.x.is_finite()
@@ -208,7 +211,7 @@ mod tests {
     #[test]
     fn text_run_renderability_rejects_non_finite_geometry() {
         let mut run = SceneTextRun {
-            text: "tempo",
+            text: "tempo".into(),
             position: crate::gui::types::Point::new(4.0, 8.0),
             font_size: 12.0,
             color: crate::gui::types::Rgba8 {
@@ -221,20 +224,20 @@ mod tests {
             align: TextAlign::Left,
         };
 
-        assert!(text_run_is_renderable(run));
+        assert!(text_run_is_renderable(&run));
 
         run.font_size = f32::NAN;
-        assert!(!text_run_is_renderable(run));
+        assert!(!text_run_is_renderable(&run));
 
         run.font_size = 12.0;
         run.position.x = f32::INFINITY;
-        assert!(!text_run_is_renderable(run));
+        assert!(!text_run_is_renderable(&run));
 
         run.position.x = 4.0;
         run.max_width = Some(0.0);
-        assert!(!text_run_is_renderable(run));
+        assert!(!text_run_is_renderable(&run));
 
         run.max_width = Some(f32::NAN);
-        assert!(!text_run_is_renderable(run));
+        assert!(!text_run_is_renderable(&run));
     }
 }

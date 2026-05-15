@@ -104,7 +104,6 @@ where
     pub(super) fn rebuild_scene(&mut self) {
         self.core.paint_plan_into(&mut self.frame.last_paint_plan);
         let viewport = self.core.runtime.viewport();
-        let mut scene_text_runs = std::mem::take(&mut self.frame.scene_text_runs);
         self.frame.last_scene_stats = encode_surface_paint_plan_to_scene(
             &self.frame.last_paint_plan,
             SurfaceSceneEncodeContext {
@@ -113,12 +112,11 @@ where
                 bridge: self.core.runtime.bridge_mut(),
                 viewport,
                 retained_cache: &mut self.frame.retained_surface_cache,
-                text_runs: &mut scene_text_runs,
+                text_runs: &mut self.frame.scene_text_runs,
                 gpu_surface_interaction_regions: &mut self.frame.gpu_surface_interaction_regions,
                 animation_time: self.animation_origin.elapsed(),
             },
         );
-        self.frame.scene_text_runs = scene_text_runs.rebind();
         self.restore_native_hover_cursor_overlay();
         self.frame.mark_scene_texture_dirty();
     }

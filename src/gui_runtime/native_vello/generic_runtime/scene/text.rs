@@ -2,10 +2,7 @@ use super::SceneTextRunBuffer;
 use crate::gui_runtime::native_vello::*;
 use crate::runtime::PaintTextRun;
 
-pub(super) fn encode_text<'plan>(
-    text_runs: &mut SceneTextRunBuffer<'plan>,
-    text: &'plan PaintTextRun,
-) {
+pub(super) fn encode_text(text_runs: &mut SceneTextRunBuffer, text: &PaintTextRun) {
     let align = match text.align {
         PaintTextAlign::Left => TextAlign::Left,
         PaintTextAlign::Center => TextAlign::Center,
@@ -13,7 +10,7 @@ pub(super) fn encode_text<'plan>(
     };
     let baseline_offset = text.baseline.unwrap_or(text.font_size);
     text_runs.push(SceneTextRun {
-        text: text.text.as_ref(),
+        text: text.text.clone(),
         position: Point::new(
             text.rect.min.x,
             text.rect.min.y + baseline_offset - text.font_size,

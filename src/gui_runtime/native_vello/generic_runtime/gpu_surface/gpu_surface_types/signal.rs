@@ -65,6 +65,20 @@ impl SignalBodyTexture {
     }
 }
 
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct SignalBodyCacheKeyParts
+{
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) revision: u64,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) extent:
+        SurfacePixelExtent,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) frames: usize,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) band_count: usize,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) frame_range: [f32; 2],
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) sample_count: usize,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) level_index: usize,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) gain_preview:
+        Option<GpuSignalGainPreview>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct SignalBodyCacheKey {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) revision: u64,
@@ -83,26 +97,20 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
 
 impl SignalBodyCacheKey {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn new(
-        surface: &PaintGpuSurface,
-        frames: usize,
-        band_count: usize,
-        frame_range: [f32; 2],
-        sample_count: usize,
-        level_index: usize,
-        gain_preview: Option<GpuSignalGainPreview>,
+        parts: SignalBodyCacheKeyParts,
     ) -> Self {
         Self {
-            revision: surface.revision,
-            width: surface.rect.width().ceil().max(1.0) as u32,
-            height: surface.rect.height().ceil().max(1.0) as u32,
-            frame_start_bits: frame_range[0].to_bits(),
-            frame_end_bits: frame_range[1].to_bits(),
-            frames,
-            band_count,
-            sample_count,
-            level_index,
+            revision: parts.revision,
+            width: parts.extent.width,
+            height: parts.extent.height,
+            frame_start_bits: parts.frame_range[0].to_bits(),
+            frame_end_bits: parts.frame_range[1].to_bits(),
+            frames: parts.frames,
+            band_count: parts.band_count,
+            sample_count: parts.sample_count,
+            level_index: parts.level_index,
             style_revision: GPU_SIGNAL_STYLE_REVISION,
-            gain_preview: SignalGainPreviewKey::new(gain_preview),
+            gain_preview: SignalGainPreviewKey::new(parts.gain_preview),
         }
     }
 }

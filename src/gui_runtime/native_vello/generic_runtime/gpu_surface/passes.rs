@@ -52,22 +52,32 @@ pub(super) fn signal_body_render_pass<'a>(
 }
 
 pub(super) fn set_surface_scissor(pass: &mut wgpu::RenderPass<'_>, rect: UiRect) -> bool {
-    let Some((x, y, width, height)) = surface_scissor_rect(rect) else {
+    let Some((x, y, extent)) = surface_scissor_rect(rect) else {
         return false;
     };
-    pass.set_scissor_rect(x, y, width, height);
+    pass.set_scissor_rect(x, y, extent.width, extent.height);
     true
 }
 
-fn surface_scissor_rect(rect: UiRect) -> Option<(u32, u32, u32, u32)> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) struct SurfacePixelExtent {
+    pub(super) width: u32,
+    pub(super) height: u32,
+}
+
+pub(super) fn surface_pixel_extent(rect: UiRect) -> Option<SurfacePixelExtent> {
     if !rect.has_finite_positive_area() {
         return None;
     }
-    let x = rect.min.x.max(0.0).floor() as u32;
-    let y = rect.min.y.max(0.0).floor() as u32;
     let width = rect.width().ceil() as u32;
     let height = rect.height().ceil() as u32;
-    (width > 0 && height > 0).then_some((x, y, width, height))
+    (width > 0 && height > 0).then_some(SurfacePixelExtent { width, height })
+}
+
+fn surface_scissor_rect(rect: UiRect) -> Option<(u32, u32, SurfacePixelExtent)> {
+    let x = rect.min.x.max(0.0).floor() as u32;
+    let y = rect.min.y.max(0.0).floor() as u32;
+    Some((x, y, surface_pixel_extent(rect)?))
 }
 
 pub(super) type OverlayVec4Slots = [[f32; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS];
@@ -238,7 +248,46 @@ mod tests {
                 Point::new(-2.4, 3.2),
                 Vector2::new(10.2, 6.1),
             )),
-            Some((0, 3, 11, 7))
+            Some((
+                0,
+                3,
+                SurfacePixelExtent {
+                    width: 11,
+                    height: 7,
+                },
+            ))
+        );
+    }
+
+    #[test]
+    fn surface_pixel_extent_rejects_invalid_geometry() {
+        assert_eq!(
+            surface_pixel_extent(UiRect::from_min_size(
+                Point::new(f32::NAN, 0.0),
+                Vector2::new(10.0, 10.0),
+            )),
+            None
+        );
+        assert_eq!(
+            surface_pixel_extent(UiRect::from_min_size(
+                Point::new(0.0, 0.0),
+                Vector2::new(10.0, -1.0),
+            )),
+            None
+        );
+    }
+
+    #[test]
+    fn surface_pixel_extent_rounds_positive_layout_size_up() {
+        assert_eq!(
+            surface_pixel_extent(UiRect::from_min_size(
+                Point::new(2.0, 3.0),
+                Vector2::new(10.2, 6.1),
+            )),
+            Some(SurfacePixelExtent {
+                width: 11,
+                height: 7,
+            })
         );
     }
 }

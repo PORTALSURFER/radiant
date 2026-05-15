@@ -106,7 +106,11 @@ or `.update_command(...)` on the app when reducers need to return
 `Command<Message>` values directly. Reducers that need the full app runtime can
 use `.update_with(...)` and an `UpdateContext<Message>` to emit messages,
 request repaint, move focus, start background work, schedule delayed messages,
-or request runtime exit.
+or request runtime exit. Use `LatestTask` with `UpdateContext::spawn_latest(...)`
+for one-resource background loads where a newer selection should invalidate an
+older completion. The resulting message receives a `TaskCompletion<Output>`;
+call `LatestTask::finish(completion.ticket)` before applying the output so stale
+work is rejected consistently without host-specific task-id plumbing.
 Text inputs can use `.message(...)` for value-only routing or
 `.message_event(...)` when the host needs to distinguish edits from submissions.
 Inline edit flows can seed caret and selection state with `.selection(...)` or

@@ -286,3 +286,30 @@ fn app_transient_overlay_painter_reads_state_and_cached_plan() {
     };
     assert_eq!(fill.color.r, 1);
 }
+
+#[test]
+fn latest_task_tracks_current_ticket_and_tags_spawned_completion() {
+    let mut latest = radiant::prelude::LatestTask::new();
+    let first = latest.begin();
+    let second = latest.begin();
+
+    assert!(!latest.is_active(first));
+    assert!(latest.is_active(second));
+    assert!(!latest.finish(first));
+    assert!(latest.finish(second));
+    assert_eq!(latest.active(), None);
+
+    let mut latest = radiant::prelude::LatestTask::new();
+    let mut context = radiant::prelude::UpdateContext::default();
+    context.spawn_latest(
+        &mut latest,
+        "latest-task-test",
+        || 7_u32,
+        |completion| {
+            assert_eq!(completion.task_id(), 1);
+            DemoMessage::Increment
+        },
+    );
+
+    assert_eq!(latest.active().map(|ticket| ticket.id()), Some(1));
+}

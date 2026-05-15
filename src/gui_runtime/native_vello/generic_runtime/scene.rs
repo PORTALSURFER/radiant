@@ -54,17 +54,33 @@ where
         paint_plan_primitives: plan.primitives.len(),
         ..RetainedSurfaceEncodeStats::default()
     };
+    let mut clip_state = SceneClipState::default();
     for primitive in &plan.primitives {
         match primitive {
             PaintPrimitive::ClipStart(clip) => {
-                stats.clip_layer_count = stats.clip_layer_count.saturating_add(1);
                 flush_text_runs(scene, text_renderer, text_runs, &mut stats);
-                scene.push_clip_layer(Fill::NonZero, Affine::IDENTITY, &to_kurbo_rect(clip.rect));
+                if clip_state.begin(clip.rect).pushes_layer() {
+                    stats.clip_layer_count = stats.clip_layer_count.saturating_add(1);
+                    scene.push_clip_layer(
+                        Fill::NonZero,
+                        Affine::IDENTITY,
+                        &to_kurbo_rect(clip.rect),
+                    );
+                }
+                continue;
             }
             PaintPrimitive::ClipEnd(_) => {
-                flush_text_runs(scene, text_renderer, text_runs, &mut stats);
-                scene.pop_layer();
+                if clip_state.end().pops_layer() {
+                    flush_text_runs(scene, text_renderer, text_runs, &mut stats);
+                    scene.pop_layer();
+                }
+                continue;
             }
+            _ if clip_state.is_suppressed() => continue,
+            _ => {}
+        }
+        match primitive {
+            PaintPrimitive::ClipStart(_) | PaintPrimitive::ClipEnd(_) => {}
             PaintPrimitive::FillRect(fill) => encode_rect(scene, fill.color, fill.rect),
             PaintPrimitive::FillPath(fill) => {
                 encode_path_fill(
@@ -164,6 +180,64 @@ where
     stats
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct SceneClipState {
+    pushed_depth: usize,
+    suppressed_depth: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SceneClipBegin {
+    PushLayer,
+    Suppress,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SceneClipEnd {
+    PopLayer,
+    Suppressed,
+    Unmatched,
+}
+
+impl SceneClipBegin {
+    fn pushes_layer(self) -> bool {
+        matches!(self, Self::PushLayer)
+    }
+}
+
+impl SceneClipEnd {
+    fn pops_layer(self) -> bool {
+        matches!(self, Self::PopLayer)
+    }
+}
+
+impl SceneClipState {
+    fn begin(&mut self, rect: UiRect) -> SceneClipBegin {
+        if self.is_suppressed() || !rect.has_finite_positive_area() {
+            self.suppressed_depth = self.suppressed_depth.saturating_add(1);
+            return SceneClipBegin::Suppress;
+        }
+        self.pushed_depth = self.pushed_depth.saturating_add(1);
+        SceneClipBegin::PushLayer
+    }
+
+    fn end(&mut self) -> SceneClipEnd {
+        if self.suppressed_depth > 0 {
+            self.suppressed_depth -= 1;
+            return SceneClipEnd::Suppressed;
+        }
+        if self.pushed_depth > 0 {
+            self.pushed_depth -= 1;
+            return SceneClipEnd::PopLayer;
+        }
+        SceneClipEnd::Unmatched
+    }
+
+    fn is_suppressed(self) -> bool {
+        self.suppressed_depth > 0
+    }
+}
+
 pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, 'plan, Bridge> {
     pub scene: &'a mut Scene,
     pub text_renderer: &'a mut NativeTextRenderer,
@@ -173,4 +247,29 @@ pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, 'p
     pub text_runs: &'a mut SceneTextRunBuffer<'plan>,
     pub gpu_surface_interaction_regions: &'a mut Vec<GpuSurfaceInteractionRegion>,
     pub animation_time: Duration,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scene_clip_state_suppresses_invalid_clip_until_matching_end() {
+        let valid = UiRect::from_min_max(Point::new(0.0, 0.0), Point::new(10.0, 10.0));
+        let invalid = UiRect::from_min_max(Point::new(f32::NAN, 0.0), Point::new(10.0, 10.0));
+        let mut state = SceneClipState::default();
+
+        assert_eq!(state.begin(valid), SceneClipBegin::PushLayer);
+        assert!(!state.is_suppressed());
+        assert_eq!(state.begin(invalid), SceneClipBegin::Suppress);
+        assert!(state.is_suppressed());
+        assert_eq!(state.begin(valid), SceneClipBegin::Suppress);
+        assert!(state.is_suppressed());
+        assert_eq!(state.end(), SceneClipEnd::Suppressed);
+        assert!(state.is_suppressed());
+        assert_eq!(state.end(), SceneClipEnd::Suppressed);
+        assert!(!state.is_suppressed());
+        assert_eq!(state.end(), SceneClipEnd::PopLayer);
+        assert_eq!(state.end(), SceneClipEnd::Unmatched);
+    }
 }

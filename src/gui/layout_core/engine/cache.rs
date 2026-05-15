@@ -3,6 +3,7 @@
 use super::super::constraints::Constraints;
 use super::super::model::VirtualizationAxis;
 use super::super::tree::{ContainerNode, LayoutNode, NodeId};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -135,4 +136,27 @@ pub(in crate::gui::layout_core::engine) fn virtualization_policy_fingerprint(
     container: &ContainerNode,
 ) -> u64 {
     container.state_version
+}
+
+pub(in crate::gui::layout_core::engine) fn invalidate_virtual_cache_for(
+    virtual_cache: &mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
+    node_id: NodeId,
+) {
+    virtual_cache.retain(|_, entry| !entry.depends_on(node_id));
+}
+
+pub(in crate::gui::layout_core::engine) fn invalidate_virtual_cache_for_any(
+    virtual_cache: &mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
+    node_ids: &HashSet<NodeId>,
+) {
+    if node_ids.is_empty() {
+        return;
+    }
+    virtual_cache.retain(|_, entry| node_ids.iter().all(|id| !entry.depends_on(*id)));
+}
+
+impl CachedVirtualMetrics {
+    fn depends_on(&self, node_id: NodeId) -> bool {
+        self.dependencies.contains(&node_id)
+    }
 }

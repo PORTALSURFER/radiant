@@ -11,6 +11,7 @@ mod active_keys;
 mod atlas;
 mod encoding;
 mod gpu_surface_types;
+mod overlays;
 mod passes;
 mod pipeline;
 mod resources;
@@ -20,6 +21,7 @@ mod visibility;
 use active_keys::ActiveGpuSurfaceKeys;
 use encoding::*;
 use gpu_surface_types::*;
+use overlays::*;
 use passes::*;
 #[cfg(test)]
 pub(super) use pipeline::GPU_SIGNAL_SHADER;

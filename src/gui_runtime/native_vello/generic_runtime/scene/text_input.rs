@@ -87,7 +87,7 @@ fn draw_text_input_text(
     text_renderer.draw_scene_text_runs(
         scene,
         [SceneTextRun {
-            text,
+            text: text.into(),
             position: Point::new(
                 input.rect.min.x,
                 input.rect.min.y + baseline_offset - input.font_size,

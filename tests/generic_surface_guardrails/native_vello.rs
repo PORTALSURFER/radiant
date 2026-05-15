@@ -304,7 +304,10 @@ fn native_vello_scene_text_run_buffer_stays_in_focused_module() {
             && !frame.contains("fn flush_text_runs")
             && text_runs.contains("struct SceneTextRunBuffer")
             && text_runs.contains("fn flush_text_runs")
-            && text_runs.contains("INLINE_SCENE_TEXT_RUNS"),
+            && text_runs.contains("INLINE_SCENE_TEXT_RUNS")
+            && !text_runs.contains("unsafe")
+            && !text_runs.contains("ManuallyDrop")
+            && !text_runs.contains("fn rebind"),
         "retained frame encoding should not own reusable text run staging buffers"
     );
 }

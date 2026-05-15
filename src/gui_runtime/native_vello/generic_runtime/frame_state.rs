@@ -14,7 +14,7 @@ pub(super) struct NativeVelloFrameState {
     pub(super) composited_base_dirty: bool,
     pub(super) retained_surface_cache: RetainedSurfaceFrameCache,
     pub(super) last_scene_stats: RetainedSurfaceEncodeStats,
-    pub(super) scene_text_runs: SceneTextRunBuffer<'static>,
+    pub(super) scene_text_runs: SceneTextRunBuffer,
     pub(super) gpu_surface_interaction_regions: Vec<GpuSurfaceInteractionRegion>,
     pub(super) scene_texture_dirty: bool,
 }

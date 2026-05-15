@@ -111,14 +111,14 @@ fn scene_encoding_collects_fast_pointer_gpu_surface_hit_rects() {
     );
 }
 
-fn encode_plan<'plan, Bridge, Message>(
-    plan: &'plan crate::runtime::SurfacePaintPlan,
+fn encode_plan<Bridge, Message>(
+    plan: &crate::runtime::SurfacePaintPlan,
     scene: &mut Scene,
     text_renderer: &mut NativeTextRenderer,
     bridge: &mut Bridge,
     viewport: Vector2,
     retained_cache: &mut RetainedSurfaceFrameCache,
-    text_runs: &mut SceneTextRunBuffer<'plan>,
+    text_runs: &mut SceneTextRunBuffer,
 ) -> RetainedSurfaceEncodeStats
 where
     Bridge: RuntimeBridge<Message>,

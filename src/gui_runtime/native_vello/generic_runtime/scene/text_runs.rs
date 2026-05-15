@@ -1,22 +1,21 @@
 use super::RetainedSurfaceEncodeStats;
 use crate::gui_runtime::native_vello::*;
-use std::mem::ManuallyDrop;
 
 const INLINE_SCENE_TEXT_RUNS: usize = 64;
 
-pub(in crate::gui_runtime::native_vello) struct SceneTextRunBuffer<'a> {
-    inline: [Option<SceneTextRun<'a>>; INLINE_SCENE_TEXT_RUNS],
+pub(in crate::gui_runtime::native_vello) struct SceneTextRunBuffer {
+    inline: [Option<SceneTextRun>; INLINE_SCENE_TEXT_RUNS],
     len: usize,
-    overflow: Vec<SceneTextRun<'a>>,
+    overflow: Vec<SceneTextRun>,
 }
 
-impl Default for SceneTextRunBuffer<'static> {
+impl Default for SceneTextRunBuffer {
     fn default() -> Self {
         Self::with_overflow_capacity(0)
     }
 }
 
-impl<'a> SceneTextRunBuffer<'a> {
+impl SceneTextRunBuffer {
     pub(in crate::gui_runtime::native_vello) fn new() -> Self {
         Self::with_overflow_capacity(0)
     }
@@ -25,22 +24,23 @@ impl<'a> SceneTextRunBuffer<'a> {
         overflow_capacity: usize,
     ) -> Self {
         Self {
-            inline: [None; INLINE_SCENE_TEXT_RUNS],
+            inline: [const { None }; INLINE_SCENE_TEXT_RUNS],
             len: 0,
             overflow: Vec::with_capacity(overflow_capacity),
         }
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn clear(&mut self) {
-        // `len` is the replay boundary, so stale inline copies are intentionally
-        // left in place to avoid per-flush slot writes around clip layers.
+        for slot in &mut self.inline[..self.len] {
+            *slot = None;
+        }
         self.len = 0;
         self.overflow.clear();
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn push(
         &mut self,
-        run: SceneTextRun<'a>,
+        run: SceneTextRun,
     ) {
         if self.len < INLINE_SCENE_TEXT_RUNS {
             self.inline[self.len] = Some(run);
@@ -70,53 +70,36 @@ impl<'a> SceneTextRunBuffer<'a> {
     #[cfg(test)]
     pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn first_for_test(
         &self,
-    ) -> Option<SceneTextRun<'a>> {
+    ) -> Option<&SceneTextRun> {
         self.inline[..self.len]
             .iter()
             .flatten()
             .next()
-            .copied()
-            .or_else(|| self.overflow.first().copied())
-    }
-
-    pub(in crate::gui_runtime::native_vello) fn rebind<'next>(
-        mut self,
-    ) -> SceneTextRunBuffer<'next> {
-        self.clear();
-        let mut this = ManuallyDrop::new(self);
-        let capacity = this.overflow.capacity();
-        let ptr = this.overflow.as_mut_ptr();
-        // The buffer is always cleared before rebinding, so the overflow vector
-        // contains no borrowed text runs when its allocation is reused for the
-        // next paint plan lifetime.
-        let overflow =
-            unsafe { Vec::from_raw_parts(ptr.cast::<SceneTextRun<'next>>(), 0, capacity) };
-        SceneTextRunBuffer {
-            inline: [None; INLINE_SCENE_TEXT_RUNS],
-            len: 0,
-            overflow,
-        }
+            .or_else(|| self.overflow.first())
     }
 }
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn flush_text_runs(
     scene: &mut Scene,
     text_renderer: &mut NativeTextRenderer,
-    text_runs: &mut SceneTextRunBuffer<'_>,
+    text_runs: &mut SceneTextRunBuffer,
     stats: &mut RetainedSurfaceEncodeStats,
 ) {
     if text_runs.is_empty() {
         return;
     }
     stats.record_text_runs(text_runs.len());
+    let inline_len = text_runs.len;
     text_renderer.draw_scene_text_runs(
         scene,
-        text_runs.inline[..text_runs.len].iter().flatten().copied(),
+        text_runs.inline[..inline_len]
+            .iter_mut()
+            .filter_map(Option::take),
     );
+    text_runs.len = 0;
     if text_runs.has_overflow() {
-        text_renderer.draw_scene_text_runs(scene, text_runs.overflow.iter().copied());
+        text_renderer.draw_scene_text_runs(scene, text_runs.overflow.drain(..));
     }
-    text_runs.clear();
 }
 
 #[cfg(test)]
@@ -124,9 +107,9 @@ mod tests {
     use super::*;
     use crate::gui::types::{Point, Rgba8};
 
-    fn text_run(text: &str) -> SceneTextRun<'_> {
+    fn text_run(text: &str) -> SceneTextRun {
         SceneTextRun {
-            text,
+            text: text.into(),
             position: Point::new(0.0, 0.0),
             font_size: 12.0,
             color: Rgba8 {
@@ -174,16 +157,16 @@ mod tests {
     }
 
     #[test]
-    fn rebind_preserves_overflow_storage_for_next_paint_plan_lifetime() {
+    fn clear_preserves_overflow_storage_for_next_paint_plan() {
         let mut text_runs = SceneTextRunBuffer::with_overflow_capacity(8);
         for _ in 0..=INLINE_SCENE_TEXT_RUNS {
             text_runs.push(text_run("run"));
         }
         let capacity = text_runs.overflow_capacity();
 
-        let rebound: SceneTextRunBuffer<'static> = text_runs.rebind();
+        text_runs.clear();
 
-        assert!(rebound.is_empty());
-        assert!(rebound.overflow_capacity() >= capacity);
+        assert!(text_runs.is_empty());
+        assert!(text_runs.overflow_capacity() >= capacity);
     }
 }

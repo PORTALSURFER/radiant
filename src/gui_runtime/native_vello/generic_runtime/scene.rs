@@ -30,13 +30,9 @@ use text_input::encode_text_input;
 pub(in crate::gui_runtime::native_vello) use text_runs::SceneTextRunBuffer;
 use text_runs::flush_text_runs;
 
-pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<
-    'plan,
-    Bridge,
-    Message,
->(
-    plan: &'plan crate::runtime::SurfacePaintPlan,
-    context: SurfaceSceneEncodeContext<'_, 'plan, Bridge>,
+pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<Bridge, Message>(
+    plan: &crate::runtime::SurfacePaintPlan,
+    context: SurfaceSceneEncodeContext<'_, Bridge>,
 ) -> RetainedSurfaceEncodeStats
 where
     Bridge: RuntimeBridge<Message>,
@@ -168,13 +164,13 @@ where
     stats
 }
 
-pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, 'plan, Bridge> {
+pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, Bridge> {
     pub scene: &'a mut Scene,
     pub text_renderer: &'a mut NativeTextRenderer,
     pub bridge: &'a mut Bridge,
     pub viewport: Vector2,
     pub retained_cache: &'a mut RetainedSurfaceFrameCache,
-    pub text_runs: &'a mut SceneTextRunBuffer<'plan>,
+    pub text_runs: &'a mut SceneTextRunBuffer,
     pub gpu_surface_interaction_regions: &'a mut Vec<GpuSurfaceInteractionRegion>,
     pub animation_time: Duration,
 }

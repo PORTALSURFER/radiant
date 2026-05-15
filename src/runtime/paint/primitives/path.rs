@@ -133,6 +133,13 @@ impl PaintTransform {
     pub const fn coefficients(self) -> [f64; 6] {
         [self.xx, self.yx, self.xy, self.yy, self.dx, self.dy]
     }
+
+    /// Return whether every affine coefficient is finite.
+    pub fn is_finite(self) -> bool {
+        self.coefficients()
+            .into_iter()
+            .all(|coefficient| coefficient.is_finite())
+    }
 }
 
 impl Default for PaintTransform {
@@ -180,5 +187,11 @@ mod tests {
             PaintTransform::scale_non_uniform(2.0, 5.0).coefficients(),
             [2.0, 0.0, 0.0, 5.0, 0.0, 0.0]
         );
+    }
+
+    #[test]
+    fn paint_transform_reports_finite_coefficients() {
+        assert!(PaintTransform::IDENTITY.is_finite());
+        assert!(!PaintTransform::new([1.0, 0.0, 0.0, f64::NAN, 0.0, 0.0]).is_finite());
     }
 }

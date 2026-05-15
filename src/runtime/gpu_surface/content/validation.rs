@@ -1,6 +1,6 @@
 //! Validation helpers for retained GPU-surface content.
 
-use super::{GpuSignalRenderShape, GpuSurfaceContentError};
+use super::{GpuSignalGainPreview, GpuSignalRenderShape, GpuSurfaceContentError};
 use crate::{gui::types::Rect, runtime::GpuSignalSummary};
 
 pub(super) fn validate_atlas_source_rect(
@@ -101,4 +101,28 @@ pub(super) fn validate_signal_summary_shape(
         }
     }
     Ok(())
+}
+
+pub(super) fn validate_signal_gain_preview(
+    preview: Option<GpuSignalGainPreview>,
+) -> Result<(), GpuSurfaceContentError> {
+    let Some(preview) = preview else {
+        return Ok(());
+    };
+    let values = [
+        preview.start,
+        preview.end,
+        preview.gain,
+        preview.fade_in_length,
+        preview.fade_in_curve,
+        preview.fade_in_mute,
+        preview.fade_out_length,
+        preview.fade_out_curve,
+        preview.fade_out_mute,
+    ];
+    if values.iter().all(|value| value.is_finite()) {
+        Ok(())
+    } else {
+        Err(GpuSurfaceContentError::InvalidSignalGainPreview { preview })
+    }
 }

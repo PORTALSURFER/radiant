@@ -8,7 +8,8 @@ mod error;
 mod validation;
 pub use error::GpuSurfaceContentError;
 use validation::{
-    validate_atlas_source_rect, validate_signal_render_shape, validate_signal_summary_shape,
+    validate_atlas_source_rect, validate_signal_gain_preview, validate_signal_render_shape,
+    validate_signal_summary_shape,
 };
 
 /// Backend-neutral retained GPU surface content.
@@ -116,9 +117,10 @@ impl GpuSurfaceContent {
                 band_count,
                 frame_range,
                 summary,
-                gain_preview: _,
+                gain_preview,
             } => {
                 validate_signal_summary_shape(*frames, *band_count, summary)?;
+                validate_signal_gain_preview(*gain_preview)?;
                 let sample_count = summary
                     .levels
                     .iter()
@@ -163,9 +165,12 @@ impl GpuSurfaceContent {
                 band_count,
                 frame_range,
                 summary,
-                gain_preview: _,
+                gain_preview,
             } => {
                 if validate_signal_summary_shape(*frames, *band_count, summary).is_err() {
+                    return None;
+                }
+                if validate_signal_gain_preview(*gain_preview).is_err() {
                     return None;
                 }
                 let sample_count = summary

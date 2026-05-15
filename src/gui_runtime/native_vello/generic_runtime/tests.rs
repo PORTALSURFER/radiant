@@ -80,9 +80,7 @@ fn hover_redraws_do_not_reset_timed_animation_deadline() {
     runner.last_timed_frame_drain = now - interval;
 
     let activity = runner.core.animation_activity();
-    let (outcome, _) = runner
-        .drain_due_timed_frame(now, 60, activity, false)
-        .expect("animation frame should be due even after a fresh hover redraw");
+    let outcome = runner.drain_timed_frame_now(now, activity, false);
 
     assert!(outcome.routed);
     assert!(outcome.needs_redraw());

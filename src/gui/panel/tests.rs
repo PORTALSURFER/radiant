@@ -68,6 +68,28 @@ fn anchored_panel_rect_keeps_size_when_bounds_are_cramped() {
 }
 
 #[test]
+fn anchored_panel_rect_sanitizes_nonfinite_geometry_inputs() {
+    let rect = anchored_panel_rect(
+        Rect::from_min_max(
+            Point::new(f32::NAN, 20.0),
+            Point::new(f32::NAN, f32::INFINITY),
+        ),
+        Point::new(f32::NAN, 40.0),
+        Vector2::new(f32::NAN, 24.0),
+        f32::NAN,
+    );
+
+    assert_eq!(
+        rect,
+        Rect::from_min_max(Point::new(0.0, 20.0), Point::new(0.0, 44.0))
+    );
+    assert!(rect.min.x.is_finite());
+    assert!(rect.min.y.is_finite());
+    assert!(rect.max.x.is_finite());
+    assert!(rect.max.y.is_finite());
+}
+
+#[test]
 fn split_pane_assigned_row_preserves_labels_and_assignments() {
     let row =
         SplitPaneAssignedRow::new("Inbox", "ready", true, false).with_pane_assignment(true, false);

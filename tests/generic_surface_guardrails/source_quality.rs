@@ -119,3 +119,30 @@ fn timeline_visualization_state_uses_named_parts_for_large_projection_buckets() 
         violations.join("\n")
     );
 }
+
+#[test]
+fn layout_virtual_cache_invalidation_stays_with_cache_types() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let engine = fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/mod.rs"))
+        .expect("layout engine module should be readable");
+    let cache = fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/cache.rs"))
+        .expect("layout cache module should be readable");
+
+    assert!(
+        engine.contains("invalidate_virtual_cache_for(&mut self.virtual_cache, node_id)")
+            && engine.contains("invalidate_virtual_cache_for_any(&mut self.virtual_cache"),
+        "layout engine should delegate virtual-cache invalidation to the cache module"
+    );
+    assert!(
+        !engine.contains("fn invalidate_virtual_cache_for_any")
+            && !engine.contains("entry.dependencies.iter()"),
+        "layout engine orchestration should not own cached virtual-metric dependency scans"
+    );
+    assert!(
+        cache.contains("fn invalidate_virtual_cache_for(")
+            && cache.contains("fn invalidate_virtual_cache_for_any(")
+            && cache.contains("impl CachedVirtualMetrics")
+            && cache.contains("fn depends_on"),
+        "virtual cache dependency invalidation should live with cached metric types"
+    );
+}

@@ -14,7 +14,10 @@ use super::tree::{LayoutNode, NodeId};
 use crate::gui::types::{Point, Rect, Vector2};
 use std::collections::{HashMap, HashSet};
 
-use cache::{CachedVirtualMetrics, MeasureCacheKey, VirtualizationCacheKey};
+use cache::{
+    CachedVirtualMetrics, MeasureCacheKey, VirtualizationCacheKey, invalidate_virtual_cache_for,
+    invalidate_virtual_cache_for_any,
+};
 use context::{LayoutContext, LayoutScratch};
 pub use types::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
@@ -35,13 +38,13 @@ impl LayoutEngine {
     /// Mark a node as geometry-dirty.
     pub fn mark_layout_dirty(&mut self, node_id: NodeId) {
         self.layout_dirty.insert(node_id);
-        self.invalidate_virtual_cache_for(node_id);
+        invalidate_virtual_cache_for(&mut self.virtual_cache, node_id);
     }
 
     /// Mark a node as intrinsic-measure dirty.
     pub fn mark_measure_dirty(&mut self, node_id: NodeId) {
         self.measure_dirty.insert(node_id);
-        self.invalidate_virtual_cache_for(node_id);
+        invalidate_virtual_cache_for(&mut self.virtual_cache, node_id);
     }
 
     /// Mark a node subtree as geometry-dirty, including ancestor path nodes.
@@ -58,11 +61,6 @@ impl LayoutEngine {
     pub fn clear_dirty(&mut self) {
         self.layout_dirty.clear();
         self.measure_dirty.clear();
-    }
-
-    fn invalidate_virtual_cache_for(&mut self, node_id: NodeId) {
-        self.virtual_cache
-            .retain(|_, entry| !entry.dependencies.contains(&node_id));
     }
 
     fn mark_subtree_dirty(&mut self, root: &LayoutNode, node_id: NodeId, measure: bool) {
@@ -177,17 +175,6 @@ pub(super) fn round_rect(rect: Rect) -> Rect {
     let height = rect.height().round().max(0.0);
     Rect::from_min_size(Point::new(min_x, min_y), Vector2::new(width, height))
 }
-
-fn invalidate_virtual_cache_for_any(
-    virtual_cache: &mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
-    node_ids: &HashSet<NodeId>,
-) {
-    if node_ids.is_empty() {
-        return;
-    }
-    virtual_cache.retain(|_, entry| entry.dependencies.iter().all(|id| !node_ids.contains(id)));
-}
-
 #[cfg(test)]
 mod tests;
 

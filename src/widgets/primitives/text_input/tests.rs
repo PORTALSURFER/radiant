@@ -3,7 +3,7 @@ use crate::widgets::interaction::{
     PointerButton, TextEditCommand, TextInputMessage, WidgetInput, WidgetKey,
 };
 
-use super::{TextInputWidget, WidgetSizing};
+use super::{TextInputState, TextInputWidget, WidgetSizing};
 
 #[test]
 fn text_input_editing_emits_changed_and_submitted_messages() {
@@ -150,4 +150,50 @@ fn text_input_selection_range_clamps_stale_public_state() {
 
     assert_eq!(input.selection_range(), (3, 3));
     assert_eq!(input.selected_text(), None);
+}
+
+#[test]
+fn text_input_state_applies_backend_neutral_editing_commands() {
+    let mut state = TextInputState::from_value(String::from("alpha beta"));
+
+    let result = state.apply_edit_command(
+        TextEditCommand::MoveHome {
+            extend_selection: false,
+        },
+        None,
+    );
+    assert!(!result.value_changed);
+    assert!(result.selection_changed);
+
+    for _ in 0..4 {
+        let _ = state.apply_edit_command(
+            TextEditCommand::MoveRight {
+                extend_selection: true,
+            },
+            None,
+        );
+    }
+    assert_eq!(state.selected_text().as_deref(), Some("alpha"));
+
+    let result =
+        state.apply_edit_command(TextEditCommand::InsertText(String::from("one\ntwo")), None);
+    assert!(result.value_changed);
+    assert!(result.selection_changed);
+    assert_eq!(state.value, "onetwo beta");
+    assert_eq!(state.caret, 6);
+    assert_eq!(state.selection_anchor, 6);
+}
+
+#[test]
+fn text_input_state_honors_character_limit_after_selection_replacement() {
+    let mut state = TextInputState::from_value(String::from("abcd"));
+    state.selection_anchor = 1;
+    state.caret = 2;
+
+    let result = state.insert_text("xyz", Some(4));
+
+    assert!(result.value_changed);
+    assert_eq!(state.value, "axyd");
+    assert_eq!(state.caret, 3);
+    assert_eq!(state.selection_anchor, 3);
 }

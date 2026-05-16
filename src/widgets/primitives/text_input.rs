@@ -18,7 +18,7 @@ mod paint;
 #[cfg(test)]
 mod tests;
 
-pub use model::{TextInputProps, TextInputState};
+pub use model::{TextInputEditResult, TextInputProps, TextInputState};
 
 /// Public single-line text-input primitive.
 #[derive(Clone, Debug, PartialEq)]

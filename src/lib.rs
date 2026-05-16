@@ -66,6 +66,10 @@ pub mod prelude {
         feedback::{StatusLineEntry, StatusLineLog},
         focus::FocusSurface,
         input::{KeyCode, KeyPress},
+        invalidation::{
+            InvalidationMask, RetainedSegment, RetainedSegmentKind, RetainedSegmentMask,
+            RetainedSegmentPlan, RetainedSegmentRevisions,
+        },
         list::{
             VirtualListController, VirtualListWindow, VirtualListWindowRequest,
             resolve_virtual_list_window,

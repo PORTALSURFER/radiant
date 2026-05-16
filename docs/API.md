@@ -138,6 +138,11 @@ double-click, drop, wheel, and focus-change events. This keeps waveform,
 timeline, node-editor, and other direct-manipulation widgets on a shared
 backend-neutral interaction contract while the application still owns domain
 actions such as range selection or marker editing.
+Retained custom surfaces can use `RetainedSegmentPlan` with
+`RetainedSegmentRevisions` to name static and overlay paint segments, derive
+stable invalidation masks, and bump only the revisions affected by a change.
+This keeps segment ownership explicit for dense retained surfaces without each
+application inventing a separate bit layout and diagnostic vocabulary.
 `NativeRunOptions` keeps platform/window integration policy behind Radiant's
 native runtime boundary. Common launch code can stay platform-neutral while
 still configuring window title, logical size, minimum size, maximized state,

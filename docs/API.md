@@ -132,6 +132,12 @@ integer range navigation. It owns clamping, visible fraction, scrollbar offset,
 anchor-preserving zoom, visible-span pan, and visible-to-absolute ratio
 projection so apps do not need to keep small-but-risky viewport math beside
 every custom canvas.
+Custom canvas widgets can use `CanvasGestureState` to turn raw `WidgetInput`
+pointer events into local and normalized hover, press, drag, release,
+double-click, drop, wheel, and focus-change events. This keeps waveform,
+timeline, node-editor, and other direct-manipulation widgets on a shared
+backend-neutral interaction contract while the application still owns domain
+actions such as range selection or marker editing.
 `NativeRunOptions` keeps platform/window integration policy behind Radiant's
 native runtime boundary. Common launch code can stay platform-neutral while
 still configuring window title, logical size, minimum size, maximized state,

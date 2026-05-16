@@ -93,11 +93,12 @@ pub mod prelude {
     };
     pub use crate::theme::ThemeTokens;
     pub use crate::widgets::{
-        DragHandleMessage, FocusBehavior, GpuSurfaceMessage, GpuSurfaceWidget, IconButtonWidget,
-        InteractiveRowMessage, InteractiveRowWidget, PointerButton, ScrollbarAxis,
-        ScrollbarMessage, SliderMessage, SliderWidget, TextAlign, TextWrap, Widget, WidgetCommon,
-        WidgetInput, WidgetKey, WidgetOutput, WidgetProminence, WidgetSizing, WidgetState,
-        WidgetStyle, WidgetTone, WidgetVisualTokens, resolve_widget_visual_tokens,
+        CanvasGestureEvent, CanvasGestureState, CanvasPointer, DragHandleMessage, FocusBehavior,
+        GpuSurfaceMessage, GpuSurfaceWidget, IconButtonWidget, InteractiveRowMessage,
+        InteractiveRowWidget, PointerButton, ScrollbarAxis, ScrollbarMessage, SliderMessage,
+        SliderWidget, TextAlign, TextWrap, Widget, WidgetCommon, WidgetInput, WidgetKey,
+        WidgetOutput, WidgetProminence, WidgetSizing, WidgetState, WidgetStyle, WidgetTone,
+        WidgetVisualTokens, resolve_widget_visual_tokens,
     };
 }
 

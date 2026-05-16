@@ -1,4 +1,4 @@
-use super::{DrawImage, FillCircle, FillLinearGradient, FillRect};
+use super::{DrawImage, DrawSvg, FillCircle, FillLinearGradient, FillRect};
 
 /// Backend-neutral scene primitive.
 #[derive(Clone, Debug, PartialEq)]
@@ -11,4 +11,6 @@ pub enum Primitive {
     LinearGradient(FillLinearGradient),
     /// Textured image primitive.
     Image(DrawImage),
+    /// Parsed SVG document primitive.
+    Svg(DrawSvg),
 }

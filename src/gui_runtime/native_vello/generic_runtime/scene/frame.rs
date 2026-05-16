@@ -1,4 +1,4 @@
-use super::{encode_image, encode_rect};
+use super::{encode_image, encode_rect, encode_svg};
 use crate::gui_runtime::native_vello::*;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_paint_frame_to_scene(
@@ -54,6 +54,16 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_paint
                     draw.image.height,
                     None,
                     draw.rect,
+                );
+            }
+            Primitive::Svg(draw) => {
+                encode_svg(
+                    scene,
+                    &PaintSvg {
+                        widget_id: 0,
+                        document: draw.document.clone(),
+                        rect: draw.rect,
+                    },
                 );
             }
         }

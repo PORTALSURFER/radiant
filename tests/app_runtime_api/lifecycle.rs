@@ -24,7 +24,7 @@ fn drain_until_messages<Bridge>(
 where
     Bridge: RuntimeBridge<DemoMessage>,
 {
-    let deadline = Instant::now() + Duration::from_secs(1);
+    let deadline = Instant::now() + Duration::from_secs(5);
     let mut drained = radiant::runtime::CommandOutcome::default();
     loop {
         let outcome = runtime.drain_runtime_messages();

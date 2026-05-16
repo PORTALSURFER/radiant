@@ -90,6 +90,45 @@ fn anchored_panel_rect_sanitizes_nonfinite_geometry_inputs() {
 }
 
 #[test]
+fn floating_panel_rect_clamps_origin_inside_bounds() {
+    let bounds = Rect::from_min_max(Point::new(0.0, 40.0), Point::new(320.0, 220.0));
+
+    assert_eq!(
+        floating_panel_rect(
+            bounds,
+            Point::new(260.0, 10.0),
+            Vector2::new(100.0, 80.0),
+            12.0,
+        ),
+        Rect::from_min_max(Point::new(208.0, 52.0), Point::new(308.0, 132.0))
+    );
+}
+
+#[test]
+fn floating_panel_drag_preserves_pointer_grab_offset() {
+    let panel = Rect::from_min_size(Point::new(100.0, 80.0), Vector2::new(240.0, 180.0));
+    let drag = FloatingPanelDrag::new(panel, Point::new(130.0, 96.0));
+
+    assert_eq!(drag.grab_offset, Vector2::new(30.0, 16.0));
+    assert_eq!(
+        drag.origin_for_pointer(Point::new(210.0, 140.0)),
+        Point::new(180.0, 124.0)
+    );
+}
+
+#[test]
+fn floating_panel_drag_sanitizes_nonfinite_pointer_positions() {
+    let panel = Rect::from_min_size(Point::new(100.0, 80.0), Vector2::new(240.0, 180.0));
+    let drag = FloatingPanelDrag::new(panel, Point::new(f32::NAN, f32::INFINITY));
+
+    assert_eq!(drag.grab_offset, Vector2::new(0.0, 0.0));
+    assert_eq!(
+        drag.origin_for_pointer(Point::new(f32::NAN, 140.0)),
+        Point::new(0.0, 140.0)
+    );
+}
+
+#[test]
 fn split_pane_assigned_row_preserves_labels_and_assignments() {
     let row =
         SplitPaneAssignedRow::new("Inbox", "ready", true, false).with_pane_assignment(true, false);

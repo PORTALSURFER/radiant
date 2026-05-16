@@ -78,7 +78,12 @@ const FOCUSED_EXAMPLE_CONTRACTS: &[(&str, &[&str])] = &[
     ),
     (
         "background_loading",
-        &[".update_with(", "context.spawn(", "LoadingMessage::Loaded"],
+        &[
+            ".update_with(",
+            "context.spawn_resource(",
+            "ResourceCompletion",
+            "LoadingMessage::Loaded",
+        ],
     ),
     (
         "folder_browser",

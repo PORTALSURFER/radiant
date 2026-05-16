@@ -4,7 +4,7 @@ use crate::{
     layout::NodeId,
     runtime::{
         Command, ConfirmDialogRequest, ExternalDragOutcome, ExternalDragRequest, FileDialogRequest,
-        PlatformRequest, PlatformResponse, ResourceCompletion, ResourceSlot,
+        PlatformRequest, PlatformResponse, RepaintScope, ResourceCompletion, ResourceSlot,
     },
     widgets::WidgetId,
 };
@@ -42,6 +42,11 @@ impl<Message> UpdateContext<Message> {
     /// Request repaint without forcing declarative surface reprojection.
     pub fn request_paint_only(&mut self) {
         self.command(Command::request_paint_only());
+    }
+
+    /// Request a repaint using an explicit repaint scope.
+    pub fn repaint(&mut self, scope: RepaintScope) {
+        self.command(Command::repaint(scope));
     }
 
     /// Arm a native external drag session.

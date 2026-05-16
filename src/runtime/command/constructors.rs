@@ -2,7 +2,9 @@ use super::Command;
 use crate::{
     gui::types::Vector2,
     layout::NodeId,
-    runtime::{ExternalDragOutcome, ExternalDragRequest, PlatformRequest, PlatformResponse},
+    runtime::{
+        ExternalDragOutcome, ExternalDragRequest, PlatformRequest, PlatformResponse, RepaintScope,
+    },
     widgets::WidgetId,
 };
 use std::time::Duration;
@@ -43,6 +45,14 @@ impl<Message> Command<Message> {
     /// Build a command that repaints without refreshing the declarative surface.
     pub const fn request_paint_only() -> Self {
         Self::RequestPaintOnly
+    }
+
+    /// Build a repaint command from a typed repaint scope.
+    pub const fn repaint(scope: RepaintScope) -> Self {
+        match scope {
+            RepaintScope::Surface => Self::RequestRepaint,
+            RepaintScope::PaintOnly => Self::RequestPaintOnly,
+        }
     }
 
     /// Build a command that dispatches one message after the provided delay.

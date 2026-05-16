@@ -414,6 +414,13 @@ repaint, schedule delayed messages, run background work, move focus, or request
 runtime exit. Hosts that inspect only the immediate messages in a command can
 use `Command::into_messages_into(...)` to reuse caller-owned storage, while
 `Command::into_messages()` remains the allocating convenience wrapper.
+`RepaintScope` is the typed repaint specificity contract: `Surface` requests a
+surface refresh plus repaint, while `PaintOnly` repaints the current paint plan
+for overlay-only motion. Reducers can queue `Command::repaint(scope)` or
+`UpdateContext::repaint(scope)`, and diagnostics can inspect
+`Command::repaint_scope()` to see the merged effective scope for nested command
+batches. Mixed batches promote to `Surface` so a paint-only overlay request
+cannot accidentally suppress a needed surface refresh.
 `ResourceSlot<T>`, `ResourceRequest`, `ResourceLoad<T>`, `ResourceCompletion<T>`, and
 `ResourceLoadState` provide a small runtime-level state contract for host-owned
 background resource work. Radiant does not own the filesystem or asset decoder,

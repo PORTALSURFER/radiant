@@ -1,4 +1,4 @@
-use super::Command;
+use super::{Command, RepaintScope};
 
 impl<Message> Command<Message> {
     /// Return whether this command performs no work.
@@ -24,9 +24,22 @@ impl<Message> Command<Message> {
 
     /// Return whether this command or any nested command requests repaint.
     pub fn requests_repaint(&self) -> bool {
+        self.repaint_scope().is_some()
+    }
+
+    /// Return the effective repaint scope for this command or nested batch.
+    ///
+    /// `RepaintScope::Surface` wins over `RepaintScope::PaintOnly` because a
+    /// surface refresh also covers paint-only overlay work. This makes mixed
+    /// batches explicit and avoids accidentally skipping surface reprojection.
+    pub fn repaint_scope(&self) -> Option<RepaintScope> {
         match self {
-            Self::RequestRepaint | Self::RequestPaintOnly => true,
-            Self::Batch(commands) => commands.iter().any(Self::requests_repaint),
+            Self::RequestRepaint => Some(RepaintScope::Surface),
+            Self::RequestPaintOnly => Some(RepaintScope::PaintOnly),
+            Self::Batch(commands) => commands
+                .iter()
+                .filter_map(Self::repaint_scope)
+                .reduce(RepaintScope::merge),
             Self::None
             | Self::Message(_)
             | Self::After { .. }
@@ -38,28 +51,12 @@ impl<Message> Command<Message> {
             | Self::BeginExternalDrag { .. }
             | Self::PlatformRequest { .. }
             | Self::EndExternalDrag
-            | Self::Exit => false,
+            | Self::Exit => None,
         }
     }
 
     /// Return whether this command or any nested command requests paint-only redraw.
     pub fn requests_paint_only(&self) -> bool {
-        match self {
-            Self::RequestPaintOnly => true,
-            Self::Batch(commands) => commands.iter().any(Self::requests_paint_only),
-            Self::None
-            | Self::Message(_)
-            | Self::RequestRepaint
-            | Self::After { .. }
-            | Self::Perform { .. }
-            | Self::Focus(_)
-            | Self::ScrollTo { .. }
-            | Self::ScrollIntoView { .. }
-            | Self::ScrollFixedRowIntoView { .. }
-            | Self::BeginExternalDrag { .. }
-            | Self::PlatformRequest { .. }
-            | Self::EndExternalDrag
-            | Self::Exit => false,
-        }
+        matches!(self.repaint_scope(), Some(RepaintScope::PaintOnly))
     }
 }

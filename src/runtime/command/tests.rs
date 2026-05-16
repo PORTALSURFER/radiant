@@ -1,4 +1,4 @@
-use super::Command;
+use super::{Command, RepaintScope};
 
 #[test]
 fn batch_drops_empty_commands_and_preserves_message_order() {
@@ -113,12 +113,23 @@ fn repaint_requests_are_detected_through_nested_batches() {
 
 #[test]
 fn paint_only_requests_are_detected_through_nested_batches() {
-    let command = Command::<()>::batch([
-        Command::request_repaint(),
-        Command::batch([Command::none(), Command::request_paint_only()]),
-    ]);
+    let command = Command::<()>::batch([Command::batch([
+        Command::none(),
+        Command::request_paint_only(),
+    ])]);
 
     assert!(command.requests_repaint());
     assert!(command.requests_paint_only());
     assert!(!Command::<()>::request_repaint().requests_paint_only());
+}
+
+#[test]
+fn repaint_scope_merges_nested_batches_with_surface_winning() {
+    let command = Command::<()>::batch([
+        Command::repaint(RepaintScope::PaintOnly),
+        Command::batch([Command::none(), Command::repaint(RepaintScope::Surface)]),
+    ]);
+
+    assert_eq!(command.repaint_scope(), Some(RepaintScope::Surface));
+    assert!(!command.requests_paint_only());
 }

@@ -90,10 +90,10 @@ pub mod prelude {
         NativeRunOptionsError, NativeWindowMode, PaintFillPath, PaintFillRect, PaintFillRule,
         PaintImage, PaintPath, PaintPathCommand, PaintPrimitive, PaintStrokeRect, PaintSvg,
         PaintSvgDocument, PaintTextAlign, PaintTextRun, PaintTransform, PlatformCompletion,
-        PlatformRequest, PlatformResponse, ResourceCompletion, ResourceKey, ResourceLoad,
-        ResourceLoadState, ResourceRequest, ResourceSlot, RuntimeRunReport, ScrollUpdate,
-        SurfaceFrame, SurfacePaintPlan, SvgParseError, TransientOverlayContext, WindowManifest,
-        WindowManifestError, WindowSpec, WindowSpecError,
+        PlatformRequest, PlatformResponse, RepaintScope, ResourceCompletion, ResourceKey,
+        ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot, RuntimeRunReport,
+        ScrollUpdate, SurfaceFrame, SurfacePaintPlan, SvgParseError, TransientOverlayContext,
+        WindowManifest, WindowManifestError, WindowSpec, WindowSpecError,
     };
     pub use crate::theme::ThemeTokens;
     pub use crate::widgets::{

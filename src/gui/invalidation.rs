@@ -23,6 +23,48 @@ pub struct RetainedSegmentRevisions<const SEGMENTS: usize> {
     pub revisions: [u64; SEGMENTS],
 }
 
+/// Role of one named retained render segment.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RetainedSegmentKind {
+    /// Stable content that usually requires scene or surface rebuild work.
+    Static,
+    /// Lightweight overlay content that can often repaint without rebuilding stable content.
+    Overlay,
+}
+
+/// Named retained render segment metadata.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RetainedSegment {
+    /// Human-readable segment name for diagnostics.
+    pub name: &'static str,
+    /// Segment role used to group static and overlay invalidations.
+    pub kind: RetainedSegmentKind,
+}
+
+impl RetainedSegment {
+    /// Build a static retained segment.
+    pub const fn static_segment(name: &'static str) -> Self {
+        Self {
+            name,
+            kind: RetainedSegmentKind::Static,
+        }
+    }
+
+    /// Build an overlay retained segment.
+    pub const fn overlay(name: &'static str) -> Self {
+        Self {
+            name,
+            kind: RetainedSegmentKind::Overlay,
+        }
+    }
+}
+
+/// Named retained render segment plan with generated bit assignments.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RetainedSegmentPlan<const SEGMENTS: usize> {
+    segments: [RetainedSegment; SEGMENTS],
+}
+
 impl<const SEGMENTS: usize> Default for RetainedSegmentRevisions<SEGMENTS> {
     fn default() -> Self {
         Self {
@@ -91,6 +133,111 @@ impl<const SEGMENTS: usize> RetainedSegmentRevisions<SEGMENTS> {
     }
 }
 
+impl<const SEGMENTS: usize> RetainedSegmentPlan<SEGMENTS> {
+    /// Build a segment plan.
+    ///
+    /// At most 16 segments are represented because masks use `u16` bits.
+    pub const fn new(segments: [RetainedSegment; SEGMENTS]) -> Self {
+        assert!(SEGMENTS <= 16);
+        Self { segments }
+    }
+
+    /// Return all segment metadata.
+    pub const fn segments(&self) -> &[RetainedSegment; SEGMENTS] {
+        &self.segments
+    }
+
+    /// Return the bit assigned to a segment index.
+    pub const fn bit(index: usize) -> Option<u16> {
+        if index < SEGMENTS && index < 16 {
+            Some(1u16 << index)
+        } else {
+            None
+        }
+    }
+
+    /// Return the mask containing every valid segment bit.
+    pub const fn valid_mask(&self) -> u16 {
+        if SEGMENTS == 16 {
+            u16::MAX
+        } else {
+            (1u16 << SEGMENTS) - 1
+        }
+    }
+
+    /// Return the mask containing all static segments.
+    pub const fn static_mask(&self) -> u16 {
+        let mut index = 0;
+        let mut mask = 0;
+        while index < SEGMENTS {
+            if matches!(self.segments[index].kind, RetainedSegmentKind::Static) {
+                mask |= 1u16 << index;
+            }
+            index += 1;
+        }
+        mask
+    }
+
+    /// Return the mask containing all overlay segments.
+    pub const fn overlay_mask(&self) -> u16 {
+        let mut index = 0;
+        let mut mask = 0;
+        while index < SEGMENTS {
+            if matches!(self.segments[index].kind, RetainedSegmentKind::Overlay) {
+                mask |= 1u16 << index;
+            }
+            index += 1;
+        }
+        mask
+    }
+
+    /// Build a clipped invalidation mask from raw bits.
+    pub const fn mask(&self, bits: u16) -> InvalidationMask {
+        InvalidationMask::from_bits(bits, self.valid_mask())
+    }
+
+    /// Return an invalidation mask for one segment index.
+    pub const fn mask_for_index(&self, index: usize) -> Option<InvalidationMask> {
+        match Self::bit(index) {
+            Some(bit) => Some(self.mask(bit)),
+            None => None,
+        }
+    }
+
+    /// Return an invalidation mask for one named segment.
+    pub fn mask_for_name(&self, name: &str) -> Option<InvalidationMask> {
+        self.segments
+            .iter()
+            .position(|segment| segment.name == name)
+            .and_then(|index| self.mask_for_index(index))
+    }
+
+    /// Return whether a mask invalidates at least one static segment.
+    pub const fn requires_static_rebuild(&self, mask: InvalidationMask) -> bool {
+        mask.intersects(self.static_mask())
+    }
+
+    /// Return whether a mask invalidates at least one overlay segment.
+    pub const fn requires_overlay_rebuild(&self, mask: InvalidationMask) -> bool {
+        mask.intersects(self.overlay_mask())
+    }
+
+    /// Bump revisions for segments contained in `mask`.
+    pub fn bump_revisions(
+        &self,
+        revisions: &mut RetainedSegmentRevisions<SEGMENTS>,
+        mask: InvalidationMask,
+    ) {
+        let mut bits = [0; SEGMENTS];
+        let mut index = 0;
+        while index < SEGMENTS {
+            bits[index] = Self::bit(index).unwrap_or(0);
+            index += 1;
+        }
+        revisions.bump_for_bits(mask.bits(), bits);
+    }
+}
+
 impl<const VALID_MASK: u16, const STATIC_MASK: u16, const OVERLAY_MASK: u16>
     RetainedSegmentMask<VALID_MASK, STATIC_MASK, OVERLAY_MASK>
 {
@@ -143,7 +290,10 @@ impl<const VALID_MASK: u16, const STATIC_MASK: u16, const OVERLAY_MASK: u16>
 
 #[cfg(test)]
 mod tests {
-    use super::{InvalidationMask, RetainedSegmentMask, RetainedSegmentRevisions};
+    use super::{
+        InvalidationMask, RetainedSegment, RetainedSegmentMask, RetainedSegmentPlan,
+        RetainedSegmentRevisions,
+    };
 
     const VALID_MASK: u16 = 0b0111;
 
@@ -197,5 +347,27 @@ mod tests {
 
         assert_eq!(revisions.revisions, [1, 0, 1]);
         assert!(revisions.has_revisions());
+    }
+
+    #[test]
+    fn retained_segment_plan_names_groups_and_bumps_revisions() {
+        const PLAN: RetainedSegmentPlan<3> = RetainedSegmentPlan::new([
+            RetainedSegment::static_segment("base"),
+            RetainedSegment::overlay("hover"),
+            RetainedSegment::overlay("playhead"),
+        ]);
+        let mut revisions = RetainedSegmentRevisions::<3>::default();
+
+        assert_eq!(PLAN.valid_mask(), 0b111);
+        assert_eq!(PLAN.static_mask(), 0b001);
+        assert_eq!(PLAN.overlay_mask(), 0b110);
+
+        let hover = PLAN.mask_for_name("hover").expect("hover segment");
+        assert!(!PLAN.requires_static_rebuild(hover));
+        assert!(PLAN.requires_overlay_rebuild(hover));
+
+        PLAN.bump_revisions(&mut revisions, hover);
+        assert_eq!(revisions.revisions, [0, 1, 0]);
+        assert_eq!(PLAN.mask(0b1000).bits(), 0);
     }
 }

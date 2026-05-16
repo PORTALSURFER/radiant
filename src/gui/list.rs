@@ -9,8 +9,8 @@ pub use editable::{
 };
 pub use grid::{VirtualGridWindow, VirtualGridWindowRequest, resolve_virtual_grid_window};
 pub use virtual_list::{
-    MaterializedVirtualListItem, VirtualListInvalidation, VirtualListItemKey,
-    VirtualListItemOverlay, VirtualListItemState, VirtualListScrollbar,
+    MaterializedVirtualListItem, VirtualListController, VirtualListInvalidation,
+    VirtualListItemKey, VirtualListItemOverlay, VirtualListItemState, VirtualListScrollbar,
     VirtualListScrollbarRequest, VirtualListStackMetrics, VirtualListWindow,
     VirtualListWindowRequest, resolve_virtual_list_scrollbar, resolve_virtual_list_window,
     virtual_list_scroll_delta_from_units, virtual_list_scrollbar_view_start_for_pointer,

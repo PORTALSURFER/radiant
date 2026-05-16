@@ -66,7 +66,10 @@ pub mod prelude {
         feedback::{StatusLineEntry, StatusLineLog},
         focus::FocusSurface,
         input::{KeyCode, KeyPress},
-        list::{VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window},
+        list::{
+            VirtualListController, VirtualListWindow, VirtualListWindowRequest,
+            resolve_virtual_list_window,
+        },
         range::IndexViewport,
         shortcuts::{ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution},
         svg::SvgIcon,

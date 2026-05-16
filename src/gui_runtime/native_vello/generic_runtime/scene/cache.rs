@@ -1,11 +1,11 @@
 use crate::gui_runtime::native_vello::*;
+use crate::runtime::RetainedSurfaceCachePolicy;
 use std::collections::VecDeque;
-
-const MAX_RETAINED_SURFACE_FRAMES: usize = 64;
 
 #[derive(Clone, Debug, Default)]
 pub(in crate::gui_runtime::native_vello) struct RetainedSurfaceFrameCache {
     entries: VecDeque<RetainedSurfaceFrameCacheEntry>,
+    policy: RetainedSurfaceCachePolicy,
 }
 
 #[derive(Clone, Debug)]
@@ -65,6 +65,23 @@ impl RetainedSurfaceEncodeStats {
 }
 
 impl RetainedSurfaceFrameCache {
+    pub(in crate::gui_runtime::native_vello) fn with_policy(
+        policy: RetainedSurfaceCachePolicy,
+    ) -> Self {
+        Self {
+            entries: VecDeque::new(),
+            policy,
+        }
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn policy(&self) -> RetainedSurfaceCachePolicy {
+        self.policy
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn entry_count(&self) -> usize {
+        self.entries.len()
+    }
+
     pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn cached_frame(
         &mut self,
         descriptor: RetainedSurfaceDescriptor,
@@ -92,6 +109,10 @@ impl RetainedSurfaceFrameCache {
             self.invalidate_descriptor_key(descriptor.key);
             return;
         }
+        if self.policy.max_frames == 0 {
+            self.invalidate_descriptor_key(descriptor.key);
+            return;
+        }
         self.entries
             .retain(|entry| !entry.same_surface_geometry(descriptor, rect, viewport));
         self.entries.push_back(RetainedSurfaceFrameCacheEntry {
@@ -100,7 +121,7 @@ impl RetainedSurfaceFrameCache {
             viewport,
             frame,
         });
-        if self.entries.len() > MAX_RETAINED_SURFACE_FRAMES {
+        while self.entries.len() > self.policy.max_frames {
             self.entries.pop_front();
         }
     }
@@ -167,13 +188,14 @@ mod tests {
     fn retained_frame_cache_evicts_oldest_entry_without_shifting_storage() {
         let rect = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(20.0, 20.0));
         let viewport = Vector2::new(100.0, 100.0);
-        let mut cache = RetainedSurfaceFrameCache::default();
+        let mut cache =
+            RetainedSurfaceFrameCache::with_policy(RetainedSurfaceCachePolicy { max_frames: 64 });
 
-        for key in 0..=MAX_RETAINED_SURFACE_FRAMES as u64 {
+        for key in 0..=64 {
             cache.store(descriptor(key), rect, viewport, frame(key as u8));
         }
 
-        assert_eq!(cache.entries.len(), MAX_RETAINED_SURFACE_FRAMES);
+        assert_eq!(cache.entries.len(), 64);
         assert!(cache.cached_frame(descriptor(0), rect, viewport).is_none());
         assert_eq!(
             cache
@@ -183,13 +205,22 @@ mod tests {
         );
         assert_eq!(
             cache
-                .cached_frame(
-                    descriptor(MAX_RETAINED_SURFACE_FRAMES as u64),
-                    rect,
-                    viewport,
-                )
+                .cached_frame(descriptor(64), rect, viewport,)
                 .map(|frame| frame.clear_color.r),
-            Some(MAX_RETAINED_SURFACE_FRAMES as u8)
+            Some(64)
         );
+    }
+
+    #[test]
+    fn retained_frame_cache_policy_can_disable_storage() {
+        let rect = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(20.0, 20.0));
+        let viewport = Vector2::new(100.0, 100.0);
+        let mut cache =
+            RetainedSurfaceFrameCache::with_policy(RetainedSurfaceCachePolicy { max_frames: 0 });
+
+        cache.store(descriptor(1), rect, viewport, frame(1));
+
+        assert_eq!(cache.entry_count(), 0);
+        assert!(cache.cached_frame(descriptor(1), rect, viewport).is_none());
     }
 }

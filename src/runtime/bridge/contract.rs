@@ -8,8 +8,8 @@ use crate::gui::{
     types::{Rect, Vector2},
 };
 use crate::runtime::{
-    Command, PaintPrimitive, PlatformCompletion, PlatformRequest, ScrollUpdate,
-    TransientOverlayContext, UiSurface,
+    Command, NativeFrameDiagnostics, PaintPrimitive, PlatformCompletion, PlatformRequest,
+    ScrollUpdate, TransientOverlayContext, UiSurface,
 };
 use crate::widgets::RetainedSurfaceDescriptor;
 use std::{sync::Arc, time::Duration};
@@ -207,6 +207,13 @@ pub trait RuntimeBridge<Message> {
         _primitives: &mut Vec<PaintPrimitive>,
     ) {
     }
+
+    /// Observe structured diagnostics for one native presentation frame.
+    ///
+    /// Native renderers call this after a successful present. Hosts can use it
+    /// for perf counters, regression probes, or app-owned telemetry without
+    /// scraping backend logs. The default no-op keeps simple bridges silent.
+    fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
 
     /// Lifecycle hook fired when the native runtime exits.
     ///

@@ -36,6 +36,7 @@ where
     pub(super) fn new(options: NativeRunOptions, bridge: Bridge, viewport: Vector2) -> Self {
         let text_renderer = NativeTextRenderer::with_options(&options.text);
         let debug_layout = options.debug_layout;
+        let retained_surface_cache = options.retained_surface_cache;
         Self {
             options,
             core: GenericNativeRuntimeCore::new_with_debug_layout(bridge, viewport, debug_layout),
@@ -45,7 +46,7 @@ where
             render_ctx: None,
             render_surface: None,
             renderer: None,
-            frame: NativeVelloFrameState::new(text_renderer),
+            frame: NativeVelloFrameState::new(text_renderer, retained_surface_cache),
             last_cursor: None,
             clipboard: arboard::Clipboard::new().ok(),
             modifiers: winit::keyboard::ModifiersState::default(),

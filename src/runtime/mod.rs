@@ -20,6 +20,7 @@
 mod bridge;
 mod command;
 mod controller;
+mod diagnostics;
 mod external_drag;
 mod gpu_surface;
 mod paint;
@@ -45,6 +46,10 @@ pub use command::{Command, RepaintScope};
 pub use controller::{
     CommandOutcome, Event, FocusTraversal, PointerMoveOutcome, RuntimeContext, RuntimeSurfaceFrame,
     RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceRuntime,
+};
+pub use diagnostics::{
+    NativeFrameDiagnostics, NativeFrameTimingDiagnostics, NativeGpuSurfaceDiagnostics,
+    NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics, RetainedSurfaceCachePolicy,
 };
 pub(crate) use external_drag::ExternalDragSession;
 pub use external_drag::{

@@ -86,14 +86,16 @@ pub mod prelude {
         FileDialogRequest, GpuSignalGainPreview, GpuSignalRenderShape, GpuSignalSummary,
         GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent,
         GpuSurfaceContentError, GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays,
-        NativeGenericRunError, NativeGenericRunReport, NativePopupOptions, NativeRunOptions,
-        NativeRunOptionsError, NativeWindowMode, PaintFillPath, PaintFillRect, PaintFillRule,
+        NativeFrameDiagnostics, NativeFrameTimingDiagnostics, NativeGenericRunError,
+        NativeGenericRunReport, NativeGpuSurfaceDiagnostics, NativePopupOptions,
+        NativeRetainedSurfaceDiagnostics, NativeRunOptions, NativeRunOptionsError,
+        NativeSceneDiagnostics, NativeWindowMode, PaintFillPath, PaintFillRect, PaintFillRule,
         PaintImage, PaintPath, PaintPathCommand, PaintPrimitive, PaintStrokeRect, PaintSvg,
         PaintSvgDocument, PaintTextAlign, PaintTextRun, PaintTransform, PlatformCompletion,
         PlatformRequest, PlatformResponse, RepaintScope, ResourceCompletion, ResourceKey,
-        ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot, RuntimeRunReport,
-        ScrollUpdate, SurfaceFrame, SurfacePaintPlan, SvgParseError, TransientOverlayContext,
-        WindowManifest, WindowManifestError, WindowSpec, WindowSpecError,
+        ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot, RetainedSurfaceCachePolicy,
+        RuntimeRunReport, ScrollUpdate, SurfaceFrame, SurfacePaintPlan, SvgParseError,
+        TransientOverlayContext, WindowManifest, WindowManifestError, WindowSpec, WindowSpecError,
     };
     pub use crate::theme::ThemeTokens;
     pub use crate::widgets::{

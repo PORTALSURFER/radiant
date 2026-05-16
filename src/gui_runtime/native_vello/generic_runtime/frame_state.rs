@@ -1,7 +1,10 @@
 //! Renderer-frame state owned by the generic native Vello runner.
 
 use super::*;
-use crate::{runtime::SurfacePaintPlan, theme::ThemeTokens};
+use crate::{
+    runtime::{RetainedSurfaceCachePolicy, SurfacePaintPlan},
+    theme::ThemeTokens,
+};
 
 pub(super) struct NativeVelloFrameState {
     pub(super) text_renderer: NativeTextRenderer,
@@ -20,7 +23,10 @@ pub(super) struct NativeVelloFrameState {
 }
 
 impl NativeVelloFrameState {
-    pub(super) fn new(text_renderer: NativeTextRenderer) -> Self {
+    pub(super) fn new(
+        text_renderer: NativeTextRenderer,
+        retained_surface_cache: RetainedSurfaceCachePolicy,
+    ) -> Self {
         Self {
             text_renderer,
             scene: Scene::new(),
@@ -30,7 +36,7 @@ impl NativeVelloFrameState {
             transient_overlay_primitives: Vec::new(),
             composited_base_frame: None,
             composited_base_dirty: true,
-            retained_surface_cache: RetainedSurfaceFrameCache::default(),
+            retained_surface_cache: RetainedSurfaceFrameCache::with_policy(retained_surface_cache),
             last_scene_stats: RetainedSurfaceEncodeStats::default(),
             scene_text_runs: SceneTextRunBuffer::new(),
             gpu_surface_interaction_regions: Vec::new(),

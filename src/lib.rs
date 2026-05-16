@@ -100,9 +100,9 @@ pub mod prelude {
         CanvasGestureEvent, CanvasGestureState, CanvasPointer, DragHandleMessage, FocusBehavior,
         GpuSurfaceMessage, GpuSurfaceWidget, IconButtonWidget, InteractiveRowMessage,
         InteractiveRowWidget, PointerButton, ScrollbarAxis, ScrollbarMessage, SliderMessage,
-        SliderWidget, TextAlign, TextWrap, Widget, WidgetCommon, WidgetInput, WidgetKey,
-        WidgetOutput, WidgetProminence, WidgetSizing, WidgetState, WidgetStyle, WidgetTone,
-        WidgetVisualTokens, resolve_widget_visual_tokens,
+        SliderWidget, TextAlign, TextInputEditResult, TextInputState, TextWrap, Widget,
+        WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetProminence, WidgetSizing,
+        WidgetState, WidgetStyle, WidgetTone, WidgetVisualTokens, resolve_widget_visual_tokens,
     };
 }
 

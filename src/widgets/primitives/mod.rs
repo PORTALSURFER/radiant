@@ -33,5 +33,5 @@ pub use selectable::{SelectableProps, SelectableWidget};
 pub use slider::{SliderProps, SliderState, SliderWidget};
 pub use support::WidgetCommon;
 pub use text::{TextAlign, TextWidget, TextWrap};
-pub use text_input::{TextInputProps, TextInputState, TextInputWidget};
+pub use text_input::{TextInputEditResult, TextInputProps, TextInputState, TextInputWidget};
 pub use toggle::{ToggleProps, ToggleState, ToggleWidget};

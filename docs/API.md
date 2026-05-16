@@ -309,6 +309,14 @@ not maintain a closed widget catalog. Widget primitives such as `ButtonWidget`,
 `CanvasWidget`, and `ListItemWidget` describe reusable UI behavior without
 host-domain semantics.
 
+Single-line text editing is split between reusable state and widget routing:
+`TextInputState` owns the portable value, caret, and selection model, while
+`TextInputWidget` adapts that model to `WidgetInput` and emits
+`TextInputMessage`. Custom retained surfaces that draw their own field chrome can
+use `TextInputState::apply_edit_command`, `apply_key`, `insert_text`, and
+`set_caret` directly instead of reimplementing paste sanitization, selection
+replacement, Unicode-scalar caret movement, and character-limit behavior.
+
 Implement `Widget` directly when a downstream application needs a new focusable
 leaf with its own input handling, host-routable output payload, or
 backend-neutral paint contribution. Compose existing primitives when the desired

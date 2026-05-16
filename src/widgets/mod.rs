@@ -77,8 +77,8 @@ pub use primitives::{
     CardWidget, DragHandleWidget, GpuSurfaceWidget, IconButtonWidget, ImageProps, ImageWidget,
     InteractiveRowProps, InteractiveRowWidget, ListItemWidget, RetainedSurfaceDescriptor,
     ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget, SelectableProps,
-    SelectableWidget, SliderProps, SliderState, SliderWidget, TextAlign, TextInputProps,
-    TextInputState, TextInputWidget, TextWidget, TextWrap, ToggleProps, ToggleState, ToggleWidget,
-    WidgetCommon,
+    SelectableWidget, SliderProps, SliderState, SliderWidget, TextAlign, TextInputEditResult,
+    TextInputProps, TextInputState, TextInputWidget, TextWidget, TextWrap, ToggleProps,
+    ToggleState, ToggleWidget, WidgetCommon,
 };
 pub use theme::{WidgetVisualTokens, resolve_widget_visual_tokens};

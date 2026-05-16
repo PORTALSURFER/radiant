@@ -18,6 +18,7 @@ pub use item::{
 };
 pub use scrollbar::{
     VirtualListScrollbar, VirtualListScrollbarRequest, resolve_virtual_list_scrollbar,
+    virtual_list_scrollbar_thumb_offset_at_point, virtual_list_scrollbar_view_start_at_point,
     virtual_list_scrollbar_view_start_for_pointer,
 };
 pub use window::{

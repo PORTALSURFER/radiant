@@ -5,7 +5,8 @@ use super::{
     VirtualListItemKey, VirtualListItemOverlay, VirtualListItemState, VirtualListScrollbarRequest,
     VirtualListStackMetrics, VirtualListWindow, VirtualListWindowRequest,
     resolve_virtual_grid_window, resolve_virtual_list_scrollbar, resolve_virtual_list_window,
-    virtual_list_scroll_delta_from_units, virtual_list_scrollbar_view_start_for_pointer,
+    virtual_list_scroll_delta_from_units, virtual_list_scrollbar_thumb_offset_at_point,
+    virtual_list_scrollbar_view_start_at_point, virtual_list_scrollbar_view_start_for_pointer,
     virtual_list_stacked_item_at_point, virtual_list_view_start_after_scroll_delta,
     virtual_list_viewport_len_for_extent,
 };
@@ -340,6 +341,48 @@ fn virtual_list_scrollbar_maps_viewport_and_pointer_drag() {
             viewport_start: 0,
             min_thumb_extent: 18.0,
         }),
+        None
+    );
+}
+
+#[test]
+fn virtual_list_scrollbar_resolves_thumb_hit_offset_with_slop() {
+    let scrollbar = super::VirtualListScrollbar {
+        track: Rect::from_min_max(Point::new(190.0, 10.0), Point::new(198.0, 210.0)),
+        thumb: Rect::from_min_max(Point::new(190.0, 90.0), Point::new(198.0, 130.0)),
+    };
+
+    assert_eq!(
+        virtual_list_scrollbar_thumb_offset_at_point(scrollbar, Point::new(188.0, 100.0), 3.0),
+        Some(10.0)
+    );
+    assert_eq!(
+        virtual_list_scrollbar_thumb_offset_at_point(scrollbar, Point::new(196.0, 88.0), 3.0),
+        Some(0.0)
+    );
+    assert_eq!(
+        virtual_list_scrollbar_thumb_offset_at_point(scrollbar, Point::new(186.0, 100.0), 3.0),
+        None
+    );
+}
+
+#[test]
+fn virtual_list_scrollbar_track_click_centers_thumb_on_pointer() {
+    let scrollbar = super::VirtualListScrollbar {
+        track: Rect::from_min_max(Point::new(190.0, 10.0), Point::new(198.0, 210.0)),
+        thumb: Rect::from_min_max(Point::new(190.0, 90.0), Point::new(198.0, 130.0)),
+    };
+
+    assert_eq!(
+        virtual_list_scrollbar_view_start_at_point(scrollbar, 20, 100, Point::new(194.0, 170.0)),
+        Some(70)
+    );
+    assert_eq!(
+        virtual_list_scrollbar_view_start_at_point(scrollbar, 20, 100, Point::new(194.0, 100.0)),
+        None
+    );
+    assert_eq!(
+        virtual_list_scrollbar_view_start_at_point(scrollbar, 20, 100, Point::new(184.0, 170.0)),
         None
     );
 }

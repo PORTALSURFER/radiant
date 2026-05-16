@@ -1,11 +1,13 @@
 //! Generic virtual-list primitives.
 
+mod controller;
 mod geometry;
 mod invalidation;
 mod item;
 mod scrollbar;
 mod window;
 
+pub use controller::VirtualListController;
 pub use geometry::{
     VirtualListStackMetrics, virtual_list_stacked_item_at_point,
     virtual_list_viewport_len_for_extent,

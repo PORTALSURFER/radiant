@@ -122,6 +122,11 @@ Higher-level application helpers follow the same logical-coordinate sizing
 model as view modifiers: fixed details-list columns use `f32` logical widths
 through `DetailsColumn::fixed(...)`, matching `.size(...)`, `.fixed(...)`, and
 other layout builders instead of introducing a separate integer sizing model.
+Large list and tree-style surfaces can use `VirtualListController` when they
+need durable item-index viewport state outside the declarative scroll container.
+It wraps the existing virtual-window, row-scroll, focus guard-band, and
+scrollbar projection helpers so applications do not need to keep viewport-start
+bookkeeping beside each large list.
 Timeline and waveform-style surfaces can use `IndexViewport` for generic
 integer range navigation. It owns clamping, visible fraction, scrollbar offset,
 anchor-preserving zoom, visible-span pan, and visible-to-absolute ratio

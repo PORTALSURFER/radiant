@@ -100,3 +100,49 @@ pub fn virtual_list_scrollbar_view_start_for_pointer(
     let start_ratio = ((thumb_min_y - scrollbar.track.min.y) / travel).clamp(0.0, 1.0);
     Some(((start_ratio * max_viewport_start as f32).round() as usize).min(max_viewport_start))
 }
+
+/// Return the pointer offset inside a scrollbar thumb, allowing hit slop around
+/// the visual thumb.
+pub fn virtual_list_scrollbar_thumb_offset_at_point(
+    scrollbar: VirtualListScrollbar,
+    point: Point,
+    hit_slop: f32,
+) -> Option<f32> {
+    let hit_slop = hit_slop.max(0.0);
+    let hit_rect = Rect::from_min_max(
+        Point::new(
+            scrollbar.track.min.x - hit_slop,
+            scrollbar.thumb.min.y - hit_slop,
+        ),
+        Point::new(
+            scrollbar.track.max.x + hit_slop,
+            scrollbar.thumb.max.y + hit_slop,
+        ),
+    );
+    hit_rect
+        .contains(point)
+        .then_some((point.y - scrollbar.thumb.min.y).clamp(0.0, scrollbar.thumb.height()))
+}
+
+/// Resolve a virtual-list viewport start for a click inside the scrollbar track.
+///
+/// Clicks on the thumb return `None` so callers can start a drag instead. Track
+/// clicks center the thumb on the clicked location before resolving the logical
+/// viewport start.
+pub fn virtual_list_scrollbar_view_start_at_point(
+    scrollbar: VirtualListScrollbar,
+    viewport_len: usize,
+    total_items: usize,
+    point: Point,
+) -> Option<usize> {
+    if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
+        return None;
+    }
+    virtual_list_scrollbar_view_start_for_pointer(
+        scrollbar,
+        viewport_len,
+        total_items,
+        point.y,
+        scrollbar.thumb.height() * 0.5,
+    )
+}

@@ -145,6 +145,13 @@ application or overlay animation frame-rate caps remain authoritative. Window
 launch and manifest builders provide integer `.size(...)` convenience methods
 plus `.logical_size(...)` and `.min_logical_size(...)` when hosts need
 fractional logical dimensions.
+For host-visible platform services, reducers can queue typed
+`PlatformRequest` commands through `UpdateContext::platform_request(...)`,
+`pick_folder(...)`, or `confirm(...)`. Custom bridges handle those requests via
+`RuntimeBridge::request_platform_service(...)`; bridges that do not provide a
+platform service return an explicit unsupported error through the normal
+completion callback instead of blocking the UI thread or forcing app code to
+depend on a native dialog crate.
 `NativeGpuOptions` and `NativeGpuBackend` keep WGPU backend selection explicit
 without exposing normal app code to raw WGPU setup; the default remains WGPU's
 environment-aware adapter selection, while diagnostics or platform work can

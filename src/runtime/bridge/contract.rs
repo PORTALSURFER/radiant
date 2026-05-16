@@ -7,7 +7,10 @@ use crate::gui::{
     shortcuts::ShortcutResolution,
     types::{Rect, Vector2},
 };
-use crate::runtime::{Command, PaintPrimitive, ScrollUpdate, TransientOverlayContext, UiSurface};
+use crate::runtime::{
+    Command, PaintPrimitive, PlatformCompletion, PlatformRequest, ScrollUpdate,
+    TransientOverlayContext, UiSurface,
+};
 use crate::widgets::RetainedSurfaceDescriptor;
 use std::{sync::Arc, time::Duration};
 
@@ -95,6 +98,20 @@ pub trait RuntimeBridge<Message> {
         _work: Box<dyn FnOnce() -> Message + Send + 'static>,
     ) -> bool {
         false
+    }
+
+    /// Request a host-visible platform service such as a file picker or dialog.
+    ///
+    /// Native adapters or application hosts that own platform integration can
+    /// override this method and dispatch the completion callback when the
+    /// request finishes. The default returns `false`, which causes the runtime
+    /// to report an unsupported platform service back through the callback.
+    fn request_platform_service(
+        &mut self,
+        request: PlatformRequest,
+        on_completed: PlatformCompletion<Message>,
+    ) -> Result<(), (PlatformRequest, PlatformCompletion<Message>)> {
+        Err((request, on_completed))
     }
 
     /// Drain commands delivered by app startup hooks or bridge-owned runtime work.

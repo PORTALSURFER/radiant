@@ -1,12 +1,46 @@
 use super::*;
 use crate::layout::ContainerPolicy;
-use crate::runtime::{ExternalDragEffect, ExternalDragOutcome, ExternalDragRequest, SurfaceNode};
+use crate::runtime::{
+    ExternalDragEffect, ExternalDragOutcome, ExternalDragRequest, FileDialogRequest,
+    PlatformCompletion, PlatformRequest, PlatformResponse, SurfaceNode,
+};
 use std::{path::PathBuf, sync::Arc};
 
 #[derive(Default)]
 struct QueuedCommandBridge {
     commands: Vec<Command<usize>>,
     dispatched: Vec<usize>,
+}
+
+#[derive(Default)]
+struct PlatformCommandBridge {
+    dispatched: Vec<usize>,
+    requests: Vec<PlatformRequest>,
+}
+
+impl RuntimeBridge<usize> for PlatformCommandBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+        Arc::new(UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn reduce_message(&mut self, message: usize) {
+        self.dispatched.push(message);
+    }
+
+    fn request_platform_service(
+        &mut self,
+        request: PlatformRequest,
+        on_completed: PlatformCompletion<usize>,
+    ) -> Result<(), (PlatformRequest, PlatformCompletion<usize>)> {
+        self.requests.push(request);
+        let message = on_completed(Ok(PlatformResponse::Canceled));
+        self.reduce_message(message);
+        Ok(())
+    }
 }
 
 impl RuntimeBridge<usize> for QueuedCommandBridge {
@@ -195,6 +229,40 @@ fn external_drag_completion_dispatches_host_message() {
             effect: ExternalDragEffect::Copy,
         }),
     );
+
+    assert_eq!(outcome.messages_dispatched, 1);
+    assert_eq!(runtime.bridge().dispatched, vec![1]);
+}
+
+#[test]
+fn platform_request_dispatches_through_bridge_completion() {
+    let bridge = PlatformCommandBridge::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+    let request = PlatformRequest::PickFolder(FileDialogRequest::new().title("Choose library"));
+
+    let outcome =
+        runtime.execute_command(Command::platform_request(
+            request.clone(),
+            |result| match result.expect("platform request should complete") {
+                PlatformResponse::Canceled => 7,
+                _ => 0,
+            },
+        ));
+
+    assert_eq!(outcome.messages_dispatched, 0);
+    assert_eq!(runtime.bridge().requests, vec![request]);
+    assert_eq!(runtime.bridge().dispatched, vec![7]);
+}
+
+#[test]
+fn unsupported_platform_request_reports_error_message() {
+    let bridge = QueuedCommandBridge::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+    let request = PlatformRequest::PickFolder(FileDialogRequest::new());
+
+    let outcome = runtime.execute_command(Command::platform_request(request, |result| {
+        usize::from(result.is_err())
+    }));
 
     assert_eq!(outcome.messages_dispatched, 1);
     assert_eq!(runtime.bridge().dispatched, vec![1]);

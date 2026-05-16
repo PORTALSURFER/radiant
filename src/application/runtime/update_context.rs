@@ -3,7 +3,8 @@ use crate::{
     gui::types::Vector2,
     layout::NodeId,
     runtime::{
-        Command, ExternalDragOutcome, ExternalDragRequest, ResourceCompletion, ResourceSlot,
+        Command, ConfirmDialogRequest, ExternalDragOutcome, ExternalDragRequest, FileDialogRequest,
+        PlatformRequest, PlatformResponse, ResourceCompletion, ResourceSlot,
     },
     widgets::WidgetId,
 };
@@ -63,6 +64,33 @@ impl<Message> UpdateContext<Message> {
     /// Clear any active native external drag session.
     pub fn end_external_drag(&mut self) {
         self.command(Command::end_external_drag());
+    }
+
+    /// Request a platform service through the active runtime bridge.
+    pub fn platform_request(
+        &mut self,
+        request: PlatformRequest,
+        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+    ) {
+        self.command(Command::platform_request(request, on_completed));
+    }
+
+    /// Ask the platform integration to choose a folder.
+    pub fn pick_folder(
+        &mut self,
+        request: FileDialogRequest,
+        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+    ) {
+        self.platform_request(PlatformRequest::PickFolder(request), on_completed);
+    }
+
+    /// Ask the platform integration to show a confirmation dialog.
+    pub fn confirm(
+        &mut self,
+        request: ConfirmDialogRequest,
+        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+    ) {
+        self.platform_request(PlatformRequest::Confirm(request), on_completed);
     }
 
     /// Dispatch a message after a delay.

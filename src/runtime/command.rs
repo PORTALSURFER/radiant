@@ -1,6 +1,7 @@
 //! Generic command values returned or queued by host-side runtime code.
 
 use super::external_drag::{ExternalDragCompletion, ExternalDragRequest};
+use super::platform::{PlatformCompletion, PlatformRequest};
 use crate::{gui::types::Vector2, layout::NodeId, widgets::WidgetId};
 use std::time::Duration;
 
@@ -95,6 +96,13 @@ pub enum Command<Message> {
         request: ExternalDragRequest,
         /// Optional host callback mapped into a message when the native drag loop ends.
         on_completed: Option<ExternalDragCompletion<Message>>,
+    },
+    /// Request a platform service such as a file picker or confirmation dialog.
+    PlatformRequest {
+        /// Platform service request.
+        request: PlatformRequest,
+        /// Host callback mapped into a message when the request completes.
+        on_completed: PlatformCompletion<Message>,
     },
     /// Clear any active native external drag session.
     EndExternalDrag,

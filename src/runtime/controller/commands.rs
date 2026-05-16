@@ -212,6 +212,19 @@ where
             } => {
                 self.external_drag_session = Some(ExternalDragSession::new(request, on_completed));
             }
+            Command::PlatformRequest {
+                request,
+                on_completed,
+            } => {
+                if let Err((_request, on_completed)) =
+                    self.bridge.request_platform_service(request, on_completed)
+                {
+                    let message = on_completed(Err(String::from(
+                        "platform service requests are not supported by this runtime bridge",
+                    )));
+                    self.dispatch_message_inner(message, outcome);
+                }
+            }
             Command::EndExternalDrag => {
                 self.external_drag_session = None;
             }

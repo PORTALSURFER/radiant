@@ -2,7 +2,7 @@ use super::Command;
 use crate::{
     gui::types::Vector2,
     layout::NodeId,
-    runtime::{ExternalDragOutcome, ExternalDragRequest},
+    runtime::{ExternalDragOutcome, ExternalDragRequest, PlatformRequest, PlatformResponse},
     widgets::WidgetId,
 };
 use std::time::Duration;
@@ -153,6 +153,17 @@ impl<Message> Command<Message> {
         Self::BeginExternalDrag {
             request,
             on_completed: None,
+        }
+    }
+
+    /// Build a command that requests a platform service.
+    pub fn platform_request(
+        request: PlatformRequest,
+        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+    ) -> Self {
+        Self::PlatformRequest {
+            request,
+            on_completed: Box::new(on_completed),
         }
     }
 

@@ -76,17 +76,19 @@ pub mod prelude {
     };
     pub use crate::layout::LayoutOutput;
     pub use crate::runtime::{
-        Command, EmbeddedFont, ExternalDragEffect, ExternalDragOutcome, ExternalDragPayload,
-        ExternalDragPreview, ExternalDragRequest, GpuSignalGainPreview, GpuSignalRenderShape,
-        GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceCapabilities,
-        GpuSurfaceContent, GpuSurfaceContentError, GpuSurfaceLineStyle, GpuSurfaceOverlay,
-        GpuSurfaceRuntimeOverlays, NativeGenericRunError, NativeGenericRunReport,
-        NativePopupOptions, NativeRunOptions, NativeRunOptionsError, NativeWindowMode,
-        PaintFillPath, PaintFillRect, PaintFillRule, PaintImage, PaintPath, PaintPathCommand,
-        PaintPrimitive, PaintStrokeRect, PaintSvg, PaintSvgDocument, PaintTextAlign, PaintTextRun,
-        PaintTransform, ResourceCompletion, ResourceKey, ResourceLoad, ResourceLoadState,
-        ResourceRequest, ResourceSlot, RuntimeRunReport, ScrollUpdate, SurfaceFrame,
-        SurfacePaintPlan, SvgParseError, TransientOverlayContext, WindowManifest,
+        Command, ConfirmDialogRequest, ConfirmationButtons, ConfirmationLevel,
+        ConfirmationResponse, EmbeddedFont, ExternalDragEffect, ExternalDragOutcome,
+        ExternalDragPayload, ExternalDragPreview, ExternalDragRequest, FileDialogFilter,
+        FileDialogRequest, GpuSignalGainPreview, GpuSignalRenderShape, GpuSignalSummary,
+        GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent,
+        GpuSurfaceContentError, GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays,
+        NativeGenericRunError, NativeGenericRunReport, NativePopupOptions, NativeRunOptions,
+        NativeRunOptionsError, NativeWindowMode, PaintFillPath, PaintFillRect, PaintFillRule,
+        PaintImage, PaintPath, PaintPathCommand, PaintPrimitive, PaintStrokeRect, PaintSvg,
+        PaintSvgDocument, PaintTextAlign, PaintTextRun, PaintTransform, PlatformCompletion,
+        PlatformRequest, PlatformResponse, ResourceCompletion, ResourceKey, ResourceLoad,
+        ResourceLoadState, ResourceRequest, ResourceSlot, RuntimeRunReport, ScrollUpdate,
+        SurfaceFrame, SurfacePaintPlan, SvgParseError, TransientOverlayContext, WindowManifest,
         WindowManifestError, WindowSpec, WindowSpecError,
     };
     pub use crate::theme::ThemeTokens;

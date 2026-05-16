@@ -9,6 +9,10 @@ pub enum PlatformRequest {
     PickFile(FileDialogRequest),
     /// Ask the platform integration to choose a save path.
     SaveFile(FileDialogRequest),
+    /// Ask the platform integration to open a local path with the OS shell.
+    OpenPath(PathBuf),
+    /// Ask the platform integration to open a URL with the OS shell.
+    OpenUrl(String),
     /// Ask the platform integration to show a confirmation dialog.
     Confirm(ConfirmDialogRequest),
 }
@@ -16,6 +20,8 @@ pub enum PlatformRequest {
 /// Platform-neutral result for host-visible OS or shell services.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PlatformResponse {
+    /// The request completed without returning additional data.
+    Completed,
     /// The user chose a path.
     Path(PathBuf),
     /// The user canceled a path picker.

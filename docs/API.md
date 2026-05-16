@@ -447,6 +447,9 @@ of replacing the current result. `ResourceRequest::ready(...)` and
 worker code does not need to clone or duplicate resource-key text manually.
 `spawn_resource(...)` performs that request/result wiring for fallible resource
 loads and returns a `ResourceCompletion<T>` through the normal message path.
+Use `ResourceSlot::cancel_load()` to invalidate in-flight work while preserving
+the last ready value; use `ResourceSlot::clear()` when the value and error
+should be dropped.
 
 Any widget can emit its own output type with `WidgetOutput::typed(...)` and
 route it with `WidgetMessageMapper::typed(...)`. Built-in primitive modules may

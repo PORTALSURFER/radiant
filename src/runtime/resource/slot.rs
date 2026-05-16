@@ -93,6 +93,23 @@ impl<T> ResourceSlot<T> {
         self.bump_revision();
     }
 
+    /// Cancel the active load request while preserving any last ready value.
+    ///
+    /// This invalidates the current request generation so later completions for
+    /// the canceled work are ignored by [`Self::apply_for`]. Unlike
+    /// [`Self::clear`], this keeps the last successful value available and
+    /// returns the slot to `Ready` when such a value exists.
+    pub fn cancel_load(&mut self) {
+        self.generation = self.generation.saturating_add(1);
+        self.error = None;
+        self.state = if self.value.is_some() {
+            ResourceLoadState::Ready
+        } else {
+            ResourceLoadState::Idle
+        };
+        self.bump_revision();
+    }
+
     /// Apply a completed load result.
     ///
     /// Results for another key are ignored and return `false`.
@@ -219,5 +236,24 @@ mod tests {
         assert_eq!(slot.state(), ResourceLoadState::Idle);
         assert_eq!(slot.value(), None);
         assert_eq!(slot.revision(), 1);
+    }
+
+    #[test]
+    fn resource_slot_cancel_load_preserves_last_ready_value() {
+        let mut slot = ResourceSlot::new("preview");
+        let initial = slot.begin_load();
+        assert!(slot.apply_for(&initial, initial.ready("pixels")));
+
+        let stale = slot.begin_load();
+        assert_eq!(slot.state(), ResourceLoadState::Loading);
+
+        slot.cancel_load();
+
+        assert_eq!(slot.state(), ResourceLoadState::Ready);
+        assert_eq!(slot.value(), Some(&"pixels"));
+        assert_eq!(slot.error(), None);
+        assert_eq!(slot.revision(), 2);
+        assert!(!slot.apply_for(&stale, stale.ready("stale")));
+        assert_eq!(slot.value(), Some(&"pixels"));
     }
 }

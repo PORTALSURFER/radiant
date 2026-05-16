@@ -178,6 +178,10 @@ depending on installed font files.
 `ImageRgba::try_new(...)` validates row-major RGBA8 image payloads with a typed
 `ImageRgbaError`; `ImageRgba::new(...)` remains the `Option`-returning
 convenience wrapper for compact tests and examples.
+`ListSelectionController` provides reusable index-based focus, anchor, toggle,
+range, select-all, and revision tracking for dense virtual lists. Applications
+keep durable row identity in their own model and map Radiant's selected indices
+back to paths, database ids, or other domain keys after filtering and sorting.
 `WindowSpec` describes one host-managed window without opening the platform
 runtime. `WindowManifest` stores ordered specs and rejects duplicate stable
 keys, non-positive or non-finite logical sizes, and non-finite popup positions,

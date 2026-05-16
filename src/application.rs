@@ -30,8 +30,8 @@ pub(in crate::application) use runtime::{
     AppBridge, AppBridgeLifecycle, AppUpdate, StateCallback, StateDragCallback, StateStringCallback,
 };
 pub use runtime::{
-    KeyedLatestTasks, KeyedTaskCompletion, LatestTask, Subscription, TaskCompletion, TaskTicket,
-    UpdateContext,
+    CancellationToken, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, Subscription,
+    TaskCompletion, TaskTicket, UpdateContext,
 };
 mod launch;
 pub use launch::*;

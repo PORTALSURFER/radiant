@@ -182,6 +182,10 @@ convenience wrapper for compact tests and examples.
 range, select-all, and revision tracking for dense virtual lists. Applications
 keep durable row identity in their own model and map Radiant's selected indices
 back to paths, database ids, or other domain keys after filtering and sorting.
+`CancellationToken` and `UpdateContext::spawn_cancellable(...)` provide a
+small cooperative-cancellation contract for long host-owned jobs. Radiant still
+does not force-stop work; applications keep a token clone and workers check it
+at natural boundaries before returning early.
 `WindowSpec` describes one host-managed window without opening the platform
 runtime. `WindowManifest` stores ordered specs and rejects duplicate stable
 keys, non-positive or non-finite logical sizes, and non-finite popup positions,

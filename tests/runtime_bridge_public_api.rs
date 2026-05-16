@@ -15,6 +15,8 @@ use std::sync::Arc;
 
 #[path = "runtime_bridge_public_api/command_flow.rs"]
 mod command_flow;
+#[path = "runtime_bridge_public_api/diagnostics.rs"]
+mod diagnostics;
 #[path = "runtime_bridge_public_api/lifecycle.rs"]
 mod lifecycle;
 #[path = "runtime_bridge_public_api/resources.rs"]

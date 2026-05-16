@@ -1,8 +1,8 @@
 use radiant::runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS,
     NativeGenericRunError, NativeGpuBackend, NativeGpuOptions, NativePopupOptions,
-    NativeRunOptions, NativeRunOptionsError, NativeTextOptions, NativeWindowMode, WindowManifest,
-    WindowManifestError, WindowSpec, WindowSpecError,
+    NativeRunOptions, NativeRunOptionsError, NativeTextOptions, NativeWindowMode,
+    RetainedSurfaceCachePolicy, WindowManifest, WindowManifestError, WindowSpec, WindowSpecError,
 };
 
 #[test]
@@ -162,6 +162,27 @@ fn native_run_options_expose_layout_debug_overlay_policy() {
 
     assert!(!NativeRunOptions::default().debug_layout);
     assert!(options.debug_layout);
+}
+
+#[test]
+fn native_run_options_expose_retained_surface_cache_policy() {
+    let options = NativeRunOptions {
+        retained_surface_cache: RetainedSurfaceCachePolicy::max_frames(8),
+        ..NativeRunOptions::default()
+    };
+
+    assert_eq!(
+        NativeRunOptions::default()
+            .retained_surface_cache
+            .max_frames,
+        64
+    );
+    assert_eq!(options.retained_surface_cache.max_frames, 8);
+    assert_eq!(
+        RetainedSurfaceCachePolicy::max_frames(0).max_frames,
+        0,
+        "zero is the documented opt-out for retained-frame reuse"
+    );
 }
 
 #[test]

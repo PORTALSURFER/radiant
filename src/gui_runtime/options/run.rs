@@ -1,6 +1,7 @@
 use super::{
     NativeGpuOptions, NativePopupOptions, NativeTextOptions, NativeWindowMode, WindowIconRgba,
 };
+use crate::runtime::RetainedSurfaceCachePolicy;
 
 mod validation;
 pub use validation::NativeRunOptionsError;
@@ -47,6 +48,8 @@ pub struct NativeRunOptions {
     pub text: NativeTextOptions,
     /// Paint red layout-boundary strokes over every projected layout element.
     pub debug_layout: bool,
+    /// Retained custom-surface frame cache policy.
+    pub retained_surface_cache: RetainedSurfaceCachePolicy,
     /// Native window presentation mode for this surface.
     pub window_mode: NativeWindowMode,
 }
@@ -65,6 +68,7 @@ impl Default for NativeRunOptions {
             gpu: NativeGpuOptions::default(),
             text: NativeTextOptions::default(),
             debug_layout: false,
+            retained_surface_cache: RetainedSurfaceCachePolicy::default(),
             window_mode: NativeWindowMode::default(),
         }
     }

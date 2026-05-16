@@ -6,7 +6,7 @@ use std::{thread, time::Duration};
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum LoadingMessage {
     Start,
-    Loaded(ResourceRequest, ResourceLoad<String>),
+    Loaded(ResourceCompletion<String>),
     Reset,
 }
 
@@ -54,19 +54,19 @@ fn main() -> radiant::Result {
         })
         .update_with(|state, message, context| match message {
             LoadingMessage::Start => {
-                let request = state.resource.begin_load();
-                let worker_request = request.clone();
-                context.spawn(
+                context.spawn_resource(
+                    &mut state.resource,
                     "demo-loader",
                     move || {
                         thread::sleep(Duration::from_millis(60));
-                        worker_request.ready("Loaded payload from background work".to_string())
+                        Ok("Loaded payload from background work".to_string())
                     },
-                    move |load| LoadingMessage::Loaded(request, load),
+                    LoadingMessage::Loaded,
                 );
                 context.request_repaint();
             }
-            LoadingMessage::Loaded(request, load) => {
+            LoadingMessage::Loaded(completion) => {
+                let (request, load) = completion.into_parts();
                 state.resource.apply_for(&request, load);
                 context.request_repaint();
             }

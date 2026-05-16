@@ -110,7 +110,10 @@ or request runtime exit. Use `LatestTask` with `UpdateContext::spawn_latest(...)
 for one-resource background loads where a newer selection should invalidate an
 older completion. The resulting message receives a `TaskCompletion<Output>`;
 call `LatestTask::finish(completion.ticket)` before applying the output so stale
-work is rejected consistently without host-specific task-id plumbing.
+work is rejected consistently without host-specific task-id plumbing. Use
+`KeyedLatestTasks` with `UpdateContext::spawn_latest_for(...)` when the same
+replace-latest behavior is needed independently for many keys, such as row
+previews, folder scans, or document-local workers.
 Text inputs can use `.message(...)` for value-only routing or
 `.message_event(...)` when the host needs to distinguish edits from submissions.
 Inline edit flows can seed caret and selection state with `.selection(...)` or
@@ -380,17 +383,20 @@ repaint, schedule delayed messages, run background work, move focus, or request
 runtime exit. Hosts that inspect only the immediate messages in a command can
 use `Command::into_messages_into(...)` to reuse caller-owned storage, while
 `Command::into_messages()` remains the allocating convenience wrapper.
-`ResourceSlot<T>`, `ResourceRequest`, `ResourceLoad<T>`, and
+`ResourceSlot<T>`, `ResourceRequest`, `ResourceLoad<T>`, `ResourceCompletion<T>`, and
 `ResourceLoadState` provide a small runtime-level state contract for host-owned
 background resource work. Radiant does not own the filesystem or asset decoder,
 but examples and apps can use the same key/state/result shape for loading
 images, previews, manifests, fonts, or other resources through
-`Command::perform(...)` or `UpdateContext::spawn(...)`. Use
+`Command::perform(...)`, `UpdateContext::spawn(...)`, or the higher-level
+`UpdateContext::spawn_resource(...)`. Use
 `ResourceSlot::begin_load()` and `ResourceSlot::apply_for(...)` when repeated
 loads for the same key can overlap; stale worker completions are ignored instead
 of replacing the current result. `ResourceRequest::ready(...)` and
 `ResourceRequest::failed(...)` construct keyed results from the request token so
 worker code does not need to clone or duplicate resource-key text manually.
+`spawn_resource(...)` performs that request/result wiring for fallible resource
+loads and returns a `ResourceCompletion<T>` through the normal message path.
 
 Any widget can emit its own output type with `WidgetOutput::typed(...)` and
 route it with `WidgetMessageMapper::typed(...)`. Built-in primitive modules may
@@ -836,8 +842,8 @@ stable retained GPU surface on every overlay-only frame. The overlay caps its
 paint-only cadence to 60 FPS and anchors to the cached GPU-surface rectangle
 through `SurfacePaintPlan::first_widget_rect`.
 Run `cargo run --example background_loading` for a background-work sandbox that
-uses `ResourceSlot`, `ResourceLoad`, and `UpdateContext::spawn(...)` to route
-worker resource results back into the normal state update path.
+uses `ResourceSlot`, `ResourceCompletion`, and `UpdateContext::spawn_resource(...)`
+to route worker resource results back into the normal state update path.
 Run `cargo run --example typography` for a focused text sandbox that exercises
 wrapping, truncation, fixed text heights, fill sizing, and explicit baselines
 through the application-builder API.

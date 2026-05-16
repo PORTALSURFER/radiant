@@ -23,6 +23,7 @@ mod controller;
 mod external_drag;
 mod gpu_surface;
 mod paint;
+mod platform;
 mod resource;
 mod surface;
 
@@ -65,6 +66,10 @@ pub use paint::{
 pub(crate) use paint::{
     blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,
     optical_centered_baseline, push_axis_stroke, push_text_run, text_font_size,
+};
+pub use platform::{
+    ConfirmDialogRequest, ConfirmationButtons, ConfirmationLevel, ConfirmationResponse,
+    FileDialogFilter, FileDialogRequest, PlatformCompletion, PlatformRequest, PlatformResponse,
 };
 pub use resource::{
     ResourceCompletion, ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot,

@@ -1,8 +1,10 @@
 use crate::{
-    application::{LatestTask, TaskCompletion},
+    application::{KeyedLatestTasks, KeyedTaskCompletion, LatestTask, TaskCompletion},
     gui::types::Vector2,
     layout::NodeId,
-    runtime::{Command, ExternalDragOutcome, ExternalDragRequest},
+    runtime::{
+        Command, ExternalDragOutcome, ExternalDragRequest, ResourceCompletion, ResourceSlot,
+    },
     widgets::WidgetId,
 };
 use std::time::Duration;
@@ -105,6 +107,66 @@ impl<Message> UpdateContext<Message> {
             move || TaskCompletion {
                 ticket,
                 output: work(),
+            },
+            map,
+        );
+    }
+
+    /// Start the latest task for one key in a keyed task registry and run work
+    /// on a runtime-managed business thread.
+    ///
+    /// The returned message receives a keyed completion tagged with the key and
+    /// ticket created before the work started. Hosts can use
+    /// [`crate::application::KeyedLatestTasks::finish`] to accept only the
+    /// current completion for that key and reject stale results.
+    pub fn spawn_latest_for<Key, Output>(
+        &mut self,
+        latest: &mut KeyedLatestTasks<Key>,
+        key: Key,
+        name: &'static str,
+        work: impl FnOnce() -> Output + Send + 'static,
+        map: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + Send + 'static,
+    ) where
+        Key: Clone + Eq + std::hash::Hash + Send + 'static,
+        Output: Send + 'static,
+    {
+        let ticket = latest.begin(key.clone());
+        self.spawn(
+            name,
+            move || KeyedTaskCompletion {
+                key,
+                ticket,
+                output: work(),
+            },
+            map,
+        );
+    }
+
+    /// Start a resource load and run fallible work on a runtime-managed
+    /// business thread.
+    ///
+    /// The returned message receives a [`ResourceCompletion`] tagged with the
+    /// request created before the work started. Hosts should apply it with
+    /// [`ResourceSlot::apply_for`] so older completions cannot overwrite newer
+    /// requests for the same resource key.
+    pub fn spawn_resource<Output>(
+        &mut self,
+        slot: &mut ResourceSlot<Output>,
+        name: &'static str,
+        work: impl FnOnce() -> Result<Output, String> + Send + 'static,
+        map: impl FnOnce(ResourceCompletion<Output>) -> Message + Send + 'static,
+    ) where
+        Output: Send + 'static,
+    {
+        let request = slot.begin_load();
+        self.spawn(
+            name,
+            move || {
+                let load = match work() {
+                    Ok(value) => request.ready(value),
+                    Err(error) => request.failed(error),
+                };
+                ResourceCompletion::new(request, load)
             },
             map,
         );

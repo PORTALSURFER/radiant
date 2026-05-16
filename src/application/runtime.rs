@@ -20,7 +20,7 @@ mod update_context;
 pub(in crate::application) use bridge::{AppBridge, AppBridgeLifecycle};
 pub(in crate::application) use queue::AppRuntime;
 pub use subscription::Subscription;
-pub use task::{LatestTask, TaskCompletion, TaskTicket};
+pub use task::{KeyedLatestTasks, KeyedTaskCompletion, LatestTask, TaskCompletion, TaskTicket};
 pub use update_context::UpdateContext;
 
 pub(in crate::application) type RetainedPainter<State> =

@@ -66,7 +66,9 @@ pub(crate) use paint::{
     blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,
     optical_centered_baseline, push_axis_stroke, push_text_run, text_font_size,
 };
-pub use resource::{ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot};
+pub use resource::{
+    ResourceCompletion, ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot,
+};
 pub(in crate::runtime) use surface::{
     ClipAncestors, SurfaceRuntimeProjection, SurfaceTraversalIndex, WidgetDispatchResult,
     WidgetPath, empty_paint_plan_for_layout,

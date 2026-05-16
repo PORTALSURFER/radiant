@@ -12,8 +12,8 @@ use radiant::{
     runtime::{
         Command, Element, Event, FocusTraversal, GpuSurfaceCapabilities, GpuSurfaceContent,
         GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, PaintPrimitive,
-        Renderer, RuntimeBridge, SurfaceChild, SurfaceNode, SurfacePaintPlan, SurfaceRuntime,
-        UiSurface, View, WidgetMessageMapper, declarative_command_runtime_bridge,
+        Renderer, RepaintScope, RuntimeBridge, SurfaceChild, SurfaceNode, SurfacePaintPlan,
+        SurfaceRuntime, UiSurface, View, WidgetMessageMapper, declarative_command_runtime_bridge,
         declarative_runtime_bridge,
     },
     theme::ThemeTokens,

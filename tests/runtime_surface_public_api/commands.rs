@@ -3,12 +3,28 @@ use std::time::{Duration, Instant};
 
 enum CommandDemoMessage {
     Start,
+    MixedRepaint,
     Increment,
     Rename(String),
 }
 
 struct CommandDemoBridge {
     state: DemoState,
+}
+
+#[test]
+fn surface_runtime_treats_mixed_repaint_batches_as_surface_refreshes() {
+    let bridge = CommandDemoBridge {
+        state: DemoState::default(),
+    };
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+
+    let outcome = runtime.dispatch_message(CommandDemoMessage::MixedRepaint);
+
+    assert!(outcome.repaint_requested);
+    assert!(outcome.surface_repaint_requested);
+    assert!(outcome.paint_only_requested);
+    assert!(outcome.surface_refresh_requested);
 }
 
 #[derive(Default)]
@@ -90,6 +106,10 @@ impl RuntimeBridge<CommandDemoMessage> for CommandDemoBridge {
                 Command::request_repaint(),
                 Command::message(CommandDemoMessage::Increment),
                 Command::request_paint_only(),
+            ]),
+            CommandDemoMessage::MixedRepaint => Command::batch([
+                Command::request_paint_only(),
+                Command::repaint(RepaintScope::Surface),
             ]),
             CommandDemoMessage::Increment => {
                 self.state.count += 1;

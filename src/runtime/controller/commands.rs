@@ -110,7 +110,9 @@ where
         let refresh_before = outcome.surface_refresh_requested;
         outcome.messages_dispatched += 1;
         let command = self.bridge.update(message);
-        let paint_only = command.requests_paint_only();
+        let paint_only = command
+            .repaint_scope()
+            .is_some_and(|scope| scope.is_paint_only());
         let messages_before_command = outcome.messages_dispatched;
         self.execute_command_inner(command, outcome);
         let command_dispatched_messages = outcome.messages_dispatched > messages_before_command;

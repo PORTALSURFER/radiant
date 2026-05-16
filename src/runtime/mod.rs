@@ -41,7 +41,7 @@ pub use bridge::{
     RuntimeBridge, declarative_command_runtime_bridge, declarative_owned_command_runtime_bridge,
     declarative_owned_runtime_bridge, declarative_runtime_bridge,
 };
-pub use command::Command;
+pub use command::{Command, RepaintScope};
 pub use controller::{
     CommandOutcome, Event, FocusTraversal, PointerMoveOutcome, RuntimeContext, RuntimeSurfaceFrame,
     RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceRuntime,

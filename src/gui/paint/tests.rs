@@ -51,6 +51,22 @@ fn paint_frame_equality_includes_gradient_primitives() {
 }
 
 #[test]
+fn paint_frame_can_carry_svg_primitives() {
+    let svg = r##"<svg viewBox="0 0 4 4"><rect width="4" height="4"/></svg>"##;
+    let document = crate::runtime::PaintSvgDocument::from_svg(svg).expect("svg should parse");
+    let rect = Rect::from_min_max(Point::new(1.0, 2.0), Point::new(9.0, 10.0));
+    let frame = PaintFrame {
+        primitives: vec![Primitive::Svg(DrawSvg { document, rect })],
+        ..PaintFrame::default()
+    };
+
+    let Primitive::Svg(draw) = &frame.primitives[0] else {
+        panic!("frame should retain svg primitive");
+    };
+    assert_eq!(draw.rect, rect);
+}
+
+#[test]
 fn border_fill_rects_returns_requested_edges() {
     let color = Rgba8 {
         r: 1,

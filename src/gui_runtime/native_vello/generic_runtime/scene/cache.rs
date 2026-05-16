@@ -61,6 +61,13 @@ impl RetainedSurfaceEncodeStats {
                 .filter(|primitive| matches!(primitive, Primitive::Image(_)))
                 .count(),
         );
+        self.svg_document_count = self.svg_document_count.saturating_add(
+            frame
+                .primitives
+                .iter()
+                .filter(|primitive| matches!(primitive, Primitive::Svg(_)))
+                .count(),
+        );
     }
 }
 

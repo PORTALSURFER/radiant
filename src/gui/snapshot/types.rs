@@ -79,6 +79,11 @@ pub enum SnapshotPrimitive {
         /// Image RGBA pixels.
         pixels: Vec<u8>,
     },
+    /// SVG document primitive.
+    Svg {
+        /// SVG placement bounds.
+        rect: SnapshotRect,
+    },
 }
 
 /// Text alignment captured from one rendered frame.

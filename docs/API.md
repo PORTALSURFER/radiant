@@ -158,7 +158,8 @@ plus `.logical_size(...)` and `.min_logical_size(...)` when hosts need
 fractional logical dimensions.
 For host-visible platform services, reducers can queue typed
 `PlatformRequest` commands through `UpdateContext::platform_request(...)`,
-`pick_folder(...)`, or `confirm(...)`. Custom bridges handle those requests via
+`pick_folder(...)`, `pick_file(...)`, `save_file(...)`, `open_path(...)`,
+`open_url(...)`, or `confirm(...)`. Custom bridges handle those requests via
 `RuntimeBridge::request_platform_service(...)`; bridges that do not provide a
 platform service return an explicit unsupported error through the normal
 completion callback instead of blocking the UI thread or forcing app code to

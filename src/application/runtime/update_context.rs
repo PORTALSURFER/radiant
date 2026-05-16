@@ -89,6 +89,42 @@ impl<Message> UpdateContext<Message> {
         self.platform_request(PlatformRequest::PickFolder(request), on_completed);
     }
 
+    /// Ask the platform integration to choose an existing file.
+    pub fn pick_file(
+        &mut self,
+        request: FileDialogRequest,
+        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+    ) {
+        self.platform_request(PlatformRequest::PickFile(request), on_completed);
+    }
+
+    /// Ask the platform integration to choose a save path.
+    pub fn save_file(
+        &mut self,
+        request: FileDialogRequest,
+        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+    ) {
+        self.platform_request(PlatformRequest::SaveFile(request), on_completed);
+    }
+
+    /// Ask the platform integration to open a local path with the OS shell.
+    pub fn open_path(
+        &mut self,
+        path: impl Into<std::path::PathBuf>,
+        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+    ) {
+        self.platform_request(PlatformRequest::OpenPath(path.into()), on_completed);
+    }
+
+    /// Ask the platform integration to open a URL with the OS shell.
+    pub fn open_url(
+        &mut self,
+        url: impl Into<String>,
+        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+    ) {
+        self.platform_request(PlatformRequest::OpenUrl(url.into()), on_completed);
+    }
+
     /// Ask the platform integration to show a confirmation dialog.
     pub fn confirm(
         &mut self,

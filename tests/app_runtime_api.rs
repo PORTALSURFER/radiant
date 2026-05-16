@@ -337,3 +337,28 @@ fn latest_task_tracks_current_ticket_and_tags_spawned_completion() {
 
     assert_eq!(latest.active().map(|ticket| ticket.id()), Some(1));
 }
+
+#[test]
+fn update_context_exposes_platform_service_helpers() {
+    let mut context = radiant::prelude::UpdateContext::default();
+    context.pick_folder(
+        radiant::runtime::FileDialogRequest::new().title("Choose library"),
+        |_| DemoMessage::Increment,
+    );
+    context.pick_file(
+        radiant::runtime::FileDialogRequest::new().filter("Wave", vec![String::from("wav")]),
+        |_| DemoMessage::Increment,
+    );
+    context.save_file(
+        radiant::runtime::FileDialogRequest::new().filename("export.wav"),
+        |_| DemoMessage::Increment,
+    );
+    context.open_path(std::path::PathBuf::from(r"C:\samples"), |_| {
+        DemoMessage::Increment
+    });
+    context.open_url("https://example.invalid", |_| DemoMessage::Increment);
+    context.confirm(
+        radiant::runtime::ConfirmDialogRequest::new("Delete sample", "Delete selected sample?"),
+        |_| DemoMessage::Increment,
+    );
+}

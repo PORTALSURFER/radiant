@@ -10,6 +10,8 @@ use crate::{
 };
 use std::time::Duration;
 
+use super::CancellationToken;
+
 /// Context supplied to app update closures for runtime-visible follow-up work.
 pub struct UpdateContext<Message> {
     commands: Vec<Command<Message>>,
@@ -153,6 +155,23 @@ impl<Message> UpdateContext<Message> {
         Output: Send + 'static,
     {
         self.command(Command::perform(name, work, map));
+    }
+
+    /// Run cancellable work on a runtime-managed business thread.
+    ///
+    /// Hosts keep a clone of the token when they need to cancel the operation.
+    /// The closure should check [`CancellationToken::is_cancelled`] at natural
+    /// boundaries and return promptly when cancellation is requested.
+    pub fn spawn_cancellable<Output>(
+        &mut self,
+        name: &'static str,
+        token: CancellationToken,
+        work: impl FnOnce(CancellationToken) -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + Send + 'static,
+    ) where
+        Output: Send + 'static,
+    {
+        self.spawn(name, move || work(token), map);
     }
 
     /// Start the latest task for one host-owned resource and run work on a

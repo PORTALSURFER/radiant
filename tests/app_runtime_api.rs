@@ -362,3 +362,21 @@ fn update_context_exposes_platform_service_helpers() {
         |_| DemoMessage::Increment,
     );
 }
+
+#[test]
+fn update_context_can_spawn_cancellable_work() {
+    let token = radiant::prelude::CancellationToken::new();
+    let worker_token = token.clone();
+    token.cancel();
+
+    let mut context = radiant::prelude::UpdateContext::default();
+    context.spawn_cancellable(
+        "cancel-test",
+        worker_token,
+        |token| token.is_cancelled(),
+        |cancelled| {
+            assert!(cancelled);
+            DemoMessage::Increment
+        },
+    );
+}

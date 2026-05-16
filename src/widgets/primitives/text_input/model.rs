@@ -68,6 +68,38 @@ impl TextInputState {
         (start, end)
     }
 
+    /// Return whether the state currently has an active non-empty selection.
+    pub fn has_selection(&self) -> bool {
+        let (start, end) = self.selection_range();
+        start < end
+    }
+
+    /// Collapse the current selection at the caret.
+    pub fn clear_selection(&mut self) {
+        self.selection_anchor = self.caret.min(self.char_len());
+    }
+
+    /// Replace the active selection with sanitized single-line text.
+    ///
+    /// If no selection is active, this is a no-op and returns the default edit
+    /// result. Use [`Self::insert_text`] when text should be inserted at the
+    /// caret even without a selection.
+    pub fn replace_selection(
+        &mut self,
+        replacement: &str,
+        character_limit: Option<usize>,
+    ) -> TextInputEditResult {
+        if !self.has_selection() {
+            return TextInputEditResult::default();
+        }
+        self.insert_text(replacement, character_limit)
+    }
+
+    /// Delete the active selection, if any.
+    pub fn delete_selection(&mut self) -> TextInputEditResult {
+        self.delete_selected_text()
+    }
+
     /// Apply a high-level text-edit command and report whether it changed state.
     pub fn apply_edit_command(
         &mut self,
@@ -116,7 +148,7 @@ impl TextInputState {
             }
             TextEditCommand::Backspace => self.backspace(),
             TextEditCommand::Delete => self.delete_forward(),
-            TextEditCommand::CutSelection => self.delete_selection(),
+            TextEditCommand::CutSelection => self.delete_selected_text(),
         }
     }
 
@@ -208,7 +240,7 @@ impl TextInputState {
 
     fn backspace(&mut self) -> TextInputEditResult {
         if self.has_selection() {
-            return self.delete_selection();
+            return self.delete_selected_text();
         }
         if self.caret == 0 {
             return TextInputEditResult::default();
@@ -226,7 +258,7 @@ impl TextInputState {
 
     fn delete_forward(&mut self) -> TextInputEditResult {
         if self.has_selection() {
-            return self.delete_selection();
+            return self.delete_selected_text();
         }
         if self.caret >= self.char_len() {
             return TextInputEditResult::default();
@@ -241,7 +273,7 @@ impl TextInputState {
         }
     }
 
-    fn delete_selection(&mut self) -> TextInputEditResult {
+    fn delete_selected_text(&mut self) -> TextInputEditResult {
         let (selection_start, selection_end) = self.selection_range();
         if selection_start == selection_end {
             return TextInputEditResult::default();
@@ -281,9 +313,5 @@ impl TextInputState {
 
     fn move_to_end(&mut self, extend_selection: bool) {
         self.set_caret(self.char_len(), extend_selection);
-    }
-
-    fn has_selection(&self) -> bool {
-        self.selection_anchor != self.caret
     }
 }

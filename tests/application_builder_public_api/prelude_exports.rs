@@ -32,6 +32,16 @@ fn prelude_exports_application_chrome_models() {
 }
 
 #[test]
+fn prelude_exports_list_selection_controller() {
+    let mut selection = ui::ListSelectionController::new();
+
+    selection.select(1, 4, ui::ListSelectionModifiers::new());
+    selection.select(3, 4, ui::ListSelectionModifiers::extend());
+
+    assert_eq!(selection.selected_indices(), &[1, 2, 3]);
+}
+
+#[test]
 fn prelude_exports_custom_widget_authoring_contract() {
     use radiant::prelude::IntoView;
 

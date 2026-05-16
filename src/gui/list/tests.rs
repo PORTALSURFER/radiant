@@ -1,12 +1,13 @@
 use super::{
     ColumnSummary, EditableRowKind, EditableTreeActions, EditableTreeRow, EditableTreeRowParts,
-    MaterializedVirtualListItem, VirtualGridWindow, VirtualGridWindowRequest,
-    VirtualListController, VirtualListInvalidation, VirtualListItemKey, VirtualListItemOverlay,
-    VirtualListItemState, VirtualListScrollbarRequest, VirtualListStackMetrics, VirtualListWindow,
-    VirtualListWindowRequest, resolve_virtual_grid_window, resolve_virtual_list_scrollbar,
-    resolve_virtual_list_window, virtual_list_scroll_delta_from_units,
-    virtual_list_scrollbar_view_start_for_pointer, virtual_list_stacked_item_at_point,
-    virtual_list_view_start_after_scroll_delta, virtual_list_viewport_len_for_extent,
+    ListSelectionController, ListSelectionModifiers, MaterializedVirtualListItem,
+    VirtualGridWindow, VirtualGridWindowRequest, VirtualListController, VirtualListInvalidation,
+    VirtualListItemKey, VirtualListItemOverlay, VirtualListItemState, VirtualListScrollbarRequest,
+    VirtualListStackMetrics, VirtualListWindow, VirtualListWindowRequest,
+    resolve_virtual_grid_window, resolve_virtual_list_scrollbar, resolve_virtual_list_window,
+    virtual_list_scroll_delta_from_units, virtual_list_scrollbar_view_start_for_pointer,
+    virtual_list_stacked_item_at_point, virtual_list_view_start_after_scroll_delta,
+    virtual_list_viewport_len_for_extent,
 };
 use crate::gui::types::{Point, Rect};
 
@@ -62,6 +63,45 @@ fn editable_tree_row_preserves_existing_and_draft_state() {
     assert_eq!(draft.input_value.as_deref(), Some("Draft"));
     assert!(draft.input_focused);
     assert!(draft.select_all_on_focus);
+}
+
+#[test]
+fn list_selection_controller_tracks_single_toggle_and_range_selection() {
+    let mut selection = ListSelectionController::new();
+
+    assert!(selection.select(2, 8, ListSelectionModifiers::new()));
+    assert_eq!(selection.focused_index(), Some(2));
+    assert_eq!(selection.anchor_index(), Some(2));
+    assert_eq!(selection.selected_indices(), &[2]);
+    let single_revision = selection.revision();
+
+    assert!(selection.select(5, 8, ListSelectionModifiers::extend()));
+    assert_eq!(selection.focused_index(), Some(5));
+    assert_eq!(selection.anchor_index(), Some(2));
+    assert_eq!(selection.selected_indices(), &[2, 3, 4, 5]);
+    assert!(selection.revision() > single_revision);
+
+    assert!(selection.select(3, 8, ListSelectionModifiers::toggle()));
+    assert_eq!(selection.focused_index(), Some(3));
+    assert_eq!(selection.anchor_index(), Some(3));
+    assert_eq!(selection.selected_indices(), &[2, 4, 5]);
+    assert!(!selection.is_selected(3));
+}
+
+#[test]
+fn list_selection_controller_clamps_membership_to_current_item_count() {
+    let mut selection = ListSelectionController::new();
+    selection.select_all(5);
+    assert_eq!(selection.selected_indices(), &[0, 1, 2, 3, 4]);
+    let all_revision = selection.revision();
+
+    selection.focus(4, 5);
+    selection.clamp_to_len(3);
+
+    assert_eq!(selection.focused_index(), None);
+    assert_eq!(selection.anchor_index(), Some(0));
+    assert_eq!(selection.selected_indices(), &[0, 1, 2]);
+    assert!(selection.revision() > all_revision);
 }
 
 #[test]

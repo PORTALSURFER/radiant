@@ -52,6 +52,57 @@ fn surface_paint_plan_into_reuses_existing_primitive_storage() {
 }
 
 #[test]
+fn host_controlled_surface_can_resolve_layout_without_manual_layout_node_projection() {
+    let surface = project_surface(&mut DemoState::default());
+    let viewport = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(420.0, 32.0));
+
+    let direct = layout_tree(&surface.layout_node(), viewport);
+    let surface_layout = surface.layout(viewport);
+
+    assert_eq!(surface_layout, direct);
+    assert!(surface_layout.rects.contains_key(&11));
+}
+
+#[test]
+fn host_controlled_surface_layout_options_match_manual_stateful_layout() {
+    let surface: UiSurface<()> = radiant::prelude::scroll(
+        radiant::prelude::column((0..10).map(|index| {
+            radiant::prelude::text(format!("Debug row {index}"))
+                .height(28.0)
+                .fill_width()
+        }))
+        .id(20)
+        .fill_width(),
+    )
+    .id(10)
+    .fill()
+    .into_surface();
+    let viewport = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 80.0));
+    let mut layout_state = radiant::layout::LayoutState::default();
+    layout_state
+        .scroll_offsets
+        .insert(10, Vector2::new(0.0, 1_000.0));
+
+    let direct = layout_tree_with_state(
+        &surface.layout_node(),
+        viewport,
+        &layout_state,
+        radiant::layout::LayoutDebugOptions::all_enabled(),
+    );
+    let surface_layout = surface.layout_with_options(
+        viewport,
+        &layout_state,
+        radiant::layout::LayoutDebugOptions::all_enabled(),
+    );
+
+    assert_eq!(surface_layout, direct);
+    assert!(surface_layout.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == radiant::layout::LayoutDiagnosticCode::InvalidScrollOffsetClamped
+    }));
+    assert!(!surface_layout.debug_primitives.is_empty());
+}
+
+#[test]
 fn control_heavy_paint_plan_presizes_for_button_chrome() {
     let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::row(
         1,

@@ -794,6 +794,57 @@ fn retained_invalidation_primitives_stay_in_focused_modules() {
 }
 
 #[test]
+fn shortcut_primitives_stay_in_resolution_gesture_and_layer_modules() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/gui/shortcuts.rs"))
+        .expect("shortcut root should be readable");
+    let resolution = fs::read_to_string(manifest_dir.join("src/gui/shortcuts/resolution.rs"))
+        .expect("shortcut resolution module should be readable");
+    let gesture = fs::read_to_string(manifest_dir.join("src/gui/shortcuts/gesture.rs"))
+        .expect("shortcut gesture module should be readable");
+    let layer = fs::read_to_string(manifest_dir.join("src/gui/shortcuts/layer.rs"))
+        .expect("shortcut layer module should be readable");
+
+    for required in [
+        "mod gesture;",
+        "mod layer;",
+        "mod resolution;",
+        "pub use gesture::{ShortcutGesture, ShortcutModifier};",
+        "pub use layer::{ShortcutBinding, ShortcutLayer};",
+        "pub use resolution::ShortcutResolution;",
+    ] {
+        assert!(
+            root.contains(required),
+            "shortcut root should delegate `{required}`"
+        );
+    }
+    assert!(
+        !root.contains("pub struct ShortcutResolution")
+            && !root.contains("pub struct ShortcutLayer")
+            && !root.contains("pub struct ShortcutGesture"),
+        "shortcut root should re-export public primitives instead of owning their implementations"
+    );
+    assert!(
+        resolution.contains("pub struct ShortcutResolution")
+            && resolution.contains("pub fn unhandled")
+            && resolution.contains("pub fn pending_chord"),
+        "shortcut result constructors should live in shortcuts/resolution.rs"
+    );
+    assert!(
+        gesture.contains("pub enum ShortcutModifier")
+            && gesture.contains("pub struct ShortcutGesture")
+            && gesture.contains("impl From<KeyPress> for ShortcutGesture"),
+        "shortcut modifier and key matching should live in shortcuts/gesture.rs"
+    );
+    assert!(
+        layer.contains("pub struct ShortcutBinding")
+            && layer.contains("pub struct ShortcutLayer")
+            && layer.contains("pub fn resolve_or_else"),
+        "shortcut binding collections and modal resolution should live in shortcuts/layer.rs"
+    );
+}
+
+#[test]
 fn resource_completions_use_named_parts_for_request_results() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source = fs::read_to_string(manifest_dir.join("src/runtime/resource/load.rs"))

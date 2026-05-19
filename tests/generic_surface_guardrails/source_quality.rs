@@ -1773,17 +1773,21 @@ fn surface_layout_projection_records_traversal_through_index_methods() {
     let records =
         fs::read_to_string(manifest_dir.join("src/runtime/surface/traversal/index/records.rs"))
             .expect("surface traversal records should be readable");
+    let recording =
+        fs::read_to_string(manifest_dir.join("src/runtime/surface/traversal/index/recording.rs"))
+            .expect("surface traversal recording helpers should be readable");
     let capacity =
         fs::read_to_string(manifest_dir.join("src/runtime/surface/traversal/index/capacity.rs"))
             .expect("surface traversal capacity helpers should be readable");
 
     assert!(
         index.contains("mod capacity;")
+            && index.contains("mod recording;")
             && index.contains("mod records;")
             && index.contains("pub(in crate::runtime) use records::{")
-            && index.contains("fn record_container")
-            && index.contains("fn record_widget"),
-        "surface traversal index should own traversal bucket mutation helpers"
+            && !index.contains("fn record_container")
+            && !index.contains("fn record_widget"),
+        "surface traversal index root should delegate traversal bucket mutation helpers"
     );
     assert!(
         records.contains("struct SurfaceContainerTraversalRecord")
@@ -1801,6 +1805,14 @@ fn surface_layout_projection_records_traversal_through_index_methods() {
             && !index.contains("fn reserve_map_capacity")
             && !index.contains("fn reserve_set_capacity"),
         "surface traversal capacity and reuse helpers should live in traversal/index/capacity.rs"
+    );
+    assert!(
+        recording.contains("fn record_container")
+            && recording.contains("fn record_widget")
+            && recording.contains(".widget_paint_order.push")
+            && recording.contains(".scroll_content_by_container.insert")
+            && recording.contains(".container_hover_suppression.insert"),
+        "surface traversal bucket recording should live in traversal/index/recording.rs"
     );
     assert!(
         layout.contains("traversal.record_container(SurfaceContainerTraversalRecord")

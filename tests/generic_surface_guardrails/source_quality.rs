@@ -235,6 +235,25 @@ fn timeline_metadata_state_uses_named_parts_for_projection_fields() {
 }
 
 #[test]
+fn timeline_viewport_uses_named_parts_for_precision_bounds() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/visualization/timeline/viewport.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+
+    assert!(
+        source.contains("pub struct TimelineViewportParts")
+            && source.contains("pub fn from_parts(parts: TimelineViewportParts) -> Self"),
+        "timeline viewport should expose named parts for readable multi-precision bounds"
+    );
+    assert!(
+        source.contains("Self::from_parts(TimelineViewportParts {")
+            && source.contains("Self::from_parts(TimelineViewportParts::default())"),
+        "timeline viewport compatibility/default constructors should delegate through named parts"
+    );
+}
+
+#[test]
 fn timeline_visualization_state_uses_named_parts_for_large_projection_buckets() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let timeline_dir = manifest_dir.join("src/gui/visualization/timeline");

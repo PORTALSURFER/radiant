@@ -505,6 +505,12 @@ fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
     let container_builders =
         fs::read_to_string(manifest_dir.join("src/runtime/surface/builders/container.rs"))
             .expect("runtime surface container builders should be readable");
+    let leaf_builders =
+        fs::read_to_string(manifest_dir.join("src/runtime/surface/builders/leaf.rs"))
+            .expect("runtime surface leaf builders should be readable");
+    let overlay_builders =
+        fs::read_to_string(manifest_dir.join("src/runtime/surface/builders/overlay.rs"))
+            .expect("runtime surface overlay builders should be readable");
     let surface = fs::read_to_string(manifest_dir.join("src/runtime/surface.rs"))
         .expect("runtime surface module should be readable");
     let runtime =
@@ -529,18 +535,27 @@ fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
     }
     assert!(
         builders.contains("mod container;")
+            && builders.contains("mod leaf;")
+            && builders.contains("mod overlay;")
             && !builders
                 .contains("pub fn container_from_parts(parts: SurfaceContainerParts<Message>)")
+            && !builders.contains("pub fn widget(")
+            && !builders.contains("pub fn overlay_panel(")
             && container_builders.contains(
                 "pub fn container_from_parts(parts: SurfaceContainerParts<Message>) -> Self"
             )
             && container_builders.contains("pub fn virtual_scroll_area(")
             && container_builders.contains("fn scroll_area_with_virtualization(")
+            && leaf_builders.contains("pub fn widget(")
+            && leaf_builders.contains("pub fn custom_widget_box(")
+            && leaf_builders.contains("pub fn static_widget(")
+            && overlay_builders.contains("pub fn overlay_panel(")
+            && overlay_builders.contains("pub fn overlay_marker(")
             && surface.contains("SurfaceChildParts")
             && surface.contains("SurfaceContainerParts")
             && runtime.contains("SurfaceChildParts")
             && runtime.contains("SurfaceContainerParts"),
-        "runtime surface container builders should stay focused while named parts remain publicly available"
+        "runtime surface builders should stay focused while named parts remain publicly available"
     );
 }
 

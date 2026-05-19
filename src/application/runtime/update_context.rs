@@ -4,8 +4,8 @@ use crate::{
     layout::NodeId,
     runtime::{
         Command, ConfirmDialogRequest, ExternalDragOutcome, ExternalDragRequest, FileDialogRequest,
-        PlatformRequest, PlatformResponse, RepaintScope, ResourceCompletion, ResourceSlot,
-        ScrollFixedRowIntoViewParts, ScrollIntoViewParts,
+        PlatformRequest, PlatformResponse, RepaintScope, ResourceCompletion,
+        ResourceCompletionParts, ResourceSlot, ScrollFixedRowIntoViewParts, ScrollIntoViewParts,
     },
     widgets::WidgetId,
 };
@@ -255,7 +255,7 @@ impl<Message> UpdateContext<Message> {
                     Ok(value) => request.ready(value),
                     Err(error) => request.failed(error),
                 };
-                ResourceCompletion::new(request, load)
+                ResourceCompletion::from_parts(ResourceCompletionParts { request, load })
             },
             map,
         );

@@ -65,10 +65,27 @@ pub struct ResourceCompletion<T> {
     pub load: ResourceLoad<T>,
 }
 
+/// Named construction fields for a [`ResourceCompletion`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ResourceCompletionParts<T> {
+    /// Request token assigned before the background load started.
+    pub request: ResourceRequest,
+    /// Load result produced by the background work.
+    pub load: ResourceLoad<T>,
+}
+
 impl<T> ResourceCompletion<T> {
+    /// Build a completion from named parts.
+    pub fn from_parts(parts: ResourceCompletionParts<T>) -> Self {
+        Self {
+            request: parts.request,
+            load: parts.load,
+        }
+    }
+
     /// Build a completion from an explicit request and load result.
     pub fn new(request: ResourceRequest, load: ResourceLoad<T>) -> Self {
-        Self { request, load }
+        Self::from_parts(ResourceCompletionParts { request, load })
     }
 
     /// Return the resource key associated with this completion.
@@ -88,9 +105,9 @@ impl<T> ResourceCompletion<T> {
 
     /// Map a successful value while preserving the request token and failures.
     pub fn map<U>(self, map: impl FnOnce(T) -> U) -> ResourceCompletion<U> {
-        ResourceCompletion {
+        ResourceCompletion::from_parts(ResourceCompletionParts {
             request: self.request,
             load: self.load.map(map),
-        }
+        })
     }
 }

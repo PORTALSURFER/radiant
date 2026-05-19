@@ -6,6 +6,6 @@ mod request;
 mod slot;
 
 pub use key::ResourceKey;
-pub use load::{ResourceCompletion, ResourceLoad};
+pub use load::{ResourceCompletion, ResourceCompletionParts, ResourceLoad};
 pub use request::ResourceRequest;
 pub use slot::{ResourceLoadState, ResourceSlot};

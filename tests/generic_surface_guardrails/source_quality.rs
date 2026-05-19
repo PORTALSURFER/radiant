@@ -574,6 +574,42 @@ fn scroll_commands_use_named_parts_for_reveal_requests() {
 }
 
 #[test]
+fn resource_completions_use_named_parts_for_request_results() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source = fs::read_to_string(manifest_dir.join("src/runtime/resource/load.rs"))
+        .expect("resource load module should be readable");
+    let resource = fs::read_to_string(manifest_dir.join("src/runtime/resource.rs"))
+        .expect("runtime resource module should be readable");
+    let runtime =
+        fs::read_to_string(manifest_dir.join("src/runtime/mod.rs")).expect("runtime module");
+    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
+        .expect("library module should be readable");
+    let update_context =
+        fs::read_to_string(manifest_dir.join("src/application/runtime/update_context.rs"))
+            .expect("application update context should be readable");
+
+    assert!(
+        source.contains("pub struct ResourceCompletionParts")
+            && source.contains("pub fn from_parts(parts: ResourceCompletionParts<T>) -> Self")
+            && source.contains("Self::from_parts(ResourceCompletionParts { request, load })"),
+        "resource completions should expose named parts and keep the compatibility constructor"
+    );
+    assert!(
+        source.contains("ResourceCompletion::from_parts(ResourceCompletionParts {")
+            && update_context.contains(
+                "ResourceCompletion::from_parts(ResourceCompletionParts { request, load })"
+            ),
+        "resource completion mapping and spawn helpers should use the named-parts construction path"
+    );
+    assert!(
+        resource.contains("ResourceCompletionParts")
+            && runtime.contains("ResourceCompletionParts")
+            && lib.contains("ResourceCompletionParts"),
+        "resource completion parts should remain publicly exported through runtime and prelude"
+    );
+}
+
+#[test]
 fn gpu_surface_widget_uses_named_parts_for_retained_resource_identity() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/widgets/primitives/gpu_surface.rs");

@@ -10,10 +10,10 @@ mod transport;
 mod viewport;
 
 pub use edit::{TimelineEditPreview, TimelineEditPreviewParts};
-pub use feedback::TimelineFeedbackEvents;
+pub use feedback::{TimelineFeedbackEvents, TimelineFeedbackParts};
 pub use mapper::TimelineCoordinateMapper;
 pub use marker::TimelineMarkerPreview;
-pub use presentation::TimelinePresentationState;
+pub use presentation::{TimelinePresentationParts, TimelinePresentationState};
 pub use surface::{TimelineMotionState, TimelineSurfaceParts, TimelineSurfaceState};
-pub use transport::TimelineTransportState;
+pub use transport::{TimelineTransportParts, TimelineTransportState};
 pub use viewport::TimelineViewport;

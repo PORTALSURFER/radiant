@@ -585,6 +585,38 @@ fn native_vello_plain_text_encoding_stays_in_focused_module() {
 }
 
 #[test]
+fn native_vello_shape_geometry_stays_in_focused_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let shape = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene/shape.rs"),
+    )
+    .expect("native Vello shape encoder should be readable");
+    let geometry = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene/shape/geometry.rs"),
+    )
+    .expect("native Vello shape geometry helper should be readable");
+
+    assert!(
+        shape.contains("mod geometry;")
+            && shape.contains(
+                "use geometry::{paintable_stroke_width, polygon_path, polyline_path, to_kurbo_path};"
+            ),
+        "shape scene encoder should delegate geometry conversion and stroke validation"
+    );
+    assert!(
+        !shape.contains("fn polygon_path")
+            && !shape.contains("fn polyline_path")
+            && !shape.contains("fn to_kurbo_path")
+            && !shape.contains("fn paintable_stroke_width")
+            && geometry.contains("fn polygon_path")
+            && geometry.contains("fn polyline_path")
+            && geometry.contains("fn to_kurbo_path")
+            && geometry.contains("fn paintable_stroke_width"),
+        "shape path conversion and stroke renderability policy should live in scene/shape/geometry.rs"
+    );
+}
+
+#[test]
 fn native_vello_text_input_geometry_stays_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let text_input = fs::read_to_string(

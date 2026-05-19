@@ -1922,6 +1922,33 @@ fn button_primitive_keeps_surface_builders_focused() {
 }
 
 #[test]
+fn list_item_primitive_keeps_surface_builders_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/list_item.rs"))
+        .expect("list item primitive root should be readable");
+    let builders =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/list_item/builders.rs"))
+            .expect("list item primitive builders should be readable");
+
+    assert!(
+        root.contains("mod builders;")
+            && root.contains("pub struct ListItemWidget")
+            && root.contains("impl Widget for ListItemWidget")
+            && !root.contains("impl<Message> SurfaceNode<Message>")
+            && !root.contains("impl<Message> WidgetMessageMapper<Message>"),
+        "list item primitive root should own widget behavior while delegating runtime builders"
+    );
+    assert!(
+        builders.contains("impl<Message> SurfaceNode<Message>")
+            && builders.contains("pub fn list_item(")
+            && builders.contains("pub fn list_item_action(")
+            && builders.contains("pub fn list_item_mapped(")
+            && builders.contains("impl<Message> WidgetMessageMapper<Message>"),
+        "list item runtime builder helpers should live in list_item/builders.rs"
+    );
+}
+
+#[test]
 fn status_line_entries_use_named_parts_for_source_and_message() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/feedback/status/line.rs");

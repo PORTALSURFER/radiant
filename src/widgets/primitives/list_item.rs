@@ -2,13 +2,14 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, PaintText, SurfaceNode, WidgetMessageMapper};
+use crate::runtime::{PaintPrimitive, PaintText};
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{ListItemMessage, WidgetInput, WidgetOutput};
 
+mod builders;
 mod input;
 mod paint;
 
@@ -86,49 +87,5 @@ impl Widget for ListItemWidget {
         theme: &ThemeTokens,
     ) {
         paint::push_list_item_widget_paint(primitives, self, bounds, theme);
-    }
-}
-
-impl<Message> WidgetMessageMapper<Message> {
-    /// Build a list-item-message mapper.
-    pub fn list_item(map: impl Fn(ListItemMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::typed(map)
-    }
-}
-
-impl<Message> SurfaceNode<Message> {
-    /// Build a non-emitting list item leaf node.
-    pub fn list_item(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
-        Self::static_widget(ListItemWidget::new(
-            id,
-            PaintText::from(label.into()),
-            sizing,
-        ))
-    }
-
-    /// Build an invoking list item leaf node that emits one cloned host message.
-    pub fn list_item_action(
-        id: WidgetId,
-        label: impl Into<String>,
-        sizing: WidgetSizing,
-        message: Message,
-    ) -> Self
-    where
-        Message: Clone + Send + Sync + 'static,
-    {
-        Self::list_item_mapped(id, label, sizing, move |_| message.clone())
-    }
-
-    /// Build an invoking list item leaf node with a custom widget-to-host message mapper.
-    pub fn list_item_mapped(
-        id: WidgetId,
-        label: impl Into<String>,
-        sizing: WidgetSizing,
-        map: impl Fn(ListItemMessage) -> Message + Send + Sync + 'static,
-    ) -> Self {
-        Self::widget(
-            ListItemWidget::new(id, PaintText::from(label.into()), sizing),
-            WidgetMessageMapper::list_item(map),
-        )
     }
 }

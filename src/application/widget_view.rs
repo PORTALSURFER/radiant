@@ -94,10 +94,26 @@ pub struct MappedWidget<W, Message> {
     messages: WidgetMessageMapper<Message>,
 }
 
+/// Named construction fields for a [`MappedWidget`].
+pub struct MappedWidgetParts<W, Message> {
+    /// Widget object that owns input and paint behavior.
+    pub widget: W,
+    /// Mapper that turns widget output into host-defined messages.
+    pub messages: WidgetMessageMapper<Message>,
+}
+
 impl<W, Message> MappedWidget<W, Message> {
+    /// Build a mapped widget view from named parts.
+    pub fn from_parts(parts: MappedWidgetParts<W, Message>) -> Self {
+        Self {
+            widget: parts.widget,
+            messages: parts.messages,
+        }
+    }
+
     /// Build a mapped widget view.
     pub fn new(widget: W, messages: WidgetMessageMapper<Message>) -> Self {
-        Self { widget, messages }
+        Self::from_parts(MappedWidgetParts { widget, messages })
     }
 }
 
@@ -122,16 +138,32 @@ pub struct DynamicWidget<Message> {
     map: Arc<dyn Fn(WidgetOutput) -> Option<Message> + Send + Sync>,
 }
 
+/// Named construction fields for a [`DynamicWidget`].
+pub struct DynamicWidgetParts<Message> {
+    /// Boxed widget object that owns input and paint behavior.
+    pub widget: Box<dyn Widget>,
+    /// Dynamic mapper that turns widget output into host-defined messages.
+    pub map: Arc<dyn Fn(WidgetOutput) -> Option<Message> + Send + Sync>,
+}
+
 impl<Message> DynamicWidget<Message> {
+    /// Build a dynamic widget view from named parts.
+    pub fn from_parts(parts: DynamicWidgetParts<Message>) -> Self {
+        Self {
+            widget: parts.widget,
+            map: parts.map,
+        }
+    }
+
     /// Build a dynamic widget view from a boxed widget object.
     pub fn new(
         widget: impl Widget + Clone + 'static,
         map: impl Fn(WidgetOutput) -> Option<Message> + Send + Sync + 'static,
     ) -> Self {
-        Self {
+        Self::from_parts(DynamicWidgetParts {
             widget: Box::new(widget),
             map: Arc::new(map),
-        }
+        })
     }
 }
 

@@ -36,7 +36,10 @@ pub use runtime::{
 mod launch;
 pub use launch::*;
 mod widget_view;
-pub use widget_view::{DynamicWidget, MappedWidget, WidgetView, WidgetViewContext};
+pub use widget_view::{
+    DynamicWidget, DynamicWidgetParts, MappedWidget, MappedWidgetParts, WidgetView,
+    WidgetViewContext,
+};
 mod tree_list;
 pub use tree_list::{TreeListItem, TreeListItemParts, tree_list, tree_list_with_drag};
 mod details_list;

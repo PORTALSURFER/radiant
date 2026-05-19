@@ -251,6 +251,42 @@ fn application_builder_accepts_custom_widgets_with_generated_and_explicit_ids() 
 }
 
 #[test]
+fn application_builder_custom_widget_views_support_named_parts_construction() {
+    use radiant::prelude as ui;
+
+    let surface: UiSurface<DemoMessage> = ui::row([
+        ui::widget(ui::MappedWidget::from_parts(ui::MappedWidgetParts {
+            widget: CustomStatusWidget::new(1),
+            messages: WidgetMessageMapper::dynamic(|output| {
+                output
+                    .custom_ref::<CustomWidgetMessage>()
+                    .map(|message| DemoMessage::Rename(format!("{message:?}")))
+            }),
+        }))
+        .id(41),
+        ui::widget(ui::DynamicWidget::from_parts(ui::DynamicWidgetParts {
+            widget: Box::new(CustomStatusWidget::new(2)),
+            map: Arc::new(|output| {
+                output
+                    .custom_ref::<CustomWidgetMessage>()
+                    .map(|_| DemoMessage::SetActive(true))
+            }),
+        }))
+        .id(42),
+    ])
+    .into_surface();
+
+    assert!(surface.find_widget(41).is_some());
+    assert!(surface.find_widget(42).is_some());
+    assert_eq!(surface.keyboard_focus_order(), vec![41, 42]);
+
+    let message = surface
+        .dispatch_widget_output(42, WidgetOutput::custom(CustomWidgetMessage::Activated))
+        .expect("dynamic widget named-parts mapper should emit a message");
+    assert_eq!(message, DemoMessage::SetActive(true));
+}
+
+#[test]
 fn application_builder_routes_typed_custom_widget_output() {
     use radiant::prelude as ui;
 

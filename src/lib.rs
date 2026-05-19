@@ -41,10 +41,10 @@ pub mod prelude {
     pub use crate::Result;
     pub use crate::application::{
         BadgeBuilder, ButtonBuilder, CancellationToken, DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP,
-        DEFAULT_ROW_SPACING, DEFAULT_STYLED_CONTAINER_PADDING, DetailsColumn, DetailsRow,
-        DetailsRowParts, DetailsSort, DragHandleBuilder, DynamicWidget, IconButtonBuilder,
-        InteractiveRowBuilder, IntoView, KeyedLatestTasks, KeyedTaskCompletion, LatestTask,
-        MappedWidget, MenuItem, PropertyRow, PropertyRowParts, RetainedCanvasBuilder,
+        DEFAULT_ROW_SPACING, DEFAULT_STYLED_CONTAINER_PADDING, DetailsColumn, DetailsColumnParts,
+        DetailsRow, DetailsRowParts, DetailsSort, DragHandleBuilder, DynamicWidget,
+        IconButtonBuilder, InteractiveRowBuilder, IntoView, KeyedLatestTasks, KeyedTaskCompletion,
+        LatestTask, MappedWidget, MenuItem, PropertyRow, PropertyRowParts, RetainedCanvasBuilder,
         RunnableStatefulApp, ScrollbarBuilder, SelectableBuilder, SliderBuilder, SortDirection,
         StateAction, StateView, StatefulAppBuilder, StatefulAppWithView, Subscription,
         TaskCompletion, TaskTicket, TextInputBuilder, ToggleBuilder, TreeListItem,

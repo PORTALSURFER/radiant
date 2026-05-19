@@ -1,4 +1,7 @@
-use radiant::runtime::{ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot};
+use radiant::runtime::{
+    ResourceCompletion, ResourceCompletionParts, ResourceLoad, ResourceLoadState, ResourceRequest,
+    ResourceSlot,
+};
 
 #[test]
 fn runtime_resource_slot_tracks_host_owned_background_results() {
@@ -41,6 +44,23 @@ fn runtime_resource_request_constructs_results_for_its_key() {
     assert!(preview.apply_for(&request, request.failed("decode failed")));
     assert_eq!(preview.state(), ResourceLoadState::Failed);
     assert_eq!(preview.error(), Some("decode failed"));
+}
+
+#[test]
+fn runtime_resource_completion_supports_named_parts_construction() {
+    let mut preview = ResourceSlot::new("preview");
+    let request = preview.begin_load();
+    let completion = ResourceCompletion::from_parts(ResourceCompletionParts {
+        request,
+        load: ResourceLoad::ready("preview", String::from("decoded")),
+    })
+    .map(|value| value.len());
+
+    let (request, load) = completion.into_parts();
+
+    assert_eq!(request.key().as_str(), "preview");
+    assert!(preview.apply_for(&request, load));
+    assert_eq!(preview.value(), Some(&7));
 }
 
 #[test]

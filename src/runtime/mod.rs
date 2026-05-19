@@ -80,7 +80,8 @@ pub use platform::{
     PlatformResponse, PlatformServiceFallback,
 };
 pub use resource::{
-    ResourceCompletion, ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot,
+    ResourceCompletion, ResourceCompletionParts, ResourceKey, ResourceLoad, ResourceLoadState,
+    ResourceRequest, ResourceSlot,
 };
 pub(in crate::runtime) use surface::{
     ClipAncestors, SurfaceRuntimeProjection, SurfaceTraversalIndex, WidgetDispatchResult,

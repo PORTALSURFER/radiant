@@ -20,10 +20,19 @@ pub struct CardWidget {
     pub common: WidgetCommon,
 }
 
+/// Named construction fields for [`CardWidget`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct CardWidgetParts {
+    /// Stable widget identity used by layout and paint projection.
+    pub id: WidgetId,
+    /// Intrinsic card sizing contract.
+    pub sizing: WidgetSizing,
+}
+
 impl CardWidget {
-    /// Build a non-interactive card descriptor with neutral panel styling.
-    pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
+    /// Build a non-interactive card descriptor from named identity and sizing fields.
+    pub fn from_parts(parts: CardWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.paint.paints_focus = false;
         common.paint.suppresses_container_hover = true;
         common.style = WidgetStyle {
@@ -31,6 +40,11 @@ impl CardWidget {
             prominence: WidgetProminence::Subtle,
         };
         Self { common }
+    }
+
+    /// Build a non-interactive card descriptor with neutral panel styling.
+    pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
+        Self::from_parts(CardWidgetParts { id, sizing })
     }
 }
 

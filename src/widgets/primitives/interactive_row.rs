@@ -31,10 +31,19 @@ pub struct InteractiveRowProps {
     pub drag_active: bool,
 }
 
+/// Named construction fields for [`InteractiveRowWidget`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct InteractiveRowWidgetParts {
+    /// Stable widget identity used by layout, events, and state synchronization.
+    pub id: WidgetId,
+    /// Intrinsic interactive-row sizing contract.
+    pub sizing: WidgetSizing,
+}
+
 impl InteractiveRowWidget {
-    /// Build an interactive row descriptor.
-    pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
+    /// Build an interactive row descriptor from named identity and sizing fields.
+    pub fn from_parts(parts: InteractiveRowWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.focus = FocusBehavior::Keyboard;
         common.paint.bounds = PaintBounds::ClipToRect;
         common.paint.paints_focus = false;
@@ -43,6 +52,11 @@ impl InteractiveRowWidget {
             props: InteractiveRowProps::default(),
             dragged: false,
         }
+    }
+
+    /// Build an interactive row descriptor.
+    pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
+        Self::from_parts(InteractiveRowWidgetParts { id, sizing })
     }
 
     /// Enable drag lifecycle messages.

@@ -7,10 +7,12 @@ use radiant::{
         layout_tree,
     },
     widgets::{
-        BadgeWidget, BadgeWidgetParts, ButtonWidget, ButtonWidgetParts, CardWidget,
-        DragHandleWidget, IconButtonWidget, IconButtonWidgetParts, ImageWidget, ImageWidgetParts,
-        ListItemWidget, ListItemWidgetParts, ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts,
-        SelectableWidget, SelectableWidgetParts, SliderWidget, SliderWidgetParts, TextInputWidget,
+        BadgeWidget, BadgeWidgetParts, ButtonWidget, ButtonWidgetParts, CanvasWidget,
+        CanvasWidgetParts, CardWidget, CardWidgetParts, DragHandleWidget, DragHandleWidgetParts,
+        IconButtonWidget, IconButtonWidgetParts, ImageWidget, ImageWidgetParts,
+        InteractiveRowWidget, InteractiveRowWidgetParts, ListItemWidget, ListItemWidgetParts,
+        ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts, SelectableWidget,
+        SelectableWidgetParts, SliderWidget, SliderWidgetParts, TextInputWidget,
         TextInputWidgetParts, TextWidget, TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget,
         WidgetInput, WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
     },
@@ -238,6 +240,38 @@ fn control_and_media_widgets_support_named_parts_construction() {
     assert!(Arc::ptr_eq(&image.props.image, &image_payload));
     assert_eq!(icon_button.common().id, 40);
     assert!(!icon_button.common().paint.paints_focus);
+}
+
+#[test]
+fn sizing_only_widgets_support_named_parts_construction() {
+    let canvas = CanvasWidget::from_parts(CanvasWidgetParts {
+        id: 41,
+        sizing: WidgetSizing::fixed(Vector2::new(160.0, 90.0)),
+    });
+    let card = CardWidget::from_parts(CardWidgetParts {
+        id: 42,
+        sizing: WidgetSizing::fixed(Vector2::new(96.0, 48.0)),
+    });
+    let drag = DragHandleWidget::from_parts(DragHandleWidgetParts {
+        id: 43,
+        sizing: WidgetSizing::fixed(Vector2::new(24.0, 24.0)),
+    });
+    let row = InteractiveRowWidget::from_parts(InteractiveRowWidgetParts {
+        id: 44,
+        sizing: WidgetSizing::fixed(Vector2::new(240.0, 28.0)),
+    })
+    .with_drag()
+    .with_drop_target(true);
+
+    assert_eq!(canvas.common().id, 41);
+    assert!(!canvas.common().paint.paints_state_layers);
+    assert_eq!(card.common().id, 42);
+    assert!(card.common().paint.suppresses_container_hover);
+    assert_eq!(drag.common().id, 43);
+    assert_eq!(row.common().id, 44);
+    assert!(row.props.draggable);
+    assert!(row.props.droppable);
+    assert!(row.props.drag_active);
 }
 
 #[test]

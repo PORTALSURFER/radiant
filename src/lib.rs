@@ -106,10 +106,11 @@ pub mod prelude {
     pub use crate::theme::ThemeTokens;
     pub use crate::widgets::{
         BadgeWidgetParts, ButtonWidgetParts, CanvasGestureEvent, CanvasGestureState, CanvasPointer,
-        DragHandleMessage, FocusBehavior, GpuSurfaceMessage, GpuSurfaceParts, GpuSurfaceWidget,
-        IconButtonWidget, IconButtonWidgetParts, ImageWidgetParts, InteractiveRowMessage,
-        InteractiveRowWidget, ListItemWidgetParts, PointerButton, ScrollbarAxis, ScrollbarMessage,
-        ScrollbarWidgetParts, SelectableWidgetParts, SliderMessage, SliderWidget,
+        CanvasWidgetParts, CardWidgetParts, DragHandleMessage, DragHandleWidgetParts,
+        FocusBehavior, GpuSurfaceMessage, GpuSurfaceParts, GpuSurfaceWidget, IconButtonWidget,
+        IconButtonWidgetParts, ImageWidgetParts, InteractiveRowMessage, InteractiveRowWidget,
+        InteractiveRowWidgetParts, ListItemWidgetParts, PointerButton, ScrollbarAxis,
+        ScrollbarMessage, ScrollbarWidgetParts, SelectableWidgetParts, SliderMessage, SliderWidget,
         SliderWidgetParts, TextAlign, TextInputEditResult, TextInputState, TextInputWidgetParts,
         TextWidgetParts, TextWrap, ToggleWidgetParts, Widget, WidgetCommon, WidgetInput, WidgetKey,
         WidgetOutput, WidgetProminence, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle,

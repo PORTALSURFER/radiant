@@ -951,6 +951,30 @@ fn labeled_primitive_widgets_use_named_parts_for_identity_content_and_sizing() {
             "pub fn from_parts(parts: ImageWidgetParts) -> Self",
             "Self::from_parts(ImageWidgetParts {",
         ),
+        (
+            "canvas.rs",
+            "pub struct CanvasWidgetParts",
+            "pub fn from_parts(parts: CanvasWidgetParts) -> Self",
+            "Self::from_parts(CanvasWidgetParts {",
+        ),
+        (
+            "card.rs",
+            "pub struct CardWidgetParts",
+            "pub fn from_parts(parts: CardWidgetParts) -> Self",
+            "Self::from_parts(CardWidgetParts {",
+        ),
+        (
+            "drag_handle.rs",
+            "pub struct DragHandleWidgetParts",
+            "pub fn from_parts(parts: DragHandleWidgetParts) -> Self",
+            "Self::from_parts(DragHandleWidgetParts {",
+        ),
+        (
+            "interactive_row.rs",
+            "pub struct InteractiveRowWidgetParts",
+            "pub fn from_parts(parts: InteractiveRowWidgetParts) -> Self",
+            "Self::from_parts(InteractiveRowWidgetParts {",
+        ),
     ] {
         let source_path = primitives_dir.join(file);
         let source = fs::read_to_string(&source_path)

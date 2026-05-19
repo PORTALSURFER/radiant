@@ -2,13 +2,14 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, PaintText, SurfaceNode};
+use crate::runtime::{PaintPrimitive, PaintText};
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
 use crate::widgets::contract::{Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
 
+mod builders;
 mod paint;
 
 /// Text wrapping behavior for text-like widgets.
@@ -120,12 +121,5 @@ impl Widget for TextWidget {
         theme: &ThemeTokens,
     ) {
         paint::push_text_widget_paint(primitives, self, bounds, theme);
-    }
-}
-
-impl<Message> SurfaceNode<Message> {
-    /// Build a non-emitting text leaf node.
-    pub fn text(id: WidgetId, text: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
-        Self::static_widget(TextWidget::new(id, text, sizing))
     }
 }

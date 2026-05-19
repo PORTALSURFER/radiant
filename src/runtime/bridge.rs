@@ -1,11 +1,13 @@
 //! Generic declarative bridge traits for message-driven Radiant hosts.
 
 mod animation;
+mod app;
 mod contract;
 mod declarative;
 
 pub use animation::RuntimeAnimationActivity;
-pub use contract::{App, RuntimeBridge};
+pub use app::App;
+pub use contract::RuntimeBridge;
 pub use declarative::{
     DeclarativeCommandRuntimeBridge, DeclarativeCommandRuntimeBridgeParts,
     DeclarativeOwnedCommandRuntimeBridge, DeclarativeOwnedCommandRuntimeBridgeParts,

@@ -1811,14 +1811,18 @@ fn scrollbar_primitive_keeps_surface_builders_focused() {
     let builders =
         fs::read_to_string(manifest_dir.join("src/widgets/primitives/scrollbar/builders.rs"))
             .expect("scrollbar primitive builders should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/widgets/primitives/scrollbar/tests.rs"))
+        .expect("scrollbar primitive tests should be readable");
 
     assert!(
         root.contains("mod builders;")
             && root.contains("pub struct ScrollbarWidget")
             && root.contains("impl Widget for ScrollbarWidget")
+            && root.contains("#[path = \"scrollbar/tests.rs\"]")
             && !root.contains("impl<Message> SurfaceNode<Message>")
-            && !root.contains("impl<Message> WidgetMessageMapper<Message>"),
-        "scrollbar primitive root should own widget behavior and delegate runtime builders"
+            && !root.contains("impl<Message> WidgetMessageMapper<Message>")
+            && !root.contains("fn scrollbar_drag_emits_clamped_offset_changes"),
+        "scrollbar primitive root should own widget behavior while delegating runtime builders and behavior tests"
     );
     assert!(
         builders.contains("impl<Message> SurfaceNode<Message>")
@@ -1826,6 +1830,11 @@ fn scrollbar_primitive_keeps_surface_builders_focused() {
             && builders.contains("pub fn scrollbar_mapped(")
             && builders.contains("impl<Message> WidgetMessageMapper<Message>"),
         "scrollbar runtime builder helpers should live in scrollbar/builders.rs"
+    );
+    assert!(
+        tests.contains("fn scrollbar_drag_emits_clamped_offset_changes")
+            && tests.contains("fn scrollbar_track_click_centers_thumb"),
+        "scrollbar behavior tests should live in scrollbar/tests.rs"
     );
 }
 

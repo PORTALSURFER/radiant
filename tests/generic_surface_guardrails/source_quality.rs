@@ -1562,13 +1562,37 @@ fn surface_layout_projection_records_traversal_through_index_methods() {
         .expect("surface layout projection should be readable");
     let index = fs::read_to_string(manifest_dir.join("src/runtime/surface/traversal/index.rs"))
         .expect("surface traversal index should be readable");
+    let records =
+        fs::read_to_string(manifest_dir.join("src/runtime/surface/traversal/index/records.rs"))
+            .expect("surface traversal records should be readable");
+    let capacity =
+        fs::read_to_string(manifest_dir.join("src/runtime/surface/traversal/index/capacity.rs"))
+            .expect("surface traversal capacity helpers should be readable");
 
     assert!(
-        index.contains("struct SurfaceContainerTraversalRecord")
-            && index.contains("struct SurfaceWidgetTraversalRecord")
+        index.contains("mod capacity;")
+            && index.contains("mod records;")
+            && index.contains("pub(in crate::runtime) use records::{")
             && index.contains("fn record_container")
             && index.contains("fn record_widget"),
         "surface traversal index should own traversal bucket mutation helpers"
+    );
+    assert!(
+        records.contains("struct SurfaceContainerTraversalRecord")
+            && records.contains("struct SurfaceWidgetTraversalRecord")
+            && !index.contains("struct SurfaceContainerTraversalRecord")
+            && !index.contains("struct SurfaceWidgetTraversalRecord"),
+        "surface traversal record DTOs should live in traversal/index/records.rs"
+    );
+    assert!(
+        capacity.contains("fn widget_clip_capacity")
+            && capacity.contains("fn reserve_vec_capacity")
+            && capacity.contains("fn reserve_map_capacity")
+            && capacity.contains("fn reserve_set_capacity")
+            && !index.contains("fn reserve_vec_capacity")
+            && !index.contains("fn reserve_map_capacity")
+            && !index.contains("fn reserve_set_capacity"),
+        "surface traversal capacity and reuse helpers should live in traversal/index/capacity.rs"
     );
     assert!(
         layout.contains("traversal.record_container(SurfaceContainerTraversalRecord")

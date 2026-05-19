@@ -781,6 +781,35 @@ fn native_text_field_layout_keeps_cursor_stop_windowing_focused() {
 }
 
 #[test]
+fn native_external_drag_dropfiles_payload_stays_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let payload = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/external_drag/payload.rs"),
+    )
+    .expect("native external drag payload module should be readable");
+    let dropfiles =
+        fs::read_to_string(manifest_dir.join(
+            "src/gui_runtime/native_vello/generic_runtime/external_drag/payload/dropfiles.rs",
+        ))
+        .expect("native external drag DROPFILES payload module should be readable");
+
+    assert!(
+        payload.contains("mod dropfiles;")
+            && payload.contains("use dropfiles::build_dropfiles_payload;"),
+        "external drag payload module should delegate CF_HDROP path serialization"
+    );
+    assert!(
+        !payload.contains("fn encode_drag_paths")
+            && !payload.contains("fn dropfiles_header_bytes")
+            && !payload.contains("DROPFILES")
+            && dropfiles.contains("fn encode_drag_paths")
+            && dropfiles.contains("fn dropfiles_header_bytes")
+            && dropfiles.contains("DROPFILES"),
+        "DROPFILES header and UTF-16 path serialization should live in payload/dropfiles.rs"
+    );
+}
+
+#[test]
 fn native_vello_runtime_does_not_hide_dead_code() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let runtime_dir = manifest_dir.join("src/gui_runtime/native_vello");

@@ -1,18 +1,15 @@
 use super::{
     event::CanvasGestureEvent,
-    pointer::{CanvasPointer, canvas_pointer, point_delta},
+    pointer::{canvas_pointer, point_delta},
 };
 use crate::{
     gui::types::{Rect, Vector2},
-    widgets::interaction::{PointerButton, PointerModifiers, WidgetInput},
+    widgets::interaction::WidgetInput,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct ActiveCanvasPress {
-    origin: CanvasPointer,
-    button: PointerButton,
-    modifiers: PointerModifiers,
-}
+mod active_press;
+
+use active_press::ActiveCanvasPress;
 
 /// Retained pointer gesture state for canvas-like custom widgets.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -62,11 +59,7 @@ impl CanvasGestureState {
                 modifiers,
             } => {
                 let pointer = canvas_pointer(bounds, *position)?;
-                self.active_press = Some(ActiveCanvasPress {
-                    origin: pointer,
-                    button: *button,
-                    modifiers: *modifiers,
-                });
+                self.active_press = Some(ActiveCanvasPress::new(pointer, *button, *modifiers));
                 Some(CanvasGestureEvent::Press {
                     pointer,
                     button: *button,
@@ -134,7 +127,10 @@ impl CanvasGestureState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::types::Point;
+    use crate::{
+        gui::types::Point,
+        widgets::interaction::{PointerButton, PointerModifiers},
+    };
 
     fn bounds() -> Rect {
         Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(100.0, 50.0))

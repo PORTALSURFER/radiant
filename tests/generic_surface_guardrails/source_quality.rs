@@ -1912,6 +1912,38 @@ fn layout_virtual_cache_invalidation_stays_with_cache_types() {
 }
 
 #[test]
+fn layout_scroll_virtual_window_search_stays_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let helpers = fs::read_to_string(
+        manifest_dir.join("src/gui/layout_core/engine/layout/scroll_helpers.rs"),
+    )
+    .expect("layout scroll helpers should be readable");
+    let window = fs::read_to_string(
+        manifest_dir.join("src/gui/layout_core/engine/layout/scroll_helpers/window.rs"),
+    )
+    .expect("layout scroll virtual window helper should be readable");
+    let virtualization = fs::read_to_string(
+        manifest_dir.join("src/gui/layout_core/engine/layout/scroll/virtualization.rs"),
+    )
+    .expect("layout scroll virtualization module should be readable");
+
+    assert!(
+        helpers.contains("mod window;")
+            && helpers.contains("pub(super) use window::compute_virtual_window;")
+            && virtualization.contains("compute_virtual_window"),
+        "scroll virtualization should consume focused virtual-window search helpers through scroll_helpers"
+    );
+    assert!(
+        !helpers.contains("fn lower_bound_end")
+            && !helpers.contains("fn lower_bound_start")
+            && window.contains("fn compute_virtual_window")
+            && window.contains("fn lower_bound_end")
+            && window.contains("fn lower_bound_start"),
+        "virtual-window binary search bounds should live in scroll_helpers/window.rs"
+    );
+}
+
+#[test]
 fn surface_paint_plan_buffering_stays_with_capacity_policy() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let projection = fs::read_to_string(manifest_dir.join("src/runtime/surface/projection.rs"))

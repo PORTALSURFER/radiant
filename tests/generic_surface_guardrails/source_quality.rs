@@ -273,6 +273,28 @@ fn split_pane_assigned_rows_use_named_parts_for_assignment_flags() {
 }
 
 #[test]
+fn floating_panel_drags_use_named_parts_for_pointer_geometry() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/panel/floating.rs");
+    let module_path = manifest_dir.join("src/gui/panel.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let module = fs::read_to_string(&module_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", module_path.display()));
+
+    assert!(
+        source.contains("pub struct FloatingPanelDragParts")
+            && source.contains("pub fn from_parts(parts: FloatingPanelDragParts) -> Self"),
+        "floating-panel drags should expose named parts for panel rect and pointer geometry"
+    );
+    assert!(
+        source.contains("Self::from_parts(FloatingPanelDragParts {")
+            && module.contains("FloatingPanelDragParts"),
+        "floating-panel drag compatibility constructor and panel export should keep the named-parts path available"
+    );
+}
+
+#[test]
 fn inline_badge_metrics_use_named_parts_for_geometry_tokens() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/badge/inline.rs");

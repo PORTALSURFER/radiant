@@ -12,15 +12,32 @@ pub struct FloatingPanelDrag {
     pub grab_offset: Vector2,
 }
 
+/// Named fields for starting a floating-panel drag.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FloatingPanelDragParts {
+    /// Current panel rectangle when the drag starts.
+    pub panel_rect: Rect,
+    /// Pointer position captured when the drag starts.
+    pub pointer: Point,
+}
+
 impl FloatingPanelDrag {
-    /// Start a floating-panel drag from the current panel rectangle and pointer.
-    pub fn new(panel_rect: Rect, pointer: Point) -> Self {
+    /// Start a floating-panel drag from named geometry parts.
+    pub fn from_parts(parts: FloatingPanelDragParts) -> Self {
         Self {
             grab_offset: Vector2::new(
-                finite_or(pointer.x - panel_rect.min.x, 0.0),
-                finite_or(pointer.y - panel_rect.min.y, 0.0),
+                finite_or(parts.pointer.x - parts.panel_rect.min.x, 0.0),
+                finite_or(parts.pointer.y - parts.panel_rect.min.y, 0.0),
             ),
         }
+    }
+
+    /// Start a floating-panel drag from the current panel rectangle and pointer.
+    pub fn new(panel_rect: Rect, pointer: Point) -> Self {
+        Self::from_parts(FloatingPanelDragParts {
+            panel_rect,
+            pointer,
+        })
     }
 
     /// Return the requested panel origin for the current pointer position.

@@ -599,6 +599,48 @@ fn tree_list_items_use_named_parts_for_public_navigation_fields() {
 }
 
 #[test]
+fn application_menus_use_named_parts_for_context_overlay_fields() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/application/menu.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let application = fs::read_to_string(manifest_dir.join("src/application.rs"))
+        .expect("application module should be readable");
+    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
+        .expect("library module should be readable");
+
+    for (parts, constructor) in [
+        (
+            "pub struct MenuItemParts",
+            "pub fn from_parts(parts: MenuItemParts<State>) -> Self",
+        ),
+        (
+            "pub struct MenuParts",
+            "pub fn menu_from_parts<State: 'static>(parts: MenuParts<State>) -> StateView<State>",
+        ),
+        (
+            "pub struct ContextMenuOverlayParts",
+            "pub fn context_menu_overlay_from_parts<State: 'static>",
+        ),
+    ] {
+        assert!(
+            source.contains(parts) && source.contains(constructor),
+            "application menu APIs should expose named parts for {parts}"
+        );
+    }
+    assert!(
+        source.contains("Self::from_parts(MenuItemParts {")
+            && source.contains("context_menu_overlay_from_parts(ContextMenuOverlayParts {")
+            && application.contains("ContextMenuOverlayParts")
+            && application.contains("MenuItemParts")
+            && application.contains("MenuParts")
+            && lib.contains("ContextMenuOverlayParts")
+            && lib.contains("context_menu_overlay_from_parts"),
+        "menu compatibility helpers and public exports should keep the named-parts path available"
+    );
+}
+
+#[test]
 fn details_list_rows_use_named_parts_for_public_row_fields() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/application/details_list/model.rs");

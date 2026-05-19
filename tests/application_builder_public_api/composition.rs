@@ -140,6 +140,59 @@ fn application_builder_context_menu_overlay_routes_items() {
 }
 
 #[test]
+fn application_builder_menus_support_named_parts_construction() {
+    use radiant::prelude as ui;
+    use std::sync::Arc;
+
+    let mut bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::stack([
+                ui::text(format!("Selected: {}", state.name)).id(31),
+                ui::context_menu_overlay_from_parts(ui::ContextMenuOverlayParts {
+                    bounds: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 120.0)),
+                    anchor: Point::new(12.0, 12.0),
+                    size: Vector2::new(132.0, 88.0),
+                    title: String::from("Actions"),
+                    items: vec![
+                        ui::MenuItem::from_parts(ui::MenuItemParts {
+                            label: String::from("Inspect"),
+                            style: radiant::widgets::WidgetStyle::default(),
+                            on_select: Arc::new(|state: &mut DemoState| {
+                                state.name = String::from("inspect")
+                            }),
+                        }),
+                        ui::MenuItem::new("Delete", |state: &mut DemoState| {
+                            state.name = String::from("delete")
+                        })
+                        .danger(),
+                    ],
+                })
+                .id(30),
+            ])
+        })
+        .into_bridge();
+
+    let surface = bridge.project_surface();
+    let focus_order = surface.keyboard_focus_order();
+    assert_eq!(focus_order.len(), 2);
+
+    let message = surface
+        .dispatch_widget_output(
+            focus_order[0],
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+        )
+        .expect("named-parts menu item should emit a state action");
+    let command = bridge.update(message);
+
+    assert!(command.requests_repaint());
+    let after = bridge.project_surface();
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&after, 31, "text").text,
+        "Selected: inspect"
+    );
+}
+
+#[test]
 fn application_builder_drag_preview_paints_as_non_widget_overlay() {
     use radiant::prelude::{self as ui, IntoView};
 

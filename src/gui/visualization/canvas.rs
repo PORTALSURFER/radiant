@@ -19,6 +19,19 @@ pub enum CanvasLayerOrder {
     Focus,
 }
 
+/// Explicit parts used to build one retained canvas layer.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CanvasLayerParts {
+    /// Stable layer identifier.
+    pub id: String,
+    /// Paint and hit-test order.
+    pub order: CanvasLayerOrder,
+    /// Layer bounds in canvas coordinates.
+    pub bounds: Rect,
+    /// Whether this layer participates in pointer hit testing.
+    pub interactive: bool,
+}
+
 /// One retained canvas layer with optional input participation.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CanvasLayer {
@@ -33,6 +46,16 @@ pub struct CanvasLayer {
 }
 
 impl CanvasLayer {
+    /// Build one retained canvas layer from named generic parts.
+    pub fn from_parts(parts: CanvasLayerParts) -> Self {
+        Self {
+            id: Arc::<str>::from(parts.id),
+            order: parts.order,
+            bounds: parts.bounds,
+            interactive: parts.interactive,
+        }
+    }
+
     /// Build one retained canvas layer.
     pub fn new(
         id: impl Into<String>,
@@ -40,12 +63,12 @@ impl CanvasLayer {
         bounds: Rect,
         interactive: bool,
     ) -> Self {
-        Self {
-            id: Arc::<str>::from(id.into()),
+        Self::from_parts(CanvasLayerParts {
+            id: id.into(),
             order,
             bounds,
             interactive,
-        }
+        })
     }
 }
 

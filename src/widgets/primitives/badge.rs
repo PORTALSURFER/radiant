@@ -28,10 +28,21 @@ pub struct BadgeWidget {
     pub state: BadgeState,
 }
 
+/// Named construction fields for [`BadgeWidget`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct BadgeWidgetParts {
+    /// Stable widget identity used by layout, events, and state synchronization.
+    pub id: WidgetId,
+    /// User-facing badge text.
+    pub label: PaintText,
+    /// Intrinsic badge sizing contract.
+    pub sizing: WidgetSizing,
+}
+
 impl BadgeWidget {
-    /// Build a badge descriptor with optional activation semantics.
-    pub fn new(id: WidgetId, label: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
+    /// Build a badge descriptor from named identity, content, and sizing fields.
+    pub fn from_parts(parts: BadgeWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.focus = FocusBehavior::Keyboard;
         common.style = WidgetStyle {
             tone: WidgetTone::Neutral,
@@ -39,11 +50,18 @@ impl BadgeWidget {
         };
         Self {
             common,
-            props: BadgeProps {
-                label: label.into(),
-            },
+            props: BadgeProps { label: parts.label },
             state: BadgeState::default(),
         }
+    }
+
+    /// Build a badge descriptor with optional activation semantics.
+    pub fn new(id: WidgetId, label: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
+        Self::from_parts(BadgeWidgetParts {
+            id,
+            label: label.into(),
+            sizing,
+        })
     }
 
     /// Route one backend-neutral interaction into the badge.

@@ -31,10 +31,21 @@ pub struct TextInputWidget {
     pub state: TextInputState,
 }
 
+/// Named construction fields for [`TextInputWidget`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextInputWidgetParts {
+    /// Stable widget identity used by layout, events, and state synchronization.
+    pub id: WidgetId,
+    /// Initial text value.
+    pub value: String,
+    /// Intrinsic text-input sizing contract.
+    pub sizing: WidgetSizing,
+}
+
 impl TextInputWidget {
-    /// Build a single-line text-input descriptor with edit semantics.
-    pub fn new(id: WidgetId, value: impl Into<String>, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
+    /// Build a single-line text-input descriptor from named identity, value, and sizing fields.
+    pub fn from_parts(parts: TextInputWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.focus = FocusBehavior::Keyboard;
         Self {
             common,
@@ -43,8 +54,17 @@ impl TextInputWidget {
                 submit_on_enter: true,
                 character_limit: None,
             },
-            state: TextInputState::from_value(value.into()),
+            state: TextInputState::from_value(parts.value),
         }
+    }
+
+    /// Build a single-line text-input descriptor with edit semantics.
+    pub fn new(id: WidgetId, value: impl Into<String>, sizing: WidgetSizing) -> Self {
+        Self::from_parts(TextInputWidgetParts {
+            id,
+            value: value.into(),
+            sizing,
+        })
     }
 
     /// Route one backend-neutral interaction into the single-line text input.

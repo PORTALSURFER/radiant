@@ -903,6 +903,30 @@ fn labeled_primitive_widgets_use_named_parts_for_identity_content_and_sizing() {
             "pub fn from_parts(parts: TextWidgetParts) -> Self",
             "Self::from_parts(TextWidgetParts {",
         ),
+        (
+            "badge.rs",
+            "pub struct BadgeWidgetParts",
+            "pub fn from_parts(parts: BadgeWidgetParts) -> Self",
+            "Self::from_parts(BadgeWidgetParts {",
+        ),
+        (
+            "list_item.rs",
+            "pub struct ListItemWidgetParts",
+            "pub fn from_parts(parts: ListItemWidgetParts) -> Self",
+            "Self::from_parts(ListItemWidgetParts {",
+        ),
+        (
+            "selectable.rs",
+            "pub struct SelectableWidgetParts",
+            "pub fn from_parts(parts: SelectableWidgetParts) -> Self",
+            "Self::from_parts(SelectableWidgetParts {",
+        ),
+        (
+            "text_input.rs",
+            "pub struct TextInputWidgetParts",
+            "pub fn from_parts(parts: TextInputWidgetParts) -> Self",
+            "Self::from_parts(TextInputWidgetParts {",
+        ),
     ] {
         let source_path = primitives_dir.join(file);
         let source = fs::read_to_string(&source_path)

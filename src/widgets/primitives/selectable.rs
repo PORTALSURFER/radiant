@@ -24,7 +24,31 @@ pub struct SelectableWidget {
     pub props: SelectableProps,
 }
 
+/// Named construction fields for [`SelectableWidget`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct SelectableWidgetParts {
+    /// Stable widget identity used by layout, events, and state synchronization.
+    pub id: WidgetId,
+    /// User-facing selectable label.
+    pub label: PaintText,
+    /// Initial selected state.
+    pub selected: bool,
+    /// Intrinsic selectable sizing contract.
+    pub sizing: WidgetSizing,
+}
+
 impl SelectableWidget {
+    /// Build a selectable descriptor from named identity, content, state, and sizing fields.
+    pub fn from_parts(parts: SelectableWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
+        common.focus = FocusBehavior::Keyboard;
+        common.state.selected = parts.selected;
+        Self {
+            common,
+            props: SelectableProps { label: parts.label },
+        }
+    }
+
     /// Build a selectable descriptor with the provided selected state.
     pub fn new(
         id: WidgetId,
@@ -32,15 +56,12 @@ impl SelectableWidget {
         selected: bool,
         sizing: WidgetSizing,
     ) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
-        common.focus = FocusBehavior::Keyboard;
-        common.state.selected = selected;
-        Self {
-            common,
-            props: SelectableProps {
-                label: label.into(),
-            },
-        }
+        Self::from_parts(SelectableWidgetParts {
+            id,
+            label: label.into(),
+            selected,
+            sizing,
+        })
     }
 
     /// Route one backend-neutral interaction into the selectable.

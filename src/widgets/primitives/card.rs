@@ -2,7 +2,7 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, SurfaceNode};
+use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
@@ -11,6 +11,7 @@ use crate::widgets::contract::{
 };
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
 
+mod builders;
 mod paint;
 
 /// Public card/panel primitive for grouped content surfaces.
@@ -69,12 +70,5 @@ impl Widget for CardWidget {
         theme: &ThemeTokens,
     ) {
         paint::push_card_widget_paint(primitives, self, bounds, theme);
-    }
-}
-
-impl<Message> SurfaceNode<Message> {
-    /// Build a non-emitting card or panel leaf node.
-    pub fn card(id: WidgetId, sizing: WidgetSizing) -> Self {
-        Self::static_widget(CardWidget::new(id, sizing))
     }
 }

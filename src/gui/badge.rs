@@ -3,10 +3,11 @@
 mod inline;
 
 pub use inline::{
-    InlineBadgeMetrics, inline_badge_cluster_reserved_width, inline_badge_height,
-    inline_badge_labels, inline_badge_labels_owned, inline_badge_labels_owned_into,
-    inline_badge_rects, inline_badge_rects_for_labels, inline_badge_rects_for_labels_into,
-    inline_badge_rects_into, inline_badge_text_origin, inline_badge_text_width, inline_badge_width,
+    InlineBadgeMetrics, InlineBadgeMetricsParts, inline_badge_cluster_reserved_width,
+    inline_badge_height, inline_badge_labels, inline_badge_labels_owned,
+    inline_badge_labels_owned_into, inline_badge_rects, inline_badge_rects_for_labels,
+    inline_badge_rects_for_labels_into, inline_badge_rects_into, inline_badge_text_origin,
+    inline_badge_text_width, inline_badge_width,
 };
 
 /// Selectable badge/pill model with host-chosen state semantics.
@@ -54,13 +55,25 @@ pub struct PillEditorPanel<State> {
 #[cfg(test)]
 mod tests {
     use super::{
-        InlineBadgeMetrics, PillEditorPanel, SelectablePill, inline_badge_cluster_reserved_width,
-        inline_badge_height, inline_badge_labels_owned, inline_badge_labels_owned_into,
-        inline_badge_rects, inline_badge_rects_for_labels, inline_badge_rects_for_labels_into,
-        inline_badge_rects_into, inline_badge_text_origin, inline_badge_width,
+        InlineBadgeMetrics, InlineBadgeMetricsParts, PillEditorPanel, SelectablePill,
+        inline_badge_cluster_reserved_width, inline_badge_height, inline_badge_labels_owned,
+        inline_badge_labels_owned_into, inline_badge_rects, inline_badge_rects_for_labels,
+        inline_badge_rects_for_labels_into, inline_badge_rects_into, inline_badge_text_origin,
+        inline_badge_width,
     };
     use crate::gui::selection::TriState;
     use crate::gui::types::{Point, Rect};
+
+    fn badge_metrics() -> InlineBadgeMetrics {
+        InlineBadgeMetrics::from_parts(InlineBadgeMetricsParts {
+            font_size: 10.0,
+            padding_x: 3.0,
+            padding_y: 1.0,
+            badge_gap: 3.0,
+            cluster_gap: 4.0,
+            min_height: 10.0,
+        })
+    }
 
     #[test]
     fn selectable_pill_preserves_identity_label_and_state() {
@@ -92,7 +105,7 @@ mod tests {
 
     #[test]
     fn inline_badge_labels_and_widths_are_stable() {
-        let metrics = InlineBadgeMetrics::new(10.0, 3.0, 1.0, 3.0, 4.0, 10.0);
+        let metrics = badge_metrics();
         let labels = inline_badge_labels_owned("  One  · Two ·  · Three ", "·");
 
         assert_eq!(labels, ["One", "Two", "Three"]);
@@ -119,7 +132,7 @@ mod tests {
 
     #[test]
     fn inline_badge_rects_clamp_to_available_item_row() {
-        let metrics = InlineBadgeMetrics::new(10.0, 3.0, 1.0, 3.0, 4.0, 10.0);
+        let metrics = badge_metrics();
         let item = Rect::from_min_max(Point::new(0.0, 4.0), Point::new(100.0, 18.0));
         let labels = vec![String::from("One"), String::from("Two")];
 
@@ -137,7 +150,7 @@ mod tests {
 
     #[test]
     fn inline_badge_rects_into_reuses_label_and_rect_storage() {
-        let metrics = InlineBadgeMetrics::new(10.0, 3.0, 1.0, 3.0, 4.0, 10.0);
+        let metrics = badge_metrics();
         let item = Rect::from_min_max(Point::new(0.0, 4.0), Point::new(100.0, 18.0));
         let labels = vec![String::from("One"), String::from("Two")];
         let mut rects = Vec::with_capacity(8);
@@ -175,7 +188,7 @@ mod tests {
 
     #[test]
     fn inline_badge_rects_handle_empty_or_cramped_inputs() {
-        let metrics = InlineBadgeMetrics::new(10.0, 3.0, 1.0, 3.0, 4.0, 10.0);
+        let metrics = badge_metrics();
         let item = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(20.0, 6.0));
 
         assert!(inline_badge_rects(item, "", "·", 0.0, metrics).is_empty());

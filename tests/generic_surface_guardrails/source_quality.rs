@@ -719,6 +719,42 @@ fn application_menus_use_named_parts_for_context_overlay_fields() {
 }
 
 #[test]
+fn application_widget_views_use_named_parts_for_custom_widget_mapping() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source = fs::read_to_string(manifest_dir.join("src/application/widget_view.rs"))
+        .expect("application widget view module should be readable");
+    let application = fs::read_to_string(manifest_dir.join("src/application.rs"))
+        .expect("application module should be readable");
+    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
+        .expect("library module should be readable");
+
+    for (parts, from_parts, wrapper) in [
+        (
+            "pub struct MappedWidgetParts",
+            "pub fn from_parts(parts: MappedWidgetParts<W, Message>) -> Self",
+            "Self::from_parts(MappedWidgetParts { widget, messages })",
+        ),
+        (
+            "pub struct DynamicWidgetParts",
+            "pub fn from_parts(parts: DynamicWidgetParts<Message>) -> Self",
+            "Self::from_parts(DynamicWidgetParts {",
+        ),
+    ] {
+        assert!(
+            source.contains(parts) && source.contains(from_parts) && source.contains(wrapper),
+            "application widget views should expose named parts and compatibility wrappers for {parts}"
+        );
+    }
+    assert!(
+        application.contains("MappedWidgetParts")
+            && application.contains("DynamicWidgetParts")
+            && lib.contains("MappedWidgetParts")
+            && lib.contains("DynamicWidgetParts"),
+        "custom widget view parts should stay publicly exported through application and prelude"
+    );
+}
+
+#[test]
 fn details_list_rows_use_named_parts_for_public_row_fields() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/application/details_list/model.rs");

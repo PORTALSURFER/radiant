@@ -1,6 +1,6 @@
 mod line;
 
-pub use line::{StatusLineEntry, StatusLineLog};
+pub use line::{StatusLineEntry, StatusLineEntryParts, StatusLineLog};
 
 /// Summary for recoverable background work surfaced in a sidebar, panel, or status region.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]

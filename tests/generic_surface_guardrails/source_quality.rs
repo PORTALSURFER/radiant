@@ -1041,6 +1041,32 @@ fn retained_invalidation_primitives_stay_in_focused_modules() {
 }
 
 #[test]
+fn input_key_identity_and_keypress_state_stay_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let input = fs::read_to_string(manifest_dir.join("src/gui/input.rs"))
+        .expect("input module should be readable");
+    let key = fs::read_to_string(manifest_dir.join("src/gui/input/key.rs"))
+        .expect("input key module should be readable");
+    let press = fs::read_to_string(manifest_dir.join("src/gui/input/key/press.rs"))
+        .expect("input keypress module should be readable");
+
+    assert!(
+        input.contains("pub use key::{KeyCode, KeyPress};")
+            && key.contains("mod press;")
+            && key.contains("pub use press::KeyPress;"),
+        "input facade should preserve KeyCode and KeyPress exports through the key module"
+    );
+    assert!(
+        key.contains("pub enum KeyCode")
+            && !key.contains("pub struct KeyPress")
+            && press.contains("pub struct KeyPress")
+            && press.contains("pub const fn with_command")
+            && press.contains("fn keypress_constructors_preserve_modifier_state"),
+        "key identity should stay in key.rs while modifier-bearing keypress state lives in key/press.rs"
+    );
+}
+
+#[test]
 fn shortcut_primitives_stay_in_resolution_gesture_and_layer_modules() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/gui/shortcuts.rs"))

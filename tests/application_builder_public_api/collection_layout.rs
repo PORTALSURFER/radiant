@@ -154,6 +154,34 @@ fn application_builder_list_row_id_uses_direct_numeric_identity() {
 }
 
 #[test]
+fn tree_list_items_support_named_parts_construction() {
+    use radiant::prelude as ui;
+
+    let from_parts = ui::TreeListItem::from_parts(ui::TreeListItemParts {
+        id: String::from("arrangement/tracks"),
+        depth: 2,
+        label: String::from("Tracks"),
+    })
+    .branch(true)
+    .selected(true)
+    .draggable(true)
+    .drop_target(true);
+
+    let positional = ui::TreeListItem::new("arrangement/tracks", 2, "Tracks")
+        .branch(true)
+        .selected(true)
+        .draggable(true)
+        .drop_target(true);
+
+    assert_eq!(from_parts, positional);
+    assert_eq!(from_parts.depth, 2);
+    assert!(from_parts.has_children);
+    assert!(from_parts.selected);
+    assert!(from_parts.draggable);
+    assert!(from_parts.drop_target);
+}
+
+#[test]
 fn application_builder_grid_lowers_to_fixed_column_tile_layout() {
     use radiant::prelude::{self as ui, IntoView};
 

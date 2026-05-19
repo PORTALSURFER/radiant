@@ -22,14 +22,37 @@ pub struct WidgetSizing {
     pub baseline: Option<f32>,
 }
 
+/// Named fields for constructing a widget intrinsic sizing contract.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WidgetSizingParts {
+    /// Smallest usable size after the host applies layout constraints.
+    pub min: Vector2,
+    /// Preferred size used for intrinsic measurement in unconstrained layouts.
+    pub preferred: Vector2,
+    /// Optional text baseline measured from the top edge in logical pixels.
+    pub baseline: Option<f32>,
+}
+
 impl WidgetSizing {
+    /// Create a widget sizing contract from named parts.
+    pub fn from_parts(parts: WidgetSizingParts) -> Self {
+        Self {
+            min: parts.min,
+            preferred: Vector2::new(
+                parts.preferred.x.max(parts.min.x),
+                parts.preferred.y.max(parts.min.y),
+            ),
+            baseline: parts.baseline.map(|baseline| baseline.max(0.0)),
+        }
+    }
+
     /// Create a widget sizing contract from minimum and preferred sizes.
     pub fn new(min: Vector2, preferred: Vector2) -> Self {
-        Self {
+        Self::from_parts(WidgetSizingParts {
             min,
-            preferred: Vector2::new(preferred.x.max(min.x), preferred.y.max(min.y)),
+            preferred,
             baseline: None,
-        }
+        })
     }
 
     /// Create a fixed intrinsic size with no separate minimum.

@@ -63,7 +63,7 @@ mod theme;
 
 pub use contract::{
     FocusBehavior, PaintBounds, PaintContract, Widget, WidgetId, WidgetProminence, WidgetSizing,
-    WidgetState, WidgetStyle, WidgetTone,
+    WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone,
 };
 pub use interaction::{
     BadgeMessage, ButtonMessage, CanvasGestureEvent, CanvasGestureState, CanvasMessage,

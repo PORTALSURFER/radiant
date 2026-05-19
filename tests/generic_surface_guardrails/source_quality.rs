@@ -438,6 +438,33 @@ fn confirm_dialogs_use_named_parts_for_public_prompt_fields() {
 }
 
 #[test]
+fn widget_sizing_uses_named_parts_for_intrinsic_bounds() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/widgets/contract/sizing.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let contract = fs::read_to_string(manifest_dir.join("src/widgets/contract.rs"))
+        .expect("widget contract module should be readable");
+    let widgets = fs::read_to_string(manifest_dir.join("src/widgets/mod.rs"))
+        .expect("widgets module should be readable");
+    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
+        .expect("library module should be readable");
+
+    assert!(
+        source.contains("pub struct WidgetSizingParts")
+            && source.contains("pub fn from_parts(parts: WidgetSizingParts) -> Self"),
+        "widget sizing should expose named parts for minimum, preferred, and baseline values"
+    );
+    assert!(
+        source.contains("Self::from_parts(WidgetSizingParts {")
+            && contract.contains("WidgetSizingParts")
+            && widgets.contains("WidgetSizingParts")
+            && lib.contains("WidgetSizingParts"),
+        "widget sizing compatibility constructor and public exports should keep the named-parts path available"
+    );
+}
+
+#[test]
 fn timeline_visualization_state_uses_named_parts_for_large_projection_buckets() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let timeline_dir = manifest_dir.join("src/gui/visualization/timeline");

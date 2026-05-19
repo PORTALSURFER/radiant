@@ -10,6 +10,7 @@ use radiant::{
         BadgeWidget, ButtonWidget, CardWidget, DragHandleWidget, ImageWidget, ListItemWidget,
         ScrollbarAxis, ScrollbarWidget, SelectableWidget, TextInputWidget, TextWidget,
         ToggleWidget, Widget, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+        WidgetSizingParts,
     },
 };
 use std::{fmt::Debug, sync::Arc};
@@ -119,6 +120,19 @@ fn public_widgets_compose_with_public_layout_containers() {
         badge.common().style.prominence,
         radiant::widgets::WidgetProminence::Subtle
     );
+}
+
+#[test]
+fn widget_sizing_supports_named_parts_construction() {
+    let sizing = WidgetSizing::from_parts(WidgetSizingParts {
+        min: Vector2::new(120.0, 32.0),
+        preferred: Vector2::new(96.0, 24.0),
+        baseline: Some(-4.0),
+    });
+
+    assert_eq!(sizing.min, Vector2::new(120.0, 32.0));
+    assert_eq!(sizing.preferred, Vector2::new(120.0, 32.0));
+    assert_eq!(sizing.baseline, Some(0.0));
 }
 
 #[test]

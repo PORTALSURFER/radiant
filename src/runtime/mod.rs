@@ -85,6 +85,7 @@ pub(in crate::runtime) use surface::{
     WidgetPath, empty_paint_plan_for_layout,
 };
 pub use surface::{
-    Element, MessageMapper, SurfaceChild, SurfaceContainer, SurfaceFrame, SurfaceNode,
-    SurfaceOverlay, SurfaceWidget, UiSurface, View, WidgetMessageMapper,
+    Element, MessageMapper, SurfaceChild, SurfaceChildParts, SurfaceContainer,
+    SurfaceContainerParts, SurfaceFrame, SurfaceNode, SurfaceOverlay, SurfaceWidget, UiSurface,
+    View, WidgetMessageMapper,
 };

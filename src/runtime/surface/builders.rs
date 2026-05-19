@@ -1,5 +1,5 @@
 use super::{
-    SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceOverlay,
+    SurfaceChild, SurfaceContainer, SurfaceContainerParts, SurfaceNode, SurfaceOverlay,
     widget::{SurfaceWidget, WidgetMessageMapper},
 };
 use crate::{
@@ -19,7 +19,16 @@ impl<Message> SurfaceNode<Message> {
         policy: ContainerPolicy,
         children: Vec<SurfaceChild<Message>>,
     ) -> Self {
-        Self::Container(SurfaceContainer::new(id, policy, children))
+        Self::container_from_parts(SurfaceContainerParts {
+            id,
+            policy,
+            children,
+        })
+    }
+
+    /// Build a container node from named parts.
+    pub fn container_from_parts(parts: SurfaceContainerParts<Message>) -> Self {
+        Self::Container(SurfaceContainer::from_parts(parts))
     }
 
     /// Build a styled container node.
@@ -29,7 +38,20 @@ impl<Message> SurfaceNode<Message> {
         style: WidgetStyle,
         children: Vec<SurfaceChild<Message>>,
     ) -> Self {
-        Self::Container(SurfaceContainer::new(id, policy, children).with_style(style))
+        Self::container_from_parts(SurfaceContainerParts {
+            id,
+            policy,
+            children,
+        })
+        .with_container_style(style)
+    }
+
+    /// Return this node with explicit container chrome styling when it is a container.
+    pub fn with_container_style(mut self, style: WidgetStyle) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.style = Some(style);
+        }
+        self
     }
 
     /// Return this node with container hover chrome enabled when it is a container.

@@ -434,6 +434,46 @@ fn layout_tree_nodes_use_named_parts_for_public_tree_construction() {
 }
 
 #[test]
+fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source = fs::read_to_string(manifest_dir.join("src/runtime/surface/node.rs"))
+        .expect("runtime surface node module should be readable");
+    let builders = fs::read_to_string(manifest_dir.join("src/runtime/surface/builders.rs"))
+        .expect("runtime surface builders should be readable");
+    let surface = fs::read_to_string(manifest_dir.join("src/runtime/surface.rs"))
+        .expect("runtime surface module should be readable");
+    let runtime =
+        fs::read_to_string(manifest_dir.join("src/runtime/mod.rs")).expect("runtime module");
+
+    for (parts, from_parts, wrapper) in [
+        (
+            "pub struct SurfaceChildParts<Message>",
+            "pub fn from_parts(parts: SurfaceChildParts<Message>) -> Self",
+            "Self::from_parts(SurfaceChildParts {",
+        ),
+        (
+            "pub struct SurfaceContainerParts<Message>",
+            "pub fn from_parts(parts: SurfaceContainerParts<Message>) -> Self",
+            "Self::from_parts(SurfaceContainerParts {",
+        ),
+    ] {
+        assert!(
+            source.contains(parts) && source.contains(from_parts) && source.contains(wrapper),
+            "runtime surface nodes should expose named parts and compatibility wrappers for {parts}"
+        );
+    }
+    assert!(
+        builders
+            .contains("pub fn container_from_parts(parts: SurfaceContainerParts<Message>) -> Self")
+            && surface.contains("SurfaceChildParts")
+            && surface.contains("SurfaceContainerParts")
+            && runtime.contains("SurfaceChildParts")
+            && runtime.contains("SurfaceContainerParts"),
+        "runtime surface named parts should be available through the public runtime module"
+    );
+}
+
+#[test]
 fn gpu_surface_widget_uses_named_parts_for_retained_resource_identity() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/widgets/primitives/gpu_surface.rs");

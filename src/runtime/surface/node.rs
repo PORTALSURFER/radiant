@@ -14,6 +14,23 @@ pub struct SurfaceChild<Message> {
     pub child: SurfaceNode<Message>,
 }
 
+/// Named construction fields for a [`SurfaceChild`].
+pub struct SurfaceChildParts<Message> {
+    /// Parent-owned slot parameters.
+    pub slot: SlotParams,
+    /// Child node attached to the slot.
+    pub child: SurfaceNode<Message>,
+}
+
+impl<Message> Clone for SurfaceChildParts<Message> {
+    fn clone(&self) -> Self {
+        Self {
+            slot: self.slot,
+            child: self.child.clone(),
+        }
+    }
+}
+
 impl<Message> Clone for SurfaceChild<Message> {
     fn clone(&self) -> Self {
         Self {
@@ -24,14 +41,25 @@ impl<Message> Clone for SurfaceChild<Message> {
 }
 
 impl<Message> SurfaceChild<Message> {
+    /// Build a container-owned surface child from named parts.
+    pub fn from_parts(parts: SurfaceChildParts<Message>) -> Self {
+        Self {
+            slot: parts.slot,
+            child: parts.child,
+        }
+    }
+
     /// Build a container-owned surface child.
     pub fn new(slot: SlotParams, child: SurfaceNode<Message>) -> Self {
-        Self { slot, child }
+        Self::from_parts(SurfaceChildParts { slot, child })
     }
 
     /// Build a child that fills the parent slot on both axes.
     pub fn fill(child: SurfaceNode<Message>) -> Self {
-        Self::new(SlotParams::fill(), child)
+        Self::from_parts(SurfaceChildParts {
+            slot: SlotParams::fill(),
+            child,
+        })
     }
 }
 
@@ -42,6 +70,26 @@ pub struct SurfaceContainer<Message> {
     pub(super) style: Option<WidgetStyle>,
     pub(super) hoverable: bool,
     pub(super) children: Vec<SurfaceChild<Message>>,
+}
+
+/// Named construction fields for a [`SurfaceContainer`].
+pub struct SurfaceContainerParts<Message> {
+    /// Stable layout node id.
+    pub id: NodeId,
+    /// Container behavior policy.
+    pub policy: ContainerPolicy,
+    /// Ordered slot children.
+    pub children: Vec<SurfaceChild<Message>>,
+}
+
+impl<Message> Clone for SurfaceContainerParts<Message> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            policy: self.policy.clone(),
+            children: self.children.clone(),
+        }
+    }
 }
 
 impl<Message> Clone for SurfaceContainer<Message> {
@@ -57,15 +105,24 @@ impl<Message> Clone for SurfaceContainer<Message> {
 }
 
 impl<Message> SurfaceContainer<Message> {
-    /// Build a generic container node with ordered slot children.
-    pub fn new(id: NodeId, policy: ContainerPolicy, children: Vec<SurfaceChild<Message>>) -> Self {
+    /// Build a generic container node from named parts.
+    pub fn from_parts(parts: SurfaceContainerParts<Message>) -> Self {
         Self {
-            id,
-            policy,
+            id: parts.id,
+            policy: parts.policy,
             style: None,
             hoverable: false,
-            children,
+            children: parts.children,
         }
+    }
+
+    /// Build a generic container node with ordered slot children.
+    pub fn new(id: NodeId, policy: ContainerPolicy, children: Vec<SurfaceChild<Message>>) -> Self {
+        Self::from_parts(SurfaceContainerParts {
+            id,
+            policy,
+            children,
+        })
     }
 
     /// Return this container with explicit chrome styling.

@@ -1949,6 +1949,32 @@ fn list_item_primitive_keeps_surface_builders_focused() {
 }
 
 #[test]
+fn selectable_primitive_keeps_surface_builders_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/selectable.rs"))
+        .expect("selectable primitive root should be readable");
+    let builders =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/selectable/builders.rs"))
+            .expect("selectable primitive builders should be readable");
+
+    assert!(
+        root.contains("mod builders;")
+            && root.contains("pub struct SelectableWidget")
+            && root.contains("impl Widget for SelectableWidget")
+            && !root.contains("impl<Message> SurfaceNode<Message>")
+            && !root.contains("impl<Message> WidgetMessageMapper<Message>"),
+        "selectable primitive root should own widget behavior while delegating runtime builders"
+    );
+    assert!(
+        builders.contains("impl<Message> SurfaceNode<Message>")
+            && builders.contains("pub fn selectable(")
+            && builders.contains("pub fn selectable_mapped(")
+            && builders.contains("impl<Message> WidgetMessageMapper<Message>"),
+        "selectable runtime builder helpers should live in selectable/builders.rs"
+    );
+}
+
+#[test]
 fn status_line_entries_use_named_parts_for_source_and_message() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/feedback/status/line.rs");

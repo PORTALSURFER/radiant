@@ -368,6 +368,33 @@ fn native_render_surface_target_size_stays_in_focused_module() {
 }
 
 #[test]
+fn native_surface_texture_acquire_stays_with_surface_lifecycle() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let present = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present.rs"),
+    )
+    .expect("present driver should be readable");
+    let surface = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/surface.rs"),
+    )
+    .expect("surface lifecycle module should be readable");
+
+    assert!(
+        present.contains("self.acquire_present_surface_texture(event_loop, &window)")
+            && !present.contains("get_current_texture()")
+            && !present.contains("SurfaceError::OutOfMemory"),
+        "present driver should delegate WGPU surface texture acquisition and recovery"
+    );
+    assert!(
+        surface.contains("fn acquire_present_surface_texture")
+            && surface.contains("get_current_texture()")
+            && surface.contains("SurfaceError::Lost | wgpu::SurfaceError::Outdated")
+            && surface.contains("SurfaceError::OutOfMemory"),
+        "surface texture acquisition and surface-error handling should stay with surface lifecycle"
+    );
+}
+
+#[test]
 fn native_gpu_upload_byte_casts_stay_in_focused_module() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module =

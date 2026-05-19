@@ -108,7 +108,7 @@ impl Widget for IconButtonWidget {
         theme: &ThemeTokens,
     ) {
         push_button_chrome(primitives, &self.common, bounds, theme);
-        let side = bounds.width().min(bounds.height()).min(16.0).max(8.0);
+        let side = bounds.width().min(bounds.height()).clamp(8.0, 16.0);
         let rect = inset_rect(
             bounds,
             (bounds.width() - side) * 0.5,

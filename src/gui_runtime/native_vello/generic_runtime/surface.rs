@@ -116,6 +116,33 @@ where
             self.request_redraw_if_needed();
         }
     }
+
+    pub(super) fn acquire_present_surface_texture(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window: &Window,
+    ) -> Option<wgpu::SurfaceTexture> {
+        let surface = self.render_surface.as_mut()?;
+        match surface.surface.get_current_texture() {
+            Ok(frame) => Some(frame),
+            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                self.resize_surface(window.inner_size());
+                None
+            }
+            Err(wgpu::SurfaceError::OutOfMemory) => {
+                error!("radiant generic native vello: out of memory acquiring surface");
+                event_loop.exit();
+                None
+            }
+            Err(err) => {
+                warn!(
+                    "radiant generic native vello: non-fatal surface acquire error: {:?}",
+                    err
+                );
+                None
+            }
+        }
+    }
 }
 
 fn surface_size_changed(

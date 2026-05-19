@@ -218,9 +218,8 @@ where
                 request,
                 on_completed,
             } => {
-                if let Err((_request, on_completed)) =
-                    self.bridge.request_platform_service(request, on_completed)
-                {
+                if let Err(fallback) = self.bridge.request_platform_service(request, on_completed) {
+                    let (_request, on_completed) = *fallback;
                     let message = on_completed(Err(String::from(
                         "platform service requests are not supported by this runtime bridge",
                     )));

@@ -364,6 +364,25 @@ fn update_context_exposes_platform_service_helpers() {
 }
 
 #[test]
+fn confirm_dialog_supports_named_parts_construction() {
+    let request =
+        radiant::prelude::ConfirmDialogRequest::from_parts(radiant::prelude::ConfirmDialogParts {
+            title: "Overwrite file".to_owned(),
+            message: "Replace the existing export?".to_owned(),
+            level: radiant::prelude::ConfirmationLevel::Warning,
+            buttons: radiant::prelude::ConfirmationButtons::YesNo,
+        });
+
+    assert_eq!(request.title, "Overwrite file");
+    assert_eq!(request.message, "Replace the existing export?");
+    assert_eq!(request.level, radiant::prelude::ConfirmationLevel::Warning);
+    assert_eq!(
+        request.buttons,
+        radiant::prelude::ConfirmationButtons::YesNo
+    );
+}
+
+#[test]
 fn update_context_can_spawn_cancellable_work() {
     let token = radiant::prelude::CancellationToken::new();
     let worker_token = token.clone();

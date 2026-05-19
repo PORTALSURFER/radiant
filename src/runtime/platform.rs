@@ -99,15 +99,38 @@ pub struct ConfirmDialogRequest {
     pub buttons: ConfirmationButtons,
 }
 
+/// Named fields for constructing a confirmation dialog request.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConfirmDialogParts {
+    /// Dialog title.
+    pub title: String,
+    /// Primary dialog text.
+    pub message: String,
+    /// Confirmation severity.
+    pub level: ConfirmationLevel,
+    /// Button set requested by the host.
+    pub buttons: ConfirmationButtons,
+}
+
 impl ConfirmDialogRequest {
+    /// Build a confirmation dialog request from named parts.
+    pub fn from_parts(parts: ConfirmDialogParts) -> Self {
+        Self {
+            title: parts.title,
+            message: parts.message,
+            level: parts.level,
+            buttons: parts.buttons,
+        }
+    }
+
     /// Build a confirmation dialog request.
     pub fn new(title: impl Into<String>, message: impl Into<String>) -> Self {
-        Self {
+        Self::from_parts(ConfirmDialogParts {
             title: title.into(),
             message: message.into(),
             level: ConfirmationLevel::Info,
             buttons: ConfirmationButtons::OkCancel,
-        }
+        })
     }
 
     /// Set the confirmation severity.

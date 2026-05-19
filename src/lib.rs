@@ -81,7 +81,7 @@ pub mod prelude {
     };
     pub use crate::layout::LayoutOutput;
     pub use crate::runtime::{
-        Command, ConfirmDialogRequest, ConfirmationButtons, ConfirmationLevel,
+        Command, ConfirmDialogParts, ConfirmDialogRequest, ConfirmationButtons, ConfirmationLevel,
         ConfirmationResponse, EmbeddedFont, ExternalDragEffect, ExternalDragOutcome,
         ExternalDragPayload, ExternalDragPreview, ExternalDragRequest, FileDialogFilter,
         FileDialogRequest, GpuSignalGainPreview, GpuSignalRenderShape, GpuSignalSummary,

@@ -1,7 +1,10 @@
 //! Split-pane workspace model for editor-style surfaces.
 
 use radiant::gui::{
-    panel::{SplitPaneAssignedRow, SplitPaneSidebarState, SplitPaneSlot, SplitPaneTreePanel},
+    panel::{
+        SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment,
+        SplitPaneSidebarState, SplitPaneSlot, SplitPaneTreePanel,
+    },
     retained::RetainedVec,
 };
 use radiant::prelude as ui;
@@ -14,11 +17,25 @@ struct WorkspaceState {
 impl Default for WorkspaceState {
     fn default() -> Self {
         let rows = vec![
-            SplitPaneAssignedRow::new("Scene", "ready", true, false)
-                .with_pane_assignment(true, false),
-            SplitPaneAssignedRow::new("Inspector", "editing", false, false)
-                .with_pane_assignment(false, true),
-            SplitPaneAssignedRow::new("Console", "idle", false, false),
+            assigned_row(
+                "Scene",
+                "ready",
+                true,
+                SplitPaneAssignment {
+                    upper: true,
+                    lower: false,
+                },
+            ),
+            assigned_row(
+                "Inspector",
+                "editing",
+                false,
+                SplitPaneAssignment {
+                    upper: false,
+                    lower: true,
+                },
+            ),
+            assigned_row("Console", "idle", false, SplitPaneAssignment::default()),
         ];
         Self {
             sidebar: SplitPaneSidebarState {
@@ -32,6 +49,21 @@ impl Default for WorkspaceState {
             },
         }
     }
+}
+
+fn assigned_row(
+    label: &str,
+    detail: &str,
+    selected: bool,
+    assignment: SplitPaneAssignment,
+) -> SplitPaneAssignedRow {
+    SplitPaneAssignedRow::from_parts(SplitPaneAssignedRowParts {
+        label: String::from(label),
+        detail: String::from(detail),
+        selected,
+        missing: false,
+        assignment,
+    })
 }
 
 impl WorkspaceState {

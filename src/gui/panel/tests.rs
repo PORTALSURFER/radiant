@@ -130,8 +130,16 @@ fn floating_panel_drag_sanitizes_nonfinite_pointer_positions() {
 
 #[test]
 fn split_pane_assigned_row_preserves_labels_and_assignments() {
-    let row =
-        SplitPaneAssignedRow::new("Inbox", "ready", true, false).with_pane_assignment(true, false);
+    let row = SplitPaneAssignedRow::from_parts(SplitPaneAssignedRowParts {
+        label: String::from("Inbox"),
+        detail: String::from("ready"),
+        selected: true,
+        missing: false,
+        assignment: SplitPaneAssignment {
+            upper: true,
+            lower: false,
+        },
+    });
 
     assert_eq!(row.label, "Inbox");
     assert_eq!(row.detail, "ready");

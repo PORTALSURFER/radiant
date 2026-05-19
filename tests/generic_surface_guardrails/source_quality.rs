@@ -157,6 +157,26 @@ fn canvas_layer_state_uses_named_parts_for_hit_test_fields() {
 }
 
 #[test]
+fn split_pane_assigned_rows_use_named_parts_for_assignment_flags() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/panel/split_pane/assigned_row.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+
+    assert!(
+        source.contains("pub struct SplitPaneAssignment")
+            && source.contains("pub struct SplitPaneAssignedRowParts")
+            && source.contains("pub fn from_parts(parts: SplitPaneAssignedRowParts) -> Self"),
+        "split-pane assigned rows should expose named parts for readable public construction"
+    );
+    assert!(
+        source.contains("Self::from_parts(SplitPaneAssignedRowParts {")
+            && source.contains("self.with_assignment(SplitPaneAssignment { upper, lower })"),
+        "split-pane compatibility constructors should delegate through named assignment objects"
+    );
+}
+
+#[test]
 fn timeline_visualization_state_uses_named_parts_for_large_projection_buckets() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let timeline_dir = manifest_dir.join("src/gui/visualization/timeline");

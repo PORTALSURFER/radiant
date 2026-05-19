@@ -15,7 +15,8 @@ where
         let Some(dev_id) = self.render_surface.as_ref().map(|surface| surface.dev_id) else {
             return;
         };
-        let Some(surface_texture) = self.acquire_surface_texture(event_loop, &window) else {
+        let Some(surface_texture) = self.acquire_present_surface_texture(event_loop, &window)
+        else {
             return;
         };
         let mut profile = RenderFrameProfile::default();
@@ -110,33 +111,6 @@ where
             .observe_frame_diagnostics(diagnostics);
         self.last_redraw = Instant::now();
         self.mark_first_presented();
-    }
-
-    fn acquire_surface_texture(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        window: &Window,
-    ) -> Option<wgpu::SurfaceTexture> {
-        let surface = self.render_surface.as_mut()?;
-        match surface.surface.get_current_texture() {
-            Ok(frame) => Some(frame),
-            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                self.resize_surface(window.inner_size());
-                None
-            }
-            Err(wgpu::SurfaceError::OutOfMemory) => {
-                error!("radiant generic native vello: out of memory acquiring surface");
-                event_loop.exit();
-                None
-            }
-            Err(err) => {
-                warn!(
-                    "radiant generic native vello: non-fatal surface acquire error: {:?}",
-                    err
-                );
-                None
-            }
-        }
     }
 
     fn mark_first_presented(&mut self) {

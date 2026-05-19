@@ -124,6 +124,35 @@ fn column_summaries_use_named_parts_for_title_and_count() {
 }
 
 #[test]
+fn virtual_list_stack_metrics_use_named_parts_for_geometry() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/list/virtual_list/geometry.rs");
+    let virtual_list_path = manifest_dir.join("src/gui/list/virtual_list.rs");
+    let list_path = manifest_dir.join("src/gui/list.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let virtual_list = fs::read_to_string(&virtual_list_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", virtual_list_path.display()));
+    let list = fs::read_to_string(&list_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", list_path.display()));
+    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
+        .expect("library module should be readable");
+
+    assert!(
+        source.contains("pub struct VirtualListStackMetricsParts")
+            && source.contains("pub fn from_parts(parts: VirtualListStackMetricsParts) -> Self"),
+        "virtual-list stack metrics should expose named parts for extent, gap, and viewport cap"
+    );
+    assert!(
+        source.contains("Self::from_parts(VirtualListStackMetricsParts {")
+            && virtual_list.contains("VirtualListStackMetricsParts")
+            && list.contains("VirtualListStackMetricsParts")
+            && lib.contains("VirtualListStackMetricsParts"),
+        "virtual-list stack metric constructor and public exports should keep the named-parts path available"
+    );
+}
+
+#[test]
 fn normalized_ranges_use_named_parts_for_milli_bounds() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/range.rs");

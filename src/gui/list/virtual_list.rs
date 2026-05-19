@@ -9,7 +9,7 @@ mod window;
 
 pub use controller::VirtualListController;
 pub use geometry::{
-    VirtualListStackMetrics, virtual_list_stacked_item_at_point,
+    VirtualListStackMetrics, VirtualListStackMetricsParts, virtual_list_stacked_item_at_point,
     virtual_list_viewport_len_for_extent,
 };
 pub use invalidation::VirtualListInvalidation;

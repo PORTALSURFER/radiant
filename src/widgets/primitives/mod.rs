@@ -19,7 +19,7 @@ mod text_input;
 mod toggle;
 
 pub use badge::{BadgeProps, BadgeState, BadgeWidget};
-pub use button::{ButtonProps, ButtonState, ButtonWidget};
+pub use button::{ButtonProps, ButtonState, ButtonWidget, ButtonWidgetParts};
 pub use canvas::{CanvasWidget, RetainedSurfaceDescriptor};
 pub use card::CardWidget;
 pub use drag_handle::DragHandleWidget;
@@ -32,6 +32,6 @@ pub use scrollbar::{ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidg
 pub use selectable::{SelectableProps, SelectableWidget};
 pub use slider::{SliderProps, SliderState, SliderWidget};
 pub use support::WidgetCommon;
-pub use text::{TextAlign, TextWidget, TextWrap};
+pub use text::{TextAlign, TextWidget, TextWidgetParts, TextWrap};
 pub use text_input::{TextInputEditResult, TextInputProps, TextInputState, TextInputWidget};
-pub use toggle::{ToggleProps, ToggleState, ToggleWidget};
+pub use toggle::{ToggleProps, ToggleState, ToggleWidget, ToggleWidgetParts};

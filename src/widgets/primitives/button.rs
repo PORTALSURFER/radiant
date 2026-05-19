@@ -27,21 +27,41 @@ pub struct ButtonWidget {
     pub state: ButtonState,
 }
 
+/// Named construction fields for a [`ButtonWidget`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct ButtonWidgetParts {
+    /// Stable widget id used by layout, paint, and input routing.
+    pub id: WidgetId,
+    /// User-facing button label.
+    pub label: PaintText,
+    /// Intrinsic sizing contract for the button.
+    pub sizing: WidgetSizing,
+}
+
 impl ButtonWidget {
-    /// Build a button descriptor with keyboard focus and activation semantics.
-    pub fn new(id: WidgetId, label: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
+    /// Build a button descriptor from named parts.
+    pub fn from_parts(parts: ButtonWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.focus = FocusBehavior::Keyboard;
         Self {
             common,
             props: ButtonProps {
-                label: label.into(),
+                label: parts.label,
                 text_align: TextAlign::Center,
                 secondary_click: false,
                 drag: false,
             },
             state: ButtonState::default(),
         }
+    }
+
+    /// Build a button descriptor with keyboard focus and activation semantics.
+    pub fn new(id: WidgetId, label: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
+        Self::from_parts(ButtonWidgetParts {
+            id,
+            label: label.into(),
+            sizing,
+        })
     }
 
     /// Enable secondary/right-click activation messages for this button.

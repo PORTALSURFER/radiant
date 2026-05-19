@@ -26,18 +26,36 @@ pub struct ToggleWidget {
     pub state: ToggleState,
 }
 
+/// Named construction fields for a [`ToggleWidget`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct ToggleWidgetParts {
+    /// Stable widget id used by layout, paint, and input routing.
+    pub id: WidgetId,
+    /// User-facing toggle label.
+    pub label: PaintText,
+    /// Intrinsic sizing contract for the toggle.
+    pub sizing: WidgetSizing,
+}
+
 impl ToggleWidget {
-    /// Build a toggle descriptor with value-change semantics.
-    pub fn new(id: WidgetId, label: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
+    /// Build a toggle descriptor from named parts.
+    pub fn from_parts(parts: ToggleWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.focus = FocusBehavior::Keyboard;
         Self {
             common,
-            props: ToggleProps {
-                label: label.into(),
-            },
+            props: ToggleProps { label: parts.label },
             state: ToggleState::default(),
         }
+    }
+
+    /// Build a toggle descriptor with value-change semantics.
+    pub fn new(id: WidgetId, label: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
+        Self::from_parts(ToggleWidgetParts {
+            id,
+            label: label.into(),
+            sizing,
+        })
     }
 
     /// Return this toggle with an explicit checked value.

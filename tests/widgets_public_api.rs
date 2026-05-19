@@ -7,10 +7,10 @@ use radiant::{
         layout_tree,
     },
     widgets::{
-        BadgeWidget, ButtonWidget, CardWidget, DragHandleWidget, ImageWidget, ListItemWidget,
-        ScrollbarAxis, ScrollbarWidget, SelectableWidget, TextInputWidget, TextWidget,
-        ToggleWidget, Widget, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
-        WidgetSizingParts,
+        BadgeWidget, ButtonWidget, ButtonWidgetParts, CardWidget, DragHandleWidget, ImageWidget,
+        ListItemWidget, ScrollbarAxis, ScrollbarWidget, SelectableWidget, TextInputWidget,
+        TextWidget, TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget, WidgetInput,
+        WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
     },
 };
 use std::{fmt::Debug, sync::Arc};
@@ -133,6 +133,34 @@ fn widget_sizing_supports_named_parts_construction() {
     assert_eq!(sizing.min, Vector2::new(120.0, 32.0));
     assert_eq!(sizing.preferred, Vector2::new(120.0, 32.0));
     assert_eq!(sizing.baseline, Some(0.0));
+}
+
+#[test]
+fn labeled_primitive_widgets_support_named_parts_construction() {
+    let text = TextWidget::from_parts(TextWidgetParts {
+        id: 30,
+        text: "Projects".into(),
+        sizing: WidgetSizing::fixed(Vector2::new(72.0, 20.0)).with_baseline(14.0),
+    });
+    let button = ButtonWidget::from_parts(ButtonWidgetParts {
+        id: 31,
+        label: "Import".into(),
+        sizing: WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+    })
+    .with_secondary_click();
+    let toggle = ToggleWidget::from_parts(ToggleWidgetParts {
+        id: 32,
+        label: "Snap".into(),
+        sizing: WidgetSizing::fixed(Vector2::new(84.0, 28.0)),
+    })
+    .with_checked(true);
+
+    assert_eq!(text.common().id, 30);
+    assert!(!text.common().paint.paints_focus);
+    assert_eq!(button.common().id, 31);
+    assert!(button.props.secondary_click);
+    assert_eq!(toggle.common().id, 32);
+    assert!(toggle.common().state.active);
 }
 
 #[test]

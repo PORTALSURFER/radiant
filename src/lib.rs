@@ -105,13 +105,14 @@ pub mod prelude {
     };
     pub use crate::theme::ThemeTokens;
     pub use crate::widgets::{
-        CanvasGestureEvent, CanvasGestureState, CanvasPointer, DragHandleMessage, FocusBehavior,
-        GpuSurfaceMessage, GpuSurfaceParts, GpuSurfaceWidget, IconButtonWidget,
-        InteractiveRowMessage, InteractiveRowWidget, PointerButton, ScrollbarAxis,
-        ScrollbarMessage, SliderMessage, SliderWidget, TextAlign, TextInputEditResult,
-        TextInputState, TextWrap, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput,
-        WidgetProminence, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone,
-        WidgetVisualTokens, resolve_widget_visual_tokens,
+        ButtonWidgetParts, CanvasGestureEvent, CanvasGestureState, CanvasPointer,
+        DragHandleMessage, FocusBehavior, GpuSurfaceMessage, GpuSurfaceParts, GpuSurfaceWidget,
+        IconButtonWidget, InteractiveRowMessage, InteractiveRowWidget, PointerButton,
+        ScrollbarAxis, ScrollbarMessage, SliderMessage, SliderWidget, TextAlign,
+        TextInputEditResult, TextInputState, TextWidgetParts, TextWrap, ToggleWidgetParts, Widget,
+        WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetProminence, WidgetSizing,
+        WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone, WidgetVisualTokens,
+        resolve_widget_visual_tokens,
     };
 }
 

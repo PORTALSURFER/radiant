@@ -600,6 +600,9 @@ fn scroll_commands_use_named_parts_for_reveal_requests() {
         .expect("runtime command module should be readable");
     let constructors = fs::read_to_string(manifest_dir.join("src/runtime/command/constructors.rs"))
         .expect("runtime command constructors should be readable");
+    let scroll_constructors =
+        fs::read_to_string(manifest_dir.join("src/runtime/command/constructors/scroll.rs"))
+            .expect("runtime command scroll constructors should be readable");
     let update_context =
         fs::read_to_string(manifest_dir.join("src/application/runtime/update_context.rs"))
             .expect("application update context should be readable");
@@ -617,14 +620,20 @@ fn scroll_commands_use_named_parts_for_reveal_requests() {
         "scroll reveal commands should expose named request parts"
     );
     assert!(
-        constructors.contains(
-            "pub const fn scroll_into_view_from_parts(parts: ScrollIntoViewParts) -> Self"
-        ) && constructors.contains("pub const fn scroll_fixed_row_into_view_from_parts")
-            && constructors.contains("Self::scroll_into_view_from_parts(ScrollIntoViewParts {")
-            && constructors.contains(
+        constructors.contains("mod scroll;")
+            && !constructors.contains(
+                "pub const fn scroll_into_view_from_parts(parts: ScrollIntoViewParts) -> Self"
+            )
+            && scroll_constructors.contains(
+                "pub const fn scroll_into_view_from_parts(parts: ScrollIntoViewParts) -> Self"
+            )
+            && scroll_constructors.contains("pub const fn scroll_fixed_row_into_view_from_parts")
+            && scroll_constructors
+                .contains("Self::scroll_into_view_from_parts(ScrollIntoViewParts {")
+            && scroll_constructors.contains(
                 "Self::scroll_fixed_row_into_view_from_parts(ScrollFixedRowIntoViewParts {"
             ),
-        "positional scroll command constructors should delegate through named request parts"
+        "scroll command constructors should stay in their focused module and delegate positional helpers through named request parts"
     );
     assert!(
         update_context.contains("mod surface;")

@@ -1087,6 +1087,32 @@ fn retained_invalidation_primitives_stay_in_focused_modules() {
 }
 
 #[test]
+fn text_input_primitive_keeps_surface_builders_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input.rs"))
+        .expect("text-input primitive root should be readable");
+    let builders =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/builders.rs"))
+            .expect("text-input primitive builders should be readable");
+
+    assert!(
+        root.contains("mod builders;")
+            && root.contains("pub struct TextInputWidget")
+            && root.contains("impl Widget for TextInputWidget")
+            && !root.contains("impl<Message> SurfaceNode<Message>")
+            && !root.contains("impl<Message> WidgetMessageMapper<Message>"),
+        "text-input primitive root should own widget behavior and delegate runtime builders"
+    );
+    assert!(
+        builders.contains("impl<Message> SurfaceNode<Message>")
+            && builders.contains("pub fn text_input(")
+            && builders.contains("pub fn text_input_mapped(")
+            && builders.contains("impl<Message> WidgetMessageMapper<Message>"),
+        "text-input runtime builder helpers should live in text_input/builders.rs"
+    );
+}
+
+#[test]
 fn input_key_identity_and_keypress_state_stay_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let input = fs::read_to_string(manifest_dir.join("src/gui/input.rs"))

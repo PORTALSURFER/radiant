@@ -1816,6 +1816,42 @@ fn slider_primitive_keeps_surface_builders_and_tests_focused() {
 }
 
 #[test]
+fn toggle_primitive_keeps_surface_builders_and_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/toggle.rs"))
+        .expect("toggle primitive root should be readable");
+    let builders =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/toggle/builders.rs"))
+            .expect("toggle primitive builders should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/widgets/primitives/toggle/tests.rs"))
+        .expect("toggle primitive tests should be readable");
+
+    assert!(
+        root.contains("mod builders;")
+            && root.contains("pub struct ToggleWidget")
+            && root.contains("impl Widget for ToggleWidget")
+            && root.contains("#[path = \"toggle/tests.rs\"]")
+            && !root.contains("impl<Message> SurfaceNode<Message>")
+            && !root.contains("impl<Message> WidgetMessageMapper<Message>")
+            && !root.contains("fn toggle_keyboard_activation_flips_active_state"),
+        "toggle primitive root should own widget behavior while delegating runtime builders and behavior tests"
+    );
+    assert!(
+        builders.contains("impl<Message> SurfaceNode<Message>")
+            && builders.contains("pub fn toggle(")
+            && builders.contains("pub fn toggle_with_checked(")
+            && builders.contains("pub fn toggle_mapped(")
+            && builders.contains("pub fn toggle_mapped_with_checked(")
+            && builders.contains("impl<Message> WidgetMessageMapper<Message>"),
+        "toggle runtime builder helpers should live in toggle/builders.rs"
+    );
+    assert!(
+        tests.contains("fn toggle_keyboard_activation_flips_active_state"),
+        "toggle behavior tests should live in toggle/tests.rs"
+    );
+}
+
+#[test]
 fn status_line_entries_use_named_parts_for_source_and_message() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/feedback/status/line.rs");

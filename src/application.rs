@@ -38,7 +38,7 @@ pub use launch::*;
 mod widget_view;
 pub use widget_view::{DynamicWidget, MappedWidget, WidgetView, WidgetViewContext};
 mod tree_list;
-pub use tree_list::{TreeListItem, tree_list, tree_list_with_drag};
+pub use tree_list::{TreeListItem, TreeListItemParts, tree_list, tree_list_with_drag};
 mod details_list;
 pub use details_list::{
     DetailsColumn, DetailsRow, DetailsSort, SortDirection, selectable_sortable_details_list,

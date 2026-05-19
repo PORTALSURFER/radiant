@@ -7,6 +7,17 @@ use crate::{
 };
 use std::sync::Arc;
 
+/// Named construction inputs for one visible tree-list row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TreeListItemParts {
+    /// Stable caller-owned item id.
+    pub id: String,
+    /// Zero-based visual depth.
+    pub depth: usize,
+    /// Row label.
+    pub label: String,
+}
+
 /// One visible row in a compact tree list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TreeListItem {
@@ -29,18 +40,27 @@ pub struct TreeListItem {
 }
 
 impl TreeListItem {
-    /// Build one visible tree-list row.
-    pub fn new(id: impl ToString, depth: usize, label: impl Into<String>) -> Self {
+    /// Build one visible tree-list row from named construction inputs.
+    pub fn from_parts(parts: TreeListItemParts) -> Self {
         Self {
-            id: id.to_string(),
-            depth,
-            label: label.into(),
+            id: parts.id,
+            depth: parts.depth,
+            label: parts.label,
             has_children: false,
             expanded: false,
             selected: false,
             draggable: false,
             drop_target: false,
         }
+    }
+
+    /// Build one visible tree-list row.
+    pub fn new(id: impl ToString, depth: usize, label: impl Into<String>) -> Self {
+        Self::from_parts(TreeListItemParts {
+            id: id.to_string(),
+            depth,
+            label: label.into(),
+        })
     }
 
     /// Mark the row as expandable or collapsible.

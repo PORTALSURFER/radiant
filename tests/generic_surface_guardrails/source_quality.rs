@@ -1674,6 +1674,17 @@ fn status_line_entries_use_named_parts_for_source_and_message() {
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
     let status = fs::read_to_string(manifest_dir.join("src/gui/feedback/status.rs"))
         .expect("feedback status module should be readable");
+    let recovery = fs::read_to_string(manifest_dir.join("src/gui/feedback/status/recovery.rs"))
+        .expect("feedback recovery status module should be readable");
+    let health = fs::read_to_string(manifest_dir.join("src/gui/feedback/status/health.rs"))
+        .expect("feedback health status module should be readable");
+    let drag_overlay =
+        fs::read_to_string(manifest_dir.join("src/gui/feedback/status/drag_overlay.rs"))
+            .expect("feedback drag-overlay status module should be readable");
+    let update = fs::read_to_string(manifest_dir.join("src/gui/feedback/status/update.rs"))
+        .expect("feedback update status module should be readable");
+    let prompt = fs::read_to_string(manifest_dir.join("src/gui/feedback/status/prompt.rs"))
+        .expect("feedback prompt status module should be readable");
     let feedback = fs::read_to_string(manifest_dir.join("src/gui/feedback.rs"))
         .expect("feedback module should be readable");
     let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
@@ -1690,6 +1701,41 @@ fn status_line_entries_use_named_parts_for_source_and_message() {
             && feedback.contains("StatusLineEntryParts")
             && lib.contains("StatusLineEntryParts"),
         "status-line entry compatibility constructor and public exports should keep the named-parts path available"
+    );
+    for required in [
+        "mod drag_overlay;",
+        "mod health;",
+        "mod prompt;",
+        "mod recovery;",
+        "mod update;",
+        "pub use drag_overlay::DragOverlay;",
+        "pub use health::HealthState;",
+        "pub use prompt::{ConfirmPrompt, PromptIntent};",
+        "pub use recovery::RecoverySummary;",
+        "pub use update::{UpdatePanel, UpdateStatus};",
+    ] {
+        assert!(
+            status.contains(required),
+            "feedback status facade should delegate `{required}`"
+        );
+    }
+    assert!(
+        !status.contains("pub struct RecoverySummary")
+            && !status.contains("pub enum HealthState")
+            && !status.contains("pub struct DragOverlay")
+            && !status.contains("pub struct UpdatePanel")
+            && !status.contains("pub struct ConfirmPrompt"),
+        "feedback status root should re-export focused models instead of owning them"
+    );
+    assert!(
+        recovery.contains("pub struct RecoverySummary")
+            && health.contains("pub enum HealthState")
+            && drag_overlay.contains("pub struct DragOverlay")
+            && update.contains("pub enum UpdateStatus")
+            && update.contains("pub struct UpdatePanel")
+            && prompt.contains("pub enum PromptIntent")
+            && prompt.contains("pub struct ConfirmPrompt"),
+        "feedback status models should live in their focused status child modules"
     );
 }
 

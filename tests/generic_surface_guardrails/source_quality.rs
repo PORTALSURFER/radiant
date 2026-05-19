@@ -297,18 +297,41 @@ fn floating_panel_drags_use_named_parts_for_pointer_geometry() {
 #[test]
 fn inline_badge_metrics_use_named_parts_for_geometry_tokens() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let source_path = manifest_dir.join("src/gui/badge/inline.rs");
-    let source = fs::read_to_string(&source_path)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let root = fs::read_to_string(manifest_dir.join("src/gui/badge/inline.rs"))
+        .expect("inline badge root should be readable");
+    let metrics = fs::read_to_string(manifest_dir.join("src/gui/badge/inline/metrics.rs"))
+        .expect("inline badge metrics should be readable");
+    let labels = fs::read_to_string(manifest_dir.join("src/gui/badge/inline/labels.rs"))
+        .expect("inline badge labels should be readable");
+    let geometry = fs::read_to_string(manifest_dir.join("src/gui/badge/inline/geometry.rs"))
+        .expect("inline badge geometry should be readable");
 
     assert!(
-        source.contains("pub struct InlineBadgeMetricsParts")
-            && source.contains("pub fn from_parts(parts: InlineBadgeMetricsParts) -> Self"),
+        root.contains("mod geometry;")
+            && root.contains("mod labels;")
+            && root.contains("mod metrics;")
+            && root.contains("pub use metrics::{InlineBadgeMetrics, InlineBadgeMetricsParts};"),
+        "inline badge root should delegate metrics, label parsing, and geometry helpers"
+    );
+    assert!(
+        metrics.contains("pub struct InlineBadgeMetricsParts")
+            && metrics.contains("pub fn from_parts(parts: InlineBadgeMetricsParts) -> Self"),
         "inline badge metrics should expose named parts for readable public construction"
     );
     assert!(
-        source.contains("Self::from_parts(InlineBadgeMetricsParts {"),
+        metrics.contains("Self::from_parts(InlineBadgeMetricsParts {"),
         "the positional compatibility constructor should delegate through the named metrics object"
+    );
+    assert!(
+        labels.contains("pub fn inline_badge_labels")
+            && labels.contains("pub fn inline_badge_labels_owned_into"),
+        "inline badge label splitting and materialization should live in inline/labels.rs"
+    );
+    assert!(
+        geometry.contains("pub fn inline_badge_rects_for_labels_into")
+            && geometry.contains("pub fn inline_badge_text_origin")
+            && geometry.contains("pub fn inline_badge_cluster_reserved_width"),
+        "inline badge geometry and text placement should live in inline/geometry.rs"
     );
 }
 

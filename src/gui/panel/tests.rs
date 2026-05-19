@@ -117,6 +117,17 @@ fn floating_panel_drag_preserves_pointer_grab_offset() {
 }
 
 #[test]
+fn floating_panel_drag_supports_named_parts_construction() {
+    let panel = Rect::from_min_size(Point::new(100.0, 80.0), Vector2::new(240.0, 180.0));
+    let drag = FloatingPanelDrag::from_parts(FloatingPanelDragParts {
+        panel_rect: panel,
+        pointer: Point::new(130.0, 96.0),
+    });
+
+    assert_eq!(drag.grab_offset, Vector2::new(30.0, 16.0));
+}
+
+#[test]
 fn floating_panel_drag_sanitizes_nonfinite_pointer_positions() {
     let panel = Rect::from_min_size(Point::new(100.0, 80.0), Vector2::new(240.0, 180.0));
     let drag = FloatingPanelDrag::new(panel, Point::new(f32::NAN, f32::INFINITY));

@@ -213,6 +213,47 @@ fn normalized_viewports_use_named_parts_for_precision_bounds() {
 }
 
 #[test]
+fn normalized_scrollbars_keep_model_and_geometry_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/gui/range/scrollbar.rs"))
+        .expect("normalized scrollbar root should be readable");
+    let model = fs::read_to_string(manifest_dir.join("src/gui/range/scrollbar/model.rs"))
+        .expect("normalized scrollbar model should be readable");
+    let geometry = fs::read_to_string(manifest_dir.join("src/gui/range/scrollbar/geometry.rs"))
+        .expect("normalized scrollbar geometry should be readable");
+    let range = fs::read_to_string(manifest_dir.join("src/gui/range.rs"))
+        .expect("range facade should be readable");
+
+    assert!(
+        root.contains("mod geometry;")
+            && root.contains("mod model;")
+            && root.contains("pub use geometry::{")
+            && root.contains("pub use model::{NormalizedScrollbar")
+            && !root.contains("pub struct NormalizedScrollbarRequest")
+            && !root.contains("fn clamped_normalized_span"),
+        "normalized scrollbar root should re-export focused model and geometry modules"
+    );
+    assert!(
+        model.contains("pub struct NormalizedScrollbarRequest")
+            && model.contains("pub struct NormalizedScrollbar"),
+        "normalized scrollbar public DTOs should live in scrollbar/model.rs"
+    );
+    assert!(
+        geometry.contains("pub fn resolve_normalized_scrollbar")
+            && geometry.contains("pub fn normalized_scrollbar_center_for_pointer")
+            && geometry.contains("fn clamped_normalized_span")
+            && !geometry.contains("pub struct NormalizedScrollbar"),
+        "normalized scrollbar geometry and pointer resolution should live in scrollbar/geometry.rs"
+    );
+    assert!(
+        range.contains("NormalizedScrollbarRequest")
+            && range.contains("resolve_normalized_scrollbar")
+            && range.contains("normalized_scrollbar_center_at_point"),
+        "normalized scrollbar public API should remain available through the range facade"
+    );
+}
+
+#[test]
 fn preference_panel_state_uses_named_parts_for_projection_fields() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/form.rs");

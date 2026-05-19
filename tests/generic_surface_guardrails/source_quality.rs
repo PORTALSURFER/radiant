@@ -300,6 +300,27 @@ fn gpu_surface_widget_uses_named_parts_for_retained_resource_identity() {
 }
 
 #[test]
+fn property_panel_rows_use_named_parts_for_public_inspector_fields() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/application/property_panel.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let application = fs::read_to_string(manifest_dir.join("src/application.rs"))
+        .expect("application module should be readable");
+
+    assert!(
+        source.contains("pub struct PropertyRowParts")
+            && source.contains("pub fn from_parts(parts: PropertyRowParts) -> Self"),
+        "property panel rows should expose named parts for id, label, and value construction"
+    );
+    assert!(
+        source.contains("Self::from_parts(PropertyRowParts {")
+            && application.contains("PropertyRowParts"),
+        "property row compatibility constructor and public exports should keep the named-parts path available"
+    );
+}
+
+#[test]
 fn timeline_visualization_state_uses_named_parts_for_large_projection_buckets() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let timeline_dir = manifest_dir.join("src/gui/visualization/timeline");

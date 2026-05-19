@@ -1781,6 +1781,32 @@ fn scrollbar_primitive_keeps_surface_builders_focused() {
 }
 
 #[test]
+fn drag_handle_primitive_keeps_surface_builders_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/drag_handle.rs"))
+        .expect("drag-handle primitive root should be readable");
+    let builders =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/drag_handle/builders.rs"))
+            .expect("drag-handle primitive builders should be readable");
+
+    assert!(
+        root.contains("mod builders;")
+            && root.contains("pub struct DragHandleWidget")
+            && root.contains("impl Widget for DragHandleWidget")
+            && !root.contains("impl<Message> SurfaceNode<Message>")
+            && !root.contains("impl<Message> WidgetMessageMapper<Message>"),
+        "drag-handle primitive root should own widget behavior and delegate runtime builders"
+    );
+    assert!(
+        builders.contains("impl<Message> SurfaceNode<Message>")
+            && builders.contains("pub fn drag_handle_mapped(")
+            && builders.contains("impl<Message> WidgetMessageMapper<Message>")
+            && builders.contains("pub fn drag_handle("),
+        "drag-handle runtime builder helpers should live in drag_handle/builders.rs"
+    );
+}
+
+#[test]
 fn slider_primitive_keeps_surface_builders_and_tests_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/slider.rs"))

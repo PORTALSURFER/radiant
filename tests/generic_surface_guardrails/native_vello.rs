@@ -585,6 +585,56 @@ fn native_vello_plain_text_encoding_stays_in_focused_module() {
 }
 
 #[test]
+fn native_vello_text_renderer_keeps_models_and_renderability_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/text_renderer.rs"))
+            .expect("native Vello text renderer should be readable");
+    let model = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/text_renderer/model.rs"),
+    )
+    .expect("native Vello text renderer model module should be readable");
+    let renderability = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/text_renderer/renderability.rs"),
+    )
+    .expect("native Vello text renderer renderability module should be readable");
+
+    for required in [
+        "mod model;",
+        "mod renderability;",
+        "pub(in crate::gui_runtime::native_vello) use model::{",
+        "pub(in crate::gui_runtime::native_vello) use renderability::font_size_is_renderable;",
+        "use renderability::text_run_is_renderable;",
+    ] {
+        assert!(
+            root.contains(required),
+            "native Vello text renderer root should delegate `{required}`"
+        );
+    }
+    assert!(
+        !root.contains("pub(in crate::gui_runtime::native_vello) struct SceneTextRun")
+            && !root.contains("pub(in crate::gui_runtime::native_vello) struct TextLayout")
+            && !root.contains("fn text_run_is_renderable"),
+        "native Vello text renderer root should orchestrate rendering without owning text models or renderability policy"
+    );
+    assert!(
+        model.contains("pub(in crate::gui_runtime::native_vello) struct SceneTextRun")
+            && model.contains("impl From<&TextRun> for SceneTextRun")
+            && model.contains("pub(in crate::gui_runtime::native_vello) struct TextLayout")
+            && model.contains("pub(in crate::gui_runtime::native_vello) struct TextCursorStop")
+            && model.contains("pub(in crate::gui_runtime::native_vello) struct TextLayoutKey")
+            && model.contains("pub(in crate::gui_runtime::native_vello) struct LoadedFont"),
+        "native Vello text renderer data models should live in text_renderer/model.rs"
+    );
+    assert!(
+        renderability.contains("fn text_run_is_renderable")
+            && renderability.contains("fn font_size_is_renderable")
+            && renderability.contains("max_width.is_finite() && max_width > 0.0"),
+        "native Vello text renderability policy should live in text_renderer/renderability.rs"
+    );
+}
+
+#[test]
 fn native_vello_scene_geometry_uses_explicit_kurbo_dependency() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let shape = fs::read_to_string(

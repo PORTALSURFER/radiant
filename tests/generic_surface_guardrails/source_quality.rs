@@ -180,6 +180,31 @@ fn normalized_ranges_use_named_parts_for_milli_bounds() {
 }
 
 #[test]
+fn index_viewport_model_keeps_behavior_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let range = fs::read_to_string(manifest_dir.join("src/gui/range.rs"))
+        .expect("range facade should be readable");
+    let model = fs::read_to_string(manifest_dir.join("src/gui/range/index_viewport.rs"))
+        .expect("index viewport model should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/gui/range/index_viewport/tests.rs"))
+        .expect("index viewport behavior tests should be readable");
+
+    assert!(
+        range.contains("pub use index_viewport::IndexViewport;")
+            && model.contains("pub struct IndexViewport")
+            && model.contains("#[path = \"index_viewport/tests.rs\"]")
+            && !model.contains("fn index_viewport_clamps_visible_span_and_offset_fraction"),
+        "index viewport should stay exported through the range facade while keeping behavior tests out of the model root"
+    );
+    assert!(
+        tests.contains("fn index_viewport_clamps_visible_span_and_offset_fraction")
+            && tests.contains("fn index_viewport_zooms_and_pans_around_visible_anchor")
+            && tests.contains("fn index_viewport_sets_offset_and_projects_visible_ratio"),
+        "index viewport behavior coverage should live in range/index_viewport/tests.rs"
+    );
+}
+
+#[test]
 fn normalized_viewports_use_named_parts_for_precision_bounds() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/range/viewport.rs");

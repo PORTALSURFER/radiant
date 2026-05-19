@@ -19,3 +19,12 @@ pub struct WindowSpec {
     /// Native launch options for this window.
     pub options: NativeRunOptions,
 }
+
+/// Named fields for constructing a platform-neutral window descriptor.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WindowSpecParts {
+    /// Stable host-owned key for this window.
+    pub key: String,
+    /// Native launch options for this window.
+    pub options: NativeRunOptions,
+}

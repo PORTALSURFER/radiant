@@ -39,4 +39,6 @@ pub use options::{
     NativeGpuBackend, NativeGpuOptions, NativePopupOptions, NativeRunOptions,
     NativeRunOptionsError, NativeTextOptions, NativeWindowMode, WindowIconRgba,
 };
-pub use window_manifest::{WindowManifest, WindowManifestError, WindowSpec, WindowSpecError};
+pub use window_manifest::{
+    WindowManifest, WindowManifestError, WindowSpec, WindowSpecError, WindowSpecParts,
+};

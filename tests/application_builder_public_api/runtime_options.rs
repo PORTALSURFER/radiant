@@ -3,6 +3,7 @@ use radiant::runtime::{
     NativeGenericRunError, NativeGpuBackend, NativeGpuOptions, NativePopupOptions,
     NativeRunOptions, NativeRunOptionsError, NativeTextOptions, NativeWindowMode,
     RetainedSurfaceCachePolicy, WindowManifest, WindowManifestError, WindowSpec, WindowSpecError,
+    WindowSpecParts,
 };
 
 #[test]
@@ -303,6 +304,22 @@ fn window_specs_describe_multiple_windows_without_opening_runtime() {
     let options: NativeRunOptions = inspector.into();
     assert_eq!(options.inner_size, Some([320.5, 500.25]));
     assert_eq!(options.min_inner_size, Some([300.25, 420.5]));
+}
+
+#[test]
+fn window_specs_support_named_parts_construction() {
+    let spec = WindowSpec::from_parts(WindowSpecParts {
+        key: "main".to_owned(),
+        options: NativeRunOptions {
+            title: "Main".to_owned(),
+            inner_size: Some([640.0, 480.0]),
+            ..NativeRunOptions::default()
+        },
+    });
+
+    assert_eq!(spec.key, "main");
+    assert_eq!(spec.title(), "Main");
+    assert_eq!(spec.inner_size(), Some([640.0, 480.0]));
 }
 
 #[test]

@@ -34,7 +34,7 @@ pub use crate::gui_runtime::{
     NativeGpuOptions, NativePopupOptions, NativeRunOptions, NativeRunOptionsError,
     NativeStartupTimingArtifact, NativeTextOptions, NativeWindowMode, RuntimeRunReport,
     WindowIconRgba, WindowManifest, WindowManifestError, WindowSpec, WindowSpecError,
-    run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
+    WindowSpecParts, run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
 };
 pub use bridge::{
     App, DeclarativeCommandRuntimeBridge, DeclarativeOwnedCommandRuntimeBridge,

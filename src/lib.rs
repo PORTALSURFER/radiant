@@ -97,7 +97,7 @@ pub mod prelude {
         ResourceCompletion, ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest,
         ResourceSlot, RetainedSurfaceCachePolicy, RuntimeRunReport, ScrollUpdate, SurfaceFrame,
         SurfacePaintPlan, SvgParseError, TransientOverlayContext, WindowManifest,
-        WindowManifestError, WindowSpec, WindowSpecError,
+        WindowManifestError, WindowSpec, WindowSpecError, WindowSpecParts,
     };
     pub use crate::theme::ThemeTokens;
     pub use crate::widgets::{

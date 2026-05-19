@@ -23,7 +23,7 @@ pub use button::{ButtonProps, ButtonState, ButtonWidget};
 pub use canvas::{CanvasWidget, RetainedSurfaceDescriptor};
 pub use card::CardWidget;
 pub use drag_handle::DragHandleWidget;
-pub use gpu_surface::GpuSurfaceWidget;
+pub use gpu_surface::{GpuSurfaceParts, GpuSurfaceWidget};
 pub use icon_button::IconButtonWidget;
 pub use image::{ImageProps, ImageWidget};
 pub use interactive_row::{InteractiveRowProps, InteractiveRowWidget};

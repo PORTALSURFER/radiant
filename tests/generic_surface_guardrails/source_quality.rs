@@ -275,6 +275,31 @@ fn layout_constraints_use_named_parts_for_min_max_bounds() {
 }
 
 #[test]
+fn gpu_surface_widget_uses_named_parts_for_retained_resource_identity() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/widgets/primitives/gpu_surface.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let widgets = fs::read_to_string(manifest_dir.join("src/widgets/mod.rs"))
+        .expect("widgets module should be readable");
+    let application_builder =
+        fs::read_to_string(manifest_dir.join("src/application/builders/leaf.rs"))
+            .expect("application leaf builders should be readable");
+
+    assert!(
+        source.contains("pub struct GpuSurfaceParts")
+            && source.contains("pub fn from_parts(parts: GpuSurfaceParts) -> Self"),
+        "retained GPU surfaces should expose named parts for resource identity, revision, and content"
+    );
+    assert!(
+        source.contains("Self::from_parts(GpuSurfaceParts {")
+            && widgets.contains("GpuSurfaceParts")
+            && application_builder.contains("pub fn gpu_surface_from_parts"),
+        "GPU surface compatibility constructors, public exports, and application builders should keep the named-parts path available"
+    );
+}
+
+#[test]
 fn timeline_visualization_state_uses_named_parts_for_large_projection_buckets() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let timeline_dir = manifest_dir.join("src/gui/visualization/timeline");

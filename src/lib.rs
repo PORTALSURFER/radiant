@@ -51,14 +51,14 @@ pub mod prelude {
         WidgetViewContext, WindowBuilder, app, badge, badge_mapped, badge_message, button,
         button_mapped, button_message, canvas, card, checkbox, column, column_key,
         context_menu_overlay, custom_widget, custom_widget_mapped, drag_handle, drag_handle_mapped,
-        drag_preview, drag_preview_sized, drop_marker, gpu_surface, gpu_surface_input, grid,
-        grid_with_gaps, icon_button, image, interactive_row, list, list_row, list_row_id, menu,
-        overlay_panel, passive_button, passive_text_input, passive_toggle, property_panel,
-        retained_canvas, retained_canvas_with, row, row_key, scroll, scroll_column, scrollbar,
-        selectable, selectable_mapped, selectable_property_panel, selectable_sortable_details_list,
-        slider, slider_mapped, sortable_details_list, spacer, stack, text, text_input,
-        text_input_mapped, toggle, toggle_mapped, tree_list, tree_list_with_drag, virtual_list,
-        virtual_list_window, virtual_scroll, widget, window,
+        drag_preview, drag_preview_sized, drop_marker, gpu_surface, gpu_surface_from_parts,
+        gpu_surface_input, grid, grid_with_gaps, icon_button, image, interactive_row, list,
+        list_row, list_row_id, menu, overlay_panel, passive_button, passive_text_input,
+        passive_toggle, property_panel, retained_canvas, retained_canvas_with, row, row_key,
+        scroll, scroll_column, scrollbar, selectable, selectable_mapped, selectable_property_panel,
+        selectable_sortable_details_list, slider, slider_mapped, sortable_details_list, spacer,
+        stack, text, text_input, text_input_mapped, toggle, toggle_mapped, tree_list,
+        tree_list_with_drag, virtual_list, virtual_list_window, virtual_scroll, widget, window,
     };
     pub use crate::gui::types::{ImageRgba, ImageRgbaError, Point, Rect, Rgba8, Vector2};
     pub use crate::gui::{
@@ -101,11 +101,12 @@ pub mod prelude {
     pub use crate::theme::ThemeTokens;
     pub use crate::widgets::{
         CanvasGestureEvent, CanvasGestureState, CanvasPointer, DragHandleMessage, FocusBehavior,
-        GpuSurfaceMessage, GpuSurfaceWidget, IconButtonWidget, InteractiveRowMessage,
-        InteractiveRowWidget, PointerButton, ScrollbarAxis, ScrollbarMessage, SliderMessage,
-        SliderWidget, TextAlign, TextInputEditResult, TextInputState, TextWrap, Widget,
-        WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetProminence, WidgetSizing,
-        WidgetState, WidgetStyle, WidgetTone, WidgetVisualTokens, resolve_widget_visual_tokens,
+        GpuSurfaceMessage, GpuSurfaceParts, GpuSurfaceWidget, IconButtonWidget,
+        InteractiveRowMessage, InteractiveRowWidget, PointerButton, ScrollbarAxis,
+        ScrollbarMessage, SliderMessage, SliderWidget, TextAlign, TextInputEditResult,
+        TextInputState, TextWrap, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput,
+        WidgetProminence, WidgetSizing, WidgetState, WidgetStyle, WidgetTone, WidgetVisualTokens,
+        resolve_widget_visual_tokens,
     };
 }
 

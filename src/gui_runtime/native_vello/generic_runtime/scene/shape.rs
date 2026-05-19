@@ -1,4 +1,5 @@
 use crate::gui_runtime::native_vello::*;
+use kurbo::Stroke;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_path_fill(
     scene: &mut Scene,
@@ -53,7 +54,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_rect_
         return;
     }
     scene.stroke(
-        &vello::kurbo::Stroke::new(width as f64),
+        &Stroke::new(width as f64),
         Affine::IDENTITY,
         color_from_rgba(color),
         None,
@@ -88,7 +89,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_polyg
     }
     if let Some(path) = polygon_path(points) {
         scene.stroke(
-            &vello::kurbo::Stroke::new(width as f64),
+            &Stroke::new(width as f64),
             Affine::IDENTITY,
             color_from_rgba(color),
             None,
@@ -108,7 +109,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_polyl
     }
     if let Some(path) = polyline_path(points) {
         scene.stroke(
-            &vello::kurbo::Stroke::new(width as f64),
+            &Stroke::new(width as f64),
             Affine::IDENTITY,
             color_from_rgba(color),
             None,

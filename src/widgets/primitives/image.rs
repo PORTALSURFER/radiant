@@ -2,7 +2,7 @@
 
 use crate::gui::types::{ImageRgba, Rect};
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, SurfaceNode};
+use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 use std::sync::Arc;
 
@@ -10,6 +10,7 @@ use super::support::WidgetCommon;
 use crate::widgets::contract::{Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
 
+mod builders;
 mod model;
 mod paint;
 
@@ -74,12 +75,5 @@ impl Widget for ImageWidget {
         _theme: &ThemeTokens,
     ) {
         paint::push_image_widget_paint(primitives, self, bounds);
-    }
-}
-
-impl<Message> SurfaceNode<Message> {
-    /// Build a non-emitting raster image leaf node.
-    pub fn image(id: WidgetId, image: Arc<ImageRgba>, sizing: WidgetSizing) -> Self {
-        Self::static_widget(ImageWidget::new(id, image, sizing))
     }
 }

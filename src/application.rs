@@ -49,7 +49,10 @@ pub use property_panel::{
     PropertyRow, PropertyRowParts, property_panel, selectable_property_panel,
 };
 mod menu;
-pub use menu::{MenuItem, context_menu_overlay, menu};
+pub use menu::{
+    ContextMenuOverlayParts, MenuItem, MenuItemParts, MenuParts, context_menu_overlay,
+    context_menu_overlay_from_parts, menu, menu_from_parts,
+};
 mod retained_canvas;
 pub use retained_canvas::{RetainedCanvasBuilder, retained_canvas, retained_canvas_with};
 mod builders;

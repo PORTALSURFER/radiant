@@ -23,16 +23,36 @@ pub struct ListItemWidget {
     pub detail: Option<PaintText>,
 }
 
+/// Named construction fields for [`ListItemWidget`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct ListItemWidgetParts {
+    /// Stable widget identity used by layout, events, and state synchronization.
+    pub id: WidgetId,
+    /// Primary row label.
+    pub label: PaintText,
+    /// Intrinsic row sizing contract.
+    pub sizing: WidgetSizing,
+}
+
 impl ListItemWidget {
-    /// Build a list-item descriptor that can be focused, selected, and invoked.
-    pub fn new(id: WidgetId, label: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
+    /// Build a list-item descriptor from named identity, content, and sizing fields.
+    pub fn from_parts(parts: ListItemWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.focus = FocusBehavior::Keyboard;
         Self {
             common,
-            label: label.into(),
+            label: parts.label,
             detail: None,
         }
+    }
+
+    /// Build a list-item descriptor that can be focused, selected, and invoked.
+    pub fn new(id: WidgetId, label: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
+        Self::from_parts(ListItemWidgetParts {
+            id,
+            label: label.into(),
+            sizing,
+        })
     }
 
     /// Route one backend-neutral interaction into the list item.

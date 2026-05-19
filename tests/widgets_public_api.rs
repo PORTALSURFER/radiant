@@ -7,10 +7,11 @@ use radiant::{
         layout_tree,
     },
     widgets::{
-        BadgeWidget, ButtonWidget, ButtonWidgetParts, CardWidget, DragHandleWidget, ImageWidget,
-        ListItemWidget, ScrollbarAxis, ScrollbarWidget, SelectableWidget, TextInputWidget,
-        TextWidget, TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget, WidgetInput,
-        WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
+        BadgeWidget, BadgeWidgetParts, ButtonWidget, ButtonWidgetParts, CardWidget,
+        DragHandleWidget, ImageWidget, ListItemWidget, ListItemWidgetParts, ScrollbarAxis,
+        ScrollbarWidget, SelectableWidget, SelectableWidgetParts, TextInputWidget,
+        TextInputWidgetParts, TextWidget, TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget,
+        WidgetInput, WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
     },
 };
 use std::{fmt::Debug, sync::Arc};
@@ -161,6 +162,43 @@ fn labeled_primitive_widgets_support_named_parts_construction() {
     assert!(button.props.secondary_click);
     assert_eq!(toggle.common().id, 32);
     assert!(toggle.common().state.active);
+}
+
+#[test]
+fn interactive_primitive_widgets_support_named_parts_construction() {
+    let badge = BadgeWidget::from_parts(BadgeWidgetParts {
+        id: 33,
+        label: "Ready".into(),
+        sizing: WidgetSizing::fixed(Vector2::new(72.0, 24.0)),
+    });
+    let item = ListItemWidget::from_parts(ListItemWidgetParts {
+        id: 34,
+        label: "Document".into(),
+        sizing: WidgetSizing::fixed(Vector2::new(112.0, 28.0)),
+    });
+    let selectable = SelectableWidget::from_parts(SelectableWidgetParts {
+        id: 35,
+        label: "Selected".into(),
+        selected: true,
+        sizing: WidgetSizing::fixed(Vector2::new(112.0, 28.0)),
+    });
+    let input = TextInputWidget::from_parts(TextInputWidgetParts {
+        id: 36,
+        value: String::from("filter"),
+        sizing: WidgetSizing::new(Vector2::new(96.0, 28.0), Vector2::new(160.0, 28.0)),
+    });
+
+    assert_eq!(badge.common().id, 33);
+    assert_eq!(
+        badge.common().style.prominence,
+        radiant::widgets::WidgetProminence::Subtle
+    );
+    assert_eq!(item.common().id, 34);
+    assert_eq!(item.detail, None);
+    assert_eq!(selectable.common().id, 35);
+    assert!(selectable.common().state.selected);
+    assert_eq!(input.common().id, 36);
+    assert_eq!(input.state.value, "filter");
 }
 
 #[test]

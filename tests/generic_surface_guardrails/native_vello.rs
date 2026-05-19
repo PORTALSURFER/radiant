@@ -136,9 +136,18 @@ fn native_vello_scene_encoder_keeps_custom_surfaces_in_focused_module() {
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene/custom_surface.rs"),
     )
     .expect("custom surface scene encoder should be readable");
+    let cache = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene/cache.rs"),
+    )
+    .expect("retained surface scene cache should be readable");
+    let cache_tests = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene/cache/tests.rs"),
+    )
+    .expect("retained surface scene cache tests should be readable");
 
     assert!(
         scene.contains("mod custom_surface;")
+            && scene.contains("mod cache;")
             && scene.contains("use custom_surface::encode_custom_surface;"),
         "central scene encoder should delegate retained custom-surface rendering"
     );
@@ -148,6 +157,18 @@ fn native_vello_scene_encoder_keeps_custom_surfaces_in_focused_module() {
             && custom_surface.contains("retained_cache.cached_frame")
             && custom_surface.contains("encode_custom_surface_fallback"),
         "retained custom-surface cache/bridge/fallback logic should stay in the focused custom-surface encoder"
+    );
+    assert!(
+        cache.contains("struct RetainedSurfaceFrameCache")
+            && cache.contains("struct RetainedSurfaceFrameCacheEntry")
+            && cache.contains("#[cfg(test)]")
+            && cache.contains("mod tests;")
+            && !cache
+                .contains("fn retained_frame_cache_evicts_oldest_entry_without_shifting_storage")
+            && cache_tests
+                .contains("fn retained_frame_cache_evicts_oldest_entry_without_shifting_storage")
+            && cache_tests.contains("fn retained_frame_cache_policy_can_disable_storage"),
+        "retained scene cache data structures should stay in cache.rs while regression tests live in scene/cache/tests.rs"
     );
 }
 

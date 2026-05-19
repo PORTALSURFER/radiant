@@ -1375,6 +1375,54 @@ fn status_line_entries_use_named_parts_for_source_and_message() {
 }
 
 #[test]
+fn progress_feedback_keeps_overlay_state_and_track_geometry_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/gui/feedback/progress.rs"))
+        .expect("progress feedback root should be readable");
+    let overlay = fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/overlay.rs"))
+        .expect("progress overlay module should be readable");
+    let track = fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track.rs"))
+        .expect("progress track module should be readable");
+    let feedback = fs::read_to_string(manifest_dir.join("src/gui/feedback.rs"))
+        .expect("feedback module should be readable");
+
+    for required in [
+        "mod overlay;",
+        "mod track;",
+        "pub use overlay::ProgressOverlay;",
+        "pub use track::{",
+    ] {
+        assert!(
+            root.contains(required),
+            "progress feedback root should delegate `{required}`"
+        );
+    }
+    assert!(
+        !root.contains("pub struct ProgressOverlay")
+            && !root.contains("fn horizontal_progress_fill_rect"),
+        "progress feedback root should re-export public primitives without owning implementation"
+    );
+    assert!(
+        overlay.contains("pub struct ProgressOverlay")
+            && overlay.contains("pub visible: bool")
+            && overlay.contains("pub cancel_requested: bool"),
+        "progress overlay state should live in progress/overlay.rs"
+    );
+    assert!(
+        track.contains("pub fn horizontal_progress_fill_rect")
+            && track.contains("pub fn horizontal_progress_activity_rect")
+            && track.contains("pub fn horizontal_meter_fill_rect"),
+        "progress track and meter geometry should live in progress/track.rs"
+    );
+    assert!(
+        feedback.contains("ProgressOverlay")
+            && feedback.contains("horizontal_progress_fill_rect")
+            && feedback.contains("horizontal_meter_fill_rect"),
+        "feedback facade should continue exporting progress overlay and track helpers"
+    );
+}
+
+#[test]
 fn window_specs_use_named_parts_for_manifest_identity_and_options() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let spec_path = manifest_dir.join("src/gui_runtime/window_manifest/spec.rs");

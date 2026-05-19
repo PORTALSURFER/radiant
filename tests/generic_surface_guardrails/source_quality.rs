@@ -522,6 +522,27 @@ fn window_specs_use_named_parts_for_manifest_identity_and_options() {
 }
 
 #[test]
+fn status_segments_use_named_parts_for_chrome_slots() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/chrome.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
+        .expect("library module should be readable");
+
+    assert!(
+        source.contains("pub struct StatusSegmentsParts")
+            && source.contains("pub fn from_parts(parts: StatusSegmentsParts) -> Self"),
+        "status segments should expose named parts for left, center, and right chrome slots"
+    );
+    assert!(
+        source.contains("Self::from_parts(StatusSegmentsParts {")
+            && lib.contains("StatusSegmentsParts"),
+        "status segment compatibility constructor and prelude export should keep the named-parts path available"
+    );
+}
+
+#[test]
 fn timeline_visualization_state_uses_named_parts_for_large_projection_buckets() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let timeline_dir = manifest_dir.join("src/gui/visualization/timeline");

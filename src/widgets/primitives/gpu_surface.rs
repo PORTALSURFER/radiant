@@ -16,6 +16,24 @@ use crate::widgets::interaction::{GpuSurfaceMessage, WidgetInput, WidgetOutput};
 
 mod paint;
 
+/// Named construction inputs for a retained GPU surface widget.
+///
+/// This keeps the retained resource identity (`key`) and content generation
+/// (`revision`) readable at call sites that construct GPU-heavy leaves.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GpuSurfaceParts {
+    /// Stable widget id used by layout, paint, and input routing.
+    pub id: WidgetId,
+    /// Desired layout sizing for the retained GPU surface slot.
+    pub sizing: WidgetSizing,
+    /// Stable surface key used by native backends for retained GPU resources.
+    pub key: u64,
+    /// Monotonic content revision for retained GPU resources.
+    pub revision: u64,
+    /// Backend-neutral retained GPU content.
+    pub content: GpuSurfaceContent,
+}
+
 /// Reusable widget that reserves a retained native GPU surface.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GpuSurfaceWidget {
@@ -36,6 +54,25 @@ pub struct GpuSurfaceWidget {
 }
 
 impl GpuSurfaceWidget {
+    /// Build a retained GPU surface widget from named construction inputs.
+    pub fn from_parts(parts: GpuSurfaceParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
+        common.focus = FocusBehavior::Pointer;
+        common.paint.bounds = PaintBounds::ClipToRect;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        common.style = WidgetStyle::default();
+        Self {
+            common,
+            key: parts.key,
+            revision: parts.revision,
+            content: parts.content,
+            capabilities: GpuSurfaceCapabilities::default(),
+            overlays: Vec::new(),
+            emits_input: false,
+        }
+    }
+
     /// Build a retained GPU surface widget.
     pub fn new(
         id: WidgetId,
@@ -44,21 +81,13 @@ impl GpuSurfaceWidget {
         revision: u64,
         content: GpuSurfaceContent,
     ) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
-        common.focus = FocusBehavior::Pointer;
-        common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
-        common.style = WidgetStyle::default();
-        Self {
-            common,
+        Self::from_parts(GpuSurfaceParts {
+            id,
+            sizing,
             key,
             revision,
             content,
-            capabilities: GpuSurfaceCapabilities::default(),
-            overlays: Vec::new(),
-            emits_input: false,
-        }
+        })
     }
 
     /// Replace the runtime interaction capabilities for this retained GPU surface.
@@ -136,6 +165,12 @@ impl<Message> SurfaceNode<Message> {
         revision: u64,
         content: GpuSurfaceContent,
     ) -> Self {
-        Self::static_widget(GpuSurfaceWidget::new(id, sizing, key, revision, content))
+        Self::static_widget(GpuSurfaceWidget::from_parts(GpuSurfaceParts {
+            id,
+            sizing,
+            key,
+            revision,
+            content,
+        }))
     }
 }

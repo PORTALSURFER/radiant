@@ -8,8 +8,9 @@ use crate::{
     layout::Vector2,
     runtime::{GpuSurfaceContent, PaintText, WidgetMessageMapper},
     widgets::{
-        ButtonWidget, CanvasWidget, CardWidget, GpuSurfaceMessage, GpuSurfaceWidget, ImageWidget,
-        TextInputWidget, TextWidget, ToggleWidget, Widget, WidgetOutput, WidgetSizing,
+        ButtonWidget, CanvasWidget, CardWidget, GpuSurfaceMessage, GpuSurfaceParts,
+        GpuSurfaceWidget, ImageWidget, TextInputWidget, TextWidget, ToggleWidget, Widget,
+        WidgetOutput, WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -100,13 +101,21 @@ pub fn gpu_surface<Message: 'static>(
     revision: u64,
     content: GpuSurfaceContent,
 ) -> ViewNode<Message> {
-    view_node_from_widget(GpuSurfaceWidget::new(
-        0,
-        default_gpu_surface_sizing(),
+    gpu_surface_from_parts(GpuSurfaceParts {
+        id: 0,
+        sizing: default_gpu_surface_sizing(),
         key,
         revision,
         content,
-    ))
+    })
+}
+
+/// Build a retained GPU surface view from named construction inputs.
+///
+/// This is the readable companion to [`gpu_surface`] for call sites where the
+/// retained resource identity and revision are easier to review as named fields.
+pub fn gpu_surface_from_parts<Message: 'static>(parts: GpuSurfaceParts) -> ViewNode<Message> {
+    view_node_from_widget(GpuSurfaceWidget::from_parts(parts))
 }
 
 /// Build an input-emitting retained GPU surface view with generated identity.
@@ -120,8 +129,14 @@ pub fn gpu_surface_input<Message: 'static>(
     map: impl Fn(crate::widgets::WidgetInput) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
     view_node_from_widget(MappedWidget::new(
-        GpuSurfaceWidget::new(0, default_gpu_surface_sizing(), key, revision, content)
-            .with_input_events(true),
+        GpuSurfaceWidget::from_parts(GpuSurfaceParts {
+            id: 0,
+            sizing: default_gpu_surface_sizing(),
+            key,
+            revision,
+            content,
+        })
+        .with_input_events(true),
         WidgetMessageMapper::typed(move |message: GpuSurfaceMessage| match message {
             GpuSurfaceMessage::Input { input } => map(input),
         }),

@@ -1781,6 +1781,41 @@ fn scrollbar_primitive_keeps_surface_builders_focused() {
 }
 
 #[test]
+fn slider_primitive_keeps_surface_builders_and_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/slider.rs"))
+        .expect("slider primitive root should be readable");
+    let builders =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/slider/builders.rs"))
+            .expect("slider primitive builders should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/widgets/primitives/slider/tests.rs"))
+        .expect("slider primitive tests should be readable");
+
+    assert!(
+        root.contains("mod builders;")
+            && root.contains("pub struct SliderWidget")
+            && root.contains("impl Widget for SliderWidget")
+            && root.contains("#[path = \"slider/tests.rs\"]")
+            && !root.contains("impl<Message> SurfaceNode<Message>")
+            && !root.contains("impl<Message> WidgetMessageMapper<Message>")
+            && !root.contains("fn slider_pointer_drag_emits_clamped_values"),
+        "slider primitive root should own widget behavior while delegating runtime builders and behavior tests"
+    );
+    assert!(
+        builders.contains("impl<Message> SurfaceNode<Message>")
+            && builders.contains("pub fn slider(")
+            && builders.contains("pub fn slider_mapped(")
+            && builders.contains("impl<Message> WidgetMessageMapper<Message>"),
+        "slider runtime builder helpers should live in slider/builders.rs"
+    );
+    assert!(
+        tests.contains("fn slider_pointer_drag_emits_clamped_values")
+            && tests.contains("fn focused_slider_responds_to_keyboard_steps"),
+        "slider behavior tests should live in slider/tests.rs"
+    );
+}
+
+#[test]
 fn status_line_entries_use_named_parts_for_source_and_message() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/feedback/status/line.rs");

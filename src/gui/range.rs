@@ -29,13 +29,30 @@ pub struct NormalizedRange {
     pub end_nanos: u32,
 }
 
+/// Named milli-unit bounds for constructing a normalized range.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NormalizedRangeParts {
+    /// Start position in normalized milli-units.
+    pub start_milli: u16,
+    /// End position in normalized milli-units.
+    pub end_milli: u16,
+}
+
 impl NormalizedRange {
+    /// Build a normalized range from named milli-unit bounds.
+    pub fn from_parts(parts: NormalizedRangeParts) -> Self {
+        Self::from_micros(
+            u32::from(parts.start_milli.min(1000)) * 1000,
+            u32::from(parts.end_milli.min(1000)) * 1000,
+        )
+    }
+
     /// Build a normalized range, clamping bounds to `0..=1000` and ordering them.
     pub fn new(start_milli: u16, end_milli: u16) -> Self {
-        Self::from_micros(
-            u32::from(start_milli.min(1000)) * 1000,
-            u32::from(end_milli.min(1000)) * 1000,
-        )
+        Self::from_parts(NormalizedRangeParts {
+            start_milli,
+            end_milli,
+        })
     }
 
     /// Build a normalized range from micro precision while preserving ordered milli mirrors.
@@ -83,8 +100,8 @@ pub(crate) fn micros_matches_projected_nanos(value_micros: u32, value_nanos: u32
 #[cfg(test)]
 mod tests {
     use super::{
-        NormalizedPixelSnap, NormalizedRange, NormalizedScrollbar, NormalizedScrollbarRequest,
-        NormalizedViewport, normalized_scrollbar_center_at_point,
+        NormalizedPixelSnap, NormalizedRange, NormalizedRangeParts, NormalizedScrollbar,
+        NormalizedScrollbarRequest, NormalizedViewport, normalized_scrollbar_center_at_point,
         normalized_scrollbar_center_for_pointer, normalized_scrollbar_thumb_offset_at_point,
         normalized_scrollbar_thumb_ratio_at_point, resolve_normalized_scrollbar,
     };
@@ -112,6 +129,19 @@ mod tests {
         assert_eq!(range.end_micros, 800_000);
         assert_eq!(range.start_nanos, 200_000_000);
         assert_eq!(range.end_nanos, 800_000_000);
+    }
+
+    #[test]
+    fn normalized_range_supports_named_parts_construction() {
+        let range = NormalizedRange::from_parts(NormalizedRangeParts {
+            start_milli: 1_200,
+            end_milli: 250,
+        });
+
+        assert_eq!(range.start_milli, 250);
+        assert_eq!(range.end_milli, 1000);
+        assert_eq!(range.start_micros, 250_000);
+        assert_eq!(range.end_micros, 1_000_000);
     }
 
     #[test]

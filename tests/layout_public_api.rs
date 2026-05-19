@@ -1,9 +1,9 @@
 //! Public API coverage for `radiant::layout`.
 
 use radiant::layout::{
-    Constraints, ConstraintsParts, ContainerKind, ContainerPolicy, CrossAlign, Insets,
-    LayoutEngine, LayoutNode, LayoutState, Point, Rect, SizeModeCross, SizeModeMain, SlotChild,
-    SlotParams, Vector2, layout_tree,
+    Constraints, ConstraintsParts, ContainerKind, ContainerNodeParts, ContainerPolicy, CrossAlign,
+    Insets, LayoutEngine, LayoutNode, LayoutState, Point, Rect, SizeModeCross, SizeModeMain,
+    SlotChild, SlotChildParts, SlotParams, Vector2, WidgetNodeParts, layout_tree,
 };
 
 #[test]
@@ -61,4 +61,41 @@ fn public_layout_module_supports_generic_tree_construction() {
     assert_eq!(one_shot.rects, stateful.rects);
     assert!(one_shot.rects.contains_key(&2));
     assert!(one_shot.rects.contains_key(&3));
+}
+
+#[test]
+fn public_layout_tree_nodes_support_named_parts_construction() {
+    let root = LayoutNode::container_from_parts(ContainerNodeParts {
+        id: 10,
+        policy: ContainerPolicy {
+            kind: ContainerKind::Row,
+            spacing: 6.0,
+            ..ContainerPolicy::default()
+        },
+        children: vec![
+            SlotChild::from_parts(SlotChildParts {
+                slot: SlotParams::fill(),
+                child: LayoutNode::widget_from_parts(WidgetNodeParts {
+                    id: 11,
+                    intrinsic: Vector2::new(24.0, 12.0),
+                }),
+            }),
+            SlotChild::from_parts(SlotChildParts {
+                slot: SlotParams::fill(),
+                child: LayoutNode::widget_from_parts(WidgetNodeParts {
+                    id: 12,
+                    intrinsic: Vector2::new(36.0, 12.0),
+                }),
+            }),
+        ],
+    });
+
+    assert_eq!(root.id(), 10);
+    let output = layout_tree(
+        &root,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 30.0)),
+    );
+
+    assert!(output.rects.contains_key(&11));
+    assert!(output.rects.contains_key(&12));
 }

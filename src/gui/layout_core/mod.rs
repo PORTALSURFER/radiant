@@ -29,22 +29,34 @@
 //!
 //! ```
 //! use radiant::layout::{
-//!     ContainerKind, ContainerPolicy, LayoutNode, Point, Rect, SlotChild, SlotParams, Vector2,
-//!     layout_tree,
+//!     ContainerKind, ContainerNodeParts, ContainerPolicy, LayoutNode, Point, Rect, SlotChild,
+//!     SlotChildParts, SlotParams, Vector2, WidgetNodeParts, layout_tree,
 //! };
 //!
-//! let root = LayoutNode::container(
-//!     1,
-//!     ContainerPolicy {
+//! let root = LayoutNode::container_from_parts(ContainerNodeParts {
+//!     id: 1,
+//!     policy: ContainerPolicy {
 //!         kind: ContainerKind::Row,
 //!         spacing: 8.0,
 //!         ..ContainerPolicy::default()
 //!     },
-//!     vec![
-//!         SlotChild::new(SlotParams::fill(), LayoutNode::widget(2, Vector2::new(40.0, 20.0))),
-//!         SlotChild::new(SlotParams::fill(), LayoutNode::widget(3, Vector2::new(40.0, 20.0))),
+//!     children: vec![
+//!         SlotChild::from_parts(SlotChildParts {
+//!             slot: SlotParams::fill(),
+//!             child: LayoutNode::widget_from_parts(WidgetNodeParts {
+//!                 id: 2,
+//!                 intrinsic: Vector2::new(40.0, 20.0),
+//!             }),
+//!         }),
+//!         SlotChild::from_parts(SlotChildParts {
+//!             slot: SlotParams::fill(),
+//!             child: LayoutNode::widget_from_parts(WidgetNodeParts {
+//!                 id: 3,
+//!                 intrinsic: Vector2::new(40.0, 20.0),
+//!             }),
+//!         }),
 //!     ],
-//! );
+//! });
 //!
 //! let output = layout_tree(
 //!     &root,
@@ -79,4 +91,7 @@ pub use row_helpers::{
     fixed_width_row_rects_start_into, grouped_fixed_width_row_width, stacked_row_rects,
     stacked_row_rects_into, visible_suffix_widths, visible_suffix_widths_into,
 };
-pub use tree::{ContainerNode, LayoutNode, NodeId, SlotChild, WidgetNode};
+pub use tree::{
+    ContainerNode, ContainerNodeParts, LayoutNode, NodeId, SlotChild, SlotChildParts, WidgetNode,
+    WidgetNodeParts,
+};

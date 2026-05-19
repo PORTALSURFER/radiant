@@ -233,6 +233,28 @@ fn details_columns_use_logical_widths() {
 }
 
 #[test]
+fn details_rows_support_named_parts_construction() {
+    use radiant::prelude as ui;
+
+    let from_parts = ui::DetailsRow::from_parts(ui::DetailsRowParts {
+        id: String::from("timeline"),
+        cells: vec![
+            String::from("timeline.rs"),
+            String::from("Rust"),
+            String::from("Ready"),
+        ],
+    })
+    .selected(true);
+
+    let positional =
+        ui::DetailsRow::new("timeline", ["timeline.rs", "Rust", "Ready"]).selected(true);
+
+    assert_eq!(from_parts, positional);
+    assert_eq!(from_parts.cells.len(), 3);
+    assert!(from_parts.selected);
+}
+
+#[test]
 fn application_builders_scope_keys_and_bind_text_inputs_to_state_fields() {
     use radiant::prelude::{self as ui, IntoView};
 

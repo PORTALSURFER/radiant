@@ -29,6 +29,33 @@ pub struct SummaryField {
     pub value_label: String,
 }
 
+/// Explicit parts used to build generic preference panel state.
+///
+/// Keeping this as a named projection object makes app-facing call sites
+/// readable without introducing product-specific setting names into Radiant.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PreferencePanelParts<const TOGGLES: usize> {
+    /// Whether the panel is visible.
+    pub visible: bool,
+    /// Primary editable text value shown in the panel.
+    pub primary_text_value: String,
+    /// Enabled states for product-defined toggles.
+    pub toggles: [bool; TOGGLES],
+    /// Optional auxiliary path, destination, or detail label.
+    pub auxiliary_label: Option<String>,
+}
+
+impl<const TOGGLES: usize> Default for PreferencePanelParts<TOGGLES> {
+    fn default() -> Self {
+        Self {
+            visible: false,
+            primary_text_value: String::new(),
+            toggles: [false; TOGGLES],
+            auxiliary_label: None,
+        }
+    }
+}
+
 /// Generic state for a compact preferences/settings panel.
 ///
 /// The fixed-size toggle array keeps projection cheap for hot signatures while
@@ -47,16 +74,21 @@ pub struct PreferencePanelState<const TOGGLES: usize> {
 
 impl<const TOGGLES: usize> Default for PreferencePanelState<TOGGLES> {
     fn default() -> Self {
-        Self {
-            visible: false,
-            primary_text_value: String::new(),
-            toggles: [false; TOGGLES],
-            auxiliary_label: None,
-        }
+        Self::from_parts(PreferencePanelParts::default())
     }
 }
 
 impl<const TOGGLES: usize> PreferencePanelState<TOGGLES> {
+    /// Build preference panel state from named generic projection parts.
+    pub fn from_parts(parts: PreferencePanelParts<TOGGLES>) -> Self {
+        Self {
+            visible: parts.visible,
+            primary_text_value: parts.primary_text_value,
+            toggles: parts.toggles,
+            auxiliary_label: parts.auxiliary_label,
+        }
+    }
+
     /// Build preference panel state from explicit generic fields.
     pub fn new(
         visible: bool,
@@ -64,12 +96,12 @@ impl<const TOGGLES: usize> PreferencePanelState<TOGGLES> {
         toggles: [bool; TOGGLES],
         auxiliary_label: Option<String>,
     ) -> Self {
-        Self {
+        Self::from_parts(PreferencePanelParts {
             visible,
             primary_text_value: primary_text_value.into(),
             toggles,
             auxiliary_label,
-        }
+        })
     }
 
     /// Return one toggle state by stable host-defined index.
@@ -80,7 +112,7 @@ impl<const TOGGLES: usize> PreferencePanelState<TOGGLES> {
 
 #[cfg(test)]
 mod tests {
-    use super::{OptionItem, PreferencePanelState, SummaryField};
+    use super::{OptionItem, PreferencePanelParts, PreferencePanelState, SummaryField};
 
     #[test]
     fn option_item_preserves_label_selection_and_value() {
@@ -105,12 +137,12 @@ mod tests {
 
     #[test]
     fn preference_panel_state_preserves_visibility_text_toggles_and_auxiliary_label() {
-        let panel = PreferencePanelState::new(
-            true,
-            "Default",
-            [true, false, true],
-            Some(String::from("Destination")),
-        );
+        let panel = PreferencePanelState::from_parts(PreferencePanelParts {
+            visible: true,
+            primary_text_value: String::from("Default"),
+            toggles: [true, false, true],
+            auxiliary_label: Some(String::from("Destination")),
+        });
 
         assert!(panel.visible);
         assert_eq!(panel.primary_text_value, "Default");

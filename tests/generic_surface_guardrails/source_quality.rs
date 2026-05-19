@@ -97,6 +97,24 @@ fn editable_tree_rows_use_named_parts_instead_of_boolean_constructor_lists() {
 }
 
 #[test]
+fn preference_panel_state_uses_named_parts_for_projection_fields() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/form.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+
+    assert!(
+        source.contains("pub struct PreferencePanelParts")
+            && source.contains("pub fn from_parts(parts: PreferencePanelParts<TOGGLES>) -> Self"),
+        "preference panel state should expose a named parts object for readable public construction"
+    );
+    assert!(
+        source.contains("Self::from_parts(PreferencePanelParts {"),
+        "the positional compatibility constructor should delegate through the named parts object"
+    );
+}
+
+#[test]
 fn timeline_visualization_state_uses_named_parts_for_large_projection_buckets() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let timeline_dir = manifest_dir.join("src/gui/visualization/timeline");

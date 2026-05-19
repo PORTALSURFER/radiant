@@ -42,6 +42,11 @@ fn prelude_exports_list_selection_controller() {
         title: "Inbox".to_owned(),
         item_count: 42,
     });
+    let metrics = ui::VirtualListStackMetrics::from_parts(ui::VirtualListStackMetricsParts {
+        item_extent: 24.0,
+        item_gap: 4.0,
+        max_viewport_len: Some(6),
+    });
     let mut selection = ui::ListSelectionController::new();
 
     selection.select(1, 4, ui::ListSelectionModifiers::new());
@@ -49,6 +54,8 @@ fn prelude_exports_list_selection_controller() {
 
     assert_eq!(column.title, "Inbox");
     assert_eq!(column.item_count, 42);
+    assert_eq!(metrics.stride(), 28.0);
+    assert_eq!(metrics.max_viewport_len, Some(6));
     assert_eq!(selection.selected_indices(), &[1, 2, 3]);
 }
 

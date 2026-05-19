@@ -12,14 +12,34 @@ pub struct VirtualListStackMetrics {
     pub max_viewport_len: Option<usize>,
 }
 
+/// Named fields for constructing stacked virtual-list metrics.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VirtualListStackMetricsParts {
+    /// Logical item extent on the scrolling axis.
+    pub item_extent: f32,
+    /// Logical gap between adjacent items.
+    pub item_gap: f32,
+    /// Optional cap for visible items in one viewport.
+    pub max_viewport_len: Option<usize>,
+}
+
 impl VirtualListStackMetrics {
+    /// Build normalized stacked-list metrics from named parts.
+    pub fn from_parts(parts: VirtualListStackMetricsParts) -> Self {
+        Self {
+            item_extent: parts.item_extent.max(1.0),
+            item_gap: parts.item_gap.max(0.0),
+            max_viewport_len: parts.max_viewport_len.map(|len| len.max(1)),
+        }
+    }
+
     /// Build normalized stacked-list metrics.
     pub fn new(item_extent: f32, item_gap: f32) -> Self {
-        Self {
-            item_extent: item_extent.max(1.0),
-            item_gap: item_gap.max(0.0),
+        Self::from_parts(VirtualListStackMetricsParts {
+            item_extent,
+            item_gap,
             max_viewport_len: None,
-        }
+        })
     }
 
     /// Apply a maximum viewport length cap.

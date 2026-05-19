@@ -73,8 +73,8 @@ pub mod prelude {
         },
         list::{
             ColumnSummary, ColumnSummaryParts, ListSelectionController, ListSelectionModifiers,
-            VirtualListController, VirtualListWindow, VirtualListWindowRequest,
-            resolve_virtual_list_window,
+            VirtualListController, VirtualListStackMetrics, VirtualListStackMetricsParts,
+            VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window,
         },
         range::IndexViewport,
         shortcuts::{ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution},

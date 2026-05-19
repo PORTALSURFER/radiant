@@ -3,12 +3,13 @@ use super::{
     EditableTreeRowParts, ListSelectionController, ListSelectionModifiers,
     MaterializedVirtualListItem, VirtualGridWindow, VirtualGridWindowRequest,
     VirtualListController, VirtualListInvalidation, VirtualListItemKey, VirtualListItemOverlay,
-    VirtualListItemState, VirtualListScrollbarRequest, VirtualListStackMetrics, VirtualListWindow,
-    VirtualListWindowRequest, resolve_virtual_grid_window, resolve_virtual_list_scrollbar,
-    resolve_virtual_list_window, virtual_list_scroll_delta_from_units,
-    virtual_list_scrollbar_thumb_offset_at_point, virtual_list_scrollbar_view_start_at_point,
-    virtual_list_scrollbar_view_start_for_pointer, virtual_list_stacked_item_at_point,
-    virtual_list_view_start_after_scroll_delta, virtual_list_viewport_len_for_extent,
+    VirtualListItemState, VirtualListScrollbarRequest, VirtualListStackMetrics,
+    VirtualListStackMetricsParts, VirtualListWindow, VirtualListWindowRequest,
+    resolve_virtual_grid_window, resolve_virtual_list_scrollbar, resolve_virtual_list_window,
+    virtual_list_scroll_delta_from_units, virtual_list_scrollbar_thumb_offset_at_point,
+    virtual_list_scrollbar_view_start_at_point, virtual_list_scrollbar_view_start_for_pointer,
+    virtual_list_stacked_item_at_point, virtual_list_view_start_after_scroll_delta,
+    virtual_list_viewport_len_for_extent,
 };
 use crate::gui::types::{Point, Rect};
 
@@ -289,6 +290,20 @@ fn virtual_list_viewport_len_uses_geometry_and_caps_capacity() {
     assert_eq!(virtual_list_viewport_len_for_extent(0.0, metrics), 1);
     assert_eq!(virtual_list_viewport_len_for_extent(139.0, metrics), 5);
     assert_eq!(virtual_list_viewport_len_for_extent(10_000.0, metrics), 6);
+}
+
+#[test]
+fn virtual_list_stack_metrics_support_named_parts_construction() {
+    let metrics = VirtualListStackMetrics::from_parts(VirtualListStackMetricsParts {
+        item_extent: 0.0,
+        item_gap: -4.0,
+        max_viewport_len: Some(0),
+    });
+
+    assert_eq!(metrics.item_extent, 1.0);
+    assert_eq!(metrics.item_gap, 0.0);
+    assert_eq!(metrics.max_viewport_len, Some(1));
+    assert_eq!(metrics.stride(), 1.0);
 }
 
 #[test]

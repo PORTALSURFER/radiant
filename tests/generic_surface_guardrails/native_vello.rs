@@ -37,6 +37,8 @@ fn gui_runtime_public_facade_exports_generic_runtime_entrypoints() {
 #[test]
 fn public_vector_paint_primitives_do_not_expose_vello_path_types() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let gui_svg_source = fs::read_to_string(manifest_dir.join("src/gui/svg.rs"))
+        .expect("generic SVG icon source should be readable");
     let source = fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/path.rs"))
         .expect("vector paint primitive source should be readable");
     let shape_source =
@@ -49,6 +51,10 @@ fn public_vector_paint_primitives_do_not_expose_vello_path_types() {
             "public vector paint primitives should remain backend-neutral; found `{forbidden}`"
         );
     }
+    assert!(
+        !gui_svg_source.contains("vello::kurbo"),
+        "generic SVG icon parsing should not reach through the native Vello facade for geometry"
+    );
     assert!(
         !shape_source.contains("pub struct PaintTransform"),
         "paint shapes should depend on the shared backend-neutral path transform instead of owning it"

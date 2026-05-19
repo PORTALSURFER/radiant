@@ -7,9 +7,7 @@
 use crate::gui::types::Rect;
 use crate::runtime::{PaintPrimitive, PaintSvg, PaintSvgDocument, SvgParseError};
 use crate::widgets::WidgetId;
-use vello::kurbo::{
-    Affine, BezPath, Circle as KurboCircle, Point as KurboPoint, Rect as KurboRect, Shape, Vec2,
-};
+use kurbo::{Affine, BezPath, Circle, Point as KurboPoint, Rect as KurboRect, Shape, Vec2};
 
 /// Retained SVG icon parsed once for backend rendering.
 #[derive(Clone, Debug)]
@@ -155,7 +153,7 @@ fn collect_shapes(
             if !shape_is_filled(node) {
                 return Some(());
             }
-            let circle = KurboCircle::new(
+            let circle = Circle::new(
                 KurboPoint::new(parse_attr_f64(node, "cx")?, parse_attr_f64(node, "cy")?),
                 parse_attr_f64(node, "r")?,
             );

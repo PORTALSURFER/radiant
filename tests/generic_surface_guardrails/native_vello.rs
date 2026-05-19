@@ -39,6 +39,8 @@ fn public_vector_paint_primitives_do_not_expose_vello_path_types() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let gui_svg_source = fs::read_to_string(manifest_dir.join("src/gui/svg.rs"))
         .expect("generic SVG icon source should be readable");
+    let gui_svg_parser = fs::read_to_string(manifest_dir.join("src/gui/svg/parser.rs"))
+        .expect("generic SVG parser source should be readable");
     let source = fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/path.rs"))
         .expect("vector paint primitive source should be readable");
     let shape_source =
@@ -52,7 +54,7 @@ fn public_vector_paint_primitives_do_not_expose_vello_path_types() {
         );
     }
     assert!(
-        !gui_svg_source.contains("vello::kurbo"),
+        !gui_svg_source.contains("vello::kurbo") && !gui_svg_parser.contains("vello::kurbo"),
         "generic SVG icon parsing should not reach through the native Vello facade for geometry"
     );
     assert!(
@@ -69,6 +71,58 @@ fn public_vector_paint_primitives_do_not_expose_vello_path_types() {
             "public vector paint primitives should expose backend-neutral `{required}`"
         );
     }
+}
+
+#[test]
+fn gui_svg_keeps_icon_parser_model_and_hit_testing_in_focused_modules() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/gui/svg.rs"))
+        .expect("generic SVG module should be readable");
+    let icon = fs::read_to_string(manifest_dir.join("src/gui/svg/icon.rs"))
+        .expect("generic SVG icon module should be readable");
+    let model = fs::read_to_string(manifest_dir.join("src/gui/svg/model.rs"))
+        .expect("generic SVG model module should be readable");
+    let parser = fs::read_to_string(manifest_dir.join("src/gui/svg/parser.rs"))
+        .expect("generic SVG parser module should be readable");
+    let hit_test = fs::read_to_string(manifest_dir.join("src/gui/svg/hit_test.rs"))
+        .expect("generic SVG hit-test module should be readable");
+
+    for required in [
+        "mod hit_test;",
+        "mod icon;",
+        "mod model;",
+        "mod parser;",
+        "pub use hit_test::point_in_svg_shapes;",
+        "pub use icon::SvgIcon;",
+        "pub use model::{SvgDocument, SvgShape};",
+        "pub use parser::parse_svg_document;",
+    ] {
+        assert!(
+            root.contains(required),
+            "generic SVG root should keep public API re-exports while delegating `{required}`"
+        );
+    }
+    assert!(
+        icon.contains("pub struct SvgIcon") && icon.contains("PaintSvgDocument::try_from_svg"),
+        "SVG icon retained-paint wrapper should live in the icon module"
+    );
+    assert!(
+        model.contains("pub struct SvgDocument")
+            && model.contains("pub struct SvgShape")
+            && model.contains("enum SvgFillRule"),
+        "SVG parsed document and shape state should live in the model module"
+    );
+    assert!(
+        parser.contains("pub fn parse_svg_document")
+            && parser.contains("fn collect_shapes")
+            && parser.contains("fn parse_transform_list"),
+        "SVG subset parsing should live in the parser module"
+    );
+    assert!(
+        hit_test.contains("pub fn point_in_svg_shapes")
+            && hit_test.contains("fn point_in_svg_shape"),
+        "SVG shape hit-testing should live in the hit-test module"
+    );
 }
 
 #[test]

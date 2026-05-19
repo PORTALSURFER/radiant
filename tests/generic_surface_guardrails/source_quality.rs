@@ -612,6 +612,32 @@ fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
 }
 
 #[test]
+fn runtime_bridge_app_contract_stays_in_focused_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bridge = fs::read_to_string(manifest_dir.join("src/runtime/bridge.rs"))
+        .expect("runtime bridge module should be readable");
+    let app = fs::read_to_string(manifest_dir.join("src/runtime/bridge/app.rs"))
+        .expect("runtime bridge app contract module should be readable");
+    let contract = fs::read_to_string(manifest_dir.join("src/runtime/bridge/contract.rs"))
+        .expect("runtime bridge contract module should be readable");
+    let runtime =
+        fs::read_to_string(manifest_dir.join("src/runtime/mod.rs")).expect("runtime module");
+
+    assert!(
+        bridge.contains("mod app;")
+            && bridge.contains("pub use app::App;")
+            && runtime.contains("App,"),
+        "runtime bridge root should publicly re-export the focused App contract"
+    );
+    assert!(
+        app.contains("pub trait App<Message>: RuntimeBridge<Message>")
+            && app.contains("impl<Bridge, Message> App<Message> for Bridge where Bridge: RuntimeBridge<Message> {}")
+            && !contract.contains("pub trait App<Message>"),
+        "the public App marker contract should stay in runtime/bridge/app.rs"
+    );
+}
+
+#[test]
 fn declarative_runtime_bridges_use_named_parts_for_host_closures() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let message =

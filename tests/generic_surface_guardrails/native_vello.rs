@@ -485,6 +485,34 @@ fn native_surface_texture_acquire_stays_with_surface_lifecycle() {
 }
 
 #[test]
+fn native_surface_backend_policy_stays_in_focused_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let surface = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/surface.rs"),
+    )
+    .expect("surface lifecycle module should be readable");
+    let backend = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/surface/backend.rs"),
+    )
+    .expect("surface backend policy module should be readable");
+
+    assert!(
+        surface.contains("mod backend;")
+            && surface.contains("render_context_for_options(&self.options)")
+            && !surface.contains("fn wgpu_backends")
+            && !surface.contains("InstanceDescriptor"),
+        "surface lifecycle should delegate explicit WGPU backend policy"
+    );
+    assert!(
+        backend.contains("fn render_context_for_options")
+            && backend.contains("fn wgpu_backends")
+            && backend.contains("NativeGpuBackend::Auto")
+            && backend.contains("wgpu::InstanceDescriptor"),
+        "WGPU backend selection and render-context construction should live in surface/backend.rs"
+    );
+}
+
+#[test]
 fn native_vello_present_diagnostics_stay_in_focused_module() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let present = fs::read_to_string(

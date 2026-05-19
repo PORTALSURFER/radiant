@@ -1,5 +1,6 @@
 //! Reusable horizontal slider primitive.
 
+mod builders;
 mod geometry;
 mod input;
 mod model;
@@ -7,7 +8,7 @@ mod paint;
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
+use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 
 use super::support::{WidgetCommon, clamp_fraction};
@@ -116,88 +117,6 @@ impl Widget for SliderWidget {
     }
 }
 
-impl<Message> WidgetMessageMapper<Message> {
-    /// Build a slider-message mapper.
-    pub fn slider(map: impl Fn(SliderMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::typed(map)
-    }
-}
-
-impl<Message> SurfaceNode<Message> {
-    /// Build a slider leaf that maps value changes by normalized value.
-    pub fn slider(
-        id: WidgetId,
-        value: f32,
-        sizing: WidgetSizing,
-        map: impl Fn(f32) -> Message + Send + Sync + 'static,
-    ) -> Self {
-        Self::slider_mapped(id, value, sizing, move |message| match message {
-            SliderMessage::ValueChanged { value } => map(value),
-        })
-    }
-
-    /// Build a slider leaf with a custom widget-to-host message mapper.
-    pub fn slider_mapped(
-        id: WidgetId,
-        value: f32,
-        sizing: WidgetSizing,
-        map: impl Fn(SliderMessage) -> Message + Send + Sync + 'static,
-    ) -> Self {
-        Self::widget(
-            SliderWidget::new(id, value, sizing),
-            WidgetMessageMapper::slider(map),
-        )
-    }
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::gui::types::{Point, Vector2};
-    use crate::widgets::interaction::{PointerButton, WidgetKey};
-
-    #[test]
-    fn slider_pointer_drag_emits_clamped_values() {
-        let mut slider = SliderWidget::new(9, 0.25, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
-        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 28.0));
-
-        assert_eq!(
-            slider.handle_input(
-                bounds,
-                WidgetInput::PointerPress {
-                    position: Point::new(60.0, 14.0),
-                    button: PointerButton::Primary,
-                    modifiers: Default::default(),
-                },
-            ),
-            Some(SliderMessage::ValueChanged { value: 0.5 })
-        );
-        assert_eq!(
-            slider.handle_input(
-                bounds,
-                WidgetInput::PointerMove {
-                    position: Point::new(180.0, 14.0),
-                },
-            ),
-            Some(SliderMessage::ValueChanged { value: 1.0 })
-        );
-    }
-
-    #[test]
-    fn focused_slider_responds_to_keyboard_steps() {
-        let mut slider = SliderWidget::new(10, 0.5, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
-
-        let _ = slider.handle_input(Rect::default(), WidgetInput::FocusChanged(true));
-        let Some(SliderMessage::ValueChanged { value }) = slider.handle_input(
-            Rect::default(),
-            WidgetInput::KeyPress(WidgetKey::ArrowRight),
-        ) else {
-            panic!("focused slider should emit an arrow-key change");
-        };
-        assert!((value - 0.55).abs() < f32::EPSILON);
-        assert_eq!(
-            slider.handle_input(Rect::default(), WidgetInput::KeyPress(WidgetKey::Home)),
-            Some(SliderMessage::ValueChanged { value: 0.0 })
-        );
-    }
-}
+#[path = "slider/tests.rs"]
+mod tests;

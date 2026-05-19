@@ -2020,6 +2020,29 @@ fn icon_button_primitive_keeps_surface_mappers_focused() {
 }
 
 #[test]
+fn interactive_row_primitive_keeps_surface_mappers_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/interactive_row.rs"))
+        .expect("interactive-row primitive root should be readable");
+    let builders =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/interactive_row/builders.rs"))
+            .expect("interactive-row primitive builders should be readable");
+
+    assert!(
+        root.contains("mod builders;")
+            && root.contains("pub struct InteractiveRowWidget")
+            && root.contains("impl Widget for InteractiveRowWidget")
+            && !root.contains("impl<Message> WidgetMessageMapper<Message>"),
+        "interactive-row primitive root should own widget behavior and delegate runtime mappers"
+    );
+    assert!(
+        builders.contains("impl<Message> WidgetMessageMapper<Message>")
+            && builders.contains("pub fn interactive_row("),
+        "interactive-row runtime mapper helper should live in interactive_row/builders.rs"
+    );
+}
+
+#[test]
 fn list_item_primitive_keeps_surface_builders_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/list_item.rs"))

@@ -2,13 +2,15 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, WidgetMessageMapper};
+use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{
     DragHandleMessage, InteractiveRowMessage, PointerButton, WidgetInput, WidgetKey, WidgetOutput,
 };
 use crate::widgets::primitives::support::{WidgetCommon, push_control_chrome};
+
+mod builders;
 
 /// Public interactive row primitive for selectable, draggable, droppable rows.
 #[derive(Clone, Debug, PartialEq)]
@@ -189,14 +191,5 @@ impl Widget for InteractiveRowWidget {
         if self.common.paint.paints_state_layers {
             push_control_chrome(primitives, &self.common, bounds, theme);
         }
-    }
-}
-
-impl<Message> WidgetMessageMapper<Message> {
-    /// Build an interactive-row message mapper.
-    pub fn interactive_row(
-        map: impl Fn(InteractiveRowMessage) -> Message + Send + Sync + 'static,
-    ) -> Self {
-        Self::typed(map)
     }
 }

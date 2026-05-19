@@ -318,6 +318,18 @@ not maintain a closed widget catalog. Widget primitives such as `ButtonWidget`,
 `CanvasWidget`, and `ListItemWidget` describe reusable UI behavior without
 host-domain semantics.
 
+Explicit widget construction should prefer named parts when multiple public
+fields define identity, content, state, or sizing. Each built-in primitive
+exports a `*WidgetParts` type, such as `ButtonWidgetParts`, `TextWidgetParts`,
+`SliderWidgetParts`, `CanvasWidgetParts`, and `ImageWidgetParts`, plus
+`WidgetSizingParts` for explicit sizing. The positional `new(...)` constructors
+remain as compact compatibility helpers, but `from_parts(...)` is the clearest
+shape for examples, tests, and host code where several semantic values appear
+next to each other. This keeps the explicit widget API aligned with the
+declarative builder model: stable IDs, content, state, and layout contracts are
+named at the construction boundary instead of being inferred from argument
+order.
+
 Single-line text editing is split between reusable state and widget routing:
 `TextInputState` owns the portable value, caret, and selection model, while
 `TextInputWidget` adapts that model to `WidgetInput` and emits

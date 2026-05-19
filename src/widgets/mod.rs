@@ -20,19 +20,19 @@
 //!         ContainerKind, ContainerPolicy, LayoutNode, Point, Rect, SlotChild, SlotParams,
 //!         Vector2, layout_tree,
 //!     },
-//!     widgets::{ButtonWidget, TextWidget, WidgetSizing},
+//!     widgets::{ButtonWidget, ButtonWidgetParts, TextWidget, TextWidgetParts, WidgetSizing},
 //! };
 //!
-//! let title = TextWidget::new(
-//!     10,
-//!     "Items",
-//!     WidgetSizing::fixed(Vector2::new(80.0, 20.0)).with_baseline(14.0),
-//! );
-//! let add_button = ButtonWidget::new(
-//!     11,
-//!     "Import",
-//!     WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
-//! );
+//! let title = TextWidget::from_parts(TextWidgetParts {
+//!     id: 10,
+//!     text: "Items".into(),
+//!     sizing: WidgetSizing::fixed(Vector2::new(80.0, 20.0)).with_baseline(14.0),
+//! });
+//! let add_button = ButtonWidget::from_parts(ButtonWidgetParts {
+//!     id: 11,
+//!     label: "Import".into(),
+//!     sizing: WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+//! });
 //!
 //! let layout = LayoutNode::container(
 //!     1,

@@ -4,6 +4,17 @@ use crate::{
 };
 use std::sync::Arc;
 
+/// Named construction inputs for a generic inspector/property row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PropertyRowParts {
+    /// Stable caller-owned row id.
+    pub id: String,
+    /// Property label shown in the leading column.
+    pub label: String,
+    /// Property value shown in the trailing column.
+    pub value: String,
+}
+
 /// One row in a generic inspector/property panel.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PropertyRow {
@@ -18,14 +29,23 @@ pub struct PropertyRow {
 }
 
 impl PropertyRow {
+    /// Build one property row from named construction inputs.
+    pub fn from_parts(parts: PropertyRowParts) -> Self {
+        Self {
+            id: parts.id,
+            label: parts.label,
+            value: parts.value,
+            selected: false,
+        }
+    }
+
     /// Build one property row.
     pub fn new(id: impl ToString, label: impl Into<String>, value: impl Into<String>) -> Self {
-        Self {
+        Self::from_parts(PropertyRowParts {
             id: id.to_string(),
             label: label.into(),
             value: value.into(),
-            selected: false,
-        }
+        })
     }
 
     /// Mark the row as selected.

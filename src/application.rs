@@ -45,7 +45,9 @@ pub use details_list::{
     sortable_details_list,
 };
 mod property_panel;
-pub use property_panel::{PropertyRow, property_panel, selectable_property_panel};
+pub use property_panel::{
+    PropertyRow, PropertyRowParts, property_panel, selectable_property_panel,
+};
 mod menu;
 pub use menu::{MenuItem, context_menu_overlay, menu};
 mod retained_canvas;

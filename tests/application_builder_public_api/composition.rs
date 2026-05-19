@@ -65,6 +65,23 @@ fn application_builder_property_panel_read_only_rows_do_not_join_focus_order() {
 }
 
 #[test]
+fn property_rows_support_named_parts_construction() {
+    use radiant::prelude as ui;
+
+    let from_parts = ui::PropertyRow::from_parts(ui::PropertyRowParts {
+        id: String::from("kind"),
+        label: String::from("Kind"),
+        value: String::from("Signal track"),
+    })
+    .selected(true);
+
+    let positional = ui::PropertyRow::new("kind", "Kind", "Signal track").selected(true);
+
+    assert_eq!(from_parts, positional);
+    assert!(from_parts.selected);
+}
+
+#[test]
 fn application_builder_context_menu_overlay_routes_items() {
     use radiant::prelude as ui;
 

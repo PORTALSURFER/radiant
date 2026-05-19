@@ -142,6 +142,28 @@ fn normalized_ranges_use_named_parts_for_milli_bounds() {
 }
 
 #[test]
+fn normalized_viewports_use_named_parts_for_precision_bounds() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/range/viewport.rs");
+    let module_path = manifest_dir.join("src/gui/range.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let module = fs::read_to_string(&module_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", module_path.display()));
+
+    assert!(
+        source.contains("pub struct NormalizedViewportParts")
+            && source.contains("pub fn from_parts(parts: NormalizedViewportParts) -> Self"),
+        "normalized viewports should expose named parts for micro and optional nano bounds"
+    );
+    assert!(
+        source.contains("Self::from_parts(NormalizedViewportParts {")
+            && module.contains("NormalizedViewportParts"),
+        "normalized viewport compatibility constructor and range export should keep the named-parts path available"
+    );
+}
+
+#[test]
 fn preference_panel_state_uses_named_parts_for_projection_fields() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/form.rs");

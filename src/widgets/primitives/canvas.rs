@@ -23,6 +23,15 @@ pub struct CanvasWidget {
     pub retained: Option<RetainedSurfaceDescriptor>,
 }
 
+/// Named construction fields for [`CanvasWidget`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct CanvasWidgetParts {
+    /// Stable widget identity used by layout, events, and state synchronization.
+    pub id: WidgetId,
+    /// Intrinsic canvas sizing contract.
+    pub sizing: WidgetSizing,
+}
+
 /// Product-neutral metadata for a host-retained custom surface.
 ///
 /// The descriptor lets a host attach stable cache identity, revision, and dirty
@@ -43,9 +52,9 @@ pub struct RetainedSurfaceDescriptor {
 }
 
 impl CanvasWidget {
-    /// Build a canvas descriptor for custom paint and routed pointer/keyboard input.
-    pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
+    /// Build a canvas descriptor from named identity and sizing fields.
+    pub fn from_parts(parts: CanvasWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.focus = FocusBehavior::Keyboard;
         common.paint.bounds = PaintBounds::AllowOverflow;
         common.paint.paints_state_layers = false;
@@ -57,6 +66,11 @@ impl CanvasWidget {
             common,
             retained: None,
         }
+    }
+
+    /// Build a canvas descriptor for custom paint and routed pointer/keyboard input.
+    pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
+        Self::from_parts(CanvasWidgetParts { id, sizing })
     }
 
     /// Attach retained-surface metadata to this custom canvas.

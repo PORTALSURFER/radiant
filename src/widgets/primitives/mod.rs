@@ -20,13 +20,13 @@ mod toggle;
 
 pub use badge::{BadgeProps, BadgeState, BadgeWidget, BadgeWidgetParts};
 pub use button::{ButtonProps, ButtonState, ButtonWidget, ButtonWidgetParts};
-pub use canvas::{CanvasWidget, RetainedSurfaceDescriptor};
-pub use card::CardWidget;
-pub use drag_handle::DragHandleWidget;
+pub use canvas::{CanvasWidget, CanvasWidgetParts, RetainedSurfaceDescriptor};
+pub use card::{CardWidget, CardWidgetParts};
+pub use drag_handle::{DragHandleWidget, DragHandleWidgetParts};
 pub use gpu_surface::{GpuSurfaceParts, GpuSurfaceWidget};
 pub use icon_button::{IconButtonWidget, IconButtonWidgetParts};
 pub use image::{ImageProps, ImageWidget, ImageWidgetParts};
-pub use interactive_row::{InteractiveRowProps, InteractiveRowWidget};
+pub use interactive_row::{InteractiveRowProps, InteractiveRowWidget, InteractiveRowWidgetParts};
 pub use list_item::{ListItemWidget, ListItemWidgetParts};
 pub use scrollbar::{
     ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget, ScrollbarWidgetParts,

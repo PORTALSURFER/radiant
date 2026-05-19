@@ -19,12 +19,26 @@ pub struct DragHandleWidget {
     pub common: WidgetCommon,
 }
 
+/// Named construction fields for [`DragHandleWidget`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct DragHandleWidgetParts {
+    /// Stable widget identity used by layout, events, and state synchronization.
+    pub id: WidgetId,
+    /// Intrinsic drag-handle sizing contract.
+    pub sizing: WidgetSizing,
+}
+
 impl DragHandleWidget {
-    /// Build a compact handle that emits drag lifecycle messages.
-    pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
+    /// Build a compact handle from named identity and sizing fields.
+    pub fn from_parts(parts: DragHandleWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.focus = FocusBehavior::Pointer;
         Self { common }
+    }
+
+    /// Build a compact handle that emits drag lifecycle messages.
+    pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
+        Self::from_parts(DragHandleWidgetParts { id, sizing })
     }
 
     /// Route one backend-neutral interaction into the handle.

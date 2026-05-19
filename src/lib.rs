@@ -98,9 +98,10 @@ pub mod prelude {
         PaintSvgDocument, PaintTextAlign, PaintTextRun, PaintTransform, PlatformCompletion,
         PlatformRequest, PlatformResponse, PlatformServiceFallback, RepaintScope,
         ResourceCompletion, ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest,
-        ResourceSlot, RetainedSurfaceCachePolicy, RuntimeRunReport, ScrollUpdate, SurfaceFrame,
-        SurfacePaintPlan, SvgParseError, TransientOverlayContext, WindowManifest,
-        WindowManifestError, WindowSpec, WindowSpecError, WindowSpecParts,
+        ResourceSlot, RetainedSurfaceCachePolicy, RuntimeRunReport, ScrollFixedRowIntoViewParts,
+        ScrollIntoViewParts, ScrollUpdate, SurfaceFrame, SurfacePaintPlan, SvgParseError,
+        TransientOverlayContext, WindowManifest, WindowManifestError, WindowSpec, WindowSpecError,
+        WindowSpecParts,
     };
     pub use crate::theme::ThemeTokens;
     pub use crate::widgets::{

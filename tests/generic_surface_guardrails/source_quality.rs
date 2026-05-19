@@ -532,6 +532,48 @@ fn declarative_runtime_bridges_use_named_parts_for_host_closures() {
 }
 
 #[test]
+fn scroll_commands_use_named_parts_for_reveal_requests() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let command = fs::read_to_string(manifest_dir.join("src/runtime/command.rs"))
+        .expect("runtime command module should be readable");
+    let constructors = fs::read_to_string(manifest_dir.join("src/runtime/command/constructors.rs"))
+        .expect("runtime command constructors should be readable");
+    let update_context =
+        fs::read_to_string(manifest_dir.join("src/application/runtime/update_context.rs"))
+            .expect("application update context should be readable");
+    let runtime =
+        fs::read_to_string(manifest_dir.join("src/runtime/mod.rs")).expect("runtime module");
+    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
+        .expect("library module should be readable");
+
+    assert!(
+        command.contains("pub struct ScrollIntoViewParts")
+            && command.contains("pub struct ScrollFixedRowIntoViewParts"),
+        "scroll reveal commands should expose named request parts"
+    );
+    assert!(
+        constructors.contains(
+            "pub const fn scroll_into_view_from_parts(parts: ScrollIntoViewParts) -> Self"
+        ) && constructors.contains("pub const fn scroll_fixed_row_into_view_from_parts")
+            && constructors.contains("Self::scroll_into_view_from_parts(ScrollIntoViewParts {")
+            && constructors.contains(
+                "Self::scroll_fixed_row_into_view_from_parts(ScrollFixedRowIntoViewParts {"
+            ),
+        "positional scroll command constructors should delegate through named request parts"
+    );
+    assert!(
+        update_context
+            .contains("pub fn scroll_into_view_from_parts(&mut self, parts: ScrollIntoViewParts)")
+            && update_context.contains("pub fn scroll_fixed_row_into_view_from_parts")
+            && runtime.contains("ScrollIntoViewParts")
+            && runtime.contains("ScrollFixedRowIntoViewParts")
+            && lib.contains("ScrollIntoViewParts")
+            && lib.contains("ScrollFixedRowIntoViewParts"),
+        "scroll reveal named request parts should be available through runtime and prelude paths"
+    );
+}
+
+#[test]
 fn gpu_surface_widget_uses_named_parts_for_retained_resource_identity() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/widgets/primitives/gpu_surface.rs");

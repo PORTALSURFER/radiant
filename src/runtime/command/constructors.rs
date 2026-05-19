@@ -4,6 +4,7 @@ use crate::{
     layout::NodeId,
     runtime::{
         ExternalDragOutcome, ExternalDragRequest, PlatformRequest, PlatformResponse, RepaintScope,
+        ScrollFixedRowIntoViewParts, ScrollIntoViewParts,
     },
     widgets::WidgetId,
 };
@@ -99,13 +100,25 @@ impl<Message> Command<Message> {
         margin_top: f32,
         margin_bottom: f32,
     ) -> Self {
-        Self::ScrollIntoView {
+        Self::scroll_into_view_from_parts(ScrollIntoViewParts {
             node_id,
             target_y,
             target_height,
             margin_top,
             margin_bottom,
             snap_y: None,
+        })
+    }
+
+    /// Build a command that reveals a vertical span from named parts.
+    pub const fn scroll_into_view_from_parts(parts: ScrollIntoViewParts) -> Self {
+        Self::ScrollIntoView {
+            node_id: parts.node_id,
+            target_y: parts.target_y,
+            target_height: parts.target_height,
+            margin_top: parts.margin_top,
+            margin_bottom: parts.margin_bottom,
+            snap_y: parts.snap_y,
         }
     }
 
@@ -118,14 +131,14 @@ impl<Message> Command<Message> {
         margin_bottom: f32,
         snap_y: f32,
     ) -> Self {
-        Self::ScrollIntoView {
+        Self::scroll_into_view_from_parts(ScrollIntoViewParts {
             node_id,
             target_y,
             target_height,
             margin_top,
             margin_bottom,
             snap_y: Some(snap_y),
-        }
+        })
     }
 
     /// Build a command that reveals a fixed-stride row with directional context rows.
@@ -137,13 +150,25 @@ impl<Message> Command<Message> {
         trailing_context_rows: usize,
         direction: i32,
     ) -> Self {
-        Self::ScrollFixedRowIntoView {
+        Self::scroll_fixed_row_into_view_from_parts(ScrollFixedRowIntoViewParts {
             node_id,
             row_index,
             row_stride,
             leading_context_rows,
             trailing_context_rows,
             direction,
+        })
+    }
+
+    /// Build a command that reveals a fixed-stride row from named parts.
+    pub const fn scroll_fixed_row_into_view_from_parts(parts: ScrollFixedRowIntoViewParts) -> Self {
+        Self::ScrollFixedRowIntoView {
+            node_id: parts.node_id,
+            row_index: parts.row_index,
+            row_stride: parts.row_stride,
+            leading_context_rows: parts.leading_context_rows,
+            trailing_context_rows: parts.trailing_context_rows,
+            direction: parts.direction,
         }
     }
 

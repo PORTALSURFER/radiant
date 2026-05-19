@@ -2,7 +2,7 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
+use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
@@ -12,6 +12,7 @@ use crate::widgets::contract::{
 };
 use crate::widgets::interaction::{CanvasMessage, WidgetInput, WidgetOutput};
 
+mod builders;
 mod paint;
 
 /// Public canvas/custom-paint primitive.
@@ -110,44 +111,5 @@ impl Widget for CanvasWidget {
         _theme: &ThemeTokens,
     ) {
         paint::push_canvas_widget_paint(primitives, self, bounds);
-    }
-}
-
-impl<Message> WidgetMessageMapper<Message> {
-    /// Build a canvas-message mapper.
-    pub fn canvas(map: impl Fn(CanvasMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::typed(map)
-    }
-}
-
-impl<Message> SurfaceNode<Message> {
-    /// Build a non-emitting canvas leaf node for custom paint or routed input surfaces.
-    pub fn canvas(id: WidgetId, sizing: WidgetSizing) -> Self {
-        Self::static_widget(CanvasWidget::new(id, sizing))
-    }
-
-    /// Build a canvas leaf node with a custom widget-to-host message mapper.
-    pub fn canvas_mapped(
-        id: WidgetId,
-        sizing: WidgetSizing,
-        map: impl Fn(CanvasMessage) -> Message + Send + Sync + 'static,
-    ) -> Self {
-        Self::widget(
-            CanvasWidget::new(id, sizing),
-            WidgetMessageMapper::canvas(map),
-        )
-    }
-
-    /// Build a custom canvas with retained-surface metadata and a host-message mapper.
-    pub fn retained_canvas_mapped(
-        id: WidgetId,
-        sizing: WidgetSizing,
-        retained: RetainedSurfaceDescriptor,
-        map: impl Fn(CanvasMessage) -> Message + Send + Sync + 'static,
-    ) -> Self {
-        Self::widget(
-            CanvasWidget::new(id, sizing).with_retained_surface(retained),
-            WidgetMessageMapper::canvas(map),
-        )
     }
 }

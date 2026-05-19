@@ -541,6 +541,9 @@ fn scroll_commands_use_named_parts_for_reveal_requests() {
     let update_context =
         fs::read_to_string(manifest_dir.join("src/application/runtime/update_context.rs"))
             .expect("application update context should be readable");
+    let update_context_surface =
+        fs::read_to_string(manifest_dir.join("src/application/runtime/update_context/surface.rs"))
+            .expect("application update context surface helpers should be readable");
     let runtime =
         fs::read_to_string(manifest_dir.join("src/runtime/mod.rs")).expect("runtime module");
     let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
@@ -562,14 +565,78 @@ fn scroll_commands_use_named_parts_for_reveal_requests() {
         "positional scroll command constructors should delegate through named request parts"
     );
     assert!(
-        update_context
-            .contains("pub fn scroll_into_view_from_parts(&mut self, parts: ScrollIntoViewParts)")
-            && update_context.contains("pub fn scroll_fixed_row_into_view_from_parts")
+        update_context.contains("mod surface;")
+            && update_context_surface.contains(
+                "pub fn scroll_into_view_from_parts(&mut self, parts: ScrollIntoViewParts)"
+            )
+            && update_context_surface.contains("pub fn scroll_fixed_row_into_view_from_parts")
             && runtime.contains("ScrollIntoViewParts")
             && runtime.contains("ScrollFixedRowIntoViewParts")
             && lib.contains("ScrollIntoViewParts")
             && lib.contains("ScrollFixedRowIntoViewParts"),
         "scroll reveal named request parts should be available through runtime and prelude paths"
+    );
+}
+
+#[test]
+fn update_context_keeps_followup_command_groups_in_focused_modules() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/application/runtime/update_context.rs"))
+        .expect("application update context root should be readable");
+    let commands =
+        fs::read_to_string(manifest_dir.join("src/application/runtime/update_context/commands.rs"))
+            .expect("application update context command helpers should be readable");
+    let platform =
+        fs::read_to_string(manifest_dir.join("src/application/runtime/update_context/platform.rs"))
+            .expect("application update context platform helpers should be readable");
+    let tasks =
+        fs::read_to_string(manifest_dir.join("src/application/runtime/update_context/tasks.rs"))
+            .expect("application update context task helpers should be readable");
+    let surface =
+        fs::read_to_string(manifest_dir.join("src/application/runtime/update_context/surface.rs"))
+            .expect("application update context surface helpers should be readable");
+
+    for required in [
+        "mod commands;",
+        "mod platform;",
+        "mod surface;",
+        "mod tasks;",
+        "pub struct UpdateContext<Message>",
+        "fn into_command(self) -> Command<Message>",
+    ] {
+        assert!(
+            root.contains(required),
+            "update context root should own the queue and delegate `{required}`"
+        );
+    }
+    assert!(
+        commands.contains("pub fn request_repaint")
+            && commands.contains("pub fn request_paint_only")
+            && commands.contains("pub fn repaint")
+            && commands.contains("pub fn after")
+            && commands.contains("pub fn exit"),
+        "basic command and repaint helpers should live in update_context/commands.rs"
+    );
+    assert!(
+        platform.contains("pub fn begin_external_drag")
+            && platform.contains("pub fn platform_request")
+            && platform.contains("pub fn pick_folder")
+            && platform.contains("pub fn confirm"),
+        "platform and external-drag helpers should live in update_context/platform.rs"
+    );
+    assert!(
+        tasks.contains("pub fn spawn<Output>")
+            && tasks.contains("pub fn spawn_cancellable")
+            && tasks.contains("pub fn spawn_latest")
+            && tasks.contains("pub fn spawn_resource"),
+        "runtime task and resource helpers should live in update_context/tasks.rs"
+    );
+    assert!(
+        surface.contains("pub fn focus")
+            && surface.contains("pub fn scroll_to")
+            && surface.contains("pub fn scroll_into_view_from_parts")
+            && surface.contains("pub fn scroll_fixed_row_into_view_from_parts"),
+        "focus and scroll helpers should live in update_context/surface.rs"
     );
 }
 
@@ -584,9 +651,9 @@ fn resource_completions_use_named_parts_for_request_results() {
         fs::read_to_string(manifest_dir.join("src/runtime/mod.rs")).expect("runtime module");
     let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
         .expect("library module should be readable");
-    let update_context =
-        fs::read_to_string(manifest_dir.join("src/application/runtime/update_context.rs"))
-            .expect("application update context should be readable");
+    let update_context_tasks =
+        fs::read_to_string(manifest_dir.join("src/application/runtime/update_context/tasks.rs"))
+            .expect("application update context task helpers should be readable");
 
     assert!(
         source.contains("pub struct ResourceCompletionParts")
@@ -596,7 +663,7 @@ fn resource_completions_use_named_parts_for_request_results() {
     );
     assert!(
         source.contains("ResourceCompletion::from_parts(ResourceCompletionParts {")
-            && update_context.contains(
+            && update_context_tasks.contains(
                 "ResourceCompletion::from_parts(ResourceCompletionParts { request, load })"
             ),
         "resource completion mapping and spawn helpers should use the named-parts construction path"

@@ -1,4 +1,5 @@
 use crate::gui_runtime::native_vello::*;
+use kurbo::Rect as KurboRect;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_svg(
     scene: &mut Scene,
@@ -25,7 +26,7 @@ fn svg_transform(
     rect: UiRect,
     document_width: f32,
     document_height: f32,
-) -> Option<(Affine, vello::kurbo::Rect)> {
+) -> Option<(Affine, KurboRect)> {
     if !rect.has_finite_positive_area()
         || !document_width.is_finite()
         || !document_height.is_finite()
@@ -42,7 +43,7 @@ fn svg_transform(
     Some((
         Affine::translate((rect.min.x as f64, rect.min.y as f64))
             * Affine::scale_non_uniform(scale_x, scale_y),
-        vello::kurbo::Rect::new(0.0, 0.0, width as f64, height as f64),
+        KurboRect::new(0.0, 0.0, width as f64, height as f64),
     ))
 }
 

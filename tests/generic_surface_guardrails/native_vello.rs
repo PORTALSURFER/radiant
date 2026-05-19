@@ -531,6 +531,28 @@ fn native_vello_plain_text_encoding_stays_in_focused_module() {
 }
 
 #[test]
+fn native_vello_scene_geometry_uses_explicit_kurbo_dependency() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let shape = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene/shape.rs"),
+    )
+    .expect("native Vello shape encoder should be readable");
+    let svg = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene/svg.rs"),
+    )
+    .expect("native Vello SVG encoder should be readable");
+
+    assert!(
+        shape.contains("use kurbo::Stroke;") && !shape.contains("vello::kurbo::Stroke"),
+        "shape scene encoding should use Radiant's explicit kurbo dependency for stroke geometry"
+    );
+    assert!(
+        svg.contains("use kurbo::Rect as KurboRect;") && !svg.contains("vello::kurbo::Rect"),
+        "SVG scene encoding should use Radiant's explicit kurbo dependency for source bounds"
+    );
+}
+
+#[test]
 fn native_text_input_rendering_keeps_utf8_clamping_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module = fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/text_edit.rs"))

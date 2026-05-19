@@ -106,8 +106,8 @@ pub mod prelude {
         InteractiveRowMessage, InteractiveRowWidget, PointerButton, ScrollbarAxis,
         ScrollbarMessage, SliderMessage, SliderWidget, TextAlign, TextInputEditResult,
         TextInputState, TextWrap, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput,
-        WidgetProminence, WidgetSizing, WidgetState, WidgetStyle, WidgetTone, WidgetVisualTokens,
-        resolve_widget_visual_tokens,
+        WidgetProminence, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone,
+        WidgetVisualTokens, resolve_widget_visual_tokens,
     };
 }
 

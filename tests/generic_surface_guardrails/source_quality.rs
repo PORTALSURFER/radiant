@@ -1424,6 +1424,15 @@ fn progress_feedback_keeps_overlay_state_and_track_geometry_focused() {
         .expect("progress overlay module should be readable");
     let track = fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track.rs"))
         .expect("progress track module should be readable");
+    let progress_track =
+        fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track/progress.rs"))
+            .expect("progress track geometry module should be readable");
+    let meter_track =
+        fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track/meter.rs"))
+            .expect("progress meter geometry module should be readable");
+    let sanitize =
+        fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track/sanitize.rs"))
+            .expect("progress track sanitizer module should be readable");
     let feedback = fs::read_to_string(manifest_dir.join("src/gui/feedback.rs"))
         .expect("feedback module should be readable");
 
@@ -1450,10 +1459,31 @@ fn progress_feedback_keeps_overlay_state_and_track_geometry_focused() {
         "progress overlay state should live in progress/overlay.rs"
     );
     assert!(
-        track.contains("pub fn horizontal_progress_fill_rect")
-            && track.contains("pub fn horizontal_progress_activity_rect")
-            && track.contains("pub fn horizontal_meter_fill_rect"),
-        "progress track and meter geometry should live in progress/track.rs"
+        track.contains("mod meter;")
+            && track.contains("mod progress;")
+            && track.contains("mod sanitize;")
+            && track.contains(
+                "pub use meter::{horizontal_discrete_meter_fill_rect, horizontal_meter_fill_rect};"
+            )
+            && track.contains("pub use progress::{")
+            && !track.contains("pub fn horizontal_progress_fill_rect")
+            && !track.contains("pub fn horizontal_meter_fill_rect"),
+        "progress track root should re-export focused geometry modules without owning implementation"
+    );
+    assert!(
+        progress_track.contains("pub fn horizontal_progress_fill_rect")
+            && progress_track.contains("pub fn horizontal_progress_activity_rect")
+            && progress_track.contains("pub fn horizontal_progress_track_rect"),
+        "progress track fill and activity geometry should live in progress/track/progress.rs"
+    );
+    assert!(
+        meter_track.contains("pub fn horizontal_meter_fill_rect")
+            && meter_track.contains("pub fn horizontal_discrete_meter_fill_rect"),
+        "progress meter geometry should live in progress/track/meter.rs"
+    );
+    assert!(
+        sanitize.contains("fn normalized_fraction") && sanitize.contains("fn finite_nonnegative"),
+        "progress track geometry sanitizers should live in progress/track/sanitize.rs"
     );
     assert!(
         feedback.contains("ProgressOverlay")

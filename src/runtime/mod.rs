@@ -73,9 +73,9 @@ pub(crate) use paint::{
     optical_centered_baseline, push_axis_stroke, push_text_run, text_font_size,
 };
 pub use platform::{
-    ConfirmDialogRequest, ConfirmationButtons, ConfirmationLevel, ConfirmationResponse,
-    FileDialogFilter, FileDialogRequest, PlatformCompletion, PlatformRequest, PlatformResponse,
-    PlatformServiceFallback,
+    ConfirmDialogParts, ConfirmDialogRequest, ConfirmationButtons, ConfirmationLevel,
+    ConfirmationResponse, FileDialogFilter, FileDialogRequest, PlatformCompletion, PlatformRequest,
+    PlatformResponse, PlatformServiceFallback,
 };
 pub use resource::{
     ResourceCompletion, ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot,

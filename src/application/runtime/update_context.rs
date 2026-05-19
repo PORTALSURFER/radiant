@@ -5,6 +5,7 @@ use crate::{
     runtime::{
         Command, ConfirmDialogRequest, ExternalDragOutcome, ExternalDragRequest, FileDialogRequest,
         PlatformRequest, PlatformResponse, RepaintScope, ResourceCompletion, ResourceSlot,
+        ScrollFixedRowIntoViewParts, ScrollIntoViewParts,
     },
     widgets::WidgetId,
 };
@@ -288,6 +289,11 @@ impl<Message> UpdateContext<Message> {
         ));
     }
 
+    /// Reveal a vertical span inside one scroll container from named parts.
+    pub fn scroll_into_view_from_parts(&mut self, parts: ScrollIntoViewParts) {
+        self.command(Command::scroll_into_view_from_parts(parts));
+    }
+
     /// Reveal a vertical span inside one scroll container and snap movement to a fixed row height.
     pub fn scroll_into_view_snapped(
         &mut self,
@@ -306,6 +312,11 @@ impl<Message> UpdateContext<Message> {
             margin_bottom,
             snap_y,
         ));
+    }
+
+    /// Reveal a fixed-stride row inside one scroll container from named parts.
+    pub fn scroll_fixed_row_into_view_from_parts(&mut self, parts: ScrollFixedRowIntoViewParts) {
+        self.command(Command::scroll_fixed_row_into_view_from_parts(parts));
     }
 
     /// Reveal a fixed-stride row inside one scroll container with directional context rows.

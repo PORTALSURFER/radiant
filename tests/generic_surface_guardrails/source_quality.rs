@@ -1997,6 +1997,29 @@ fn button_primitive_keeps_surface_builders_focused() {
 }
 
 #[test]
+fn icon_button_primitive_keeps_surface_mappers_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/icon_button.rs"))
+        .expect("icon-button primitive root should be readable");
+    let builders =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/icon_button/builders.rs"))
+            .expect("icon-button primitive builders should be readable");
+
+    assert!(
+        root.contains("mod builders;")
+            && root.contains("pub struct IconButtonWidget")
+            && root.contains("impl Widget for IconButtonWidget")
+            && !root.contains("impl<Message> WidgetMessageMapper<Message>"),
+        "icon-button primitive root should own widget behavior and delegate runtime mappers"
+    );
+    assert!(
+        builders.contains("impl<Message> WidgetMessageMapper<Message>")
+            && builders.contains("pub fn icon_button("),
+        "icon-button runtime mapper helper should live in icon_button/builders.rs"
+    );
+}
+
+#[test]
 fn list_item_primitive_keeps_surface_builders_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/list_item.rs"))

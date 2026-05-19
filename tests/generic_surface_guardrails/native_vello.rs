@@ -585,6 +585,40 @@ fn native_vello_plain_text_encoding_stays_in_focused_module() {
 }
 
 #[test]
+fn native_vello_text_input_geometry_stays_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let text_input = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene/text_input.rs"),
+    )
+    .expect("native Vello text-input encoder should be readable");
+    let geometry = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/scene/text_input/geometry.rs"),
+    )
+    .expect("native Vello text-input geometry module should be readable");
+
+    assert!(
+        text_input.contains("mod geometry;")
+            && text_input.contains(
+                "use geometry::{caret_size, selection_rect, text_input_geometry_is_renderable};"
+            )
+            && text_input.contains("fn encode_text_input")
+            && text_input.contains("fn draw_text_input_text")
+            && text_input.contains("fn encode_block_caret"),
+        "text-input encoder should own scene orchestration while delegating geometry helpers"
+    );
+    assert!(
+        !text_input.contains("fn caret_size")
+            && !text_input.contains("fn selection_rect")
+            && !text_input.contains("fn text_input_geometry_is_renderable")
+            && geometry.contains("fn caret_size")
+            && geometry.contains("fn selection_rect")
+            && geometry.contains("fn text_input_geometry_is_renderable"),
+        "text-input caret sizing, selection rectangles, and renderability checks should live in scene/text_input/geometry.rs"
+    );
+}
+
+#[test]
 fn native_vello_text_renderer_keeps_models_and_renderability_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root =

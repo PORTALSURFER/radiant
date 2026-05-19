@@ -641,6 +641,52 @@ fn update_context_keeps_followup_command_groups_in_focused_modules() {
 }
 
 #[test]
+fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/runtime/controller/commands.rs"))
+        .expect("runtime controller command root should be readable");
+    let outcome =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/outcome.rs"))
+            .expect("runtime command outcome module should be readable");
+    let drain = fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/drain.rs"))
+        .expect("runtime command drain module should be readable");
+    let dispatch =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/dispatch.rs"))
+            .expect("runtime command dispatch module should be readable");
+
+    for required in [
+        "mod dispatch;",
+        "mod drain;",
+        "mod outcome;",
+        "pub use outcome::CommandOutcome;",
+    ] {
+        assert!(
+            root.contains(required),
+            "runtime controller command root should delegate `{required}`"
+        );
+    }
+    assert!(
+        outcome.contains("pub struct CommandOutcome")
+            && outcome.contains("fn finish_command_outcome")
+            && !root.contains("pub struct CommandOutcome"),
+        "command pass result and finalization should live in commands/outcome.rs"
+    );
+    assert!(
+        drain.contains("pub fn drain_runtime_messages")
+            && drain.contains("take_runtime_command_batch_into")
+            && !root.contains("pub fn drain_runtime_messages"),
+        "runtime work draining should live in commands/drain.rs"
+    );
+    assert!(
+        dispatch.contains("fn execute_command_inner")
+            && dispatch.contains("Command::PlatformRequest")
+            && dispatch.contains("Command::ScrollFixedRowIntoView")
+            && !root.contains("fn execute_command_inner"),
+        "command execution branches should live in commands/dispatch.rs"
+    );
+}
+
+#[test]
 fn resource_completions_use_named_parts_for_request_results() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source = fs::read_to_string(manifest_dir.join("src/runtime/resource/load.rs"))

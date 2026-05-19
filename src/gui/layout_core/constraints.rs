@@ -1,5 +1,18 @@
 //! Constraint primitives for the slot-based layout engine.
 
+/// Explicit min/max bounds used to build layout constraints.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ConstraintsParts {
+    /// Minimum allowed width in logical pixels.
+    pub min_w: f32,
+    /// Maximum allowed width in logical pixels.
+    pub max_w: f32,
+    /// Minimum allowed height in logical pixels.
+    pub min_h: f32,
+    /// Maximum allowed height in logical pixels.
+    pub max_h: f32,
+}
+
 /// Axis-aligned min/max bounds used during measurement and layout.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Constraints {
@@ -16,23 +29,33 @@ pub struct Constraints {
 impl Constraints {
     /// Build unconstrained bounds.
     pub fn unconstrained() -> Self {
-        Self {
+        Self::from_parts(ConstraintsParts {
             min_w: 0.0,
             max_w: f32::INFINITY,
             min_h: 0.0,
             max_h: f32::INFINITY,
+        })
+    }
+
+    /// Build normalized constraints from named raw bounds.
+    pub fn from_parts(parts: ConstraintsParts) -> Self {
+        Self {
+            min_w: parts.min_w,
+            max_w: parts.max_w,
+            min_h: parts.min_h,
+            max_h: parts.max_h,
         }
+        .normalized()
     }
 
     /// Build normalized constraints from raw values.
     pub fn new(min_w: f32, max_w: f32, min_h: f32, max_h: f32) -> Self {
-        Self {
+        Self::from_parts(ConstraintsParts {
             min_w,
             max_w,
             min_h,
             max_h,
-        }
-        .normalized()
+        })
     }
 
     /// Return a copy with normalized and clamped ranges.

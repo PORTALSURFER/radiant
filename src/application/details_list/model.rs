@@ -54,23 +54,43 @@ pub struct DetailsColumn {
     pub width: Option<f32>,
 }
 
+/// Named construction inputs for one sortable details-list column.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DetailsColumnParts {
+    /// Stable caller-owned column id.
+    pub id: String,
+    /// Header label.
+    pub label: String,
+    /// Fixed logical width, or `None` for the flexible primary column.
+    pub width: Option<f32>,
+}
+
 impl DetailsColumn {
+    /// Build a details-list column from named construction inputs.
+    pub fn from_parts(parts: DetailsColumnParts) -> Self {
+        Self {
+            id: parts.id,
+            label: parts.label,
+            width: parts.width,
+        }
+    }
+
     /// Build a flexible details-list column.
     pub fn flexible(id: impl ToString, label: impl Into<String>) -> Self {
-        Self {
+        Self::from_parts(DetailsColumnParts {
             id: id.to_string(),
             label: label.into(),
             width: None,
-        }
+        })
     }
 
     /// Build a fixed-width details-list column.
     pub fn fixed(id: impl ToString, label: impl Into<String>, width: f32) -> Self {
-        Self {
+        Self::from_parts(DetailsColumnParts {
             id: id.to_string(),
             label: label.into(),
             width: Some(width),
-        }
+        })
     }
 }
 

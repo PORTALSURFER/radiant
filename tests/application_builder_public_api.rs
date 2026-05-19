@@ -219,7 +219,7 @@ fn application_bridge_pulls_owned_surfaces_for_runtime_projection() {
 
 #[test]
 fn details_columns_use_logical_widths() {
-    use radiant::prelude::DetailsColumn;
+    use radiant::prelude::{DetailsColumn, DetailsColumnParts};
 
     assert_eq!(
         DetailsColumn::fixed("kind", "Kind", 120.5),
@@ -228,6 +228,22 @@ fn details_columns_use_logical_widths() {
             label: String::from("Kind"),
             width: Some(120.5),
         }
+    );
+    assert_eq!(
+        DetailsColumn::from_parts(DetailsColumnParts {
+            id: String::from("state"),
+            label: String::from("State"),
+            width: Some(96.0),
+        }),
+        DetailsColumn::fixed("state", "State", 96.0)
+    );
+    assert_eq!(
+        DetailsColumn::from_parts(DetailsColumnParts {
+            id: String::from("name"),
+            label: String::from("Name"),
+            width: None,
+        }),
+        DetailsColumn::flexible("name", "Name")
     );
     assert_eq!(DetailsColumn::flexible("name", "Name").width, None);
 }

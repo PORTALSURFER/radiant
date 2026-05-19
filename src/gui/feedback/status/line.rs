@@ -17,6 +17,15 @@ pub struct StatusLineEntry {
     line: String,
 }
 
+/// Named fields for constructing a status-line entry.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StatusLineEntryParts {
+    /// Status producer label.
+    pub source: String,
+    /// One-line status message.
+    pub message: String,
+}
+
 impl StatusLineLog {
     /// Build a status-line log retaining at most `limit` entries.
     pub fn new(limit: usize) -> Self {
@@ -79,19 +88,30 @@ impl Default for StatusLineLog {
 }
 
 impl StatusLineEntry {
-    /// Build a status-line entry from source and message text.
+    /// Build a status-line entry from named parts.
     ///
     /// Multiline input is normalized to one trimmed display line so background
     /// workers and actions cannot break compact status-bar layout.
-    pub fn new(source: impl Into<String>, message: impl Into<String>) -> Self {
-        let source = one_line(source.into());
-        let message = one_line(message.into());
+    pub fn from_parts(parts: StatusLineEntryParts) -> Self {
+        let source = one_line(parts.source);
+        let message = one_line(parts.message);
         let line = format!("{source}: {message}");
         Self {
             source,
             message,
             line,
         }
+    }
+
+    /// Build a status-line entry from source and message text.
+    ///
+    /// Multiline input is normalized to one trimmed display line so background
+    /// workers and actions cannot break compact status-bar layout.
+    pub fn new(source: impl Into<String>, message: impl Into<String>) -> Self {
+        Self::from_parts(StatusLineEntryParts {
+            source: source.into(),
+            message: message.into(),
+        })
     }
 
     /// Return the status producer label.
@@ -123,7 +143,7 @@ fn one_line(text: String) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{StatusLineEntry, StatusLineLog};
+    use super::{StatusLineEntry, StatusLineEntryParts, StatusLineLog};
 
     #[test]
     fn status_line_log_keeps_latest_bounded_message() {
@@ -173,6 +193,18 @@ mod tests {
         assert_eq!(entry.source(), "worker");
         assert_eq!(entry.message(), "finished");
         assert_eq!(entry.line(), "worker: finished");
+    }
+
+    #[test]
+    fn status_line_entry_supports_named_parts_construction() {
+        let entry = StatusLineEntry::from_parts(StatusLineEntryParts {
+            source: " worker\npool ".to_owned(),
+            message: "\rstarted\njob ".to_owned(),
+        });
+
+        assert_eq!(entry.source(), "worker pool");
+        assert_eq!(entry.message(), "started job");
+        assert_eq!(entry.line(), "worker pool: started job");
     }
 
     #[test]

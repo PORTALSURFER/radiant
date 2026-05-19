@@ -465,6 +465,33 @@ fn widget_sizing_uses_named_parts_for_intrinsic_bounds() {
 }
 
 #[test]
+fn status_line_entries_use_named_parts_for_source_and_message() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/feedback/status/line.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let status = fs::read_to_string(manifest_dir.join("src/gui/feedback/status.rs"))
+        .expect("feedback status module should be readable");
+    let feedback = fs::read_to_string(manifest_dir.join("src/gui/feedback.rs"))
+        .expect("feedback module should be readable");
+    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
+        .expect("library module should be readable");
+
+    assert!(
+        source.contains("pub struct StatusLineEntryParts")
+            && source.contains("pub fn from_parts(parts: StatusLineEntryParts) -> Self"),
+        "status-line entries should expose named parts for source and message text"
+    );
+    assert!(
+        source.contains("Self::from_parts(StatusLineEntryParts {")
+            && status.contains("StatusLineEntryParts")
+            && feedback.contains("StatusLineEntryParts")
+            && lib.contains("StatusLineEntryParts"),
+        "status-line entry compatibility constructor and public exports should keep the named-parts path available"
+    );
+}
+
+#[test]
 fn timeline_visualization_state_uses_named_parts_for_large_projection_buckets() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let timeline_dir = manifest_dir.join("src/gui/visualization/timeline");

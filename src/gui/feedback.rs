@@ -15,5 +15,5 @@ pub use progress::{
 };
 pub use status::{
     ConfirmPrompt, DragOverlay, HealthState, PromptIntent, RecoverySummary, StatusLineEntry,
-    StatusLineLog, UpdatePanel, UpdateStatus,
+    StatusLineEntryParts, StatusLineLog, UpdatePanel, UpdateStatus,
 };

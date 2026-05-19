@@ -19,7 +19,10 @@ fn prelude_exports_application_chrome_models() {
         .with_center("Autosave on")
         .with_right("Idle");
     let mut log = ui::StatusLineLog::new(2);
-    let entry = ui::StatusLineEntry::new("worker", "finished");
+    let entry = ui::StatusLineEntry::from_parts(ui::StatusLineEntryParts {
+        source: "worker".to_owned(),
+        message: "finished".to_owned(),
+    });
     let chrome = ui::ContentViewChrome::default();
 
     log.publish(entry.source(), entry.message());

@@ -20,19 +20,38 @@ where
     update: Update,
 }
 
+/// Named construction fields for a [`DeclarativeCommandRuntimeBridge`].
+pub struct DeclarativeCommandRuntimeBridgeParts<State, Project, Update> {
+    /// Host-owned state projected into a UI surface.
+    pub state: State,
+    /// Closure that projects state into a shared surface snapshot.
+    pub project: Project,
+    /// Closure that reduces host messages and returns follow-up commands.
+    pub update: Update,
+}
+
 impl<State, Message, Project, Update>
     DeclarativeCommandRuntimeBridge<State, Message, Project, Update>
 where
     Project: FnMut(&mut State) -> Arc<UiSurface<Message>>,
     Update: FnMut(&mut State, Message) -> Command<Message>,
 {
+    /// Build a command-returning declarative bridge from named parts.
+    pub fn from_parts(parts: DeclarativeCommandRuntimeBridgeParts<State, Project, Update>) -> Self {
+        Self {
+            state: parts.state,
+            project: parts.project,
+            update: parts.update,
+        }
+    }
+
     /// Build a generic declarative bridge from state, projector, and command update closures.
     pub fn new(state: State, project: Project, update: Update) -> Self {
-        Self {
+        Self::from_parts(DeclarativeCommandRuntimeBridgeParts {
             state,
             project,
             update,
-        }
+        })
     }
 
     /// Return an immutable reference to the owned host state.
@@ -81,19 +100,40 @@ where
     update: Update,
 }
 
+/// Named construction fields for a [`DeclarativeOwnedCommandRuntimeBridge`].
+pub struct DeclarativeOwnedCommandRuntimeBridgeParts<State, Project, Update> {
+    /// Host-owned state projected into a UI surface.
+    pub state: State,
+    /// Closure that projects state into an owned surface snapshot.
+    pub project: Project,
+    /// Closure that reduces host messages and returns follow-up commands.
+    pub update: Update,
+}
+
 impl<State, Message, Project, Update>
     DeclarativeOwnedCommandRuntimeBridge<State, Message, Project, Update>
 where
     Project: FnMut(&mut State) -> UiSurface<Message>,
     Update: FnMut(&mut State, Message) -> Command<Message>,
 {
+    /// Build an owned-surface command bridge from named parts.
+    pub fn from_parts(
+        parts: DeclarativeOwnedCommandRuntimeBridgeParts<State, Project, Update>,
+    ) -> Self {
+        Self {
+            state: parts.state,
+            project: parts.project,
+            update: parts.update,
+        }
+    }
+
     /// Build an owned-surface command bridge from state, projector, and update closures.
     pub fn new(state: State, project: Project, update: Update) -> Self {
-        Self {
+        Self::from_parts(DeclarativeOwnedCommandRuntimeBridgeParts {
             state,
             project,
             update,
-        }
+        })
     }
 
     /// Return an immutable reference to the owned host state.

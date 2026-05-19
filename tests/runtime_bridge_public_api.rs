@@ -3,8 +3,10 @@
 use radiant::{
     layout::Vector2,
     runtime::{
-        App, RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
-        declarative_owned_runtime_bridge, declarative_runtime_bridge,
+        App, DeclarativeOwnedRuntimeBridge, DeclarativeOwnedRuntimeBridgeParts,
+        DeclarativeRuntimeBridge, DeclarativeRuntimeBridgeParts, RuntimeBridge, SurfaceChild,
+        SurfaceNode, UiSurface, WidgetMessageMapper, declarative_owned_runtime_bridge,
+        declarative_runtime_bridge,
     },
     widgets::{
         ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, Widget,
@@ -93,4 +95,32 @@ fn display_name(state: &DemoState) -> &str {
     } else {
         &state.name
     }
+}
+
+#[test]
+fn declarative_runtime_bridges_support_named_parts_construction() {
+    let mut bridge = DeclarativeRuntimeBridge::from_parts(DeclarativeRuntimeBridgeParts {
+        state: DemoState::default(),
+        project: project_surface,
+        reduce: |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+        },
+    });
+    bridge.reduce_message(DemoMessage::Increment);
+    assert_eq!(bridge.state().count, 1);
+    assert!(bridge.project_surface().find_widget(11).is_some());
+
+    let mut owned_bridge =
+        DeclarativeOwnedRuntimeBridge::from_parts(DeclarativeOwnedRuntimeBridgeParts {
+            state: DemoState::default(),
+            project: project_owned_surface,
+            reduce: |state: &mut DemoState, message| match message {
+                DemoMessage::Increment => state.count += 1,
+                DemoMessage::Rename(name) => state.name = name,
+            },
+        });
+    owned_bridge.reduce_message(DemoMessage::Rename(String::from("Owned")));
+    assert_eq!(owned_bridge.state().name, "Owned");
+    assert!(owned_bridge.pull_surface().find_widget(12).is_some());
 }

@@ -33,13 +33,30 @@ pub struct DetailsSort {
     pub direction: SortDirection,
 }
 
+/// Named construction inputs for details-list sort state.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct DetailsSortParts {
+    /// Stable sorted column id.
+    pub column_id: String,
+    /// Current sort direction.
+    pub direction: SortDirection,
+}
+
 impl DetailsSort {
+    /// Build a current sort descriptor from named construction inputs.
+    pub fn from_parts(parts: DetailsSortParts) -> Self {
+        Self {
+            column_id: parts.column_id,
+            direction: parts.direction,
+        }
+    }
+
     /// Build a current sort descriptor.
     pub fn new(column_id: impl ToString, direction: SortDirection) -> Self {
-        Self {
+        Self::from_parts(DetailsSortParts {
             column_id: column_id.to_string(),
             direction,
-        }
+        })
     }
 }
 

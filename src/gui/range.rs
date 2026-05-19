@@ -10,7 +10,7 @@ pub use scrollbar::{
     normalized_scrollbar_center_for_pointer, normalized_scrollbar_thumb_offset_at_point,
     normalized_scrollbar_thumb_ratio_at_point, resolve_normalized_scrollbar,
 };
-pub use viewport::{NormalizedPixelSnap, NormalizedViewport};
+pub use viewport::{NormalizedPixelSnap, NormalizedViewport, NormalizedViewportParts};
 
 /// Normalized range with deterministic milli, micro, and nano projections.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -101,9 +101,10 @@ pub(crate) fn micros_matches_projected_nanos(value_micros: u32, value_nanos: u32
 mod tests {
     use super::{
         NormalizedPixelSnap, NormalizedRange, NormalizedRangeParts, NormalizedScrollbar,
-        NormalizedScrollbarRequest, NormalizedViewport, normalized_scrollbar_center_at_point,
-        normalized_scrollbar_center_for_pointer, normalized_scrollbar_thumb_offset_at_point,
-        normalized_scrollbar_thumb_ratio_at_point, resolve_normalized_scrollbar,
+        NormalizedScrollbarRequest, NormalizedViewport, NormalizedViewportParts,
+        normalized_scrollbar_center_at_point, normalized_scrollbar_center_for_pointer,
+        normalized_scrollbar_thumb_offset_at_point, normalized_scrollbar_thumb_ratio_at_point,
+        resolve_normalized_scrollbar,
     };
     use crate::gui::types::{Point, Rect};
 
@@ -202,6 +203,19 @@ mod tests {
             NormalizedViewport::from_bounds(500_123, 500_124, Some(400_000_000), Some(400_100_000));
 
         assert_eq!(fallback, NormalizedViewport::from_micros(500_123, 500_124));
+    }
+
+    #[test]
+    fn normalized_viewport_supports_named_parts_construction() {
+        let viewport = NormalizedViewport::from_parts(NormalizedViewportParts {
+            start_micros: 500_123,
+            end_micros: 500_124,
+            start_nanos: Some(500_123_000),
+            end_nanos: Some(500_123_200),
+        });
+
+        assert_eq!(viewport.start_ratio, 0.500123);
+        assert!((viewport.width_ratio - 0.0000002).abs() < f64::EPSILON);
     }
 
     #[test]

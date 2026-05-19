@@ -2,7 +2,7 @@ use super::*;
 use crate::layout::ContainerPolicy;
 use crate::runtime::{
     ExternalDragEffect, ExternalDragOutcome, ExternalDragRequest, FileDialogRequest,
-    PlatformCompletion, PlatformRequest, PlatformResponse, SurfaceNode,
+    PlatformCompletion, PlatformRequest, PlatformResponse, PlatformServiceFallback, SurfaceNode,
 };
 use std::{path::PathBuf, sync::Arc};
 
@@ -35,7 +35,7 @@ impl RuntimeBridge<usize> for PlatformCommandBridge {
         &mut self,
         request: PlatformRequest,
         on_completed: PlatformCompletion<usize>,
-    ) -> Result<(), (PlatformRequest, PlatformCompletion<usize>)> {
+    ) -> Result<(), PlatformServiceFallback<usize>> {
         self.requests.push(request);
         let message = on_completed(Ok(PlatformResponse::Canceled));
         self.reduce_message(message);

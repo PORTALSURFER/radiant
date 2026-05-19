@@ -9,7 +9,7 @@ use crate::gui::{
 };
 use crate::runtime::{
     Command, NativeFrameDiagnostics, PaintPrimitive, PlatformCompletion, PlatformRequest,
-    ScrollUpdate, TransientOverlayContext, UiSurface,
+    PlatformServiceFallback, ScrollUpdate, TransientOverlayContext, UiSurface,
 };
 use crate::widgets::RetainedSurfaceDescriptor;
 use std::{sync::Arc, time::Duration};
@@ -110,8 +110,8 @@ pub trait RuntimeBridge<Message> {
         &mut self,
         request: PlatformRequest,
         on_completed: PlatformCompletion<Message>,
-    ) -> Result<(), (PlatformRequest, PlatformCompletion<Message>)> {
-        Err((request, on_completed))
+    ) -> Result<(), PlatformServiceFallback<Message>> {
+        Err(Box::new((request, on_completed)))
     }
 
     /// Drain commands delivered by app startup hooks or bridge-owned runtime work.

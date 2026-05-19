@@ -7,6 +7,7 @@ use radiant::gui::{
         TimelineFeedbackParts, TimelineMarkerPreview, TimelineMotionState,
         TimelinePresentationParts, TimelinePresentationState, TimelineSurfaceParts,
         TimelineSurfaceState, TimelineTransportParts, TimelineTransportState, TimelineViewport,
+        TimelineViewportParts,
     },
 };
 
@@ -376,7 +377,7 @@ pub(super) fn timeline_surface(state: &TimelineEditorState) -> TimelineMotionSta
         NormalizedRange::from_micros(beat_to_micros(range.start), beat_to_micros(range.end))
     });
     let surface = TimelineSurfaceState::from_parts(TimelineSurfaceParts {
-        viewport: TimelineViewport::new(0, 1_000, 0, 1_000_000, 0, 1_000_000_000),
+        viewport: TimelineViewport::from_parts(TimelineViewportParts::default()),
         transport: TimelineTransportState::from_parts(TimelineTransportParts {
             cursor_milli: Some(beat_to_normalized(state.playhead_beat)),
             playhead_milli: None,

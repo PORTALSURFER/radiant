@@ -6,13 +6,32 @@ use super::{
     TimelineFeedbackEvents, TimelineFeedbackParts, TimelineMarkerPreview, TimelineMotionState,
     TimelinePresentationParts, TimelinePresentationState, TimelineSurfaceParts,
     TimelineSurfaceState, TimelineTransportParts, TimelineTransportState, TimelineViewport,
-    canvas_layer_at_point, drag_handle_at_point, normalized_milli_point_in_rect,
+    TimelineViewportParts, canvas_layer_at_point, drag_handle_at_point,
+    normalized_milli_point_in_rect,
 };
 use crate::gui::{
     range::{NormalizedPixelSnap, NormalizedRange, NormalizedViewport},
     types::{ImageRgba, Point, Rect},
 };
 use std::sync::Arc;
+
+fn timeline_viewport_parts(
+    start_milli: u16,
+    end_milli: u16,
+    start_micros: u32,
+    end_micros: u32,
+    start_nanos: u32,
+    end_nanos: u32,
+) -> TimelineViewportParts {
+    TimelineViewportParts {
+        start_milli,
+        end_milli,
+        start_micros,
+        end_micros,
+        start_nanos,
+        end_nanos,
+    }
+}
 
 #[test]
 fn point_render_mode_defaults_to_points() {
@@ -139,7 +158,14 @@ fn drag_handle_hit_testing_uses_reverse_paint_order_and_enabled_state() {
 
 #[test]
 fn timeline_coordinate_mapper_projects_and_back_projects_micros() {
-    let viewport = TimelineViewport::new(250, 750, 250_000, 750_000, 250_000_000, 750_000_000);
+    let viewport = TimelineViewport::from_parts(timeline_viewport_parts(
+        250,
+        750,
+        250_000,
+        750_000,
+        250_000_000,
+        750_000_000,
+    ));
     let rect = Rect::from_min_max(Point::new(10.0, 0.0), Point::new(210.0, 40.0));
     let mapper = TimelineCoordinateMapper::new(viewport, rect, NormalizedPixelSnap::Nearest);
 
@@ -158,7 +184,14 @@ fn timeline_coordinate_mapper_projects_and_back_projects_micros() {
 
 #[test]
 fn timeline_coordinate_mapper_sanitizes_invalid_back_projection_inputs() {
-    let viewport = TimelineViewport::new(250, 750, 250_000, 750_000, 250_000_000, 750_000_000);
+    let viewport = TimelineViewport::from_parts(timeline_viewport_parts(
+        250,
+        750,
+        250_000,
+        750_000,
+        250_000_000,
+        750_000_000,
+    ));
     let rect = Rect::from_min_max(Point::new(10.0, 0.0), Point::new(210.0, 40.0));
     let mapper = TimelineCoordinateMapper::new(viewport, rect, NormalizedPixelSnap::Nearest);
     let invalid_rect_mapper = TimelineCoordinateMapper::new(
@@ -372,7 +405,14 @@ fn timeline_surface_state_aggregates_generic_timeline_parts() {
         focused: false,
     };
     let surface = TimelineSurfaceState::from_parts(TimelineSurfaceParts {
-        viewport: TimelineViewport::new(10, 900, 10_000, 900_000, 10_000_000, 900_000_000),
+        viewport: TimelineViewport::from_parts(timeline_viewport_parts(
+            10,
+            900,
+            10_000,
+            900_000,
+            10_000_000,
+            900_000_000,
+        )),
         transport: TimelineTransportState::from_parts(TimelineTransportParts {
             cursor_milli: Some(20),
             playhead_milli: Some(30),
@@ -408,7 +448,14 @@ fn timeline_motion_state_aggregates_surface_chrome_tools_and_transport() {
     let motion = TimelineMotionState::new(
         true,
         TimelineSurfaceState::from_parts(TimelineSurfaceParts {
-            viewport: TimelineViewport::new(0, 500, 0, 500_000, 0, 500_000_000),
+            viewport: TimelineViewport::from_parts(timeline_viewport_parts(
+                0,
+                500,
+                0,
+                500_000,
+                0,
+                500_000_000,
+            )),
             transport: TimelineTransportState::from_parts(TimelineTransportParts {
                 cursor_milli: None,
                 playhead_milli: Some(10),

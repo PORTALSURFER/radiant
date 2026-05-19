@@ -16,4 +16,4 @@ pub use marker::TimelineMarkerPreview;
 pub use presentation::{TimelinePresentationParts, TimelinePresentationState};
 pub use surface::{TimelineMotionState, TimelineSurfaceParts, TimelineSurfaceState};
 pub use transport::{TimelineTransportParts, TimelineTransportState};
-pub use viewport::TimelineViewport;
+pub use viewport::{TimelineViewport, TimelineViewportParts};

@@ -19,6 +19,7 @@ pub use timeline::{
     TimelineFeedbackEvents, TimelineFeedbackParts, TimelineMarkerPreview, TimelineMotionState,
     TimelinePresentationParts, TimelinePresentationState, TimelineSurfaceParts,
     TimelineSurfaceState, TimelineTransportParts, TimelineTransportState, TimelineViewport,
+    TimelineViewportParts,
 };
 
 #[cfg(test)]

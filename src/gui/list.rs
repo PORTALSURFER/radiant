@@ -6,7 +6,8 @@ mod selection;
 mod virtual_list;
 
 pub use editable::{
-    ColumnSummary, EditableRowKind, EditableTreeActions, EditableTreeRow, EditableTreeRowParts,
+    ColumnSummary, ColumnSummaryParts, EditableRowKind, EditableTreeActions, EditableTreeRow,
+    EditableTreeRowParts,
 };
 pub use grid::{VirtualGridWindow, VirtualGridWindowRequest, resolve_virtual_grid_window};
 pub use selection::{ListSelectionController, ListSelectionModifiers};

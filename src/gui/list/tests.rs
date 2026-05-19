@@ -1,20 +1,31 @@
 use super::{
-    ColumnSummary, EditableRowKind, EditableTreeActions, EditableTreeRow, EditableTreeRowParts,
-    ListSelectionController, ListSelectionModifiers, MaterializedVirtualListItem,
-    VirtualGridWindow, VirtualGridWindowRequest, VirtualListController, VirtualListInvalidation,
-    VirtualListItemKey, VirtualListItemOverlay, VirtualListItemState, VirtualListScrollbarRequest,
-    VirtualListStackMetrics, VirtualListWindow, VirtualListWindowRequest,
-    resolve_virtual_grid_window, resolve_virtual_list_scrollbar, resolve_virtual_list_window,
-    virtual_list_scroll_delta_from_units, virtual_list_scrollbar_thumb_offset_at_point,
-    virtual_list_scrollbar_view_start_at_point, virtual_list_scrollbar_view_start_for_pointer,
-    virtual_list_stacked_item_at_point, virtual_list_view_start_after_scroll_delta,
-    virtual_list_viewport_len_for_extent,
+    ColumnSummary, ColumnSummaryParts, EditableRowKind, EditableTreeActions, EditableTreeRow,
+    EditableTreeRowParts, ListSelectionController, ListSelectionModifiers,
+    MaterializedVirtualListItem, VirtualGridWindow, VirtualGridWindowRequest,
+    VirtualListController, VirtualListInvalidation, VirtualListItemKey, VirtualListItemOverlay,
+    VirtualListItemState, VirtualListScrollbarRequest, VirtualListStackMetrics, VirtualListWindow,
+    VirtualListWindowRequest, resolve_virtual_grid_window, resolve_virtual_list_scrollbar,
+    resolve_virtual_list_window, virtual_list_scroll_delta_from_units,
+    virtual_list_scrollbar_thumb_offset_at_point, virtual_list_scrollbar_view_start_at_point,
+    virtual_list_scrollbar_view_start_for_pointer, virtual_list_stacked_item_at_point,
+    virtual_list_view_start_after_scroll_delta, virtual_list_viewport_len_for_extent,
 };
 use crate::gui::types::{Point, Rect};
 
 #[test]
 fn column_summary_preserves_title_and_count() {
     let column = ColumnSummary::new("Inbox", 42);
+
+    assert_eq!(column.title, "Inbox");
+    assert_eq!(column.item_count, 42);
+}
+
+#[test]
+fn column_summary_supports_named_parts_construction() {
+    let column = ColumnSummary::from_parts(ColumnSummaryParts {
+        title: "Inbox".to_owned(),
+        item_count: 42,
+    });
 
     assert_eq!(column.title, "Inbox");
     assert_eq!(column.item_count, 42);

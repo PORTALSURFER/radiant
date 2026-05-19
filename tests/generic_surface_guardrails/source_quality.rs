@@ -97,6 +97,33 @@ fn editable_tree_rows_use_named_parts_instead_of_boolean_constructor_lists() {
 }
 
 #[test]
+fn column_summaries_use_named_parts_for_title_and_count() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/list/editable/column.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let editable = fs::read_to_string(manifest_dir.join("src/gui/list/editable.rs"))
+        .expect("editable list module should be readable");
+    let list = fs::read_to_string(manifest_dir.join("src/gui/list.rs"))
+        .expect("list module should be readable");
+    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
+        .expect("library module should be readable");
+
+    assert!(
+        source.contains("pub struct ColumnSummaryParts")
+            && source.contains("pub fn from_parts(parts: ColumnSummaryParts) -> Self"),
+        "column summaries should expose named parts for title and item count"
+    );
+    assert!(
+        source.contains("Self::from_parts(ColumnSummaryParts {")
+            && editable.contains("ColumnSummaryParts")
+            && list.contains("ColumnSummaryParts")
+            && lib.contains("ColumnSummaryParts"),
+        "column summary compatibility constructor and public exports should keep the named-parts path available"
+    );
+}
+
+#[test]
 fn preference_panel_state_uses_named_parts_for_projection_fields() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/form.rs");

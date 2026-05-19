@@ -124,6 +124,24 @@ fn column_summaries_use_named_parts_for_title_and_count() {
 }
 
 #[test]
+fn normalized_ranges_use_named_parts_for_milli_bounds() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/range.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+
+    assert!(
+        source.contains("pub struct NormalizedRangeParts")
+            && source.contains("pub fn from_parts(parts: NormalizedRangeParts) -> Self"),
+        "normalized ranges should expose named parts for start and end milli-unit bounds"
+    );
+    assert!(
+        source.contains("Self::from_parts(NormalizedRangeParts {"),
+        "normalized range compatibility constructor should keep the named-parts path available"
+    );
+}
+
+#[test]
 fn preference_panel_state_uses_named_parts_for_projection_fields() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/form.rs");

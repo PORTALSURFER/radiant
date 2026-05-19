@@ -1,8 +1,8 @@
 use super::{
-    CanvasInvalidation, CanvasLayer, CanvasLayerOrder, ChannelViewMode, DragHandle, DragHandleRole,
-    PointRenderMode, SignalChromeParts, SignalChromeState, SignalRasterPreview,
-    SignalRasterPreviewParts, SignalToolFlags, SignalToolState, SpatialPanel, SpatialPoint,
-    TimelineCoordinateMapper, TimelineEditPreview, TimelineEditPreviewParts,
+    CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts, ChannelViewMode,
+    DragHandle, DragHandleRole, PointRenderMode, SignalChromeParts, SignalChromeState,
+    SignalRasterPreview, SignalRasterPreviewParts, SignalToolFlags, SignalToolState, SpatialPanel,
+    SpatialPoint, TimelineCoordinateMapper, TimelineEditPreview, TimelineEditPreviewParts,
     TimelineFeedbackEvents, TimelineMarkerPreview, TimelineMotionState, TimelinePresentationState,
     TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportState, TimelineViewport,
     canvas_layer_at_point, drag_handle_at_point, normalized_milli_point_in_rect,
@@ -64,20 +64,30 @@ fn normalized_milli_point_projects_and_clamps_into_rect() {
 fn canvas_layer_hit_testing_prefers_topmost_interactive_layer() {
     let bounds = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(100.0, 100.0));
     let layers = [
-        CanvasLayer::new("base", CanvasLayerOrder::Background, bounds, true),
-        CanvasLayer::new("paint", CanvasLayerOrder::Content, bounds, false),
-        CanvasLayer::new(
-            "handle",
-            CanvasLayerOrder::Interaction,
-            Rect::from_min_max(Point::new(40.0, 40.0), Point::new(60.0, 60.0)),
-            true,
-        ),
-        CanvasLayer::new(
-            "focus",
-            CanvasLayerOrder::Focus,
-            Rect::from_min_max(Point::new(45.0, 45.0), Point::new(55.0, 55.0)),
-            true,
-        ),
+        CanvasLayer::from_parts(CanvasLayerParts {
+            id: String::from("base"),
+            order: CanvasLayerOrder::Background,
+            bounds,
+            interactive: true,
+        }),
+        CanvasLayer::from_parts(CanvasLayerParts {
+            id: String::from("paint"),
+            order: CanvasLayerOrder::Content,
+            bounds,
+            interactive: false,
+        }),
+        CanvasLayer::from_parts(CanvasLayerParts {
+            id: String::from("handle"),
+            order: CanvasLayerOrder::Interaction,
+            bounds: Rect::from_min_max(Point::new(40.0, 40.0), Point::new(60.0, 60.0)),
+            interactive: true,
+        }),
+        CanvasLayer::from_parts(CanvasLayerParts {
+            id: String::from("focus"),
+            order: CanvasLayerOrder::Focus,
+            bounds: Rect::from_min_max(Point::new(45.0, 45.0), Point::new(55.0, 55.0)),
+            interactive: true,
+        }),
     ];
 
     assert_eq!(

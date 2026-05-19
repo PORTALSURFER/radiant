@@ -6,8 +6,8 @@ mod spatial;
 mod timeline;
 
 pub use canvas::{
-    CanvasInvalidation, CanvasLayer, CanvasLayerOrder, DragHandle, DragHandleRole,
-    canvas_layer_at_point, drag_handle_at_point,
+    CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts, DragHandle,
+    DragHandleRole, canvas_layer_at_point, drag_handle_at_point,
 };
 pub use signal::{
     ChannelViewMode, SignalChromeParts, SignalChromeState, SignalRasterPreview,

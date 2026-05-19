@@ -677,9 +677,15 @@ fn native_gpu_surface_interaction_region_model_stays_focused() {
         "src/gui_runtime/native_vello/generic_runtime/runtime_helpers/gpu_surface_regions/region.rs",
     ))
     .expect("GPU surface interaction region model should be readable");
+    let tests = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/runtime_helpers/gpu_surface_regions/tests.rs",
+    ))
+    .expect("GPU surface interaction region tests should be readable");
 
     assert!(
         collector.contains("mod region;")
+            && collector.contains("#[cfg(test)]")
+            && collector.contains("mod tests;")
             && collector.contains(
                 "pub(in crate::gui_runtime::native_vello) use region::GpuSurfaceInteractionRegion;"
             ),
@@ -692,6 +698,14 @@ fn native_gpu_surface_interaction_region_model_stays_focused() {
             && region.contains("fn from_gpu_surface")
             && region.contains("fn contains"),
         "GPU surface interaction region model and renderability checks should live in runtime_helpers/gpu_surface_regions/region.rs"
+    );
+    assert!(
+        !collector.contains("fn gpu_surface_interaction_region_collection_reuses_existing_buffer")
+            && tests
+                .contains("fn gpu_surface_interaction_region_collection_reuses_existing_buffer")
+            && tests.contains("fn gpu_surface_interaction_regions_skip_opaque_later_panels")
+            && tests.contains("fn gpu_surface_interaction_regions_reject_nonfinite_geometry"),
+        "GPU surface interaction collector regression tests should stay in runtime_helpers/gpu_surface_regions/tests.rs"
     );
 }
 

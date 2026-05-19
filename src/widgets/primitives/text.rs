@@ -45,17 +45,37 @@ pub struct TextWidget {
     pub align: TextAlign,
 }
 
+/// Named construction fields for a [`TextWidget`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextWidgetParts {
+    /// Stable widget id used by layout and paint.
+    pub id: WidgetId,
+    /// Displayed text content.
+    pub text: PaintText,
+    /// Intrinsic sizing contract for the text widget.
+    pub sizing: WidgetSizing,
+}
+
 impl TextWidget {
-    /// Build a label/text widget with a preferred intrinsic size.
-    pub fn new(id: WidgetId, text: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
+    /// Build a label/text widget from named parts.
+    pub fn from_parts(parts: TextWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.paint.paints_focus = false;
         Self {
             common,
-            text: text.into(),
+            text: parts.text,
             wrap: TextWrap::None,
             align: TextAlign::Left,
         }
+    }
+
+    /// Build a label/text widget with a preferred intrinsic size.
+    pub fn new(id: WidgetId, text: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
+        Self::from_parts(TextWidgetParts {
+            id,
+            text: text.into(),
+            sizing,
+        })
     }
 
     /// Set horizontal alignment inside the assigned text rectangle.

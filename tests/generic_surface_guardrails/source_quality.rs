@@ -878,6 +878,47 @@ fn widget_sizing_uses_named_parts_for_intrinsic_bounds() {
 }
 
 #[test]
+fn labeled_primitive_widgets_use_named_parts_for_identity_content_and_sizing() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let primitives_dir = manifest_dir.join("src/widgets/primitives");
+    let widgets = fs::read_to_string(manifest_dir.join("src/widgets/mod.rs"))
+        .expect("widgets module should be readable");
+
+    for (file, parts, from_parts, wrapper) in [
+        (
+            "button.rs",
+            "pub struct ButtonWidgetParts",
+            "pub fn from_parts(parts: ButtonWidgetParts) -> Self",
+            "Self::from_parts(ButtonWidgetParts {",
+        ),
+        (
+            "toggle.rs",
+            "pub struct ToggleWidgetParts",
+            "pub fn from_parts(parts: ToggleWidgetParts) -> Self",
+            "Self::from_parts(ToggleWidgetParts {",
+        ),
+        (
+            "text.rs",
+            "pub struct TextWidgetParts",
+            "pub fn from_parts(parts: TextWidgetParts) -> Self",
+            "Self::from_parts(TextWidgetParts {",
+        ),
+    ] {
+        let source_path = primitives_dir.join(file);
+        let source = fs::read_to_string(&source_path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+        assert!(
+            source.contains(parts) && source.contains(from_parts) && source.contains(wrapper),
+            "labeled primitive widget in {file} should expose named parts and compatibility constructor"
+        );
+        assert!(
+            widgets.contains(parts.trim_start_matches("pub struct ")),
+            "widgets module should export {parts}"
+        );
+    }
+}
+
+#[test]
 fn status_line_entries_use_named_parts_for_source_and_message() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/feedback/status/line.rs");

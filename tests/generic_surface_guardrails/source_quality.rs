@@ -740,6 +740,60 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
 }
 
 #[test]
+fn retained_invalidation_primitives_stay_in_focused_modules() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/gui/invalidation.rs"))
+        .expect("invalidation root should be readable");
+    let mask = fs::read_to_string(manifest_dir.join("src/gui/invalidation/mask.rs"))
+        .expect("invalidation mask module should be readable");
+    let retained_mask =
+        fs::read_to_string(manifest_dir.join("src/gui/invalidation/retained_mask.rs"))
+            .expect("retained mask module should be readable");
+    let segment = fs::read_to_string(manifest_dir.join("src/gui/invalidation/segment.rs"))
+        .expect("retained segment module should be readable");
+
+    for required in [
+        "mod mask;",
+        "mod retained_mask;",
+        "mod segment;",
+        "pub use mask::InvalidationMask;",
+        "pub use retained_mask::RetainedSegmentMask;",
+    ] {
+        assert!(
+            root.contains(required),
+            "invalidation root should delegate `{required}`"
+        );
+    }
+    assert!(
+        root.contains("RetainedSegmentPlan")
+            && root.contains("RetainedSegmentRevisions")
+            && !root.contains("pub struct InvalidationMask")
+            && !root.contains("pub struct RetainedSegmentMask")
+            && !root.contains("pub struct RetainedSegmentPlan"),
+        "invalidation root should re-export public primitives without owning their implementations"
+    );
+    assert!(
+        mask.contains("pub struct InvalidationMask")
+            && mask.contains("pub const fn from_bits")
+            && mask.contains("pub fn insert"),
+        "raw invalidation bit operations should live in invalidation/mask.rs"
+    );
+    assert!(
+        retained_mask.contains("pub struct RetainedSegmentMask")
+            && retained_mask.contains("pub const fn requires_static_rebuild")
+            && retained_mask.contains("pub const fn requires_overlay_rebuild"),
+        "typed retained segment masks should live in invalidation/retained_mask.rs"
+    );
+    assert!(
+        segment.contains("pub struct RetainedSegmentPlan")
+            && segment.contains("pub struct RetainedSegmentRevisions")
+            && segment.contains("pub enum RetainedSegmentKind")
+            && segment.contains("pub fn bump_revisions"),
+        "retained segment metadata, plans, and revisions should live in invalidation/segment.rs"
+    );
+}
+
+#[test]
 fn resource_completions_use_named_parts_for_request_results() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source = fs::read_to_string(manifest_dir.join("src/runtime/resource/load.rs"))

@@ -271,6 +271,21 @@ fn details_rows_support_named_parts_construction() {
 }
 
 #[test]
+fn details_sort_supports_named_parts_construction() {
+    use radiant::prelude as ui;
+
+    let from_parts = ui::DetailsSort::from_parts(ui::DetailsSortParts {
+        column_id: String::from("kind"),
+        direction: ui::SortDirection::Descending,
+    });
+    let positional = ui::DetailsSort::new("kind", ui::SortDirection::Descending);
+
+    assert_eq!(from_parts, positional);
+    assert_eq!(from_parts.column_id, "kind");
+    assert_eq!(from_parts.direction.toggled(), ui::SortDirection::Ascending);
+}
+
+#[test]
 fn application_builders_scope_keys_and_bind_text_inputs_to_state_fields() {
     use radiant::prelude::{self as ui, IntoView};
 

@@ -18,10 +18,27 @@ pub struct SlotChild {
     pub child: LayoutNode,
 }
 
+/// Named construction fields for a [`SlotChild`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct SlotChildParts {
+    /// Parent-owned slot parameters.
+    pub slot: SlotParams,
+    /// Child node attached to the slot.
+    pub child: LayoutNode,
+}
+
 impl SlotChild {
+    /// Build a parent-owned slot attachment from named parts.
+    pub fn from_parts(parts: SlotChildParts) -> Self {
+        Self {
+            slot: parts.slot,
+            child: parts.child,
+        }
+    }
+
     /// Build a parent-owned slot attachment.
     pub fn new(slot: SlotParams, child: LayoutNode) -> Self {
-        Self { slot, child }
+        Self::from_parts(SlotChildParts { slot, child })
     }
 }
 
@@ -46,20 +63,40 @@ pub struct ContainerNode {
     pub(crate) known_uniform_main_vertical: Option<f32>,
 }
 
+/// Named construction fields for a [`ContainerNode`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContainerNodeParts {
+    /// Stable node id.
+    pub id: NodeId,
+    /// Container behavior policy.
+    pub policy: ContainerPolicy,
+    /// Ordered slot children.
+    pub children: Vec<SlotChild>,
+}
+
 impl ContainerNode {
-    /// Construct a container node with ordered slot children.
-    pub fn new(id: NodeId, policy: ContainerPolicy, children: Vec<SlotChild>) -> Self {
-        let derived = container_derived_state(id, &policy, &children);
+    /// Construct a container node from named parts.
+    pub fn from_parts(parts: ContainerNodeParts) -> Self {
+        let derived = container_derived_state(parts.id, &parts.policy, &parts.children);
         Self {
-            id,
-            policy,
-            children,
+            id: parts.id,
+            policy: parts.policy,
+            children: parts.children,
             state_version: derived.state_version,
             known_main_extent_horizontal: derived.horizontal_metrics.extent,
             known_main_extent_vertical: derived.vertical_metrics.extent,
             known_uniform_main_horizontal: derived.horizontal_metrics.uniform_main,
             known_uniform_main_vertical: derived.vertical_metrics.uniform_main,
         }
+    }
+
+    /// Construct a container node with ordered slot children.
+    pub fn new(id: NodeId, policy: ContainerPolicy, children: Vec<SlotChild>) -> Self {
+        Self::from_parts(ContainerNodeParts {
+            id,
+            policy,
+            children,
+        })
     }
 }
 
@@ -74,14 +111,28 @@ pub struct WidgetNode {
     pub state_version: u64,
 }
 
+/// Named construction fields for a [`WidgetNode`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct WidgetNodeParts {
+    /// Stable node id.
+    pub id: NodeId,
+    /// Intrinsic preferred size in logical pixels.
+    pub intrinsic: Vector2,
+}
+
 impl WidgetNode {
-    /// Construct a widget node with an intrinsic size hint.
-    pub fn new(id: NodeId, intrinsic: Vector2) -> Self {
+    /// Construct a widget node from named parts.
+    pub fn from_parts(parts: WidgetNodeParts) -> Self {
         Self {
-            id,
-            intrinsic,
+            id: parts.id,
+            intrinsic: parts.intrinsic,
             state_version: 0,
         }
+    }
+
+    /// Construct a widget node with an intrinsic size hint.
+    pub fn new(id: NodeId, intrinsic: Vector2) -> Self {
+        Self::from_parts(WidgetNodeParts { id, intrinsic })
     }
 }
 
@@ -113,11 +164,25 @@ impl LayoutNode {
 
     /// Convenience constructor for a leaf widget node.
     pub fn widget(id: NodeId, intrinsic: Vector2) -> Self {
-        Self::Widget(WidgetNode::new(id, intrinsic))
+        Self::widget_from_parts(WidgetNodeParts { id, intrinsic })
+    }
+
+    /// Convenience constructor for a leaf widget node from named parts.
+    pub fn widget_from_parts(parts: WidgetNodeParts) -> Self {
+        Self::Widget(WidgetNode::from_parts(parts))
     }
 
     /// Convenience constructor for a container node.
     pub fn container(id: NodeId, policy: ContainerPolicy, children: Vec<SlotChild>) -> Self {
-        Self::Container(ContainerNode::new(id, policy, children))
+        Self::container_from_parts(ContainerNodeParts {
+            id,
+            policy,
+            children,
+        })
+    }
+
+    /// Convenience constructor for a container node from named parts.
+    pub fn container_from_parts(parts: ContainerNodeParts) -> Self {
+        Self::Container(ContainerNode::from_parts(parts))
     }
 }

@@ -967,6 +967,47 @@ fn resource_completions_use_named_parts_for_request_results() {
 }
 
 #[test]
+fn resource_slots_keep_load_state_and_lifecycle_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let slot = fs::read_to_string(manifest_dir.join("src/runtime/resource/slot.rs"))
+        .expect("resource slot module should be readable");
+    let state = fs::read_to_string(manifest_dir.join("src/runtime/resource/slot/state.rs"))
+        .expect("resource slot state module should be readable");
+    let resource = fs::read_to_string(manifest_dir.join("src/runtime/resource.rs"))
+        .expect("runtime resource module should be readable");
+    let runtime =
+        fs::read_to_string(manifest_dir.join("src/runtime/mod.rs")).expect("runtime module");
+    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
+        .expect("library module should be readable");
+
+    assert!(
+        slot.contains("mod state;")
+            && slot.contains("pub use state::ResourceLoadState;")
+            && slot.contains("pub struct ResourceSlot<T>")
+            && slot.contains("pub fn begin_load")
+            && slot.contains("pub fn apply_for"),
+        "resource slot lifecycle should stay in slot.rs while delegating load-state model"
+    );
+    assert!(
+        !slot.contains("pub enum ResourceLoadState")
+            && state.contains("pub enum ResourceLoadState")
+            && state.contains("Idle")
+            && state.contains("Loading")
+            && state.contains("Ready")
+            && state.contains("Failed"),
+        "resource load-state enum should live in runtime/resource/slot/state.rs"
+    );
+    assert!(
+        resource.contains("pub use slot::{ResourceLoadState, ResourceSlot};")
+            && runtime.contains("ResourceLoadState")
+            && runtime.contains("ResourceSlot")
+            && lib.contains("ResourceLoadState")
+            && lib.contains("ResourceSlot"),
+        "resource slot and load-state types should remain exported through runtime and prelude"
+    );
+}
+
+#[test]
 fn gpu_surface_widget_uses_named_parts_for_retained_resource_identity() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/widgets/primitives/gpu_surface.rs");

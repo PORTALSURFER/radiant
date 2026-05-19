@@ -413,6 +413,12 @@ fn floating_panel_drags_use_named_parts_for_pointer_geometry() {
 #[test]
 fn inline_badge_metrics_use_named_parts_for_geometry_tokens() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let badge = fs::read_to_string(manifest_dir.join("src/gui/badge.rs"))
+        .expect("badge facade should be readable");
+    let model = fs::read_to_string(manifest_dir.join("src/gui/badge/model.rs"))
+        .expect("badge model module should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/gui/badge/tests.rs"))
+        .expect("badge behavior tests should be readable");
     let root = fs::read_to_string(manifest_dir.join("src/gui/badge/inline.rs"))
         .expect("inline badge root should be readable");
     let metrics = fs::read_to_string(manifest_dir.join("src/gui/badge/inline/metrics.rs"))
@@ -422,6 +428,21 @@ fn inline_badge_metrics_use_named_parts_for_geometry_tokens() {
     let geometry = fs::read_to_string(manifest_dir.join("src/gui/badge/inline/geometry.rs"))
         .expect("inline badge geometry should be readable");
 
+    assert!(
+        badge.contains("mod model;")
+            && badge.contains("pub use model::{PillEditorPanel, SelectablePill};")
+            && badge.contains("#[path = \"badge/tests.rs\"]")
+            && !badge.contains("pub struct SelectablePill")
+            && !badge.contains("fn selectable_pill_preserves_identity_label_and_state"),
+        "badge facade should re-export focused pill models and keep behavior tests out of the root module"
+    );
+    assert!(
+        model.contains("pub struct SelectablePill")
+            && model.contains("pub struct PillEditorPanel")
+            && tests.contains("fn selectable_pill_preserves_identity_label_and_state")
+            && tests.contains("fn inline_badge_rects_handle_empty_or_cramped_inputs"),
+        "badge model DTOs and behavior tests should live in focused badge/model.rs and badge/tests.rs modules"
+    );
     assert!(
         root.contains("mod geometry;")
             && root.contains("mod labels;")

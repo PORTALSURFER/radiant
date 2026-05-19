@@ -2,13 +2,15 @@
 
 use crate::gui::{svg::SvgIcon, types::Rect};
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, WidgetMessageMapper, inset_rect};
+use crate::runtime::{PaintPrimitive, inset_rect};
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{
     ButtonMessage, PointerButton, WidgetInput, WidgetKey, WidgetOutput,
 };
 use crate::widgets::primitives::support::{WidgetCommon, push_button_chrome};
+
+mod builders;
 
 /// Public SVG icon button primitive.
 #[derive(Clone, Debug)]
@@ -134,12 +136,5 @@ impl Widget for IconButtonWidget {
             (bounds.height() - side) * 0.5,
         );
         self.icon.append_paint(primitives, self.common.id, rect);
-    }
-}
-
-impl<Message> WidgetMessageMapper<Message> {
-    /// Build an icon-button mapper.
-    pub fn icon_button(map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::typed(map)
     }
 }

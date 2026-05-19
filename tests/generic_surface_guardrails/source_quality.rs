@@ -687,6 +687,59 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
 }
 
 #[test]
+fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let model = fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/model.rs"))
+        .expect("text input model root should be readable");
+    let selection = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/text_input/model/selection.rs"),
+    )
+    .expect("text input selection model should be readable");
+    let navigation = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/text_input/model/navigation.rs"),
+    )
+    .expect("text input navigation model should be readable");
+    let editing =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/model/editing.rs"))
+            .expect("text input editing model should be readable");
+
+    for required in ["mod editing;", "mod navigation;", "mod selection;"] {
+        assert!(
+            model.contains(required),
+            "text input model root should delegate `{required}`"
+        );
+    }
+    assert!(
+        model.contains("pub struct TextInputProps")
+            && model.contains("pub struct TextInputState")
+            && model.contains("pub struct TextInputEditResult")
+            && model.contains("pub fn from_value")
+            && !model.contains("TextEditCommand")
+            && !model.contains("WidgetKey"),
+        "text input model root should keep public state definitions separate from command handling"
+    );
+    assert!(
+        selection.contains("pub fn selected_text")
+            && selection.contains("pub fn selection_range")
+            && selection.contains("pub fn has_selection"),
+        "text input selection queries should live in model/selection.rs"
+    );
+    assert!(
+        navigation.contains("pub fn set_caret")
+            && navigation.contains("fn move_left")
+            && navigation.contains("fn move_right"),
+        "text input caret movement should live in model/navigation.rs"
+    );
+    assert!(
+        editing.contains("pub fn apply_edit_command")
+            && editing.contains("pub fn apply_key")
+            && editing.contains("pub fn insert_text")
+            && editing.contains("fn delete_selected_text"),
+        "text input mutation and edit command handling should live in model/editing.rs"
+    );
+}
+
+#[test]
 fn resource_completions_use_named_parts_for_request_results() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source = fs::read_to_string(manifest_dir.join("src/runtime/resource/load.rs"))

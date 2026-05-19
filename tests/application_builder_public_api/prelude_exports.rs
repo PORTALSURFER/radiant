@@ -15,9 +15,11 @@ fn prelude_supports_hello_world_imports() {
 
 #[test]
 fn prelude_exports_application_chrome_models() {
-    let status = ui::StatusSegments::primary("Ready")
-        .with_center("Autosave on")
-        .with_right("Idle");
+    let status = ui::StatusSegments::from_parts(ui::StatusSegmentsParts {
+        left: "Ready".to_owned(),
+        center: "Autosave on".to_owned(),
+        right: "Idle".to_owned(),
+    });
     let mut log = ui::StatusLineLog::new(2);
     let entry = ui::StatusLineEntry::from_parts(ui::StatusLineEntryParts {
         source: "worker".to_owned(),

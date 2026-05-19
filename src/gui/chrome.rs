@@ -11,18 +11,38 @@ pub struct StatusSegments {
     pub right: String,
 }
 
+/// Named fields for constructing left, center, and right status segments.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct StatusSegmentsParts {
+    /// Left-aligned status segment.
+    pub left: String,
+    /// Center-aligned status segment.
+    pub center: String,
+    /// Right-aligned status segment.
+    pub right: String,
+}
+
 impl StatusSegments {
+    /// Build status segments from named parts.
+    pub fn from_parts(parts: StatusSegmentsParts) -> Self {
+        Self {
+            left: parts.left,
+            center: parts.center,
+            right: parts.right,
+        }
+    }
+
     /// Build status segments from explicit left, center, and right labels.
     pub fn new(
         left: impl Into<String>,
         center: impl Into<String>,
         right: impl Into<String>,
     ) -> Self {
-        Self {
+        Self::from_parts(StatusSegmentsParts {
             left: left.into(),
             center: center.into(),
             right: right.into(),
-        }
+        })
     }
 
     /// Build a status segment set with only the primary left label populated.
@@ -102,7 +122,7 @@ impl Default for ContentViewChrome {
 
 #[cfg(test)]
 mod tests {
-    use super::{ContentViewChrome, StatusSegments};
+    use super::{ContentViewChrome, StatusSegments, StatusSegmentsParts};
 
     #[test]
     fn status_segments_default_to_empty_text() {
@@ -121,6 +141,19 @@ mod tests {
         assert_eq!(segments.left, "Saved");
         assert_eq!(segments.center, "Autosave off");
         assert_eq!(segments.right, "Busy");
+    }
+
+    #[test]
+    fn status_segments_support_named_parts_construction() {
+        let segments = StatusSegments::from_parts(StatusSegmentsParts {
+            left: "Ready".to_owned(),
+            center: "Autosave on".to_owned(),
+            right: "Idle".to_owned(),
+        });
+
+        assert_eq!(segments.left, "Ready");
+        assert_eq!(segments.center, "Autosave on");
+        assert_eq!(segments.right, "Idle");
     }
 
     #[test]

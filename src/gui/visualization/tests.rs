@@ -1,10 +1,11 @@
 use super::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, ChannelViewMode, DragHandle, DragHandleRole,
-    PointRenderMode, SignalChromeState, SignalRasterPreview, SignalToolFlags, SignalToolState,
-    SpatialPanel, SpatialPoint, TimelineCoordinateMapper, TimelineEditPreview,
-    TimelineEditPreviewParts, TimelineFeedbackEvents, TimelineMarkerPreview, TimelineMotionState,
-    TimelinePresentationState, TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportState,
-    TimelineViewport, canvas_layer_at_point, drag_handle_at_point, normalized_milli_point_in_rect,
+    PointRenderMode, SignalChromeParts, SignalChromeState, SignalRasterPreview,
+    SignalRasterPreviewParts, SignalToolFlags, SignalToolState, SpatialPanel, SpatialPoint,
+    TimelineCoordinateMapper, TimelineEditPreview, TimelineEditPreviewParts,
+    TimelineFeedbackEvents, TimelineMarkerPreview, TimelineMotionState, TimelinePresentationState,
+    TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportState, TimelineViewport,
+    canvas_layer_at_point, drag_handle_at_point, normalized_milli_point_in_rect,
 };
 use crate::gui::{
     range::{NormalizedPixelSnap, NormalizedRange, NormalizedViewport},
@@ -180,13 +181,13 @@ fn canvas_invalidation_splits_scene_and_interaction_rebuilds() {
 #[test]
 fn signal_raster_preview_preserves_label_flags_signature_and_image() {
     let image = Arc::new(ImageRgba::new(1, 1, vec![255, 0, 0, 255]).unwrap());
-    let preview = SignalRasterPreview::new(
-        Some(String::from("preview")),
-        true,
-        false,
-        Some(42),
-        Some(Arc::clone(&image)),
-    );
+    let preview = SignalRasterPreview::from_parts(SignalRasterPreviewParts {
+        loaded_label: Some(String::from("preview")),
+        loading: true,
+        image_rendering: false,
+        image_signature: Some(42),
+        image: Some(Arc::clone(&image)),
+    });
 
     assert_eq!(preview.loaded_label.as_deref(), Some("preview"));
     assert!(preview.loading);
@@ -197,12 +198,12 @@ fn signal_raster_preview_preserves_label_flags_signature_and_image() {
 
 #[test]
 fn signal_chrome_state_preserves_status_reference_and_channel_view() {
-    let chrome = SignalChromeState::new(
-        "playing",
-        true,
-        Some(String::from("A")),
-        ChannelViewMode::Stereo,
-    );
+    let chrome = SignalChromeState::from_parts(SignalChromeParts {
+        status_hint: String::from("playing"),
+        reference_anchor_available: true,
+        reference_anchor_label: Some(String::from("A")),
+        channel_view: ChannelViewMode::Stereo,
+    });
 
     assert_eq!(chrome.status_hint, "playing");
     assert!(chrome.reference_anchor_available);
@@ -381,12 +382,12 @@ fn timeline_motion_state_aggregates_surface_chrome_tools_and_transport() {
             raster_preview: SignalRasterPreview::default(),
             markers: Vec::<TimelineMarkerPreview>::new(),
         }),
-        SignalChromeState::new(
-            "moving",
-            true,
-            Some(String::from("anchor")),
-            ChannelViewMode::Mono,
-        ),
+        SignalChromeState::from_parts(SignalChromeParts {
+            status_hint: String::from("moving"),
+            reference_anchor_available: true,
+            reference_anchor_label: Some(String::from("anchor")),
+            channel_view: ChannelViewMode::Mono,
+        }),
         SignalToolState::from_flags(SignalToolFlags {
             lock_enabled: false,
             alternate_preview_enabled: true,

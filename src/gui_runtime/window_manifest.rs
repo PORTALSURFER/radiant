@@ -5,5 +5,5 @@ mod spec;
 mod validation;
 
 pub use manifest::{WindowManifest, WindowManifestError};
-pub use spec::WindowSpec;
+pub use spec::{WindowSpec, WindowSpecParts};
 pub use validation::WindowSpecError;

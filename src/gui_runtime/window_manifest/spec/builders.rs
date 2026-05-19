@@ -1,27 +1,35 @@
-use super::WindowSpec;
+use super::{WindowSpec, WindowSpecParts};
 use crate::gui_runtime::{
     EmbeddedFont, NativeGpuBackend, NativePopupOptions, NativeRunOptions, WindowIconRgba,
 };
 use std::path::PathBuf;
 
 impl WindowSpec {
+    /// Build a window descriptor from named parts.
+    pub fn from_parts(parts: WindowSpecParts) -> Self {
+        Self {
+            key: parts.key,
+            options: parts.options,
+        }
+    }
+
     /// Build a window descriptor from a stable key and title.
     pub fn new(key: impl Into<String>, title: impl Into<String>) -> Self {
-        Self {
+        Self::from_parts(WindowSpecParts {
             key: key.into(),
             options: NativeRunOptions {
                 title: title.into(),
                 ..NativeRunOptions::default()
             },
-        }
+        })
     }
 
     /// Build a window descriptor from explicit native runtime options.
     pub fn from_options(key: impl Into<String>, options: NativeRunOptions) -> Self {
-        Self {
+        Self::from_parts(WindowSpecParts {
             key: key.into(),
             options,
-        }
+        })
     }
 
     /// Build a borderless floating popup descriptor.

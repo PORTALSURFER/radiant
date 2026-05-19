@@ -38,21 +38,37 @@ pub struct ScrollbarWidget {
     pub state: ScrollbarState,
 }
 
+/// Named construction fields for [`ScrollbarWidget`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScrollbarWidgetParts {
+    /// Stable widget identity used by layout, events, and state synchronization.
+    pub id: WidgetId,
+    /// Scrollbar orientation.
+    pub axis: ScrollbarAxis,
+    /// Intrinsic scrollbar sizing contract.
+    pub sizing: WidgetSizing,
+}
+
 impl ScrollbarWidget {
-    /// Build a scrollbar descriptor with drag/page request semantics.
-    pub fn new(id: WidgetId, axis: ScrollbarAxis, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
+    /// Build a scrollbar descriptor from named identity, orientation, and sizing fields.
+    pub fn from_parts(parts: ScrollbarWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.focus = FocusBehavior::Pointer;
         common.paint.bounds = PaintBounds::ClipToRect;
         Self {
             common,
             props: ScrollbarProps {
-                axis,
+                axis: parts.axis,
                 viewport_fraction: 1.0,
                 step_fraction: 0.1,
             },
             state: ScrollbarState::default(),
         }
+    }
+
+    /// Build a scrollbar descriptor with drag/page request semantics.
+    pub fn new(id: WidgetId, axis: ScrollbarAxis, sizing: WidgetSizing) -> Self {
+        Self::from_parts(ScrollbarWidgetParts { id, axis, sizing })
     }
 
     /// Return the current thumb rectangle inside the provided track bounds.

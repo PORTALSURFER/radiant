@@ -2,13 +2,14 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
+use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 
 use super::WidgetCommon;
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{TextInputMessage, WidgetInput, WidgetOutput};
 
+mod builders;
 mod editing;
 mod editing_ops;
 mod input;
@@ -118,41 +119,5 @@ impl Widget for TextInputWidget {
         theme: &ThemeTokens,
     ) {
         paint::push_text_input_widget_paint(primitives, self, bounds, theme);
-    }
-}
-
-impl<Message> WidgetMessageMapper<Message> {
-    /// Build a text-input-message mapper.
-    pub fn text_input(map: impl Fn(TextInputMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::typed(map)
-    }
-}
-
-impl<Message> SurfaceNode<Message> {
-    /// Build a single-line text input that maps edits and submissions by value.
-    pub fn text_input(
-        id: WidgetId,
-        value: impl Into<String>,
-        sizing: WidgetSizing,
-        map: impl Fn(String) -> Message + Send + Sync + 'static,
-    ) -> Self {
-        Self::text_input_mapped(id, value, sizing, move |message| match message {
-            TextInputMessage::Changed { value } | TextInputMessage::Submitted { value } => {
-                map(value)
-            }
-        })
-    }
-
-    /// Build a single-line text input with a custom widget-to-host message mapper.
-    pub fn text_input_mapped(
-        id: WidgetId,
-        value: impl Into<String>,
-        sizing: WidgetSizing,
-        map: impl Fn(TextInputMessage) -> Message + Send + Sync + 'static,
-    ) -> Self {
-        Self::widget(
-            TextInputWidget::new(id, value, sizing),
-            WidgetMessageMapper::text_input(map),
-        )
     }
 }

@@ -522,6 +522,35 @@ fn native_gpu_surface_wheel_coalescing_stays_in_focused_module() {
 }
 
 #[test]
+fn native_gpu_surface_interaction_region_model_stays_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let collector = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/runtime_helpers/gpu_surface_regions.rs",
+    ))
+    .expect("GPU surface interaction region collector should be readable");
+    let region = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/runtime_helpers/gpu_surface_regions/region.rs",
+    ))
+    .expect("GPU surface interaction region model should be readable");
+
+    assert!(
+        collector.contains("mod region;")
+            && collector.contains(
+                "pub(in crate::gui_runtime::native_vello) use region::GpuSurfaceInteractionRegion;"
+            ),
+        "GPU surface interaction collection should delegate region state and capability filtering"
+    );
+    assert!(
+        !collector.contains("struct GpuSurfaceInteractionRegion")
+            && !collector.contains("fn from_gpu_surface")
+            && region.contains("struct GpuSurfaceInteractionRegion")
+            && region.contains("fn from_gpu_surface")
+            && region.contains("fn contains"),
+        "GPU surface interaction region model and renderability checks should live in runtime_helpers/gpu_surface_regions/region.rs"
+    );
+}
+
+#[test]
 fn native_vello_scene_text_run_buffer_stays_in_focused_module() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let scene = fs::read_to_string(

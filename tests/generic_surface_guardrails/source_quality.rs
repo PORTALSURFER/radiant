@@ -1079,6 +1079,10 @@ fn canvas_gesture_primitives_stay_in_event_pointer_and_state_modules() {
     let state =
         fs::read_to_string(manifest_dir.join("src/widgets/interaction/canvas_gesture/state.rs"))
             .expect("canvas gesture state module should be readable");
+    let active_press = fs::read_to_string(
+        manifest_dir.join("src/widgets/interaction/canvas_gesture/state/active_press.rs"),
+    )
+    .expect("canvas gesture active press module should be readable");
 
     for required in [
         "mod event;",
@@ -1112,10 +1116,18 @@ fn canvas_gesture_primitives_stay_in_event_pointer_and_state_modules() {
         "canvas pointer projection and delta helpers should live in canvas_gesture/pointer.rs"
     );
     assert!(
-        state.contains("pub struct CanvasGestureState")
-            && state.contains("struct ActiveCanvasPress")
+        state.contains("mod active_press;")
+            && state.contains("pub struct CanvasGestureState")
             && state.contains("pub fn handle_input"),
-        "canvas retained press state and input resolution should live in canvas_gesture/state.rs"
+        "canvas retained state and input resolution should live in canvas_gesture/state.rs"
+    );
+    assert!(
+        !state.contains("struct ActiveCanvasPress")
+            && active_press.contains("struct ActiveCanvasPress")
+            && active_press.contains("origin: CanvasPointer")
+            && active_press.contains("button: PointerButton")
+            && active_press.contains("modifiers: PointerModifiers"),
+        "canvas retained press metadata should live in canvas_gesture/state/active_press.rs"
     );
 }
 

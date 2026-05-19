@@ -1,12 +1,13 @@
 //! Reusable toggle primitive.
 
+mod builders;
 mod input;
 mod model;
 mod paint;
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, PaintText, SurfaceNode, WidgetMessageMapper};
+use crate::runtime::{PaintPrimitive, PaintText};
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
@@ -109,103 +110,6 @@ impl Widget for ToggleWidget {
     }
 }
 
-impl<Message> WidgetMessageMapper<Message> {
-    /// Build a toggle-message mapper.
-    pub fn toggle(map: impl Fn(ToggleMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::typed(map)
-    }
-}
-
-impl<Message> SurfaceNode<Message> {
-    /// Build a toggle leaf that maps value changes by checked state.
-    pub fn toggle(
-        id: WidgetId,
-        label: impl Into<String>,
-        sizing: WidgetSizing,
-        map: impl Fn(bool) -> Message + Send + Sync + 'static,
-    ) -> Self {
-        Self::toggle_with_checked(id, label, false, sizing, map)
-    }
-
-    /// Build a toggle leaf with an explicit checked state.
-    pub fn toggle_with_checked(
-        id: WidgetId,
-        label: impl Into<String>,
-        checked: bool,
-        sizing: WidgetSizing,
-        map: impl Fn(bool) -> Message + Send + Sync + 'static,
-    ) -> Self {
-        Self::toggle_mapped_with_checked(id, label, checked, sizing, move |message| match message {
-            ToggleMessage::ValueChanged { checked } => map(checked),
-        })
-    }
-
-    /// Build a toggle leaf with a custom widget-to-host message mapper.
-    pub fn toggle_mapped(
-        id: WidgetId,
-        label: impl Into<String>,
-        sizing: WidgetSizing,
-        map: impl Fn(ToggleMessage) -> Message + Send + Sync + 'static,
-    ) -> Self {
-        Self::toggle_mapped_with_checked(id, label, false, sizing, map)
-    }
-
-    /// Build a toggle leaf with explicit checked state and a custom mapper.
-    pub fn toggle_mapped_with_checked(
-        id: WidgetId,
-        label: impl Into<String>,
-        checked: bool,
-        sizing: WidgetSizing,
-        map: impl Fn(ToggleMessage) -> Message + Send + Sync + 'static,
-    ) -> Self {
-        Self::widget(
-            ToggleWidget::new(id, PaintText::from(label.into()), sizing).with_checked(checked),
-            WidgetMessageMapper::toggle(map),
-        )
-    }
-}
-
 #[cfg(test)]
-mod tests {
-    use crate::gui::types::{Point, Vector2};
-
-    use super::*;
-    use crate::widgets::interaction::{PointerButton, WidgetKey};
-
-    #[test]
-    fn toggle_keyboard_activation_flips_active_state() {
-        let mut toggle =
-            ToggleWidget::new(8, "Snap", WidgetSizing::fixed(Vector2::new(88.0, 28.0)));
-        let _ = toggle.handle_input(Rect::default(), WidgetInput::FocusChanged(true));
-
-        assert_eq!(
-            toggle.handle_input(Rect::default(), WidgetInput::KeyPress(WidgetKey::Enter)),
-            Some(ToggleMessage::ValueChanged { checked: true })
-        );
-        assert!(toggle.common.state.active);
-
-        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(88.0, 28.0));
-        assert_eq!(
-            toggle.handle_input(
-                bounds,
-                WidgetInput::PointerPress {
-                    position: Point::new(10.0, 10.0),
-                    button: PointerButton::Primary,
-                    modifiers: Default::default(),
-                },
-            ),
-            None
-        );
-        assert_eq!(
-            toggle.handle_input(
-                bounds,
-                WidgetInput::PointerRelease {
-                    position: Point::new(10.0, 10.0),
-                    button: PointerButton::Primary,
-                    modifiers: Default::default(),
-                },
-            ),
-            Some(ToggleMessage::ValueChanged { checked: false })
-        );
-    }
-}
+#[path = "toggle/tests.rs"]
+mod tests;

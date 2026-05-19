@@ -2025,6 +2025,29 @@ fn card_primitive_keeps_surface_builders_focused() {
 }
 
 #[test]
+fn image_primitive_keeps_surface_builders_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/image.rs"))
+        .expect("image primitive root should be readable");
+    let builders =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/image/builders.rs"))
+            .expect("image primitive builders should be readable");
+
+    assert!(
+        root.contains("mod builders;")
+            && root.contains("pub struct ImageWidget")
+            && root.contains("impl Widget for ImageWidget")
+            && !root.contains("impl<Message> SurfaceNode<Message>"),
+        "image primitive root should own widget behavior while delegating runtime builders"
+    );
+    assert!(
+        builders.contains("impl<Message> SurfaceNode<Message>")
+            && builders.contains("pub fn image("),
+        "image runtime builder helper should live in image/builders.rs"
+    );
+}
+
+#[test]
 fn status_line_entries_use_named_parts_for_source_and_message() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/feedback/status/line.rs");

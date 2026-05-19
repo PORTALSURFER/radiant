@@ -682,6 +682,39 @@ fn native_text_input_rendering_keeps_utf8_clamping_focused() {
 }
 
 #[test]
+fn native_text_field_layout_keeps_cursor_stop_windowing_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let layout =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/text_edit/layout.rs"))
+            .expect("native text edit layout module should be readable");
+    let cursor_stops = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/text_edit/layout/cursor_stops.rs"),
+    )
+    .expect("native text edit cursor-stop helpers should be readable");
+
+    assert!(
+        layout.contains("mod cursor_stops;")
+            && layout.contains("use cursor_stops::{")
+            && layout
+                .contains("pub(in crate::gui_runtime::native_vello) struct TextFieldLayoutState")
+            && layout
+                .contains("pub(in crate::gui_runtime::native_vello) fn build_text_field_layout"),
+        "native text-field layout root should own the layout state and delegate cursor-stop windowing"
+    );
+    assert!(
+        !layout.contains("fn finite_stop_x")
+            && !layout.contains("fn stop_local_x")
+            && !layout.contains("fn visible_end_stop_index")
+            && cursor_stops.contains("fn cursor_stop_x")
+            && cursor_stops.contains("fn visible_end_stop_index")
+            && cursor_stops.contains("fn build_visible_cursor_stops")
+            && cursor_stops.contains("fn finite_stop_x")
+            && cursor_stops.contains("fn stop_local_x"),
+        "cursor-stop lookup, sanitization, and visible-window helpers should live in text_edit/layout/cursor_stops.rs"
+    );
+}
+
+#[test]
 fn native_vello_runtime_does_not_hide_dead_code() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let runtime_dir = manifest_dir.join("src/gui_runtime/native_vello");

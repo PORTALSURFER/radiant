@@ -4,9 +4,16 @@ use crate::{
     runtime::{ClipAncestors, WidgetPath},
     widgets::WidgetId,
 };
-use std::{
-    collections::{HashMap, HashSet},
-    hash::Hash,
+use capacity::{
+    reserve_map_capacity, reserve_set_capacity, reserve_vec_capacity, widget_clip_capacity,
+};
+use std::collections::{HashMap, HashSet};
+
+mod capacity;
+mod records;
+
+pub(in crate::runtime) use records::{
+    SurfaceContainerTraversalRecord, SurfaceWidgetTraversalRecord,
 };
 
 pub(in crate::runtime) struct SurfaceTraversalIndex {
@@ -23,25 +30,6 @@ pub(in crate::runtime) struct SurfaceTraversalIndex {
     pub(in crate::runtime) widget_clip_ancestors: HashMap<WidgetId, ClipAncestors>,
     pub(in crate::runtime) container_clip_ancestors: HashMap<NodeId, ClipAncestors>,
     pub(in crate::runtime) scroll_content_by_container: HashMap<NodeId, NodeId>,
-}
-
-pub(in crate::runtime) struct SurfaceContainerTraversalRecord<'a> {
-    pub(in crate::runtime) id: NodeId,
-    pub(in crate::runtime) clipped_by: &'a [NodeId],
-    pub(in crate::runtime) scroll_content: Option<NodeId>,
-    pub(in crate::runtime) styled_hoverable: bool,
-}
-
-pub(in crate::runtime) struct SurfaceWidgetTraversalRecord<'a> {
-    pub(in crate::runtime) id: WidgetId,
-    pub(in crate::runtime) child_path: &'a [usize],
-    pub(in crate::runtime) clipped_by: &'a [NodeId],
-    pub(in crate::runtime) focusable: bool,
-    pub(in crate::runtime) keyboard_focusable: bool,
-    pub(in crate::runtime) receives_pointer_hit_testing: bool,
-    pub(in crate::runtime) receives_wheel_input: bool,
-    pub(in crate::runtime) needs_state_synchronization: bool,
-    pub(in crate::runtime) suppresses_container_hover: bool,
 }
 
 impl SurfaceTraversalIndex {
@@ -161,65 +149,9 @@ impl SurfaceTraversalIndex {
     }
 }
 
-fn widget_clip_capacity(stats: SurfaceTraversalStats) -> usize {
-    if stats.scroll_containers == 0 {
-        0
-    } else {
-        stats.widgets
-    }
-}
-
-fn reserve_vec_capacity<T>(values: &mut Vec<T>, desired_capacity: usize) {
-    if desired_capacity > values.capacity() {
-        values.reserve(desired_capacity);
-    }
-}
-
-fn reserve_map_capacity<K, V>(values: &mut HashMap<K, V>, desired_capacity: usize)
-where
-    K: Eq + Hash,
-{
-    if desired_capacity > values.capacity() {
-        values.reserve(desired_capacity);
-    }
-}
-
-fn reserve_set_capacity<T>(values: &mut HashSet<T>, desired_capacity: usize)
-where
-    T: Eq + Hash,
-{
-    if desired_capacity > values.capacity() {
-        values.reserve(desired_capacity);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn widget_clip_capacity_is_zero_without_scroll_containers() {
-        assert_eq!(
-            widget_clip_capacity(SurfaceTraversalStats {
-                widgets: 8,
-                scroll_containers: 0,
-                ..SurfaceTraversalStats::default()
-            }),
-            0
-        );
-    }
-
-    #[test]
-    fn widget_clip_capacity_tracks_widgets_when_scroll_containers_exist() {
-        assert_eq!(
-            widget_clip_capacity(SurfaceTraversalStats {
-                widgets: 8,
-                scroll_containers: 1,
-                ..SurfaceTraversalStats::default()
-            }),
-            8
-        );
-    }
 
     #[test]
     fn traversal_records_route_to_expected_buckets() {

@@ -24,13 +24,15 @@ pub use canvas::{CanvasWidget, RetainedSurfaceDescriptor};
 pub use card::CardWidget;
 pub use drag_handle::DragHandleWidget;
 pub use gpu_surface::{GpuSurfaceParts, GpuSurfaceWidget};
-pub use icon_button::IconButtonWidget;
-pub use image::{ImageProps, ImageWidget};
+pub use icon_button::{IconButtonWidget, IconButtonWidgetParts};
+pub use image::{ImageProps, ImageWidget, ImageWidgetParts};
 pub use interactive_row::{InteractiveRowProps, InteractiveRowWidget};
 pub use list_item::{ListItemWidget, ListItemWidgetParts};
-pub use scrollbar::{ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget};
+pub use scrollbar::{
+    ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget, ScrollbarWidgetParts,
+};
 pub use selectable::{SelectableProps, SelectableWidget, SelectableWidgetParts};
-pub use slider::{SliderProps, SliderState, SliderWidget};
+pub use slider::{SliderProps, SliderState, SliderWidget, SliderWidgetParts};
 pub use support::WidgetCommon;
 pub use text::{TextAlign, TextWidget, TextWidgetParts, TextWrap};
 pub use text_input::{

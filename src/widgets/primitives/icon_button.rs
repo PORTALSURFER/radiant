@@ -19,14 +19,33 @@ pub struct IconButtonWidget {
     pub icon: SvgIcon,
 }
 
+/// Named construction fields for [`IconButtonWidget`].
+#[derive(Clone, Debug)]
+pub struct IconButtonWidgetParts {
+    /// Stable widget identity used by layout, events, and state synchronization.
+    pub id: WidgetId,
+    /// Retained icon painted in the button bounds.
+    pub icon: SvgIcon,
+    /// Intrinsic icon-button sizing contract.
+    pub sizing: WidgetSizing,
+}
+
 impl IconButtonWidget {
-    /// Build an SVG icon button descriptor.
-    pub fn new(id: WidgetId, icon: SvgIcon, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
+    /// Build an SVG icon button descriptor from named identity, icon, and sizing fields.
+    pub fn from_parts(parts: IconButtonWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.focus = FocusBehavior::Keyboard;
         common.paint.bounds = PaintBounds::ClipToRect;
         common.paint.paints_focus = false;
-        Self { common, icon }
+        Self {
+            common,
+            icon: parts.icon,
+        }
+    }
+
+    /// Build an SVG icon button descriptor.
+    pub fn new(id: WidgetId, icon: SvgIcon, sizing: WidgetSizing) -> Self {
+        Self::from_parts(IconButtonWidgetParts { id, icon, sizing })
     }
 }
 

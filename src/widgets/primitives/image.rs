@@ -24,16 +24,32 @@ pub struct ImageWidget {
     pub props: ImageProps,
 }
 
+/// Named construction fields for [`ImageWidget`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImageWidgetParts {
+    /// Stable widget identity used by layout and paint projection.
+    pub id: WidgetId,
+    /// Shared raster image payload.
+    pub image: Arc<ImageRgba>,
+    /// Intrinsic image sizing contract.
+    pub sizing: WidgetSizing,
+}
+
 impl ImageWidget {
-    /// Build a non-interactive image descriptor that reuses shared pixel storage.
-    pub fn new(id: WidgetId, image: Arc<ImageRgba>, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
+    /// Build a non-interactive image descriptor from named identity, image, and sizing fields.
+    pub fn from_parts(parts: ImageWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.paint.paints_focus = false;
         common.paint.paints_state_layers = false;
         Self {
             common,
-            props: ImageProps { image },
+            props: ImageProps { image: parts.image },
         }
+    }
+
+    /// Build a non-interactive image descriptor that reuses shared pixel storage.
+    pub fn new(id: WidgetId, image: Arc<ImageRgba>, sizing: WidgetSizing) -> Self {
+        Self::from_parts(ImageWidgetParts { id, image, sizing })
     }
 }
 

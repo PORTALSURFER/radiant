@@ -1,15 +1,16 @@
 //! Public API coverage for `radiant::widgets`.
 
 use radiant::{
-    gui::types::ImageRgba,
+    gui::{svg::SvgIcon, types::ImageRgba},
     layout::{
         ContainerKind, ContainerPolicy, LayoutNode, Point, Rect, SlotChild, SlotParams, Vector2,
         layout_tree,
     },
     widgets::{
         BadgeWidget, BadgeWidgetParts, ButtonWidget, ButtonWidgetParts, CardWidget,
-        DragHandleWidget, ImageWidget, ListItemWidget, ListItemWidgetParts, ScrollbarAxis,
-        ScrollbarWidget, SelectableWidget, SelectableWidgetParts, TextInputWidget,
+        DragHandleWidget, IconButtonWidget, IconButtonWidgetParts, ImageWidget, ImageWidgetParts,
+        ListItemWidget, ListItemWidgetParts, ScrollbarAxis, ScrollbarWidget, ScrollbarWidgetParts,
+        SelectableWidget, SelectableWidgetParts, SliderWidget, SliderWidgetParts, TextInputWidget,
         TextInputWidgetParts, TextWidget, TextWidgetParts, ToggleWidget, ToggleWidgetParts, Widget,
         WidgetInput, WidgetKey, WidgetOutput, WidgetSizing, WidgetSizingParts,
     },
@@ -199,6 +200,44 @@ fn interactive_primitive_widgets_support_named_parts_construction() {
     assert!(selectable.common().state.selected);
     assert_eq!(input.common().id, 36);
     assert_eq!(input.state.value, "filter");
+}
+
+#[test]
+fn control_and_media_widgets_support_named_parts_construction() {
+    let slider = SliderWidget::from_parts(SliderWidgetParts {
+        id: 37,
+        value: 1.5,
+        sizing: WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+    });
+    let scrollbar = ScrollbarWidget::from_parts(ScrollbarWidgetParts {
+        id: 38,
+        axis: ScrollbarAxis::Horizontal,
+        sizing: WidgetSizing::fixed(Vector2::new(120.0, 12.0)),
+    });
+    let image_payload = Arc::new(ImageRgba::new(1, 1, vec![0, 0, 0, 255]).expect("valid image"));
+    let image = ImageWidget::from_parts(ImageWidgetParts {
+        id: 39,
+        image: Arc::clone(&image_payload),
+        sizing: WidgetSizing::fixed(Vector2::new(32.0, 32.0)),
+    });
+    let icon = SvgIcon::from_svg(
+        r##"<svg viewBox="0 0 4 4" xmlns="http://www.w3.org/2000/svg"><rect width="4" height="4"/></svg>"##,
+    )
+    .expect("valid svg icon");
+    let icon_button = IconButtonWidget::from_parts(IconButtonWidgetParts {
+        id: 40,
+        icon,
+        sizing: WidgetSizing::fixed(Vector2::new(28.0, 28.0)),
+    });
+
+    assert_eq!(slider.common().id, 37);
+    assert_eq!(slider.state.value, 1.0);
+    assert_eq!(scrollbar.common().id, 38);
+    assert_eq!(scrollbar.props.axis, ScrollbarAxis::Horizontal);
+    assert_eq!(image.common().id, 39);
+    assert!(Arc::ptr_eq(&image.props.image, &image_payload));
+    assert_eq!(icon_button.common().id, 40);
+    assert!(!icon_button.common().paint.paints_focus);
 }
 
 #[test]

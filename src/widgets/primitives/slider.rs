@@ -29,10 +29,21 @@ pub struct SliderWidget {
     pub state: SliderState,
 }
 
+/// Named construction fields for [`SliderWidget`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct SliderWidgetParts {
+    /// Stable widget identity used by layout, events, and state synchronization.
+    pub id: WidgetId,
+    /// Initial normalized slider value.
+    pub value: f32,
+    /// Intrinsic slider sizing contract.
+    pub sizing: WidgetSizing,
+}
+
 impl SliderWidget {
-    /// Build a horizontal slider with normalized value-change semantics.
-    pub fn new(id: WidgetId, value: f32, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, sizing);
+    /// Build a horizontal slider from named identity, value, and sizing fields.
+    pub fn from_parts(parts: SliderWidgetParts) -> Self {
+        let mut common = WidgetCommon::new(parts.id, parts.sizing);
         common.focus = FocusBehavior::Keyboard;
         common.paint.bounds = PaintBounds::ClipToRect;
         Self {
@@ -41,9 +52,14 @@ impl SliderWidget {
                 keyboard_step: DEFAULT_KEYBOARD_STEP,
             },
             state: SliderState {
-                value: clamp_fraction(value),
+                value: clamp_fraction(parts.value),
             },
         }
+    }
+
+    /// Build a horizontal slider with normalized value-change semantics.
+    pub fn new(id: WidgetId, value: f32, sizing: WidgetSizing) -> Self {
+        Self::from_parts(SliderWidgetParts { id, value, sizing })
     }
 
     /// Return this slider with an explicit normalized value.

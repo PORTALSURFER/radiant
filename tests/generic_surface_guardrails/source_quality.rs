@@ -927,6 +927,30 @@ fn labeled_primitive_widgets_use_named_parts_for_identity_content_and_sizing() {
             "pub fn from_parts(parts: TextInputWidgetParts) -> Self",
             "Self::from_parts(TextInputWidgetParts {",
         ),
+        (
+            "slider.rs",
+            "pub struct SliderWidgetParts",
+            "pub fn from_parts(parts: SliderWidgetParts) -> Self",
+            "Self::from_parts(SliderWidgetParts {",
+        ),
+        (
+            "scrollbar.rs",
+            "pub struct ScrollbarWidgetParts",
+            "pub fn from_parts(parts: ScrollbarWidgetParts) -> Self",
+            "Self::from_parts(ScrollbarWidgetParts {",
+        ),
+        (
+            "icon_button.rs",
+            "pub struct IconButtonWidgetParts",
+            "pub fn from_parts(parts: IconButtonWidgetParts) -> Self",
+            "Self::from_parts(IconButtonWidgetParts {",
+        ),
+        (
+            "image.rs",
+            "pub struct ImageWidgetParts",
+            "pub fn from_parts(parts: ImageWidgetParts) -> Self",
+            "Self::from_parts(ImageWidgetParts {",
+        ),
     ] {
         let source_path = primitives_dir.join(file);
         let source = fs::read_to_string(&source_path)

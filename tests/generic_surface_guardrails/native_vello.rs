@@ -84,6 +84,10 @@ fn gui_svg_keeps_icon_parser_model_and_hit_testing_in_focused_modules() {
         .expect("generic SVG model module should be readable");
     let parser = fs::read_to_string(manifest_dir.join("src/gui/svg/parser.rs"))
         .expect("generic SVG parser module should be readable");
+    let parser_numbers = fs::read_to_string(manifest_dir.join("src/gui/svg/parser/numbers.rs"))
+        .expect("generic SVG parser number module should be readable");
+    let parser_transform = fs::read_to_string(manifest_dir.join("src/gui/svg/parser/transform.rs"))
+        .expect("generic SVG parser transform module should be readable");
     let hit_test = fs::read_to_string(manifest_dir.join("src/gui/svg/hit_test.rs"))
         .expect("generic SVG hit-test module should be readable");
 
@@ -115,8 +119,22 @@ fn gui_svg_keeps_icon_parser_model_and_hit_testing_in_focused_modules() {
     assert!(
         parser.contains("pub fn parse_svg_document")
             && parser.contains("fn collect_shapes")
-            && parser.contains("fn parse_transform_list"),
-        "SVG subset parsing should live in the parser module"
+            && parser.contains("mod numbers;")
+            && parser.contains("mod transform;")
+            && !parser.contains("fn parse_transform_list")
+            && !parser.contains("fn parse_number_list"),
+        "SVG document traversal should live in the parser root while helper parsing stays delegated"
+    );
+    assert!(
+        parser_numbers.contains("fn parse_number_list")
+            && parser_numbers.contains("fn parse_number"),
+        "SVG numeric list parsing should live in parser/numbers.rs"
+    );
+    assert!(
+        parser_transform.contains("fn parse_transform_list")
+            && parser_transform.contains("fn parse_single_transform")
+            && parser_transform.contains("parse_number_list(args)"),
+        "SVG transform parsing should live in parser/transform.rs"
     );
     assert!(
         hit_test.contains("pub fn point_in_svg_shapes")

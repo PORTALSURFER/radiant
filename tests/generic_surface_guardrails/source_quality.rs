@@ -502,6 +502,9 @@ fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
         .expect("runtime surface node module should be readable");
     let builders = fs::read_to_string(manifest_dir.join("src/runtime/surface/builders.rs"))
         .expect("runtime surface builders should be readable");
+    let container_builders =
+        fs::read_to_string(manifest_dir.join("src/runtime/surface/builders/container.rs"))
+            .expect("runtime surface container builders should be readable");
     let surface = fs::read_to_string(manifest_dir.join("src/runtime/surface.rs"))
         .expect("runtime surface module should be readable");
     let runtime =
@@ -525,13 +528,19 @@ fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
         );
     }
     assert!(
-        builders
-            .contains("pub fn container_from_parts(parts: SurfaceContainerParts<Message>) -> Self")
+        builders.contains("mod container;")
+            && !builders
+                .contains("pub fn container_from_parts(parts: SurfaceContainerParts<Message>)")
+            && container_builders.contains(
+                "pub fn container_from_parts(parts: SurfaceContainerParts<Message>) -> Self"
+            )
+            && container_builders.contains("pub fn virtual_scroll_area(")
+            && container_builders.contains("fn scroll_area_with_virtualization(")
             && surface.contains("SurfaceChildParts")
             && surface.contains("SurfaceContainerParts")
             && runtime.contains("SurfaceChildParts")
             && runtime.contains("SurfaceContainerParts"),
-        "runtime surface named parts should be available through the public runtime module"
+        "runtime surface container builders should stay focused while named parts remain publicly available"
     );
 }
 

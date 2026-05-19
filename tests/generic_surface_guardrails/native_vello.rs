@@ -455,6 +455,33 @@ fn native_surface_texture_acquire_stays_with_surface_lifecycle() {
 }
 
 #[test]
+fn native_vello_present_diagnostics_stay_in_focused_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let present = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present.rs"),
+    )
+    .expect("present driver should be readable");
+    let diagnostics = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present/diagnostics.rs"),
+    )
+    .expect("present diagnostics helper should be readable");
+
+    assert!(
+        present.contains("mod diagnostics;")
+            && present.contains("native_frame_diagnostics(")
+            && !present.contains("fn native_frame_diagnostics"),
+        "present driver should delegate structured frame diagnostics projection"
+    );
+    assert!(
+        diagnostics.contains("fn native_frame_diagnostics")
+            && diagnostics.contains("NativeSceneDiagnostics")
+            && diagnostics.contains("NativeGpuSurfaceDiagnostics")
+            && diagnostics.contains("NativeFrameTimingDiagnostics"),
+        "native frame diagnostics projection should live in present/diagnostics.rs"
+    );
+}
+
+#[test]
 fn native_gpu_upload_byte_casts_stay_in_focused_module() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module =

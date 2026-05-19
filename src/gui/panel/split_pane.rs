@@ -9,7 +9,7 @@ mod sidebar_state;
 mod slot;
 mod tree_panel;
 
-pub use assigned_row::SplitPaneAssignedRow;
+pub use assigned_row::{SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment};
 pub use sidebar_state::SplitPaneSidebarState;
 pub use slot::SplitPaneSlot;
 pub use tree_panel::SplitPaneTreePanel;

@@ -1109,6 +1109,10 @@ fn canvas_gesture_primitives_stay_in_event_pointer_and_state_modules() {
         manifest_dir.join("src/widgets/interaction/canvas_gesture/state/active_press.rs"),
     )
     .expect("canvas gesture active press module should be readable");
+    let state_tests = fs::read_to_string(
+        manifest_dir.join("src/widgets/interaction/canvas_gesture/state/tests.rs"),
+    )
+    .expect("canvas gesture state tests should be readable");
 
     for required in [
         "mod event;",
@@ -1143,6 +1147,8 @@ fn canvas_gesture_primitives_stay_in_event_pointer_and_state_modules() {
     );
     assert!(
         state.contains("mod active_press;")
+            && state.contains("#[cfg(test)]")
+            && state.contains("mod tests;")
             && state.contains("pub struct CanvasGestureState")
             && state.contains("pub fn handle_input"),
         "canvas retained state and input resolution should live in canvas_gesture/state.rs"
@@ -1154,6 +1160,14 @@ fn canvas_gesture_primitives_stay_in_event_pointer_and_state_modules() {
             && active_press.contains("button: PointerButton")
             && active_press.contains("modifiers: PointerModifiers"),
         "canvas retained press metadata should live in canvas_gesture/state/active_press.rs"
+    );
+    assert!(
+        !state.contains("fn canvas_gesture_state_tracks_press_drag_and_release")
+            && state_tests
+                .contains("fn canvas_gesture_state_projects_local_and_normalized_positions")
+            && state_tests.contains("fn canvas_gesture_state_tracks_press_drag_and_release")
+            && state_tests.contains("fn canvas_gesture_state_clears_drag_on_focus_loss"),
+        "canvas gesture state regression tests should live in canvas_gesture/state/tests.rs"
     );
 }
 

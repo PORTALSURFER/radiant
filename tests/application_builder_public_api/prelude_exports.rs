@@ -38,11 +38,17 @@ fn prelude_exports_application_chrome_models() {
 
 #[test]
 fn prelude_exports_list_selection_controller() {
+    let column = ui::ColumnSummary::from_parts(ui::ColumnSummaryParts {
+        title: "Inbox".to_owned(),
+        item_count: 42,
+    });
     let mut selection = ui::ListSelectionController::new();
 
     selection.select(1, 4, ui::ListSelectionModifiers::new());
     selection.select(3, 4, ui::ListSelectionModifiers::extend());
 
+    assert_eq!(column.title, "Inbox");
+    assert_eq!(column.item_count, 42);
     assert_eq!(selection.selected_indices(), &[1, 2, 3]);
 }
 

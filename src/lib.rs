@@ -72,8 +72,9 @@ pub mod prelude {
             RetainedSegmentPlan, RetainedSegmentRevisions,
         },
         list::{
-            ListSelectionController, ListSelectionModifiers, VirtualListController,
-            VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window,
+            ColumnSummary, ColumnSummaryParts, ListSelectionController, ListSelectionModifiers,
+            VirtualListController, VirtualListWindow, VirtualListWindowRequest,
+            resolve_virtual_list_window,
         },
         range::IndexViewport,
         shortcuts::{ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution},

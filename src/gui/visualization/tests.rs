@@ -3,8 +3,9 @@ use super::{
     DragHandle, DragHandleRole, PointRenderMode, SignalChromeParts, SignalChromeState,
     SignalRasterPreview, SignalRasterPreviewParts, SignalToolFlags, SignalToolState, SpatialPanel,
     SpatialPoint, TimelineCoordinateMapper, TimelineEditPreview, TimelineEditPreviewParts,
-    TimelineFeedbackEvents, TimelineMarkerPreview, TimelineMotionState, TimelinePresentationState,
-    TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportState, TimelineViewport,
+    TimelineFeedbackEvents, TimelineFeedbackParts, TimelineMarkerPreview, TimelineMotionState,
+    TimelinePresentationParts, TimelinePresentationState, TimelineSurfaceParts,
+    TimelineSurfaceState, TimelineTransportParts, TimelineTransportState, TimelineViewport,
     canvas_layer_at_point, drag_handle_at_point, normalized_milli_point_in_rect,
 };
 use crate::gui::{
@@ -247,20 +248,34 @@ fn signal_tool_state_preserves_generic_interaction_flags() {
 #[test]
 fn timeline_transport_state_preserves_positions_and_resolves_micro_playhead() {
     let selection = NormalizedRange::new(100, 400);
-    let transport = TimelineTransportState::new(Some(120), Some(250), None, Some(selection));
+    let transport = TimelineTransportState::from_parts(TimelineTransportParts {
+        cursor_milli: Some(120),
+        playhead_milli: Some(250),
+        playhead_micros: None,
+        selection: Some(selection),
+    });
 
     assert_eq!(transport.cursor_milli, Some(120));
     assert_eq!(transport.playhead_milli, Some(250));
     assert_eq!(transport.resolved_playhead_micros(), Some(250_000));
     assert_eq!(transport.selection, Some(selection));
 
-    let precise = TimelineTransportState::new(None, Some(250), Some(250_125), None);
+    let precise = TimelineTransportState::from_parts(TimelineTransportParts {
+        cursor_milli: None,
+        playhead_milli: Some(250),
+        playhead_micros: Some(250_125),
+        selection: None,
+    });
     assert_eq!(precise.resolved_playhead_micros(), Some(250_125));
 }
 
 #[test]
 fn timeline_feedback_events_preserve_operation_tokens() {
-    let events = TimelineFeedbackEvents::new(10, 20, 30);
+    let events = TimelineFeedbackEvents::from_parts(TimelineFeedbackParts {
+        primary_success_nonce: 10,
+        primary_failure_nonce: 20,
+        secondary_success_nonce: 30,
+    });
 
     assert_eq!(events.primary_success_nonce, 10);
     assert_eq!(events.primary_failure_nonce, 20);
@@ -269,13 +284,13 @@ fn timeline_feedback_events_preserve_operation_tokens() {
 
 #[test]
 fn timeline_presentation_state_preserves_guides_repeat_and_labels() {
-    let presentation = TimelinePresentationState::new(
-        Some(125_000),
-        10_000,
-        true,
-        Some(String::from("Guide 1")),
-        Some(String::from("2x")),
-    );
+    let presentation = TimelinePresentationState::from_parts(TimelinePresentationParts {
+        guide_step_micros: Some(125_000),
+        guide_origin_micros: 10_000,
+        repeat_enabled: true,
+        primary_label: Some(String::from("Guide 1")),
+        viewport_label: Some(String::from("2x")),
+    });
 
     assert_eq!(presentation.guide_step_micros, Some(125_000));
     assert_eq!(presentation.guide_origin_micros, 10_000);
@@ -358,16 +373,25 @@ fn timeline_surface_state_aggregates_generic_timeline_parts() {
     };
     let surface = TimelineSurfaceState::from_parts(TimelineSurfaceParts {
         viewport: TimelineViewport::new(10, 900, 10_000, 900_000, 10_000_000, 900_000_000),
-        transport: TimelineTransportState::new(Some(20), Some(30), Some(30_500), None),
+        transport: TimelineTransportState::from_parts(TimelineTransportParts {
+            cursor_milli: Some(20),
+            playhead_milli: Some(30),
+            playhead_micros: Some(30_500),
+            selection: None,
+        }),
         edit_preview: TimelineEditPreview::default(),
-        feedback_events: TimelineFeedbackEvents::new(1, 2, 3),
-        presentation: TimelinePresentationState::new(
-            None,
-            0,
-            true,
-            Some(String::from("tempo")),
-            None,
-        ),
+        feedback_events: TimelineFeedbackEvents::from_parts(TimelineFeedbackParts {
+            primary_success_nonce: 1,
+            primary_failure_nonce: 2,
+            secondary_success_nonce: 3,
+        }),
+        presentation: TimelinePresentationState::from_parts(TimelinePresentationParts {
+            guide_step_micros: None,
+            guide_origin_micros: 0,
+            repeat_enabled: true,
+            primary_label: Some(String::from("tempo")),
+            viewport_label: None,
+        }),
         raster_preview: SignalRasterPreview::default(),
         markers: vec![marker],
     });
@@ -385,7 +409,12 @@ fn timeline_motion_state_aggregates_surface_chrome_tools_and_transport() {
         true,
         TimelineSurfaceState::from_parts(TimelineSurfaceParts {
             viewport: TimelineViewport::new(0, 500, 0, 500_000, 0, 500_000_000),
-            transport: TimelineTransportState::new(None, Some(10), Some(10_250), None),
+            transport: TimelineTransportState::from_parts(TimelineTransportParts {
+                cursor_milli: None,
+                playhead_milli: Some(10),
+                playhead_micros: Some(10_250),
+                selection: None,
+            }),
             edit_preview: TimelineEditPreview::default(),
             feedback_events: TimelineFeedbackEvents::default(),
             presentation: TimelinePresentationState::default(),

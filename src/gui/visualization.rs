@@ -16,8 +16,9 @@ pub use signal::{
 pub use spatial::{PointRenderMode, SpatialPanel, SpatialPoint, normalized_milli_point_in_rect};
 pub use timeline::{
     TimelineCoordinateMapper, TimelineEditPreview, TimelineEditPreviewParts,
-    TimelineFeedbackEvents, TimelineMarkerPreview, TimelineMotionState, TimelinePresentationState,
-    TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportState, TimelineViewport,
+    TimelineFeedbackEvents, TimelineFeedbackParts, TimelineMarkerPreview, TimelineMotionState,
+    TimelinePresentationParts, TimelinePresentationState, TimelineSurfaceParts,
+    TimelineSurfaceState, TimelineTransportParts, TimelineTransportState, TimelineViewport,
 };
 
 #[cfg(test)]

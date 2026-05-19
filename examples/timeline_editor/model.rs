@@ -4,8 +4,9 @@ use radiant::gui::{
     visualization::{
         ChannelViewMode, SignalChromeState, SignalRasterPreview, SignalToolFlags, SignalToolState,
         TimelineEditPreview, TimelineEditPreviewParts, TimelineFeedbackEvents,
-        TimelineMarkerPreview, TimelineMotionState, TimelinePresentationState,
-        TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportState, TimelineViewport,
+        TimelineFeedbackParts, TimelineMarkerPreview, TimelineMotionState,
+        TimelinePresentationParts, TimelinePresentationState, TimelineSurfaceParts,
+        TimelineSurfaceState, TimelineTransportParts, TimelineTransportState, TimelineViewport,
     },
 };
 
@@ -376,12 +377,12 @@ pub(super) fn timeline_surface(state: &TimelineEditorState) -> TimelineMotionSta
     });
     let surface = TimelineSurfaceState::from_parts(TimelineSurfaceParts {
         viewport: TimelineViewport::new(0, 1_000, 0, 1_000_000, 0, 1_000_000_000),
-        transport: TimelineTransportState::new(
-            Some(beat_to_normalized(state.playhead_beat)),
-            None,
-            Some(beat_to_micros(state.playhead_beat)),
+        transport: TimelineTransportState::from_parts(TimelineTransportParts {
+            cursor_milli: Some(beat_to_normalized(state.playhead_beat)),
+            playhead_milli: None,
+            playhead_micros: Some(beat_to_micros(state.playhead_beat)),
             selection,
-        ),
+        }),
         edit_preview: TimelineEditPreview::from_parts(TimelineEditPreviewParts {
             selection,
             leading_end_milli: selection.map(|range| range.start_milli),
@@ -396,14 +397,18 @@ pub(super) fn timeline_surface(state: &TimelineEditorState) -> TimelineMotionSta
             trailing_inner_end_micros: selection.map(|range| range.end_micros),
             trailing_curve_milli: None,
         }),
-        feedback_events: TimelineFeedbackEvents::new(state.feedback_nonce, 0, state.revision),
-        presentation: TimelinePresentationState::new(
-            Some(beat_to_micros(4)),
-            0,
-            state.repeat_enabled,
-            Some("Arrangement".to_string()),
-            Some(format!("{} beats", TOTAL_BEATS)),
-        ),
+        feedback_events: TimelineFeedbackEvents::from_parts(TimelineFeedbackParts {
+            primary_success_nonce: state.feedback_nonce,
+            primary_failure_nonce: 0,
+            secondary_success_nonce: state.revision,
+        }),
+        presentation: TimelinePresentationState::from_parts(TimelinePresentationParts {
+            guide_step_micros: Some(beat_to_micros(4)),
+            guide_origin_micros: 0,
+            repeat_enabled: state.repeat_enabled,
+            primary_label: Some("Arrangement".to_string()),
+            viewport_label: Some(format!("{} beats", TOTAL_BEATS)),
+        }),
         raster_preview: SignalRasterPreview::new(
             Some("arrangement timeline atlas".to_string()),
             false,

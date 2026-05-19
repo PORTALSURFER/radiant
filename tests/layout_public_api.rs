@@ -1,9 +1,9 @@
 //! Public API coverage for `radiant::layout`.
 
 use radiant::layout::{
-    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutEngine, LayoutNode,
-    LayoutState, Point, Rect, SizeModeCross, SizeModeMain, SlotChild, SlotParams, Vector2,
-    layout_tree,
+    Constraints, ConstraintsParts, ContainerKind, ContainerPolicy, CrossAlign, Insets,
+    LayoutEngine, LayoutNode, LayoutState, Point, Rect, SizeModeCross, SizeModeMain, SlotChild,
+    SlotParams, Vector2, layout_tree,
 };
 
 #[test]
@@ -20,7 +20,12 @@ fn public_layout_module_supports_generic_tree_construction() {
                 SlotParams {
                     size_main: SizeModeMain::Fixed(20.0),
                     size_cross: SizeModeCross::Fill,
-                    constraints: Constraints::new(0.0, 200.0, 20.0, 20.0),
+                    constraints: Constraints::from_parts(ConstraintsParts {
+                        min_w: 0.0,
+                        max_w: 200.0,
+                        min_h: 20.0,
+                        max_h: 20.0,
+                    }),
                     margin: Insets::default(),
                     align_cross_override: Some(CrossAlign::Stretch),
                     allow_fixed_compress: false,

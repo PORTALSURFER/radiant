@@ -62,7 +62,7 @@ mod row_helpers;
 mod tree;
 
 pub use crate::gui::types::{Point, Rect, Vector2};
-pub use constraints::Constraints;
+pub use constraints::{Constraints, ConstraintsParts};
 pub use engine::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
     LayoutDiagnosticCode, LayoutEngine, LayoutOutput, LayoutState, LayoutStats, OverflowInfo,

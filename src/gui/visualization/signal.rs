@@ -13,6 +13,24 @@ pub enum ChannelViewMode {
     Stereo,
 }
 
+/// Explicit parts used to build retained raster preview state.
+///
+/// This keeps cache identity, loading flags, labels, and image payloads readable
+/// at app-facing projection call sites.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct SignalRasterPreviewParts {
+    /// Display label for the loaded item, when any.
+    pub loaded_label: Option<String>,
+    /// Whether the preview is waiting for new input content.
+    pub loading: bool,
+    /// Whether a replacement image is still rendering in the background.
+    pub image_rendering: bool,
+    /// Stable signature for detecting image updates.
+    pub image_signature: Option<u64>,
+    /// Optional rasterized image payload.
+    pub image: Option<Arc<ImageRgba>>,
+}
+
 /// Retained raster preview for a timeline, signal, or visualization surface.
 ///
 /// Hosts may render expensive visualization content into an image, project a
@@ -30,6 +48,33 @@ pub struct SignalRasterPreview {
     pub image_signature: Option<u64>,
     /// Optional rasterized image payload.
     pub image: Option<Arc<ImageRgba>>,
+}
+
+/// Explicit parts used to build generic signal chrome state.
+///
+/// This avoids positional status/reference/channel construction as the generic
+/// visualization chrome grows.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SignalChromeParts {
+    /// Extra status hint shown alongside visualization labels.
+    pub status_hint: String,
+    /// Whether a host-defined reference anchor is currently available.
+    pub reference_anchor_available: bool,
+    /// Label for the host-defined reference anchor, when available.
+    pub reference_anchor_label: Option<String>,
+    /// Channel layout used by the signal visualization.
+    pub channel_view: ChannelViewMode,
+}
+
+impl Default for SignalChromeParts {
+    fn default() -> Self {
+        Self {
+            status_hint: String::from("idle"),
+            reference_anchor_available: false,
+            reference_anchor_label: None,
+            channel_view: ChannelViewMode::Mono,
+        }
+    }
 }
 
 /// Generic chrome/status state for a signal visualization surface.
@@ -137,16 +182,21 @@ impl SignalToolState {
 
 impl Default for SignalChromeState {
     fn default() -> Self {
-        Self {
-            status_hint: String::from("idle"),
-            reference_anchor_available: false,
-            reference_anchor_label: None,
-            channel_view: ChannelViewMode::Mono,
-        }
+        Self::from_parts(SignalChromeParts::default())
     }
 }
 
 impl SignalChromeState {
+    /// Build signal chrome state from named generic display parts.
+    pub fn from_parts(parts: SignalChromeParts) -> Self {
+        Self {
+            status_hint: parts.status_hint,
+            reference_anchor_available: parts.reference_anchor_available,
+            reference_anchor_label: parts.reference_anchor_label,
+            channel_view: parts.channel_view,
+        }
+    }
+
     /// Build signal chrome state from explicit display values.
     pub fn new(
         status_hint: impl Into<String>,
@@ -154,16 +204,27 @@ impl SignalChromeState {
         reference_anchor_label: Option<String>,
         channel_view: ChannelViewMode,
     ) -> Self {
-        Self {
+        Self::from_parts(SignalChromeParts {
             status_hint: status_hint.into(),
             reference_anchor_available,
             reference_anchor_label,
             channel_view,
-        }
+        })
     }
 }
 
 impl SignalRasterPreview {
+    /// Build a retained raster preview from named generic parts.
+    pub fn from_parts(parts: SignalRasterPreviewParts) -> Self {
+        Self {
+            loaded_label: parts.loaded_label,
+            loading: parts.loading,
+            image_rendering: parts.image_rendering,
+            image_signature: parts.image_signature,
+            image: parts.image,
+        }
+    }
+
     /// Build a retained raster preview from explicit state.
     pub fn new(
         loaded_label: Option<String>,
@@ -172,12 +233,12 @@ impl SignalRasterPreview {
         image_signature: Option<u64>,
         image: Option<Arc<ImageRgba>>,
     ) -> Self {
-        Self {
+        Self::from_parts(SignalRasterPreviewParts {
             loaded_label,
             loading,
             image_rendering,
             image_signature,
             image,
-        }
+        })
     }
 }

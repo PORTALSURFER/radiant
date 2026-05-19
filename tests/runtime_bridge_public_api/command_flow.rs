@@ -1,7 +1,8 @@
 use super::*;
 use radiant::runtime::{
-    Command, SurfaceRuntime, declarative_command_runtime_bridge,
-    declarative_owned_command_runtime_bridge,
+    Command, DeclarativeCommandRuntimeBridge, DeclarativeCommandRuntimeBridgeParts,
+    DeclarativeOwnedCommandRuntimeBridge, DeclarativeOwnedCommandRuntimeBridgeParts,
+    SurfaceRuntime, declarative_command_runtime_bridge, declarative_owned_command_runtime_bridge,
 };
 
 #[test]
@@ -64,6 +65,50 @@ fn owned_command_bridge_supports_runtime_command_flow() {
     assert!(outcome.repaint_requested);
     assert_eq!(runtime.bridge().state().count, 1);
     assert_eq!(runtime.bridge().state().name, "Owned");
+}
+
+#[test]
+fn declarative_command_bridges_support_named_parts_construction() {
+    let mut bridge =
+        DeclarativeCommandRuntimeBridge::from_parts(DeclarativeCommandRuntimeBridgeParts {
+            state: DemoState::default(),
+            project: project_command_surface,
+            update: |state: &mut DemoState, message| match message {
+                CommandDemoMessage::Start => Command::request_repaint(),
+                CommandDemoMessage::Increment => {
+                    state.count += 1;
+                    Command::none()
+                }
+                CommandDemoMessage::Rename(name) => {
+                    state.name = name;
+                    Command::none()
+                }
+            },
+        });
+    assert!(bridge.update(CommandDemoMessage::Start).requests_repaint());
+    bridge.reduce_message(CommandDemoMessage::Increment);
+    assert_eq!(bridge.state().count, 1);
+
+    let mut owned_bridge = DeclarativeOwnedCommandRuntimeBridge::from_parts(
+        DeclarativeOwnedCommandRuntimeBridgeParts {
+            state: DemoState::default(),
+            project: project_owned_command_surface,
+            update: |state: &mut DemoState, message| match message {
+                CommandDemoMessage::Start => Command::none(),
+                CommandDemoMessage::Increment => {
+                    state.count += 1;
+                    Command::none()
+                }
+                CommandDemoMessage::Rename(name) => {
+                    state.name = name;
+                    Command::none()
+                }
+            },
+        },
+    );
+    owned_bridge.reduce_message(CommandDemoMessage::Rename(String::from("Parts")));
+    assert_eq!(owned_bridge.state().name, "Parts");
+    assert!(owned_bridge.pull_surface().find_widget(10).is_some());
 }
 
 enum CommandDemoMessage {

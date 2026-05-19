@@ -22,18 +22,37 @@ where
     reduce: Reduce,
 }
 
+/// Named construction fields for a [`DeclarativeRuntimeBridge`].
+pub struct DeclarativeRuntimeBridgeParts<State, Project, Reduce> {
+    /// Host-owned state projected into a UI surface.
+    pub state: State,
+    /// Closure that projects state into a shared surface snapshot.
+    pub project: Project,
+    /// Closure that reduces host messages into state updates.
+    pub reduce: Reduce,
+}
+
 impl<State, Message, Project, Reduce> DeclarativeRuntimeBridge<State, Message, Project, Reduce>
 where
     Project: FnMut(&mut State) -> Arc<UiSurface<Message>>,
     Reduce: FnMut(&mut State, Message),
 {
+    /// Build a generic declarative bridge from named parts.
+    pub fn from_parts(parts: DeclarativeRuntimeBridgeParts<State, Project, Reduce>) -> Self {
+        Self {
+            state: parts.state,
+            project: parts.project,
+            reduce: parts.reduce,
+        }
+    }
+
     /// Build a generic declarative bridge from state, projector, and reducer closures.
     pub fn new(state: State, project: Project, reduce: Reduce) -> Self {
-        Self {
+        Self::from_parts(DeclarativeRuntimeBridgeParts {
             state,
             project,
             reduce,
-        }
+        })
     }
 
     /// Return an immutable reference to the owned host state.
@@ -83,18 +102,37 @@ where
     reduce: Reduce,
 }
 
+/// Named construction fields for a [`DeclarativeOwnedRuntimeBridge`].
+pub struct DeclarativeOwnedRuntimeBridgeParts<State, Project, Reduce> {
+    /// Host-owned state projected into a UI surface.
+    pub state: State,
+    /// Closure that projects state into an owned surface snapshot.
+    pub project: Project,
+    /// Closure that reduces host messages into state updates.
+    pub reduce: Reduce,
+}
+
 impl<State, Message, Project, Reduce> DeclarativeOwnedRuntimeBridge<State, Message, Project, Reduce>
 where
     Project: FnMut(&mut State) -> UiSurface<Message>,
     Reduce: FnMut(&mut State, Message),
 {
+    /// Build an owned-surface bridge from named parts.
+    pub fn from_parts(parts: DeclarativeOwnedRuntimeBridgeParts<State, Project, Reduce>) -> Self {
+        Self {
+            state: parts.state,
+            project: parts.project,
+            reduce: parts.reduce,
+        }
+    }
+
     /// Build an owned-surface bridge from state, projector, and reducer closures.
     pub fn new(state: State, project: Project, reduce: Reduce) -> Self {
-        Self {
+        Self::from_parts(DeclarativeOwnedRuntimeBridgeParts {
             state,
             project,
             reduce,
-        }
+        })
     }
 
     /// Return an immutable reference to the owned host state.

@@ -868,6 +868,60 @@ fn shortcut_primitives_stay_in_resolution_gesture_and_layer_modules() {
 }
 
 #[test]
+fn canvas_gesture_primitives_stay_in_event_pointer_and_state_modules() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/interaction/canvas_gesture.rs"))
+        .expect("canvas gesture root should be readable");
+    let event =
+        fs::read_to_string(manifest_dir.join("src/widgets/interaction/canvas_gesture/event.rs"))
+            .expect("canvas gesture event module should be readable");
+    let pointer =
+        fs::read_to_string(manifest_dir.join("src/widgets/interaction/canvas_gesture/pointer.rs"))
+            .expect("canvas gesture pointer module should be readable");
+    let state =
+        fs::read_to_string(manifest_dir.join("src/widgets/interaction/canvas_gesture/state.rs"))
+            .expect("canvas gesture state module should be readable");
+
+    for required in [
+        "mod event;",
+        "mod pointer;",
+        "mod state;",
+        "pub use event::CanvasGestureEvent;",
+        "pub use pointer::CanvasPointer;",
+        "pub use state::CanvasGestureState;",
+    ] {
+        assert!(
+            root.contains(required),
+            "canvas gesture root should delegate `{required}`"
+        );
+    }
+    assert!(
+        !root.contains("pub enum CanvasGestureEvent")
+            && !root.contains("pub struct CanvasPointer")
+            && !root.contains("pub struct CanvasGestureState"),
+        "canvas gesture root should re-export public primitives instead of owning their implementations"
+    );
+    assert!(
+        event.contains("pub enum CanvasGestureEvent")
+            && event.contains("Hover(CanvasPointer)")
+            && event.contains("FocusChanged(bool)"),
+        "canvas gesture event variants should live in canvas_gesture/event.rs"
+    );
+    assert!(
+        pointer.contains("pub struct CanvasPointer")
+            && pointer.contains("fn canvas_pointer")
+            && pointer.contains("fn point_delta"),
+        "canvas pointer projection and delta helpers should live in canvas_gesture/pointer.rs"
+    );
+    assert!(
+        state.contains("pub struct CanvasGestureState")
+            && state.contains("struct ActiveCanvasPress")
+            && state.contains("pub fn handle_input"),
+        "canvas retained press state and input resolution should live in canvas_gesture/state.rs"
+    );
+}
+
+#[test]
 fn resource_completions_use_named_parts_for_request_results() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source = fs::read_to_string(manifest_dir.join("src/runtime/resource/load.rs"))

@@ -1,5 +1,6 @@
 use super::interval::micros_matches_projected_nanos;
-use crate::gui::types::Rect;
+
+mod projection;
 
 /// Pixel-snapping policy for normalized range coordinates projected into a rect.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -104,44 +105,28 @@ impl NormalizedViewport {
 
     /// Return the local `0.0..=1.0` ratio for one absolute normalized ratio.
     pub fn local_ratio(self, absolute_ratio: f64) -> f32 {
-        if !absolute_ratio.is_finite() || self.width_ratio <= f64::EPSILON {
-            return 0.0;
-        }
-        ((absolute_ratio.clamp(0.0, 1.0) - self.start_ratio) / self.width_ratio).clamp(0.0, 1.0)
-            as f32
+        projection::local_ratio(self, absolute_ratio)
     }
 
     /// Project one absolute normalized ratio into an x coordinate inside `rect`.
-    pub fn x_for_ratio(self, rect: Rect, absolute_ratio: f64, snap: NormalizedPixelSnap) -> f32 {
-        let Some((min_x, max_x)) = finite_ordered_x_bounds(rect) else {
-            return 0.0;
-        };
-        if max_x <= min_x {
-            return min_x;
-        }
-        let raw_x = rect.min.x + (rect.width() * self.local_ratio(absolute_ratio));
-        match snap {
-            NormalizedPixelSnap::None => raw_x,
-            NormalizedPixelSnap::Nearest => raw_x.round(),
-        }
-        .clamp(min_x, max_x)
+    pub fn x_for_ratio(
+        self,
+        rect: crate::gui::types::Rect,
+        absolute_ratio: f64,
+        snap: NormalizedPixelSnap,
+    ) -> f32 {
+        projection::x_for_ratio(self, rect, absolute_ratio, snap)
     }
 
     /// Project one absolute micro position into an x coordinate inside `rect`.
-    pub fn x_for_micros(self, rect: Rect, micros: u32, snap: NormalizedPixelSnap) -> f32 {
+    pub fn x_for_micros(
+        self,
+        rect: crate::gui::types::Rect,
+        micros: u32,
+        snap: NormalizedPixelSnap,
+    ) -> f32 {
         self.x_for_ratio(rect, f64::from(micros.min(1_000_000)) / 1_000_000.0, snap)
     }
-}
-
-fn finite_ordered_x_bounds(rect: Rect) -> Option<(f32, f32)> {
-    if !rect.min.x.is_finite() || !rect.max.x.is_finite() {
-        return None;
-    }
-    Some(if rect.min.x <= rect.max.x {
-        (rect.min.x, rect.max.x)
-    } else {
-        (rect.max.x, rect.min.x)
-    })
 }
 
 #[cfg(test)]

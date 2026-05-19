@@ -186,6 +186,8 @@ fn normalized_viewports_use_named_parts_for_precision_bounds() {
     let module_path = manifest_dir.join("src/gui/range.rs");
     let source = fs::read_to_string(&source_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let projection = fs::read_to_string(manifest_dir.join("src/gui/range/viewport/projection.rs"))
+        .expect("normalized viewport projection source should be readable");
     let module = fs::read_to_string(&module_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", module_path.display()));
 
@@ -196,8 +198,17 @@ fn normalized_viewports_use_named_parts_for_precision_bounds() {
     );
     assert!(
         source.contains("Self::from_parts(NormalizedViewportParts {")
+            && source.contains("mod projection;")
+            && source.contains("projection::x_for_ratio")
+            && !source.contains("fn finite_ordered_x_bounds")
             && module.contains("NormalizedViewportParts"),
         "normalized viewport compatibility constructor and range export should keep the named-parts path available"
+    );
+    assert!(
+        projection.contains("fn local_ratio")
+            && projection.contains("fn x_for_ratio")
+            && projection.contains("fn finite_ordered_x_bounds"),
+        "normalized viewport projection math and x-bound sanitization should live in viewport/projection.rs"
     );
 }
 

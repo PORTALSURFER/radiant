@@ -4,7 +4,7 @@ use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{
     GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceOverlay,
-    GpuSurfaceRuntimeOverlays, PaintPrimitive, SurfaceNode,
+    GpuSurfaceRuntimeOverlays, PaintPrimitive,
 };
 use crate::theme::ThemeTokens;
 
@@ -14,6 +14,7 @@ use crate::widgets::contract::{
 };
 use crate::widgets::interaction::{GpuSurfaceMessage, WidgetInput, WidgetOutput};
 
+mod builders;
 mod paint;
 
 /// Named construction inputs for a retained GPU surface widget.
@@ -153,24 +154,5 @@ impl Widget for GpuSurfaceWidget {
         _theme: &ThemeTokens,
     ) {
         paint::push_gpu_surface_widget_paint(primitives, self, bounds);
-    }
-}
-
-impl<Message> SurfaceNode<Message> {
-    /// Build a non-emitting retained GPU surface leaf node.
-    pub fn gpu_surface(
-        id: WidgetId,
-        sizing: WidgetSizing,
-        key: u64,
-        revision: u64,
-        content: GpuSurfaceContent,
-    ) -> Self {
-        Self::static_widget(GpuSurfaceWidget::from_parts(GpuSurfaceParts {
-            id,
-            sizing,
-            key,
-            revision,
-            content,
-        }))
     }
 }

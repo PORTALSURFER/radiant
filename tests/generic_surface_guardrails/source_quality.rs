@@ -1372,6 +1372,29 @@ fn gpu_surface_widget_uses_named_parts_for_retained_resource_identity() {
 }
 
 #[test]
+fn gpu_surface_primitive_keeps_surface_builders_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/gpu_surface.rs"))
+        .expect("gpu-surface primitive root should be readable");
+    let builders =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/gpu_surface/builders.rs"))
+            .expect("gpu-surface primitive builders should be readable");
+
+    assert!(
+        root.contains("mod builders;")
+            && root.contains("pub struct GpuSurfaceWidget")
+            && root.contains("impl Widget for GpuSurfaceWidget")
+            && !root.contains("impl<Message> SurfaceNode<Message>"),
+        "gpu-surface primitive root should own widget behavior while delegating runtime builders"
+    );
+    assert!(
+        builders.contains("impl<Message> SurfaceNode<Message>")
+            && builders.contains("pub fn gpu_surface("),
+        "gpu-surface runtime builder helper should live in gpu_surface/builders.rs"
+    );
+}
+
+#[test]
 fn gpu_surface_content_models_stay_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let content = fs::read_to_string(manifest_dir.join("src/runtime/gpu_surface/content.rs"))

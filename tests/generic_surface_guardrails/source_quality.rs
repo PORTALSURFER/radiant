@@ -1887,6 +1887,41 @@ fn badge_primitive_keeps_surface_builders_and_tests_focused() {
 }
 
 #[test]
+fn button_primitive_keeps_surface_builders_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/button.rs"))
+        .expect("button primitive root should be readable");
+    let builders =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/button/builders.rs"))
+            .expect("button primitive builders should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/widgets/primitives/button/tests.rs"))
+        .expect("button primitive tests should be readable");
+
+    assert!(
+        root.contains("mod builders;")
+            && root.contains("pub struct ButtonWidget")
+            && root.contains("impl Widget for ButtonWidget")
+            && root.contains("mod tests;")
+            && !root.contains("impl<Message> SurfaceNode<Message>")
+            && !root.contains("impl<Message> WidgetMessageMapper<Message>")
+            && !root.contains("fn button_releases_inside_bounds_emit_activation"),
+        "button primitive root should own widget behavior while delegating runtime builders and behavior tests"
+    );
+    assert!(
+        builders.contains("impl<Message> SurfaceNode<Message>")
+            && builders.contains("pub fn button(")
+            && builders.contains("pub fn button_mapped(")
+            && builders.contains("impl<Message> WidgetMessageMapper<Message>"),
+        "button runtime builder helpers should live in button/builders.rs"
+    );
+    assert!(
+        tests.contains("fn button_releases_inside_bounds_emit_activation")
+            && tests.contains("fn focused_button_space_emits_activation"),
+        "button behavior tests should stay in button/tests.rs"
+    );
+}
+
+#[test]
 fn status_line_entries_use_named_parts_for_source_and_message() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/feedback/status/line.rs");

@@ -155,17 +155,26 @@ fn virtual_list_stack_metrics_use_named_parts_for_geometry() {
 #[test]
 fn normalized_ranges_use_named_parts_for_milli_bounds() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let source_path = manifest_dir.join("src/gui/range.rs");
-    let source = fs::read_to_string(&source_path)
+    let root = fs::read_to_string(manifest_dir.join("src/gui/range.rs"))
+        .expect("range root should be readable");
+    let source_path = manifest_dir.join("src/gui/range/interval.rs");
+    let interval = fs::read_to_string(&source_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
 
     assert!(
-        source.contains("pub struct NormalizedRangeParts")
-            && source.contains("pub fn from_parts(parts: NormalizedRangeParts) -> Self"),
+        root.contains("mod interval;")
+            && root.contains("pub use interval::{NormalizedRange, NormalizedRangeParts};")
+            && !root.contains("pub struct NormalizedRange"),
+        "range root should re-export the normalized interval model without owning its implementation"
+    );
+
+    assert!(
+        interval.contains("pub struct NormalizedRangeParts")
+            && interval.contains("pub fn from_parts(parts: NormalizedRangeParts) -> Self"),
         "normalized ranges should expose named parts for start and end milli-unit bounds"
     );
     assert!(
-        source.contains("Self::from_parts(NormalizedRangeParts {"),
+        interval.contains("Self::from_parts(NormalizedRangeParts {"),
         "normalized range compatibility constructor should keep the named-parts path available"
     );
 }

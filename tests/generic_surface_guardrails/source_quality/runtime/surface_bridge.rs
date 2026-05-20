@@ -5,6 +5,11 @@ fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source = fs::read_to_string(manifest_dir.join("src/runtime/surface/node.rs"))
         .expect("runtime surface node module should be readable");
+    let widget = fs::read_to_string(manifest_dir.join("src/runtime/surface/widget.rs"))
+        .expect("runtime surface widget module should be readable");
+    let widget_mapper =
+        fs::read_to_string(manifest_dir.join("src/runtime/surface/widget/mapper.rs"))
+            .expect("runtime surface widget mapper module should be readable");
     let builders = fs::read_to_string(manifest_dir.join("src/runtime/surface/builders.rs"))
         .expect("runtime surface builders should be readable");
     let container_builders =
@@ -56,6 +61,10 @@ fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
             && leaf_builders.contains("pub fn static_widget(")
             && overlay_builders.contains("pub fn overlay_panel(")
             && overlay_builders.contains("pub fn overlay_marker(")
+            && widget.contains("mod mapper;")
+            && widget.contains("pub use mapper::{MessageMapper, WidgetMessageMapper};")
+            && widget_mapper.contains("pub struct WidgetMessageMapper<Message>")
+            && widget_mapper.contains("pub type MessageMapper<Input, Message>")
             && surface.contains("SurfaceChildParts")
             && surface.contains("SurfaceContainerParts")
             && runtime.contains("SurfaceChildParts")

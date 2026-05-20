@@ -8,12 +8,13 @@ use radiant::{
         },
         types::{Point, Rect, Vector2},
     },
-    widgets::TextInputState,
+    widgets::{TextEditCommand, TextInputState},
 };
 use std::hint::black_box;
 
 const TEXT_ROWS: usize = 1_024;
 const WORD_SELECTION_CARETS: usize = 1_024;
+const WORD_DELETION_STATES: usize = 1_024;
 
 pub(super) fn text_line_cache_1k() -> impl FnMut() {
     let mut bench = TextLineCacheBench::new();
@@ -22,6 +23,11 @@ pub(super) fn text_line_cache_1k() -> impl FnMut() {
 
 pub(super) fn text_word_selection_1k() -> impl FnMut() {
     let mut bench = TextWordSelectionBench::new();
+    move || bench.step()
+}
+
+pub(super) fn text_word_deletion_1k() -> impl FnMut() {
+    let mut bench = TextWordDeletionBench::new();
     move || bench.step()
 }
 
@@ -103,6 +109,45 @@ impl TextWordSelectionBench {
         self.next = self.next.wrapping_add(1);
         assert!(self.state.select_word_at(caret));
         black_box((caret, self.state.selected_text_slice(), self.next));
+    }
+}
+
+struct TextWordDeletionBench {
+    template: String,
+    states: Vec<TextInputState>,
+    next: usize,
+}
+
+impl TextWordDeletionBench {
+    fn new() -> Self {
+        let template = word_selection_text();
+        let states = (0..WORD_DELETION_STATES)
+            .map(|_| TextInputState::from_value(template.clone()))
+            .collect();
+        Self {
+            template,
+            states,
+            next: 0,
+        }
+    }
+
+    fn step(&mut self) {
+        let state_index = self.next % self.states.len();
+        let state = &mut self.states[state_index];
+        if state.char_len() < 96 {
+            *state = TextInputState::from_value(self.template.clone());
+        }
+        let caret = (state.char_len() / 2).max(1);
+        state.set_caret(caret, false);
+        let command = if self.next.is_multiple_of(2) {
+            TextEditCommand::DeleteWordLeft
+        } else {
+            TextEditCommand::DeleteWordRight
+        };
+        let result = state.apply_edit_command(command, None);
+        assert!(result.value_changed);
+        self.next = self.next.wrapping_add(1);
+        black_box((state_index, caret, state.char_len(), result, self.next));
     }
 }
 

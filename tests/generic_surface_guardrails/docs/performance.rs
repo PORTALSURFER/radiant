@@ -91,6 +91,7 @@ fn performance_harness_is_registered_and_documented() {
         "resource_slot_stale_completions_1k",
         "text_line_cache_1k",
         "text_word_selection_1k",
+        "text_word_deletion_1k",
         "gpu_signal_summary",
         "gpu_surface_projection",
         "gpu_custom_shader_projection",
@@ -180,8 +181,10 @@ fn performance_harness_is_registered_and_documented() {
             && text_scenarios.contains("top_text_line_with_cache")
             && text_scenarios.contains("TextInputState")
             && text_scenarios.contains("select_word_at")
-            && text_scenarios.contains("selected_text_slice"),
-        "text perf scenarios should exercise the reusable text-line layout cache and text-input word selection"
+            && text_scenarios.contains("selected_text_slice")
+            && text_scenarios.contains("TextEditCommand::DeleteWordLeft")
+            && text_scenarios.contains("TextEditCommand::DeleteWordRight"),
+        "text perf scenarios should exercise the reusable text-line layout cache, text-input word selection, and word deletion"
     );
     assert!(
         bench.contains("bench_gpu_custom_shader_projection")

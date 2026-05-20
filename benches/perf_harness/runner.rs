@@ -1,11 +1,14 @@
 //! Filtering, listing, and timing for performance harness scenarios.
 
 use std::{
-    env,
+    collections::BTreeMap,
+    env, fs,
+    path::PathBuf,
     time::{Duration, Instant},
 };
 
 const RUN_ALL_IN_DEBUG_ENV: &str = "RADIANT_PERF_RUN_ALL_IN_DEBUG";
+const BASELINE_JSONL_ARG: &str = "--baseline-jsonl";
 const JSONL_ARG: &str = "--jsonl";
 const LIST_ARG: &str = "--list";
 
@@ -18,14 +21,20 @@ pub(super) enum OutputFormat {
 pub(super) struct ScenarioRunner {
     filters: Vec<String>,
     output_format: OutputFormat,
+    baseline: Option<BaselineSet>,
     matched: usize,
 }
 
 impl ScenarioRunner {
-    pub(super) fn new(filters: Vec<String>, output_format: OutputFormat) -> Self {
+    pub(super) fn new(
+        filters: Vec<String>,
+        output_format: OutputFormat,
+        baseline: Option<BaselineSet>,
+    ) -> Self {
         Self {
             filters,
             output_format,
+            baseline,
             matched: 0,
         }
     }
@@ -39,7 +48,13 @@ impl ScenarioRunner {
             return;
         }
         self.matched += 1;
-        run_scenario(name, iterations, build(), self.output_format);
+        run_scenario(
+            name,
+            iterations,
+            build(),
+            self.output_format,
+            self.baseline.as_ref(),
+        );
     }
 
     pub(super) fn finish(self) {
@@ -53,12 +68,83 @@ impl ScenarioRunner {
     }
 }
 
+#[derive(Clone, Debug)]
+pub(super) struct BaselineSet {
+    metrics: BTreeMap<String, BaselineMetric>,
+}
+
+impl BaselineSet {
+    fn from_jsonl_file(path: PathBuf) -> Result<Self, String> {
+        let source = fs::read_to_string(&path)
+            .map_err(|err| format!("failed to read {}: {err}", path.display()))?;
+        let mut metrics = BTreeMap::new();
+        for (line_index, line) in source.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let metric = BaselineMetric::from_json_line(trimmed).map_err(|err| {
+                format!(
+                    "failed to parse {}:{} as radiant_perf JSONL: {err}",
+                    path.display(),
+                    line_index + 1
+                )
+            })?;
+            metrics.insert(metric.scenario.clone(), metric);
+        }
+        Ok(Self { metrics })
+    }
+
+    fn metric_for(&self, scenario: &str) -> Option<&BaselineMetric> {
+        self.metrics.get(scenario)
+    }
+}
+
+#[derive(Clone, Debug)]
+struct BaselineMetric {
+    scenario: String,
+    avg_us: f64,
+}
+
+impl BaselineMetric {
+    fn from_json_line(line: &str) -> Result<Self, String> {
+        let value: serde_json::Value = serde_json::from_str(line).map_err(|err| err.to_string())?;
+        if value.get("type").and_then(serde_json::Value::as_str) != Some("radiant_perf") {
+            return Err(String::from("expected type=\"radiant_perf\""));
+        }
+        let scenario = value
+            .get("scenario")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| String::from("missing string field `scenario`"))?
+            .to_owned();
+        let avg_us = value
+            .get("avg_us")
+            .and_then(serde_json::Value::as_f64)
+            .ok_or_else(|| String::from("missing numeric field `avg_us`"))?;
+        if !avg_us.is_finite() || avg_us <= 0.0 {
+            return Err(String::from("field `avg_us` must be finite and positive"));
+        }
+        Ok(Self { scenario, avg_us })
+    }
+}
+
 pub(super) fn scenario_filters_from_args(args: &[String]) -> Vec<String> {
-    args.iter()
-        .skip(1)
-        .filter(|arg| !arg.starts_with('-') && !arg.is_empty())
-        .cloned()
-        .collect()
+    let mut filters = Vec::new();
+    let mut skip_next = false;
+    for arg in args.iter().skip(1) {
+        if skip_next {
+            skip_next = false;
+            continue;
+        }
+        if arg == BASELINE_JSONL_ARG {
+            skip_next = true;
+            continue;
+        }
+        if !arg.starts_with('-') && !arg.is_empty() {
+            filters.push(arg.clone());
+        }
+    }
+    filters
 }
 
 pub(super) fn scenario_list_requested(args: &[String]) -> bool {
@@ -70,6 +156,24 @@ pub(super) fn output_format_from_args(args: &[String]) -> OutputFormat {
         OutputFormat::JsonLines
     } else {
         OutputFormat::Text
+    }
+}
+
+pub(super) fn baseline_from_args(args: &[String]) -> Option<BaselineSet> {
+    let path = match value_after_arg(args, BASELINE_JSONL_ARG) {
+        Some(path) => path,
+        None if args.iter().skip(1).any(|arg| arg == BASELINE_JSONL_ARG) => {
+            eprintln!("radiant_perf baseline error: --baseline-jsonl requires a path");
+            std::process::exit(2);
+        }
+        None => return None,
+    };
+    match BaselineSet::from_jsonl_file(PathBuf::from(path)) {
+        Ok(baseline) => Some(baseline),
+        Err(err) => {
+            eprintln!("radiant_perf baseline error: {err}");
+            std::process::exit(2);
+        }
     }
 }
 
@@ -99,34 +203,105 @@ fn run_scenario(
     iterations: usize,
     mut bench: impl FnMut(),
     output_format: OutputFormat,
+    baseline: Option<&BaselineSet>,
 ) {
     bench();
     let started = Instant::now();
     for _ in 0..iterations {
         bench();
     }
-    print_metric(name, iterations, started.elapsed(), output_format);
+    print_metric(
+        name,
+        iterations,
+        started.elapsed(),
+        output_format,
+        baseline.and_then(|baseline| baseline.metric_for(name)),
+    );
 }
 
-fn print_metric(name: &str, iterations: usize, elapsed: Duration, output_format: OutputFormat) {
+fn print_metric(
+    name: &str,
+    iterations: usize,
+    elapsed: Duration,
+    output_format: OutputFormat,
+    baseline: Option<&BaselineMetric>,
+) {
     let total_us = elapsed.as_micros();
     let avg_us = total_us as f64 / iterations.max(1) as f64;
+    let comparison = baseline.map(|baseline| MetricComparison::new(avg_us, baseline.avg_us));
     match output_format {
         OutputFormat::Text => {
-            println!(
-                "radiant_perf scenario={name} iterations={iterations} total_us={total_us} avg_us={avg_us:.3}"
-            );
+            if let Some(comparison) = comparison {
+                println!(
+                    "radiant_perf scenario={name} iterations={iterations} total_us={total_us} avg_us={avg_us:.3} baseline_avg_us={:.3} baseline_ratio={:.3} baseline_status={}",
+                    comparison.baseline_avg_us, comparison.ratio, comparison.status
+                );
+            } else {
+                println!(
+                    "radiant_perf scenario={name} iterations={iterations} total_us={total_us} avg_us={avg_us:.3}"
+                );
+            }
         }
         OutputFormat::JsonLines => {
-            println!(
-                "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}}}",
-                json_escape(name),
-                iterations,
-                total_us,
-                avg_us
-            );
+            if let Some(comparison) = comparison {
+                println!(
+                    "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3},\"baseline_avg_us\":{:.3},\"baseline_ratio\":{:.3},\"baseline_status\":\"{}\"}}",
+                    json_escape(name),
+                    iterations,
+                    total_us,
+                    avg_us,
+                    comparison.baseline_avg_us,
+                    comparison.ratio,
+                    comparison.status
+                );
+            } else {
+                println!(
+                    "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}}}",
+                    json_escape(name),
+                    iterations,
+                    total_us,
+                    avg_us
+                );
+            }
         }
     }
+}
+
+struct MetricComparison {
+    baseline_avg_us: f64,
+    ratio: f64,
+    status: &'static str,
+}
+
+impl MetricComparison {
+    fn new(avg_us: f64, baseline_avg_us: f64) -> Self {
+        let ratio = avg_us / baseline_avg_us;
+        let status = if ratio > 1.05 {
+            "slower"
+        } else if ratio < 0.95 {
+            "faster"
+        } else {
+            "similar"
+        };
+        Self {
+            baseline_avg_us,
+            ratio,
+            status,
+        }
+    }
+}
+
+fn value_after_arg(args: &[String], name: &str) -> Option<String> {
+    let mut iter = args.iter().skip(1);
+    while let Some(arg) = iter.next() {
+        if arg == name {
+            return iter.next().cloned();
+        }
+        if let Some(value) = arg.strip_prefix(&format!("{name}=")) {
+            return Some(value.to_owned());
+        }
+    }
+    None
 }
 
 fn json_escape(value: &str) -> String {

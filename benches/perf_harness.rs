@@ -45,7 +45,8 @@ fn main() {
     }
 
     let output_format = runner::output_format_from_args(&args);
-    let mut runner = runner::ScenarioRunner::new(filters, output_format);
+    let baseline = runner::baseline_from_args(&args);
+    let mut runner = runner::ScenarioRunner::new(filters, output_format, baseline);
     catalog::run_registered_scenarios(&mut runner);
     runner.finish();
 }

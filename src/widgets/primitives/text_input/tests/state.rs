@@ -67,6 +67,20 @@ fn text_input_state_exposes_selection_replacement_helpers() {
 }
 
 #[test]
+fn text_input_state_exposes_borrowed_selected_text_slice() {
+    let mut state = TextInputState::from_value(String::from("aé日 beta"));
+    state.selection_anchor = 1;
+    state.caret = 2;
+
+    assert_eq!(state.selected_text_slice(), Some("é日"));
+    assert_eq!(state.selected_text().as_deref(), Some("é日"));
+
+    state.clear_selection();
+
+    assert_eq!(state.selected_text_slice(), None);
+}
+
+#[test]
 fn text_input_state_can_clear_or_delete_active_selection() {
     let mut state = TextInputState::from_value(String::from("abcd"));
     state.selection_anchor = 1;

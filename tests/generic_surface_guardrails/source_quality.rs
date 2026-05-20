@@ -818,6 +818,38 @@ fn runtime_bridge_app_contract_stays_in_focused_module() {
 }
 
 #[test]
+fn runtime_animation_activity_keeps_policy_and_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let animation = fs::read_to_string(manifest_dir.join("src/runtime/bridge/animation.rs"))
+        .expect("runtime animation activity module should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/runtime/bridge/animation/tests.rs"))
+        .expect("runtime animation activity tests should be readable");
+    let bridge = fs::read_to_string(manifest_dir.join("src/runtime/bridge.rs"))
+        .expect("runtime bridge module should be readable");
+
+    assert!(
+        bridge.contains("mod animation;")
+            && bridge.contains("pub use animation::RuntimeAnimationActivity;"),
+        "runtime bridge root should re-export animation activity from the focused child module"
+    );
+    assert!(
+        animation.contains("pub struct RuntimeAnimationActivity")
+            && animation.contains("pub const fn merge(self, other: Self) -> Self")
+            && animation.contains("const fn merge_target_fps(")
+            && animation.contains("#[path = \"animation/tests.rs\"]")
+            && !animation.contains(
+                "fn runtime_animation_activity_keeps_frame_messages_bound_to_paint_frames"
+            ),
+        "runtime animation policy should live in bridge/animation.rs while behavior tests stay delegated"
+    );
+    assert!(
+        tests.contains("fn runtime_animation_activity_keeps_frame_messages_bound_to_paint_frames")
+            && tests.contains("fn runtime_animation_activity_merge_keeps_uncapped_source_uncapped"),
+        "runtime animation behavior coverage should live in bridge/animation/tests.rs"
+    );
+}
+
+#[test]
 fn declarative_runtime_bridges_use_named_parts_for_host_closures() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let message =
@@ -990,6 +1022,31 @@ fn update_context_keeps_followup_command_groups_in_focused_modules() {
             && surface.contains("pub fn scroll_into_view_from_parts")
             && surface.contains("pub fn scroll_fixed_row_into_view_from_parts"),
         "focus and scroll helpers should live in update_context/surface.rs"
+    );
+}
+
+#[test]
+fn application_id_generation_keeps_policy_and_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let ids = fs::read_to_string(manifest_dir.join("src/application/ids.rs"))
+        .expect("application id generation module should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/application/ids/tests.rs"))
+        .expect("application id generation tests should be readable");
+
+    assert!(
+        ids.contains("pub(in crate::application) struct IdGenerator")
+            && ids.contains("enum ReservedIds")
+            && ids.contains("fn reserved_id_range(reserved: &[NodeId])")
+            && ids.contains("pub(in crate::application) fn scoped_key_id")
+            && ids.contains("#[path = \"ids/tests.rs\"]")
+            && !ids.contains("fn id_generator_skips_dense_reserved_runs_after_collision"),
+        "application id allocation should live in application/ids.rs while behavior tests stay delegated"
+    );
+    assert!(
+        tests.contains("fn id_generator_skips_dense_reserved_runs_after_collision")
+            && tests.contains("fn id_generator_keeps_sorted_reserved_ids_for_small_sets")
+            && tests.contains("fn id_generator_skips_probing_after_reserved_range_is_exhausted"),
+        "application id generation behavior coverage should live in application/ids/tests.rs"
     );
 }
 

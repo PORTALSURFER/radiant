@@ -39,6 +39,8 @@ pub enum KeyCode {
     Enter,
     /// Escape key.
     Escape,
+    /// Backspace key.
+    Backspace,
     /// Delete key.
     Delete,
     /// Latin letter F.

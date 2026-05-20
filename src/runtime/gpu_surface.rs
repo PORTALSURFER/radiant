@@ -5,7 +5,8 @@ use crate::gui::types::Rgba8;
 mod content;
 mod signal_summary;
 pub use content::{
-    GpuSignalGainPreview, GpuSignalRenderShape, GpuSurfaceContent, GpuSurfaceContentError,
+    GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview,
+    GpuSignalRenderShape, GpuSurfaceContent, GpuSurfaceContentError,
 };
 pub use signal_summary::{GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel};
 

@@ -74,6 +74,18 @@ pub enum GpuSurfaceContentError {
         /// Invalid preview controls.
         preview: GpuSignalGainPreview,
     },
+    /// A custom shader descriptor has no stable shader identity.
+    EmptyShaderKey,
+    /// A custom shader descriptor has no shader entry point.
+    EmptyShaderEntryPoint {
+        /// Stable application-defined shader or pipeline identity.
+        shader_key: String,
+    },
+    /// A custom shader descriptor requested no drawable vertices.
+    EmptyShaderVertexCount {
+        /// Stable application-defined shader or pipeline identity.
+        shader_key: String,
+    },
 }
 
 impl fmt::Display for GpuSurfaceContentError {
@@ -142,6 +154,20 @@ impl fmt::Display for GpuSurfaceContentError {
             Self::InvalidSignalGainPreview { preview } => write!(
                 formatter,
                 "invalid GPU signal gain preview {preview:?}: preview values must be finite"
+            ),
+            Self::EmptyShaderKey => {
+                write!(
+                    formatter,
+                    "invalid GPU shader surface: shader key must not be empty"
+                )
+            }
+            Self::EmptyShaderEntryPoint { shader_key } => write!(
+                formatter,
+                "invalid GPU shader surface {shader_key}: entry point must not be empty"
+            ),
+            Self::EmptyShaderVertexCount { shader_key } => write!(
+                formatter,
+                "invalid GPU shader surface {shader_key}: vertex count must be positive"
             ),
         }
     }

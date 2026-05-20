@@ -10,6 +10,7 @@ pub(crate) struct GpuSurfaceRenderStats {
     pub(crate) signal_body_cache_hits: usize,
     pub(crate) composite_binding_rebuilds: usize,
     pub(crate) composite_binding_cache_hits: usize,
+    pub(crate) unsupported_custom_shader_surfaces: usize,
     pub(crate) signal_body_encode_elapsed: Duration,
     pub(crate) composite_encode_elapsed: Duration,
 }
@@ -24,6 +25,7 @@ mod tests {
 
         assert_eq!(stats.composite_binding_rebuilds, 0);
         assert_eq!(stats.composite_binding_cache_hits, 0);
+        assert_eq!(stats.unsupported_custom_shader_surfaces, 0);
     }
 
     #[test]

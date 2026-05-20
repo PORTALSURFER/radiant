@@ -153,21 +153,28 @@ fn gpu_surface_content_models_stay_focused() {
 
     assert!(
         content.contains("mod model;")
-            && content.contains("pub use model::{GpuSignalGainPreview, GpuSignalRenderShape};")
+            && content.contains("GpuShaderSurfaceDescriptor")
+            && content.contains("GpuShaderSurfaceDescriptorParts")
+            && content.contains("GpuSignalGainPreview")
+            && content.contains("GpuSignalRenderShape")
             && content.contains("pub enum GpuSurfaceContent")
             && !content.contains("pub struct GpuSignalGainPreview")
             && !content.contains("pub struct GpuSignalRenderShape"),
         "GPU surface content root should expose the retained content enum while re-exporting focused signal content models"
     );
     assert!(
-        model.contains("pub struct GpuSignalGainPreview")
+        model.contains("pub struct GpuShaderSurfaceDescriptor")
+            && model.contains("pub struct GpuShaderSurfaceDescriptorParts")
+            && model.contains("pub shader_key: String")
+            && model.contains("pub struct GpuSignalGainPreview")
             && model.contains("pub fade_in_length: f32")
             && model.contains("pub struct GpuSignalRenderShape")
             && model.contains("pub sample_count: usize"),
-        "GPU signal gain-preview and render-shape DTOs should live in content/model.rs"
+        "GPU shader descriptor, signal gain-preview, and render-shape DTOs should live in content/model.rs"
     );
     assert!(
         validation.contains("validate_signal_gain_preview")
+            && validation.contains("validate_shader_descriptor")
             && validation.contains("validate_signal_render_shape"),
         "GPU surface content validation should stay in the validation module"
     );
@@ -187,7 +194,9 @@ fn gpu_surface_content_models_stay_focused() {
         "GPU surface content behavior tests should stay grouped by atlas, signal shape, and validation concerns"
     );
     assert!(
-        gpu_surface.contains("GpuSignalGainPreview")
+        gpu_surface.contains("GpuShaderSurfaceDescriptor")
+            && gpu_surface.contains("GpuShaderSurfaceDescriptorParts")
+            && gpu_surface.contains("GpuSignalGainPreview")
             && gpu_surface.contains("GpuSignalRenderShape")
             && gpu_surface.contains("GpuSurfaceContent")
             && gpu_surface.contains("GpuSurfaceContentError"),

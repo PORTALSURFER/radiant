@@ -646,8 +646,14 @@ or drag previews in overlays or paint-only repaint paths. This preserves one
 Radiant widget model instead of creating separate Vello and WGPU application
 models.
 
-`PaintGpuSurface` currently supports the built-in v1 content payloads
-`GpuSurfaceContent::RgbaAtlas`, `SignalBands`, and `SignalSummaryBands`.
+`PaintGpuSurface` supports the built-in v1 content payloads
+`GpuSurfaceContent::RgbaAtlas`, `SignalBands`, and `SignalSummaryBands`, plus
+`GpuSurfaceContent::CustomShader` for advanced surfaces that need to carry
+backend-neutral shader identity and opaque uniform/storage bytes through the
+normal widget, layout, input, and paint-plan path. Native backends that do not
+yet implement a matching shader pipeline report the skipped surfaces through
+`NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces` instead of
+silently treating them as built-in atlas or signal content.
 `GpuSurfaceContent::validate()` returns a typed `GpuSurfaceContentError` for
 invalid atlas rectangles, signal ranges, empty payloads, and summary-shape
 mismatches. `is_renderable()` and `signal_render_shape()` remain convenience
@@ -660,9 +666,9 @@ the app surface, `coalesce_vertical_wheel` allows vertical wheel deltas to be
 batched until redraw, and `runtime_overlays.pointer_vertical_line` lets the
 native runtime compose a lightweight pointer-following vertical line. These
 capabilities are part of the GPU-surface
-contract, not side effects inferred from overlays. Future custom shader or
-program support should extend this contract rather than adding backend-specific
-runtime special cases.
+contract, not side effects inferred from overlays. Custom shader program support
+should extend this descriptor and diagnostics contract rather than adding
+backend-specific runtime special cases.
 
 Native runtime entry points return `RuntimeRunReport<Artifacts, Error>` when
 artifact capture is requested. The report envelope is generic: Radiant owns the

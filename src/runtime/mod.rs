@@ -60,9 +60,10 @@ pub use external_drag::{
     ExternalDragRequest,
 };
 pub use gpu_surface::{
-    GpuSignalGainPreview, GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket,
-    GpuSignalSummaryLevel, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceContentError,
-    GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays,
+    GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview,
+    GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,
+    GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceContentError, GpuSurfaceLineStyle,
+    GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays,
 };
 pub use paint::{
     PaintCustomSurface, PaintFillPath, PaintFillPolygon, PaintFillRect, PaintFillRule,

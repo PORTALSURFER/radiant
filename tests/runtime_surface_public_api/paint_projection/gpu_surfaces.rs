@@ -100,6 +100,47 @@ fn invalid_gpu_surface_payloads_do_not_enter_paint_plan() {
 }
 
 #[test]
+fn custom_shader_gpu_surface_uses_normal_paint_plan_path() {
+    let descriptor = GpuShaderSurfaceDescriptor::new("spectral-meter")
+        .entry_point("fragment_main")
+        .uniform_bytes([1, 2, 3, 4])
+        .storage_bytes([5, 6])
+        .vertex_count(6);
+    let surface: UiSurface<()> = UiSurface::new(SurfaceNode::static_widget(
+        GpuSurfaceWidget::from_parts(GpuSurfaceParts {
+            id: 41,
+            sizing: WidgetSizing::fixed(Vector2::new(80.0, 20.0)),
+            key: 9001,
+            revision: 7,
+            content: GpuSurfaceContent::CustomShader {
+                descriptor: Arc::new(descriptor),
+            },
+        }),
+    ));
+    let output = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 40.0)),
+    );
+
+    let plan = surface.paint_plan(&output, &ThemeTokens::default());
+
+    let Some(PaintPrimitive::GpuSurface(gpu)) = plan.primitives.first() else {
+        panic!("expected gpu surface primitive");
+    };
+    assert_eq!(gpu.widget_id, 41);
+    assert_eq!(gpu.key, 9001);
+    assert_eq!(gpu.revision, 7);
+    let GpuSurfaceContent::CustomShader { descriptor } = &gpu.content else {
+        panic!("expected custom shader gpu content");
+    };
+    assert_eq!(descriptor.shader_key, "spectral-meter");
+    assert_eq!(descriptor.entry_point, "fragment_main");
+    assert_eq!(descriptor.uniform_bytes.as_ref(), &[1, 2, 3, 4]);
+    assert_eq!(descriptor.storage_bytes.as_ref(), &[5, 6]);
+    assert_eq!(descriptor.vertex_count, 6);
+}
+
+#[test]
 fn gpu_surface_compatibility_constructor_delegates_to_named_parts() {
     let content = GpuSurfaceContent::SignalBands {
         frames: 2,

@@ -118,6 +118,8 @@ pub struct NativeGpuSurfaceDiagnostics {
     pub composite_binding_rebuilds: usize,
     /// Composite binding cache hits this frame.
     pub composite_binding_cache_hits: usize,
+    /// Valid custom-shader GPU surfaces skipped by this native backend.
+    pub unsupported_custom_shader_surfaces: usize,
 }
 
 /// Coarse timing diagnostics for one native presentation frame.

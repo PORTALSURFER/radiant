@@ -68,3 +68,42 @@ fn native_external_drag_data_object_helpers_stay_focused() {
         "external drag data-object helpers should stay grouped by FORMATETC matching and STGMEDIUM decoding"
     );
 }
+
+#[test]
+fn native_external_drag_platform_selection_stays_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let orchestration = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/external_drag.rs"),
+    )
+    .expect("native external drag orchestration module should be readable");
+    let platform = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/external_drag/platform.rs"),
+    )
+    .expect("native external drag platform module should be readable");
+    let windows = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/external_drag/windows.rs"),
+    )
+    .expect("native external drag Windows module should be readable");
+
+    assert!(
+        orchestration.contains("mod platform;")
+            && orchestration.contains("platform::start_external_drag(&session.request)")
+            && !orchestration.contains("cfg(target_os")
+            && !orchestration.contains("External drag-out is only supported on Windows"),
+        "external drag runner orchestration should delegate platform selection"
+    );
+    assert!(
+        platform.contains("#[cfg(target_os = \"windows\")]")
+            && platform.contains("#[path = \"windows.rs\"]")
+            && platform.contains("windows::start_external_drag(request)")
+            && platform.contains("#[cfg(not(target_os = \"windows\"))]")
+            && platform.contains("External drag-out is only supported on Windows in this backend"),
+        "external drag platform support and fallback should stay in platform.rs"
+    );
+    assert!(
+        windows.contains("pub(super) fn start_external_drag")
+            && windows.contains("DoDragDrop")
+            && windows.contains("OleInitialize"),
+        "Windows OLE drag implementation should remain in the Windows-specific module"
+    );
+}

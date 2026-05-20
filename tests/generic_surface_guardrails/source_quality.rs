@@ -1038,6 +1038,15 @@ fn layout_engine_root_tests_stay_grouped_by_behavior_concern() {
     let layout =
         fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/tests/layout.rs"))
             .expect("layout engine layout tests should be readable");
+    let layout_row =
+        fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/tests/layout/row.rs"))
+            .expect("layout engine row layout tests should be readable");
+    let layout_switch =
+        fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/tests/layout/switch.rs"))
+            .expect("layout engine switch layout tests should be readable");
+    let layout_flow =
+        fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/tests/layout/flow.rs"))
+            .expect("layout engine flow layout tests should be readable");
     let scroll =
         fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/tests/scroll.rs"))
             .expect("layout engine scroll tests should be readable");
@@ -1083,11 +1092,22 @@ fn layout_engine_root_tests_stay_grouped_by_behavior_concern() {
         "layout engine scratch tests should index focused scratch behavior groups instead of owning all cases"
     );
     assert!(
-        layout.contains("fn fill_children_redistribute_after_constrained_child_clamps")
+        layout.contains("mod row;")
+            && layout.contains("mod switch;")
+            && layout.contains("mod flow;")
+            && !layout.contains("fn fill_children_redistribute_after_constrained_child_clamps")
             && scroll.contains("fn scroll_offset_is_clamped_and_reported")
             && diagnostics.contains("fn contradictory_constraints_emit_diagnostic")
             && debug.contains("fn debug_primitives_are_emitted_when_enabled"),
         "layout engine tests should stay grouped by layout, scroll, diagnostics, and debug concerns"
+    );
+    assert!(
+        layout_row.contains("fn layout_tree_is_deterministic_for_same_input")
+            && layout_row.contains("fn fill_children_redistribute_after_constrained_child_clamps")
+            && layout_switch.contains("fn switch_layout_selects_breakpoint_child")
+            && layout_flow.contains("fn wrap_layout_moves_items_to_next_line")
+            && layout_flow.contains("fn grid_layout_places_items_by_row_and_column"),
+        "layout engine layout tests should stay grouped by row/fill, switch, and flow container behavior"
     );
     assert!(
         scratch_reuse.contains("fn layout_engine_reuses_scratch_maps_between_passes")

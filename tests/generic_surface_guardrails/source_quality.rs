@@ -2242,6 +2242,8 @@ fn status_line_entries_use_named_parts_for_source_and_message() {
         .expect("feedback update status module should be readable");
     let prompt = fs::read_to_string(manifest_dir.join("src/gui/feedback/status/prompt.rs"))
         .expect("feedback prompt status module should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/gui/feedback/status/tests.rs"))
+        .expect("feedback status tests should be readable");
     let feedback = fs::read_to_string(manifest_dir.join("src/gui/feedback.rs"))
         .expect("feedback module should be readable");
     let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
@@ -2265,6 +2267,7 @@ fn status_line_entries_use_named_parts_for_source_and_message() {
         "mod prompt;",
         "mod recovery;",
         "mod update;",
+        "#[path = \"status/tests.rs\"]",
         "pub use drag_overlay::DragOverlay;",
         "pub use health::HealthState;",
         "pub use prompt::{ConfirmPrompt, PromptIntent};",
@@ -2281,8 +2284,9 @@ fn status_line_entries_use_named_parts_for_source_and_message() {
             && !status.contains("pub enum HealthState")
             && !status.contains("pub struct DragOverlay")
             && !status.contains("pub struct UpdatePanel")
-            && !status.contains("pub struct ConfirmPrompt"),
-        "feedback status root should re-export focused models instead of owning them"
+            && !status.contains("pub struct ConfirmPrompt")
+            && !status.contains("fn recovery_summary_defaults_to_idle_and_empty"),
+        "feedback status root should re-export focused models and delegate behavior tests instead of owning them"
     );
     assert!(
         recovery.contains("pub struct RecoverySummary")
@@ -2293,6 +2297,11 @@ fn status_line_entries_use_named_parts_for_source_and_message() {
             && prompt.contains("pub enum PromptIntent")
             && prompt.contains("pub struct ConfirmPrompt"),
         "feedback status models should live in their focused status child modules"
+    );
+    assert!(
+        tests.contains("fn recovery_summary_defaults_to_idle_and_empty")
+            && tests.contains("fn prompt_intent_exposes_generic_confirmation_categories"),
+        "feedback status behavior tests should live in status/tests.rs"
     );
 }
 

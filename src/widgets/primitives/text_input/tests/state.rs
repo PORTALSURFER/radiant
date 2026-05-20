@@ -192,3 +192,18 @@ fn text_input_state_word_delete_removes_selection_first() {
     assert_eq!(state.caret, 6);
     assert!(!state.has_selection());
 }
+
+#[test]
+fn text_input_state_selects_word_at_character_index() {
+    let mut state = TextInputState::from_value(String::from("alpha  beta_gamma.日文"));
+
+    assert!(state.select_word_at(9));
+    assert_eq!(state.selected_text_slice(), Some("beta_gamma"));
+
+    assert!(state.select_word_at(19));
+    assert_eq!(state.selected_text_slice(), Some("日文"));
+
+    assert!(!state.select_word_at(6));
+    assert!(!state.has_selection());
+    assert_eq!(state.caret, 6);
+}

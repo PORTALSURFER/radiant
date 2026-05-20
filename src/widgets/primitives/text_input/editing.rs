@@ -54,4 +54,8 @@ impl TextInputWidget {
     pub(super) fn set_caret(&mut self, caret: usize, extend_selection: bool) {
         self.state.set_caret(caret, extend_selection);
     }
+
+    pub(super) fn select_word_at(&mut self, caret: usize) -> bool {
+        self.state.select_word_at(caret)
+    }
 }

@@ -1,4 +1,5 @@
 use super::TextInputState;
+use super::word_boundary::word_range_at;
 use crate::widgets::primitives::text_input::editing_ops::byte_index_for_char;
 
 impl TextInputState {
@@ -39,5 +40,18 @@ impl TextInputState {
     /// Collapse the current selection at the caret.
     pub fn clear_selection(&mut self) {
         self.selection_anchor = self.caret.min(self.char_len());
+    }
+
+    /// Select the word at or immediately before a character index.
+    ///
+    /// Returns false when the requested index is not adjacent to word text.
+    pub fn select_word_at(&mut self, caret: usize) -> bool {
+        let Some((start, end)) = word_range_at(&self.value, caret) else {
+            self.set_caret(caret, false);
+            return false;
+        };
+        self.selection_anchor = start;
+        self.caret = end.saturating_sub(1);
+        true
     }
 }

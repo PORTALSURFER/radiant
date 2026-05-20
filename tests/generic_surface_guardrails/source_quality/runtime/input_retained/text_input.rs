@@ -72,7 +72,9 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
         selection.contains("pub fn selected_text")
             && selection.contains("pub fn selected_text_slice")
             && selection.contains("pub fn selection_range")
-            && selection.contains("pub fn has_selection"),
+            && selection.contains("pub fn has_selection")
+            && selection.contains("pub fn select_word_at")
+            && selection.contains("word_range_at"),
         "text input selection queries should live in model/selection.rs"
     );
     assert!(
@@ -91,6 +93,7 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
             && navigation.contains("fn move_word_right")
             && word_boundary.contains("pub(super) fn previous_word_boundary")
             && word_boundary.contains("pub(super) fn next_word_boundary")
+            && word_boundary.contains("pub(super) fn word_range_at")
             && word_boundary.contains("pub(super) fn is_word_char")
             && !navigation.contains("fn is_word_char"),
         "text input caret movement should live in model/navigation.rs"
@@ -152,7 +155,9 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
             && state_tests.contains("fn text_input_state_moves_by_word_boundaries")
             && state_tests.contains("fn text_input_state_extends_selection_by_word_boundaries")
             && state_tests.contains("fn text_input_state_deletes_by_word_boundaries")
-            && state_tests.contains("fn text_input_state_word_delete_removes_selection_first"),
+            && state_tests.contains("fn text_input_state_word_delete_removes_selection_first")
+            && state_tests.contains("fn text_input_state_selects_word_at_character_index")
+            && widget_tests.contains("fn text_input_double_click_selects_word_under_pointer"),
         "text input behavior tests should stay grouped by widget interaction and state editing concerns"
     );
 }

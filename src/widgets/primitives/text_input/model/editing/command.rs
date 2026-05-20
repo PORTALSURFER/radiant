@@ -67,6 +67,8 @@ impl TextInputState {
             }
             TextEditCommand::Backspace => self.backspace(),
             TextEditCommand::Delete => self.delete_forward(),
+            TextEditCommand::DeleteWordLeft => self.delete_word_left(),
+            TextEditCommand::DeleteWordRight => self.delete_word_right(),
             TextEditCommand::CutSelection => self.delete_selected_text(),
         }
     }

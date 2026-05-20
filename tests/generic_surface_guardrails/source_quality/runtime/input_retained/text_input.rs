@@ -13,6 +13,10 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
         manifest_dir.join("src/widgets/primitives/text_input/model/navigation.rs"),
     )
     .expect("text input navigation model should be readable");
+    let word_boundary = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/text_input/model/word_boundary.rs"),
+    )
+    .expect("text input word-boundary helpers should be readable");
     let editing =
         fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/model/editing.rs"))
             .expect("text input editing model should be readable");
@@ -44,7 +48,12 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
     )
     .expect("native text edit keyboard routing should be readable");
 
-    for required in ["mod editing;", "mod navigation;", "mod selection;"] {
+    for required in [
+        "mod editing;",
+        "mod navigation;",
+        "mod selection;",
+        "mod word_boundary;",
+    ] {
         assert!(
             model.contains(required),
             "text input model root should delegate `{required}`"
@@ -80,7 +89,10 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
             && navigation.contains("fn move_right")
             && navigation.contains("fn move_word_left")
             && navigation.contains("fn move_word_right")
-            && navigation.contains("fn is_word_char"),
+            && word_boundary.contains("pub(super) fn previous_word_boundary")
+            && word_boundary.contains("pub(super) fn next_word_boundary")
+            && word_boundary.contains("pub(super) fn is_word_char")
+            && !navigation.contains("fn is_word_char"),
         "text input caret movement should live in model/navigation.rs"
     );
     assert!(
@@ -96,6 +108,8 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
             && editing_command.contains("TextEditCommand")
             && editing_command.contains("TextEditCommand::MoveWordLeft")
             && editing_command.contains("TextEditCommand::MoveWordRight")
+            && editing_command.contains("TextEditCommand::DeleteWordLeft")
+            && editing_command.contains("TextEditCommand::DeleteWordRight")
             && editing_command.contains("WidgetKey")
             && !editing_mutation.contains("TextEditCommand")
             && !editing_mutation.contains("WidgetKey"),
@@ -104,10 +118,14 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
     assert!(
         interaction_input.contains("MoveWordLeft")
             && interaction_input.contains("MoveWordRight")
+            && interaction_input.contains("DeleteWordLeft")
+            && interaction_input.contains("DeleteWordRight")
             && native_text_edit.contains("let word_navigation =")
             && native_text_edit.contains("TextEditCommand::MoveWordLeft")
-            && native_text_edit.contains("TextEditCommand::MoveWordRight"),
-        "backend-neutral word navigation should be exposed by TextEditCommand and routed by the native adapter"
+            && native_text_edit.contains("TextEditCommand::MoveWordRight")
+            && native_text_edit.contains("TextEditCommand::DeleteWordLeft")
+            && native_text_edit.contains("TextEditCommand::DeleteWordRight"),
+        "backend-neutral word navigation and deletion should be exposed by TextEditCommand and routed by the native adapter"
     );
     assert!(
         editing_mutation.contains("pub fn insert_text")
@@ -132,7 +150,9 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
             && state_tests.contains("fn text_input_state_exposes_borrowed_selected_text_slice")
             && state_tests.contains("fn text_input_state_can_clear_or_delete_active_selection")
             && state_tests.contains("fn text_input_state_moves_by_word_boundaries")
-            && state_tests.contains("fn text_input_state_extends_selection_by_word_boundaries"),
+            && state_tests.contains("fn text_input_state_extends_selection_by_word_boundaries")
+            && state_tests.contains("fn text_input_state_deletes_by_word_boundaries")
+            && state_tests.contains("fn text_input_state_word_delete_removes_selection_first"),
         "text input behavior tests should stay grouped by widget interaction and state editing concerns"
     );
 }

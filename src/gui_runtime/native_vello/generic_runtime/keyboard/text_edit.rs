@@ -67,6 +67,16 @@ where
                 route_outcome.merge(outcome);
                 outcome.routed
             }
+            crate::gui::input::KeyCode::Backspace => {
+                let outcome = self.core.route_text_edit(TextEditCommand::DeleteWordLeft);
+                route_outcome.merge(outcome);
+                outcome.routed
+            }
+            crate::gui::input::KeyCode::Delete => {
+                let outcome = self.core.route_text_edit(TextEditCommand::DeleteWordRight);
+                route_outcome.merge(outcome);
+                outcome.routed
+            }
             _ => false,
         }
     }

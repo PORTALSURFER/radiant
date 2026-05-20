@@ -215,7 +215,7 @@ fn run_scenario(
         iterations,
         started.elapsed(),
         output_format,
-        baseline.and_then(|baseline| baseline.metric_for(name)),
+        baseline.map(|baseline| baseline.metric_for(name)),
     );
 }
 
@@ -224,18 +224,30 @@ fn print_metric(
     iterations: usize,
     elapsed: Duration,
     output_format: OutputFormat,
-    baseline: Option<&BaselineMetric>,
+    baseline: Option<Option<&BaselineMetric>>,
 ) {
     let total_us = elapsed.as_micros();
     let avg_us = total_us as f64 / iterations.max(1) as f64;
-    let comparison = baseline.map(|baseline| MetricComparison::new(avg_us, baseline.avg_us));
+    let comparison = baseline.map(|baseline| MetricComparison::new(avg_us, baseline));
     match output_format {
         OutputFormat::Text => {
             if let Some(comparison) = comparison {
-                println!(
-                    "radiant_perf scenario={name} iterations={iterations} total_us={total_us} avg_us={avg_us:.3} baseline_avg_us={:.3} baseline_ratio={:.3} baseline_status={}",
-                    comparison.baseline_avg_us, comparison.ratio, comparison.status
-                );
+                match comparison {
+                    MetricComparison::Matched {
+                        baseline_avg_us,
+                        ratio,
+                        status,
+                    } => {
+                        println!(
+                            "radiant_perf scenario={name} iterations={iterations} total_us={total_us} avg_us={avg_us:.3} baseline_avg_us={baseline_avg_us:.3} baseline_ratio={ratio:.3} baseline_status={status}"
+                        );
+                    }
+                    MetricComparison::Missing => {
+                        println!(
+                            "radiant_perf scenario={name} iterations={iterations} total_us={total_us} avg_us={avg_us:.3} baseline_status=missing"
+                        );
+                    }
+                }
             } else {
                 println!(
                     "radiant_perf scenario={name} iterations={iterations} total_us={total_us} avg_us={avg_us:.3}"
@@ -244,16 +256,30 @@ fn print_metric(
         }
         OutputFormat::JsonLines => {
             if let Some(comparison) = comparison {
-                println!(
-                    "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3},\"baseline_avg_us\":{:.3},\"baseline_ratio\":{:.3},\"baseline_status\":\"{}\"}}",
-                    json_escape(name),
-                    iterations,
-                    total_us,
-                    avg_us,
-                    comparison.baseline_avg_us,
-                    comparison.ratio,
-                    comparison.status
-                );
+                match comparison {
+                    MetricComparison::Matched {
+                        baseline_avg_us,
+                        ratio,
+                        status,
+                    } => {
+                        println!(
+                            "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3},\"baseline_avg_us\":{baseline_avg_us:.3},\"baseline_ratio\":{ratio:.3},\"baseline_status\":\"{status}\"}}",
+                            json_escape(name),
+                            iterations,
+                            total_us,
+                            avg_us,
+                        );
+                    }
+                    MetricComparison::Missing => {
+                        println!(
+                            "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3},\"baseline_status\":\"missing\"}}",
+                            json_escape(name),
+                            iterations,
+                            total_us,
+                            avg_us,
+                        );
+                    }
+                }
             } else {
                 println!(
                     "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}}}",
@@ -267,14 +293,21 @@ fn print_metric(
     }
 }
 
-struct MetricComparison {
-    baseline_avg_us: f64,
-    ratio: f64,
-    status: &'static str,
+enum MetricComparison {
+    Matched {
+        baseline_avg_us: f64,
+        ratio: f64,
+        status: &'static str,
+    },
+    Missing,
 }
 
 impl MetricComparison {
-    fn new(avg_us: f64, baseline_avg_us: f64) -> Self {
+    fn new(avg_us: f64, baseline: Option<&BaselineMetric>) -> Self {
+        let Some(baseline) = baseline else {
+            return Self::Missing;
+        };
+        let baseline_avg_us = baseline.avg_us;
         let ratio = avg_us / baseline_avg_us;
         let status = if ratio > 1.05 {
             "slower"
@@ -283,7 +316,7 @@ impl MetricComparison {
         } else {
             "similar"
         };
-        Self {
+        Self::Matched {
             baseline_avg_us,
             ratio,
             status,

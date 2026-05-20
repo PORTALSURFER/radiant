@@ -118,15 +118,21 @@ fn api_docs_describe_custom_shader_frame_diagnostics() {
     )
     .expect("native render profile should be readable");
 
+    let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
     for required in [
         "custom shader pipeline rebuilds",
         "`NativeGpuSurfaceDiagnostics::custom_shader_surfaces_rendered`",
         "`custom_shader_pipeline_rebuilds`",
         "`custom_shader_binding_rebuilds`",
         "`custom_shader_binding_cache_hits`",
+        "`custom_shader_surfaces_failed`",
+        "`custom_shader_shader_module_failures`",
+        "`custom_shader_pipeline_failures`",
+        "`custom_shader_binding_failures`",
+        "the native renderer also logs the backend validation error through tracing",
     ] {
         assert!(
-            docs.contains(required),
+            normalized_docs.contains(required),
             "API docs should describe custom shader frame diagnostics with `{required}`"
         );
     }
@@ -135,6 +141,10 @@ fn api_docs_describe_custom_shader_frame_diagnostics() {
         "custom_shader_pipeline_rebuilds",
         "custom_shader_binding_rebuilds",
         "custom_shader_binding_cache_hits",
+        "custom_shader_surfaces_failed",
+        "custom_shader_shader_module_failures",
+        "custom_shader_pipeline_failures",
+        "custom_shader_binding_failures",
     ] {
         assert!(
             runtime_diagnostics.contains(required)

@@ -14,6 +14,10 @@ pub(crate) struct GpuSurfaceRenderStats {
     pub(crate) custom_shader_pipeline_rebuilds: usize,
     pub(crate) custom_shader_binding_rebuilds: usize,
     pub(crate) custom_shader_binding_cache_hits: usize,
+    pub(crate) custom_shader_surfaces_failed: usize,
+    pub(crate) custom_shader_shader_module_failures: usize,
+    pub(crate) custom_shader_pipeline_failures: usize,
+    pub(crate) custom_shader_binding_failures: usize,
     pub(crate) unsupported_custom_shader_surfaces: usize,
     pub(crate) unsupported_custom_shader_vertices: usize,
     pub(crate) unsupported_custom_shader_source_bytes: usize,
@@ -37,6 +41,10 @@ mod tests {
         assert_eq!(stats.custom_shader_pipeline_rebuilds, 0);
         assert_eq!(stats.custom_shader_binding_rebuilds, 0);
         assert_eq!(stats.custom_shader_binding_cache_hits, 0);
+        assert_eq!(stats.custom_shader_surfaces_failed, 0);
+        assert_eq!(stats.custom_shader_shader_module_failures, 0);
+        assert_eq!(stats.custom_shader_pipeline_failures, 0);
+        assert_eq!(stats.custom_shader_binding_failures, 0);
         assert_eq!(stats.unsupported_custom_shader_surfaces, 0);
         assert_eq!(stats.unsupported_custom_shader_vertices, 0);
         assert_eq!(stats.unsupported_custom_shader_source_bytes, 0);

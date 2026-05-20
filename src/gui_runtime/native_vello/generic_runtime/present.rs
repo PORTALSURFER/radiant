@@ -2,7 +2,7 @@ use super::*;
 
 mod diagnostics;
 
-use diagnostics::native_frame_diagnostics;
+use diagnostics::{NativeFrameDiagnosticsParts, native_frame_diagnostics};
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
@@ -100,15 +100,17 @@ where
             gpu_surface_stats,
             self.last_redraw.elapsed(),
         );
-        let diagnostics = native_frame_diagnostics(
-            self.frame.last_scene_stats,
-            self.frame.retained_surface_cache.policy(),
-            self.frame.retained_surface_cache.entry_count(),
+        let text_stats = self.frame.text_renderer.take_layout_profile_counters();
+        let diagnostics = native_frame_diagnostics(NativeFrameDiagnosticsParts {
+            stats: self.frame.last_scene_stats,
+            text_stats,
+            retained_policy: self.frame.retained_surface_cache.policy(),
+            retained_entries: self.frame.retained_surface_cache.entry_count(),
             gpu_surface_stats,
             profile,
             render_to_texture_elapsed,
-            self.last_redraw.elapsed(),
-        );
+            since_last_present: self.last_redraw.elapsed(),
+        });
         self.core
             .runtime
             .bridge_mut()

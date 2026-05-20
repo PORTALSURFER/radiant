@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 const TEXT_ATOM_CACHE_CAPACITY: usize = 4_096;
 
-#[cfg(test)]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) struct TextAtomProfileCounters {
     pub(super) hits: u64,
@@ -59,7 +58,6 @@ impl TextAtomCache {
         atom
     }
 
-    #[cfg(test)]
     pub(super) fn take_profile_counters(&mut self) -> TextAtomProfileCounters {
         let counters = TextAtomProfileCounters {
             hits: self.hits,

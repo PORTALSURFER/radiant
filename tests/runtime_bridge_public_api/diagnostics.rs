@@ -1,7 +1,7 @@
 use super::*;
 use radiant::runtime::{
     NativeFrameDiagnostics, NativeFrameTimingDiagnostics, NativeGpuSurfaceDiagnostics,
-    NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics, RuntimeBridge,
+    NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics, NativeTextDiagnostics, RuntimeBridge,
 };
 
 #[test]
@@ -23,6 +23,11 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
         gpu_surfaces: NativeGpuSurfaceDiagnostics {
             signal_summary_cache_hits: 4,
             ..NativeGpuSurfaceDiagnostics::default()
+        },
+        text: NativeTextDiagnostics {
+            layout_cache_hits: 6,
+            atom_cache_misses: 2,
+            ..NativeTextDiagnostics::default()
         },
         timings: NativeFrameTimingDiagnostics {
             transient_overlay_primitives: 5,

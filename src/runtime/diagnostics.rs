@@ -28,12 +28,31 @@ impl Default for RetainedSurfaceCachePolicy {
 pub struct NativeFrameDiagnostics {
     /// Scene and retained-surface encoding counters.
     pub scene: NativeSceneDiagnostics,
+    /// Native text layout cache activity.
+    pub text: NativeTextDiagnostics,
     /// Retained custom-surface cache state and activity.
     pub retained_surfaces: NativeRetainedSurfaceDiagnostics,
     /// GPU-surface cache and render activity.
     pub gpu_surfaces: NativeGpuSurfaceDiagnostics,
     /// Coarse timing buckets for presentation work.
     pub timings: NativeFrameTimingDiagnostics,
+}
+
+/// Native text layout cache diagnostics for one native frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeTextDiagnostics {
+    /// Text-layout cache hits observed while preparing this frame.
+    pub layout_cache_hits: u64,
+    /// Text-layout cache misses observed while preparing this frame.
+    pub layout_cache_misses: u64,
+    /// Text-layout cache evictions observed while preparing this frame.
+    pub layout_cache_evictions: u64,
+    /// Text atom cache hits observed while preparing this frame.
+    pub atom_cache_hits: u64,
+    /// Text atom cache misses observed while preparing this frame.
+    pub atom_cache_misses: u64,
+    /// Text atom cache evictions observed while preparing this frame.
+    pub atom_cache_evictions: u64,
 }
 
 /// Scene encoding counters for one native frame.

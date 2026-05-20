@@ -827,6 +827,9 @@ GPU-surface composition, and presentation.
 `NativeRunOptions::retained_surface_cache` accepts `RetainedSurfaceCachePolicy`
 for apps that need to tune or disable retained custom-surface frame reuse during
 profiling.
+`NativeFrameDiagnostics::text` exposes native text layout-cache hits, misses,
+and evictions plus text atom-cache activity so hosts can detect repeated text
+measurement or cache churn without parsing renderer logs.
 
 ## Examples And Sandboxes
 

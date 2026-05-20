@@ -12,8 +12,7 @@ mod model;
 mod renderability;
 
 use cache::TextLayoutCache;
-#[cfg(test)]
-use cache::TextLayoutProfileCounters;
+pub(in crate::gui_runtime::native_vello) use cache::TextLayoutProfileCounters;
 pub(super) use encoding::{color_from_rgba, icon_from_rgba, to_kurbo_rect};
 pub(in crate::gui_runtime::native_vello) use model::{
     GlyphLayout, LoadedFont, SceneTextRun, TextCursorStop, TextLayout, TextLayoutKey,
@@ -104,7 +103,6 @@ impl NativeTextRenderer {
         self.layout_cache.layout_for(font, text, font_size)
     }
 
-    #[cfg(test)]
     pub(super) fn take_layout_profile_counters(&mut self) -> TextLayoutProfileCounters {
         self.layout_cache.take_profile_counters()
     }

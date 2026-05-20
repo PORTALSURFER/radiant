@@ -400,6 +400,47 @@ fn native_pointer_motion_tests_stay_grouped_by_redraw_concern() {
 }
 
 #[test]
+fn native_gpu_surface_hover_cursor_policy_tests_stay_grouped_by_concern() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/gpu_surface_runtime/hover_cursor_policy.rs",
+    ))
+    .expect("native GPU-surface hover cursor policy test root should be readable");
+    let fixtures = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/gpu_surface_runtime/hover_cursor_policy/fixtures.rs",
+    ))
+    .expect("native GPU-surface hover cursor fixtures should be readable");
+    let lookup = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/gpu_surface_runtime/hover_cursor_policy/lookup.rs",
+    ))
+    .expect("native GPU-surface hover cursor lookup tests should be readable");
+    let overlay = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/gpu_surface_runtime/hover_cursor_policy/overlay.rs",
+    ))
+    .expect("native GPU-surface hover cursor overlay tests should be readable");
+
+    assert!(
+        root.contains("mod fixtures;")
+            && root.contains("mod lookup;")
+            && root.contains("mod overlay;")
+            && !root.contains("fn gpu_surface_lookup_skips_unrenderable_surface_content")
+            && !root.contains("fn native_hover_cursor_updates_topmost_surface"),
+        "native GPU-surface hover cursor policy root should index focused behavior groups instead of owning all cases"
+    );
+    assert!(
+        fixtures.contains("fn hover_capabilities")
+            && fixtures.contains("fn rgba_content")
+            && lookup.contains("fn gpu_surface_lookup_skips_unrenderable_surface_content")
+            && lookup.contains("fn gpu_surface_lookup_skips_nonfinite_surface_rects_and_positions")
+            && overlay.contains("fn native_hover_cursor_clears_stale_overlay_for_invalid_geometry")
+            && overlay.contains(
+                "fn native_hover_cursor_updates_topmost_surface_and_clears_stale_cursors"
+            ),
+        "native GPU-surface hover cursor policy tests should stay grouped by fixtures, lookup filtering, and overlay mutation"
+    );
+}
+
+#[test]
 fn composited_base_frame_cache_avoids_post_mutation_expect() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module = fs::read_to_string(

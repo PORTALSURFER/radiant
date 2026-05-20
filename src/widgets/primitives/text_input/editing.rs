@@ -8,6 +8,11 @@ impl TextInputWidget {
         self.state.selected_text()
     }
 
+    /// Return the current selected text as a borrowed UTF-8 slice.
+    pub fn selected_text_slice(&self) -> Option<&str> {
+        self.state.selected_text_slice()
+    }
+
     /// Return the selected character range sorted from start to end.
     pub fn selection_range(&self) -> (usize, usize) {
         self.state.selection_range()

@@ -343,6 +343,12 @@ host-rendered editors, `has_selection`, `clear_selection`, `replace_selection`,
 `delete_selection`, and the borrowed `selected_text_slice` expose the same
 reusable single-line replacement semantics without requiring a full
 `TextInputWidget` or allocating just to inspect the active UTF-8 selection.
+Widgets that participate in focused text editing can also expose borrowed
+selection text through `Widget::selected_text_slice`, and
+`SurfaceRuntime::focused_text_selection_slice` keeps runtime-level focus
+inspection on the same allocation-free path. The owned
+`focused_text_selection` helper remains available for callers that need to keep
+the selection after releasing the runtime borrow.
 
 Implement `Widget` directly when a downstream application needs a new focusable
 leaf with its own input handling, host-routable output payload, or

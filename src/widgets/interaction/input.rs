@@ -42,12 +42,14 @@ impl WidgetKey {
         Some(match key {
             KeyCode::Enter => Self::Enter,
             KeyCode::Space => Self::Space,
+            KeyCode::Backspace => Self::Backspace,
             KeyCode::ArrowLeft => Self::ArrowLeft,
             KeyCode::ArrowRight => Self::ArrowRight,
             KeyCode::ArrowUp => Self::ArrowUp,
             KeyCode::ArrowDown => Self::ArrowDown,
             KeyCode::Home => Self::Home,
             KeyCode::End => Self::End,
+            KeyCode::Delete => Self::Delete,
             _ => return None,
         })
     }

@@ -37,6 +37,7 @@ pub(super) fn key_code_from_winit(key: winit::keyboard::KeyCode) -> Option<KeyCo
         WinitKeyCode::KeyE => KeyCode::E,
         WinitKeyCode::Enter | WinitKeyCode::NumpadEnter => KeyCode::Enter,
         WinitKeyCode::Escape => KeyCode::Escape,
+        WinitKeyCode::Backspace => KeyCode::Backspace,
         WinitKeyCode::Delete => KeyCode::Delete,
         WinitKeyCode::KeyF => KeyCode::F,
         WinitKeyCode::F1 => KeyCode::F1,
@@ -141,6 +142,10 @@ mod tests {
         assert_eq!(
             key_code_from_winit(WinitKeyCode::Delete),
             Some(KeyCode::Delete)
+        );
+        assert_eq!(
+            key_code_from_winit(WinitKeyCode::Backspace),
+            Some(KeyCode::Backspace)
         );
         assert_eq!(
             key_code_from_winit(WinitKeyCode::Space),

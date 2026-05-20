@@ -881,7 +881,8 @@ It currently covers:
   `runtime_command_flattening_512`, `runtime_command_drain_1k`, and
   `runtime_nested_command_drain_1k`
 - `resource_slot_stale_completions_1k`
-- `text_line_cache_1k` and `text_word_selection_1k`
+- `text_line_cache_1k`, `text_word_selection_1k`, and
+  `text_word_deletion_1k`
 - `gpu_signal_summary`, `gpu_surface_projection`, and
   `gpu_custom_shader_projection`
 

@@ -30,6 +30,17 @@ pub(super) fn handle_text_input(
             text_input.set_caret(caret_for_pointer_x(bounds, position.x), false);
             None
         }
+        WidgetInput::PointerDoubleClick {
+            position,
+            button: PointerButton::Primary,
+            ..
+        } if bounds.contains(position) => {
+            text_input.common.state.focused = true;
+            text_input.common.state.hovered = true;
+            text_input.common.state.pressed = false;
+            text_input.select_word_at(caret_for_pointer_x(bounds, position.x));
+            None
+        }
         WidgetInput::PointerRelease {
             button: PointerButton::Primary,
             ..

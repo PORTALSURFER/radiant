@@ -133,6 +133,31 @@ fn text_input_pointer_drag_extends_selection_including_caret_character() {
 }
 
 #[test]
+fn text_input_double_click_selects_word_under_pointer() {
+    let mut input = TextInputWidget::new(
+        7,
+        "alpha  beta_gamma.日文",
+        WidgetSizing::new(Vector2::new(160.0, 42.0), Vector2::new(240.0, 42.0)),
+    );
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 42.0));
+
+    assert_eq!(
+        input.handle_input(
+            bounds,
+            WidgetInput::PointerDoubleClick {
+                position: Point::new(82.0, 20.0),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        ),
+        None
+    );
+
+    assert!(input.common.state.focused);
+    assert_eq!(input.selected_text().as_deref(), Some("beta_gamma"));
+}
+
+#[test]
 fn text_input_selection_range_clamps_stale_public_state() {
     let mut input = TextInputWidget::new(
         7,

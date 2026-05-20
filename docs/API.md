@@ -344,9 +344,9 @@ Ctrl/Cmd+Right through the same backend-neutral `TextEditCommand` path, with
 Shift extending the current selection by word. Ctrl/Cmd+Backspace and
 Ctrl/Cmd+Delete also use backend-neutral word-delete commands, deleting the
 active selection first when one exists. For
-host-rendered editors, `has_selection`, `clear_selection`, `replace_selection`,
-`delete_selection`, and the borrowed `selected_text_slice` expose the same
-reusable single-line replacement semantics without requiring a full
+host-rendered editors, `has_selection`, `clear_selection`, `select_word_at`,
+`replace_selection`, `delete_selection`, and the borrowed `selected_text_slice`
+expose the same reusable single-line replacement semantics without requiring a full
 `TextInputWidget` or allocating just to inspect the active UTF-8 selection.
 Widgets that participate in focused text editing can also expose borrowed
 selection text through `Widget::selected_text_slice`, and

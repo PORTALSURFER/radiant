@@ -30,6 +30,56 @@ fn application_view_lowering_keeps_container_defaults_focused() {
 }
 
 #[test]
+fn application_view_identity_keeps_reserved_id_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let identity = fs::read_to_string(manifest_dir.join("src/application/view_node/identity.rs"))
+        .expect("application view node identity module should be readable");
+    let tests =
+        fs::read_to_string(manifest_dir.join("src/application/view_node/identity/tests.rs"))
+            .expect("application view node identity tests should be readable");
+
+    assert!(
+        identity.contains("pub(super) fn collect_reserved_ids")
+            && identity.contains("fn reserve_child_identity_capacity")
+            && identity.contains("fn reserved_identity_capacity_hint")
+            && identity.contains("#[path = \"identity/tests.rs\"]")
+            && !identity.contains("fn reserved_id_collection_presizes_for_large_child_groups"),
+        "view-node identity collection should live in view_node/identity.rs while behavior tests stay delegated"
+    );
+    assert!(
+        tests.contains("fn reserved_id_collection_presizes_for_large_child_groups")
+            && tests.contains("fn reserved_id_collection_includes_grid_child_identities")
+            && tests.contains("fn reserved_id_collection_presizes_wrapped_runtime_identities"),
+        "view-node identity behavior coverage should live in view_node/identity/tests.rs"
+    );
+}
+
+#[test]
+fn application_list_builders_keep_virtualization_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let lists = fs::read_to_string(manifest_dir.join("src/application/layout_builders/lists.rs"))
+        .expect("application list builders should be readable");
+    let tests =
+        fs::read_to_string(manifest_dir.join("src/application/layout_builders/lists/tests.rs"))
+            .expect("application list builder tests should be readable");
+
+    assert!(
+        lists.contains("pub fn virtual_list<Message, Item>")
+            && lists.contains("pub fn virtual_list_window<Message: 'static>")
+            && lists.contains("fn apply_list_row_chrome<Message>")
+            && lists.contains("#[path = \"lists/tests.rs\"]")
+            && !lists.contains("fn virtual_list_window_projects_only_materialized_range"),
+        "application list builders should own builder logic while virtualization behavior tests stay delegated"
+    );
+    assert!(
+        tests.contains("fn virtual_list_uses_packed_rows")
+            && tests.contains("fn virtual_list_window_projects_only_materialized_range")
+            && tests.contains("fn count_layout_nodes"),
+        "application list builder behavior coverage should live in layout_builders/lists/tests.rs"
+    );
+}
+
+#[test]
 fn public_layout_policy_models_do_not_hide_dead_code() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let model_dir = manifest_dir.join("src/gui/layout_core/model");

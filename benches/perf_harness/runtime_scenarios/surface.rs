@@ -1,12 +1,13 @@
+#[path = "surface/command_flattening.rs"]
+mod command_flattening;
+#[path = "surface/nodes.rs"]
+mod nodes;
+
 use crate::viewport;
 use radiant::{
-    layout::{
-        ContainerKind, ContainerPolicy, LayoutNode, LayoutOutput, SizeModeCross, SizeModeMain,
-        SlotParams, Vector2, layout_tree,
-    },
-    runtime::{Command, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface},
+    layout::{LayoutNode, LayoutOutput, Vector2, layout_tree},
+    runtime::{RuntimeBridge, SurfaceRuntime, UiSurface},
     theme::ThemeTokens,
-    widgets::{TextWidget, WidgetSizing},
 };
 use std::{hint::black_box, sync::Arc};
 
@@ -36,7 +37,7 @@ pub(super) fn resize_large_tree() -> impl FnMut() {
 }
 
 pub(super) fn command_flattening_512() -> impl FnMut() {
-    bench_command_flattening_512
+    command_flattening::command_flattening_512()
 }
 
 struct StatefulRuntimeSurfaceBench {
@@ -47,7 +48,7 @@ struct StatefulRuntimeSurfaceBench {
 
 impl StatefulRuntimeSurfaceBench {
     fn new() -> Self {
-        let surface = UiSurface::<()>::new(runtime_surface_node(250));
+        let surface = UiSurface::<()>::new(nodes::runtime_surface_node(250));
         let layout_node = surface.layout_node();
         Self {
             surface,
@@ -73,7 +74,7 @@ struct StatefulTextPaintPlanBench {
 
 impl StatefulTextPaintPlanBench {
     fn new() -> Self {
-        let surface = UiSurface::<()>::new(text_paint_surface_node(1_000));
+        let surface = UiSurface::<()>::new(nodes::text_paint_surface_node(1_000));
         let layout_node = surface.layout_node();
         Self {
             surface,
@@ -106,7 +107,7 @@ struct StatefulHorizontalScrollPaintBench {
 
 impl StatefulHorizontalScrollPaintBench {
     fn new() -> Self {
-        let surface = UiSurface::<()>::new(horizontal_scroll_surface_node(1_000));
+        let surface = UiSurface::<()>::new(nodes::horizontal_scroll_surface_node(1_000));
         let layout_node = surface.layout_node();
         let layout = layout_tree(&layout_node, viewport(320.0, 80.0));
         Self {
@@ -176,130 +177,6 @@ struct RefreshBridge {
 impl RuntimeBridge<()> for RefreshBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<()>> {
         self.revision = self.revision.wrapping_add(1);
-        Arc::new(UiSurface::new(runtime_surface_node(1_000)))
+        Arc::new(UiSurface::new(nodes::runtime_surface_node(1_000)))
     }
-}
-
-fn runtime_surface_node(count: u64) -> SurfaceNode<()> {
-    let rows = (0..count)
-        .map(|index| {
-            SurfaceChild::new(
-                SlotParams {
-                    size_main: SizeModeMain::Intrinsic,
-                    size_cross: SizeModeCross::Fill,
-                    constraints: radiant::layout::Constraints::unconstrained(),
-                    margin: Default::default(),
-                    align_cross_override: None,
-                    allow_fixed_compress: false,
-                },
-                SurfaceNode::static_widget(TextWidget::new(
-                    10_000 + index,
-                    format!("Row {index}"),
-                    WidgetSizing::fixed(Vector2::new(180.0, 24.0)),
-                )),
-            )
-        })
-        .collect();
-    SurfaceNode::scroll_area(
-        1,
-        SurfaceNode::container(
-            2,
-            ContainerPolicy {
-                kind: ContainerKind::Column,
-                spacing: 2.0,
-                ..ContainerPolicy::default()
-            },
-            rows,
-        ),
-    )
-}
-
-fn text_paint_surface_node(count: u64) -> SurfaceNode<()> {
-    let rows = (0..count)
-        .map(|index| {
-            SurfaceChild::new(
-                SlotParams {
-                    size_main: SizeModeMain::Fixed(22.0),
-                    size_cross: SizeModeCross::Fill,
-                    constraints: radiant::layout::Constraints::unconstrained(),
-                    margin: Default::default(),
-                    align_cross_override: None,
-                    allow_fixed_compress: false,
-                },
-                SurfaceNode::static_widget(TextWidget::new(
-                    40_000 + index,
-                    format!(
-                        "Track {index:04}  position {index:04}.{:02}  cached text row",
-                        index % 97
-                    ),
-                    WidgetSizing::fixed(Vector2::new(520.0, 22.0)),
-                )),
-            )
-        })
-        .collect();
-    SurfaceNode::scroll_area(
-        30_000,
-        SurfaceNode::container(
-            30_001,
-            ContainerPolicy {
-                kind: ContainerKind::Column,
-                spacing: 1.0,
-                ..ContainerPolicy::default()
-            },
-            rows,
-        ),
-    )
-}
-
-fn horizontal_scroll_surface_node(count: u64) -> SurfaceNode<()> {
-    let items = (0..count)
-        .map(|index| {
-            SurfaceChild::new(
-                SlotParams {
-                    size_main: SizeModeMain::Fixed(88.0),
-                    size_cross: SizeModeCross::Fill,
-                    constraints: radiant::layout::Constraints::unconstrained(),
-                    margin: Default::default(),
-                    align_cross_override: None,
-                    allow_fixed_compress: false,
-                },
-                SurfaceNode::static_widget(TextWidget::new(
-                    90_000 + index,
-                    format!("Clip {index:04}"),
-                    WidgetSizing::fixed(Vector2::new(88.0, 24.0)),
-                )),
-            )
-        })
-        .collect();
-    SurfaceNode::scroll_area(
-        80_000,
-        SurfaceNode::container(
-            80_001,
-            ContainerPolicy {
-                kind: ContainerKind::Row,
-                spacing: 2.0,
-                ..ContainerPolicy::default()
-            },
-            items,
-        ),
-    )
-}
-
-fn bench_command_flattening_512() {
-    let command = Command::batch((0..512).map(|index| {
-        if index % 8 == 0 {
-            Command::batch([
-                Command::message(index),
-                Command::request_repaint(),
-                Command::message(index + 10_000),
-            ])
-        } else if index % 5 == 0 {
-            Command::request_paint_only()
-        } else {
-            Command::message(index)
-        }
-    }));
-    let messages = command.into_messages();
-    assert_eq!(messages.len(), 486);
-    black_box(messages);
 }

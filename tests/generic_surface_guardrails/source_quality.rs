@@ -1392,6 +1392,14 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
     let editing =
         fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/model/editing.rs"))
             .expect("text input editing model should be readable");
+    let editing_command = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/text_input/model/editing/command.rs"),
+    )
+    .expect("text input edit command model should be readable");
+    let editing_mutation = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/text_input/model/editing/mutation.rs"),
+    )
+    .expect("text input edit mutation model should be readable");
 
     for required in ["mod editing;", "mod navigation;", "mod selection;"] {
         assert!(
@@ -1421,11 +1429,28 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
         "text input caret movement should live in model/navigation.rs"
     );
     assert!(
-        editing.contains("pub fn apply_edit_command")
-            && editing.contains("pub fn apply_key")
-            && editing.contains("pub fn insert_text")
-            && editing.contains("fn delete_selected_text"),
-        "text input mutation and edit command handling should live in model/editing.rs"
+        editing.contains("mod command;")
+            && editing.contains("mod mutation;")
+            && !editing.contains("pub fn apply_edit_command")
+            && !editing.contains("pub fn insert_text"),
+        "text input editing root should delegate command dispatch and mutation mechanics"
+    );
+    assert!(
+        editing_command.contains("pub fn apply_edit_command")
+            && editing_command.contains("pub fn apply_key")
+            && editing_command.contains("TextEditCommand")
+            && editing_command.contains("WidgetKey")
+            && !editing_mutation.contains("TextEditCommand")
+            && !editing_mutation.contains("WidgetKey"),
+        "text input edit command handling should live in model/editing/command.rs"
+    );
+    assert!(
+        editing_mutation.contains("pub fn insert_text")
+            && editing_mutation.contains("pub fn replace_selection")
+            && editing_mutation.contains("pub(crate) fn delete_selected_text")
+            && editing_mutation.contains("byte_index_for_char")
+            && !editing_command.contains("byte_index_for_char"),
+        "text input mutation mechanics should live in model/editing/mutation.rs"
     );
 }
 

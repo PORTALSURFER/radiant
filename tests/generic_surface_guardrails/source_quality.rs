@@ -3520,6 +3520,16 @@ fn layout_virtualization_tests_keep_fixture_and_behavior_groups_focused() {
         manifest_dir.join("src/gui/layout_core/engine/virtualization_tests/equivalence.rs"),
     )
     .expect("layout virtualization equivalence tests should be readable");
+    let equivalence_mixed = fs::read_to_string(
+        manifest_dir
+            .join("src/gui/layout_core/engine/virtualization_tests/equivalence/mixed_sizing.rs"),
+    )
+    .expect("layout virtualization mixed-sizing equivalence tests should be readable");
+    let equivalence_fixed = fs::read_to_string(
+        manifest_dir
+            .join("src/gui/layout_core/engine/virtualization_tests/equivalence/fixed_margins.rs"),
+    )
+    .expect("layout virtualization fixed-margin equivalence tests should be readable");
 
     for required in [
         "#[path = \"virtualization_tests/alignment.rs\"]",
@@ -3553,9 +3563,16 @@ fn layout_virtualization_tests_keep_fixture_and_behavior_groups_focused() {
             && diagnostics.contains("fn virtualization_debug_primitives_are_emitted")
             && diagnostics.contains("fn invalid_virtualization_overscan_is_clamped")
             && alignment.contains("fn virtualization_supports_non_start_linear_alignment")
-            && equivalence.contains(
+            && equivalence.contains("mod mixed_sizing;")
+            && equivalence.contains("mod fixed_margins;")
+            && !equivalence.contains(
                 "fn virtualized_fill_and_percent_layout_matches_full_layout_for_window_items"
-            ),
+            )
+            && equivalence_mixed.contains(
+                "fn virtualized_fill_and_percent_layout_matches_full_layout_for_window_items"
+            )
+            && equivalence_fixed
+                .contains("fn virtualized_fixed_rows_with_balanced_margins_match_full_layout"),
         "layout virtualization coverage should stay grouped by behavior concern"
     );
 }

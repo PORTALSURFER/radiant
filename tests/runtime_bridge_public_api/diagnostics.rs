@@ -4,6 +4,7 @@ use radiant::runtime::{
     NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
     NativeTextDiagnostics, RuntimeBridge,
 };
+use std::time::Duration;
 
 #[test]
 fn runtime_bridge_can_observe_structured_frame_diagnostics() {
@@ -49,6 +50,12 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
         },
         timings: NativeFrameTimingDiagnostics {
             gpu_timing_status: NativeGpuTimingStatus::CpuEnvelopeOnly,
+            refresh_surface: Duration::from_micros(7),
+            paint_plan: Duration::from_micros(11),
+            render_to_texture: Duration::from_micros(13),
+            full_screen_blit: Duration::from_micros(17),
+            submit_present: Duration::from_micros(19),
+            since_last_present: Duration::from_micros(1000),
             transient_overlay_primitives: 5,
             ..NativeFrameTimingDiagnostics::default()
         },
@@ -64,6 +71,10 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     assert_eq!(
         diagnostics.timings.gpu_timing_status,
         NativeGpuTimingStatus::CpuEnvelopeOnly
+    );
+    assert_eq!(
+        diagnostics.timings.cpu_envelope_total(),
+        Duration::from_micros(67)
     );
 }
 

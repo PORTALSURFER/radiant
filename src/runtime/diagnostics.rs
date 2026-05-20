@@ -203,6 +203,26 @@ pub struct NativeFrameTimingDiagnostics {
     pub since_last_present: Duration,
 }
 
+impl NativeFrameTimingDiagnostics {
+    /// Return the sum of the tracked CPU-side frame timing buckets.
+    ///
+    /// This intentionally excludes [`Self::since_last_present`], which is a
+    /// cadence interval rather than work performed for the current frame. When
+    /// [`Self::gpu_timing_status`] is [`NativeGpuTimingStatus::CpuEnvelopeOnly`],
+    /// this total remains an encode/submit/present envelope, not a backend GPU
+    /// execution duration.
+    pub fn cpu_envelope_total(self) -> Duration {
+        self.coalesced_wheel_route
+            + self.refresh_surface
+            + self.paint_plan
+            + self.render_to_texture
+            + self.full_screen_blit
+            + self.composited_base_refresh
+            + self.transient_overlay_paint
+            + self.submit_present
+    }
+}
+
 /// GPU timing availability for native frame diagnostics.
 ///
 /// Radiant currently exposes CPU-side encode, submit, and present timing

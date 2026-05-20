@@ -95,3 +95,30 @@ fn api_docs_describe_paint_only_overlay_composition_cache() {
         );
     }
 }
+
+#[test]
+fn api_docs_describe_declarative_lifecycle_identity_contract() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("docs/API.md should be readable");
+    let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    for required in [
+        "The declarative lifecycle contract is snapshot based, not object-instance based.",
+        "Application builders may create a fresh `View<Message>` or `UiSurface<Message>` on every refresh",
+        "continuity comes from stable widget identity, host-owned state, retained resource identity, and runtime caches",
+        "Use `.key(...)`, explicit widget IDs, or resource IDs for dynamic rows",
+        "Generated IDs are suitable for static local structure",
+        "dynamic collections should not depend on positional identity",
+        "Reducers own all durable application state.",
+        "runtime-local state is limited to GUI concerns such as focus, hover, pointer capture, scroll offsets, layout caches, repaint flags, and retained surface caches",
+        "A reducer that changes durable state should request a normal surface repaint",
+        "Use paint-only repaint scopes only for overlay motion",
+        "without hiding a real state change",
+    ] {
+        assert!(
+            normalized_docs.contains(required),
+            "API docs should describe the declarative lifecycle identity contract with `{required}`"
+        );
+    }
+}

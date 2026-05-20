@@ -8,6 +8,8 @@ mod catalog;
 mod command_drain;
 #[path = "perf_harness/layout_scenarios.rs"]
 mod layout_scenarios;
+#[path = "perf_harness/resource_scenarios.rs"]
+mod resource_scenarios;
 #[path = "perf_harness/runner.rs"]
 mod runner;
 #[path = "perf_harness/runtime_scenarios.rs"]

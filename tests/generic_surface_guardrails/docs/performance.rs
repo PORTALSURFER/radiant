@@ -36,6 +36,9 @@ fn performance_harness_is_registered_and_documented() {
         manifest_dir.join("benches/perf_harness/runtime_scenarios/virtualized/bridges.rs"),
     )
     .expect("runtime virtualized bench bridges should be readable");
+    let resource_scenarios =
+        fs::read_to_string(manifest_dir.join("benches/perf_harness/resource_scenarios.rs"))
+            .expect("resource bench scenarios should be readable");
     let text_scenarios =
         fs::read_to_string(manifest_dir.join("benches/perf_harness/text_scenarios.rs"))
             .expect("text bench scenarios should be readable");
@@ -85,6 +88,7 @@ fn performance_harness_is_registered_and_documented() {
         "runtime_command_flattening_512",
         "runtime_command_drain_1k",
         "runtime_nested_command_drain_1k",
+        "resource_slot_stale_completions_1k",
         "text_line_cache_1k",
         "gpu_signal_summary",
         "gpu_surface_projection",
@@ -137,6 +141,13 @@ fn performance_harness_is_registered_and_documented() {
             && runtime_virtualized_bridges.contains("virtual_button_rows")
             && runtime_virtualized_bridges.contains("nested_scroll_rows"),
         "runtime virtualized perf scenarios should keep scenario state separate from synthetic bridge trees"
+    );
+    assert!(
+        bench.contains("perf_harness/resource_scenarios.rs")
+            && resource_scenarios.contains("ResourceSlot::new")
+            && resource_scenarios.contains("apply_for")
+            && resource_scenarios.contains("resource_slot_stale_completions_1k"),
+        "resource perf scenarios should exercise stale background completion rejection"
     );
     assert!(
         text_scenarios.contains("TextLineLayoutCache")

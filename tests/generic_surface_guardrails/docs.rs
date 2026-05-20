@@ -1,5 +1,7 @@
 use super::*;
 
+#[path = "docs/architecture.rs"]
+mod architecture;
 #[path = "docs/diagnostics.rs"]
 mod diagnostics;
 #[path = "docs/performance.rs"]

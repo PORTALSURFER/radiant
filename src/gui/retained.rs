@@ -2,6 +2,10 @@
 
 use std::{ops::Deref, sync::Arc};
 
+#[cfg(test)]
+#[path = "retained/tests.rs"]
+mod tests;
+
 /// Shared vector storage used by retained immutable snapshots.
 ///
 /// Runtime bridges often clone top-level model snapshots while large segment
@@ -95,21 +99,5 @@ impl<T> Deref for RetainedVec<T> {
 impl<T> From<Vec<T>> for RetainedVec<T> {
     fn from(value: Vec<T>) -> Self {
         Self(Arc::new(value))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::RetainedVec;
-
-    #[test]
-    fn retained_vec_clones_share_storage_until_mutation() {
-        let mut original = RetainedVec::from(vec![1, 2, 3]);
-        let clone = original.clone();
-
-        original.push(4);
-
-        assert_eq!(clone.as_slice(), &[1, 2, 3]);
-        assert_eq!(original.as_slice(), &[1, 2, 3, 4]);
     }
 }

@@ -1,7 +1,7 @@
 use super::*;
 use radiant::{
     gui::paint::{PaintFrame, Primitive},
-    layout::Vector2,
+    layout::{Point, Vector2},
 };
 
 #[test]

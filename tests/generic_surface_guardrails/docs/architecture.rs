@@ -34,6 +34,8 @@ fn architecture_map_documents_target_aligned_boundaries() {
         "direct WGPU paths for retained GPU surfaces",
         "not split into separate \"Vello apps\" and \"WGPU apps\"",
         "explicit vertex/fragment entry points",
+        "executes the source-backed subset",
+        "surface-uniform ABI",
         "WGPU-specific details should stay there or behind explicit GPU-surface contracts",
         "## Text Boundary",
         "`src/gui/text_layout` owns deterministic text-line placement helpers",

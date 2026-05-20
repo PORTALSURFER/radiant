@@ -143,6 +143,8 @@ fn api_docs_describe_gpu_surface_boundary_contract() {
         "explicit vertex and fragment entry-point names",
         "`fragment_entry_point(...)` names the color-producing fragment stage",
         "validation requires a fragment entry point",
+        "execute WGSL-backed descriptors that use Radiant's built-in surface uniform ABI",
+        "descriptors outside that supported subset report the skipped surfaces",
         "`NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces`",
         "`unsupported_custom_shader_vertices`",
         "`unsupported_custom_shader_source_bytes`",

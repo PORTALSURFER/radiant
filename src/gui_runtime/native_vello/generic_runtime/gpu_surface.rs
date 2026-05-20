@@ -90,7 +90,7 @@ impl GpuSurfaceRenderer {
                     self.render_signal(target, surface, &occlusion_regions, &mut stats);
                 }
                 GpuSurfaceContent::CustomShader { .. } => {
-                    self.render_custom_shader(surface, &mut stats);
+                    self.render_custom_shader(target, surface, &occlusion_regions, &mut stats);
                 }
             }
             self.active_keys.mark_active(surface.key);

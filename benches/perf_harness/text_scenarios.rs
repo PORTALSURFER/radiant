@@ -1,18 +1,27 @@
 //! Text layout performance scenarios.
 
-use radiant::gui::{
-    text_layout::{
-        TextLineInsets, TextLineLayoutCache, centered_text_line_with_cache,
-        top_text_line_with_cache,
+use radiant::{
+    gui::{
+        text_layout::{
+            TextLineInsets, TextLineLayoutCache, centered_text_line_with_cache,
+            top_text_line_with_cache,
+        },
+        types::{Point, Rect, Vector2},
     },
-    types::{Point, Rect, Vector2},
+    widgets::TextInputState,
 };
 use std::hint::black_box;
 
 const TEXT_ROWS: usize = 1_024;
+const WORD_SELECTION_CARETS: usize = 1_024;
 
 pub(super) fn text_line_cache_1k() -> impl FnMut() {
     let mut bench = TextLineCacheBench::new();
+    move || bench.step()
+}
+
+pub(super) fn text_word_selection_1k() -> impl FnMut() {
+    let mut bench = TextWordSelectionBench::new();
     move || bench.step()
 }
 
@@ -71,6 +80,32 @@ impl TextLineCacheBench {
     }
 }
 
+struct TextWordSelectionBench {
+    state: TextInputState,
+    carets: Vec<usize>,
+    next: usize,
+}
+
+impl TextWordSelectionBench {
+    fn new() -> Self {
+        let value = word_selection_text();
+        let carets = word_selection_carets(&value, WORD_SELECTION_CARETS);
+        assert_eq!(carets.len(), WORD_SELECTION_CARETS);
+        Self {
+            state: TextInputState::from_value(value),
+            carets,
+            next: 0,
+        }
+    }
+
+    fn step(&mut self) {
+        let caret = self.carets[self.next % self.carets.len()];
+        self.next = self.next.wrapping_add(1);
+        assert!(self.state.select_word_at(caret));
+        black_box((caret, self.state.selected_text_slice(), self.next));
+    }
+}
+
 fn text_line_requests(count: usize) -> Vec<TextLineRequest> {
     (0..count)
         .map(|index| {
@@ -96,4 +131,21 @@ fn text_line_requests(count: usize) -> Vec<TextLineRequest> {
             }
         })
         .collect()
+}
+
+fn word_selection_text() -> String {
+    "alpha beta_gamma delta epsilon zeta_eta theta lambda \u{65e5}\u{6587} ".repeat(128)
+}
+
+fn word_selection_carets(value: &str, count: usize) -> Vec<usize> {
+    value
+        .chars()
+        .enumerate()
+        .filter_map(|(index, ch)| is_word_selection_caret(ch).then_some(index))
+        .take(count)
+        .collect()
+}
+
+fn is_word_selection_caret(ch: char) -> bool {
+    ch.is_alphanumeric() || ch == '_'
 }

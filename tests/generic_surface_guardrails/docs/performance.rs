@@ -90,6 +90,7 @@ fn performance_harness_is_registered_and_documented() {
         "runtime_nested_command_drain_1k",
         "resource_slot_stale_completions_1k",
         "text_line_cache_1k",
+        "text_word_selection_1k",
         "gpu_signal_summary",
         "gpu_surface_projection",
         "gpu_custom_shader_projection",
@@ -172,8 +173,11 @@ fn performance_harness_is_registered_and_documented() {
     assert!(
         text_scenarios.contains("TextLineLayoutCache")
             && text_scenarios.contains("centered_text_line_with_cache")
-            && text_scenarios.contains("top_text_line_with_cache"),
-        "text perf scenarios should exercise the reusable text-line layout cache"
+            && text_scenarios.contains("top_text_line_with_cache")
+            && text_scenarios.contains("TextInputState")
+            && text_scenarios.contains("select_word_at")
+            && text_scenarios.contains("selected_text_slice"),
+        "text perf scenarios should exercise the reusable text-line layout cache and text-input word selection"
     );
     assert!(
         bench.contains("bench_gpu_custom_shader_projection")

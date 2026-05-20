@@ -635,6 +635,17 @@ emit `PaintPrimitive::GpuSurface` through `GpuSurfaceWidget` or a custom
 own stable identity, receive layout bounds, can route widget input, and paint
 through the same `SurfacePaintPlan` as Vello-backed widgets.
 
+Use retained GPU surfaces for dense visuals where the payload is naturally
+texture, signal, or shader data: waveform bodies, meters, scopes, large preview
+atlases, and other surfaces that benefit from backend-owned GPU caches. Keep
+normal panels, controls, labels, selection chrome, and editor overlays in
+standard Radiant widgets unless they need custom GPU resources. The public
+contract is `key` plus `revision` plus validated `GpuSurfaceContent`; bump the
+revision only when the retained GPU payload changes, and keep transient cursor
+or drag previews in overlays or paint-only repaint paths. This preserves one
+Radiant widget model instead of creating separate Vello and WGPU application
+models.
+
 `PaintGpuSurface` currently supports the built-in v1 content payloads
 `GpuSurfaceContent::RgbaAtlas`, `SignalBands`, and `SignalSummaryBands`.
 `GpuSurfaceContent::validate()` returns a typed `GpuSurfaceContentError` for

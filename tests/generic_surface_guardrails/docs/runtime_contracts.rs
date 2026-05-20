@@ -122,3 +122,27 @@ fn api_docs_describe_declarative_lifecycle_identity_contract() {
         );
     }
 }
+
+#[test]
+fn api_docs_describe_gpu_surface_boundary_contract() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("docs/API.md should be readable");
+    let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    for required in [
+        "Use retained GPU surfaces for dense visuals where the payload is naturally texture, signal, or shader data",
+        "waveform bodies, meters, scopes, large preview atlases",
+        "Keep normal panels, controls, labels, selection chrome, and editor overlays in standard Radiant widgets",
+        "unless they need custom GPU resources",
+        "The public contract is `key` plus `revision` plus validated `GpuSurfaceContent`",
+        "bump the revision only when the retained GPU payload changes",
+        "keep transient cursor or drag previews in overlays or paint-only repaint paths",
+        "one Radiant widget model instead of creating separate Vello and WGPU application models",
+    ] {
+        assert!(
+            normalized_docs.contains(required),
+            "API docs should describe the GPU-surface boundary contract with `{required}`"
+        );
+    }
+}

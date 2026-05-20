@@ -53,6 +53,10 @@ pub struct NativeTextDiagnostics {
     pub atom_cache_misses: u64,
     /// Text atom cache evictions observed while preparing this frame.
     pub atom_cache_evictions: u64,
+    /// Text runs that contain shaping-sensitive Unicode handled by the basic native layout path.
+    pub unsupported_shaping_runs: u64,
+    /// Rendered Unicode scalar values in runs that need a real shaping engine.
+    pub unsupported_shaping_scalars: u64,
     /// Glyphs substituted with the renderer's fallback glyph this frame.
     pub fallback_glyphs: u64,
     /// Glyphs the active native font could not resolve even through fallback.

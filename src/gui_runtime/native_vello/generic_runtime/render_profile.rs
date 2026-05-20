@@ -44,6 +44,8 @@ pub(super) fn maybe_log_render_profile(
         text_atom_cache_hits = text_stats.atom_hits,
         text_atom_cache_misses = text_stats.atom_misses,
         text_atom_cache_evictions = text_stats.atom_evictions,
+        text_unsupported_shaping_runs = text_stats.unsupported_shaping_runs,
+        text_unsupported_shaping_scalars = text_stats.unsupported_shaping_scalars,
         text_fallback_glyphs = text_stats.fallback_glyphs,
         text_missing_glyphs = text_stats.missing_glyphs,
         retained_bridge_calls = stats.bridge_calls,

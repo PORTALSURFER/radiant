@@ -876,9 +876,10 @@ GPU-surface composition, and presentation.
 for apps that need to tune or disable retained custom-surface frame reuse during
 profiling.
 `NativeFrameDiagnostics::text` exposes native text layout-cache hits, misses,
-and evictions, text atom-cache activity, and fallback/missing glyph counts so
-hosts can detect repeated text measurement, cache churn, or font coverage gaps
-without parsing renderer logs.
+and evictions, text atom-cache activity, shaping-sensitive run/scalar counts,
+and fallback/missing glyph counts so hosts can detect repeated text measurement,
+cache churn, basic-layout Unicode limits, or font coverage gaps without parsing
+renderer logs.
 
 ## Examples And Sandboxes
 

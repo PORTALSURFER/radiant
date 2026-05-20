@@ -840,7 +840,11 @@ When a baseline file is supplied, every emitted metric includes
 `baseline_ratio`, and `baseline_status` to the output; the status is `faster`,
 `similar`, or `slower` using a small tolerance. A missing baseline scenario reports
 `baseline_status=missing` so incomplete trend artifacts are visible during
-review. These statuses are trend context for review and investigation, not a
+review. After the matched scenarios finish, the harness also emits a
+`radiant_perf_summary` line with `baseline_matched`, `baseline_missing`,
+`baseline_faster`, `baseline_similar`, and `baseline_slower` counts so CI
+artifacts and code reviews can quickly see whether the baseline file covered the
+run. These statuses are trend context for review and investigation, not a
 portable pass/fail gate.
 List the available scenarios without running them with:
 

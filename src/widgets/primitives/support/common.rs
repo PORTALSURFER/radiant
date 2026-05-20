@@ -3,6 +3,10 @@
 use crate::layout::LayoutNode;
 use crate::widgets::contract::{FocusBehavior, WidgetId, WidgetSizing, WidgetState, WidgetStyle};
 
+#[cfg(test)]
+#[path = "common/tests.rs"]
+mod tests;
+
 /// Shared contract carried by every public widget descriptor.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WidgetCommon {
@@ -65,25 +69,5 @@ impl WidgetCommon {
     /// Project this widget into the current public layout leaf representation.
     pub fn layout_node(&self) -> LayoutNode {
         self.sizing.layout_node(self.id)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::layout::Vector2;
-
-    #[test]
-    fn focus_helpers_expose_pointer_hit_testing_intent() {
-        let sizing = WidgetSizing::fixed(Vector2::new(120.0, 40.0));
-
-        assert_eq!(
-            WidgetCommon::new(1, sizing).with_pointer_focus().focus,
-            FocusBehavior::Pointer
-        );
-        assert_eq!(
-            WidgetCommon::new(2, sizing).with_keyboard_focus().focus,
-            FocusBehavior::Keyboard
-        );
     }
 }

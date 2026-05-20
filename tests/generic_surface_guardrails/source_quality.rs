@@ -1804,6 +1804,30 @@ fn labeled_primitive_widgets_use_named_parts_for_identity_content_and_sizing() {
 }
 
 #[test]
+fn widget_common_keeps_support_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/support/common.rs"))
+        .expect("widget common support root should be readable");
+    let tests =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/support/common/tests.rs"))
+            .expect("widget common support tests should be readable");
+
+    assert!(
+        root.contains("#[path = \"common/tests.rs\"]")
+            && root.contains("pub struct WidgetCommon")
+            && root.contains("impl WidgetCommon")
+            && !root.contains("fn focus_helpers_expose_pointer_hit_testing_intent"),
+        "widget common support root should own the shared contract while delegating behavior tests"
+    );
+    assert!(
+        tests.contains("fn focus_helpers_expose_pointer_hit_testing_intent")
+            && tests.contains("with_pointer_focus()")
+            && tests.contains("with_keyboard_focus()"),
+        "widget common behavior tests should live in support/common/tests.rs"
+    );
+}
+
+#[test]
 fn scrollbar_primitive_keeps_surface_builders_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/scrollbar.rs"))

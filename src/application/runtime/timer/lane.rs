@@ -9,6 +9,10 @@ use std::{
     time::Duration,
 };
 
+#[cfg(test)]
+#[path = "lane/tests.rs"]
+mod tests;
+
 const TIMER_THREAD_NAME: &str = "radiant-timer";
 
 /// Runtime-owned timer lane for delayed UI messages.
@@ -106,17 +110,5 @@ impl<Message> Drop for TimerLane<Message> {
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::TimerLane;
-
-    #[test]
-    fn timer_lane_rejects_work_when_worker_is_unavailable() {
-        let lane = TimerLane::<u32>::without_worker_for_test();
-
-        assert!(!lane.schedule(std::sync::Weak::new(), std::time::Duration::ZERO, 1));
     }
 }

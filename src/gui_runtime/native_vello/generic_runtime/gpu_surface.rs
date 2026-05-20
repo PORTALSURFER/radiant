@@ -88,6 +88,9 @@ impl GpuSurfaceRenderer {
                 GpuSurfaceContent::SignalSummaryBands { .. } => {
                     self.render_signal(target, surface, &occlusion_regions, &mut stats);
                 }
+                GpuSurfaceContent::CustomShader { .. } => {
+                    stats.unsupported_custom_shader_surfaces += 1;
+                }
             }
             self.active_keys.mark_active(surface.key);
         }

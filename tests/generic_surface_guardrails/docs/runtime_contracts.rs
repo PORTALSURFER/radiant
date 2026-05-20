@@ -139,6 +139,8 @@ fn api_docs_describe_gpu_surface_boundary_contract() {
         "bump the revision only when the retained GPU payload changes",
         "keep transient cursor or drag previews in overlays or paint-only repaint paths",
         "one Radiant widget model instead of creating separate Vello and WGPU application models",
+        "`GpuSurfaceContent::CustomShader` for advanced surfaces",
+        "`NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces`",
     ] {
         assert!(
             normalized_docs.contains(required),

@@ -56,6 +56,8 @@ pub(super) fn maybe_log_render_profile(
         gpu_signal_body_encode_us = gpu_surface_stats.signal_body_encode_elapsed.as_micros(),
         gpu_surface_composite_binding_rebuilds = gpu_surface_stats.composite_binding_rebuilds,
         gpu_surface_composite_binding_cache_hits = gpu_surface_stats.composite_binding_cache_hits,
+        gpu_surface_unsupported_custom_shader_surfaces =
+            gpu_surface_stats.unsupported_custom_shader_surfaces,
         gpu_surface_composite_encode_us = gpu_surface_stats.composite_encode_elapsed.as_micros(),
         composited_base_refresh_us = frame.composited_base_refresh.as_micros(),
         composited_base_cache_hit = frame.composited_base_cache_hit,

@@ -111,3 +111,56 @@ fn gpu_surface_content_validation_rejects_non_finite_gain_preview() {
     }
     assert_eq!(content.signal_render_shape(), None);
 }
+
+#[test]
+fn custom_shader_content_validation_reports_descriptor_errors() {
+    let empty_key = GpuSurfaceContent::CustomShader {
+        descriptor: Arc::new(GpuShaderSurfaceDescriptor::new(" ")),
+    };
+    let empty_entry = GpuSurfaceContent::CustomShader {
+        descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("meter").entry_point("")),
+    };
+    let empty_vertices = GpuSurfaceContent::CustomShader {
+        descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("meter").vertex_count(0)),
+    };
+
+    assert_eq!(
+        empty_key.validate(),
+        Err(GpuSurfaceContentError::EmptyShaderKey)
+    );
+    assert_eq!(
+        empty_entry.validate(),
+        Err(GpuSurfaceContentError::EmptyShaderEntryPoint {
+            shader_key: String::from("meter"),
+        })
+    );
+    assert_eq!(
+        empty_vertices.validate(),
+        Err(GpuSurfaceContentError::EmptyShaderVertexCount {
+            shader_key: String::from("meter"),
+        })
+    );
+}
+
+#[test]
+fn custom_shader_content_carries_backend_neutral_payloads() {
+    let descriptor = GpuShaderSurfaceDescriptor::new("spectral-meter")
+        .entry_point("fragment_main")
+        .uniform_bytes([1, 2, 3, 4])
+        .storage_bytes([5, 6])
+        .vertex_count(6);
+    let content = GpuSurfaceContent::CustomShader {
+        descriptor: Arc::new(descriptor),
+    };
+
+    assert!(content.is_renderable());
+    assert_eq!(content.signal_render_shape(), None);
+    let GpuSurfaceContent::CustomShader { descriptor } = content else {
+        panic!("expected custom shader content");
+    };
+    assert_eq!(descriptor.shader_key, "spectral-meter");
+    assert_eq!(descriptor.entry_point, "fragment_main");
+    assert_eq!(descriptor.uniform_bytes.as_ref(), &[1, 2, 3, 4]);
+    assert_eq!(descriptor.storage_bytes.as_ref(), &[5, 6]);
+    assert_eq!(descriptor.vertex_count, 6);
+}

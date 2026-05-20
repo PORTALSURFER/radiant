@@ -10,11 +10,11 @@ use radiant::{
     },
     layout::{Point, Rect, Vector2, layout_tree, layout_tree_with_state},
     runtime::{
-        Command, Element, Event, FocusTraversal, GpuSurfaceCapabilities, GpuSurfaceContent,
-        GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, PaintPrimitive,
-        Renderer, RepaintScope, RuntimeBridge, SurfaceChild, SurfaceNode, SurfacePaintPlan,
-        SurfaceRuntime, UiSurface, View, WidgetMessageMapper, declarative_command_runtime_bridge,
-        declarative_runtime_bridge,
+        Command, Element, Event, FocusTraversal, GpuShaderSurfaceDescriptor,
+        GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceOverlay,
+        GpuSurfaceRuntimeOverlays, PaintPrimitive, Renderer, RepaintScope, RuntimeBridge,
+        SurfaceChild, SurfaceNode, SurfacePaintPlan, SurfaceRuntime, UiSurface, View,
+        WidgetMessageMapper, declarative_command_runtime_bridge, declarative_runtime_bridge,
     },
     theme::ThemeTokens,
     widgets::{

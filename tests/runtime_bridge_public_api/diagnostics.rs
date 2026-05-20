@@ -22,6 +22,7 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
         },
         gpu_surfaces: NativeGpuSurfaceDiagnostics {
             signal_summary_cache_hits: 4,
+            unsupported_custom_shader_surfaces: 1,
             ..NativeGpuSurfaceDiagnostics::default()
         },
         text: NativeTextDiagnostics {

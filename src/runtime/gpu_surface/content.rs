@@ -8,10 +8,13 @@ mod error;
 mod model;
 mod validation;
 pub use error::GpuSurfaceContentError;
-pub use model::{GpuSignalGainPreview, GpuSignalRenderShape};
+pub use model::{
+    GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview,
+    GpuSignalRenderShape,
+};
 use validation::{
-    validate_atlas_source_rect, validate_signal_gain_preview, validate_signal_render_shape,
-    validate_signal_summary_shape,
+    validate_atlas_source_rect, validate_shader_descriptor, validate_signal_gain_preview,
+    validate_signal_render_shape, validate_signal_summary_shape,
 };
 
 /// Backend-neutral retained GPU surface content.
@@ -47,6 +50,11 @@ pub enum GpuSurfaceContent {
         summary: Arc<GpuSignalSummary>,
         /// Optional gain envelope preview applied by the GPU renderer.
         gain_preview: Option<GpuSignalGainPreview>,
+    },
+    /// Opaque custom shader payload routed through the normal GPU-surface path.
+    CustomShader {
+        /// Backend-neutral shader identity and payload descriptor.
+        descriptor: Arc<GpuShaderSurfaceDescriptor>,
     },
 }
 
@@ -89,6 +97,7 @@ impl GpuSurfaceContent {
                 )
                 .map(|_| ())
             }
+            Self::CustomShader { descriptor } => validate_shader_descriptor(descriptor),
         }
     }
 
@@ -136,7 +145,7 @@ impl GpuSurfaceContent {
                 )
                 .ok()
             }
-            Self::RgbaAtlas { .. } => None,
+            Self::RgbaAtlas { .. } | Self::CustomShader { .. } => None,
         }
     }
 }

@@ -1,6 +1,8 @@
 //! Validation helpers for retained GPU-surface content.
 
-use super::{GpuSignalGainPreview, GpuSignalRenderShape, GpuSurfaceContentError};
+use super::{
+    GpuShaderSurfaceDescriptor, GpuSignalGainPreview, GpuSignalRenderShape, GpuSurfaceContentError,
+};
 use crate::{gui::types::Rect, runtime::GpuSignalSummary};
 
 pub(super) fn validate_atlas_source_rect(
@@ -121,4 +123,23 @@ pub(super) fn validate_signal_gain_preview(
     } else {
         Err(GpuSurfaceContentError::InvalidSignalGainPreview { preview })
     }
+}
+
+pub(super) fn validate_shader_descriptor(
+    descriptor: &GpuShaderSurfaceDescriptor,
+) -> Result<(), GpuSurfaceContentError> {
+    if descriptor.shader_key.trim().is_empty() {
+        return Err(GpuSurfaceContentError::EmptyShaderKey);
+    }
+    if descriptor.entry_point.trim().is_empty() {
+        return Err(GpuSurfaceContentError::EmptyShaderEntryPoint {
+            shader_key: descriptor.shader_key.clone(),
+        });
+    }
+    if descriptor.vertex_count == 0 {
+        return Err(GpuSurfaceContentError::EmptyShaderVertexCount {
+            shader_key: descriptor.shader_key.clone(),
+        });
+    }
+    Ok(())
 }

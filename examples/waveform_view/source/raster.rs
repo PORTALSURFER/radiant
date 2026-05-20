@@ -1,5 +1,7 @@
 #[path = "raster/buffer.rs"]
 mod buffer;
+#[path = "raster/chrome.rs"]
+mod chrome;
 #[path = "raster/labels.rs"]
 mod labels;
 
@@ -14,8 +16,7 @@ pub(crate) fn render_waveform_image(
     height: usize,
 ) -> ImageRgba {
     let mut image = WaveformRaster::new(width, height);
-    image.fill_background();
-    image.draw_grid();
+    chrome::draw_raster_chrome(&mut image);
     image.draw_waveform(file, viewport);
     image.into_image()
 }
@@ -28,44 +29,6 @@ impl WaveformRaster {
     fn new(width: usize, height: usize) -> Self {
         Self {
             buffer: RasterBuffer::new(width, height),
-        }
-    }
-
-    fn fill_background(&mut self) {
-        for y in 0..self.height() {
-            let t = y as f32 / self.height().max(1) as f32;
-            let shade = lerp(1.0, 8.0, t) as u8;
-            for x in 0..self.width() {
-                self.put_pixel(
-                    x,
-                    y,
-                    [shade, shade.saturating_add(1), shade.saturating_add(1), 255],
-                );
-            }
-        }
-    }
-
-    fn draw_grid(&mut self) {
-        let major = [46, 48, 50, 255];
-        let minor = [22, 24, 26, 255];
-        for x in (0..self.width()).step_by((self.width() / 16).max(1)) {
-            let color = if x % ((self.width() / 4).max(1)) == 0 {
-                major
-            } else {
-                minor
-            };
-            for y in 0..self.height() {
-                self.blend_pixel(x, y, color, 0.55);
-            }
-        }
-        for y in (0..self.height()).step_by((self.height() / 4).max(1)) {
-            for x in 0..self.width() {
-                self.blend_pixel(x, y, minor, 0.5);
-            }
-        }
-        let mid = self.height() / 2;
-        for x in 0..self.width() {
-            self.blend_pixel(x, mid, [82, 82, 78, 255], 0.55);
         }
     }
 

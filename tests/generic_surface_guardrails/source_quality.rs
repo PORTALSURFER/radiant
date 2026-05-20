@@ -593,6 +593,47 @@ fn gui_core_state_primitives_keep_behavior_tests_focused() {
 }
 
 #[test]
+fn text_line_layout_keeps_insets_and_placement_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/gui/text_layout/mod.rs"))
+        .expect("text layout module root should be readable");
+    let insets = fs::read_to_string(manifest_dir.join("src/gui/text_layout/insets.rs"))
+        .expect("text layout insets model should be readable");
+    let placement = fs::read_to_string(manifest_dir.join("src/gui/text_layout/placement.rs"))
+        .expect("text layout placement helpers should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/gui/text_layout/tests.rs"))
+        .expect("text layout behavior tests should be readable");
+
+    assert!(
+        root.contains("mod insets;")
+            && root.contains("mod placement;")
+            && root.contains("pub use insets::TextLineInsets;")
+            && root.contains("pub use placement::snap_text_baseline_to_pixel;")
+            && !root.contains("pub struct TextLineInsets")
+            && !root.contains("fn inset_rect"),
+        "text layout root should own public API wiring while insets and placement stay delegated"
+    );
+    assert!(
+        insets.contains("pub struct TextLineInsets")
+            && insets.contains("pub fn symmetric")
+            && insets.contains("pub fn horizontal"),
+        "text-line inset data should live in gui/text_layout/insets.rs"
+    );
+    assert!(
+        placement.contains("pub(super) fn compute_text_line")
+            && placement.contains("fn clamp_min_top")
+            && placement.contains("fn inset_rect")
+            && placement.contains("pub fn snap_text_baseline_to_pixel"),
+        "text-line placement math should live in gui/text_layout/placement.rs"
+    );
+    assert!(
+        tests.contains("fn centered_line_reuses_cached_geometry_for_identical_inputs")
+            && tests.contains("fn snap_text_baseline_to_pixel_keeps_height_and_rounds_bottom_edge"),
+        "text-line cache and placement behavior coverage should stay in gui/text_layout/tests.rs"
+    );
+}
+
+#[test]
 fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/gui/visualization/tests.rs"))

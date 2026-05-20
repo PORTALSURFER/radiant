@@ -16,6 +16,7 @@ mod passes;
 mod pipeline;
 mod resources;
 mod signal;
+mod signal_pipeline;
 mod stats;
 mod visibility;
 use active_keys::ActiveGpuSurfaceKeys;
@@ -23,9 +24,9 @@ use encoding::*;
 use gpu_surface_types::*;
 use overlays::*;
 use passes::*;
-#[cfg(test)]
-pub(super) use pipeline::GPU_SIGNAL_SHADER;
 use resources::GpuSurfaceResourceCache;
+#[cfg(test)]
+pub(super) use signal_pipeline::GPU_SIGNAL_SHADER;
 pub(super) use stats::GpuSurfaceRenderStats;
 use visibility::gpu_surface_opaque_suffix_regions;
 pub(super) use visibility::{gpu_surface_visible_suffix_regions_into, visible_surface_regions};

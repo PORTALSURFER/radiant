@@ -1,7 +1,10 @@
+#[path = "raster/buffer.rs"]
+mod buffer;
 #[path = "raster/labels.rs"]
 mod labels;
 
 use super::{WaveformBand, WaveformFile, WaveformViewport};
+use buffer::RasterBuffer;
 use radiant::gui::types::ImageRgba;
 
 pub(crate) fn render_waveform_image(
@@ -18,25 +21,21 @@ pub(crate) fn render_waveform_image(
 }
 
 struct WaveformRaster {
-    width: usize,
-    height: usize,
-    pixels: Vec<u8>,
+    buffer: RasterBuffer,
 }
 
 impl WaveformRaster {
     fn new(width: usize, height: usize) -> Self {
         Self {
-            width,
-            height,
-            pixels: vec![0; width.saturating_mul(height).saturating_mul(4)],
+            buffer: RasterBuffer::new(width, height),
         }
     }
 
     fn fill_background(&mut self) {
-        for y in 0..self.height {
-            let t = y as f32 / self.height.max(1) as f32;
+        for y in 0..self.height() {
+            let t = y as f32 / self.height().max(1) as f32;
             let shade = lerp(1.0, 8.0, t) as u8;
-            for x in 0..self.width {
+            for x in 0..self.width() {
                 self.put_pixel(
                     x,
                     y,
@@ -49,23 +48,23 @@ impl WaveformRaster {
     fn draw_grid(&mut self) {
         let major = [46, 48, 50, 255];
         let minor = [22, 24, 26, 255];
-        for x in (0..self.width).step_by((self.width / 16).max(1)) {
-            let color = if x % ((self.width / 4).max(1)) == 0 {
+        for x in (0..self.width()).step_by((self.width() / 16).max(1)) {
+            let color = if x % ((self.width() / 4).max(1)) == 0 {
                 major
             } else {
                 minor
             };
-            for y in 0..self.height {
+            for y in 0..self.height() {
                 self.blend_pixel(x, y, color, 0.55);
             }
         }
-        for y in (0..self.height).step_by((self.height / 4).max(1)) {
-            for x in 0..self.width {
+        for y in (0..self.height()).step_by((self.height() / 4).max(1)) {
+            for x in 0..self.width() {
                 self.blend_pixel(x, y, minor, 0.5);
             }
         }
-        let mid = self.height / 2;
-        for x in 0..self.width {
+        let mid = self.height() / 2;
+        for x in 0..self.width() {
             self.blend_pixel(x, mid, [82, 82, 78, 255], 0.55);
         }
     }
@@ -73,8 +72,8 @@ impl WaveformRaster {
     fn draw_waveform(&mut self, file: &WaveformFile, viewport: WaveformViewport) {
         let viewport = viewport.clamp(file.frames, super::MIN_VISIBLE_FRAMES);
         let visible = viewport.visible_items().max(1);
-        let mid = self.height as f32 * 0.5;
-        let half = (self.height as f32 * 0.42).max(1.0);
+        let mid = self.height() as f32 * 0.5;
+        let half = (self.height() as f32 * 0.42).max(1.0);
         labels::draw_band_labels(self);
 
         let band_styles = [
@@ -114,10 +113,11 @@ impl WaveformRaster {
         half: f32,
         style: BandStyle,
     ) {
-        for x in 0..self.width {
-            let start = viewport.start + x * visible / self.width.max(1);
+        for x in 0..self.width() {
+            let start = viewport.start + x * visible / self.width().max(1);
             let end = viewport.start
-                + ((x + 1) * visible / self.width.max(1)).max(x * visible / self.width.max(1) + 1);
+                + ((x + 1) * visible / self.width().max(1))
+                    .max(x * visible / self.width().max(1) + 1);
             let stats = band.stats(start, end.min(viewport.end));
             let peak_extent = stats.peak * half * style.scale;
             let rms_extent = stats.rms.sqrt().clamp(0.0, 1.0) * half * style.scale;
@@ -141,10 +141,11 @@ impl WaveformRaster {
         mid: f32,
         half: f32,
     ) {
-        for x in 0..self.width {
-            let start = viewport.start + x * visible / self.width.max(1);
+        for x in 0..self.width() {
+            let start = viewport.start + x * visible / self.width().max(1);
             let end = viewport.start
-                + ((x + 1) * visible / self.width.max(1)).max(x * visible / self.width.max(1) + 1);
+                + ((x + 1) * visible / self.width().max(1))
+                    .max(x * visible / self.width().max(1) + 1);
             let stats = file
                 .mono_summary
                 .stats(&file.mono_samples, start, end.min(viewport.end));
@@ -167,13 +168,15 @@ impl WaveformRaster {
         alpha: f32,
     ) {
         let top = (mid - extent).round().max(0.0) as usize;
-        let bottom = (mid + extent).round().min((self.height - 1) as f32) as usize;
+        let bottom = (mid + extent)
+            .round()
+            .min(self.height().saturating_sub(1) as f32) as usize;
         for y in top..=bottom {
             self.blend_pixel(
                 x,
                 y,
                 color,
-                alpha * column_alpha(y, mid, self.height as f32 * 0.44),
+                alpha * column_alpha(y, mid, self.height() as f32 * 0.44),
             );
         }
     }
@@ -187,44 +190,31 @@ impl WaveformRaster {
         alpha: f32,
     ) {
         let top = (mid - extent).round().max(0.0) as usize;
-        let bottom = (mid + extent).round().min((self.height - 1) as f32) as usize;
+        let bottom = (mid + extent)
+            .round()
+            .min(self.height().saturating_sub(1) as f32) as usize;
         self.blend_pixel(x, top, color, alpha);
         self.blend_pixel(x, bottom, color, alpha);
     }
 
     fn into_image(self) -> ImageRgba {
-        ImageRgba::new(self.width, self.height, self.pixels).expect("valid waveform image")
+        self.buffer.into_image()
     }
 
     fn put_pixel(&mut self, x: usize, y: usize, color: [u8; 4]) {
-        let Some(index) = self.pixel_index(x, y) else {
-            return;
-        };
-        self.pixels[index..index + 4].copy_from_slice(&color);
+        self.buffer.put_pixel(x, y, color);
     }
 
     fn blend_pixel(&mut self, x: usize, y: usize, color: [u8; 4], alpha: f32) {
-        let Some(index) = self.pixel_index(x, y) else {
-            return;
-        };
-        let alpha = (color[3] as f32 / 255.0) * alpha.clamp(0.0, 1.0);
-        for (channel, source) in color.iter().take(3).enumerate() {
-            let current = self.pixels[index + channel] as f32;
-            self.pixels[index + channel] = lerp(current, *source as f32, alpha)
-                .round()
-                .clamp(0.0, 255.0) as u8;
-        }
-        self.pixels[index + 3] = 255;
+        self.buffer.blend_pixel(x, y, color, alpha);
     }
 
-    fn pixel_index(&self, x: usize, y: usize) -> Option<usize> {
-        if x >= self.width || y >= self.height {
-            return None;
-        }
-        y.checked_mul(self.width)
-            .and_then(|row| row.checked_add(x))
-            .and_then(|pixel| pixel.checked_mul(4))
-            .filter(|index| index + 3 < self.pixels.len())
+    fn width(&self) -> usize {
+        self.buffer.width()
+    }
+
+    fn height(&self) -> usize {
+        self.buffer.height()
     }
 }
 

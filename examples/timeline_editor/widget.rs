@@ -1,8 +1,9 @@
 use super::{
-    CLIP_HEIGHT, HEADER_WIDTH, LANE_COUNT, LANE_HEIGHT, RESIZE_HANDLE_WIDTH, RULER_HEIGHT,
-    TOTAL_BEATS, TRACK_PAD,
+    HEADER_WIDTH, LANE_COUNT, RESIZE_HANDLE_WIDTH, TOTAL_BEATS,
     model::{BeatRange, TimelineClip, TimelineEditorState},
 };
+#[path = "widget/geometry.rs"]
+mod geometry;
 #[path = "widget/input.rs"]
 mod input;
 #[path = "widget/overlay.rs"]
@@ -10,10 +11,12 @@ mod overlay;
 #[path = "widget/paint.rs"]
 mod paint;
 
-use radiant::layout::{LayoutOutput, Point, Rect, Vector2};
+use radiant::layout::{LayoutOutput, Rect, Vector2};
 use radiant::runtime::PaintPrimitive;
 use radiant::theme::ThemeTokens;
 use radiant::widgets::{Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing};
+
+pub(super) use geometry::TimelineGeometry;
 
 #[derive(Clone, Debug)]
 pub(super) struct ArrangementTimelineWidget {
@@ -129,83 +132,5 @@ impl Widget for ArrangementTimelineWidget {
         theme: &ThemeTokens,
     ) {
         overlay::append_runtime_timeline_overlay(self, primitives, bounds, theme);
-    }
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct TimelineGeometry {
-    header: Rect,
-    ruler: Rect,
-    lanes: Rect,
-}
-
-impl TimelineGeometry {
-    pub(super) fn new(bounds: Rect) -> Self {
-        let header = Rect::from_min_max(
-            bounds.min,
-            Point::new(bounds.min.x + HEADER_WIDTH, bounds.max.y),
-        );
-        let ruler = Rect::from_min_max(
-            Point::new(bounds.min.x + HEADER_WIDTH, bounds.min.y),
-            Point::new(bounds.max.x, bounds.min.y + RULER_HEIGHT),
-        );
-        let lanes = Rect::from_min_max(
-            Point::new(bounds.min.x + HEADER_WIDTH, bounds.min.y + RULER_HEIGHT),
-            bounds.max,
-        );
-        Self {
-            header,
-            ruler,
-            lanes,
-        }
-    }
-
-    pub(super) fn lane_rect(self, lane: usize) -> Rect {
-        let y = self.lanes.min.y + lane as f32 * LANE_HEIGHT;
-        Rect::from_min_max(
-            Point::new(self.lanes.min.x, y),
-            Point::new(self.lanes.max.x, (y + LANE_HEIGHT).min(self.lanes.max.y)),
-        )
-    }
-
-    pub(super) fn clip_rect(self, clip: &TimelineClip) -> Rect {
-        self.clip_rect_for_range(clip.lane, clip.range)
-    }
-
-    pub(super) fn clip_rect_for_range(self, lane: usize, range: super::model::BeatRange) -> Rect {
-        let lane_rect = self.lane_rect(lane);
-        let y = lane_rect.min.y + (lane_rect.height() - CLIP_HEIGHT) * 0.5;
-        Rect::from_min_max(
-            Point::new(self.x_for_beat(range.start) + 2.0, y),
-            Point::new(self.x_for_beat(range.end) - 2.0, y + CLIP_HEIGHT),
-        )
-    }
-
-    pub(super) fn x_for_beat(self, beat: u32) -> f32 {
-        self.lanes.min.x + self.beat_width() * beat.min(TOTAL_BEATS) as f32
-    }
-
-    pub(super) fn cursor_x_at(self, position: Point) -> Option<f32> {
-        if position.x < self.lanes.min.x || position.x > self.lanes.max.x {
-            return None;
-        }
-        Some(position.x.clamp(self.lanes.min.x, self.lanes.max.x))
-    }
-
-    fn beat_at(self, position: Point) -> Option<u32> {
-        self.cursor_x_at(position)?;
-        Some(((position.x - self.lanes.min.x) / self.beat_width()).round() as u32)
-    }
-
-    fn lane_at(self, position: Point) -> Option<usize> {
-        if !self.lanes.contains(position) {
-            return None;
-        }
-        Some(((position.y - self.lanes.min.y) / LANE_HEIGHT).floor() as usize)
-            .map(|lane| lane.min(LANE_COUNT - 1))
-    }
-
-    fn beat_width(self) -> f32 {
-        ((self.lanes.width() - TRACK_PAD).max(1.0)) / TOTAL_BEATS as f32
     }
 }

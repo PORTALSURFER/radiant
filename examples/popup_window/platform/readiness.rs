@@ -58,7 +58,7 @@ fn wait_until(timeout: Duration, mut ready: impl FnMut() -> bool) -> bool {
     false
 }
 
-#[cfg_attr(not(all(target_os = "windows", not(test))), allow(dead_code))]
+#[cfg(any(all(target_os = "windows", not(test)), test))]
 fn is_first_present_profile_line(line: &str) -> bool {
     line.starts_with("[native-vello-startup]") && line.contains("first_present_ms=")
 }

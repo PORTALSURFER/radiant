@@ -63,6 +63,26 @@ pub struct NativeTextDiagnostics {
     pub missing_glyphs: u64,
 }
 
+impl NativeTextDiagnostics {
+    /// Return whether this frame encountered text that needs more than the
+    /// native renderer's current basic glyph mapping path.
+    pub const fn has_shaping_limits(self) -> bool {
+        self.unsupported_shaping_runs > 0 || self.unsupported_shaping_scalars > 0
+    }
+
+    /// Return whether this frame substituted or missed glyphs with the active
+    /// native font configuration.
+    pub const fn has_font_coverage_gaps(self) -> bool {
+        self.fallback_glyphs > 0 || self.missing_glyphs > 0
+    }
+
+    /// Return whether this frame exposed visible text-quality risk through
+    /// shaping limits or font coverage gaps.
+    pub const fn has_text_quality_warnings(self) -> bool {
+        self.has_shaping_limits() || self.has_font_coverage_gaps()
+    }
+}
+
 /// Scene encoding counters for one native frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativeSceneDiagnostics {

@@ -55,6 +55,10 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     bridge.observe_frame_diagnostics(diagnostics);
 
     assert_eq!(bridge.last, Some(diagnostics));
+    assert!(diagnostics.text.has_shaping_limits());
+    assert!(diagnostics.text.has_font_coverage_gaps());
+    assert!(diagnostics.text.has_text_quality_warnings());
+    assert!(!NativeTextDiagnostics::default().has_text_quality_warnings());
 }
 
 #[derive(Default)]

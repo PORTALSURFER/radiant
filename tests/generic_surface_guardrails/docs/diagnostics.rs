@@ -68,7 +68,10 @@ fn api_docs_describe_text_cache_frame_diagnostics() {
             && docs.contains("text layout-cache hits, misses,")
             && docs.contains("text atom-cache activity")
             && docs.contains("shaping-sensitive run/scalar counts")
-            && docs.contains("fallback/missing glyph counts"),
+            && docs.contains("fallback/missing glyph counts")
+            && docs.contains("NativeTextDiagnostics::has_shaping_limits()")
+            && docs.contains("has_font_coverage_gaps()")
+            && docs.contains("has_text_quality_warnings()"),
         "API docs should describe native text cache diagnostics"
     );
     assert!(
@@ -78,7 +81,10 @@ fn api_docs_describe_text_cache_frame_diagnostics() {
             && runtime_diagnostics.contains("unsupported_shaping_runs")
             && runtime_diagnostics.contains("unsupported_shaping_scalars")
             && runtime_diagnostics.contains("fallback_glyphs")
-            && runtime_diagnostics.contains("missing_glyphs"),
+            && runtime_diagnostics.contains("missing_glyphs")
+            && runtime_diagnostics.contains("pub const fn has_shaping_limits")
+            && runtime_diagnostics.contains("pub const fn has_font_coverage_gaps")
+            && runtime_diagnostics.contains("pub const fn has_text_quality_warnings"),
         "runtime diagnostics should expose structured native text cache counters"
     );
     assert!(

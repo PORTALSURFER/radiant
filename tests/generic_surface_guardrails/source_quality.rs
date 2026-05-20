@@ -2205,6 +2205,19 @@ fn gpu_surface_content_models_stay_focused() {
     let validation =
         fs::read_to_string(manifest_dir.join("src/runtime/gpu_surface/content/validation.rs"))
             .expect("GPU surface content validation module should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/runtime/gpu_surface/content/tests.rs"))
+        .expect("GPU surface content test root should be readable");
+    let atlas_tests =
+        fs::read_to_string(manifest_dir.join("src/runtime/gpu_surface/content/tests/atlas.rs"))
+            .expect("GPU surface atlas tests should be readable");
+    let signal_tests = fs::read_to_string(
+        manifest_dir.join("src/runtime/gpu_surface/content/tests/signal_shape.rs"),
+    )
+    .expect("GPU surface signal shape tests should be readable");
+    let validation_tests = fs::read_to_string(
+        manifest_dir.join("src/runtime/gpu_surface/content/tests/validation.rs"),
+    )
+    .expect("GPU surface content validation tests should be readable");
     let gpu_surface = fs::read_to_string(manifest_dir.join("src/runtime/gpu_surface.rs"))
         .expect("GPU surface runtime facade should be readable");
 
@@ -2227,6 +2240,21 @@ fn gpu_surface_content_models_stay_focused() {
         validation.contains("validate_signal_gain_preview")
             && validation.contains("validate_signal_render_shape"),
         "GPU surface content validation should stay in the validation module"
+    );
+    assert!(
+        tests.contains("mod atlas;")
+            && tests.contains("mod signal_shape;")
+            && tests.contains("mod validation;")
+            && !tests.contains("fn rgba_atlas_source_rect_must_be_inside_atlas")
+            && !tests.contains("fn signal_render_shape_rejects_invalid_payload_contracts"),
+        "GPU surface content test root should index focused content behavior groups instead of owning all cases"
+    );
+    assert!(
+        atlas_tests.contains("fn rgba_atlas_source_rect_must_be_inside_atlas")
+            && signal_tests.contains("fn signal_render_shape_uses_effective_available_frame_count")
+            && validation_tests
+                .contains("fn gpu_surface_content_validation_rejects_non_finite_gain_preview"),
+        "GPU surface content behavior tests should stay grouped by atlas, signal shape, and validation concerns"
     );
     assert!(
         gpu_surface.contains("GpuSignalGainPreview")

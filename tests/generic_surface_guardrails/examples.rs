@@ -87,6 +87,77 @@ fn examples_are_checked_portable_sandboxes() {
 }
 
 #[test]
+fn api_docs_map_examples_to_target_areas() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest = fs::read_to_string(manifest_dir.join("Cargo.toml"))
+        .expect("Radiant Cargo.toml should be readable");
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("Radiant API docs should be readable");
+    let registered_examples = registered_example_names(&manifest);
+
+    for required in [
+        "| Target area | Focused examples |",
+        "| First-use application API | `hello_world`, `generic_native`, `counter` |",
+        "| State, commands, and background work |",
+        "| Custom widgets and retained GPU surfaces |",
+        "| Advanced creative-tool surfaces |",
+        "| Text, diagnostics, and performance inspection |",
+        "| Window and host integration |",
+    ] {
+        assert!(
+            docs.contains(required),
+            "API docs should map maintained examples to target capability area `{required}`"
+        );
+    }
+
+    for example in [
+        "hello_world",
+        "generic_native",
+        "counter",
+        "todo_list",
+        "message_routing",
+        "background_loading",
+        "status_bar",
+        "layout_rows_columns",
+        "grid_gallery",
+        "scroll",
+        "sizing",
+        "virtualized_list",
+        "styling",
+        "theme_playground",
+        "widget_gallery",
+        "toolbar_icons",
+        "focus_controls",
+        "context_menu",
+        "tree_and_details",
+        "folder_browser",
+        "custom_widget",
+        "gpu_surface",
+        "gpu_surface_stack_overlay",
+        "waveform_view",
+        "node_editor",
+        "timeline_editor",
+        "plugin_panel",
+        "split_workspace",
+        "typography",
+        "layout_diagnostics",
+        "rendering_benchmark",
+        "host_surface_frame",
+        "multi_window_manifest",
+        "popup_window",
+    ] {
+        assert!(
+            registered_examples.iter().any(|name| name == example),
+            "target-area map should only name registered examples: {example}"
+        );
+        assert!(
+            docs.contains(&format!("`{example}`")),
+            "target-area map should include `{example}`"
+        );
+    }
+}
+
+#[test]
 fn examples_do_not_hide_dead_code() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let example_dir = manifest_dir.join("examples");

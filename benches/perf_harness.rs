@@ -12,6 +12,8 @@ mod layout_scenarios;
 mod runner;
 #[path = "perf_harness/runtime_scenarios.rs"]
 mod runtime_scenarios;
+#[path = "perf_harness/text_scenarios.rs"]
+mod text_scenarios;
 
 use radiant::{
     gui::types::ImageRgba,

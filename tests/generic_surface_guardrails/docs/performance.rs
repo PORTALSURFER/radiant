@@ -125,10 +125,14 @@ fn performance_harness_is_registered_and_documented() {
             && runner.contains("\\\"baseline_avg_us\\\"")
             && runner.contains("\\\"baseline_ratio\\\"")
             && runner.contains("\\\"baseline_status\\\"")
+            && runner.contains("BaselineSummary")
+            && runner.contains("radiant_perf_summary")
+            && runner.contains("baseline_missing")
+            && runner.contains("\\\"baseline_slower\\\"")
             && runner.contains("MetricComparison::Missing")
             && runner.contains("baseline_status=missing")
             && runner.contains("\\\"baseline_status\\\":\\\"missing\\\""),
-        "perf_harness runner should expose JSON-lines metrics, baseline comparison fields, and missing-baseline status for trend capture"
+        "perf_harness runner should expose JSON-lines metrics, baseline comparison fields, missing-baseline status, and summary counts for trend capture"
     );
     assert!(
         runner.contains("--list") && runner.contains("radiant_perf scenarios:"),
@@ -193,6 +197,9 @@ fn performance_harness_is_registered_and_documented() {
             && normalized_docs
                 .contains("`baseline_avg_us`, `baseline_ratio`, and `baseline_status`")
             && normalized_docs.contains("`baseline_status=missing`")
+            && normalized_docs.contains("`radiant_perf_summary`")
+            && normalized_docs.contains("`baseline_matched`, `baseline_missing`")
+            && normalized_docs.contains("`baseline_faster`, `baseline_similar`, and `baseline_slower`")
             && normalized_docs.contains("incomplete trend artifacts are visible")
             && normalized_docs
                 .contains("does not enforce machine-dependent pass/fail timing thresholds"),

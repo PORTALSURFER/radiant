@@ -22,6 +22,7 @@ pub(super) struct ScenarioRunner {
     filters: Vec<String>,
     output_format: OutputFormat,
     baseline: Option<BaselineSet>,
+    baseline_summary: BaselineSummary,
     matched: usize,
 }
 
@@ -35,6 +36,7 @@ impl ScenarioRunner {
             filters,
             output_format,
             baseline,
+            baseline_summary: BaselineSummary::default(),
             matched: 0,
         }
     }
@@ -48,13 +50,14 @@ impl ScenarioRunner {
             return;
         }
         self.matched += 1;
-        run_scenario(
+        let comparison = run_scenario(
             name,
             iterations,
             build(),
             self.output_format,
             self.baseline.as_ref(),
         );
+        self.baseline_summary.record(comparison);
     }
 
     pub(super) fn finish(self) {
@@ -64,6 +67,10 @@ impl ScenarioRunner {
                 self.filters
             );
             std::process::exit(2);
+        }
+        if self.baseline.is_some() && self.matched > 0 {
+            self.baseline_summary
+                .print(self.matched, self.output_format);
         }
     }
 }
@@ -204,7 +211,7 @@ fn run_scenario(
     mut bench: impl FnMut(),
     output_format: OutputFormat,
     baseline: Option<&BaselineSet>,
-) {
+) -> Option<MetricComparison> {
     bench();
     let started = Instant::now();
     for _ in 0..iterations {
@@ -216,7 +223,7 @@ fn run_scenario(
         started.elapsed(),
         output_format,
         baseline.map(|baseline| baseline.metric_for(name)),
-    );
+    )
 }
 
 fn print_metric(
@@ -225,7 +232,7 @@ fn print_metric(
     elapsed: Duration,
     output_format: OutputFormat,
     baseline: Option<Option<&BaselineMetric>>,
-) {
+) -> Option<MetricComparison> {
     let total_us = elapsed.as_micros();
     let avg_us = total_us as f64 / iterations.max(1) as f64;
     let comparison = baseline.map(|baseline| MetricComparison::new(avg_us, baseline));
@@ -291,8 +298,56 @@ fn print_metric(
             }
         }
     }
+    comparison
 }
 
+#[derive(Default)]
+struct BaselineSummary {
+    matched: usize,
+    missing: usize,
+    faster: usize,
+    similar: usize,
+    slower: usize,
+}
+
+impl BaselineSummary {
+    fn record(&mut self, comparison: Option<MetricComparison>) {
+        match comparison {
+            Some(MetricComparison::Matched { status, .. }) => {
+                self.matched += 1;
+                match status {
+                    "faster" => self.faster += 1,
+                    "similar" => self.similar += 1,
+                    "slower" => self.slower += 1,
+                    _ => {}
+                }
+            }
+            Some(MetricComparison::Missing) => {
+                self.missing += 1;
+            }
+            None => {}
+        }
+    }
+
+    fn print(&self, scenarios: usize, output_format: OutputFormat) {
+        match output_format {
+            OutputFormat::Text => {
+                println!(
+                    "radiant_perf_summary scenarios={scenarios} baseline_matched={} baseline_missing={} baseline_faster={} baseline_similar={} baseline_slower={}",
+                    self.matched, self.missing, self.faster, self.similar, self.slower
+                );
+            }
+            OutputFormat::JsonLines => {
+                println!(
+                    "{{\"type\":\"radiant_perf_summary\",\"scenarios\":{scenarios},\"baseline_matched\":{},\"baseline_missing\":{},\"baseline_faster\":{},\"baseline_similar\":{},\"baseline_slower\":{}}}",
+                    self.matched, self.missing, self.faster, self.similar, self.slower
+                );
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
 enum MetricComparison {
     Matched {
         baseline_avg_us: f64,

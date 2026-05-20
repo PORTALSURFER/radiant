@@ -102,6 +102,35 @@ belongs in native runtime/windowing modules or explicitly named platform
 adapters. Platform services such as file dialogs and URL opening flow through
 typed `PlatformRequest` commands and `RuntimeBridge::request_platform_service`.
 
+Current target-specific seams are intentionally narrow:
+
+- `src/gui_runtime/native_vello/generic_runtime/window/platform.rs` owns native
+  window attribute extensions such as Windows drag/drop and popup taskbar
+  policy. Non-Windows targets keep the same runtime options and no-op the
+  unsupported window hints.
+- `src/gui_runtime/native_vello/generic_runtime/external_drag/platform.rs` owns
+  external drag-out platform selection. Windows delegates to the native drag
+  implementation; other targets report an explicit unsupported result through
+  the normal runtime command path.
+- `src/gui_runtime/native_vello/text_renderer/font.rs` owns native fallback
+  font discovery after application-provided embedded fonts and font paths.
+  Platform-specific font candidates stay inside that renderer adapter rather
+  than leaking installed-font assumptions into widgets or layout.
+- `examples/popup_window/platform.rs`,
+  `examples/popup_window/platform/readiness.rs`,
+  `examples/popup_window/host/child.rs`,
+  `examples/popup_window/host/prewarm.rs`, and
+  `examples/popup_window/host/process.rs` own the popup example's optional
+  Windows window-control proof. The public popup and multi-window APIs remain
+  platform-neutral, and non-Windows example paths degrade through local no-op
+  or unsupported host behavior.
+
+New target-specific code should either fit one of these seams or introduce a
+similarly named adapter with a neutral public contract and an explicit
+non-target fallback. Do not add raw Windows imports, `target_os` branches, or
+installed-font/path assumptions to core widget, layout, styling, runtime
+surface, or paint-plan modules.
+
 ## Validation Map
 
 Use the smallest validation slice that proves the edited boundary, then run the

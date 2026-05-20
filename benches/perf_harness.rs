@@ -46,11 +46,13 @@ fn main() {
 
     let output_format = runner::output_format_from_args(&args);
     let baseline = runner::baseline_from_args(&args);
+    let baseline_output = runner::baseline_output_from_args(&args);
     let fail_on_baseline_regression = runner::fail_on_baseline_regression_from_args(&args);
     let mut runner = runner::ScenarioRunner::new(
         filters,
         output_format,
         baseline,
+        baseline_output,
         fail_on_baseline_regression,
     );
     catalog::run_registered_scenarios(&mut runner);

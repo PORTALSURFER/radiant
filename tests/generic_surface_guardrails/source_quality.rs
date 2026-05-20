@@ -2370,6 +2370,9 @@ fn progress_feedback_keeps_overlay_state_and_track_geometry_focused() {
         .expect("progress feedback root should be readable");
     let overlay = fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/overlay.rs"))
         .expect("progress overlay module should be readable");
+    let overlay_tests =
+        fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/overlay/tests.rs"))
+            .expect("progress overlay tests should be readable");
     let track = fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track.rs"))
         .expect("progress track module should be readable");
     let progress_track =
@@ -2403,8 +2406,15 @@ fn progress_feedback_keeps_overlay_state_and_track_geometry_focused() {
     assert!(
         overlay.contains("pub struct ProgressOverlay")
             && overlay.contains("pub visible: bool")
-            && overlay.contains("pub cancel_requested: bool"),
-        "progress overlay state should live in progress/overlay.rs"
+            && overlay.contains("pub cancel_requested: bool")
+            && overlay.contains("#[path = \"overlay/tests.rs\"]")
+            && !overlay.contains("fn progress_overlay_defaults_to_hidden_and_empty"),
+        "progress overlay state should live in progress/overlay.rs while behavior tests stay delegated"
+    );
+    assert!(
+        overlay_tests.contains("fn progress_overlay_defaults_to_hidden_and_empty")
+            && overlay_tests.contains("ProgressOverlay::default()"),
+        "progress overlay behavior tests should live in progress/overlay/tests.rs"
     );
     assert!(
         track.contains("mod meter;")

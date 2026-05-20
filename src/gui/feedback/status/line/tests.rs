@@ -9,6 +9,7 @@ fn status_line_log_keeps_latest_bounded_message() {
     log.publish("animation", "stopped");
 
     assert_eq!(log.len(), 3);
+    assert_eq!(log.latest_line(), "animation: stopped");
     assert_eq!(log.latest(), "animation: stopped");
     assert_eq!(
         log.recent_lines(),
@@ -17,6 +18,22 @@ fn status_line_log_keeps_latest_bounded_message() {
             "worker: started".to_string(),
             "button: pressed".to_string()
         ]
+    );
+}
+
+#[test]
+fn status_line_log_exposes_borrowed_latest_line() {
+    let mut log = StatusLineLog::new(1);
+
+    assert_eq!(log.latest_line(), "system: Ready");
+
+    log.publish("worker", "finished");
+
+    let latest = log.latest_line();
+    assert_eq!(latest, "worker: finished");
+    assert_eq!(
+        log.entries().next_back().map(StatusLineEntry::line),
+        Some(latest)
     );
 }
 

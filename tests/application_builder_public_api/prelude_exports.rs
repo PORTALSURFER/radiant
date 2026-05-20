@@ -31,6 +31,7 @@ fn prelude_exports_application_chrome_models() {
     assert_eq!(status.left, "Ready");
     assert_eq!(status.center, "Autosave on");
     assert_eq!(status.right, "Idle");
+    assert_eq!(log.latest_line(), "worker: finished");
     assert_eq!(log.latest(), "worker: finished");
     assert_eq!(entry.line(), "worker: finished");
     assert_eq!(chrome.item_column_label, "Item");

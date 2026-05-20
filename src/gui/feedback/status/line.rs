@@ -50,11 +50,15 @@ impl StatusLineLog {
 
     /// Return the latest status line formatted as `source: message`.
     pub fn latest(&self) -> String {
+        self.latest_line().to_owned()
+    }
+
+    /// Return the latest status line without allocating.
+    pub fn latest_line(&self) -> &str {
         self.entries
             .back()
             .map(StatusLineEntry::line)
-            .map(str::to_string)
-            .unwrap_or_else(|| "system: Ready".to_string())
+            .unwrap_or("system: Ready")
     }
 
     /// Iterate retained entries from oldest to newest without formatting them.

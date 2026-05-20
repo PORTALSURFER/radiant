@@ -38,8 +38,15 @@ fn status_line_entries_use_named_parts_for_source_and_message() {
     );
     assert!(
         source_tests.contains("fn status_line_log_keeps_latest_bounded_message")
+            && source_tests.contains("fn status_line_log_exposes_borrowed_latest_line")
             && source_tests.contains("fn status_line_entry_supports_named_parts_construction"),
         "status-line behavior tests should live in status/line/tests.rs"
+    );
+    assert!(
+        source.contains("pub fn latest_line(&self) -> &str")
+            && source.contains("self.latest_line().to_owned()")
+            && !source.contains("unwrap_or_else(|| \"system: Ready\".to_string())"),
+        "status-line logs should expose a borrowed latest-line path while keeping the owned compatibility helper"
     );
     assert!(
         source.contains("Self::from_parts(StatusLineEntryParts {")

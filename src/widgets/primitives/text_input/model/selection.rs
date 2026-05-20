@@ -2,13 +2,18 @@ use super::TextInputState;
 use crate::widgets::primitives::text_input::editing_ops::byte_index_for_char;
 
 impl TextInputState {
-    /// Return the current selected text if the state has an active selection.
+    /// Return the current selected text as an owned string.
     pub fn selected_text(&self) -> Option<String> {
+        self.selected_text_slice().map(str::to_owned)
+    }
+
+    /// Return the current selected text as a borrowed UTF-8 slice.
+    pub fn selected_text_slice(&self) -> Option<&str> {
         let (start, end) = self.selection_range();
         (start < end).then(|| {
             let start = byte_index_for_char(&self.value, start);
             let end = byte_index_for_char(&self.value, end);
-            self.value[start..end].to_string()
+            &self.value[start..end]
         })
     }
 

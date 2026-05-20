@@ -50,6 +50,7 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
     );
     assert!(
         selection.contains("pub fn selected_text")
+            && selection.contains("pub fn selected_text_slice")
             && selection.contains("pub fn selection_range")
             && selection.contains("pub fn has_selection"),
         "text input selection queries should live in model/selection.rs"
@@ -96,6 +97,7 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
             && widget_tests
                 .contains("fn text_input_pointer_drag_extends_selection_including_caret_character")
             && state_tests.contains("fn text_input_state_applies_backend_neutral_editing_commands")
+            && state_tests.contains("fn text_input_state_exposes_borrowed_selected_text_slice")
             && state_tests.contains("fn text_input_state_can_clear_or_delete_active_selection"),
         "text input behavior tests should stay grouped by widget interaction and state editing concerns"
     );

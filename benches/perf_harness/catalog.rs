@@ -41,6 +41,7 @@ macro_rules! perf_scenario_catalog {
             ("runtime_nested_command_drain_1k", RUNTIME_ITERATIONS, command_drain::nested_command_drain),
             ("resource_slot_stale_completions_1k", RUNTIME_ITERATIONS, resource_scenarios::resource_slot_stale_completions_1k),
             ("text_line_cache_1k", RUNTIME_ITERATIONS, text_scenarios::text_line_cache_1k),
+            ("text_word_selection_1k", RUNTIME_ITERATIONS, text_scenarios::text_word_selection_1k),
             ("gpu_signal_summary", GPU_ITERATIONS, || bench_gpu_signal_summary),
             ("gpu_surface_projection", GPU_ITERATIONS, || bench_gpu_surface_projection),
             ("gpu_custom_shader_projection", GPU_ITERATIONS, || bench_gpu_custom_shader_projection),

@@ -1,0 +1,35 @@
+use super::{ImageRgba, ImageRgbaError};
+
+#[test]
+fn image_rgba_try_new_reports_length_mismatch() {
+    let error = ImageRgba::try_new(2, 2, vec![255; 15]).expect_err("invalid byte count");
+
+    assert_eq!(
+        error,
+        ImageRgbaError {
+            width: 2,
+            height: 2,
+            actual_len: 15,
+            expected_len: Some(16),
+        }
+    );
+    assert_eq!(
+        error.to_string(),
+        "invalid RGBA image 2x2: expected 16 bytes, got 15"
+    );
+    assert!(ImageRgba::new(2, 2, vec![255; 15]).is_none());
+}
+
+#[test]
+fn image_rgba_try_new_reports_dimension_overflow() {
+    let error = ImageRgba::try_new(usize::MAX, 2, Vec::new()).expect_err("overflowing size");
+
+    assert_eq!(error.expected_len, None);
+    assert_eq!(
+        error.to_string(),
+        format!(
+            "invalid RGBA image {}x2: byte length overflows usize",
+            usize::MAX
+        )
+    );
+}

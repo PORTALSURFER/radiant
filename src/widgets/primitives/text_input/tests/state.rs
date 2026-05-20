@@ -159,3 +159,36 @@ fn text_input_state_extends_selection_by_word_boundaries() {
 
     assert_eq!(state.selected_text_slice(), Some("gamma"));
 }
+
+#[test]
+fn text_input_state_deletes_by_word_boundaries() {
+    let mut state = TextInputState::from_value(String::from("alpha  beta_gamma.日文"));
+    state.set_caret(17, false);
+
+    let result = state.apply_edit_command(TextEditCommand::DeleteWordLeft, None);
+
+    assert!(result.value_changed);
+    assert_eq!(state.value, "alpha  .日文");
+    assert_eq!(state.caret, 7);
+    assert!(!state.has_selection());
+
+    let result = state.apply_edit_command(TextEditCommand::DeleteWordRight, None);
+
+    assert!(result.value_changed);
+    assert_eq!(state.value, "alpha  ");
+    assert_eq!(state.caret, 7);
+}
+
+#[test]
+fn text_input_state_word_delete_removes_selection_first() {
+    let mut state = TextInputState::from_value(String::from("alpha beta gamma"));
+    state.selection_anchor = 6;
+    state.caret = 9;
+
+    let result = state.apply_edit_command(TextEditCommand::DeleteWordLeft, None);
+
+    assert!(result.value_changed);
+    assert_eq!(state.value, "alpha  gamma");
+    assert_eq!(state.caret, 6);
+    assert!(!state.has_selection());
+}

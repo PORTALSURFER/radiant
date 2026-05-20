@@ -96,6 +96,10 @@ pub enum TextEditCommand {
     Backspace,
     /// Delete the selected range or next character.
     Delete,
+    /// Delete the selected range or previous word boundary span.
+    DeleteWordLeft,
+    /// Delete the selected range or next word boundary span.
+    DeleteWordRight,
     /// Delete the selected range for a cut operation.
     CutSelection,
 }

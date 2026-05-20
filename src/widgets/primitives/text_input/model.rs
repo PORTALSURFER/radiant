@@ -3,6 +3,7 @@ use crate::runtime::PaintText;
 mod editing;
 mod navigation;
 mod selection;
+mod word_boundary;
 
 /// Immutable public properties for a reusable single-line text input.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

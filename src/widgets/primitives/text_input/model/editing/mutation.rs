@@ -1,3 +1,4 @@
+use super::super::word_boundary::{next_word_boundary, previous_word_boundary};
 use super::super::{TextInputEditResult, TextInputState};
 use crate::widgets::primitives::text_input::editing_ops::{
     byte_index_for_char, sanitize_single_line_text,
@@ -94,8 +95,32 @@ impl TextInputState {
         }
     }
 
+    pub(crate) fn delete_word_left(&mut self) -> TextInputEditResult {
+        if self.has_selection() {
+            return self.delete_selected_text();
+        }
+        let target = previous_word_boundary(&self.value, self.caret);
+        self.delete_char_range(target, self.caret)
+    }
+
+    pub(crate) fn delete_word_right(&mut self) -> TextInputEditResult {
+        if self.has_selection() {
+            return self.delete_selected_text();
+        }
+        let target = next_word_boundary(&self.value, self.caret);
+        self.delete_char_range(self.caret, target)
+    }
+
     pub(crate) fn delete_selected_text(&mut self) -> TextInputEditResult {
         let (selection_start, selection_end) = self.selection_range();
+        self.delete_char_range(selection_start, selection_end)
+    }
+
+    fn delete_char_range(
+        &mut self,
+        selection_start: usize,
+        selection_end: usize,
+    ) -> TextInputEditResult {
         if selection_start == selection_end {
             return TextInputEditResult::default();
         }

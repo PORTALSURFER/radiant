@@ -341,7 +341,9 @@ use `TextInputState::apply_edit_command`, `apply_key`, `insert_text`, and
 replacement, Unicode-scalar caret movement, word-boundary navigation, and
 character-limit behavior. Native text inputs route Ctrl/Cmd+Left and
 Ctrl/Cmd+Right through the same backend-neutral `TextEditCommand` path, with
-Shift extending the current selection by word. For
+Shift extending the current selection by word. Ctrl/Cmd+Backspace and
+Ctrl/Cmd+Delete also use backend-neutral word-delete commands, deleting the
+active selection first when one exists. For
 host-rendered editors, `has_selection`, `clear_selection`, `replace_selection`,
 `delete_selection`, and the borrowed `selected_text_slice` expose the same
 reusable single-line replacement semantics without requiring a full

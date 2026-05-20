@@ -177,6 +177,8 @@ pub struct NativeGpuSurfaceDiagnostics {
 /// Coarse timing diagnostics for one native presentation frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativeFrameTimingDiagnostics {
+    /// Current source and precision of GPU timing information for this frame.
+    pub gpu_timing_status: NativeGpuTimingStatus,
     /// Time spent routing a coalesced GPU-surface wheel event.
     pub coalesced_wheel_route: Duration,
     /// Time spent refreshing the runtime surface snapshot.
@@ -199,4 +201,17 @@ pub struct NativeFrameTimingDiagnostics {
     pub submit_present: Duration,
     /// Time since the previous successful present.
     pub since_last_present: Duration,
+}
+
+/// GPU timing availability for native frame diagnostics.
+///
+/// Radiant currently exposes CPU-side encode, submit, and present timing
+/// buckets. True GPU timestamp queries are backend- and adapter-dependent, so
+/// hosts should inspect this status before treating frame timings as GPU
+/// execution duration.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum NativeGpuTimingStatus {
+    /// No backend GPU timestamp data was collected for this frame.
+    #[default]
+    CpuEnvelopeOnly,
 }

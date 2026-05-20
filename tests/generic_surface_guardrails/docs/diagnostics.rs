@@ -109,6 +109,44 @@ fn api_docs_describe_text_cache_frame_diagnostics() {
 }
 
 #[test]
+fn api_docs_describe_native_gpu_timing_status() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("Radiant API docs should be readable");
+    let runtime_diagnostics = fs::read_to_string(manifest_dir.join("src/runtime/diagnostics.rs"))
+        .expect("runtime diagnostics models should be readable");
+    let native_diagnostics = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present/diagnostics.rs"),
+    )
+    .expect("native frame diagnostics projection should be readable");
+    let render_profile = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/render_profile.rs"),
+    )
+    .expect("native render profile should be readable");
+
+    let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        normalized_docs.contains("`NativeFrameTimingDiagnostics::gpu_timing_status`")
+            && normalized_docs.contains("`NativeGpuTimingStatus::CpuEnvelopeOnly`")
+            && normalized_docs.contains("CPU-side encode/submit/present envelopes")
+            && normalized_docs.contains("not backend GPU timestamp query durations"),
+        "API docs should distinguish CPU timing envelopes from backend GPU timestamp timing"
+    );
+    assert!(
+        runtime_diagnostics.contains("pub enum NativeGpuTimingStatus")
+            && runtime_diagnostics.contains("CpuEnvelopeOnly")
+            && runtime_diagnostics.contains("pub gpu_timing_status: NativeGpuTimingStatus"),
+        "runtime diagnostics should expose an explicit native GPU timing availability status"
+    );
+    assert!(
+        native_diagnostics
+            .contains("gpu_timing_status: crate::runtime::NativeGpuTimingStatus::CpuEnvelopeOnly")
+            && render_profile.contains("gpu_timing_status = \"cpu_envelope_only\""),
+        "native frame diagnostics and render profile should report CPU-envelope-only GPU timing status"
+    );
+}
+
+#[test]
 fn api_docs_describe_custom_shader_frame_diagnostics() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))

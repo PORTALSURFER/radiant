@@ -867,6 +867,15 @@ normal metric and summary lines:
 cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl .\perf-baseline.jsonl --fail-on-baseline-regression
 ```
 
+Use `--fail-on-missing-baseline` when a target-area run should also fail if the
+baseline file does not contain every matched scenario. This is useful for
+release or CI jobs that require complete baseline coverage before interpreting
+category summaries:
+
+```powershell
+cargo bench --bench perf_harness -- --category runtime_virtualized --jsonl --baseline-jsonl .\perf-baseline.jsonl --fail-on-missing-baseline
+```
+
 List the available scenarios without running them with:
 
 ```powershell

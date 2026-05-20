@@ -186,6 +186,45 @@ fn native_surface_backend_policy_stays_in_focused_module() {
 }
 
 #[test]
+fn native_window_platform_attributes_stay_in_focused_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let window = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/window.rs"),
+    )
+    .expect("native window attribute module should be readable");
+    let platform = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/window/platform.rs"),
+    )
+    .expect("native window platform attribute module should be readable");
+    let tests = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/tests/window_policy.rs"),
+    )
+    .expect("native window policy tests should be readable");
+
+    assert!(
+        window.contains("mod platform;")
+            && window.contains("platform::apply_drag_and_drop_attributes")
+            && window.contains("platform::apply_popup_attributes")
+            && !window.contains("WindowAttributesExtWindows")
+            && !window.contains("cfg(target_os"),
+        "generic window attributes should delegate platform extension hooks"
+    );
+    assert!(
+        platform.contains("#[cfg(target_os = \"windows\")]")
+            && platform.contains("#[cfg(not(target_os = \"windows\"))]")
+            && platform.contains("WindowAttributesExtWindows")
+            && platform.contains("with_drag_and_drop(true)")
+            && platform.contains("with_skip_taskbar(true)"),
+        "target-specific window attribute extensions should stay in window/platform.rs"
+    );
+    assert!(
+        tests.contains("generic_native_window_uses_configured_drag_and_drop_policy")
+            && tests.contains("generic_native_window_applies_floating_popup_policy"),
+        "generic window policy tests should continue covering platform-neutral decisions"
+    );
+}
+
+#[test]
 fn native_vello_present_diagnostics_stay_in_focused_module() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let present = fs::read_to_string(

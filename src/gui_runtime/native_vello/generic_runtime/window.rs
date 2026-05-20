@@ -2,6 +2,8 @@
 
 use crate::gui_runtime::native_vello::*;
 
+mod platform;
+
 pub(super) fn generic_window_attributes(options: &NativeRunOptions) -> WindowAttributes {
     let mut attrs = Window::default_attributes()
         .with_title(options.title.clone())
@@ -20,14 +22,7 @@ pub(super) fn generic_window_attributes(options: &NativeRunOptions) -> WindowAtt
     if let Some(icon) = options.icon.as_ref().and_then(icon_from_rgba) {
         attrs = attrs.with_window_icon(Some(icon));
     }
-    #[cfg(target_os = "windows")]
-    {
-        if platform_drag_and_drop_enabled(options) {
-            use winit::platform::windows::WindowAttributesExtWindows;
-            attrs = attrs.with_drag_and_drop(true);
-        }
-    }
-    attrs
+    platform::apply_drag_and_drop_attributes(attrs, platform_drag_and_drop_enabled(options))
 }
 
 fn apply_popup_window_attributes(
@@ -45,14 +40,7 @@ fn apply_popup_window_attributes(
     if let Some([x, y]) = popup.position {
         attrs = attrs.with_position(Position::Logical(LogicalPosition::new(x as f64, y as f64)));
     }
-    #[cfg(target_os = "windows")]
-    {
-        if popup.skip_taskbar {
-            use winit::platform::windows::WindowAttributesExtWindows;
-            attrs = attrs.with_skip_taskbar(true);
-        }
-    }
-    attrs
+    platform::apply_popup_attributes(attrs, popup)
 }
 
 pub(super) fn platform_drag_and_drop_enabled(options: &NativeRunOptions) -> bool {

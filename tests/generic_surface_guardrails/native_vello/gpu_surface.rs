@@ -111,11 +111,17 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/stats.rs"),
     )
     .expect("GPU surface stats module should be readable");
+    let custom_shader = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader.rs"),
+    )
+    .expect("GPU surface custom shader module should be readable");
 
     assert!(
         module.contains("mod stats;")
+            && module.contains("mod custom_shader;")
             && module.contains("pub(super) use stats::GpuSurfaceRenderStats;"),
-        "GPU surface renderer should re-export render stats from the focused stats module"
+        "GPU surface renderer should delegate diagnostics and re-export render stats from focused modules"
     );
     assert!(
         !types.contains("struct GpuSurfaceRenderStats")
@@ -124,6 +130,13 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
             && stats.contains("signal_body_encode_elapsed")
             && stats.contains("composite_binding_rebuilds"),
         "render profiling counters should stay out of resource/cache-key type definitions"
+    );
+    assert!(
+        custom_shader.contains("fn render_custom_shader")
+            && custom_shader.contains("unsupported_custom_shader_surfaces += 1")
+            && custom_shader
+                .contains("fn custom_shader_surfaces_report_unsupported_until_pipeline_exists"),
+        "native custom shader GPU-surface diagnostics should stay in a focused module until native shader execution exists"
     );
 }
 

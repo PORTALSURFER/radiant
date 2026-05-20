@@ -9,6 +9,7 @@ use crate::runtime::{
 
 mod active_keys;
 mod atlas;
+mod custom_shader;
 mod encoding;
 mod gpu_surface_types;
 mod overlays;
@@ -89,7 +90,7 @@ impl GpuSurfaceRenderer {
                     self.render_signal(target, surface, &occlusion_regions, &mut stats);
                 }
                 GpuSurfaceContent::CustomShader { .. } => {
-                    stats.unsupported_custom_shader_surfaces += 1;
+                    self.render_custom_shader(surface, &mut stats);
                 }
             }
             self.active_keys.mark_active(surface.key);

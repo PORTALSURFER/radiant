@@ -845,7 +845,16 @@ review. After the matched scenarios finish, the harness also emits a
 `baseline_faster`, `baseline_similar`, and `baseline_slower` counts so CI
 artifacts and code reviews can quickly see whether the baseline file covered the
 run. These statuses are trend context for review and investigation, not a
-portable pass/fail gate.
+portable pass/fail gate by default. CI or release jobs that intentionally pin a
+machine-specific baseline can opt into a gate with
+`--fail-on-baseline-regression`; the harness then exits with status `1` when
+any matched scenario reports `baseline_status=slower`, while still printing the
+normal metric and summary lines:
+
+```powershell
+cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl .\perf-baseline.jsonl --fail-on-baseline-regression
+```
+
 List the available scenarios without running them with:
 
 ```powershell

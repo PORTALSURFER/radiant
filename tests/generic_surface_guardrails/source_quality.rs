@@ -984,6 +984,23 @@ fn layout_engine_root_tests_stay_grouped_by_behavior_concern() {
             .expect("layout engine diagnostic tests should be readable");
     let debug = fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/tests/debug.rs"))
         .expect("layout engine debug tests should be readable");
+    let scratch =
+        fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/tests/scratch.rs"))
+            .expect("layout engine scratch test root should be readable");
+    let scratch_reuse =
+        fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/tests/scratch/reuse.rs"))
+            .expect("layout engine scratch reuse tests should be readable");
+    let scratch_pruning = fs::read_to_string(
+        manifest_dir.join("src/gui/layout_core/engine/tests/scratch/pruning.rs"),
+    )
+    .expect("layout engine scratch pruning tests should be readable");
+    let scratch_dirty =
+        fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/tests/scratch/dirty.rs"))
+            .expect("layout engine scratch dirty tests should be readable");
+    let scratch_fixtures = fs::read_to_string(
+        manifest_dir.join("src/gui/layout_core/engine/tests/scratch/fixtures.rs"),
+    )
+    .expect("layout engine scratch fixtures should be readable");
 
     assert!(
         root.contains("mod layout;")
@@ -996,11 +1013,28 @@ fn layout_engine_root_tests_stay_grouped_by_behavior_concern() {
         "layout engine test root should index focused behavior groups instead of owning all core layout cases"
     );
     assert!(
+        scratch.contains("mod reuse;")
+            && scratch.contains("mod pruning;")
+            && scratch.contains("mod dirty;")
+            && scratch.contains("mod fixtures;")
+            && !scratch.contains("fn layout_engine_reuses_scratch_maps_between_passes"),
+        "layout engine scratch tests should index focused scratch behavior groups instead of owning all cases"
+    );
+    assert!(
         layout.contains("fn fill_children_redistribute_after_constrained_child_clamps")
             && scroll.contains("fn scroll_offset_is_clamped_and_reported")
             && diagnostics.contains("fn contradictory_constraints_emit_diagnostic")
             && debug.contains("fn debug_primitives_are_emitted_when_enabled"),
         "layout engine tests should stay grouped by layout, scroll, diagnostics, and debug concerns"
+    );
+    assert!(
+        scratch_reuse.contains("fn layout_engine_reuses_scratch_maps_between_passes")
+            && scratch_pruning.contains("fn layout_engine_prunes_stale_measure_cache_versions")
+            && scratch_dirty.contains(
+                "fn dirty_subtree_invalidates_virtual_metrics_cache_for_whole_marked_set"
+            )
+            && scratch_fixtures.contains("fn fixed_virtualized_root"),
+        "layout engine scratch tests should stay grouped by reuse, pruning, dirty-subtree, and fixture concerns"
     );
 }
 

@@ -68,6 +68,16 @@ pub enum TextEditCommand {
         /// Extend the current selection instead of collapsing it.
         extend_selection: bool,
     },
+    /// Move the caret one word boundary left.
+    MoveWordLeft {
+        /// Extend the current selection instead of collapsing it.
+        extend_selection: bool,
+    },
+    /// Move the caret one word boundary right.
+    MoveWordRight {
+        /// Extend the current selection instead of collapsing it.
+        extend_selection: bool,
+    },
     /// Move the caret to the start of the value.
     MoveHome {
         /// Extend the current selection instead of collapsing it.

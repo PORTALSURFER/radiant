@@ -36,6 +36,13 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
     let state_tests =
         fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/tests/state.rs"))
             .expect("text input state behavior tests should be readable");
+    let interaction_input =
+        fs::read_to_string(manifest_dir.join("src/widgets/interaction/input.rs"))
+            .expect("widget interaction input contract should be readable");
+    let native_text_edit = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/keyboard/text_edit.rs"),
+    )
+    .expect("native text edit keyboard routing should be readable");
 
     for required in ["mod editing;", "mod navigation;", "mod selection;"] {
         assert!(
@@ -70,7 +77,10 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
     assert!(
         navigation.contains("pub fn set_caret")
             && navigation.contains("fn move_left")
-            && navigation.contains("fn move_right"),
+            && navigation.contains("fn move_right")
+            && navigation.contains("fn move_word_left")
+            && navigation.contains("fn move_word_right")
+            && navigation.contains("fn is_word_char"),
         "text input caret movement should live in model/navigation.rs"
     );
     assert!(
@@ -84,10 +94,20 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
         editing_command.contains("pub fn apply_edit_command")
             && editing_command.contains("pub fn apply_key")
             && editing_command.contains("TextEditCommand")
+            && editing_command.contains("TextEditCommand::MoveWordLeft")
+            && editing_command.contains("TextEditCommand::MoveWordRight")
             && editing_command.contains("WidgetKey")
             && !editing_mutation.contains("TextEditCommand")
             && !editing_mutation.contains("WidgetKey"),
         "text input edit command handling should live in model/editing/command.rs"
+    );
+    assert!(
+        interaction_input.contains("MoveWordLeft")
+            && interaction_input.contains("MoveWordRight")
+            && native_text_edit.contains("let word_navigation =")
+            && native_text_edit.contains("TextEditCommand::MoveWordLeft")
+            && native_text_edit.contains("TextEditCommand::MoveWordRight"),
+        "backend-neutral word navigation should be exposed by TextEditCommand and routed by the native adapter"
     );
     assert!(
         editing_mutation.contains("pub fn insert_text")
@@ -110,7 +130,9 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
                 .contains("fn text_input_pointer_drag_extends_selection_including_caret_character")
             && state_tests.contains("fn text_input_state_applies_backend_neutral_editing_commands")
             && state_tests.contains("fn text_input_state_exposes_borrowed_selected_text_slice")
-            && state_tests.contains("fn text_input_state_can_clear_or_delete_active_selection"),
+            && state_tests.contains("fn text_input_state_can_clear_or_delete_active_selection")
+            && state_tests.contains("fn text_input_state_moves_by_word_boundaries")
+            && state_tests.contains("fn text_input_state_extends_selection_by_word_boundaries"),
         "text input behavior tests should stay grouped by widget interaction and state editing concerns"
     );
 }

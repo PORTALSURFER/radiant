@@ -338,7 +338,10 @@ Single-line text editing is split between reusable state and widget routing:
 `TextInputMessage`. Custom retained surfaces that draw their own field chrome can
 use `TextInputState::apply_edit_command`, `apply_key`, `insert_text`, and
 `set_caret` directly instead of reimplementing paste sanitization, selection
-replacement, Unicode-scalar caret movement, and character-limit behavior. For
+replacement, Unicode-scalar caret movement, word-boundary navigation, and
+character-limit behavior. Native text inputs route Ctrl/Cmd+Left and
+Ctrl/Cmd+Right through the same backend-neutral `TextEditCommand` path, with
+Shift extending the current selection by word. For
 host-rendered editors, `has_selection`, `clear_selection`, `replace_selection`,
 `delete_selection`, and the borrowed `selected_text_slice` expose the same
 reusable single-line replacement semantics without requiring a full

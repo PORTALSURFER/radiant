@@ -26,6 +26,20 @@ impl TextInputState {
                     ..TextInputEditResult::default()
                 }
             }
+            TextEditCommand::MoveWordLeft { extend_selection } => {
+                self.move_word_left(extend_selection);
+                TextInputEditResult {
+                    selection_changed: true,
+                    ..TextInputEditResult::default()
+                }
+            }
+            TextEditCommand::MoveWordRight { extend_selection } => {
+                self.move_word_right(extend_selection);
+                TextInputEditResult {
+                    selection_changed: true,
+                    ..TextInputEditResult::default()
+                }
+            }
             TextEditCommand::MoveHome { extend_selection } => {
                 self.move_to_start(extend_selection);
                 TextInputEditResult {

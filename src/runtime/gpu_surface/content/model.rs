@@ -11,6 +11,8 @@ use std::sync::Arc;
 pub struct GpuShaderSurfaceDescriptor {
     /// Stable application-defined shader or pipeline identity.
     pub shader_key: String,
+    /// Optional WGSL module source for backends that can compile this surface directly.
+    pub wgsl_source: Option<Arc<str>>,
     /// Shader entry point requested by this surface.
     pub entry_point: String,
     /// Opaque uniform payload consumed by a backend-specific pipeline.
@@ -26,6 +28,8 @@ pub struct GpuShaderSurfaceDescriptor {
 pub struct GpuShaderSurfaceDescriptorParts {
     /// Stable application-defined shader or pipeline identity.
     pub shader_key: String,
+    /// Optional WGSL module source for backends that can compile this surface directly.
+    pub wgsl_source: Option<Arc<str>>,
     /// Shader entry point requested by this surface.
     pub entry_point: String,
     /// Opaque uniform payload consumed by a backend-specific pipeline.
@@ -41,6 +45,7 @@ impl GpuShaderSurfaceDescriptor {
     pub fn from_parts(parts: GpuShaderSurfaceDescriptorParts) -> Self {
         Self {
             shader_key: parts.shader_key,
+            wgsl_source: parts.wgsl_source,
             entry_point: parts.entry_point,
             uniform_bytes: parts.uniform_bytes,
             storage_bytes: parts.storage_bytes,
@@ -52,11 +57,18 @@ impl GpuShaderSurfaceDescriptor {
     pub fn new(shader_key: impl Into<String>) -> Self {
         Self::from_parts(GpuShaderSurfaceDescriptorParts {
             shader_key: shader_key.into(),
+            wgsl_source: None,
             entry_point: String::from("main"),
             uniform_bytes: Arc::<[u8]>::from([]),
             storage_bytes: Arc::<[u8]>::from([]),
             vertex_count: 3,
         })
+    }
+
+    /// Set WGSL module source for backends that can compile this surface directly.
+    pub fn wgsl_source(mut self, source: impl Into<Arc<str>>) -> Self {
+        self.wgsl_source = Some(source.into());
+        self
     }
 
     /// Set the shader entry point.

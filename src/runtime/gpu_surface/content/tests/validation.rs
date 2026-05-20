@@ -120,6 +120,9 @@ fn custom_shader_content_validation_reports_descriptor_errors() {
     let empty_entry = GpuSurfaceContent::CustomShader {
         descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("meter").entry_point("")),
     };
+    let empty_source = GpuSurfaceContent::CustomShader {
+        descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("meter").wgsl_source(" ")),
+    };
     let empty_vertices = GpuSurfaceContent::CustomShader {
         descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("meter").vertex_count(0)),
     };
@@ -135,6 +138,12 @@ fn custom_shader_content_validation_reports_descriptor_errors() {
         })
     );
     assert_eq!(
+        empty_source.validate(),
+        Err(GpuSurfaceContentError::EmptyShaderSource {
+            shader_key: String::from("meter"),
+        })
+    );
+    assert_eq!(
         empty_vertices.validate(),
         Err(GpuSurfaceContentError::EmptyShaderVertexCount {
             shader_key: String::from("meter"),
@@ -145,6 +154,9 @@ fn custom_shader_content_validation_reports_descriptor_errors() {
 #[test]
 fn custom_shader_content_carries_backend_neutral_payloads() {
     let descriptor = GpuShaderSurfaceDescriptor::new("spectral-meter")
+        .wgsl_source(
+            "@fragment fn fragment_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }",
+        )
         .entry_point("fragment_main")
         .uniform_bytes([1, 2, 3, 4])
         .storage_bytes([5, 6])
@@ -159,6 +171,9 @@ fn custom_shader_content_carries_backend_neutral_payloads() {
         panic!("expected custom shader content");
     };
     assert_eq!(descriptor.shader_key, "spectral-meter");
+    assert!(descriptor.wgsl_source.as_deref().is_some_and(|source| {
+        source.contains("@fragment") && source.contains("fragment_main")
+    }));
     assert_eq!(descriptor.entry_point, "fragment_main");
     assert_eq!(descriptor.uniform_bytes.as_ref(), &[1, 2, 3, 4]);
     assert_eq!(descriptor.storage_bytes.as_ref(), &[5, 6]);

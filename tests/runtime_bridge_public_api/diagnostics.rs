@@ -24,6 +24,7 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
             signal_summary_cache_hits: 4,
             unsupported_custom_shader_surfaces: 1,
             unsupported_custom_shader_vertices: 6,
+            unsupported_custom_shader_source_bytes: 64,
             unsupported_custom_shader_uniform_bytes: 16,
             unsupported_custom_shader_storage_bytes: 128,
             ..NativeGpuSurfaceDiagnostics::default()

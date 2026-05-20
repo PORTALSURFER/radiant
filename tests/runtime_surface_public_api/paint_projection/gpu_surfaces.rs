@@ -102,6 +102,9 @@ fn invalid_gpu_surface_payloads_do_not_enter_paint_plan() {
 #[test]
 fn custom_shader_gpu_surface_uses_normal_paint_plan_path() {
     let descriptor = GpuShaderSurfaceDescriptor::new("spectral-meter")
+        .wgsl_source(
+            "@fragment fn fragment_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }",
+        )
         .entry_point("fragment_main")
         .uniform_bytes([1, 2, 3, 4])
         .storage_bytes([5, 6])
@@ -134,6 +137,9 @@ fn custom_shader_gpu_surface_uses_normal_paint_plan_path() {
         panic!("expected custom shader gpu content");
     };
     assert_eq!(descriptor.shader_key, "spectral-meter");
+    assert!(descriptor.wgsl_source.as_deref().is_some_and(|source| {
+        source.contains("@fragment") && source.contains("fragment_main")
+    }));
     assert_eq!(descriptor.entry_point, "fragment_main");
     assert_eq!(descriptor.uniform_bytes.as_ref(), &[1, 2, 3, 4]);
     assert_eq!(descriptor.storage_bytes.as_ref(), &[5, 6]);

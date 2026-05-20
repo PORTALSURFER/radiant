@@ -136,6 +136,15 @@ pub(super) fn validate_shader_descriptor(
             shader_key: descriptor.shader_key.clone(),
         });
     }
+    if descriptor
+        .wgsl_source
+        .as_deref()
+        .is_some_and(|source| source.trim().is_empty())
+    {
+        return Err(GpuSurfaceContentError::EmptyShaderSource {
+            shader_key: descriptor.shader_key.clone(),
+        });
+    }
     if descriptor.vertex_count == 0 {
         return Err(GpuSurfaceContentError::EmptyShaderVertexCount {
             shader_key: descriptor.shader_key.clone(),

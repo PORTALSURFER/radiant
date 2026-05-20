@@ -130,6 +130,8 @@ pub struct NativeGpuSurfaceDiagnostics {
     pub unsupported_custom_shader_surfaces: usize,
     /// Total vertex count requested by skipped custom-shader GPU surfaces.
     pub unsupported_custom_shader_vertices: usize,
+    /// Total WGSL source bytes carried by skipped custom-shader GPU surfaces.
+    pub unsupported_custom_shader_source_bytes: usize,
     /// Total uniform payload bytes carried by skipped custom-shader GPU surfaces.
     pub unsupported_custom_shader_uniform_bytes: usize,
     /// Total storage payload bytes carried by skipped custom-shader GPU surfaces.

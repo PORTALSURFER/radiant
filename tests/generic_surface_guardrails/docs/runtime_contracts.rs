@@ -142,6 +142,7 @@ fn api_docs_describe_gpu_surface_boundary_contract() {
         "`GpuSurfaceContent::CustomShader` for advanced surfaces",
         "`NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces`",
         "`unsupported_custom_shader_vertices`",
+        "`unsupported_custom_shader_source_bytes`",
         "`unsupported_custom_shader_uniform_bytes`",
         "`unsupported_custom_shader_storage_bytes`",
     ] {

@@ -3,6 +3,10 @@
 mod numeric;
 mod paired;
 
+#[cfg(test)]
+#[path = "form/tests.rs"]
+mod tests;
+
 pub use numeric::{
     DecimalTextInputPolicy, parse_finite_decimal_text, rounded_scaled_u16,
     sanitize_decimal_text_insert,
@@ -107,49 +111,5 @@ impl<const TOGGLES: usize> PreferencePanelState<TOGGLES> {
     /// Return one toggle state by stable host-defined index.
     pub fn toggle_enabled(&self, index: usize) -> bool {
         self.toggles.get(index).copied().unwrap_or(false)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{OptionItem, PreferencePanelParts, PreferencePanelState, SummaryField};
-
-    #[test]
-    fn option_item_preserves_label_selection_and_value() {
-        let option = OptionItem {
-            label: String::from("Default"),
-            selected: true,
-            value: Some(48_000_u32),
-        };
-
-        assert_eq!(option.label, "Default");
-        assert!(option.selected);
-        assert_eq!(option.value, Some(48_000));
-    }
-
-    #[test]
-    fn summary_field_defaults_to_empty_text() {
-        let field = SummaryField::default();
-
-        assert_eq!(field.label, "");
-        assert_eq!(field.value_label, "");
-    }
-
-    #[test]
-    fn preference_panel_state_preserves_visibility_text_toggles_and_auxiliary_label() {
-        let panel = PreferencePanelState::from_parts(PreferencePanelParts {
-            visible: true,
-            primary_text_value: String::from("Default"),
-            toggles: [true, false, true],
-            auxiliary_label: Some(String::from("Destination")),
-        });
-
-        assert!(panel.visible);
-        assert_eq!(panel.primary_text_value, "Default");
-        assert_eq!(panel.toggles, [true, false, true]);
-        assert!(panel.toggle_enabled(0));
-        assert!(!panel.toggle_enabled(1));
-        assert!(!panel.toggle_enabled(99));
-        assert_eq!(panel.auxiliary_label.as_deref(), Some("Destination"));
     }
 }

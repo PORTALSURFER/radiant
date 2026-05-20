@@ -22,6 +22,14 @@ fn performance_harness_is_registered_and_documented() {
         manifest_dir.join("benches/perf_harness/runtime_scenarios/surface/command_flattening.rs"),
     )
     .expect("runtime command flattening bench should be readable");
+    let runtime_virtualized = fs::read_to_string(
+        manifest_dir.join("benches/perf_harness/runtime_scenarios/virtualized.rs"),
+    )
+    .expect("runtime virtualized bench scenarios should be readable");
+    let runtime_virtualized_bridges = fs::read_to_string(
+        manifest_dir.join("benches/perf_harness/runtime_scenarios/virtualized/bridges.rs"),
+    )
+    .expect("runtime virtualized bench bridges should be readable");
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
         .expect("docs/API.md should be readable");
 
@@ -103,6 +111,14 @@ fn performance_harness_is_registered_and_documented() {
             && runtime_surface_nodes.contains("horizontal_scroll_surface_node")
             && runtime_command_flattening.contains("Command::batch"),
         "runtime surface perf scenarios should keep scenario state, synthetic trees, and command flattening in focused modules"
+    );
+    assert!(
+        runtime_virtualized.contains("virtualized/bridges.rs")
+            && runtime_virtualized_bridges.contains("VirtualWheelBridge")
+            && runtime_virtualized_bridges.contains("NestedScrollBridge")
+            && runtime_virtualized_bridges.contains("virtual_button_rows")
+            && runtime_virtualized_bridges.contains("nested_scroll_rows"),
+        "runtime virtualized perf scenarios should keep scenario state separate from synthetic bridge trees"
     );
     let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(

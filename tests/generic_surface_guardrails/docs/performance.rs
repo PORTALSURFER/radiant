@@ -116,11 +116,16 @@ fn performance_harness_is_registered_and_documented() {
     );
     assert!(
         runner.contains("--jsonl")
+            && runner.contains("--baseline-jsonl")
             && runner.contains("OutputFormat::JsonLines")
+            && runner.contains("BaselineSet")
             && runner.contains("\\\"type\\\":\\\"radiant_perf\\\"")
             && runner.contains("\\\"total_us\\\"")
-            && runner.contains("\\\"avg_us\\\""),
-        "perf_harness runner should expose JSON-lines metrics for trend capture"
+            && runner.contains("\\\"avg_us\\\"")
+            && runner.contains("\\\"baseline_avg_us\\\"")
+            && runner.contains("\\\"baseline_ratio\\\"")
+            && runner.contains("\\\"baseline_status\\\""),
+        "perf_harness runner should expose JSON-lines metrics and baseline comparison fields for trend capture"
     );
     assert!(
         runner.contains("--list") && runner.contains("radiant_perf scenarios:"),
@@ -177,8 +182,13 @@ fn performance_harness_is_registered_and_documented() {
                 "cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl"
             )
             && normalized_docs.contains(
+                "cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl"
+            )
+            && normalized_docs.contains(
                 "Each JSON line includes `type`, `scenario`, `iterations`, `total_us`, and `avg_us`"
             )
+            && normalized_docs
+                .contains("`baseline_avg_us`, `baseline_ratio`, and `baseline_status`")
             && normalized_docs
                 .contains("does not enforce machine-dependent pass/fail timing thresholds"),
         "docs/API.md should describe how to run and interpret the perf harness"

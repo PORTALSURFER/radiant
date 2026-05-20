@@ -802,6 +802,18 @@ cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl
 
 Each JSON line includes `type`, `scenario`, `iterations`, `total_us`, and
 `avg_us`, so performance history can be collected without scraping prose.
+Compare a focused run against a previously captured JSONL artifact with
+`--baseline-jsonl`:
+
+```powershell
+cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl .\perf-baseline.jsonl
+```
+
+When a matching baseline scenario exists, the harness adds
+`baseline_avg_us`, `baseline_ratio`, and `baseline_status` to the output.
+`baseline_status` is `faster`, `similar`, or `slower` using a small tolerance;
+it is trend context for review and investigation, not a portable pass/fail
+gate.
 List the available scenarios without running them with:
 
 ```powershell

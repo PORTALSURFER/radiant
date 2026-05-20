@@ -19,6 +19,8 @@ pub(in crate::gui_runtime::native_vello) struct TextLayoutProfileCounters {
     pub atom_hits: u64,
     pub atom_misses: u64,
     pub atom_evictions: u64,
+    pub fallback_glyphs: u64,
+    pub missing_glyphs: u64,
 }
 
 pub(super) struct TextLayoutCache {
@@ -29,6 +31,8 @@ pub(super) struct TextLayoutCache {
     text_layout_hits: u64,
     text_layout_misses: u64,
     text_layout_evictions: u64,
+    fallback_glyphs: u64,
+    missing_glyphs: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -47,6 +51,8 @@ impl TextLayoutCache {
             text_layout_hits: 0,
             text_layout_misses: 0,
             text_layout_evictions: 0,
+            fallback_glyphs: 0,
+            missing_glyphs: 0,
         }
     }
 
@@ -71,6 +77,7 @@ impl TextLayoutCache {
         self.evict_stale_layouts();
 
         let layout = compute_layout(font, text, font_size)?;
+        self.record_glyph_diagnostics(&layout);
         let stamp = self.record_layout_cache_access(key.clone());
         let entry = self
             .layout_cache
@@ -88,10 +95,14 @@ impl TextLayoutCache {
             atom_hits: atom_counters.hits,
             atom_misses: atom_counters.misses,
             atom_evictions: atom_counters.evictions,
+            fallback_glyphs: self.fallback_glyphs,
+            missing_glyphs: self.missing_glyphs,
         };
         self.text_layout_hits = 0;
         self.text_layout_misses = 0;
         self.text_layout_evictions = 0;
+        self.fallback_glyphs = 0;
+        self.missing_glyphs = 0;
         counters
     }
 
@@ -106,7 +117,18 @@ impl TextLayoutCache {
         let cached_layout = self.layout_cache.get_mut(key)?;
         cached_layout.stamp = stamp;
         self.text_layout_hits = self.text_layout_hits.saturating_add(1);
+        self.fallback_glyphs = self
+            .fallback_glyphs
+            .saturating_add(cached_layout.layout.fallback_glyphs);
+        self.missing_glyphs = self
+            .missing_glyphs
+            .saturating_add(cached_layout.layout.missing_glyphs);
         Some(&cached_layout.layout)
+    }
+
+    fn record_glyph_diagnostics(&mut self, layout: &TextLayout) {
+        self.fallback_glyphs = self.fallback_glyphs.saturating_add(layout.fallback_glyphs);
+        self.missing_glyphs = self.missing_glyphs.saturating_add(layout.missing_glyphs);
     }
 
     #[cfg(test)]

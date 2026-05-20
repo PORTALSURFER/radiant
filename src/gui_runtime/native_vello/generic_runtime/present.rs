@@ -92,15 +92,16 @@ where
         dev_handle.queue.submit(std::iter::once(encoder.finish()));
         surface_texture.present();
         profile.submit_present = started.elapsed();
+        let text_stats = self.frame.text_renderer.take_layout_profile_counters();
         maybe_log_render_profile(
             "present",
             self.frame.last_scene_stats,
+            text_stats,
             render_to_texture_elapsed,
             profile,
             gpu_surface_stats,
             self.last_redraw.elapsed(),
         );
-        let text_stats = self.frame.text_renderer.take_layout_profile_counters();
         let diagnostics = native_frame_diagnostics(NativeFrameDiagnosticsParts {
             stats: self.frame.last_scene_stats,
             text_stats,

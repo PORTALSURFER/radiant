@@ -53,6 +53,10 @@ pub struct NativeTextDiagnostics {
     pub atom_cache_misses: u64,
     /// Text atom cache evictions observed while preparing this frame.
     pub atom_cache_evictions: u64,
+    /// Glyphs substituted with the renderer's fallback glyph this frame.
+    pub fallback_glyphs: u64,
+    /// Glyphs the active native font could not resolve even through fallback.
+    pub missing_glyphs: u64,
 }
 
 /// Scene encoding counters for one native frame.

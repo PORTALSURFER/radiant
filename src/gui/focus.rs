@@ -1,5 +1,9 @@
 //! Generic focus-surface primitives.
 
+#[cfg(test)]
+#[path = "focus/tests.rs"]
+mod tests;
+
 /// Logical focus bucket used for contextual input routing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum FocusSurface {
@@ -14,14 +18,4 @@ pub enum FocusSurface {
     NavigationTree,
     /// Navigation list surface.
     NavigationList,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::FocusSurface;
-
-    #[test]
-    fn focus_surface_defaults_to_none() {
-        assert_eq!(FocusSurface::default(), FocusSurface::None);
-    }
 }

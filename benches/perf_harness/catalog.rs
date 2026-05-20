@@ -33,6 +33,7 @@ macro_rules! perf_scenario_catalog {
             ("runtime_virtualized_list_stable_hover_10k", RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_stable_hover_10k),
             ("runtime_virtualized_list_hover_paint_10k", RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_hover_paint_10k),
             ("runtime_pointer_overlay_paint_10k", RUNTIME_ITERATIONS, runtime_scenarios::pointer_overlay_paint_10k),
+            ("runtime_retained_segment_invalidation_1k", RUNTIME_ITERATIONS, runtime_scenarios::retained_segment_invalidation_1k),
             ("runtime_virtualized_nested_scroll_hover_10k", RUNTIME_ITERATIONS, runtime_scenarios::virtualized_nested_scroll_hover_10k),
             ("runtime_refresh_large_tree", RUNTIME_ITERATIONS, runtime_scenarios::refresh_large_tree),
             ("runtime_resize_large_tree", RUNTIME_ITERATIONS, runtime_scenarios::resize_large_tree),

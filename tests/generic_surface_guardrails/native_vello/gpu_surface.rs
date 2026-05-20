@@ -140,6 +140,11 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
     assert!(
         custom_shader.contains("fn render_custom_shader")
             && custom_shader.contains("fn ensure_custom_shader_pipeline")
+            && custom_shader.contains("fn ensure_custom_shader_binding")
+            && custom_shader.contains("custom_shader_layout_entries")
+            && custom_shader.contains("binding: 1")
+            && custom_shader.contains("binding: 2")
+            && custom_shader.contains("BufferBindingType::Storage { read_only: true }")
             && custom_shader.contains("device.create_shader_module")
             && custom_shader.contains("device.create_render_pipeline")
             && custom_shader.contains("record_unsupported_custom_shader")
@@ -148,14 +153,16 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
             && custom_shader.contains("unsupported_custom_shader_source_bytes")
             && custom_shader.contains("unsupported_custom_shader_uniform_bytes")
             && custom_shader.contains("unsupported_custom_shader_storage_bytes")
-            && custom_shader
-                .contains("fn custom_shader_pipeline_key_requires_source_and_fragment_entry"),
+            && custom_shader.contains("fn custom_shader_pipeline_key_tracks_payload_bindings"),
         "native custom shader GPU-surface execution and fallback diagnostics should stay focused"
     );
     assert!(
         types.contains("mod custom_shader;")
             && types.contains("CustomShaderPipeline")
             && custom_shader_types.contains("struct CustomShaderPipelineKey")
+            && custom_shader_types.contains("has_uniform_payload")
+            && custom_shader_types.contains("has_storage_payload")
+            && custom_shader_types.contains("struct CustomShaderBindingKey")
             && custom_shader_types
                 .contains("fn custom_shader_pipeline_key_tracks_shader_stage_contract"),
         "native custom shader pipeline identity should stay in a focused type module"

@@ -1,4 +1,9 @@
 use super::*;
+use crate::gpu_content::demo_gpu_content;
+use crate::model::ResizeHandle;
+use crate::selection_overlay::SelectionOverlay;
+use crate::transient_overlay::triangle_wave;
+use crate::view::{SURFACE_HEIGHT, SURFACE_WIDTH};
 use radiant::runtime::{Event, RuntimeBridge, SurfaceRuntime, TransientOverlayContext};
 use radiant::theme::ThemeTokens;
 use radiant::widgets::TextWidget;
@@ -153,7 +158,7 @@ fn demo_gpu_content_reuses_static_atlas_payload() {
         panic!("demo content should remain an atlas-backed GPU surface");
     };
     assert!(
-        Arc::ptr_eq(first, second),
+        Arc::ptr_eq(&first, &second),
         "view reprojection should reuse the static GPU atlas instead of rebuilding pixel data"
     );
 }

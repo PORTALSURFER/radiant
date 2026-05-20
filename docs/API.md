@@ -3,6 +3,8 @@
 Radiant is a reusable declarative GUI library. Host applications own domain
 state and side effects; Radiant owns view-tree identity, layout, input routing,
 focus, style resolution, invalidation, and renderer-facing paint plans.
+For a contributor-facing map of subsystem ownership, rendering/text/platform
+boundaries, and validation lanes, see `docs/ARCHITECTURE.md`.
 
 ## Dependency Boundary
 

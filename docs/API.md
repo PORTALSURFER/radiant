@@ -826,8 +826,9 @@ Use `--jsonl` when collecting trend artifacts for scripts or CI storage:
 cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl
 ```
 
-Each JSON line includes `type`, `scenario`, `iterations`, `total_us`, and
-`avg_us`, so performance history can be collected without scraping prose.
+Each JSON line includes `type`, `scenario`, `category`, `iterations`,
+`total_us`, and `avg_us`, so performance history can be collected without
+scraping prose or losing which target area the scenario validates.
 Capture a machine-local baseline artifact directly with
 `--write-baseline-jsonl`:
 
@@ -868,9 +869,9 @@ List the available scenarios without running them with:
 cargo bench --bench perf_harness -- --list
 ```
 
-The list output includes each scenario's target-area category and default
-iteration count, so reviewers can quickly spot whether a run covered layout,
-runtime, text, resource, or GPU-facing work.
+Metric lines and list output both include each scenario's target-area category
+and default iteration count, so reviewers can quickly spot whether a run covered
+layout, runtime, text, resource, or GPU-facing work.
 Run a whole target-area category without spelling every scenario with
 `--category`:
 

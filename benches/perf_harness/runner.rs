@@ -86,6 +86,7 @@ impl ScenarioRunner {
         self.matched += 1;
         let metric = run_scenario(
             name,
+            category,
             iterations,
             build(),
             self.output_format,
@@ -354,6 +355,7 @@ fn scenario_matches_filters(
 
 fn run_scenario(
     name: &str,
+    category: &str,
     iterations: usize,
     mut bench: impl FnMut(),
     output_format: OutputFormat,
@@ -366,6 +368,7 @@ fn run_scenario(
     }
     print_metric(
         name,
+        category,
         iterations,
         started.elapsed(),
         output_format,
@@ -380,6 +383,7 @@ struct ScenarioMetric {
 
 fn print_metric(
     name: &str,
+    category: &str,
     iterations: usize,
     elapsed: Duration,
     output_format: OutputFormat,
@@ -388,7 +392,7 @@ fn print_metric(
     let total_us = elapsed.as_micros();
     let avg_us = total_us as f64 / iterations.max(1) as f64;
     let comparison = baseline.map(|baseline| MetricComparison::new(avg_us, baseline));
-    let baseline_jsonl = baseline_metric_json_line(name, iterations, total_us, avg_us);
+    let baseline_jsonl = baseline_metric_json_line(name, category, iterations, total_us, avg_us);
     match output_format {
         OutputFormat::Text => {
             if let Some(comparison) = comparison {
@@ -399,18 +403,18 @@ fn print_metric(
                         status,
                     } => {
                         println!(
-                            "radiant_perf scenario={name} iterations={iterations} total_us={total_us} avg_us={avg_us:.3} baseline_avg_us={baseline_avg_us:.3} baseline_ratio={ratio:.3} baseline_status={status}"
+                            "radiant_perf scenario={name} category={category} iterations={iterations} total_us={total_us} avg_us={avg_us:.3} baseline_avg_us={baseline_avg_us:.3} baseline_ratio={ratio:.3} baseline_status={status}"
                         );
                     }
                     MetricComparison::Missing => {
                         println!(
-                            "radiant_perf scenario={name} iterations={iterations} total_us={total_us} avg_us={avg_us:.3} baseline_status=missing"
+                            "radiant_perf scenario={name} category={category} iterations={iterations} total_us={total_us} avg_us={avg_us:.3} baseline_status=missing"
                         );
                     }
                 }
             } else {
                 println!(
-                    "radiant_perf scenario={name} iterations={iterations} total_us={total_us} avg_us={avg_us:.3}"
+                    "radiant_perf scenario={name} category={category} iterations={iterations} total_us={total_us} avg_us={avg_us:.3}"
                 );
             }
         }
@@ -423,8 +427,9 @@ fn print_metric(
                         status,
                     } => {
                         println!(
-                            "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3},\"baseline_avg_us\":{baseline_avg_us:.3},\"baseline_ratio\":{ratio:.3},\"baseline_status\":\"{status}\"}}",
+                            "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3},\"baseline_avg_us\":{baseline_avg_us:.3},\"baseline_ratio\":{ratio:.3},\"baseline_status\":\"{status}\"}}",
                             json_escape(name),
+                            json_escape(category),
                             iterations,
                             total_us,
                             avg_us,
@@ -432,8 +437,9 @@ fn print_metric(
                     }
                     MetricComparison::Missing => {
                         println!(
-                            "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3},\"baseline_status\":\"missing\"}}",
+                            "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3},\"baseline_status\":\"missing\"}}",
                             json_escape(name),
+                            json_escape(category),
                             iterations,
                             total_us,
                             avg_us,
@@ -442,8 +448,9 @@ fn print_metric(
                 }
             } else {
                 println!(
-                    "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}}}",
+                    "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}}}",
                     json_escape(name),
+                    json_escape(category),
                     iterations,
                     total_us,
                     avg_us
@@ -585,10 +592,17 @@ fn json_escape(value: &str) -> String {
     escaped
 }
 
-fn baseline_metric_json_line(name: &str, iterations: usize, total_us: u128, avg_us: f64) -> String {
+fn baseline_metric_json_line(
+    name: &str,
+    category: &str,
+    iterations: usize,
+    total_us: u128,
+    avg_us: f64,
+) -> String {
     format!(
-        "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}}}",
+        "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}}}",
         json_escape(name),
+        json_escape(category),
         iterations,
         total_us,
         avg_us

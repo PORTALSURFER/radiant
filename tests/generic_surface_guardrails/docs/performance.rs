@@ -139,6 +139,8 @@ fn performance_harness_is_registered_and_documented() {
             && runner.contains("baseline_metric_json_line")
             && runner.contains("std::process::exit(1)")
             && runner.contains("\\\"type\\\":\\\"radiant_perf\\\"")
+            && runner.contains("category={category}")
+            && runner.contains("\\\"category\\\":\\\"{}\\\"")
             && runner.contains("\\\"total_us\\\"")
             && runner.contains("\\\"avg_us\\\"")
             && runner.contains("\\\"baseline_avg_us\\\"")
@@ -151,7 +153,7 @@ fn performance_harness_is_registered_and_documented() {
             && runner.contains("MetricComparison::Missing")
             && runner.contains("baseline_status=missing")
             && runner.contains("\\\"baseline_status\\\":\\\"missing\\\""),
-        "perf_harness runner should expose JSON-lines metrics, baseline comparison fields, missing-baseline status, and summary counts for trend capture"
+        "perf_harness runner should expose JSON-lines metrics with target-area categories, baseline comparison fields, missing-baseline status, and summary counts for trend capture"
     );
     assert!(
         runner.contains("--list") && runner.contains("radiant_perf scenarios:"),
@@ -250,8 +252,9 @@ fn performance_harness_is_registered_and_documented() {
                 "cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl"
             )
             && normalized_docs.contains(
-                "Each JSON line includes `type`, `scenario`, `iterations`, `total_us`, and `avg_us`"
+                "Each JSON line includes `type`, `scenario`, `category`, `iterations`, `total_us`, and `avg_us`"
             )
+            && normalized_docs.contains("losing which target area the scenario validates")
             && normalized_docs.contains("Capture a machine-local baseline artifact directly")
             && normalized_docs
                 .contains("`baseline_avg_us`, `baseline_ratio`, and `baseline_status`")
@@ -264,7 +267,7 @@ fn performance_harness_is_registered_and_documented() {
             && normalized_docs.contains("`--fail-on-baseline-regression`")
             && normalized_docs.contains("exits with status `1`")
             && normalized_docs.contains("`baseline_status=slower`")
-            && normalized_docs.contains("target-area category and default iteration count")
+            && normalized_docs.contains("Metric lines and list output both include each scenario's target-area category")
             && normalized_docs.contains("Layout scenarios:")
             && normalized_docs.contains("Application projection scenarios:")
             && normalized_docs.contains("Runtime surface scenarios:")

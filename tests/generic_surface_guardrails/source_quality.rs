@@ -842,6 +842,29 @@ fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
 }
 
 #[test]
+fn runtime_surface_focus_order_keeps_collection_and_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let focus = fs::read_to_string(manifest_dir.join("src/runtime/surface/focus.rs"))
+        .expect("runtime surface focus order helper should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/runtime/surface/focus/tests.rs"))
+        .expect("runtime surface focus order tests should be readable");
+
+    assert!(
+        focus.contains("pub fn keyboard_focus_order_into")
+            && focus.contains("pub fn keyboard_focus_order(&self)")
+            && focus.contains("fn append_keyboard_focus_order")
+            && focus.contains("#[path = \"focus/tests.rs\"]")
+            && !focus.contains("fn keyboard_focus_order_collects_only_keyboard_focusable_widgets"),
+        "runtime surface focus ordering should live in surface/focus.rs while behavior tests stay delegated"
+    );
+    assert!(
+        tests.contains("fn keyboard_focus_order_collects_only_keyboard_focusable_widgets")
+            && tests.contains("fn keyboard_focus_order_into_reuses_existing_storage"),
+        "runtime surface focus behavior coverage should live in surface/focus/tests.rs"
+    );
+}
+
+#[test]
 fn runtime_bridge_app_contract_stays_in_focused_module() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bridge = fs::read_to_string(manifest_dir.join("src/runtime/bridge.rs"))
@@ -3039,12 +3062,22 @@ fn surface_paint_plan_buffering_stays_with_capacity_policy() {
         .expect("runtime frame paint projection should be readable");
     let capacity = fs::read_to_string(manifest_dir.join("src/runtime/surface/paint/capacity.rs"))
         .expect("surface paint capacity policy should be readable");
+    let capacity_tests =
+        fs::read_to_string(manifest_dir.join("src/runtime/surface/paint/capacity/tests.rs"))
+            .expect("surface paint capacity tests should be readable");
 
     assert!(
         capacity.contains("fn empty_paint_plan_for_layout")
             && capacity.contains("fn clear_paint_plan_for_layout")
-            && capacity.contains("fn estimated_paint_primitive_capacity"),
-        "layout-aware paint-plan buffer lifecycle should live with the capacity policy"
+            && capacity.contains("fn estimated_paint_primitive_capacity")
+            && capacity.contains("#[path = \"capacity/tests.rs\"]")
+            && !capacity.contains("fn estimated_paint_primitive_capacity_scales_for_small_layouts"),
+        "layout-aware paint-plan buffer lifecycle should live with the capacity policy while behavior tests stay delegated"
+    );
+    assert!(
+        capacity_tests.contains("fn estimated_paint_primitive_capacity_scales_for_small_layouts")
+            && capacity_tests.contains("fn clear_paint_plan_for_layout_reuses_existing_capacity"),
+        "surface paint capacity behavior coverage should live in surface/paint/capacity/tests.rs"
     );
     assert!(
         projection.contains("empty_paint_plan_for_layout(layout, theme)")
@@ -3077,15 +3110,28 @@ fn surface_layout_projection_records_traversal_through_index_methods() {
     let capacity =
         fs::read_to_string(manifest_dir.join("src/runtime/surface/traversal/index/capacity.rs"))
             .expect("surface traversal capacity helpers should be readable");
+    let index_tests =
+        fs::read_to_string(manifest_dir.join("src/runtime/surface/traversal/index/tests.rs"))
+            .expect("surface traversal index tests should be readable");
+    let capacity_tests = fs::read_to_string(
+        manifest_dir.join("src/runtime/surface/traversal/index/capacity/tests.rs"),
+    )
+    .expect("surface traversal capacity tests should be readable");
 
     assert!(
         index.contains("mod capacity;")
             && index.contains("mod recording;")
             && index.contains("mod records;")
+            && index.contains("#[path = \"index/tests.rs\"]")
             && index.contains("pub(in crate::runtime) use records::{")
             && !index.contains("fn record_container")
-            && !index.contains("fn record_widget"),
-        "surface traversal index root should delegate traversal bucket mutation helpers"
+            && !index.contains("fn record_widget")
+            && !index.contains("fn traversal_records_route_to_expected_buckets"),
+        "surface traversal index root should delegate traversal bucket mutation helpers and behavior tests"
+    );
+    assert!(
+        index_tests.contains("fn traversal_records_route_to_expected_buckets"),
+        "surface traversal index behavior coverage should live in traversal/index/tests.rs"
     );
     assert!(
         records.contains("struct SurfaceContainerTraversalRecord")
@@ -3099,10 +3145,18 @@ fn surface_layout_projection_records_traversal_through_index_methods() {
             && capacity.contains("fn reserve_vec_capacity")
             && capacity.contains("fn reserve_map_capacity")
             && capacity.contains("fn reserve_set_capacity")
+            && capacity.contains("#[path = \"capacity/tests.rs\"]")
             && !index.contains("fn reserve_vec_capacity")
             && !index.contains("fn reserve_map_capacity")
-            && !index.contains("fn reserve_set_capacity"),
-        "surface traversal capacity and reuse helpers should live in traversal/index/capacity.rs"
+            && !index.contains("fn reserve_set_capacity")
+            && !capacity.contains("fn widget_clip_capacity_is_zero_without_scroll_containers"),
+        "surface traversal capacity and reuse helpers should live in traversal/index/capacity.rs while behavior tests stay delegated"
+    );
+    assert!(
+        capacity_tests.contains("fn widget_clip_capacity_is_zero_without_scroll_containers")
+            && capacity_tests
+                .contains("fn widget_clip_capacity_tracks_widgets_when_scroll_containers_exist"),
+        "surface traversal capacity behavior coverage should live in traversal/index/capacity/tests.rs"
     );
     assert!(
         recording.contains("fn record_container")

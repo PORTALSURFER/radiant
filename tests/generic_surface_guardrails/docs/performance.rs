@@ -11,6 +11,17 @@ fn performance_harness_is_registered_and_documented() {
         .expect("perf_harness catalog should be readable");
     let runner = fs::read_to_string(manifest_dir.join("benches/perf_harness/runner.rs"))
         .expect("perf_harness runner should be readable");
+    let runtime_surface =
+        fs::read_to_string(manifest_dir.join("benches/perf_harness/runtime_scenarios/surface.rs"))
+            .expect("runtime surface bench scenarios should be readable");
+    let runtime_surface_nodes = fs::read_to_string(
+        manifest_dir.join("benches/perf_harness/runtime_scenarios/surface/nodes.rs"),
+    )
+    .expect("runtime surface bench node fixtures should be readable");
+    let runtime_command_flattening = fs::read_to_string(
+        manifest_dir.join("benches/perf_harness/runtime_scenarios/surface/command_flattening.rs"),
+    )
+    .expect("runtime command flattening bench should be readable");
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
         .expect("docs/API.md should be readable");
 
@@ -83,6 +94,15 @@ fn performance_harness_is_registered_and_documented() {
     assert!(
         runner.contains("--list") && runner.contains("radiant_perf scenarios:"),
         "perf_harness runner should expose a cheap scenario-listing mode"
+    );
+    assert!(
+        runtime_surface.contains("surface/nodes.rs")
+            && runtime_surface.contains("surface/command_flattening.rs")
+            && runtime_surface_nodes.contains("runtime_surface_node")
+            && runtime_surface_nodes.contains("text_paint_surface_node")
+            && runtime_surface_nodes.contains("horizontal_scroll_surface_node")
+            && runtime_command_flattening.contains("Command::batch"),
+        "runtime surface perf scenarios should keep scenario state, synthetic trees, and command flattening in focused modules"
     );
     let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(

@@ -479,6 +479,45 @@ fn native_gpu_surface_hover_cursor_policy_tests_stay_grouped_by_concern() {
 }
 
 #[test]
+fn native_gpu_surface_hover_overlay_tests_stay_grouped_by_behavior() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/gpu_surface_runtime/hover_overlay.rs",
+    ))
+    .expect("native GPU-surface hover overlay test root should be readable");
+    let update = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/gpu_surface_runtime/hover_overlay/update.rs",
+    ))
+    .expect("native GPU-surface hover overlay update tests should be readable");
+    let clear = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/gpu_surface_runtime/hover_overlay/clear.rs",
+    ))
+    .expect("native GPU-surface hover overlay clear tests should be readable");
+    let rebuild = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/gpu_surface_runtime/hover_overlay/rebuild.rs",
+    ))
+    .expect("native GPU-surface hover overlay rebuild tests should be readable");
+
+    assert!(
+        root.contains("mod update;")
+            && root.contains("mod clear;")
+            && root.contains("mod rebuild;")
+            && !root.contains("fn native_gpu_hover_updates_cached_overlay")
+            && !root.contains("fn native_gpu_hover_clear_hides_cached_cursor"),
+        "native GPU-surface hover overlay root should index focused behavior groups instead of owning all cases"
+    );
+    assert!(
+        update.contains("fn native_gpu_hover_updates_cached_overlay_without_refreshing_surface")
+            && update.contains("fn native_gpu_hover_skips_unchanged_cached_overlay")
+            && update.contains("fn native_gpu_hover_collapses_duplicate_cursor_overlays")
+            && clear.contains("fn native_gpu_hover_preserves_app_owned_vertical_overlays")
+            && clear.contains("fn native_gpu_hover_clear_hides_cached_cursor_without_rebuild")
+            && rebuild.contains("fn native_gpu_hover_survives_scene_rebuilds"),
+        "native GPU-surface hover overlay tests should stay grouped by update, clear, and rebuild behavior"
+    );
+}
+
+#[test]
 fn composited_base_frame_cache_avoids_post_mutation_expect() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module = fs::read_to_string(

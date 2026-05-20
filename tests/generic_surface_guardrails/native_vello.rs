@@ -407,6 +407,50 @@ fn post_gpu_overlay_vertex_buffer_upload_is_non_panicking() {
 }
 
 #[test]
+fn post_gpu_overlay_geometry_tests_stay_grouped_by_replay_concern() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root =
+        fs::read_to_string(manifest_dir.join(
+            "src/gui_runtime/native_vello/generic_runtime/post_gpu_overlay/geometry/tests.rs",
+        ))
+        .expect("post GPU overlay geometry test root should be readable");
+    let suffix = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/post_gpu_overlay/geometry/tests/suffix.rs",
+    ))
+    .expect("post GPU overlay suffix tests should be readable");
+    let vertices = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/post_gpu_overlay/geometry/tests/vertices.rs",
+    ))
+    .expect("post GPU overlay vertex tests should be readable");
+    let regions = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/post_gpu_overlay/geometry/tests/regions.rs",
+    ))
+    .expect("post GPU overlay region tests should be readable");
+    let fixtures = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/post_gpu_overlay/geometry/tests/fixtures.rs",
+    ))
+    .expect("post GPU overlay geometry fixtures should be readable");
+
+    assert!(
+        root.contains("mod fixtures;")
+            && root.contains("mod suffix;")
+            && root.contains("mod vertices;")
+            && root.contains("mod regions;")
+            && !root.contains("fn replayable_vertices_batch_fill_and_stroke_rectangles"),
+        "post GPU overlay geometry test root should index focused replay groups instead of owning all cases"
+    );
+    assert!(
+        suffix.contains("fn replayable_suffix_starts_after_last_gpu_surface")
+            && vertices.contains("fn replayable_vertices_batch_fill_and_stroke_rectangles")
+            && regions.contains(
+                "fn replayable_vertices_in_regions_clip_translucent_fills_to_gpu_regions"
+            )
+            && fixtures.contains("fn translucent_white"),
+        "post GPU overlay geometry tests should stay grouped by suffix, full-target vertices, region clipping, and fixtures"
+    );
+}
+
+#[test]
 fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module = fs::read_to_string(

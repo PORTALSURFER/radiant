@@ -10,6 +10,7 @@ use std::{
 const RUN_ALL_IN_DEBUG_ENV: &str = "RADIANT_PERF_RUN_ALL_IN_DEBUG";
 const BASELINE_JSONL_ARG: &str = "--baseline-jsonl";
 const WRITE_BASELINE_JSONL_ARG: &str = "--write-baseline-jsonl";
+const CATEGORY_ARG: &str = "--category";
 const FAIL_ON_BASELINE_REGRESSION_ARG: &str = "--fail-on-baseline-regression";
 const JSONL_ARG: &str = "--jsonl";
 const LIST_ARG: &str = "--list";
@@ -39,6 +40,7 @@ impl ScenarioSpec {
 
 pub(super) struct ScenarioRunner {
     filters: Vec<String>,
+    category_filters: Vec<String>,
     output_format: OutputFormat,
     baseline: Option<BaselineSet>,
     baseline_output: Option<BaselineOutput>,
@@ -50,6 +52,7 @@ pub(super) struct ScenarioRunner {
 impl ScenarioRunner {
     pub(super) fn new(
         filters: Vec<String>,
+        category_filters: Vec<String>,
         output_format: OutputFormat,
         baseline: Option<BaselineSet>,
         baseline_output: Option<BaselineOutput>,
@@ -57,6 +60,7 @@ impl ScenarioRunner {
     ) -> Self {
         Self {
             filters,
+            category_filters,
             output_format,
             baseline,
             baseline_output,
@@ -66,12 +70,17 @@ impl ScenarioRunner {
         }
     }
 
-    pub(super) fn run_scenario<Build, Bench>(&mut self, name: &str, iterations: usize, build: Build)
-    where
+    pub(super) fn run_scenario<Build, Bench>(
+        &mut self,
+        name: &str,
+        category: &str,
+        iterations: usize,
+        build: Build,
+    ) where
         Build: FnOnce() -> Bench,
         Bench: FnMut(),
     {
-        if !scenario_matches_filters(name, &self.filters) {
+        if !scenario_matches_filters(name, category, &self.filters, &self.category_filters) {
             return;
         }
         self.matched += 1;
@@ -89,10 +98,10 @@ impl ScenarioRunner {
     }
 
     pub(super) fn finish(self) {
-        if self.matched == 0 && !self.filters.is_empty() {
+        if self.matched == 0 && (!self.filters.is_empty() || !self.category_filters.is_empty()) {
             eprintln!(
-                "no radiant_perf scenarios matched filters: {:?}",
-                self.filters
+                "no radiant_perf scenarios matched filters: {:?} categories: {:?}",
+                self.filters, self.category_filters
             );
             std::process::exit(2);
         }
@@ -225,11 +234,22 @@ pub(super) fn scenario_filters_from_args(args: &[String]) -> Vec<String> {
         if arg.starts_with(&format!("{WRITE_BASELINE_JSONL_ARG}=")) {
             continue;
         }
+        if arg == CATEGORY_ARG {
+            skip_next = true;
+            continue;
+        }
+        if arg.starts_with(&format!("{CATEGORY_ARG}=")) {
+            continue;
+        }
         if !arg.starts_with('-') && !arg.is_empty() {
             filters.push(arg.clone());
         }
     }
     filters
+}
+
+pub(super) fn category_filters_from_args(args: &[String]) -> Vec<String> {
+    values_after_arg(args, CATEGORY_ARG)
 }
 
 pub(super) fn scenario_list_requested(args: &[String]) -> bool {
@@ -302,8 +322,14 @@ pub(super) fn print_scenario_list(scenarios: &[ScenarioSpec]) {
     }
 }
 
-pub(super) fn should_skip_unfiltered_debug_run(filters: &[String]) -> bool {
-    cfg!(debug_assertions) && filters.is_empty() && env::var_os(RUN_ALL_IN_DEBUG_ENV).is_none()
+pub(super) fn should_skip_unfiltered_debug_run(
+    filters: &[String],
+    category_filters: &[String],
+) -> bool {
+    cfg!(debug_assertions)
+        && filters.is_empty()
+        && category_filters.is_empty()
+        && env::var_os(RUN_ALL_IN_DEBUG_ENV).is_none()
 }
 
 pub(super) fn print_unfiltered_debug_skip() {
@@ -312,8 +338,18 @@ pub(super) fn print_unfiltered_debug_skip() {
     );
 }
 
-fn scenario_matches_filters(name: &str, filters: &[String]) -> bool {
-    filters.is_empty() || filters.iter().any(|filter| name.contains(filter))
+fn scenario_matches_filters(
+    name: &str,
+    category: &str,
+    filters: &[String],
+    category_filters: &[String],
+) -> bool {
+    let name_matches = filters.is_empty() || filters.iter().any(|filter| name.contains(filter));
+    let category_matches = category_filters.is_empty()
+        || category_filters
+            .iter()
+            .any(|filter| category.contains(filter));
+    name_matches && category_matches
 }
 
 fn run_scenario(
@@ -514,6 +550,23 @@ fn value_after_arg(args: &[String], name: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn values_after_arg(args: &[String], name: &str) -> Vec<String> {
+    let mut values = Vec::new();
+    let mut iter = args.iter().skip(1);
+    while let Some(arg) = iter.next() {
+        if arg == name {
+            if let Some(value) = iter.next() {
+                values.push(value.clone());
+            }
+            continue;
+        }
+        if let Some(value) = arg.strip_prefix(&format!("{name}=")) {
+            values.push(value.to_owned());
+        }
+    }
+    values
 }
 
 fn json_escape(value: &str) -> String {

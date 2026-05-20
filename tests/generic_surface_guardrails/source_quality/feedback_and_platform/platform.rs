@@ -1,4 +1,17 @@
 use super::*;
+use crate::rust_sources_under;
+use std::collections::BTreeSet;
+
+const ALLOWED_PLATFORM_SPECIFIC_SOURCE_FILES: &[&str] = &[
+    "examples/popup_window/host/child.rs",
+    "examples/popup_window/host/prewarm.rs",
+    "examples/popup_window/host/process.rs",
+    "examples/popup_window/platform.rs",
+    "examples/popup_window/platform/readiness.rs",
+    "src/gui_runtime/native_vello/generic_runtime/external_drag/platform.rs",
+    "src/gui_runtime/native_vello/generic_runtime/window/platform.rs",
+    "src/gui_runtime/native_vello/text_renderer/font.rs",
+];
 
 #[test]
 fn window_specs_use_named_parts_for_manifest_identity_and_options() {
@@ -28,4 +41,53 @@ fn window_specs_use_named_parts_for_manifest_identity_and_options() {
             && lib.contains("WindowSpecParts"),
         "window spec compatibility constructors and public exports should keep the named-parts path available"
     );
+}
+
+#[test]
+fn target_specific_platform_code_stays_in_documented_adapters() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let architecture = fs::read_to_string(manifest_dir.join("docs/ARCHITECTURE.md"))
+        .expect("architecture docs should be readable");
+    let allowed = ALLOWED_PLATFORM_SPECIFIC_SOURCE_FILES
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let mut undocumented = Vec::new();
+
+    for path in rust_sources_under(&manifest_dir.join("src"))
+        .into_iter()
+        .chain(rust_sources_under(&manifest_dir.join("examples")))
+    {
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        if !contains_target_specific_platform_code(&source) {
+            continue;
+        }
+
+        let relative = relative_path(&manifest_dir, &path);
+        if !allowed.contains(relative.as_str()) {
+            undocumented.push(relative);
+            continue;
+        }
+
+        assert!(
+            architecture.contains(&format!("`{relative}`")),
+            "docs/ARCHITECTURE.md should document target-specific adapter `{relative}`"
+        );
+    }
+
+    undocumented.sort();
+    assert!(
+        undocumented.is_empty(),
+        "target-specific platform code should stay in documented adapters:\n{}",
+        undocumented.join("\n")
+    );
+}
+
+fn contains_target_specific_platform_code(source: &str) -> bool {
+    source.contains("target_os = ")
+        || source.contains("target_os=")
+        || source.contains("platform::windows")
+        || source.contains("windows_sys")
+        || source.contains("WindowAttributesExtWindows")
 }

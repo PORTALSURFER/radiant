@@ -951,6 +951,11 @@ GPU-surface composition, and presentation.
 these timing buckets are CPU-side encode/submit/present envelopes, not backend
 GPU timestamp query durations. Future timestamp-query support should extend this
 status instead of silently changing the meaning of existing timing fields.
+Use `NativeFrameTimingDiagnostics::cpu_envelope_total()` for a single tracked
+CPU-side frame-work total; it excludes `since_last_present`, which is frame
+cadence rather than work performed for the current frame. The native render
+profile log emits the same tracked total as `frame_cpu_envelope_total_us` for
+profiling.
 `NativeRunOptions::retained_surface_cache` accepts `RetainedSurfaceCachePolicy`
 for apps that need to tune or disable retained custom-surface frame reuse during
 profiling.

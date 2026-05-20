@@ -11,10 +11,15 @@ enum DemoMessage {}
 
 const DEMO_SHADER_WGSL: &str = r#"
 @vertex
-fn main(@builtin(vertex_index) vertex_index: u32) -> @builtin(position) vec4<f32> {
+fn vertex_main(@builtin(vertex_index) vertex_index: u32) -> @builtin(position) vec4<f32> {
     let x = select(-1.0, 3.0, vertex_index == 2u);
     let y = select(-1.0, 3.0, vertex_index == 1u);
     return vec4<f32>(x, y, 0.0, 1.0);
+}
+
+@fragment
+fn fragment_main() -> @location(0) vec4<f32> {
+    return vec4<f32>(0.16, 0.72, 0.82, 1.0);
 }
 "#;
 
@@ -22,7 +27,8 @@ fn shader_descriptor() -> Arc<GpuShaderSurfaceDescriptor> {
     Arc::new(
         GpuShaderSurfaceDescriptor::new("demo/custom-meter")
             .wgsl_source(DEMO_SHADER_WGSL)
-            .entry_point("main")
+            .entry_point("vertex_main")
+            .fragment_entry_point("fragment_main")
             .uniform_bytes([16, 32, 48, 64, 80, 96, 112, 128])
             .storage_bytes([3; 128])
             .vertex_count(6),
@@ -96,9 +102,16 @@ mod tests {
         };
         assert_eq!(descriptor.shader_key, "demo/custom-meter");
         assert!(descriptor.wgsl_source.as_deref().is_some_and(|source| {
-            source.contains("@vertex") && source.contains("vertex_index")
+            source.contains("@vertex")
+                && source.contains("vertex_index")
+                && source.contains("@fragment")
+                && source.contains("fragment_main")
         }));
-        assert_eq!(descriptor.entry_point, "main");
+        assert_eq!(descriptor.entry_point, "vertex_main");
+        assert_eq!(
+            descriptor.fragment_entry_point.as_deref(),
+            Some("fragment_main")
+        );
         assert_eq!(
             descriptor.uniform_bytes.as_ref(),
             &[16, 32, 48, 64, 80, 96, 112, 128]

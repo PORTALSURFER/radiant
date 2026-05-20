@@ -137,6 +137,15 @@ pub(super) fn validate_shader_descriptor(
         });
     }
     if descriptor
+        .fragment_entry_point
+        .as_deref()
+        .is_some_and(|entry_point| entry_point.trim().is_empty())
+    {
+        return Err(GpuSurfaceContentError::EmptyShaderFragmentEntryPoint {
+            shader_key: descriptor.shader_key.clone(),
+        });
+    }
+    if descriptor
         .wgsl_source
         .as_deref()
         .is_some_and(|source| source.trim().is_empty())

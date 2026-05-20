@@ -81,6 +81,11 @@ pub enum GpuSurfaceContentError {
         /// Stable application-defined shader or pipeline identity.
         shader_key: String,
     },
+    /// A custom shader descriptor has an empty fragment shader entry point.
+    EmptyShaderFragmentEntryPoint {
+        /// Stable application-defined shader or pipeline identity.
+        shader_key: String,
+    },
     /// A custom shader descriptor carried empty WGSL source.
     EmptyShaderSource {
         /// Stable application-defined shader or pipeline identity.
@@ -168,7 +173,11 @@ impl fmt::Display for GpuSurfaceContentError {
             }
             Self::EmptyShaderEntryPoint { shader_key } => write!(
                 formatter,
-                "invalid GPU shader surface {shader_key}: entry point must not be empty"
+                "invalid GPU shader surface {shader_key}: vertex entry point must not be empty"
+            ),
+            Self::EmptyShaderFragmentEntryPoint { shader_key } => write!(
+                formatter,
+                "invalid GPU shader surface {shader_key}: fragment entry point must not be empty when provided"
             ),
             Self::EmptyShaderSource { shader_key } => write!(
                 formatter,

@@ -3,50 +3,10 @@ use crate::{
     layout::LayoutNode,
     widgets::{FocusBehavior, Widget, WidgetId, WidgetInput, WidgetOutput},
 };
-use std::sync::Arc;
 
-/// Shared mapper type that turns widget-specific payloads into host-defined messages.
-pub type MessageMapper<Input, Message> = Arc<dyn Fn(Input) -> Message + Send + Sync>;
+mod mapper;
 
-/// Message bindings that turn widget output payloads into host-defined messages.
-#[derive(Default)]
-pub struct WidgetMessageMapper<Message> {
-    map: Option<Arc<dyn Fn(WidgetOutput) -> Option<Message> + Send + Sync>>,
-}
-
-impl<Message> Clone for WidgetMessageMapper<Message> {
-    fn clone(&self) -> Self {
-        Self {
-            map: self.map.as_ref().map(Arc::clone),
-        }
-    }
-}
-
-impl<Message> WidgetMessageMapper<Message> {
-    /// Build a mapper that does not emit host-defined messages.
-    pub fn none() -> Self {
-        Self { map: None }
-    }
-
-    /// Build a mapper for any typed widget output payload.
-    pub fn typed<Output>(map: impl Fn(Output) -> Message + Send + Sync + 'static) -> Self
-    where
-        Output: Clone + Send + Sync + 'static,
-    {
-        Self::dynamic(move |output| output.typed_ref::<Output>().cloned().map(&map))
-    }
-
-    /// Build a dynamic output mapper for custom widgets.
-    pub fn dynamic(map: impl Fn(WidgetOutput) -> Option<Message> + Send + Sync + 'static) -> Self {
-        Self {
-            map: Some(Arc::new(map)),
-        }
-    }
-
-    pub(super) fn map_output(&self, output: WidgetOutput) -> Option<Message> {
-        self.map.as_ref().and_then(|map| map(output))
-    }
-}
+pub use mapper::{MessageMapper, WidgetMessageMapper};
 
 /// One widget leaf inside a generic declarative [`UiSurface`](super::UiSurface).
 pub struct SurfaceWidget<Message> {
@@ -133,7 +93,7 @@ impl<Message> SurfaceWidget<Message> {
         !common.state.disabled
             && (common.focus != FocusBehavior::None
                 || common.paint.suppresses_container_hover
-                || self.messages.map.is_some())
+                || self.messages.maps_any_output())
     }
 
     pub(in crate::runtime) fn receives_wheel_input(&self) -> bool {

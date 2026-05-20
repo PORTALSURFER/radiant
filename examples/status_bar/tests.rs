@@ -42,6 +42,7 @@ fn status_bar_state_tracks_actions_toggles_workers_and_progress() {
     assert_eq!(state.active_count(), 0);
     assert_eq!(state.completed_workers, 1);
     assert!(state.animation_running);
+    assert_eq!(state.log.latest_line(), "animation: started");
     assert_eq!(state.log.latest(), "animation: started");
     assert_eq!(
         state.status_segments().center,

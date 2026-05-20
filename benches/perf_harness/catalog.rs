@@ -2,7 +2,7 @@
 
 use crate::{
     app_projection, bench_gpu_signal_summary, bench_gpu_surface_projection, command_drain,
-    layout_scenarios, runner::ScenarioRunner, runtime_scenarios,
+    layout_scenarios, runner::ScenarioRunner, runtime_scenarios, text_scenarios,
 };
 
 const LAYOUT_ITERATIONS: usize = 120;
@@ -38,6 +38,7 @@ macro_rules! perf_scenario_catalog {
             ("runtime_command_flattening_512", RUNTIME_ITERATIONS, runtime_scenarios::command_flattening_512),
             ("runtime_command_drain_1k", RUNTIME_ITERATIONS, command_drain::flat_command_drain),
             ("runtime_nested_command_drain_1k", RUNTIME_ITERATIONS, command_drain::nested_command_drain),
+            ("text_line_cache_1k", RUNTIME_ITERATIONS, text_scenarios::text_line_cache_1k),
             ("gpu_signal_summary", GPU_ITERATIONS, || bench_gpu_signal_summary),
             ("gpu_surface_projection", GPU_ITERATIONS, || bench_gpu_surface_projection),
             ]

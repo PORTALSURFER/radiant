@@ -48,6 +48,7 @@ fn architecture_map_documents_target_aligned_boundaries() {
         "cargo test -j 1 --lib --tests",
         "cargo bench --bench perf_harness -- --list",
         "Performance benchmarks are trend and profiling tools",
+        "text-line layout caching",
         "## Current Non-Goals",
         "Radiant should not own VST SDK integration",
         "accessibility systems in the current phase",

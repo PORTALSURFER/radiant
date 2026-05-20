@@ -118,7 +118,8 @@ normal quality lane before merging meaningful changes.
 Performance benchmarks are trend and profiling tools, not portable timing
 pass/fail gates. They should still cover hot paths that matter to the target:
 large layout trees, virtualized lists, paint-plan generation, command drainage,
-runtime refreshes, pointer overlays, and GPU-surface data preparation.
+runtime refreshes, pointer overlays, text-line layout caching, and GPU-surface
+data preparation.
 
 ## Current Non-Goals
 

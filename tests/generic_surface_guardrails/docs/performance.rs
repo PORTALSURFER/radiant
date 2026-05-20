@@ -36,6 +36,9 @@ fn performance_harness_is_registered_and_documented() {
         manifest_dir.join("benches/perf_harness/runtime_scenarios/virtualized/bridges.rs"),
     )
     .expect("runtime virtualized bench bridges should be readable");
+    let text_scenarios =
+        fs::read_to_string(manifest_dir.join("benches/perf_harness/text_scenarios.rs"))
+            .expect("text bench scenarios should be readable");
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
         .expect("docs/API.md should be readable");
 
@@ -82,6 +85,7 @@ fn performance_harness_is_registered_and_documented() {
         "runtime_command_flattening_512",
         "runtime_command_drain_1k",
         "runtime_nested_command_drain_1k",
+        "text_line_cache_1k",
         "gpu_signal_summary",
         "gpu_surface_projection",
     ];
@@ -132,6 +136,12 @@ fn performance_harness_is_registered_and_documented() {
             && runtime_virtualized_bridges.contains("virtual_button_rows")
             && runtime_virtualized_bridges.contains("nested_scroll_rows"),
         "runtime virtualized perf scenarios should keep scenario state separate from synthetic bridge trees"
+    );
+    assert!(
+        text_scenarios.contains("TextLineLayoutCache")
+            && text_scenarios.contains("centered_text_line_with_cache")
+            && text_scenarios.contains("top_text_line_with_cache"),
+        "text perf scenarios should exercise the reusable text-line layout cache"
     );
     let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(

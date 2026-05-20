@@ -1698,6 +1698,14 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
         manifest_dir.join("src/widgets/primitives/text_input/model/editing/mutation.rs"),
     )
     .expect("text input edit mutation model should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/tests.rs"))
+        .expect("text input behavior test root should be readable");
+    let widget_tests =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/tests/widget.rs"))
+            .expect("text input widget interaction tests should be readable");
+    let state_tests =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/tests/state.rs"))
+            .expect("text input state behavior tests should be readable");
 
     for required in ["mod editing;", "mod navigation;", "mod selection;"] {
         assert!(
@@ -1749,6 +1757,21 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
             && editing_mutation.contains("byte_index_for_char")
             && !editing_command.contains("byte_index_for_char"),
         "text input mutation mechanics should live in model/editing/mutation.rs"
+    );
+    assert!(
+        tests.contains("mod widget;")
+            && tests.contains("mod state;")
+            && !tests.contains("fn text_input_editing_emits_changed_and_submitted_messages")
+            && !tests.contains("fn text_input_state_applies_backend_neutral_editing_commands"),
+        "text input behavior test root should index focused widget and state groups instead of owning all cases"
+    );
+    assert!(
+        widget_tests.contains("fn text_input_editing_emits_changed_and_submitted_messages")
+            && widget_tests
+                .contains("fn text_input_pointer_drag_extends_selection_including_caret_character")
+            && state_tests.contains("fn text_input_state_applies_backend_neutral_editing_commands")
+            && state_tests.contains("fn text_input_state_can_clear_or_delete_active_selection"),
+        "text input behavior tests should stay grouped by widget interaction and state editing concerns"
     );
 }
 

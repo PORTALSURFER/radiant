@@ -1080,6 +1080,10 @@ fn scroll_commands_use_named_parts_for_reveal_requests() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let command = fs::read_to_string(manifest_dir.join("src/runtime/command.rs"))
         .expect("runtime command module should be readable");
+    let command_repaint = fs::read_to_string(manifest_dir.join("src/runtime/command/repaint.rs"))
+        .expect("runtime command repaint model should be readable");
+    let command_scroll = fs::read_to_string(manifest_dir.join("src/runtime/command/scroll.rs"))
+        .expect("runtime command scroll reveal models should be readable");
     let constructors = fs::read_to_string(manifest_dir.join("src/runtime/command/constructors.rs"))
         .expect("runtime command constructors should be readable");
     let scroll_constructors =
@@ -1097,9 +1101,18 @@ fn scroll_commands_use_named_parts_for_reveal_requests() {
         .expect("library module should be readable");
 
     assert!(
-        command.contains("pub struct ScrollIntoViewParts")
-            && command.contains("pub struct ScrollFixedRowIntoViewParts"),
-        "scroll reveal commands should expose named request parts"
+        command.contains("mod repaint;")
+            && command.contains("mod scroll;")
+            && command.contains("pub use repaint::RepaintScope;")
+            && command
+                .contains("pub use scroll::{ScrollFixedRowIntoViewParts, ScrollIntoViewParts};")
+            && !command.contains("pub enum RepaintScope")
+            && !command.contains("pub struct ScrollIntoViewParts")
+            && command_repaint.contains("pub enum RepaintScope")
+            && command_repaint.contains("pub const fn merge")
+            && command_scroll.contains("pub struct ScrollIntoViewParts")
+            && command_scroll.contains("pub struct ScrollFixedRowIntoViewParts"),
+        "runtime command repaint and scroll reveal models should stay delegated while public exports remain stable"
     );
     assert!(
         constructors.contains("mod scroll;")

@@ -109,6 +109,8 @@ paint-plan code should stay platform-neutral. Windows-specific integration
 belongs in native runtime/windowing modules or explicitly named platform
 adapters. Platform services such as file dialogs and URL opening flow through
 typed `PlatformRequest` commands and `RuntimeBridge::request_platform_service`.
+The portable library boundary should keep compiling for future Linux and macOS
+targets even while native runtime behavior is validated Windows-first.
 
 Current target-specific seams are intentionally narrow:
 
@@ -165,6 +167,14 @@ normal quality lane before merging meaningful changes.
 - Formatting and linting: `cargo fmt --check` and
   `cargo clippy --all-targets --all-features -- -D warnings`.
 - Broad regression lane: `cargo test -j 1 --lib --tests`.
+- Portable library boundary: after installing the targets with
+  `rustup target add x86_64-unknown-linux-gnu x86_64-apple-darwin`, run
+  `cargo check --lib --no-default-features --target x86_64-unknown-linux-gnu`
+  and
+  `cargo check --lib --no-default-features --target x86_64-apple-darwin`.
+  These checks do not prove native Linux/macOS runtime behavior, but they do
+  catch accidental Windows-only imports, target-specific dependency leakage, and
+  public/core API drift that would make future platform support a rewrite.
 - Performance investigation: `cargo bench --bench perf_harness -- --list` to
   inspect scenarios, then `cargo bench --bench perf_harness <scenario>` for a
   focused trend run.

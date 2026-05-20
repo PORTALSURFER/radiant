@@ -2,6 +2,9 @@ use super::{
     ArrangementTimelineWidget, HEADER_WIDTH, LANE_COUNT, RESIZE_HANDLE_WIDTH, TOTAL_BEATS,
     TimelineDrag,
 };
+#[path = "paint/clips.rs"]
+mod clips;
+
 use radiant::gui::types::Rgba8;
 use radiant::layout::{Point, Rect};
 use radiant::runtime::{
@@ -9,6 +12,8 @@ use radiant::runtime::{
 };
 use radiant::theme::ThemeTokens;
 use radiant::widgets::TextWrap;
+
+pub(super) use clips::clip_fill_for_lane;
 
 pub(super) fn append_timeline_paint(
     widget: &ArrangementTimelineWidget,
@@ -106,53 +111,7 @@ pub(super) fn append_timeline_paint(
         );
     }
 
-    for clip in &widget.clips {
-        let selected = widget.selected_clip == Some(clip.id);
-        let rect = geometry.clip_rect(clip);
-        let fill = match clip.lane {
-            0 => theme.accent_mint,
-            1 => theme.highlight_cyan,
-            2 => theme.accent_copper,
-            _ => theme.highlight_blue,
-        };
-        push_rect(
-            primitives,
-            widget.common.id,
-            rect,
-            if selected { fill } else { muted(fill) },
-        );
-        push_stroke(
-            primitives,
-            widget.common.id,
-            rect,
-            if selected {
-                theme.text_primary
-            } else {
-                theme.border_emphasis
-            },
-            if selected { 2.0 } else { 1.0 },
-        );
-        push_rect(
-            primitives,
-            widget.common.id,
-            Rect::from_min_max(rect.min, Point::new(rect.min.x + 5.0, rect.max.y)),
-            theme.surface_overlay,
-        );
-        push_text(
-            primitives,
-            widget.common.id,
-            clip.name,
-            Rect::from_min_max(
-                Point::new(rect.min.x + 12.0, rect.min.y + 6.0),
-                Point::new(rect.max.x - 8.0, rect.max.y),
-            ),
-            theme.text_primary,
-            PaintTextAlign::Left,
-        );
-        if selected {
-            push_resize_handles(primitives, widget.common.id, rect, theme.text_primary);
-        }
-    }
+    clips::append_clip_paint(widget, primitives, geometry, theme);
 }
 
 pub(super) fn push_rect(
@@ -230,13 +189,4 @@ pub(super) fn push_resize_handles(
 fn translucent(mut color: Rgba8, alpha: u8) -> Rgba8 {
     color.a = alpha;
     color
-}
-
-fn muted(color: Rgba8) -> Rgba8 {
-    Rgba8 {
-        r: ((color.r as u16 + 28) / 2) as u8,
-        g: ((color.g as u16 + 28) / 2) as u8,
-        b: ((color.b as u16 + 36) / 2) as u8,
-        a: 230,
-    }
 }

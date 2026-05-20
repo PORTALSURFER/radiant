@@ -1,5 +1,7 @@
 use super::super::super::model::BeatRange;
-use super::super::paint::{push_rect, push_resize_handles, push_stroke, push_text};
+use super::super::paint::{
+    clip_fill_for_lane, push_rect, push_resize_handles, push_stroke, push_text,
+};
 use super::super::{
     ArrangementTimelineWidget, RESIZE_HANDLE_WIDTH, TimelineDrag, TimelineGeometry,
 };
@@ -147,15 +149,6 @@ fn paint_lane_transfer_marker(
         rect.top_edge_strip(3.0),
         theme.highlight_orange,
     );
-}
-
-fn clip_fill_for_lane(lane: usize, theme: &ThemeTokens) -> radiant::gui::types::Rgba8 {
-    match lane {
-        0 => theme.accent_mint,
-        1 => theme.highlight_cyan,
-        2 => theme.accent_copper,
-        _ => theme.highlight_blue,
-    }
 }
 
 fn preview_fill(mut color: radiant::gui::types::Rgba8) -> radiant::gui::types::Rgba8 {

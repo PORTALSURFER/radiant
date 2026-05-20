@@ -83,14 +83,7 @@ fn examples_are_checked_portable_sandboxes() {
         undocumented.join("\n")
     );
 
-    for path in ["examples/folder_browser.rs", "examples/waveform_view.rs"] {
-        let source = fs::read_to_string(manifest_dir.join(path))
-            .unwrap_or_else(|_| panic!("{path} should be readable"));
-        assert!(
-            !source.contains("C:\\") && !source.contains("C:/"),
-            "{path} should not hardcode local Windows paths"
-        );
-    }
+    assert_no_local_windows_paths_in_examples(&manifest_dir);
 }
 
 #[test]
@@ -110,6 +103,25 @@ fn examples_do_not_hide_dead_code() {
     assert!(
         violations.is_empty(),
         "maintained examples should compile, cfg, test, or remove example code instead of hiding dead-code warnings:\n{}",
+        violations.join("\n")
+    );
+}
+
+fn assert_no_local_windows_paths_in_examples(manifest_dir: &Path) {
+    let example_dir = manifest_dir.join("examples");
+    let violations = rust_sources_under(&example_dir)
+        .into_iter()
+        .filter(|path| {
+            let source = fs::read_to_string(path)
+                .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+            source.contains("C:\\") || source.contains("C:/")
+        })
+        .map(|path| relative_path(manifest_dir, &path))
+        .collect::<Vec<_>>();
+
+    assert!(
+        violations.is_empty(),
+        "maintained examples should use arguments, environment variables, or temp paths instead of hardcoded local Windows paths:\n{}",
         violations.join("\n")
     );
 }

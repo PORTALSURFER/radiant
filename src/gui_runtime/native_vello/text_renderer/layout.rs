@@ -15,6 +15,8 @@ pub(super) fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Opt
 
     let rendered_len = rendered_line_capacity_hint(text);
     let mut x = 0.0_f32;
+    let mut fallback_glyphs = 0_u64;
+    let mut missing_glyphs = 0_u64;
     let mut glyphs = Vec::with_capacity(rendered_len);
     let mut cursor_stops = Vec::with_capacity(rendered_len.saturating_add(1));
     cursor_stops.push(TextCursorStop {
@@ -48,7 +50,17 @@ pub(super) fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Opt
             });
             continue;
         }
-        let glyph_id = charmap.map(ch).or(fallback_glyph);
+        let glyph_id = match charmap.map(ch) {
+            Some(glyph_id) => Some(glyph_id),
+            None => {
+                if fallback_glyph.is_some() {
+                    fallback_glyphs = fallback_glyphs.saturating_add(1);
+                } else {
+                    missing_glyphs = missing_glyphs.saturating_add(1);
+                }
+                fallback_glyph
+            }
+        };
         let Some(glyph_id) = glyph_id else {
             x += font_size * 0.5;
             cursor_stops.push(TextCursorStop {
@@ -76,6 +88,8 @@ pub(super) fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Opt
         width: x,
         glyphs,
         cursor_stops,
+        fallback_glyphs,
+        missing_glyphs,
     })
 }
 

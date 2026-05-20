@@ -34,6 +34,8 @@ pub(super) fn native_frame_diagnostics(
             atom_cache_hits: parts.text_stats.atom_hits,
             atom_cache_misses: parts.text_stats.atom_misses,
             atom_cache_evictions: parts.text_stats.atom_evictions,
+            fallback_glyphs: parts.text_stats.fallback_glyphs,
+            missing_glyphs: parts.text_stats.missing_glyphs,
         },
         retained_surfaces: crate::runtime::NativeRetainedSurfaceDiagnostics {
             cache_capacity: parts.retained_policy.max_frames,

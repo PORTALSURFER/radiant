@@ -7,6 +7,18 @@ fn cached_layout(text: &str, stamp: u64) -> CachedTextLayout {
     }
 }
 
+fn cached_layout_with_glyph_diagnostics(
+    text: &str,
+    stamp: u64,
+    fallback_glyphs: u64,
+    missing_glyphs: u64,
+) -> CachedTextLayout {
+    let mut layout = TextLayout::empty_for(text);
+    layout.fallback_glyphs = fallback_glyphs;
+    layout.missing_glyphs = missing_glyphs;
+    CachedTextLayout { layout, stamp }
+}
+
 fn layout_key(label: &str) -> TextLayoutKey {
     TextLayoutKey {
         text: Arc::from(label),
@@ -56,4 +68,22 @@ fn layout_cache_hit_queue_compacts_after_repeated_reuse() {
 
     assert_eq!(cache.layout_cache.len(), 1);
     assert!(cache.layout_cache_order.len() <= TEXT_LAYOUT_CACHE_CAPACITY);
+}
+
+#[test]
+fn cached_layout_hits_report_glyph_diagnostics_for_current_frame() {
+    let mut cache = TextLayoutCache::new();
+    let key = layout_key("fallback row");
+    cache.layout_cache.insert(
+        key.clone(),
+        cached_layout_with_glyph_diagnostics(key.text.as_ref(), 0, 2, 1),
+    );
+    cache.touch_layout_cache_key(&key);
+
+    let _ = cache.record_layout_cache_hit(&key);
+
+    let counters = cache.take_profile_counters();
+    assert_eq!(counters.layout_hits, 1);
+    assert_eq!(counters.fallback_glyphs, 2);
+    assert_eq!(counters.missing_glyphs, 1);
 }

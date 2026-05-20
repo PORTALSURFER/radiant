@@ -62,19 +62,24 @@ fn api_docs_describe_text_cache_frame_diagnostics() {
     assert!(
         docs.contains("NativeFrameDiagnostics::text")
             && docs.contains("text layout-cache hits, misses,")
-            && docs.contains("text atom-cache activity"),
+            && docs.contains("text atom-cache activity")
+            && docs.contains("fallback/missing glyph counts"),
         "API docs should describe native text cache diagnostics"
     );
     assert!(
         runtime_diagnostics.contains("pub struct NativeTextDiagnostics")
             && runtime_diagnostics.contains("layout_cache_hits")
-            && runtime_diagnostics.contains("atom_cache_evictions"),
+            && runtime_diagnostics.contains("atom_cache_evictions")
+            && runtime_diagnostics.contains("fallback_glyphs")
+            && runtime_diagnostics.contains("missing_glyphs"),
         "runtime diagnostics should expose structured native text cache counters"
     );
     assert!(
         native_diagnostics.contains("text: crate::runtime::NativeTextDiagnostics")
             && native_diagnostics.contains("layout_cache_hits: parts.text_stats.layout_hits")
             && native_diagnostics.contains("atom_cache_evictions: parts.text_stats.atom_evictions")
+            && native_diagnostics.contains("fallback_glyphs: parts.text_stats.fallback_glyphs")
+            && native_diagnostics.contains("missing_glyphs: parts.text_stats.missing_glyphs")
             && native_diagnostics.contains("pub(super) struct NativeFrameDiagnosticsParts"),
         "native frame diagnostics should project text renderer cache counters"
     );

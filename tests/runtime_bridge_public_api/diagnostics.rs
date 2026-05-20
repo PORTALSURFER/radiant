@@ -31,6 +31,8 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
         text: NativeTextDiagnostics {
             layout_cache_hits: 6,
             atom_cache_misses: 2,
+            fallback_glyphs: 3,
+            missing_glyphs: 1,
             ..NativeTextDiagnostics::default()
         },
         timings: NativeFrameTimingDiagnostics {

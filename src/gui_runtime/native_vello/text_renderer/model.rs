@@ -42,6 +42,8 @@ pub(in crate::gui_runtime::native_vello) struct TextLayout {
     pub(in crate::gui_runtime::native_vello) width: f32,
     pub(in crate::gui_runtime::native_vello) glyphs: Vec<GlyphLayout>,
     pub(in crate::gui_runtime::native_vello) cursor_stops: Vec<TextCursorStop>,
+    pub(in crate::gui_runtime::native_vello) fallback_glyphs: u64,
+    pub(in crate::gui_runtime::native_vello) missing_glyphs: u64,
 }
 
 impl TextLayout {
@@ -53,6 +55,8 @@ impl TextLayout {
                 byte_index: text.len(),
                 x: 0.0,
             }],
+            fallback_glyphs: 0,
+            missing_glyphs: 0,
         }
     }
 }

@@ -100,3 +100,62 @@ fn text_input_state_can_clear_or_delete_active_selection() {
     assert_eq!(state.caret, 1);
     assert!(!state.has_selection());
 }
+
+#[test]
+fn text_input_state_moves_by_word_boundaries() {
+    let mut state = TextInputState::from_value(String::from("alpha  beta_gamma.日文"));
+
+    let result = state.apply_edit_command(
+        TextEditCommand::MoveWordLeft {
+            extend_selection: false,
+        },
+        None,
+    );
+
+    assert!(!result.value_changed);
+    assert!(result.selection_changed);
+    assert_eq!(state.caret, 18);
+
+    let _ = state.apply_edit_command(
+        TextEditCommand::MoveWordLeft {
+            extend_selection: false,
+        },
+        None,
+    );
+
+    assert_eq!(state.caret, 7);
+
+    let _ = state.apply_edit_command(
+        TextEditCommand::MoveWordRight {
+            extend_selection: false,
+        },
+        None,
+    );
+
+    assert_eq!(state.caret, 17);
+}
+
+#[test]
+fn text_input_state_extends_selection_by_word_boundaries() {
+    let mut state = TextInputState::from_value(String::from("alpha beta gamma"));
+    state.set_caret(0, false);
+
+    let _ = state.apply_edit_command(
+        TextEditCommand::MoveWordRight {
+            extend_selection: true,
+        },
+        None,
+    );
+
+    assert_eq!(state.selected_text_slice(), Some("alpha"));
+
+    state.set_caret(state.char_len(), false);
+    let _ = state.apply_edit_command(
+        TextEditCommand::MoveWordLeft {
+            extend_selection: true,
+        },
+        None,
+    );
+
+    assert_eq!(state.selected_text_slice(), Some("gamma"));
+}

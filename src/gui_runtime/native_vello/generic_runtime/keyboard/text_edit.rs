@@ -77,7 +77,14 @@ where
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
         let extend_selection = self.modifiers.shift_key();
+        let word_navigation = self.modifiers.control_key() || self.modifiers.super_key();
         let command = match key {
+            crate::gui::input::KeyCode::ArrowLeft if word_navigation => {
+                TextEditCommand::MoveWordLeft { extend_selection }
+            }
+            crate::gui::input::KeyCode::ArrowRight if word_navigation => {
+                TextEditCommand::MoveWordRight { extend_selection }
+            }
             crate::gui::input::KeyCode::ArrowLeft => TextEditCommand::MoveLeft { extend_selection },
             crate::gui::input::KeyCode::ArrowRight => {
                 TextEditCommand::MoveRight { extend_selection }

@@ -2229,6 +2229,9 @@ fn status_line_entries_use_named_parts_for_source_and_message() {
     let source_path = manifest_dir.join("src/gui/feedback/status/line.rs");
     let source = fs::read_to_string(&source_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let source_tests =
+        fs::read_to_string(manifest_dir.join("src/gui/feedback/status/line/tests.rs"))
+            .expect("status line tests should be readable");
     let status = fs::read_to_string(manifest_dir.join("src/gui/feedback/status.rs"))
         .expect("feedback status module should be readable");
     let recovery = fs::read_to_string(manifest_dir.join("src/gui/feedback/status/recovery.rs"))
@@ -2251,8 +2254,15 @@ fn status_line_entries_use_named_parts_for_source_and_message() {
 
     assert!(
         source.contains("pub struct StatusLineEntryParts")
-            && source.contains("pub fn from_parts(parts: StatusLineEntryParts) -> Self"),
-        "status-line entries should expose named parts for source and message text"
+            && source.contains("pub fn from_parts(parts: StatusLineEntryParts) -> Self")
+            && source.contains("#[path = \"line/tests.rs\"]")
+            && !source.contains("fn status_line_log_keeps_latest_bounded_message"),
+        "status-line entries should expose named parts for source and message text while delegating behavior tests"
+    );
+    assert!(
+        source_tests.contains("fn status_line_log_keeps_latest_bounded_message")
+            && source_tests.contains("fn status_line_entry_supports_named_parts_construction"),
+        "status-line behavior tests should live in status/line/tests.rs"
     );
     assert!(
         source.contains("Self::from_parts(StatusLineEntryParts {")

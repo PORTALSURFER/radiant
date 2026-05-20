@@ -4,6 +4,10 @@ use crate::{
 };
 use std::{fmt, ops::Deref, sync::Arc};
 
+#[cfg(test)]
+#[path = "text/tests.rs"]
+mod tests;
+
 /// Horizontal alignment for generic text paint primitives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PaintTextAlign {
@@ -156,20 +160,4 @@ pub struct PaintTextInput {
     pub caret_color: Rgba8,
     /// Whether the field currently owns keyboard focus.
     pub focused: bool,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn paint_text_converts_compares_and_shares_storage() {
-        let text: PaintText = String::from("Tempo").into();
-        let cloned = text.clone();
-
-        assert_eq!(text.as_str(), "Tempo");
-        assert_eq!(text, "Tempo");
-        assert_eq!("Tempo", cloned);
-        assert!(Arc::ptr_eq(&text.0, &cloned.0));
-    }
 }

@@ -3117,6 +3117,11 @@ fn runtime_paint_primitive_support_keeps_models_queries_and_tests_focused() {
     let plan_tests =
         fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/plan/tests.rs"))
             .expect("paint primitive plan tests should be readable");
+    let text = fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/text.rs"))
+        .expect("paint primitive text module should be readable");
+    let text_tests =
+        fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/text/tests.rs"))
+            .expect("paint primitive text tests should be readable");
 
     assert!(
         stats.contains("pub struct SurfacePaintStats")
@@ -3169,6 +3174,61 @@ fn runtime_paint_primitive_support_keeps_models_queries_and_tests_focused() {
         plan_tests.contains("fn empty_with_capacity_presizes_primitive_storage")
             && plan_tests.contains("fn clear_for_theme_with_capacity_grows_to_requested_capacity"),
         "paint plan behavior coverage should live in primitives/plan/tests.rs"
+    );
+    assert!(
+        text.contains("pub struct PaintText")
+            && text.contains("pub struct PaintTextRun")
+            && text.contains("pub struct PaintTextInput")
+            && text.contains("#[path = \"text/tests.rs\"]")
+            && !text.contains("fn paint_text_converts_compares_and_shares_storage"),
+        "paint text models should live in primitives/text.rs while behavior tests stay delegated"
+    );
+    assert!(
+        text_tests.contains("fn paint_text_converts_compares_and_shares_storage"),
+        "paint text behavior coverage should live in primitives/text/tests.rs"
+    );
+}
+
+#[test]
+fn runtime_scroll_support_keeps_affordance_and_hit_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let paint_scroll = fs::read_to_string(manifest_dir.join("src/runtime/paint/scroll.rs"))
+        .expect("runtime paint scroll helpers should be readable");
+    let paint_scroll_tests =
+        fs::read_to_string(manifest_dir.join("src/runtime/paint/scroll/tests.rs"))
+            .expect("runtime paint scroll tests should be readable");
+    let controller_scrollbar =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/scroll/scrollbar.rs"))
+            .expect("runtime controller scrollbar helpers should be readable");
+    let controller_scrollbar_tests =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/scroll/scrollbar/tests.rs"))
+            .expect("runtime controller scrollbar tests should be readable");
+
+    assert!(
+        paint_scroll.contains("struct ScrollAffordance")
+            && paint_scroll.contains("fn push_scroll_affordance")
+            && paint_scroll.contains("fn resolve_scroll_affordance")
+            && paint_scroll.contains("#[path = \"scroll/tests.rs\"]")
+            && !paint_scroll.contains("fn scroll_affordance_clamps_thumb_to_cramped_track"),
+        "runtime scroll paint affordance helpers should live in paint/scroll.rs while behavior tests stay delegated"
+    );
+    assert!(
+        paint_scroll_tests.contains("fn scroll_affordance_clamps_thumb_to_cramped_track")
+            && paint_scroll_tests.contains("fn scroll_affordance_rejects_nonfinite_layout_rects"),
+        "runtime scroll paint behavior coverage should live in paint/scroll/tests.rs"
+    );
+    assert!(
+        controller_scrollbar.contains("fn scrollbar_hit_column_contains_point")
+            && controller_scrollbar.contains("fn scrollbar_thumb_hit_rect")
+            && controller_scrollbar.contains("#[path = \"scrollbar/tests.rs\"]")
+            && !controller_scrollbar
+                .contains("fn scrollbar_hit_column_rejects_points_far_from_right_edge"),
+        "runtime scrollbar hit helpers should live in controller/scroll/scrollbar.rs while behavior tests stay delegated"
+    );
+    assert!(
+        controller_scrollbar_tests
+            .contains("fn scrollbar_hit_column_rejects_points_far_from_right_edge"),
+        "runtime scrollbar behavior coverage should live in controller/scroll/scrollbar/tests.rs"
     );
 }
 

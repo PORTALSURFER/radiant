@@ -31,40 +31,9 @@ where
             WindowEvent::Resized(size) => self.resize_surface(size),
             WindowEvent::ScaleFactorChanged { .. } => self.request_redraw_if_needed(),
             WindowEvent::CursorMoved { position, .. } => {
-                let Some(position) = logical_point_from_winit(position) else {
-                    self.last_cursor = None;
-                    return;
-                };
-                let previous = self.last_cursor;
-                self.last_cursor = Some(position);
-                if self.can_fast_path_native_hover_move(position) {
-                    self.update_gpu_surface_cursor_overlay(position);
-                    self.request_redraw_if_needed();
-                    return;
-                }
-                if previous
-                    .is_some_and(|previous| self.runtime_pointer_line_surface_contains(previous))
-                    && previous
-                        .is_some_and(|previous| self.clear_gpu_surface_cursor_overlay(previous))
-                {
-                    self.request_redraw_if_needed();
-                    return;
-                }
-                let started = Instant::now();
-                let outcome = self.core.route_pointer_move(position);
-                maybe_log_route_profile("pointer_move", started.elapsed(), outcome);
-                self.handle_gpu_surface_pointer_move_outcome(outcome, previous, position);
+                self.handle_cursor_moved(position);
             }
-            WindowEvent::CursorLeft { .. } => {
-                if let Some(previous) = self.last_cursor
-                    && self.clear_gpu_surface_cursor_overlay(previous)
-                {
-                    self.request_redraw_if_needed();
-                }
-                self.last_cursor = None;
-                let outcome = self.launch_external_drag_if_armed();
-                self.handle_route_outcome(event_loop, outcome);
-            }
+            WindowEvent::CursorLeft { .. } => self.handle_cursor_left(event_loop),
             WindowEvent::MouseInput { button, state, .. } => {
                 let Some(position) = self.last_cursor else {
                     return;

@@ -840,6 +840,21 @@ as checked example targets and participate in normal example validation:
 cargo test --examples
 ```
 
+Use the example set as a target-area map when choosing the smallest sandbox for
+manual validation:
+
+| Target area | Focused examples |
+| --- | --- |
+| First-use application API | `hello_world`, `generic_native`, `counter` |
+| State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar` |
+| Layout, scrolling, and virtualization | `layout_rows_columns`, `grid_gallery`, `scroll`, `sizing`, `virtualized_list` |
+| Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons` |
+| Input, focus, menus, and editor interactions | `focus_controls`, `context_menu`, `tree_and_details`, `folder_browser` |
+| Custom widgets and retained GPU surfaces | `custom_widget`, `gpu_surface`, `gpu_surface_stack_overlay`, `waveform_view` |
+| Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `plugin_panel`, `split_workspace` |
+| Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame` |
+| Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame` |
+
 Run an example interactively with `cargo run --example <name>`. Showcase
 examples use portable defaults, with optional inputs for real local data:
 

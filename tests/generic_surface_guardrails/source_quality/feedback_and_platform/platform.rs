@@ -54,6 +54,8 @@ fn window_specs_use_named_parts_for_manifest_identity_and_options() {
 #[test]
 fn target_specific_platform_code_stays_in_documented_adapters() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest = fs::read_to_string(manifest_dir.join("Cargo.toml"))
+        .expect("Radiant Cargo.toml should be readable");
     let architecture = fs::read_to_string(manifest_dir.join("docs/ARCHITECTURE.md"))
         .expect("architecture docs should be readable");
     let external_drag_platform = fs::read_to_string(
@@ -103,6 +105,20 @@ fn target_specific_platform_code_stays_in_documented_adapters() {
         "target-specific platform code should stay in documented adapters:\n{}",
         undocumented.join("\n")
     );
+    let dependencies = toml_section(&manifest, "dependencies");
+    let windows_dependencies = toml_section(
+        &manifest,
+        "target.'cfg(target_os = \"windows\")'.dependencies",
+    );
+    assert!(
+        windows_dependencies.contains("windows = {")
+            && windows_dependencies.contains("windows-core =")
+            && windows_dependencies.contains("windows-sys =")
+            && !dependencies.contains("windows =")
+            && !dependencies.contains("windows-core =")
+            && !dependencies.contains("windows-sys ="),
+        "Windows API crates should stay target-scoped so portable library checks can compile non-Windows targets"
+    );
 }
 
 fn contains_target_specific_platform_code(source: &str) -> bool {
@@ -113,4 +129,15 @@ fn contains_target_specific_platform_code(source: &str) -> bool {
         || source.contains("windows::")
         || source.contains("windows_sys")
         || source.contains("WindowAttributesExtWindows")
+}
+
+fn toml_section<'a>(source: &'a str, section: &str) -> &'a str {
+    let header = format!("[{section}]");
+    let Some(start) = source.find(&header) else {
+        return "";
+    };
+    let after_header = start + header.len();
+    let rest = &source[after_header..];
+    let end = rest.find("\n[").unwrap_or(rest.len());
+    &rest[..end]
 }

@@ -134,6 +134,14 @@ pub struct NativeGpuSurfaceDiagnostics {
     pub custom_shader_binding_rebuilds: usize,
     /// Custom-shader bind groups reused from cache this frame.
     pub custom_shader_binding_cache_hits: usize,
+    /// Custom-shader GPU surfaces that could not be encoded after native setup failed.
+    pub custom_shader_surfaces_failed: usize,
+    /// Custom-shader WGSL module validation failures observed this frame.
+    pub custom_shader_shader_module_failures: usize,
+    /// Custom-shader render-pipeline validation failures observed this frame.
+    pub custom_shader_pipeline_failures: usize,
+    /// Custom-shader bind-group validation failures observed this frame.
+    pub custom_shader_binding_failures: usize,
     /// Valid custom-shader GPU surfaces skipped by this native backend.
     pub unsupported_custom_shader_surfaces: usize,
     /// Total vertex count requested by skipped custom-shader GPU surfaces.

@@ -35,16 +35,16 @@ impl GpuSurfaceRenderer {
             .custom_shader_pipelines
             .contains_key(&surface.key)
         {
-            record_unsupported_custom_shader(descriptor, stats);
+            record_failed_custom_shader_surface(stats);
             return;
         }
         self.ensure_custom_shader_binding(target.device, surface.key, descriptor, stats);
         let Some(pipeline) = self.resources.custom_shader_pipelines.get(&surface.key) else {
-            record_unsupported_custom_shader(descriptor, stats);
+            record_failed_custom_shader_surface(stats);
             return;
         };
         let Some(binding) = self.resources.custom_shader_bindings.get(&surface.key) else {
-            record_unsupported_custom_shader(descriptor, stats);
+            record_failed_custom_shader_surface(stats);
             return;
         };
         let uniforms = GpuSurfaceUniforms {
@@ -98,10 +98,23 @@ impl GpuSurfaceRenderer {
         }
         stats.custom_shader_pipeline_rebuilds += 1;
         self.resources.custom_shader_bindings.remove(&surface_key);
+        device.push_error_scope(wgpu::ErrorFilter::Validation);
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("radiant_custom_shader_surface_shader"),
             source: wgpu::ShaderSource::Wgsl(key.wgsl_source.as_ref().into()),
         });
+        if let Some(error) = custom_shader_validation_error(device) {
+            stats.custom_shader_shader_module_failures += 1;
+            warn!(
+                surface_key,
+                shader_key = %key.shader_key,
+                error = %error,
+                "radiant custom shader WGSL module validation failed"
+            );
+            self.resources.custom_shader_pipelines.remove(&surface_key);
+            return;
+        }
+        device.push_error_scope(wgpu::ErrorFilter::Validation);
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("radiant_custom_shader_surface_bind_group_layout"),
             entries: &custom_shader_layout_entries(&key),
@@ -139,6 +152,19 @@ impl GpuSurfaceRenderer {
             multiview: None,
             cache: None,
         });
+        if let Some(error) = custom_shader_validation_error(device) {
+            stats.custom_shader_pipeline_failures += 1;
+            warn!(
+                surface_key,
+                shader_key = %key.shader_key,
+                vertex_entry_point = %key.vertex_entry_point,
+                fragment_entry_point = %key.fragment_entry_point,
+                error = %error,
+                "radiant custom shader render pipeline validation failed"
+            );
+            self.resources.custom_shader_pipelines.remove(&surface_key);
+            return;
+        }
         self.resources.custom_shader_pipelines.insert(
             surface_key,
             CustomShaderPipeline {
@@ -176,6 +202,7 @@ impl GpuSurfaceRenderer {
             return;
         }
         stats.custom_shader_binding_rebuilds += 1;
+        device.push_error_scope(wgpu::ErrorFilter::Validation);
         let surface_uniform_buffer = custom_shader_buffer(
             device,
             Some("radiant_custom_shader_surface_uniforms"),
@@ -219,6 +246,19 @@ impl GpuSurfaceRenderer {
             layout: &pipeline.bind_group_layout,
             entries: &entries,
         });
+        if let Some(error) = custom_shader_validation_error(device) {
+            stats.custom_shader_binding_failures += 1;
+            warn!(
+                surface_key,
+                shader_key = %pipeline.key.shader_key,
+                uniform_bytes = descriptor.uniform_bytes.len(),
+                storage_bytes = descriptor.storage_bytes.len(),
+                error = %error,
+                "radiant custom shader bind group validation failed"
+            );
+            self.resources.custom_shader_bindings.remove(&surface_key);
+            return;
+        }
         self.resources.custom_shader_bindings.insert(
             surface_key,
             CustomShaderBinding {
@@ -284,6 +324,10 @@ fn custom_shader_buffer(
     })
 }
 
+fn custom_shader_validation_error(device: &wgpu::Device) -> Option<wgpu::Error> {
+    pollster::block_on(device.pop_error_scope())
+}
+
 fn custom_shader_pipeline_key(
     descriptor: &GpuShaderSurfaceDescriptor,
 ) -> Option<CustomShaderPipelineKey> {
@@ -309,6 +353,10 @@ fn record_unsupported_custom_shader(
         .map_or(0, |source| source.len());
     stats.unsupported_custom_shader_uniform_bytes += descriptor.uniform_bytes.len();
     stats.unsupported_custom_shader_storage_bytes += descriptor.storage_bytes.len();
+}
+
+fn record_failed_custom_shader_surface(stats: &mut GpuSurfaceRenderStats) {
+    stats.custom_shader_surfaces_failed += 1;
 }
 
 #[cfg(test)]

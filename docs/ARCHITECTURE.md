@@ -73,6 +73,9 @@ report that through frame diagnostics instead of introducing a parallel
 application-facing WGPU API. The same diagnostics separate rendered custom
 shader surfaces, pipeline rebuilds, bind-group rebuilds, and bind-group cache
 hits so native shader setup is visible without exposing raw WGPU handles.
+Validation errors from shader modules, render pipelines, and bind groups are
+counted separately from unsupported descriptors and logged through tracing with
+the backend error message.
 
 Backend-neutral paint plans live under `src/runtime/paint`. Native Vello scene
 construction, retained scene caching, post-GPU overlays, GPU-surface pipelines,

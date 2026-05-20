@@ -78,6 +78,8 @@ fn gui_svg_keeps_icon_parser_model_and_hit_testing_in_focused_modules() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/gui/svg.rs"))
         .expect("generic SVG module should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/gui/svg/tests.rs"))
+        .expect("generic SVG root tests should be readable");
     let icon = fs::read_to_string(manifest_dir.join("src/gui/svg/icon.rs"))
         .expect("generic SVG icon module should be readable");
     let model = fs::read_to_string(manifest_dir.join("src/gui/svg/model.rs"))
@@ -106,6 +108,19 @@ fn gui_svg_keeps_icon_parser_model_and_hit_testing_in_focused_modules() {
             "generic SVG root should keep public API re-exports while delegating `{required}`"
         );
     }
+    assert!(
+        root.contains("#[path = \"svg/tests.rs\"]")
+            && !root.contains("fn svg_icon_appends_retained_svg_primitive")
+            && !root.contains("fn svg_subset_parser_supports_evenodd_cutouts"),
+        "generic SVG root behavior tests should stay delegated"
+    );
+    assert!(
+        tests.contains("fn svg_icon_appends_retained_svg_primitive")
+            && tests.contains("fn svg_icon_try_from_svg_reports_parse_errors")
+            && tests.contains("fn svg_subset_parser_supports_evenodd_cutouts")
+            && tests.contains("fn svg_subset_parser_applies_group_transforms"),
+        "generic SVG root behavior coverage should live in svg/tests.rs"
+    );
     assert!(
         icon.contains("pub struct SvgIcon") && icon.contains("PaintSvgDocument::try_from_svg"),
         "SVG icon retained-paint wrapper should live in the icon module"

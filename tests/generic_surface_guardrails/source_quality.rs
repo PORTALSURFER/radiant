@@ -14,6 +14,10 @@ fn application_view_lowering_keeps_container_defaults_focused() {
     let defaults =
         fs::read_to_string(manifest_dir.join("src/application/view_node/lowering_defaults.rs"))
             .expect("application view lowering defaults should be readable");
+    let defaults_tests = fs::read_to_string(
+        manifest_dir.join("src/application/view_node/lowering_defaults/tests.rs"),
+    )
+    .expect("application view lowering default tests should be readable");
 
     assert!(
         module.contains("mod lowering_defaults;")
@@ -24,8 +28,16 @@ fn application_view_lowering_keeps_container_defaults_focused() {
         !lowering.contains("DEFAULT_STYLED_CONTAINER_PADDING")
             && defaults.contains("DEFAULT_STYLED_CONTAINER_PADDING")
             && defaults.contains("fn default_container_padding")
-            && defaults.contains("fn base_policy"),
+            && defaults.contains("fn base_policy")
+            && defaults.contains("#[path = \"lowering_defaults/tests.rs\"]")
+            && !defaults.contains("fn styled_container_defaults_to_panel_padding"),
         "declarative container default policy should stay outside the main view lowering match"
+    );
+    assert!(
+        defaults_tests.contains("fn styled_container_defaults_to_panel_padding")
+            && defaults_tests
+                .contains("fn explicit_container_defaults_override_style_padding_and_alignment"),
+        "view lowering default behavior tests should live in lowering_defaults/tests.rs"
     );
 }
 

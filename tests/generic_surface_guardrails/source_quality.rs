@@ -721,6 +721,8 @@ fn layout_constraints_use_named_parts_for_min_max_bounds() {
     let source_path = manifest_dir.join("src/gui/layout_core/constraints.rs");
     let source = fs::read_to_string(&source_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let tests = fs::read_to_string(manifest_dir.join("src/gui/layout_core/constraints/tests.rs"))
+        .expect("layout constraint behavior tests should be readable");
     let module = fs::read_to_string(manifest_dir.join("src/gui/layout_core/mod.rs"))
         .expect("layout module should be readable");
 
@@ -733,6 +735,15 @@ fn layout_constraints_use_named_parts_for_min_max_bounds() {
         source.contains("Self::from_parts(ConstraintsParts {")
             && module.contains("pub use constraints::{Constraints, ConstraintsParts};"),
         "layout constraint constructors and public exports should keep the named-parts path available"
+    );
+    assert!(
+        source.contains("#[path = \"constraints/tests.rs\"]")
+            && !source.contains("fn constraints_normalize_invalid_ranges"),
+        "layout constraint behavior tests should stay delegated"
+    );
+    assert!(
+        tests.contains("fn constraints_normalize_invalid_ranges"),
+        "layout constraint behavior coverage should live in constraints/tests.rs"
     );
 }
 
@@ -774,6 +785,78 @@ fn layout_tree_nodes_use_named_parts_for_public_tree_construction() {
             && module.contains("SlotChildParts")
             && module.contains("WidgetNodeParts"),
         "layout tree named parts should be available through the public layout module"
+    );
+}
+
+#[test]
+fn layout_tree_derived_state_keeps_metrics_and_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let derived = fs::read_to_string(manifest_dir.join("src/gui/layout_core/tree/derived.rs"))
+        .expect("layout tree derived state module should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/gui/layout_core/tree/derived/tests.rs"))
+        .expect("layout tree derived state tests should be readable");
+
+    assert!(
+        derived.contains("fn container_derived_state")
+            && derived.contains("KnownMainMetrics")
+            && derived.contains("#[path = \"derived/tests.rs\"]")
+            && !derived.contains("fn container_precomputes_uniform_main_size_with_extent"),
+        "layout tree derived metrics should live in tree/derived.rs while behavior tests stay delegated"
+    );
+    assert!(
+        tests.contains("fn container_precomputes_uniform_main_size_with_extent")
+            && tests.contains("fn container_does_not_mark_margin_rows_as_uniform"),
+        "layout tree derived behavior coverage should live in tree/derived/tests.rs"
+    );
+}
+
+#[test]
+fn layout_row_helpers_keep_geometry_and_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/gui/layout_core/row_helpers.rs"))
+        .expect("layout row helpers should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/gui/layout_core/row_helpers/tests.rs"))
+        .expect("layout row helper tests should be readable");
+
+    assert!(
+        root.contains("mod fitting;")
+            && root.contains("mod rects;")
+            && root.contains("mod widths;")
+            && root.contains("#[path = \"row_helpers/tests.rs\"]")
+            && !root.contains("fn fixed_width_row_rects_start_places_items_from_left_edge"),
+        "layout row helper root should re-export focused geometry modules while behavior tests stay delegated"
+    );
+    assert!(
+        tests.contains("fn fixed_width_row_rects_start_places_items_from_left_edge")
+            && tests.contains("fn visible_suffix_widths_normalizes_negative_dimensions")
+            && tests.contains(
+                "fn fixed_width_item_extent_for_available_width_fits_items_after_reserved_gaps"
+            ),
+        "layout row helper behavior coverage should live in row_helpers/tests.rs"
+    );
+}
+
+#[test]
+fn layout_axis_helpers_keep_orientation_and_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let axis = fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/helpers/axis.rs"))
+        .expect("layout axis helper should be readable");
+    let tests =
+        fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/helpers/axis/tests.rs"))
+            .expect("layout axis helper tests should be readable");
+
+    assert!(
+        axis.contains("enum LayoutAxis")
+            && axis.contains("fn main_extent")
+            && axis.contains("fn overflow_flags")
+            && axis.contains("#[path = \"axis/tests.rs\"]")
+            && !axis.contains("fn layout_axis_resolves_main_and_cross_extents"),
+        "layout axis orientation helpers should live in axis.rs while behavior tests stay delegated"
+    );
+    assert!(
+        tests.contains("fn layout_axis_resolves_main_and_cross_extents")
+            && tests.contains("fn layout_axis_reports_overflow_direction"),
+        "layout axis helper behavior coverage should live in axis/tests.rs"
     );
 }
 
@@ -3032,6 +3115,10 @@ fn layout_scroll_virtual_window_search_stays_focused() {
         manifest_dir.join("src/gui/layout_core/engine/layout/scroll_helpers/window.rs"),
     )
     .expect("layout scroll virtual window helper should be readable");
+    let tests = fs::read_to_string(
+        manifest_dir.join("src/gui/layout_core/engine/layout/scroll_helpers/tests.rs"),
+    )
+    .expect("layout scroll helper tests should be readable");
     let virtualization = fs::read_to_string(
         manifest_dir.join("src/gui/layout_core/engine/layout/scroll/virtualization.rs"),
     )
@@ -3050,6 +3137,15 @@ fn layout_scroll_virtual_window_search_stays_focused() {
             && window.contains("fn lower_bound_end")
             && window.contains("fn lower_bound_start"),
         "virtual-window binary search bounds should live in scroll_helpers/window.rs"
+    );
+    assert!(
+        helpers.contains("#[path = \"scroll_helpers/tests.rs\"]")
+            && !helpers.contains("fn uniform_virtual_window_matches_visible_span_bounds"),
+        "layout scroll helper behavior tests should stay delegated"
+    );
+    assert!(
+        tests.contains("fn uniform_virtual_window_matches_visible_span_bounds"),
+        "layout scroll helper behavior coverage should live in scroll_helpers/tests.rs"
     );
 }
 

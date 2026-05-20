@@ -1,5 +1,9 @@
 //! Constraint primitives for the slot-based layout engine.
 
+#[cfg(test)]
+#[path = "constraints/tests.rs"]
+mod tests;
+
 /// Explicit min/max bounds used to build layout constraints.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ConstraintsParts {
@@ -87,19 +91,5 @@ impl Constraints {
         let reduced_w = (self.max_w - (inset_x * 2.0)).max(0.0);
         let reduced_h = (self.max_h - (inset_y * 2.0)).max(0.0);
         Self::new(0.0, reduced_w, 0.0, reduced_h)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Constraints;
-
-    #[test]
-    fn constraints_normalize_invalid_ranges() {
-        let normalized = Constraints::new(-10.0, 4.0, 8.0, 2.0);
-        assert_eq!(normalized.min_w, 0.0);
-        assert_eq!(normalized.max_w, 4.0);
-        assert_eq!(normalized.min_h, 8.0);
-        assert_eq!(normalized.max_h, 8.0);
     }
 }

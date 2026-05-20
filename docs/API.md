@@ -665,9 +665,10 @@ WGPU renderer needs for direct execution. If a descriptor provides WGSL source,
 validation requires a fragment entry point so the backend handoff is complete
 before a native pipeline implementation consumes it. The native WGPU path can
 execute WGSL-backed descriptors that use Radiant's built-in surface uniform
-ABI at `@group(0) @binding(0)` and do not yet request opaque uniform/storage
-payload bindings; descriptors outside that supported subset report the skipped
-surfaces through
+ABI at `@group(0) @binding(0)`, optional app uniform payload bytes at
+`@group(0) @binding(1)`, and optional read-only storage payload bytes at
+`@group(0) @binding(2)`. Descriptors that do not provide source or stage entry
+points report skipped surfaces through
 `NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces`,
 `unsupported_custom_shader_vertices`, `unsupported_custom_shader_source_bytes`,
 `unsupported_custom_shader_uniform_bytes`, and
@@ -950,8 +951,7 @@ Run `cargo run --example custom_shader_surface` for a checked custom shader
 surface sandbox that builds `GpuSurfaceContent::CustomShader` with a
 backend-neutral `GpuShaderSurfaceDescriptor` carrying executable WGSL source
 for the native surface-uniform ABI. Native backends without a matching shader
-pipeline, or descriptors that request unsupported opaque payload bindings,
-report the surface through
+pipeline report the surface through
 `NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces` and the
 related skipped vertex/source/uniform/storage counters rather than creating a
 separate WGPU-facing application API.

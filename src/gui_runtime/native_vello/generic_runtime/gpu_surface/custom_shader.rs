@@ -14,11 +14,7 @@ impl GpuSurfaceRenderer {
         else {
             return;
         };
-        if descriptor.wgsl_source.is_none()
-            || descriptor.fragment_entry_point.is_none()
-            || !descriptor.uniform_bytes.is_empty()
-            || !descriptor.storage_bytes.is_empty()
-        {
+        if descriptor.wgsl_source.is_none() || descriptor.fragment_entry_point.is_none() {
             record_unsupported_custom_shader(descriptor, stats);
             return;
         }
@@ -36,7 +32,7 @@ impl GpuSurfaceRenderer {
             record_unsupported_custom_shader(descriptor, stats);
             return;
         }
-        self.ensure_custom_shader_binding(target.device, surface.key);
+        self.ensure_custom_shader_binding(target.device, surface.key, descriptor);
         let Some(pipeline) = self.resources.custom_shader_pipelines.get(&surface.key) else {
             record_unsupported_custom_shader(descriptor, stats);
             return;
@@ -50,9 +46,21 @@ impl GpuSurfaceRenderer {
             target_size: [target.size.x.max(1.0), target.size.y.max(1.0)],
             ..GpuSurfaceUniforms::default()
         };
-        target
-            .queue
-            .write_buffer(&binding.uniform_buffer, 0, uniforms_as_bytes(&uniforms));
+        target.queue.write_buffer(
+            &binding.surface_uniform_buffer,
+            0,
+            uniforms_as_bytes(&uniforms),
+        );
+        if let Some(buffer) = &binding.app_uniform_buffer {
+            target
+                .queue
+                .write_buffer(buffer, 0, &descriptor.uniform_bytes);
+        }
+        if let Some(buffer) = &binding.storage_buffer {
+            target
+                .queue
+                .write_buffer(buffer, 0, &descriptor.storage_bytes);
+        }
         let started = Instant::now();
         let mut pass = gpu_surface_render_pass(target.encoder, target.target_view);
         pass.set_pipeline(&pipeline.pipeline);
@@ -87,16 +95,7 @@ impl GpuSurfaceRenderer {
         });
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("radiant_custom_shader_surface_bind_group_layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
+            entries: &custom_shader_layout_entries(&key),
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("radiant_custom_shader_surface_pipeline_layout"),
@@ -143,41 +142,134 @@ impl GpuSurfaceRenderer {
         );
     }
 
-    fn ensure_custom_shader_binding(&mut self, device: &wgpu::Device, surface_key: u64) {
+    fn ensure_custom_shader_binding(
+        &mut self,
+        device: &wgpu::Device,
+        surface_key: u64,
+        descriptor: &GpuShaderSurfaceDescriptor,
+    ) {
         let Some(pipeline) = self.resources.custom_shader_pipelines.get(&surface_key) else {
             return;
+        };
+        let cache_key = CustomShaderBindingKey {
+            pipeline_key: pipeline.key.clone(),
+            uniform_bytes_len: descriptor.uniform_bytes.len(),
+            storage_bytes_len: descriptor.storage_bytes.len(),
         };
         let rebuild = self
             .resources
             .custom_shader_bindings
             .get(&surface_key)
-            .is_none_or(|binding| binding.cache_key != pipeline.key);
+            .is_none_or(|binding| binding.cache_key != cache_key);
         if !rebuild {
             return;
         }
-        let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("radiant_custom_shader_surface_uniforms"),
-            size: std::mem::size_of::<GpuSurfaceUniforms>() as wgpu::BufferAddress,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
+        let surface_uniform_buffer = custom_shader_buffer(
+            device,
+            Some("radiant_custom_shader_surface_uniforms"),
+            std::mem::size_of::<GpuSurfaceUniforms>(),
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        );
+        let app_uniform_buffer = (!descriptor.uniform_bytes.is_empty()).then(|| {
+            custom_shader_buffer(
+                device,
+                Some("radiant_custom_shader_app_uniforms"),
+                descriptor.uniform_bytes.len(),
+                wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            )
         });
+        let storage_buffer = (!descriptor.storage_bytes.is_empty()).then(|| {
+            custom_shader_buffer(
+                device,
+                Some("radiant_custom_shader_storage"),
+                descriptor.storage_bytes.len(),
+                wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            )
+        });
+        let mut entries = vec![wgpu::BindGroupEntry {
+            binding: 0,
+            resource: surface_uniform_buffer.as_entire_binding(),
+        }];
+        if let Some(buffer) = &app_uniform_buffer {
+            entries.push(wgpu::BindGroupEntry {
+                binding: 1,
+                resource: buffer.as_entire_binding(),
+            });
+        }
+        if let Some(buffer) = &storage_buffer {
+            entries.push(wgpu::BindGroupEntry {
+                binding: 2,
+                resource: buffer.as_entire_binding(),
+            });
+        }
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("radiant_custom_shader_surface_bind_group"),
             layout: &pipeline.bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
+            entries: &entries,
         });
         self.resources.custom_shader_bindings.insert(
             surface_key,
             CustomShaderBinding {
-                cache_key: pipeline.key.clone(),
-                uniform_buffer,
+                cache_key,
+                surface_uniform_buffer,
+                app_uniform_buffer,
+                storage_buffer,
                 bind_group,
             },
         );
     }
+}
+
+fn custom_shader_layout_entries(key: &CustomShaderPipelineKey) -> Vec<wgpu::BindGroupLayoutEntry> {
+    let mut entries = vec![wgpu::BindGroupLayoutEntry {
+        binding: 0,
+        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+        ty: wgpu::BindingType::Buffer {
+            ty: wgpu::BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: None,
+        },
+        count: None,
+    }];
+    if key.has_uniform_payload {
+        entries.push(wgpu::BindGroupLayoutEntry {
+            binding: 1,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        });
+    }
+    if key.has_storage_payload {
+        entries.push(wgpu::BindGroupLayoutEntry {
+            binding: 2,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        });
+    }
+    entries
+}
+
+fn custom_shader_buffer(
+    device: &wgpu::Device,
+    label: Option<&'static str>,
+    size: usize,
+    usage: wgpu::BufferUsages,
+) -> wgpu::Buffer {
+    device.create_buffer(&wgpu::BufferDescriptor {
+        label,
+        size: size as wgpu::BufferAddress,
+        usage,
+        mapped_at_creation: false,
+    })
 }
 
 fn custom_shader_pipeline_key(
@@ -188,6 +280,8 @@ fn custom_shader_pipeline_key(
         wgsl_source: descriptor.wgsl_source.clone()?,
         vertex_entry_point: descriptor.entry_point.clone(),
         fragment_entry_point: descriptor.fragment_entry_point.clone()?,
+        has_uniform_payload: !descriptor.uniform_bytes.is_empty(),
+        has_storage_payload: !descriptor.storage_bytes.is_empty(),
     })
 }
 
@@ -215,7 +309,7 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
-    fn custom_shader_payload_bytes_report_unsupported_until_binding_abi_exists() {
+    fn custom_shader_unsupported_diagnostics_count_payload_bytes() {
         let mut stats = GpuSurfaceRenderStats::default();
         let surface = PaintGpuSurface {
             widget_id: 17,
@@ -268,10 +362,29 @@ mod tests {
         assert_eq!(custom_shader_pipeline_key(&missing_source), None);
         assert_eq!(custom_shader_pipeline_key(&missing_fragment), None);
         assert_eq!(
-            custom_shader_pipeline_key(&complete)
-                .expect("complete descriptor should produce a pipeline key")
-                .fragment_entry_point,
-            "fragment_main"
+            custom_shader_pipeline_key(&complete).map(|key| (
+                key.fragment_entry_point,
+                key.has_uniform_payload,
+                key.has_storage_payload,
+            )),
+            Some((String::from("fragment_main"), false, false))
+        );
+    }
+
+    #[test]
+    fn custom_shader_pipeline_key_tracks_payload_bindings() {
+        let descriptor = GpuShaderSurfaceDescriptor::new("test/custom-shader")
+            .wgsl_source(
+                "@vertex fn vertex_main() -> @builtin(position) vec4<f32> { return vec4<f32>(); }",
+            )
+            .fragment_entry_point("fragment_main")
+            .uniform_bytes([1, 2, 3, 4])
+            .storage_bytes([5, 6, 7, 8]);
+
+        assert_eq!(
+            custom_shader_pipeline_key(&descriptor)
+                .map(|key| (key.has_uniform_payload, key.has_storage_payload,)),
+            Some((true, true))
         );
     }
 }

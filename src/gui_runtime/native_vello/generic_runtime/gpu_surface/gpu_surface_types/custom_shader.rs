@@ -9,6 +9,10 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Cu
         String,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fragment_entry_point:
         String,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) has_uniform_payload:
+        bool,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) has_storage_payload:
+        bool,
 }
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderPipeline {
@@ -36,11 +40,24 @@ impl CustomShaderPipeline {
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderBinding {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) cache_key:
-        CustomShaderPipelineKey,
-    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) uniform_buffer:
+        CustomShaderBindingKey,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) surface_uniform_buffer:
         wgpu::Buffer,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) app_uniform_buffer:
+        Option<wgpu::Buffer>,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) storage_buffer:
+        Option<wgpu::Buffer>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) bind_group:
         wgpu::BindGroup,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderBindingKey
+{
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) pipeline_key:
+        CustomShaderPipelineKey,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) uniform_bytes_len: usize,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) storage_bytes_len: usize,
 }
 
 #[cfg(test)]
@@ -54,6 +71,8 @@ mod tests {
             wgsl_source: Arc::<str>::from("@vertex fn vertex_main() {}"),
             vertex_entry_point: String::from("vertex_main"),
             fragment_entry_point: String::from("fragment_main"),
+            has_uniform_payload: false,
+            has_storage_payload: false,
         };
 
         assert_ne!(
@@ -67,6 +86,33 @@ mod tests {
             key.clone(),
             CustomShaderPipelineKey {
                 wgsl_source: Arc::<str>::from("@vertex fn other_vertex() {}"),
+                ..key
+            }
+        );
+    }
+
+    #[test]
+    fn custom_shader_pipeline_key_tracks_payload_binding_shape() {
+        let key = CustomShaderPipelineKey {
+            shader_key: String::from("meter"),
+            wgsl_source: Arc::<str>::from("@vertex fn vertex_main() {}"),
+            vertex_entry_point: String::from("vertex_main"),
+            fragment_entry_point: String::from("fragment_main"),
+            has_uniform_payload: false,
+            has_storage_payload: false,
+        };
+
+        assert_ne!(
+            key,
+            CustomShaderPipelineKey {
+                has_uniform_payload: true,
+                ..key.clone()
+            }
+        );
+        assert_ne!(
+            key.clone(),
+            CustomShaderPipelineKey {
+                has_storage_payload: true,
                 ..key
             }
         );

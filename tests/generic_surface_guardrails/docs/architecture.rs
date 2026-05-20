@@ -36,6 +36,7 @@ fn architecture_map_documents_target_aligned_boundaries() {
         "explicit vertex/fragment entry points",
         "executes the source-backed subset",
         "surface-uniform ABI",
+        "optional app uniform and read-only storage payload bindings",
         "WGPU-specific details should stay there or behind explicit GPU-surface contracts",
         "## Text Boundary",
         "`src/gui/text_layout` owns deterministic text-line placement helpers",

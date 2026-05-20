@@ -1,7 +1,8 @@
 use super::*;
 use radiant::runtime::{
     NativeFrameDiagnostics, NativeFrameTimingDiagnostics, NativeGpuSurfaceDiagnostics,
-    NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics, NativeTextDiagnostics, RuntimeBridge,
+    NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
+    NativeTextDiagnostics, RuntimeBridge,
 };
 
 #[test]
@@ -47,6 +48,7 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
             ..NativeTextDiagnostics::default()
         },
         timings: NativeFrameTimingDiagnostics {
+            gpu_timing_status: NativeGpuTimingStatus::CpuEnvelopeOnly,
             transient_overlay_primitives: 5,
             ..NativeFrameTimingDiagnostics::default()
         },
@@ -59,6 +61,10 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     assert!(diagnostics.text.has_font_coverage_gaps());
     assert!(diagnostics.text.has_text_quality_warnings());
     assert!(!NativeTextDiagnostics::default().has_text_quality_warnings());
+    assert_eq!(
+        diagnostics.timings.gpu_timing_status,
+        NativeGpuTimingStatus::CpuEnvelopeOnly
+    );
 }
 
 #[derive(Default)]

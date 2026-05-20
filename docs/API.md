@@ -926,6 +926,11 @@ render/cache counts, transient-overlay primitive counts, and timing for surface
 refresh, paint-plan generation, Vello render-to-texture, composed-base refresh
 or cache hits for transient overlays, transient-overlay paint callbacks,
 GPU-surface composition, and presentation.
+`NativeFrameTimingDiagnostics::gpu_timing_status` currently reports
+`NativeGpuTimingStatus::CpuEnvelopeOnly`, which makes the boundary explicit:
+these timing buckets are CPU-side encode/submit/present envelopes, not backend
+GPU timestamp query durations. Future timestamp-query support should extend this
+status instead of silently changing the meaning of existing timing fields.
 `NativeRunOptions::retained_surface_cache` accepts `RetainedSurfaceCachePolicy`
 for apps that need to tune or disable retained custom-surface frame reuse during
 profiling.

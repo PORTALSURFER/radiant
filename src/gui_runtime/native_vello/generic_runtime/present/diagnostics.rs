@@ -92,6 +92,7 @@ pub(super) fn native_frame_diagnostics(
                 .unsupported_custom_shader_storage_bytes,
         },
         timings: crate::runtime::NativeFrameTimingDiagnostics {
+            gpu_timing_status: crate::runtime::NativeGpuTimingStatus::CpuEnvelopeOnly,
             coalesced_wheel_route: parts.profile.coalesced_wheel_route,
             refresh_surface: parts.profile.refresh_surface,
             paint_plan: parts.profile.paint_plan,

@@ -830,11 +830,13 @@ Compare a focused run against a previously captured JSONL artifact with
 cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl .\perf-baseline.jsonl
 ```
 
-When a matching baseline scenario exists, the harness adds
-`baseline_avg_us`, `baseline_ratio`, and `baseline_status` to the output.
-`baseline_status` is `faster`, `similar`, or `slower` using a small tolerance;
-it is trend context for review and investigation, not a portable pass/fail
-gate.
+When a baseline file is supplied, every emitted metric includes
+`baseline_status`. A matching baseline scenario adds `baseline_avg_us`,
+`baseline_ratio`, and `baseline_status` to the output; the status is `faster`,
+`similar`, or `slower` using a small tolerance. A missing baseline scenario reports
+`baseline_status=missing` so incomplete trend artifacts are visible during
+review. These statuses are trend context for review and investigation, not a
+portable pass/fail gate.
 List the available scenarios without running them with:
 
 ```powershell

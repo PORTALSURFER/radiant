@@ -875,7 +875,7 @@ manual validation:
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `grid_gallery`, `scroll`, `sizing`, `virtualized_list` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons` |
 | Input, focus, menus, and editor interactions | `focus_controls`, `context_menu`, `tree_and_details`, `folder_browser` |
-| Custom widgets and retained GPU surfaces | `custom_widget`, `gpu_surface`, `gpu_surface_stack_overlay`, `waveform_view` |
+| Custom widgets and retained GPU surfaces | `custom_widget`, `gpu_surface`, `custom_shader_surface`, `gpu_surface_stack_overlay`, `waveform_view` |
 | Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `plugin_panel`, `split_workspace` |
 | Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame` |
 | Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame` |
@@ -911,6 +911,12 @@ Run `cargo run --example form` for text binding and boolean controls.
 Run `cargo run --example gpu_surface` for a small retained-GPU-surface sandbox
 that uses the prelude `gpu_surface(...)` application builder with generated
 demo atlas data.
+Run `cargo run --example custom_shader_surface` for a checked custom shader
+surface sandbox that builds `GpuSurfaceContent::CustomShader` with a
+backend-neutral `GpuShaderSurfaceDescriptor`. Native backends without a matching
+shader pipeline report the surface through
+`NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces` rather than
+creating a separate WGPU-facing application API.
 Run `cargo run --example multi_window_manifest` for a checked manifest sandbox
 that uses `WindowManifest` to describe multiple windows and separate views
 without expanding the native runtime event loop.

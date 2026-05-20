@@ -194,6 +194,10 @@ name = "gpu_surface"
 path = "examples/gpu_surface.rs"
 
 [[example]]
+name = "custom_shader_surface"
+path = "examples/custom_shader_surface.rs"
+
+[[example]]
 name = "gpu_surface_stack_overlay"
 path = "examples/gpu_surface_stack_overlay.rs"
 

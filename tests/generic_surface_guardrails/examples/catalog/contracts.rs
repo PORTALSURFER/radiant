@@ -355,6 +355,16 @@ pub(super) const FOCUSED_EXAMPLE_CONTRACTS: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "custom_shader_surface",
+        &[
+            "gpu_surface(",
+            "GpuShaderSurfaceDescriptor::new",
+            "GpuSurfaceContent::CustomShader",
+            "custom_shader_surface_example_lowers_to_gpu_surface_primitive",
+            "custom_shader_surface_example_descriptor_is_valid",
+        ],
+    ),
+    (
         "gpu_surface_stack_overlay",
         &[
             "gpu_surface(",

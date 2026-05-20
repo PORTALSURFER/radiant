@@ -133,6 +133,7 @@ fn api_docs_map_examples_to_target_areas() {
         "folder_browser",
         "custom_widget",
         "gpu_surface",
+        "custom_shader_surface",
         "gpu_surface_stack_overlay",
         "waveform_view",
         "node_editor",

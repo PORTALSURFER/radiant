@@ -19,8 +19,8 @@ use radiant::{
     gui::types::ImageRgba,
     layout::{Point, Rect, Vector2, layout_tree},
     runtime::{
-        GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceRuntimeOverlays,
-        PaintPrimitive, SurfaceNode, UiSurface,
+        GpuShaderSurfaceDescriptor, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent,
+        GpuSurfaceRuntimeOverlays, PaintPrimitive, SurfaceNode, UiSurface,
     },
     theme::ThemeTokens,
     widgets::{GpuSurfaceWidget, WidgetSizing},
@@ -81,6 +81,40 @@ fn bench_gpu_surface_projection() {
             .iter()
             .any(|primitive| matches!(primitive, PaintPrimitive::GpuSurface(_)))
     );
+    black_box(plan);
+}
+
+fn bench_gpu_custom_shader_projection() {
+    let descriptor = GpuShaderSurfaceDescriptor::new("perf/custom-shader")
+        .entry_point("main")
+        .uniform_bytes([1, 3, 5, 7, 9, 11, 13, 15])
+        .storage_bytes([2; 256])
+        .vertex_count(6);
+    let surface = UiSurface::<()>::new(SurfaceNode::static_widget(
+        GpuSurfaceWidget::new(
+            42,
+            WidgetSizing::fixed(Vector2::new(320.0, 120.0)),
+            91,
+            4,
+            GpuSurfaceContent::CustomShader {
+                descriptor: Arc::new(descriptor),
+            },
+        )
+        .with_capabilities(GpuSurfaceCapabilities {
+            fast_pointer_move: true,
+            coalesce_vertical_wheel: false,
+            runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
+        }),
+    ));
+    let output = layout_tree(&surface.layout_node(), viewport(320.0, 120.0));
+    let plan = surface.paint_plan(&output, &ThemeTokens::default());
+    let Some(PaintPrimitive::GpuSurface(gpu_surface)) = plan.primitives.first() else {
+        panic!("expected custom shader GPU surface primitive");
+    };
+    assert!(matches!(
+        gpu_surface.content,
+        GpuSurfaceContent::CustomShader { .. }
+    ));
     black_box(plan);
 }
 

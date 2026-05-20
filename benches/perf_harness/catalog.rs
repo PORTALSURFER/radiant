@@ -1,8 +1,9 @@
 //! Registered performance scenarios for the standalone Radiant harness.
 
 use crate::{
-    app_projection, bench_gpu_signal_summary, bench_gpu_surface_projection, command_drain,
-    layout_scenarios, runner::ScenarioRunner, runtime_scenarios, text_scenarios,
+    app_projection, bench_gpu_custom_shader_projection, bench_gpu_signal_summary,
+    bench_gpu_surface_projection, command_drain, layout_scenarios, runner::ScenarioRunner,
+    runtime_scenarios, text_scenarios,
 };
 
 const LAYOUT_ITERATIONS: usize = 120;
@@ -41,6 +42,7 @@ macro_rules! perf_scenario_catalog {
             ("text_line_cache_1k", RUNTIME_ITERATIONS, text_scenarios::text_line_cache_1k),
             ("gpu_signal_summary", GPU_ITERATIONS, || bench_gpu_signal_summary),
             ("gpu_surface_projection", GPU_ITERATIONS, || bench_gpu_surface_projection),
+            ("gpu_custom_shader_projection", GPU_ITERATIONS, || bench_gpu_custom_shader_projection),
             ]
         }
     };

@@ -88,6 +88,7 @@ fn performance_harness_is_registered_and_documented() {
         "text_line_cache_1k",
         "gpu_signal_summary",
         "gpu_surface_projection",
+        "gpu_custom_shader_projection",
     ];
     for scenario in perf_scenarios {
         assert!(
@@ -142,6 +143,12 @@ fn performance_harness_is_registered_and_documented() {
             && text_scenarios.contains("centered_text_line_with_cache")
             && text_scenarios.contains("top_text_line_with_cache"),
         "text perf scenarios should exercise the reusable text-line layout cache"
+    );
+    assert!(
+        bench.contains("bench_gpu_custom_shader_projection")
+            && bench.contains("GpuShaderSurfaceDescriptor::new")
+            && bench.contains("GpuSurfaceContent::CustomShader"),
+        "perf_harness should exercise backend-neutral custom shader GPU surface projection"
     );
     let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(

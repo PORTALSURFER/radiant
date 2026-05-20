@@ -1299,6 +1299,8 @@ fn shortcut_primitives_stay_in_resolution_gesture_and_layer_modules() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/gui/shortcuts.rs"))
         .expect("shortcut root should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/gui/shortcuts/tests.rs"))
+        .expect("shortcut behavior tests should be readable");
     let resolution = fs::read_to_string(manifest_dir.join("src/gui/shortcuts/resolution.rs"))
         .expect("shortcut resolution module should be readable");
     let gesture = fs::read_to_string(manifest_dir.join("src/gui/shortcuts/gesture.rs"))
@@ -1310,6 +1312,7 @@ fn shortcut_primitives_stay_in_resolution_gesture_and_layer_modules() {
         "mod gesture;",
         "mod layer;",
         "mod resolution;",
+        "#[path = \"shortcuts/tests.rs\"]",
         "pub use gesture::{ShortcutGesture, ShortcutModifier};",
         "pub use layer::{ShortcutBinding, ShortcutLayer};",
         "pub use resolution::ShortcutResolution;",
@@ -1322,8 +1325,14 @@ fn shortcut_primitives_stay_in_resolution_gesture_and_layer_modules() {
     assert!(
         !root.contains("pub struct ShortcutResolution")
             && !root.contains("pub struct ShortcutLayer")
-            && !root.contains("pub struct ShortcutGesture"),
-        "shortcut root should re-export public primitives instead of owning their implementations"
+            && !root.contains("pub struct ShortcutGesture")
+            && !root.contains("fn shortcut_layer_resolves_actions_and_modal_misses"),
+        "shortcut root should re-export public primitives and delegate behavior tests instead of owning implementations"
+    );
+    assert!(
+        tests.contains("fn shortcut_resolution_unhandled_has_no_action_or_chord")
+            && tests.contains("fn shortcut_layer_resolves_actions_and_modal_misses"),
+        "shortcut behavior coverage should live in gui/shortcuts/tests.rs"
     );
     assert!(
         resolution.contains("pub struct ShortcutResolution")
@@ -1342,6 +1351,30 @@ fn shortcut_primitives_stay_in_resolution_gesture_and_layer_modules() {
             && layer.contains("pub struct ShortcutLayer")
             && layer.contains("pub fn resolve_or_else"),
         "shortcut binding collections and modal resolution should live in shortcuts/layer.rs"
+    );
+}
+
+#[test]
+fn repaint_signaling_keeps_coalescing_and_callback_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source = fs::read_to_string(manifest_dir.join("src/gui/repaint.rs"))
+        .expect("repaint signaling source should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/gui/repaint/tests.rs"))
+        .expect("repaint signaling behavior tests should be readable");
+
+    assert!(
+        source.contains("pub trait RepaintSignal")
+            && source.contains("pub fn try_mark_repaint_pending")
+            && source.contains("pub struct CoalescingRepaintSignal")
+            && source.contains("pub struct SharedRepaintSignal")
+            && source.contains("#[path = \"repaint/tests.rs\"]")
+            && !source.contains("fn shared_repaint_signal_forwards_request_to_active_callback"),
+        "repaint signaling primitives should live in gui/repaint.rs while behavior tests stay delegated"
+    );
+    assert!(
+        tests.contains("fn shared_repaint_signal_forwards_request_to_active_callback")
+            && tests.contains("fn coalescing_repaint_signal_clears_pending_when_queue_fails"),
+        "repaint behavior coverage should live in gui/repaint/tests.rs"
     );
 }
 

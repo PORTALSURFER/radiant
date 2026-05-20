@@ -20,6 +20,9 @@ fn performance_harness_is_registered_and_documented() {
     let runtime_surface =
         fs::read_to_string(manifest_dir.join("benches/perf_harness/runtime_scenarios/surface.rs"))
             .expect("runtime surface bench scenarios should be readable");
+    let runtime_scenarios_root =
+        fs::read_to_string(manifest_dir.join("benches/perf_harness/runtime_scenarios.rs"))
+            .expect("runtime scenarios root should be readable");
     let runtime_surface_nodes = fs::read_to_string(
         manifest_dir.join("benches/perf_harness/runtime_scenarios/surface/nodes.rs"),
     )
@@ -28,6 +31,10 @@ fn performance_harness_is_registered_and_documented() {
         manifest_dir.join("benches/perf_harness/runtime_scenarios/surface/command_flattening.rs"),
     )
     .expect("runtime command flattening bench should be readable");
+    let runtime_invalidation = fs::read_to_string(
+        manifest_dir.join("benches/perf_harness/runtime_scenarios/invalidation.rs"),
+    )
+    .expect("runtime invalidation bench scenarios should be readable");
     let runtime_virtualized = fs::read_to_string(
         manifest_dir.join("benches/perf_harness/runtime_scenarios/virtualized.rs"),
     )
@@ -82,6 +89,7 @@ fn performance_harness_is_registered_and_documented() {
         "runtime_virtualized_list_stable_hover_10k",
         "runtime_virtualized_list_hover_paint_10k",
         "runtime_pointer_overlay_paint_10k",
+        "runtime_retained_segment_invalidation_1k",
         "runtime_virtualized_nested_scroll_hover_10k",
         "runtime_refresh_large_tree",
         "runtime_resize_large_tree",
@@ -159,6 +167,16 @@ fn performance_harness_is_registered_and_documented() {
             && runtime_surface_nodes.contains("horizontal_scroll_surface_node")
             && runtime_command_flattening.contains("Command::batch"),
         "runtime surface perf scenarios should keep scenario state, synthetic trees, and command flattening in focused modules"
+    );
+    assert!(
+        runtime_scenarios_root.contains("runtime_scenarios/invalidation.rs")
+            && runtime_invalidation.contains("RetainedSegmentPlan")
+            && runtime_invalidation.contains("RetainedSegmentRevisions")
+            && runtime_invalidation.contains("requires_static_rebuild")
+            && runtime_invalidation.contains("requires_overlay_rebuild")
+            && runtime_invalidation.contains("bump_revisions")
+            && runtime_invalidation.contains("retained_segment_invalidation_1k"),
+        "runtime invalidation perf scenarios should exercise retained segment masks and revision bumps"
     );
     assert!(
         runtime_virtualized.contains("virtualized/bridges.rs")

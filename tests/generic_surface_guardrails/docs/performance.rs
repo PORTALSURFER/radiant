@@ -157,6 +157,23 @@ fn performance_harness_is_registered_and_documented() {
         "perf_harness runner should expose a cheap scenario-listing mode"
     );
     assert!(
+        catalog.contains("ScenarioSpec::new")
+            && catalog.contains("\"layout\"")
+            && catalog.contains("\"application_projection\"")
+            && catalog.contains("\"runtime_surface\"")
+            && catalog.contains("\"runtime_virtualized\"")
+            && catalog.contains("\"runtime_invalidation\"")
+            && catalog.contains("\"runtime_commands\"")
+            && catalog.contains("\"resource_lifecycle\"")
+            && catalog.contains("\"text\"")
+            && catalog.contains("\"gpu_data\"")
+            && catalog.contains("\"gpu_surface\"")
+            && runner.contains("struct ScenarioSpec")
+            && runner.contains("category={}")
+            && runner.contains("iterations={}"),
+        "perf_harness scenario listing should expose target-area categories and iteration counts"
+    );
+    assert!(
         layout_scenarios.contains("layout_scenarios/trees.rs")
             && layout_trees.contains("deep_nesting_tree")
             && layout_trees.contains("wrap_tree")
@@ -241,7 +258,14 @@ fn performance_harness_is_registered_and_documented() {
             && normalized_docs.contains("portable pass/fail gate by default")
             && normalized_docs.contains("`--fail-on-baseline-regression`")
             && normalized_docs.contains("exits with status `1`")
-            && normalized_docs.contains("`baseline_status=slower`"),
+            && normalized_docs.contains("`baseline_status=slower`")
+            && normalized_docs.contains("target-area category and default iteration count")
+            && normalized_docs.contains("Layout scenarios:")
+            && normalized_docs.contains("Application projection scenarios:")
+            && normalized_docs.contains("Runtime surface scenarios:")
+            && normalized_docs.contains("Resource lifecycle scenarios:")
+            && normalized_docs.contains("Text scenarios:")
+            && normalized_docs.contains("GPU data and surface scenarios:"),
         "docs/API.md should describe how to run and interpret the perf harness"
     );
 }

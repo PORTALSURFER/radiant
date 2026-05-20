@@ -12,6 +12,7 @@ const BASELINE_JSONL_ARG: &str = "--baseline-jsonl";
 const WRITE_BASELINE_JSONL_ARG: &str = "--write-baseline-jsonl";
 const CATEGORY_ARG: &str = "--category";
 const FAIL_ON_BASELINE_REGRESSION_ARG: &str = "--fail-on-baseline-regression";
+const FAIL_ON_MISSING_BASELINE_ARG: &str = "--fail-on-missing-baseline";
 const JSONL_ARG: &str = "--jsonl";
 const LIST_ARG: &str = "--list";
 
@@ -46,6 +47,7 @@ pub(super) struct ScenarioRunner {
     baseline_output: Option<BaselineOutput>,
     baseline_summary: BaselineSummary,
     fail_on_baseline_regression: bool,
+    fail_on_missing_baseline: bool,
     matched: usize,
 }
 
@@ -57,6 +59,7 @@ impl ScenarioRunner {
         baseline: Option<BaselineSet>,
         baseline_output: Option<BaselineOutput>,
         fail_on_baseline_regression: bool,
+        fail_on_missing_baseline: bool,
     ) -> Self {
         Self {
             filters,
@@ -66,6 +69,7 @@ impl ScenarioRunner {
             baseline_output,
             baseline_summary: BaselineSummary::default(),
             fail_on_baseline_regression,
+            fail_on_missing_baseline,
             matched: 0,
         }
     }
@@ -120,6 +124,13 @@ impl ScenarioRunner {
             eprintln!(
                 "radiant_perf regression gate failed: {} slower scenario(s)",
                 self.baseline_summary.slower()
+            );
+            std::process::exit(1);
+        }
+        if self.fail_on_missing_baseline && self.baseline_summary.has_missing_baseline() {
+            eprintln!(
+                "radiant_perf baseline coverage gate failed: {} missing scenario baseline(s)",
+                self.baseline_summary.missing()
             );
             std::process::exit(1);
         }
@@ -313,6 +324,20 @@ pub(super) fn fail_on_baseline_regression_from_args(args: &[String]) -> bool {
     fail_on_regression
 }
 
+pub(super) fn fail_on_missing_baseline_from_args(args: &[String]) -> bool {
+    let fail_on_missing = args
+        .iter()
+        .skip(1)
+        .any(|arg| arg == FAIL_ON_MISSING_BASELINE_ARG);
+    if fail_on_missing && value_after_arg(args, BASELINE_JSONL_ARG).is_none() {
+        eprintln!(
+            "radiant_perf baseline error: {FAIL_ON_MISSING_BASELINE_ARG} requires --baseline-jsonl"
+        );
+        std::process::exit(2);
+    }
+    fail_on_missing
+}
+
 pub(super) fn print_scenario_list(scenarios: &[ScenarioSpec]) {
     println!("radiant_perf scenarios:");
     for scenario in scenarios {
@@ -499,8 +524,16 @@ impl BaselineSummary {
         self.total.slower > 0
     }
 
+    fn has_missing_baseline(&self) -> bool {
+        self.total.missing > 0
+    }
+
     fn slower(&self) -> usize {
         self.total.slower
+    }
+
+    fn missing(&self) -> usize {
+        self.total.missing
     }
 }
 

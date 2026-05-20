@@ -118,8 +118,12 @@ fn performance_harness_is_registered_and_documented() {
     assert!(
         runner.contains("--jsonl")
             && runner.contains("--baseline-jsonl")
+            && runner.contains("--fail-on-baseline-regression")
             && runner.contains("OutputFormat::JsonLines")
             && runner.contains("BaselineSet")
+            && runner.contains("fail_on_baseline_regression")
+            && runner.contains("has_regression")
+            && runner.contains("std::process::exit(1)")
             && runner.contains("\\\"type\\\":\\\"radiant_perf\\\"")
             && runner.contains("\\\"total_us\\\"")
             && runner.contains("\\\"avg_us\\\"")
@@ -205,8 +209,10 @@ fn performance_harness_is_registered_and_documented() {
             && normalized_docs.contains("`baseline_matched`, `baseline_missing`")
             && normalized_docs.contains("`baseline_faster`, `baseline_similar`, and `baseline_slower`")
             && normalized_docs.contains("incomplete trend artifacts are visible")
-            && normalized_docs
-                .contains("does not enforce machine-dependent pass/fail timing thresholds"),
+            && normalized_docs.contains("portable pass/fail gate by default")
+            && normalized_docs.contains("`--fail-on-baseline-regression`")
+            && normalized_docs.contains("exits with status `1`")
+            && normalized_docs.contains("`baseline_status=slower`"),
         "docs/API.md should describe how to run and interpret the perf harness"
     );
 }

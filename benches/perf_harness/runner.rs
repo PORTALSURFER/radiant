@@ -9,6 +9,7 @@ use std::{
 
 const RUN_ALL_IN_DEBUG_ENV: &str = "RADIANT_PERF_RUN_ALL_IN_DEBUG";
 const BASELINE_JSONL_ARG: &str = "--baseline-jsonl";
+const FAIL_ON_BASELINE_REGRESSION_ARG: &str = "--fail-on-baseline-regression";
 const JSONL_ARG: &str = "--jsonl";
 const LIST_ARG: &str = "--list";
 
@@ -23,6 +24,7 @@ pub(super) struct ScenarioRunner {
     output_format: OutputFormat,
     baseline: Option<BaselineSet>,
     baseline_summary: BaselineSummary,
+    fail_on_baseline_regression: bool,
     matched: usize,
 }
 
@@ -31,12 +33,14 @@ impl ScenarioRunner {
         filters: Vec<String>,
         output_format: OutputFormat,
         baseline: Option<BaselineSet>,
+        fail_on_baseline_regression: bool,
     ) -> Self {
         Self {
             filters,
             output_format,
             baseline,
             baseline_summary: BaselineSummary::default(),
+            fail_on_baseline_regression,
             matched: 0,
         }
     }
@@ -71,6 +75,13 @@ impl ScenarioRunner {
         if self.baseline.is_some() && self.matched > 0 {
             self.baseline_summary
                 .print(self.matched, self.output_format);
+        }
+        if self.fail_on_baseline_regression && self.baseline_summary.has_regression() {
+            eprintln!(
+                "radiant_perf regression gate failed: {} slower scenario(s)",
+                self.baseline_summary.slower
+            );
+            std::process::exit(1);
         }
     }
 }
@@ -182,6 +193,20 @@ pub(super) fn baseline_from_args(args: &[String]) -> Option<BaselineSet> {
             std::process::exit(2);
         }
     }
+}
+
+pub(super) fn fail_on_baseline_regression_from_args(args: &[String]) -> bool {
+    let fail_on_regression = args
+        .iter()
+        .skip(1)
+        .any(|arg| arg == FAIL_ON_BASELINE_REGRESSION_ARG);
+    if fail_on_regression && value_after_arg(args, BASELINE_JSONL_ARG).is_none() {
+        eprintln!(
+            "radiant_perf baseline error: {FAIL_ON_BASELINE_REGRESSION_ARG} requires --baseline-jsonl"
+        );
+        std::process::exit(2);
+    }
+    fail_on_regression
 }
 
 pub(super) fn print_scenario_list(scenarios: &[&str]) {
@@ -344,6 +369,10 @@ impl BaselineSummary {
                 );
             }
         }
+    }
+
+    fn has_regression(&self) -> bool {
+        self.slower > 0
     }
 }
 

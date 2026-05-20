@@ -92,6 +92,38 @@ fn application_list_builders_keep_virtualization_tests_focused() {
 }
 
 #[test]
+fn gui_list_behavior_tests_stay_grouped_by_list_concern() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/gui/list/tests.rs"))
+        .expect("gui list test root should be readable");
+    let editable = fs::read_to_string(manifest_dir.join("src/gui/list/tests/editable.rs"))
+        .expect("gui list editable tests should be readable");
+    let selection = fs::read_to_string(manifest_dir.join("src/gui/list/tests/selection.rs"))
+        .expect("gui list selection tests should be readable");
+    let virtual_list = fs::read_to_string(manifest_dir.join("src/gui/list/tests/virtual_list.rs"))
+        .expect("gui list virtual-list tests should be readable");
+    let grid = fs::read_to_string(manifest_dir.join("src/gui/list/tests/grid.rs"))
+        .expect("gui list virtual-grid tests should be readable");
+
+    assert!(
+        root.contains("mod editable;")
+            && root.contains("mod selection;")
+            && root.contains("mod virtual_list;")
+            && root.contains("mod grid;")
+            && !root.contains("fn virtual_list_window_clamps_requested_bounds")
+            && !root.contains("fn virtual_grid_window_clamps_rows"),
+        "gui list test root should index focused behavior groups instead of owning all list cases"
+    );
+    assert!(
+        editable.contains("fn editable_tree_row_preserves_existing_and_draft_state")
+            && selection.contains("fn list_selection_controller_tracks_single_toggle")
+            && virtual_list.contains("fn virtual_list_scrollbar_rejects_nonfinite_track_geometry")
+            && grid.contains("fn virtual_grid_window_handles_empty_zero_column"),
+        "gui list behavior tests should stay grouped by editable, selection, virtual-list, and grid concerns"
+    );
+}
+
+#[test]
 fn public_layout_policy_models_do_not_hide_dead_code() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let model_dir = manifest_dir.join("src/gui/layout_core/model");

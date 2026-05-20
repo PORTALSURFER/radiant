@@ -1,5 +1,9 @@
 use super::TaskTicket;
 
+#[cfg(test)]
+#[path = "latest/tests.rs"]
+mod tests;
+
 /// Tracks the latest in-flight task for one host-owned resource.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LatestTask {
@@ -53,23 +57,5 @@ impl LatestTask {
     /// Clear any active task.
     pub fn cancel(&mut self) {
         self.active = None;
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::LatestTask;
-
-    #[test]
-    fn latest_task_rejects_stale_tickets_after_newer_begin() {
-        let mut task = LatestTask::new();
-        let first = task.begin();
-        let second = task.begin();
-
-        assert!(!task.is_active(first));
-        assert!(task.is_active(second));
-        assert!(!task.finish(first));
-        assert!(task.finish(second));
-        assert_eq!(task.active(), None);
     }
 }

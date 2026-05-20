@@ -3,6 +3,10 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
+#[cfg(test)]
+#[path = "cancellation/tests.rs"]
+mod tests;
+
 /// Cloneable cooperative cancellation token for host-owned background work.
 ///
 /// Radiant never force-stops running closures. Hosts pass this token into work
@@ -26,21 +30,5 @@ impl CancellationToken {
     /// Return whether cancellation has been requested.
     pub fn is_cancelled(&self) -> bool {
         self.cancelled.load(Ordering::Acquire)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::CancellationToken;
-
-    #[test]
-    fn cancellation_token_is_shared_across_clones() {
-        let token = CancellationToken::new();
-        let worker_token = token.clone();
-
-        assert!(!worker_token.is_cancelled());
-        token.cancel();
-
-        assert!(worker_token.is_cancelled());
     }
 }

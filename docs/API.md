@@ -868,16 +868,20 @@ List the available scenarios without running them with:
 cargo bench --bench perf_harness -- --list
 ```
 
+The list output includes each scenario's target-area category and default
+iteration count, so reviewers can quickly spot whether a run covered layout,
+runtime, text, resource, or GPU-facing work.
+
 It currently covers:
 
-- `layout_deep_nesting`, `layout_wrap_1k`, `layout_virtualized_10k`,
+- Layout scenarios: `layout_deep_nesting`, `layout_wrap_1k`, `layout_virtualized_10k`,
   `layout_virtualized_fixed_10k`, `layout_virtualized_fixed_scroll_10k`, and
   `layout_mark_dirty_subtree_10k`
-- `app_virtual_list_projection_10k`,
+- Application projection scenarios: `app_virtual_list_projection_10k`,
   `app_virtual_list_projection_generated_child_ids_10k`,
   `app_virtual_selectable_list_projection_10k`, and
   `app_virtual_list_window_projection_10k`
-- `runtime_surface_large_tree`, `runtime_text_paint_plan_1k`,
+- Runtime surface scenarios: `runtime_surface_large_tree`, `runtime_text_paint_plan_1k`,
   `runtime_horizontal_scroll_paint_1k`, `runtime_virtualized_list_wheel_10k`,
   `runtime_virtualized_list_hover_10k`,
   `runtime_virtualized_list_stable_hover_10k`,
@@ -888,10 +892,10 @@ It currently covers:
   `runtime_refresh_large_tree`, `runtime_resize_large_tree`,
   `runtime_command_flattening_512`, `runtime_command_drain_1k`, and
   `runtime_nested_command_drain_1k`
-- `resource_slot_stale_completions_1k`
-- `text_line_cache_1k`, `text_word_selection_1k`, and
+- Resource lifecycle scenarios: `resource_slot_stale_completions_1k`
+- Text scenarios: `text_line_cache_1k`, `text_word_selection_1k`, and
   `text_word_deletion_1k`
-- `gpu_signal_summary`, `gpu_surface_projection`, and
+- GPU data and surface scenarios: `gpu_signal_summary`, `gpu_surface_projection`, and
   `gpu_custom_shader_projection`
 
 Pass a scenario substring to run one focused slice, for example:

@@ -20,6 +20,23 @@ pub(super) enum OutputFormat {
     JsonLines,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct ScenarioSpec {
+    pub(super) name: &'static str,
+    pub(super) category: &'static str,
+    pub(super) iterations: usize,
+}
+
+impl ScenarioSpec {
+    pub(super) const fn new(name: &'static str, category: &'static str, iterations: usize) -> Self {
+        Self {
+            name,
+            category,
+            iterations,
+        }
+    }
+}
+
 pub(super) struct ScenarioRunner {
     filters: Vec<String>,
     output_format: OutputFormat,
@@ -275,10 +292,13 @@ pub(super) fn fail_on_baseline_regression_from_args(args: &[String]) -> bool {
     fail_on_regression
 }
 
-pub(super) fn print_scenario_list(scenarios: &[&str]) {
+pub(super) fn print_scenario_list(scenarios: &[ScenarioSpec]) {
     println!("radiant_perf scenarios:");
     for scenario in scenarios {
-        println!("{scenario}");
+        println!(
+            "{} category={} iterations={}",
+            scenario.name, scenario.category, scenario.iterations
+        );
     }
 }
 

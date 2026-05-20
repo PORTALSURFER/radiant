@@ -1082,6 +1082,26 @@ It can still accept fresh immutable `UiSurface` snapshots from the host. Direct
 `UiSurface::frame(...)` calls remain one-shot by design for embedded hosts that
 want a single packaged frame without owning runtime state.
 
+The declarative lifecycle contract is snapshot based, not object-instance
+based. Application builders may create a fresh `View<Message>` or
+`UiSurface<Message>` on every refresh; continuity comes from stable widget
+identity, host-owned state, retained resource identity, and runtime caches.
+Use `.key(...)`, explicit widget IDs, or resource IDs for dynamic rows,
+editor handles, retained GPU surfaces, text inputs, and focusable controls that
+must survive insertion, removal, reordering, or scroll-window changes. Generated
+IDs are suitable for static local structure, but dynamic collections should not
+depend on positional identity when user focus, selection, drag state, or cache
+reuse matters.
+
+Reducers own all durable application state. Widget input emits host messages,
+and runtime-local state is limited to GUI concerns such as focus, hover,
+pointer capture, scroll offsets, layout caches, repaint flags, and retained
+surface caches. A reducer that changes durable state should request a normal
+surface repaint so Radiant can project a new immutable snapshot. Use
+paint-only repaint scopes only for overlay motion, cursor previews, handles, or
+other transient visuals that can reuse the current declarative surface and
+paint plan without hiding a real state change.
+
 The lifecycle is:
 
 1. Host state is projected into `UiSurface<Message>`.

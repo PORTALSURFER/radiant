@@ -1522,6 +1522,24 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
     let dispatch =
         fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/dispatch.rs"))
             .expect("runtime command dispatch module should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/tests.rs"))
+        .expect("runtime command test root should be readable");
+    let test_batching =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/tests/batching.rs"))
+            .expect("runtime command batching tests should be readable");
+    let test_drain =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/tests/drain.rs"))
+            .expect("runtime command drain tests should be readable");
+    let test_external_drag = fs::read_to_string(
+        manifest_dir.join("src/runtime/controller/commands/tests/external_drag.rs"),
+    )
+    .expect("runtime command external drag tests should be readable");
+    let test_platform =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/tests/platform.rs"))
+            .expect("runtime command platform tests should be readable");
+    let test_fixtures =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/tests/fixtures.rs"))
+            .expect("runtime command test fixtures should be readable");
 
     for required in [
         "mod dispatch;",
@@ -1552,6 +1570,25 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
             && dispatch.contains("Command::ScrollFixedRowIntoView")
             && !root.contains("fn execute_command_inner"),
         "command execution branches should live in commands/dispatch.rs"
+    );
+    assert!(
+        tests.contains("mod batching;")
+            && tests.contains("mod drain;")
+            && tests.contains("mod external_drag;")
+            && tests.contains("mod platform;")
+            && tests.contains("mod fixtures;")
+            && !tests.contains("fn runtime_command_batch_preserves_order_and_keeps_remainder"),
+        "runtime controller command test root should index focused behavior groups instead of owning all cases"
+    );
+    assert!(
+        test_batching.contains("fn runtime_command_batch_preserves_order_and_keeps_remainder")
+            && test_drain
+                .contains("fn runtime_command_drains_are_bounded_and_request_followup_wakeup")
+            && test_external_drag
+                .contains("fn external_drag_command_arms_and_clears_native_session")
+            && test_platform.contains("fn platform_request_dispatches_through_bridge_completion")
+            && test_fixtures.contains("struct QueuedCommandBridge"),
+        "runtime controller command tests should stay grouped by batching, drain, external drag, platform, and fixtures concerns"
     );
 }
 

@@ -937,6 +937,42 @@ fn layout_axis_helpers_keep_orientation_and_tests_focused() {
 }
 
 #[test]
+fn layout_engine_root_tests_stay_grouped_by_behavior_concern() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/tests.rs"))
+        .expect("layout engine test root should be readable");
+    let layout =
+        fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/tests/layout.rs"))
+            .expect("layout engine layout tests should be readable");
+    let scroll =
+        fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/tests/scroll.rs"))
+            .expect("layout engine scroll tests should be readable");
+    let diagnostics =
+        fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/tests/diagnostics.rs"))
+            .expect("layout engine diagnostic tests should be readable");
+    let debug = fs::read_to_string(manifest_dir.join("src/gui/layout_core/engine/tests/debug.rs"))
+        .expect("layout engine debug tests should be readable");
+
+    assert!(
+        root.contains("mod layout;")
+            && root.contains("mod scroll;")
+            && root.contains("mod diagnostics;")
+            && root.contains("mod debug;")
+            && root.contains("#[path = \"tests/scratch.rs\"]")
+            && !root.contains("fn layout_tree_is_deterministic")
+            && !root.contains("fn scroll_offset_is_clamped"),
+        "layout engine test root should index focused behavior groups instead of owning all core layout cases"
+    );
+    assert!(
+        layout.contains("fn fill_children_redistribute_after_constrained_child_clamps")
+            && scroll.contains("fn scroll_offset_is_clamped_and_reported")
+            && diagnostics.contains("fn contradictory_constraints_emit_diagnostic")
+            && debug.contains("fn debug_primitives_are_emitted_when_enabled"),
+        "layout engine tests should stay grouped by layout, scroll, diagnostics, and debug concerns"
+    );
+}
+
+#[test]
 fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source = fs::read_to_string(manifest_dir.join("src/runtime/surface/node.rs"))

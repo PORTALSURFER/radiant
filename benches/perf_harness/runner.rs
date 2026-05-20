@@ -9,6 +9,7 @@ use std::{
 
 const RUN_ALL_IN_DEBUG_ENV: &str = "RADIANT_PERF_RUN_ALL_IN_DEBUG";
 const BASELINE_JSONL_ARG: &str = "--baseline-jsonl";
+const WRITE_BASELINE_JSONL_ARG: &str = "--write-baseline-jsonl";
 const FAIL_ON_BASELINE_REGRESSION_ARG: &str = "--fail-on-baseline-regression";
 const JSONL_ARG: &str = "--jsonl";
 const LIST_ARG: &str = "--list";
@@ -23,6 +24,7 @@ pub(super) struct ScenarioRunner {
     filters: Vec<String>,
     output_format: OutputFormat,
     baseline: Option<BaselineSet>,
+    baseline_output: Option<BaselineOutput>,
     baseline_summary: BaselineSummary,
     fail_on_baseline_regression: bool,
     matched: usize,
@@ -33,12 +35,14 @@ impl ScenarioRunner {
         filters: Vec<String>,
         output_format: OutputFormat,
         baseline: Option<BaselineSet>,
+        baseline_output: Option<BaselineOutput>,
         fail_on_baseline_regression: bool,
     ) -> Self {
         Self {
             filters,
             output_format,
             baseline,
+            baseline_output,
             baseline_summary: BaselineSummary::default(),
             fail_on_baseline_regression,
             matched: 0,
@@ -54,14 +58,17 @@ impl ScenarioRunner {
             return;
         }
         self.matched += 1;
-        let comparison = run_scenario(
+        let metric = run_scenario(
             name,
             iterations,
             build(),
             self.output_format,
             self.baseline.as_ref(),
         );
-        self.baseline_summary.record(comparison);
+        self.baseline_summary.record(metric.comparison);
+        if let Some(output) = &mut self.baseline_output {
+            output.record(metric.baseline_jsonl);
+        }
     }
 
     pub(super) fn finish(self) {
@@ -75,6 +82,12 @@ impl ScenarioRunner {
         if self.baseline.is_some() && self.matched > 0 {
             self.baseline_summary
                 .print(self.matched, self.output_format);
+        }
+        if let Some(output) = self.baseline_output
+            && let Err(err) = output.write()
+        {
+            eprintln!("radiant_perf baseline error: {err}");
+            std::process::exit(2);
         }
         if self.fail_on_baseline_regression && self.baseline_summary.has_regression() {
             eprintln!(
@@ -118,6 +131,33 @@ impl BaselineSet {
     }
 }
 
+pub(super) struct BaselineOutput {
+    path: PathBuf,
+    lines: Vec<String>,
+}
+
+impl BaselineOutput {
+    fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            lines: Vec::new(),
+        }
+    }
+
+    fn record(&mut self, line: String) {
+        self.lines.push(line);
+    }
+
+    fn write(self) -> Result<(), String> {
+        let mut contents = self.lines.join("\n");
+        if !contents.is_empty() {
+            contents.push('\n');
+        }
+        fs::write(&self.path, contents)
+            .map_err(|err| format!("failed to write {}: {err}", self.path.display()))
+    }
+}
+
 #[derive(Clone, Debug)]
 struct BaselineMetric {
     scenario: String,
@@ -158,6 +198,16 @@ pub(super) fn scenario_filters_from_args(args: &[String]) -> Vec<String> {
             skip_next = true;
             continue;
         }
+        if arg.starts_with(&format!("{BASELINE_JSONL_ARG}=")) {
+            continue;
+        }
+        if arg == WRITE_BASELINE_JSONL_ARG {
+            skip_next = true;
+            continue;
+        }
+        if arg.starts_with(&format!("{WRITE_BASELINE_JSONL_ARG}=")) {
+            continue;
+        }
         if !arg.starts_with('-') && !arg.is_empty() {
             filters.push(arg.clone());
         }
@@ -193,6 +243,22 @@ pub(super) fn baseline_from_args(args: &[String]) -> Option<BaselineSet> {
             std::process::exit(2);
         }
     }
+}
+
+pub(super) fn baseline_output_from_args(args: &[String]) -> Option<BaselineOutput> {
+    let path = match value_after_arg(args, WRITE_BASELINE_JSONL_ARG) {
+        Some(path) => path,
+        None if args
+            .iter()
+            .skip(1)
+            .any(|arg| arg == WRITE_BASELINE_JSONL_ARG) =>
+        {
+            eprintln!("radiant_perf baseline error: --write-baseline-jsonl requires a path");
+            std::process::exit(2);
+        }
+        None => return None,
+    };
+    Some(BaselineOutput::new(PathBuf::from(path)))
 }
 
 pub(super) fn fail_on_baseline_regression_from_args(args: &[String]) -> bool {
@@ -236,7 +302,7 @@ fn run_scenario(
     mut bench: impl FnMut(),
     output_format: OutputFormat,
     baseline: Option<&BaselineSet>,
-) -> Option<MetricComparison> {
+) -> ScenarioMetric {
     bench();
     let started = Instant::now();
     for _ in 0..iterations {
@@ -251,16 +317,22 @@ fn run_scenario(
     )
 }
 
+struct ScenarioMetric {
+    comparison: Option<MetricComparison>,
+    baseline_jsonl: String,
+}
+
 fn print_metric(
     name: &str,
     iterations: usize,
     elapsed: Duration,
     output_format: OutputFormat,
     baseline: Option<Option<&BaselineMetric>>,
-) -> Option<MetricComparison> {
+) -> ScenarioMetric {
     let total_us = elapsed.as_micros();
     let avg_us = total_us as f64 / iterations.max(1) as f64;
     let comparison = baseline.map(|baseline| MetricComparison::new(avg_us, baseline));
+    let baseline_jsonl = baseline_metric_json_line(name, iterations, total_us, avg_us);
     match output_format {
         OutputFormat::Text => {
             if let Some(comparison) = comparison {
@@ -323,7 +395,10 @@ fn print_metric(
             }
         }
     }
-    comparison
+    ScenarioMetric {
+        comparison,
+        baseline_jsonl,
+    }
 }
 
 #[derive(Default)]
@@ -435,4 +510,14 @@ fn json_escape(value: &str) -> String {
         }
     }
     escaped
+}
+
+fn baseline_metric_json_line(name: &str, iterations: usize, total_us: u128, avg_us: f64) -> String {
+    format!(
+        "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}}}",
+        json_escape(name),
+        iterations,
+        total_us,
+        avg_us
+    )
 }

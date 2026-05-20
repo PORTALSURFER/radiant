@@ -127,11 +127,15 @@ fn performance_harness_is_registered_and_documented() {
     assert!(
         runner.contains("--jsonl")
             && runner.contains("--baseline-jsonl")
+            && runner.contains("--write-baseline-jsonl")
             && runner.contains("--fail-on-baseline-regression")
             && runner.contains("OutputFormat::JsonLines")
             && runner.contains("BaselineSet")
+            && runner.contains("BaselineOutput")
+            && runner.contains("baseline_output_from_args")
             && runner.contains("fail_on_baseline_regression")
             && runner.contains("has_regression")
+            && runner.contains("baseline_metric_json_line")
             && runner.contains("std::process::exit(1)")
             && runner.contains("\\\"type\\\":\\\"radiant_perf\\\"")
             && runner.contains("\\\"total_us\\\"")
@@ -218,11 +222,15 @@ fn performance_harness_is_registered_and_documented() {
                 "cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl"
             )
             && normalized_docs.contains(
+                "cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --write-baseline-jsonl"
+            )
+            && normalized_docs.contains(
                 "cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl"
             )
             && normalized_docs.contains(
                 "Each JSON line includes `type`, `scenario`, `iterations`, `total_us`, and `avg_us`"
             )
+            && normalized_docs.contains("Capture a machine-local baseline artifact directly")
             && normalized_docs
                 .contains("`baseline_avg_us`, `baseline_ratio`, and `baseline_status`")
             && normalized_docs.contains("`baseline_status=missing`")

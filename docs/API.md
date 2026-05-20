@@ -828,6 +828,13 @@ cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl
 
 Each JSON line includes `type`, `scenario`, `iterations`, `total_us`, and
 `avg_us`, so performance history can be collected without scraping prose.
+Capture a machine-local baseline artifact directly with
+`--write-baseline-jsonl`:
+
+```powershell
+cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --write-baseline-jsonl .\perf-baseline.jsonl
+```
+
 Compare a focused run against a previously captured JSONL artifact with
 `--baseline-jsonl`:
 

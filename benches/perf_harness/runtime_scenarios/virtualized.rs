@@ -1,13 +1,14 @@
+#[path = "virtualized/bridges.rs"]
+mod bridges;
+
 use radiant::{
-    layout::{Point, SizeModeCross, SizeModeMain, SlotParams, Vector2, VirtualizationAxis},
-    runtime::{
-        Event, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface,
-        WidgetMessageMapper,
-    },
+    layout::{Point, Vector2},
+    runtime::{Event, SurfaceRuntime},
     theme::ThemeTokens,
-    widgets::{ButtonWidget, WidgetSizing},
 };
-use std::{hint::black_box, sync::Arc};
+use std::hint::black_box;
+
+use bridges::{NestedScrollBridge, VirtualWheelBridge};
 
 pub(super) fn virtualized_list_wheel_10k() -> impl FnMut() {
     let mut virtualized_wheel = StatefulVirtualizedWheelBench::new();
@@ -143,41 +144,6 @@ impl StatefulVirtualizedHoverPaintBench {
     }
 }
 
-struct VirtualWheelBridge;
-
-impl RuntimeBridge<()> for VirtualWheelBridge {
-    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        let rows = (0..10_000_u64)
-            .map(|index| {
-                SurfaceChild::new(
-                    SlotParams {
-                        size_main: SizeModeMain::Fixed(28.0),
-                        size_cross: SizeModeCross::Fill,
-                        constraints: radiant::layout::Constraints::unconstrained(),
-                        margin: Default::default(),
-                        align_cross_override: None,
-                        allow_fixed_compress: false,
-                    },
-                    SurfaceNode::widget(
-                        ButtonWidget::new(
-                            index + 10,
-                            format!("Row {index:05}"),
-                            WidgetSizing::fixed(Vector2::new(160.0, 28.0)),
-                        ),
-                        WidgetMessageMapper::none(),
-                    ),
-                )
-            })
-            .collect();
-        Arc::new(UiSurface::new(SurfaceNode::virtual_scroll_area(
-            1,
-            SurfaceNode::column(2, 4.0, rows),
-            VirtualizationAxis::Vertical,
-            96.0,
-        )))
-    }
-}
-
 struct StatefulVirtualizedNestedScrollHoverBench {
     runtime: SurfaceRuntime<NestedScrollBridge, ()>,
     offset: f32,
@@ -202,59 +168,5 @@ impl StatefulVirtualizedNestedScrollHoverBench {
         });
         assert!(self.runtime.hovered_scroll_affordance().is_some());
         black_box(self.runtime.layout());
-    }
-}
-
-struct NestedScrollBridge;
-
-impl RuntimeBridge<()> for NestedScrollBridge {
-    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
-        let rows = (0..10_000_u64)
-            .map(|index| {
-                SurfaceChild::new(
-                    SlotParams {
-                        size_main: SizeModeMain::Fixed(32.0),
-                        size_cross: SizeModeCross::Fill,
-                        constraints: radiant::layout::Constraints::unconstrained(),
-                        margin: Default::default(),
-                        align_cross_override: None,
-                        allow_fixed_compress: false,
-                    },
-                    SurfaceNode::scroll_area(
-                        20_000 + index,
-                        SurfaceNode::column(
-                            40_000 + index,
-                            0.0,
-                            (0..4)
-                                .map(|child_index| {
-                                    SurfaceChild::new(
-                                        SlotParams {
-                                            size_main: SizeModeMain::Fixed(18.0),
-                                            size_cross: SizeModeCross::Fill,
-                                            constraints:
-                                                radiant::layout::Constraints::unconstrained(),
-                                            margin: Default::default(),
-                                            align_cross_override: None,
-                                            allow_fixed_compress: false,
-                                        },
-                                        SurfaceNode::text(
-                                            80_000 + index * 4 + child_index,
-                                            format!("Nested {index:05}.{child_index}"),
-                                            WidgetSizing::fixed(Vector2::new(180.0, 18.0)),
-                                        ),
-                                    )
-                                })
-                                .collect(),
-                        ),
-                    ),
-                )
-            })
-            .collect();
-        Arc::new(UiSurface::new(SurfaceNode::virtual_scroll_area(
-            1,
-            SurfaceNode::column(2, 2.0, rows),
-            VirtualizationAxis::Vertical,
-            96.0,
-        )))
     }
 }

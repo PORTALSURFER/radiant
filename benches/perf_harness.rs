@@ -38,13 +38,14 @@ fn main() {
         return;
     }
 
-    let filters = runner::scenario_filters_from_args(args);
+    let filters = runner::scenario_filters_from_args(&args);
     if runner::should_skip_unfiltered_debug_run(&filters) {
         runner::print_unfiltered_debug_skip();
         return;
     }
 
-    let mut runner = runner::ScenarioRunner::new(filters);
+    let output_format = runner::output_format_from_args(&args);
+    let mut runner = runner::ScenarioRunner::new(filters, output_format);
     catalog::run_registered_scenarios(&mut runner);
     runner.finish();
 }

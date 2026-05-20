@@ -794,6 +794,14 @@ cargo bench --bench perf_harness
 
 The harness prints parseable `radiant_perf` metric lines for layout, runtime
 surface, application projection, and GPU-surface data preparation scenarios.
+Use `--jsonl` when collecting trend artifacts for scripts or CI storage:
+
+```powershell
+cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl
+```
+
+Each JSON line includes `type`, `scenario`, `iterations`, `total_us`, and
+`avg_us`, so performance history can be collected without scraping prose.
 List the available scenarios without running them with:
 
 ```powershell
@@ -832,7 +840,7 @@ cargo bench --bench perf_harness runtime_virtualized_list_hover
 
 The harness performs sanity assertions, but it does not enforce machine-dependent
 pass/fail timing thresholds; use the output for local comparisons, profiling
-runs, and regression investigation.
+runs, trend capture, and regression investigation.
 Run `cargo run --example rendering_benchmark` for a checked public-API sandbox
 that builds a large declarative surface, runs layout plus paint-plan generation,
 and prints parseable primitive-count diagnostics.

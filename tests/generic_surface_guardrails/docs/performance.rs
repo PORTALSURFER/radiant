@@ -115,6 +115,14 @@ fn performance_harness_is_registered_and_documented() {
         "perf_harness runner should print parseable metric lines"
     );
     assert!(
+        runner.contains("--jsonl")
+            && runner.contains("OutputFormat::JsonLines")
+            && runner.contains("\\\"type\\\":\\\"radiant_perf\\\"")
+            && runner.contains("\\\"total_us\\\"")
+            && runner.contains("\\\"avg_us\\\""),
+        "perf_harness runner should expose JSON-lines metrics for trend capture"
+    );
+    assert!(
         runner.contains("--list") && runner.contains("radiant_perf scenarios:"),
         "perf_harness runner should expose a cheap scenario-listing mode"
     );
@@ -165,6 +173,12 @@ fn performance_harness_is_registered_and_documented() {
     assert!(
         normalized_docs.contains("cargo bench --bench perf_harness")
             && normalized_docs.contains("cargo bench --bench perf_harness -- --list")
+            && normalized_docs.contains(
+                "cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl"
+            )
+            && normalized_docs.contains(
+                "Each JSON line includes `type`, `scenario`, `iterations`, `total_us`, and `avg_us`"
+            )
             && normalized_docs
                 .contains("does not enforce machine-dependent pass/fail timing thresholds"),
         "docs/API.md should describe how to run and interpret the perf harness"

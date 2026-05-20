@@ -92,7 +92,7 @@ impl ScenarioRunner {
             self.output_format,
             self.baseline.as_ref(),
         );
-        self.baseline_summary.record(metric.comparison);
+        self.baseline_summary.record(category, metric.comparison);
         if let Some(output) = &mut self.baseline_output {
             output.record(metric.baseline_jsonl);
         }
@@ -119,7 +119,7 @@ impl ScenarioRunner {
         if self.fail_on_baseline_regression && self.baseline_summary.has_regression() {
             eprintln!(
                 "radiant_perf regression gate failed: {} slower scenario(s)",
-                self.baseline_summary.slower
+                self.baseline_summary.slower()
             );
             std::process::exit(1);
         }
@@ -466,6 +466,12 @@ fn print_metric(
 
 #[derive(Default)]
 struct BaselineSummary {
+    categories: BTreeMap<String, BaselineSummaryCounts>,
+    total: BaselineSummaryCounts,
+}
+
+#[derive(Clone, Copy, Default)]
+struct BaselineSummaryCounts {
     matched: usize,
     missing: usize,
     faster: usize,
@@ -474,6 +480,35 @@ struct BaselineSummary {
 }
 
 impl BaselineSummary {
+    fn record(&mut self, category: &str, comparison: Option<MetricComparison>) {
+        self.total.record(comparison);
+        self.categories
+            .entry(category.to_owned())
+            .or_default()
+            .record(comparison);
+    }
+
+    fn print(&self, scenarios: usize, output_format: OutputFormat) {
+        self.total.print_total(scenarios, output_format);
+        for (category, counts) in &self.categories {
+            counts.print_category(category, output_format);
+        }
+    }
+
+    fn has_regression(&self) -> bool {
+        self.total.slower > 0
+    }
+
+    fn slower(&self) -> usize {
+        self.total.slower
+    }
+}
+
+impl BaselineSummaryCounts {
+    fn scenarios(&self) -> usize {
+        self.matched + self.missing
+    }
+
     fn record(&mut self, comparison: Option<MetricComparison>) {
         match comparison {
             Some(MetricComparison::Matched { status, .. }) => {
@@ -492,7 +527,7 @@ impl BaselineSummary {
         }
     }
 
-    fn print(&self, scenarios: usize, output_format: OutputFormat) {
+    fn print_total(&self, scenarios: usize, output_format: OutputFormat) {
         match output_format {
             OutputFormat::Text => {
                 println!(
@@ -509,8 +544,27 @@ impl BaselineSummary {
         }
     }
 
-    fn has_regression(&self) -> bool {
-        self.slower > 0
+    fn print_category(&self, category: &str, output_format: OutputFormat) {
+        let scenarios = self.scenarios();
+        match output_format {
+            OutputFormat::Text => {
+                println!(
+                    "radiant_perf_category_summary category={category} scenarios={scenarios} baseline_matched={} baseline_missing={} baseline_faster={} baseline_similar={} baseline_slower={}",
+                    self.matched, self.missing, self.faster, self.similar, self.slower
+                );
+            }
+            OutputFormat::JsonLines => {
+                println!(
+                    "{{\"type\":\"radiant_perf_category_summary\",\"category\":\"{}\",\"scenarios\":{scenarios},\"baseline_matched\":{},\"baseline_missing\":{},\"baseline_faster\":{},\"baseline_similar\":{},\"baseline_slower\":{}}}",
+                    json_escape(category),
+                    self.matched,
+                    self.missing,
+                    self.faster,
+                    self.similar,
+                    self.slower
+                );
+            }
+        }
     }
 }
 

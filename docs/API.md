@@ -852,9 +852,13 @@ review. After the matched scenarios finish, the harness also emits a
 `radiant_perf_summary` line with `baseline_matched`, `baseline_missing`,
 `baseline_faster`, `baseline_similar`, and `baseline_slower` counts so CI
 artifacts and code reviews can quickly see whether the baseline file covered the
-run. These statuses are trend context for review and investigation, not a
-portable pass/fail gate by default. CI or release jobs that intentionally pin a
-machine-specific baseline can opt into a gate with
+run. It also emits one `radiant_perf_category_summary` line per target-area
+category in the run, carrying the same baseline counts for just that category,
+so reviewers can spot whether a regression or missing baseline belongs to text,
+layout, runtime, resource, or GPU-facing work. These statuses are trend context
+for review and investigation, not a portable pass/fail gate by default. CI or
+release jobs that intentionally pin a machine-specific baseline can opt into a
+gate with
 `--fail-on-baseline-regression`; the harness then exits with status `1` when
 any matched scenario reports `baseline_status=slower`, while still printing the
 normal metric and summary lines:

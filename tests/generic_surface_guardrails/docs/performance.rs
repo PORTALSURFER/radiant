@@ -11,6 +11,12 @@ fn performance_harness_is_registered_and_documented() {
         .expect("perf_harness catalog should be readable");
     let runner = fs::read_to_string(manifest_dir.join("benches/perf_harness/runner.rs"))
         .expect("perf_harness runner should be readable");
+    let layout_scenarios =
+        fs::read_to_string(manifest_dir.join("benches/perf_harness/layout_scenarios.rs"))
+            .expect("layout bench scenarios should be readable");
+    let layout_trees =
+        fs::read_to_string(manifest_dir.join("benches/perf_harness/layout_scenarios/trees.rs"))
+            .expect("layout bench tree fixtures should be readable");
     let runtime_surface =
         fs::read_to_string(manifest_dir.join("benches/perf_harness/runtime_scenarios/surface.rs"))
             .expect("runtime surface bench scenarios should be readable");
@@ -102,6 +108,13 @@ fn performance_harness_is_registered_and_documented() {
     assert!(
         runner.contains("--list") && runner.contains("radiant_perf scenarios:"),
         "perf_harness runner should expose a cheap scenario-listing mode"
+    );
+    assert!(
+        layout_scenarios.contains("layout_scenarios/trees.rs")
+            && layout_trees.contains("deep_nesting_tree")
+            && layout_trees.contains("wrap_tree")
+            && layout_trees.contains("virtualized_scroll_tree"),
+        "layout perf scenarios should keep scenario state separate from synthetic layout trees"
     );
     assert!(
         runtime_surface.contains("surface/nodes.rs")

@@ -160,6 +160,8 @@ fn normalized_ranges_use_named_parts_for_milli_bounds() {
     let source_path = manifest_dir.join("src/gui/range/interval.rs");
     let interval = fs::read_to_string(&source_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let interval_tests = fs::read_to_string(manifest_dir.join("src/gui/range/interval/tests.rs"))
+        .expect("normalized range behavior tests should be readable");
 
     assert!(
         root.contains("mod interval;")
@@ -170,8 +172,15 @@ fn normalized_ranges_use_named_parts_for_milli_bounds() {
 
     assert!(
         interval.contains("pub struct NormalizedRangeParts")
-            && interval.contains("pub fn from_parts(parts: NormalizedRangeParts) -> Self"),
-        "normalized ranges should expose named parts for start and end milli-unit bounds"
+            && interval.contains("pub fn from_parts(parts: NormalizedRangeParts) -> Self")
+            && interval.contains("#[path = \"interval/tests.rs\"]")
+            && !interval.contains("fn normalized_range_orders_and_clamps_nano_bounds"),
+        "normalized ranges should expose named parts for start and end milli-unit bounds while delegating behavior tests"
+    );
+    assert!(
+        interval_tests.contains("fn normalized_range_orders_and_clamps_nano_bounds")
+            && interval_tests.contains("fn normalized_range_supports_named_parts_construction"),
+        "normalized range behavior coverage should live in range/interval/tests.rs"
     );
     assert!(
         interval.contains("Self::from_parts(NormalizedRangeParts {"),
@@ -213,6 +222,8 @@ fn normalized_viewports_use_named_parts_for_precision_bounds() {
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
     let projection = fs::read_to_string(manifest_dir.join("src/gui/range/viewport/projection.rs"))
         .expect("normalized viewport projection source should be readable");
+    let viewport_tests = fs::read_to_string(manifest_dir.join("src/gui/range/viewport/tests.rs"))
+        .expect("normalized viewport behavior tests should be readable");
     let module = fs::read_to_string(&module_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", module_path.display()));
 
@@ -224,10 +235,17 @@ fn normalized_viewports_use_named_parts_for_precision_bounds() {
     assert!(
         source.contains("Self::from_parts(NormalizedViewportParts {")
             && source.contains("mod projection;")
+            && source.contains("#[path = \"viewport/tests.rs\"]")
             && source.contains("projection::x_for_ratio")
             && !source.contains("fn finite_ordered_x_bounds")
+            && !source.contains("fn normalized_viewport_projects_absolute_ratios_into_rect")
             && module.contains("NormalizedViewportParts"),
-        "normalized viewport compatibility constructor and range export should keep the named-parts path available"
+        "normalized viewport compatibility constructor and range export should keep the named-parts path available while behavior tests stay delegated"
+    );
+    assert!(
+        viewport_tests.contains("fn normalized_viewport_projects_absolute_ratios_into_rect")
+            && viewport_tests.contains("fn normalized_viewport_supports_named_parts_construction"),
+        "normalized viewport behavior coverage should live in range/viewport/tests.rs"
     );
     assert!(
         projection.contains("fn local_ratio")
@@ -246,17 +264,25 @@ fn normalized_scrollbars_keep_model_and_geometry_focused() {
         .expect("normalized scrollbar model should be readable");
     let geometry = fs::read_to_string(manifest_dir.join("src/gui/range/scrollbar/geometry.rs"))
         .expect("normalized scrollbar geometry should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/gui/range/scrollbar/tests.rs"))
+        .expect("normalized scrollbar behavior tests should be readable");
     let range = fs::read_to_string(manifest_dir.join("src/gui/range.rs"))
         .expect("range facade should be readable");
 
     assert!(
         root.contains("mod geometry;")
             && root.contains("mod model;")
+            && root.contains("#[path = \"scrollbar/tests.rs\"]")
             && root.contains("pub use geometry::{")
             && root.contains("pub use model::{NormalizedScrollbar")
             && !root.contains("pub struct NormalizedScrollbarRequest")
             && !root.contains("fn clamped_normalized_span"),
-        "normalized scrollbar root should re-export focused model and geometry modules"
+        "normalized scrollbar root should re-export focused model and geometry modules while delegating behavior tests"
+    );
+    assert!(
+        tests.contains("fn normalized_scrollbar_maps_viewport_to_horizontal_thumb")
+            && tests.contains("fn normalized_scrollbar_resolves_drag_and_track_click_center"),
+        "normalized scrollbar behavior coverage should live in range/scrollbar/tests.rs"
     );
     assert!(
         model.contains("pub struct NormalizedScrollbarRequest")

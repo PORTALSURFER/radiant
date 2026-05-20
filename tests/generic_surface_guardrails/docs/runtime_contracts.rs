@@ -140,6 +140,8 @@ fn api_docs_describe_gpu_surface_boundary_contract() {
         "keep transient cursor or drag previews in overlays or paint-only repaint paths",
         "one Radiant widget model instead of creating separate Vello and WGPU application models",
         "`GpuSurfaceContent::CustomShader` for advanced surfaces",
+        "explicit vertex and fragment entry-point names",
+        "`fragment_entry_point(...)` names the color-producing fragment stage",
         "`NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces`",
         "`unsupported_custom_shader_vertices`",
         "`unsupported_custom_shader_source_bytes`",

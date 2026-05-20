@@ -13,8 +13,10 @@ pub struct GpuShaderSurfaceDescriptor {
     pub shader_key: String,
     /// Optional WGSL module source for backends that can compile this surface directly.
     pub wgsl_source: Option<Arc<str>>,
-    /// Shader entry point requested by this surface.
+    /// Vertex shader entry point requested by this surface.
     pub entry_point: String,
+    /// Optional fragment shader entry point for backends that can render this surface directly.
+    pub fragment_entry_point: Option<String>,
     /// Opaque uniform payload consumed by a backend-specific pipeline.
     pub uniform_bytes: Arc<[u8]>,
     /// Opaque storage/data payload consumed by a backend-specific pipeline.
@@ -30,8 +32,10 @@ pub struct GpuShaderSurfaceDescriptorParts {
     pub shader_key: String,
     /// Optional WGSL module source for backends that can compile this surface directly.
     pub wgsl_source: Option<Arc<str>>,
-    /// Shader entry point requested by this surface.
+    /// Vertex shader entry point requested by this surface.
     pub entry_point: String,
+    /// Optional fragment shader entry point for backends that can render this surface directly.
+    pub fragment_entry_point: Option<String>,
     /// Opaque uniform payload consumed by a backend-specific pipeline.
     pub uniform_bytes: Arc<[u8]>,
     /// Opaque storage/data payload consumed by a backend-specific pipeline.
@@ -47,6 +51,7 @@ impl GpuShaderSurfaceDescriptor {
             shader_key: parts.shader_key,
             wgsl_source: parts.wgsl_source,
             entry_point: parts.entry_point,
+            fragment_entry_point: parts.fragment_entry_point,
             uniform_bytes: parts.uniform_bytes,
             storage_bytes: parts.storage_bytes,
             vertex_count: parts.vertex_count,
@@ -59,6 +64,7 @@ impl GpuShaderSurfaceDescriptor {
             shader_key: shader_key.into(),
             wgsl_source: None,
             entry_point: String::from("main"),
+            fragment_entry_point: None,
             uniform_bytes: Arc::<[u8]>::from([]),
             storage_bytes: Arc::<[u8]>::from([]),
             vertex_count: 3,
@@ -71,9 +77,15 @@ impl GpuShaderSurfaceDescriptor {
         self
     }
 
-    /// Set the shader entry point.
+    /// Set the vertex shader entry point.
     pub fn entry_point(mut self, entry_point: impl Into<String>) -> Self {
         self.entry_point = entry_point.into();
+        self
+    }
+
+    /// Set the fragment shader entry point for visible direct-rendered output.
+    pub fn fragment_entry_point(mut self, entry_point: impl Into<String>) -> Self {
+        self.fragment_entry_point = Some(entry_point.into());
         self
     }
 

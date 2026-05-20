@@ -43,8 +43,10 @@ mod tests {
                 descriptor: Arc::new(
                     GpuShaderSurfaceDescriptor::new("test/custom-shader")
                         .wgsl_source(
-                            "@vertex fn main() -> @builtin(position) vec4<f32> { return vec4<f32>(); }",
+                            "@vertex fn vertex_main() -> @builtin(position) vec4<f32> { return vec4<f32>(); }\n@fragment fn fragment_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }",
                         )
+                        .entry_point("vertex_main")
+                        .fragment_entry_point("fragment_main")
                         .uniform_bytes([1, 2, 3, 4])
                         .storage_bytes([5, 6, 7])
                         .vertex_count(6),

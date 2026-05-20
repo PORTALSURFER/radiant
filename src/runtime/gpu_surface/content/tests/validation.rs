@@ -120,6 +120,9 @@ fn custom_shader_content_validation_reports_descriptor_errors() {
     let empty_entry = GpuSurfaceContent::CustomShader {
         descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("meter").entry_point("")),
     };
+    let empty_fragment_entry = GpuSurfaceContent::CustomShader {
+        descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("meter").fragment_entry_point(" ")),
+    };
     let empty_source = GpuSurfaceContent::CustomShader {
         descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("meter").wgsl_source(" ")),
     };
@@ -134,6 +137,12 @@ fn custom_shader_content_validation_reports_descriptor_errors() {
     assert_eq!(
         empty_entry.validate(),
         Err(GpuSurfaceContentError::EmptyShaderEntryPoint {
+            shader_key: String::from("meter"),
+        })
+    );
+    assert_eq!(
+        empty_fragment_entry.validate(),
+        Err(GpuSurfaceContentError::EmptyShaderFragmentEntryPoint {
             shader_key: String::from("meter"),
         })
     );
@@ -155,9 +164,10 @@ fn custom_shader_content_validation_reports_descriptor_errors() {
 fn custom_shader_content_carries_backend_neutral_payloads() {
     let descriptor = GpuShaderSurfaceDescriptor::new("spectral-meter")
         .wgsl_source(
-            "@fragment fn fragment_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }",
+            "@vertex fn vertex_main() -> @builtin(position) vec4<f32> { return vec4<f32>(); }\n@fragment fn fragment_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }",
         )
-        .entry_point("fragment_main")
+        .entry_point("vertex_main")
+        .fragment_entry_point("fragment_main")
         .uniform_bytes([1, 2, 3, 4])
         .storage_bytes([5, 6])
         .vertex_count(6);
@@ -172,9 +182,16 @@ fn custom_shader_content_carries_backend_neutral_payloads() {
     };
     assert_eq!(descriptor.shader_key, "spectral-meter");
     assert!(descriptor.wgsl_source.as_deref().is_some_and(|source| {
-        source.contains("@fragment") && source.contains("fragment_main")
+        source.contains("@vertex")
+            && source.contains("vertex_main")
+            && source.contains("@fragment")
+            && source.contains("fragment_main")
     }));
-    assert_eq!(descriptor.entry_point, "fragment_main");
+    assert_eq!(descriptor.entry_point, "vertex_main");
+    assert_eq!(
+        descriptor.fragment_entry_point.as_deref(),
+        Some("fragment_main")
+    );
     assert_eq!(descriptor.uniform_bytes.as_ref(), &[1, 2, 3, 4]);
     assert_eq!(descriptor.storage_bytes.as_ref(), &[5, 6]);
     assert_eq!(descriptor.vertex_count, 6);

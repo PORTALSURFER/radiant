@@ -65,9 +65,10 @@ runtime invalidation.
 
 Built-in GPU-surface payloads cover atlas and signal rendering. Advanced shader
 surfaces use a backend-neutral custom shader descriptor for stable shader
-identity and opaque payload bytes; native backends that do not yet implement a
-matching pipeline report that through frame diagnostics instead of introducing
-a parallel application-facing WGPU API.
+identity, optional WGSL source, explicit vertex/fragment entry points, and
+opaque payload bytes; native backends that do not yet implement a matching
+pipeline report that through frame diagnostics instead of introducing a
+parallel application-facing WGPU API.
 
 Backend-neutral paint plans live under `src/runtime/paint`. Native Vello scene
 construction, retained scene caching, post-GPU overlays, GPU-surface pipelines,

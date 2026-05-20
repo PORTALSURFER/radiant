@@ -120,6 +120,12 @@ pub struct NativeGpuSurfaceDiagnostics {
     pub composite_binding_cache_hits: usize,
     /// Valid custom-shader GPU surfaces skipped by this native backend.
     pub unsupported_custom_shader_surfaces: usize,
+    /// Total vertex count requested by skipped custom-shader GPU surfaces.
+    pub unsupported_custom_shader_vertices: usize,
+    /// Total uniform payload bytes carried by skipped custom-shader GPU surfaces.
+    pub unsupported_custom_shader_uniform_bytes: usize,
+    /// Total storage payload bytes carried by skipped custom-shader GPU surfaces.
+    pub unsupported_custom_shader_storage_bytes: usize,
 }
 
 /// Coarse timing diagnostics for one native presentation frame.

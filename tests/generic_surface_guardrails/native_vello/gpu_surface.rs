@@ -134,9 +134,18 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
     assert!(
         custom_shader.contains("fn render_custom_shader")
             && custom_shader.contains("unsupported_custom_shader_surfaces += 1")
+            && custom_shader.contains("unsupported_custom_shader_vertices")
+            && custom_shader.contains("unsupported_custom_shader_uniform_bytes")
+            && custom_shader.contains("unsupported_custom_shader_storage_bytes")
             && custom_shader
                 .contains("fn custom_shader_surfaces_report_unsupported_until_pipeline_exists"),
-        "native custom shader GPU-surface diagnostics should stay in a focused module until native shader execution exists"
+        "native custom shader GPU-surface diagnostics should stay detailed and focused until native shader execution exists"
+    );
+    assert!(
+        stats.contains("unsupported_custom_shader_vertices")
+            && stats.contains("unsupported_custom_shader_uniform_bytes")
+            && stats.contains("unsupported_custom_shader_storage_bytes"),
+        "GPU surface render stats should keep skipped custom-shader draw and payload counters"
     );
 }
 

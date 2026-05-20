@@ -11,7 +11,6 @@ use vello::peniko::FontData;
 
 const TEXT_LAYOUT_CACHE_CAPACITY: usize = 2_048;
 
-#[cfg(test)]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(in crate::gui_runtime::native_vello) struct TextLayoutProfileCounters {
     pub layout_hits: u64,
@@ -80,7 +79,6 @@ impl TextLayoutCache {
         Some(&entry.layout)
     }
 
-    #[cfg(test)]
     pub(super) fn take_profile_counters(&mut self) -> TextLayoutProfileCounters {
         let atom_counters = self.atom_cache.take_profile_counters();
         let counters = TextLayoutProfileCounters {

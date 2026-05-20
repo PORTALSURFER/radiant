@@ -245,6 +245,7 @@ fn native_vello_present_diagnostics_stay_in_focused_module() {
     assert!(
         diagnostics.contains("fn native_frame_diagnostics")
             && diagnostics.contains("NativeSceneDiagnostics")
+            && diagnostics.contains("NativeTextDiagnostics")
             && diagnostics.contains("NativeGpuSurfaceDiagnostics")
             && diagnostics.contains("NativeFrameTimingDiagnostics"),
         "native frame diagnostics projection should live in present/diagnostics.rs"

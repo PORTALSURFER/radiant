@@ -51,7 +51,8 @@ pub use controller::{
 };
 pub use diagnostics::{
     NativeFrameDiagnostics, NativeFrameTimingDiagnostics, NativeGpuSurfaceDiagnostics,
-    NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics, RetainedSurfaceCachePolicy,
+    NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics, NativeTextDiagnostics,
+    RetainedSurfaceCachePolicy,
 };
 pub(crate) use external_drag::ExternalDragSession;
 pub use external_drag::{

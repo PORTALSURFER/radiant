@@ -2,16 +2,22 @@ use super::payload::{
     build_drop_effect_format, build_file_format, create_hglobal_for_paths, drop_effect_formats,
     drop_effect_medium,
 };
+#[path = "data_object/formats.rs"]
+mod formats;
+#[path = "data_object/medium.rs"]
+mod medium;
+
+use formats::data_object_format_matches;
+use medium::drop_effect_from_medium;
 use std::cell::Cell;
 use std::mem::ManuallyDrop;
 use std::path::PathBuf;
 use windows::Win32::Foundation::{DV_E_FORMATETC, E_INVALIDARG};
 use windows::Win32::System::Com::{
-    DATADIR_GET, DVASPECT_CONTENT, FORMATETC, IAdviseSink, IDataObject, IEnumFORMATETC, STGMEDIUM,
-    STGMEDIUM_0, TYMED_HGLOBAL,
+    DATADIR_GET, FORMATETC, IAdviseSink, IDataObject, IEnumFORMATETC, STGMEDIUM, STGMEDIUM_0,
+    TYMED_HGLOBAL,
 };
-use windows::Win32::System::Memory::{GlobalLock, GlobalUnlock};
-use windows::Win32::System::Ole::{CF_HDROP, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_NONE};
+use windows::Win32::System::Ole::{DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_NONE};
 use windows::Win32::UI::Shell::SHCreateStdEnumFmtEtc;
 use windows::core::{BOOL, HRESULT, Ref, implement};
 
@@ -41,13 +47,7 @@ impl FileDropDataObject {
     }
 
     fn matches_format(&self, fmt: &FORMATETC) -> bool {
-        (fmt.cfFormat == CF_HDROP.0
-            && fmt.dwAspect == DVASPECT_CONTENT.0
-            && (fmt.tymed & TYMED_HGLOBAL.0 as u32) != 0
-            && (fmt.lindex == -1 || fmt.lindex == 0))
-            || ((fmt.cfFormat == self.preferred_drop_effect
-                || fmt.cfFormat == self.performed_drop_effect)
-                && (fmt.tymed & TYMED_HGLOBAL.0 as u32) != 0)
+        data_object_format_matches(fmt, self.preferred_drop_effect, self.performed_drop_effect)
     }
 
     fn fill_medium(&self, fmt: &FORMATETC) -> windows::core::Result<STGMEDIUM> {
@@ -173,19 +173,6 @@ impl windows::Win32::System::Com::IDataObject_Impl for FileDropDataObject_Impl {
             windows::Win32::Foundation::E_NOTIMPL,
         ))
     }
-}
-
-fn drop_effect_from_medium(medium: &STGMEDIUM) -> windows::core::Result<DROPEFFECT> {
-    let handle = unsafe { medium.u.hGlobal };
-    let ptr = unsafe { GlobalLock(handle) } as *const u32;
-    if ptr.is_null() {
-        return Err(windows::core::Error::from_thread());
-    }
-    let effect = unsafe { *ptr };
-    unsafe {
-        let _ = GlobalUnlock(handle);
-    }
-    Ok(DROPEFFECT(effect))
 }
 
 #[cfg(test)]

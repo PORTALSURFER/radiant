@@ -148,6 +148,10 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
             && custom_shader.contains("device.create_shader_module")
             && custom_shader.contains("device.create_render_pipeline")
             && custom_shader.contains("record_unsupported_custom_shader")
+            && custom_shader.contains("custom_shader_surfaces_rendered += 1")
+            && custom_shader.contains("custom_shader_pipeline_rebuilds += 1")
+            && custom_shader.contains("custom_shader_binding_rebuilds += 1")
+            && custom_shader.contains("custom_shader_binding_cache_hits += 1")
             && custom_shader.contains("unsupported_custom_shader_surfaces += 1")
             && custom_shader.contains("unsupported_custom_shader_vertices")
             && custom_shader.contains("unsupported_custom_shader_source_bytes")
@@ -169,6 +173,10 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
     );
     assert!(
         stats.contains("unsupported_custom_shader_vertices")
+            && stats.contains("custom_shader_surfaces_rendered")
+            && stats.contains("custom_shader_pipeline_rebuilds")
+            && stats.contains("custom_shader_binding_rebuilds")
+            && stats.contains("custom_shader_binding_cache_hits")
             && stats.contains("unsupported_custom_shader_source_bytes")
             && stats.contains("unsupported_custom_shader_uniform_bytes")
             && stats.contains("unsupported_custom_shader_storage_bytes"),

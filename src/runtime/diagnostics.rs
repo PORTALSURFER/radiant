@@ -126,6 +126,14 @@ pub struct NativeGpuSurfaceDiagnostics {
     pub composite_binding_rebuilds: usize,
     /// Composite binding cache hits this frame.
     pub composite_binding_cache_hits: usize,
+    /// Custom-shader GPU surfaces encoded by the native WGPU path this frame.
+    pub custom_shader_surfaces_rendered: usize,
+    /// Custom-shader render pipelines rebuilt this frame.
+    pub custom_shader_pipeline_rebuilds: usize,
+    /// Custom-shader bind groups rebuilt this frame.
+    pub custom_shader_binding_rebuilds: usize,
+    /// Custom-shader bind groups reused from cache this frame.
+    pub custom_shader_binding_cache_hits: usize,
     /// Valid custom-shader GPU surfaces skipped by this native backend.
     pub unsupported_custom_shader_surfaces: usize,
     /// Total vertex count requested by skipped custom-shader GPU surfaces.

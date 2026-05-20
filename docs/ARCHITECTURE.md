@@ -70,7 +70,9 @@ opaque payload bytes. The native WGPU adapter executes the source-backed subset
 with Radiant's surface-uniform ABI plus optional app uniform and read-only
 storage payload bindings; descriptors missing the required shader handoff
 report that through frame diagnostics instead of introducing a parallel
-application-facing WGPU API.
+application-facing WGPU API. The same diagnostics separate rendered custom
+shader surfaces, pipeline rebuilds, bind-group rebuilds, and bind-group cache
+hits so native shader setup is visible without exposing raw WGPU handles.
 
 Backend-neutral paint plans live under `src/runtime/paint`. Native Vello scene
 construction, retained scene caching, post-GPU overlays, GPU-surface pipelines,

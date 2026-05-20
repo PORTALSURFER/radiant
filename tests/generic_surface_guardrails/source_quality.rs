@@ -1205,20 +1205,42 @@ fn input_key_identity_and_keypress_state_stay_focused() {
         .expect("input key module should be readable");
     let press = fs::read_to_string(manifest_dir.join("src/gui/input/key/press.rs"))
         .expect("input keypress module should be readable");
+    let press_tests = fs::read_to_string(manifest_dir.join("src/gui/input/key/press/tests.rs"))
+        .expect("input keypress behavior tests should be readable");
+    let pointer = fs::read_to_string(manifest_dir.join("src/gui/input/pointer.rs"))
+        .expect("input pointer module should be readable");
+    let pointer_tests = fs::read_to_string(manifest_dir.join("src/gui/input/pointer/tests.rs"))
+        .expect("input pointer behavior tests should be readable");
 
     assert!(
         input.contains("pub use key::{KeyCode, KeyPress};")
+            && input.contains("pub use pointer::logical_point_to_u16_coords;")
             && key.contains("mod press;")
             && key.contains("pub use press::KeyPress;"),
-        "input facade should preserve KeyCode and KeyPress exports through the key module"
+        "input facade should preserve key and pointer exports through focused child modules"
     );
     assert!(
         key.contains("pub enum KeyCode")
             && !key.contains("pub struct KeyPress")
             && press.contains("pub struct KeyPress")
             && press.contains("pub const fn with_command")
-            && press.contains("fn keypress_constructors_preserve_modifier_state"),
-        "key identity should stay in key.rs while modifier-bearing keypress state lives in key/press.rs"
+            && press.contains("#[path = \"press/tests.rs\"]")
+            && !press.contains("fn keypress_constructors_preserve_modifier_state"),
+        "key identity should stay in key.rs while modifier-bearing keypress state lives in key/press.rs with behavior tests delegated"
+    );
+    assert!(
+        press_tests.contains("fn keypress_constructors_preserve_modifier_state"),
+        "keypress behavior coverage should live in input/key/press/tests.rs"
+    );
+    assert!(
+        pointer.contains("pub fn logical_point_to_u16_coords")
+            && pointer.contains("#[path = \"pointer/tests.rs\"]")
+            && !pointer.contains("fn logical_point_to_u16_coords_clamps_and_rounds"),
+        "pointer coordinate conversion should live in input/pointer.rs with behavior tests delegated"
+    );
+    assert!(
+        pointer_tests.contains("fn logical_point_to_u16_coords_clamps_and_rounds"),
+        "pointer behavior coverage should live in input/pointer/tests.rs"
     );
 }
 

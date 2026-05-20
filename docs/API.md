@@ -661,8 +661,10 @@ fragment entry-point names, and opaque uniform/storage bytes through the normal
 widget, layout, input, and paint-plan path. `entry_point` names the vertex
 stage for compatibility with the original descriptor, while
 `fragment_entry_point(...)` names the color-producing fragment stage a native
-WGPU renderer needs for direct execution. Native backends that do not yet implement a matching shader pipeline
-report the skipped surfaces through
+WGPU renderer needs for direct execution. If a descriptor provides WGSL source,
+validation requires a fragment entry point so the backend handoff is complete
+before a native pipeline implementation consumes it. Native backends that do
+not yet implement a matching shader pipeline report the skipped surfaces through
 `NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces`,
 `unsupported_custom_shader_vertices`, `unsupported_custom_shader_source_bytes`,
 `unsupported_custom_shader_uniform_bytes`, and

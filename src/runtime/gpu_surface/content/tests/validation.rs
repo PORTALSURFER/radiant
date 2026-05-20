@@ -126,6 +126,11 @@ fn custom_shader_content_validation_reports_descriptor_errors() {
     let empty_source = GpuSurfaceContent::CustomShader {
         descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("meter").wgsl_source(" ")),
     };
+    let source_without_fragment_entry = GpuSurfaceContent::CustomShader {
+        descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("meter").wgsl_source(
+            "@vertex fn vertex_main() -> @builtin(position) vec4<f32> { return vec4<f32>(); }",
+        )),
+    };
     let empty_vertices = GpuSurfaceContent::CustomShader {
         descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("meter").vertex_count(0)),
     };
@@ -149,6 +154,12 @@ fn custom_shader_content_validation_reports_descriptor_errors() {
     assert_eq!(
         empty_source.validate(),
         Err(GpuSurfaceContentError::EmptyShaderSource {
+            shader_key: String::from("meter"),
+        })
+    );
+    assert_eq!(
+        source_without_fragment_entry.validate(),
+        Err(GpuSurfaceContentError::MissingShaderFragmentEntryPoint {
             shader_key: String::from("meter"),
         })
     );

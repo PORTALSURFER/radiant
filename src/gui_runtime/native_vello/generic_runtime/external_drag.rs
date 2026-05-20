@@ -1,12 +1,9 @@
 //! Native external drag launching for the generic Vello runtime.
 
 use super::*;
-use crate::runtime::{
-    ExternalDragOutcome, ExternalDragPayload, ExternalDragRequest, RuntimeBridge,
-};
+use crate::runtime::{ExternalDragPayload, RuntimeBridge};
 
-#[cfg(target_os = "windows")]
-mod windows;
+mod platform;
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
@@ -24,27 +21,11 @@ where
             preview = %session.request.preview.label,
             "radiant generic native vello: launching external drag"
         );
-        let result = platform_start_external_drag(&session.request);
+        let result = platform::start_external_drag(&session.request);
         let outcome = self
             .core
             .runtime
             .dispatch_external_drag_result(session, result);
         self.core.route_command_outcome(outcome)
     }
-}
-
-#[cfg(target_os = "windows")]
-fn platform_start_external_drag(
-    request: &ExternalDragRequest,
-) -> Result<ExternalDragOutcome, String> {
-    windows::start_external_drag(request)
-}
-
-#[cfg(not(target_os = "windows"))]
-fn platform_start_external_drag(
-    _request: &ExternalDragRequest,
-) -> Result<ExternalDragOutcome, String> {
-    Err(String::from(
-        "External drag-out is only supported on Windows in this backend",
-    ))
 }

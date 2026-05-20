@@ -871,6 +871,12 @@ cargo bench --bench perf_harness -- --list
 The list output includes each scenario's target-area category and default
 iteration count, so reviewers can quickly spot whether a run covered layout,
 runtime, text, resource, or GPU-facing work.
+Run a whole target-area category without spelling every scenario with
+`--category`:
+
+```powershell
+cargo bench --bench perf_harness -- --category runtime_virtualized --jsonl
+```
 
 It currently covers:
 

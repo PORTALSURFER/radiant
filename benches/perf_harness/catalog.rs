@@ -61,7 +61,7 @@ macro_rules! scenario_specs {
 
 macro_rules! run_registered_scenario_entries {
     ($runner:ident [$(($name:literal, $category:literal, $iterations:expr, $build:expr)),+ $(,)?]) => {
-        $($runner.run_scenario($name, $iterations, $build);)+
+        $($runner.run_scenario($name, $category, $iterations, $build);)+
     };
 }
 

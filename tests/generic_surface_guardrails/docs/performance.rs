@@ -128,6 +128,7 @@ fn performance_harness_is_registered_and_documented() {
         runner.contains("--jsonl")
             && runner.contains("--baseline-jsonl")
             && runner.contains("--write-baseline-jsonl")
+            && runner.contains("--category")
             && runner.contains("--fail-on-baseline-regression")
             && runner.contains("OutputFormat::JsonLines")
             && runner.contains("BaselineSet")
@@ -169,9 +170,11 @@ fn performance_harness_is_registered_and_documented() {
             && catalog.contains("\"gpu_data\"")
             && catalog.contains("\"gpu_surface\"")
             && runner.contains("struct ScenarioSpec")
+            && runner.contains("category_filters_from_args")
+            && runner.contains("category_filters")
             && runner.contains("category={}")
             && runner.contains("iterations={}"),
-        "perf_harness scenario listing should expose target-area categories and iteration counts"
+        "perf_harness scenario listing and filters should expose target-area categories and iteration counts"
     );
     assert!(
         layout_scenarios.contains("layout_scenarios/trees.rs")
@@ -235,6 +238,8 @@ fn performance_harness_is_registered_and_documented() {
     assert!(
         normalized_docs.contains("cargo bench --bench perf_harness")
             && normalized_docs.contains("cargo bench --bench perf_harness -- --list")
+            && normalized_docs
+                .contains("cargo bench --bench perf_harness -- --category runtime_virtualized --jsonl")
             && normalized_docs.contains(
                 "cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl"
             )

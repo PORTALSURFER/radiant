@@ -39,7 +39,8 @@ fn main() {
     }
 
     let filters = runner::scenario_filters_from_args(&args);
-    if runner::should_skip_unfiltered_debug_run(&filters) {
+    let category_filters = runner::category_filters_from_args(&args);
+    if runner::should_skip_unfiltered_debug_run(&filters, &category_filters) {
         runner::print_unfiltered_debug_skip();
         return;
     }
@@ -50,6 +51,7 @@ fn main() {
     let fail_on_baseline_regression = runner::fail_on_baseline_regression_from_args(&args);
     let mut runner = runner::ScenarioRunner::new(
         filters,
+        category_filters,
         output_format,
         baseline,
         baseline_output,

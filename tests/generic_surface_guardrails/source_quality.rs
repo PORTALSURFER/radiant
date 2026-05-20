@@ -381,6 +381,56 @@ fn form_numeric_and_paired_helpers_keep_behavior_tests_focused() {
 }
 
 #[test]
+fn gui_core_state_primitives_keep_behavior_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let focus = fs::read_to_string(manifest_dir.join("src/gui/focus.rs"))
+        .expect("gui focus primitive should be readable");
+    let focus_tests = fs::read_to_string(manifest_dir.join("src/gui/focus/tests.rs"))
+        .expect("gui focus behavior tests should be readable");
+    let frame = fs::read_to_string(manifest_dir.join("src/gui/frame.rs"))
+        .expect("gui frame feedback primitive should be readable");
+    let frame_tests = fs::read_to_string(manifest_dir.join("src/gui/frame/tests.rs"))
+        .expect("gui frame behavior tests should be readable");
+    let selection = fs::read_to_string(manifest_dir.join("src/gui/selection.rs"))
+        .expect("gui selection primitive should be readable");
+    let selection_tests = fs::read_to_string(manifest_dir.join("src/gui/selection/tests.rs"))
+        .expect("gui selection behavior tests should be readable");
+
+    assert!(
+        focus.contains("pub enum FocusSurface")
+            && focus.contains("#[path = \"focus/tests.rs\"]")
+            && !focus.contains("fn focus_surface_defaults_to_none"),
+        "focus surface state should live in gui/focus.rs while behavior tests stay delegated"
+    );
+    assert!(
+        focus_tests.contains("fn focus_surface_defaults_to_none"),
+        "focus behavior coverage should live in gui/focus/tests.rs"
+    );
+    assert!(
+        frame.contains("pub struct FrameBuildResult")
+            && frame.contains("#[path = \"frame/tests.rs\"]")
+            && !frame.contains("fn frame_build_result_defaults_to_no_work_observed"),
+        "frame feedback state should live in gui/frame.rs while behavior tests stay delegated"
+    );
+    assert!(
+        frame_tests.contains("fn frame_build_result_defaults_to_no_work_observed"),
+        "frame behavior coverage should live in gui/frame/tests.rs"
+    );
+    assert!(
+        selection.contains("pub enum TriState")
+            && selection.contains("pub enum TriageTarget")
+            && selection.contains("#[path = \"selection/tests.rs\"]")
+            && !selection.contains("fn tri_state_defaults_to_off"),
+        "selection state should live in gui/selection.rs while behavior tests stay delegated"
+    );
+    assert!(
+        selection_tests.contains("fn tri_state_defaults_to_off")
+            && selection_tests.contains("fn triage_target_names_generic_three_way_selection"),
+        "selection behavior coverage should live in gui/selection/tests.rs"
+    );
+}
+
+#[test]
 fn signal_visualization_state_uses_named_parts_for_status_and_preview_fields() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/visualization/signal.rs");

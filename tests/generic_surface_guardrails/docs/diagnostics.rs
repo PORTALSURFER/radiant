@@ -101,3 +101,46 @@ fn api_docs_describe_text_cache_frame_diagnostics() {
         "native render profile should include shaping-limit text counters"
     );
 }
+
+#[test]
+fn api_docs_describe_custom_shader_frame_diagnostics() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("Radiant API docs should be readable");
+    let runtime_diagnostics = fs::read_to_string(manifest_dir.join("src/runtime/diagnostics.rs"))
+        .expect("runtime diagnostics models should be readable");
+    let native_diagnostics = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present/diagnostics.rs"),
+    )
+    .expect("native frame diagnostics projection should be readable");
+    let render_profile = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/render_profile.rs"),
+    )
+    .expect("native render profile should be readable");
+
+    for required in [
+        "custom shader pipeline rebuilds",
+        "`NativeGpuSurfaceDiagnostics::custom_shader_surfaces_rendered`",
+        "`custom_shader_pipeline_rebuilds`",
+        "`custom_shader_binding_rebuilds`",
+        "`custom_shader_binding_cache_hits`",
+    ] {
+        assert!(
+            docs.contains(required),
+            "API docs should describe custom shader frame diagnostics with `{required}`"
+        );
+    }
+    for required in [
+        "custom_shader_surfaces_rendered",
+        "custom_shader_pipeline_rebuilds",
+        "custom_shader_binding_rebuilds",
+        "custom_shader_binding_cache_hits",
+    ] {
+        assert!(
+            runtime_diagnostics.contains(required)
+                && native_diagnostics.contains(required)
+                && render_profile.contains(required),
+            "custom shader diagnostic field `{required}` should flow through public diagnostics and the render profile"
+        );
+    }
+}

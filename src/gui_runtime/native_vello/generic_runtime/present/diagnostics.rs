@@ -57,6 +57,16 @@ pub(super) fn native_frame_diagnostics(
             signal_body_cache_hits: parts.gpu_surface_stats.signal_body_cache_hits,
             composite_binding_rebuilds: parts.gpu_surface_stats.composite_binding_rebuilds,
             composite_binding_cache_hits: parts.gpu_surface_stats.composite_binding_cache_hits,
+            custom_shader_surfaces_rendered: parts
+                .gpu_surface_stats
+                .custom_shader_surfaces_rendered,
+            custom_shader_pipeline_rebuilds: parts
+                .gpu_surface_stats
+                .custom_shader_pipeline_rebuilds,
+            custom_shader_binding_rebuilds: parts.gpu_surface_stats.custom_shader_binding_rebuilds,
+            custom_shader_binding_cache_hits: parts
+                .gpu_surface_stats
+                .custom_shader_binding_cache_hits,
             unsupported_custom_shader_surfaces: parts
                 .gpu_surface_stats
                 .unsupported_custom_shader_surfaces,

@@ -23,7 +23,13 @@ impl GpuSurfaceRenderer {
             record_unsupported_custom_shader(descriptor, stats);
             return;
         };
-        self.ensure_custom_shader_pipeline(surface.key, target.device, target.format, pipeline_key);
+        self.ensure_custom_shader_pipeline(
+            surface.key,
+            target.device,
+            target.format,
+            pipeline_key,
+            stats,
+        );
         if !self
             .resources
             .custom_shader_pipelines
@@ -32,7 +38,7 @@ impl GpuSurfaceRenderer {
             record_unsupported_custom_shader(descriptor, stats);
             return;
         }
-        self.ensure_custom_shader_binding(target.device, surface.key, descriptor);
+        self.ensure_custom_shader_binding(target.device, surface.key, descriptor, stats);
         let Some(pipeline) = self.resources.custom_shader_pipelines.get(&surface.key) else {
             record_unsupported_custom_shader(descriptor, stats);
             return;
@@ -70,6 +76,7 @@ impl GpuSurfaceRenderer {
                 pass.draw(0..descriptor.vertex_count, 0..1);
             }
         }
+        stats.custom_shader_surfaces_rendered += 1;
         stats.composite_encode_elapsed += started.elapsed();
     }
 
@@ -79,6 +86,7 @@ impl GpuSurfaceRenderer {
         device: &wgpu::Device,
         target_format: wgpu::TextureFormat,
         key: CustomShaderPipelineKey,
+        stats: &mut GpuSurfaceRenderStats,
     ) {
         let rebuild = self
             .resources
@@ -88,6 +96,7 @@ impl GpuSurfaceRenderer {
         if !rebuild {
             return;
         }
+        stats.custom_shader_pipeline_rebuilds += 1;
         self.resources.custom_shader_bindings.remove(&surface_key);
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("radiant_custom_shader_surface_shader"),
@@ -147,6 +156,7 @@ impl GpuSurfaceRenderer {
         device: &wgpu::Device,
         surface_key: u64,
         descriptor: &GpuShaderSurfaceDescriptor,
+        stats: &mut GpuSurfaceRenderStats,
     ) {
         let Some(pipeline) = self.resources.custom_shader_pipelines.get(&surface_key) else {
             return;
@@ -162,8 +172,10 @@ impl GpuSurfaceRenderer {
             .get(&surface_key)
             .is_none_or(|binding| binding.cache_key != cache_key);
         if !rebuild {
+            stats.custom_shader_binding_cache_hits += 1;
             return;
         }
+        stats.custom_shader_binding_rebuilds += 1;
         let surface_uniform_buffer = custom_shader_buffer(
             device,
             Some("radiant_custom_shader_surface_uniforms"),

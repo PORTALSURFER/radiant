@@ -667,8 +667,14 @@ before a native pipeline implementation consumes it. The native WGPU path can
 execute WGSL-backed descriptors that use Radiant's built-in surface uniform
 ABI at `@group(0) @binding(0)`, optional app uniform payload bytes at
 `@group(0) @binding(1)`, and optional read-only storage payload bytes at
-`@group(0) @binding(2)`. Descriptors that do not provide source or stage entry
-points report skipped surfaces through
+`@group(0) @binding(2)`. Native frame diagnostics expose direct custom-shader
+work, including custom shader pipeline rebuilds, through
+`NativeGpuSurfaceDiagnostics::custom_shader_surfaces_rendered`,
+`custom_shader_pipeline_rebuilds`, `custom_shader_binding_rebuilds`,
+and `custom_shader_binding_cache_hits`, so rendered surfaces and shader
+pipeline/bind-group cache activity stay distinct from descriptors that cannot
+be handed to the direct WGPU path. Descriptors that do not provide source or
+stage entry points report skipped surfaces through
 `NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces`,
 `unsupported_custom_shader_vertices`, `unsupported_custom_shader_source_bytes`,
 `unsupported_custom_shader_uniform_bytes`, and
@@ -950,8 +956,9 @@ demo atlas data.
 Run `cargo run --example custom_shader_surface` for a checked custom shader
 surface sandbox that builds `GpuSurfaceContent::CustomShader` with a
 backend-neutral `GpuShaderSurfaceDescriptor` carrying executable WGSL source
-for the native surface-uniform ABI. Native backends without a matching shader
-pipeline report the surface through
+for the native surface-uniform ABI. Native runs expose custom shader
+render/cache diagnostics; backends without a matching shader handoff still
+report the surface through
 `NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces` and the
 related skipped vertex/source/uniform/storage counters rather than creating a
 separate WGPU-facing application API.

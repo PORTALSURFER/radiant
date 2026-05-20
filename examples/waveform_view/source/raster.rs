@@ -1,3 +1,6 @@
+#[path = "raster/labels.rs"]
+mod labels;
+
 use super::{WaveformBand, WaveformFile, WaveformViewport};
 use radiant::gui::types::ImageRgba;
 
@@ -72,7 +75,7 @@ impl WaveformRaster {
         let visible = viewport.visible_items().max(1);
         let mid = self.height as f32 * 0.5;
         let half = (self.height as f32 * 0.42).max(1.0);
-        self.draw_band_labels();
+        labels::draw_band_labels(self);
 
         let band_styles = [
             BandStyle {
@@ -189,44 +192,6 @@ impl WaveformRaster {
         self.blend_pixel(x, bottom, color, alpha);
     }
 
-    fn draw_band_labels(&mut self) {
-        let labels = [
-            ("low", [32, 139, 255, 255]),
-            ("low_mid", [205, 132, 60, 255]),
-            ("mid", [255, 190, 84, 255]),
-            ("high", [255, 255, 255, 255]),
-        ];
-        let mut x = 8;
-        for (label, color) in labels {
-            self.draw_block_label(x, 8, label, color);
-            x += label.len() * 6 + 18;
-        }
-    }
-
-    fn draw_block_label(&mut self, x: usize, y: usize, label: &str, color: [u8; 4]) {
-        for swatch_x in x..x + 8 {
-            for swatch_y in y + 1..y + 9 {
-                self.blend_pixel(swatch_x, swatch_y, color, 0.85);
-            }
-        }
-        let mut cursor = x + 12;
-        for ch in label.chars() {
-            self.draw_glyph(cursor, y, ch, color);
-            cursor += 5;
-        }
-    }
-
-    fn draw_glyph(&mut self, x: usize, y: usize, ch: char, color: [u8; 4]) {
-        let rows = glyph_rows(ch);
-        for (row, bits) in rows.iter().enumerate() {
-            for col in 0..3 {
-                if bits & (1 << (2 - col)) != 0 {
-                    self.blend_pixel(x + col, y + row, color, 0.9);
-                }
-            }
-        }
-    }
-
     fn into_image(self) -> ImageRgba {
         ImageRgba::new(self.width, self.height, self.pixels).expect("valid waveform image")
     }
@@ -277,21 +242,6 @@ fn column_alpha(y: usize, mid: f32, half: f32) -> f32 {
 
 fn band_alpha(peak: f32, scale: f32) -> f32 {
     (0.34 + peak * 0.72 * scale).clamp(0.28, 0.9)
-}
-
-fn glyph_rows(ch: char) -> [u8; 7] {
-    match ch {
-        'd' => [0b110, 0b101, 0b101, 0b101, 0b101, 0b101, 0b110],
-        'g' => [0b111, 0b100, 0b100, 0b101, 0b101, 0b101, 0b111],
-        'h' => [0b101, 0b101, 0b101, 0b111, 0b101, 0b101, 0b101],
-        'i' => [0b111, 0b010, 0b010, 0b010, 0b010, 0b010, 0b111],
-        'l' => [0b100, 0b100, 0b100, 0b100, 0b100, 0b100, 0b111],
-        'm' => [0b101, 0b111, 0b111, 0b101, 0b101, 0b101, 0b101],
-        'o' => [0b111, 0b101, 0b101, 0b101, 0b101, 0b101, 0b111],
-        'w' => [0b101, 0b101, 0b101, 0b101, 0b111, 0b111, 0b101],
-        '_' => [0b000, 0b000, 0b000, 0b000, 0b000, 0b000, 0b111],
-        _ => [0; 7],
-    }
 }
 
 fn lerp(from: f32, to: f32, t: f32) -> f32 {

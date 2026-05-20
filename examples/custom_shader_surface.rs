@@ -10,16 +10,48 @@ struct DemoState;
 enum DemoMessage {}
 
 const DEMO_SHADER_WGSL: &str = r#"
+struct Params {
+    dest: vec4<f32>,
+    source: vec4<f32>,
+    target_size: vec2<f32>,
+    overlay_ratios: array<vec4<f32>, 2>,
+    overlay_widths: array<vec4<f32>, 2>,
+    overlay_colors: array<vec4<f32>, 8>,
+};
+
+@group(0) @binding(0)
+var<uniform> params: Params;
+
+struct VertexOut {
+    @builtin(position) position: vec4<f32>,
+    @location(0) local: vec2<f32>,
+};
+
 @vertex
-fn vertex_main(@builtin(vertex_index) vertex_index: u32) -> @builtin(position) vec4<f32> {
-    let x = select(-1.0, 3.0, vertex_index == 2u);
-    let y = select(-1.0, 3.0, vertex_index == 1u);
-    return vec4<f32>(x, y, 0.0, 1.0);
+fn vertex_main(@builtin(vertex_index) vertex_index: u32) -> VertexOut {
+    var corners = array<vec2<f32>, 6>(
+        vec2<f32>(0.0, 0.0),
+        vec2<f32>(1.0, 0.0),
+        vec2<f32>(0.0, 1.0),
+        vec2<f32>(0.0, 1.0),
+        vec2<f32>(1.0, 0.0),
+        vec2<f32>(1.0, 1.0),
+    );
+    let local = corners[vertex_index];
+    let pixel = params.dest.xy + local * params.dest.zw;
+    let clip = vec2<f32>(
+        pixel.x / params.target_size.x * 2.0 - 1.0,
+        1.0 - pixel.y / params.target_size.y * 2.0,
+    );
+    var out: VertexOut;
+    out.position = vec4<f32>(clip, 0.0, 1.0);
+    out.local = local;
+    return out;
 }
 
 @fragment
-fn fragment_main() -> @location(0) vec4<f32> {
-    return vec4<f32>(0.16, 0.72, 0.82, 1.0);
+fn fragment_main(in: VertexOut) -> @location(0) vec4<f32> {
+    return vec4<f32>(0.16 + in.local.x * 0.28, 0.72, 0.82 - in.local.y * 0.24, 1.0);
 }
 "#;
 
@@ -29,8 +61,6 @@ fn shader_descriptor() -> Arc<GpuShaderSurfaceDescriptor> {
             .wgsl_source(DEMO_SHADER_WGSL)
             .entry_point("vertex_main")
             .fragment_entry_point("fragment_main")
-            .uniform_bytes([16, 32, 48, 64, 80, 96, 112, 128])
-            .storage_bytes([3; 128])
             .vertex_count(6),
     )
 }
@@ -112,11 +142,8 @@ mod tests {
             descriptor.fragment_entry_point.as_deref(),
             Some("fragment_main")
         );
-        assert_eq!(
-            descriptor.uniform_bytes.as_ref(),
-            &[16, 32, 48, 64, 80, 96, 112, 128]
-        );
-        assert_eq!(descriptor.storage_bytes.len(), 128);
+        assert!(descriptor.uniform_bytes.is_empty());
+        assert!(descriptor.storage_bytes.is_empty());
         assert_eq!(descriptor.vertex_count, 6);
     }
 

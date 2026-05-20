@@ -116,6 +116,12 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
             .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader.rs"),
     )
     .expect("GPU surface custom shader module should be readable");
+    let custom_shader_types = fs::read_to_string(
+        manifest_dir.join(
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/custom_shader.rs",
+        ),
+    )
+    .expect("GPU surface custom shader type module should be readable");
 
     assert!(
         module.contains("mod stats;")
@@ -133,14 +139,26 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
     );
     assert!(
         custom_shader.contains("fn render_custom_shader")
+            && custom_shader.contains("fn ensure_custom_shader_pipeline")
+            && custom_shader.contains("device.create_shader_module")
+            && custom_shader.contains("device.create_render_pipeline")
+            && custom_shader.contains("record_unsupported_custom_shader")
             && custom_shader.contains("unsupported_custom_shader_surfaces += 1")
             && custom_shader.contains("unsupported_custom_shader_vertices")
             && custom_shader.contains("unsupported_custom_shader_source_bytes")
             && custom_shader.contains("unsupported_custom_shader_uniform_bytes")
             && custom_shader.contains("unsupported_custom_shader_storage_bytes")
             && custom_shader
-                .contains("fn custom_shader_surfaces_report_unsupported_until_pipeline_exists"),
-        "native custom shader GPU-surface diagnostics should stay detailed and focused until native shader execution exists"
+                .contains("fn custom_shader_pipeline_key_requires_source_and_fragment_entry"),
+        "native custom shader GPU-surface execution and fallback diagnostics should stay focused"
+    );
+    assert!(
+        types.contains("mod custom_shader;")
+            && types.contains("CustomShaderPipeline")
+            && custom_shader_types.contains("struct CustomShaderPipelineKey")
+            && custom_shader_types
+                .contains("fn custom_shader_pipeline_key_tracks_shader_stage_contract"),
+        "native custom shader pipeline identity should stay in a focused type module"
     );
     assert!(
         stats.contains("unsupported_custom_shader_vertices")

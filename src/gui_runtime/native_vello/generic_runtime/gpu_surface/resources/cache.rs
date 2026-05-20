@@ -7,6 +7,10 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Gp
         HashMap<u64, GpuSurfaceTexture>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) composite_bindings:
         HashMap<u64, GpuSurfaceCompositeBinding>,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) custom_shader_pipelines:
+        HashMap<u64, CustomShaderPipeline>,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) custom_shader_bindings:
+        HashMap<u64, CustomShaderBinding>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) signal_bodies:
         HashMap<u64, SignalBodyTexture>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) signals:
@@ -23,6 +27,10 @@ impl GpuSurfaceResourceCache {
         self.textures.retain(|key, _| active_keys.contains(key));
         self.composite_bindings
             .retain(|key, _| active_keys.contains(key));
+        self.custom_shader_pipelines
+            .retain(|key, _| active_keys.contains(key));
+        self.custom_shader_bindings
+            .retain(|key, _| active_keys.contains(key));
         self.signal_bodies
             .retain(|key, _| active_keys.contains(key));
         self.signals.retain(|key, _| active_keys.contains(key));
@@ -33,6 +41,8 @@ impl GpuSurfaceResourceCache {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn clear(&mut self) {
         self.textures.clear();
         self.composite_bindings.clear();
+        self.custom_shader_pipelines.clear();
+        self.custom_shader_bindings.clear();
         self.signal_bodies.clear();
         self.signals.clear();
         self.signal_summaries.clear();

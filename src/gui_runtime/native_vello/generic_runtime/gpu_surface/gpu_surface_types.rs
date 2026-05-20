@@ -1,6 +1,7 @@
 use super::*;
 
 mod composite;
+mod custom_shader;
 mod pipeline;
 mod signal;
 mod texture;
@@ -8,6 +9,9 @@ mod uniforms;
 
 pub(super) use composite::{
     GpuSurfaceCompositeBinding, GpuSurfaceCompositeBindingKey, GpuSurfaceTextureIdentity,
+};
+pub(super) use custom_shader::{
+    CustomShaderBinding, CustomShaderPipeline, CustomShaderPipelineKey,
 };
 pub(super) use pipeline::{GpuSurfacePipeline, SignalPipeline};
 pub(super) use signal::{

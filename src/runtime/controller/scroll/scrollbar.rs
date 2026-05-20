@@ -3,6 +3,10 @@
 use super::{super::*, ScrollUpdate};
 use crate::runtime::paint::resolve_scroll_affordance;
 
+#[cfg(test)]
+#[path = "scrollbar/tests.rs"]
+mod tests;
+
 const SCROLLBAR_HIT_WIDTH: f32 = 10.0;
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -120,27 +124,4 @@ fn scrollbar_thumb_hit_rect(thumb: Rect) -> Rect {
         Point::new(thumb.max.x - SCROLLBAR_HIT_WIDTH, thumb.min.y),
         Point::new(thumb.max.x, thumb.max.y),
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn scrollbar_hit_column_rejects_points_far_from_right_edge() {
-        let viewport = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(200.0, 100.0));
-
-        assert!(!scrollbar_hit_column_contains_point(
-            viewport,
-            Point::new(24.0, 40.0)
-        ));
-        assert!(scrollbar_hit_column_contains_point(
-            viewport,
-            Point::new(205.0, 40.0)
-        ));
-        assert!(!scrollbar_hit_column_contains_point(
-            viewport,
-            Point::new(205.0, 140.0)
-        ));
-    }
 }

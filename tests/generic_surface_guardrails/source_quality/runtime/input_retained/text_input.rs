@@ -1,0 +1,128 @@
+use super::*;
+
+#[test]
+fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let model = fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/model.rs"))
+        .expect("text input model root should be readable");
+    let selection = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/text_input/model/selection.rs"),
+    )
+    .expect("text input selection model should be readable");
+    let navigation = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/text_input/model/navigation.rs"),
+    )
+    .expect("text input navigation model should be readable");
+    let editing =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/model/editing.rs"))
+            .expect("text input editing model should be readable");
+    let editing_command = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/text_input/model/editing/command.rs"),
+    )
+    .expect("text input edit command model should be readable");
+    let editing_mutation = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/text_input/model/editing/mutation.rs"),
+    )
+    .expect("text input edit mutation model should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/tests.rs"))
+        .expect("text input behavior test root should be readable");
+    let widget_tests =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/tests/widget.rs"))
+            .expect("text input widget interaction tests should be readable");
+    let state_tests =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/tests/state.rs"))
+            .expect("text input state behavior tests should be readable");
+
+    for required in ["mod editing;", "mod navigation;", "mod selection;"] {
+        assert!(
+            model.contains(required),
+            "text input model root should delegate `{required}`"
+        );
+    }
+    assert!(
+        model.contains("pub struct TextInputProps")
+            && model.contains("pub struct TextInputState")
+            && model.contains("pub struct TextInputEditResult")
+            && model.contains("pub fn from_value")
+            && !model.contains("TextEditCommand")
+            && !model.contains("WidgetKey"),
+        "text input model root should keep public state definitions separate from command handling"
+    );
+    assert!(
+        selection.contains("pub fn selected_text")
+            && selection.contains("pub fn selection_range")
+            && selection.contains("pub fn has_selection"),
+        "text input selection queries should live in model/selection.rs"
+    );
+    assert!(
+        navigation.contains("pub fn set_caret")
+            && navigation.contains("fn move_left")
+            && navigation.contains("fn move_right"),
+        "text input caret movement should live in model/navigation.rs"
+    );
+    assert!(
+        editing.contains("mod command;")
+            && editing.contains("mod mutation;")
+            && !editing.contains("pub fn apply_edit_command")
+            && !editing.contains("pub fn insert_text"),
+        "text input editing root should delegate command dispatch and mutation mechanics"
+    );
+    assert!(
+        editing_command.contains("pub fn apply_edit_command")
+            && editing_command.contains("pub fn apply_key")
+            && editing_command.contains("TextEditCommand")
+            && editing_command.contains("WidgetKey")
+            && !editing_mutation.contains("TextEditCommand")
+            && !editing_mutation.contains("WidgetKey"),
+        "text input edit command handling should live in model/editing/command.rs"
+    );
+    assert!(
+        editing_mutation.contains("pub fn insert_text")
+            && editing_mutation.contains("pub fn replace_selection")
+            && editing_mutation.contains("pub(crate) fn delete_selected_text")
+            && editing_mutation.contains("byte_index_for_char")
+            && !editing_command.contains("byte_index_for_char"),
+        "text input mutation mechanics should live in model/editing/mutation.rs"
+    );
+    assert!(
+        tests.contains("mod widget;")
+            && tests.contains("mod state;")
+            && !tests.contains("fn text_input_editing_emits_changed_and_submitted_messages")
+            && !tests.contains("fn text_input_state_applies_backend_neutral_editing_commands"),
+        "text input behavior test root should index focused widget and state groups instead of owning all cases"
+    );
+    assert!(
+        widget_tests.contains("fn text_input_editing_emits_changed_and_submitted_messages")
+            && widget_tests
+                .contains("fn text_input_pointer_drag_extends_selection_including_caret_character")
+            && state_tests.contains("fn text_input_state_applies_backend_neutral_editing_commands")
+            && state_tests.contains("fn text_input_state_can_clear_or_delete_active_selection"),
+        "text input behavior tests should stay grouped by widget interaction and state editing concerns"
+    );
+}
+
+#[test]
+fn text_input_primitive_keeps_surface_builders_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input.rs"))
+        .expect("text-input primitive root should be readable");
+    let builders =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/builders.rs"))
+            .expect("text-input primitive builders should be readable");
+
+    assert!(
+        root.contains("mod builders;")
+            && root.contains("pub struct TextInputWidget")
+            && root.contains("impl Widget for TextInputWidget")
+            && !root.contains("impl<Message> SurfaceNode<Message>")
+            && !root.contains("impl<Message> WidgetMessageMapper<Message>"),
+        "text-input primitive root should own widget behavior and delegate runtime builders"
+    );
+    assert!(
+        builders.contains("impl<Message> SurfaceNode<Message>")
+            && builders.contains("pub fn text_input(")
+            && builders.contains("pub fn text_input_mapped(")
+            && builders.contains("impl<Message> WidgetMessageMapper<Message>"),
+        "text-input runtime builder helpers should live in text_input/builders.rs"
+    );
+}

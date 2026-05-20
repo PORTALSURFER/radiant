@@ -34,6 +34,8 @@ pub(super) fn native_frame_diagnostics(
             atom_cache_hits: parts.text_stats.atom_hits,
             atom_cache_misses: parts.text_stats.atom_misses,
             atom_cache_evictions: parts.text_stats.atom_evictions,
+            unsupported_shaping_runs: parts.text_stats.unsupported_shaping_runs,
+            unsupported_shaping_scalars: parts.text_stats.unsupported_shaping_scalars,
             fallback_glyphs: parts.text_stats.fallback_glyphs,
             missing_glyphs: parts.text_stats.missing_glyphs,
         },

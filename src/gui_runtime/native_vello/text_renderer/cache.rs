@@ -19,6 +19,8 @@ pub(in crate::gui_runtime::native_vello) struct TextLayoutProfileCounters {
     pub atom_hits: u64,
     pub atom_misses: u64,
     pub atom_evictions: u64,
+    pub unsupported_shaping_runs: u64,
+    pub unsupported_shaping_scalars: u64,
     pub fallback_glyphs: u64,
     pub missing_glyphs: u64,
 }
@@ -31,6 +33,8 @@ pub(super) struct TextLayoutCache {
     text_layout_hits: u64,
     text_layout_misses: u64,
     text_layout_evictions: u64,
+    unsupported_shaping_runs: u64,
+    unsupported_shaping_scalars: u64,
     fallback_glyphs: u64,
     missing_glyphs: u64,
 }
@@ -51,6 +55,8 @@ impl TextLayoutCache {
             text_layout_hits: 0,
             text_layout_misses: 0,
             text_layout_evictions: 0,
+            unsupported_shaping_runs: 0,
+            unsupported_shaping_scalars: 0,
             fallback_glyphs: 0,
             missing_glyphs: 0,
         }
@@ -95,12 +101,16 @@ impl TextLayoutCache {
             atom_hits: atom_counters.hits,
             atom_misses: atom_counters.misses,
             atom_evictions: atom_counters.evictions,
+            unsupported_shaping_runs: self.unsupported_shaping_runs,
+            unsupported_shaping_scalars: self.unsupported_shaping_scalars,
             fallback_glyphs: self.fallback_glyphs,
             missing_glyphs: self.missing_glyphs,
         };
         self.text_layout_hits = 0;
         self.text_layout_misses = 0;
         self.text_layout_evictions = 0;
+        self.unsupported_shaping_runs = 0;
+        self.unsupported_shaping_scalars = 0;
         self.fallback_glyphs = 0;
         self.missing_glyphs = 0;
         counters
@@ -117,6 +127,12 @@ impl TextLayoutCache {
         let cached_layout = self.layout_cache.get_mut(key)?;
         cached_layout.stamp = stamp;
         self.text_layout_hits = self.text_layout_hits.saturating_add(1);
+        self.unsupported_shaping_runs = self
+            .unsupported_shaping_runs
+            .saturating_add(cached_layout.layout.unsupported_shaping_runs);
+        self.unsupported_shaping_scalars = self
+            .unsupported_shaping_scalars
+            .saturating_add(cached_layout.layout.unsupported_shaping_scalars);
         self.fallback_glyphs = self
             .fallback_glyphs
             .saturating_add(cached_layout.layout.fallback_glyphs);
@@ -127,6 +143,12 @@ impl TextLayoutCache {
     }
 
     fn record_glyph_diagnostics(&mut self, layout: &TextLayout) {
+        self.unsupported_shaping_runs = self
+            .unsupported_shaping_runs
+            .saturating_add(layout.unsupported_shaping_runs);
+        self.unsupported_shaping_scalars = self
+            .unsupported_shaping_scalars
+            .saturating_add(layout.unsupported_shaping_scalars);
         self.fallback_glyphs = self.fallback_glyphs.saturating_add(layout.fallback_glyphs);
         self.missing_glyphs = self.missing_glyphs.saturating_add(layout.missing_glyphs);
     }

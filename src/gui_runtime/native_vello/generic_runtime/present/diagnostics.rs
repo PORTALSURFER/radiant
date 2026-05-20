@@ -56,6 +56,15 @@ pub(super) fn native_frame_diagnostics(
             unsupported_custom_shader_surfaces: parts
                 .gpu_surface_stats
                 .unsupported_custom_shader_surfaces,
+            unsupported_custom_shader_vertices: parts
+                .gpu_surface_stats
+                .unsupported_custom_shader_vertices,
+            unsupported_custom_shader_uniform_bytes: parts
+                .gpu_surface_stats
+                .unsupported_custom_shader_uniform_bytes,
+            unsupported_custom_shader_storage_bytes: parts
+                .gpu_surface_stats
+                .unsupported_custom_shader_storage_bytes,
         },
         timings: crate::runtime::NativeFrameTimingDiagnostics {
             coalesced_wheel_route: parts.profile.coalesced_wheel_route,

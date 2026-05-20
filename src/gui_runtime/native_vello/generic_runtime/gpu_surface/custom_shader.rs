@@ -5,10 +5,15 @@ use super::*;
 impl GpuSurfaceRenderer {
     pub(super) fn render_custom_shader(
         &mut self,
-        _surface: &PaintGpuSurface,
+        surface: &PaintGpuSurface,
         stats: &mut GpuSurfaceRenderStats,
     ) {
         stats.unsupported_custom_shader_surfaces += 1;
+        if let crate::runtime::GpuSurfaceContent::CustomShader { descriptor } = &surface.content {
+            stats.unsupported_custom_shader_vertices += descriptor.vertex_count as usize;
+            stats.unsupported_custom_shader_uniform_bytes += descriptor.uniform_bytes.len();
+            stats.unsupported_custom_shader_storage_bytes += descriptor.storage_bytes.len();
+        }
     }
 }
 
@@ -31,7 +36,12 @@ mod tests {
             revision: 2,
             rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 24.0)),
             content: GpuSurfaceContent::CustomShader {
-                descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("test/custom-shader")),
+                descriptor: Arc::new(
+                    GpuShaderSurfaceDescriptor::new("test/custom-shader")
+                        .uniform_bytes([1, 2, 3, 4])
+                        .storage_bytes([5, 6, 7])
+                        .vertex_count(6),
+                ),
             },
             capabilities: GpuSurfaceCapabilities::default(),
             overlays: Vec::new(),
@@ -40,5 +50,8 @@ mod tests {
         renderer.render_custom_shader(&surface, &mut stats);
 
         assert_eq!(stats.unsupported_custom_shader_surfaces, 1);
+        assert_eq!(stats.unsupported_custom_shader_vertices, 6);
+        assert_eq!(stats.unsupported_custom_shader_uniform_bytes, 4);
+        assert_eq!(stats.unsupported_custom_shader_storage_bytes, 3);
     }
 }

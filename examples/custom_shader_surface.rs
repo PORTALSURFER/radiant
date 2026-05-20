@@ -9,9 +9,19 @@ struct DemoState;
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {}
 
+const DEMO_SHADER_WGSL: &str = r#"
+@vertex
+fn main(@builtin(vertex_index) vertex_index: u32) -> @builtin(position) vec4<f32> {
+    let x = select(-1.0, 3.0, vertex_index == 2u);
+    let y = select(-1.0, 3.0, vertex_index == 1u);
+    return vec4<f32>(x, y, 0.0, 1.0);
+}
+"#;
+
 fn shader_descriptor() -> Arc<GpuShaderSurfaceDescriptor> {
     Arc::new(
         GpuShaderSurfaceDescriptor::new("demo/custom-meter")
+            .wgsl_source(DEMO_SHADER_WGSL)
             .entry_point("main")
             .uniform_bytes([16, 32, 48, 64, 80, 96, 112, 128])
             .storage_bytes([3; 128])
@@ -85,6 +95,9 @@ mod tests {
             panic!("expected custom shader content");
         };
         assert_eq!(descriptor.shader_key, "demo/custom-meter");
+        assert!(descriptor.wgsl_source.as_deref().is_some_and(|source| {
+            source.contains("@vertex") && source.contains("vertex_index")
+        }));
         assert_eq!(descriptor.entry_point, "main");
         assert_eq!(
             descriptor.uniform_bytes.as_ref(),

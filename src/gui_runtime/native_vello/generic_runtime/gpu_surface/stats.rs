@@ -12,6 +12,7 @@ pub(crate) struct GpuSurfaceRenderStats {
     pub(crate) composite_binding_cache_hits: usize,
     pub(crate) unsupported_custom_shader_surfaces: usize,
     pub(crate) unsupported_custom_shader_vertices: usize,
+    pub(crate) unsupported_custom_shader_source_bytes: usize,
     pub(crate) unsupported_custom_shader_uniform_bytes: usize,
     pub(crate) unsupported_custom_shader_storage_bytes: usize,
     pub(crate) signal_body_encode_elapsed: Duration,
@@ -30,6 +31,7 @@ mod tests {
         assert_eq!(stats.composite_binding_cache_hits, 0);
         assert_eq!(stats.unsupported_custom_shader_surfaces, 0);
         assert_eq!(stats.unsupported_custom_shader_vertices, 0);
+        assert_eq!(stats.unsupported_custom_shader_source_bytes, 0);
         assert_eq!(stats.unsupported_custom_shader_uniform_bytes, 0);
         assert_eq!(stats.unsupported_custom_shader_storage_bytes, 0);
     }

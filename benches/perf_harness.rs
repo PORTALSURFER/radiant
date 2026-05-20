@@ -90,6 +90,7 @@ fn bench_gpu_surface_projection() {
 
 fn bench_gpu_custom_shader_projection() {
     let descriptor = GpuShaderSurfaceDescriptor::new("perf/custom-shader")
+        .wgsl_source("@vertex fn main() -> @builtin(position) vec4<f32> { return vec4<f32>(); }")
         .entry_point("main")
         .uniform_bytes([1, 3, 5, 7, 9, 11, 13, 15])
         .storage_bytes([2; 256])

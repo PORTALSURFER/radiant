@@ -135,6 +135,7 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
         custom_shader.contains("fn render_custom_shader")
             && custom_shader.contains("unsupported_custom_shader_surfaces += 1")
             && custom_shader.contains("unsupported_custom_shader_vertices")
+            && custom_shader.contains("unsupported_custom_shader_source_bytes")
             && custom_shader.contains("unsupported_custom_shader_uniform_bytes")
             && custom_shader.contains("unsupported_custom_shader_storage_bytes")
             && custom_shader
@@ -143,6 +144,7 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
     );
     assert!(
         stats.contains("unsupported_custom_shader_vertices")
+            && stats.contains("unsupported_custom_shader_source_bytes")
             && stats.contains("unsupported_custom_shader_uniform_bytes")
             && stats.contains("unsupported_custom_shader_storage_bytes"),
         "GPU surface render stats should keep skipped custom-shader draw and payload counters"

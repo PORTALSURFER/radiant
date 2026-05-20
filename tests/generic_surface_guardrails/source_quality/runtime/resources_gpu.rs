@@ -166,6 +166,8 @@ fn gpu_surface_content_models_stay_focused() {
         model.contains("pub struct GpuShaderSurfaceDescriptor")
             && model.contains("pub struct GpuShaderSurfaceDescriptorParts")
             && model.contains("pub shader_key: String")
+            && model.contains("pub wgsl_source: Option<Arc<str>>")
+            && model.contains("pub fn wgsl_source")
             && model.contains("pub struct GpuSignalGainPreview")
             && model.contains("pub fade_in_length: f32")
             && model.contains("pub struct GpuSignalRenderShape")

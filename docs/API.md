@@ -656,13 +656,15 @@ models.
 `PaintGpuSurface` supports the built-in v1 content payloads
 `GpuSurfaceContent::RgbaAtlas`, `SignalBands`, and `SignalSummaryBands`, plus
 `GpuSurfaceContent::CustomShader` for advanced surfaces that need to carry
-backend-neutral shader identity and opaque uniform/storage bytes through the
-normal widget, layout, input, and paint-plan path. Native backends that do not
-yet implement a matching shader pipeline report the skipped surfaces through
+backend-neutral shader identity, optional WGSL source, and opaque
+uniform/storage bytes through the normal widget, layout, input, and paint-plan
+path. Native backends that do not yet implement a matching shader pipeline
+report the skipped surfaces through
 `NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces`,
-`unsupported_custom_shader_vertices`, `unsupported_custom_shader_uniform_bytes`,
-and `unsupported_custom_shader_storage_bytes` instead of silently treating them
-as built-in atlas or signal content.
+`unsupported_custom_shader_vertices`, `unsupported_custom_shader_source_bytes`,
+`unsupported_custom_shader_uniform_bytes`, and
+`unsupported_custom_shader_storage_bytes` instead of silently treating them as
+built-in atlas or signal content.
 `GpuSurfaceContent::validate()` returns a typed `GpuSurfaceContentError` for
 invalid atlas rectangles, signal ranges, empty payloads, and summary-shape
 mismatches. `is_renderable()` and `signal_render_shape()` remain convenience
@@ -938,11 +940,12 @@ that uses the prelude `gpu_surface(...)` application builder with generated
 demo atlas data.
 Run `cargo run --example custom_shader_surface` for a checked custom shader
 surface sandbox that builds `GpuSurfaceContent::CustomShader` with a
-backend-neutral `GpuShaderSurfaceDescriptor`. Native backends without a matching
-shader pipeline report the surface through
+backend-neutral `GpuShaderSurfaceDescriptor` carrying WGSL source and opaque
+payload bytes. Native backends without a matching shader pipeline report the
+surface through
 `NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces` and the
-related skipped vertex/uniform/storage counters rather than creating a separate
-WGPU-facing application API.
+related skipped vertex/source/uniform/storage counters rather than creating a
+separate WGPU-facing application API.
 Run `cargo run --example multi_window_manifest` for a checked manifest sandbox
 that uses `WindowManifest` to describe multiple windows and separate views
 without expanding the native runtime event loop.

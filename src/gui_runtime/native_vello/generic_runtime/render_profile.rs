@@ -71,6 +71,8 @@ pub(super) fn maybe_log_render_profile(
             gpu_surface_stats.unsupported_custom_shader_surfaces,
         gpu_surface_unsupported_custom_shader_vertices =
             gpu_surface_stats.unsupported_custom_shader_vertices,
+        gpu_surface_unsupported_custom_shader_source_bytes =
+            gpu_surface_stats.unsupported_custom_shader_source_bytes,
         gpu_surface_unsupported_custom_shader_uniform_bytes =
             gpu_surface_stats.unsupported_custom_shader_uniform_bytes,
         gpu_surface_unsupported_custom_shader_storage_bytes =

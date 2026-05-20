@@ -29,25 +29,51 @@ pub(super) fn next_word_boundary(value: &str, caret: usize) -> usize {
 pub(super) fn word_range_at(value: &str, caret: usize) -> Option<(usize, usize)> {
     let char_len = value.chars().count();
     let caret = caret.min(char_len);
-    let chars: Vec<char> = value.chars().collect();
-    let word_index = if caret < char_len && is_word_char(chars[caret]) {
-        caret
-    } else if caret > 0 && is_word_char(chars[caret - 1]) {
-        caret - 1
-    } else {
-        return None;
-    };
-    let mut start = word_index;
-    while start > 0 && is_word_char(chars[start - 1]) {
-        start -= 1;
+    let mut active_word_start = None;
+
+    for (index, character) in value.chars().enumerate() {
+        if is_word_char(character) {
+            active_word_start.get_or_insert(index);
+        } else if let Some(start) = active_word_start.take()
+            && (start..=index).contains(&caret)
+        {
+            return Some((start, index));
+        }
     }
-    let mut end = word_index + 1;
-    while end < char_len && is_word_char(chars[end]) {
-        end += 1;
-    }
-    Some((start, end))
+
+    active_word_start.and_then(|start| {
+        if (start..=char_len).contains(&caret) {
+            Some((start, char_len))
+        } else {
+            None
+        }
+    })
 }
 
 pub(super) fn is_word_char(character: char) -> bool {
     character.is_alphanumeric() || character == '_'
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn word_range_at_selects_current_or_previous_word() {
+        let value = "alpha  beta_gamma.日文";
+
+        assert_eq!(word_range_at(value, 9), Some((7, 17)));
+        assert_eq!(word_range_at(value, 17), Some((7, 17)));
+        assert_eq!(word_range_at(value, 19), Some((18, 20)));
+    }
+
+    #[test]
+    fn word_range_at_rejects_separators_and_clamps_the_caret() {
+        let value = "alpha  beta";
+
+        assert_eq!(word_range_at(value, 5), Some((0, 5)));
+        assert_eq!(word_range_at(value, 6), None);
+        assert_eq!(word_range_at(value, 999), Some((7, 11)));
+        assert_eq!(word_range_at("", 0), None);
+    }
 }

@@ -95,8 +95,11 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
             && word_boundary.contains("pub(super) fn next_word_boundary")
             && word_boundary.contains("pub(super) fn word_range_at")
             && word_boundary.contains("pub(super) fn is_word_char")
+            && word_boundary.contains("active_word_start")
+            && !word_boundary.contains("Vec<char>")
+            && !word_boundary.contains("collect::<")
             && !navigation.contains("fn is_word_char"),
-        "text input caret movement should live in model/navigation.rs"
+        "text input caret movement should live in model/navigation.rs and word selection should avoid collecting the whole input"
     );
     assert!(
         editing.contains("mod command;")

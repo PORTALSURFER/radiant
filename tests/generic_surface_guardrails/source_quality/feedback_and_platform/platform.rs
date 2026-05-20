@@ -8,7 +8,15 @@ const ALLOWED_PLATFORM_SPECIFIC_SOURCE_FILES: &[&str] = &[
     "examples/popup_window/host/process.rs",
     "examples/popup_window/platform.rs",
     "examples/popup_window/platform/readiness.rs",
+    "src/gui_runtime/native_vello/generic_runtime/external_drag/data_object.rs",
+    "src/gui_runtime/native_vello/generic_runtime/external_drag/data_object/formats.rs",
+    "src/gui_runtime/native_vello/generic_runtime/external_drag/data_object/medium.rs",
+    "src/gui_runtime/native_vello/generic_runtime/external_drag/drop_source.rs",
+    "src/gui_runtime/native_vello/generic_runtime/external_drag/payload.rs",
+    "src/gui_runtime/native_vello/generic_runtime/external_drag/payload/dropfiles.rs",
     "src/gui_runtime/native_vello/generic_runtime/external_drag/platform.rs",
+    "src/gui_runtime/native_vello/generic_runtime/external_drag/preview.rs",
+    "src/gui_runtime/native_vello/generic_runtime/external_drag/windows.rs",
     "src/gui_runtime/native_vello/generic_runtime/window/platform.rs",
     "src/gui_runtime/native_vello/text_renderer/font.rs",
 ];
@@ -48,6 +56,10 @@ fn target_specific_platform_code_stays_in_documented_adapters() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let architecture = fs::read_to_string(manifest_dir.join("docs/ARCHITECTURE.md"))
         .expect("architecture docs should be readable");
+    let external_drag_platform = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/external_drag/platform.rs"),
+    )
+    .expect("external drag platform selector should be readable");
     let allowed = ALLOWED_PLATFORM_SPECIFIC_SOURCE_FILES
         .iter()
         .copied()
@@ -74,6 +86,15 @@ fn target_specific_platform_code_stays_in_documented_adapters() {
             architecture.contains(&format!("`{relative}`")),
             "docs/ARCHITECTURE.md should document target-specific adapter `{relative}`"
         );
+        if relative.starts_with("src/gui_runtime/native_vello/generic_runtime/external_drag/")
+            && relative != "src/gui_runtime/native_vello/generic_runtime/external_drag/platform.rs"
+        {
+            assert!(
+                external_drag_platform.contains("#[cfg(target_os = \"windows\")]")
+                    && external_drag_platform.contains("#[path = \"windows.rs\"]"),
+                "Windows-only external drag modules should stay behind the cfg-gated platform selector"
+            );
+        }
     }
 
     undocumented.sort();
@@ -88,6 +109,8 @@ fn contains_target_specific_platform_code(source: &str) -> bool {
     source.contains("target_os = ")
         || source.contains("target_os=")
         || source.contains("platform::windows")
+        || source.contains("std::os::windows")
+        || source.contains("windows::")
         || source.contains("windows_sys")
         || source.contains("WindowAttributesExtWindows")
 }

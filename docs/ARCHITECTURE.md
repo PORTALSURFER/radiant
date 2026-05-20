@@ -120,6 +120,17 @@ Current target-specific seams are intentionally narrow:
   external drag-out platform selection. Windows delegates to the native drag
   implementation; other targets report an explicit unsupported result through
   the normal runtime command path.
+- `src/gui_runtime/native_vello/generic_runtime/external_drag/windows.rs`,
+  `src/gui_runtime/native_vello/generic_runtime/external_drag/data_object.rs`,
+  `src/gui_runtime/native_vello/generic_runtime/external_drag/drop_source.rs`,
+  `src/gui_runtime/native_vello/generic_runtime/external_drag/payload.rs`,
+  `src/gui_runtime/native_vello/generic_runtime/external_drag/preview.rs`,
+  `src/gui_runtime/native_vello/generic_runtime/external_drag/data_object/formats.rs`,
+  `src/gui_runtime/native_vello/generic_runtime/external_drag/data_object/medium.rs`,
+  and
+  `src/gui_runtime/native_vello/generic_runtime/external_drag/payload/dropfiles.rs`
+  are the Windows-only OLE file-drag implementation behind that selector. These
+  modules must stay reachable only through the cfg-gated platform adapter.
 - `src/gui_runtime/native_vello/text_renderer/font.rs` owns native fallback
   font discovery after application-provided embedded fonts and font paths.
   Platform-specific font candidates stay inside that renderer adapter rather

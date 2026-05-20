@@ -518,6 +518,59 @@ fn native_gpu_surface_hover_overlay_tests_stay_grouped_by_behavior() {
 }
 
 #[test]
+fn native_gpu_surface_fast_path_tests_stay_grouped_by_behavior() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/gpu_surface_runtime/fast_paths.rs",
+    ))
+    .expect("native GPU-surface fast-path test root should be readable");
+    let wheel = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/gpu_surface_runtime/fast_paths/wheel.rs",
+    ))
+    .expect("native GPU-surface wheel fast-path tests should be readable");
+    let pointer_move = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/gpu_surface_runtime/fast_paths/pointer_move.rs",
+    ))
+    .expect("native GPU-surface pointer-move fast-path tests should be readable");
+    let hover = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/gpu_surface_runtime/fast_paths/hover.rs",
+    ))
+    .expect("native GPU-surface hover fast-path tests should be readable");
+    let plain_surface = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/gpu_surface_runtime/fast_paths/plain_surface.rs",
+    ))
+    .expect("plain GPU-surface fast-path tests should be readable");
+    let paint_only = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/gpu_surface_runtime/fast_paths/paint_only.rs",
+    ))
+    .expect("paint-only pointer fast-path tests should be readable");
+
+    assert!(
+        root.contains("mod wheel;")
+            && root.contains("mod pointer_move;")
+            && root.contains("mod hover;")
+            && root.contains("mod plain_surface;")
+            && root.contains("mod paint_only;")
+            && !root.contains("fn gpu_surface_fast_path_does_not_capture_horizontal_pan")
+            && !root.contains("struct PaintOnlyPointerBridge"),
+        "native GPU-surface fast-path test root should index focused behavior groups instead of owning all cases and fixtures"
+    );
+    assert!(
+        wheel.contains("fn gpu_surface_fast_path_does_not_capture_horizontal_pan")
+            && pointer_move
+                .contains("fn gpu_surface_pointer_move_fast_path_only_within_cached_surface")
+            && pointer_move.contains(
+                "fn gpu_surface_pointer_move_fast_path_is_disabled_during_pointer_capture"
+            )
+            && hover.contains("fn native_gpu_hover_fast_path_is_disabled_during_pointer_capture")
+            && plain_surface.contains("fn plain_gpu_surface_does_not_opt_into_runtime_fast_paths")
+            && paint_only.contains("fn native_routed_paint_only_pointer_move_skips_scene_rebuild")
+            && paint_only.contains("struct PaintOnlyPointerBridge"),
+        "native GPU-surface fast-path tests should stay grouped by wheel, pointer move, hover, plain surface, and paint-only behavior"
+    );
+}
+
+#[test]
 fn composited_base_frame_cache_avoids_post_mutation_expect() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module = fs::read_to_string(

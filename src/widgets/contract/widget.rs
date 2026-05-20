@@ -108,9 +108,14 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
         false
     }
 
-    /// Return the selected text for focused text-editing widgets.
-    fn selected_text(&self) -> Option<String> {
+    /// Return the selected text for focused text-editing widgets as a borrowed slice.
+    fn selected_text_slice(&self) -> Option<&str> {
         None
+    }
+
+    /// Return the selected text for focused text-editing widgets as an owned string.
+    fn selected_text(&self) -> Option<String> {
+        self.selected_text_slice().map(str::to_owned)
     }
 
     /// Apply a declarative text wrapping policy when this widget supports text layout.

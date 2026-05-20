@@ -67,11 +67,16 @@ where
         })
     }
 
-    /// Return selected text from the focused text input, if any.
-    pub fn focused_text_selection(&self) -> Option<String> {
+    /// Return selected text from the focused text input as a borrowed slice, if any.
+    pub fn focused_text_selection_slice(&self) -> Option<&str> {
         let widget_id = self.focused_text_input_id()?;
         self.surface_widget(widget_id)
-            .and_then(|widget| widget.widget_object().selected_text())
+            .and_then(|widget| widget.widget_object().selected_text_slice())
+    }
+
+    /// Return selected text from the focused text input as an owned string, if any.
+    pub fn focused_text_selection(&self) -> Option<String> {
+        self.focused_text_selection_slice().map(str::to_owned)
     }
 
     /// Resolve one keypress through host-owned shortcuts before falling back to

@@ -16,6 +16,10 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
     let editing =
         fs::read_to_string(manifest_dir.join("src/widgets/primitives/text_input/model/editing.rs"))
             .expect("text input editing model should be readable");
+    let widget_contract = fs::read_to_string(manifest_dir.join("src/widgets/contract/widget.rs"))
+        .expect("widget contract should be readable");
+    let focus_controller = fs::read_to_string(manifest_dir.join("src/runtime/controller/focus.rs"))
+        .expect("runtime focus controller should be readable");
     let editing_command = fs::read_to_string(
         manifest_dir.join("src/widgets/primitives/text_input/model/editing/command.rs"),
     )
@@ -54,6 +58,14 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
             && selection.contains("pub fn selection_range")
             && selection.contains("pub fn has_selection"),
         "text input selection queries should live in model/selection.rs"
+    );
+    assert!(
+        widget_contract.contains("fn selected_text_slice(&self) -> Option<&str>")
+            && widget_contract.contains("self.selected_text_slice().map(str::to_owned)")
+            && focus_controller
+                .contains("pub fn focused_text_selection_slice(&self) -> Option<&str>")
+            && focus_controller.contains("focused_text_selection_slice().map(str::to_owned)"),
+        "focused text selection inspection should preserve a borrowed path through the widget and runtime contracts"
     );
     assert!(
         navigation.contains("pub fn set_caret")

@@ -107,6 +107,10 @@ impl Widget for TextInputWidget {
         false
     }
 
+    fn selected_text_slice(&self) -> Option<&str> {
+        self.selected_text_slice()
+    }
+
     fn selected_text(&self) -> Option<String> {
         self.selected_text()
     }

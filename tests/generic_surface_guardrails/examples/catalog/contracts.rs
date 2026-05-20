@@ -127,6 +127,7 @@ pub(super) const FOCUSED_EXAMPLE_CONTRACTS: &[(&str, &[&str])] = &[
             "PopupMessage::Close",
             "popup_view(",
             "examples/popup_window/host.rs",
+            "examples/popup_window/host/child.rs",
             "examples/popup_window/model.rs",
             "examples/popup_window/platform.rs",
             "examples/popup_window/policy.rs",

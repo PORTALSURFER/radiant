@@ -7,6 +7,10 @@ fn performance_harness_is_registered_and_documented() {
         .expect("Radiant Cargo.toml should be readable");
     let bench = fs::read_to_string(manifest_dir.join("benches/perf_harness.rs"))
         .expect("perf_harness bench should be readable");
+    let catalog = fs::read_to_string(manifest_dir.join("benches/perf_harness/catalog.rs"))
+        .expect("perf_harness catalog should be readable");
+    let runner = fs::read_to_string(manifest_dir.join("benches/perf_harness/runner.rs"))
+        .expect("perf_harness runner should be readable");
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
         .expect("docs/API.md should be readable");
 
@@ -21,6 +25,13 @@ fn performance_harness_is_registered_and_documented() {
             "Cargo.toml should register perf harness with `{required}`"
         );
     }
+    assert!(
+        bench.contains("perf_harness/catalog.rs")
+            && bench.contains("perf_harness/runner.rs")
+            && bench.contains("catalog::run_registered_scenarios")
+            && bench.contains("runner::print_scenario_list"),
+        "perf_harness entrypoint should delegate scenario ownership to the catalog and runner"
+    );
     let perf_scenarios = [
         "layout_deep_nesting",
         "layout_wrap_1k",
@@ -51,14 +62,14 @@ fn performance_harness_is_registered_and_documented() {
     ];
     for scenario in perf_scenarios {
         assert!(
-            bench.contains(scenario),
-            "perf_harness should include `{scenario}`"
+            catalog.contains(scenario),
+            "perf_harness catalog should include `{scenario}`"
         );
         let scenario_literal = format!("\"{scenario}\"");
         assert_eq!(
-            bench.matches(&scenario_literal).count(),
+            catalog.matches(&scenario_literal).count(),
             1,
-            "perf_harness should register `{scenario}` in a single shared scenario catalog"
+            "perf_harness catalog should register `{scenario}` once"
         );
         assert!(
             docs.contains(scenario),
@@ -66,12 +77,12 @@ fn performance_harness_is_registered_and_documented() {
         );
     }
     assert!(
-        bench.contains("radiant_perf scenario="),
-        "perf_harness should print parseable metric lines"
+        runner.contains("radiant_perf scenario="),
+        "perf_harness runner should print parseable metric lines"
     );
     assert!(
-        bench.contains("--list") && bench.contains("radiant_perf scenarios:"),
-        "perf_harness should expose a cheap scenario-listing mode"
+        runner.contains("--list") && runner.contains("radiant_perf scenarios:"),
+        "perf_harness runner should expose a cheap scenario-listing mode"
     );
     let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(

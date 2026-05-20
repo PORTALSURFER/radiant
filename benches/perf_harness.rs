@@ -2,10 +2,14 @@
 
 #[path = "perf_harness/app_projection.rs"]
 mod app_projection;
+#[path = "perf_harness/catalog.rs"]
+mod catalog;
 #[path = "perf_harness/command_drain.rs"]
 mod command_drain;
 #[path = "perf_harness/layout_scenarios.rs"]
 mod layout_scenarios;
+#[path = "perf_harness/runner.rs"]
+mod runner;
 #[path = "perf_harness/runtime_scenarios.rs"]
 mod runtime_scenarios;
 
@@ -19,166 +23,26 @@ use radiant::{
     theme::ThemeTokens,
     widgets::{GpuSurfaceWidget, WidgetSizing},
 };
-use std::{
-    env,
-    hint::black_box,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{env, hint::black_box, sync::Arc};
 
-const LAYOUT_ITERATIONS: usize = 120;
-const RUNTIME_ITERATIONS: usize = 100;
 const GPU_ITERATIONS: usize = 60;
-const RUN_ALL_IN_DEBUG_ENV: &str = "RADIANT_PERF_RUN_ALL_IN_DEBUG";
-const LIST_ARG: &str = "--list";
-
-macro_rules! perf_scenario_catalog {
-    ($apply:ident $($prefix:tt)*) => {
-        $apply! {
-            $($prefix)*
-            [
-            ("layout_deep_nesting", LAYOUT_ITERATIONS, layout_scenarios::deep_nesting),
-            ("layout_wrap_1k", LAYOUT_ITERATIONS, layout_scenarios::wrap_1k),
-            ("layout_virtualized_10k", LAYOUT_ITERATIONS, layout_scenarios::virtualized_10k),
-            ("layout_virtualized_fixed_10k", LAYOUT_ITERATIONS, layout_scenarios::virtualized_fixed_10k),
-            ("layout_virtualized_fixed_scroll_10k", LAYOUT_ITERATIONS, layout_scenarios::virtualized_fixed_scroll_10k),
-            ("layout_mark_dirty_subtree_10k", LAYOUT_ITERATIONS, layout_scenarios::mark_dirty_subtree_10k),
-            ("app_virtual_list_projection_10k", RUNTIME_ITERATIONS, app_projection::virtual_list_projection_10k),
-            ("app_virtual_list_projection_generated_child_ids_10k", RUNTIME_ITERATIONS, app_projection::virtual_list_projection_generated_child_ids_10k),
-            ("app_virtual_selectable_list_projection_10k", RUNTIME_ITERATIONS, app_projection::virtual_selectable_list_projection_10k),
-            ("app_virtual_list_window_projection_10k", RUNTIME_ITERATIONS, app_projection::virtual_list_window_projection_10k),
-            ("runtime_surface_large_tree", RUNTIME_ITERATIONS, runtime_scenarios::surface_large_tree),
-            ("runtime_text_paint_plan_1k", RUNTIME_ITERATIONS, runtime_scenarios::text_paint_plan_1k),
-            ("runtime_horizontal_scroll_paint_1k", RUNTIME_ITERATIONS, runtime_scenarios::horizontal_scroll_paint_1k),
-            ("runtime_virtualized_list_wheel_10k", RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_wheel_10k),
-            ("runtime_virtualized_list_hover_10k", RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_hover_10k),
-            ("runtime_virtualized_list_stable_hover_10k", RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_stable_hover_10k),
-            ("runtime_virtualized_list_hover_paint_10k", RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_hover_paint_10k),
-            ("runtime_pointer_overlay_paint_10k", RUNTIME_ITERATIONS, runtime_scenarios::pointer_overlay_paint_10k),
-            ("runtime_virtualized_nested_scroll_hover_10k", RUNTIME_ITERATIONS, runtime_scenarios::virtualized_nested_scroll_hover_10k),
-            ("runtime_refresh_large_tree", RUNTIME_ITERATIONS, runtime_scenarios::refresh_large_tree),
-            ("runtime_resize_large_tree", RUNTIME_ITERATIONS, runtime_scenarios::resize_large_tree),
-            ("runtime_command_flattening_512", RUNTIME_ITERATIONS, runtime_scenarios::command_flattening_512),
-            ("runtime_command_drain_1k", RUNTIME_ITERATIONS, command_drain::flat_command_drain),
-            ("runtime_nested_command_drain_1k", RUNTIME_ITERATIONS, command_drain::nested_command_drain),
-            ("gpu_signal_summary", GPU_ITERATIONS, || bench_gpu_signal_summary),
-            ("gpu_surface_projection", GPU_ITERATIONS, || bench_gpu_surface_projection),
-            ]
-        }
-    };
-}
-
-macro_rules! scenario_names {
-    ([$(($name:literal, $iterations:expr, $build:expr)),+ $(,)?]) => {
-        &[$($name),+]
-    };
-}
-
-macro_rules! run_registered_scenarios {
-    ($runner:ident [$(($name:literal, $iterations:expr, $build:expr)),+ $(,)?]) => {
-        $($runner.run_scenario($name, $iterations, $build);)+
-    };
-}
-
-const PERF_SCENARIOS: &[&str] = perf_scenario_catalog!(scenario_names);
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
-    if scenario_list_requested(&args) {
-        print_scenario_list();
+    if runner::scenario_list_requested(&args) {
+        runner::print_scenario_list(catalog::PERF_SCENARIOS);
         return;
     }
 
-    let filters = scenario_filters_from_args(args);
-    if should_skip_unfiltered_debug_run(&filters) {
-        println!(
-            "radiant_perf skipped unfiltered debug run; pass a scenario filter or set {RUN_ALL_IN_DEBUG_ENV}=1"
-        );
+    let filters = runner::scenario_filters_from_args(args);
+    if runner::should_skip_unfiltered_debug_run(&filters) {
+        runner::print_unfiltered_debug_skip();
         return;
     }
 
-    let mut runner = ScenarioRunner::new(filters);
-    perf_scenario_catalog!(run_registered_scenarios runner);
+    let mut runner = runner::ScenarioRunner::new(filters);
+    catalog::run_registered_scenarios(&mut runner);
     runner.finish();
-}
-
-struct ScenarioRunner {
-    filters: Vec<String>,
-    matched: usize,
-}
-
-impl ScenarioRunner {
-    fn new(filters: Vec<String>) -> Self {
-        Self {
-            filters,
-            matched: 0,
-        }
-    }
-
-    fn run_scenario<Build, Bench>(&mut self, name: &str, iterations: usize, build: Build)
-    where
-        Build: FnOnce() -> Bench,
-        Bench: FnMut(),
-    {
-        if !scenario_matches_filters(name, &self.filters) {
-            return;
-        }
-        self.matched += 1;
-        run_scenario(name, iterations, build());
-    }
-
-    fn finish(self) {
-        if self.matched == 0 && !self.filters.is_empty() {
-            eprintln!(
-                "no radiant_perf scenarios matched filters: {:?}",
-                self.filters
-            );
-            std::process::exit(2);
-        }
-    }
-}
-
-fn scenario_filters_from_args(args: impl IntoIterator<Item = String>) -> Vec<String> {
-    args.into_iter()
-        .skip(1)
-        .filter(|arg| !arg.starts_with('-') && !arg.is_empty())
-        .collect()
-}
-
-fn scenario_list_requested(args: &[String]) -> bool {
-    args.iter().skip(1).any(|arg| arg == LIST_ARG)
-}
-
-fn print_scenario_list() {
-    println!("radiant_perf scenarios:");
-    for scenario in PERF_SCENARIOS {
-        println!("{scenario}");
-    }
-}
-
-fn scenario_matches_filters(name: &str, filters: &[String]) -> bool {
-    filters.is_empty() || filters.iter().any(|filter| name.contains(filter))
-}
-
-fn should_skip_unfiltered_debug_run(filters: &[String]) -> bool {
-    cfg!(debug_assertions) && filters.is_empty() && env::var_os(RUN_ALL_IN_DEBUG_ENV).is_none()
-}
-
-fn run_scenario(name: &str, iterations: usize, mut bench: impl FnMut()) {
-    bench();
-    let started = Instant::now();
-    for _ in 0..iterations {
-        bench();
-    }
-    print_metric(name, iterations, started.elapsed());
-}
-
-fn print_metric(name: &str, iterations: usize, elapsed: Duration) {
-    let total_us = elapsed.as_micros();
-    let avg_us = total_us as f64 / iterations.max(1) as f64;
-    println!(
-        "radiant_perf scenario={name} iterations={iterations} total_us={total_us} avg_us={avg_us:.3}"
-    );
 }
 
 fn bench_gpu_signal_summary() {

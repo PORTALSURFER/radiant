@@ -32,6 +32,15 @@ jobs:
       - name: Examples
         run: cargo test --examples
 
+      - name: Install portable library targets
+        run: rustup target add x86_64-unknown-linux-gnu x86_64-apple-darwin
+
+      - name: Portable library check - Linux
+        run: cargo check --lib --no-default-features --target x86_64-unknown-linux-gnu
+
+      - name: Portable library check - macOS
+        run: cargo check --lib --no-default-features --target x86_64-apple-darwin
+
       - name: Performance harness smoke
         shell: pwsh
         run: |

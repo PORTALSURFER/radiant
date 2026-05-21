@@ -23,11 +23,10 @@ where
             return;
         }
         match event {
-            WindowEvent::CloseRequested => {
-                if self.core.runtime.bridge_mut().close_requested() {
-                    event_loop.exit();
-                }
+            WindowEvent::CloseRequested if self.core.runtime.bridge_mut().close_requested() => {
+                event_loop.exit();
             }
+            WindowEvent::CloseRequested => {}
             WindowEvent::Resized(size) => self.resize_surface(size),
             WindowEvent::ScaleFactorChanged { .. } => self.request_redraw_if_needed(),
             WindowEvent::CursorMoved { position, .. } => {

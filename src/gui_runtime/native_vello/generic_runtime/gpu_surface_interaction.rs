@@ -124,7 +124,8 @@ where
     }
 
     pub(super) fn clear_gpu_surface_cursor_overlay(&mut self, position: Point) -> bool {
-        let changed = self
+        let mut changed = false;
+        for surface in self
             .frame
             .last_paint_plan
             .primitives
@@ -142,9 +143,9 @@ where
                 }
                 _ => None,
             })
-            .fold(false, |changed, surface| {
-                clear_surface_cursor_overlay(surface) || changed
-            });
+        {
+            changed = clear_surface_cursor_overlay(surface) || changed;
+        }
         if changed {
             self.frame.mark_composited_base_dirty();
         }

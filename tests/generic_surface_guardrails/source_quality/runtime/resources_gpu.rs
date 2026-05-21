@@ -133,6 +133,11 @@ fn gpu_surface_content_models_stay_focused() {
     let validation =
         fs::read_to_string(manifest_dir.join("src/runtime/gpu_surface/content/validation.rs"))
             .expect("GPU surface content validation module should be readable");
+    let error = fs::read_to_string(manifest_dir.join("src/runtime/gpu_surface/content/error.rs"))
+        .expect("GPU surface content error module should be readable");
+    let error_display =
+        fs::read_to_string(manifest_dir.join("src/runtime/gpu_surface/content/error/display.rs"))
+            .expect("GPU surface content error display module should be readable");
     let tests = fs::read_to_string(manifest_dir.join("src/runtime/gpu_surface/content/tests.rs"))
         .expect("GPU surface content test root should be readable");
     let atlas_tests =
@@ -179,6 +184,14 @@ fn gpu_surface_content_models_stay_focused() {
             && validation.contains("validate_shader_descriptor")
             && validation.contains("validate_signal_render_shape"),
         "GPU surface content validation should stay in the validation module"
+    );
+    assert!(
+        error.contains("mod display;")
+            && error.contains("pub enum GpuSurfaceContentError")
+            && !error.contains("impl fmt::Display for GpuSurfaceContentError")
+            && error_display.contains("impl fmt::Display for GpuSurfaceContentError")
+            && error_display.contains("impl std::error::Error for GpuSurfaceContentError"),
+        "GPU surface validation error models should delegate formatting to error/display.rs"
     );
     assert!(
         tests.contains("mod atlas;")

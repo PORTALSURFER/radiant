@@ -51,6 +51,8 @@ fn performance_harness_is_registered_and_documented() {
             .expect("text bench scenarios should be readable");
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
         .expect("docs/API.md should be readable");
+    let ci_workflow = fs::read_to_string(manifest_dir.join(".github/workflows/radiant-ci.yml"))
+        .expect("Radiant CI workflow should be readable");
 
     for required in [
         "[[bench]]",
@@ -166,6 +168,17 @@ fn performance_harness_is_registered_and_documented() {
         "perf_harness runner should expose a cheap scenario-listing mode"
     );
     assert!(
+        ci_workflow.contains("cargo fmt -- --check")
+            && ci_workflow.contains("cargo clippy --all-targets --all-features -- -D warnings")
+            && ci_workflow.contains("cargo test --lib --tests")
+            && ci_workflow.contains("cargo test --examples")
+            && ci_workflow.contains("cargo bench --bench perf_harness -- --list")
+            && ci_workflow.contains("--write-baseline-jsonl")
+            && ci_workflow.contains("--baseline-jsonl")
+            && ci_workflow.contains("--fail-on-missing-baseline"),
+        "Radiant CI should run the quality gates, example checks, and a perf-harness baseline smoke check"
+    );
+    assert!(
         catalog.contains("ScenarioSpec::new")
             && catalog.contains("\"layout\"")
             && catalog.contains("\"application_projection\"")
@@ -278,6 +291,8 @@ fn performance_harness_is_registered_and_documented() {
             && normalized_docs.contains("`baseline_status=slower`")
             && normalized_docs.contains("complete baseline coverage")
             && normalized_docs.contains("Metric lines and list output both include each scenario's target-area category")
+            && normalized_docs.contains("The repository CI workflow mirrors the local validation lane on Windows")
+            && normalized_docs.contains("proves baseline capture/comparison with `--fail-on-missing-baseline`")
             && normalized_docs.contains("Layout scenarios:")
             && normalized_docs.contains("Application projection scenarios:")
             && normalized_docs.contains("Runtime surface scenarios:")

@@ -3,6 +3,7 @@
 mod badge;
 mod button;
 mod drag_handle;
+mod dropdown;
 mod icon_button;
 mod interactive_row;
 mod scrollbar;
@@ -14,6 +15,10 @@ mod toggle;
 pub use badge::{BadgeBuilder, badge, badge_mapped, badge_message};
 pub use button::{ButtonBuilder, button, button_mapped, button_message};
 pub use drag_handle::{DragHandleBuilder, drag_handle, drag_handle_mapped};
+pub use dropdown::{
+    DropdownBuilder, DropdownOption, DropdownParts, dropdown, dropdown_from_parts, dropdown_height,
+    dropdown_menu, dropdown_menu_height, dropdown_menu_overlay, dropdown_option, state_dropdown,
+};
 pub use icon_button::{IconButtonBuilder, icon_button};
 pub use interactive_row::{InteractiveRowBuilder, interactive_row};
 pub use scrollbar::{ScrollbarBuilder, scrollbar};

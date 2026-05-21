@@ -148,6 +148,22 @@ fn button_chrome_shares_fill_and_stroke_point_storage() {
 }
 
 #[test]
+fn input_only_button_does_not_paint_chrome_or_text() {
+    let mut button = ButtonWidget::new(12, "", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
+    button.common.paint.paints_state_layers = false;
+    let mut primitives = Vec::new();
+
+    button.append_paint(
+        &mut primitives,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0)),
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+
+    assert!(primitives.is_empty());
+}
+
+#[test]
 fn button_text_alignment_can_be_overridden() {
     let mut button =
         ButtonWidget::new(11, "Folder", WidgetSizing::fixed(Vector2::new(120.0, 24.0)));

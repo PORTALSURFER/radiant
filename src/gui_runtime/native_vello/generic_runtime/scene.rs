@@ -79,6 +79,9 @@ where
             _ if clip_state.is_suppressed() => continue,
             _ => {}
         }
+        if flushes_pending_text_before_encoding(primitive) {
+            flush_text_runs(scene, text_renderer, text_runs, &mut stats);
+        }
         match primitive {
             PaintPrimitive::ClipStart(_) | PaintPrimitive::ClipEnd(_) => {}
             PaintPrimitive::FillRect(fill) => encode_rect(scene, fill.color, fill.rect),
@@ -93,7 +96,6 @@ where
             }
             PaintPrimitive::Svg(svg) => {
                 stats.svg_document_count = stats.svg_document_count.saturating_add(1);
-                flush_text_runs(scene, text_renderer, text_runs, &mut stats);
                 encode_svg(scene, svg);
             }
             PaintPrimitive::StrokeRect(stroke) => {
@@ -126,7 +128,6 @@ where
             }
             PaintPrimitive::TextInput(input) => {
                 stats.text_input_count = stats.text_input_count.saturating_add(1);
-                flush_text_runs(scene, text_renderer, text_runs, &mut stats);
                 encode_text_input(scene, text_renderer, input, animation_time);
                 stats.record_text_runs(1);
             }
@@ -162,6 +163,13 @@ where
     }
     flush_text_runs(scene, text_renderer, text_runs, &mut stats);
     stats
+}
+
+pub(super) fn flushes_pending_text_before_encoding(primitive: &PaintPrimitive) -> bool {
+    !matches!(
+        primitive,
+        PaintPrimitive::Text(_) | PaintPrimitive::ClipStart(_) | PaintPrimitive::ClipEnd(_)
+    )
 }
 
 pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, Bridge> {

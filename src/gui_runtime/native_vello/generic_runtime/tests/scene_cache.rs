@@ -1,8 +1,9 @@
 use super::*;
 use crate::{
     gui::types::ImageRgba,
-    runtime::{GpuSurfaceRuntimeOverlays, SurfacePaintPlan},
+    runtime::{GpuSurfaceRuntimeOverlays, PaintFillRect, PaintTextRun, SurfacePaintPlan},
     theme::ThemeTokens,
+    widgets::TextWrap,
 };
 
 #[path = "scene_cache/retained.rs"]
@@ -52,6 +53,40 @@ fn scene_text_run_buffer_presizes_overflow_storage() {
     let text_runs = SceneTextRunBuffer::with_overflow_capacity(32);
 
     assert!(text_runs.overflow_capacity() >= 32);
+}
+
+#[test]
+fn scene_encoding_flushes_text_before_later_non_text_primitives() {
+    let text = PaintPrimitive::Text(PaintTextRun {
+        widget_id: 1,
+        text: "base label".into(),
+        rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 18.0)),
+        font_size: 12.0,
+        color: Rgba8 {
+            r: 255,
+            g: 255,
+            b: 255,
+            a: 255,
+        },
+        align: PaintTextAlign::Left,
+        wrap: TextWrap::None,
+        baseline: None,
+    });
+    let overlay_fill = PaintPrimitive::FillRect(PaintFillRect {
+        widget_id: 2,
+        rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 18.0)),
+        color: Rgba8 {
+            r: 255,
+            g: 0,
+            b: 0,
+            a: 255,
+        },
+    });
+
+    assert!(!super::scene::flushes_pending_text_before_encoding(&text));
+    assert!(super::scene::flushes_pending_text_before_encoding(
+        &overlay_fill
+    ));
 }
 
 #[test]

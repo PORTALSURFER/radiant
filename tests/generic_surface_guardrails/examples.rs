@@ -156,6 +156,13 @@ fn api_docs_map_examples_to_target_areas() {
             "target-area map should include `{example}`"
         );
     }
+
+    for example in registered_examples {
+        assert!(
+            docs.contains(&format!("`{example}`")),
+            "target-area map should include every registered example target: {example}"
+        );
+    }
 }
 
 #[test]

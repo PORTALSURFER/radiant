@@ -164,9 +164,12 @@ normal quality lane before merging meaningful changes.
   `cargo test --test generic_surface_guardrails`.
 - Examples: `cargo test --examples`, or the focused example target when a
   change is local to one sandbox.
-- Formatting and linting: `cargo fmt --check` and
+- Formatting and linting: `cargo fmt -- --check` and
   `cargo clippy --all-targets --all-features -- -D warnings`.
-- Broad regression lane: `cargo test -j 1 --lib --tests`.
+- Broad regression lane: `cargo test --lib --tests`, matching CI. Use
+  `cargo test -j 1 --lib --tests` when diagnosing order-sensitive failures or
+  reducing concurrent resource pressure locally.
+- Example compile checks: `cargo test --examples`.
 - Portable library boundary: after installing the targets with
   `rustup target add x86_64-unknown-linux-gnu x86_64-apple-darwin`, run
   `cargo check --lib --no-default-features --target x86_64-unknown-linux-gnu`

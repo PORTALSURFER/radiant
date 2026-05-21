@@ -1142,16 +1142,20 @@ runs formatting, Clippy with warnings denied, library and integration tests,
 checked examples, and a perf-harness smoke pass that lists scenarios and proves
 baseline capture/comparison with `--fail-on-missing-baseline`.
 
-Radiant's normal local quality lane includes Clippy across library, tests,
-examples, and benches:
+Radiant's normal local quality lane is:
 
 ```powershell
+cargo fmt -- --check
 cargo clippy --all-targets --all-features -- -D warnings
+cargo test --lib --tests
+cargo test --examples
+cargo bench --bench perf_harness -- --list
 ```
 
-This command is a code-quality baseline, not a performance benchmark. Keep new
-lint exceptions local and specific instead of adding broad crate-level Clippy
-allows.
+The perf-harness listing is a smoke check for scenario registration, not a
+portable timing gate. Focused benchmark comparisons should be run only when the
+change touches a hot path. Keep new lint exceptions local and specific instead
+of adding broad crate-level Clippy allows.
 
 ## Automation
 

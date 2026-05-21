@@ -3,9 +3,41 @@ use super::*;
 #[test]
 fn api_docs_describe_the_structural_boundary_strategy() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let crate_docs =
+        fs::read_to_string(manifest_dir.join("src/lib.rs")).expect("src/lib.rs should be readable");
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
         .expect("docs/API.md should be readable");
+    let normalized_crate_docs = crate_docs
+        .lines()
+        .map(|line| line.trim_start().strip_prefix("//!").unwrap_or(line))
+        .collect::<Vec<_>>()
+        .join(" ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
     let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    for required in [
+        "Radiant exposes one public API with progressive control",
+        "use radiant::prelude::*;",
+        "radiant::window(\"Radiant Hello World\").run(text(\"Hello, world!\"))",
+        "not a separate framework",
+        "Start with `README.md`",
+        "`docs/API.md`",
+        "checked public API boundary",
+        "`docs/ARCHITECTURE.md`",
+        "ownership boundaries",
+        "`docs/TARGET.md`",
+        "long-term standalone GUI library direction",
+        "`widget_gallery`",
+        "`waveform_view`",
+        "`timeline_editor`",
+    ] {
+        assert!(
+            normalized_crate_docs.contains(required),
+            "crate docs should document `{required}`"
+        );
+    }
 
     for required in [
         "# Radiant Core API",

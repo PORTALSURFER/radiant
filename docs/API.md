@@ -1166,12 +1166,16 @@ rustup target add x86_64-unknown-linux-gnu x86_64-apple-darwin
 cargo check --lib --no-default-features --target x86_64-unknown-linux-gnu
 cargo check --lib --no-default-features --target x86_64-apple-darwin
 cargo bench --bench perf_harness -- --list
+cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --write-baseline-jsonl .\target\perf-baseline.jsonl
+cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl .\target\perf-baseline.jsonl --fail-on-missing-baseline
 ```
 
-The perf-harness listing is a smoke check for scenario registration, not a
-portable timing gate. Focused benchmark comparisons should be run only when the
-change touches a hot path. Keep new lint exceptions local and specific instead
-of adding broad crate-level Clippy allows.
+The perf-harness listing is a smoke check for scenario registration. The
+focused baseline round trip proves the JSONL capture/comparison path and missing
+baseline failure mode without treating timing as a portable pass/fail gate.
+Additional focused benchmark comparisons should be run when the change touches a
+hot path. Keep new lint exceptions local and specific instead of adding broad
+crate-level Clippy allows.
 
 ## Automation
 

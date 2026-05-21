@@ -172,11 +172,18 @@ fn performance_harness_is_registered_and_documented() {
             && ci_workflow.contains("cargo clippy --all-targets --all-features -- -D warnings")
             && ci_workflow.contains("cargo test --lib --tests")
             && ci_workflow.contains("cargo test --examples")
+            && ci_workflow
+                .contains("rustup target add x86_64-unknown-linux-gnu x86_64-apple-darwin")
+            && ci_workflow.contains(
+                "cargo check --lib --no-default-features --target x86_64-unknown-linux-gnu"
+            )
+            && ci_workflow
+                .contains("cargo check --lib --no-default-features --target x86_64-apple-darwin")
             && ci_workflow.contains("cargo bench --bench perf_harness -- --list")
             && ci_workflow.contains("--write-baseline-jsonl")
             && ci_workflow.contains("--baseline-jsonl")
             && ci_workflow.contains("--fail-on-missing-baseline"),
-        "Radiant CI should run the quality gates, example checks, and a perf-harness baseline smoke check"
+        "Radiant CI should run the quality gates, example checks, portable library checks, and a perf-harness baseline smoke check"
     );
     assert!(
         catalog.contains("ScenarioSpec::new")
@@ -292,6 +299,7 @@ fn performance_harness_is_registered_and_documented() {
             && normalized_docs.contains("complete baseline coverage")
             && normalized_docs.contains("Metric lines and list output both include each scenario's target-area category")
             && normalized_docs.contains("The repository CI workflow mirrors the local validation lane on Windows")
+            && normalized_docs.contains("no-default-features library checks for the documented Linux and macOS targets")
             && normalized_docs.contains("proves baseline capture/comparison with `--fail-on-missing-baseline`")
             && normalized_docs.contains("Layout scenarios:")
             && normalized_docs.contains("Application projection scenarios:")

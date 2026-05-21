@@ -3,6 +3,10 @@ use super::*;
 #[test]
 fn architecture_map_documents_target_aligned_boundaries() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest =
+        fs::read_to_string(manifest_dir.join("Cargo.toml")).expect("Cargo.toml should be readable");
+    let readme =
+        fs::read_to_string(manifest_dir.join("README.md")).expect("README.md should be readable");
     let api_docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
         .expect("docs/API.md should be readable");
     let architecture = fs::read_to_string(manifest_dir.join("docs/ARCHITECTURE.md"))
@@ -11,6 +15,40 @@ fn architecture_map_documents_target_aligned_boundaries() {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
+    let normalized_readme = readme.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    assert!(
+        manifest.contains("description = ")
+            && manifest.contains("license = \"CC0-1.0\"")
+            && manifest.contains("readme = \"README.md\"")
+            && manifest.contains("repository = \"https://github.com/PORTALSURFER/radiant\"")
+            && manifest.contains("keywords = [\"gui\", \"desktop\", \"vello\", \"wgpu\"]")
+            && manifest.contains("categories = [\"gui\"]"),
+        "Cargo package metadata should make Radiant discoverable as a standalone GUI library"
+    );
+    for required in [
+        "# Radiant",
+        "Windows-first Rust GUI library",
+        "one public API for declarative views",
+        "Radiant is intended to stay application-independent",
+        "RuntimeBridge",
+        "explicit control surfaces, not a second framework",
+        "`docs/API.md`",
+        "`docs/ARCHITECTURE.md`",
+        "`docs/TARGET.md`",
+        "workspace CC0 1.0 license",
+        "Examples are maintained API sandboxes and validation targets",
+        "cargo test --examples",
+        "cargo clippy --all-targets --all-features -- -D warnings",
+        "cargo doc --no-deps",
+        "cargo test --doc",
+        "perf-harness smoke lane",
+    ] {
+        assert!(
+            normalized_readme.contains(required),
+            "README.md should document `{required}`"
+        );
+    }
 
     assert!(
         api_docs.contains("docs/ARCHITECTURE.md"),

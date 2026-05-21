@@ -6,9 +6,29 @@
 //! [`layout`], and [`theme`] objects when they need
 //! more explicit control. All of those entry points lower into the same generic
 //! declarative UI tree and native Vello backend without depending on host-shaped
-//! shell DTOs. See the checked `hello_world`, `counter`, and `generic_native`
-//! examples for application patterns.
-//! See `docs/API.md` for the checked public API boundary and lifecycle model.
+//! shell DTOs.
+//!
+//! A minimal app starts through the prelude:
+//!
+//! ```no_run
+//! use radiant::prelude::*;
+//!
+//! fn main() -> radiant::Result {
+//!     radiant::window("Radiant Hello World").run(text("Hello, world!"))
+//! }
+//! ```
+//!
+//! For more explicit control, use the same model through [`runtime::RuntimeBridge`],
+//! [`runtime::UiSurface`], [`runtime::SurfaceNode`], and
+//! [`runtime::NativeRunOptions`]. Those APIs are supported host control
+//! surfaces, not a separate framework.
+//!
+//! Start with `README.md`, then use `docs/API.md` for the checked public API
+//! boundary and lifecycle model, `docs/ARCHITECTURE.md` for ownership boundaries,
+//! and `docs/TARGET.md` for the long-term standalone GUI library direction. The
+//! checked `hello_world`, `counter`, `generic_native`, `widget_gallery`,
+//! `waveform_view`, and `timeline_editor` examples cover application patterns
+//! across the target areas.
 //!
 //! Generic host-facing modules:
 //! - [`layout`]: stable slot-based layout primitives

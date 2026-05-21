@@ -9,6 +9,14 @@ use radiant::widgets::{
 enum GalleryMessage {
     Badge,
     Selected(bool),
+    ToggleDropdown,
+    Pick(&'static str),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum OverlayMessage {
+    Dismiss,
+    Pick,
 }
 
 #[test]
@@ -107,6 +115,141 @@ fn application_builder_gallery_widgets_lower_and_route_messages() {
     assert!(!card.common.paint.paints_focus);
     assert!(card.common.paint.suppresses_container_hover);
     assert_eq!(surface.keyboard_focus_order(), vec![10, 11]);
+}
+
+#[test]
+fn application_builder_dropdown_exports_and_routes_messages() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<GalleryMessage> = ui::dropdown("WASAPI", true)
+        .toggle_message(GalleryMessage::ToggleDropdown)
+        .option("System default", false, GalleryMessage::Pick("default"))
+        .option("WASAPI", true, GalleryMessage::Pick("wasapi"))
+        .build()
+        .id(1)
+        .into_surface();
+
+    let focus_order = surface.keyboard_focus_order();
+    let routed = focus_order
+        .iter()
+        .filter_map(|widget_id| {
+            surface.dispatch_widget_output(
+                *widget_id,
+                radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(routed.contains(&GalleryMessage::ToggleDropdown));
+    assert!(routed.contains(&GalleryMessage::Pick("wasapi")));
+    assert_eq!(ui::dropdown_height(true, 2), 24.0);
+    assert_eq!(ui::dropdown_menu_height(2), 55.0);
+}
+
+#[test]
+fn application_builder_dropdown_overlay_routes_above_dismiss_layer() {
+    use radiant::{
+        prelude as ui,
+        runtime::{Event, PaintPrimitive, SurfaceRuntime},
+        theme::ThemeTokens,
+        widgets::PointerButton,
+    };
+    use std::sync::{Arc, Mutex};
+
+    let events = Arc::new(Mutex::new(Vec::<OverlayMessage>::new()));
+    let captured_events = Arc::clone(&events);
+    let bridge = ui::app(())
+        .view(|_| {
+            ui::stack([
+                ui::button("Base")
+                    .message(OverlayMessage::Dismiss)
+                    .id(1000)
+                    .fill(),
+                ui::button("")
+                    .message(OverlayMessage::Dismiss)
+                    .id(1001)
+                    .input_only()
+                    .fill(),
+                ui::dropdown_menu_overlay(
+                    20.0,
+                    20.0,
+                    Some(100.0),
+                    vec![ui::DropdownOption::new(
+                        "WASAPI",
+                        false,
+                        OverlayMessage::Pick,
+                    )],
+                ),
+            ])
+            .fill()
+        })
+        .update(move |(), message| {
+            captured_events.lock().expect("events lock").push(message);
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 120.0));
+
+    assert_eq!(runtime.widget_at(Point::new(5.0, 5.0)), Some(1001));
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: Point::new(5.0, 5.0),
+            button: PointerButton::Primary,
+            modifiers: Default::default(),
+        }),
+        Some(1001)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: Point::new(5.0, 5.0),
+            button: PointerButton::Primary,
+            modifiers: Default::default(),
+        }),
+        Some(1001)
+    );
+    assert_eq!(
+        events.lock().expect("events lock").as_slice(),
+        &[OverlayMessage::Dismiss]
+    );
+
+    let frame = runtime.frame(&ThemeTokens::default());
+    let option_rect = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Text(text) if text.text.as_str() == "WASAPI" => Some(text.rect),
+            _ => None,
+        })
+        .expect("dropdown option should paint");
+    let option_point = Point::new(
+        option_rect.min.x + option_rect.width() * 0.5,
+        option_rect.min.y + option_rect.height() * 0.5,
+    );
+
+    assert_ne!(runtime.widget_at(option_point), Some(1001));
+    assert_eq!(
+        runtime
+            .dispatch_event(Event::PointerPress {
+                position: option_point,
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            })
+            .is_some(),
+        true
+    );
+    assert_eq!(
+        runtime
+            .dispatch_event(Event::PointerRelease {
+                position: option_point,
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            })
+            .is_some(),
+        true
+    );
+    assert_eq!(
+        events.lock().expect("events lock").as_slice(),
+        &[OverlayMessage::Dismiss, OverlayMessage::Pick]
+    );
 }
 
 #[test]

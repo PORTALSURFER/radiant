@@ -22,8 +22,7 @@ fn scroll_commands_use_named_parts_for_reveal_requests() {
             .expect("application update context surface helpers should be readable");
     let runtime =
         fs::read_to_string(manifest_dir.join("src/runtime/mod.rs")).expect("runtime module");
-    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
-        .expect("library module should be readable");
+    let prelude = public_prelude_source(&manifest_dir);
 
     assert!(
         command.contains("mod repaint;")
@@ -63,8 +62,8 @@ fn scroll_commands_use_named_parts_for_reveal_requests() {
             && update_context_surface.contains("pub fn scroll_fixed_row_into_view_from_parts")
             && runtime.contains("ScrollIntoViewParts")
             && runtime.contains("ScrollFixedRowIntoViewParts")
-            && lib.contains("ScrollIntoViewParts")
-            && lib.contains("ScrollFixedRowIntoViewParts"),
+            && prelude.contains("ScrollIntoViewParts")
+            && prelude.contains("ScrollFixedRowIntoViewParts"),
         "scroll reveal named request parts should be available through runtime and prelude paths"
     );
 }

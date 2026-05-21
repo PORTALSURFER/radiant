@@ -8,8 +8,7 @@ fn status_segments_use_named_parts_for_chrome_slots() {
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
     let tests = fs::read_to_string(manifest_dir.join("src/gui/chrome/tests.rs"))
         .expect("chrome behavior tests should be readable");
-    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
-        .expect("library module should be readable");
+    let prelude = public_prelude_source(&manifest_dir);
 
     assert!(
         source.contains("pub struct StatusSegmentsParts")
@@ -25,7 +24,7 @@ fn status_segments_use_named_parts_for_chrome_slots() {
     );
     assert!(
         source.contains("Self::from_parts(StatusSegmentsParts {")
-            && lib.contains("StatusSegmentsParts"),
+            && prelude.contains("StatusSegmentsParts"),
         "status segment compatibility constructor and prelude export should keep the named-parts path available"
     );
 }

@@ -9,8 +9,7 @@ fn resource_completions_use_named_parts_for_request_results() {
         .expect("runtime resource module should be readable");
     let runtime =
         fs::read_to_string(manifest_dir.join("src/runtime/mod.rs")).expect("runtime module");
-    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
-        .expect("library module should be readable");
+    let prelude = public_prelude_source(&manifest_dir);
     let update_context_tasks =
         fs::read_to_string(manifest_dir.join("src/application/runtime/update_context/tasks.rs"))
             .expect("application update context task helpers should be readable");
@@ -31,7 +30,7 @@ fn resource_completions_use_named_parts_for_request_results() {
     assert!(
         resource.contains("ResourceCompletionParts")
             && runtime.contains("ResourceCompletionParts")
-            && lib.contains("ResourceCompletionParts"),
+            && prelude.contains("ResourceCompletionParts"),
         "resource completion parts should remain publicly exported through runtime and prelude"
     );
 }
@@ -47,8 +46,7 @@ fn resource_slots_keep_load_state_and_lifecycle_focused() {
         .expect("runtime resource module should be readable");
     let runtime =
         fs::read_to_string(manifest_dir.join("src/runtime/mod.rs")).expect("runtime module");
-    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
-        .expect("library module should be readable");
+    let prelude = public_prelude_source(&manifest_dir);
 
     assert!(
         slot.contains("mod state;")
@@ -71,8 +69,8 @@ fn resource_slots_keep_load_state_and_lifecycle_focused() {
         resource.contains("pub use slot::{ResourceLoadState, ResourceSlot};")
             && runtime.contains("ResourceLoadState")
             && runtime.contains("ResourceSlot")
-            && lib.contains("ResourceLoadState")
-            && lib.contains("ResourceSlot"),
+            && prelude.contains("ResourceLoadState")
+            && prelude.contains("ResourceSlot"),
         "resource slot and load-state types should remain exported through runtime and prelude"
     );
 }

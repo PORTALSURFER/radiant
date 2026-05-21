@@ -10,8 +10,7 @@ fn widget_sizing_uses_named_parts_for_intrinsic_bounds() {
         .expect("widget contract module should be readable");
     let widgets = fs::read_to_string(manifest_dir.join("src/widgets/mod.rs"))
         .expect("widgets module should be readable");
-    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
-        .expect("library module should be readable");
+    let prelude = public_prelude_source(&manifest_dir);
 
     assert!(
         source.contains("pub struct WidgetSizingParts")
@@ -22,7 +21,7 @@ fn widget_sizing_uses_named_parts_for_intrinsic_bounds() {
         source.contains("Self::from_parts(WidgetSizingParts {")
             && contract.contains("WidgetSizingParts")
             && widgets.contains("WidgetSizingParts")
-            && lib.contains("WidgetSizingParts"),
+            && prelude.contains("WidgetSizingParts"),
         "widget sizing compatibility constructor and public exports should keep the named-parts path available"
     );
 }

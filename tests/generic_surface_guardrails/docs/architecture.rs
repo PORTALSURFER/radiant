@@ -23,7 +23,8 @@ fn architecture_map_documents_target_aligned_boundaries() {
             && manifest.contains("readme = \"README.md\"")
             && manifest.contains("repository = \"https://github.com/PORTALSURFER/radiant\"")
             && manifest.contains("keywords = [\"gui\", \"desktop\", \"vello\", \"wgpu\"]")
-            && manifest.contains("categories = [\"gui\"]"),
+            && manifest.contains("categories = [\"gui\"]")
+            && manifest.contains("exclude = [\"tmp/**\"]"),
         "Cargo package metadata should make Radiant discoverable as a standalone GUI library"
     );
     for required in [

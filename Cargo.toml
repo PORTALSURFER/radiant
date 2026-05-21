@@ -8,6 +8,7 @@ readme = "README.md"
 repository = "https://github.com/PORTALSURFER/radiant"
 keywords = ["gui", "desktop", "vello", "wgpu"]
 categories = ["gui"]
+exclude = ["tmp/**"]
 
 [lints.rust]
 warnings = "deny"

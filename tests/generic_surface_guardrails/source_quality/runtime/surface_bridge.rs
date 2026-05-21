@@ -123,6 +123,38 @@ fn runtime_bridge_app_contract_stays_in_focused_module() {
 }
 
 #[test]
+fn runtime_bridge_contract_documents_adapter_hook_groups() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let contract = fs::read_to_string(manifest_dir.join("src/runtime/bridge/contract.rs"))
+        .expect("runtime bridge contract module should be readable");
+    let docs =
+        fs::read_to_string(manifest_dir.join("docs/API.md")).expect("API docs should be readable");
+    let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    for group in [
+        "Surface projection.",
+        "State updates and input policy.",
+        "Runtime scheduling and host work.",
+        "Platform services.",
+        "Runtime-owned queues.",
+        "Animation policy.",
+        "Retained and transient rendering hooks.",
+        "Diagnostics and lifecycle.",
+    ] {
+        assert!(
+            contract.contains(group),
+            "RuntimeBridge should document adapter hook group `{group}`"
+        );
+    }
+    assert!(
+        normalized_docs.contains("`RuntimeBridge` remains the single explicit adapter trait")
+            && normalized_docs.contains("surface projection, state updates and input policy, runtime scheduling, platform services, runtime-owned queues, animation policy, retained/transient rendering, diagnostics, and lifecycle")
+            && normalized_docs.contains("custom bridges should override only the groups they own"),
+        "API docs should explain RuntimeBridge hook groups without presenting them as a second app framework"
+    );
+}
+
+#[test]
 fn runtime_animation_activity_keeps_policy_and_tests_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let animation = fs::read_to_string(manifest_dir.join("src/runtime/bridge/animation.rs"))

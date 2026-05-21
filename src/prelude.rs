@@ -46,8 +46,8 @@ pub use crate::gui::{
 };
 pub use crate::layout::LayoutOutput;
 pub use crate::runtime::{
-    Command, ConfirmDialogParts, ConfirmDialogRequest, ConfirmationButtons, ConfirmationLevel,
-    ConfirmationResponse, EmbeddedFont, ExternalDragEffect, ExternalDragOutcome,
+    AuxiliaryWindow, Command, ConfirmDialogParts, ConfirmDialogRequest, ConfirmationButtons,
+    ConfirmationLevel, ConfirmationResponse, EmbeddedFont, ExternalDragEffect, ExternalDragOutcome,
     ExternalDragPayload, ExternalDragPreview, ExternalDragRequest, FileDialogFilter,
     FileDialogRequest, GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts,
     GpuSignalGainPreview, GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket,
@@ -63,8 +63,8 @@ pub use crate::runtime::{
     ResourceCompletionParts, ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest,
     ResourceSlot, RetainedSurfaceCachePolicy, RuntimeRunReport, ScrollFixedRowIntoViewParts,
     ScrollIntoViewParts, ScrollUpdate, SurfaceFrame, SurfacePaintPlan, SvgParseError,
-    TransientOverlayContext, WindowManifest, WindowManifestError, WindowSpec, WindowSpecError,
-    WindowSpecParts,
+    TransientOverlayContext, UiSurface, WindowManifest, WindowManifestError, WindowSpec,
+    WindowSpecError, WindowSpecParts,
 };
 pub use crate::theme::ThemeTokens;
 pub use crate::widgets::{

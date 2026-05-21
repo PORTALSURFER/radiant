@@ -16,13 +16,18 @@ pub(super) fn generic_window_attributes(options: &NativeRunOptions) -> WindowAtt
     if let Some([w, h]) = options.inner_size {
         attrs = attrs.with_inner_size(Size::Logical(LogicalSize::new(w as f64, h as f64)));
     }
+    if let Some([x, y]) = options.position {
+        attrs = attrs.with_position(Position::Logical(LogicalPosition::new(x as f64, y as f64)));
+    }
     if let Some([w, h]) = options.min_inner_size {
         attrs = attrs.with_min_inner_size(Size::Logical(LogicalSize::new(w as f64, h as f64)));
     }
     if let Some(icon) = options.icon.as_ref().and_then(icon_from_rgba) {
         attrs = attrs.with_window_icon(Some(icon));
     }
-    platform::apply_drag_and_drop_attributes(attrs, platform_drag_and_drop_enabled(options))
+    let attrs =
+        platform::apply_drag_and_drop_attributes(attrs, platform_drag_and_drop_enabled(options));
+    platform::apply_top_level_attributes(attrs, options)
 }
 
 fn apply_popup_window_attributes(
@@ -61,4 +66,8 @@ pub(super) fn hide_window_after_first_present(options: &NativeRunOptions) -> boo
     options
         .popup_options()
         .is_some_and(|popup| popup.hide_after_first_present)
+}
+
+pub(super) fn owner_window_handle(window: Option<&Window>) -> Option<isize> {
+    platform::owner_window_handle(window)
 }

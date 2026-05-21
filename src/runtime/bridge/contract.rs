@@ -18,7 +18,14 @@ use std::{sync::Arc, time::Duration};
 ///
 /// The host projects one immutable [`UiSurface`] snapshot per frame and reduces
 /// host-defined messages emitted by widgets back into owned application state.
+/// The trait is intentionally broad because it is the single explicit adapter
+/// contract for custom hosts, but its default hooks are grouped by responsibility:
+/// surface projection, state updates and input policy, runtime scheduling and
+/// host work, platform services, runtime-owned queues, animation policy, retained
+/// and transient rendering hooks, diagnostics, and lifecycle.
 pub trait RuntimeBridge<Message> {
+    // Surface projection.
+
     /// Project the latest immutable UI surface snapshot.
     fn project_surface(&mut self) -> Arc<UiSurface<Message>>;
 
@@ -30,6 +37,8 @@ pub trait RuntimeBridge<Message> {
     fn pull_surface(&mut self) -> UiSurface<Message> {
         Arc::unwrap_or_clone(self.project_surface())
     }
+
+    // State updates and input policy.
 
     /// Reduce one host-defined message into application state.
     fn reduce_message(&mut self, _message: Message) {}
@@ -68,6 +77,8 @@ pub trait RuntimeBridge<Message> {
         ShortcutResolution::unhandled()
     }
 
+    // Runtime scheduling and host work.
+
     /// Install a repaint signal that host-owned background work can use to wake
     /// the native runtime after asynchronous state changes.
     ///
@@ -100,6 +111,8 @@ pub trait RuntimeBridge<Message> {
         false
     }
 
+    // Platform services.
+
     /// Request a host-visible platform service such as a file picker or dialog.
     ///
     /// Native adapters or application hosts that own platform integration can
@@ -113,6 +126,8 @@ pub trait RuntimeBridge<Message> {
     ) -> Result<(), PlatformServiceFallback<Message>> {
         Err(Box::new((request, on_completed)))
     }
+
+    // Runtime-owned queues.
 
     /// Drain commands delivered by app startup hooks or bridge-owned runtime work.
     fn take_runtime_commands(&mut self) -> Vec<Command<Message>> {
@@ -141,6 +156,8 @@ pub trait RuntimeBridge<Message> {
     fn drain_runtime_messages_into(&mut self, messages: &mut Vec<Message>) {
         messages.extend(self.take_runtime_messages());
     }
+
+    // Animation policy.
 
     /// Return whether the host currently needs animation-driven redraws.
     ///
@@ -175,6 +192,8 @@ pub trait RuntimeBridge<Message> {
         false
     }
 
+    // Retained and transient rendering hooks.
+
     /// Render a host-retained custom surface into backend-neutral paint data.
     ///
     /// Generic widgets can reserve custom paint through a retained canvas while
@@ -207,6 +226,8 @@ pub trait RuntimeBridge<Message> {
         _primitives: &mut Vec<PaintPrimitive>,
     ) {
     }
+
+    // Diagnostics and lifecycle.
 
     /// Observe structured diagnostics for one native presentation frame.
     ///

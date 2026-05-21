@@ -307,6 +307,14 @@ state host-owned. Low-level hosts can still provide a custom bridge or use
 `declarative_command_runtime_bridge(state, project, update)` when embedding
 Radiant outside the application builder.
 
+`RuntimeBridge` remains the single explicit adapter trait for custom hosts, but
+its hooks are organized by responsibility rather than by backend: surface
+projection, state updates and input policy, runtime scheduling, platform
+services, runtime-owned queues, animation policy, retained/transient rendering,
+diagnostics, and lifecycle. Most applications should reach those responsibilities
+through `radiant::app(...)`; custom bridges should override only the groups they
+own instead of using the trait as a second application framework.
+
 ## View, Element, And Widget
 
 `View<Message>` is the root declarative view snapshot and is a public alias for

@@ -71,11 +71,15 @@ fn api_docs_describe_text_cache_frame_diagnostics() {
             && docs.contains("fallback/missing glyph counts")
             && docs.contains("NativeTextDiagnostics::has_shaping_limits()")
             && docs.contains("has_font_coverage_gaps()")
-            && docs.contains("has_text_quality_warnings()"),
+            && docs.contains("has_text_quality_warnings()")
+            && docs.contains("NativeTextDiagnostics::quality_status()")
+            && docs.contains("NativeTextQualityStatus")
+            && docs.contains("text_quality_status"),
         "API docs should describe native text cache diagnostics"
     );
     assert!(
         runtime_diagnostics.contains("pub struct NativeTextDiagnostics")
+            && runtime_diagnostics.contains("pub enum NativeTextQualityStatus")
             && runtime_diagnostics.contains("layout_cache_hits")
             && runtime_diagnostics.contains("atom_cache_evictions")
             && runtime_diagnostics.contains("unsupported_shaping_runs")
@@ -84,7 +88,8 @@ fn api_docs_describe_text_cache_frame_diagnostics() {
             && runtime_diagnostics.contains("missing_glyphs")
             && runtime_diagnostics.contains("pub const fn has_shaping_limits")
             && runtime_diagnostics.contains("pub const fn has_font_coverage_gaps")
-            && runtime_diagnostics.contains("pub const fn has_text_quality_warnings"),
+            && runtime_diagnostics.contains("pub const fn has_text_quality_warnings")
+            && runtime_diagnostics.contains("pub const fn quality_status"),
         "runtime diagnostics should expose structured native text cache counters"
     );
     assert!(
@@ -103,7 +108,8 @@ fn api_docs_describe_text_cache_frame_diagnostics() {
     );
     assert!(
         render_profile.contains("text_unsupported_shaping_runs")
-            && render_profile.contains("text_unsupported_shaping_scalars"),
+            && render_profile.contains("text_unsupported_shaping_scalars")
+            && render_profile.contains("text_quality_status"),
         "native render profile should include shaping-limit text counters"
     );
 }

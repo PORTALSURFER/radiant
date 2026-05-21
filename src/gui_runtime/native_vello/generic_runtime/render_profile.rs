@@ -49,6 +49,7 @@ pub(super) fn maybe_log_render_profile(
         text_unsupported_shaping_scalars = text_stats.unsupported_shaping_scalars,
         text_fallback_glyphs = text_stats.fallback_glyphs,
         text_missing_glyphs = text_stats.missing_glyphs,
+        text_quality_status = text_quality_status(text_stats),
         retained_bridge_calls = stats.bridge_calls,
         retained_cache_hits = stats.cache_hits,
         retained_surface_misses = stats.retained_surface_miss_count,
@@ -118,4 +119,16 @@ fn tracked_cpu_envelope_total(
         + frame.composited_base_refresh
         + frame.transient_overlay_paint
         + frame.submit_present
+}
+
+fn text_quality_status(text_stats: TextLayoutProfileCounters) -> &'static str {
+    match (
+        text_stats.unsupported_shaping_runs > 0 || text_stats.unsupported_shaping_scalars > 0,
+        text_stats.fallback_glyphs > 0 || text_stats.missing_glyphs > 0,
+    ) {
+        (false, false) => "clean",
+        (true, false) => "shaping_limited",
+        (false, true) => "font_coverage_limited",
+        (true, true) => "shaping_and_font_coverage_limited",
+    }
 }

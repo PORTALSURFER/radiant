@@ -2,7 +2,7 @@ use super::*;
 use radiant::runtime::{
     NativeFrameDiagnostics, NativeFrameTimingDiagnostics, NativeGpuSurfaceDiagnostics,
     NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
-    NativeTextDiagnostics, RuntimeBridge,
+    NativeTextDiagnostics, NativeTextQualityStatus, RuntimeBridge,
 };
 use std::time::Duration;
 
@@ -67,7 +67,31 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     assert!(diagnostics.text.has_shaping_limits());
     assert!(diagnostics.text.has_font_coverage_gaps());
     assert!(diagnostics.text.has_text_quality_warnings());
+    assert_eq!(
+        diagnostics.text.quality_status(),
+        NativeTextQualityStatus::ShapingAndFontCoverageLimited
+    );
+    assert_eq!(
+        NativeTextDiagnostics {
+            unsupported_shaping_runs: 1,
+            ..NativeTextDiagnostics::default()
+        }
+        .quality_status(),
+        NativeTextQualityStatus::ShapingLimited
+    );
+    assert_eq!(
+        NativeTextDiagnostics {
+            missing_glyphs: 1,
+            ..NativeTextDiagnostics::default()
+        }
+        .quality_status(),
+        NativeTextQualityStatus::FontCoverageLimited
+    );
     assert!(!NativeTextDiagnostics::default().has_text_quality_warnings());
+    assert_eq!(
+        NativeTextDiagnostics::default().quality_status(),
+        NativeTextQualityStatus::Clean
+    );
     assert_eq!(
         diagnostics.timings.gpu_timing_status,
         NativeGpuTimingStatus::CpuEnvelopeOnly

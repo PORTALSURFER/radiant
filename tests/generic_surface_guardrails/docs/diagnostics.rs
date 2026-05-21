@@ -5,6 +5,7 @@ fn clippy_quality_gate_is_documented_without_blanket_complexity_allow() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
         .expect("Radiant API docs should be readable");
+    let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
     let architecture = fs::read_to_string(manifest_dir.join("docs/ARCHITECTURE.md"))
         .expect("Radiant architecture docs should be readable");
     let ci = fs::read_to_string(manifest_dir.join(".github/workflows/radiant-ci.yml"))
@@ -22,6 +23,13 @@ fn clippy_quality_gate_is_documented_without_blanket_complexity_allow() {
             && architecture.contains("cargo doc --no-deps")
             && ci.contains("cargo doc --no-deps"),
         "API docs, architecture docs, and CI should include the rustdoc validation gate"
+    );
+    assert!(
+        docs.contains("cargo test --doc")
+            && normalized_docs.contains("doctests for public documentation examples")
+            && architecture.contains("cargo test --doc")
+            && ci.contains("cargo test --doc"),
+        "API docs, architecture docs, and CI should include the doctest validation gate"
     );
     assert!(
         !lib.contains("clippy::type_complexity"),

@@ -35,6 +35,9 @@ jobs:
       - name: Documentation
         run: cargo doc --no-deps
 
+      - name: Doctests
+        run: cargo test --doc
+
       - name: Install portable library targets
         run: rustup target add x86_64-unknown-linux-gnu x86_64-apple-darwin
 

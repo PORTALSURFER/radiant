@@ -1,7 +1,5 @@
 use super::*;
-use crate::model::{
-    LayoutDemoState, MAX_COLUMNS, MAX_DEPTH, MAX_ROWS, MIN_COLUMNS, MIN_DEPTH, MIN_ROWS,
-};
+use crate::model::{LayoutDemoState, MAX_COLUMNS, MAX_DEPTH, MAX_ROWS, MIN_COLUMNS, MIN_ROWS};
 
 #[path = "view/grid.rs"]
 mod grid;
@@ -61,7 +59,7 @@ fn controls(state: &LayoutDemoState) -> ui::StateView<LayoutDemoState> {
                 state.rows = (state.rows + 1).min(MAX_ROWS);
             }),
             control_button("Depth -", |state| {
-                state.depth = state.depth.saturating_sub(1).max(MIN_DEPTH);
+                state.depth = state.depth.saturating_sub(1);
             }),
             control_button("Depth +", |state| {
                 state.depth = (state.depth + 1).min(MAX_DEPTH);

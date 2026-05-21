@@ -2,6 +2,12 @@
 name = "radiant"
 version = "0.1.0"
 edition = "2024"
+description = "A Windows-first, backend-neutral Rust GUI library with declarative views, Vello rendering, and retained GPU surfaces."
+license = "CC0-1.0"
+readme = "README.md"
+repository = "https://github.com/PORTALSURFER/radiant"
+keywords = ["gui", "desktop", "vello", "wgpu"]
+categories = ["gui"]
 
 [lints.rust]
 warnings = "deny"

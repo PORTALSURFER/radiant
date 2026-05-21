@@ -2,6 +2,7 @@ use super::StatefulAppWithView;
 use crate::{
     application::{IntoView, Subscription, UpdateContext},
     gui::{focus::FocusSurface, input::KeyPress, shortcuts::ShortcutResolution},
+    runtime::AuxiliaryWindow,
 };
 
 impl<State, Message, Project, View> StatefulAppWithView<State, Message, Project, View>
@@ -93,6 +94,15 @@ where
         close_requested: impl FnMut(&mut State) -> bool + 'static,
     ) -> Self {
         self.lifecycle.close_requested = Some(Box::new(close_requested));
+        self
+    }
+
+    /// Project auxiliary top-level OS windows from app state.
+    pub fn auxiliary_windows(
+        mut self,
+        windows: impl FnMut(&mut State) -> Vec<AuxiliaryWindow<Message>> + 'static,
+    ) -> Self {
+        self.lifecycle.auxiliary_windows = Some(Box::new(windows));
         self
     }
 }

@@ -20,6 +20,21 @@ where
         event: WindowEvent,
     ) {
         if Some(window_id) != self.window_id {
+            let Some(index) = self
+                .auxiliary_windows
+                .iter()
+                .position(|window| window.window_id() == Some(window_id))
+            else {
+                return;
+            };
+            let AuxiliaryWindowEventResult { closed, messages } =
+                self.auxiliary_windows[index].route_window_event(event_loop, event);
+            if closed {
+                self.auxiliary_windows.remove(index);
+            }
+            if !messages.is_empty() {
+                self.dispatch_auxiliary_messages(event_loop, messages);
+            }
             return;
         }
         match event {

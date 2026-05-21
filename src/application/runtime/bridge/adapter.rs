@@ -34,6 +34,10 @@ where
         self.pull_surface_owned()
     }
 
+    fn project_auxiliary_windows(&mut self) -> Vec<crate::runtime::AuxiliaryWindow<Message>> {
+        self.project_app_auxiliary_windows()
+    }
+
     fn update(&mut self, message: Message) -> Command<Message> {
         self.update_message(message)
     }

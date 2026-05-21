@@ -18,6 +18,7 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
     pub(in crate::application) startup: Option<AppStartup<State, Message>>,
     pub(in crate::application) shutdown: Option<AppShutdown<State>>,
     pub(in crate::application) close_requested: Option<AppCloseRequested<State>>,
+    pub(in crate::application) auxiliary_windows: Option<AppAuxiliaryWindows<State, Message>>,
     pub(in crate::application) retained_painters: HashMap<u64, RetainedPainter<State>>,
     pub(in crate::application) transient_overlay_activity: Option<TransientOverlayActivity<State>>,
     pub(in crate::application) transient_overlay: Option<TransientOverlayPainter<State>>,
@@ -45,6 +46,8 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) shutdown: Option<AppShutdown<State>>,
     /// Close-request hook.
     pub(in crate::application) close_requested: Option<AppCloseRequested<State>>,
+    /// Auxiliary top-level native windows projected from app state.
+    pub(in crate::application) auxiliary_windows: Option<AppAuxiliaryWindows<State, Message>>,
     /// Retained-surface painters keyed by descriptor key.
     pub(in crate::application) retained_painters: HashMap<u64, RetainedPainter<State>>,
     /// Transient-overlay frame activity callback.
@@ -64,6 +67,7 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
             startup: None,
             shutdown: None,
             close_requested: None,
+            auxiliary_windows: None,
             retained_painters: HashMap::new(),
             transient_overlay_activity: None,
             transient_overlay: None,
@@ -97,6 +101,7 @@ where
             startup: lifecycle.startup,
             shutdown: lifecycle.shutdown,
             close_requested: lifecycle.close_requested,
+            auxiliary_windows: lifecycle.auxiliary_windows,
             retained_painters: lifecycle.retained_painters,
             transient_overlay_activity: lifecycle.transient_overlay_activity,
             transient_overlay: lifecycle.transient_overlay,
@@ -139,5 +144,14 @@ where
             );
         }
         self.subscriptions_started = true;
+    }
+
+    pub(in crate::application) fn project_app_auxiliary_windows(
+        &mut self,
+    ) -> Vec<crate::runtime::AuxiliaryWindow<Message>> {
+        self.auxiliary_windows
+            .as_mut()
+            .map(|project| project(&mut self.state))
+            .unwrap_or_default()
     }
 }

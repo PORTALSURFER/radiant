@@ -3,6 +3,7 @@
 use super::*;
 use crate::gui::repaint::RepaintSignal;
 
+mod auxiliary;
 mod composited_base;
 mod core;
 mod device;
@@ -34,6 +35,7 @@ mod surface;
 mod surface_size;
 mod window;
 
+use auxiliary::{AuxiliaryNativeWindow, AuxiliaryWindowEventResult};
 use composited_base::{
     BaseFramePresentState, BaseFramePresentTarget, CompositedBaseFrame, present_base_frame,
 };
@@ -63,8 +65,8 @@ pub(in crate::gui_runtime::native_vello) use scene::{
 use scene_texture::render_scene_texture_if_needed;
 use surface_size::RenderSurfacePixelSize;
 use window::{
-    generic_window_attributes, hide_window_after_first_present, reveal_window_after_first_present,
-    reveal_window_after_surface_setup,
+    generic_window_attributes, hide_window_after_first_present, owner_window_handle,
+    reveal_window_after_first_present, reveal_window_after_surface_setup,
 };
 
 struct GenericSharedPixelBytes(Arc<[u8]>);
@@ -111,7 +113,8 @@ where
             result: Err(NativeGenericRunError::InvalidWindowOptions(err)),
         };
     }
-    let event_loop = match EventLoop::<RuntimeUserEvent>::with_user_event().build() {
+    let mut event_loop_builder = EventLoop::<RuntimeUserEvent>::with_user_event();
+    let event_loop = match event_loop_builder.build() {
         Ok(event_loop) => event_loop,
         Err(err) => {
             return NativeGenericRunReport {

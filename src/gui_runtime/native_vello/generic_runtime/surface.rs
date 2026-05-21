@@ -101,6 +101,7 @@ where
         }
         self.last_redraw = Instant::now();
         self.request_redraw_if_needed();
+        self.sync_auxiliary_windows(event_loop);
     }
 
     pub(super) fn resize_surface(&mut self, size: winit::dpi::PhysicalSize<u32>) {

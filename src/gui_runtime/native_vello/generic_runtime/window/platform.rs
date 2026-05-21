@@ -24,6 +24,45 @@ pub(super) fn apply_drag_and_drop_attributes(
 }
 
 #[cfg(target_os = "windows")]
+pub(super) fn apply_top_level_attributes(
+    mut attrs: WindowAttributes,
+    options: &NativeRunOptions,
+) -> WindowAttributes {
+    use winit::platform::windows::WindowAttributesExtWindows;
+    if let Some(owner) = options.owner_window_handle {
+        attrs = attrs.with_owner_window(owner as _);
+    }
+    if options.skip_taskbar {
+        attrs = attrs.with_skip_taskbar(true);
+    }
+    attrs
+}
+
+#[cfg(not(target_os = "windows"))]
+pub(super) fn apply_top_level_attributes(
+    attrs: WindowAttributes,
+    options: &NativeRunOptions,
+) -> WindowAttributes {
+    let _ = options;
+    attrs
+}
+
+#[cfg(target_os = "windows")]
+pub(super) fn owner_window_handle(window: Option<&Window>) -> Option<isize> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    let handle = window?.window_handle().ok()?;
+    match handle.as_raw() {
+        RawWindowHandle::Win32(handle) => Some(handle.hwnd.get()),
+        _ => None,
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub(super) fn owner_window_handle(_window: Option<&Window>) -> Option<isize> {
+    None
+}
+
+#[cfg(target_os = "windows")]
 pub(super) fn apply_popup_attributes(
     attrs: WindowAttributes,
     popup: NativePopupOptions,

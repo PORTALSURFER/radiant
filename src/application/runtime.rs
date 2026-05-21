@@ -4,7 +4,10 @@ use crate::{
         shortcuts::ShortcutResolution, types::Rect,
     },
     layout::Vector2,
-    runtime::{PaintPrimitive, RuntimeAnimationActivity, ScrollUpdate, TransientOverlayContext},
+    runtime::{
+        AuxiliaryWindow, PaintPrimitive, RuntimeAnimationActivity, ScrollUpdate,
+        TransientOverlayContext,
+    },
     widgets::RetainedSurfaceDescriptor,
 };
 use std::sync::Arc;
@@ -44,6 +47,8 @@ pub(in crate::application) type AppStartup<State, Message> =
 pub(in crate::application) type AppShutdown<State> =
     Box<dyn FnMut(&mut State) -> Option<serde_json::Value>>;
 pub(in crate::application) type AppCloseRequested<State> = Box<dyn FnMut(&mut State) -> bool>;
+pub(in crate::application) type AppAuxiliaryWindows<State, Message> =
+    Box<dyn FnMut(&mut State) -> Vec<AuxiliaryWindow<Message>>>;
 pub(in crate::application) type AppUpdate<State, Message> =
     Box<dyn FnMut(&mut State, Message, &mut UpdateContext<Message>)>;
 pub(in crate::application) type AppScroll<State, Message> =

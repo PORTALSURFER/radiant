@@ -65,6 +65,12 @@ impl WindowSpec {
         self
     }
 
+    /// Set the initial logical window position in screen coordinates.
+    pub fn position(mut self, x: f32, y: f32) -> Self {
+        self.options.position = Some([x, y]);
+        self
+    }
+
     /// Set the minimum logical window size.
     pub fn min_size(self, width: u32, height: u32) -> Self {
         self.min_logical_size(width as f32, height as f32)

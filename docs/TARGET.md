@@ -251,6 +251,23 @@ The architecture should distinguish between:
 
 Radiant should provide a clean public model for common app setup while allowing more specialized hosting scenarios without requiring a separate framework.
 
+Radiant should support proper multi-window hosting as a first-class runtime capability. A multi-window application should not need to launch a separate independent app runtime or create one native event loop per auxiliary panel. The preferred model is one application/runtime host that can manage multiple OS windows from the platform event loop that owns windowing.
+
+This should include:
+
+- A main application window
+- Additional top-level windows such as preferences, inspectors, tool palettes, floating panels, and document windows
+- Owned or child-associated windows where the operating system supports that model
+- Window lifetime rules that keep auxiliary windows tied to their owner when appropriate
+- Explicit close, focus, show/hide, minimize, restore, and z-order behavior
+- Platform-native ownership semantics such as Windows owned windows, where useful
+- Clear fallback behavior on platforms with different window ownership models
+- Public APIs that let application state open, update, and close secondary windows without depending on low-level HWND, NSWindow, Wayland, X11, or winit details in ordinary app code
+
+For Windows specifically, Radiant should prefer owned top-level windows for floating app panels that must remain associated with the main application window. These windows should be separate OS windows, not widgets drawn inside the main surface, but they should minimize, close, and stay ordered with their owner according to normal Windows owned-window behavior.
+
+Threading should be explicit. Radiant may support helper-thread window runtimes as a narrow compatibility or transitional path, but the target architecture should be proper multi-window hosting inside a single application runtime/event-loop model wherever the platform and backend allow it.
+
 For plugin-style use cases, Radiant should not include VST SDK integration directly. Instead, the application or plugin framework should own VST-specific integration, host callbacks, plugin lifecycle behavior, and any audio-domain concerns.
 
 Radiant should provide the GUI-side capabilities needed for that integration, such as:

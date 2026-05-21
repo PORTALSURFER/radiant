@@ -23,6 +23,8 @@ pub struct NativeRunOptions {
     pub title: String,
     /// Initial window inner size in logical points.
     pub inner_size: Option<[f32; 2]>,
+    /// Initial outer window position in logical screen coordinates.
+    pub position: Option<[f32; 2]>,
     /// Minimum window inner size in logical points.
     pub min_inner_size: Option<[f32; 2]>,
     /// Whether the window starts maximized.
@@ -35,6 +37,14 @@ pub struct NativeRunOptions {
     /// the generic runtime options avoids hardcoding platform-specific window
     /// behavior into application-independent launch code.
     pub drag_and_drop: bool,
+    /// Native owner window handle for auxiliary top-level windows.
+    ///
+    /// On Windows this is an `HWND` encoded as an integer and creates an owned
+    /// window. Other platforms may ignore this option until they expose a
+    /// matching native ownership primitive through the backend.
+    pub owner_window_handle: Option<isize>,
+    /// Whether the native window should stay out of the platform taskbar when supported.
+    pub skip_taskbar: bool,
     /// Optional window icon.
     pub icon: Option<WindowIconRgba>,
     /// Target frame rate for animation-driven redraws.
@@ -59,10 +69,13 @@ impl Default for NativeRunOptions {
         Self {
             title: String::from(DEFAULT_NATIVE_WINDOW_TITLE),
             inner_size: None,
+            position: None,
             min_inner_size: None,
             maximized: false,
             decorations: true,
             drag_and_drop: true,
+            owner_window_handle: None,
+            skip_taskbar: false,
             icon: None,
             target_fps: 120,
             gpu: NativeGpuOptions::default(),

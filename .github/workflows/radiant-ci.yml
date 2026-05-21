@@ -51,5 +51,5 @@ jobs:
         shell: pwsh
         run: |
           cargo bench --bench perf_harness -- --list
-          cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --write-baseline-jsonl perf-baseline.jsonl
-          cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl perf-baseline.jsonl --fail-on-missing-baseline
+          cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --write-baseline-jsonl target\perf-baseline.jsonl
+          cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl target\perf-baseline.jsonl --fail-on-missing-baseline

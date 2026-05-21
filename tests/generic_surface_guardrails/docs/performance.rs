@@ -180,8 +180,8 @@ fn performance_harness_is_registered_and_documented() {
             && ci_workflow
                 .contains("cargo check --lib --no-default-features --target x86_64-apple-darwin")
             && ci_workflow.contains("cargo bench --bench perf_harness -- --list")
-            && ci_workflow.contains("--write-baseline-jsonl")
-            && ci_workflow.contains("--baseline-jsonl")
+            && ci_workflow.contains("--write-baseline-jsonl target\\perf-baseline.jsonl")
+            && ci_workflow.contains("--baseline-jsonl target\\perf-baseline.jsonl")
             && ci_workflow.contains("--fail-on-missing-baseline"),
         "Radiant CI should run the quality gates, example checks, portable library checks, and a perf-harness baseline smoke check"
     );
@@ -301,6 +301,9 @@ fn performance_harness_is_registered_and_documented() {
             && normalized_docs.contains("The repository CI workflow mirrors the local validation lane on Windows")
             && normalized_docs.contains("no-default-features library checks for the documented Linux and macOS targets")
             && normalized_docs.contains("proves baseline capture/comparison with `--fail-on-missing-baseline`")
+            && normalized_docs.contains("cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --write-baseline-jsonl .\\target\\perf-baseline.jsonl")
+            && normalized_docs.contains("cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl .\\target\\perf-baseline.jsonl --fail-on-missing-baseline")
+            && normalized_docs.contains("focused baseline round trip proves the JSONL capture/comparison path and missing baseline failure mode")
             && normalized_docs.contains("Layout scenarios:")
             && normalized_docs.contains("Application projection scenarios:")
             && normalized_docs.contains("Runtime surface scenarios:")

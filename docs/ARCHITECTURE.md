@@ -182,9 +182,13 @@ normal quality lane before merging meaningful changes.
   These checks do not prove native Linux/macOS runtime behavior, but they do
   catch accidental Windows-only imports, target-specific dependency leakage, and
   public/core API drift that would make future platform support a rewrite.
-- Performance investigation: `cargo bench --bench perf_harness -- --list` to
-  inspect scenarios, then `cargo bench --bench perf_harness <scenario>` for a
-  focused trend run.
+- Performance smoke: `cargo bench --bench perf_harness -- --list`, then a
+  focused JSONL baseline round trip such as
+  `cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --write-baseline-jsonl .\target\perf-baseline.jsonl`
+  followed by
+  `cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl .\target\perf-baseline.jsonl --fail-on-missing-baseline`.
+- Performance investigation: run `cargo bench --bench perf_harness <scenario>`
+  or a filtered `--category` pass for focused trend work.
 
 Performance benchmarks are trend and profiling tools, not portable timing
 pass/fail gates. They should still cover hot paths that matter to the target:

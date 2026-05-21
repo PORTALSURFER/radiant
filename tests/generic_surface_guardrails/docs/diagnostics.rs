@@ -48,12 +48,64 @@ fn runtime_diagnostics_use_tracing_outside_explicit_profile_artifacts() {
 }
 
 #[test]
+fn runtime_diagnostics_models_stay_in_focused_modules() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(manifest_dir.join("src/runtime/diagnostics.rs"))
+        .expect("runtime diagnostics root should be readable");
+    let frame = fs::read_to_string(manifest_dir.join("src/runtime/diagnostics/frame.rs"))
+        .expect("runtime frame diagnostics should be readable");
+    let text = fs::read_to_string(manifest_dir.join("src/runtime/diagnostics/text.rs"))
+        .expect("runtime text diagnostics should be readable");
+    let timing = fs::read_to_string(manifest_dir.join("src/runtime/diagnostics/timing.rs"))
+        .expect("runtime timing diagnostics should be readable");
+    let gpu_surface =
+        fs::read_to_string(manifest_dir.join("src/runtime/diagnostics/gpu_surface.rs"))
+            .expect("runtime GPU-surface diagnostics should be readable");
+    let retained_surface =
+        fs::read_to_string(manifest_dir.join("src/runtime/diagnostics/retained_surface.rs"))
+            .expect("runtime retained-surface diagnostics should be readable");
+    let scene = fs::read_to_string(manifest_dir.join("src/runtime/diagnostics/scene.rs"))
+        .expect("runtime scene diagnostics should be readable");
+    let cache_policy =
+        fs::read_to_string(manifest_dir.join("src/runtime/diagnostics/cache_policy.rs"))
+            .expect("runtime retained-surface cache policy should be readable");
+
+    assert!(
+        root.contains("mod frame;")
+            && root.contains("mod text;")
+            && root.contains("mod timing;")
+            && root.contains("mod gpu_surface;")
+            && root.contains("mod retained_surface;")
+            && root.contains("mod scene;")
+            && root.contains("mod cache_policy;")
+            && root.contains("pub use frame::NativeFrameDiagnostics")
+            && root.contains("pub use text::{NativeTextDiagnostics, NativeTextQualityStatus}")
+            && !root.contains("pub struct NativeTextDiagnostics")
+            && !root.contains("pub struct NativeGpuSurfaceDiagnostics"),
+        "runtime diagnostics root should index focused public diagnostics modules"
+    );
+    assert!(
+        frame.contains("pub struct NativeFrameDiagnostics")
+            && text.contains("pub struct NativeTextDiagnostics")
+            && text.contains("pub enum NativeTextQualityStatus")
+            && timing.contains("pub struct NativeFrameTimingDiagnostics")
+            && timing.contains("pub enum NativeGpuTimingStatus")
+            && gpu_surface.contains("pub struct NativeGpuSurfaceDiagnostics")
+            && retained_surface.contains("pub struct NativeRetainedSurfaceDiagnostics")
+            && scene.contains("pub struct NativeSceneDiagnostics")
+            && cache_policy.contains("pub struct RetainedSurfaceCachePolicy"),
+        "each runtime diagnostics concern should live with its focused model and policy"
+    );
+}
+
+#[test]
 fn api_docs_describe_text_cache_frame_diagnostics() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
         .expect("Radiant API docs should be readable");
-    let runtime_diagnostics = fs::read_to_string(manifest_dir.join("src/runtime/diagnostics.rs"))
-        .expect("runtime diagnostics models should be readable");
+    let runtime_diagnostics =
+        fs::read_to_string(manifest_dir.join("src/runtime/diagnostics/text.rs"))
+            .expect("runtime text diagnostics model should be readable");
     let native_diagnostics = fs::read_to_string(
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present/diagnostics.rs"),
     )
@@ -90,7 +142,7 @@ fn api_docs_describe_text_cache_frame_diagnostics() {
             && runtime_diagnostics.contains("pub const fn has_font_coverage_gaps")
             && runtime_diagnostics.contains("pub const fn has_text_quality_warnings")
             && runtime_diagnostics.contains("pub const fn quality_status"),
-        "runtime diagnostics should expose structured native text cache counters"
+        "runtime text diagnostics should expose structured native text cache counters"
     );
     assert!(
         native_diagnostics.contains("text: crate::runtime::NativeTextDiagnostics")
@@ -119,8 +171,9 @@ fn api_docs_describe_native_gpu_timing_status() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
         .expect("Radiant API docs should be readable");
-    let runtime_diagnostics = fs::read_to_string(manifest_dir.join("src/runtime/diagnostics.rs"))
-        .expect("runtime diagnostics models should be readable");
+    let runtime_diagnostics =
+        fs::read_to_string(manifest_dir.join("src/runtime/diagnostics/timing.rs"))
+            .expect("runtime timing diagnostics model should be readable");
     let native_diagnostics = fs::read_to_string(
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present/diagnostics.rs"),
     )
@@ -145,7 +198,7 @@ fn api_docs_describe_native_gpu_timing_status() {
             && runtime_diagnostics.contains("CpuEnvelopeOnly")
             && runtime_diagnostics.contains("pub gpu_timing_status: NativeGpuTimingStatus")
             && runtime_diagnostics.contains("pub fn cpu_envelope_total"),
-        "runtime diagnostics should expose an explicit native GPU timing availability status"
+        "runtime timing diagnostics should expose an explicit native GPU timing availability status"
     );
     assert!(
         native_diagnostics
@@ -161,8 +214,9 @@ fn api_docs_describe_custom_shader_frame_diagnostics() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
         .expect("Radiant API docs should be readable");
-    let runtime_diagnostics = fs::read_to_string(manifest_dir.join("src/runtime/diagnostics.rs"))
-        .expect("runtime diagnostics models should be readable");
+    let runtime_diagnostics =
+        fs::read_to_string(manifest_dir.join("src/runtime/diagnostics/gpu_surface.rs"))
+            .expect("runtime GPU-surface diagnostics model should be readable");
     let native_diagnostics = fs::read_to_string(
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/present/diagnostics.rs"),
     )

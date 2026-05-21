@@ -967,6 +967,10 @@ renderer logs. `NativeTextDiagnostics::has_shaping_limits()`,
 `has_font_coverage_gaps()`, and `has_text_quality_warnings()` provide the
 stable summary predicates applications can use for debug overlays, telemetry, or
 local quality gates without duplicating raw counter policy.
+`NativeTextDiagnostics::quality_status()` returns a `NativeTextQualityStatus`
+classification, and the native render profile emits the same policy as
+`text_quality_status`, so hosts can distinguish clean frames, shaping-limited
+frames, font-coverage-limited frames, and frames with both issues.
 
 ## Examples And Sandboxes
 

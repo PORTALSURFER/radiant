@@ -81,6 +81,34 @@ impl NativeTextDiagnostics {
     pub const fn has_text_quality_warnings(self) -> bool {
         self.has_shaping_limits() || self.has_font_coverage_gaps()
     }
+
+    /// Return the highest-level text quality status exposed by this frame.
+    ///
+    /// This keeps host overlays and telemetry from duplicating raw counter
+    /// policy while Radiant's native text path still reports basic-layout
+    /// shaping limits separately from active-font coverage gaps.
+    pub const fn quality_status(self) -> NativeTextQualityStatus {
+        match (self.has_shaping_limits(), self.has_font_coverage_gaps()) {
+            (false, false) => NativeTextQualityStatus::Clean,
+            (true, false) => NativeTextQualityStatus::ShapingLimited,
+            (false, true) => NativeTextQualityStatus::FontCoverageLimited,
+            (true, true) => NativeTextQualityStatus::ShapingAndFontCoverageLimited,
+        }
+    }
+}
+
+/// Text quality status for a native presentation frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum NativeTextQualityStatus {
+    /// No shaping-limit or font-coverage warning was observed.
+    #[default]
+    Clean,
+    /// One or more text runs needed shaping beyond the current basic layout path.
+    ShapingLimited,
+    /// One or more glyphs needed fallback or remained missing in the active font.
+    FontCoverageLimited,
+    /// Both shaping limits and font coverage gaps were observed.
+    ShapingAndFontCoverageLimited,
 }
 
 /// Scene encoding counters for one native frame.

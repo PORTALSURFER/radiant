@@ -2,7 +2,6 @@ pub(super) const MIN_COLUMNS: usize = 1;
 pub(super) const MAX_COLUMNS: usize = 5;
 pub(super) const MIN_ROWS: usize = 1;
 pub(super) const MAX_ROWS: usize = 5;
-pub(super) const MIN_DEPTH: usize = 0;
 pub(super) const MAX_DEPTH: usize = 4;
 
 #[derive(Clone, Debug)]

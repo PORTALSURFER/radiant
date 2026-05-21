@@ -34,8 +34,7 @@ fn window_specs_use_named_parts_for_manifest_identity_and_options() {
         .expect("window manifest module should be readable");
     let runtime = fs::read_to_string(manifest_dir.join("src/runtime/mod.rs"))
         .expect("runtime module should be readable");
-    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
-        .expect("library module should be readable");
+    let prelude = public_prelude_source(&manifest_dir);
 
     assert!(
         spec.contains("pub struct WindowSpecParts")
@@ -46,7 +45,7 @@ fn window_specs_use_named_parts_for_manifest_identity_and_options() {
         builders.contains("Self::from_parts(WindowSpecParts {")
             && manifest.contains("WindowSpecParts")
             && runtime.contains("WindowSpecParts")
-            && lib.contains("WindowSpecParts"),
+            && prelude.contains("WindowSpecParts"),
         "window spec compatibility constructors and public exports should keep the named-parts path available"
     );
 }

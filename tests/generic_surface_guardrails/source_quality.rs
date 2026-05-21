@@ -4,6 +4,11 @@ use std::{fs, path::PathBuf};
 
 use super::relative_path;
 
+fn public_prelude_source(manifest_dir: &std::path::Path) -> String {
+    fs::read_to_string(manifest_dir.join("src/prelude.rs"))
+        .expect("public prelude module should be readable")
+}
+
 #[path = "source_quality/api_models.rs"]
 mod api_models;
 #[path = "source_quality/feedback_and_platform.rs"]

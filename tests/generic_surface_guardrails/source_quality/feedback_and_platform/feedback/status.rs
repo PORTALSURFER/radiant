@@ -26,8 +26,7 @@ fn status_line_entries_use_named_parts_for_source_and_message() {
         .expect("feedback status tests should be readable");
     let feedback = fs::read_to_string(manifest_dir.join("src/gui/feedback.rs"))
         .expect("feedback module should be readable");
-    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
-        .expect("library module should be readable");
+    let prelude = public_prelude_source(&manifest_dir);
 
     assert!(
         source.contains("pub struct StatusLineEntryParts")
@@ -52,7 +51,7 @@ fn status_line_entries_use_named_parts_for_source_and_message() {
         source.contains("Self::from_parts(StatusLineEntryParts {")
             && status.contains("StatusLineEntryParts")
             && feedback.contains("StatusLineEntryParts")
-            && lib.contains("StatusLineEntryParts"),
+            && prelude.contains("StatusLineEntryParts"),
         "status-line entry compatibility constructor and public exports should keep the named-parts path available"
     );
     for required in [

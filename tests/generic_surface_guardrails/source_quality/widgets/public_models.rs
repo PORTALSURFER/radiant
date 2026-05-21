@@ -61,8 +61,7 @@ fn application_menus_use_named_parts_for_context_overlay_fields() {
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
     let application = fs::read_to_string(manifest_dir.join("src/application.rs"))
         .expect("application module should be readable");
-    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
-        .expect("library module should be readable");
+    let prelude = public_prelude_source(&manifest_dir);
 
     for (parts, constructor) in [
         (
@@ -89,8 +88,8 @@ fn application_menus_use_named_parts_for_context_overlay_fields() {
             && application.contains("ContextMenuOverlayParts")
             && application.contains("MenuItemParts")
             && application.contains("MenuParts")
-            && lib.contains("ContextMenuOverlayParts")
-            && lib.contains("context_menu_overlay_from_parts"),
+            && prelude.contains("ContextMenuOverlayParts")
+            && prelude.contains("context_menu_overlay_from_parts"),
         "menu compatibility helpers and public exports should keep the named-parts path available"
     );
 }
@@ -102,8 +101,7 @@ fn application_widget_views_use_named_parts_for_custom_widget_mapping() {
         .expect("application widget view module should be readable");
     let application = fs::read_to_string(manifest_dir.join("src/application.rs"))
         .expect("application module should be readable");
-    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
-        .expect("library module should be readable");
+    let prelude = public_prelude_source(&manifest_dir);
 
     for (parts, from_parts, wrapper) in [
         (
@@ -125,8 +123,8 @@ fn application_widget_views_use_named_parts_for_custom_widget_mapping() {
     assert!(
         application.contains("MappedWidgetParts")
             && application.contains("DynamicWidgetParts")
-            && lib.contains("MappedWidgetParts")
-            && lib.contains("DynamicWidgetParts"),
+            && prelude.contains("MappedWidgetParts")
+            && prelude.contains("DynamicWidgetParts"),
         "custom widget view parts should stay publicly exported through application and prelude"
     );
 }
@@ -211,8 +209,7 @@ fn confirm_dialogs_use_named_parts_for_public_prompt_fields() {
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
     let runtime = fs::read_to_string(manifest_dir.join("src/runtime/mod.rs"))
         .expect("runtime module should be readable");
-    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
-        .expect("library module should be readable");
+    let prelude = public_prelude_source(&manifest_dir);
 
     assert!(
         source.contains("pub struct ConfirmDialogParts")
@@ -222,7 +219,7 @@ fn confirm_dialogs_use_named_parts_for_public_prompt_fields() {
     assert!(
         source.contains("Self::from_parts(ConfirmDialogParts {")
             && runtime.contains("ConfirmDialogParts")
-            && lib.contains("ConfirmDialogParts"),
+            && prelude.contains("ConfirmDialogParts"),
         "confirmation dialog compatibility constructor and public exports should keep the named-parts path available"
     );
 }

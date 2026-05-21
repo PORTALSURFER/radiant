@@ -28,8 +28,7 @@ fn column_summaries_use_named_parts_for_title_and_count() {
         .expect("editable list module should be readable");
     let list = fs::read_to_string(manifest_dir.join("src/gui/list.rs"))
         .expect("list module should be readable");
-    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
-        .expect("library module should be readable");
+    let prelude = public_prelude_source(&manifest_dir);
 
     assert!(
         source.contains("pub struct ColumnSummaryParts")
@@ -40,7 +39,7 @@ fn column_summaries_use_named_parts_for_title_and_count() {
         source.contains("Self::from_parts(ColumnSummaryParts {")
             && editable.contains("ColumnSummaryParts")
             && list.contains("ColumnSummaryParts")
-            && lib.contains("ColumnSummaryParts"),
+            && prelude.contains("ColumnSummaryParts"),
         "column summary compatibility constructor and public exports should keep the named-parts path available"
     );
 }
@@ -57,8 +56,7 @@ fn virtual_list_stack_metrics_use_named_parts_for_geometry() {
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", virtual_list_path.display()));
     let list = fs::read_to_string(&list_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", list_path.display()));
-    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
-        .expect("library module should be readable");
+    let prelude = public_prelude_source(&manifest_dir);
 
     assert!(
         source.contains("pub struct VirtualListStackMetricsParts")
@@ -69,7 +67,7 @@ fn virtual_list_stack_metrics_use_named_parts_for_geometry() {
         source.contains("Self::from_parts(VirtualListStackMetricsParts {")
             && virtual_list.contains("VirtualListStackMetricsParts")
             && list.contains("VirtualListStackMetricsParts")
-            && lib.contains("VirtualListStackMetricsParts"),
+            && prelude.contains("VirtualListStackMetricsParts"),
         "virtual-list stack metric constructor and public exports should keep the named-parts path available"
     );
 }

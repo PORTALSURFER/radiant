@@ -1147,10 +1147,11 @@ host/plugin SDK integration remains outside Radiant.
 
 The repository CI workflow mirrors the local validation lane on Windows. It
 runs formatting, Clippy with warnings denied, library and integration tests,
-checked examples, rustdoc with broken intra-doc links denied,
-no-default-features library checks for the documented Linux and macOS targets,
-and a perf-harness smoke pass that lists scenarios and proves baseline
-capture/comparison with `--fail-on-missing-baseline`.
+checked examples, rustdoc with broken intra-doc links denied, doctests for
+public documentation examples, no-default-features library checks for the
+documented Linux and macOS targets, and a perf-harness smoke pass that lists
+scenarios and proves baseline capture/comparison with
+`--fail-on-missing-baseline`.
 
 Radiant's normal local quality lane is:
 
@@ -1160,6 +1161,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test --lib --tests
 cargo test --examples
 cargo doc --no-deps
+cargo test --doc
 rustup target add x86_64-unknown-linux-gnu x86_64-apple-darwin
 cargo check --lib --no-default-features --target x86_64-unknown-linux-gnu
 cargo check --lib --no-default-features --target x86_64-apple-darwin

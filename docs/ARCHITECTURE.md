@@ -166,6 +166,8 @@ normal quality lane before merging meaningful changes.
   change is local to one sandbox.
 - Documentation: `cargo doc --no-deps` to verify the public docs build and
   catch broken intra-doc links before they reach CI.
+- Doctests: `cargo test --doc` to keep public documentation snippets compiling
+  against the real crate API.
 - Formatting and linting: `cargo fmt -- --check` and
   `cargo clippy --all-targets --all-features -- -D warnings`.
 - Broad regression lane: `cargo test --lib --tests`, matching CI. Use

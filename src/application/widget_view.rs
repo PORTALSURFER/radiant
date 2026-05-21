@@ -21,12 +21,12 @@ pub struct WidgetViewContext {
 }
 
 impl WidgetViewContext {
-    /// Explicit sizing set on the enclosing [`ViewNode`], if any.
+    /// Explicit sizing set on the enclosing [`ViewNode`](crate::application::ViewNode), if any.
     pub fn sizing(&self) -> Option<WidgetSizing> {
         self.sizing
     }
 
-    /// Explicit style set on the enclosing [`ViewNode`], if any.
+    /// Explicit style set on the enclosing [`ViewNode`](crate::application::ViewNode), if any.
     pub fn style(&self) -> Option<WidgetStyle> {
         self.style
     }
@@ -66,7 +66,8 @@ impl WidgetViewContext {
 /// automatically implements `WidgetView<()>` as a non-emitting leaf. Interactive
 /// widgets can use [`MappedWidget`] to bind widget output to host messages.
 pub trait WidgetView<Message>: Send + Sync {
-    /// Default sizing used before callers override the enclosing [`ViewNode`].
+    /// Default sizing used before callers override the enclosing
+    /// [`ViewNode`](crate::application::ViewNode).
     fn default_sizing(&self) -> WidgetSizing;
 
     /// Lower this widget view into the runtime surface tree.

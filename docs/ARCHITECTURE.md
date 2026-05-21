@@ -164,6 +164,8 @@ normal quality lane before merging meaningful changes.
   `cargo test --test generic_surface_guardrails`.
 - Examples: `cargo test --examples`, or the focused example target when a
   change is local to one sandbox.
+- Documentation: `cargo doc --no-deps` to verify the public docs build and
+  catch broken intra-doc links before they reach CI.
 - Formatting and linting: `cargo fmt -- --check` and
   `cargo clippy --all-targets --all-features -- -D warnings`.
 - Broad regression lane: `cargo test --lib --tests`, matching CI. Use

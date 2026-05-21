@@ -1,8 +1,8 @@
 //! Retained SVG icons for Vello-backed vector rendering.
 //!
-//! The public surface is [`SvgIcon`]. Parser details stay behind Radiant paint
-//! primitives so application widgets can embed SVG assets without constructing
-//! backend scenes directly.
+//! The public surface is [`SvgIcon`](crate::gui::svg::SvgIcon). Parser details
+//! stay behind Radiant paint primitives so application widgets can embed SVG
+//! assets without constructing backend scenes directly.
 
 mod hit_test;
 mod icon;

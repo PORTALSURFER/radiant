@@ -138,6 +138,27 @@ where
         self.drag_session.is_some()
     }
 
+    /// Clear active pointer capture without routing a release event.
+    ///
+    /// Native external drag loops own the release that completes the OS drag, so
+    /// the originating surface must not keep treating later pointer motion as a
+    /// continuation of the in-window press.
+    pub(crate) fn cancel_pointer_capture(&mut self) {
+        self.pointer_capture = None;
+        self.pointer_capture_state = None;
+        self.scroll_drag_capture = None;
+    }
+
+    /// End the runtime drag preview because ownership has moved to a native
+    /// external drag loop.
+    pub(crate) fn take_drag_preview_for_external_drag(&mut self) -> bool {
+        if self.drag_session.take().is_none() {
+            return false;
+        }
+        self.repaint_requested = true;
+        true
+    }
+
     /// Hide the runtime drag preview while the pointer is outside this surface.
     ///
     /// The drag session stays alive so a later pointer move back into the

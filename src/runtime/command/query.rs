@@ -15,8 +15,10 @@ impl<Message> Command<Message> {
             | Self::ScrollIntoView { .. }
             | Self::ScrollFixedRowIntoView { .. }
             | Self::BeginExternalDrag { .. }
+            | Self::BeginDrag { .. }
             | Self::PlatformRequest { .. }
             | Self::EndExternalDrag
+            | Self::EndDrag
             | Self::Exit => false,
             Self::Batch(commands) => commands.iter().all(Self::is_empty),
         }
@@ -49,8 +51,10 @@ impl<Message> Command<Message> {
             | Self::ScrollIntoView { .. }
             | Self::ScrollFixedRowIntoView { .. }
             | Self::BeginExternalDrag { .. }
+            | Self::BeginDrag { .. }
             | Self::PlatformRequest { .. }
             | Self::EndExternalDrag
+            | Self::EndDrag
             | Self::Exit => None,
         }
     }

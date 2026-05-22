@@ -22,7 +22,7 @@ pub use events::{Event, PointerMoveOutcome};
 pub use scroll::ScrollUpdate;
 
 use super::{
-    ClipAncestors, Command, ExternalDragOutcome, ExternalDragSession, PaintPrimitive,
+    ClipAncestors, Command, DragSession, ExternalDragOutcome, ExternalDragSession, PaintPrimitive,
     RuntimeBridge, SurfaceFrame, SurfacePaintPlan, SurfaceRuntimeProjection, SurfaceTraversalIndex,
     SurfaceWidget, UiSurface, WidgetDispatchResult, WidgetPath, empty_paint_plan_for_layout,
 };
@@ -106,6 +106,7 @@ where
     runtime_messages: Vec<Message>,
     runtime_message_batch: Vec<Message>,
     external_drag_session: Option<ExternalDragSession<Message>>,
+    drag_session: Option<DragSession>,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>

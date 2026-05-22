@@ -1,6 +1,6 @@
 use crate::runtime::{
-    Command, ConfirmDialogRequest, ExternalDragOutcome, ExternalDragRequest, FileDialogRequest,
-    PlatformRequest, PlatformResponse,
+    Command, ConfirmDialogRequest, DragRequest, ExternalDragOutcome, ExternalDragRequest,
+    FileDialogRequest, PlatformRequest, PlatformResponse,
 };
 
 use super::UpdateContext;
@@ -26,6 +26,16 @@ impl<Message> UpdateContext<Message> {
     /// Clear any active native external drag session.
     pub fn end_external_drag(&mut self) {
         self.command(Command::end_external_drag());
+    }
+
+    /// Begin a runtime-owned pointer drag preview session.
+    pub fn begin_drag(&mut self, request: DragRequest) {
+        self.command(Command::begin_drag(request));
+    }
+
+    /// End any active runtime-owned pointer drag preview session.
+    pub fn end_drag(&mut self) {
+        self.command(Command::end_drag());
     }
 
     /// Request a platform service through the active runtime bridge.

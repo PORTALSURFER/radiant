@@ -37,6 +37,11 @@ where
             self.request_redraw_if_needed();
         }
         self.last_cursor = None;
+        if self.core.runtime.hide_drag_preview_for_cursor_left() {
+            self.rebuild_scene();
+            self.request_redraw_if_needed();
+            return;
+        }
         let outcome = self.launch_external_drag_if_armed();
         self.handle_route_outcome(event_loop, outcome);
     }

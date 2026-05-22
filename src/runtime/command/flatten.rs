@@ -40,8 +40,10 @@ impl<Message> Command<Message> {
             | Self::ScrollIntoView { .. }
             | Self::ScrollFixedRowIntoView { .. }
             | Self::BeginExternalDrag { .. }
+            | Self::BeginDrag { .. }
             | Self::PlatformRequest { .. }
             | Self::EndExternalDrag
+            | Self::EndDrag
             | Self::Exit => 0,
         }
     }
@@ -64,8 +66,10 @@ impl<Message> Command<Message> {
             | Self::ScrollIntoView { .. }
             | Self::ScrollFixedRowIntoView { .. }
             | Self::BeginExternalDrag { .. }
+            | Self::BeginDrag { .. }
             | Self::PlatformRequest { .. }
             | Self::EndExternalDrag
+            | Self::EndDrag
             | Self::Exit => {}
         }
     }

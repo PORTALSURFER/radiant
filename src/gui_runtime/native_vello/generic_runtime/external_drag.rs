@@ -10,6 +10,9 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     pub(super) fn launch_external_drag_if_armed(&mut self) -> GenericRouteOutcome {
+        if self.core.runtime.drag_session_active() {
+            return GenericRouteOutcome::default();
+        }
         let Some(session) = self.core.runtime.take_external_drag_session() else {
             return GenericRouteOutcome::default();
         };

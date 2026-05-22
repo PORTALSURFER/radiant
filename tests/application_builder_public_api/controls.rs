@@ -226,25 +226,23 @@ fn application_builder_dropdown_overlay_routes_above_dismiss_layer() {
     );
 
     assert_ne!(runtime.widget_at(option_point), Some(1001));
-    assert_eq!(
+    assert!(
         runtime
             .dispatch_event(Event::PointerPress {
                 position: option_point,
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
             })
-            .is_some(),
-        true
+            .is_some()
     );
-    assert_eq!(
+    assert!(
         runtime
             .dispatch_event(Event::PointerRelease {
                 position: option_point,
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
             })
-            .is_some(),
-        true
+            .is_some()
     );
     assert_eq!(
         events.lock().expect("events lock").as_slice(),

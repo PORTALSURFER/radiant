@@ -59,12 +59,12 @@ where
     }
 
     pub(super) fn dispatch_pointer_move_target(&mut self, position: Point) -> Option<WidgetId> {
-        if let Some(session) = self.drag_session.as_mut() {
-            if session.pointer != position || !session.visible {
-                session.pointer = position;
-                session.visible = true;
-                self.repaint_requested = true;
-            }
+        if let Some(session) = self.drag_session.as_mut()
+            && (session.pointer != position || !session.visible)
+        {
+            session.pointer = position;
+            session.visible = true;
+            self.repaint_requested = true;
         }
         if self.drag_scrollbar_to(position) {
             return None;

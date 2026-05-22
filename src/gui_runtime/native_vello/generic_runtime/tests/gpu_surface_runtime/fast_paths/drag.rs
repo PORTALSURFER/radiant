@@ -1,5 +1,6 @@
 use super::super::*;
 use crate::runtime::{DragPreview, DragRequest, ExternalDragRequest};
+use crate::widgets::PointerModifiers;
 
 #[test]
 fn active_runtime_drag_disables_gpu_surface_hover_fast_path() {
@@ -23,7 +24,7 @@ fn active_runtime_drag_disables_gpu_surface_hover_fast_path() {
 }
 
 #[test]
-fn active_runtime_drag_defers_external_drag_launch_on_cursor_left() {
+fn active_runtime_drag_can_transfer_to_external_drag() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
         GpuWheelBridge::default(),
@@ -38,6 +39,7 @@ fn active_runtime_drag_defers_external_drag_launch_on_cursor_left() {
                 "kick.wav",
             ),
         ));
+    runner.rebuild_scene();
     runner
         .core
         .runtime
@@ -45,9 +47,22 @@ fn active_runtime_drag_defers_external_drag_launch_on_cursor_left() {
             DragPreview::sized("kick.wav", Vector2::new(150.0, 24.0)),
             Point::new(30.0, 20.0),
         )));
+    runner.core.route_pointer_press_with_modifiers(
+        Point::new(30.0, 20.0),
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    );
 
-    let outcome = runner.launch_external_drag_if_armed();
+    let session = runner
+        .core
+        .runtime
+        .take_external_drag_session()
+        .expect("external drag session should remain armed until native launch");
+    runner.core.runtime.cancel_pointer_capture();
+    let preview_cleared = runner.core.runtime.take_drag_preview_for_external_drag();
 
-    assert!(!outcome.needs_redraw());
-    assert!(runner.core.runtime.external_drag_armed());
+    assert!(preview_cleared);
+    assert!(!runner.core.runtime.drag_session_active());
+    assert!(runner.core.runtime.pointer_capture().is_none());
+    assert_eq!(session.request.preview.label, "kick.wav");
 }

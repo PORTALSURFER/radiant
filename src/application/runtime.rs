@@ -5,7 +5,7 @@ use crate::{
     },
     layout::Vector2,
     runtime::{
-        AuxiliaryWindow, PaintPrimitive, RuntimeAnimationActivity, ScrollUpdate,
+        AuxiliaryWindow, NativeFileDrop, PaintPrimitive, RuntimeAnimationActivity, ScrollUpdate,
         TransientOverlayContext,
     },
     widgets::RetainedSurfaceDescriptor,
@@ -53,6 +53,8 @@ pub(in crate::application) type AppUpdate<State, Message> =
     Box<dyn FnMut(&mut State, Message, &mut UpdateContext<Message>)>;
 pub(in crate::application) type AppScroll<State, Message> =
     Box<dyn FnMut(&mut State, ScrollUpdate, &mut UpdateContext<Message>)>;
+pub(in crate::application) type AppNativeFileDrop<State, Message> =
+    Box<dyn FnMut(&mut State, NativeFileDrop, &mut UpdateContext<Message>)>;
 pub(in crate::application) type StateStringCallback<State> =
     Arc<dyn Fn(&mut State, String) + Send + Sync>;
 pub(in crate::application) type StateCallback<State> = Arc<dyn Fn(&mut State) + Send + Sync>;

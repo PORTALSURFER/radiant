@@ -138,6 +138,11 @@ where
         self.drag_session.is_some()
     }
 
+    /// Return the widget under a native file-drop pointer position.
+    pub fn native_file_drop_target(&self, position: Option<Point>) -> Option<WidgetId> {
+        position.and_then(|position| self.widget_at(position))
+    }
+
     /// Clear active pointer capture without routing a release event.
     ///
     /// Native external drag loops own the release that completes the OS drag, so

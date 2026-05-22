@@ -8,8 +8,8 @@ use crate::gui::{
     types::{Rect, Vector2},
 };
 use crate::runtime::{
-    Command, NativeFrameDiagnostics, PaintPrimitive, PlatformCompletion, PlatformRequest,
-    PlatformServiceFallback, ScrollUpdate, TransientOverlayContext, UiSurface,
+    Command, NativeFileDrop, NativeFrameDiagnostics, PaintPrimitive, PlatformCompletion,
+    PlatformRequest, PlatformServiceFallback, ScrollUpdate, TransientOverlayContext, UiSurface,
 };
 use crate::widgets::RetainedSurfaceDescriptor;
 use std::{sync::Arc, time::Duration};
@@ -100,6 +100,16 @@ pub trait RuntimeBridge<Message> {
     /// no-op implementation.
     fn scroll_updated(&mut self, _update: ScrollUpdate) -> Option<Command<Message>> {
         None
+    }
+
+    /// Handle a native operating-system file drag/drop event.
+    ///
+    /// Native backends populate the last known pointer position and widget
+    /// target when available. Hosts can map hover, cancel, and drop phases to
+    /// app messages or repaint commands while backends that do not use native
+    /// file drops can rely on the default no-op implementation.
+    fn native_file_drop(&mut self, _drop: NativeFileDrop) -> Command<Message> {
+        Command::none()
     }
 
     /// Resolve one keyboard press against a host-owned shortcut catalog.

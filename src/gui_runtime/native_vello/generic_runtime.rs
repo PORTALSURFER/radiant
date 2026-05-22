@@ -21,6 +21,7 @@ mod input;
 mod keyboard;
 mod lifecycle;
 mod lifecycle_pointer;
+mod native_file_drop;
 mod popup_drag;
 mod post_gpu_overlay;
 mod present;

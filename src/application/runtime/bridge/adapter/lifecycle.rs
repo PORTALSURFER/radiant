@@ -1,5 +1,6 @@
 use super::super::AppBridge;
 use crate::application::{IntoView, UpdateContext};
+use crate::runtime::{Command, NativeFileDrop};
 
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
 where
@@ -18,5 +19,14 @@ where
         self.close_requested
             .as_mut()
             .is_none_or(|close_requested| close_requested(&mut self.state))
+    }
+
+    pub(super) fn native_file_drop_command(&mut self, drop: NativeFileDrop) -> Command<Message> {
+        let Some(native_file_drop) = self.native_file_drop.as_mut() else {
+            return Command::none();
+        };
+        let mut context = UpdateContext::default();
+        native_file_drop(&mut self.state, drop, &mut context);
+        context.into_command()
     }
 }

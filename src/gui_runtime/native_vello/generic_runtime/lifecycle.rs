@@ -47,6 +47,9 @@ where
             WindowEvent::CursorMoved { position, .. } => {
                 self.handle_cursor_moved(position);
             }
+            WindowEvent::HoveredFile(path) => self.handle_native_file_hover(event_loop, path),
+            WindowEvent::HoveredFileCancelled => self.handle_native_file_cancel(event_loop),
+            WindowEvent::DroppedFile(path) => self.handle_native_file_drop(event_loop, path),
             WindowEvent::CursorLeft { .. } => self.handle_cursor_left(event_loop),
             WindowEvent::MouseInput { button, state, .. } => {
                 let Some(position) = self.last_cursor else {

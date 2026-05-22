@@ -5,6 +5,13 @@ use crate::gui_runtime::native_vello::*;
 mod platform;
 
 pub(super) fn generic_window_attributes(options: &NativeRunOptions) -> WindowAttributes {
+    let drag_and_drop_enabled = platform_drag_and_drop_enabled(options);
+    tracing::info!(
+        drag_and_drop_enabled,
+        requested = options.drag_and_drop,
+        popup = options.is_popup(),
+        "radiant generic native vello: configuring native file drag-and-drop"
+    );
     let mut attrs = Window::default_attributes()
         .with_title(options.title.clone())
         .with_maximized(options.maximized)
@@ -25,8 +32,7 @@ pub(super) fn generic_window_attributes(options: &NativeRunOptions) -> WindowAtt
     if let Some(icon) = options.icon.as_ref().and_then(icon_from_rgba) {
         attrs = attrs.with_window_icon(Some(icon));
     }
-    let attrs =
-        platform::apply_drag_and_drop_attributes(attrs, platform_drag_and_drop_enabled(options));
+    let attrs = platform::apply_drag_and_drop_attributes(attrs, drag_and_drop_enabled);
     platform::apply_top_level_attributes(attrs, options)
 }
 

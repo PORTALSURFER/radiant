@@ -1145,12 +1145,11 @@ host/plugin SDK integration remains outside Radiant.
 
 ## Quality Gate
 
-The repository CI workflow mirrors the local validation lane on Windows. It
-runs formatting, Clippy with warnings denied, library and integration tests,
-checked examples, rustdoc with broken intra-doc links denied, doctests for
-public documentation examples, no-default-features library checks for the
-documented Linux and macOS targets, and a perf-harness smoke pass that lists
-scenarios and proves baseline capture/comparison with
+The local validation lane runs formatting, Clippy with warnings denied, library
+and integration tests, checked examples, rustdoc with broken intra-doc links
+denied, doctests for public documentation examples, no-default-features library
+checks for the documented Linux and macOS targets, and a perf-harness smoke pass
+that lists scenarios and proves baseline capture/comparison with
 `--fail-on-missing-baseline`.
 
 Radiant's normal local quality lane is:

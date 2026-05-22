@@ -23,6 +23,7 @@ mod controller;
 mod diagnostics;
 mod drag;
 mod external_drag;
+mod file_drop;
 mod gpu_surface;
 mod paint;
 mod platform;
@@ -62,6 +63,7 @@ pub use external_drag::{
     ExternalDragEffect, ExternalDragOutcome, ExternalDragPayload, ExternalDragPreview,
     ExternalDragRequest,
 };
+pub use file_drop::{NativeFileDrop, NativeFileDropPhase};
 pub use gpu_surface::{
     GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview,
     GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,

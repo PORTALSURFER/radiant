@@ -70,6 +70,16 @@ where
         self
     }
 
+    /// Observe native operating-system file drag/drop events.
+    pub fn on_native_file_drop(
+        mut self,
+        drop: impl FnMut(&mut State, crate::runtime::NativeFileDrop, &mut UpdateContext<Message>)
+        + 'static,
+    ) -> Self {
+        self.lifecycle.native_file_drop = Some(Box::new(drop));
+        self
+    }
+
     /// Register a startup hook.
     pub fn on_startup(
         mut self,

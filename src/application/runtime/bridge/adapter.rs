@@ -46,6 +46,10 @@ where
         self.scroll_updated_command(update)
     }
 
+    fn native_file_drop(&mut self, drop: crate::runtime::NativeFileDrop) -> Command<Message> {
+        self.native_file_drop_command(drop)
+    }
+
     fn resolve_key_press(
         &mut self,
         pending_chord: Option<KeyPress>,

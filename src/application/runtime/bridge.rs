@@ -15,6 +15,7 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
     pub(in crate::application) subscriptions: Option<AppSubscriptions<State, Message>>,
     pub(in crate::application) shortcuts: Option<AppShortcuts<State, Message>>,
     pub(in crate::application) scroll: Option<AppScroll<State, Message>>,
+    pub(in crate::application) native_file_drop: Option<AppNativeFileDrop<State, Message>>,
     pub(in crate::application) startup: Option<AppStartup<State, Message>>,
     pub(in crate::application) shutdown: Option<AppShutdown<State>>,
     pub(in crate::application) close_requested: Option<AppCloseRequested<State>>,
@@ -40,6 +41,7 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) shortcuts: Option<AppShortcuts<State, Message>>,
     /// Runtime scroll observer.
     pub(in crate::application) scroll: Option<AppScroll<State, Message>>,
+    pub(in crate::application) native_file_drop: Option<AppNativeFileDrop<State, Message>>,
     /// Startup hook.
     pub(in crate::application) startup: Option<AppStartup<State, Message>>,
     /// Shutdown artifact hook.
@@ -64,6 +66,7 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
             subscriptions: None,
             shortcuts: None,
             scroll: None,
+            native_file_drop: None,
             startup: None,
             shutdown: None,
             close_requested: None,
@@ -98,6 +101,7 @@ where
             subscriptions: lifecycle.subscriptions,
             shortcuts: lifecycle.shortcuts,
             scroll: lifecycle.scroll,
+            native_file_drop: lifecycle.native_file_drop,
             startup: lifecycle.startup,
             shutdown: lifecycle.shutdown,
             close_requested: lifecycle.close_requested,

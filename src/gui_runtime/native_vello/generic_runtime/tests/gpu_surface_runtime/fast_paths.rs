@@ -1,3 +1,5 @@
+#[path = "fast_paths/drag.rs"]
+mod drag;
 #[path = "fast_paths/hover.rs"]
 mod hover;
 #[path = "fast_paths/paint_only.rs"]

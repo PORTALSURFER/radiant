@@ -20,7 +20,10 @@ where
         let pointer_captured = self.pointer_capture().is_some();
         let target_prefers_paint_only =
             target.is_some_and(|widget_id| self.widget_prefers_pointer_move_paint_only(widget_id));
-        let paint_only_requested = repaint_requested && target_prefers_paint_only && !hover_changed;
+        let paint_only_requested = repaint_requested
+            && target_prefers_paint_only
+            && !hover_changed
+            && !self.drag_session_active();
         PointerMoveOutcome {
             target,
             hover_changed,
@@ -56,6 +59,13 @@ where
     }
 
     pub(super) fn dispatch_pointer_move_target(&mut self, position: Point) -> Option<WidgetId> {
+        if let Some(session) = self.drag_session.as_mut() {
+            if session.pointer != position || !session.visible {
+                session.pointer = position;
+                session.visible = true;
+                self.repaint_requested = true;
+            }
+        }
         if self.drag_scrollbar_to(position) {
             return None;
         }
@@ -121,5 +131,26 @@ where
             self.repaint_requested = true;
         }
         routed.then_some(target)
+    }
+
+    /// Return whether a runtime-owned drag preview session is active.
+    pub fn drag_session_active(&self) -> bool {
+        self.drag_session.is_some()
+    }
+
+    /// Hide the runtime drag preview while the pointer is outside this surface.
+    ///
+    /// The drag session stays alive so a later pointer move back into the
+    /// window can show the preview again and continue routing the same drag.
+    pub(crate) fn hide_drag_preview_for_cursor_left(&mut self) -> bool {
+        let Some(session) = self.drag_session.as_mut() else {
+            return false;
+        };
+        if !session.visible {
+            return false;
+        }
+        session.visible = false;
+        self.repaint_requested = true;
+        true
     }
 }

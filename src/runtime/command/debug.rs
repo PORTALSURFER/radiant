@@ -60,11 +60,16 @@ where
                 .debug_struct("BeginExternalDrag")
                 .field("request", request)
                 .finish_non_exhaustive(),
+            Self::BeginDrag { request } => f
+                .debug_struct("BeginDrag")
+                .field("request", request)
+                .finish(),
             Self::PlatformRequest { request, .. } => f
                 .debug_struct("PlatformRequest")
                 .field("request", request)
                 .finish_non_exhaustive(),
             Self::EndExternalDrag => f.write_str("EndExternalDrag"),
+            Self::EndDrag => f.write_str("EndDrag"),
             Self::Exit => f.write_str("Exit"),
         }
     }

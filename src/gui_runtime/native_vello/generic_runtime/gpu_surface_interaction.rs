@@ -67,7 +67,8 @@ where
         previous: Option<Point>,
         position: Point,
     ) -> bool {
-        if self.core.runtime.pointer_capture().is_some() {
+        if self.core.runtime.pointer_capture().is_some() || self.core.runtime.drag_session_active()
+        {
             return false;
         }
         let Some(previous) = previous else {
@@ -92,6 +93,7 @@ where
 
     pub(super) fn can_fast_path_native_hover_move(&self, position: Point) -> bool {
         self.core.runtime.pointer_capture().is_none()
+            && !self.core.runtime.drag_session_active()
             && self.runtime_pointer_line_surface_contains(position)
     }
 

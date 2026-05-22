@@ -120,6 +120,12 @@ where
             } => {
                 self.external_drag_session = Some(ExternalDragSession::new(request, on_completed));
             }
+            Command::BeginDrag { request } => {
+                self.drag_session = Some(DragSession::new(request));
+                self.repaint_requested = true;
+                outcome.repaint_requested = true;
+                outcome.surface_repaint_requested = true;
+            }
             Command::PlatformRequest {
                 request,
                 on_completed,
@@ -134,6 +140,12 @@ where
             }
             Command::EndExternalDrag => {
                 self.external_drag_session = None;
+            }
+            Command::EndDrag => {
+                self.drag_session = None;
+                self.repaint_requested = true;
+                outcome.repaint_requested = true;
+                outcome.surface_repaint_requested = true;
             }
             Command::Exit => {
                 outcome.exit_requested = true;

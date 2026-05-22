@@ -21,6 +21,7 @@ mod bridge;
 mod command;
 mod controller;
 mod diagnostics;
+mod drag;
 mod external_drag;
 mod gpu_surface;
 mod paint;
@@ -54,6 +55,8 @@ pub use diagnostics::{
     NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
     NativeTextDiagnostics, NativeTextQualityStatus, RetainedSurfaceCachePolicy,
 };
+pub(crate) use drag::DragSession;
+pub use drag::{DragPreview, DragRequest};
 pub(crate) use external_drag::ExternalDragSession;
 pub use external_drag::{
     ExternalDragEffect, ExternalDragOutcome, ExternalDragPayload, ExternalDragPreview,

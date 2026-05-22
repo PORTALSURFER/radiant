@@ -63,7 +63,7 @@ pub(in crate::runtime) fn push_container_chrome(
     }));
 }
 
-pub(in crate::runtime) fn push_overlay_panel(
+pub(crate) fn push_overlay_panel(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: WidgetId,
     rect: Rect,

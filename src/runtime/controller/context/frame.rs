@@ -54,6 +54,7 @@ where
             self.hovered_scroll_affordance,
             plan,
         );
+        self.append_drag_preview_overlay(theme, &mut plan.primitives);
     }
 
     /// Append runtime-local overlay primitives for active pointer widgets.
@@ -136,6 +137,34 @@ where
             bounds,
             &self.layout,
             theme,
+        );
+    }
+
+    fn append_drag_preview_overlay(
+        &self,
+        theme: &ThemeTokens,
+        primitives: &mut Vec<PaintPrimitive>,
+    ) {
+        let Some(session) = self.drag_session.as_ref().filter(|session| session.visible) else {
+            return;
+        };
+        let rect = Rect::from_min_size(
+            Point::new(
+                session.pointer.x + crate::runtime::drag::DRAG_PREVIEW_OFFSET.x,
+                session.pointer.y + crate::runtime::drag::DRAG_PREVIEW_OFFSET.y,
+            ),
+            session.preview.size,
+        );
+        crate::runtime::paint::push_overlay_panel(
+            primitives,
+            u64::MAX - 1024,
+            rect,
+            Some(session.preview.label.clone()),
+            theme,
+            crate::widgets::WidgetStyle {
+                tone: crate::widgets::WidgetTone::Accent,
+                prominence: crate::widgets::WidgetProminence::Strong,
+            },
         );
     }
 }

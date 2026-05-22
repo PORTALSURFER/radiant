@@ -1,7 +1,8 @@
 use super::Command;
 use crate::{
     runtime::{
-        ExternalDragOutcome, ExternalDragRequest, PlatformRequest, PlatformResponse, RepaintScope,
+        DragRequest, ExternalDragOutcome, ExternalDragRequest, PlatformRequest, PlatformResponse,
+        RepaintScope,
     },
     widgets::WidgetId,
 };
@@ -103,6 +104,16 @@ impl<Message> Command<Message> {
             request,
             on_completed: None,
         }
+    }
+
+    /// Build a command that begins a runtime-owned pointer drag preview.
+    pub const fn begin_drag(request: DragRequest) -> Self {
+        Self::BeginDrag { request }
+    }
+
+    /// Build a command that clears any active runtime-owned pointer drag preview.
+    pub const fn end_drag() -> Self {
+        Self::EndDrag
     }
 
     /// Build a command that requests a platform service.

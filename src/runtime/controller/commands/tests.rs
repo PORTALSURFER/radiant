@@ -1,5 +1,7 @@
 #[path = "tests/batching.rs"]
 mod batching;
+#[path = "tests/drag.rs"]
+mod drag;
 #[path = "tests/drain.rs"]
 mod drain;
 #[path = "tests/external_drag.rs"]

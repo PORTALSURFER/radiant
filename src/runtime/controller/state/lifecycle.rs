@@ -51,6 +51,7 @@ where
             runtime_messages: Vec::new(),
             runtime_message_batch: Vec::new(),
             external_drag_session: None,
+            drag_session: None,
         };
         runtime.relayout_with_traversal(traversal);
         runtime

@@ -47,6 +47,16 @@ where
     /// This avoids reallocating primitive storage for renderers that rebuild a
     /// paint plan every frame.
     pub fn paint_plan_into(&self, theme: &ThemeTokens, plan: &mut SurfacePaintPlan) {
+        self.base_paint_plan_into(theme, plan);
+        self.runtime_overlay_paint_into(theme, &mut plan.primitives);
+    }
+
+    /// Project the current declarative surface into an existing plan buffer.
+    ///
+    /// Native retained renderers use this for the cached base scene, then paint
+    /// runtime-owned overlays separately so pointer-local affordances can move
+    /// without leaving stale copies in the base frame.
+    pub fn base_paint_plan_into(&self, theme: &ThemeTokens, plan: &mut SurfacePaintPlan) {
         self.surface.paint_plan_with_hover_into(
             &self.layout,
             theme,
@@ -54,7 +64,6 @@ where
             self.hovered_scroll_affordance,
             plan,
         );
-        self.append_drag_preview_overlay(theme, &mut plan.primitives);
     }
 
     /// Append runtime-local overlay primitives for active pointer widgets.
@@ -71,6 +80,7 @@ where
         if self.pointer_capture != self.hovered_widget {
             self.append_widget_runtime_overlay(self.pointer_capture, theme, primitives);
         }
+        self.append_drag_preview_overlay(theme, primitives);
     }
 
     /// Package the current runtime viewport, layout, and paint plan for a host renderer.

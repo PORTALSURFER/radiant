@@ -1,9 +1,9 @@
 use super::super::*;
-use crate::runtime::{DragPreview, DragRequest, ExternalDragRequest};
+use crate::runtime::{DragPreview, DragRequest, ExternalDragRequest, PaintPrimitive};
 use crate::widgets::PointerModifiers;
 
 #[test]
-fn active_runtime_drag_disables_gpu_surface_hover_fast_path() {
+fn active_runtime_drag_moves_through_transient_overlay_without_scene_rebuild() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
         GpuWheelBridge::default(),
@@ -18,9 +18,45 @@ fn active_runtime_drag_disables_gpu_surface_hover_fast_path() {
             Point::new(30.0, 20.0),
         )));
 
-    let point = Point::new(40.0, 20.0);
+    runner.rebuild_scene();
+    assert!(
+        !contains_drag_label(&runner.frame.last_paint_plan.primitives, "Loops"),
+        "native cached base scene should not retain drag preview positions"
+    );
+    runner.frame.scene_texture_dirty = false;
+    runner.frame.composited_base_dirty = false;
+
+    let first_point = Point::new(40.0, 20.0);
+    let first_move = runner.core.route_pointer_move(first_point);
+    assert!(first_move.needs_scene_rebuild());
+    runner.handle_gpu_surface_pointer_move_outcome(
+        first_move,
+        Some(Point::new(30.0, 20.0)),
+        first_point,
+    );
+    runner.frame.scene_texture_dirty = false;
+    runner.frame.composited_base_dirty = false;
+
+    let point = Point::new(80.0, 20.0);
+    let moved = runner.core.route_pointer_move(point);
+    assert!(moved.paint_only_requested);
+    assert!(!moved.needs_scene_rebuild());
+    runner.handle_gpu_surface_pointer_move_outcome(moved, Some(first_point), point);
+    runner.paint_transient_overlays(&mut RenderFrameProfile::default());
+
+    assert!(
+        !runner.frame.scene_texture_dirty,
+        "drag preview motion should not rebuild the Vello scene"
+    );
+    assert!(
+        !runner.frame.composited_base_dirty,
+        "drag preview motion should keep the cached base frame"
+    );
+    assert!(
+        contains_drag_label(&runner.frame.transient_overlay_primitives, "Loops"),
+        "drag preview should be redrawn as a transient runtime overlay"
+    );
     assert!(!runner.can_fast_path_native_hover_move(point));
-    assert!(!runner.can_fast_path_gpu_surface_pointer_move(Some(point), Point::new(80.0, 20.0)));
 }
 
 #[test]
@@ -65,4 +101,13 @@ fn active_runtime_drag_can_transfer_to_external_drag() {
     assert!(!runner.core.runtime.drag_session_active());
     assert!(runner.core.runtime.pointer_capture().is_none());
     assert_eq!(session.request.preview.label, "kick.wav");
+}
+
+fn contains_drag_label(primitives: &[PaintPrimitive], label: &str) -> bool {
+    primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::Text(text) if text.text.as_str() == label
+        )
+    })
 }

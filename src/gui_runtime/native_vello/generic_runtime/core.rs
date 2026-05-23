@@ -60,7 +60,7 @@ where
     }
 
     pub(super) fn paint_plan_into(&self, plan: &mut crate::runtime::SurfacePaintPlan) {
-        self.runtime.paint_plan_into(&self.theme, plan);
+        self.runtime.base_paint_plan_into(&self.theme, plan);
     }
 
     pub(super) fn paint_transient_overlay(

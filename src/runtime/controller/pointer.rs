@@ -20,10 +20,9 @@ where
         let pointer_captured = self.pointer_capture().is_some();
         let target_prefers_paint_only =
             target.is_some_and(|widget_id| self.widget_prefers_pointer_move_paint_only(widget_id));
-        let paint_only_requested = repaint_requested
-            && target_prefers_paint_only
-            && !hover_changed
-            && !self.drag_session_active();
+        let drag_preview_can_paint_only = self.drag_session_active() && !hover_changed;
+        let paint_only_requested =
+            repaint_requested && (target_prefers_paint_only || drag_preview_can_paint_only);
         PointerMoveOutcome {
             target,
             hover_changed,

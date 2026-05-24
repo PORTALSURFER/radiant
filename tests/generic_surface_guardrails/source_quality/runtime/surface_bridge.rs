@@ -103,6 +103,8 @@ fn runtime_bridge_app_contract_stays_in_focused_module() {
         .expect("runtime bridge module should be readable");
     let app = fs::read_to_string(manifest_dir.join("src/runtime/bridge/app.rs"))
         .expect("runtime bridge app contract module should be readable");
+    let auxiliary = fs::read_to_string(manifest_dir.join("src/runtime/bridge/auxiliary.rs"))
+        .expect("runtime bridge auxiliary window model should be readable");
     let contract = fs::read_to_string(manifest_dir.join("src/runtime/bridge/contract.rs"))
         .expect("runtime bridge contract module should be readable");
     let runtime =
@@ -119,6 +121,15 @@ fn runtime_bridge_app_contract_stays_in_focused_module() {
             && app.contains("impl<Bridge, Message> App<Message> for Bridge where Bridge: RuntimeBridge<Message> {}")
             && !contract.contains("pub trait App<Message>"),
         "the public App marker contract should stay in runtime/bridge/app.rs"
+    );
+    assert!(
+        bridge.contains("mod auxiliary;")
+            && bridge.contains("pub use auxiliary::AuxiliaryWindow;")
+            && auxiliary.contains("pub struct AuxiliaryWindow<Message>")
+            && auxiliary.contains("pub fn new(")
+            && auxiliary.contains("pub fn on_close(mut self, message: Message) -> Self")
+            && !contract.contains("pub struct AuxiliaryWindow<Message>"),
+        "the public auxiliary-window projection model should stay out of the RuntimeBridge trait contract"
     );
 }
 

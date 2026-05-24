@@ -103,13 +103,19 @@ fn gui_core_state_primitives_keep_behavior_tests_focused() {
         "focus behavior coverage should live in gui/focus/tests.rs"
     );
     assert!(
-        frame.contains("pub struct FrameBuildResult")
+        frame.contains("pub struct FrameBuildCounts")
+            && frame.contains("pub struct FrameRebuildFlags")
+            && frame.contains("pub struct FrameAnimationRequest")
+            && frame.contains("pub struct FrameBuildTiming")
+            && frame.contains("pub struct FramePresentResult")
+            && frame.contains("pub struct FrameBuildResult")
             && frame.contains("#[path = \"frame/tests.rs\"]")
             && !frame.contains("fn frame_build_result_defaults_to_no_work_observed"),
-        "frame feedback state should live in gui/frame.rs while behavior tests stay delegated"
+        "frame feedback state should stay grouped by counts, rebuilds, animation, timing, and presentation while behavior tests stay delegated"
     );
     assert!(
-        frame_tests.contains("fn frame_build_result_defaults_to_no_work_observed"),
+        frame_tests.contains("fn frame_build_result_defaults_to_no_work_observed")
+            && frame_tests.contains("fn frame_build_result_groups_related_feedback"),
         "frame behavior coverage should live in gui/frame/tests.rs"
     );
     assert!(

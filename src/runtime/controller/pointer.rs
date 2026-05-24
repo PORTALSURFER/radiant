@@ -107,12 +107,11 @@ where
             });
         let hover_changed = self.hovered_widget != hover_widget;
         if hover_changed {
-            if let Some(previous) = self.hovered_widget {
-                if let Some(emitted) =
+            if let Some(previous) = self.hovered_widget
+                && let Some(emitted) =
                     self.dispatch_input_output(previous, WidgetInput::PointerMove { position })
-                {
-                    emitted_output |= emitted;
-                }
+            {
+                emitted_output |= emitted;
             }
             self.hovered_widget = hover_widget;
         }
@@ -120,13 +119,11 @@ where
         if let (Some(captured), Some(pointer_widget)) = (self.pointer_capture, pointer_widget)
             && pointer_widget != captured
             && self.widget_accepts_stable_pointer_move(pointer_widget)
-        {
-            if let Some(emitted) =
+            && let Some(emitted) =
                 self.dispatch_input_output(pointer_widget, WidgetInput::PointerMove { position })
-            {
-                self.repaint_requested = true;
-                emitted_output |= emitted;
-            }
+        {
+            self.repaint_requested = true;
+            emitted_output |= emitted;
         }
 
         let Some(target) = self.pointer_capture.or(pointer_widget) else {

@@ -17,6 +17,10 @@ fn layout_constraints_use_named_parts_for_min_max_bounds() {
         "layout constraints should expose named parts for readable min/max bound construction"
     );
     assert!(
+        !source.contains("pub fn new(min_w: f32, max_w: f32, min_h: f32, max_h: f32)"),
+        "layout constraints should not expose a public four-argument positional constructor"
+    );
+    assert!(
         source.contains("Self::from_parts(ConstraintsParts {")
             && module.contains("pub use constraints::{Constraints, ConstraintsParts};"),
         "layout constraint constructors and public exports should keep the named-parts path available"

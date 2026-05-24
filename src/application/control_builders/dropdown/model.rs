@@ -1,3 +1,27 @@
+/// Explicit selection state for one generic dropdown option.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DropdownOptionSelection {
+    /// The option is not the current value.
+    #[default]
+    Unselected,
+    /// The option represents the current value.
+    Selected,
+}
+
+impl DropdownOptionSelection {
+    /// Build selection state from compatibility flags.
+    pub const fn from_selected(selected: bool) -> Self {
+        match selected {
+            true => Self::Selected,
+            false => Self::Unselected,
+        }
+    }
+
+    pub(super) const fn is_selected(self) -> bool {
+        matches!(self, Self::Selected)
+    }
+}
+
 /// One selectable item in a generic dropdown control.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DropdownOption<Message> {
@@ -15,7 +39,7 @@ pub struct DropdownOptionParts<Message> {
     /// Visible option label.
     pub label: String,
     /// Whether this option represents the current value.
-    pub selected: bool,
+    pub selection: DropdownOptionSelection,
     /// Host message emitted when the option is selected.
     pub message: Message,
 }
@@ -25,7 +49,7 @@ impl<Message> DropdownOption<Message> {
     pub fn from_parts(parts: DropdownOptionParts<Message>) -> Self {
         Self {
             label: parts.label,
-            selected: parts.selected,
+            selected: parts.selection.is_selected(),
             message: parts.message,
         }
     }
@@ -34,7 +58,7 @@ impl<Message> DropdownOption<Message> {
     pub fn new(label: impl Into<String>, selected: bool, message: Message) -> Self {
         Self::from_parts(DropdownOptionParts {
             label: label.into(),
-            selected,
+            selection: DropdownOptionSelection::from_selected(selected),
             message,
         })
     }

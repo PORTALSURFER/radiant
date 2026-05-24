@@ -340,6 +340,9 @@ next to each other. This keeps the explicit widget API aligned with the
 declarative builder model: stable IDs, content, state, and layout contracts are
 named at the construction boundary instead of being inferred from argument
 order.
+Application-level compound controls follow the same rule: dropdown option parts
+use `DropdownOptionSelection` instead of a raw selected flag, so public examples
+can distinguish current-value state from the host message routed on activation.
 
 Single-line text editing is split between reusable state and widget routing:
 `TextInputState` owns the portable value, caret, and selection model, while

@@ -106,8 +106,7 @@ fn application_dropdown_builder_keeps_menu_overlay_and_tests_focused() {
     assert!(
         root.contains("mod menu;")
             && root.contains("mod model;")
-            && root
-                .contains("pub use model::{DropdownOption, DropdownOptionParts, DropdownParts};")
+            && root.contains("DropdownOptionSelection")
             && root.contains("#[path = \"dropdown/tests.rs\"]")
             && root.contains("pub struct DropdownBuilder<Message>")
             && root.contains("pub fn option_from_parts")
@@ -120,6 +119,7 @@ fn application_dropdown_builder_keeps_menu_overlay_and_tests_focused() {
     assert!(
         model.contains("pub struct DropdownOption<Message>")
             && model.contains("pub struct DropdownOptionParts<Message>")
+            && model.contains("pub enum DropdownOptionSelection")
             && model.contains("pub struct DropdownParts<Message>")
             && model.contains("pub fn from_parts(parts: DropdownOptionParts<Message>) -> Self"),
         "dropdown public DTOs should live in the focused model module"

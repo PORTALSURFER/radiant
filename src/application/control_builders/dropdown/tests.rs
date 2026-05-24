@@ -19,12 +19,12 @@ fn dropdown_builder_accepts_toggle_and_options() {
         .toggle_message(Message::Toggle)
         .option_from_parts(DropdownOptionParts {
             label: "System default".into(),
-            selected: false,
+            selection: DropdownOptionSelection::Unselected,
             message: Message::Select("default"),
         })
         .option_from_parts(DropdownOptionParts {
             label: "WASAPI".into(),
-            selected: true,
+            selection: DropdownOptionSelection::Selected,
             message: Message::Select("wasapi"),
         })
         .build();
@@ -35,12 +35,12 @@ fn dropdown_builder_accepts_options_before_required_toggle() {
     let _view = dropdown("WASAPI", true)
         .option_from_parts(DropdownOptionParts {
             label: "System default".into(),
-            selected: false,
+            selection: DropdownOptionSelection::Unselected,
             message: Message::Select("default"),
         })
         .option_from_parts(DropdownOptionParts {
             label: "WASAPI".into(),
-            selected: true,
+            selection: DropdownOptionSelection::Selected,
             message: Message::Select("wasapi"),
         })
         .toggle_message(Message::Toggle)
@@ -51,10 +51,14 @@ fn dropdown_builder_accepts_options_before_required_toggle() {
 fn dropdown_option_compatibility_constructor_delegates_to_named_parts() {
     let from_parts = DropdownOption::from_parts(DropdownOptionParts {
         label: "WASAPI".into(),
-        selected: true,
+        selection: DropdownOptionSelection::Selected,
         message: Message::Select("wasapi"),
     });
     let positional = DropdownOption::new("WASAPI", true, Message::Select("wasapi"));
 
     assert_eq!(positional, from_parts);
+    assert_eq!(
+        DropdownOptionSelection::from_selected(false),
+        DropdownOptionSelection::Unselected
+    );
 }

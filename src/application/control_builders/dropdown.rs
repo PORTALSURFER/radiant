@@ -9,7 +9,7 @@ mod model;
 mod tests;
 
 pub use menu::{dropdown_menu, dropdown_menu_height, dropdown_menu_overlay};
-pub use model::{DropdownOption, DropdownOptionParts, DropdownParts};
+pub use model::{DropdownOption, DropdownOptionParts, DropdownOptionSelection, DropdownParts};
 
 /// Builder for generic dropdown controls.
 pub struct DropdownBuilderNeedsToggle<Message> {
@@ -68,7 +68,7 @@ impl<Message> DropdownBuilderNeedsToggle<Message> {
     pub fn option(mut self, label: impl Into<String>, selected: bool, message: Message) -> Self {
         self.state.add_option_from_parts(DropdownOptionParts {
             label: label.into(),
-            selected,
+            selection: DropdownOptionSelection::from_selected(selected),
             message,
         });
         self
@@ -92,7 +92,7 @@ impl<Message> DropdownBuilder<Message> {
     pub fn option(mut self, label: impl Into<String>, selected: bool, message: Message) -> Self {
         self.state.add_option_from_parts(DropdownOptionParts {
             label: label.into(),
-            selected,
+            selection: DropdownOptionSelection::from_selected(selected),
             message,
         });
         self
@@ -165,7 +165,7 @@ pub fn dropdown_option<State: 'static>(
 ) -> DropdownOption<StateAction<State>> {
     DropdownOption::from_parts(DropdownOptionParts {
         label: label.into(),
-        selected,
+        selection: DropdownOptionSelection::from_selected(selected),
         message: StateAction::new(apply),
     })
 }

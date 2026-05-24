@@ -29,7 +29,11 @@ pub use crate::application::{
 };
 pub use crate::gui::types::{ImageRgba, ImageRgbaError, Point, Rect, Rgba8, Vector2};
 pub use crate::gui::{
-    chrome::{ContentViewChrome, StatusSegments, StatusSegmentsParts},
+    chrome::{
+        ContentViewActivityChrome, ContentViewChrome, ContentViewFooterChrome,
+        ContentViewSearchChrome, ContentViewSortChrome, ContentViewTabs, StatusSegments,
+        StatusSegmentsParts,
+    },
     feedback::{StatusLineEntry, StatusLineEntryParts, StatusLineLog},
     focus::FocusSurface,
     input::{KeyCode, KeyPress},

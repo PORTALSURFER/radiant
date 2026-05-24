@@ -34,7 +34,11 @@ fn prelude_exports_application_chrome_models() {
     assert_eq!(log.latest_line(), "worker: finished");
     assert_eq!(log.latest(), "worker: finished");
     assert_eq!(entry.line(), "worker: finished");
-    assert_eq!(chrome.item_column_label, "Item");
+    assert_eq!(chrome.tabs.item_column_label, "Item");
+    assert_eq!(
+        ui::ContentViewFooterChrome::default().item_count_label,
+        "0 items"
+    );
 }
 
 #[test]

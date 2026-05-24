@@ -165,6 +165,8 @@ pub enum WidgetInput {
         position: Point,
         /// Logical scroll delta. Positive values move content right/down.
         delta: crate::gui::types::Vector2,
+        /// Modifier state at wheel time.
+        modifiers: PointerModifiers,
     },
     /// Keyboard focus changed for the widget.
     FocusChanged(

@@ -164,15 +164,20 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         };
         let delta = scroll_delta_to_logical(delta);
         if self.runner.can_coalesce_gpu_surface_wheel(position, delta) {
-            self.runner.queue_gpu_surface_wheel(position, delta);
+            let modifiers = pointer_modifiers_from_winit(self.runner.modifiers);
+            self.runner
+                .queue_gpu_surface_wheel(position, delta, modifiers);
             return;
         }
+        let modifiers = pointer_modifiers_from_winit(self.runner.modifiers);
         let routed = if self.runner.can_fast_path_gpu_surface_route(position, delta) {
             self.runner
                 .core
-                .route_scroll_deferred_refresh(position, delta)
+                .route_scroll_deferred_refresh_with_modifiers(position, delta, modifiers)
         } else {
-            self.runner.core.route_scroll(position, delta)
+            self.runner
+                .core
+                .route_scroll_with_modifiers(position, delta, modifiers)
         };
         self.runner
             .handle_gpu_surface_route_outcome(routed, position, delta);

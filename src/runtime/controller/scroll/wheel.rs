@@ -1,6 +1,7 @@
 //! Wheel routing for scrollable and wheel-aware runtime surfaces.
 
 use super::super::*;
+use crate::widgets::PointerModifiers;
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
@@ -9,7 +10,18 @@ where
     /// Route wheel input to the topmost widget under `point`, then fall back to
     /// scrolling the topmost scroll container under the pointer.
     pub fn wheel_or_scroll_at(&mut self, point: Point, delta: Vector2) -> bool {
-        if self.dispatch_wheel_at(point, delta) {
+        self.wheel_or_scroll_at_with_modifiers(point, delta, PointerModifiers::default())
+    }
+
+    /// Route modified wheel input to the topmost widget under `point`, then
+    /// fall back to scrolling the topmost scroll container under the pointer.
+    pub fn wheel_or_scroll_at_with_modifiers(
+        &mut self,
+        point: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+    ) -> bool {
+        if self.dispatch_wheel_at(point, delta, modifiers) {
             return true;
         }
         self.scroll_at(point, delta)
@@ -19,20 +31,40 @@ where
     /// to refresh. This is intended for GPU-backed surfaces whose bounds do not
     /// change during rapid wheel updates.
     pub fn wheel_or_scroll_at_deferred_refresh(&mut self, point: Point, delta: Vector2) -> bool {
-        if self.dispatch_wheel_at_with_refresh(point, delta, false) {
+        self.wheel_or_scroll_at_deferred_refresh_with_modifiers(
+            point,
+            delta,
+            PointerModifiers::default(),
+        )
+    }
+
+    /// Route modified wheel input while deferring host-surface refresh.
+    pub fn wheel_or_scroll_at_deferred_refresh_with_modifiers(
+        &mut self,
+        point: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+    ) -> bool {
+        if self.dispatch_wheel_at_with_refresh(point, delta, modifiers, false) {
             return true;
         }
         self.scroll_at(point, delta)
     }
 
-    fn dispatch_wheel_at(&mut self, point: Point, delta: Vector2) -> bool {
-        self.dispatch_wheel_at_with_refresh(point, delta, true)
+    fn dispatch_wheel_at(
+        &mut self,
+        point: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+    ) -> bool {
+        self.dispatch_wheel_at_with_refresh(point, delta, modifiers, true)
     }
 
     fn dispatch_wheel_at_with_refresh(
         &mut self,
         point: Point,
         delta: Vector2,
+        modifiers: PointerModifiers,
         refresh_after_message: bool,
     ) -> bool {
         let Some(widget_id) = self.wheel_widget_at(point) else {
@@ -47,6 +79,7 @@ where
             WidgetInput::Wheel {
                 position: point,
                 delta,
+                modifiers,
             },
         ) else {
             return false;

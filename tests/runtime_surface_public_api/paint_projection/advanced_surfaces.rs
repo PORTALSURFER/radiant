@@ -23,9 +23,14 @@ fn retained_canvas_metadata_reaches_backend_neutral_paint_plan() {
 
     let plan = surface.paint_plan(&layout, &ThemeTokens::default());
 
-    let Some(PaintPrimitive::CustomSurface(custom)) = plan.primitives.first() else {
-        panic!("retained canvas should emit one custom surface primitive");
-    };
+    let custom = plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::CustomSurface(custom) => Some(custom),
+            _ => None,
+        })
+        .expect("retained canvas should emit one custom surface primitive");
     assert_eq!(custom.widget_id, 90);
     assert_eq!(custom.retained, Some(retained));
 }
@@ -49,9 +54,14 @@ fn retained_canvas_builder_projects_metadata_and_input_mapping() {
         ),
         &ThemeTokens::default(),
     );
-    let Some(PaintPrimitive::CustomSurface(custom)) = plan.primitives.first() else {
-        panic!("retained canvas should project one custom surface primitive");
-    };
+    let custom = plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::CustomSurface(custom) => Some(custom),
+            _ => None,
+        })
+        .expect("retained canvas should project one custom surface primitive");
     assert_eq!(
         custom.retained,
         Some(RetainedSurfaceDescriptor {

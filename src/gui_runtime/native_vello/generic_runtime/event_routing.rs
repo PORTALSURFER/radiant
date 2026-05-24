@@ -124,23 +124,27 @@ where
         self.route_outcome(routed)
     }
 
-    pub(in crate::gui_runtime::native_vello) fn route_scroll(
+    pub(in crate::gui_runtime::native_vello) fn route_scroll_with_modifiers(
         &mut self,
         position: Point,
         delta: Vector2,
-    ) -> GenericRouteOutcome {
-        let routed = self.runtime.wheel_or_scroll_at(position, delta);
-        self.route_outcome(routed)
-    }
-
-    pub(in crate::gui_runtime::native_vello) fn route_scroll_deferred_refresh(
-        &mut self,
-        position: Point,
-        delta: Vector2,
+        modifiers: PointerModifiers,
     ) -> GenericRouteOutcome {
         let routed = self
             .runtime
-            .wheel_or_scroll_at_deferred_refresh(position, delta);
+            .wheel_or_scroll_at_with_modifiers(position, delta, modifiers);
+        self.route_outcome(routed)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_scroll_deferred_refresh_with_modifiers(
+        &mut self,
+        position: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+    ) -> GenericRouteOutcome {
+        let routed = self
+            .runtime
+            .wheel_or_scroll_at_deferred_refresh_with_modifiers(position, delta, modifiers);
         self.route_outcome(routed)
     }
 

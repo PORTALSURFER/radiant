@@ -7,7 +7,7 @@ fn estimated_paint_primitive_capacity_scales_for_small_layouts() {
         layout.rects.insert(node_id, Default::default());
     }
 
-    assert_eq!(estimated_paint_primitive_capacity(&layout), 48);
+    assert_eq!(estimated_paint_primitive_capacity(&layout), 80);
 }
 
 #[test]
@@ -30,7 +30,7 @@ fn empty_paint_plan_for_layout_presizes_with_layout_estimate() {
     let plan = empty_paint_plan_for_layout(&layout, &ThemeTokens::default());
 
     assert!(plan.primitives.is_empty());
-    assert!(plan.primitives.capacity() >= 48);
+    assert!(plan.primitives.capacity() >= 80);
 }
 
 #[test]

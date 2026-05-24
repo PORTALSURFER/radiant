@@ -3,7 +3,7 @@
 /// Shared paint clipping contract for widgets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PaintBounds {
-    /// Paint must stay inside the assigned widget rectangle.
+    /// Runtime traversal clips widget paint to the assigned widget rectangle.
     ClipToRect,
     /// Paint may extend beyond the assigned rectangle when the parent allows it.
     AllowOverflow,

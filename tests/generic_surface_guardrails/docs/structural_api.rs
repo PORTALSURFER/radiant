@@ -103,6 +103,27 @@ fn api_docs_describe_the_structural_boundary_strategy() {
 }
 
 #[test]
+fn crate_layout_facade_uses_explicit_exports() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let crate_source =
+        fs::read_to_string(manifest_dir.join("src/lib.rs")).expect("src/lib.rs should be readable");
+
+    assert!(
+        crate_source.contains("pub mod layout {")
+            && crate_source.contains("pub use crate::gui::layout_core::{")
+            && crate_source.contains("LayoutEngine")
+            && crate_source.contains("layout_tree_with_state")
+            && crate_source.contains("StackedRowRectsParts")
+            && crate_source.contains("VirtualizationPolicy"),
+        "crate layout facade should name the stable layout API exports explicitly"
+    );
+    assert!(
+        !crate_source.contains("pub use crate::gui::layout_core::*;"),
+        "crate layout facade should not wildcard-export layout internals"
+    );
+}
+
+#[test]
 fn api_docs_soft_deprecate_only_first_use_runtime_boilerplate() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))

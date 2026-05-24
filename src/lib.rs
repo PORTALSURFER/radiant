@@ -47,7 +47,21 @@ pub mod gui;
 pub mod prelude;
 /// Stable public slot-based layout API.
 pub mod layout {
-    pub use crate::gui::layout_core::*;
+    pub use crate::gui::layout_core::{
+        Constraints, ConstraintsParts, ContainerKind, ContainerNode, ContainerNodeParts,
+        ContainerPolicy, CrossAlign, DebugPrimitiveKind, GridPolicy, Insets, LayoutDebugOptions,
+        LayoutDebugPrimitive, LayoutDiagnostic, LayoutDiagnosticCode, LayoutEngine, LayoutNode,
+        LayoutOutput, LayoutState, LayoutStats, MainAlign, NodeId, OverflowInfo, OverflowPolicy,
+        Point, Rect, SizeModeCross, SizeModeMain, SlotChild, SlotChildParts, SlotParams,
+        StackedRowRectsParts, SwitchBreakpoint, Vector2, VirtualWindowInfo, VirtualizationAxis,
+        VirtualizationPolicy, WidgetNode, WidgetNodeParts, WrapPolicy, fixed_width_group_width,
+        fixed_width_item_extent_for_available_width, fixed_width_row_rects_end,
+        fixed_width_row_rects_end_into, fixed_width_row_rects_start,
+        fixed_width_row_rects_start_into, grouped_fixed_width_row_width, layout_tree,
+        layout_tree_with_state, stacked_row_rects, stacked_row_rects_from_parts,
+        stacked_row_rects_into, stacked_row_rects_into_from_parts, visible_suffix_widths,
+        visible_suffix_widths_into,
+    };
 }
 /// Shared runtime host implementations.
 pub mod gui_runtime;

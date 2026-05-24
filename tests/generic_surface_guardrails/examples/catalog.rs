@@ -4,6 +4,8 @@ use super::*;
 mod contracts;
 #[path = "catalog/splits.rs"]
 mod splits;
+#[path = "catalog/visual_splits.rs"]
+mod visual_splits;
 
 use super::support::{example_source, registered_example_names};
 use contracts::{

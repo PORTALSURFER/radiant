@@ -1,7 +1,10 @@
 //! Context-menu geometry for the folder browser example.
 
 use radiant::{
-    gui::{panel::anchored_panel_rect, types::Rect},
+    gui::{
+        panel::{AnchoredPanelRectParts, anchored_panel_rect_from_parts},
+        types::Rect,
+    },
     layout::{Point, Vector2},
 };
 
@@ -24,11 +27,11 @@ pub(super) fn anchored_context_menu_position(
         Point::new(0.0, 0.0),
         Vector2::new(WINDOW_WIDTH, WINDOW_HEIGHT),
     );
-    let rect = anchored_panel_rect(
+    let rect = anchored_panel_rect_from_parts(AnchoredPanelRectParts {
         bounds,
-        position.unwrap_or_else(|| Point::new(0.0, 0.0)),
-        Vector2::new(menu_width, menu_height),
-        0.0,
-    );
+        anchor: position.unwrap_or_else(|| Point::new(0.0, 0.0)),
+        size: Vector2::new(menu_width, menu_height),
+        inset: 0.0,
+    });
     (rect.min.x, rect.min.y)
 }

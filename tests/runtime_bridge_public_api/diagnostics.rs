@@ -1,10 +1,11 @@
 use super::*;
 use radiant::runtime::{
-    NativeFrameDiagnostics, NativeFrameTimingDiagnostics, NativeGpuSurfaceCustomShaderDiagnostics,
+    NativeCompositedBaseTiming, NativeFrameDiagnostics, NativeFrameTimingDiagnostics,
+    NativeFrameWorkTimings, NativeGpuSurfaceCustomShaderDiagnostics,
     NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
     NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
     NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
-    NativeTextDiagnostics, NativeTextQualityStatus, RuntimeBridge,
+    NativeTextDiagnostics, NativeTextQualityStatus, NativeTransientOverlayTiming, RuntimeBridge,
 };
 use std::time::Duration;
 
@@ -61,14 +62,20 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
         },
         timings: NativeFrameTimingDiagnostics {
             gpu_timing_status: NativeGpuTimingStatus::CpuEnvelopeOnly,
-            refresh_surface: Duration::from_micros(7),
-            paint_plan: Duration::from_micros(11),
-            render_to_texture: Duration::from_micros(13),
-            full_screen_blit: Duration::from_micros(17),
+            frame_work: NativeFrameWorkTimings {
+                refresh_surface: Duration::from_micros(7),
+                paint_plan: Duration::from_micros(11),
+                render_to_texture: Duration::from_micros(13),
+                full_screen_blit: Duration::from_micros(17),
+                ..NativeFrameWorkTimings::default()
+            },
+            composited_base: NativeCompositedBaseTiming::default(),
+            transient_overlay: NativeTransientOverlayTiming {
+                primitives: 5,
+                ..NativeTransientOverlayTiming::default()
+            },
             submit_present: Duration::from_micros(19),
             since_last_present: Duration::from_micros(1000),
-            transient_overlay_primitives: 5,
-            ..NativeFrameTimingDiagnostics::default()
         },
     };
 

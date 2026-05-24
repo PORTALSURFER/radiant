@@ -52,12 +52,13 @@ pub use controller::{
     RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceRuntime,
 };
 pub use diagnostics::{
-    NativeFrameDiagnostics, NativeFrameTimingDiagnostics, NativeGpuSurfaceAtlasDiagnostics,
-    NativeGpuSurfaceCompositeDiagnostics, NativeGpuSurfaceCustomShaderDiagnostics,
-    NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
-    NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
-    NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
-    NativeTextDiagnostics, NativeTextQualityStatus, RetainedSurfaceCachePolicy,
+    NativeCompositedBaseTiming, NativeFrameDiagnostics, NativeFrameTimingDiagnostics,
+    NativeFrameWorkTimings, NativeGpuSurfaceAtlasDiagnostics, NativeGpuSurfaceCompositeDiagnostics,
+    NativeGpuSurfaceCustomShaderDiagnostics, NativeGpuSurfaceCustomShaderFailureDiagnostics,
+    NativeGpuSurfaceDiagnostics, NativeGpuSurfaceSignalDiagnostics,
+    NativeGpuSurfaceUnsupportedCustomShaderDiagnostics, NativeGpuTimingStatus,
+    NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics, NativeTextDiagnostics,
+    NativeTextQualityStatus, NativeTransientOverlayTiming, RetainedSurfaceCachePolicy,
 };
 pub(crate) use drag::DragSession;
 pub use drag::{DragPreview, DragRequest};

@@ -18,7 +18,7 @@ impl GpuSurfaceRenderer {
             .get(&key)
             .filter(|body| body.matches_body(device, body_key))
         {
-            stats.signal_body_cache_hits += 1;
+            stats.signal.body_cache_hits += 1;
             return Some(body.view.clone());
         }
         let buffer = self.resources.signals.get(&key)?;
@@ -45,8 +45,8 @@ impl GpuSurfaceRenderer {
         pass.set_bind_group(0, &buffer.bind_group, &[]);
         pass.draw(0..6, 0..1);
         drop(pass);
-        stats.signal_body_renders += 1;
-        stats.signal_body_encode_elapsed += started.elapsed();
+        stats.signal.body_renders += 1;
+        stats.signal.body_encode_elapsed += started.elapsed();
         let cached_view = view.clone();
         self.resources.signal_bodies.insert(
             key,

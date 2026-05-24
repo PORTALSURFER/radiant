@@ -19,7 +19,7 @@ impl GpuSurfaceRenderer {
                 texture.matches_atlas(device, surface.revision, atlas.width, atlas.height)
             })
         {
-            stats.atlas_texture_cache_hits += 1;
+            stats.atlas.texture_cache_hits += 1;
             return;
         }
         let Some(extent) = GpuAtlasTextureExtent::new(atlas.width, atlas.height) else {
@@ -71,7 +71,7 @@ impl GpuSurfaceRenderer {
                 view,
             },
         );
-        stats.atlas_texture_uploads += 1;
+        stats.atlas.texture_uploads += 1;
     }
 }
 

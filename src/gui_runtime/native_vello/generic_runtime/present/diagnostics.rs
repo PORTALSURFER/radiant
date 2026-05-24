@@ -50,44 +50,64 @@ pub(super) fn native_frame_diagnostics(
         },
         gpu_surfaces: crate::runtime::NativeGpuSurfaceDiagnostics {
             atlas: crate::runtime::NativeGpuSurfaceAtlasDiagnostics {
-                texture_uploads: parts.gpu_surface_stats.atlas_texture_uploads,
-                texture_cache_hits: parts.gpu_surface_stats.atlas_texture_cache_hits,
+                texture_uploads: parts.gpu_surface_stats.atlas.texture_uploads,
+                texture_cache_hits: parts.gpu_surface_stats.atlas.texture_cache_hits,
             },
             signal: crate::runtime::NativeGpuSurfaceSignalDiagnostics {
-                summary_builds: parts.gpu_surface_stats.signal_summary_builds,
-                summary_cache_hits: parts.gpu_surface_stats.signal_summary_cache_hits,
-                body_renders: parts.gpu_surface_stats.signal_body_renders,
-                body_cache_hits: parts.gpu_surface_stats.signal_body_cache_hits,
+                summary_builds: parts.gpu_surface_stats.signal.summary_builds,
+                summary_cache_hits: parts.gpu_surface_stats.signal.summary_cache_hits,
+                body_renders: parts.gpu_surface_stats.signal.body_renders,
+                body_cache_hits: parts.gpu_surface_stats.signal.body_cache_hits,
             },
             composite: crate::runtime::NativeGpuSurfaceCompositeDiagnostics {
-                binding_rebuilds: parts.gpu_surface_stats.composite_binding_rebuilds,
-                binding_cache_hits: parts.gpu_surface_stats.composite_binding_cache_hits,
+                binding_rebuilds: parts.gpu_surface_stats.composite.binding_rebuilds,
+                binding_cache_hits: parts.gpu_surface_stats.composite.binding_cache_hits,
             },
             custom_shader: crate::runtime::NativeGpuSurfaceCustomShaderDiagnostics {
-                surfaces_rendered: parts.gpu_surface_stats.custom_shader_surfaces_rendered,
-                pipeline_rebuilds: parts.gpu_surface_stats.custom_shader_pipeline_rebuilds,
-                binding_rebuilds: parts.gpu_surface_stats.custom_shader_binding_rebuilds,
-                binding_cache_hits: parts.gpu_surface_stats.custom_shader_binding_cache_hits,
+                surfaces_rendered: parts.gpu_surface_stats.custom_shader.surfaces_rendered,
+                pipeline_rebuilds: parts.gpu_surface_stats.custom_shader.pipeline_rebuilds,
+                binding_rebuilds: parts.gpu_surface_stats.custom_shader.binding_rebuilds,
+                binding_cache_hits: parts.gpu_surface_stats.custom_shader.binding_cache_hits,
                 failures: crate::runtime::NativeGpuSurfaceCustomShaderFailureDiagnostics {
-                    surfaces_failed: parts.gpu_surface_stats.custom_shader_surfaces_failed,
+                    surfaces_failed: parts
+                        .gpu_surface_stats
+                        .custom_shader
+                        .failures
+                        .surfaces_failed,
                     shader_module_failures: parts
                         .gpu_surface_stats
-                        .custom_shader_shader_module_failures,
-                    pipeline_failures: parts.gpu_surface_stats.custom_shader_pipeline_failures,
-                    binding_failures: parts.gpu_surface_stats.custom_shader_binding_failures,
+                        .custom_shader
+                        .failures
+                        .shader_module_failures,
+                    pipeline_failures: parts
+                        .gpu_surface_stats
+                        .custom_shader
+                        .failures
+                        .pipeline_failures,
+                    binding_failures: parts
+                        .gpu_surface_stats
+                        .custom_shader
+                        .failures
+                        .binding_failures,
                 },
                 unsupported: crate::runtime::NativeGpuSurfaceUnsupportedCustomShaderDiagnostics {
-                    surfaces: parts.gpu_surface_stats.unsupported_custom_shader_surfaces,
-                    vertices: parts.gpu_surface_stats.unsupported_custom_shader_vertices,
+                    surfaces: parts.gpu_surface_stats.custom_shader.unsupported.surfaces,
+                    vertices: parts.gpu_surface_stats.custom_shader.unsupported.vertices,
                     source_bytes: parts
                         .gpu_surface_stats
-                        .unsupported_custom_shader_source_bytes,
+                        .custom_shader
+                        .unsupported
+                        .source_bytes,
                     uniform_bytes: parts
                         .gpu_surface_stats
-                        .unsupported_custom_shader_uniform_bytes,
+                        .custom_shader
+                        .unsupported
+                        .uniform_bytes,
                     storage_bytes: parts
                         .gpu_surface_stats
-                        .unsupported_custom_shader_storage_bytes,
+                        .custom_shader
+                        .unsupported
+                        .storage_bytes,
                 },
             },
         },

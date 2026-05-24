@@ -17,18 +17,18 @@ where
         let Some(capture) = self.scrollbar_drag_capture_at(point) else {
             return false;
         };
-        self.scroll_drag_capture = Some(capture);
-        self.hovered_scroll_affordance = Some(capture.node_id);
+        self.interaction.pointer.scroll_drag_capture = Some(capture);
+        self.interaction.hover.scroll_affordance = Some(capture.node_id);
         self.repaint_requested = true;
         true
     }
 
     pub(in crate::runtime::controller) fn drag_scrollbar_to(&mut self, point: Point) -> bool {
-        let Some(capture) = self.scroll_drag_capture else {
+        let Some(capture) = self.interaction.pointer.scroll_drag_capture else {
             return false;
         };
-        if self.hovered_scroll_affordance != Some(capture.node_id) {
-            self.hovered_scroll_affordance = Some(capture.node_id);
+        if self.interaction.hover.scroll_affordance != Some(capture.node_id) {
+            self.interaction.hover.scroll_affordance = Some(capture.node_id);
             self.repaint_requested = true;
         }
         let Some(content_id) = self
@@ -36,12 +36,12 @@ where
             .get(&capture.node_id)
             .copied()
         else {
-            self.scroll_drag_capture = None;
+            self.interaction.pointer.scroll_drag_capture = None;
             return false;
         };
         let Some(affordance) = resolve_scroll_affordance(capture.node_id, content_id, &self.layout)
         else {
-            self.scroll_drag_capture = None;
+            self.interaction.pointer.scroll_drag_capture = None;
             return false;
         };
         let travel = (affordance.track.height() - affordance.thumb.height()).max(0.0);

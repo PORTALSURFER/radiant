@@ -72,7 +72,7 @@ where
     }
 
     fn stable_hovered_widget_at(&self, point: Point) -> Option<WidgetId> {
-        let hovered = self.hovered_widget?;
+        let hovered = self.interaction.hover.widget?;
         if !self.widget_contains_point(hovered, point) {
             return None;
         }

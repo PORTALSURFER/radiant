@@ -35,7 +35,7 @@ where
     }
 
     fn runtime_drain_budget(&self) -> (usize, usize) {
-        if self.pointer_capture.is_some() || self.drag_session.is_some() {
+        if self.interaction.pointer.capture.is_some() || self.interaction.drag.session.is_some() {
             return (
                 batching::INTERACTIVE_RUNTIME_COMMANDS_PER_DRAIN,
                 batching::INTERACTIVE_RUNTIME_MESSAGES_PER_DRAIN,

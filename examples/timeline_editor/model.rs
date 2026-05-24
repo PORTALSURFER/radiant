@@ -8,6 +8,8 @@ mod update;
 #[cfg(test)]
 pub(super) use projection::beat_to_normalized;
 pub(super) use projection::{timeline_label, timeline_surface};
+#[cfg(test)]
+pub(super) use types::TimelineClipParts;
 pub(super) use types::{
     BeatRange, TimelineClip, TimelineEditorState, TimelineMessage, TimelineSurfaceMessage,
 };

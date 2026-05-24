@@ -26,12 +26,7 @@ impl Default for TimelineEditorState {
             revision: 1,
             feedback_nonce: 0,
             status: "ready".to_string(),
-            clips: vec![
-                TimelineClip::new(1, "Kick loop", 0, 0, 16),
-                TimelineClip::new(2, "Bass phrase", 1, 12, 28),
-                TimelineClip::new(3, "Chord stab", 2, 28, 44),
-                TimelineClip::new(4, "Vocal chop", 3, 42, 58),
-            ],
+            clips: DEFAULT_CLIPS.into_iter().map(TimelineClip::new).collect(),
         }
     }
 }
@@ -45,15 +40,50 @@ pub(crate) struct TimelineClip {
 }
 
 impl TimelineClip {
-    pub(crate) fn new(id: u32, name: &'static str, lane: usize, start: u32, end: u32) -> Self {
+    pub(crate) fn new(parts: TimelineClipParts) -> Self {
         Self {
-            id,
-            name,
-            lane,
-            range: BeatRange { start, end },
+            id: parts.id,
+            name: parts.name,
+            lane: parts.lane,
+            range: parts.range,
         }
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TimelineClipParts {
+    pub(crate) id: u32,
+    pub(crate) name: &'static str,
+    pub(crate) lane: usize,
+    pub(crate) range: BeatRange,
+}
+
+const DEFAULT_CLIPS: [TimelineClipParts; 4] = [
+    TimelineClipParts {
+        id: 1,
+        name: "Kick loop",
+        lane: 0,
+        range: BeatRange { start: 0, end: 16 },
+    },
+    TimelineClipParts {
+        id: 2,
+        name: "Bass phrase",
+        lane: 1,
+        range: BeatRange { start: 12, end: 28 },
+    },
+    TimelineClipParts {
+        id: 3,
+        name: "Chord stab",
+        lane: 2,
+        range: BeatRange { start: 28, end: 44 },
+    },
+    TimelineClipParts {
+        id: 4,
+        name: "Vocal chop",
+        lane: 3,
+        range: BeatRange { start: 42, end: 58 },
+    },
+];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct BeatRange {

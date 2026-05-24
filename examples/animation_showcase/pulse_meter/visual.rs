@@ -36,6 +36,32 @@ impl PulseMeterVisual {
         let playhead_center = phase * (1.0 - playhead_width) + playhead_width * 0.5;
         let playhead_start =
             (playhead_center - playhead_width * 0.5).clamp(0.0, 1.0 - playhead_width);
+        let pulse_specs = [
+            PulseBarSpec {
+                center: playhead_center - 0.18,
+                width: 0.007,
+                height_ratio: 0.30,
+                alpha: 54,
+            },
+            PulseBarSpec {
+                center: playhead_center - 0.11,
+                width: 0.009,
+                height_ratio: 0.46,
+                alpha: 84,
+            },
+            PulseBarSpec {
+                center: playhead_center - 0.052,
+                width: 0.011,
+                height_ratio: 0.62 + pulse * 0.18,
+                alpha: 120,
+            },
+            PulseBarSpec {
+                center: playhead_center,
+                width: 0.014,
+                height_ratio: 0.78 + beat * 0.16,
+                alpha: 190,
+            },
+        ];
 
         Self {
             beat_markers: [
@@ -45,18 +71,7 @@ impl PulseMeterVisual {
                 Self::marker(0.6875, 40),
                 Self::marker(0.875, 48),
             ],
-            pulses: [
-                Self::bar(playhead_center - 0.18, 0.007, 0.30, 54, running),
-                Self::bar(playhead_center - 0.11, 0.009, 0.46, 84, running),
-                Self::bar(
-                    playhead_center - 0.052,
-                    0.011,
-                    0.62 + pulse * 0.18,
-                    120,
-                    running,
-                ),
-                Self::bar(playhead_center, 0.014, 0.78 + beat * 0.16, 190, running),
-            ],
+            pulses: pulse_specs.map(|spec| Self::bar(spec, running)),
             playhead_center,
             playhead_radius: if running { 4.8 + beat * 1.4 } else { 4.2 },
             glow_radius: if running { 9.0 + beat * 2.0 } else { 6.5 },
@@ -79,16 +94,16 @@ impl PulseMeterVisual {
         }
     }
 
-    fn bar(center: f32, width: f32, height_ratio: f32, alpha: u8, running: bool) -> PulseBar {
+    fn bar(spec: PulseBarSpec, running: bool) -> PulseBar {
         PulseBar {
-            center: wrap01(center),
-            width,
-            height_ratio,
+            center: wrap01(spec.center),
+            width: spec.width,
+            height_ratio: spec.height_ratio,
             color: Rgba8 {
                 r: 255,
                 g: 116,
                 b: 76,
-                a: if running { alpha } else { alpha / 3 },
+                a: if running { spec.alpha } else { spec.alpha / 3 },
             },
         }
     }
@@ -132,6 +147,14 @@ impl PulseMeterVisual {
             with_alpha(theme.text_primary, 150)
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PulseBarSpec {
+    center: f32,
+    width: f32,
+    height_ratio: f32,
+    alpha: u8,
 }
 
 pub(super) fn wrap01(value: f32) -> f32 {

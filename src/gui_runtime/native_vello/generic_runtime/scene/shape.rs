@@ -1,5 +1,10 @@
-use crate::gui_runtime::native_vello::*;
+use crate::{
+    gui::types::{Point, Rect as UiRect, Rgba8},
+    gui_runtime::native_vello::{color_from_rgba, to_kurbo_rect},
+    runtime::{PaintFillRule, PaintPath, PaintTransform},
+};
 use kurbo::Stroke;
+use vello::{Scene, kurbo::Affine, peniko::Fill};
 
 mod geometry;
 

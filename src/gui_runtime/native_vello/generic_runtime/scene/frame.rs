@@ -1,5 +1,18 @@
 use super::{encode_image, encode_rect, encode_svg};
-use crate::gui_runtime::native_vello::*;
+use crate::{
+    gui::{
+        paint::{PaintFrame, Primitive},
+        types::{Point, Rect as UiRect},
+    },
+    gui_runtime::native_vello::{NativeTextRenderer, color_from_rgba, to_kurbo_rect},
+    runtime::PaintSvg,
+};
+use std::sync::Arc;
+use vello::{
+    Scene,
+    kurbo::{Affine, Circle, Point as KurboPoint},
+    peniko::{Fill, Gradient},
+};
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_paint_frame_to_scene(
     frame: &PaintFrame,

@@ -1,5 +1,14 @@
 use super::super::GenericSharedPixelBytes;
-use crate::gui_runtime::native_vello::*;
+use crate::{
+    gui::types::{Point, Rect as UiRect, Vector2},
+    gui_runtime::native_vello::to_kurbo_rect,
+};
+use std::sync::Arc;
+use vello::{
+    Scene,
+    kurbo::Affine,
+    peniko::{Blob, Fill, ImageAlphaType, ImageData, ImageFormat},
+};
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_image(
     scene: &mut Scene,

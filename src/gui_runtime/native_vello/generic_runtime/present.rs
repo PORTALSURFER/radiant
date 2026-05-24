@@ -9,14 +9,19 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     pub(super) fn redraw(&mut self, event_loop: &ActiveEventLoop) {
-        self.redraw_requested = false;
-        if !self.first_frame_presented {
-            self.startup_timing.mark_first_redraw_started();
+        self.timing.redraw_requested = false;
+        if !self.timing.first_frame_presented {
+            self.timing.startup_timing.mark_first_redraw_started();
         }
-        let Some(window) = self.window.clone() else {
+        let Some(window) = self.window.window.clone() else {
             return;
         };
-        let Some(dev_id) = self.render_surface.as_ref().map(|surface| surface.dev_id) else {
+        let Some(dev_id) = self
+            .window
+            .render_surface
+            .as_ref()
+            .map(|surface| surface.dev_id)
+        else {
             return;
         };
         let Some(surface_texture) = self.acquire_present_surface_texture(event_loop, &window)
@@ -27,13 +32,13 @@ where
         self.flush_pending_gpu_surface_wheel(&mut profile);
         self.refresh_deferred_surface_if_needed(&mut profile);
         self.paint_transient_overlays(&mut profile);
-        let Some(surface) = self.render_surface.as_mut() else {
+        let Some(surface) = self.window.render_surface.as_mut() else {
             return;
         };
-        let Some(render_ctx) = self.render_ctx.as_ref() else {
+        let Some(render_ctx) = self.window.render_ctx.as_ref() else {
             return;
         };
-        let Some(renderer) = self.renderer.as_mut() else {
+        let Some(renderer) = self.window.renderer.as_mut() else {
             return;
         };
         let dev_handle = &render_ctx.devices[dev_id];
@@ -100,7 +105,7 @@ where
             render_to_texture_elapsed,
             profile,
             gpu_surface_stats,
-            self.last_redraw.elapsed(),
+            self.timing.last_redraw.elapsed(),
         );
         let diagnostics = native_frame_diagnostics(NativeFrameDiagnosticsParts {
             stats: self.frame.last_scene_stats,
@@ -110,32 +115,32 @@ where
             gpu_surface_stats,
             profile,
             render_to_texture_elapsed,
-            since_last_present: self.last_redraw.elapsed(),
+            since_last_present: self.timing.last_redraw.elapsed(),
         });
         self.core
             .runtime
             .bridge_mut()
             .observe_frame_diagnostics(diagnostics);
-        self.last_redraw = Instant::now();
+        self.timing.last_redraw = Instant::now();
         self.mark_first_presented();
     }
 
     fn mark_first_presented(&mut self) {
-        if !self.first_frame_presented {
-            self.first_frame_presented = true;
+        if !self.timing.first_frame_presented {
+            self.timing.first_frame_presented = true;
             if reveal_window_after_first_present(&self.options)
-                && let Some(window) = self.window.as_ref()
+                && let Some(window) = self.window.window.as_ref()
             {
                 window.set_visible(true);
-                self.startup_timing.mark_window_revealed();
+                self.timing.startup_timing.mark_window_revealed();
             }
             if hide_window_after_first_present(&self.options)
-                && let Some(window) = self.window.as_ref()
+                && let Some(window) = self.window.window.as_ref()
             {
                 window.set_visible(false);
             }
-            self.startup_timing.mark_first_presented();
-            self.startup_timing.maybe_emit_summary();
+            self.timing.startup_timing.mark_first_presented();
+            self.timing.startup_timing.maybe_emit_summary();
         }
     }
 }

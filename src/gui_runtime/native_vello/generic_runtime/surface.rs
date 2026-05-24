@@ -12,7 +12,7 @@ where
 {
     pub(super) fn initialize_runtime(&mut self, event_loop: &ActiveEventLoop) {
         info!("radiant generic native vello: initializing runtime window and surface");
-        self.startup_timing.mark_init_started();
+        self.timing.startup_timing.mark_init_started();
         let window = match event_loop.create_window(generic_window_attributes(&self.options)) {
             Ok(window) => Arc::new(window),
             Err(err) => {
@@ -24,9 +24,9 @@ where
                 return;
             }
         };
-        self.startup_timing.mark_window_created();
-        self.window_id = Some(window.id());
-        self.window = Some(Arc::clone(&window));
+        self.timing.startup_timing.mark_window_created();
+        self.window.id = Some(window.id());
+        self.window.window = Some(Arc::clone(&window));
 
         let mut render_ctx = render_context_for_options(&self.options);
         let size = window.inner_size();
@@ -45,13 +45,13 @@ where
                 return;
             }
         };
-        self.startup_timing.mark_wgpu_surface_created();
+        self.timing.startup_timing.mark_wgpu_surface_created();
         let Some(dev_id) = pollster::block_on(render_ctx.device(Some(&surface))) else {
             error!("radiant generic native vello: no compatible render device found");
             event_loop.exit();
             return;
         };
-        self.startup_timing.mark_wgpu_device_ready();
+        self.timing.startup_timing.mark_wgpu_device_ready();
         let supported_present_modes = surface
             .get_capabilities(render_ctx.devices[dev_id].adapter())
             .present_modes;
@@ -75,9 +75,9 @@ where
                 return;
             }
         };
-        self.startup_timing.mark_surface_ready();
+        self.timing.startup_timing.mark_surface_ready();
         let dev_handle = &render_ctx.devices[render_surface.dev_id];
-        self.startup_timing.mark_renderer_started();
+        self.timing.startup_timing.mark_renderer_started();
         let renderer = match Renderer::new(&dev_handle.device, startup_renderer_options()) {
             Ok(renderer) => renderer,
             Err(err) => {
@@ -89,17 +89,17 @@ where
                 return;
             }
         };
-        self.startup_timing.mark_renderer_ready();
-        self.render_ctx = Some(render_ctx);
-        self.render_surface = Some(render_surface);
-        self.renderer = Some(renderer);
+        self.timing.startup_timing.mark_renderer_ready();
+        self.window.render_ctx = Some(render_ctx);
+        self.window.render_surface = Some(render_surface);
+        self.window.renderer = Some(renderer);
         self.rebuild_scene();
-        self.startup_timing.mark_first_scene_ready();
+        self.timing.startup_timing.mark_first_scene_ready();
         if reveal_window_after_surface_setup(&self.options) {
             window.set_visible(true);
-            self.startup_timing.mark_window_revealed();
+            self.timing.startup_timing.mark_window_revealed();
         }
-        self.last_redraw = Instant::now();
+        self.timing.last_redraw = Instant::now();
         self.request_redraw_if_needed();
         self.sync_auxiliary_windows(event_loop);
     }
@@ -108,9 +108,10 @@ where
         if size.width == 0 || size.height == 0 {
             return;
         }
-        if let (Some(render_ctx), Some(surface)) =
-            (self.render_ctx.as_ref(), self.render_surface.as_mut())
-        {
+        if let (Some(render_ctx), Some(surface)) = (
+            self.window.render_ctx.as_ref(),
+            self.window.render_surface.as_mut(),
+        ) {
             if !surface_size_changed(surface.config.width, surface.config.height, size) {
                 return;
             }
@@ -127,7 +128,7 @@ where
         event_loop: &ActiveEventLoop,
         window: &Window,
     ) -> Option<wgpu::SurfaceTexture> {
-        let surface = self.render_surface.as_mut()?;
+        let surface = self.window.render_surface.as_mut()?;
         match surface.surface.get_current_texture() {
             Ok(frame) => Some(frame),
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {

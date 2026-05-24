@@ -9,24 +9,10 @@ where
     pub(super) options: NativeRunOptions,
     pub(super) core: GenericNativeRuntimeCore<Bridge, Message>,
     pub(super) runtime_wakeup: RuntimeWakeup,
-    pub(super) window_id: Option<WindowId>,
-    pub(super) window: Option<Arc<Window>>,
-    pub(super) render_ctx: Option<RenderContext>,
-    pub(super) render_surface: Option<RenderSurface<'static>>,
-    pub(super) renderer: Option<Renderer>,
+    pub(super) window: NativeRunnerWindowState,
     pub(super) frame: NativeVelloFrameState,
-    pub(super) last_cursor: Option<Point>,
-    pub(super) clipboard: Option<arboard::Clipboard>,
-    pub(super) modifiers: winit::keyboard::ModifiersState,
-    pub(super) redraw_requested: bool,
-    pub(super) startup_timing: StartupTimingProfile,
-    pub(super) first_frame_presented: bool,
-    pub(super) animation_origin: Instant,
-    pub(super) last_redraw: Instant,
-    pub(super) last_timed_frame_drain: Instant,
-    pub(super) last_navigation_key_repeat: Option<Instant>,
-    pub(super) deferred_surface_refresh: bool,
-    pub(super) pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
+    pub(super) input: NativeRunnerInputState,
+    pub(super) timing: NativeRunnerTimingState,
     pub(super) auxiliary_windows: Vec<AuxiliaryNativeWindow<Message>>,
 }
 
@@ -42,35 +28,21 @@ where
             options,
             core: GenericNativeRuntimeCore::new_with_debug_layout(bridge, viewport, debug_layout),
             runtime_wakeup: RuntimeWakeup::default(),
-            window_id: None,
-            window: None,
-            render_ctx: None,
-            render_surface: None,
-            renderer: None,
+            window: NativeRunnerWindowState::default(),
             frame: NativeVelloFrameState::new(text_renderer, retained_surface_cache),
-            last_cursor: None,
-            clipboard: arboard::Clipboard::new().ok(),
-            modifiers: winit::keyboard::ModifiersState::default(),
-            redraw_requested: false,
-            startup_timing: StartupTimingProfile::new(),
-            first_frame_presented: false,
-            animation_origin: Instant::now(),
-            last_redraw: Instant::now(),
-            last_timed_frame_drain: Instant::now(),
-            last_navigation_key_repeat: None,
-            deferred_surface_refresh: false,
-            pending_gpu_surface_wheel: None,
+            input: NativeRunnerInputState::default(),
+            timing: NativeRunnerTimingState::default(),
             auxiliary_windows: Vec::new(),
         }
     }
 
     pub(super) fn request_redraw_if_needed(&mut self) {
-        if self.redraw_requested {
+        if self.timing.redraw_requested {
             return;
         }
-        if let Some(window) = self.window.as_ref() {
+        if let Some(window) = self.window.window.as_ref() {
             window.request_redraw();
-            self.redraw_requested = true;
+            self.timing.redraw_requested = true;
         }
     }
 
@@ -80,7 +52,7 @@ where
         animation_activity: crate::runtime::RuntimeAnimationActivity,
         needs_text_caret_animation: bool,
     ) -> GenericRouteOutcome {
-        self.last_timed_frame_drain = now;
+        self.timing.last_timed_frame_drain = now;
         self.core
             .drain_timed_frame(animation_activity, needs_text_caret_animation)
     }
@@ -97,7 +69,12 @@ where
             animation_activity,
             needs_text_caret_animation,
         );
-        let cadence = timed_frame_cadence(now, self.last_timed_frame_drain, frame_target_fps, true);
+        let cadence = timed_frame_cadence(
+            now,
+            self.timing.last_timed_frame_drain,
+            frame_target_fps,
+            true,
+        );
         if !matches!(cadence, TimedFrameCadence::DrainNow { .. }) {
             return;
         }
@@ -129,7 +106,7 @@ where
                 retained_cache: &mut self.frame.retained_surface_cache,
                 text_runs: &mut self.frame.scene_text_runs,
                 gpu_surface_interaction_regions: &mut self.frame.gpu_surface_interaction_regions,
-                animation_time: self.animation_origin.elapsed(),
+                animation_time: self.timing.animation_origin.elapsed(),
             },
         );
         self.restore_native_hover_cursor_overlay();
@@ -137,7 +114,7 @@ where
     }
 
     fn restore_native_hover_cursor_overlay(&mut self) {
-        let Some(position) = self.last_cursor else {
+        let Some(position) = self.input.last_cursor else {
             return;
         };
         if self.can_fast_path_native_hover_move(position) {
@@ -191,7 +168,7 @@ where
             {
                 window.update_projection(projection);
             } else {
-                let parent_window = self.window.as_deref();
+                let parent_window = self.window.window.as_deref();
                 let mut window = AuxiliaryNativeWindow::new(projection, &self.options);
                 window.initialize_runtime(event_loop, parent_window);
                 self.auxiliary_windows.push(window);

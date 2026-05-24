@@ -27,7 +27,7 @@ where
             return;
         }
         if self.can_fast_path_gpu_surface_route(position, delta) {
-            self.deferred_surface_refresh = true;
+            self.timing.deferred_surface_refresh = true;
             self.request_redraw_if_needed();
             return;
         }

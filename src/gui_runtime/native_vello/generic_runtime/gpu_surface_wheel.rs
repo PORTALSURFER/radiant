@@ -15,13 +15,14 @@ where
     Bridge: crate::runtime::RuntimeBridge<Message>,
 {
     pub(super) fn queue_gpu_surface_wheel(&mut self, position: Point, delta: Vector2) {
-        match &mut self.pending_gpu_surface_wheel {
+        match &mut self.input.pending_gpu_surface_wheel {
             Some(pending) => {
                 pending.position = position;
                 pending.delta = Vector2::new(pending.delta.x + delta.x, pending.delta.y + delta.y);
             }
             None => {
-                self.pending_gpu_surface_wheel = Some(PendingGpuSurfaceWheel { position, delta });
+                self.input.pending_gpu_surface_wheel =
+                    Some(PendingGpuSurfaceWheel { position, delta });
             }
         }
         self.update_gpu_surface_cursor_overlay(position);
@@ -29,7 +30,7 @@ where
     }
 
     pub(super) fn flush_pending_gpu_surface_wheel(&mut self, profile: &mut RenderFrameProfile) {
-        let Some(pending) = self.pending_gpu_surface_wheel.take() else {
+        let Some(pending) = self.input.pending_gpu_surface_wheel.take() else {
             return;
         };
         let started = Instant::now();
@@ -39,7 +40,7 @@ where
         profile.coalesced_wheel_route = started.elapsed();
         maybe_log_route_profile("coalesced_wheel", profile.coalesced_wheel_route, outcome);
         if outcome.needs_redraw() {
-            self.deferred_surface_refresh = true;
+            self.timing.deferred_surface_refresh = true;
         }
     }
 

@@ -11,7 +11,7 @@ where
         bounds: Rect,
         input: WidgetInput,
     ) -> Option<WidgetDispatchResult<Message>> {
-        let Some(child_path) = self.widget_paths.get(&widget_id) else {
+        let Some(child_path) = self.traversal.widgets.paths.current.get(&widget_id) else {
             return self
                 .surface
                 .dispatch_widget_input_message(widget_id, bounds, input);
@@ -26,7 +26,7 @@ where
         bounds: Rect,
         input: WidgetInput,
     ) -> bool {
-        let Some(child_path) = self.widget_paths.get(&widget_id) else {
+        let Some(child_path) = self.traversal.widgets.paths.current.get(&widget_id) else {
             return self
                 .surface
                 .dispatch_widget_input(widget_id, bounds, input)
@@ -38,7 +38,10 @@ where
     }
 
     pub(super) fn surface_widget(&self, widget_id: WidgetId) -> Option<&SurfaceWidget<Message>> {
-        self.widget_paths
+        self.traversal
+            .widgets
+            .paths
+            .current
             .get(&widget_id)
             .and_then(|child_path| self.surface.find_widget_at_path(widget_id, child_path))
             .or_else(|| self.surface.find_widget(widget_id))
@@ -49,7 +52,7 @@ where
         widget_id: WidgetId,
     ) -> Option<&mut SurfaceWidget<Message>> {
         let surface = &mut self.surface;
-        if let Some(child_path) = self.widget_paths.get(&widget_id) {
+        if let Some(child_path) = self.traversal.widgets.paths.current.get(&widget_id) {
             return surface.find_widget_mut_at_path(widget_id, child_path);
         }
         surface.find_widget_mut(widget_id)

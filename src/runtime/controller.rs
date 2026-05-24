@@ -16,6 +16,7 @@ mod pointer;
 mod scratch;
 mod scroll;
 mod state;
+mod traversal_state;
 mod work;
 
 pub use commands::CommandOutcome;
@@ -38,10 +39,9 @@ use crate::{
     theme::ThemeTokens,
     widgets::{WidgetId, WidgetInput, WidgetKey},
 };
-use hit_order::HitOrderIndex;
 use interaction_state::{RuntimeInteractionState, ScrollDragCapture};
 use scratch::RuntimeScratch;
-use std::collections::{HashMap, HashSet};
+use traversal_state::RuntimeTraversalState;
 use work::RuntimeWorkQueues;
 
 /// Direction for deterministic keyboard focus traversal.
@@ -74,20 +74,7 @@ where
     layout: LayoutOutput,
     layout_state: LayoutState,
     layout_debug_options: LayoutDebugOptions,
-    widget_hit_order: Vec<WidgetId>,
-    focusable_widgets: HitOrderIndex,
-    pointer_widgets: HitOrderIndex,
-    widget_paths: HashMap<WidgetId, WidgetPath>,
-    previous_widget_paths: HashMap<WidgetId, WidgetPath>,
-    container_hover_suppression: HashSet<WidgetId>,
-    keyboard_focus_widgets: HitOrderIndex,
-    wheel_widgets: HitOrderIndex,
-    stateful_widget_order: Vec<WidgetId>,
-    styled_containers: HitOrderIndex,
-    scroll_containers: HitOrderIndex,
-    widget_clip_ancestors: HashMap<WidgetId, ClipAncestors>,
-    container_clip_ancestors: HashMap<NodeId, ClipAncestors>,
-    scroll_content_by_container: HashMap<NodeId, NodeId>,
+    traversal: RuntimeTraversalState,
     scratch: RuntimeScratch,
     interaction: RuntimeInteractionState<Message>,
     repaint_requested: bool,

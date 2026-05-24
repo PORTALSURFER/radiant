@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::HashMap;
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
@@ -10,7 +11,7 @@ where
     /// focus. Focus changes are routed into affected widgets so their retained
     /// interaction state can update before the next paint plan.
     pub fn focus_widget(&mut self, widget_id: WidgetId) -> bool {
-        if !self.focusable_widgets.contains(widget_id) {
+        if !self.traversal.widgets.focusable.contains(widget_id) {
             return false;
         }
         if self.interaction.focus.focused_widget == Some(widget_id) {
@@ -39,8 +40,8 @@ where
     pub fn traverse_focus(&mut self, direction: FocusTraversal) -> Option<WidgetId> {
         let next = next_focus_target(
             self.interaction.focus.focused_widget,
-            self.keyboard_focus_widgets.order(),
-            self.keyboard_focus_widgets.rank(),
+            self.traversal.widgets.keyboard_focus.order(),
+            self.traversal.widgets.keyboard_focus.rank(),
             direction,
         )?;
         self.focus_widget(next).then_some(next)

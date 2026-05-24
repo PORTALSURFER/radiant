@@ -11,6 +11,8 @@ fn performance_harness_is_registered_and_documented() {
         .expect("perf_harness catalog should be readable");
     let runner = fs::read_to_string(manifest_dir.join("benches/perf_harness/runner.rs"))
         .expect("perf_harness runner should be readable");
+    let baseline = fs::read_to_string(manifest_dir.join("benches/perf_harness/baseline.rs"))
+        .expect("perf_harness baseline support should be readable");
     let layout_scenarios =
         fs::read_to_string(manifest_dir.join("benches/perf_harness/layout_scenarios.rs"))
             .expect("layout bench scenarios should be readable");
@@ -137,6 +139,9 @@ fn performance_harness_is_registered_and_documented() {
             && runner.contains("baseline_output_from_args")
             && runner.contains("fail_on_baseline_regression")
             && runner.contains("fail_on_missing_baseline")
+            && runner.contains("mod baseline;")
+            && !runner.contains("struct BaselineSummaryCounts")
+            && baseline.contains("struct BaselineSummaryCounts")
             && runner.contains("has_regression")
             && runner.contains("has_missing_baseline")
             && runner.contains("baseline_metric_json_line")
@@ -150,13 +155,12 @@ fn performance_harness_is_registered_and_documented() {
             && runner.contains("\\\"baseline_ratio\\\"")
             && runner.contains("\\\"baseline_status\\\"")
             && runner.contains("BaselineSummary")
-            && runner.contains("BaselineSummaryCounts")
-            && runner.contains("radiant_perf_summary")
-            && runner.contains("radiant_perf_category_summary")
-            && runner.contains("\\\"type\\\":\\\"radiant_perf_category_summary\\\"")
-            && runner.contains("baseline_missing")
-            && runner.contains("\\\"baseline_slower\\\"")
-            && runner.contains("MetricComparison::Missing")
+            && baseline.contains("radiant_perf_summary")
+            && baseline.contains("radiant_perf_category_summary")
+            && baseline.contains("\\\"type\\\":\\\"radiant_perf_category_summary\\\"")
+            && baseline.contains("baseline_missing")
+            && baseline.contains("\\\"baseline_slower\\\"")
+            && baseline.contains("MetricComparison::Missing")
             && runner.contains("baseline_status=missing")
             && runner.contains("\\\"baseline_status\\\":\\\"missing\\\""),
         "perf_harness runner should expose JSON-lines metrics with target-area categories, baseline comparison fields, missing-baseline status, and summary counts for trend capture"

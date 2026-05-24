@@ -1,36 +1,16 @@
 use super::*;
-use crate::runtime::{AuxiliaryWindow, Command, UiSurface};
+use crate::runtime::AuxiliaryWindow;
+use bridge::AuxiliarySurfaceBridge;
+use placement::centered_position;
+
+mod bridge;
+mod placement;
 
 pub(super) struct AuxiliaryNativeWindow<Message> {
     key: String,
     close_message: Option<Message>,
     runner: GenericNativeVelloRunner<AuxiliarySurfaceBridge<Message>, Message>,
     active: bool,
-}
-
-struct AuxiliarySurfaceBridge<Message> {
-    surface: Arc<UiSurface<Message>>,
-    outbox: Vec<Message>,
-}
-
-impl<Message> AuxiliarySurfaceBridge<Message> {
-    fn new(surface: Arc<UiSurface<Message>>) -> Self {
-        Self {
-            surface,
-            outbox: Vec::new(),
-        }
-    }
-}
-
-impl<Message> RuntimeBridge<Message> for AuxiliarySurfaceBridge<Message> {
-    fn project_surface(&mut self) -> Arc<UiSurface<Message>> {
-        Arc::clone(&self.surface)
-    }
-
-    fn update(&mut self, message: Message) -> Command<Message> {
-        self.outbox.push(message);
-        Command::none()
-    }
 }
 
 impl<Message> AuxiliaryNativeWindow<Message> {
@@ -190,24 +170,8 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     }
 
     fn take_messages(&mut self) -> Vec<Message> {
-        std::mem::take(&mut self.runner.core.runtime.bridge_mut().outbox)
+        self.runner.core.runtime.bridge_mut().take_messages()
     }
-}
-
-fn centered_position(
-    parent_window: Option<&Window>,
-    options: &NativeRunOptions,
-) -> Option<[f32; 2]> {
-    let parent = parent_window?;
-    let parent_position = parent.outer_position().ok()?;
-    let parent_size = parent.outer_size();
-    let scale = parent.scale_factor().max(f64::EPSILON);
-    let [child_width, child_height] = options.window.geometry.inner_size.unwrap_or([480.0, 360.0]);
-    let child_width = (child_width as f64 * scale).round();
-    let child_height = (child_height as f64 * scale).round();
-    let x = parent_position.x as f64 + ((parent_size.width as f64 - child_width) / 2.0);
-    let y = parent_position.y as f64 + ((parent_size.height as f64 - child_height) / 2.0);
-    Some([(x / scale) as f32, (y / scale) as f32])
 }
 
 pub(super) struct AuxiliaryWindowEventResult<Message> {

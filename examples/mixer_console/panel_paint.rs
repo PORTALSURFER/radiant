@@ -1,8 +1,11 @@
-use super::model::{CHANNEL_COUNT, MixerChannel, ratio_for_gain, ratio_for_meter_db};
-use super::paint::{
-    fader_knob_color, meter_color, meter_track_color, push_rect, push_stroke, push_text, rgba,
-    strip_fill_color, translucent,
-};
+#[path = "panel_paint/fader.rs"]
+mod fader;
+#[path = "panel_paint/meter.rs"]
+mod meter;
+
+use self::{fader::append_fader, meter::append_meter};
+use super::model::{CHANNEL_COUNT, MixerChannel};
+use super::paint::{push_rect, push_stroke, push_text, strip_fill_color, translucent};
 use super::panel::MixerPanelWidget;
 use radiant::prelude::*;
 
@@ -65,175 +68,10 @@ impl MixerPanelWidget {
             },
             PaintTextAlign::Center,
         );
-        self.append_meter(primitives, channel, strip, solo_dimmed, theme);
-        self.append_fader(primitives, channel, strip, solo_dimmed, theme);
+        append_meter(self, primitives, channel, strip, solo_dimmed, theme);
+        append_fader(self, primitives, channel, strip, solo_dimmed, theme);
         self.append_channel_buttons(primitives, channel, strip, theme);
         self.append_strip_footer(primitives, channel, strip, solo_dimmed, theme);
-    }
-
-    fn append_meter(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        channel: MixerChannel,
-        strip: Rect,
-        solo_dimmed: bool,
-        theme: &ThemeTokens,
-    ) {
-        let meter = self.meter_rect(strip);
-        push_rect(
-            primitives,
-            self.common.id,
-            meter,
-            meter_track_color(solo_dimmed),
-        );
-        for fraction in [0.25, 0.5, 0.75] {
-            let y = meter.max.y - meter.height() * fraction;
-            push_rect(
-                primitives,
-                self.common.id,
-                Rect::from_min_max(Point::new(meter.min.x, y), Point::new(meter.max.x, y + 1.0)),
-                translucent(theme.grid_soft, 120),
-            );
-        }
-        self.append_meter_level(primitives, channel, meter, solo_dimmed, theme);
-    }
-
-    fn append_meter_level(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        channel: MixerChannel,
-        meter: Rect,
-        solo_dimmed: bool,
-        theme: &ThemeTokens,
-    ) {
-        let meter_ratio = ratio_for_meter_db(channel.meter_db);
-        let meter_fill = Rect::from_min_max(
-            Point::new(
-                meter.min.x + 3.0,
-                meter.max.y - (meter.height() - 6.0) * meter_ratio,
-            ),
-            Point::new(meter.max.x - 3.0, meter.max.y - 3.0),
-        );
-        push_rect(
-            primitives,
-            self.common.id,
-            meter_fill,
-            if solo_dimmed {
-                rgba(75, 80, 86, 180)
-            } else {
-                meter_color(channel.meter_db)
-            },
-        );
-        self.append_peak_and_readout(primitives, channel, meter, solo_dimmed, theme);
-    }
-
-    fn append_peak_and_readout(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        channel: MixerChannel,
-        meter: Rect,
-        solo_dimmed: bool,
-        theme: &ThemeTokens,
-    ) {
-        let peak_y = meter.max.y - meter.height() * ratio_for_meter_db(channel.peak_db);
-        push_rect(
-            primitives,
-            self.common.id,
-            Rect::from_min_max(
-                Point::new(meter.min.x + 2.0, peak_y),
-                Point::new(meter.max.x - 2.0, peak_y + 2.0),
-            ),
-            if solo_dimmed {
-                rgba(90, 94, 98, 160)
-            } else {
-                theme.highlight_orange
-            },
-        );
-        push_text(
-            primitives,
-            self.common.id,
-            format!("{:+.0}", channel.meter_db),
-            Rect::from_min_size(
-                Point::new(meter.min.x - 16.0, meter.max.y + 8.0),
-                Vector2::new(meter.width() + 32.0, 18.0),
-            ),
-            if solo_dimmed {
-                rgba(118, 123, 128, 180)
-            } else {
-                theme.text_muted
-            },
-            PaintTextAlign::Center,
-        );
-    }
-
-    fn append_fader(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        channel: MixerChannel,
-        strip: Rect,
-        solo_dimmed: bool,
-        theme: &ThemeTokens,
-    ) {
-        let fader = self.fader_rect(strip);
-        let center_x = fader.center().x;
-        push_rect(
-            primitives,
-            self.common.id,
-            Rect::from_min_max(
-                Point::new(center_x - 2.0, fader.min.y),
-                Point::new(center_x + 2.0, fader.max.y),
-            ),
-            if solo_dimmed {
-                translucent(theme.grid_soft, 130)
-            } else {
-                theme.grid_strong
-            },
-        );
-        self.append_fader_marks(primitives, fader, center_x, theme);
-        self.append_fader_knob(primitives, channel, fader, solo_dimmed, theme);
-    }
-
-    fn append_fader_marks(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        fader: Rect,
-        center_x: f32,
-        theme: &ThemeTokens,
-    ) {
-        for db in [-48.0, -24.0, -12.0, 0.0, 6.0] {
-            let y = fader.max.y - fader.height() * ratio_for_gain(db);
-            push_rect(
-                primitives,
-                self.common.id,
-                Rect::from_min_max(
-                    Point::new(center_x - 10.0, y),
-                    Point::new(center_x + 10.0, y + 1.0),
-                ),
-                theme.grid_soft,
-            );
-        }
-    }
-
-    fn append_fader_knob(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        channel: MixerChannel,
-        fader: Rect,
-        solo_dimmed: bool,
-        theme: &ThemeTokens,
-    ) {
-        let knob_y = fader.max.y - fader.height() * channel.gain_ratio();
-        let knob = Rect::from_min_size(
-            Point::new(fader.min.x, knob_y - 8.0),
-            Vector2::new(fader.width(), 16.0),
-        );
-        push_rect(
-            primitives,
-            self.common.id,
-            knob,
-            fader_knob_color(solo_dimmed, theme),
-        );
-        push_stroke(primitives, self.common.id, knob, theme.border_emphasis, 1.0);
     }
 
     fn append_channel_buttons(

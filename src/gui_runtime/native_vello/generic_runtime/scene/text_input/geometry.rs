@@ -1,4 +1,8 @@
-use crate::gui_runtime::native_vello::*;
+use crate::{
+    gui::types::{Point, Rect as UiRect},
+    gui_runtime::native_vello::font_size_is_renderable,
+    runtime::PaintTextInput,
+};
 
 pub(super) fn caret_size(input: &PaintTextInput) -> Option<(f32, f32)> {
     if !text_input_geometry_is_renderable(input) {
@@ -41,8 +45,8 @@ pub(super) fn text_input_geometry_is_renderable(input: &PaintTextInput) -> bool 
 mod tests {
     use super::{caret_size, selection_rect, text_input_geometry_is_renderable};
     use crate::{
-        gui::types::Rect,
-        gui_runtime::native_vello::{PaintTextInput, Point, Rgba8},
+        gui::types::{Point, Rect, Rgba8},
+        runtime::PaintTextInput,
         widgets::TextInputState,
     };
 

@@ -5,11 +5,11 @@ use super::{
     NativeTextOptions, NativeWindowMode, WindowIconRgba,
 };
 use crate::gui::{
-    paint::{PaintFrame, Primitive, TextAlign},
+    paint::TextAlign,
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
-use crate::runtime::{PaintPrimitive, PaintTextAlign, PaintTextInput, RuntimeBridge};
-use crate::widgets::{RetainedSurfaceDescriptor, TextEditCommand, WidgetKey};
+use crate::runtime::{PaintPrimitive, PaintTextInput, RuntimeBridge};
+use crate::widgets::{TextEditCommand, WidgetKey};
 use std::{
     collections::HashMap,
     sync::Arc,

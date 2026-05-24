@@ -1,4 +1,5 @@
 use super::super::*;
+use crate::gui::paint::{PaintFrame, Primitive};
 
 #[derive(Default)]
 pub(super) struct RetainedBridge {

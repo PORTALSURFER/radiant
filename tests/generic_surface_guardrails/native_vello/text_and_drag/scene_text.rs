@@ -207,9 +207,13 @@ fn native_vello_scene_encoders_use_explicit_imports() {
     let encoder_paths = [
         "src/gui_runtime/native_vello/generic_runtime/scene/frame.rs",
         "src/gui_runtime/native_vello/generic_runtime/scene/image.rs",
+        "src/gui_runtime/native_vello/generic_runtime/scene/cache.rs",
         "src/gui_runtime/native_vello/generic_runtime/scene/shape.rs",
         "src/gui_runtime/native_vello/generic_runtime/scene/shape/geometry.rs",
         "src/gui_runtime/native_vello/generic_runtime/scene/svg.rs",
+        "src/gui_runtime/native_vello/generic_runtime/scene/text.rs",
+        "src/gui_runtime/native_vello/generic_runtime/scene/text_input/geometry.rs",
+        "src/gui_runtime/native_vello/generic_runtime/scene/text_runs.rs",
     ];
 
     for path in encoder_paths {

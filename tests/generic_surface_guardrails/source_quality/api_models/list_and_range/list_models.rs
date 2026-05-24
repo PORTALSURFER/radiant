@@ -6,11 +6,15 @@ fn editable_tree_rows_use_named_parts_instead_of_boolean_constructor_lists() {
     let source_path = manifest_dir.join("src/gui/list/editable/row.rs");
     let source = fs::read_to_string(&source_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let draft = fs::read_to_string(manifest_dir.join("src/gui/list/editable/row/draft.rs"))
+        .expect("editable tree draft input module should be readable");
 
     assert!(
         source.contains("pub struct EditableTreeRowParts")
-            && source.contains("pub struct EditableTreeDraftInputParts")
-            && source.contains("pub enum EditableTreeInputFocus")
+            && source.contains("mod draft;")
+            && source.contains(
+                "pub use draft::{EditableTreeDraftInputParts, EditableTreeInputFocus, EditableTreeRowInput};"
+            )
             && source.contains("pub fn from_parts(parts: EditableTreeRowParts) -> Self")
             && source.contains(
                 "pub fn create_draft_from_parts(depth: usize, input: EditableTreeDraftInputParts) -> Self"
@@ -19,6 +23,12 @@ fn editable_tree_rows_use_named_parts_instead_of_boolean_constructor_lists() {
                 "pub fn rename_draft_from_parts(depth: usize, input: EditableTreeDraftInputParts) -> Self"
             ),
         "editable tree rows should expose named parts objects for readable public construction"
+    );
+    assert!(
+        draft.contains("pub struct EditableTreeDraftInputParts")
+            && draft.contains("pub enum EditableTreeInputFocus")
+            && draft.contains("pub struct EditableTreeRowInput"),
+        "editable tree draft input policy should stay in the focused draft module"
     );
     assert!(
         !source.contains("too_many_arguments"),

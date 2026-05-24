@@ -12,11 +12,15 @@ fn runtime_animation_activity_keeps_policy_and_tests_focused() {
 
     assert!(
         bridge.contains("mod animation;")
-            && bridge.contains("pub use animation::RuntimeAnimationActivity;"),
+            && bridge
+                .contains("pub use animation::{RuntimeAnimationActivity, RuntimeAnimationDemand};"),
         "runtime bridge root should re-export animation activity from the focused child module"
     );
     assert!(
         animation.contains("pub struct RuntimeAnimationActivity")
+            && animation.contains("pub enum RuntimeAnimationDemand")
+            && animation
+                .contains("pub const fn from_demand(demand: RuntimeAnimationDemand) -> Self")
             && animation.contains("pub const fn merge(self, other: Self) -> Self")
             && animation.contains("const fn merge_target_fps(")
             && animation.contains("#[path = \"animation/tests.rs\"]")
@@ -27,6 +31,7 @@ fn runtime_animation_activity_keeps_policy_and_tests_focused() {
     );
     assert!(
         tests.contains("fn runtime_animation_activity_keeps_frame_messages_bound_to_paint_frames")
+            && tests.contains("fn runtime_animation_activity_uses_named_demands_for_policy")
             && tests.contains("fn runtime_animation_activity_merge_keeps_uncapped_source_uncapped"),
         "runtime animation behavior coverage should live in bridge/animation/tests.rs"
     );

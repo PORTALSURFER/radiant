@@ -249,8 +249,9 @@ over the cached surface without queuing application frame messages. Use
 window's maximum native cadence; Radiant clamps the requested rate through the
 same `NativeRunOptions` frame-rate bounds and never exceeds the window target.
 Custom runtime bridges can report the same split explicitly with
-`RuntimeAnimationActivity`, distinguishing frame-message animation from
-paint-only presentation work and optionally carrying a per-activity target FPS.
+`RuntimeAnimationActivity` and `RuntimeAnimationDemand`, distinguishing
+frame-message animation from paint-only presentation work and optionally
+carrying a per-activity target FPS.
 When a paint-only transient overlay is present, the native Vello runtime also
 caches the composed Vello scene plus retained GPU surfaces as a base frame, so
 later overlay-only frames can present that stable composition and draw the

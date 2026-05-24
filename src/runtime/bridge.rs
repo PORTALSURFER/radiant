@@ -6,7 +6,7 @@ mod auxiliary;
 mod contract;
 mod declarative;
 
-pub use animation::RuntimeAnimationActivity;
+pub use animation::{RuntimeAnimationActivity, RuntimeAnimationDemand};
 pub use app::App;
 pub use auxiliary::AuxiliaryWindow;
 pub use contract::RuntimeBridge;

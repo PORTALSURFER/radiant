@@ -12,6 +12,26 @@ fn runtime_animation_activity_keeps_frame_messages_bound_to_paint_frames() {
 }
 
 #[test]
+fn runtime_animation_activity_uses_named_demands_for_policy() {
+    assert_eq!(
+        RuntimeAnimationActivity::from_demand(RuntimeAnimationDemand::Idle),
+        RuntimeAnimationActivity::idle()
+    );
+    assert_eq!(
+        RuntimeAnimationActivity::from_demand(RuntimeAnimationDemand::PaintOnly),
+        RuntimeAnimationActivity::paint_only()
+    );
+    assert_eq!(
+        RuntimeAnimationActivity::from_demand(RuntimeAnimationDemand::FrameMessages),
+        RuntimeAnimationActivity::frame_messages()
+    );
+    assert_eq!(
+        RuntimeAnimationActivity::new(true, true),
+        RuntimeAnimationActivity::from_demand(RuntimeAnimationDemand::FrameMessages)
+    );
+}
+
+#[test]
 fn runtime_animation_activity_carries_optional_frame_rate_policy() {
     assert_eq!(RuntimeAnimationActivity::idle().target_fps(), None);
     assert_eq!(

@@ -1,6 +1,10 @@
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
-use super::OutputFormat;
+mod format;
+mod summary;
+
+pub(super) use format::{baseline_metric_json_line, json_escape};
+pub(super) use summary::BaselineSummary;
 
 #[derive(Clone, Debug)]
 pub(crate) struct BaselineSet {
@@ -89,118 +93,6 @@ impl BaselineMetric {
     }
 }
 
-#[derive(Default)]
-pub(super) struct BaselineSummary {
-    categories: BTreeMap<String, BaselineSummaryCounts>,
-    total: BaselineSummaryCounts,
-}
-
-#[derive(Clone, Copy, Default)]
-struct BaselineSummaryCounts {
-    matched: usize,
-    missing: usize,
-    faster: usize,
-    similar: usize,
-    slower: usize,
-}
-
-impl BaselineSummary {
-    pub(super) fn record(&mut self, category: &str, comparison: Option<MetricComparison>) {
-        self.total.record(comparison);
-        self.categories
-            .entry(category.to_owned())
-            .or_default()
-            .record(comparison);
-    }
-
-    pub(super) fn print(&self, scenarios: usize, output_format: OutputFormat) {
-        self.total.print_total(scenarios, output_format);
-        for (category, counts) in &self.categories {
-            counts.print_category(category, output_format);
-        }
-    }
-
-    pub(super) fn has_regression(&self) -> bool {
-        self.total.slower > 0
-    }
-
-    pub(super) fn has_missing_baseline(&self) -> bool {
-        self.total.missing > 0
-    }
-
-    pub(super) fn slower(&self) -> usize {
-        self.total.slower
-    }
-
-    pub(super) fn missing(&self) -> usize {
-        self.total.missing
-    }
-}
-
-impl BaselineSummaryCounts {
-    fn scenarios(&self) -> usize {
-        self.matched + self.missing
-    }
-
-    fn record(&mut self, comparison: Option<MetricComparison>) {
-        match comparison {
-            Some(MetricComparison::Matched { status, .. }) => {
-                self.matched += 1;
-                match status {
-                    "faster" => self.faster += 1,
-                    "similar" => self.similar += 1,
-                    "slower" => self.slower += 1,
-                    _ => {}
-                }
-            }
-            Some(MetricComparison::Missing) => {
-                self.missing += 1;
-            }
-            None => {}
-        }
-    }
-
-    fn print_total(&self, scenarios: usize, output_format: OutputFormat) {
-        match output_format {
-            OutputFormat::Text => {
-                println!(
-                    "radiant_perf_summary scenarios={scenarios} baseline_matched={} baseline_missing={} baseline_faster={} baseline_similar={} baseline_slower={}",
-                    self.matched, self.missing, self.faster, self.similar, self.slower
-                );
-            }
-            OutputFormat::JsonLines => {
-                println!(
-                    "{{\"type\":\"radiant_perf_summary\",\"scenarios\":{scenarios},\"baseline_matched\":{},\"baseline_missing\":{},\"baseline_faster\":{},\"baseline_similar\":{},\"baseline_slower\":{}}}",
-                    self.matched, self.missing, self.faster, self.similar, self.slower
-                );
-            }
-        }
-    }
-
-    fn print_category(&self, category: &str, output_format: OutputFormat) {
-        let scenarios = self.scenarios();
-        match output_format {
-            OutputFormat::Text => {
-                println!(
-                    "radiant_perf_category_summary category={category} scenarios={scenarios} baseline_matched={} baseline_missing={} baseline_faster={} baseline_similar={} baseline_slower={}",
-                    self.matched, self.missing, self.faster, self.similar, self.slower
-                );
-            }
-            OutputFormat::JsonLines => {
-                println!(
-                    "{{\"type\":\"radiant_perf_category_summary\",\"category\":\"{}\",\"scenarios\":{scenarios},\"baseline_matched\":{},\"baseline_missing\":{},\"baseline_faster\":{},\"baseline_similar\":{},\"baseline_slower\":{}}}",
-                    json_escape(category),
-                    self.matched,
-                    self.missing,
-                    self.faster,
-                    self.similar,
-                    self.slower
-                );
-            }
-        }
-    }
-}
-
 #[derive(Clone, Copy)]
 pub(super) enum MetricComparison {
     Matched {
@@ -231,37 +123,4 @@ impl MetricComparison {
             status,
         }
     }
-}
-
-pub(super) fn json_escape(value: &str) -> String {
-    let mut escaped = String::with_capacity(value.len());
-    for ch in value.chars() {
-        match ch {
-            '"' => escaped.push_str("\\\""),
-            '\\' => escaped.push_str("\\\\"),
-            '\n' => escaped.push_str("\\n"),
-            '\r' => escaped.push_str("\\r"),
-            '\t' => escaped.push_str("\\t"),
-            ch if ch.is_control() => escaped.push_str(&format!("\\u{:04x}", ch as u32)),
-            ch => escaped.push(ch),
-        }
-    }
-    escaped
-}
-
-pub(super) fn baseline_metric_json_line(
-    name: &str,
-    category: &str,
-    iterations: usize,
-    total_us: u128,
-    avg_us: f64,
-) -> String {
-    format!(
-        "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}}}",
-        json_escape(name),
-        json_escape(category),
-        iterations,
-        total_us,
-        avg_us
-    )
 }

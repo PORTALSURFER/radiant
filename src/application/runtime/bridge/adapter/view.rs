@@ -28,7 +28,7 @@ where
         &mut self,
         update: ScrollUpdate,
     ) -> Option<Command<Message>> {
-        let scroll = self.scroll.as_mut()?;
+        let scroll = self.lifecycle.scroll.as_mut()?;
         let mut context = UpdateContext::default();
         scroll(&mut self.state, update, &mut context);
         Some(context.into_command())
@@ -40,7 +40,8 @@ where
         press: KeyPress,
         focus: FocusSurface,
     ) -> ShortcutResolution<Message> {
-        self.shortcuts
+        self.lifecycle
+            .shortcuts
             .as_mut()
             .map(|shortcuts| shortcuts(&mut self.state, pending_chord, press, focus))
             .unwrap_or_else(ShortcutResolution::unhandled)

@@ -22,10 +22,17 @@ fn preference_panel_state_uses_named_parts_for_projection_fields() {
     );
     assert!(
         tests.contains("fn option_item_preserves_label_selection_and_value")
+            && tests.contains("fn option_item_supports_named_selection_parts")
             && tests.contains(
                 "fn preference_panel_state_preserves_visibility_text_toggles_and_auxiliary_label"
             ),
         "form root behavior coverage should live in form/tests.rs"
+    );
+    assert!(
+        source.contains("pub struct OptionItemParts<Value>")
+            && source.contains("pub enum OptionSelectionState")
+            && source.contains("pub fn from_parts(parts: OptionItemParts<Value>) -> Self"),
+        "generic form option items should expose named parts for readable selection construction"
     );
     assert!(
         source.contains("mod numeric;")

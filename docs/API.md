@@ -1260,9 +1260,9 @@ metadata, filters, status chips, or other product-specific labels without
 embedding domain terms in Radiant.
 
 `radiant::gui::form` contains reusable form and picker models such as
-`DecimalTextInputPolicy`, `SummaryField`, `OptionItem`, `PairedPickerTarget`,
-`PairedPickerValue`, `PairedStatusPanel`, `PreferencePanelVisibility`, and
-`PreferencePanelState`.
+`DecimalTextInputPolicy`, `SummaryField`, `OptionItem`, `OptionSelectionState`,
+`PairedPickerTarget`, `PairedPickerValue`, `PairedStatusPanel`,
+`PreferencePanelVisibility`, and `PreferencePanelState`.
 `PairedStatusPanel` models a two-sided status/picker surface with summary rows,
 active picker identity, and option lists while leaving the meaning of those
 options to the host. `PreferencePanelState` models generic settings-panel

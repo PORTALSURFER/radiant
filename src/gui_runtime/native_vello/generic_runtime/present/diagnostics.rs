@@ -38,21 +38,21 @@ pub(super) fn native_frame_diagnostics(
         text: crate::runtime::NativeTextDiagnostics {
             cache: crate::runtime::NativeTextCacheDiagnostics {
                 layout: crate::runtime::NativeTextCacheCounters {
-                    hits: parts.text_stats.layout_hits,
-                    misses: parts.text_stats.layout_misses,
-                    evictions: parts.text_stats.layout_evictions,
+                    hits: parts.text_stats.layout.hits,
+                    misses: parts.text_stats.layout.misses,
+                    evictions: parts.text_stats.layout.evictions,
                 },
                 atom: crate::runtime::NativeTextCacheCounters {
-                    hits: parts.text_stats.atom_hits,
-                    misses: parts.text_stats.atom_misses,
-                    evictions: parts.text_stats.atom_evictions,
+                    hits: parts.text_stats.atom.hits,
+                    misses: parts.text_stats.atom.misses,
+                    evictions: parts.text_stats.atom.evictions,
                 },
             },
             quality: crate::runtime::NativeTextQualityDiagnostics {
-                unsupported_shaping_runs: parts.text_stats.unsupported_shaping_runs,
-                unsupported_shaping_scalars: parts.text_stats.unsupported_shaping_scalars,
-                fallback_glyphs: parts.text_stats.fallback_glyphs,
-                missing_glyphs: parts.text_stats.missing_glyphs,
+                unsupported_shaping_runs: parts.text_stats.quality.unsupported_shaping_runs,
+                unsupported_shaping_scalars: parts.text_stats.quality.unsupported_shaping_scalars,
+                fallback_glyphs: parts.text_stats.quality.fallback_glyphs,
+                missing_glyphs: parts.text_stats.quality.missing_glyphs,
             },
         },
         retained_surfaces: crate::runtime::NativeRetainedSurfaceDiagnostics {

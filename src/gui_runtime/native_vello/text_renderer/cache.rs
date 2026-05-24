@@ -13,12 +13,20 @@ const TEXT_LAYOUT_CACHE_CAPACITY: usize = 2_048;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(in crate::gui_runtime::native_vello) struct TextLayoutProfileCounters {
-    pub layout_hits: u64,
-    pub layout_misses: u64,
-    pub layout_evictions: u64,
-    pub atom_hits: u64,
-    pub atom_misses: u64,
-    pub atom_evictions: u64,
+    pub layout: TextCacheProfileCounters,
+    pub atom: TextCacheProfileCounters,
+    pub quality: TextQualityProfileCounters,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(in crate::gui_runtime::native_vello) struct TextCacheProfileCounters {
+    pub hits: u64,
+    pub misses: u64,
+    pub evictions: u64,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(in crate::gui_runtime::native_vello) struct TextQualityProfileCounters {
     pub unsupported_shaping_runs: u64,
     pub unsupported_shaping_scalars: u64,
     pub fallback_glyphs: u64,
@@ -30,13 +38,8 @@ pub(super) struct TextLayoutCache {
     layout_cache_order: VecDeque<(TextLayoutKey, u64)>,
     layout_cache_clock: u64,
     atom_cache: TextAtomCache,
-    text_layout_hits: u64,
-    text_layout_misses: u64,
-    text_layout_evictions: u64,
-    unsupported_shaping_runs: u64,
-    unsupported_shaping_scalars: u64,
-    fallback_glyphs: u64,
-    missing_glyphs: u64,
+    layout_profile: TextCacheProfileCounters,
+    quality_profile: TextQualityProfileCounters,
 }
 
 #[derive(Clone, Debug)]
@@ -52,13 +55,8 @@ impl TextLayoutCache {
             layout_cache_order: VecDeque::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY),
             layout_cache_clock: 0,
             atom_cache: TextAtomCache::new(),
-            text_layout_hits: 0,
-            text_layout_misses: 0,
-            text_layout_evictions: 0,
-            unsupported_shaping_runs: 0,
-            unsupported_shaping_scalars: 0,
-            fallback_glyphs: 0,
-            missing_glyphs: 0,
+            layout_profile: TextCacheProfileCounters::default(),
+            quality_profile: TextQualityProfileCounters::default(),
         }
     }
 
@@ -78,12 +76,12 @@ impl TextLayoutCache {
             return self.record_layout_cache_hit(&key);
         }
 
-        self.text_layout_misses = self.text_layout_misses.saturating_add(1);
+        self.layout_profile.misses = self.layout_profile.misses.saturating_add(1);
 
         self.evict_stale_layouts();
 
         let layout = compute_layout(font, text, font_size)?;
-        self.record_glyph_diagnostics(&layout);
+        self.quality_profile.record_layout(&layout);
         let stamp = self.record_layout_cache_access(key.clone());
         let entry = self
             .layout_cache
@@ -93,27 +91,11 @@ impl TextLayoutCache {
     }
 
     pub(super) fn take_profile_counters(&mut self) -> TextLayoutProfileCounters {
-        let atom_counters = self.atom_cache.take_profile_counters();
-        let counters = TextLayoutProfileCounters {
-            layout_hits: self.text_layout_hits,
-            layout_misses: self.text_layout_misses,
-            layout_evictions: self.text_layout_evictions,
-            atom_hits: atom_counters.hits,
-            atom_misses: atom_counters.misses,
-            atom_evictions: atom_counters.evictions,
-            unsupported_shaping_runs: self.unsupported_shaping_runs,
-            unsupported_shaping_scalars: self.unsupported_shaping_scalars,
-            fallback_glyphs: self.fallback_glyphs,
-            missing_glyphs: self.missing_glyphs,
-        };
-        self.text_layout_hits = 0;
-        self.text_layout_misses = 0;
-        self.text_layout_evictions = 0;
-        self.unsupported_shaping_runs = 0;
-        self.unsupported_shaping_scalars = 0;
-        self.fallback_glyphs = 0;
-        self.missing_glyphs = 0;
-        counters
+        TextLayoutProfileCounters {
+            layout: std::mem::take(&mut self.layout_profile),
+            atom: self.atom_cache.take_profile_counters(),
+            quality: std::mem::take(&mut self.quality_profile),
+        }
     }
 
     pub(super) fn intern_text(&mut self, text: &str) -> Arc<str> {
@@ -126,31 +108,9 @@ impl TextLayoutCache {
         self.layout_cache_order.push_back((key.clone(), stamp));
         let cached_layout = self.layout_cache.get_mut(key)?;
         cached_layout.stamp = stamp;
-        self.text_layout_hits = self.text_layout_hits.saturating_add(1);
-        self.unsupported_shaping_runs = self
-            .unsupported_shaping_runs
-            .saturating_add(cached_layout.layout.unsupported_shaping_runs);
-        self.unsupported_shaping_scalars = self
-            .unsupported_shaping_scalars
-            .saturating_add(cached_layout.layout.unsupported_shaping_scalars);
-        self.fallback_glyphs = self
-            .fallback_glyphs
-            .saturating_add(cached_layout.layout.fallback_glyphs);
-        self.missing_glyphs = self
-            .missing_glyphs
-            .saturating_add(cached_layout.layout.missing_glyphs);
+        self.layout_profile.hits = self.layout_profile.hits.saturating_add(1);
+        self.quality_profile.record_layout(&cached_layout.layout);
         Some(&cached_layout.layout)
-    }
-
-    fn record_glyph_diagnostics(&mut self, layout: &TextLayout) {
-        self.unsupported_shaping_runs = self
-            .unsupported_shaping_runs
-            .saturating_add(layout.unsupported_shaping_runs);
-        self.unsupported_shaping_scalars = self
-            .unsupported_shaping_scalars
-            .saturating_add(layout.unsupported_shaping_scalars);
-        self.fallback_glyphs = self.fallback_glyphs.saturating_add(layout.fallback_glyphs);
-        self.missing_glyphs = self.missing_glyphs.saturating_add(layout.missing_glyphs);
     }
 
     #[cfg(test)]
@@ -205,9 +165,22 @@ impl TextLayoutCache {
                 continue;
             }
             if self.layout_cache.remove(&candidate).is_some() {
-                self.text_layout_evictions = self.text_layout_evictions.saturating_add(1);
+                self.layout_profile.evictions = self.layout_profile.evictions.saturating_add(1);
             }
         }
+    }
+}
+
+impl TextQualityProfileCounters {
+    fn record_layout(&mut self, layout: &TextLayout) {
+        self.unsupported_shaping_runs = self
+            .unsupported_shaping_runs
+            .saturating_add(layout.unsupported_shaping_runs);
+        self.unsupported_shaping_scalars = self
+            .unsupported_shaping_scalars
+            .saturating_add(layout.unsupported_shaping_scalars);
+        self.fallback_glyphs = self.fallback_glyphs.saturating_add(layout.fallback_glyphs);
+        self.missing_glyphs = self.missing_glyphs.saturating_add(layout.missing_glyphs);
     }
 }
 

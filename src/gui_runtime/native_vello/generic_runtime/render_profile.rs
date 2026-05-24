@@ -39,16 +39,16 @@ pub(super) fn maybe_log_render_profile(
         scene_gpu_surfaces = stats.gpu_surface_count,
         scene_custom_surfaces = stats.custom_surface_count,
         scene_custom_surface_fallbacks = stats.custom_surface_fallback_count,
-        text_layout_cache_hits = text_stats.layout_hits,
-        text_layout_cache_misses = text_stats.layout_misses,
-        text_layout_cache_evictions = text_stats.layout_evictions,
-        text_atom_cache_hits = text_stats.atom_hits,
-        text_atom_cache_misses = text_stats.atom_misses,
-        text_atom_cache_evictions = text_stats.atom_evictions,
-        text_unsupported_shaping_runs = text_stats.unsupported_shaping_runs,
-        text_unsupported_shaping_scalars = text_stats.unsupported_shaping_scalars,
-        text_fallback_glyphs = text_stats.fallback_glyphs,
-        text_missing_glyphs = text_stats.missing_glyphs,
+        text_layout_cache_hits = text_stats.layout.hits,
+        text_layout_cache_misses = text_stats.layout.misses,
+        text_layout_cache_evictions = text_stats.layout.evictions,
+        text_atom_cache_hits = text_stats.atom.hits,
+        text_atom_cache_misses = text_stats.atom.misses,
+        text_atom_cache_evictions = text_stats.atom.evictions,
+        text_unsupported_shaping_runs = text_stats.quality.unsupported_shaping_runs,
+        text_unsupported_shaping_scalars = text_stats.quality.unsupported_shaping_scalars,
+        text_fallback_glyphs = text_stats.quality.fallback_glyphs,
+        text_missing_glyphs = text_stats.quality.missing_glyphs,
         text_quality_status = text_quality_status(text_stats),
         retained_bridge_calls = stats.bridge_calls,
         retained_cache_hits = stats.cache_hits,
@@ -126,8 +126,9 @@ fn tracked_cpu_envelope_total(
 
 fn text_quality_status(text_stats: TextLayoutProfileCounters) -> &'static str {
     match (
-        text_stats.unsupported_shaping_runs > 0 || text_stats.unsupported_shaping_scalars > 0,
-        text_stats.fallback_glyphs > 0 || text_stats.missing_glyphs > 0,
+        text_stats.quality.unsupported_shaping_runs > 0
+            || text_stats.quality.unsupported_shaping_scalars > 0,
+        text_stats.quality.fallback_glyphs > 0 || text_stats.quality.missing_glyphs > 0,
     ) {
         (false, false) => "clean",
         (true, false) => "shaping_limited",

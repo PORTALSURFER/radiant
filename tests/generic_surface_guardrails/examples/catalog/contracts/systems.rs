@@ -60,6 +60,8 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             "Graphical EQ",
             "custom_widget_mapped(",
             "EqEditorMessage::MoveBand",
+            "examples/eq_editor/widget/geometry.rs",
+            "examples/eq_editor/widget/response.rs",
             "PaintPrimitive::StrokePolyline",
             "prefers_pointer_move_paint_only",
             "append_runtime_overlay_paint",

@@ -1,11 +1,16 @@
-use super::model::{
-    EqBand, EqBandKind, EqEditorMessage, MAX_FREQ_HZ, MAX_GAIN_DB, MIN_FREQ_HZ, MIN_GAIN_DB,
-};
+use super::model::{EqBand, EqEditorMessage};
+#[path = "widget/geometry.rs"]
+mod geometry;
 #[path = "widget/paint.rs"]
 mod paint;
+#[path = "widget/response.rs"]
+mod response;
 
 use radiant::prelude::*;
 use radiant::widgets::PaintBounds;
+
+pub(super) use geometry::{x_for_freq, y_for_gain};
+pub(super) use response::response_gain_db;
 
 const HANDLE_SIZE: f32 = 12.0;
 
@@ -89,8 +94,8 @@ impl Widget for EqEditorWidget {
                 if let Some(id) = self.drag_band {
                     return Some(WidgetOutput::custom(EqEditorMessage::MoveBand {
                         id,
-                        freq_hz: freq_for_x(plot, position.x),
-                        gain_db: gain_for_y(plot, position.y),
+                        freq_hz: geometry::freq_for_x(plot, position.x),
+                        gain_db: geometry::gain_for_y(plot, position.y),
                     }));
                 }
                 self.hover_band = self.band_at_position(plot, position);
@@ -127,8 +132,8 @@ impl Widget for EqEditorWidget {
                 drag.map(|id| {
                     WidgetOutput::custom(EqEditorMessage::MoveBand {
                         id,
-                        freq_hz: freq_for_x(plot, position.x),
-                        gain_db: gain_for_y(plot, position.y),
+                        freq_hz: geometry::freq_for_x(plot, position.x),
+                        gain_db: geometry::gain_for_y(plot, position.y),
                     })
                 })
             }
@@ -198,62 +203,6 @@ impl Widget for EqEditorWidget {
             );
         }
     }
-}
-
-fn response_gain_db(bands: &[EqBand], freq_hz: f32) -> f32 {
-    bands
-        .iter()
-        .filter(|band| band.enabled)
-        .map(|band| band_visual_gain(*band, freq_hz))
-        .sum::<f32>()
-        .clamp(MIN_GAIN_DB, MAX_GAIN_DB)
-}
-
-fn band_visual_gain(band: EqBand, freq_hz: f32) -> f32 {
-    let octave_delta = (freq_hz / band.freq_hz).max(0.001).log2();
-    match band.kind {
-        EqBandKind::Bell => {
-            let width = (1.1 / band.q.max(0.2)).max(0.14);
-            band.gain_db * (-(octave_delta * octave_delta) / (2.0 * width * width)).exp()
-        }
-        EqBandKind::HighPass => -18.0 / (1.0 + ((freq_hz / band.freq_hz).max(0.001)).powf(5.0)),
-        EqBandKind::HighShelf => {
-            let blend = 1.0 / (1.0 + (-octave_delta * 3.0).exp());
-            band.gain_db * blend
-        }
-    }
-}
-
-pub(super) fn x_for_freq(plot: Rect, freq_hz: f32) -> f32 {
-    plot.min.x + plot.width() * ratio_for_freq(freq_hz)
-}
-
-pub(super) fn y_for_gain(plot: Rect, gain_db: f32) -> f32 {
-    let ratio = ((gain_db.clamp(MIN_GAIN_DB, MAX_GAIN_DB) - MIN_GAIN_DB)
-        / (MAX_GAIN_DB - MIN_GAIN_DB))
-        .clamp(0.0, 1.0);
-    plot.max.y - plot.height() * ratio
-}
-
-fn freq_for_x(plot: Rect, x: f32) -> f32 {
-    freq_for_ratio(((x - plot.min.x) / plot.width().max(1.0)).clamp(0.0, 1.0))
-}
-
-fn gain_for_y(plot: Rect, y: f32) -> f32 {
-    let ratio = ((plot.max.y - y) / plot.height().max(1.0)).clamp(0.0, 1.0);
-    MIN_GAIN_DB + (MAX_GAIN_DB - MIN_GAIN_DB) * ratio
-}
-
-fn ratio_for_freq(freq_hz: f32) -> f32 {
-    let min = MIN_FREQ_HZ.log10();
-    let max = MAX_FREQ_HZ.log10();
-    ((freq_hz.clamp(MIN_FREQ_HZ, MAX_FREQ_HZ).log10() - min) / (max - min)).clamp(0.0, 1.0)
-}
-
-fn freq_for_ratio(ratio: f32) -> f32 {
-    let min = MIN_FREQ_HZ.log10();
-    let max = MAX_FREQ_HZ.log10();
-    10.0_f32.powf(min + (max - min) * ratio.clamp(0.0, 1.0))
 }
 
 fn translucent(mut color: Rgba8, alpha: u8) -> Rgba8 {

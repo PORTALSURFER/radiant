@@ -144,7 +144,7 @@ fn append_curve(
     let points = (0..160)
         .map(|index| {
             let ratio = index as f32 / 159.0;
-            let freq = freq_for_ratio(ratio);
+            let freq = geometry::freq_for_ratio(ratio);
             Point::new(
                 plot.min.x + plot.width() * ratio,
                 y_for_gain(plot, response_gain_db(&widget.bands, freq)),

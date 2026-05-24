@@ -1,5 +1,6 @@
 use super::{
-    OptionItem, PreferencePanelParts, PreferencePanelState, PreferencePanelVisibility, SummaryField,
+    OptionItem, OptionItemParts, OptionSelectionState, PreferencePanelParts, PreferencePanelState,
+    PreferencePanelVisibility, SummaryField,
 };
 
 #[test]
@@ -13,6 +14,23 @@ fn option_item_preserves_label_selection_and_value() {
     assert_eq!(option.label, "Default");
     assert!(option.selected);
     assert_eq!(option.value, Some(48_000));
+}
+
+#[test]
+fn option_item_supports_named_selection_parts() {
+    let option = OptionItem::from_parts(OptionItemParts {
+        label: String::from("Default"),
+        selection: OptionSelectionState::Selected,
+        value: 48_000_u32,
+    });
+
+    assert_eq!(option.label, "Default");
+    assert!(option.selected);
+    assert_eq!(option.value, 48_000);
+    assert_eq!(
+        OptionSelectionState::from_selected(false),
+        OptionSelectionState::Unselected
+    );
 }
 
 #[test]

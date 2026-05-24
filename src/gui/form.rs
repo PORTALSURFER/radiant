@@ -16,6 +16,41 @@ pub use paired::{
     PairedStatusPanel, PairedStatusSummaries,
 };
 
+/// Named selection state for generic option rows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum OptionSelectionState {
+    /// The option is not selected.
+    #[default]
+    Unselected,
+    /// The option is selected.
+    Selected,
+}
+
+impl OptionSelectionState {
+    /// Build selection state from compatibility flags.
+    pub const fn from_selected(selected: bool) -> Self {
+        match selected {
+            true => Self::Selected,
+            false => Self::Unselected,
+        }
+    }
+
+    const fn is_selected(self) -> bool {
+        matches!(self, Self::Selected)
+    }
+}
+
+/// Explicit parts used to build one generic selectable option.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OptionItemParts<Value> {
+    /// Human-readable option label.
+    pub label: String,
+    /// Current option selection state.
+    pub selection: OptionSelectionState,
+    /// Value applied when the option is chosen.
+    pub value: Value,
+}
+
 /// One selectable option in a picker, menu, or segmented choice list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OptionItem<Value> {
@@ -25,6 +60,17 @@ pub struct OptionItem<Value> {
     pub selected: bool,
     /// Value applied when the option is chosen.
     pub value: Value,
+}
+
+impl<Value> OptionItem<Value> {
+    /// Build an option item from named generic parts.
+    pub fn from_parts(parts: OptionItemParts<Value>) -> Self {
+        Self {
+            label: parts.label,
+            selected: parts.selection.is_selected(),
+            value: parts.value,
+        }
+    }
 }
 
 /// Overview row for a labeled field and its current value summary.

@@ -52,7 +52,7 @@ impl Constraints {
         .normalized()
     }
 
-    /// Build normalized constraints from raw values inside the layout engine.
+    /// Build normalized constraints from raw values for internal layout helpers.
     pub(crate) fn new(min_w: f32, max_w: f32, min_h: f32, max_h: f32) -> Self {
         Self::from_parts(ConstraintsParts {
             min_w,

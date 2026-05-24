@@ -23,7 +23,7 @@ mod view;
 use columns::*;
 use menu_geometry::*;
 use model::*;
-use state::BrowserState;
+use state::*;
 use storage::*;
 
 const MIN_TREE_WIDTH: f32 = 190.0;

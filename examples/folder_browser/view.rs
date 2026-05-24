@@ -26,7 +26,9 @@ pub(super) fn project_surface(state: &mut BrowserState) -> ui::StateView<Browser
 }
 
 fn has_context_menu(state: &BrowserState) -> bool {
-    state.context_folder.is_some() || state.context_file.is_some() || state.context_column.is_some()
+    state.context.context_folder.is_some()
+        || state.context.context_file.is_some()
+        || state.context.context_column.is_some()
 }
 
 fn header(state: &BrowserState) -> ui::StateView<BrowserState> {
@@ -46,19 +48,19 @@ fn header(state: &BrowserState) -> ui::StateView<BrowserState> {
 }
 
 fn context_menu_overlay(state: &BrowserState) -> ui::StateView<BrowserState> {
-    let (width, height, menu) = if let Some(folder_id) = state.context_folder.as_ref() {
+    let (width, height, menu) = if let Some(folder_id) = state.context.context_folder.as_ref() {
         (
             FOLDER_MENU_WIDTH,
             FOLDER_MENU_HEIGHT,
             context_menu(state, folder_id),
         )
-    } else if let Some(column_id) = state.context_column.as_ref() {
+    } else if let Some(column_id) = state.context.context_column.as_ref() {
         (
             COLUMN_MENU_WIDTH,
             COLUMN_MENU_HEIGHT,
             column_context_menu(state, column_id),
         )
-    } else if let Some(file_id) = state.context_file.as_ref() {
+    } else if let Some(file_id) = state.context.context_file.as_ref() {
         (
             FILE_MENU_WIDTH,
             FILE_MENU_HEIGHT,
@@ -67,7 +69,7 @@ fn context_menu_overlay(state: &BrowserState) -> ui::StateView<BrowserState> {
     } else {
         (0.0, 0.0, ui::text(""))
     };
-    let (left, top) = anchored_context_menu_position(state.context_position, width, height);
+    let (left, top) = anchored_context_menu_position(state.context.context_position, width, height);
     ui::column([
         ui::text("").fill_width().height(top),
         ui::row([

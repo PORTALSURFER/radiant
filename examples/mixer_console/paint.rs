@@ -11,6 +11,23 @@ pub(crate) fn meter_color(db: f32) -> Rgba8 {
     }
 }
 
+pub(crate) fn group_color(group: usize, theme: &ThemeTokens) -> Rgba8 {
+    match group % 4 {
+        0 => theme.highlight_cyan,
+        1 => theme.highlight_blue,
+        2 => theme.accent_warning,
+        _ => theme.highlight_orange,
+    }
+}
+
+pub(crate) fn send_color(send: usize, theme: &ThemeTokens) -> Rgba8 {
+    match send % 3 {
+        0 => theme.highlight_cyan,
+        1 => theme.highlight_blue,
+        _ => theme.highlight_orange,
+    }
+}
+
 pub(crate) fn blend_color(a: Rgba8, b: Rgba8, t: f32) -> Rgba8 {
     let t = t.clamp(0.0, 1.0);
     rgba(
@@ -19,32 +36,6 @@ pub(crate) fn blend_color(a: Rgba8, b: Rgba8, t: f32) -> Rgba8 {
         (a.b as f32 + (b.b as f32 - a.b as f32) * t).round() as u8,
         255,
     )
-}
-
-pub(crate) fn strip_fill_color(selected: bool, solo_dimmed: bool, theme: &ThemeTokens) -> Rgba8 {
-    if selected {
-        blend_color(theme.surface_raised, theme.highlight_blue, 0.20)
-    } else if solo_dimmed {
-        blend_color(theme.surface_base, theme.bg_primary, 0.42)
-    } else {
-        theme.surface_base
-    }
-}
-
-pub(crate) fn meter_track_color(solo_dimmed: bool) -> Rgba8 {
-    if solo_dimmed {
-        rgba(14, 15, 17, 255)
-    } else {
-        rgba(8, 13, 18, 255)
-    }
-}
-
-pub(crate) fn fader_knob_color(solo_dimmed: bool, theme: &ThemeTokens) -> Rgba8 {
-    if solo_dimmed {
-        rgba(86, 92, 100, 220)
-    } else {
-        theme.highlight_blue
-    }
 }
 
 pub(crate) fn rgba(r: u8, g: u8, b: u8, a: u8) -> Rgba8 {

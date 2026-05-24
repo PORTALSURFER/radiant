@@ -1150,10 +1150,12 @@ Run `cargo run --example spectrogram` for a DAW-style realtime spectrogram
 surface that scrolls deterministic synthetic spectrum data through frame-driven
 messages, heatmap painting, hover readout, and transport controls without
 modeling DSP or audio processing.
-Run `cargo run --example mixer_console` for an eight-channel DAW-style mixer
-panel with deterministic synthetic meter levels, decibel readouts, faders,
-mute/solo/arm buttons, and paint-only hover overlays without modeling DSP or
-audio processing.
+Run `cargo run --example mixer_console` for a dense 32-channel DAW-style mixer
+panel with deterministic synthetic meter levels, stereo decibel meters, faders,
+send controls, group tinting, Shift/Ctrl multi-selection, grouped fader
+adjustments, drag-and-drop strip reordering with insertion-line previews,
+mute/solo/arm buttons, and paint-only hover overlays without
+modeling DSP or audio processing.
 Run `cargo run --example piano_roll` for a piano-roll editor sandbox with a
 keyboard lane, beat grid, synthetic notes, create/move/resize editing, keyboard
 delete, and a paint-only playhead overlay without modeling MIDI, DSP, or audio

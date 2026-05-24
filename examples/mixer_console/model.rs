@@ -1,26 +1,34 @@
-pub(crate) const CHANNEL_COUNT: usize = 8;
-pub(crate) const MIN_GAIN_DB: f32 = -60.0;
-const MAX_GAIN_DB: f32 = 6.0;
-pub(crate) const CHANNEL_LABELS: [&str; CHANNEL_COUNT] =
-    ["Kick", "Snare", "Hat", "Bass", "Keys", "Pad", "Lead", "Vox"];
+use radiant::prelude::{ListSelectionController, ListSelectionModifiers};
 
-const DEFAULT_GAINS: [f32; CHANNEL_COUNT] = [-5.0, -7.5, -12.0, -8.0, -9.0, -14.0, -10.0, -6.5];
-const DEFAULT_PANS: [f32; CHANNEL_COUNT] = [0.0, 0.0, -0.34, -0.08, 0.22, 0.38, -0.18, 0.06];
+pub(crate) const CHANNEL_COUNT: usize = 32;
+pub(crate) const SEND_COUNT: usize = 3;
+pub(crate) const GROUP_COUNT: usize = 4;
+pub(crate) const MIN_GAIN_DB: f32 = -60.0;
+pub(crate) const MAX_GAIN_DB: f32 = 6.0;
+pub(crate) const CHANNEL_LABELS: [&str; CHANNEL_COUNT] = [
+    "Kik", "Snr", "Hat", "Tom", "Rid", "Clp", "Shk", "Per", "Bass", "Sub", "Gtr1", "Gtr2", "Keys",
+    "Pno", "Org", "Pad", "Ld1", "Ld2", "Plk", "Arp", "Vox1", "Vox2", "Bgv1", "Bgv2", "FX1", "FX2",
+    "Amb", "Loop", "BusA", "BusB", "Print", "Ref",
+];
 
 #[derive(Clone, Debug)]
 pub(crate) struct MixerState {
     pub(crate) running: bool,
     pub(crate) frame: u64,
     pub(crate) selected_channel: usize,
+    pub(crate) selection: ListSelectionController,
     pub(crate) channels: [MixerChannel; CHANNEL_COUNT],
 }
 
 impl Default for MixerState {
     fn default() -> Self {
+        let mut selection = ListSelectionController::new();
+        selection.select(0, CHANNEL_COUNT, ListSelectionModifiers::new());
         let mut state = Self {
             running: true,
             frame: 0,
             selected_channel: 0,
+            selection,
             channels: std::array::from_fn(MixerChannel::new),
         };
         state.tick();
@@ -42,6 +50,13 @@ impl MixerState {
     pub(crate) fn reset(&mut self) {
         self.frame = 0;
         self.running = true;
+        self.selected_channel = 0;
+        self.selection.clear();
+        self.selection.select(
+            self.selected_channel,
+            CHANNEL_COUNT,
+            ListSelectionModifiers::new(),
+        );
         self.channels = std::array::from_fn(MixerChannel::new);
         self.tick();
     }
@@ -53,9 +68,14 @@ impl MixerState {
     pub(crate) fn status(&self) -> String {
         let selected = self.selected();
         let transport = if self.running { "running" } else { "paused" };
+        let selected_count = self.selection.selected_indices().len().max(1);
         format!(
-            "{transport} | {} | fader {:+.1} dB | meter {:+.1} dB | synthetic GUI data",
-            selected.label, selected.gain_db, selected.meter_db
+            "{transport} | {selected_count} selected | {} | group {} | fader {:+.1} dB | send A {:.0}% | meter {:+.1} dB | synthetic GUI data",
+            selected.label,
+            selected.group() + 1,
+            selected.gain_db,
+            selected.sends[0] * 100.0,
+            selected.meter_db
         )
     }
 }
@@ -68,6 +88,7 @@ pub(crate) struct MixerChannel {
     pub(crate) pan: f32,
     pub(crate) meter_db: f32,
     pub(crate) peak_db: f32,
+    pub(crate) sends: [f32; SEND_COUNT],
     pub(crate) muted: bool,
     pub(crate) solo: bool,
     pub(crate) armed: bool,
@@ -78,10 +99,11 @@ impl MixerChannel {
         Self {
             id,
             label: CHANNEL_LABELS[id],
-            gain_db: DEFAULT_GAINS[id],
-            pan: DEFAULT_PANS[id],
+            gain_db: default_gain(id),
+            pan: default_pan(id),
             meter_db: MIN_GAIN_DB,
             peak_db: MIN_GAIN_DB,
+            sends: default_sends(id),
             muted: false,
             solo: false,
             armed: id == 0,
@@ -100,20 +122,45 @@ impl MixerChannel {
     }
 
     pub(crate) fn set_gain_from_ratio(&mut self, ratio: f32) {
-        self.gain_db = gain_for_ratio(ratio);
+        self.set_gain_from_db(gain_for_ratio(ratio));
         if ratio <= 0.001 {
             self.meter_db = MIN_GAIN_DB;
             self.peak_db = MIN_GAIN_DB;
         }
     }
 
-    pub(crate) fn gain_ratio(&self) -> f32 {
-        ratio_for_gain(self.gain_db)
+    pub(crate) fn set_gain_from_db(&mut self, db: f32) {
+        self.gain_db = db.clamp(MIN_GAIN_DB, MAX_GAIN_DB);
+        if self.gain_db <= MIN_GAIN_DB + 0.001 {
+            self.meter_db = MIN_GAIN_DB;
+            self.peak_db = MIN_GAIN_DB;
+        }
+    }
+
+    pub(crate) fn group(&self) -> usize {
+        self.id / (CHANNEL_COUNT / GROUP_COUNT)
     }
 
     pub(crate) fn is_visually_dimmed_by_solo(&self, solo_active: bool) -> bool {
         solo_active && !self.solo
     }
+}
+
+fn default_gain(channel: usize) -> f32 {
+    -5.0 - (channel % 8) as f32 * 1.4 - (channel / 8) as f32 * 0.8
+}
+
+fn default_pan(channel: usize) -> f32 {
+    const PANS: [f32; 8] = [-0.55, -0.28, -0.08, 0.0, 0.10, 0.24, 0.42, 0.58];
+    PANS[channel % PANS.len()]
+}
+
+fn default_sends(channel: usize) -> [f32; SEND_COUNT] {
+    [
+        0.14 + (channel % 5) as f32 * 0.035,
+        0.08 + (channel % 7) as f32 * 0.025,
+        0.05 + (channel % 4) as f32 * 0.045,
+    ]
 }
 
 fn synthetic_level(frame: u64, channel: usize, gain_db: f32, muted: bool) -> f32 {
@@ -149,7 +196,7 @@ pub(crate) fn ratio_for_gain(db: f32) -> f32 {
         .clamp(0.0, 1.0)
 }
 
-fn gain_for_ratio(ratio: f32) -> f32 {
+pub(crate) fn gain_for_ratio(ratio: f32) -> f32 {
     MIN_GAIN_DB + (MAX_GAIN_DB - MIN_GAIN_DB) * ratio.clamp(0.0, 1.0)
 }
 

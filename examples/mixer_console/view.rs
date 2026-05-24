@@ -19,7 +19,7 @@ pub(crate) fn project_surface(state: &mut MixerState) -> View<MixerMessage> {
 
 fn header_row(running: bool) -> View<MixerMessage> {
     row([
-        text("8-Channel Mixer").height(30.0).fill_width(),
+        text("32-Channel Mixer").height(30.0).fill_width(),
         button(if running { "Pause" } else { "Run" })
             .primary()
             .message(MixerMessage::ToggleRun)
@@ -35,11 +35,16 @@ fn header_row(running: bool) -> View<MixerMessage> {
 
 fn mixer_panel(state: &MixerState) -> View<MixerMessage> {
     custom_widget_mapped(
-        MixerPanelWidget::new(state.channels, state.selected_channel, state.frame),
+        MixerPanelWidget::new(
+            state.channels,
+            state.selection.clone(),
+            state.selected_channel,
+            state.frame,
+        ),
         MixerMessage::Panel,
     )
     .id(MIXER_WIDGET_ID)
-    .height(380.0)
+    .height(500.0)
     .fill_width()
 }
 
@@ -48,6 +53,7 @@ fn status_row(state: &MixerState, selected: MixerChannel) -> View<MixerMessage> 
         channel_summary_tile(selected),
         stat_tile("Source", DATA_SOURCE_NOTE),
         stat_tile("Peak", format!("{:+.1} dB", selected.peak_db)),
+        stat_tile("Send A", format!("{:.0}%", selected.sends[0] * 100.0)),
         stat_tile("Pan", format!("{:+.0}%", selected.pan * 100.0)),
         text(state.status())
             .id(STATUS_WIDGET_ID)

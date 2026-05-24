@@ -3,7 +3,13 @@ use super::*;
 #[test]
 fn native_run_options_validate_direct_launch_geometry() {
     let invalid_size = NativeRunOptions {
-        inner_size: Some([f32::NAN, 480.0]),
+        window: NativeWindowOptions {
+            geometry: NativeWindowGeometry {
+                inner_size: Some([f32::NAN, 480.0]),
+                ..NativeWindowGeometry::default()
+            },
+            ..NativeWindowOptions::default()
+        },
         ..NativeRunOptions::default()
     };
     let invalid_popup = NativeRunOptions::popup("Drag Preview").popup_position(10.0, f32::INFINITY);
@@ -41,7 +47,13 @@ fn native_run_options_validate_direct_launch_geometry() {
 #[test]
 fn native_runtime_rejects_invalid_options_before_platform_startup() {
     let options = NativeRunOptions {
-        inner_size: Some([0.0, 100.0]),
+        window: NativeWindowOptions {
+            geometry: NativeWindowGeometry {
+                inner_size: Some([0.0, 100.0]),
+                ..NativeWindowGeometry::default()
+            },
+            ..NativeWindowOptions::default()
+        },
         ..NativeRunOptions::default()
     };
     let report = radiant::runtime::run_native_vello_runtime_with_artifacts(

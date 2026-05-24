@@ -36,8 +36,9 @@ pub use native_vello::{
 };
 pub use options::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS,
-    NativeGpuBackend, NativeGpuOptions, NativePopupOptions, NativeRunOptions,
-    NativeRunOptionsError, NativeTextOptions, NativeWindowMode, WindowIconRgba,
+    NativeFrameOptions, NativeGpuBackend, NativeGpuOptions, NativePopupOptions, NativeRunOptions,
+    NativeRunOptionsError, NativeTextOptions, NativeWindowBehavior, NativeWindowGeometry,
+    NativeWindowMode, NativeWindowOptions, WindowIconRgba,
 };
 pub use window_manifest::{
     WindowManifest, WindowManifestError, WindowSpec, WindowSpecError, WindowSpecParts,

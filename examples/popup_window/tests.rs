@@ -45,7 +45,7 @@ fn popup_spec_uses_borderless_popup_window_options() {
         spec.popup_options().and_then(|popup| popup.position),
         Some(POPUP_POSITION)
     );
-    assert!(!spec.native_options().decorations);
+    assert!(!spec.native_options().window.behavior.decorations);
     assert!(!spec.drag_and_drop_enabled());
 }
 

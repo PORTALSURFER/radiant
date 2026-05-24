@@ -40,7 +40,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     ) -> Self {
         let viewport = initial_viewport(&projection.options);
         let mut options = projection.options;
-        options.debug_layout |= parent_options.debug_layout;
+        options.frame.debug_layout |= parent_options.frame.debug_layout;
         if options.text.embedded_fonts.is_empty() && options.text.font_paths.is_empty() {
             options.text = parent_options.text.clone();
         }
@@ -75,11 +75,20 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         event_loop: &ActiveEventLoop,
         parent_window: Option<&Window>,
     ) {
-        if self.runner.options.owner_window_handle.is_none() {
-            self.runner.options.owner_window_handle = owner_window_handle(parent_window);
+        if self
+            .runner
+            .options
+            .window
+            .behavior
+            .owner_window_handle
+            .is_none()
+        {
+            self.runner.options.window.behavior.owner_window_handle =
+                owner_window_handle(parent_window);
         }
-        if self.runner.options.position.is_none() {
-            self.runner.options.position = centered_position(parent_window, &self.runner.options);
+        if self.runner.options.window.geometry.position.is_none() {
+            self.runner.options.window.geometry.position =
+                centered_position(parent_window, &self.runner.options);
         }
         self.runner.initialize_runtime(event_loop);
     }
@@ -191,7 +200,7 @@ fn centered_position(
     let parent_position = parent.outer_position().ok()?;
     let parent_size = parent.outer_size();
     let scale = parent.scale_factor().max(f64::EPSILON);
-    let [child_width, child_height] = options.inner_size.unwrap_or([480.0, 360.0]);
+    let [child_width, child_height] = options.window.geometry.inner_size.unwrap_or([480.0, 360.0]);
     let child_width = (child_width as f64 * scale).round();
     let child_height = (child_height as f64 * scale).round();
     let x = parent_position.x as f64 + ((parent_size.width as f64 - child_width) / 2.0);

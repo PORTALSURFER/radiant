@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime::{NativeWindowBehavior, NativeWindowOptions};
 
 #[test]
 fn generic_native_window_starts_hidden_during_surface_setup() {
@@ -13,7 +14,13 @@ fn generic_native_window_uses_configured_drag_and_drop_policy() {
         &NativeRunOptions::default()
     ));
     assert!(!window::platform_drag_and_drop_enabled(&NativeRunOptions {
-        drag_and_drop: false,
+        window: NativeWindowOptions {
+            behavior: NativeWindowBehavior {
+                drag_and_drop: false,
+                ..NativeWindowBehavior::default()
+            },
+            ..NativeWindowOptions::default()
+        },
         ..NativeRunOptions::default()
     }));
 }

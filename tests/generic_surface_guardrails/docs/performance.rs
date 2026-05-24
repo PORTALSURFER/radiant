@@ -11,6 +11,8 @@ fn performance_harness_is_registered_and_documented() {
         .expect("perf_harness catalog should be readable");
     let runner = fs::read_to_string(manifest_dir.join("benches/perf_harness/runner.rs"))
         .expect("perf_harness runner should be readable");
+    let args = fs::read_to_string(manifest_dir.join("benches/perf_harness/args.rs"))
+        .expect("perf_harness argument parser should be readable");
     let baseline = fs::read_to_string(manifest_dir.join("benches/perf_harness/baseline.rs"))
         .expect("perf_harness baseline support should be readable");
     let layout_scenarios =
@@ -127,19 +129,22 @@ fn performance_harness_is_registered_and_documented() {
         "perf_harness runner should print parseable metric lines"
     );
     assert!(
-        runner.contains("--jsonl")
-            && runner.contains("--baseline-jsonl")
-            && runner.contains("--write-baseline-jsonl")
-            && runner.contains("--category")
-            && runner.contains("--fail-on-baseline-regression")
-            && runner.contains("--fail-on-missing-baseline")
+        args.contains("--jsonl")
+            && args.contains("--baseline-jsonl")
+            && args.contains("--write-baseline-jsonl")
+            && args.contains("--category")
+            && args.contains("--fail-on-baseline-regression")
+            && args.contains("--fail-on-missing-baseline")
             && runner.contains("OutputFormat::JsonLines")
             && runner.contains("BaselineSet")
             && runner.contains("BaselineOutput")
             && runner.contains("baseline_output_from_args")
             && runner.contains("fail_on_baseline_regression")
             && runner.contains("fail_on_missing_baseline")
+            && runner.contains("mod args;")
             && runner.contains("mod baseline;")
+            && !runner.contains("fn value_after_arg")
+            && args.contains("fn value_after_arg")
             && !runner.contains("struct BaselineSummaryCounts")
             && baseline.contains("struct BaselineSummaryCounts")
             && runner.contains("has_regression")
@@ -163,10 +168,10 @@ fn performance_harness_is_registered_and_documented() {
             && baseline.contains("MetricComparison::Missing")
             && runner.contains("baseline_status=missing")
             && runner.contains("\\\"baseline_status\\\":\\\"missing\\\""),
-        "perf_harness runner should expose JSON-lines metrics with target-area categories, baseline comparison fields, missing-baseline status, and summary counts for trend capture"
+        "perf_harness runner should expose JSON-lines metrics with target-area categories while delegating argument parsing and baseline summaries"
     );
     assert!(
-        runner.contains("--list") && runner.contains("radiant_perf scenarios:"),
+        args.contains("--list") && runner.contains("radiant_perf scenarios:"),
         "perf_harness runner should expose a cheap scenario-listing mode"
     );
     assert!(
@@ -183,6 +188,7 @@ fn performance_harness_is_registered_and_documented() {
             && catalog.contains("\"gpu_surface\"")
             && runner.contains("struct ScenarioSpec")
             && runner.contains("category_filters_from_args")
+            && args.contains("category_filters_from_args")
             && runner.contains("category_filters")
             && runner.contains("category={}")
             && runner.contains("iterations={}"),
@@ -247,53 +253,37 @@ fn performance_harness_is_registered_and_documented() {
         "perf_harness should exercise backend-neutral custom shader GPU surface projection"
     );
     let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
-    assert!(
-        normalized_docs.contains("cargo bench --bench perf_harness")
-            && normalized_docs.contains("cargo bench --bench perf_harness -- --list")
-            && normalized_docs
-                .contains("cargo bench --bench perf_harness -- --category runtime_virtualized --jsonl")
-            && normalized_docs.contains(
-                "cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl"
-            )
-            && normalized_docs.contains(
-                "cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --write-baseline-jsonl"
-            )
-            && normalized_docs.contains(
-                "cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl"
-            )
-            && normalized_docs.contains(
-                "Each JSON line includes `type`, `scenario`, `category`, `iterations`, `total_us`, and `avg_us`"
-            )
-            && normalized_docs.contains("losing which target area the scenario validates")
-            && normalized_docs.contains("Capture a machine-local baseline artifact directly")
-            && normalized_docs
-                .contains("`baseline_avg_us`, `baseline_ratio`, and `baseline_status`")
-            && normalized_docs.contains("`baseline_status=missing`")
-            && normalized_docs.contains("`radiant_perf_summary`")
-            && normalized_docs.contains("`radiant_perf_category_summary`")
-            && normalized_docs.contains("`baseline_matched`, `baseline_missing`")
-            && normalized_docs.contains("`baseline_faster`, `baseline_similar`, and `baseline_slower`")
-            && normalized_docs.contains("one `radiant_perf_category_summary` line per target-area category")
-            && normalized_docs.contains("incomplete trend artifacts are visible")
-            && normalized_docs.contains("portable pass/fail gate by default")
-            && normalized_docs.contains("`--fail-on-baseline-regression`")
-            && normalized_docs.contains("`--fail-on-missing-baseline`")
-            && normalized_docs.contains("exits with status `1`")
-            && normalized_docs.contains("`baseline_status=slower`")
-            && normalized_docs.contains("complete baseline coverage")
-            && normalized_docs.contains("Metric lines and list output both include each scenario's target-area category")
-            && normalized_docs.contains("The local validation lane runs formatting")
-            && normalized_docs.contains("no-default-features library checks for the documented Linux and macOS targets")
-            && normalized_docs.contains("proves baseline capture/comparison with `--fail-on-missing-baseline`")
-            && normalized_docs.contains("cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --write-baseline-jsonl .\\target\\perf-baseline.jsonl")
-            && normalized_docs.contains("cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl .\\target\\perf-baseline.jsonl --fail-on-missing-baseline")
-            && normalized_docs.contains("focused baseline round trip proves the JSONL capture/comparison path and missing baseline failure mode")
-            && normalized_docs.contains("Layout scenarios:")
-            && normalized_docs.contains("Application projection scenarios:")
-            && normalized_docs.contains("Runtime surface scenarios:")
-            && normalized_docs.contains("Resource lifecycle scenarios:")
-            && normalized_docs.contains("Text scenarios:")
-            && normalized_docs.contains("GPU data and surface scenarios:"),
-        "docs/API.md should describe how to run and interpret the perf harness"
-    );
+    for required in [
+        "cargo bench --bench perf_harness",
+        "cargo bench --bench perf_harness -- --list",
+        "cargo bench --bench perf_harness -- --category runtime_virtualized --jsonl",
+        "cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl",
+        "cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --write-baseline-jsonl",
+        "cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl --baseline-jsonl",
+        "Each JSON line includes `type`, `scenario`, `category`, `iterations`, `total_us`, and `avg_us`",
+        "Capture a machine-local baseline artifact directly",
+        "`baseline_avg_us`, `baseline_ratio`, and `baseline_status`",
+        "`baseline_status=missing`",
+        "`radiant_perf_summary`",
+        "`radiant_perf_category_summary`",
+        "`baseline_faster`, `baseline_similar`, and `baseline_slower`",
+        "one `radiant_perf_category_summary` line per target-area category",
+        "`--fail-on-baseline-regression`",
+        "`--fail-on-missing-baseline`",
+        "Metric lines and list output both include each scenario's target-area category",
+        "The local validation lane runs formatting",
+        "no-default-features library checks for the documented Linux and macOS targets",
+        "focused baseline round trip proves the JSONL capture/comparison path and missing baseline failure mode",
+        "Layout scenarios:",
+        "Application projection scenarios:",
+        "Runtime surface scenarios:",
+        "Resource lifecycle scenarios:",
+        "Text scenarios:",
+        "GPU data and surface scenarios:",
+    ] {
+        assert!(
+            normalized_docs.contains(required),
+            "docs/API.md should describe perf harness detail `{required}`"
+        );
+    }
 }

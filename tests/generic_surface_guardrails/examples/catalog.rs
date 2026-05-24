@@ -129,3 +129,46 @@ fn spectrogram_example_stays_split_by_model_widget_paint_and_tests() {
         );
     }
 }
+
+#[test]
+fn eq_editor_example_stays_split_by_model_widget_paint_and_tests() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = example_source(&manifest_dir, "eq_editor", "examples/eq_editor.rs");
+    let paint = fs::read_to_string(manifest_dir.join("examples/eq_editor/widget/paint.rs"))
+        .expect("eq editor paint module should be readable");
+
+    for required in [
+        "#[path = \"eq_editor/model.rs\"]",
+        "#[path = \"eq_editor/widget.rs\"]",
+        "#[path = \"eq_editor/tests.rs\"]",
+    ] {
+        assert!(
+            root.contains(required),
+            "eq editor root should delegate `{required}`"
+        );
+    }
+    assert!(
+        paint.contains("#[path = \"paint/grid.rs\"]")
+            && paint.contains("#[path = \"paint/primitives.rs\"]"),
+        "eq editor paint root should delegate grid and primitive helpers"
+    );
+
+    for path in [
+        "examples/eq_editor.rs",
+        "examples/eq_editor/model.rs",
+        "examples/eq_editor/tests.rs",
+        "examples/eq_editor/widget.rs",
+        "examples/eq_editor/widget/geometry.rs",
+        "examples/eq_editor/widget/paint.rs",
+        "examples/eq_editor/widget/paint/grid.rs",
+        "examples/eq_editor/widget/paint/primitives.rs",
+        "examples/eq_editor/widget/response.rs",
+    ] {
+        let source = fs::read_to_string(manifest_dir.join(path))
+            .unwrap_or_else(|err| panic!("{path} should be readable: {err}"));
+        assert!(
+            source.lines().count() <= 250,
+            "{path} should stay within the example module target"
+        );
+    }
+}

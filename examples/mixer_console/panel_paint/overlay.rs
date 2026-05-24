@@ -125,10 +125,10 @@ fn append_meter_drag_overlay(
     let readout = MeterReadout {
         meter_db: widget
             .meter_display_db_for_drag(channel_index)
-            .unwrap_or(channel.meter_db),
+            .unwrap_or(channel.meter.meter_db),
         peak_db: widget
             .peak_display_db_for_drag(channel_index)
-            .unwrap_or(channel.peak_db),
+            .unwrap_or(channel.meter.peak_db),
     };
     meter::append_meter_values(widget, primitives, channel, strip, false, readout, theme);
 }

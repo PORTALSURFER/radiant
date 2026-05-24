@@ -150,7 +150,8 @@ impl MixerPanelWidget {
         }
         self.interaction.drag_target = Some(MixerDragTarget::Fader(channel));
         self.interaction.drag_preview_ratio = Some(self.fader_ratio_at(strip, position));
-        self.interaction.drag_start_gains = Some(self.channels.map(|channel| channel.gain_db));
+        self.interaction.drag_start_gains =
+            Some(self.channels.map(|channel| channel.controls.gain_db));
         Some(WidgetOutput::custom(MixerPanelMessage::SetGain {
             channel,
             ratio: self.fader_ratio_at(strip, position),

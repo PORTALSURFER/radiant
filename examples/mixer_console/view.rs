@@ -52,9 +52,12 @@ fn status_row(state: &MixerState, selected: MixerChannel) -> View<MixerMessage> 
     row([
         channel_summary_tile(selected),
         stat_tile("Source", DATA_SOURCE_NOTE),
-        stat_tile("Peak", format!("{:+.1} dB", selected.peak_db)),
-        stat_tile("Send A", format!("{:.0}%", selected.sends[0] * 100.0)),
-        stat_tile("Pan", format!("{:+.0}%", selected.pan * 100.0)),
+        stat_tile("Peak", format!("{:+.1} dB", selected.meter.peak_db)),
+        stat_tile(
+            "Send A",
+            format!("{:.0}%", selected.controls.sends[0] * 100.0),
+        ),
+        stat_tile("Pan", format!("{:+.0}%", selected.controls.pan * 100.0)),
         text(state.status())
             .id(STATUS_WIDGET_ID)
             .height(68.0)
@@ -67,7 +70,7 @@ fn status_row(state: &MixerState, selected: MixerChannel) -> View<MixerMessage> 
 fn channel_summary_tile(channel: MixerChannel) -> View<MixerMessage> {
     stat_tile(
         format!("Selected {}", channel.label),
-        format!("{:+.1} dB fader", channel.gain_db),
+        format!("{:+.1} dB fader", channel.controls.gain_db),
     )
 }
 

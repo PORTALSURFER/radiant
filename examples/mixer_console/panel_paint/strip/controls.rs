@@ -27,19 +27,19 @@ fn buttons_for(state: StripPaintState, theme: &ThemeTokens) -> [StripButton; 3] 
         StripButton {
             index: 0,
             label: "M",
-            active: state.channel.muted,
+            active: state.channel.flags.muted,
             active_color: theme.accent_danger,
         },
         StripButton {
             index: 1,
             label: "S",
-            active: state.channel.solo,
+            active: state.channel.flags.solo,
             active_color: theme.accent_warning,
         },
         StripButton {
             index: 2,
             label: "R",
-            active: state.channel.armed,
+            active: state.channel.flags.armed,
             active_color: theme.highlight_cyan,
         },
     ]

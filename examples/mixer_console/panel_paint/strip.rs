@@ -32,7 +32,7 @@ pub(super) enum SoloVisual {
 impl StripPaintState {
     fn new(widget: &MixerPanelWidget, bounds: Rect, channel_index: usize) -> Self {
         let channel = widget.channels[channel_index];
-        let solo_active = widget.channels.iter().any(|channel| channel.solo);
+        let solo_active = widget.channels.iter().any(|channel| channel.flags.solo);
         let solo_visual = if channel.is_visually_dimmed_by_solo(solo_active) {
             SoloVisual::Dimmed
         } else {

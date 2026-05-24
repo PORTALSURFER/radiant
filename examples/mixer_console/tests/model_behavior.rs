@@ -5,15 +5,23 @@ use super::*;
 #[test]
 fn mixer_tick_animates_synthetic_decibel_meters_without_dsp() {
     let mut state = MixerState::default();
-    let initial = state.channels.map(|channel| channel.meter_db);
+    let initial = state.channels.map(|channel| channel.meter.meter_db);
 
     for _ in 0..8 {
         state.tick();
     }
 
     assert_eq!(state.channels.len(), CHANNEL_COUNT);
-    assert_ne!(state.channels.map(|channel| channel.meter_db), initial);
-    assert!(state.channels.iter().all(|channel| channel.meter_db <= 0.0));
+    assert_ne!(
+        state.channels.map(|channel| channel.meter.meter_db),
+        initial
+    );
+    assert!(
+        state
+            .channels
+            .iter()
+            .all(|channel| channel.meter.meter_db <= 0.0)
+    );
 }
 
 #[test]
@@ -28,13 +36,13 @@ fn mixer_fader_down_drives_meter_to_silence() {
         },
     );
 
-    assert_eq!(state.channels[3].gain_db, MIN_GAIN_DB);
-    assert_eq!(state.channels[3].meter_db, MIN_GAIN_DB);
-    assert_eq!(state.channels[3].peak_db, MIN_GAIN_DB);
+    assert_eq!(state.channels[3].controls.gain_db, MIN_GAIN_DB);
+    assert_eq!(state.channels[3].meter.meter_db, MIN_GAIN_DB);
+    assert_eq!(state.channels[3].meter.peak_db, MIN_GAIN_DB);
 
     state.tick();
 
-    assert_eq!(state.channels[3].meter_db, MIN_GAIN_DB);
+    assert_eq!(state.channels[3].meter.meter_db, MIN_GAIN_DB);
 }
 
 #[test]
@@ -46,9 +54,9 @@ fn mixer_solo_keeps_non_solo_meters_active_for_visual_information() {
         state.tick();
     }
 
-    assert!(state.channels[1].solo);
-    assert!(state.channels[0].meter_db > MIN_GAIN_DB);
-    assert!(state.channels[1].meter_db > MIN_GAIN_DB);
+    assert!(state.channels[1].flags.solo);
+    assert!(state.channels[0].meter.meter_db > MIN_GAIN_DB);
+    assert!(state.channels[1].meter.meter_db > MIN_GAIN_DB);
 }
 
 #[test]
@@ -98,8 +106,8 @@ fn mixer_group_fader_drag_applies_relative_gain_delta_to_selected_channels() {
             modifiers: ListSelectionModifiers::toggle(),
         },
     );
-    let initial_4 = state.channels[4].gain_db;
-    let initial_5 = state.channels[5].gain_db;
+    let initial_4 = state.channels[4].controls.gain_db;
+    let initial_5 = state.channels[5].controls.gain_db;
 
     update_panel(
         &mut state,
@@ -110,8 +118,8 @@ fn mixer_group_fader_drag_applies_relative_gain_delta_to_selected_channels() {
         },
     );
 
-    let delta_4 = state.channels[4].gain_db - initial_4;
-    let delta_5 = state.channels[5].gain_db - initial_5;
+    let delta_4 = state.channels[4].controls.gain_db - initial_4;
+    let delta_5 = state.channels[5].controls.gain_db - initial_5;
     assert_eq!(state.selection.selected_indices(), &[4, 5]);
     assert!((delta_4 - delta_5).abs() < 0.001);
 }
@@ -154,7 +162,7 @@ fn mixer_panel_fader_drag_preview_survives_rebuild_without_jittering_to_stale_ga
     assert_eq!(rebuilt.fader_display_ratio(4), 0.0);
     assert_ne!(
         rebuilt.fader_display_ratio(4),
-        ratio_for_gain(state.channels[4].gain_db)
+        ratio_for_gain(state.channels[4].controls.gain_db)
     );
 }
 
@@ -195,8 +203,8 @@ fn mixer_group_fader_drag_preview_moves_selected_channels_together() {
     let mut rebuilt = mixer_widget(&state);
     rebuilt.synchronize_from_previous(&widget);
 
-    let delta_4 = rebuilt.fader_display_db(4) - state.channels[4].gain_db;
-    let delta_5 = rebuilt.fader_display_db(5) - state.channels[5].gain_db;
+    let delta_4 = rebuilt.fader_display_db(4) - state.channels[4].controls.gain_db;
+    let delta_5 = rebuilt.fader_display_db(5) - state.channels[5].controls.gain_db;
     assert_eq!(
         rebuilt.interaction.drag_target,
         Some(MixerDragTarget::Fader(4))

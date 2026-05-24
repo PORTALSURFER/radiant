@@ -20,7 +20,7 @@ pub(super) fn append_footer(
     push_text(
         primitives,
         widget.common.id,
-        format!("{:+.0}", state.channel.pan * 100.0),
+        format!("{:+.0}", state.channel.controls.pan * 100.0),
         footer_rect(state.rect, 24.0),
         theme.text_muted,
         PaintTextAlign::Center,

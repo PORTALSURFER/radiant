@@ -73,7 +73,7 @@ impl MixerPanelWidget {
 
     pub(super) fn fader_display_db(&self, channel: usize) -> f32 {
         self.fader_display_db_for_drag(channel)
-            .unwrap_or(self.channels[channel].gain_db)
+            .unwrap_or(self.channels[channel].controls.gain_db)
     }
 
     fn fader_display_db_for_drag(&self, channel: usize) -> Option<f32> {
@@ -99,14 +99,24 @@ impl MixerPanelWidget {
 
     pub(super) fn meter_display_db_for_drag(&self, channel: usize) -> Option<f32> {
         let channel_state = self.channels[channel];
-        self.fader_display_db_for_drag(channel)
-            .map(|gain_db| preview_meter_db(channel_state.meter_db, channel_state.gain_db, gain_db))
+        self.fader_display_db_for_drag(channel).map(|gain_db| {
+            preview_meter_db(
+                channel_state.meter.meter_db,
+                channel_state.controls.gain_db,
+                gain_db,
+            )
+        })
     }
 
     pub(super) fn peak_display_db_for_drag(&self, channel: usize) -> Option<f32> {
         let channel_state = self.channels[channel];
-        self.fader_display_db_for_drag(channel)
-            .map(|gain_db| preview_meter_db(channel_state.peak_db, channel_state.gain_db, gain_db))
+        self.fader_display_db_for_drag(channel).map(|gain_db| {
+            preview_meter_db(
+                channel_state.meter.peak_db,
+                channel_state.controls.gain_db,
+                gain_db,
+            )
+        })
     }
 
     pub(super) fn send_display_ratio(&self, channel: usize, send: usize) -> f32 {
@@ -115,7 +125,7 @@ impl MixerPanelWidget {
         {
             ratio
         } else {
-            self.channels[channel].sends[send]
+            self.channels[channel].controls.sends[send]
         }
     }
 }

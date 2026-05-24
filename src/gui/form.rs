@@ -11,7 +11,10 @@ pub use numeric::{
     DecimalTextInputPolicy, parse_finite_decimal_text, rounded_scaled_u16,
     sanitize_decimal_text_insert,
 };
-pub use paired::{PairedPickerTarget, PairedPickerValue, PairedStatusPanel};
+pub use paired::{
+    PairedPickerOptions, PairedPickerTarget, PairedPickerValue, PairedStatusHeader,
+    PairedStatusPanel, PairedStatusSummaries,
+};
 
 /// One selectable option in a picker, menu, or segmented choice list.
 #[derive(Clone, Debug, PartialEq, Eq)]

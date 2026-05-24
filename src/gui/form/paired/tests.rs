@@ -1,4 +1,4 @@
-use super::{PairedPickerTarget, PairedPickerValue, PairedStatusPanel};
+use super::{PairedPickerOptions, PairedPickerTarget, PairedPickerValue, PairedStatusPanel};
 use crate::gui::form::OptionItem;
 
 #[test]
@@ -13,12 +13,15 @@ fn paired_picker_models_cover_primary_and_secondary_fields() {
 #[test]
 fn paired_status_panel_returns_options_for_target() {
     let panel = PairedStatusPanel {
-        active_picker: Some(PairedPickerTarget::SecondaryNumber),
-        secondary_number_options: vec![OptionItem {
-            label: String::from("Default"),
-            selected: true,
-            value: PairedPickerValue::<String, u32>::SecondaryNumber(None),
-        }],
+        options: PairedPickerOptions {
+            active_picker: Some(PairedPickerTarget::SecondaryNumber),
+            secondary_number: vec![OptionItem {
+                label: String::from("Default"),
+                selected: true,
+                value: PairedPickerValue::<String, u32>::SecondaryNumber(None),
+            }],
+            ..PairedPickerOptions::default()
+        },
         ..PairedStatusPanel::default()
     };
 

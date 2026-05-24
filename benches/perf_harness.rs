@@ -50,7 +50,7 @@ fn main() {
     let baseline_output = runner::baseline_output_from_args(&args);
     let fail_on_baseline_regression = runner::fail_on_baseline_regression_from_args(&args);
     let fail_on_missing_baseline = runner::fail_on_missing_baseline_from_args(&args);
-    let mut runner = runner::ScenarioRunner::new(
+    let mut runner = runner::ScenarioRunner::new(runner::ScenarioRunnerConfig {
         filters,
         category_filters,
         output_format,
@@ -58,7 +58,7 @@ fn main() {
         baseline_output,
         fail_on_baseline_regression,
         fail_on_missing_baseline,
-    );
+    });
     catalog::run_registered_scenarios(&mut runner);
     runner.finish();
 }

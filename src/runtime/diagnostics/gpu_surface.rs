@@ -1,46 +1,88 @@
 /// GPU-surface cache and render diagnostics for one native frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativeGpuSurfaceDiagnostics {
+    /// Retained atlas texture upload and cache activity.
+    pub atlas: NativeGpuSurfaceAtlasDiagnostics,
+    /// Signal summary and body cache activity.
+    pub signal: NativeGpuSurfaceSignalDiagnostics,
+    /// Composite binding-group cache activity.
+    pub composite: NativeGpuSurfaceCompositeDiagnostics,
+    /// Native WGPU custom-shader render activity.
+    pub custom_shader: NativeGpuSurfaceCustomShaderDiagnostics,
+}
+
+/// Retained atlas texture diagnostics for one native frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeGpuSurfaceAtlasDiagnostics {
     /// Atlas texture uploads performed this frame.
-    pub atlas_texture_uploads: usize,
+    pub texture_uploads: usize,
     /// Atlas texture cache hits this frame.
-    pub atlas_texture_cache_hits: usize,
+    pub texture_cache_hits: usize,
+}
+
+/// Signal GPU-surface diagnostics for one native frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeGpuSurfaceSignalDiagnostics {
     /// Signal summary buffers built this frame.
-    pub signal_summary_builds: usize,
+    pub summary_builds: usize,
     /// Signal summary cache hits this frame.
-    pub signal_summary_cache_hits: usize,
+    pub summary_cache_hits: usize,
     /// Signal body renders encoded this frame.
-    pub signal_body_renders: usize,
+    pub body_renders: usize,
     /// Signal body cache hits this frame.
-    pub signal_body_cache_hits: usize,
+    pub body_cache_hits: usize,
+}
+
+/// Composite binding diagnostics for one native frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeGpuSurfaceCompositeDiagnostics {
     /// Composite binding groups rebuilt this frame.
-    pub composite_binding_rebuilds: usize,
-    /// Composite binding cache hits this frame.
-    pub composite_binding_cache_hits: usize,
+    pub binding_rebuilds: usize,
+    /// Composite binding groups reused from cache this frame.
+    pub binding_cache_hits: usize,
+}
+
+/// Native WGPU custom-shader diagnostics for one native frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeGpuSurfaceCustomShaderDiagnostics {
     /// Custom-shader GPU surfaces encoded by the native WGPU path this frame.
-    pub custom_shader_surfaces_rendered: usize,
+    pub surfaces_rendered: usize,
     /// Custom-shader render pipelines rebuilt this frame.
-    pub custom_shader_pipeline_rebuilds: usize,
+    pub pipeline_rebuilds: usize,
     /// Custom-shader bind groups rebuilt this frame.
-    pub custom_shader_binding_rebuilds: usize,
+    pub binding_rebuilds: usize,
     /// Custom-shader bind groups reused from cache this frame.
-    pub custom_shader_binding_cache_hits: usize,
+    pub binding_cache_hits: usize,
+    /// Custom-shader native setup failures observed this frame.
+    pub failures: NativeGpuSurfaceCustomShaderFailureDiagnostics,
+    /// Valid custom-shader surfaces skipped by this native backend.
+    pub unsupported: NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
+}
+
+/// Native WGPU custom-shader failure diagnostics for one native frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeGpuSurfaceCustomShaderFailureDiagnostics {
     /// Custom-shader GPU surfaces that could not be encoded after native setup failed.
-    pub custom_shader_surfaces_failed: usize,
+    pub surfaces_failed: usize,
     /// Custom-shader WGSL module validation failures observed this frame.
-    pub custom_shader_shader_module_failures: usize,
+    pub shader_module_failures: usize,
     /// Custom-shader render-pipeline validation failures observed this frame.
-    pub custom_shader_pipeline_failures: usize,
+    pub pipeline_failures: usize,
     /// Custom-shader bind-group validation failures observed this frame.
-    pub custom_shader_binding_failures: usize,
+    pub binding_failures: usize,
+}
+
+/// Custom-shader surfaces skipped by this native backend for one native frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeGpuSurfaceUnsupportedCustomShaderDiagnostics {
     /// Valid custom-shader GPU surfaces skipped by this native backend.
-    pub unsupported_custom_shader_surfaces: usize,
+    pub surfaces: usize,
     /// Total vertex count requested by skipped custom-shader GPU surfaces.
-    pub unsupported_custom_shader_vertices: usize,
+    pub vertices: usize,
     /// Total WGSL source bytes carried by skipped custom-shader GPU surfaces.
-    pub unsupported_custom_shader_source_bytes: usize,
+    pub source_bytes: usize,
     /// Total uniform payload bytes carried by skipped custom-shader GPU surfaces.
-    pub unsupported_custom_shader_uniform_bytes: usize,
+    pub uniform_bytes: usize,
     /// Total storage payload bytes carried by skipped custom-shader GPU surfaces.
-    pub unsupported_custom_shader_storage_bytes: usize,
+    pub storage_bytes: usize,
 }

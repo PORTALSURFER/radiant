@@ -681,21 +681,22 @@ execute WGSL-backed descriptors that use Radiant's built-in surface uniform
 ABI at `@group(0) @binding(0)`, optional app uniform payload bytes at
 `@group(0) @binding(1)`, and optional read-only storage payload bytes at
 `@group(0) @binding(2)`. Native frame diagnostics expose direct custom-shader
-work, including custom shader pipeline rebuilds, through
-`NativeGpuSurfaceDiagnostics::custom_shader_surfaces_rendered`,
-`custom_shader_pipeline_rebuilds`, `custom_shader_binding_rebuilds`,
-and `custom_shader_binding_cache_hits`, so rendered surfaces and shader
-pipeline/bind-group cache activity stay distinct from descriptors that cannot
-be handed to the direct WGPU path. Native WGPU validation failures are counted
-separately through `custom_shader_surfaces_failed`,
-`custom_shader_shader_module_failures`, `custom_shader_pipeline_failures`, and
-`custom_shader_binding_failures`; the native renderer also logs the backend
-validation error through tracing. Descriptors that do not provide source or
-stage entry points report skipped surfaces through
-`NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces`,
-`unsupported_custom_shader_vertices`, `unsupported_custom_shader_source_bytes`,
-`unsupported_custom_shader_uniform_bytes`, and
-`unsupported_custom_shader_storage_bytes` instead of silently treating them as
+work, including custom shader pipeline rebuilds, under
+`NativeGpuSurfaceDiagnostics::custom_shader`: `surfaces_rendered`,
+`pipeline_rebuilds`, `binding_rebuilds`, and `binding_cache_hits`, so rendered
+surfaces and shader pipeline/bind-group cache activity stay distinct from
+descriptors that cannot be handed to the direct WGPU path. Native WGPU
+validation failures are counted separately through
+`custom_shader.failures.surfaces_failed`,
+`custom_shader.failures.shader_module_failures`,
+`custom_shader.failures.pipeline_failures`, and
+`custom_shader.failures.binding_failures`; the native renderer also logs the
+backend validation error through tracing. Descriptors that do not provide source
+or stage entry points report skipped surfaces through
+`custom_shader.unsupported.surfaces`, `custom_shader.unsupported.vertices`,
+`custom_shader.unsupported.source_bytes`,
+`custom_shader.unsupported.uniform_bytes`, and
+`custom_shader.unsupported.storage_bytes` instead of silently treating them as
 built-in atlas or signal content.
 `GpuSurfaceContent::validate()` returns a typed `GpuSurfaceContentError` for
 invalid atlas rectangles, signal ranges, empty payloads, and summary-shape
@@ -1042,7 +1043,7 @@ for the native surface-uniform ABI. Native runs expose custom shader
 render/cache/failure diagnostics; shader module, pipeline, or bind-group
 validation failures are counted separately from missing handoff data. Backends
 without a matching shader handoff still report the surface through
-`NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces` and the
+`NativeGpuSurfaceDiagnostics::custom_shader.unsupported.surfaces` and the
 related skipped vertex/source/uniform/storage counters rather than creating a
 separate WGPU-facing application API.
 Run `cargo run --example multi_window_manifest` for a checked manifest sandbox

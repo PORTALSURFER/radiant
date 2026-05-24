@@ -62,12 +62,12 @@ fn application_builder_dropdown_exports_and_routes_messages() {
         .toggle_message(GalleryMessage::ToggleDropdown)
         .option_from_parts(ui::DropdownOptionParts {
             label: "System default".into(),
-            selected: false,
+            selection: ui::DropdownOptionSelection::Unselected,
             message: GalleryMessage::Pick("default"),
         })
         .option_from_parts(ui::DropdownOptionParts {
             label: "WASAPI".into(),
-            selected: true,
+            selection: ui::DropdownOptionSelection::Selected,
             message: GalleryMessage::Pick("wasapi"),
         })
         .build()

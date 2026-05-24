@@ -15,6 +15,12 @@ fn declarative_runtime_bridges_use_named_parts_for_host_closures() {
     let command =
         fs::read_to_string(manifest_dir.join("src/runtime/bridge/declarative/command.rs"))
             .expect("declarative command bridge should be readable");
+    let command_shared =
+        fs::read_to_string(manifest_dir.join("src/runtime/bridge/declarative/command/shared.rs"))
+            .expect("declarative shared-surface command bridge should be readable");
+    let command_owned =
+        fs::read_to_string(manifest_dir.join("src/runtime/bridge/declarative/command/owned.rs"))
+            .expect("declarative owned-surface command bridge should be readable");
     let bridge = fs::read_to_string(manifest_dir.join("src/runtime/bridge.rs"))
         .expect("runtime bridge module should be readable");
     let runtime =
@@ -34,13 +40,13 @@ fn declarative_runtime_bridges_use_named_parts_for_host_closures() {
             "Self::from_parts(DeclarativeOwnedRuntimeBridgeParts {",
         ),
         (
-            command.as_str(),
+            command_shared.as_str(),
             "pub struct DeclarativeCommandRuntimeBridgeParts",
             "pub fn from_parts(parts: DeclarativeCommandRuntimeBridgeParts<State, Project, Update>) -> Self",
             "Self::from_parts(DeclarativeCommandRuntimeBridgeParts {",
         ),
         (
-            command.as_str(),
+            command_owned.as_str(),
             "pub struct DeclarativeOwnedCommandRuntimeBridgeParts",
             "parts: DeclarativeOwnedCommandRuntimeBridgeParts<State, Project, Update>",
             "Self::from_parts(DeclarativeOwnedCommandRuntimeBridgeParts {",
@@ -59,6 +65,15 @@ fn declarative_runtime_bridges_use_named_parts_for_host_closures() {
             && !message.contains("pub struct DeclarativeRuntimeBridge<")
             && !message.contains("pub struct DeclarativeOwnedRuntimeBridge<"),
         "declarative message bridge root should re-export focused shared and owned bridge modules"
+    );
+    assert!(
+        command.contains("mod owned;")
+            && command.contains("mod shared;")
+            && command.contains("pub use owned::{")
+            && command.contains("pub use shared::{")
+            && !command.contains("pub struct DeclarativeCommandRuntimeBridge<")
+            && !command.contains("pub struct DeclarativeOwnedCommandRuntimeBridge<"),
+        "declarative command bridge root should re-export focused shared and owned bridge modules"
     );
     for export in [
         "DeclarativeRuntimeBridgeParts",

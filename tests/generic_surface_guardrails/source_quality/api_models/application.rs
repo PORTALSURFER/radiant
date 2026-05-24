@@ -93,6 +93,9 @@ fn application_dropdown_builder_keeps_menu_overlay_and_tests_focused() {
     let root =
         fs::read_to_string(manifest_dir.join("src/application/control_builders/dropdown.rs"))
             .expect("application dropdown builder root should be readable");
+    let model =
+        fs::read_to_string(manifest_dir.join("src/application/control_builders/dropdown/model.rs"))
+            .expect("application dropdown model should be readable");
     let menu =
         fs::read_to_string(manifest_dir.join("src/application/control_builders/dropdown/menu.rs"))
             .expect("application dropdown menu module should be readable");
@@ -102,15 +105,24 @@ fn application_dropdown_builder_keeps_menu_overlay_and_tests_focused() {
 
     assert!(
         root.contains("mod menu;")
+            && root.contains("mod model;")
+            && root
+                .contains("pub use model::{DropdownOption, DropdownOptionParts, DropdownParts};")
             && root.contains("#[path = \"dropdown/tests.rs\"]")
             && root.contains("pub struct DropdownBuilder<Message>")
-            && root.contains("pub struct DropdownOptionParts<Message>")
-            && root.contains("pub fn from_parts(parts: DropdownOptionParts<Message>) -> Self")
             && root.contains("pub fn option_from_parts")
             && root.contains("pub fn dropdown_from_parts")
+            && !root.contains("pub struct DropdownOptionParts<Message>")
             && !root.contains("fn dropdown_option_button")
             && !root.contains("fn dropdown_builder_accepts_toggle_and_options"),
-        "dropdown builder root should own public model and builder entry points while delegating menu overlay and tests"
+        "dropdown builder root should own builder entry points while delegating public DTOs, menu overlay, and tests"
+    );
+    assert!(
+        model.contains("pub struct DropdownOption<Message>")
+            && model.contains("pub struct DropdownOptionParts<Message>")
+            && model.contains("pub struct DropdownParts<Message>")
+            && model.contains("pub fn from_parts(parts: DropdownOptionParts<Message>) -> Self"),
+        "dropdown public DTOs should live in the focused model module"
     );
     assert!(
         menu.contains("pub fn dropdown_menu<")

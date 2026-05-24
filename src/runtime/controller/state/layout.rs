@@ -50,10 +50,12 @@ where
                         == crate::layout::LayoutDiagnosticCode::InvalidScrollOffsetClamped
                 })
                 .filter_map(|diagnostic| {
-                    let child_rect = self
-                        .layout
-                        .rects
-                        .get(self.scroll_content_by_container.get(&diagnostic.node_id)?)?;
+                    let child_rect = self.layout.rects.get(
+                        self.traversal
+                            .containers
+                            .scroll_content_by_container
+                            .get(&diagnostic.node_id)?,
+                    )?;
                     let viewport_rect = self.layout.rects.get(&diagnostic.node_id)?;
                     Some((
                         diagnostic.node_id,

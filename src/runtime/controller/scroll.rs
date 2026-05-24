@@ -73,7 +73,9 @@ where
     }
 
     fn scroll_container_at(&self, point: Point) -> Option<NodeId> {
-        self.scroll_containers
+        self.traversal
+            .containers
+            .scroll
             .visible()
             .iter()
             .rev()

@@ -21,20 +21,7 @@ where
             layout: LayoutOutput::default(),
             layout_state: LayoutState::default(),
             layout_debug_options: LayoutDebugOptions::default(),
-            widget_hit_order: Vec::new(),
-            focusable_widgets: HitOrderIndex::default(),
-            pointer_widgets: HitOrderIndex::default(),
-            widget_paths: HashMap::new(),
-            previous_widget_paths: HashMap::new(),
-            container_hover_suppression: HashSet::new(),
-            keyboard_focus_widgets: HitOrderIndex::default(),
-            wheel_widgets: HitOrderIndex::default(),
-            stateful_widget_order: Vec::new(),
-            styled_containers: HitOrderIndex::default(),
-            scroll_containers: HitOrderIndex::default(),
-            widget_clip_ancestors: HashMap::new(),
-            container_clip_ancestors: HashMap::new(),
-            scroll_content_by_container: HashMap::new(),
+            traversal: RuntimeTraversalState::default(),
             scratch: RuntimeScratch::default(),
             interaction: RuntimeInteractionState::default(),
             repaint_requested: false,
@@ -58,7 +45,10 @@ where
     /// Reproject the latest host state into a fresh immutable surface snapshot.
     pub fn refresh(&mut self) {
         let mut next_surface = self.bridge.pull_surface();
-        std::mem::swap(&mut self.previous_widget_paths, &mut self.widget_paths);
+        std::mem::swap(
+            &mut self.traversal.widgets.paths.previous,
+            &mut self.traversal.widgets.paths.current,
+        );
         let mut traversal = self.take_reusable_traversal_index(true);
         let layout_root = next_surface.runtime_projection_reusing_with_scratch(
             &mut traversal,
@@ -69,7 +59,7 @@ where
             &self.surface,
             &traversal.stateful_widget_order,
             &traversal.widget_paths,
-            &self.previous_widget_paths,
+            &self.traversal.widgets.paths.previous,
         );
         self.surface = next_surface;
         self.layout_root = layout_root;
@@ -86,23 +76,25 @@ where
             .interaction
             .focus
             .focused_widget
-            .is_some_and(|widget_id| !self.focusable_widgets.contains(widget_id))
+            .is_some_and(|widget_id| !self.traversal.widgets.focusable.contains(widget_id))
         {
             self.interaction.focus.focused_widget = None;
         }
-        if self
-            .interaction
-            .pointer
-            .capture
-            .is_some_and(|widget_id| !self.widget_paths.contains_key(&widget_id))
-        {
+        if self.interaction.pointer.capture.is_some_and(|widget_id| {
+            !self
+                .traversal
+                .widgets
+                .paths
+                .current
+                .contains_key(&widget_id)
+        }) {
             self.interaction.pointer.capture = None;
         }
         if self
             .interaction
             .pointer
             .scroll_drag_capture
-            .is_some_and(|capture| !self.scroll_containers.contains(capture.node_id))
+            .is_some_and(|capture| !self.traversal.containers.scroll.contains(capture.node_id))
         {
             self.interaction.pointer.scroll_drag_capture = None;
         }
@@ -110,23 +102,25 @@ where
             .interaction
             .hover
             .scroll_affordance
-            .is_some_and(|node_id| !self.scroll_containers.contains(node_id))
+            .is_some_and(|node_id| !self.traversal.containers.scroll.contains(node_id))
         {
             self.interaction.hover.scroll_affordance = None;
         }
-        if self
-            .interaction
-            .hover
-            .widget
-            .is_some_and(|widget_id| !self.widget_paths.contains_key(&widget_id))
-        {
+        if self.interaction.hover.widget.is_some_and(|widget_id| {
+            !self
+                .traversal
+                .widgets
+                .paths
+                .current
+                .contains_key(&widget_id)
+        }) {
             self.interaction.hover.widget = None;
         }
         if self
             .interaction
             .hover
             .container
-            .is_some_and(|node_id| !self.styled_containers.contains(node_id))
+            .is_some_and(|node_id| !self.traversal.containers.styled.contains(node_id))
         {
             self.interaction.hover.container = None;
         }

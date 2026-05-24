@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::HashMap;
 
 /// Reusable order/rank/visible buffers for one runtime hit-test family.
 #[derive(Default)]

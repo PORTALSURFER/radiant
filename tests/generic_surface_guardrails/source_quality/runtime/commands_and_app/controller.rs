@@ -8,6 +8,9 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
     let interaction_state =
         fs::read_to_string(manifest_dir.join("src/runtime/controller/interaction_state.rs"))
             .expect("runtime controller interaction state should be readable");
+    let traversal_state =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/traversal_state.rs"))
+            .expect("runtime controller traversal state should be readable");
     let root = fs::read_to_string(manifest_dir.join("src/runtime/controller/commands.rs"))
         .expect("runtime controller command root should be readable");
     let work = fs::read_to_string(manifest_dir.join("src/runtime/controller/work.rs"))
@@ -92,6 +95,21 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
             && interaction_state.contains("pub(super) struct RuntimePointerState")
             && interaction_state.contains("pub(super) struct RuntimeDragState<Message>"),
         "focus, hover, pointer capture, and drag state should stay in controller/interaction_state.rs"
+    );
+    assert!(
+        controller.contains("mod traversal_state;")
+            && controller.contains("traversal: RuntimeTraversalState")
+            && !controller.contains("widget_hit_order: Vec<WidgetId>")
+            && !controller.contains("focusable_widgets: HitOrderIndex")
+            && !controller.contains("widget_paths: HashMap"),
+        "surface runtime should group projected traversal indexes behind one focused controller field"
+    );
+    assert!(
+        traversal_state.contains("pub(super) struct RuntimeTraversalState")
+            && traversal_state.contains("pub(super) struct RuntimeWidgetTraversal")
+            && traversal_state.contains("pub(super) struct RuntimeWidgetPathState")
+            && traversal_state.contains("pub(super) struct RuntimeContainerTraversal"),
+        "widget paths, hit orders, and container indexes should stay in controller/traversal_state.rs"
     );
     assert!(
         dispatch.contains("fn execute_command_inner")

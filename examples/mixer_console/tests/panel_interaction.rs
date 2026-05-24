@@ -17,7 +17,7 @@ fn mixer_panel_hover_uses_paint_only_runtime_overlay() {
     );
 
     assert!(output.is_none());
-    assert_eq!(widget.hover_channel, Some(2));
+    assert_eq!(widget.interaction.hover_channel, Some(2));
     assert!(widget.prefers_pointer_move_paint_only());
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
@@ -117,8 +117,11 @@ fn mixer_strip_drag_paints_insertion_line_without_spreading_strips() {
     );
 
     assert!(move_output.is_none());
-    assert_eq!(widget.drag_target, Some(MixerDragTarget::Strip(2)));
-    assert_eq!(widget.reorder_insert, Some(7));
+    assert_eq!(
+        widget.interaction.drag_target,
+        Some(MixerDragTarget::Strip(2))
+    );
+    assert_eq!(widget.interaction.reorder_insert, Some(7));
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
         &mut overlay,
@@ -199,7 +202,7 @@ fn mixer_panel_send_drag_routes_dense_aux_control_change() {
         })
     );
     assert_eq!(
-        widget.drag_target,
+        widget.interaction.drag_target,
         Some(MixerDragTarget::Send {
             channel: 17,
             send: 2

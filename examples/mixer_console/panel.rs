@@ -16,11 +16,16 @@ pub(crate) struct MixerPanelWidget {
     pub(super) selection: ListSelectionController,
     pub(super) selected_channel: usize,
     pub(super) frame: u64,
+    pub(crate) interaction: MixerPanelInteractionState,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct MixerPanelInteractionState {
     pub(crate) hover_channel: Option<usize>,
-    hover_position: Option<Point>,
+    pub(crate) hover_position: Option<Point>,
     pub(crate) drag_target: Option<MixerDragTarget>,
-    pub(super) drag_preview_ratio: Option<f32>,
-    drag_start_gains: Option<[f32; CHANNEL_COUNT]>,
+    pub(crate) drag_preview_ratio: Option<f32>,
+    pub(crate) drag_start_gains: Option<[f32; CHANNEL_COUNT]>,
     pub(crate) reorder_insert: Option<usize>,
 }
 
@@ -58,12 +63,7 @@ impl MixerPanelWidget {
             selection,
             selected_channel,
             frame,
-            hover_channel: None,
-            hover_position: None,
-            drag_target: None,
-            drag_preview_ratio: None,
-            drag_start_gains: None,
-            reorder_insert: None,
+            interaction: MixerPanelInteractionState::default(),
         }
     }
 
@@ -77,17 +77,17 @@ impl MixerPanelWidget {
     }
 
     fn fader_display_db_for_drag(&self, channel: usize) -> Option<f32> {
-        if self.drag_target == Some(MixerDragTarget::Fader(channel))
-            && let Some(ratio) = self.drag_preview_ratio
+        if self.interaction.drag_target == Some(MixerDragTarget::Fader(channel))
+            && let Some(ratio) = self.interaction.drag_preview_ratio
         {
             return Some(gain_for_ratio(ratio));
         }
-        if let Some(MixerDragTarget::Fader(source_channel)) = self.drag_target
+        if let Some(MixerDragTarget::Fader(source_channel)) = self.interaction.drag_target
             && self.selection.is_selected(source_channel)
             && self.selection.is_selected(channel)
             && self.selection.selected_indices().len() > 1
-            && let Some(ratio) = self.drag_preview_ratio
-            && let Some(start_gains) = self.drag_start_gains
+            && let Some(ratio) = self.interaction.drag_preview_ratio
+            && let Some(start_gains) = self.interaction.drag_start_gains
         {
             let delta = gain_for_ratio(ratio) - start_gains[source_channel];
             return Some(
@@ -110,8 +110,8 @@ impl MixerPanelWidget {
     }
 
     pub(super) fn send_display_ratio(&self, channel: usize, send: usize) -> f32 {
-        if self.drag_target == Some(MixerDragTarget::Send { channel, send })
-            && let Some(ratio) = self.drag_preview_ratio
+        if self.interaction.drag_target == Some(MixerDragTarget::Send { channel, send })
+            && let Some(ratio) = self.interaction.drag_preview_ratio
         {
             ratio
         } else {

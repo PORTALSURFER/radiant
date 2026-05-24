@@ -49,12 +49,7 @@ impl Widget for MixerPanelWidget {
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
             self.common.state = previous.common.state;
-            self.hover_channel = previous.hover_channel;
-            self.hover_position = previous.hover_position;
-            self.drag_target = previous.drag_target;
-            self.drag_preview_ratio = previous.drag_preview_ratio;
-            self.drag_start_gains = previous.drag_start_gains;
-            self.reorder_insert = previous.reorder_insert;
+            self.interaction = previous.interaction;
         }
     }
 
@@ -75,7 +70,7 @@ impl Widget for MixerPanelWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        if let Some(channel) = self.hover_channel {
+        if let Some(channel) = self.interaction.hover_channel {
             let strip = self.strip_rect(bounds, channel);
             push_stroke(
                 primitives,
@@ -85,7 +80,7 @@ impl Widget for MixerPanelWidget {
                 2.0,
             );
         }
-        match self.drag_target {
+        match self.interaction.drag_target {
             Some(MixerDragTarget::Fader(channel)) => {
                 self.append_fader_drag_overlay(primitives, bounds, channel, theme);
             }
@@ -103,15 +98,17 @@ impl Widget for MixerPanelWidget {
 impl MixerPanelWidget {
     fn handle_pointer_move(&mut self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
         self.common.state.hovered = bounds.contains(position);
-        self.hover_position = bounds.contains(position).then_some(position);
-        self.hover_channel = self.channel_at(bounds, position);
-        if let Some(target) = self.drag_target {
+        self.interaction.hover_position = bounds.contains(position).then_some(position);
+        self.interaction.hover_channel = self.channel_at(bounds, position);
+        if let Some(target) = self.interaction.drag_target {
             match target {
                 MixerDragTarget::Fader(_) | MixerDragTarget::Send { .. } => {
-                    self.drag_preview_ratio = Some(self.drag_ratio(bounds, target, position));
+                    self.interaction.drag_preview_ratio =
+                        Some(self.drag_ratio(bounds, target, position));
                 }
                 MixerDragTarget::Strip(_) => {
-                    self.reorder_insert = Some(self.insertion_index_at(bounds, position));
+                    self.interaction.reorder_insert =
+                        Some(self.insertion_index_at(bounds, position));
                 }
             }
         }
@@ -126,7 +123,7 @@ impl MixerPanelWidget {
     ) -> Option<WidgetOutput> {
         let channel = self.channel_at(bounds, position)?;
         let strip = self.strip_rect(bounds, channel);
-        self.hover_channel = Some(channel);
+        self.interaction.hover_channel = Some(channel);
         if self.fader_rect(strip).contains(position) {
             return self.handle_fader_press(strip, channel, position, modifiers);
         }
@@ -151,9 +148,9 @@ impl MixerPanelWidget {
         if selection_update.is_some() {
             self.apply_selection(channel, modifiers);
         }
-        self.drag_target = Some(MixerDragTarget::Fader(channel));
-        self.drag_preview_ratio = Some(self.fader_ratio_at(strip, position));
-        self.drag_start_gains = Some(self.channels.map(|channel| channel.gain_db));
+        self.interaction.drag_target = Some(MixerDragTarget::Fader(channel));
+        self.interaction.drag_preview_ratio = Some(self.fader_ratio_at(strip, position));
+        self.interaction.drag_start_gains = Some(self.channels.map(|channel| channel.gain_db));
         Some(WidgetOutput::custom(MixerPanelMessage::SetGain {
             channel,
             ratio: self.fader_ratio_at(strip, position),
@@ -170,8 +167,8 @@ impl MixerPanelWidget {
         modifiers: PointerModifiers,
     ) -> WidgetOutput {
         self.apply_selection(channel, modifiers);
-        self.drag_target = Some(MixerDragTarget::Send { channel, send });
-        self.drag_preview_ratio = Some(self.send_ratio_at(strip, send, position));
+        self.interaction.drag_target = Some(MixerDragTarget::Send { channel, send });
+        self.interaction.drag_preview_ratio = Some(self.send_ratio_at(strip, send, position));
         WidgetOutput::custom(MixerPanelMessage::SetSend {
             channel,
             send,
@@ -189,18 +186,18 @@ impl MixerPanelWidget {
         let message = button_or_select_message(self, strip, channel, position, modifiers);
         self.apply_selection(channel, modifiers);
         if matches!(message, MixerPanelMessage::Select { .. }) {
-            self.drag_target = Some(MixerDragTarget::Strip(channel));
-            self.reorder_insert = Some(channel);
+            self.interaction.drag_target = Some(MixerDragTarget::Strip(channel));
+            self.interaction.reorder_insert = Some(channel);
         }
         WidgetOutput::custom(message)
     }
 
     fn handle_primary_release(&mut self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
-        let drag = self.drag_target.take();
-        self.drag_preview_ratio = None;
-        self.drag_start_gains = None;
-        let reorder_insert = self.reorder_insert.take();
-        self.hover_channel = self.channel_at(bounds, position);
+        let drag = self.interaction.drag_target.take();
+        self.interaction.drag_preview_ratio = None;
+        self.interaction.drag_start_gains = None;
+        let reorder_insert = self.interaction.reorder_insert.take();
+        self.interaction.hover_channel = self.channel_at(bounds, position);
         drag.and_then(|target| match target {
             MixerDragTarget::Fader(_) | MixerDragTarget::Send { .. } => Some(WidgetOutput::custom(
                 self.drag_message(bounds, target, position),

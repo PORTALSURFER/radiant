@@ -83,7 +83,7 @@ pub(super) fn append_reorder_drag_overlay(
         translucent(theme.text_primary, 135),
         2.0,
     );
-    if let Some(insert) = widget.reorder_insert {
+    if let Some(insert) = widget.interaction.reorder_insert {
         let line = widget.insertion_line_rect(bounds, insert);
         push_rect(
             primitives,

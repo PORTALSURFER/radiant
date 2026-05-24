@@ -2,13 +2,11 @@ use super::*;
 
 #[path = "catalog/contracts.rs"]
 mod contracts;
-#[path = "catalog/support.rs"]
-mod support;
 
+use super::support::{example_source, registered_example_names};
 use contracts::{
     SEPARATELY_COVERED_EXAMPLES, focused_example_contracts, has_focused_example_contract,
 };
-use support::{example_source, registered_example_names};
 
 #[test]
 fn registered_examples_have_complete_guardrail_coverage() {

@@ -52,7 +52,10 @@ pub use controller::{
     RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceRuntime,
 };
 pub use diagnostics::{
-    NativeFrameDiagnostics, NativeFrameTimingDiagnostics, NativeGpuSurfaceDiagnostics,
+    NativeFrameDiagnostics, NativeFrameTimingDiagnostics, NativeGpuSurfaceAtlasDiagnostics,
+    NativeGpuSurfaceCompositeDiagnostics, NativeGpuSurfaceCustomShaderDiagnostics,
+    NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
+    NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
     NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
     NativeTextDiagnostics, NativeTextQualityStatus, RetainedSurfaceCachePolicy,
 };

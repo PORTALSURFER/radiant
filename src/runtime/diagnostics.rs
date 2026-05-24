@@ -10,7 +10,12 @@ mod timing;
 
 pub use cache_policy::RetainedSurfaceCachePolicy;
 pub use frame::NativeFrameDiagnostics;
-pub use gpu_surface::NativeGpuSurfaceDiagnostics;
+pub use gpu_surface::{
+    NativeGpuSurfaceAtlasDiagnostics, NativeGpuSurfaceCompositeDiagnostics,
+    NativeGpuSurfaceCustomShaderDiagnostics, NativeGpuSurfaceCustomShaderFailureDiagnostics,
+    NativeGpuSurfaceDiagnostics, NativeGpuSurfaceSignalDiagnostics,
+    NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
+};
 pub use retained_surface::NativeRetainedSurfaceDiagnostics;
 pub use scene::NativeSceneDiagnostics;
 pub use text::{NativeTextDiagnostics, NativeTextQualityStatus};

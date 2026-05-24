@@ -21,6 +21,7 @@ fn runtime_diagnostics_models_stay_in_focused_modules() {
             && root.contains("mod cache_policy;")
             && root.contains("pub use frame::NativeFrameDiagnostics")
             && root.contains("pub use text::{NativeTextDiagnostics, NativeTextQualityStatus}")
+            && root.contains("NativeGpuSurfaceCustomShaderDiagnostics")
             && !root.contains("pub struct NativeTextDiagnostics")
             && !root.contains("pub struct NativeGpuSurfaceDiagnostics"),
         "runtime diagnostics root should index focused public diagnostics modules"

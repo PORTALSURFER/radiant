@@ -1,6 +1,8 @@
 use super::*;
 use radiant::runtime::{
-    NativeFrameDiagnostics, NativeFrameTimingDiagnostics, NativeGpuSurfaceDiagnostics,
+    NativeFrameDiagnostics, NativeFrameTimingDiagnostics, NativeGpuSurfaceCustomShaderDiagnostics,
+    NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
+    NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
     NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
     NativeTextDiagnostics, NativeTextQualityStatus, RuntimeBridge,
 };
@@ -23,20 +25,29 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
             ..NativeRetainedSurfaceDiagnostics::default()
         },
         gpu_surfaces: NativeGpuSurfaceDiagnostics {
-            signal_summary_cache_hits: 4,
-            custom_shader_surfaces_rendered: 2,
-            custom_shader_pipeline_rebuilds: 1,
-            custom_shader_binding_rebuilds: 1,
-            custom_shader_binding_cache_hits: 3,
-            custom_shader_surfaces_failed: 1,
-            custom_shader_shader_module_failures: 1,
-            custom_shader_pipeline_failures: 1,
-            custom_shader_binding_failures: 1,
-            unsupported_custom_shader_surfaces: 1,
-            unsupported_custom_shader_vertices: 6,
-            unsupported_custom_shader_source_bytes: 64,
-            unsupported_custom_shader_uniform_bytes: 16,
-            unsupported_custom_shader_storage_bytes: 128,
+            signal: NativeGpuSurfaceSignalDiagnostics {
+                summary_cache_hits: 4,
+                ..NativeGpuSurfaceSignalDiagnostics::default()
+            },
+            custom_shader: NativeGpuSurfaceCustomShaderDiagnostics {
+                surfaces_rendered: 2,
+                pipeline_rebuilds: 1,
+                binding_rebuilds: 1,
+                binding_cache_hits: 3,
+                failures: NativeGpuSurfaceCustomShaderFailureDiagnostics {
+                    surfaces_failed: 1,
+                    shader_module_failures: 1,
+                    pipeline_failures: 1,
+                    binding_failures: 1,
+                },
+                unsupported: NativeGpuSurfaceUnsupportedCustomShaderDiagnostics {
+                    surfaces: 1,
+                    vertices: 6,
+                    source_bytes: 64,
+                    uniform_bytes: 16,
+                    storage_bytes: 128,
+                },
+            },
             ..NativeGpuSurfaceDiagnostics::default()
         },
         text: NativeTextDiagnostics {

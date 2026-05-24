@@ -2,12 +2,14 @@
 
 mod animation;
 mod app;
+mod auxiliary;
 mod contract;
 mod declarative;
 
 pub use animation::RuntimeAnimationActivity;
 pub use app::App;
-pub use contract::{AuxiliaryWindow, RuntimeBridge};
+pub use auxiliary::AuxiliaryWindow;
+pub use contract::RuntimeBridge;
 pub use declarative::{
     DeclarativeCommandRuntimeBridge, DeclarativeCommandRuntimeBridgeParts,
     DeclarativeOwnedCommandRuntimeBridge, DeclarativeOwnedCommandRuntimeBridgeParts,

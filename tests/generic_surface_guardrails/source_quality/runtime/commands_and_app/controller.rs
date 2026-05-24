@@ -82,3 +82,28 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
         "runtime controller command tests should stay grouped by batching, drain, external drag, platform, and fixtures concerns"
     );
 }
+
+#[test]
+fn pointer_controller_keeps_move_routing_in_focused_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let pointer = fs::read_to_string(manifest_dir.join("src/runtime/controller/pointer.rs"))
+        .expect("runtime pointer controller should be readable");
+    let move_routing =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/pointer/move_routing.rs"))
+            .expect("runtime pointer move routing module should be readable");
+
+    assert!(
+        pointer.contains("mod move_routing;")
+            && !pointer.contains("fn route_pointer_move_to_target")
+            && !pointer.contains("fn update_drag_preview_position"),
+        "pointer controller root should delegate pointer-move routing internals"
+    );
+    assert!(
+        move_routing.contains("fn dispatch_pointer_move_target")
+            && move_routing.contains("fn route_pointer_move_to_target")
+            && move_routing.contains("fn update_drag_preview_position")
+            && move_routing.contains("fn update_hovered_scroll_affordance")
+            && move_routing.contains("fn route_captured_pass_through_move"),
+        "pointer move routing should group drag preview, hover, and captured move policy"
+    );
+}

@@ -21,3 +21,12 @@ fn dropdown_builder_accepts_toggle_and_options() {
         .option("WASAPI", true, Message::Select("wasapi"))
         .build();
 }
+
+#[test]
+fn dropdown_builder_accepts_options_before_required_toggle() {
+    let _view = dropdown("WASAPI", true)
+        .option("System default", false, Message::Select("default"))
+        .option("WASAPI", true, Message::Select("wasapi"))
+        .toggle_message(Message::Toggle)
+        .build();
+}

@@ -89,7 +89,12 @@ fn constrained_stack_slot(size: Vector2) -> radiant::layout::SlotParams {
     radiant::layout::SlotParams {
         size_main: radiant::layout::SizeModeMain::Fill(1.0),
         size_cross: radiant::layout::SizeModeCross::Fill,
-        constraints: radiant::layout::Constraints::new(size.x, size.x, size.y, size.y),
+        constraints: radiant::layout::Constraints::from_parts(radiant::layout::ConstraintsParts {
+            min_w: size.x,
+            max_w: size.x,
+            min_h: size.y,
+            max_h: size.y,
+        }),
         margin: Default::default(),
         align_cross_override: Some(radiant::layout::CrossAlign::Start),
         allow_fixed_compress: false,

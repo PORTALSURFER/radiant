@@ -164,28 +164,34 @@ fn split_pane_assigned_row_preserves_labels_and_assignments() {
 fn split_pane_tree_panel_defaults_to_empty_unassigned_panel() {
     let panel: SplitPaneTreePanel = SplitPaneTreePanel::default();
 
-    assert_eq!(panel.pane, SplitPaneSlot::Upper);
-    assert!(!panel.active);
-    assert!(!panel.has_item);
-    assert!(panel.tree_rows.is_empty());
-    assert_eq!(panel.focused_tree_row, None);
+    assert_eq!(panel.identity.pane, SplitPaneSlot::Upper);
+    assert!(!panel.assignment.active);
+    assert!(!panel.assignment.has_item);
+    assert!(panel.content.tree_rows.is_empty());
+    assert_eq!(panel.content.focused_tree_row, None);
 }
 
 #[test]
 fn split_pane_sidebar_state_routes_active_pane() {
     let mut sidebar: SplitPaneSidebarState = SplitPaneSidebarState {
-        active_pane: SplitPaneSlot::Lower,
-        lower_pane: SplitPaneTreePanel {
-            title: String::from("Lower"),
-            ..SplitPaneTreePanel::default()
+        panes: SplitPaneSidebarPanes {
+            active_pane: SplitPaneSlot::Lower,
+            lower_pane: SplitPaneTreePanel {
+                identity: SplitPaneTreePanelIdentity {
+                    title: String::from("Lower"),
+                    ..SplitPaneTreePanelIdentity::default()
+                },
+                ..SplitPaneTreePanel::default()
+            },
+            ..SplitPaneSidebarPanes::default()
         },
         ..SplitPaneSidebarState::default()
     };
 
-    assert_eq!(sidebar.active_pane_model().title, "Lower");
-    sidebar.pane_mut(SplitPaneSlot::Upper).title = String::from("Upper");
-    sidebar.active_pane_model_mut().item_label = String::from("Active");
+    assert_eq!(sidebar.active_pane_model().identity.title, "Lower");
+    sidebar.pane_mut(SplitPaneSlot::Upper).identity.title = String::from("Upper");
+    sidebar.active_pane_model_mut().assignment.item_label = String::from("Active");
 
-    assert_eq!(sidebar.upper_pane.title, "Upper");
-    assert_eq!(sidebar.lower_pane.item_label, "Active");
+    assert_eq!(sidebar.panes.upper_pane.identity.title, "Upper");
+    assert_eq!(sidebar.panes.lower_pane.assignment.item_label, "Active");
 }

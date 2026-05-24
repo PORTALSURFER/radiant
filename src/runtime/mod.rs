@@ -59,9 +59,11 @@ pub use diagnostics::{
     NativeGpuSurfaceCustomShaderDiagnostics, NativeGpuSurfaceCustomShaderFailureDiagnostics,
     NativeGpuSurfaceDiagnostics, NativeGpuSurfaceSignalDiagnostics,
     NativeGpuSurfaceUnsupportedCustomShaderDiagnostics, NativeGpuTimingStatus,
-    NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics, NativeTextCacheCounters,
-    NativeTextCacheDiagnostics, NativeTextDiagnostics, NativeTextQualityDiagnostics,
-    NativeTextQualityStatus, NativeTransientOverlayTiming, RetainedSurfaceCachePolicy,
+    NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics, NativeSceneMediaDiagnostics,
+    NativeSceneSurfaceDiagnostics, NativeSceneTextDiagnostics, NativeSceneTraversalDiagnostics,
+    NativeTextCacheCounters, NativeTextCacheDiagnostics, NativeTextDiagnostics,
+    NativeTextQualityDiagnostics, NativeTextQualityStatus, NativeTransientOverlayTiming,
+    RetainedSurfaceCachePolicy,
 };
 pub(crate) use drag::DragSession;
 pub use drag::{DragPreview, DragRequest};

@@ -948,10 +948,13 @@ For interactive native runs, set `RADIANT_NATIVE_RENDER_PROFILE=1` before
 launch to emit a per-frame `radiant native render profile` tracing line. The
 same counters are also exposed to custom hosts through
 `RuntimeBridge::observe_frame_diagnostics(...)` as `NativeFrameDiagnostics`, so
-apps can collect frame diagnostics without parsing logs. The profile separates
-paint-plan primitive counts, Vello scene encode categories, retained-surface
-bridge/cache/miss counts, custom-surface fallback counts, GPU-surface
-render/cache counts, transient-overlay primitive counts, and timing for surface
+apps can collect frame diagnostics without parsing logs. The scene diagnostics
+are grouped into `traversal`, `text`, `media`, and `surfaces` buckets so hosts
+can inspect paint-plan traversal, text encoding, image/SVG encoding, and
+GPU/custom-surface handoff without treating the payload as one flat counter bag.
+The profile separates retained-surface bridge/cache/miss counts,
+custom-surface fallback counts, GPU-surface render/cache counts,
+transient-overlay primitive counts, and timing for surface
 refresh, paint-plan generation, Vello render-to-texture, composed-base refresh
 or cache hits for transient overlays, transient-overlay paint callbacks,
 GPU-surface composition, and presentation.

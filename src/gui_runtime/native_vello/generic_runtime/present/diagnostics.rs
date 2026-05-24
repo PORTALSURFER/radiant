@@ -16,16 +16,24 @@ pub(super) fn native_frame_diagnostics(
 ) -> crate::runtime::NativeFrameDiagnostics {
     crate::runtime::NativeFrameDiagnostics {
         scene: crate::runtime::NativeSceneDiagnostics {
-            paint_plan_primitives: parts.stats.paint_plan_primitives,
-            clip_layer_count: parts.stats.clip_layer_count,
-            text_primitive_count: parts.stats.text_primitive_count,
-            text_input_count: parts.stats.text_input_count,
-            image_count: parts.stats.image_count,
-            svg_document_count: parts.stats.svg_document_count,
-            gpu_surface_count: parts.stats.gpu_surface_count,
-            custom_surface_count: parts.stats.custom_surface_count,
-            custom_surface_fallback_count: parts.stats.custom_surface_fallback_count,
-            text_run_count: parts.stats.text_run_count,
+            traversal: crate::runtime::NativeSceneTraversalDiagnostics {
+                paint_plan_primitives: parts.stats.paint_plan_primitives,
+                clip_layer_count: parts.stats.clip_layer_count,
+            },
+            text: crate::runtime::NativeSceneTextDiagnostics {
+                text_primitive_count: parts.stats.text_primitive_count,
+                text_input_count: parts.stats.text_input_count,
+                text_run_count: parts.stats.text_run_count,
+            },
+            media: crate::runtime::NativeSceneMediaDiagnostics {
+                image_count: parts.stats.image_count,
+                svg_document_count: parts.stats.svg_document_count,
+            },
+            surfaces: crate::runtime::NativeSceneSurfaceDiagnostics {
+                gpu_surface_count: parts.stats.gpu_surface_count,
+                custom_surface_count: parts.stats.custom_surface_count,
+                custom_surface_fallback_count: parts.stats.custom_surface_fallback_count,
+            },
         },
         text: crate::runtime::NativeTextDiagnostics {
             cache: crate::runtime::NativeTextCacheDiagnostics {

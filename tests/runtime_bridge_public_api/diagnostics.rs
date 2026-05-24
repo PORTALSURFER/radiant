@@ -5,9 +5,9 @@ use radiant::runtime::{
     NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
     NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
     NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
-    NativeTextCacheCounters, NativeTextCacheDiagnostics, NativeTextDiagnostics,
-    NativeTextQualityDiagnostics, NativeTextQualityStatus, NativeTransientOverlayTiming,
-    RuntimeBridge,
+    NativeSceneSurfaceDiagnostics, NativeSceneTraversalDiagnostics, NativeTextCacheCounters,
+    NativeTextCacheDiagnostics, NativeTextDiagnostics, NativeTextQualityDiagnostics,
+    NativeTextQualityStatus, NativeTransientOverlayTiming, RuntimeBridge,
 };
 use std::time::Duration;
 
@@ -16,8 +16,14 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     let mut bridge = DiagnosticBridge::default();
     let diagnostics = NativeFrameDiagnostics {
         scene: NativeSceneDiagnostics {
-            paint_plan_primitives: 12,
-            custom_surface_count: 2,
+            traversal: NativeSceneTraversalDiagnostics {
+                paint_plan_primitives: 12,
+                ..NativeSceneTraversalDiagnostics::default()
+            },
+            surfaces: NativeSceneSurfaceDiagnostics {
+                custom_surface_count: 2,
+                ..NativeSceneSurfaceDiagnostics::default()
+            },
             ..NativeSceneDiagnostics::default()
         },
         retained_surfaces: NativeRetainedSurfaceDiagnostics {

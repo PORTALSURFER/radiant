@@ -84,6 +84,43 @@ impl EditableTreeRowDraftSelection {
     }
 }
 
+/// Focus policy for an inline editable tree draft input.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EditableTreeInputFocus {
+    /// Leave the draft input unfocused.
+    #[default]
+    Blurred,
+    /// Give the draft input keyboard focus.
+    Focused,
+}
+
+impl EditableTreeInputFocus {
+    /// Build focus policy from compatibility flags.
+    pub const fn from_focused(focused: bool) -> Self {
+        match focused {
+            true => Self::Focused,
+            false => Self::Blurred,
+        }
+    }
+
+    const fn is_focused(self) -> bool {
+        matches!(self, Self::Focused)
+    }
+}
+
+/// Explicit input parts used to build inline editable tree draft rows.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct EditableTreeDraftInputParts {
+    /// Current input value.
+    pub value: String,
+    /// Placeholder shown while the input is empty.
+    pub placeholder: String,
+    /// Validation error shown for the draft input.
+    pub error: Option<String>,
+    /// Whether the draft input should own keyboard focus.
+    pub focus: EditableTreeInputFocus,
+}
+
 /// Inline editor state for create and rename draft rows.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct EditableTreeRowInput {
@@ -100,18 +137,12 @@ pub struct EditableTreeRowInput {
 }
 
 impl EditableTreeRowInput {
-    fn draft(
-        value: impl Into<String>,
-        placeholder: impl Into<String>,
-        error: Option<String>,
-        focused: bool,
-        selection: EditableTreeRowDraftSelection,
-    ) -> Self {
+    fn draft(parts: EditableTreeDraftInputParts, selection: EditableTreeRowDraftSelection) -> Self {
         Self {
-            value: Some(value.into()),
-            placeholder: Some(placeholder.into()),
-            error,
-            focused,
+            value: Some(parts.value),
+            placeholder: Some(parts.placeholder),
+            error: parts.error,
+            focused: parts.focus.is_focused(),
             select_all_on_focus: selection.select_all_on_focus(),
         }
     }
@@ -165,6 +196,12 @@ impl EditableTreeRow {
         input_error: Option<String>,
         input_focused: bool,
     ) -> Self {
+        let input = draft_input_parts(input_value, input_placeholder, input_error, input_focused);
+        Self::create_draft_from_parts(depth, input)
+    }
+
+    /// Build one inline create-draft row from named input parts.
+    pub fn create_draft_from_parts(depth: usize, input: EditableTreeDraftInputParts) -> Self {
         Self {
             label: String::new(),
             detail: String::new(),
@@ -172,13 +209,7 @@ impl EditableTreeRow {
             flags: EditableTreeRowFlags::default(),
             kind: EditableRowKind::CreateDraft,
             backing_index: None,
-            input: EditableTreeRowInput::draft(
-                input_value,
-                input_placeholder,
-                input_error,
-                input_focused,
-                EditableTreeRowDraftSelection::KeepCaret,
-            ),
+            input: EditableTreeRowInput::draft(input, EditableTreeRowDraftSelection::KeepCaret),
         }
     }
 
@@ -190,19 +221,21 @@ impl EditableTreeRow {
         input_error: Option<String>,
         input_focused: bool,
     ) -> Self {
-        let input_value = input_value.into();
+        let input = draft_input_parts(input_value, input_placeholder, input_error, input_focused);
+        Self::rename_draft_from_parts(depth, input)
+    }
+
+    /// Build one inline rename-draft row from named input parts.
+    pub fn rename_draft_from_parts(depth: usize, input: EditableTreeDraftInputParts) -> Self {
         Self {
-            label: input_value.clone(),
+            label: input.value.clone(),
             detail: String::new(),
             depth,
             flags: EditableTreeRowFlags::default(),
             kind: EditableRowKind::RenameDraft,
             backing_index: None,
             input: EditableTreeRowInput::draft(
-                input_value,
-                input_placeholder,
-                input_error,
-                input_focused,
+                input,
                 EditableTreeRowDraftSelection::SelectAllOnFocus,
             ),
         }
@@ -212,5 +245,19 @@ impl EditableTreeRow {
     pub fn with_select_all_on_focus(mut self, select_all_on_focus: bool) -> Self {
         self.input.select_all_on_focus = select_all_on_focus;
         self
+    }
+}
+
+fn draft_input_parts(
+    value: impl Into<String>,
+    placeholder: impl Into<String>,
+    error: Option<String>,
+    focused: bool,
+) -> EditableTreeDraftInputParts {
+    EditableTreeDraftInputParts {
+        value: value.into(),
+        placeholder: placeholder.into(),
+        error,
+        focus: EditableTreeInputFocus::from_focused(focused),
     }
 }

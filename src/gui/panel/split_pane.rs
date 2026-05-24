@@ -9,7 +9,9 @@ mod sidebar_state;
 mod slot;
 mod tree_panel;
 
-pub use assigned_row::{SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment};
+pub use assigned_row::{
+    SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment, SplitPaneAssignmentState,
+};
 pub use sidebar_state::{
     SplitPaneSidebarChrome, SplitPaneSidebarContent, SplitPaneSidebarPanes,
     SplitPaneSidebarSelection, SplitPaneSidebarState, SplitPaneSidebarTreeControls,

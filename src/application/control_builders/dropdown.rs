@@ -20,14 +20,34 @@ pub struct DropdownOption<Message> {
     pub message: Message,
 }
 
+/// Named construction fields for one generic dropdown option.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DropdownOptionParts<Message> {
+    /// Visible option label.
+    pub label: String,
+    /// Whether this option represents the current value.
+    pub selected: bool,
+    /// Host message emitted when the option is selected.
+    pub message: Message,
+}
+
 impl<Message> DropdownOption<Message> {
+    /// Build one dropdown option from named parts.
+    pub fn from_parts(parts: DropdownOptionParts<Message>) -> Self {
+        Self {
+            label: parts.label,
+            selected: parts.selected,
+            message: parts.message,
+        }
+    }
+
     /// Build one dropdown option.
     pub fn new(label: impl Into<String>, selected: bool, message: Message) -> Self {
-        Self {
+        Self::from_parts(DropdownOptionParts {
             label: label.into(),
             selected,
             message,
-        }
+        })
     }
 }
 
@@ -70,9 +90,8 @@ impl<Message> DropdownBuilderState<Message> {
         }
     }
 
-    fn add_option(&mut self, label: impl Into<String>, selected: bool, message: Message) {
-        self.options
-            .push(DropdownOption::new(label, selected, message));
+    fn add_option_from_parts(&mut self, parts: DropdownOptionParts<Message>) {
+        self.options.push(DropdownOption::from_parts(parts));
     }
 
     fn add_options(&mut self, options: impl IntoIterator<Item = DropdownOption<Message>>) {
@@ -100,7 +119,17 @@ impl<Message> DropdownBuilderNeedsToggle<Message> {
 
     /// Add one selectable option before assigning the required toggle message.
     pub fn option(mut self, label: impl Into<String>, selected: bool, message: Message) -> Self {
-        self.state.add_option(label, selected, message);
+        self.state.add_option_from_parts(DropdownOptionParts {
+            label: label.into(),
+            selected,
+            message,
+        });
+        self
+    }
+
+    /// Add one selectable option from named fields before assigning the required toggle message.
+    pub fn option_from_parts(mut self, parts: DropdownOptionParts<Message>) -> Self {
+        self.state.add_option_from_parts(parts);
         self
     }
 
@@ -114,7 +143,17 @@ impl<Message> DropdownBuilderNeedsToggle<Message> {
 impl<Message> DropdownBuilder<Message> {
     /// Add one selectable option.
     pub fn option(mut self, label: impl Into<String>, selected: bool, message: Message) -> Self {
-        self.state.add_option(label, selected, message);
+        self.state.add_option_from_parts(DropdownOptionParts {
+            label: label.into(),
+            selected,
+            message,
+        });
+        self
+    }
+
+    /// Add one selectable option from named fields.
+    pub fn option_from_parts(mut self, parts: DropdownOptionParts<Message>) -> Self {
+        self.state.add_option_from_parts(parts);
         self
     }
 
@@ -177,7 +216,11 @@ pub fn dropdown_option<State: 'static>(
     selected: bool,
     apply: impl Fn(&mut State) + Send + Sync + 'static,
 ) -> DropdownOption<StateAction<State>> {
-    DropdownOption::new(label, selected, StateAction::new(apply))
+    DropdownOption::from_parts(DropdownOptionParts {
+        label: label.into(),
+        selected,
+        message: StateAction::new(apply),
+    })
 }
 
 /// Build a state-mutating dropdown.

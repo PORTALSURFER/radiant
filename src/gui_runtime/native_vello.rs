@@ -21,7 +21,7 @@ use std::{
 use tracing::{error, info, warn};
 use vello::util::{RenderContext, RenderSurface};
 use vello::{
-    AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene,
+    AaConfig, RenderParams, Renderer, Scene,
     kurbo::{Affine, BezPath, Circle, Point as KurboPoint},
     peniko::{BlendMode, Blob, Fill, Gradient, ImageAlphaType, ImageData, ImageFormat},
     wgpu,
@@ -43,7 +43,9 @@ mod text_edit;
 mod text_renderer;
 
 use self::{startup::*, text_renderer::*};
-pub(in crate::gui_runtime::native_vello) use runtime_config::*;
+pub(in crate::gui_runtime::native_vello) use runtime_config::{
+    select_present_mode, startup_renderer_options,
+};
 pub(in crate::gui_runtime::native_vello) use runtime_event::RuntimeUserEvent;
 
 pub use self::{

@@ -1,4 +1,4 @@
-use super::*;
+use vello::{AaSupport, RendererOptions, wgpu};
 
 /// High-refresh surface present-mode preference order for animation-heavy playback UI.
 const HIGH_REFRESH_PRESENT_MODE_CANDIDATES: [wgpu::PresentMode; 3] = [

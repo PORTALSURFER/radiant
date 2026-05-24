@@ -127,3 +127,22 @@ fn native_render_surface_target_size_stays_in_focused_module() {
         "direct WGPU target size conversion should stay centralized instead of repeating raw config casts"
     );
 }
+
+#[test]
+fn native_runtime_config_boundary_uses_explicit_imports_and_exports() {
+    let facade = read_runtime_source("src/gui_runtime/native_vello.rs");
+    let runtime_config = read_runtime_source("src/gui_runtime/native_vello/runtime_config.rs");
+
+    assert!(
+        facade.contains("pub(in crate::gui_runtime::native_vello) use runtime_config::{")
+            && facade.contains("select_present_mode")
+            && facade.contains("startup_renderer_options")
+            && !facade.contains("pub(in crate::gui_runtime::native_vello) use runtime_config::*;"),
+        "native Vello facade should name the runtime configuration helpers it shares internally"
+    );
+    assert!(
+        runtime_config.contains("use vello::{AaSupport, RendererOptions, wgpu};")
+            && !runtime_config.starts_with("use super::*;"),
+        "runtime_config should import only renderer option types instead of inheriting the native Vello root"
+    );
+}

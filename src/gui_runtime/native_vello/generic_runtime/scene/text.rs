@@ -1,6 +1,9 @@
 use super::SceneTextRunBuffer;
-use crate::gui_runtime::native_vello::*;
-use crate::runtime::PaintTextRun;
+use crate::{
+    gui::{paint::TextAlign, types::Point},
+    gui_runtime::native_vello::SceneTextRun,
+    runtime::{PaintTextAlign, PaintTextRun},
+};
 
 pub(super) fn encode_text(text_runs: &mut SceneTextRunBuffer, text: &PaintTextRun) {
     let align = match text.align {
@@ -26,7 +29,7 @@ pub(super) fn encode_text(text_runs: &mut SceneTextRunBuffer, text: &PaintTextRu
 mod tests {
     use super::*;
     use crate::{
-        gui::types::{Rect, Rgba8},
+        gui::types::{Rect, Rgba8, Vector2},
         widgets::TextWrap,
     };
 

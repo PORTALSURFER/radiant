@@ -1,7 +1,9 @@
 use super::*;
 use crate::{
     gui::types::ImageRgba,
-    runtime::{GpuSurfaceRuntimeOverlays, PaintFillRect, PaintTextRun, SurfacePaintPlan},
+    runtime::{
+        GpuSurfaceRuntimeOverlays, PaintFillRect, PaintTextAlign, PaintTextRun, SurfacePaintPlan,
+    },
     theme::ThemeTokens,
     widgets::TextWrap,
 };

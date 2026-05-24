@@ -1,5 +1,6 @@
 use super::RetainedSurfaceEncodeStats;
-use crate::gui_runtime::native_vello::*;
+use crate::gui_runtime::native_vello::{NativeTextRenderer, SceneTextRun};
+use vello::Scene;
 
 const INLINE_SCENE_TEXT_RUNS: usize = 64;
 
@@ -105,7 +106,10 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn flush_text_r
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::types::{Point, Rgba8};
+    use crate::gui::{
+        paint::TextAlign,
+        types::{Point, Rgba8},
+    };
 
     fn text_run(text: &str) -> SceneTextRun {
         SceneTextRun {

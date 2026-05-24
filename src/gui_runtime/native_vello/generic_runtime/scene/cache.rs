@@ -1,5 +1,11 @@
-use crate::gui_runtime::native_vello::*;
-use crate::runtime::RetainedSurfaceCachePolicy;
+use crate::{
+    gui::{
+        paint::{PaintFrame, Primitive},
+        types::{Rect as UiRect, Vector2},
+    },
+    runtime::RetainedSurfaceCachePolicy,
+    widgets::RetainedSurfaceDescriptor,
+};
 use std::collections::VecDeque;
 
 #[derive(Clone, Debug, Default)]

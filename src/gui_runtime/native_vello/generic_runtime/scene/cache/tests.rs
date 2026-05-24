@@ -1,4 +1,5 @@
 use super::*;
+use crate::gui::types::{Point, Rgba8};
 
 fn descriptor(key: u64) -> RetainedSurfaceDescriptor {
     RetainedSurfaceDescriptor {

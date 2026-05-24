@@ -70,6 +70,10 @@ fn bitmap_text_stays_out_of_geometry_root() {
             .join("src/gui_runtime/native_vello/generic_runtime/post_gpu_overlay/geometry/text.rs"),
     )
     .expect("post GPU overlay bitmap text helper should be readable");
+    let glyphs = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/post_gpu_overlay/geometry/text/glyphs.rs",
+    ))
+    .expect("post GPU overlay bitmap glyph table should be readable");
 
     assert!(
         geometry.contains("mod text;")
@@ -79,8 +83,17 @@ fn bitmap_text_stays_out_of_geometry_root() {
     );
     assert!(
         text.contains("struct BitmapTextLayout")
-            && text.contains("fn glyph_rows")
-            && text.contains("fn push_glyph_vertices"),
+            && text.contains("mod glyphs;")
+            && text.contains("use glyphs::glyph_rows;")
+            && text.contains("fn push_glyph_vertices")
+            && !text.contains("0b11111, 0b00001"),
         "post GPU overlay bitmap text layout and glyph replay should stay in geometry/text.rs"
+    );
+    assert!(
+        glyphs.contains("pub(super) fn glyph_rows")
+            && glyphs.contains("'A' =>")
+            && glyphs.contains("'9' =>")
+            && glyphs.contains("' ' => [0; 7]"),
+        "post GPU overlay bitmap glyph rows should stay in geometry/text/glyphs.rs"
     );
 }

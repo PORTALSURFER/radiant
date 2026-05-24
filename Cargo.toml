@@ -193,6 +193,10 @@ name = "plugin_panel"
 path = "examples/plugin_panel.rs"
 
 [[example]]
+name = "eq_editor"
+path = "examples/eq_editor.rs"
+
+[[example]]
 name = "custom_widget"
 path = "examples/custom_widget.rs"
 

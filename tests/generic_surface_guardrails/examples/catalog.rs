@@ -75,6 +75,7 @@ fn focused_examples_are_registered_and_keep_expected_public_contracts() {
         if !matches!(
             *name,
             "custom_widget"
+                | "eq_editor"
                 | "gpu_surface_stack_overlay"
                 | "timeline_editor"
                 | "toolbar_icons"

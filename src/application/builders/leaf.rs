@@ -10,10 +10,26 @@ use crate::{
     widgets::{
         ButtonWidget, CanvasWidget, CardWidget, GpuSurfaceMessage, GpuSurfaceParts,
         GpuSurfaceWidget, ImageWidget, TextInputWidget, TextWidget, ToggleWidget, Widget,
-        WidgetOutput, WidgetSizing,
+        WidgetInput, WidgetOutput, WidgetSizing,
     },
 };
 use std::sync::Arc;
+
+/// Named construction inputs for an input-emitting retained GPU surface view.
+///
+/// This keeps retained resource identity, content generation, and application
+/// message mapping explicit at call sites that wire GPU-heavy interactive
+/// widgets into the normal Radiant message path.
+pub struct GpuSurfaceInputParts<Map> {
+    /// Stable surface key used by native backends for retained GPU resources.
+    pub key: u64,
+    /// Monotonic content revision for retained GPU resources.
+    pub revision: u64,
+    /// Backend-neutral retained GPU content.
+    pub content: GpuSurfaceContent,
+    /// Mapper from routed widget input to the host application's message type.
+    pub map: Map,
+}
 
 pub(in crate::application) fn view_node_from_widget<Message>(
     widget: impl WidgetView<Message> + 'static,
@@ -126,19 +142,35 @@ pub fn gpu_surface_input<Message: 'static>(
     key: u64,
     revision: u64,
     content: GpuSurfaceContent,
-    map: impl Fn(crate::widgets::WidgetInput) -> Message + Send + Sync + 'static,
+    map: impl Fn(WidgetInput) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
+    gpu_surface_input_from_parts(GpuSurfaceInputParts {
+        key,
+        revision,
+        content,
+        map,
+    })
+}
+
+/// Build an input-emitting retained GPU surface view from named construction inputs.
+pub fn gpu_surface_input_from_parts<Message, Map>(
+    parts: GpuSurfaceInputParts<Map>,
+) -> ViewNode<Message>
+where
+    Message: 'static,
+    Map: Fn(WidgetInput) -> Message + Send + Sync + 'static,
+{
     view_node_from_widget(MappedWidget::new(
         GpuSurfaceWidget::from_parts(GpuSurfaceParts {
             id: 0,
             sizing: default_gpu_surface_sizing(),
-            key,
-            revision,
-            content,
+            key: parts.key,
+            revision: parts.revision,
+            content: parts.content,
         })
         .with_input_events(true),
         WidgetMessageMapper::typed(move |message: GpuSurfaceMessage| match message {
-            GpuSurfaceMessage::Input { input } => map(input),
+            GpuSurfaceMessage::Input { input } => (parts.map)(input),
         }),
     ))
 }

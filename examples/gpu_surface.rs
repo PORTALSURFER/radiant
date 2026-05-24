@@ -50,18 +50,18 @@ fn demo_view(state: &DemoState) -> View<DemoMessage> {
     };
     column([
         text("GPU surface").size(180.0, 28.0),
-        gpu_surface_input(
-            7,
-            1,
-            GpuSurfaceContent::RgbaAtlas {
+        gpu_surface_input_from_parts(GpuSurfaceInputParts {
+            key: 7,
+            revision: 1,
+            content: GpuSurfaceContent::RgbaAtlas {
                 source_rect: Rect::from_min_size(
                     Point::new(0.0, 0.0),
                     Vector2::new(atlas.width as f32, atlas.height as f32),
                 ),
                 atlas,
             },
-            DemoMessage::SurfaceInput,
-        )
+            map: DemoMessage::SurfaceInput,
+        })
         .id(11)
         .size(360.0, 180.0)
         .width(360.0)

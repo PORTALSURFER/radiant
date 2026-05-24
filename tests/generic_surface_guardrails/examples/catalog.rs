@@ -5,7 +5,9 @@ mod contracts;
 #[path = "catalog/support.rs"]
 mod support;
 
-use contracts::{FOCUSED_EXAMPLE_CONTRACTS, SEPARATELY_COVERED_EXAMPLES};
+use contracts::{
+    SEPARATELY_COVERED_EXAMPLES, focused_example_contracts, has_focused_example_contract,
+};
 use support::{example_source, registered_example_names};
 
 #[test]
@@ -16,11 +18,7 @@ fn registered_examples_have_complete_guardrail_coverage() {
     let mut uncovered = registered_example_names(&manifest)
         .into_iter()
         .filter(|name| !SEPARATELY_COVERED_EXAMPLES.contains(&name.as_str()))
-        .filter(|name| {
-            !FOCUSED_EXAMPLE_CONTRACTS
-                .iter()
-                .any(|(contract_name, _)| *contract_name == name)
-        })
+        .filter(|name| !has_focused_example_contract(name))
         .collect::<Vec<_>>();
     uncovered.sort();
 
@@ -37,7 +35,7 @@ fn focused_examples_are_registered_and_keep_expected_public_contracts() {
     let manifest = fs::read_to_string(manifest_dir.join("Cargo.toml"))
         .expect("Radiant Cargo.toml should be readable");
 
-    for (name, required) in FOCUSED_EXAMPLE_CONTRACTS {
+    for (name, required) in focused_example_contracts() {
         let path = format!("examples/{name}.rs");
         let source = example_source(&manifest_dir, name, &path);
 
@@ -47,12 +45,12 @@ fn focused_examples_are_registered_and_keep_expected_public_contracts() {
             "{name} should be an explicit checked Cargo example target"
         );
         assert!(
-            *name == "paint_helpers"
+            name == "paint_helpers"
                 || source.contains("use radiant::prelude::*;")
                 || source.contains("use radiant::prelude as ui;"),
             "{name} should use the application prelude"
         );
-        for required in *required {
+        for required in required {
             if required.contains('/') {
                 assert!(
                     manifest_dir.join(required).exists(),
@@ -73,7 +71,7 @@ fn focused_examples_are_registered_and_keep_expected_public_contracts() {
             "Arc<UiSurface",
         ];
         if !matches!(
-            *name,
+            name,
             "custom_widget"
                 | "eq_editor"
                 | "gpu_surface_stack_overlay"

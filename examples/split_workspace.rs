@@ -25,11 +25,18 @@ fn project_surface(state: &mut WorkspaceState) -> ui::StateView<WorkspaceState> 
 
 fn sidebar_view(state: &WorkspaceState) -> ui::StateView<WorkspaceState> {
     ui::column([
-        ui::text(state.sidebar.header.clone())
+        ui::text(state.sidebar.chrome.header.clone())
             .height(28.0)
             .fill_width(),
         ui::list(
-            state.sidebar.rows.as_slice().iter().cloned().enumerate(),
+            state
+                .sidebar
+                .content
+                .rows
+                .as_slice()
+                .iter()
+                .cloned()
+                .enumerate(),
             |(index, row)| assignment_row(index, row),
         )
         .fill_height(),
@@ -80,10 +87,10 @@ fn panes_view(state: &WorkspaceState) -> ui::StateView<WorkspaceState> {
 }
 
 fn pane_view(pane: SplitPaneTreePanel) -> ui::StateView<WorkspaceState> {
-    let pane_id = pane.pane;
+    let pane_id = pane.identity.pane;
     let mut view = ui::column([
         ui::row([
-            ui::text(format!("{} pane", pane.title))
+            ui::text(format!("{} pane", pane.identity.title))
                 .height(26.0)
                 .fill_width(),
             ui::button("Activate")
@@ -91,14 +98,14 @@ fn pane_view(pane: SplitPaneTreePanel) -> ui::StateView<WorkspaceState> {
         ])
         .fill_width()
         .spacing(8.0),
-        ui::text(if pane.has_item {
-            format!("Assigned: {}", pane.item_label)
+        ui::text(if pane.assignment.has_item {
+            format!("Assigned: {}", pane.assignment.item_label)
         } else {
             String::from("No assignment")
         })
         .height(28.0)
         .fill_width(),
-        ui::text(if pane.active {
+        ui::text(if pane.assignment.active {
             "This pane drives the active content surface"
         } else {
             "Inactive pane remains visible"
@@ -109,7 +116,7 @@ fn pane_view(pane: SplitPaneTreePanel) -> ui::StateView<WorkspaceState> {
     .style(ui::WidgetStyle::default())
     .padding(12.0)
     .spacing(8.0);
-    if pane.active {
+    if pane.assignment.active {
         view = view.primary();
     }
     view

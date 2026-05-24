@@ -1,5 +1,6 @@
 use super::super::*;
 use crate::runtime::controller::commands::batching::{
+    DEFAULT_RUNTIME_COMMANDS_PER_DRAIN, DEFAULT_RUNTIME_MESSAGES_PER_DRAIN,
     take_runtime_command_batch_into, take_runtime_message_batch_into,
 };
 
@@ -8,7 +9,11 @@ fn runtime_command_batch_preserves_order_and_keeps_remainder() {
     let mut commands = (0..70).map(Command::message).collect::<Vec<_>>();
     let mut batch = Vec::with_capacity(8);
 
-    take_runtime_command_batch_into(&mut commands, &mut batch);
+    take_runtime_command_batch_into(
+        &mut commands,
+        &mut batch,
+        DEFAULT_RUNTIME_COMMANDS_PER_DRAIN,
+    );
 
     let mut drained = Vec::new();
     while let Some(command) = batch.pop() {
@@ -35,7 +40,11 @@ fn runtime_command_batch_reuses_output_storage_for_small_drains() {
     let mut batch = Vec::with_capacity(64);
     let capacity = batch.capacity();
 
-    take_runtime_command_batch_into(&mut commands, &mut batch);
+    take_runtime_command_batch_into(
+        &mut commands,
+        &mut batch,
+        DEFAULT_RUNTIME_COMMANDS_PER_DRAIN,
+    );
 
     assert!(commands.is_empty());
     assert_eq!(batch.capacity(), capacity);
@@ -52,7 +61,11 @@ fn runtime_batched_command_remainders_reuse_command_storage() {
     let retained_capacity = commands.capacity();
     let mut batch = Vec::with_capacity(64);
 
-    take_runtime_command_batch_into(&mut commands, &mut batch);
+    take_runtime_command_batch_into(
+        &mut commands,
+        &mut batch,
+        DEFAULT_RUNTIME_COMMANDS_PER_DRAIN,
+    );
 
     assert_eq!(commands.capacity(), retained_capacity);
     assert_eq!(commands.len(), 6);
@@ -63,7 +76,11 @@ fn runtime_message_batch_preserves_order_and_keeps_remainder() {
     let mut messages = (0..70).collect::<Vec<_>>();
     let mut batch = Vec::with_capacity(8);
 
-    take_runtime_message_batch_into(&mut messages, &mut batch);
+    take_runtime_message_batch_into(
+        &mut messages,
+        &mut batch,
+        DEFAULT_RUNTIME_MESSAGES_PER_DRAIN,
+    );
 
     let mut drained = Vec::new();
     while let Some(message) = batch.pop() {
@@ -80,7 +97,11 @@ fn runtime_message_batch_reuses_output_storage_for_small_drains() {
     let mut batch = Vec::with_capacity(64);
     let capacity = batch.capacity();
 
-    take_runtime_message_batch_into(&mut messages, &mut batch);
+    take_runtime_message_batch_into(
+        &mut messages,
+        &mut batch,
+        DEFAULT_RUNTIME_MESSAGES_PER_DRAIN,
+    );
 
     assert!(messages.is_empty());
     assert_eq!(batch.capacity(), capacity);

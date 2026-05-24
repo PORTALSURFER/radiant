@@ -119,7 +119,7 @@ where
                 self.set_viewport(viewport);
                 None
             }
-            Event::PointerMove { position } => self.dispatch_pointer_move_target(position),
+            Event::PointerMove { position } => self.dispatch_pointer_move_target(position).target,
             Event::PointerPress {
                 position,
                 button,

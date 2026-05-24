@@ -86,6 +86,9 @@ where
     }
 
     pub(super) fn request_runtime_wakeup_if_needed(&self, outcome: GenericRouteOutcome) {
+        if self.core.runtime.interactive_pointer_route_active() {
+            return;
+        }
         self.runtime_wakeup
             .request_if(outcome.runtime_work_remaining);
     }

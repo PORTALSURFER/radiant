@@ -12,7 +12,8 @@ where
     pub fn dispatch_pointer_move_with_outcome(&mut self, position: Point) -> PointerMoveOutcome {
         let previous_hovered_widget = self.hovered_widget();
         let previous_hovered_container = self.hovered_container();
-        let target = self.dispatch_pointer_move_target(position);
+        let dispatch = self.dispatch_pointer_move_target(position);
+        let target = dispatch.target;
         let repaint_requested = self.take_repaint_requested();
         let exit_requested = self.take_exit_requested();
         let hover_changed = previous_hovered_widget != self.hovered_widget()
@@ -20,9 +21,11 @@ where
         let pointer_captured = self.pointer_capture().is_some();
         let target_prefers_paint_only =
             target.is_some_and(|widget_id| self.widget_prefers_pointer_move_paint_only(widget_id));
-        let drag_preview_can_paint_only = self.drag_session_active() && !hover_changed;
-        let paint_only_requested =
-            repaint_requested && (target_prefers_paint_only || drag_preview_can_paint_only);
+        let drag_preview_can_paint_only =
+            self.drag_session_active() && !hover_changed && !dispatch.emitted_output;
+        let paint_only_requested = repaint_requested
+            && !dispatch.emitted_output
+            && (target_prefers_paint_only || drag_preview_can_paint_only);
         PointerMoveOutcome {
             target,
             hover_changed,
@@ -57,7 +60,8 @@ where
             .map(|emitted_output| (widget_id, emitted_output))
     }
 
-    pub(super) fn dispatch_pointer_move_target(&mut self, position: Point) -> Option<WidgetId> {
+    pub(super) fn dispatch_pointer_move_target(&mut self, position: Point) -> PointerMoveDispatch {
+        let mut emitted_output = false;
         if let Some(session) = self.drag_session.as_mut()
             && (session.pointer != position || !session.visible)
         {
@@ -66,14 +70,18 @@ where
             self.repaint_requested = true;
         }
         if self.drag_scrollbar_to(position) {
-            return None;
+            return PointerMoveDispatch::default();
         }
         let hovered_scroll_affordance = self.scroll_affordance_at(position);
         if self.hovered_scroll_affordance != hovered_scroll_affordance {
             self.hovered_scroll_affordance = hovered_scroll_affordance;
             self.repaint_requested = true;
         }
-        let pointer_widget = self.pointer_widget_at_for_move(position);
+        let pointer_widget = if self.pointer_capture.is_some() {
+            self.widget_at(position)
+        } else {
+            self.pointer_widget_at_for_move(position)
+        };
         let hover_container = if self.widget_suppresses_container_hover(pointer_widget) {
             None
         } else {
@@ -100,7 +108,11 @@ where
         let hover_changed = self.hovered_widget != hover_widget;
         if hover_changed {
             if let Some(previous) = self.hovered_widget {
-                let _ = self.dispatch_input(previous, WidgetInput::PointerMove { position });
+                if let Some(emitted) =
+                    self.dispatch_input_output(previous, WidgetInput::PointerMove { position })
+                {
+                    emitted_output |= emitted;
+                }
             }
             self.hovered_widget = hover_widget;
         }
@@ -109,27 +121,43 @@ where
             && pointer_widget != captured
             && self.widget_accepts_stable_pointer_move(pointer_widget)
         {
-            let routed = self.dispatch_input(pointer_widget, WidgetInput::PointerMove { position });
-            if routed {
+            if let Some(emitted) =
+                self.dispatch_input_output(pointer_widget, WidgetInput::PointerMove { position })
+            {
                 self.repaint_requested = true;
+                emitted_output |= emitted;
             }
         }
 
-        let target = self.pointer_capture.or(pointer_widget)?;
+        let Some(target) = self.pointer_capture.or(pointer_widget) else {
+            return PointerMoveDispatch {
+                target: None,
+                emitted_output,
+            };
+        };
         let accepts_stable_pointer_move = self.widget_accepts_stable_pointer_move(target);
         if !hover_changed && self.pointer_capture.is_none() && !accepts_stable_pointer_move {
-            return Some(target);
+            return PointerMoveDispatch {
+                target: Some(target),
+                emitted_output,
+            };
         }
-        let routed = self.dispatch_input(target, WidgetInput::PointerMove { position });
-        if routed && (accepts_stable_pointer_move || self.pointer_capture.is_some()) {
+        let routed = self.dispatch_input_output(target, WidgetInput::PointerMove { position });
+        if let Some(emitted) = routed {
             // Stable pointer-move widgets may update local paint-only hover
             // state without emitting host messages. Captured drags can also
             // update local preview state even when the widget opts out of
             // stable hover motion. Request repaint here so cursor, handle, and
             // drag previews stay responsive without reducer churn.
-            self.repaint_requested = true;
+            if accepts_stable_pointer_move || self.pointer_capture.is_some() {
+                self.repaint_requested = true;
+            }
+            emitted_output |= emitted;
         }
-        routed.then_some(target)
+        PointerMoveDispatch {
+            target: routed.map(|_| target),
+            emitted_output,
+        }
     }
 
     /// Return whether a runtime-owned drag preview session is active.
@@ -178,4 +206,10 @@ where
         self.repaint_requested = true;
         true
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct PointerMoveDispatch {
+    pub(super) target: Option<WidgetId>,
+    pub(super) emitted_output: bool,
 }

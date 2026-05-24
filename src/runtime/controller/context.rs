@@ -71,6 +71,10 @@ where
         self.pointer_capture
     }
 
+    pub(crate) fn interactive_pointer_route_active(&self) -> bool {
+        self.pointer_capture.is_some() || self.drag_session.is_some()
+    }
+
     /// Return the widget currently receiving hover state.
     pub fn hovered_widget(&self) -> Option<WidgetId> {
         self.hovered_widget

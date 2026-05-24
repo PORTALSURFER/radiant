@@ -1,5 +1,11 @@
 use super::super::*;
-use crate::runtime::{GpuSurfaceCapabilities, GpuSurfaceContent, PaintFillRect, PaintGpuSurface};
+use crate::{
+    runtime::{
+        GpuSurfaceCapabilities, GpuSurfaceContent, PaintFillRect, PaintGpuSurface, PaintTextAlign,
+        PaintTextRun,
+    },
+    widgets::TextWrap,
+};
 use std::sync::Arc;
 
 pub(super) fn fill(widget_id: u64) -> PaintPrimitive {
@@ -28,6 +34,19 @@ pub(super) fn stroke(widget_id: u64) -> PaintPrimitive {
         rect: UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1.0, 1.0)),
         color: white(),
         width: 1.0,
+    })
+}
+
+pub(super) fn text(label: &str) -> PaintPrimitive {
+    PaintPrimitive::Text(PaintTextRun {
+        widget_id: 9,
+        text: label.into(),
+        rect: UiRect::from_min_size(Point::new(4.0, 4.0), Vector2::new(120.0, 18.0)),
+        font_size: 12.0,
+        baseline: None,
+        color: white(),
+        align: PaintTextAlign::Left,
+        wrap: TextWrap::None,
     })
 }
 

@@ -1,4 +1,5 @@
 use super::{super::*, fixtures::QueuedCommandBridge};
+use crate::runtime::{DragPreview, DragRequest};
 
 #[test]
 fn runtime_command_drains_are_bounded_and_request_followup_wakeup() {
@@ -64,4 +65,23 @@ fn runtime_batched_command_remainders_preserve_following_command_order() {
     assert_eq!(second.messages_dispatched, 7);
     assert!(!second.runtime_work_remaining);
     assert_eq!(runtime.bridge().dispatched, (0..71).collect::<Vec<_>>());
+}
+
+#[test]
+fn runtime_message_drains_are_smaller_during_active_drag() {
+    let bridge = QueuedCommandBridge {
+        commands: (0..70).map(Command::message).collect(),
+        dispatched: Vec::new(),
+    };
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+    runtime.execute_command(Command::begin_drag(DragRequest::new(
+        DragPreview::sized("dragging", Vector2::new(120.0, 24.0)),
+        Point::new(20.0, 20.0),
+    )));
+
+    let first = runtime.drain_runtime_messages();
+
+    assert_eq!(first.messages_dispatched, 8);
+    assert!(first.runtime_work_remaining);
+    assert_eq!(runtime.bridge().dispatched, (0..8).collect::<Vec<_>>());
 }

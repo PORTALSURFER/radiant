@@ -24,6 +24,23 @@ fn replayable_vertices_batch_fill_and_stroke_rectangles() {
 }
 
 #[test]
+fn replayable_vertices_emit_bitmap_text_for_transient_overlays() {
+    let mut vertices = Vec::new();
+
+    replayable_vertices_into(
+        &[text("kick.wav")],
+        Vector2::new(160.0, 60.0),
+        &mut vertices,
+    );
+
+    assert!(
+        !vertices.is_empty(),
+        "post-GPU transient overlays should render drag-preview labels instead of dropping text primitives"
+    );
+    assert_eq!(vertices.len() % 6, 0);
+}
+
+#[test]
 fn replayable_vertices_reuses_existing_storage() {
     let primitives = [fill(1), stroke(2)];
     let mut vertices = Vec::with_capacity(64);

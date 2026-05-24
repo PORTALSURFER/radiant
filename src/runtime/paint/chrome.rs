@@ -106,14 +106,15 @@ pub(crate) fn push_overlay_panel(
             width: 1.0,
         }));
         if let Some(label) = label {
+            let text_rect = inset_rect(rect, 10.0, 3.0);
             push_text_run(
                 primitives,
                 PaintTextRun {
                     widget_id,
                     text: label,
-                    rect: inset_rect(rect, 48.0, 4.0),
+                    rect: text_rect,
                     baseline: super::text::optical_centered_baseline(
-                        inset_rect(rect, 48.0, 4.0),
+                        text_rect,
                         text_font_size(rect),
                     ),
                     color: theme.text_primary,

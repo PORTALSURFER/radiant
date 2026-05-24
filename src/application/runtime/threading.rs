@@ -88,6 +88,7 @@ impl BusinessThreadPool {
 }
 
 fn worker_loop(receiver: Arc<Mutex<mpsc::Receiver<BusinessJob>>>) {
+    configure_business_worker_thread();
     loop {
         let Ok(job) = lock_business_receiver(&receiver).recv() else {
             break;
@@ -95,6 +96,21 @@ fn worker_loop(receiver: Arc<Mutex<mpsc::Receiver<BusinessJob>>>) {
         job();
     }
 }
+
+#[cfg(target_os = "windows")]
+fn configure_business_worker_thread() {
+    use windows_sys::Win32::System::Threading::{
+        GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_BELOW_NORMAL,
+    };
+
+    let ok = unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL) };
+    if ok == 0 {
+        tracing::debug!("Radiant app runtime could not lower business worker thread priority");
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn configure_business_worker_thread() {}
 
 fn lock_business_receiver(
     receiver: &Mutex<mpsc::Receiver<BusinessJob>>,

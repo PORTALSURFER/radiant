@@ -1,7 +1,7 @@
 use super::super::AppBridge;
 use crate::{
     application::{IntoView, UpdateContext},
-    runtime::RuntimeAnimationActivity,
+    runtime::{RuntimeAnimationActivity, RuntimeAnimationDemand},
 };
 
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
@@ -29,8 +29,9 @@ where
             });
         let frame_message_active = app_animation_active && self.lifecycle.frame_message.is_some();
         self.runtime_flags.pending_animation_frame_activity = Some(frame_message_active);
-        RuntimeAnimationActivity::new(app_animation_active, frame_message_active)
-            .merge(transient_overlay_animation)
+        let app_animation =
+            RuntimeAnimationDemand::from_flags(app_animation_active, frame_message_active);
+        RuntimeAnimationActivity::from_demand(app_animation).merge(transient_overlay_animation)
     }
 
     pub(super) fn queue_runtime_animation_frame(&mut self) -> bool {

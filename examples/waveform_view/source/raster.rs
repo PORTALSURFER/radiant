@@ -15,10 +15,16 @@ pub(crate) fn render_waveform_image(
     width: usize,
     height: usize,
 ) -> ImageRgba {
-    let mut image = WaveformRaster::new(width, height);
+    let mut image = WaveformRaster::new(RasterSize { width, height });
     chrome::draw_raster_chrome(&mut image);
     image.draw_waveform(file, viewport);
     image.into_image()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RasterSize {
+    width: usize,
+    height: usize,
 }
 
 struct WaveformRaster {
@@ -26,17 +32,15 @@ struct WaveformRaster {
 }
 
 impl WaveformRaster {
-    fn new(width: usize, height: usize) -> Self {
+    fn new(size: RasterSize) -> Self {
         Self {
-            buffer: RasterBuffer::new(width, height),
+            buffer: RasterBuffer::new(size.width, size.height),
         }
     }
 
     fn draw_waveform(&mut self, file: &WaveformFile, viewport: WaveformViewport) {
         let viewport = viewport.clamp(file.frames, super::MIN_VISIBLE_FRAMES);
-        let visible = viewport.visible_items().max(1);
-        let mid = self.height() as f32 * 0.5;
-        let half = (self.height() as f32 * 0.42).max(1.0);
+        let geometry = WaveformGeometry::new(viewport, self.size());
         labels::draw_band_labels(self);
 
         let band_styles = [
@@ -62,102 +66,85 @@ impl WaveformRaster {
             },
         ];
         for (band, style) in file.bands.iter().zip(band_styles) {
-            self.draw_band(band, viewport, visible, mid, half, style);
+            self.draw_band(band, geometry, style);
         }
-        self.draw_mono_ridge(file, viewport, visible, mid, half);
+        self.draw_mono_ridge(file, geometry);
     }
 
-    fn draw_band(
-        &mut self,
-        band: &WaveformBand,
-        viewport: WaveformViewport,
-        visible: usize,
-        mid: f32,
-        half: f32,
-        style: BandStyle,
-    ) {
+    fn draw_band(&mut self, band: &WaveformBand, geometry: WaveformGeometry, style: BandStyle) {
         for x in 0..self.width() {
-            let start = viewport.start + x * visible / self.width().max(1);
-            let end = viewport.start
-                + ((x + 1) * visible / self.width().max(1))
-                    .max(x * visible / self.width().max(1) + 1);
-            let stats = band.stats(start, end.min(viewport.end));
-            let peak_extent = stats.peak * half * style.scale;
-            let rms_extent = stats.rms.sqrt().clamp(0.0, 1.0) * half * style.scale;
-            self.draw_symmetric_column(x, mid, rms_extent, style.fill, 0.28);
-            self.draw_symmetric_column(
+            let column = geometry.column_range(x);
+            let stats = band.stats(column.start, column.end);
+            let peak_extent = stats.peak * geometry.half * style.scale;
+            let rms_extent = stats.rms.sqrt().clamp(0.0, 1.0) * geometry.half * style.scale;
+            self.draw_symmetric_column(ColumnPaint {
                 x,
-                mid,
-                peak_extent,
-                style.fill,
-                band_alpha(stats.peak, style.scale),
-            );
-            self.stroke_symmetric_extents(x, mid, peak_extent, style.ridge, 0.7);
+                extent: rms_extent,
+                color: style.fill,
+                alpha: 0.28,
+            });
+            self.draw_symmetric_column(ColumnPaint {
+                x,
+                extent: peak_extent,
+                color: style.fill,
+                alpha: band_alpha(stats.peak, style.scale),
+            });
+            self.stroke_symmetric_extents(ColumnPaint {
+                x,
+                extent: peak_extent,
+                color: style.ridge,
+                alpha: 0.7,
+            });
         }
     }
 
-    fn draw_mono_ridge(
-        &mut self,
-        file: &WaveformFile,
-        viewport: WaveformViewport,
-        visible: usize,
-        mid: f32,
-        half: f32,
-    ) {
+    fn draw_mono_ridge(&mut self, file: &WaveformFile, geometry: WaveformGeometry) {
         for x in 0..self.width() {
-            let start = viewport.start + x * visible / self.width().max(1);
-            let end = viewport.start
-                + ((x + 1) * visible / self.width().max(1))
-                    .max(x * visible / self.width().max(1) + 1);
+            let column = geometry.column_range(x);
             let stats = file
                 .mono_summary
-                .stats(&file.mono_samples, start, end.min(viewport.end));
-            self.draw_symmetric_column(
+                .stats(&file.mono_samples, column.start, column.end);
+            self.draw_symmetric_column(ColumnPaint {
                 x,
-                mid,
-                stats.peak * half * 0.36,
-                [255, 255, 255, 245],
-                0.72,
-            );
+                extent: stats.peak * geometry.half * 0.36,
+                color: [255, 255, 255, 245],
+                alpha: 0.72,
+            });
         }
     }
 
-    fn draw_symmetric_column(
-        &mut self,
-        x: usize,
-        mid: f32,
-        extent: f32,
-        color: [u8; 4],
-        alpha: f32,
-    ) {
-        let top = (mid - extent).round().max(0.0) as usize;
-        let bottom = (mid + extent)
+    fn draw_symmetric_column(&mut self, paint: ColumnPaint) {
+        let top = (self.mid() - paint.extent).round().max(0.0) as usize;
+        let bottom = (self.mid() + paint.extent)
             .round()
             .min(self.height().saturating_sub(1) as f32) as usize;
         for y in top..=bottom {
-            self.blend_pixel(
-                x,
+            self.blend_pixel(PixelPaint {
+                x: paint.x,
                 y,
-                color,
-                alpha * column_alpha(y, mid, self.height() as f32 * 0.44),
-            );
+                color: paint.color,
+                alpha: paint.alpha * column_alpha(y, self.mid(), self.height() as f32 * 0.44),
+            });
         }
     }
 
-    fn stroke_symmetric_extents(
-        &mut self,
-        x: usize,
-        mid: f32,
-        extent: f32,
-        color: [u8; 4],
-        alpha: f32,
-    ) {
-        let top = (mid - extent).round().max(0.0) as usize;
-        let bottom = (mid + extent)
+    fn stroke_symmetric_extents(&mut self, paint: ColumnPaint) {
+        let top = (self.mid() - paint.extent).round().max(0.0) as usize;
+        let bottom = (self.mid() + paint.extent)
             .round()
             .min(self.height().saturating_sub(1) as f32) as usize;
-        self.blend_pixel(x, top, color, alpha);
-        self.blend_pixel(x, bottom, color, alpha);
+        self.blend_pixel(PixelPaint {
+            x: paint.x,
+            y: top,
+            color: paint.color,
+            alpha: paint.alpha,
+        });
+        self.blend_pixel(PixelPaint {
+            x: paint.x,
+            y: bottom,
+            color: paint.color,
+            alpha: paint.alpha,
+        });
     }
 
     fn into_image(self) -> ImageRgba {
@@ -168,8 +155,8 @@ impl WaveformRaster {
         self.buffer.put_pixel(x, y, color);
     }
 
-    fn blend_pixel(&mut self, x: usize, y: usize, color: [u8; 4], alpha: f32) {
-        self.buffer.blend_pixel(x, y, color, alpha);
+    fn blend_pixel(&mut self, paint: PixelPaint) {
+        self.buffer.blend_pixel(paint);
     }
 
     fn width(&self) -> usize {
@@ -179,6 +166,17 @@ impl WaveformRaster {
     fn height(&self) -> usize {
         self.buffer.height()
     }
+
+    fn size(&self) -> RasterSize {
+        RasterSize {
+            width: self.width(),
+            height: self.height(),
+        }
+    }
+
+    fn mid(&self) -> f32 {
+        self.height() as f32 * 0.5
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -186,6 +184,49 @@ struct BandStyle {
     fill: [u8; 4],
     ridge: [u8; 4],
     scale: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct WaveformGeometry {
+    viewport: WaveformViewport,
+    visible: usize,
+    width: usize,
+    half: f32,
+}
+
+impl WaveformGeometry {
+    fn new(viewport: WaveformViewport, size: RasterSize) -> Self {
+        Self {
+            viewport,
+            visible: viewport.visible_items().max(1),
+            width: size.width.max(1),
+            half: (size.height as f32 * 0.42).max(1.0),
+        }
+    }
+
+    fn column_range(self, x: usize) -> std::ops::Range<usize> {
+        let start_offset = x * self.visible / self.width;
+        let end_offset = ((x + 1) * self.visible / self.width).max(start_offset + 1);
+        let start = self.viewport.start + start_offset;
+        let end = (self.viewport.start + end_offset).min(self.viewport.end);
+        start..end
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ColumnPaint {
+    x: usize,
+    extent: f32,
+    color: [u8; 4],
+    alpha: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct PixelPaint {
+    pub(super) x: usize,
+    pub(super) y: usize,
+    pub(super) color: [u8; 4],
+    pub(super) alpha: f32,
 }
 
 fn column_alpha(y: usize, mid: f32, half: f32) -> f32 {

@@ -1261,12 +1261,13 @@ embedding domain terms in Radiant.
 
 `radiant::gui::form` contains reusable form and picker models such as
 `DecimalTextInputPolicy`, `SummaryField`, `OptionItem`, `PairedPickerTarget`,
-`PairedPickerValue`, `PairedStatusPanel`, and `PreferencePanelState`.
+`PairedPickerValue`, `PairedStatusPanel`, `PreferencePanelVisibility`, and
+`PreferencePanelState`.
 `PairedStatusPanel` models a two-sided status/picker surface with summary rows,
 active picker identity, and option lists while leaving the meaning of those
 options to the host. `PreferencePanelState` models generic settings-panel
-visibility, a primary text value, fixed-size toggle state, and an auxiliary
-label without owning product-specific preference names.
+visibility through a named state, a primary text value, fixed-size toggle
+state, and an auxiliary label without owning product-specific preference names.
 
 `radiant::gui::text_layout` contains retained text-line placement helpers such
 as `TextLineInsets`, `centered_text_line`, `top_text_line`, and

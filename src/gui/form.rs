@@ -36,6 +36,30 @@ pub struct SummaryField {
     pub value_label: String,
 }
 
+/// Named visibility state for generic preference panel projections.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PreferencePanelVisibility {
+    /// The panel is hidden.
+    #[default]
+    Hidden,
+    /// The panel is visible.
+    Visible,
+}
+
+impl PreferencePanelVisibility {
+    /// Build visibility state from compatibility flags.
+    pub const fn from_visible(visible: bool) -> Self {
+        match visible {
+            true => Self::Visible,
+            false => Self::Hidden,
+        }
+    }
+
+    const fn is_visible(self) -> bool {
+        matches!(self, Self::Visible)
+    }
+}
+
 /// Explicit parts used to build generic preference panel state.
 ///
 /// Keeping this as a named projection object makes app-facing call sites
@@ -43,7 +67,7 @@ pub struct SummaryField {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PreferencePanelParts<const TOGGLES: usize> {
     /// Whether the panel is visible.
-    pub visible: bool,
+    pub visibility: PreferencePanelVisibility,
     /// Primary editable text value shown in the panel.
     pub primary_text_value: String,
     /// Enabled states for product-defined toggles.
@@ -55,7 +79,7 @@ pub struct PreferencePanelParts<const TOGGLES: usize> {
 impl<const TOGGLES: usize> Default for PreferencePanelParts<TOGGLES> {
     fn default() -> Self {
         Self {
-            visible: false,
+            visibility: PreferencePanelVisibility::Hidden,
             primary_text_value: String::new(),
             toggles: [false; TOGGLES],
             auxiliary_label: None,
@@ -89,7 +113,7 @@ impl<const TOGGLES: usize> PreferencePanelState<TOGGLES> {
     /// Build preference panel state from named generic projection parts.
     pub fn from_parts(parts: PreferencePanelParts<TOGGLES>) -> Self {
         Self {
-            visible: parts.visible,
+            visible: parts.visibility.is_visible(),
             primary_text_value: parts.primary_text_value,
             toggles: parts.toggles,
             auxiliary_label: parts.auxiliary_label,
@@ -104,7 +128,7 @@ impl<const TOGGLES: usize> PreferencePanelState<TOGGLES> {
         auxiliary_label: Option<String>,
     ) -> Self {
         Self::from_parts(PreferencePanelParts {
-            visible,
+            visibility: PreferencePanelVisibility::from_visible(visible),
             primary_text_value: primary_text_value.into(),
             toggles,
             auxiliary_label,

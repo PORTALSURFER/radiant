@@ -11,6 +11,8 @@ fn preference_panel_state_uses_named_parts_for_projection_fields() {
 
     assert!(
         source.contains("pub struct PreferencePanelParts")
+            && source.contains("pub enum PreferencePanelVisibility")
+            && source.contains("pub visibility: PreferencePanelVisibility")
             && source.contains("pub fn from_parts(parts: PreferencePanelParts<TOGGLES>) -> Self")
             && source.contains("#[path = \"form/tests.rs\"]")
             && !source.contains(
@@ -35,6 +37,11 @@ fn preference_panel_state_uses_named_parts_for_projection_fields() {
     assert!(
         source.contains("Self::from_parts(PreferencePanelParts {"),
         "the positional compatibility constructor should delegate through the named parts object"
+    );
+    assert!(
+        source.contains("PreferencePanelVisibility::from_visible(visible)")
+            && tests.contains("fn preference_panel_visibility_round_trips_compatibility_flags"),
+        "preference panel compatibility flags should round-trip through the named visibility state"
     );
 }
 

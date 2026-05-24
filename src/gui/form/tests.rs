@@ -1,4 +1,6 @@
-use super::{OptionItem, PreferencePanelParts, PreferencePanelState, SummaryField};
+use super::{
+    OptionItem, PreferencePanelParts, PreferencePanelState, PreferencePanelVisibility, SummaryField,
+};
 
 #[test]
 fn option_item_preserves_label_selection_and_value() {
@@ -24,7 +26,7 @@ fn summary_field_defaults_to_empty_text() {
 #[test]
 fn preference_panel_state_preserves_visibility_text_toggles_and_auxiliary_label() {
     let panel = PreferencePanelState::from_parts(PreferencePanelParts {
-        visible: true,
+        visibility: PreferencePanelVisibility::Visible,
         primary_text_value: String::from("Default"),
         toggles: [true, false, true],
         auxiliary_label: Some(String::from("Destination")),
@@ -37,4 +39,15 @@ fn preference_panel_state_preserves_visibility_text_toggles_and_auxiliary_label(
     assert!(!panel.toggle_enabled(1));
     assert!(!panel.toggle_enabled(99));
     assert_eq!(panel.auxiliary_label.as_deref(), Some("Destination"));
+}
+
+#[test]
+fn preference_panel_visibility_round_trips_compatibility_flags() {
+    let panel = PreferencePanelState::new(true, "Default", [true, false], None);
+
+    assert_eq!(
+        PreferencePanelVisibility::from_visible(false),
+        PreferencePanelVisibility::Hidden
+    );
+    assert!(panel.visible);
 }

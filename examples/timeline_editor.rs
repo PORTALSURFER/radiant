@@ -42,10 +42,14 @@ fn project_surface(state: &mut TimelineEditorState) -> View<TimelineMessage> {
             toggle("Repeat", timeline.surface.presentation.repeat_enabled)
                 .message(TimelineMessage::ToggleRepeat)
                 .size(102.0, 30.0),
-            button(if state.playing { "Pause" } else { "Play" })
-                .primary()
-                .message(TimelineMessage::TogglePlay)
-                .size(84.0, 32.0),
+            button(if state.playback.playing {
+                "Pause"
+            } else {
+                "Play"
+            })
+            .primary()
+            .message(TimelineMessage::TogglePlay)
+            .size(84.0, 32.0),
         ])
         .fill_width()
         .spacing(10.0),

@@ -6,11 +6,11 @@ fn delete_selected_clip_clears_selection_without_touching_other_clips() {
 
     delete_selected_clip(&mut state);
 
-    assert_eq!(state.clips.len(), 3);
-    assert!(state.clips.iter().all(|clip| clip.id != 2));
-    assert_eq!(state.selected_clip, None);
-    assert_eq!(state.selection, None);
-    assert_eq!(state.status, "deleted clip 2");
+    assert_eq!(state.clip_store.clips.len(), 3);
+    assert!(state.clip_store.clips.iter().all(|clip| clip.id != 2));
+    assert_eq!(state.edit.selected_clip, None);
+    assert_eq!(state.edit.selection, None);
+    assert_eq!(state.feedback.status, "deleted clip 2");
 }
 
 #[test]
@@ -26,14 +26,15 @@ fn resize_clip_updates_range_and_selection() {
     );
 
     let resized = state
+        .clip_store
         .clips
         .iter()
         .find(|clip| clip.id == 2)
         .expect("clip remains after resize");
     assert_eq!(resized.range, BeatRange { start: 8, end: 30 });
-    assert_eq!(state.selected_clip, Some(2));
-    assert_eq!(state.selection, Some(BeatRange { start: 8, end: 30 }));
-    assert!(state.status.contains("resized to beats 8-30"));
+    assert_eq!(state.edit.selected_clip, Some(2));
+    assert_eq!(state.edit.selection, Some(BeatRange { start: 8, end: 30 }));
+    assert!(state.feedback.status.contains("resized to beats 8-30"));
 }
 
 #[test]
@@ -75,12 +76,15 @@ fn moving_clip_cuts_existing_clips_on_target_lane() {
 #[test]
 fn resizing_clip_cuts_existing_clips_on_same_lane() {
     let mut state = TimelineEditorState::default();
-    state.clips.push(TimelineClip::new(TimelineClipParts {
-        id: 99,
-        name: "Pad tail",
-        lane: 1,
-        range: BeatRange { start: 30, end: 44 },
-    }));
+    state
+        .clip_store
+        .clips
+        .push(TimelineClip::new(TimelineClipParts {
+            id: 99,
+            name: "Pad tail",
+            lane: 1,
+            range: BeatRange { start: 30, end: 44 },
+        }));
 
     update_surface(
         &mut state,

@@ -16,7 +16,7 @@ pub(super) fn folder_tree(state: &BrowserState) -> ui::StateView<BrowserState> {
     )
     .fill_height();
     view::panel("Folder Tree", tree)
-        .width(state.tree_width)
+        .width(state.tree.tree_width)
         .fill_height()
 }
 
@@ -24,14 +24,14 @@ fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::StateView<Brow
     let id = folder.id.clone();
     let key = folder.id.clone();
     let drag_id = folder.id.clone();
-    let editing = state.rename_folder.as_deref() == Some(folder.id.as_str());
+    let editing = state.rename.folder.as_deref() == Some(folder.id.as_str());
     let expander = if folder.expanded { "[-]" } else { "[+]" };
     let label = if editing {
         ui::row([
-            ui::text_input(state.rename_draft.clone())
+            ui::text_input(state.rename.folder_draft.clone())
                 .placeholder("Folder name")
                 .bind_submit(
-                    |state: &mut BrowserState| &mut state.rename_draft,
+                    |state: &mut BrowserState| &mut state.rename.folder_draft,
                     BrowserState::commit_rename,
                 )
                 .key(format!("folder-rename-input-{key}"))

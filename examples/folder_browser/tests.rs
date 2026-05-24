@@ -27,22 +27,32 @@ fn test_state() -> BrowserState {
     );
     let selected_folder = root.id.clone();
     BrowserState {
-        selected_folder: selected_folder.clone(),
-        selected_file: None,
-        expanded_folders: [selected_folder].into_iter().collect(),
-        folder_drag: None,
-        context_folder: None,
-        context_file: None,
-        context_position: None,
-        rename_folder: None,
-        rename_draft: String::new(),
-        rename_file: None,
-        file_rename_draft: String::new(),
-        context_column: None,
-        column_resize: None,
-        file_columns: default_file_columns(),
-        sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
-        tree_width: 300.0,
+        selection: BrowserSelection {
+            selected_folder: selected_folder.clone(),
+            selected_file: None,
+        },
+        tree: BrowserTreeState {
+            expanded_folders: [selected_folder].into_iter().collect(),
+            folder_drag: None,
+            tree_width: 300.0,
+        },
+        context: BrowserContextState {
+            context_folder: None,
+            context_file: None,
+            context_position: None,
+            context_column: None,
+        },
+        rename: BrowserRenameState {
+            folder: None,
+            folder_draft: String::new(),
+            file: None,
+            file_draft: String::new(),
+        },
+        columns: BrowserColumnState {
+            file_columns: default_file_columns(),
+            sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
+            resize: None,
+        },
         folders: vec![root],
         status: String::from("Drag a folder handle onto another folder"),
     }

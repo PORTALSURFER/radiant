@@ -21,6 +21,19 @@ struct VertexOut {
     @location(0) local: vec2<f32>,
 };
 
+struct SignalSummaryWindow {
+    start: f32,
+    visible: f32,
+    bucket_frames: f32,
+    bucket_count: u32,
+};
+
+struct SignalBandQuery {
+    x: f32,
+    band: u32,
+    band_count: u32,
+};
+
 @vertex
 fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOut {
     var corners = array<vec2<f32>, 6>(
@@ -53,19 +66,23 @@ fn summary_peak(bucket: u32, band: u32, band_count: u32, bucket_count: u32) -> f
     return max(abs(low), abs(high));
 }
 
-fn band_peak_at(x: f32, band: u32, band_count: u32, start: f32, visible: f32, bucket_frames: f32, bucket_count: u32) -> f32 {
-    let center = clamp(x, 0.0, 1.0);
-    let frame = max(start + visible * center, 0.0);
-    let bucket = u32(clamp(floor(frame / max(bucket_frames, 1.0)), 0.0, f32(bucket_count - 1u)));
-    return summary_peak(bucket, band, band_count, bucket_count);
+fn band_query(x: f32, band: u32, band_count: u32) -> SignalBandQuery {
+    return SignalBandQuery(x, band, band_count);
 }
 
-fn smoothed_band_peak(x: f32, pixel_width: f32, band: u32, band_count: u32, start: f32, visible: f32, bucket_frames: f32, bucket_count: u32) -> f32 {
-    return band_peak_at(x, band, band_count, start, visible, bucket_frames, bucket_count);
+fn band_peak_at(query: SignalBandQuery, window: SignalSummaryWindow) -> f32 {
+    let center = clamp(query.x, 0.0, 1.0);
+    let frame = max(window.start + window.visible * center, 0.0);
+    let bucket = u32(clamp(floor(frame / max(window.bucket_frames, 1.0)), 0.0, f32(window.bucket_count - 1u)));
+    return summary_peak(bucket, query.band, query.band_count, window.bucket_count);
 }
 
-fn projected_band_peak(x: f32, pixel_width: f32, band: u32, band_count: u32, start: f32, visible: f32, bucket_frames: f32, bucket_count: u32, frames_per_pixel: f32) -> f32 {
-    return smoothed_band_peak(x, pixel_width, band, band_count, start, visible, bucket_frames, bucket_count);
+fn smoothed_band_peak(query: SignalBandQuery, window: SignalSummaryWindow) -> f32 {
+    return band_peak_at(query, window);
+}
+
+fn projected_band_peak(query: SignalBandQuery, window: SignalSummaryWindow) -> f32 {
+    return smoothed_band_peak(query, window);
 }
 
 fn preview_curve_value(t: f32, curve: f32) -> f32 {
@@ -144,7 +161,7 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let bucket_count = u32(max(params.summary_meta.y, 1.0));
     let visible = end - start;
     let pixel_width = 1.0 / max(params.dest.z, 1.0);
-    let frames_per_pixel = visible * pixel_width;
+    let summary_window = SignalSummaryWindow(start, visible, bucket_frames, bucket_count);
     let frame_position = clamp(
         (start + visible * clamp(in.local.x, 0.0, 1.0)) / max(f32(frames) - 1.0, 1.0),
         0.0,
@@ -187,31 +204,31 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let band_gamma = array<f32, 4>(1.03, 0.94, 0.42, 1.70);
     var raw_signal = 0.0;
     if (band_count > 3u) {
-        raw_signal = projected_band_peak(in.local.x, pixel_width, 3u, band_count, start, visible, bucket_frames, bucket_count, frames_per_pixel);
+        raw_signal = projected_band_peak(band_query(in.local.x, 3u, band_count), summary_window);
     }
     raw_signal = clamp(raw_signal * preview_gain, 0.0, 1.0);
     let display_peak = pow(clamp(raw_signal * 1.02, 0.0, 1.0), 0.54);
     let raw_carrier = smoothstep(0.010, 0.55, display_peak);
     var low_signal = 0.0;
     if (band_count > 0u) {
-        low_signal = projected_band_peak(in.local.x, pixel_width, 0u, band_count, start, visible, bucket_frames, bucket_count, frames_per_pixel);
+        low_signal = projected_band_peak(band_query(in.local.x, 0u, band_count), summary_window);
     }
     low_signal = clamp(low_signal * preview_gain, 0.0, 1.0);
     var mid_signal = 0.0;
     if (band_count > 1u) {
-        mid_signal = projected_band_peak(in.local.x, pixel_width, 1u, band_count, start, visible, bucket_frames, bucket_count, frames_per_pixel);
+        mid_signal = projected_band_peak(band_query(in.local.x, 1u, band_count), summary_window);
     }
     mid_signal = clamp(mid_signal * preview_gain, 0.0, 1.0);
     var high_signal = 0.0;
     if (band_count > 2u) {
-        high_signal = projected_band_peak(in.local.x, pixel_width, 2u, band_count, start, visible, bucket_frames, bucket_count, frames_per_pixel);
+        high_signal = projected_band_peak(band_query(in.local.x, 2u, band_count), summary_window);
     }
     high_signal = clamp(high_signal * preview_gain, 0.0, 1.0);
     let low_peak_ownership = smoothstep(0.10, 0.42, low_signal);
     let mid_dominance = smoothstep(0.18, 0.54, mid_signal) * (1.0 - low_peak_ownership * 0.55);
     let high_dominance = smoothstep(0.10, 0.30, high_signal) * (1.0 - low_peak_ownership * 0.80);
     for (var band = 0u; band < min(band_count, 4u); band = band + 1u) {
-        var peak = projected_band_peak(in.local.x, pixel_width, band, band_count, start, visible, bucket_frames, bucket_count, frames_per_pixel);
+        var peak = projected_band_peak(band_query(in.local.x, band, band_count), summary_window);
         if (band == 0u) {
             peak = low_signal;
         } else if (band == 1u) {
@@ -370,8 +387,8 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
         white_signal = max(
             white_signal,
             max(
-                band_peak_at(in.local.x - neighbor_span, 2u, band_count, start, visible, bucket_frames, bucket_count) * preview_gain,
-                band_peak_at(in.local.x + neighbor_span, 2u, band_count, start, visible, bucket_frames, bucket_count) * preview_gain,
+                band_peak_at(band_query(in.local.x - neighbor_span, 2u, band_count), summary_window) * preview_gain,
+                band_peak_at(band_query(in.local.x + neighbor_span, 2u, band_count), summary_window) * preview_gain,
             ),
         );
     }

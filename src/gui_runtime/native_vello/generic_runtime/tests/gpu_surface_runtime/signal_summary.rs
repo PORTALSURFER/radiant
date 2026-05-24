@@ -27,6 +27,24 @@ fn gpu_signal_shader_uses_summary_sampling_without_looped_sample_scan() {
 }
 
 #[test]
+fn gpu_signal_shader_groups_projection_parameters() {
+    let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
+
+    assert!(shader.contains("struct SignalSummaryWindow"));
+    assert!(shader.contains("struct SignalBandQuery"));
+    assert!(
+        shader.contains("fn band_peak_at(query: SignalBandQuery, window: SignalSummaryWindow)")
+    );
+    assert!(
+        shader.contains(
+            "fn projected_band_peak(query: SignalBandQuery, window: SignalSummaryWindow)"
+        )
+    );
+    assert!(!shader.contains("fn band_peak_at(x: f32, band: u32, band_count: u32"));
+    assert!(!shader.contains("fn projected_band_peak(x: f32, pixel_width: f32"));
+}
+
+#[test]
 fn gpu_signal_shader_keeps_waveform_bands_visually_distinct() {
     let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
 

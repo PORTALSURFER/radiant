@@ -1,14 +1,16 @@
-//! Eight-channel mixer console sandbox for DAW-style GUI interaction.
+//! Dense mixer console sandbox for DAW-style GUI interaction.
 
 use radiant::prelude::*;
 use radiant::{
     runtime::{PaintFillRect, PaintStrokeRect},
-    widgets::PaintBounds,
+    widgets::{PaintBounds, PointerModifiers},
 };
 
 const MIXER_WIDGET_ID: u64 = 90;
 const STATUS_WIDGET_ID: u64 = 91;
-const CHANNEL_COUNT: usize = 8;
+const CHANNEL_COUNT: usize = 32;
+const SEND_COUNT: usize = 3;
+const GROUP_COUNT: usize = 4;
 const MIN_GAIN_DB: f32 = -60.0;
 const MAX_GAIN_DB: f32 = 6.0;
 const DATA_SOURCE_NOTE: &str = "without_dsp";
@@ -18,15 +20,19 @@ struct MixerState {
     running: bool,
     frame: u64,
     selected_channel: usize,
+    selection: ListSelectionController,
     channels: [MixerChannel; CHANNEL_COUNT],
 }
 
 impl Default for MixerState {
     fn default() -> Self {
+        let mut selection = ListSelectionController::new();
+        selection.select(0, CHANNEL_COUNT, ListSelectionModifiers::new());
         let mut state = Self {
             running: true,
             frame: 0,
             selected_channel: 0,
+            selection,
             channels: std::array::from_fn(MixerChannel::new),
         };
         state.tick();
@@ -48,6 +54,13 @@ impl MixerState {
     fn reset(&mut self) {
         self.frame = 0;
         self.running = true;
+        self.selected_channel = 0;
+        self.selection.clear();
+        self.selection.select(
+            self.selected_channel,
+            CHANNEL_COUNT,
+            ListSelectionModifiers::new(),
+        );
         self.channels = std::array::from_fn(MixerChannel::new);
         self.tick();
     }
@@ -59,9 +72,14 @@ impl MixerState {
     fn status(&self) -> String {
         let selected = self.selected();
         let transport = if self.running { "running" } else { "paused" };
+        let selected_count = self.selection.selected_indices().len().max(1);
         format!(
-            "{transport} | {} | fader {:+.1} dB | meter {:+.1} dB | synthetic GUI data",
-            selected.label, selected.gain_db, selected.meter_db
+            "{transport} | {selected_count} selected | {} | group {} | fader {:+.1} dB | send A {:.0}% | meter {:+.1} dB | synthetic GUI data",
+            selected.label,
+            selected.group() + 1,
+            selected.gain_db,
+            selected.sends[0] * 100.0,
+            selected.meter_db
         )
     }
 }
@@ -74,6 +92,7 @@ struct MixerChannel {
     pan: f32,
     meter_db: f32,
     peak_db: f32,
+    sends: [f32; SEND_COUNT],
     muted: bool,
     solo: bool,
     armed: bool,
@@ -84,10 +103,11 @@ impl MixerChannel {
         Self {
             id,
             label: CHANNEL_LABELS[id],
-            gain_db: DEFAULT_GAINS[id],
-            pan: DEFAULT_PANS[id],
+            gain_db: default_gain(id),
+            pan: default_pan(id),
             meter_db: MIN_GAIN_DB,
             peak_db: MIN_GAIN_DB,
+            sends: default_sends(id),
             muted: false,
             solo: false,
             armed: id == 0,
@@ -106,15 +126,23 @@ impl MixerChannel {
     }
 
     fn set_gain_from_ratio(&mut self, ratio: f32) {
-        self.gain_db = gain_for_ratio(ratio);
+        self.set_gain_from_db(gain_for_ratio(ratio));
         if ratio <= 0.001 {
             self.meter_db = MIN_GAIN_DB;
             self.peak_db = MIN_GAIN_DB;
         }
     }
 
-    fn gain_ratio(&self) -> f32 {
-        ratio_for_gain(self.gain_db)
+    fn set_gain_from_db(&mut self, db: f32) {
+        self.gain_db = db.clamp(MIN_GAIN_DB, MAX_GAIN_DB);
+        if self.gain_db <= MIN_GAIN_DB + 0.001 {
+            self.meter_db = MIN_GAIN_DB;
+            self.peak_db = MIN_GAIN_DB;
+        }
+    }
+
+    fn group(&self) -> usize {
+        self.id / (CHANNEL_COUNT / GROUP_COUNT)
     }
 
     fn is_visually_dimmed_by_solo(&self, solo_active: bool) -> bool {
@@ -122,10 +150,28 @@ impl MixerChannel {
     }
 }
 
-const CHANNEL_LABELS: [&str; CHANNEL_COUNT] =
-    ["Kick", "Snare", "Hat", "Bass", "Keys", "Pad", "Lead", "Vox"];
-const DEFAULT_GAINS: [f32; CHANNEL_COUNT] = [-5.0, -7.5, -12.0, -8.0, -9.0, -14.0, -10.0, -6.5];
-const DEFAULT_PANS: [f32; CHANNEL_COUNT] = [0.0, 0.0, -0.34, -0.08, 0.22, 0.38, -0.18, 0.06];
+const CHANNEL_LABELS: [&str; CHANNEL_COUNT] = [
+    "Kik", "Snr", "Hat", "Tom", "Rid", "Clp", "Shk", "Per", "Bass", "Sub", "Gtr1", "Gtr2", "Keys",
+    "Pno", "Org", "Pad", "Ld1", "Ld2", "Plk", "Arp", "Vox1", "Vox2", "Bgv1", "Bgv2", "FX1", "FX2",
+    "Amb", "Loop", "BusA", "BusB", "Print", "Ref",
+];
+
+fn default_gain(channel: usize) -> f32 {
+    -5.0 - (channel % 8) as f32 * 1.4 - (channel / 8) as f32 * 0.8
+}
+
+fn default_pan(channel: usize) -> f32 {
+    const PANS: [f32; 8] = [-0.55, -0.28, -0.08, 0.0, 0.10, 0.24, 0.42, 0.58];
+    PANS[channel % PANS.len()]
+}
+
+fn default_sends(channel: usize) -> [f32; SEND_COUNT] {
+    [
+        0.14 + (channel % 5) as f32 * 0.035,
+        0.08 + (channel % 7) as f32 * 0.025,
+        0.05 + (channel % 4) as f32 * 0.045,
+    ]
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum MixerMessage {
@@ -137,8 +183,24 @@ enum MixerMessage {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum MixerPanelMessage {
-    Select(usize),
-    SetGain { channel: usize, ratio: f32 },
+    Select {
+        channel: usize,
+        modifiers: ListSelectionModifiers,
+    },
+    SetGain {
+        channel: usize,
+        ratio: f32,
+        selection: Option<ListSelectionModifiers>,
+    },
+    SetSend {
+        channel: usize,
+        send: usize,
+        ratio: f32,
+    },
+    Reorder {
+        from: usize,
+        insert: usize,
+    },
     ToggleMute(usize),
     ToggleSolo(usize),
     ToggleArm(usize),
@@ -147,8 +209,8 @@ enum MixerPanelMessage {
 fn main() -> radiant::Result {
     radiant::app(MixerState::default())
         .title("Radiant Mixer Console")
-        .size(1040, 620)
-        .min_size(820, 500)
+        .size(1440, 760)
+        .min_size(1180, 620)
         .view(project_surface)
         .animation(|state| state.running)
         .on_frame(|| MixerMessage::Frame)
@@ -160,7 +222,7 @@ fn project_surface(state: &mut MixerState) -> View<MixerMessage> {
     let selected = state.selected();
     column([
         row([
-            text("8-Channel Mixer").height(30.0).fill_width(),
+            text("32-Channel Mixer").height(30.0).fill_width(),
             button(if state.running { "Pause" } else { "Run" })
                 .primary()
                 .message(MixerMessage::ToggleRun)
@@ -173,16 +235,22 @@ fn project_surface(state: &mut MixerState) -> View<MixerMessage> {
         .fill_width()
         .spacing(10.0),
         custom_widget_mapped(
-            MixerPanelWidget::new(state.channels, state.selected_channel, state.frame),
+            MixerPanelWidget::new(
+                state.channels,
+                state.selection.clone(),
+                state.selected_channel,
+                state.frame,
+            ),
             MixerMessage::Panel,
         )
         .id(MIXER_WIDGET_ID)
-        .height(380.0)
+        .height(500.0)
         .fill_width(),
         row([
             channel_summary_tile(selected),
             stat_tile("Source", DATA_SOURCE_NOTE),
             stat_tile("Peak", format!("{:+.1} dB", selected.peak_db)),
+            stat_tile("Send A", format!("{:.0}%", selected.sends[0] * 100.0)),
             stat_tile("Pan", format!("{:+.0}%", selected.pan * 100.0)),
             text(state.status())
                 .id(STATUS_WIDGET_ID)
@@ -233,14 +301,51 @@ fn update(state: &mut MixerState, message: MixerMessage) {
 
 fn update_panel(state: &mut MixerState, message: MixerPanelMessage) {
     match message {
-        MixerPanelMessage::Select(channel) => {
-            state.selected_channel = channel.min(CHANNEL_COUNT - 1);
+        MixerPanelMessage::Select { channel, modifiers } => {
+            let channel = channel.min(CHANNEL_COUNT - 1);
+            state.selected_channel = channel;
+            state.selection.select(channel, CHANNEL_COUNT, modifiers);
         }
-        MixerPanelMessage::SetGain { channel, ratio } => {
-            if let Some(channel_state) = state.channels.get_mut(channel) {
+        MixerPanelMessage::SetGain {
+            channel,
+            ratio,
+            selection,
+        } => {
+            let channel = channel.min(CHANNEL_COUNT - 1);
+            if let Some(modifiers) = selection {
+                state.selection.select(channel, CHANNEL_COUNT, modifiers);
+            }
+            if state.selection.is_selected(channel) && state.selection.selected_indices().len() > 1
+            {
+                let target_gain = gain_for_ratio(ratio);
+                let source_gain = state.channels[channel].gain_db;
+                let delta = target_gain - source_gain;
+                let selected = state.selection.selected_indices().to_vec();
+                for selected_channel in selected {
+                    if let Some(channel_state) = state.channels.get_mut(selected_channel) {
+                        channel_state.set_gain_from_db(channel_state.gain_db + delta);
+                    }
+                }
+            } else if let Some(channel_state) = state.channels.get_mut(channel) {
                 channel_state.set_gain_from_ratio(ratio);
                 state.selected_channel = channel;
             }
+            state.selected_channel = channel;
+        }
+        MixerPanelMessage::SetSend {
+            channel,
+            send,
+            ratio,
+        } => {
+            if let Some(channel_state) = state.channels.get_mut(channel)
+                && let Some(send_state) = channel_state.sends.get_mut(send)
+            {
+                *send_state = ratio.clamp(0.0, 1.0);
+                state.selected_channel = channel;
+            }
+        }
+        MixerPanelMessage::Reorder { from, insert } => {
+            reorder_channels(state, from, insert);
         }
         MixerPanelMessage::ToggleMute(channel) => {
             if let Some(channel_state) = state.channels.get_mut(channel) {
@@ -263,22 +368,98 @@ fn update_panel(state: &mut MixerState, message: MixerPanelMessage) {
     }
 }
 
+fn reorder_channels(state: &mut MixerState, from: usize, insert: usize) {
+    let from = from.min(CHANNEL_COUNT - 1);
+    let insert = insert.min(CHANNEL_COUNT);
+    if is_reorder_noop(from, insert) {
+        return;
+    }
+
+    let selected_ids: Vec<_> = state
+        .selection
+        .selected_indices()
+        .iter()
+        .filter_map(|channel| state.channels.get(*channel))
+        .map(|channel| channel.id)
+        .collect();
+    let focused_id = state.channels[state.selected_channel.min(CHANNEL_COUNT - 1)].id;
+    let mut channels = state.channels.to_vec();
+    let moved = channels.remove(from);
+    let adjusted_insert = if insert > from { insert - 1 } else { insert };
+    channels.insert(adjusted_insert, moved);
+    state.channels = channels
+        .try_into()
+        .expect("mixer reorder should preserve channel count");
+
+    state.selection.clear();
+    let mut restored_any = false;
+    for (index, channel) in state.channels.iter().enumerate() {
+        if selected_ids.contains(&channel.id) {
+            let modifiers = if restored_any {
+                ListSelectionModifiers::toggle()
+            } else {
+                ListSelectionModifiers::new()
+            };
+            state.selection.select(index, CHANNEL_COUNT, modifiers);
+            restored_any = true;
+        }
+    }
+    state.selected_channel = state
+        .channels
+        .iter()
+        .position(|channel| channel.id == focused_id)
+        .unwrap_or(adjusted_insert);
+    if !restored_any {
+        state.selection.select(
+            state.selected_channel,
+            CHANNEL_COUNT,
+            ListSelectionModifiers::new(),
+        );
+    }
+}
+
+fn is_reorder_noop(from: usize, insert: usize) -> bool {
+    insert == from || insert == from + 1
+}
+
 #[derive(Clone, Debug)]
 struct MixerPanelWidget {
     common: WidgetCommon,
     channels: [MixerChannel; CHANNEL_COUNT],
+    selection: ListSelectionController,
     selected_channel: usize,
     frame: u64,
     hover_channel: Option<usize>,
     hover_position: Option<Point>,
-    drag_channel: Option<usize>,
+    drag_target: Option<MixerDragTarget>,
+    drag_preview_ratio: Option<f32>,
+    drag_start_gains: Option<[f32; CHANNEL_COUNT]>,
+    reorder_insert: Option<usize>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MixerDragTarget {
+    Fader(usize),
+    Send { channel: usize, send: usize },
+    Strip(usize),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct MeterReadout {
+    meter_db: f32,
+    peak_db: f32,
 }
 
 impl MixerPanelWidget {
-    fn new(channels: [MixerChannel; CHANNEL_COUNT], selected_channel: usize, frame: u64) -> Self {
+    fn new(
+        channels: [MixerChannel; CHANNEL_COUNT],
+        selection: ListSelectionController,
+        selected_channel: usize,
+        frame: u64,
+    ) -> Self {
         let mut common = WidgetCommon::new(
             0,
-            WidgetSizing::new(Vector2::new(760.0, 340.0), Vector2::new(1000.0, 380.0)),
+            WidgetSizing::new(Vector2::new(1120.0, 460.0), Vector2::new(1400.0, 500.0)),
         );
         common.focus = FocusBehavior::Pointer;
         common.paint.bounds = PaintBounds::ClipToRect;
@@ -287,11 +468,15 @@ impl MixerPanelWidget {
         Self {
             common,
             channels,
+            selection,
             selected_channel,
             frame,
             hover_channel: None,
             hover_position: None,
-            drag_channel: None,
+            drag_target: None,
+            drag_preview_ratio: None,
+            drag_start_gains: None,
+            reorder_insert: None,
         }
     }
 
@@ -304,7 +489,7 @@ impl MixerPanelWidget {
 
     fn strip_rect(&self, bounds: Rect, channel: usize) -> Rect {
         let console = self.console_rect(bounds);
-        let gap = 8.0;
+        let gap = 4.0;
         let strip_width =
             (console.width() - gap * (CHANNEL_COUNT - 1) as f32) / CHANNEL_COUNT as f32;
         let x = console.min.x + channel as f32 * (strip_width + gap);
@@ -316,24 +501,32 @@ impl MixerPanelWidget {
 
     fn meter_rect(&self, strip: Rect) -> Rect {
         Rect::from_min_max(
-            Point::new(strip.min.x + strip.width() * 0.20, strip.min.y + 48.0),
-            Point::new(strip.min.x + strip.width() * 0.46, strip.max.y - 112.0),
+            Point::new(strip.min.x + strip.width() * 0.14, strip.min.y + 50.0),
+            Point::new(strip.min.x + strip.width() * 0.42, strip.max.y - 150.0),
         )
     }
 
     fn fader_rect(&self, strip: Rect) -> Rect {
         Rect::from_min_max(
             Point::new(strip.min.x + strip.width() * 0.58, strip.min.y + 56.0),
-            Point::new(strip.min.x + strip.width() * 0.84, strip.max.y - 116.0),
+            Point::new(strip.min.x + strip.width() * 0.86, strip.max.y - 150.0),
+        )
+    }
+
+    fn send_rect(&self, strip: Rect, send: usize) -> Rect {
+        let y = strip.max.y - 136.0 + send as f32 * 18.0;
+        Rect::from_min_size(
+            Point::new(strip.min.x + 5.0, y),
+            Vector2::new(strip.width() - 10.0, 12.0),
         )
     }
 
     fn button_rect(&self, strip: Rect, index: usize) -> Rect {
-        let width = (strip.width() - 22.0) / 3.0;
-        let x = strip.min.x + 8.0 + index as f32 * (width + 3.0);
+        let width = (strip.width() - 10.0) / 3.0;
+        let x = strip.min.x + 4.0 + index as f32 * (width + 1.0);
         Rect::from_min_size(
-            Point::new(x, strip.max.y - 82.0),
-            Vector2::new(width.max(18.0), 24.0),
+            Point::new(x, strip.max.y - 72.0),
+            Vector2::new(width.max(1.0), 22.0),
         )
     }
 
@@ -341,9 +534,152 @@ impl MixerPanelWidget {
         (0..CHANNEL_COUNT).find(|channel| self.strip_rect(bounds, *channel).contains(position))
     }
 
+    fn insertion_index_at(&self, bounds: Rect, position: Point) -> usize {
+        let console = self.console_rect(bounds);
+        if position.x <= console.min.x {
+            return 0;
+        }
+        if position.x >= console.max.x {
+            return CHANNEL_COUNT;
+        }
+        for channel in 0..CHANNEL_COUNT {
+            if position.x < self.strip_rect(bounds, channel).center().x {
+                return channel;
+            }
+        }
+        CHANNEL_COUNT
+    }
+
+    fn insertion_line_rect(&self, bounds: Rect, insert: usize) -> Rect {
+        let console = self.console_rect(bounds);
+        let insert = insert.min(CHANNEL_COUNT);
+        let x = if insert == 0 {
+            self.strip_rect(bounds, 0).min.x - 2.0
+        } else if insert == CHANNEL_COUNT {
+            self.strip_rect(bounds, CHANNEL_COUNT - 1).max.x + 2.0
+        } else {
+            let left = self.strip_rect(bounds, insert - 1);
+            let right = self.strip_rect(bounds, insert);
+            (left.max.x + right.min.x) * 0.5
+        };
+        Rect::from_min_max(
+            Point::new(x - 2.0, console.min.y + 4.0),
+            Point::new(x + 2.0, console.max.y - 4.0),
+        )
+    }
+
     fn fader_ratio_at(&self, strip: Rect, position: Point) -> f32 {
         let fader = self.fader_rect(strip);
         ((fader.max.y - position.y) / fader.height().max(1.0)).clamp(0.0, 1.0)
+    }
+
+    fn send_ratio_at(&self, strip: Rect, send: usize, position: Point) -> f32 {
+        let send = self.send_rect(strip, send);
+        ((position.x - send.min.x) / send.width().max(1.0)).clamp(0.0, 1.0)
+    }
+
+    fn send_at(&self, strip: Rect, position: Point) -> Option<usize> {
+        (0..SEND_COUNT).find(|send| self.send_rect(strip, *send).contains(position))
+    }
+
+    fn apply_selection(&mut self, channel: usize, modifiers: PointerModifiers) {
+        self.selected_channel = channel;
+        self.selection
+            .select(channel, CHANNEL_COUNT, list_selection_modifiers(modifiers));
+    }
+
+    fn drag_message(
+        &self,
+        bounds: Rect,
+        target: MixerDragTarget,
+        position: Point,
+    ) -> MixerPanelMessage {
+        match target {
+            MixerDragTarget::Fader(channel) => {
+                let strip = self.strip_rect(bounds, channel);
+                MixerPanelMessage::SetGain {
+                    channel,
+                    ratio: self.fader_ratio_at(strip, position),
+                    selection: None,
+                }
+            }
+            MixerDragTarget::Send { channel, send } => {
+                let strip = self.strip_rect(bounds, channel);
+                MixerPanelMessage::SetSend {
+                    channel,
+                    send,
+                    ratio: self.send_ratio_at(strip, send, position),
+                }
+            }
+            MixerDragTarget::Strip(channel) => MixerPanelMessage::Reorder {
+                from: channel,
+                insert: self.insertion_index_at(bounds, position),
+            },
+        }
+    }
+
+    fn drag_ratio(&self, bounds: Rect, target: MixerDragTarget, position: Point) -> f32 {
+        match target {
+            MixerDragTarget::Fader(channel) => {
+                let strip = self.strip_rect(bounds, channel);
+                self.fader_ratio_at(strip, position)
+            }
+            MixerDragTarget::Send { channel, send } => {
+                let strip = self.strip_rect(bounds, channel);
+                self.send_ratio_at(strip, send, position)
+            }
+            MixerDragTarget::Strip(_) => 0.0,
+        }
+    }
+
+    fn fader_display_ratio(&self, channel: usize) -> f32 {
+        ratio_for_gain(self.fader_display_db(channel))
+    }
+
+    fn fader_display_db(&self, channel: usize) -> f32 {
+        self.fader_display_db_for_drag(channel)
+            .unwrap_or(self.channels[channel].gain_db)
+    }
+
+    fn fader_display_db_for_drag(&self, channel: usize) -> Option<f32> {
+        if self.drag_target == Some(MixerDragTarget::Fader(channel))
+            && let Some(ratio) = self.drag_preview_ratio
+        {
+            return Some(gain_for_ratio(ratio));
+        }
+        if let Some(MixerDragTarget::Fader(source_channel)) = self.drag_target
+            && self.selection.is_selected(source_channel)
+            && self.selection.is_selected(channel)
+            && self.selection.selected_indices().len() > 1
+            && let Some(ratio) = self.drag_preview_ratio
+            && let Some(start_gains) = self.drag_start_gains
+        {
+            let delta = gain_for_ratio(ratio) - start_gains[source_channel];
+            return Some((start_gains[channel] + delta).clamp(MIN_GAIN_DB, MAX_GAIN_DB));
+        }
+        None
+    }
+
+    fn meter_display_db_for_drag(&self, channel: usize) -> Option<f32> {
+        let channel_state = self.channels[channel];
+        self.fader_display_db_for_drag(channel)
+            .map(|gain_db| preview_meter_db(channel_state.meter_db, channel_state.gain_db, gain_db))
+    }
+
+    fn peak_display_db_for_drag(&self, channel: usize) -> Option<f32> {
+        let channel_state = self.channels[channel];
+        self.fader_display_db_for_drag(channel)
+            .map(|gain_db| preview_meter_db(channel_state.peak_db, channel_state.gain_db, gain_db))
+    }
+
+    fn send_display_ratio(&self, channel: usize, send: usize) -> f32 {
+        if self.drag_target == Some(MixerDragTarget::Send { channel, send })
+            && let Some(ratio) = self.drag_preview_ratio
+        {
+            ratio
+        } else {
+            self.channels[channel].sends[send]
+        }
     }
 }
 
@@ -362,34 +698,62 @@ impl Widget for MixerPanelWidget {
                 self.common.state.hovered = bounds.contains(position);
                 self.hover_position = bounds.contains(position).then_some(position);
                 self.hover_channel = self.channel_at(bounds, position);
-                if let Some(channel) = self.drag_channel {
-                    let strip = self.strip_rect(bounds, channel);
-                    return Some(WidgetOutput::custom(MixerPanelMessage::SetGain {
-                        channel,
-                        ratio: self.fader_ratio_at(strip, position),
-                    }));
+                if let Some(target) = self.drag_target {
+                    match target {
+                        MixerDragTarget::Fader(_) | MixerDragTarget::Send { .. } => {
+                            self.drag_preview_ratio =
+                                Some(self.drag_ratio(bounds, target, position));
+                        }
+                        MixerDragTarget::Strip(_) => {
+                            self.reorder_insert = Some(self.insertion_index_at(bounds, position));
+                        }
+                    }
                 }
                 None
             }
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Primary,
-                ..
+                modifiers,
             } if bounds.contains(position) => {
                 let channel = self.channel_at(bounds, position)?;
                 let strip = self.strip_rect(bounds, channel);
-                self.selected_channel = channel;
                 self.hover_channel = Some(channel);
                 if self.fader_rect(strip).contains(position) {
-                    self.drag_channel = Some(channel);
+                    let selection_update = (!self.selection.is_selected(channel)
+                        || modifiers.shift
+                        || modifiers.command
+                        || self.selection.selected_indices().len() <= 1)
+                        .then_some(list_selection_modifiers(modifiers));
+                    if selection_update.is_some() {
+                        self.apply_selection(channel, modifiers);
+                    }
+                    self.drag_target = Some(MixerDragTarget::Fader(channel));
+                    self.drag_preview_ratio = Some(self.fader_ratio_at(strip, position));
+                    self.drag_start_gains = Some(self.channels.map(|channel| channel.gain_db));
                     return Some(WidgetOutput::custom(MixerPanelMessage::SetGain {
                         channel,
                         ratio: self.fader_ratio_at(strip, position),
+                        selection: selection_update,
                     }));
                 }
-                Some(WidgetOutput::custom(button_or_select_message(
-                    self, strip, channel, position,
-                )))
+                if let Some(send) = self.send_at(strip, position) {
+                    self.apply_selection(channel, modifiers);
+                    self.drag_target = Some(MixerDragTarget::Send { channel, send });
+                    self.drag_preview_ratio = Some(self.send_ratio_at(strip, send, position));
+                    return Some(WidgetOutput::custom(MixerPanelMessage::SetSend {
+                        channel,
+                        send,
+                        ratio: self.send_ratio_at(strip, send, position),
+                    }));
+                }
+                let message = button_or_select_message(self, strip, channel, position, modifiers);
+                self.apply_selection(channel, modifiers);
+                if matches!(message, MixerPanelMessage::Select { .. }) {
+                    self.drag_target = Some(MixerDragTarget::Strip(channel));
+                    self.reorder_insert = Some(channel);
+                }
+                Some(WidgetOutput::custom(message))
             }
             WidgetInput::PointerRelease {
                 position,
@@ -401,14 +765,25 @@ impl Widget for MixerPanelWidget {
                 button: PointerButton::Primary,
                 ..
             } => {
-                let drag = self.drag_channel.take();
+                let drag = self.drag_target.take();
+                self.drag_preview_ratio = None;
+                self.drag_start_gains = None;
+                let reorder_insert = self.reorder_insert.take();
                 self.hover_channel = self.channel_at(bounds, position);
-                drag.map(|channel| {
-                    let strip = self.strip_rect(bounds, channel);
-                    WidgetOutput::custom(MixerPanelMessage::SetGain {
-                        channel,
-                        ratio: self.fader_ratio_at(strip, position),
-                    })
+                drag.and_then(|target| match target {
+                    MixerDragTarget::Fader(_) | MixerDragTarget::Send { .. } => Some(
+                        WidgetOutput::custom(self.drag_message(bounds, target, position)),
+                    ),
+                    MixerDragTarget::Strip(channel) => {
+                        let insert = reorder_insert
+                            .unwrap_or_else(|| self.insertion_index_at(bounds, position));
+                        (!is_reorder_noop(channel, insert)).then(|| {
+                            WidgetOutput::custom(MixerPanelMessage::Reorder {
+                                from: channel,
+                                insert,
+                            })
+                        })
+                    }
                 })
             }
             WidgetInput::FocusChanged(focused) => {
@@ -420,7 +795,7 @@ impl Widget for MixerPanelWidget {
     }
 
     fn prefers_pointer_move_paint_only(&self) -> bool {
-        self.drag_channel.is_none()
+        true
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
@@ -428,7 +803,10 @@ impl Widget for MixerPanelWidget {
             self.common.state = previous.common.state;
             self.hover_channel = previous.hover_channel;
             self.hover_position = previous.hover_position;
-            self.drag_channel = previous.drag_channel;
+            self.drag_target = previous.drag_target;
+            self.drag_preview_ratio = previous.drag_preview_ratio;
+            self.drag_start_gains = previous.drag_start_gains;
+            self.reorder_insert = previous.reorder_insert;
         }
     }
 
@@ -463,21 +841,164 @@ impl Widget for MixerPanelWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        let Some(channel) = self.hover_channel else {
-            return;
-        };
-        let strip = self.strip_rect(bounds, channel);
-        push_stroke(
-            primitives,
-            self.common.id,
-            strip,
-            translucent(theme.highlight_cyan, 170),
-            2.0,
-        );
+        if let Some(channel) = self.hover_channel {
+            let strip = self.strip_rect(bounds, channel);
+            push_stroke(
+                primitives,
+                self.common.id,
+                strip,
+                translucent(theme.highlight_cyan, 170),
+                2.0,
+            );
+        }
+        match self.drag_target {
+            Some(MixerDragTarget::Fader(channel)) => {
+                self.append_fader_drag_overlay(primitives, bounds, channel, theme);
+            }
+            Some(MixerDragTarget::Send { channel, send }) => {
+                self.append_send_drag_overlay(primitives, bounds, channel, send, theme);
+            }
+            Some(MixerDragTarget::Strip(channel)) => {
+                self.append_reorder_drag_overlay(primitives, bounds, channel, theme);
+            }
+            None => {}
+        }
     }
 }
 
 impl MixerPanelWidget {
+    fn should_paint_fader_overlay_for(&self, source_channel: usize, channel: usize) -> bool {
+        if self.selection.is_selected(source_channel) && self.selection.selected_indices().len() > 1
+        {
+            self.selection.is_selected(channel)
+        } else {
+            channel == source_channel
+        }
+    }
+
+    fn append_fader_drag_overlay(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        source_channel: usize,
+        theme: &ThemeTokens,
+    ) {
+        for channel_index in 0..CHANNEL_COUNT {
+            if !self.should_paint_fader_overlay_for(source_channel, channel_index) {
+                continue;
+            }
+            let strip = self.strip_rect(bounds, channel_index);
+            let fader = self.fader_rect(strip);
+            let center_x = fader.center().x;
+            self.append_meter_drag_overlay(primitives, channel_index, strip, theme);
+            push_rect(
+                primitives,
+                self.common.id,
+                Rect::from_min_max(
+                    Point::new(fader.min.x - 2.0, fader.min.y - 12.0),
+                    Point::new(fader.max.x + 2.0, fader.max.y + 12.0),
+                ),
+                translucent(theme.surface_base, 245),
+            );
+            push_rect(
+                primitives,
+                self.common.id,
+                Rect::from_min_max(
+                    Point::new(center_x - 2.0, fader.min.y),
+                    Point::new(center_x + 2.0, fader.max.y),
+                ),
+                theme.grid_strong,
+            );
+            for db in [-48.0, -24.0, -12.0, 0.0, 6.0] {
+                let y = fader.max.y - fader.height() * ratio_for_gain(db);
+                push_rect(
+                    primitives,
+                    self.common.id,
+                    Rect::from_min_max(
+                        Point::new(center_x - 10.0, y),
+                        Point::new(center_x + 10.0, y + 1.0),
+                    ),
+                    theme.grid_soft,
+                );
+            }
+            let knob_y = fader.max.y - fader.height() * self.fader_display_ratio(channel_index);
+            let knob = Rect::from_min_size(
+                Point::new(fader.min.x, knob_y - 8.0),
+                Vector2::new(fader.width(), 16.0),
+            );
+            push_rect(primitives, self.common.id, knob, theme.highlight_blue);
+            push_stroke(primitives, self.common.id, knob, theme.border_emphasis, 1.0);
+        }
+    }
+
+    fn append_meter_drag_overlay(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        channel_index: usize,
+        strip: Rect,
+        theme: &ThemeTokens,
+    ) {
+        let channel = self.channels[channel_index];
+        let readout = MeterReadout {
+            meter_db: self
+                .meter_display_db_for_drag(channel_index)
+                .unwrap_or(channel.meter_db),
+            peak_db: self
+                .peak_display_db_for_drag(channel_index)
+                .unwrap_or(channel.peak_db),
+        };
+        self.append_meter_values(primitives, channel, strip, false, readout, theme);
+    }
+
+    fn append_send_drag_overlay(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        channel_index: usize,
+        send: usize,
+        theme: &ThemeTokens,
+    ) {
+        let strip = self.strip_rect(bounds, channel_index);
+        let rect = self.send_rect(strip, send);
+        push_rect(primitives, self.common.id, rect, theme.bg_tertiary);
+        let fill = Rect::from_min_max(
+            rect.min,
+            Point::new(
+                rect.min.x + rect.width() * self.send_display_ratio(channel_index, send),
+                rect.max.y,
+            ),
+        );
+        push_rect(primitives, self.common.id, fill, send_color(send, theme));
+        push_stroke(primitives, self.common.id, rect, theme.border_emphasis, 1.0);
+    }
+
+    fn append_reorder_drag_overlay(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        source_channel: usize,
+        theme: &ThemeTokens,
+    ) {
+        let source = self.strip_rect(bounds, source_channel);
+        push_stroke(
+            primitives,
+            self.common.id,
+            source,
+            translucent(theme.text_primary, 135),
+            2.0,
+        );
+        if let Some(insert) = self.reorder_insert {
+            let line = self.insertion_line_rect(bounds, insert);
+            push_rect(
+                primitives,
+                self.common.id,
+                line,
+                translucent(theme.highlight_cyan, 235),
+            );
+            push_stroke(primitives, self.common.id, line, theme.border_emphasis, 1.0);
+        }
+    }
+
     fn append_strip(
         &self,
         primitives: &mut Vec<PaintPrimitive>,
@@ -487,17 +1008,31 @@ impl MixerPanelWidget {
     ) {
         let channel = self.channels[channel_index];
         let strip = self.strip_rect(bounds, channel_index);
-        let selected = channel_index == self.selected_channel;
+        let selected = self.selection.is_selected(channel_index);
         let solo_active = self.channels.iter().any(|channel| channel.solo);
         let solo_dimmed = channel.is_visually_dimmed_by_solo(solo_active);
+        let group_tint = group_color(channel.group(), theme);
         let fill = if selected {
             blend_color(theme.surface_raised, theme.highlight_blue, 0.20)
         } else if solo_dimmed {
             blend_color(theme.surface_base, theme.bg_primary, 0.42)
         } else {
-            theme.surface_base
+            blend_color(theme.surface_base, group_tint, 0.10)
         };
         push_rect(primitives, self.common.id, strip, fill);
+        push_rect(
+            primitives,
+            self.common.id,
+            Rect::from_min_max(
+                Point::new(strip.min.x, strip.min.y),
+                Point::new(strip.max.x, strip.min.y + 4.0),
+            ),
+            if solo_dimmed {
+                rgba(78, 82, 88, 180)
+            } else {
+                group_tint
+            },
+        );
         push_stroke(primitives, self.common.id, strip, theme.border, 1.0);
         push_text(
             primitives,
@@ -515,14 +1050,15 @@ impl MixerPanelWidget {
             PaintTextAlign::Center,
         );
         self.append_meter(primitives, channel, strip, solo_dimmed, theme);
-        self.append_fader(primitives, channel, strip, solo_dimmed, theme);
+        self.append_fader(primitives, channel_index, strip, solo_dimmed, theme);
+        self.append_sends(primitives, channel_index, strip, solo_dimmed, theme);
         self.append_channel_buttons(primitives, channel, strip, theme);
         push_text(
             primitives,
             self.common.id,
-            format!("{:+.1} dB", channel.gain_db),
+            format!("{:+.1} dB", self.fader_display_db(channel_index)),
             Rect::from_min_size(
-                Point::new(strip.min.x + 6.0, strip.max.y - 48.0),
+                Point::new(strip.min.x + 4.0, strip.max.y - 44.0),
                 Vector2::new(strip.width() - 12.0, 18.0),
             ),
             if solo_dimmed {
@@ -537,7 +1073,7 @@ impl MixerPanelWidget {
             self.common.id,
             format!("{:+.0}", channel.pan * 100.0),
             Rect::from_min_size(
-                Point::new(strip.min.x + 6.0, strip.max.y - 28.0),
+                Point::new(strip.min.x + 4.0, strip.max.y - 24.0),
                 Vector2::new(strip.width() - 12.0, 18.0),
             ),
             theme.text_muted,
@@ -551,6 +1087,28 @@ impl MixerPanelWidget {
         channel: MixerChannel,
         strip: Rect,
         solo_dimmed: bool,
+        theme: &ThemeTokens,
+    ) {
+        self.append_meter_values(
+            primitives,
+            channel,
+            strip,
+            solo_dimmed,
+            MeterReadout {
+                meter_db: channel.meter_db,
+                peak_db: channel.peak_db,
+            },
+            theme,
+        );
+    }
+
+    fn append_meter_values(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        channel: MixerChannel,
+        strip: Rect,
+        solo_dimmed: bool,
+        readout: MeterReadout,
         theme: &ThemeTokens,
     ) {
         let meter = self.meter_rect(strip);
@@ -573,25 +1131,39 @@ impl MixerPanelWidget {
                 translucent(theme.grid_soft, 120),
             );
         }
-        let meter_ratio = ratio_for_meter_db(channel.meter_db);
-        let meter_fill = Rect::from_min_max(
-            Point::new(
-                meter.min.x + 3.0,
-                meter.max.y - (meter.height() - 6.0) * meter_ratio,
-            ),
-            Point::new(meter.max.x - 3.0, meter.max.y - 3.0),
-        );
-        push_rect(
-            primitives,
-            self.common.id,
-            meter_fill,
-            if solo_dimmed {
-                rgba(75, 80, 86, 180)
+        let meter_ratio = ratio_for_meter_db(readout.meter_db);
+        let left_ratio = meter_ratio
+            * if channel.pan > 0.0 {
+                1.0 - channel.pan * 0.55
             } else {
-                meter_color(channel.meter_db)
-            },
-        );
-        let peak_y = meter.max.y - meter.height() * ratio_for_meter_db(channel.peak_db);
+                1.0
+            };
+        let right_ratio = meter_ratio
+            * if channel.pan < 0.0 {
+                1.0 + channel.pan * 0.55
+            } else {
+                1.0
+            };
+        for (index, ratio) in [left_ratio, right_ratio].into_iter().enumerate() {
+            let lane_gap = 2.0;
+            let lane_width = ((meter.width() - 6.0 - lane_gap) / 2.0).max(1.0);
+            let x = meter.min.x + 3.0 + index as f32 * (lane_width + lane_gap);
+            let meter_fill = Rect::from_min_max(
+                Point::new(x, meter.max.y - (meter.height() - 6.0) * ratio),
+                Point::new(x + lane_width, meter.max.y - 3.0),
+            );
+            push_rect(
+                primitives,
+                self.common.id,
+                meter_fill,
+                if solo_dimmed {
+                    rgba(75, 80, 86, 180)
+                } else {
+                    meter_color(readout.meter_db)
+                },
+            );
+        }
+        let peak_y = meter.max.y - meter.height() * ratio_for_meter_db(readout.peak_db);
         push_rect(
             primitives,
             self.common.id,
@@ -608,7 +1180,7 @@ impl MixerPanelWidget {
         push_text(
             primitives,
             self.common.id,
-            format!("{:+.0}", channel.meter_db),
+            format!("{:+.0}", readout.meter_db),
             Rect::from_min_size(
                 Point::new(meter.min.x - 16.0, meter.max.y + 8.0),
                 Vector2::new(meter.width() + 32.0, 18.0),
@@ -622,10 +1194,51 @@ impl MixerPanelWidget {
         );
     }
 
+    fn append_sends(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        channel_index: usize,
+        strip: Rect,
+        solo_dimmed: bool,
+        theme: &ThemeTokens,
+    ) {
+        for send in 0..SEND_COUNT {
+            let rect = self.send_rect(strip, send);
+            push_rect(
+                primitives,
+                self.common.id,
+                rect,
+                if solo_dimmed {
+                    rgba(24, 26, 29, 255)
+                } else {
+                    theme.bg_tertiary
+                },
+            );
+            let fill = Rect::from_min_max(
+                rect.min,
+                Point::new(
+                    rect.min.x + rect.width() * self.send_display_ratio(channel_index, send),
+                    rect.max.y,
+                ),
+            );
+            push_rect(
+                primitives,
+                self.common.id,
+                fill,
+                if solo_dimmed {
+                    rgba(86, 92, 100, 170)
+                } else {
+                    send_color(send, theme)
+                },
+            );
+            push_stroke(primitives, self.common.id, rect, theme.border, 1.0);
+        }
+    }
+
     fn append_fader(
         &self,
         primitives: &mut Vec<PaintPrimitive>,
-        channel: MixerChannel,
+        channel_index: usize,
         strip: Rect,
         solo_dimmed: bool,
         theme: &ThemeTokens,
@@ -657,7 +1270,7 @@ impl MixerPanelWidget {
                 theme.grid_soft,
             );
         }
-        let knob_y = fader.max.y - fader.height() * channel.gain_ratio();
+        let knob_y = fader.max.y - fader.height() * self.fader_display_ratio(channel_index);
         let knob = Rect::from_min_size(
             Point::new(fader.min.x, knob_y - 8.0),
             Vector2::new(fader.width(), 16.0),
@@ -716,6 +1329,7 @@ fn button_or_select_message(
     strip: Rect,
     channel: usize,
     position: Point,
+    modifiers: PointerModifiers,
 ) -> MixerPanelMessage {
     if widget.button_rect(strip, 0).contains(position) {
         MixerPanelMessage::ToggleMute(channel)
@@ -724,7 +1338,20 @@ fn button_or_select_message(
     } else if widget.button_rect(strip, 2).contains(position) {
         MixerPanelMessage::ToggleArm(channel)
     } else {
-        MixerPanelMessage::Select(channel)
+        MixerPanelMessage::Select {
+            channel,
+            modifiers: list_selection_modifiers(modifiers),
+        }
+    }
+}
+
+fn list_selection_modifiers(modifiers: PointerModifiers) -> ListSelectionModifiers {
+    if modifiers.shift {
+        ListSelectionModifiers::extend()
+    } else if modifiers.command {
+        ListSelectionModifiers::toggle()
+    } else {
+        ListSelectionModifiers::new()
     }
 }
 
@@ -769,6 +1396,14 @@ fn db_to_linear(db: f32) -> f32 {
     10.0_f32.powf(db.clamp(MIN_GAIN_DB, MAX_GAIN_DB) / 20.0)
 }
 
+fn preview_meter_db(current_meter_db: f32, current_gain_db: f32, preview_gain_db: f32) -> f32 {
+    if preview_gain_db <= MIN_GAIN_DB + 0.001 {
+        MIN_GAIN_DB
+    } else {
+        (current_meter_db + preview_gain_db - current_gain_db).clamp(MIN_GAIN_DB, 0.0)
+    }
+}
+
 fn meter_color(db: f32) -> Rgba8 {
     if db > -3.0 {
         rgba(255, 82, 52, 255)
@@ -776,6 +1411,23 @@ fn meter_color(db: f32) -> Rgba8 {
         rgba(255, 190, 72, 255)
     } else {
         rgba(60, 214, 154, 255)
+    }
+}
+
+fn group_color(group: usize, theme: &ThemeTokens) -> Rgba8 {
+    match group % GROUP_COUNT {
+        0 => theme.highlight_cyan,
+        1 => theme.highlight_blue,
+        2 => theme.accent_warning,
+        _ => theme.highlight_orange,
+    }
+}
+
+fn send_color(send: usize, theme: &ThemeTokens) -> Rgba8 {
+    match send % SEND_COUNT {
+        0 => theme.highlight_cyan,
+        1 => theme.highlight_blue,
+        _ => theme.highlight_orange,
     }
 }
 
@@ -844,7 +1496,7 @@ fn push_text(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use radiant::runtime::{RuntimeBridge, SurfaceRuntime};
+    use radiant::runtime::{Event, RuntimeBridge, SurfaceRuntime};
 
     #[test]
     fn mixer_tick_animates_synthetic_decibel_meters_without_dsp() {
@@ -868,6 +1520,7 @@ mod tests {
             MixerPanelMessage::SetGain {
                 channel: 3,
                 ratio: 0.0,
+                selection: Some(ListSelectionModifiers::new()),
             },
         );
 
@@ -904,8 +1557,13 @@ mod tests {
     fn mixer_solo_grays_non_solo_meter_paint() {
         let mut state = MixerState::default();
         update_panel(&mut state, MixerPanelMessage::ToggleSolo(1));
-        let widget = MixerPanelWidget::new(state.channels, state.selected_channel, state.frame);
-        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 380.0));
+        let widget = MixerPanelWidget::new(
+            state.channels,
+            state.selection.clone(),
+            state.selected_channel,
+            state.frame,
+        );
+        let bounds = mixer_bounds();
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -924,10 +1582,15 @@ mod tests {
     }
 
     #[test]
-    fn mixer_panel_paints_eight_channel_strips_and_db_labels() {
+    fn mixer_panel_paints_dense_channel_strips_sends_and_db_labels() {
         let state = MixerState::default();
-        let widget = MixerPanelWidget::new(state.channels, state.selected_channel, state.frame);
-        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 380.0));
+        let widget = MixerPanelWidget::new(
+            state.channels,
+            state.selection.clone(),
+            state.selected_channel,
+            state.frame,
+        );
+        let bounds = mixer_bounds();
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -948,6 +1611,10 @@ mod tests {
             .count();
         assert_eq!(label_count, CHANNEL_COUNT);
         assert!(
+            primitives.len() > CHANNEL_COUNT * 24,
+            "dense mixer should stress retained paint planning with many per-channel primitives"
+        );
+        assert!(
             primitives
                 .iter()
                 .any(|primitive| matches!(primitive, PaintPrimitive::Text(text) if text.text.as_str().contains("dB"))),
@@ -958,8 +1625,13 @@ mod tests {
     #[test]
     fn mixer_panel_hover_uses_paint_only_runtime_overlay() {
         let state = MixerState::default();
-        let mut widget = MixerPanelWidget::new(state.channels, state.selected_channel, state.frame);
-        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 380.0));
+        let mut widget = MixerPanelWidget::new(
+            state.channels,
+            state.selection.clone(),
+            state.selected_channel,
+            state.frame,
+        );
+        let bounds = mixer_bounds();
         let strip = widget.strip_rect(bounds, 2);
 
         let output = widget.handle_input(
@@ -990,8 +1662,13 @@ mod tests {
     #[test]
     fn mixer_panel_fader_drag_routes_gain_change() {
         let state = MixerState::default();
-        let mut widget = MixerPanelWidget::new(state.channels, state.selected_channel, state.frame);
-        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 380.0));
+        let mut widget = MixerPanelWidget::new(
+            state.channels,
+            state.selection.clone(),
+            state.selected_channel,
+            state.frame,
+        );
+        let bounds = mixer_bounds();
         let strip = widget.strip_rect(bounds, 4);
         let fader = widget.fader_rect(strip);
 
@@ -1008,16 +1685,382 @@ mod tests {
             output.and_then(|output| output.typed_ref::<MixerPanelMessage>().copied()),
             Some(MixerPanelMessage::SetGain {
                 channel: 4,
-                ratio: 1.0
+                ratio: 1.0,
+                selection: Some(ListSelectionModifiers::new()),
             })
         );
-        assert!(!widget.prefers_pointer_move_paint_only());
+        assert!(widget.prefers_pointer_move_paint_only());
+    }
+
+    #[test]
+    fn mixer_panel_supports_shift_and_control_multi_channel_selection() {
+        let state = MixerState::default();
+        let mut widget = MixerPanelWidget::new(
+            state.channels,
+            state.selection.clone(),
+            state.selected_channel,
+            state.frame,
+        );
+        let bounds = mixer_bounds();
+
+        press_strip_label(&mut widget, bounds, 2, PointerModifiers::default());
+        press_strip_label(
+            &mut widget,
+            bounds,
+            5,
+            PointerModifiers {
+                shift: true,
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(widget.selection.selected_indices(), &[2, 3, 4, 5]);
+
+        press_strip_label(
+            &mut widget,
+            bounds,
+            7,
+            PointerModifiers {
+                command: true,
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(widget.selection.selected_indices(), &[2, 3, 4, 5, 7]);
+    }
+
+    #[test]
+    fn mixer_reorder_moves_channel_identity_and_preserves_selection() {
+        let mut state = MixerState::default();
+        update_panel(
+            &mut state,
+            MixerPanelMessage::Select {
+                channel: 2,
+                modifiers: ListSelectionModifiers::new(),
+            },
+        );
+        update_panel(
+            &mut state,
+            MixerPanelMessage::Select {
+                channel: 4,
+                modifiers: ListSelectionModifiers::toggle(),
+            },
+        );
+        let moved = state.channels[2];
+        let also_selected = state.channels[4];
+
+        update_panel(
+            &mut state,
+            MixerPanelMessage::Reorder { from: 2, insert: 7 },
+        );
+
+        assert_eq!(state.channels[6], moved);
+        assert_eq!(state.selected().id, also_selected.id);
+        assert_eq!(state.selection.selected_indices(), &[3, 6]);
+    }
+
+    #[test]
+    fn mixer_strip_drag_paints_insertion_line_without_spreading_strips() {
+        let state = MixerState::default();
+        let mut widget = MixerPanelWidget::new(
+            state.channels,
+            state.selection.clone(),
+            state.selected_channel,
+            state.frame,
+        );
+        let bounds = mixer_bounds();
+        let source = widget.strip_rect(bounds, 2);
+        let target_line = widget.insertion_line_rect(bounds, 7);
+
+        widget.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(source.center().x, source.min.y + 22.0),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        );
+        let move_output = widget.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: target_line.center(),
+            },
+        );
+
+        assert!(move_output.is_none());
+        assert_eq!(widget.drag_target, Some(MixerDragTarget::Strip(2)));
+        assert_eq!(widget.reorder_insert, Some(7));
+        let mut overlay = Vec::new();
+        widget.append_runtime_overlay_paint(
+            &mut overlay,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+        assert!(
+            overlay.iter().any(|primitive| {
+                matches!(
+                    primitive,
+                    PaintPrimitive::FillRect(fill)
+                        if fill.rect == target_line
+                            && fill.color == translucent(ThemeTokens::default().highlight_cyan, 235)
+                )
+            }),
+            "strip reorder drag should light the insertion line without moving strips"
+        );
+    }
+
+    #[test]
+    fn mixer_strip_drag_drop_emits_reorder_message() {
+        let state = MixerState::default();
+        let mut widget = MixerPanelWidget::new(
+            state.channels,
+            state.selection.clone(),
+            state.selected_channel,
+            state.frame,
+        );
+        let bounds = mixer_bounds();
+        let source = widget.strip_rect(bounds, 2);
+        let target_line = widget.insertion_line_rect(bounds, 7);
+
+        widget.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(source.center().x, source.min.y + 22.0),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        );
+        widget.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: target_line.center(),
+            },
+        );
+        let output = widget.handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: target_line.center(),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        );
+
+        assert_eq!(
+            output.and_then(|output| output.typed_ref::<MixerPanelMessage>().copied()),
+            Some(MixerPanelMessage::Reorder { from: 2, insert: 7 })
+        );
+    }
+
+    #[test]
+    fn mixer_group_fader_drag_applies_relative_gain_delta_to_selected_channels() {
+        let mut state = MixerState::default();
+        update_panel(
+            &mut state,
+            MixerPanelMessage::Select {
+                channel: 4,
+                modifiers: ListSelectionModifiers::new(),
+            },
+        );
+        update_panel(
+            &mut state,
+            MixerPanelMessage::Select {
+                channel: 5,
+                modifiers: ListSelectionModifiers::toggle(),
+            },
+        );
+        let initial_4 = state.channels[4].gain_db;
+        let initial_5 = state.channels[5].gain_db;
+
+        update_panel(
+            &mut state,
+            MixerPanelMessage::SetGain {
+                channel: 4,
+                ratio: 0.80,
+                selection: None,
+            },
+        );
+
+        let delta_4 = state.channels[4].gain_db - initial_4;
+        let delta_5 = state.channels[5].gain_db - initial_5;
+        assert_eq!(state.selection.selected_indices(), &[4, 5]);
+        assert!((delta_4 - delta_5).abs() < 0.001);
+    }
+
+    #[test]
+    fn mixer_panel_fader_drag_preview_survives_rebuild_without_jittering_to_stale_gain() {
+        let state = MixerState::default();
+        let mut widget = MixerPanelWidget::new(
+            state.channels,
+            state.selection.clone(),
+            state.selected_channel,
+            state.frame,
+        );
+        let bounds = mixer_bounds();
+        let strip = widget.strip_rect(bounds, 4);
+        let fader = widget.fader_rect(strip);
+
+        widget.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(fader.center().x, fader.min.y),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        );
+        let drag_output = widget.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(fader.center().x, fader.max.y),
+            },
+        );
+        assert!(drag_output.is_none());
+
+        let mut rebuilt = MixerPanelWidget::new(
+            state.channels,
+            state.selection.clone(),
+            state.selected_channel,
+            state.frame,
+        );
+        rebuilt.synchronize_from_previous(&widget);
+
+        assert_eq!(rebuilt.drag_target, Some(MixerDragTarget::Fader(4)));
+        assert_eq!(rebuilt.drag_preview_ratio, Some(0.0));
+        assert_eq!(rebuilt.fader_display_ratio(4), 0.0);
+        let mut overlay = Vec::new();
+        rebuilt.append_runtime_overlay_paint(
+            &mut overlay,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+        let expected_knob_y = fader.max.y;
+        let meter = rebuilt.meter_rect(strip);
+        assert!(
+            overlay.iter().any(|primitive| {
+                matches!(
+                    primitive,
+                    PaintPrimitive::FillRect(fill)
+                        if fill.color == ThemeTokens::default().highlight_blue
+                            && (fill.rect.min.y - (expected_knob_y - 8.0)).abs() < 0.001
+                )
+            }),
+            "paint-only runtime overlay should draw the live fader knob preview"
+        );
+        assert!(
+            overlay.iter().any(|primitive| {
+                matches!(
+                    primitive,
+                    PaintPrimitive::Text(text)
+                        if text.text.as_str() == "-60"
+                            && text.rect.min.y > meter.max.y
+                            && text.rect.min.x < meter.max.x
+                            && text.rect.max.x > meter.min.x
+                )
+            }),
+            "paint-only runtime overlay should redraw the meter readout from the preview gain"
+        );
+        assert_ne!(
+            rebuilt.fader_display_ratio(4),
+            ratio_for_gain(state.channels[4].gain_db),
+            "active fader drags should paint from the pointer preview instead of stale host state"
+        );
+    }
+
+    #[test]
+    fn mixer_group_fader_drag_preview_moves_selected_channels_together() {
+        let mut state = MixerState::default();
+        state
+            .selection
+            .select(4, CHANNEL_COUNT, ListSelectionModifiers::new());
+        state
+            .selection
+            .select(5, CHANNEL_COUNT, ListSelectionModifiers::toggle());
+        state.selected_channel = 4;
+        let mut widget = MixerPanelWidget::new(
+            state.channels,
+            state.selection.clone(),
+            state.selected_channel,
+            state.frame,
+        );
+        let bounds = mixer_bounds();
+        let strip = widget.strip_rect(bounds, 4);
+        let fader = widget.fader_rect(strip);
+
+        widget.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(fader.center().x, fader.min.y),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        );
+        let drag_output = widget.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(fader.center().x, fader.min.y + fader.height() * 0.20),
+            },
+        );
+        assert!(drag_output.is_none());
+
+        let mut rebuilt = MixerPanelWidget::new(
+            state.channels,
+            state.selection.clone(),
+            state.selected_channel,
+            state.frame,
+        );
+        rebuilt.synchronize_from_previous(&widget);
+
+        let delta_4 = rebuilt.fader_display_db(4) - state.channels[4].gain_db;
+        let delta_5 = rebuilt.fader_display_db(5) - state.channels[5].gain_db;
+        assert_eq!(rebuilt.drag_target, Some(MixerDragTarget::Fader(4)));
+        assert!((delta_4 - delta_5).abs() < 0.001);
+    }
+
+    #[test]
+    fn mixer_panel_send_drag_routes_dense_aux_control_change() {
+        let state = MixerState::default();
+        let mut widget = MixerPanelWidget::new(
+            state.channels,
+            state.selection.clone(),
+            state.selected_channel,
+            state.frame,
+        );
+        let bounds = mixer_bounds();
+        let strip = widget.strip_rect(bounds, 17);
+        let send = widget.send_rect(strip, 2);
+
+        let output = widget.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(send.min.x + send.width() * 0.75, send.center().y),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        );
+
+        assert_eq!(
+            output.and_then(|output| output.typed_ref::<MixerPanelMessage>().copied()),
+            Some(MixerPanelMessage::SetSend {
+                channel: 17,
+                send: 2,
+                ratio: 0.75
+            })
+        );
+        assert_eq!(
+            widget.drag_target,
+            Some(MixerDragTarget::Send {
+                channel: 17,
+                send: 2
+            })
+        );
+        assert!(widget.prefers_pointer_move_paint_only());
     }
 
     #[test]
     fn mixer_runtime_hover_does_not_refresh_surface() {
         let bridge = mixer_test_bridge(MixerState::default());
-        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(1040.0, 620.0));
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(1440.0, 760.0));
         let bounds = runtime.layout().rects[&MIXER_WIDGET_ID];
         let first = runtime
             .dispatch_pointer_move_with_outcome(Point::new(bounds.min.x + 80.0, bounds.center().y));
@@ -1035,9 +2078,57 @@ mod tests {
     }
 
     #[test]
+    fn mixer_runtime_fader_drag_motion_uses_paint_only_preview_until_release() {
+        let state = MixerState::default();
+        let bridge = mixer_test_bridge(state.clone());
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(1440.0, 760.0));
+        let bounds = runtime.layout().rects[&MIXER_WIDGET_ID];
+        let widget = MixerPanelWidget::new(
+            state.channels,
+            state.selection.clone(),
+            state.selected_channel,
+            state.frame,
+        );
+        let strip = widget.strip_rect(bounds, 4);
+        let fader = widget.fader_rect(strip);
+        let press = Point::new(fader.center().x, fader.min.y);
+        let drag = Point::new(fader.center().x, fader.min.y + fader.height() * 0.35);
+
+        runtime.dispatch_event(Event::PointerPress {
+            position: press,
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+        });
+        let _ = runtime.take_repaint_requested();
+        let first_drag = runtime.dispatch_pointer_move_with_outcome(drag);
+        assert!(
+            first_drag.needs_scene_rebuild(),
+            "the first drag move may establish captured hover state"
+        );
+        let move_outcome =
+            runtime.dispatch_pointer_move_with_outcome(Point::new(drag.x, drag.y + 12.0));
+
+        assert!(move_outcome.paint_only_requested);
+        assert!(
+            !move_outcome.needs_scene_rebuild(),
+            "fader drag motion should repaint the local preview without reducer churn"
+        );
+
+        runtime.dispatch_event(Event::PointerRelease {
+            position: drag,
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+        });
+        assert!(
+            runtime.take_repaint_requested(),
+            "release should commit the final gain and request a normal surface refresh"
+        );
+    }
+
+    #[test]
     fn mixer_runtime_frame_messages_advance_status() {
         let bridge = mixer_test_bridge(MixerState::default());
-        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(1040.0, 620.0));
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(1440.0, 760.0));
         let initial_status = status_text(&runtime);
 
         assert!(runtime.bridge_mut().needs_animation());
@@ -1055,6 +2146,39 @@ mod tests {
             .on_frame(|| MixerMessage::Frame)
             .update(update)
             .into_bridge()
+    }
+
+    fn mixer_bounds() -> Rect {
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1400.0, 500.0))
+    }
+
+    fn press_strip_label(
+        widget: &mut MixerPanelWidget,
+        bounds: Rect,
+        channel: usize,
+        modifiers: PointerModifiers,
+    ) -> Option<MixerPanelMessage> {
+        let strip = widget.strip_rect(bounds, channel);
+        let position = Point::new(strip.center().x, strip.min.y + 22.0);
+        let output = widget
+            .handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position,
+                    button: PointerButton::Primary,
+                    modifiers,
+                },
+            )
+            .and_then(|output| output.typed_ref::<MixerPanelMessage>().copied());
+        let _ = widget.handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+                modifiers,
+            },
+        );
+        output
     }
 
     fn status_text<Bridge>(runtime: &SurfaceRuntime<Bridge, MixerMessage>) -> String

@@ -5,6 +5,8 @@ fn layout_row_helpers_keep_geometry_and_tests_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/gui/layout_core/row_helpers.rs"))
         .expect("layout row helpers should be readable");
+    let rects = fs::read_to_string(manifest_dir.join("src/gui/layout_core/row_helpers/rects.rs"))
+        .expect("layout row helper rects should be readable");
     let tests = fs::read_to_string(manifest_dir.join("src/gui/layout_core/row_helpers/tests.rs"))
         .expect("layout row helper tests should be readable");
 
@@ -23,6 +25,21 @@ fn layout_row_helpers_keep_geometry_and_tests_focused() {
                 "fn fixed_width_item_extent_for_available_width_fits_items_after_reserved_gaps"
             ),
         "layout row helper behavior coverage should live in row_helpers/tests.rs"
+    );
+    assert!(
+        rects.contains("pub struct StackedRowRectsParts")
+            && rects.contains("pub fn stacked_row_rects_from_parts(")
+            && rects.contains("pub fn stacked_row_rects_into_from_parts(")
+            && rects.contains("stacked_row_rects_from_parts(StackedRowRectsParts {")
+            && root.contains("StackedRowRectsParts"),
+        "stacked-row geometry should expose named parts while preserving compatibility helpers"
+    );
+    assert!(
+        tests.contains("fn stacked_row_rects_compatibility_helper_delegates_to_named_parts")
+            && tests.contains(
+                "fn stacked_row_rects_into_compatibility_helper_delegates_to_named_parts"
+            ),
+        "stacked-row tests should cover named-parts construction and compatibility wrappers"
     );
 }
 

@@ -1,7 +1,4 @@
-use super::{
-    batching::{take_runtime_command_batch_into, take_runtime_message_batch_into},
-    *,
-};
+use super::{batching, *};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
@@ -10,32 +7,25 @@ where
     /// Dispatch any messages queued by bridge-owned runtime work.
     pub fn drain_runtime_messages(&mut self) -> CommandOutcome {
         let mut outcome = CommandOutcome::default();
-        self.bridge
-            .drain_runtime_commands_into(&mut self.runtime_commands);
         let (command_budget, message_budget) = self.runtime_drain_budget();
-        take_runtime_command_batch_into(
-            &mut self.runtime_commands,
-            &mut self.runtime_command_batch,
-            command_budget,
-        );
-        let mut command_batch = std::mem::take(&mut self.runtime_command_batch);
+
+        self.runtime_work
+            .drain_bridge_commands(&mut self.bridge, command_budget);
+        let mut command_batch = self.runtime_work.take_command_batch();
         while let Some(command) = command_batch.pop() {
             self.execute_command_inner(command, &mut outcome);
         }
-        self.runtime_command_batch = command_batch;
+        self.runtime_work.restore_command_batch(command_batch);
 
-        self.bridge
-            .drain_runtime_messages_into(&mut self.runtime_messages);
-        take_runtime_message_batch_into(
-            &mut self.runtime_messages,
-            &mut self.runtime_message_batch,
-            message_budget,
-        );
-        while let Some(message) = self.runtime_message_batch.pop() {
+        self.runtime_work
+            .drain_bridge_messages(&mut self.bridge, message_budget);
+        let mut message_batch = self.runtime_work.take_message_batch();
+        while let Some(message) = message_batch.pop() {
             self.dispatch_message_inner(message, &mut outcome);
         }
+        self.runtime_work.restore_message_batch(message_batch);
 
-        if !self.runtime_commands.is_empty() || !self.runtime_messages.is_empty() {
+        if self.runtime_work.has_remaining_work() {
             outcome.runtime_work_remaining = true;
             outcome.repaint_requested = true;
             self.repaint_requested = true;

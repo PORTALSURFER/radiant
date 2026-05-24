@@ -3,8 +3,12 @@ use super::*;
 #[test]
 fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let controller = fs::read_to_string(manifest_dir.join("src/runtime/controller.rs"))
+        .expect("runtime controller root should be readable");
     let root = fs::read_to_string(manifest_dir.join("src/runtime/controller/commands.rs"))
         .expect("runtime controller command root should be readable");
+    let work = fs::read_to_string(manifest_dir.join("src/runtime/controller/work.rs"))
+        .expect("runtime controller work queues should be readable");
     let outcome =
         fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/outcome.rs"))
             .expect("runtime command outcome module should be readable");
@@ -51,9 +55,24 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
     );
     assert!(
         drain.contains("pub fn drain_runtime_messages")
-            && drain.contains("take_runtime_command_batch_into")
+            && drain.contains(".drain_bridge_commands")
+            && drain.contains(".drain_bridge_messages")
             && !root.contains("pub fn drain_runtime_messages"),
         "runtime work draining should live in commands/drain.rs"
+    );
+    assert!(
+        controller.contains("mod work;")
+            && controller.contains("runtime_work: RuntimeWorkQueues<Message>")
+            && !controller.contains("runtime_commands: Vec<Command<Message>>")
+            && !controller.contains("runtime_messages: Vec<Message>"),
+        "surface runtime should keep runtime work queues behind one focused controller field"
+    );
+    assert!(
+        work.contains("pub(super) struct RuntimeWorkQueues<Message>")
+            && work.contains("fn drain_bridge_commands")
+            && work.contains("fn drain_bridge_messages")
+            && work.contains("fn has_remaining_work"),
+        "runtime work queue ownership should live in controller/work.rs"
     );
     assert!(
         dispatch.contains("fn execute_command_inner")

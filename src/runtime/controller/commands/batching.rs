@@ -7,7 +7,7 @@ pub(super) const DEFAULT_RUNTIME_COMMANDS_PER_DRAIN: usize = 64;
 pub(super) const INTERACTIVE_RUNTIME_MESSAGES_PER_DRAIN: usize = 8;
 pub(super) const INTERACTIVE_RUNTIME_COMMANDS_PER_DRAIN: usize = 8;
 
-pub(super) fn take_runtime_command_batch_into<Message>(
+pub(in crate::runtime::controller) fn take_runtime_command_batch_into<Message>(
     commands: &mut Vec<Command<Message>>,
     batch: &mut Vec<Command<Message>>,
     max_commands: usize,
@@ -36,7 +36,7 @@ pub(super) fn take_runtime_command_batch_into<Message>(
     debug_assert!(batch.len() <= max_commands);
 }
 
-pub(super) fn take_runtime_message_batch_into<Message>(
+pub(in crate::runtime::controller) fn take_runtime_message_batch_into<Message>(
     messages: &mut Vec<Message>,
     batch: &mut Vec<Message>,
     max_messages: usize,

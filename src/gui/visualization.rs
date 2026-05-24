@@ -13,7 +13,10 @@ pub use signal::{
     ChannelViewMode, SignalChromeParts, SignalChromeState, SignalRasterPreview,
     SignalRasterPreviewParts, SignalToolFlags, SignalToolState,
 };
-pub use spatial::{PointRenderMode, SpatialPanel, SpatialPoint, normalized_milli_point_in_rect};
+pub use spatial::{
+    PointRenderMode, SpatialPanel, SpatialPanelLabels, SpatialPanelPoints, SpatialPanelSelection,
+    SpatialPanelStatus, SpatialPoint, normalized_milli_point_in_rect,
+};
 pub use timeline::{
     TimelineCoordinateMapper, TimelineEditPreview, TimelineEditPreviewParts,
     TimelineFeedbackEvents, TimelineFeedbackParts, TimelineMarkerPreview, TimelineMotionState,

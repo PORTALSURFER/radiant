@@ -182,6 +182,9 @@ fn mixer_console_example_stays_split_by_panel_paint_input_and_tests() {
         .expect("mixer console panel module should be readable");
     let paint = fs::read_to_string(manifest_dir.join("examples/mixer_console/panel_paint.rs"))
         .expect("mixer console paint module should be readable");
+    let strip =
+        fs::read_to_string(manifest_dir.join("examples/mixer_console/panel_paint/strip.rs"))
+            .expect("mixer console strip paint module should be readable");
     let tests = fs::read_to_string(manifest_dir.join("examples/mixer_console/tests.rs"))
         .expect("mixer console tests module should be readable");
 
@@ -205,6 +208,14 @@ fn mixer_console_example_stays_split_by_panel_paint_input_and_tests() {
         "mixer console paint should split fader, meter, overlay, and strip concerns"
     );
     assert!(
+        strip.contains("#[path = \"strip/controls.rs\"]")
+            && strip.contains("#[path = \"strip/footer.rs\"]")
+            && strip.contains("#[path = \"strip/sends.rs\"]")
+            && strip.contains("#[path = \"strip/shell.rs\"]")
+            && strip.contains("#[path = \"strip/style.rs\"]"),
+        "mixer console strip paint should split controls, footer, sends, shell, and style concerns"
+    );
+    assert!(
         tests.contains("#[path = \"tests/model_behavior.rs\"]")
             && tests.contains("#[path = \"tests/panel_interaction.rs\"]")
             && tests.contains("#[path = \"tests/panel_paint.rs\"]")
@@ -224,6 +235,11 @@ fn mixer_console_example_stays_split_by_panel_paint_input_and_tests() {
         "examples/mixer_console/panel_paint/meter.rs",
         "examples/mixer_console/panel_paint/overlay.rs",
         "examples/mixer_console/panel_paint/strip.rs",
+        "examples/mixer_console/panel_paint/strip/controls.rs",
+        "examples/mixer_console/panel_paint/strip/footer.rs",
+        "examples/mixer_console/panel_paint/strip/sends.rs",
+        "examples/mixer_console/panel_paint/strip/shell.rs",
+        "examples/mixer_console/panel_paint/strip/style.rs",
         "examples/mixer_console/paint.rs",
         "examples/mixer_console/tests.rs",
         "examples/mixer_console/tests/model_behavior.rs",

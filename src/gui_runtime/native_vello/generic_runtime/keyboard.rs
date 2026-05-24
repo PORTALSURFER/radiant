@@ -26,7 +26,7 @@ where
             if !should_route_keypress(
                 key,
                 repeat,
-                &mut self.last_navigation_key_repeat,
+                &mut self.input.last_navigation_key_repeat,
                 Instant::now(),
             ) {
                 return;
@@ -45,7 +45,7 @@ where
                 return;
             }
             let outcome = self.core.route_key_press(
-                keypress_from_input(key, self.modifiers),
+                keypress_from_input(key, self.input.modifiers),
                 WidgetKey::from_key_code(key),
             );
             route_outcome.merge(outcome);

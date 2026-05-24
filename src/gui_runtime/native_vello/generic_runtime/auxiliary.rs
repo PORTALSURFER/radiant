@@ -58,7 +58,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     }
 
     pub(super) fn window_id(&self) -> Option<WindowId> {
-        self.runner.window_id
+        self.runner.window.id
     }
 
     pub(super) fn update_projection(&mut self, projection: AuxiliaryWindow<Message>) {
@@ -95,14 +95,14 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 
     pub(super) fn hide(&mut self) {
         self.active = false;
-        if let Some(window) = self.runner.window.as_ref() {
+        if let Some(window) = self.runner.window.window.as_ref() {
             window.set_visible(false);
         }
     }
 
     pub(super) fn show(&mut self) {
         self.active = true;
-        if let Some(window) = self.runner.window.as_ref() {
+        if let Some(window) = self.runner.window.window.as_ref() {
             window.set_visible(true);
             window.focus_window();
         }
@@ -131,7 +131,9 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             WindowEvent::KeyboardInput { event, .. } => {
                 self.runner.handle_keyboard_event(event_loop, event)
             }
-            WindowEvent::ModifiersChanged(modifiers) => self.runner.modifiers = modifiers.state(),
+            WindowEvent::ModifiersChanged(modifiers) => {
+                self.runner.input.modifiers = modifiers.state()
+            }
             WindowEvent::RedrawRequested => self.runner.redraw(event_loop),
             _ => {}
         }
@@ -147,13 +149,13 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         button: winit::event::MouseButton,
         state: ElementState,
     ) {
-        let Some(position) = self.runner.last_cursor else {
+        let Some(position) = self.runner.input.last_cursor else {
             return;
         };
         let Some(button) = pointer_button_from_winit(button) else {
             return;
         };
-        let modifiers = pointer_modifiers_from_winit(self.runner.modifiers);
+        let modifiers = pointer_modifiers_from_winit(self.runner.input.modifiers);
         let routed = match state {
             ElementState::Pressed => self
                 .runner
@@ -168,7 +170,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     }
 
     fn route_mouse_wheel(&mut self, delta: winit::event::MouseScrollDelta) {
-        let Some(position) = self.runner.last_cursor else {
+        let Some(position) = self.runner.input.last_cursor else {
             return;
         };
         let delta = scroll_delta_to_logical(delta);

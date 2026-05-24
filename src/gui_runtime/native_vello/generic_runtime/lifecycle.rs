@@ -8,7 +8,7 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_none() {
+        if self.window.window.is_none() {
             self.initialize_runtime(event_loop);
         }
     }
@@ -19,7 +19,7 @@ where
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        if Some(window_id) != self.window_id {
+        if Some(window_id) != self.window.id {
             let Some(index) = self
                 .auxiliary_windows
                 .iter()
@@ -52,13 +52,13 @@ where
             WindowEvent::DroppedFile(path) => self.handle_native_file_drop(event_loop, path),
             WindowEvent::CursorLeft { .. } => self.handle_cursor_left(event_loop),
             WindowEvent::MouseInput { button, state, .. } => {
-                let Some(position) = self.last_cursor else {
+                let Some(position) = self.input.last_cursor else {
                     return;
                 };
                 let Some(button) = pointer_button_from_winit(button) else {
                     return;
                 };
-                let modifiers = pointer_modifiers_from_winit(self.modifiers);
+                let modifiers = pointer_modifiers_from_winit(self.input.modifiers);
                 let started = Instant::now();
                 let routed = match state {
                     ElementState::Pressed => self
@@ -76,7 +76,7 @@ where
                         button,
                         routed.routed,
                     )
-                    && let Some(window) = self.window.as_ref()
+                    && let Some(window) = self.window.window.as_ref()
                     && let Err(err) = window.drag_window()
                 {
                     warn!("radiant generic native vello: popup window drag failed: {err}");
@@ -84,7 +84,7 @@ where
                 self.handle_route_outcome(event_loop, routed);
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                let Some(position) = self.last_cursor else {
+                let Some(position) = self.input.last_cursor else {
                     return;
                 };
                 let delta = scroll_delta_to_logical(delta);
@@ -104,7 +104,7 @@ where
             WindowEvent::KeyboardInput { event, .. } => {
                 self.handle_keyboard_event(event_loop, event)
             }
-            WindowEvent::ModifiersChanged(modifiers) => self.modifiers = modifiers.state(),
+            WindowEvent::ModifiersChanged(modifiers) => self.input.modifiers = modifiers.state(),
             WindowEvent::RedrawRequested => self.redraw(event_loop),
             _ => {}
         }
@@ -121,7 +121,7 @@ where
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_none() {
+        if self.window.window.is_none() {
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
@@ -135,7 +135,7 @@ where
         );
         let cadence = timed_frame_cadence(
             now,
-            self.last_timed_frame_drain,
+            self.timing.last_timed_frame_drain,
             frame_target_fps,
             animation_activity.needs_animation() || needs_text_caret_animation,
         );

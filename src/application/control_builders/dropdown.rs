@@ -45,20 +45,46 @@ pub struct DropdownParts<Message> {
 }
 
 /// Builder for generic dropdown controls.
-pub struct DropdownBuilder<Message> {
+pub struct DropdownBuilderNeedsToggle<Message> {
     selected_label: String,
     open: bool,
-    toggle_message: Option<Message>,
     options: Vec<DropdownOption<Message>>,
 }
 
-impl<Message> DropdownBuilder<Message> {
+/// Builder for generic dropdown controls after the required toggle message is set.
+pub struct DropdownBuilder<Message> {
+    selected_label: String,
+    open: bool,
+    toggle_message: Message,
+    options: Vec<DropdownOption<Message>>,
+}
+
+impl<Message> DropdownBuilderNeedsToggle<Message> {
     /// Emit the supplied host message when the collapsed control is activated.
-    pub fn toggle_message(mut self, message: Message) -> Self {
-        self.toggle_message = Some(message);
+    pub fn toggle_message(self, message: Message) -> DropdownBuilder<Message> {
+        DropdownBuilder {
+            selected_label: self.selected_label,
+            open: self.open,
+            toggle_message: message,
+            options: self.options,
+        }
+    }
+
+    /// Add one selectable option before assigning the required toggle message.
+    pub fn option(mut self, label: impl Into<String>, selected: bool, message: Message) -> Self {
+        self.options
+            .push(DropdownOption::new(label, selected, message));
         self
     }
 
+    /// Add several selectable options before assigning the required toggle message.
+    pub fn options(mut self, options: impl IntoIterator<Item = DropdownOption<Message>>) -> Self {
+        self.options.extend(options);
+        self
+    }
+}
+
+impl<Message> DropdownBuilder<Message> {
     /// Add one selectable option.
     pub fn option(mut self, label: impl Into<String>, selected: bool, message: Message) -> Self {
         self.options
@@ -80,9 +106,7 @@ impl<Message> DropdownBuilder<Message> {
         dropdown_from_parts(DropdownParts {
             selected_label: self.selected_label,
             open: self.open,
-            toggle_message: self
-                .toggle_message
-                .expect("dropdown toggle_message must be set before build"),
+            toggle_message: self.toggle_message,
             options: self.options,
         })
     }
@@ -92,11 +116,10 @@ impl<Message> DropdownBuilder<Message> {
 pub fn dropdown<Message>(
     selected_label: impl Into<String>,
     open: bool,
-) -> DropdownBuilder<Message> {
-    DropdownBuilder {
+) -> DropdownBuilderNeedsToggle<Message> {
+    DropdownBuilderNeedsToggle {
         selected_label: selected_label.into(),
         open,
-        toggle_message: None,
         options: Vec::new(),
     }
 }

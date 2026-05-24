@@ -6,6 +6,12 @@ fn declarative_runtime_bridges_use_named_parts_for_host_closures() {
     let message =
         fs::read_to_string(manifest_dir.join("src/runtime/bridge/declarative/message.rs"))
             .expect("declarative message bridge should be readable");
+    let message_shared =
+        fs::read_to_string(manifest_dir.join("src/runtime/bridge/declarative/message/shared.rs"))
+            .expect("declarative shared-surface message bridge should be readable");
+    let message_owned =
+        fs::read_to_string(manifest_dir.join("src/runtime/bridge/declarative/message/owned.rs"))
+            .expect("declarative owned-surface message bridge should be readable");
     let command =
         fs::read_to_string(manifest_dir.join("src/runtime/bridge/declarative/command.rs"))
             .expect("declarative command bridge should be readable");
@@ -16,13 +22,13 @@ fn declarative_runtime_bridges_use_named_parts_for_host_closures() {
 
     for (source, parts, from_parts, wrapper) in [
         (
-            message.as_str(),
+            message_shared.as_str(),
             "pub struct DeclarativeRuntimeBridgeParts",
             "pub fn from_parts(parts: DeclarativeRuntimeBridgeParts<State, Project, Reduce>) -> Self",
             "Self::from_parts(DeclarativeRuntimeBridgeParts {",
         ),
         (
-            message.as_str(),
+            message_owned.as_str(),
             "pub struct DeclarativeOwnedRuntimeBridgeParts",
             "pub fn from_parts(parts: DeclarativeOwnedRuntimeBridgeParts<State, Project, Reduce>) -> Self",
             "Self::from_parts(DeclarativeOwnedRuntimeBridgeParts {",
@@ -45,6 +51,15 @@ fn declarative_runtime_bridges_use_named_parts_for_host_closures() {
             "declarative runtime bridge should expose named parts and compatibility wrappers for {parts}"
         );
     }
+    assert!(
+        message.contains("mod owned;")
+            && message.contains("mod shared;")
+            && message.contains("pub use owned::{")
+            && message.contains("pub use shared::{")
+            && !message.contains("pub struct DeclarativeRuntimeBridge<")
+            && !message.contains("pub struct DeclarativeOwnedRuntimeBridge<"),
+        "declarative message bridge root should re-export focused shared and owned bridge modules"
+    );
     for export in [
         "DeclarativeRuntimeBridgeParts",
         "DeclarativeOwnedRuntimeBridgeParts",

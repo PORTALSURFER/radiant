@@ -147,7 +147,14 @@ pub fn context_menu_overlay<State: 'static>(
 pub fn context_menu_overlay_from_parts<State: 'static>(
     parts: ContextMenuOverlayParts<State>,
 ) -> StateView<State> {
-    let rect = crate::gui::panel::anchored_panel_rect(parts.bounds, parts.anchor, parts.size, 0.0);
+    let rect = crate::gui::panel::anchored_panel_rect_from_parts(
+        crate::gui::panel::AnchoredPanelRectParts {
+            bounds: parts.bounds,
+            anchor: parts.anchor,
+            size: parts.size,
+            inset: 0.0,
+        },
+    );
     let top = (rect.min.y - parts.bounds.min.y).max(0.0);
     let left = (rect.min.x - parts.bounds.min.x).max(0.0);
     column([

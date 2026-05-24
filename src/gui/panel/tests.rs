@@ -42,13 +42,34 @@ fn anchored_panel_rect_clamps_anchor_inside_inset_bounds() {
     let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 160.0));
 
     assert_eq!(
+        anchored_panel_rect_from_parts(AnchoredPanelRectParts {
+            bounds,
+            anchor: Point::new(250.0, 0.0),
+            size: Vector2::new(80.0, 40.0),
+            inset: 8.0,
+        }),
+        Rect::from_min_max(Point::new(122.0, 28.0), Point::new(202.0, 68.0))
+    );
+}
+
+#[test]
+fn anchored_panel_rect_compatibility_helper_delegates_to_named_parts() {
+    let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 160.0));
+    let from_parts = anchored_panel_rect_from_parts(AnchoredPanelRectParts {
+        bounds,
+        anchor: Point::new(250.0, 0.0),
+        size: Vector2::new(80.0, 40.0),
+        inset: 8.0,
+    });
+
+    assert_eq!(
         anchored_panel_rect(
             bounds,
             Point::new(250.0, 0.0),
             Vector2::new(80.0, 40.0),
             8.0,
         ),
-        Rect::from_min_max(Point::new(122.0, 28.0), Point::new(202.0, 68.0))
+        from_parts
     );
 }
 
@@ -94,13 +115,34 @@ fn floating_panel_rect_clamps_origin_inside_bounds() {
     let bounds = Rect::from_min_max(Point::new(0.0, 40.0), Point::new(320.0, 220.0));
 
     assert_eq!(
+        floating_panel_rect_from_parts(FloatingPanelRectParts {
+            bounds,
+            origin: Point::new(260.0, 10.0),
+            size: Vector2::new(100.0, 80.0),
+            inset: 12.0,
+        }),
+        Rect::from_min_max(Point::new(208.0, 52.0), Point::new(308.0, 132.0))
+    );
+}
+
+#[test]
+fn floating_panel_rect_compatibility_helper_delegates_to_named_parts() {
+    let bounds = Rect::from_min_max(Point::new(0.0, 40.0), Point::new(320.0, 220.0));
+    let from_parts = floating_panel_rect_from_parts(FloatingPanelRectParts {
+        bounds,
+        origin: Point::new(260.0, 10.0),
+        size: Vector2::new(100.0, 80.0),
+        inset: 12.0,
+    });
+
+    assert_eq!(
         floating_panel_rect(
             bounds,
             Point::new(260.0, 10.0),
             Vector2::new(100.0, 80.0),
             12.0,
         ),
-        Rect::from_min_max(Point::new(208.0, 52.0), Point::new(308.0, 132.0))
+        from_parts
     );
 }
 

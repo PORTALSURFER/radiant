@@ -46,15 +46,9 @@ impl EditableTreeRowParts {
     }
 }
 
-/// Render data for one row in an editable tree or nested list.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EditableTreeRow {
-    /// Display label for the row.
-    pub label: String,
-    /// Optional secondary detail text for the row.
-    pub detail: String,
-    /// Tree depth used for indentation.
-    pub depth: usize,
+/// Interaction flags for one editable tree row.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct EditableTreeRowFlags {
     /// Whether this row is currently selected.
     pub selected: bool,
     /// Whether this row currently has keyboard focus.
@@ -65,41 +59,95 @@ pub struct EditableTreeRow {
     pub has_children: bool,
     /// Whether this row is expanded in the tree.
     pub expanded: bool,
-    /// Row kind used for inline draft rendering and hit testing.
-    pub kind: EditableRowKind,
-    /// Host/controller row index backing this projected row, when applicable.
-    pub backing_index: Option<usize>,
-    /// Editable input value for inline draft rows.
-    pub input_value: Option<String>,
-    /// Placeholder text for inline draft rows.
-    pub input_placeholder: Option<String>,
-    /// Validation error for inline draft rows.
-    pub input_error: Option<String>,
-    /// Whether the inline draft input should own keyboard focus.
-    pub input_focused: bool,
-    /// Whether the next focus transition should select the full input text once.
-    pub select_all_on_focus: bool,
 }
 
-impl EditableTreeRow {
-    /// Build one existing editable tree row from named parts.
-    pub fn from_parts(parts: EditableTreeRowParts) -> Self {
+impl EditableTreeRowFlags {
+    fn from_parts(parts: &EditableTreeRowParts) -> Self {
         Self {
-            label: parts.label,
-            detail: parts.detail,
-            depth: parts.depth,
             selected: parts.selected,
             focused: parts.focused,
             is_root: parts.is_root,
             has_children: parts.has_children,
             expanded: parts.expanded,
+        }
+    }
+}
+
+enum EditableTreeRowDraftSelection {
+    KeepCaret,
+    SelectAllOnFocus,
+}
+
+impl EditableTreeRowDraftSelection {
+    fn select_all_on_focus(&self) -> bool {
+        matches!(self, Self::SelectAllOnFocus)
+    }
+}
+
+/// Inline editor state for create and rename draft rows.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct EditableTreeRowInput {
+    /// Editable input value for inline draft rows.
+    pub value: Option<String>,
+    /// Placeholder text for inline draft rows.
+    pub placeholder: Option<String>,
+    /// Validation error for inline draft rows.
+    pub error: Option<String>,
+    /// Whether the inline draft input should own keyboard focus.
+    pub focused: bool,
+    /// Whether the next focus transition should select the full input text once.
+    pub select_all_on_focus: bool,
+}
+
+impl EditableTreeRowInput {
+    fn draft(
+        value: impl Into<String>,
+        placeholder: impl Into<String>,
+        error: Option<String>,
+        focused: bool,
+        selection: EditableTreeRowDraftSelection,
+    ) -> Self {
+        Self {
+            value: Some(value.into()),
+            placeholder: Some(placeholder.into()),
+            error,
+            focused,
+            select_all_on_focus: selection.select_all_on_focus(),
+        }
+    }
+}
+
+/// Render data for one row in an editable tree or nested list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EditableTreeRow {
+    /// Display label for the row.
+    pub label: String,
+    /// Optional secondary detail text for the row.
+    pub detail: String,
+    /// Tree depth used for indentation.
+    pub depth: usize,
+    /// Interaction and hierarchy flags for existing rows.
+    pub flags: EditableTreeRowFlags,
+    /// Row kind used for inline draft rendering and hit testing.
+    pub kind: EditableRowKind,
+    /// Host/controller row index backing this projected row, when applicable.
+    pub backing_index: Option<usize>,
+    /// Inline input state for create and rename draft rows.
+    pub input: EditableTreeRowInput,
+}
+
+impl EditableTreeRow {
+    /// Build one existing editable tree row from named parts.
+    pub fn from_parts(parts: EditableTreeRowParts) -> Self {
+        let flags = EditableTreeRowFlags::from_parts(&parts);
+        Self {
+            label: parts.label,
+            detail: parts.detail,
+            depth: parts.depth,
+            flags,
             kind: EditableRowKind::Existing,
             backing_index: None,
-            input_value: None,
-            input_placeholder: None,
-            input_error: None,
-            input_focused: false,
-            select_all_on_focus: false,
+            input: EditableTreeRowInput::default(),
         }
     }
 
@@ -121,18 +169,16 @@ impl EditableTreeRow {
             label: String::new(),
             detail: String::new(),
             depth,
-            selected: false,
-            focused: false,
-            is_root: false,
-            has_children: false,
-            expanded: false,
+            flags: EditableTreeRowFlags::default(),
             kind: EditableRowKind::CreateDraft,
             backing_index: None,
-            input_value: Some(input_value.into()),
-            input_placeholder: Some(input_placeholder.into()),
-            input_error,
-            input_focused,
-            select_all_on_focus: false,
+            input: EditableTreeRowInput::draft(
+                input_value,
+                input_placeholder,
+                input_error,
+                input_focused,
+                EditableTreeRowDraftSelection::KeepCaret,
+            ),
         }
     }
 
@@ -149,24 +195,22 @@ impl EditableTreeRow {
             label: input_value.clone(),
             detail: String::new(),
             depth,
-            selected: false,
-            focused: false,
-            is_root: false,
-            has_children: false,
-            expanded: false,
+            flags: EditableTreeRowFlags::default(),
             kind: EditableRowKind::RenameDraft,
             backing_index: None,
-            input_value: Some(input_value),
-            input_placeholder: Some(input_placeholder.into()),
-            input_error,
-            input_focused,
-            select_all_on_focus: true,
+            input: EditableTreeRowInput::draft(
+                input_value,
+                input_placeholder,
+                input_error,
+                input_focused,
+                EditableTreeRowDraftSelection::SelectAllOnFocus,
+            ),
         }
     }
 
     /// Set whether the inline input should select all text the next time it receives focus.
     pub fn with_select_all_on_focus(mut self, select_all_on_focus: bool) -> Self {
-        self.select_all_on_focus = select_all_on_focus;
+        self.input.select_all_on_focus = select_all_on_focus;
         self
     }
 }

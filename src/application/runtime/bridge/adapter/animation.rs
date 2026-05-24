@@ -16,32 +16,37 @@ where
 
     pub(super) fn runtime_animation_activity(&mut self) -> RuntimeAnimationActivity {
         let app_animation_active = self
+            .lifecycle
             .animation
             .as_mut()
             .is_some_and(|animation| animation(&mut self.state));
         let transient_overlay_animation = self
+            .lifecycle
             .transient_overlay_activity
             .as_mut()
             .map_or_else(RuntimeAnimationActivity::idle, |activity| {
                 activity(&mut self.state)
             });
-        let frame_message_active = app_animation_active && self.frame_message.is_some();
-        self.pending_animation_frame_activity = Some(frame_message_active);
+        let frame_message_active = app_animation_active && self.lifecycle.frame_message.is_some();
+        self.runtime_flags.pending_animation_frame_activity = Some(frame_message_active);
         RuntimeAnimationActivity::new(app_animation_active, frame_message_active)
             .merge(transient_overlay_animation)
     }
 
     pub(super) fn queue_runtime_animation_frame(&mut self) -> bool {
         let active = self
+            .runtime_flags
             .pending_animation_frame_activity
             .take()
             .unwrap_or_else(|| {
-                self.animation
+                let lifecycle = &mut self.lifecycle;
+                lifecycle
+                    .animation
                     .as_mut()
                     .is_some_and(|animation| animation(&mut self.state))
-                    && self.frame_message.is_some()
+                    && lifecycle.frame_message.is_some()
             });
-        if active && let Some(frame_message) = self.frame_message.as_mut() {
+        if active && let Some(frame_message) = self.lifecycle.frame_message.as_mut() {
             return self.runtime.enqueue_frame(frame_message());
         }
         false

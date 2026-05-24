@@ -19,17 +19,7 @@ impl Default for PianoRollState {
             frame: 0,
             playhead_beat: 0.0,
             selected_note: Some(2),
-            notes: vec![
-                PianoNote::new(1, 48, 0.0, 1.0, 0.72),
-                PianoNote::new(2, 55, 1.0, 1.5, 0.82),
-                PianoNote::new(3, 60, 2.75, 0.75, 0.64),
-                PianoNote::new(4, 64, 3.5, 1.25, 0.76),
-                PianoNote::new(5, 52, 5.0, 2.0, 0.88),
-                PianoNote::new(6, 67, 7.25, 0.75, 0.68),
-                PianoNote::new(7, 62, 9.0, 1.0, 0.70),
-                PianoNote::new(8, 69, 10.5, 1.5, 0.84),
-                PianoNote::new(9, 57, 12.5, 2.0, 0.78),
-            ],
+            notes: DEFAULT_NOTES.into_iter().map(PianoNote::new).collect(),
         }
     }
 }
@@ -84,13 +74,13 @@ impl PianoRollState {
 
     fn create_note(&mut self, pitch: i32, start_beat: f32) {
         let id = self.next_note_id();
-        self.notes.push(PianoNote::new(
+        self.notes.push(PianoNote::new(PianoNoteParts {
             id,
-            clamp_pitch(pitch),
-            quantize_beat(start_beat),
-            DEFAULT_NOTE_LENGTH,
-            synthetic_velocity(id),
-        ));
+            pitch: clamp_pitch(pitch),
+            start_beat: quantize_beat(start_beat),
+            length_beats: DEFAULT_NOTE_LENGTH,
+            velocity: synthetic_velocity(id),
+        }));
         self.selected_note = Some(id);
     }
 
@@ -137,13 +127,13 @@ pub(crate) struct PianoNote {
 }
 
 impl PianoNote {
-    const fn new(id: u32, pitch: i32, start_beat: f32, length_beats: f32, velocity: f32) -> Self {
+    const fn new(parts: PianoNoteParts) -> Self {
         Self {
-            id,
-            pitch,
-            start_beat,
-            length_beats,
-            velocity,
+            id: parts.id,
+            pitch: parts.pitch,
+            start_beat: parts.start_beat,
+            length_beats: parts.length_beats,
+            velocity: parts.velocity,
         }
     }
 
@@ -151,6 +141,81 @@ impl PianoNote {
         self.start_beat + self.length_beats
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PianoNoteParts {
+    id: u32,
+    pitch: i32,
+    start_beat: f32,
+    length_beats: f32,
+    velocity: f32,
+}
+
+const DEFAULT_NOTES: [PianoNoteParts; 9] = [
+    PianoNoteParts {
+        id: 1,
+        pitch: 48,
+        start_beat: 0.0,
+        length_beats: 1.0,
+        velocity: 0.72,
+    },
+    PianoNoteParts {
+        id: 2,
+        pitch: 55,
+        start_beat: 1.0,
+        length_beats: 1.5,
+        velocity: 0.82,
+    },
+    PianoNoteParts {
+        id: 3,
+        pitch: 60,
+        start_beat: 2.75,
+        length_beats: 0.75,
+        velocity: 0.64,
+    },
+    PianoNoteParts {
+        id: 4,
+        pitch: 64,
+        start_beat: 3.5,
+        length_beats: 1.25,
+        velocity: 0.76,
+    },
+    PianoNoteParts {
+        id: 5,
+        pitch: 52,
+        start_beat: 5.0,
+        length_beats: 2.0,
+        velocity: 0.88,
+    },
+    PianoNoteParts {
+        id: 6,
+        pitch: 67,
+        start_beat: 7.25,
+        length_beats: 0.75,
+        velocity: 0.68,
+    },
+    PianoNoteParts {
+        id: 7,
+        pitch: 62,
+        start_beat: 9.0,
+        length_beats: 1.0,
+        velocity: 0.70,
+    },
+    PianoNoteParts {
+        id: 8,
+        pitch: 69,
+        start_beat: 10.5,
+        length_beats: 1.5,
+        velocity: 0.84,
+    },
+    PianoNoteParts {
+        id: 9,
+        pitch: 57,
+        start_beat: 12.5,
+        length_beats: 2.0,
+        velocity: 0.78,
+    },
+];
 
 fn selected_note_status(note: &PianoNote) -> String {
     format!(

@@ -75,9 +75,12 @@ fn moving_clip_cuts_existing_clips_on_target_lane() {
 #[test]
 fn resizing_clip_cuts_existing_clips_on_same_lane() {
     let mut state = TimelineEditorState::default();
-    state
-        .clips
-        .push(TimelineClip::new(99, "Pad tail", 1, 30, 44));
+    state.clips.push(TimelineClip::new(TimelineClipParts {
+        id: 99,
+        name: "Pad tail",
+        lane: 1,
+        range: BeatRange { start: 30, end: 44 },
+    }));
 
     update_surface(
         &mut state,

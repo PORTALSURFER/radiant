@@ -18,10 +18,11 @@ where
 {
     pub(super) fn handle_gpu_surface_route_outcome(
         &mut self,
-        outcome: GenericRouteOutcome,
+        mut outcome: GenericRouteOutcome,
         position: Point,
         delta: Vector2,
     ) {
+        self.merge_due_timed_frame_for_route(&mut outcome);
         if !outcome.needs_redraw() {
             return;
         }
@@ -36,10 +37,11 @@ where
 
     pub(super) fn handle_gpu_surface_pointer_move_outcome(
         &mut self,
-        outcome: GenericRouteOutcome,
+        mut outcome: GenericRouteOutcome,
         previous: Option<Point>,
         position: Point,
     ) {
+        self.merge_due_timed_frame_for_route(&mut outcome);
         if !outcome.needs_redraw() {
             return;
         }

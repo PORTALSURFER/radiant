@@ -85,6 +85,29 @@ where
             .drain_timed_frame(animation_activity, needs_text_caret_animation)
     }
 
+    pub(super) fn merge_due_timed_frame_for_route(&mut self, outcome: &mut GenericRouteOutcome) {
+        let animation_activity = self.core.animation_activity();
+        let needs_text_caret_animation = self.core.has_focused_text_input();
+        if !animation_activity.needs_animation() && !needs_text_caret_animation {
+            return;
+        }
+        let now = Instant::now();
+        let frame_target_fps = timed_frame_target_fps(
+            self.options.normalized_target_fps(),
+            animation_activity,
+            needs_text_caret_animation,
+        );
+        let cadence = timed_frame_cadence(now, self.last_timed_frame_drain, frame_target_fps, true);
+        if !matches!(cadence, TimedFrameCadence::DrainNow { .. }) {
+            return;
+        }
+        outcome.merge(self.drain_timed_frame_now(
+            now,
+            animation_activity,
+            needs_text_caret_animation,
+        ));
+    }
+
     pub(super) fn request_runtime_wakeup_if_needed(&self, outcome: GenericRouteOutcome) {
         if self.core.runtime.interactive_pointer_route_active() {
             return;
@@ -125,8 +148,9 @@ where
     pub(super) fn handle_route_outcome(
         &mut self,
         event_loop: &ActiveEventLoop,
-        outcome: GenericRouteOutcome,
+        mut outcome: GenericRouteOutcome,
     ) {
+        self.merge_due_timed_frame_for_route(&mut outcome);
         if outcome.exit_requested {
             event_loop.exit();
             return;

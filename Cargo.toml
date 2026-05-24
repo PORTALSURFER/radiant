@@ -197,6 +197,10 @@ name = "eq_editor"
 path = "examples/eq_editor.rs"
 
 [[example]]
+name = "spectrogram"
+path = "examples/spectrogram.rs"
+
+[[example]]
 name = "custom_widget"
 path = "examples/custom_widget.rs"
 

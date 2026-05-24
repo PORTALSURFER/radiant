@@ -146,8 +146,11 @@ fn mixer_panel_fader_drag_preview_survives_rebuild_without_jittering_to_stale_ga
     let mut rebuilt = mixer_widget(&state);
     rebuilt.synchronize_from_previous(&widget);
 
-    assert_eq!(rebuilt.drag_target, Some(MixerDragTarget::Fader(4)));
-    assert_eq!(rebuilt.drag_preview_ratio, Some(0.0));
+    assert_eq!(
+        rebuilt.interaction.drag_target,
+        Some(MixerDragTarget::Fader(4))
+    );
+    assert_eq!(rebuilt.interaction.drag_preview_ratio, Some(0.0));
     assert_eq!(rebuilt.fader_display_ratio(4), 0.0);
     assert_ne!(
         rebuilt.fader_display_ratio(4),
@@ -194,6 +197,9 @@ fn mixer_group_fader_drag_preview_moves_selected_channels_together() {
 
     let delta_4 = rebuilt.fader_display_db(4) - state.channels[4].gain_db;
     let delta_5 = rebuilt.fader_display_db(5) - state.channels[5].gain_db;
-    assert_eq!(rebuilt.drag_target, Some(MixerDragTarget::Fader(4)));
+    assert_eq!(
+        rebuilt.interaction.drag_target,
+        Some(MixerDragTarget::Fader(4))
+    );
     assert!((delta_4 - delta_5).abs() < 0.001);
 }

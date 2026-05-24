@@ -1000,7 +1000,7 @@ manual validation:
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `form`, `volume_slider`, `passive_widgets` |
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `context_menu`, `tree_and_details`, `folder_browser`, `paint_helpers` |
 | Custom widgets and retained GPU surfaces | `custom_widget`, `gpu_surface`, `custom_shader_surface`, `gpu_surface_stack_overlay`, `waveform_view` |
-| Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `inspector_panel`, `plugin_panel`, `split_workspace` |
+| Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `inspector_panel`, `plugin_panel`, `eq_editor`, `split_workspace` |
 | Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame` |
 | Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame` |
 
@@ -1142,6 +1142,10 @@ focus from normal app messages.
 Run `cargo run --example plugin_panel` for a dense plugin-style control panel
 that stays on generic Radiant layout, style, focus, and state-callback APIs;
 host/plugin SDK integration remains outside Radiant.
+Run `cargo run --example eq_editor` for a graphical plugin-style EQ editor
+surface that paints a visual response curve, analyzer-style overlay, editable
+band handles, and parameter-routing messages without modeling DSP or audio
+processing.
 
 ## Quality Gate
 

@@ -139,6 +139,7 @@ fn api_docs_map_examples_to_target_areas() {
         "node_editor",
         "timeline_editor",
         "plugin_panel",
+        "eq_editor",
         "split_workspace",
         "typography",
         "layout_diagnostics",

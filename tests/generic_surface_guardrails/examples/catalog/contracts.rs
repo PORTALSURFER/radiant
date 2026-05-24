@@ -335,6 +335,18 @@ pub(super) const FOCUSED_EXAMPLE_CONTRACTS: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "eq_editor",
+        &[
+            "Graphical EQ",
+            "custom_widget_mapped(",
+            "EqEditorMessage::MoveBand",
+            "PaintPrimitive::StrokePolyline",
+            "prefers_pointer_move_paint_only",
+            "append_runtime_overlay_paint",
+            "without_dsp",
+        ],
+    ),
+    (
         "custom_widget",
         &[
             "use radiant::prelude::*;",

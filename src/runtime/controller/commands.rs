@@ -1,6 +1,6 @@
 use super::*;
 
-mod batching;
+pub(super) mod batching;
 mod dispatch;
 mod drain;
 mod external_drag;

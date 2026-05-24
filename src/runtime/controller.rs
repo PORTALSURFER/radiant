@@ -15,6 +15,7 @@ mod pointer;
 mod scratch;
 mod scroll;
 mod state;
+mod work;
 
 pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};
@@ -39,6 +40,7 @@ use crate::{
 use hit_order::HitOrderIndex;
 use scratch::RuntimeScratch;
 use std::collections::{HashMap, HashSet};
+use work::RuntimeWorkQueues;
 
 /// Direction for deterministic keyboard focus traversal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -101,10 +103,7 @@ where
     scroll_drag_capture: Option<ScrollDragCapture>,
     repaint_requested: bool,
     exit_requested: bool,
-    runtime_commands: Vec<Command<Message>>,
-    runtime_command_batch: Vec<Command<Message>>,
-    runtime_messages: Vec<Message>,
-    runtime_message_batch: Vec<Message>,
+    runtime_work: RuntimeWorkQueues<Message>,
     external_drag_session: Option<ExternalDragSession<Message>>,
     drag_session: Option<DragSession>,
 }

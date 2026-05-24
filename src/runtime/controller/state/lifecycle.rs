@@ -46,10 +46,7 @@ where
             scroll_drag_capture: None,
             repaint_requested: false,
             exit_requested: false,
-            runtime_commands: Vec::new(),
-            runtime_command_batch: Vec::new(),
-            runtime_messages: Vec::new(),
-            runtime_message_batch: Vec::new(),
+            runtime_work: RuntimeWorkQueues::default(),
             external_drag_session: None,
             drag_session: None,
         };

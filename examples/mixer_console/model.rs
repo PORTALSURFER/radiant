@@ -73,9 +73,9 @@ impl MixerState {
             "{transport} | {selected_count} selected | {} | group {} | fader {:+.1} dB | send A {:.0}% | meter {:+.1} dB | synthetic GUI data",
             selected.label,
             selected.group() + 1,
-            selected.gain_db,
-            selected.sends[0] * 100.0,
-            selected.meter_db
+            selected.controls.gain_db,
+            selected.controls.sends[0] * 100.0,
+            selected.meter.meter_db
         )
     }
 }
@@ -84,11 +84,26 @@ impl MixerState {
 pub(crate) struct MixerChannel {
     pub(crate) id: usize,
     pub(crate) label: &'static str,
+    pub(crate) controls: MixerChannelControls,
+    pub(crate) meter: MixerMeterState,
+    pub(crate) flags: MixerChannelFlags,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct MixerChannelControls {
     pub(crate) gain_db: f32,
     pub(crate) pan: f32,
+    pub(crate) sends: [f32; SEND_COUNT],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct MixerMeterState {
     pub(crate) meter_db: f32,
     pub(crate) peak_db: f32,
-    pub(crate) sends: [f32; SEND_COUNT],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct MixerChannelFlags {
     pub(crate) muted: bool,
     pub(crate) solo: bool,
     pub(crate) armed: bool,
@@ -99,42 +114,51 @@ impl MixerChannel {
         Self {
             id,
             label: CHANNEL_LABELS[id],
-            gain_db: default_gain(id),
-            pan: default_pan(id),
-            meter_db: MIN_GAIN_DB,
-            peak_db: MIN_GAIN_DB,
-            sends: default_sends(id),
-            muted: false,
-            solo: false,
-            armed: id == 0,
+            controls: MixerChannelControls {
+                gain_db: default_gain(id),
+                pan: default_pan(id),
+                sends: default_sends(id),
+            },
+            meter: MixerMeterState {
+                meter_db: MIN_GAIN_DB,
+                peak_db: MIN_GAIN_DB,
+            },
+            flags: MixerChannelFlags {
+                muted: false,
+                solo: false,
+                armed: id == 0,
+            },
         }
     }
 
     fn tick(&mut self, frame: u64) {
-        let level = synthetic_level(frame, self.id, self.gain_db, self.muted);
+        let level = synthetic_level(frame, self.id, self.controls.gain_db, self.flags.muted);
         let target_db = level_to_db(level);
-        self.meter_db = self.meter_db * 0.72 + target_db * 0.28;
-        self.peak_db = if target_db > self.peak_db {
+        self.meter.meter_db = self.meter.meter_db * 0.72 + target_db * 0.28;
+        self.meter.peak_db = if target_db > self.meter.peak_db {
             target_db
         } else {
-            (self.peak_db - 0.42).max(self.meter_db)
+            (self.meter.peak_db - 0.42).max(self.meter.meter_db)
         };
     }
 
     pub(crate) fn set_gain_from_ratio(&mut self, ratio: f32) {
         self.set_gain_from_db(gain_for_ratio(ratio));
         if ratio <= 0.001 {
-            self.meter_db = MIN_GAIN_DB;
-            self.peak_db = MIN_GAIN_DB;
+            self.silence_meter();
         }
     }
 
     pub(crate) fn set_gain_from_db(&mut self, db: f32) {
-        self.gain_db = db.clamp(MIN_GAIN_DB, MAX_GAIN_DB);
-        if self.gain_db <= MIN_GAIN_DB + 0.001 {
-            self.meter_db = MIN_GAIN_DB;
-            self.peak_db = MIN_GAIN_DB;
+        self.controls.gain_db = db.clamp(MIN_GAIN_DB, MAX_GAIN_DB);
+        if self.controls.gain_db <= MIN_GAIN_DB + 0.001 {
+            self.silence_meter();
         }
+    }
+
+    fn silence_meter(&mut self) {
+        self.meter.meter_db = MIN_GAIN_DB;
+        self.meter.peak_db = MIN_GAIN_DB;
     }
 
     pub(crate) fn group(&self) -> usize {
@@ -142,7 +166,7 @@ impl MixerChannel {
     }
 
     pub(crate) fn is_visually_dimmed_by_solo(&self, solo_active: bool) -> bool {
-        solo_active && !self.solo
+        solo_active && !self.flags.solo
     }
 }
 

@@ -18,8 +18,8 @@ pub(super) fn append_meter(
         strip,
         solo_dimmed,
         MeterReadout {
-            meter_db: channel.meter_db,
-            peak_db: channel.peak_db,
+            meter_db: channel.meter.meter_db,
+            peak_db: channel.meter.peak_db,
         },
         theme,
     );
@@ -72,13 +72,13 @@ fn append_meter_lanes(
     readout: MeterReadout,
 ) {
     let meter_ratio = ratio_for_meter_db(readout.meter_db);
-    let left_ratio = if channel.pan > 0.0 {
-        meter_ratio * (1.0 - channel.pan * 0.55)
+    let left_ratio = if channel.controls.pan > 0.0 {
+        meter_ratio * (1.0 - channel.controls.pan * 0.55)
     } else {
         meter_ratio
     };
-    let right_ratio = if channel.pan < 0.0 {
-        meter_ratio * (1.0 + channel.pan * 0.55)
+    let right_ratio = if channel.controls.pan < 0.0 {
+        meter_ratio * (1.0 + channel.controls.pan * 0.55)
     } else {
         meter_ratio
     };

@@ -16,9 +16,9 @@ fn native_run_options_expose_floating_popup_policy() {
 
     assert!(!NativeRunOptions::default().is_popup());
     assert!(options.is_popup());
-    assert!(!options.decorations);
-    assert!(!options.drag_and_drop);
-    assert_eq!(options.title, "Drag Preview");
+    assert!(!options.window.behavior.decorations);
+    assert!(!options.window.behavior.drag_and_drop);
+    assert_eq!(options.window.title, "Drag Preview");
     assert_eq!(options.popup_options(), Some(&popup_policy));
     assert_eq!(
         options.popup_options().map(|popup| popup.initially_visible),
@@ -30,7 +30,10 @@ fn native_run_options_expose_floating_popup_policy() {
             .map(|popup| popup.hide_after_first_present),
         Some(true)
     );
-    assert_eq!(options.window_mode, NativeWindowMode::Popup(popup_policy));
+    assert_eq!(
+        options.window.behavior.mode,
+        NativeWindowMode::Popup(popup_policy)
+    );
 }
 
 #[test]
@@ -39,9 +42,9 @@ fn native_run_options_expose_prewarmed_popup_policy() {
     let options = NativeRunOptions::prewarmed_popup("Drag Preview", -32_000.0, -32_000.0);
 
     assert!(options.is_popup());
-    assert!(!options.decorations);
-    assert!(!options.drag_and_drop);
-    assert_eq!(options.title, "Drag Preview");
+    assert!(!options.window.behavior.decorations);
+    assert!(!options.window.behavior.drag_and_drop);
+    assert_eq!(options.window.title, "Drag Preview");
     assert_eq!(options.popup_options(), Some(&popup_policy));
     assert_eq!(popup_policy.position, Some([-32_000.0, -32_000.0]));
     assert!(popup_policy.initially_visible);
@@ -52,17 +55,21 @@ fn native_run_options_expose_prewarmed_popup_policy() {
 #[test]
 fn native_run_options_expose_retained_surface_cache_policy() {
     let options = NativeRunOptions {
-        retained_surface_cache: RetainedSurfaceCachePolicy::max_frames(8),
+        frame: NativeFrameOptions {
+            retained_surface_cache: RetainedSurfaceCachePolicy::max_frames(8),
+            ..NativeFrameOptions::default()
+        },
         ..NativeRunOptions::default()
     };
 
     assert_eq!(
         NativeRunOptions::default()
+            .frame
             .retained_surface_cache
             .max_frames,
         64
     );
-    assert_eq!(options.retained_surface_cache.max_frames, 8);
+    assert_eq!(options.frame.retained_surface_cache.max_frames, 8);
     assert_eq!(
         RetainedSurfaceCachePolicy::max_frames(0).max_frames,
         0,

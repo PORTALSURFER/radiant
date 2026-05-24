@@ -147,8 +147,8 @@ This keeps segment ownership explicit for dense retained surfaces without each
 application inventing a separate bit layout and diagnostic vocabulary.
 `NativeRunOptions` keeps platform/window integration policy behind Radiant's
 native runtime boundary. Common launch code can stay platform-neutral while
-still configuring window title, logical size, minimum size, maximized state,
-decorations, icon, target frame rate, and whether native file drag-and-drop is
+still configuring `window.title`, `window.geometry`, `window.behavior`,
+`window.icon`, `frame.target_fps`, and whether native file drag-and-drop is
 requested on platforms that support it. Native animation frame rates are
 normalized through `NativeRunOptions::normalized_target_fps()` and the exported
 `MIN_NATIVE_TARGET_FPS` / `MAX_NATIVE_TARGET_FPS` bounds before timed redraws
@@ -968,9 +968,9 @@ CPU-side frame-work total; it excludes `since_last_present`, which is frame
 cadence rather than work performed for the current frame. The native render
 profile log emits the same tracked total as `frame_cpu_envelope_total_us` for
 profiling.
-`NativeRunOptions::retained_surface_cache` accepts `RetainedSurfaceCachePolicy`
-for apps that need to tune or disable retained custom-surface frame reuse during
-profiling.
+`NativeRunOptions::frame.retained_surface_cache` accepts
+`RetainedSurfaceCachePolicy` for apps that need to tune or disable retained
+custom-surface frame reuse during profiling.
 `NativeFrameDiagnostics::text` groups native text diagnostics into
 `cache.layout`, `cache.atom`, and `quality` counters. The cache groups expose
 layout-cache and text atom-cache hits, misses, and evictions; the quality group

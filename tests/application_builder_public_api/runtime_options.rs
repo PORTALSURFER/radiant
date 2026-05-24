@@ -1,7 +1,8 @@
 use radiant::runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS,
-    NativeGenericRunError, NativeGpuBackend, NativeGpuOptions, NativePopupOptions,
-    NativeRunOptions, NativeRunOptionsError, NativeTextOptions, NativeWindowMode,
+    NativeFrameOptions, NativeGenericRunError, NativeGpuBackend, NativeGpuOptions,
+    NativePopupOptions, NativeRunOptions, NativeRunOptionsError, NativeTextOptions,
+    NativeWindowBehavior, NativeWindowGeometry, NativeWindowMode, NativeWindowOptions,
     RetainedSurfaceCachePolicy, WindowManifest, WindowManifestError, WindowSpec, WindowSpecError,
     WindowSpecParts,
 };

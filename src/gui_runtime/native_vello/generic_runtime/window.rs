@@ -8,28 +8,28 @@ pub(super) fn generic_window_attributes(options: &NativeRunOptions) -> WindowAtt
     let drag_and_drop_enabled = platform_drag_and_drop_enabled(options);
     tracing::info!(
         drag_and_drop_enabled,
-        requested = options.drag_and_drop,
+        requested = options.window.behavior.drag_and_drop,
         popup = options.is_popup(),
         "radiant generic native vello: configuring native file drag-and-drop"
     );
     let mut attrs = Window::default_attributes()
-        .with_title(options.title.clone())
-        .with_maximized(options.maximized)
-        .with_decorations(options.decorations)
+        .with_title(options.window.title.clone())
+        .with_maximized(options.window.behavior.maximized)
+        .with_decorations(options.window.behavior.decorations)
         .with_visible(false);
-    if let NativeWindowMode::Popup(popup) = options.window_mode {
+    if let NativeWindowMode::Popup(popup) = options.window.behavior.mode {
         attrs = apply_popup_window_attributes(attrs, popup);
     }
-    if let Some([w, h]) = options.inner_size {
+    if let Some([w, h]) = options.window.geometry.inner_size {
         attrs = attrs.with_inner_size(Size::Logical(LogicalSize::new(w as f64, h as f64)));
     }
-    if let Some([x, y]) = options.position {
+    if let Some([x, y]) = options.window.geometry.position {
         attrs = attrs.with_position(Position::Logical(LogicalPosition::new(x as f64, y as f64)));
     }
-    if let Some([w, h]) = options.min_inner_size {
+    if let Some([w, h]) = options.window.geometry.min_inner_size {
         attrs = attrs.with_min_inner_size(Size::Logical(LogicalSize::new(w as f64, h as f64)));
     }
-    if let Some(icon) = options.icon.as_ref().and_then(icon_from_rgba) {
+    if let Some(icon) = options.window.icon.as_ref().and_then(icon_from_rgba) {
         attrs = attrs.with_window_icon(Some(icon));
     }
     let attrs = platform::apply_drag_and_drop_attributes(attrs, drag_and_drop_enabled);
@@ -55,7 +55,7 @@ fn apply_popup_window_attributes(
 }
 
 pub(super) fn platform_drag_and_drop_enabled(options: &NativeRunOptions) -> bool {
-    options.drag_and_drop && !options.is_popup()
+    options.window.behavior.drag_and_drop && !options.is_popup()
 }
 
 pub(super) fn reveal_window_after_surface_setup(options: &NativeRunOptions) -> bool {

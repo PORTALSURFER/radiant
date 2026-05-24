@@ -1,6 +1,7 @@
 use super::{WindowSpec, WindowSpecParts};
 use crate::gui_runtime::{
-    EmbeddedFont, NativeGpuBackend, NativePopupOptions, NativeRunOptions, WindowIconRgba,
+    EmbeddedFont, NativeGpuBackend, NativePopupOptions, NativeRunOptions, NativeWindowOptions,
+    WindowIconRgba,
 };
 use std::path::PathBuf;
 
@@ -18,7 +19,10 @@ impl WindowSpec {
         Self::from_parts(WindowSpecParts {
             key: key.into(),
             options: NativeRunOptions {
-                title: title.into(),
+                window: NativeWindowOptions {
+                    title: title.into(),
+                    ..NativeWindowOptions::default()
+                },
                 ..NativeRunOptions::default()
             },
         })
@@ -61,13 +65,13 @@ impl WindowSpec {
 
     /// Set the initial logical window size using floating-point logical pixels.
     pub fn logical_size(mut self, width: f32, height: f32) -> Self {
-        self.options.inner_size = Some([width, height]);
+        self.options.window.geometry.inner_size = Some([width, height]);
         self
     }
 
     /// Set the initial logical window position in screen coordinates.
     pub fn position(mut self, x: f32, y: f32) -> Self {
-        self.options.position = Some([x, y]);
+        self.options.window.geometry.position = Some([x, y]);
         self
     }
 
@@ -78,19 +82,19 @@ impl WindowSpec {
 
     /// Set the minimum logical window size using floating-point logical pixels.
     pub fn min_logical_size(mut self, width: f32, height: f32) -> Self {
-        self.options.min_inner_size = Some([width, height]);
+        self.options.window.geometry.min_inner_size = Some([width, height]);
         self
     }
 
     /// Set whether the window starts maximized.
     pub fn maximized(mut self, maximized: bool) -> Self {
-        self.options.maximized = maximized;
+        self.options.window.behavior.maximized = maximized;
         self
     }
 
     /// Set whether native window decorations remain enabled.
     pub fn decorations(mut self, decorations: bool) -> Self {
-        self.options.decorations = decorations;
+        self.options.window.behavior.decorations = decorations;
         self
     }
 
@@ -114,19 +118,19 @@ impl WindowSpec {
 
     /// Set whether native file drag-and-drop is enabled when supported.
     pub fn drag_and_drop(mut self, drag_and_drop: bool) -> Self {
-        self.options.drag_and_drop = drag_and_drop;
+        self.options.window.behavior.drag_and_drop = drag_and_drop;
         self
     }
 
     /// Set the optional native window icon.
     pub fn icon(mut self, icon: WindowIconRgba) -> Self {
-        self.options.icon = Some(icon);
+        self.options.window.icon = Some(icon);
         self
     }
 
     /// Set the target animation frame rate for this window.
     pub fn target_fps(mut self, target_fps: u32) -> Self {
-        self.options.target_fps = target_fps;
+        self.options.frame.target_fps = target_fps;
         self
     }
 

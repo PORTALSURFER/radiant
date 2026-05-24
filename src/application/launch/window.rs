@@ -16,7 +16,10 @@ impl WindowBuilder {
     pub(super) fn new(title: impl Into<String>) -> Self {
         Self {
             options: NativeRunOptions {
-                title: title.into(),
+                window: crate::gui_runtime::NativeWindowOptions {
+                    title: title.into(),
+                    ..crate::gui_runtime::NativeWindowOptions::default()
+                },
                 ..NativeRunOptions::default()
             },
         }
@@ -29,7 +32,7 @@ impl WindowBuilder {
 
     /// Set the initial logical window size using floating-point logical pixels.
     pub fn logical_size(mut self, width: f32, height: f32) -> Self {
-        self.options.inner_size = Some([width, height]);
+        self.options.window.geometry.inner_size = Some([width, height]);
         self
     }
 
@@ -40,7 +43,7 @@ impl WindowBuilder {
 
     /// Set the minimum logical window size using floating-point logical pixels.
     pub fn min_logical_size(mut self, width: f32, height: f32) -> Self {
-        self.options.min_inner_size = Some([width, height]);
+        self.options.window.geometry.min_inner_size = Some([width, height]);
         self
     }
 

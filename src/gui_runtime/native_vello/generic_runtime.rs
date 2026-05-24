@@ -201,7 +201,11 @@ pub type NativeGenericRunReport =
     crate::gui_runtime::RuntimeRunReport<NativeGenericRuntimeArtifacts, NativeGenericRunError>;
 
 fn initial_viewport(options: &NativeRunOptions) -> Vector2 {
-    let [width, height] = options.inner_size.unwrap_or([1280.0, 720.0]);
+    let [width, height] = options
+        .window
+        .geometry
+        .inner_size
+        .unwrap_or([1280.0, 720.0]);
     Vector2::new(width.max(1.0), height.max(1.0))
 }
 

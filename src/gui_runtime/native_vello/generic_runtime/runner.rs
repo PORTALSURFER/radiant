@@ -36,8 +36,8 @@ where
 {
     pub(super) fn new(options: NativeRunOptions, bridge: Bridge, viewport: Vector2) -> Self {
         let text_renderer = NativeTextRenderer::with_options(&options.text);
-        let debug_layout = options.debug_layout;
-        let retained_surface_cache = options.retained_surface_cache;
+        let debug_layout = options.frame.debug_layout;
+        let retained_surface_cache = options.frame.retained_surface_cache;
         Self {
             options,
             core: GenericNativeRuntimeCore::new_with_debug_layout(bridge, viewport, debug_layout),

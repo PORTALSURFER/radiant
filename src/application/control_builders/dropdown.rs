@@ -46,6 +46,10 @@ pub struct DropdownParts<Message> {
 
 /// Builder for generic dropdown controls.
 pub struct DropdownBuilderNeedsToggle<Message> {
+    state: DropdownBuilderState<Message>,
+}
+
+struct DropdownBuilderState<Message> {
     selected_label: String,
     open: bool,
     options: Vec<DropdownOption<Message>>,
@@ -53,33 +57,56 @@ pub struct DropdownBuilderNeedsToggle<Message> {
 
 /// Builder for generic dropdown controls after the required toggle message is set.
 pub struct DropdownBuilder<Message> {
-    selected_label: String,
-    open: bool,
+    state: DropdownBuilderState<Message>,
     toggle_message: Message,
-    options: Vec<DropdownOption<Message>>,
+}
+
+impl<Message> DropdownBuilderState<Message> {
+    fn new(selected_label: impl Into<String>, open: bool) -> Self {
+        Self {
+            selected_label: selected_label.into(),
+            open,
+            options: Vec::new(),
+        }
+    }
+
+    fn add_option(&mut self, label: impl Into<String>, selected: bool, message: Message) {
+        self.options
+            .push(DropdownOption::new(label, selected, message));
+    }
+
+    fn add_options(&mut self, options: impl IntoIterator<Item = DropdownOption<Message>>) {
+        self.options.extend(options);
+    }
+
+    fn into_parts(self, toggle_message: Message) -> DropdownParts<Message> {
+        DropdownParts {
+            selected_label: self.selected_label,
+            open: self.open,
+            toggle_message,
+            options: self.options,
+        }
+    }
 }
 
 impl<Message> DropdownBuilderNeedsToggle<Message> {
     /// Emit the supplied host message when the collapsed control is activated.
     pub fn toggle_message(self, message: Message) -> DropdownBuilder<Message> {
         DropdownBuilder {
-            selected_label: self.selected_label,
-            open: self.open,
+            state: self.state,
             toggle_message: message,
-            options: self.options,
         }
     }
 
     /// Add one selectable option before assigning the required toggle message.
     pub fn option(mut self, label: impl Into<String>, selected: bool, message: Message) -> Self {
-        self.options
-            .push(DropdownOption::new(label, selected, message));
+        self.state.add_option(label, selected, message);
         self
     }
 
     /// Add several selectable options before assigning the required toggle message.
     pub fn options(mut self, options: impl IntoIterator<Item = DropdownOption<Message>>) -> Self {
-        self.options.extend(options);
+        self.state.add_options(options);
         self
     }
 }
@@ -87,14 +114,13 @@ impl<Message> DropdownBuilderNeedsToggle<Message> {
 impl<Message> DropdownBuilder<Message> {
     /// Add one selectable option.
     pub fn option(mut self, label: impl Into<String>, selected: bool, message: Message) -> Self {
-        self.options
-            .push(DropdownOption::new(label, selected, message));
+        self.state.add_option(label, selected, message);
         self
     }
 
     /// Add several selectable options.
     pub fn options(mut self, options: impl IntoIterator<Item = DropdownOption<Message>>) -> Self {
-        self.options.extend(options);
+        self.state.add_options(options);
         self
     }
 
@@ -103,12 +129,7 @@ impl<Message> DropdownBuilder<Message> {
     where
         Message: Clone + Send + Sync + 'static,
     {
-        dropdown_from_parts(DropdownParts {
-            selected_label: self.selected_label,
-            open: self.open,
-            toggle_message: self.toggle_message,
-            options: self.options,
-        })
+        dropdown_from_parts(self.state.into_parts(self.toggle_message))
     }
 }
 
@@ -118,9 +139,7 @@ pub fn dropdown<Message>(
     open: bool,
 ) -> DropdownBuilderNeedsToggle<Message> {
     DropdownBuilderNeedsToggle {
-        selected_label: selected_label.into(),
-        open,
-        options: Vec::new(),
+        state: DropdownBuilderState::new(selected_label, open),
     }
 }
 

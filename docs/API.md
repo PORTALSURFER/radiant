@@ -1000,7 +1000,7 @@ manual validation:
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `form`, `volume_slider`, `passive_widgets` |
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `context_menu`, `tree_and_details`, `folder_browser`, `paint_helpers` |
 | Custom widgets and retained GPU surfaces | `custom_widget`, `gpu_surface`, `custom_shader_surface`, `gpu_surface_stack_overlay`, `waveform_view` |
-| Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `inspector_panel`, `plugin_panel`, `eq_editor`, `spectrogram`, `split_workspace` |
+| Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `inspector_panel`, `plugin_panel`, `eq_editor`, `spectrogram`, `mixer_console`, `piano_roll`, `modulation_matrix`, `arrangement_shell`, `split_workspace` |
 | Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame` |
 | Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame` |
 
@@ -1150,6 +1150,22 @@ Run `cargo run --example spectrogram` for a DAW-style realtime spectrogram
 surface that scrolls deterministic synthetic spectrum data through frame-driven
 messages, heatmap painting, hover readout, and transport controls without
 modeling DSP or audio processing.
+Run `cargo run --example mixer_console` for an eight-channel DAW-style mixer
+panel with deterministic synthetic meter levels, decibel readouts, faders,
+mute/solo/arm buttons, and paint-only hover overlays without modeling DSP or
+audio processing.
+Run `cargo run --example piano_roll` for a piano-roll editor sandbox with a
+keyboard lane, beat grid, synthetic notes, create/move/resize editing, keyboard
+delete, and a paint-only playhead overlay without modeling MIDI, DSP, or audio
+processing.
+Run `cargo run --example modulation_matrix` for a dense modulation-routing
+matrix with source and destination labels, bipolar amount editing, clear/delete
+behavior, synthetic activity markers, and paint-only hover overlays without
+modeling synth, DSP, or audio processing.
+Run `cargo run --example arrangement_shell` for a DAW-style workspace shell with
+transport controls, a browser pane, arrangement overview, inspector, compact
+mixer/status strip, synthetic clips and meters, and paint-only arrangement hover
+and playhead overlays without modeling audio, DSP, or plugin behavior.
 
 ## Quality Gate
 

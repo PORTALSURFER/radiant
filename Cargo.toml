@@ -201,6 +201,22 @@ name = "spectrogram"
 path = "examples/spectrogram.rs"
 
 [[example]]
+name = "mixer_console"
+path = "examples/mixer_console.rs"
+
+[[example]]
+name = "piano_roll"
+path = "examples/piano_roll.rs"
+
+[[example]]
+name = "modulation_matrix"
+path = "examples/modulation_matrix.rs"
+
+[[example]]
+name = "arrangement_shell"
+path = "examples/arrangement_shell.rs"
+
+[[example]]
 name = "custom_widget"
 path = "examples/custom_widget.rs"
 

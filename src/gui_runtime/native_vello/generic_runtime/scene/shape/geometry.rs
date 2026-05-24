@@ -1,4 +1,8 @@
-use crate::gui_runtime::native_vello::*;
+use crate::{
+    gui::types::Point,
+    runtime::{PaintPath, PaintPathCommand},
+};
+use vello::kurbo::{BezPath, Point as KurboPoint};
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene::shape) fn polygon_path(
     points: &[Point],

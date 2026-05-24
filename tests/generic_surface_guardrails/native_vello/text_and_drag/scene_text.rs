@@ -200,3 +200,24 @@ fn native_vello_scene_geometry_uses_explicit_kurbo_dependency() {
         "SVG scene encoding should use Radiant's explicit kurbo dependency for source bounds"
     );
 }
+
+#[test]
+fn native_vello_scene_encoders_use_explicit_imports() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let encoder_paths = [
+        "src/gui_runtime/native_vello/generic_runtime/scene/frame.rs",
+        "src/gui_runtime/native_vello/generic_runtime/scene/image.rs",
+        "src/gui_runtime/native_vello/generic_runtime/scene/shape.rs",
+        "src/gui_runtime/native_vello/generic_runtime/scene/shape/geometry.rs",
+        "src/gui_runtime/native_vello/generic_runtime/scene/svg.rs",
+    ];
+
+    for path in encoder_paths {
+        let source = fs::read_to_string(manifest_dir.join(path))
+            .unwrap_or_else(|err| panic!("{path} should be readable: {err}"));
+        assert!(
+            !source.contains("use crate::gui_runtime::native_vello::*;"),
+            "{path} should import the native Vello dependencies it actually uses"
+        );
+    }
+}

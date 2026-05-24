@@ -1,5 +1,10 @@
-use crate::gui_runtime::native_vello::*;
+use crate::{gui::types::Rect as UiRect, runtime::PaintSvg};
 use kurbo::Rect as KurboRect;
+use vello::{
+    Scene,
+    kurbo::Affine,
+    peniko::{BlendMode, Fill},
+};
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_svg(
     scene: &mut Scene,
@@ -50,6 +55,7 @@ fn svg_transform(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gui::types::Point;
 
     #[test]
     fn svg_transform_rejects_nonfinite_or_empty_geometry() {

@@ -44,6 +44,8 @@ fn surface_paint_plan_buffering_stays_with_capacity_policy() {
 #[test]
 fn runtime_paint_primitive_support_keeps_models_queries_and_tests_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let facade = fs::read_to_string(manifest_dir.join("src/runtime/paint.rs"))
+        .expect("runtime paint facade should be readable");
     let stats = fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/stats.rs"))
         .expect("paint primitive stats module should be readable");
     let stats_tests =
@@ -70,6 +72,15 @@ fn runtime_paint_primitive_support_keeps_models_queries_and_tests_focused() {
         fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/text/tests.rs"))
             .expect("paint primitive text tests should be readable");
 
+    assert!(
+        facade.contains("pub use primitives::{")
+            && facade.contains("PaintPrimitive")
+            && facade.contains("SurfacePaintPlan")
+            && facade.contains("TransientOverlayContext")
+            && facade.contains("SvgParseError")
+            && !facade.contains("pub use primitives::*;"),
+        "runtime paint facade should explicitly name backend-neutral paint API exports"
+    );
     assert!(
         stats.contains("pub struct SurfacePaintStats")
             && stats.contains("pub fn stats(&self) -> SurfacePaintStats")

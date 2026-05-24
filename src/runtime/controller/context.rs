@@ -63,31 +63,31 @@ where
 
     /// Return the widget that currently owns keyboard focus.
     pub fn focused_widget(&self) -> Option<WidgetId> {
-        self.focused_widget
+        self.interaction.focus.focused_widget
     }
 
     /// Return the widget that currently owns pointer capture.
     pub fn pointer_capture(&self) -> Option<WidgetId> {
-        self.pointer_capture
+        self.interaction.pointer.capture
     }
 
     pub(crate) fn interactive_pointer_route_active(&self) -> bool {
-        self.pointer_capture.is_some() || self.drag_session.is_some()
+        self.interaction.pointer.capture.is_some() || self.interaction.drag.session.is_some()
     }
 
     /// Return the widget currently receiving hover state.
     pub fn hovered_widget(&self) -> Option<WidgetId> {
-        self.hovered_widget
+        self.interaction.hover.widget
     }
 
     /// Return the styled container currently receiving hover chrome.
     pub fn hovered_container(&self) -> Option<NodeId> {
-        self.hovered_container
+        self.interaction.hover.container
     }
 
     /// Return the scroll affordance currently receiving hover or drag emphasis.
     pub fn hovered_scroll_affordance(&self) -> Option<NodeId> {
-        self.hovered_scroll_affordance
+        self.interaction.hover.scroll_affordance
     }
 
     /// Return whether the host update flow requested another repaint.

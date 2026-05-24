@@ -11,19 +11,19 @@ where
         modifiers: PointerModifiers,
     ) -> Option<WidgetId> {
         if self.start_scrollbar_drag_at(position) {
-            self.pointer_capture = None;
-            self.pointer_capture_state = None;
+            self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_state = None;
             self.clear_focus();
             return None;
         }
         let Some(widget_id) = self.widget_at(position) else {
-            self.pointer_capture = None;
-            self.pointer_capture_state = None;
-            self.scroll_drag_capture = None;
+            self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_state = None;
+            self.interaction.pointer.scroll_drag_capture = None;
             self.clear_focus();
             return None;
         };
-        self.pointer_capture = Some(widget_id);
+        self.interaction.pointer.capture = Some(widget_id);
         self.dispatch_input_at(
             position,
             WidgetInput::PointerPress {
@@ -41,12 +41,12 @@ where
         modifiers: PointerModifiers,
     ) -> Option<WidgetId> {
         let Some(widget_id) = self.widget_at(position) else {
-            self.pointer_capture = None;
-            self.pointer_capture_state = None;
+            self.interaction.pointer.capture = None;
+            self.interaction.pointer.capture_state = None;
             self.clear_focus();
             return None;
         };
-        self.pointer_capture = Some(widget_id);
+        self.interaction.pointer.capture = Some(widget_id);
         let routed = self.dispatch_input_at_output(
             position,
             WidgetInput::PointerDoubleClick {
@@ -74,10 +74,16 @@ where
         button: PointerButton,
         modifiers: PointerModifiers,
     ) -> Option<WidgetId> {
-        if self.scroll_drag_capture.take().is_some() {
+        if self
+            .interaction
+            .pointer
+            .scroll_drag_capture
+            .take()
+            .is_some()
+        {
             return None;
         }
-        let captured = self.pointer_capture.take();
+        let captured = self.interaction.pointer.capture.take();
         let drop_target = captured.and_then(|captured_id| {
             self.widget_at(position)
                 .filter(|target_id| *target_id != captured_id)
@@ -93,7 +99,7 @@ where
             );
         }
         let widget_id = captured.or_else(|| self.widget_at(position))?;
-        self.pointer_capture_state = None;
+        self.interaction.pointer.capture_state = None;
         self.dispatch_input(
             widget_id,
             WidgetInput::PointerRelease {

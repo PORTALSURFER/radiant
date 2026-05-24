@@ -5,6 +5,9 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let controller = fs::read_to_string(manifest_dir.join("src/runtime/controller.rs"))
         .expect("runtime controller root should be readable");
+    let interaction_state =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/interaction_state.rs"))
+            .expect("runtime controller interaction state should be readable");
     let root = fs::read_to_string(manifest_dir.join("src/runtime/controller/commands.rs"))
         .expect("runtime controller command root should be readable");
     let work = fs::read_to_string(manifest_dir.join("src/runtime/controller/work.rs"))
@@ -73,6 +76,22 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
             && work.contains("fn drain_bridge_messages")
             && work.contains("fn has_remaining_work"),
         "runtime work queue ownership should live in controller/work.rs"
+    );
+    assert!(
+        controller.contains("mod interaction_state;")
+            && controller.contains("interaction: RuntimeInteractionState<Message>")
+            && !controller.contains("focused_widget: Option<WidgetId>")
+            && !controller.contains("pointer_capture: Option<WidgetId>")
+            && !controller.contains("drag_session: Option<DragSession>"),
+        "surface runtime should group interaction ownership behind one focused controller field"
+    );
+    assert!(
+        interaction_state.contains("pub(super) struct RuntimeInteractionState<Message>")
+            && interaction_state.contains("pub(super) struct RuntimeFocusState")
+            && interaction_state.contains("pub(super) struct RuntimeHoverState")
+            && interaction_state.contains("pub(super) struct RuntimePointerState")
+            && interaction_state.contains("pub(super) struct RuntimeDragState<Message>"),
+        "focus, hover, pointer capture, and drag state should stay in controller/interaction_state.rs"
     );
     assert!(
         dispatch.contains("fn execute_command_inner")

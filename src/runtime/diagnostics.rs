@@ -17,7 +17,10 @@ pub use gpu_surface::{
     NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
 };
 pub use retained_surface::NativeRetainedSurfaceDiagnostics;
-pub use scene::NativeSceneDiagnostics;
+pub use scene::{
+    NativeSceneDiagnostics, NativeSceneMediaDiagnostics, NativeSceneSurfaceDiagnostics,
+    NativeSceneTextDiagnostics, NativeSceneTraversalDiagnostics,
+};
 pub use text::{
     NativeTextCacheCounters, NativeTextCacheDiagnostics, NativeTextDiagnostics,
     NativeTextQualityDiagnostics, NativeTextQualityStatus,

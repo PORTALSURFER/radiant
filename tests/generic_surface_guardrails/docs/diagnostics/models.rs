@@ -42,6 +42,10 @@ fn runtime_diagnostics_models_stay_in_focused_modules() {
             && gpu_surface.contains("pub struct NativeGpuSurfaceDiagnostics")
             && retained_surface.contains("pub struct NativeRetainedSurfaceDiagnostics")
             && scene.contains("pub struct NativeSceneDiagnostics")
+            && scene.contains("pub struct NativeSceneTraversalDiagnostics")
+            && scene.contains("pub struct NativeSceneTextDiagnostics")
+            && scene.contains("pub struct NativeSceneMediaDiagnostics")
+            && scene.contains("pub struct NativeSceneSurfaceDiagnostics")
             && cache_policy.contains("pub struct RetainedSurfaceCachePolicy"),
         "each runtime diagnostics concern should live with its focused model and policy"
     );

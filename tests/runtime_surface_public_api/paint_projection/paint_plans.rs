@@ -42,9 +42,9 @@ fn control_heavy_paint_plan_presizes_for_button_chrome() {
 
     let plan = surface.paint_plan(&layout, &ThemeTokens::default());
 
-    assert_eq!(plan.primitives.len(), 300);
+    assert_eq!(plan.primitives.len(), 500);
     assert!(
-        plan.primitives.capacity() <= layout.rects.len().saturating_mul(3),
+        plan.primitives.capacity() <= layout.rects.len().saturating_mul(5),
         "control-heavy paint plans should not grow beyond the initial estimate"
     );
 }
@@ -112,7 +112,7 @@ fn generic_surface_projects_deterministic_paint_without_legacy_shell_contracts()
 
     assert_eq!(runtime_plan, direct_plan);
     assert_eq!(runtime_plan.clear_color, theme.clear_color);
-    assert_eq!(runtime_plan.primitives.len(), 7);
+    assert_eq!(runtime_plan.primitives.len(), 13);
 
     let texts: Vec<_> = runtime_plan
         .primitives

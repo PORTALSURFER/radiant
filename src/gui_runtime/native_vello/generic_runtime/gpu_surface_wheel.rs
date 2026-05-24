@@ -2,27 +2,38 @@
 
 use super::{GenericNativeVelloRunner, RenderFrameProfile, maybe_log_route_profile};
 use crate::gui::types::{Point, Vector2};
+use crate::widgets::PointerModifiers;
 use std::time::Instant;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PendingGpuSurfaceWheel {
     pub(super) position: Point,
     pub(super) delta: Vector2,
+    pub(super) modifiers: PointerModifiers,
 }
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: crate::runtime::RuntimeBridge<Message>,
 {
-    pub(super) fn queue_gpu_surface_wheel(&mut self, position: Point, delta: Vector2) {
+    pub(super) fn queue_gpu_surface_wheel(
+        &mut self,
+        position: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+    ) {
         match &mut self.input.pending_gpu_surface_wheel {
             Some(pending) => {
                 pending.position = position;
                 pending.delta = Vector2::new(pending.delta.x + delta.x, pending.delta.y + delta.y);
+                pending.modifiers = modifiers;
             }
             None => {
-                self.input.pending_gpu_surface_wheel =
-                    Some(PendingGpuSurfaceWheel { position, delta });
+                self.input.pending_gpu_surface_wheel = Some(PendingGpuSurfaceWheel {
+                    position,
+                    delta,
+                    modifiers,
+                });
             }
         }
         self.update_gpu_surface_cursor_overlay(position);
@@ -34,9 +45,11 @@ where
             return;
         };
         let started = Instant::now();
-        let outcome = self
-            .core
-            .route_scroll_deferred_refresh(pending.position, pending.delta);
+        let outcome = self.core.route_scroll_deferred_refresh_with_modifiers(
+            pending.position,
+            pending.delta,
+            pending.modifiers,
+        );
         profile.coalesced_wheel_route = started.elapsed();
         maybe_log_route_profile("coalesced_wheel", profile.coalesced_wheel_route, outcome);
         if outcome.needs_redraw() {

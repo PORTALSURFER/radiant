@@ -1,27 +1,28 @@
 use radiant::prelude::*;
 
-use super::{LOW_PITCH, PITCH_ROWS, TOTAL_BEATS};
+use super::{TOTAL_BEATS, model::PianoRollViewport};
 
-pub(crate) fn row_height(rect: Rect) -> f32 {
-    rect.height() / PITCH_ROWS as f32
+pub(crate) fn row_height_for(rect: Rect, viewport: PianoRollViewport) -> f32 {
+    rect.height() / viewport.row_count() as f32
 }
 
-pub(crate) fn x_for_beat(grid: Rect, beat: f32) -> f32 {
-    grid.min.x + grid.width() * (beat / TOTAL_BEATS).clamp(0.0, 1.0)
+pub(crate) fn x_for_beat_view(grid: Rect, viewport: PianoRollViewport, beat: f32) -> f32 {
+    grid.min.x + grid.width() * ((beat - viewport.beat_start) / viewport.visible_beats)
 }
 
-pub(crate) fn beat_for_x(grid: Rect, x: f32) -> f32 {
-    ((x - grid.min.x) / grid.width().max(1.0) * TOTAL_BEATS).clamp(0.0, TOTAL_BEATS)
+pub(crate) fn beat_for_x_view(grid: Rect, viewport: PianoRollViewport, x: f32) -> f32 {
+    (viewport.beat_start + ((x - grid.min.x) / grid.width().max(1.0)) * viewport.visible_beats)
+        .clamp(0.0, TOTAL_BEATS)
 }
 
-pub(crate) fn y_for_pitch(grid: Rect, pitch: i32) -> f32 {
-    let row = (LOW_PITCH + PITCH_ROWS as i32 - 1 - pitch).clamp(0, PITCH_ROWS as i32 - 1);
-    grid.min.y + row as f32 * row_height(grid)
+pub(crate) fn y_for_pitch_view(grid: Rect, viewport: PianoRollViewport, pitch: i32) -> f32 {
+    let row = viewport.pitch_end() - pitch;
+    grid.min.y + row as f32 * row_height_for(grid, viewport)
 }
 
-pub(crate) fn pitch_for_y(grid: Rect, y: f32) -> i32 {
-    let row = ((y - grid.min.y) / row_height(grid).max(1.0)).floor() as i32;
-    (LOW_PITCH + PITCH_ROWS as i32 - 1 - row).clamp(LOW_PITCH, LOW_PITCH + PITCH_ROWS as i32 - 1)
+pub(crate) fn pitch_for_y_view(grid: Rect, viewport: PianoRollViewport, y: f32) -> i32 {
+    let row = ((y - grid.min.y) / row_height_for(grid, viewport).max(1.0)).floor() as i32;
+    (viewport.pitch_end() - row).clamp(viewport.pitch_start, viewport.pitch_end())
 }
 
 pub(crate) fn quantize_beat(beat: f32) -> f32 {

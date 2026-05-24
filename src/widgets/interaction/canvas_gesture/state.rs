@@ -109,7 +109,9 @@ impl CanvasGestureState {
                     modifiers: *modifiers,
                 })
             }
-            WidgetInput::Wheel { position, delta } => Some(CanvasGestureEvent::Wheel {
+            WidgetInput::Wheel {
+                position, delta, ..
+            } => Some(CanvasGestureEvent::Wheel {
                 pointer: canvas_pointer(bounds, *position)?,
                 delta: *delta,
             }),

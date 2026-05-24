@@ -88,15 +88,18 @@ where
                     return;
                 };
                 let delta = scroll_delta_to_logical(delta);
+                let modifiers = pointer_modifiers_from_winit(self.input.modifiers);
                 if self.can_coalesce_gpu_surface_wheel(position, delta) {
-                    self.queue_gpu_surface_wheel(position, delta);
+                    self.queue_gpu_surface_wheel(position, delta, modifiers);
                     return;
                 }
                 let started = Instant::now();
                 let routed = if self.can_fast_path_gpu_surface_route(position, delta) {
-                    self.core.route_scroll_deferred_refresh(position, delta)
+                    self.core
+                        .route_scroll_deferred_refresh_with_modifiers(position, delta, modifiers)
                 } else {
-                    self.core.route_scroll(position, delta)
+                    self.core
+                        .route_scroll_with_modifiers(position, delta, modifiers)
                 };
                 maybe_log_route_profile("wheel", started.elapsed(), routed);
                 self.handle_gpu_surface_route_outcome(routed, position, delta);

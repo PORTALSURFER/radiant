@@ -1,8 +1,7 @@
 use radiant::prelude::*;
 
 use super::super::{
-    LOW_PITCH, PITCH_ROWS,
-    geometry::{is_black_key, pitch_label, row_height},
+    geometry::{is_black_key, pitch_label, row_height_for},
     paint::{push_rect, push_text, rgba},
     widget::PianoRollWidget,
 };
@@ -20,7 +19,7 @@ pub(super) fn append_keyboard(
         keyboard,
         rgba(17, 19, 23, 255),
     );
-    for row in 0..PITCH_ROWS {
+    for row in 0..widget.viewport.row_count() {
         append_key_row(widget, primitives, keyboard, row, theme);
     }
 }
@@ -32,11 +31,12 @@ fn append_key_row(
     row: usize,
     theme: &ThemeTokens,
 ) {
-    let pitch = LOW_PITCH + (PITCH_ROWS - 1 - row) as i32;
-    let y = keyboard.min.y + row as f32 * row_height(keyboard);
+    let pitch = widget.viewport.pitch_end() - row as i32;
+    let row_height = row_height_for(keyboard, widget.viewport);
+    let y = keyboard.min.y + row as f32 * row_height;
     let rect = Rect::from_min_max(
         Point::new(keyboard.min.x, y),
-        Point::new(keyboard.max.x, y + row_height(keyboard)),
+        Point::new(keyboard.max.x, y + row_height),
     );
     let fill = if is_black_key(pitch) {
         rgba(33, 38, 45, 255)

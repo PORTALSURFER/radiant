@@ -42,9 +42,14 @@ fn app_gpu_surface_builder_lowers_through_normal_view_path() {
 
     let plan = surface.paint_plan(&layout, &ThemeTokens::default());
 
-    let Some(PaintPrimitive::GpuSurface(gpu)) = plan.primitives.first() else {
-        panic!("app GPU surface should emit a retained GPU paint primitive");
-    };
+    let gpu = plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::GpuSurface(gpu) => Some(gpu),
+            _ => None,
+        })
+        .expect("app GPU surface should emit a retained GPU paint primitive");
     assert_eq!(gpu.widget_id, 90);
     assert_eq!(gpu.key, 41);
     assert_eq!(gpu.revision, 7);

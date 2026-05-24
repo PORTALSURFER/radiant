@@ -35,8 +35,12 @@ fn generic_canvas_receives_wheel_before_scroll_fallback() {
         .expect("canvas should be laid out");
 
     assert!(
-        core.route_scroll(canvas_point, Vector2::new(0.0, -40.0))
-            .routed
+        core.route_scroll_with_modifiers(
+            canvas_point,
+            Vector2::new(0.0, -40.0),
+            Default::default(),
+        )
+        .routed
     );
 
     assert_eq!(core.runtime.bridge().text, "wheel");

@@ -10,7 +10,7 @@ fn estimated_paint_primitive_capacity(layout: &LayoutOutput) -> usize {
     layout
         .rects
         .len()
-        .saturating_mul(3)
+        .saturating_mul(5)
         .min(MAX_INITIAL_PAINT_PRIMITIVE_CAPACITY)
 }
 

@@ -1,10 +1,54 @@
 use super::support::{CustomStatusWidget, CustomWidgetMessage, DemoMessage, DemoState};
 use radiant::{
-    layout::{Point, Rect, Vector2, layout_tree},
+    layout::{LayoutOutput, Point, Rect, Vector2, layout_tree},
     runtime::{PaintPrimitive, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper},
     theme::ThemeTokens,
-    widgets::{PointerButton, WidgetInput},
+    widgets::{PointerButton, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
 };
+
+#[derive(Clone)]
+struct OverflowPaintWidget {
+    common: WidgetCommon,
+}
+
+impl OverflowPaintWidget {
+    fn new(id: u64) -> Self {
+        Self {
+            common: WidgetCommon::new(id, WidgetSizing::fixed(Vector2::new(80.0, 40.0))),
+        }
+    }
+}
+
+impl Widget for OverflowPaintWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        primitives.push(PaintPrimitive::FillRect(radiant::runtime::PaintFillRect {
+            widget_id: self.common.id,
+            rect: Rect::from_min_max(
+                Point::new(bounds.min.x - 24.0, bounds.min.y - 12.0),
+                Point::new(bounds.max.x + 24.0, bounds.max.y + 12.0),
+            ),
+            color: theme.highlight_cyan,
+        }));
+    }
+}
 
 #[test]
 fn runtime_lets_custom_widgets_reconcile_retained_state_after_refresh() {
@@ -68,10 +112,12 @@ fn custom_widget_travels_through_runtime_input_message_and_paint_paths() {
     );
     let plan = surface.paint_plan(&layout, &ThemeTokens::default());
 
-    assert!(matches!(
-        plan.primitives.first(),
-        Some(PaintPrimitive::FillRect(fill)) if fill.widget_id == 91
-    ));
+    assert!(
+        plan.primitives.iter().any(
+            |primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.widget_id == 91)
+        ),
+        "custom widget paint should still travel through the runtime paint path"
+    );
 
     let mut interactive = surface.clone();
     let output = interactive
@@ -90,4 +136,46 @@ fn custom_widget_travels_through_runtime_input_message_and_paint_paths() {
         .expect("custom output should map to a host message");
 
     assert_eq!(message, DemoMessage::Rename("Activated".to_owned()));
+}
+
+#[test]
+fn runtime_applies_widget_paint_bounds_clip_to_custom_widget_paint() {
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::custom_widget(
+        OverflowPaintWidget::new(710),
+        WidgetMessageMapper::dynamic(|_| None),
+    ));
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 40.0)),
+    );
+
+    let plan = surface.paint_plan(&layout, &ThemeTokens::default());
+    let clip_start = plan
+        .primitives
+        .iter()
+        .position(
+            |primitive| matches!(primitive, PaintPrimitive::ClipStart(clip) if clip.node_id == 710),
+        )
+        .expect("default widget paint bounds should begin a clip");
+    let fill = plan
+        .primitives
+        .iter()
+        .position(
+            |primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.widget_id == 710),
+        )
+        .expect("custom widget fill should be emitted");
+    let clip_end = plan
+        .primitives
+        .iter()
+        .position(
+            |primitive| matches!(primitive, PaintPrimitive::ClipEnd(clip) if clip.node_id == 710),
+        )
+        .expect("default widget paint bounds should end the clip");
+    let PaintPrimitive::ClipStart(clip) = &plan.primitives[clip_start] else {
+        unreachable!("clip_start index was matched above");
+    };
+
+    assert_eq!(clip.rect, layout.rects[&710]);
+    assert!(clip_start < fill);
+    assert!(fill < clip_end);
 }

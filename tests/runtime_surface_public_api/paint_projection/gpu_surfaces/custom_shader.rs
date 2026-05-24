@@ -29,9 +29,14 @@ fn custom_shader_gpu_surface_uses_normal_paint_plan_path() {
 
     let plan = surface.paint_plan(&output, &ThemeTokens::default());
 
-    let Some(PaintPrimitive::GpuSurface(gpu)) = plan.primitives.first() else {
-        panic!("expected gpu surface primitive");
-    };
+    let gpu = plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::GpuSurface(gpu) => Some(gpu),
+            _ => None,
+        })
+        .expect("expected gpu surface primitive");
     assert_eq!(gpu.widget_id, 41);
     assert_eq!(gpu.key, 9001);
     assert_eq!(gpu.revision, 7);

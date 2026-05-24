@@ -142,12 +142,23 @@ where
         let Some(widget) = self.surface_widget(widget_id) else {
             return;
         };
+        if widget.widget_object().common().paint.bounds == crate::widgets::PaintBounds::ClipToRect {
+            primitives.push(PaintPrimitive::ClipStart(crate::runtime::PaintClipStart {
+                node_id: widget_id,
+                rect: bounds,
+            }));
+        }
         widget.widget_object().append_runtime_overlay_paint(
             primitives,
             bounds,
             &self.layout,
             theme,
         );
+        if widget.widget_object().common().paint.bounds == crate::widgets::PaintBounds::ClipToRect {
+            primitives.push(PaintPrimitive::ClipEnd(crate::runtime::PaintClipEnd {
+                node_id: widget_id,
+            }));
+        }
     }
 
     fn append_drag_preview_overlay(

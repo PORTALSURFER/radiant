@@ -1,8 +1,8 @@
 use radiant::prelude::*;
 
 use super::super::{
-    PITCH_ROWS, TOTAL_BEATS,
-    geometry::{row_height, x_for_beat},
+    TOTAL_BEATS,
+    geometry::{row_height_for, x_for_beat_view},
     paint::{push_rect, push_text, rgba, translucent},
     widget::PianoRollWidget,
 };
@@ -24,8 +24,8 @@ fn append_pitch_lines(
     grid: Rect,
     theme: &ThemeTokens,
 ) {
-    for row in 0..=PITCH_ROWS {
-        let y = grid.min.y + row as f32 * row_height(grid);
+    for row in 0..=widget.viewport.row_count() {
+        let y = grid.min.y + row as f32 * row_height_for(grid, widget.viewport);
         let color = if row % 12 == 0 {
             translucent(theme.grid_strong, 170)
         } else {
@@ -46,7 +46,11 @@ fn append_beat_lines(
     grid: Rect,
     theme: &ThemeTokens,
 ) {
-    for beat in 0..=(TOTAL_BEATS as usize * 4) {
+    let first = (widget.viewport.beat_start * 4.0).floor().max(0.0) as usize;
+    let last = (widget.viewport.beat_end() * 4.0)
+        .ceil()
+        .min(TOTAL_BEATS * 4.0) as usize;
+    for beat in first..=last {
         append_beat_line(widget, primitives, grid, beat, theme);
     }
 }
@@ -58,7 +62,7 @@ fn append_beat_line(
     beat: usize,
     theme: &ThemeTokens,
 ) {
-    let x = x_for_beat(grid, beat as f32 / 4.0);
+    let x = x_for_beat_view(grid, widget.viewport, beat as f32 / 4.0);
     push_rect(
         primitives,
         widget.common.id,

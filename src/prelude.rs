@@ -72,14 +72,15 @@ pub use crate::runtime::{
     NativeSceneTextDiagnostics, NativeSceneTraversalDiagnostics, NativeTextCacheCounters,
     NativeTextCacheDiagnostics, NativeTextDiagnostics, NativeTextQualityDiagnostics,
     NativeTransientOverlayTiming, NativeWindowBehavior, NativeWindowGeometry, NativeWindowMode,
-    NativeWindowOptions, PaintFillPath, PaintFillRect, PaintFillRule, PaintImage, PaintPath,
-    PaintPathCommand, PaintPrimitive, PaintStrokeRect, PaintSvg, PaintSvgDocument, PaintTextAlign,
-    PaintTextRun, PaintTransform, PlatformCompletion, PlatformRequest, PlatformResponse,
-    PlatformServiceFallback, RepaintScope, ResourceCompletion, ResourceCompletionParts,
-    ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot,
-    RetainedSurfaceCachePolicy, RuntimeRunReport, ScrollFixedRowIntoViewParts, ScrollIntoViewParts,
-    ScrollUpdate, SurfaceFrame, SurfacePaintPlan, SvgParseError, TransientOverlayContext,
-    UiSurface, WindowManifest, WindowManifestError, WindowSpec, WindowSpecError, WindowSpecParts,
+    NativeWindowOptions, PaintClipEnd, PaintClipStart, PaintFillPath, PaintFillRect, PaintFillRule,
+    PaintImage, PaintPath, PaintPathCommand, PaintPrimitive, PaintStrokeRect, PaintSvg,
+    PaintSvgDocument, PaintTextAlign, PaintTextRun, PaintTransform, PlatformCompletion,
+    PlatformRequest, PlatformResponse, PlatformServiceFallback, RepaintScope, ResourceCompletion,
+    ResourceCompletionParts, ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest,
+    ResourceSlot, RetainedSurfaceCachePolicy, RuntimeRunReport, ScrollFixedRowIntoViewParts,
+    ScrollIntoViewParts, ScrollUpdate, SurfaceFrame, SurfacePaintPlan, SvgParseError,
+    TransientOverlayContext, UiSurface, WindowManifest, WindowManifestError, WindowSpec,
+    WindowSpecError, WindowSpecParts,
 };
 pub use crate::theme::ThemeTokens;
 pub use crate::widgets::{

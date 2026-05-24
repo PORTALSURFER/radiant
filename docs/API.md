@@ -39,8 +39,9 @@ runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `StatusLineEntry`, `ContentViewChrome`, common custom-widget authoring contracts such as
 `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`,
 `PointerButton`, `FocusBehavior`, and backend-neutral paint primitives such as
-`PaintPrimitive`, `PaintFillRect`, `PaintFillPath`, `PaintPathCommand`,
-`PaintTransform`, and `PaintTextRun`. It also includes the geometry, layout, image, color, and theme
+`PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`,
+`PaintFillPath`, `PaintPathCommand`, `PaintTransform`, and `PaintTextRun`. It
+also includes the geometry, layout, image, color, and theme
 types needed in widget method signatures, including `Rect`, `Point`, `Vector2`,
 `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, and `ThemeTokens`, plus
 app-facing asset helpers such as `SvgIcon`, plus the builder types needed by method chains. These
@@ -655,6 +656,12 @@ orchestrates layout-aware traversal and collection; backend adapters consume the
 resulting paint plan. Runtime paint plans pre-size their primitive storage from
 resolved layout shape before traversal, so large declarative surfaces avoid
 starting every frame from an allocation-free but undersized command buffer.
+Widgets default to `PaintBounds::ClipToRect`, and the runtime wraps normal
+widget paint plus runtime overlay paint in matching `PaintPrimitive::ClipStart`
+and `PaintPrimitive::ClipEnd` entries for the assigned widget rectangle. Custom
+editor-style widgets can also emit nested clip primitives for internal
+viewports, timelines, canvases, and lanes without relying on per-shape geometry
+clamping.
 
 Standard widgets emit Vello-friendly paint primitives such as fills, strokes,
 text, images, clips, and overlays. Specialized realtime visuals can instead
@@ -1174,9 +1181,12 @@ adjustments, drag-and-drop strip reordering with insertion-line previews,
 mute/solo/arm buttons, and paint-only hover overlays without
 modeling DSP or audio processing.
 Run `cargo run --example piano_roll` for a piano-roll editor sandbox with a
-keyboard lane, beat grid, synthetic notes, create/move/resize editing, keyboard
-delete, and a paint-only playhead overlay without modeling MIDI, DSP, or audio
-processing.
+keyboard lane, beat grid, synthetic notes, drag-painted note creation,
+move/resize previews, overlap cutting, horizontal and vertical zoom/pan, an
+Ableton-style piano key lane, keyboard delete, Select/Paint tool switching, a
+4096-note stress mode, marquee multi-selection, a dense editable velocity lane
+linked to selected notes, and paint-only hover, drag, and playhead overlays
+without modeling MIDI, DSP, or audio processing.
 Run `cargo run --example modulation_matrix` for a dense modulation-routing
 matrix with source and destination labels, bipolar amount editing, clear/delete
 behavior, synthetic activity markers, and paint-only hover overlays without

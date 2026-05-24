@@ -25,10 +25,9 @@ pub(crate) const STATUS_WIDGET_ID: u64 = 93;
 pub(crate) const TOTAL_BEATS: f32 = 16.0;
 pub(crate) const PITCH_ROWS: usize = 24;
 pub(crate) const LOW_PITCH: i32 = 48;
-pub(crate) const DEFAULT_NOTE_LENGTH: f32 = 1.0;
 pub(crate) const DATA_SOURCE_NOTE: &str = "without_midi_or_dsp";
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum AppMessage {
     Frame,
     ToggleRun,
@@ -36,24 +35,68 @@ pub(crate) enum AppMessage {
     Roll(PianoRollMessage),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum PianoRollMessage {
     SelectNote(u32),
+    SelectPitch(i32),
+    SelectNotes {
+        ids: Vec<u32>,
+        mode: NoteSelectionMode,
+    },
     CreateNote {
         pitch: i32,
         start_beat: f32,
+        length_beats: f32,
     },
     MoveNote {
         id: u32,
         pitch: i32,
         start_beat: f32,
     },
+    MoveNotes {
+        ids: Vec<u32>,
+        pitch_delta: i32,
+        beat_delta: f32,
+    },
     ResizeNote {
         id: u32,
         start_beat: f32,
         length_beats: f32,
     },
+    SetVelocity {
+        ids: Vec<u32>,
+        velocity: f32,
+    },
+    PanViewport {
+        beat_delta: f32,
+        pitch_delta: i32,
+    },
+    ZoomTime {
+        factor: f32,
+    },
+    ZoomPitch {
+        rows_delta: i32,
+    },
+    ZoomViewport {
+        time_factor: Option<f32>,
+        rows_delta: i32,
+    },
+    SetTool(PianoRollTool),
+    ToggleStressNotes,
     DeleteSelected,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PianoRollTool {
+    Paint,
+    Select,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NoteSelectionMode {
+    Replace,
+    Add,
+    Toggle,
 }
 
 pub(crate) fn update(state: &mut PianoRollState, message: AppMessage) {

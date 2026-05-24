@@ -1,8 +1,8 @@
 use radiant::prelude::*;
 
 use super::{
-    AppMessage, DATA_SOURCE_NOTE, PIANO_ROLL_WIDGET_ID, PianoRollState, PianoRollWidget,
-    STATUS_WIDGET_ID,
+    AppMessage, DATA_SOURCE_NOTE, PIANO_ROLL_WIDGET_ID, PianoRollMessage, PianoRollState,
+    PianoRollTool, PianoRollWidget, STATUS_WIDGET_ID,
 };
 
 pub(crate) fn project_surface(state: &mut PianoRollState) -> View<AppMessage> {
@@ -12,7 +12,11 @@ pub(crate) fn project_surface(state: &mut PianoRollState) -> View<AppMessage> {
             PianoRollWidget::new(
                 state.notes.clone(),
                 state.selected_note,
+                state.selected_notes.clone(),
+                state.selected_pitch,
                 state.playhead_beat,
+                state.viewport,
+                state.tool,
             ),
             AppMessage::Roll,
         )
@@ -30,6 +34,78 @@ pub(crate) fn project_surface(state: &mut PianoRollState) -> View<AppMessage> {
 fn header_row(state: &PianoRollState) -> View<AppMessage> {
     row([
         text("Piano Roll").height(30.0).fill_width(),
+        button("Paint")
+            .subtle()
+            .message(AppMessage::Roll(PianoRollMessage::SetTool(
+                PianoRollTool::Paint,
+            )))
+            .size(62.0, 30.0),
+        button("Select")
+            .subtle()
+            .message(AppMessage::Roll(PianoRollMessage::SetTool(
+                PianoRollTool::Select,
+            )))
+            .size(68.0, 30.0),
+        button(if state.notes.len() > 1000 {
+            "Normal"
+        } else {
+            "4k Notes"
+        })
+        .subtle()
+        .message(AppMessage::Roll(PianoRollMessage::ToggleStressNotes))
+        .size(86.0, 30.0),
+        button("H-")
+            .subtle()
+            .message(AppMessage::Roll(PianoRollMessage::ZoomTime {
+                factor: 1.25,
+            }))
+            .size(42.0, 30.0),
+        button("H+")
+            .subtle()
+            .message(AppMessage::Roll(PianoRollMessage::ZoomTime {
+                factor: 0.80,
+            }))
+            .size(42.0, 30.0),
+        button("V-")
+            .subtle()
+            .message(AppMessage::Roll(PianoRollMessage::ZoomPitch {
+                rows_delta: 2,
+            }))
+            .size(42.0, 30.0),
+        button("V+")
+            .subtle()
+            .message(AppMessage::Roll(PianoRollMessage::ZoomPitch {
+                rows_delta: -2,
+            }))
+            .size(42.0, 30.0),
+        button("<")
+            .subtle()
+            .message(AppMessage::Roll(PianoRollMessage::PanViewport {
+                beat_delta: -1.0,
+                pitch_delta: 0,
+            }))
+            .size(34.0, 30.0),
+        button(">")
+            .subtle()
+            .message(AppMessage::Roll(PianoRollMessage::PanViewport {
+                beat_delta: 1.0,
+                pitch_delta: 0,
+            }))
+            .size(34.0, 30.0),
+        button("^")
+            .subtle()
+            .message(AppMessage::Roll(PianoRollMessage::PanViewport {
+                beat_delta: 0.0,
+                pitch_delta: 1,
+            }))
+            .size(34.0, 30.0),
+        button("v")
+            .subtle()
+            .message(AppMessage::Roll(PianoRollMessage::PanViewport {
+                beat_delta: 0.0,
+                pitch_delta: -1,
+            }))
+            .size(34.0, 30.0),
         button(if state.running { "Pause" } else { "Run" })
             .primary()
             .message(AppMessage::ToggleRun)
@@ -46,8 +122,17 @@ fn header_row(state: &PianoRollState) -> View<AppMessage> {
 fn status_row(state: &PianoRollState) -> View<AppMessage> {
     row([
         stat_tile("Notes", state.notes.len().to_string()),
+        stat_tile("Selected", state.selected_notes.len().to_string()),
         stat_tile("Grid", "1/4 beat"),
-        stat_tile("Range", "C3 - B4"),
+        stat_tile(
+            "Range",
+            format!(
+                "{:.1}-{:.1} / {} rows",
+                state.viewport.beat_start,
+                state.viewport.beat_end(),
+                state.viewport.visible_pitches
+            ),
+        ),
         stat_tile("Source", DATA_SOURCE_NOTE),
         text(state.status())
             .id(STATUS_WIDGET_ID)

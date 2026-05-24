@@ -4,10 +4,14 @@ use super::SurfacePaintContext;
 use crate::{
     layout::{ContainerKind, LayoutOutput, NodeId},
     runtime::{
-        SurfaceContainer, SurfaceNode, SurfaceOverlay,
-        paint::{SurfacePaintPlan, push_container_chrome, push_overlay_panel},
+        PaintPrimitive, SurfaceContainer, SurfaceNode, SurfaceOverlay,
+        paint::{
+            PaintClipEnd, PaintClipStart, SurfacePaintPlan, push_container_chrome,
+            push_overlay_panel,
+        },
     },
     theme::ThemeTokens,
+    widgets::PaintBounds,
 };
 
 impl<Message> SurfaceContainer<Message> {
@@ -110,12 +114,24 @@ impl<Message> SurfaceNode<Message> {
                 if !context.should_paint_node(widget.id()) {
                     return;
                 }
+                if widget.widget_object().common().paint.bounds == PaintBounds::ClipToRect {
+                    plan.primitives
+                        .push(PaintPrimitive::ClipStart(PaintClipStart {
+                            node_id: widget.id(),
+                            rect: bounds,
+                        }));
+                }
                 widget.widget_object().append_paint(
                     &mut plan.primitives,
                     bounds,
                     context.layout,
                     context.theme,
                 );
+                if widget.widget_object().common().paint.bounds == PaintBounds::ClipToRect {
+                    plan.primitives.push(PaintPrimitive::ClipEnd(PaintClipEnd {
+                        node_id: widget.id(),
+                    }));
+                }
             }
             Self::Overlay(overlay) => overlay.append_paint(context, plan),
         }

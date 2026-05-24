@@ -20,7 +20,8 @@ fn runtime_diagnostics_models_stay_in_focused_modules() {
             && root.contains("mod scene;")
             && root.contains("mod cache_policy;")
             && root.contains("pub use frame::NativeFrameDiagnostics")
-            && root.contains("pub use text::{NativeTextDiagnostics, NativeTextQualityStatus}")
+            && root.contains("NativeTextDiagnostics")
+            && root.contains("NativeTextQualityStatus")
             && root.contains("NativeGpuSurfaceCustomShaderDiagnostics")
             && !root.contains("pub struct NativeTextDiagnostics")
             && !root.contains("pub struct NativeGpuSurfaceDiagnostics"),
@@ -29,6 +30,9 @@ fn runtime_diagnostics_models_stay_in_focused_modules() {
     assert!(
         frame.contains("pub struct NativeFrameDiagnostics")
             && text.contains("pub struct NativeTextDiagnostics")
+            && text.contains("pub struct NativeTextCacheDiagnostics")
+            && text.contains("pub struct NativeTextCacheCounters")
+            && text.contains("pub struct NativeTextQualityDiagnostics")
             && text.contains("pub enum NativeTextQualityStatus")
             && timing.contains("pub struct NativeFrameTimingDiagnostics")
             && timing.contains("pub struct NativeFrameWorkTimings")

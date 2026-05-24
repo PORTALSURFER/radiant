@@ -18,7 +18,10 @@ pub use gpu_surface::{
 };
 pub use retained_surface::NativeRetainedSurfaceDiagnostics;
 pub use scene::NativeSceneDiagnostics;
-pub use text::{NativeTextDiagnostics, NativeTextQualityStatus};
+pub use text::{
+    NativeTextCacheCounters, NativeTextCacheDiagnostics, NativeTextDiagnostics,
+    NativeTextQualityDiagnostics, NativeTextQualityStatus,
+};
 pub use timing::{
     NativeCompositedBaseTiming, NativeFrameTimingDiagnostics, NativeFrameWorkTimings,
     NativeGpuTimingStatus, NativeTransientOverlayTiming,

@@ -28,16 +28,24 @@ pub(super) fn native_frame_diagnostics(
             text_run_count: parts.stats.text_run_count,
         },
         text: crate::runtime::NativeTextDiagnostics {
-            layout_cache_hits: parts.text_stats.layout_hits,
-            layout_cache_misses: parts.text_stats.layout_misses,
-            layout_cache_evictions: parts.text_stats.layout_evictions,
-            atom_cache_hits: parts.text_stats.atom_hits,
-            atom_cache_misses: parts.text_stats.atom_misses,
-            atom_cache_evictions: parts.text_stats.atom_evictions,
-            unsupported_shaping_runs: parts.text_stats.unsupported_shaping_runs,
-            unsupported_shaping_scalars: parts.text_stats.unsupported_shaping_scalars,
-            fallback_glyphs: parts.text_stats.fallback_glyphs,
-            missing_glyphs: parts.text_stats.missing_glyphs,
+            cache: crate::runtime::NativeTextCacheDiagnostics {
+                layout: crate::runtime::NativeTextCacheCounters {
+                    hits: parts.text_stats.layout_hits,
+                    misses: parts.text_stats.layout_misses,
+                    evictions: parts.text_stats.layout_evictions,
+                },
+                atom: crate::runtime::NativeTextCacheCounters {
+                    hits: parts.text_stats.atom_hits,
+                    misses: parts.text_stats.atom_misses,
+                    evictions: parts.text_stats.atom_evictions,
+                },
+            },
+            quality: crate::runtime::NativeTextQualityDiagnostics {
+                unsupported_shaping_runs: parts.text_stats.unsupported_shaping_runs,
+                unsupported_shaping_scalars: parts.text_stats.unsupported_shaping_scalars,
+                fallback_glyphs: parts.text_stats.fallback_glyphs,
+                missing_glyphs: parts.text_stats.missing_glyphs,
+            },
         },
         retained_surfaces: crate::runtime::NativeRetainedSurfaceDiagnostics {
             cache_capacity: parts.retained_policy.max_frames,

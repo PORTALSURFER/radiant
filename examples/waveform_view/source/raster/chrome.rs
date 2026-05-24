@@ -1,4 +1,4 @@
-use super::{WaveformRaster, lerp};
+use super::{PixelPaint, WaveformRaster, lerp};
 
 pub(super) fn draw_raster_chrome(raster: &mut WaveformRaster) {
     fill_background(raster);
@@ -29,16 +29,31 @@ fn draw_grid(raster: &mut WaveformRaster) {
             minor
         };
         for y in 0..raster.height() {
-            raster.blend_pixel(x, y, color, 0.55);
+            raster.blend_pixel(PixelPaint {
+                x,
+                y,
+                color,
+                alpha: 0.55,
+            });
         }
     }
     for y in (0..raster.height()).step_by((raster.height() / 4).max(1)) {
         for x in 0..raster.width() {
-            raster.blend_pixel(x, y, minor, 0.5);
+            raster.blend_pixel(PixelPaint {
+                x,
+                y,
+                color: minor,
+                alpha: 0.5,
+            });
         }
     }
     let mid = raster.height() / 2;
     for x in 0..raster.width() {
-        raster.blend_pixel(x, mid, [82, 82, 78, 255], 0.55);
+        raster.blend_pixel(PixelPaint {
+            x,
+            y: mid,
+            color: [82, 82, 78, 255],
+            alpha: 0.55,
+        });
     }
 }

@@ -56,14 +56,14 @@ fn editable_tree_row_preserves_existing_and_draft_state() {
 
     assert_eq!(existing.label, "Root");
     assert_eq!(existing.detail, "3 items");
-    assert!(existing.selected);
-    assert!(existing.is_root);
-    assert!(existing.has_children);
-    assert!(existing.expanded);
+    assert!(existing.flags.selected);
+    assert!(existing.flags.is_root);
+    assert!(existing.flags.has_children);
+    assert!(existing.flags.expanded);
     assert_eq!(existing.kind, EditableRowKind::Existing);
     assert_eq!(existing.backing_index, Some(7));
     assert_eq!(draft.kind, EditableRowKind::RenameDraft);
-    assert_eq!(draft.input_value.as_deref(), Some("Draft"));
-    assert!(draft.input_focused);
-    assert!(draft.select_all_on_focus);
+    assert_eq!(draft.input.value.as_deref(), Some("Draft"));
+    assert!(draft.input.focused);
+    assert!(draft.input.select_all_on_focus);
 }

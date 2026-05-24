@@ -172,3 +172,71 @@ fn eq_editor_example_stays_split_by_model_widget_paint_and_tests() {
         );
     }
 }
+
+#[test]
+fn mixer_console_example_stays_split_by_panel_paint_input_and_tests() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let module = fs::read_to_string(manifest_dir.join("examples/mixer_console/mod.rs"))
+        .expect("mixer console module root should be readable");
+    let panel = fs::read_to_string(manifest_dir.join("examples/mixer_console/panel.rs"))
+        .expect("mixer console panel module should be readable");
+    let paint = fs::read_to_string(manifest_dir.join("examples/mixer_console/panel_paint.rs"))
+        .expect("mixer console paint module should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("examples/mixer_console/tests.rs"))
+        .expect("mixer console tests module should be readable");
+
+    for required in ["mod model;", "mod panel;", "mod panel_paint;", "mod tests;"] {
+        assert!(
+            module.contains(required),
+            "mixer console module root should delegate `{required}`"
+        );
+    }
+    assert!(
+        panel.contains("#[path = \"panel/geometry.rs\"]")
+            && panel.contains("#[path = \"panel/input.rs\"]")
+            && panel.contains("#[path = \"panel/interaction.rs\"]"),
+        "mixer console panel should split geometry, input, and interaction helpers"
+    );
+    assert!(
+        paint.contains("#[path = \"panel_paint/fader.rs\"]")
+            && paint.contains("#[path = \"panel_paint/meter.rs\"]")
+            && paint.contains("#[path = \"panel_paint/overlay.rs\"]")
+            && paint.contains("#[path = \"panel_paint/strip.rs\"]"),
+        "mixer console paint should split fader, meter, overlay, and strip concerns"
+    );
+    assert!(
+        tests.contains("#[path = \"tests/model_behavior.rs\"]")
+            && tests.contains("#[path = \"tests/panel_interaction.rs\"]")
+            && tests.contains("#[path = \"tests/panel_paint.rs\"]")
+            && tests.contains("#[path = \"tests/runtime.rs\"]"),
+        "mixer console tests should stay grouped by behavior, panel paint, panel input, and runtime concerns"
+    );
+
+    for path in [
+        "examples/mixer_console.rs",
+        "examples/mixer_console/model.rs",
+        "examples/mixer_console/panel.rs",
+        "examples/mixer_console/panel/geometry.rs",
+        "examples/mixer_console/panel/input.rs",
+        "examples/mixer_console/panel/interaction.rs",
+        "examples/mixer_console/panel_paint.rs",
+        "examples/mixer_console/panel_paint/fader.rs",
+        "examples/mixer_console/panel_paint/meter.rs",
+        "examples/mixer_console/panel_paint/overlay.rs",
+        "examples/mixer_console/panel_paint/strip.rs",
+        "examples/mixer_console/paint.rs",
+        "examples/mixer_console/tests.rs",
+        "examples/mixer_console/tests/model_behavior.rs",
+        "examples/mixer_console/tests/panel_interaction.rs",
+        "examples/mixer_console/tests/panel_paint.rs",
+        "examples/mixer_console/tests/runtime.rs",
+        "examples/mixer_console/view.rs",
+    ] {
+        let source = fs::read_to_string(manifest_dir.join(path))
+            .unwrap_or_else(|err| panic!("{path} should be readable: {err}"));
+        assert!(
+            source.lines().count() <= 250,
+            "{path} should stay within the example module target"
+        );
+    }
+}

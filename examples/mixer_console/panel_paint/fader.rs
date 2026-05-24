@@ -1,18 +1,36 @@
-use super::super::model::{MixerChannel, ratio_for_gain};
-use super::super::paint::{fader_knob_color, push_rect, push_stroke, translucent};
+use super::super::model::ratio_for_gain;
+use super::super::paint::{push_rect, push_stroke, rgba, translucent};
 use super::super::panel::MixerPanelWidget;
 use radiant::prelude::*;
 
 pub(super) fn append_fader(
     widget: &MixerPanelWidget,
     primitives: &mut Vec<PaintPrimitive>,
-    channel: MixerChannel,
+    channel_index: usize,
     strip: Rect,
     solo_dimmed: bool,
     theme: &ThemeTokens,
 ) {
     let fader = widget.fader_rect(strip);
-    let center_x = fader.center().x;
+    append_fader_track(
+        widget,
+        primitives,
+        fader,
+        fader.center().x,
+        solo_dimmed,
+        theme,
+    );
+    append_fader_knob(widget, primitives, channel_index, fader, solo_dimmed, theme);
+}
+
+pub(super) fn append_fader_track(
+    widget: &MixerPanelWidget,
+    primitives: &mut Vec<PaintPrimitive>,
+    fader: Rect,
+    center_x: f32,
+    solo_dimmed: bool,
+    theme: &ThemeTokens,
+) {
     push_rect(
         primitives,
         widget.common.id,
@@ -23,7 +41,6 @@ pub(super) fn append_fader(
         fader_track_color(solo_dimmed, theme),
     );
     append_fader_marks(widget, primitives, fader, center_x, theme);
-    append_fader_knob(widget, primitives, channel, fader, solo_dimmed, theme);
 }
 
 fn append_fader_marks(
@@ -50,12 +67,12 @@ fn append_fader_marks(
 fn append_fader_knob(
     widget: &MixerPanelWidget,
     primitives: &mut Vec<PaintPrimitive>,
-    channel: MixerChannel,
+    channel_index: usize,
     fader: Rect,
     solo_dimmed: bool,
     theme: &ThemeTokens,
 ) {
-    let knob_y = fader.max.y - fader.height() * channel.gain_ratio();
+    let knob_y = fader.max.y - fader.height() * widget.fader_display_ratio(channel_index);
     let knob = Rect::from_min_size(
         Point::new(fader.min.x, knob_y - 8.0),
         Vector2::new(fader.width(), 16.0),
@@ -80,5 +97,13 @@ fn fader_track_color(solo_dimmed: bool, theme: &ThemeTokens) -> Rgba8 {
         translucent(theme.grid_soft, 130)
     } else {
         theme.grid_strong
+    }
+}
+
+fn fader_knob_color(solo_dimmed: bool, theme: &ThemeTokens) -> Rgba8 {
+    if solo_dimmed {
+        rgba(86, 92, 100, 220)
+    } else {
+        theme.highlight_blue
     }
 }

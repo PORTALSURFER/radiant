@@ -49,16 +49,19 @@ fn api_docs_describe_text_cache_frame_diagnostics() {
         native_diagnostics.contains("text: crate::runtime::NativeTextDiagnostics")
             && native_diagnostics.contains("cache: crate::runtime::NativeTextCacheDiagnostics")
             && native_diagnostics.contains("layout: crate::runtime::NativeTextCacheCounters")
-            && native_diagnostics.contains("hits: parts.text_stats.layout_hits")
-            && native_diagnostics.contains("evictions: parts.text_stats.atom_evictions")
+            && native_diagnostics.contains("hits: parts.text_stats.layout.hits")
+            && native_diagnostics.contains("evictions: parts.text_stats.atom.evictions")
             && native_diagnostics.contains("quality: crate::runtime::NativeTextQualityDiagnostics")
-            && native_diagnostics
-                .contains("unsupported_shaping_runs: parts.text_stats.unsupported_shaping_runs")
             && native_diagnostics.contains(
-                "unsupported_shaping_scalars: parts.text_stats.unsupported_shaping_scalars"
+                "unsupported_shaping_runs: parts.text_stats.quality.unsupported_shaping_runs"
             )
-            && native_diagnostics.contains("fallback_glyphs: parts.text_stats.fallback_glyphs")
-            && native_diagnostics.contains("missing_glyphs: parts.text_stats.missing_glyphs")
+            && native_diagnostics.contains(
+                "unsupported_shaping_scalars: parts.text_stats.quality.unsupported_shaping_scalars"
+            )
+            && native_diagnostics
+                .contains("fallback_glyphs: parts.text_stats.quality.fallback_glyphs")
+            && native_diagnostics
+                .contains("missing_glyphs: parts.text_stats.quality.missing_glyphs")
             && native_diagnostics.contains("pub(super) struct NativeFrameDiagnosticsParts"),
         "native frame diagnostics should project text renderer cache counters"
     );

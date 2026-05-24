@@ -1,6 +1,6 @@
 use radiant::gui::{
     panel::{
-        SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment,
+        SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignmentState,
         SplitPaneSidebarChrome, SplitPaneSidebarContent, SplitPaneSidebarPanes,
         SplitPaneSidebarSelection, SplitPaneSidebarState, SplitPaneSlot, SplitPaneTreePanel,
         SplitPaneTreePanelAssignment, SplitPaneTreePanelIdentity,
@@ -16,25 +16,19 @@ pub(crate) struct WorkspaceState {
 impl Default for WorkspaceState {
     fn default() -> Self {
         let rows = vec![
-            assigned_row(
-                "Scene",
-                "ready",
-                true,
-                SplitPaneAssignment {
-                    upper: true,
-                    lower: false,
-                },
-            ),
+            assigned_row("Scene", "ready", true, SplitPaneAssignmentState::Upper),
             assigned_row(
                 "Inspector",
                 "editing",
                 false,
-                SplitPaneAssignment {
-                    upper: false,
-                    lower: true,
-                },
+                SplitPaneAssignmentState::Lower,
             ),
-            assigned_row("Console", "idle", false, SplitPaneAssignment::default()),
+            assigned_row(
+                "Console",
+                "idle",
+                false,
+                SplitPaneAssignmentState::default(),
+            ),
         ];
         Self {
             sidebar: SplitPaneSidebarState {
@@ -76,10 +70,7 @@ impl WorkspaceState {
         let Some(row) = self.sidebar.content.rows.get_mut(index) else {
             return;
         };
-        match pane {
-            SplitPaneSlot::Upper => row.assigned_to_upper_pane = true,
-            SplitPaneSlot::Lower => row.assigned_to_lower_pane = true,
-        }
+        row.assign_to_pane(pane);
         let label = row.label.clone();
         let detail = row.detail.clone();
         let active = self.sidebar.panes.active_pane == pane;
@@ -103,7 +94,7 @@ fn assigned_row(
     label: &str,
     detail: &str,
     selected: bool,
-    assignment: SplitPaneAssignment,
+    assignment: SplitPaneAssignmentState,
 ) -> SplitPaneAssignedRow {
     SplitPaneAssignedRow::from_parts(SplitPaneAssignedRowParts {
         label: String::from(label),
@@ -144,16 +135,15 @@ fn pane_label(pane: SplitPaneSlot) -> &'static str {
 }
 
 pub(crate) fn assignment_label(row: &SplitPaneAssignedRow) -> String {
-    match (
-        row.assigned_to_upper_pane,
-        row.assigned_to_lower_pane,
-        row.missing,
-    ) {
-        (_, _, true) => String::from("missing"),
-        (true, true, false) => String::from("both"),
-        (true, false, false) => String::from("upper"),
-        (false, true, false) => String::from("lower"),
-        (false, false, false) => String::from("free"),
+    if row.missing {
+        return String::from("missing");
+    }
+
+    match row.assignment_state() {
+        SplitPaneAssignmentState::Both => String::from("both"),
+        SplitPaneAssignmentState::Upper => String::from("upper"),
+        SplitPaneAssignmentState::Lower => String::from("lower"),
+        SplitPaneAssignmentState::Free => String::from("free"),
     }
 }
 

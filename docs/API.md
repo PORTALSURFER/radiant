@@ -553,6 +553,10 @@ Large item-indexed lists can use `VirtualListWindowRequest` and
 `VirtualListWindow` from `radiant::gui::list` before projecting widgets. This
 keeps host-side list projection bounded while `layout::VirtualizationPolicy`
 continues to handle pixel-based scroll-container virtualization.
+Editable list/tree projections use named construction parts such as
+`EditableTreeRowParts` and `EditableTreeDraftInputParts` so selection,
+hierarchy, draft text, validation, and focus policy remain explicit at call
+sites instead of being encoded as positional boolean lists.
 Application-builder code that owns a resolved logical window can use
 `virtual_list_window(...)` for fixed-height rows; it preserves full scroll
 extent with spacer rows while only projecting the materialized item range.
@@ -1240,10 +1244,11 @@ other app-owned systems. Host applications map product-specific copy into these
 slots; Radiant defaults stay product-neutral.
 
 `radiant::gui::panel` contains generic split-pane and sidebar models such as
-`SplitPaneSlot`, `SplitPaneAssignedRow`, `SplitPaneTreePanel`, and
-`SplitPaneSidebarState`, plus `anchored_panel_rect` for clamped popup/panel
-placement. Host applications map product-specific navigation, workspace,
-project, or asset concepts onto these reusable panel structures.
+`SplitPaneSlot`, `SplitPaneAssignmentState`, `SplitPaneAssignedRow`,
+`SplitPaneTreePanel`, and `SplitPaneSidebarState`, plus `anchored_panel_rect`
+for clamped popup/panel placement. Host applications map product-specific
+navigation, workspace, project, or asset concepts onto these reusable panel
+structures.
 
 `radiant::gui::badge` contains compact label and pill primitives such as
 `SelectablePill`, `PillEditorPanel`, `InlineBadgeMetrics`,

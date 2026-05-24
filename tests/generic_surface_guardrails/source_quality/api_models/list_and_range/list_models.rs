@@ -9,8 +9,16 @@ fn editable_tree_rows_use_named_parts_instead_of_boolean_constructor_lists() {
 
     assert!(
         source.contains("pub struct EditableTreeRowParts")
-            && source.contains("pub fn from_parts(parts: EditableTreeRowParts) -> Self"),
-        "editable tree rows should expose a named parts object for readable public construction"
+            && source.contains("pub struct EditableTreeDraftInputParts")
+            && source.contains("pub enum EditableTreeInputFocus")
+            && source.contains("pub fn from_parts(parts: EditableTreeRowParts) -> Self")
+            && source.contains(
+                "pub fn create_draft_from_parts(depth: usize, input: EditableTreeDraftInputParts) -> Self"
+            )
+            && source.contains(
+                "pub fn rename_draft_from_parts(depth: usize, input: EditableTreeDraftInputParts) -> Self"
+            ),
+        "editable tree rows should expose named parts objects for readable public construction"
     );
     assert!(
         !source.contains("too_many_arguments"),

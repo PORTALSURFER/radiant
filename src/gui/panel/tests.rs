@@ -188,18 +188,43 @@ fn split_pane_assigned_row_preserves_labels_and_assignments() {
         detail: String::from("ready"),
         selected: true,
         missing: false,
-        assignment: SplitPaneAssignment {
-            upper: true,
-            lower: false,
-        },
+        assignment: SplitPaneAssignmentState::Upper,
     });
 
     assert_eq!(row.label, "Inbox");
     assert_eq!(row.detail, "ready");
     assert!(row.selected);
     assert!(!row.missing);
+    assert_eq!(row.assignment_state(), SplitPaneAssignmentState::Upper);
     assert!(row.assigned_to_upper_pane);
     assert!(!row.assigned_to_lower_pane);
+}
+
+#[test]
+fn split_pane_assignment_state_round_trips_compatibility_flags() {
+    for (state, upper, lower) in [
+        (SplitPaneAssignmentState::Free, false, false),
+        (SplitPaneAssignmentState::Upper, true, false),
+        (SplitPaneAssignmentState::Lower, false, true),
+        (SplitPaneAssignmentState::Both, true, true),
+    ] {
+        let assignment = SplitPaneAssignment::from_state(state);
+
+        assert_eq!(assignment.upper, upper);
+        assert_eq!(assignment.lower, lower);
+        assert_eq!(assignment.state(), state);
+        assert_eq!(SplitPaneAssignmentState::from_flags(upper, lower), state);
+    }
+}
+
+#[test]
+fn split_pane_assigned_row_assigns_panes_without_exposing_flag_mutation() {
+    let mut row = SplitPaneAssignedRow::new("Console", "idle", false, false)
+        .with_assignment_state(SplitPaneAssignmentState::Upper);
+
+    row.assign_to_pane(SplitPaneSlot::Lower);
+
+    assert_eq!(row.assignment_state(), SplitPaneAssignmentState::Both);
 }
 
 #[test]

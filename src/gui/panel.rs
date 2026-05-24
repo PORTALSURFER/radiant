@@ -10,11 +10,11 @@ pub use floating::{
     floating_panel_rect_from_parts,
 };
 pub use split_pane::{
-    SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment, SplitPaneSidebarChrome,
-    SplitPaneSidebarContent, SplitPaneSidebarPanes, SplitPaneSidebarSelection,
-    SplitPaneSidebarState, SplitPaneSidebarTreeControls, SplitPaneSlot, SplitPaneTreePanel,
-    SplitPaneTreePanelActivity, SplitPaneTreePanelAssignment, SplitPaneTreePanelContent,
-    SplitPaneTreePanelControls, SplitPaneTreePanelIdentity,
+    SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment, SplitPaneAssignmentState,
+    SplitPaneSidebarChrome, SplitPaneSidebarContent, SplitPaneSidebarPanes,
+    SplitPaneSidebarSelection, SplitPaneSidebarState, SplitPaneSidebarTreeControls, SplitPaneSlot,
+    SplitPaneTreePanel, SplitPaneTreePanelActivity, SplitPaneTreePanelAssignment,
+    SplitPaneTreePanelContent, SplitPaneTreePanelControls, SplitPaneTreePanelIdentity,
 };
 
 #[cfg(test)]

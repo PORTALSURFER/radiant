@@ -9,14 +9,21 @@ fn split_pane_assigned_rows_use_named_parts_for_assignment_flags() {
 
     assert!(
         source.contains("pub struct SplitPaneAssignment")
+            && source.contains("pub enum SplitPaneAssignmentState")
             && source.contains("pub struct SplitPaneAssignedRowParts")
+            && source.contains("pub assignment: SplitPaneAssignmentState")
             && source.contains("pub fn from_parts(parts: SplitPaneAssignedRowParts) -> Self"),
         "split-pane assigned rows should expose named parts for readable public construction"
     );
     assert!(
         source.contains("Self::from_parts(SplitPaneAssignedRowParts {")
-            && source.contains("self.with_assignment(SplitPaneAssignment { upper, lower })"),
-        "split-pane compatibility constructors should delegate through named assignment objects"
+            && source.contains("pub const fn from_state(state: SplitPaneAssignmentState) -> Self")
+            && source.contains("pub const fn from_flags(upper: bool, lower: bool) -> Self")
+            && source.contains("pub const fn assignment_state(&self) -> SplitPaneAssignmentState")
+            && source.contains(
+                "pub fn with_assignment_state(self, state: SplitPaneAssignmentState) -> Self"
+            ),
+        "split-pane compatibility constructors should delegate through named assignment state"
     );
 }
 

@@ -2,6 +2,8 @@ use super::*;
 
 #[path = "catalog/contracts.rs"]
 mod contracts;
+#[path = "catalog/splits.rs"]
+mod splits;
 
 use super::support::{example_source, registered_example_names};
 use contracts::{

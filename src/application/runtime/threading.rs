@@ -5,6 +5,8 @@ use std::sync::{
 };
 use std::thread;
 
+mod platform;
+
 #[cfg(test)]
 const RUNTIME_CANCEL_POLL: std::time::Duration = std::time::Duration::from_millis(50);
 const BUSINESS_THREAD_PREFIX: &str = "radiant-business";
@@ -88,7 +90,7 @@ impl BusinessThreadPool {
 }
 
 fn worker_loop(receiver: Arc<Mutex<mpsc::Receiver<BusinessJob>>>) {
-    configure_business_worker_thread();
+    platform::configure_business_worker_thread();
     loop {
         let Ok(job) = lock_business_receiver(&receiver).recv() else {
             break;
@@ -96,21 +98,6 @@ fn worker_loop(receiver: Arc<Mutex<mpsc::Receiver<BusinessJob>>>) {
         job();
     }
 }
-
-#[cfg(target_os = "windows")]
-fn configure_business_worker_thread() {
-    use windows_sys::Win32::System::Threading::{
-        GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_BELOW_NORMAL,
-    };
-
-    let ok = unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL) };
-    if ok == 0 {
-        tracing::debug!("Radiant app runtime could not lower business worker thread priority");
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-fn configure_business_worker_thread() {}
 
 fn lock_business_receiver(
     receiver: &Mutex<mpsc::Receiver<BusinessJob>>,

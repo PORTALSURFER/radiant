@@ -114,6 +114,10 @@ targets even while native runtime behavior is validated Windows-first.
 
 Current target-specific seams are intentionally narrow:
 
+- `src/application/runtime/threading/platform.rs` owns native thread-priority
+  hints for background business workers. The application runtime keeps a
+  platform-neutral worker-pool contract, while unsupported targets use the same
+  worker loop without priority changes.
 - `src/gui_runtime/native_vello/generic_runtime/window/platform.rs` owns native
   window attribute extensions such as Windows drag/drop and popup taskbar
   policy. Non-Windows targets keep the same runtime options and no-op the

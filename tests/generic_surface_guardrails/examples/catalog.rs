@@ -91,3 +91,37 @@ fn focused_examples_are_registered_and_keep_expected_public_contracts() {
         }
     }
 }
+
+#[test]
+fn spectrogram_example_stays_split_by_model_widget_paint_and_tests() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = example_source(&manifest_dir, "spectrogram", "examples/spectrogram.rs");
+
+    for required in [
+        "#[path = \"spectrogram/model.rs\"]",
+        "#[path = \"spectrogram/widget.rs\"]",
+        "#[path = \"spectrogram/tests.rs\"]",
+    ] {
+        assert!(
+            root.contains(required),
+            "spectrogram root should delegate `{required}`"
+        );
+    }
+
+    for path in [
+        "examples/spectrogram.rs",
+        "examples/spectrogram/model.rs",
+        "examples/spectrogram/tests.rs",
+        "examples/spectrogram/widget.rs",
+        "examples/spectrogram/widget/paint.rs",
+        "examples/spectrogram/widget/paint/color.rs",
+        "examples/spectrogram/widget/paint/primitives.rs",
+    ] {
+        let source = fs::read_to_string(manifest_dir.join(path))
+            .unwrap_or_else(|err| panic!("{path} should be readable: {err}"));
+        assert!(
+            source.lines().count() <= 250,
+            "{path} should stay within the example module target"
+        );
+    }
+}

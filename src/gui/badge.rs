@@ -10,7 +10,9 @@ pub use inline::{
     inline_badge_rects_for_labels_into, inline_badge_rects_into, inline_badge_text_origin,
     inline_badge_text_width, inline_badge_width,
 };
-pub use model::{PillEditorPanel, SelectablePill};
+pub use model::{
+    PillEditorChoices, PillEditorInput, PillEditorPanel, PillEditorStatus, SelectablePill,
+};
 
 #[cfg(test)]
 #[path = "badge/tests.rs"]

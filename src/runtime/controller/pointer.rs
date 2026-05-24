@@ -1,5 +1,7 @@
 use super::*;
 
+mod move_routing;
+
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
@@ -58,103 +60,6 @@ where
         }
         self.dispatch_input_output(widget_id, input)
             .map(|emitted_output| (widget_id, emitted_output))
-    }
-
-    pub(super) fn dispatch_pointer_move_target(&mut self, position: Point) -> PointerMoveDispatch {
-        let mut emitted_output = false;
-        if let Some(session) = self.drag_session.as_mut()
-            && (session.pointer != position || !session.visible)
-        {
-            session.pointer = position;
-            session.visible = true;
-            self.repaint_requested = true;
-        }
-        if self.drag_scrollbar_to(position) {
-            return PointerMoveDispatch::default();
-        }
-        let hovered_scroll_affordance = self.scroll_affordance_at(position);
-        if self.hovered_scroll_affordance != hovered_scroll_affordance {
-            self.hovered_scroll_affordance = hovered_scroll_affordance;
-            self.repaint_requested = true;
-        }
-        let pointer_widget = if self.pointer_capture.is_some() {
-            self.widget_at(position)
-        } else {
-            self.pointer_widget_at_for_move(position)
-        };
-        let hover_container = if self.widget_suppresses_container_hover(pointer_widget) {
-            None
-        } else {
-            self.styled_container_at(position)
-        };
-        if self.hovered_container != hover_container {
-            self.hovered_container = hover_container;
-            self.repaint_requested = true;
-        }
-        let hover_widget = self
-            .pointer_capture
-            .filter(|widget_id| {
-                self.layout
-                    .rects
-                    .get(widget_id)
-                    .is_some_and(|rect| rect.contains(position))
-            })
-            .or_else(|| {
-                self.pointer_capture
-                    .is_none()
-                    .then_some(pointer_widget)
-                    .flatten()
-            });
-        let hover_changed = self.hovered_widget != hover_widget;
-        if hover_changed {
-            if let Some(previous) = self.hovered_widget
-                && let Some(emitted) =
-                    self.dispatch_input_output(previous, WidgetInput::PointerMove { position })
-            {
-                emitted_output |= emitted;
-            }
-            self.hovered_widget = hover_widget;
-        }
-
-        if let (Some(captured), Some(pointer_widget)) = (self.pointer_capture, pointer_widget)
-            && pointer_widget != captured
-            && self.widget_accepts_stable_pointer_move(pointer_widget)
-            && let Some(emitted) =
-                self.dispatch_input_output(pointer_widget, WidgetInput::PointerMove { position })
-        {
-            self.repaint_requested = true;
-            emitted_output |= emitted;
-        }
-
-        let Some(target) = self.pointer_capture.or(pointer_widget) else {
-            return PointerMoveDispatch {
-                target: None,
-                emitted_output,
-            };
-        };
-        let accepts_stable_pointer_move = self.widget_accepts_stable_pointer_move(target);
-        if !hover_changed && self.pointer_capture.is_none() && !accepts_stable_pointer_move {
-            return PointerMoveDispatch {
-                target: Some(target),
-                emitted_output,
-            };
-        }
-        let routed = self.dispatch_input_output(target, WidgetInput::PointerMove { position });
-        if let Some(emitted) = routed {
-            // Stable pointer-move widgets may update local paint-only hover
-            // state without emitting host messages. Captured drags can also
-            // update local preview state even when the widget opts out of
-            // stable hover motion. Request repaint here so cursor, handle, and
-            // drag previews stay responsive without reducer churn.
-            if accepts_stable_pointer_move || self.pointer_capture.is_some() {
-                self.repaint_requested = true;
-            }
-            emitted_output |= emitted;
-        }
-        PointerMoveDispatch {
-            target: routed.map(|_| target),
-            emitted_output,
-        }
     }
 
     /// Return whether a runtime-owned drag preview session is active.

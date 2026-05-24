@@ -8,7 +8,7 @@ use crate::gui::{
     paint::TextAlign,
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
-use crate::runtime::{PaintPrimitive, PaintTextInput, RuntimeBridge};
+use crate::runtime::{PaintTextInput, RuntimeBridge};
 use crate::widgets::{TextEditCommand, WidgetKey};
 use std::{
     collections::HashMap,
@@ -17,7 +17,7 @@ use std::{
 };
 use tracing::{error, info, warn};
 use vello::util::{RenderContext, RenderSurface};
-use vello::{AaConfig, RenderParams, Renderer, Scene, kurbo::Affine, peniko::Fill, wgpu};
+use vello::{AaConfig, RenderParams, Renderer, Scene, wgpu};
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalPosition, LogicalSize, Position, Size},

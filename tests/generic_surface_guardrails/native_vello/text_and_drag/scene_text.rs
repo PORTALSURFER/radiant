@@ -205,6 +205,7 @@ fn native_vello_scene_geometry_uses_explicit_kurbo_dependency() {
 fn native_vello_scene_encoders_use_explicit_imports() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let encoder_paths = [
+        "src/gui_runtime/native_vello/generic_runtime/scene.rs",
         "src/gui_runtime/native_vello/generic_runtime/scene/frame.rs",
         "src/gui_runtime/native_vello/generic_runtime/scene/image.rs",
         "src/gui_runtime/native_vello/generic_runtime/scene/cache.rs",

@@ -23,6 +23,9 @@ fn api_docs_describe_native_gpu_timing_status() {
         runtime_diagnostics.contains("pub enum NativeGpuTimingStatus")
             && runtime_diagnostics.contains("CpuEnvelopeOnly")
             && runtime_diagnostics.contains("pub gpu_timing_status: NativeGpuTimingStatus")
+            && runtime_diagnostics.contains("pub frame_work: NativeFrameWorkTimings")
+            && runtime_diagnostics.contains("pub composited_base: NativeCompositedBaseTiming")
+            && runtime_diagnostics.contains("pub transient_overlay: NativeTransientOverlayTiming")
             && runtime_diagnostics.contains("pub fn cpu_envelope_total"),
         "runtime timing diagnostics should expose an explicit native GPU timing availability status"
     );

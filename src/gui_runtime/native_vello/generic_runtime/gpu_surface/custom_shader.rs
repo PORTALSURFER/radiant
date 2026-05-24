@@ -84,7 +84,7 @@ impl GpuSurfaceRenderer {
                 pass.draw(0..descriptor.vertex_count, 0..1);
             }
         }
-        stats.custom_shader_surfaces_rendered += 1;
-        stats.composite_encode_elapsed += started.elapsed();
+        stats.custom_shader.surfaces_rendered += 1;
+        stats.composite.encode_elapsed += started.elapsed();
     }
 }

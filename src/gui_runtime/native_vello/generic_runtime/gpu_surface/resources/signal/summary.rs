@@ -16,7 +16,7 @@ impl GpuSurfaceRenderer {
             && cached.band_count == band_count
             && cached.sample_count == samples.len()
         {
-            stats.signal_summary_cache_hits += 1;
+            stats.signal.summary_cache_hits += 1;
             return Arc::clone(&cached.summary);
         }
         let summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
@@ -32,7 +32,7 @@ impl GpuSurfaceRenderer {
                 summary: Arc::clone(&summary),
             },
         );
-        stats.signal_summary_builds += 1;
+        stats.signal.summary_builds += 1;
         summary
     }
 }
@@ -49,14 +49,14 @@ mod tests {
 
         let first = renderer.cached_signal_summary(7, 1, 4, 1, &samples, &mut stats);
 
-        assert_eq!(stats.signal_summary_builds, 1);
-        assert_eq!(stats.signal_summary_cache_hits, 0);
+        assert_eq!(stats.signal.summary_builds, 1);
+        assert_eq!(stats.signal.summary_cache_hits, 0);
 
         let second = renderer.cached_signal_summary(7, 1, 4, 1, &samples, &mut stats);
 
         assert!(Arc::ptr_eq(&first, &second));
-        assert_eq!(stats.signal_summary_builds, 1);
-        assert_eq!(stats.signal_summary_cache_hits, 1);
+        assert_eq!(stats.signal.summary_builds, 1);
+        assert_eq!(stats.signal.summary_cache_hits, 1);
     }
 
     #[test]
@@ -69,7 +69,7 @@ mod tests {
         let second = renderer.cached_signal_summary(7, 1, 2, 2, &samples, &mut stats);
 
         assert!(!Arc::ptr_eq(&first, &second));
-        assert_eq!(stats.signal_summary_builds, 2);
-        assert_eq!(stats.signal_summary_cache_hits, 0);
+        assert_eq!(stats.signal.summary_builds, 2);
+        assert_eq!(stats.signal.summary_cache_hits, 0);
     }
 }

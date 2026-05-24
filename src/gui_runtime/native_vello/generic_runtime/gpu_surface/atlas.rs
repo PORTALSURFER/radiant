@@ -77,7 +77,7 @@ impl GpuSurfaceRenderer {
             .get(&surface.key)
             .is_none_or(|binding| binding.cache_key != cache_key);
         if rebuild_binding {
-            stats.composite_binding_rebuilds += 1;
+            stats.composite.binding_rebuilds += 1;
             let uniform_buffer = target.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("radiant_gpu_surface_uniforms"),
                 size: std::mem::size_of::<GpuSurfaceUniforms>() as wgpu::BufferAddress,
@@ -111,7 +111,7 @@ impl GpuSurfaceRenderer {
                 },
             );
         } else {
-            stats.composite_binding_cache_hits += 1;
+            stats.composite.binding_cache_hits += 1;
         }
         let Some(binding) = self.resources.composite_bindings.get(&surface.key) else {
             return;
@@ -128,6 +128,6 @@ impl GpuSurfaceRenderer {
                 pass.draw(0..6, 0..1);
             }
         }
-        stats.composite_encode_elapsed += started.elapsed();
+        stats.composite.encode_elapsed += started.elapsed();
     }
 }

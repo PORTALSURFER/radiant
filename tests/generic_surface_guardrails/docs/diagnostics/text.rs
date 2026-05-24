@@ -11,8 +11,10 @@ fn api_docs_describe_text_cache_frame_diagnostics() {
 
     assert!(
         docs.contains("NativeFrameDiagnostics::text")
-            && docs.contains("text layout-cache hits, misses,")
-            && docs.contains("text atom-cache activity")
+            && docs.contains("cache.layout")
+            && docs.contains("cache.atom")
+            && docs.contains("quality")
+            && docs.contains("layout-cache and text atom-cache hits, misses, and evictions")
             && docs.contains("shaping-sensitive run/scalar counts")
             && docs.contains("fallback/missing glyph counts")
             && docs.contains("NativeTextDiagnostics::has_shaping_limits()")
@@ -25,9 +27,14 @@ fn api_docs_describe_text_cache_frame_diagnostics() {
     );
     assert!(
         runtime_diagnostics.contains("pub struct NativeTextDiagnostics")
+            && runtime_diagnostics.contains("pub struct NativeTextCacheDiagnostics")
+            && runtime_diagnostics.contains("pub struct NativeTextCacheCounters")
+            && runtime_diagnostics.contains("pub struct NativeTextQualityDiagnostics")
             && runtime_diagnostics.contains("pub enum NativeTextQualityStatus")
-            && runtime_diagnostics.contains("layout_cache_hits")
-            && runtime_diagnostics.contains("atom_cache_evictions")
+            && runtime_diagnostics.contains("pub cache: NativeTextCacheDiagnostics")
+            && runtime_diagnostics.contains("pub quality: NativeTextQualityDiagnostics")
+            && runtime_diagnostics.contains("pub layout: NativeTextCacheCounters")
+            && runtime_diagnostics.contains("pub atom: NativeTextCacheCounters")
             && runtime_diagnostics.contains("unsupported_shaping_runs")
             && runtime_diagnostics.contains("unsupported_shaping_scalars")
             && runtime_diagnostics.contains("fallback_glyphs")
@@ -40,8 +47,11 @@ fn api_docs_describe_text_cache_frame_diagnostics() {
     );
     assert!(
         native_diagnostics.contains("text: crate::runtime::NativeTextDiagnostics")
-            && native_diagnostics.contains("layout_cache_hits: parts.text_stats.layout_hits")
-            && native_diagnostics.contains("atom_cache_evictions: parts.text_stats.atom_evictions")
+            && native_diagnostics.contains("cache: crate::runtime::NativeTextCacheDiagnostics")
+            && native_diagnostics.contains("layout: crate::runtime::NativeTextCacheCounters")
+            && native_diagnostics.contains("hits: parts.text_stats.layout_hits")
+            && native_diagnostics.contains("evictions: parts.text_stats.atom_evictions")
+            && native_diagnostics.contains("quality: crate::runtime::NativeTextQualityDiagnostics")
             && native_diagnostics
                 .contains("unsupported_shaping_runs: parts.text_stats.unsupported_shaping_runs")
             && native_diagnostics.contains(

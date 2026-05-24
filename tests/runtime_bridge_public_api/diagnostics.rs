@@ -5,7 +5,9 @@ use radiant::runtime::{
     NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
     NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
     NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
-    NativeTextDiagnostics, NativeTextQualityStatus, NativeTransientOverlayTiming, RuntimeBridge,
+    NativeTextCacheCounters, NativeTextCacheDiagnostics, NativeTextDiagnostics,
+    NativeTextQualityDiagnostics, NativeTextQualityStatus, NativeTransientOverlayTiming,
+    RuntimeBridge,
 };
 use std::time::Duration;
 
@@ -52,13 +54,22 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
             ..NativeGpuSurfaceDiagnostics::default()
         },
         text: NativeTextDiagnostics {
-            layout_cache_hits: 6,
-            atom_cache_misses: 2,
-            unsupported_shaping_runs: 1,
-            unsupported_shaping_scalars: 4,
-            fallback_glyphs: 3,
-            missing_glyphs: 1,
-            ..NativeTextDiagnostics::default()
+            cache: NativeTextCacheDiagnostics {
+                layout: NativeTextCacheCounters {
+                    hits: 6,
+                    ..NativeTextCacheCounters::default()
+                },
+                atom: NativeTextCacheCounters {
+                    misses: 2,
+                    ..NativeTextCacheCounters::default()
+                },
+            },
+            quality: NativeTextQualityDiagnostics {
+                unsupported_shaping_runs: 1,
+                unsupported_shaping_scalars: 4,
+                fallback_glyphs: 3,
+                missing_glyphs: 1,
+            },
         },
         timings: NativeFrameTimingDiagnostics {
             gpu_timing_status: NativeGpuTimingStatus::CpuEnvelopeOnly,
@@ -91,7 +102,10 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     );
     assert_eq!(
         NativeTextDiagnostics {
-            unsupported_shaping_runs: 1,
+            quality: NativeTextQualityDiagnostics {
+                unsupported_shaping_runs: 1,
+                ..NativeTextQualityDiagnostics::default()
+            },
             ..NativeTextDiagnostics::default()
         }
         .quality_status(),
@@ -99,7 +113,10 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     );
     assert_eq!(
         NativeTextDiagnostics {
-            missing_glyphs: 1,
+            quality: NativeTextQualityDiagnostics {
+                missing_glyphs: 1,
+                ..NativeTextQualityDiagnostics::default()
+            },
             ..NativeTextDiagnostics::default()
         }
         .quality_status(),

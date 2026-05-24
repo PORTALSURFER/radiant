@@ -971,11 +971,13 @@ profiling.
 `NativeRunOptions::retained_surface_cache` accepts `RetainedSurfaceCachePolicy`
 for apps that need to tune or disable retained custom-surface frame reuse during
 profiling.
-`NativeFrameDiagnostics::text` exposes native text layout-cache hits, misses,
-and evictions, text atom-cache activity, shaping-sensitive run/scalar counts,
-and fallback/missing glyph counts so hosts can detect repeated text measurement,
-cache churn, basic-layout Unicode limits, or font coverage gaps without parsing
-renderer logs. `NativeTextDiagnostics::has_shaping_limits()`,
+`NativeFrameDiagnostics::text` groups native text diagnostics into
+`cache.layout`, `cache.atom`, and `quality` counters. The cache groups expose
+layout-cache and text atom-cache hits, misses, and evictions; the quality group
+exposes shaping-sensitive run/scalar counts and fallback/missing glyph counts
+so hosts can detect repeated text measurement, cache churn, basic-layout
+Unicode limits, or font coverage gaps without parsing renderer logs.
+`NativeTextDiagnostics::has_shaping_limits()`,
 `has_font_coverage_gaps()`, and `has_text_quality_warnings()` provide the
 stable summary predicates applications can use for debug overlays, telemetry, or
 local quality gates without duplicating raw counter policy.

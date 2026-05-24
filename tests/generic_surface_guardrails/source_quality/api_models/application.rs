@@ -86,3 +86,38 @@ fn application_list_builders_keep_virtualization_tests_focused() {
         "application list builder behavior coverage should live in layout_builders/lists/tests.rs"
     );
 }
+
+#[test]
+fn application_dropdown_builder_keeps_menu_overlay_and_tests_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root =
+        fs::read_to_string(manifest_dir.join("src/application/control_builders/dropdown.rs"))
+            .expect("application dropdown builder root should be readable");
+    let menu =
+        fs::read_to_string(manifest_dir.join("src/application/control_builders/dropdown/menu.rs"))
+            .expect("application dropdown menu module should be readable");
+    let tests =
+        fs::read_to_string(manifest_dir.join("src/application/control_builders/dropdown/tests.rs"))
+            .expect("application dropdown tests should be readable");
+
+    assert!(
+        root.contains("mod menu;")
+            && root.contains("#[path = \"dropdown/tests.rs\"]")
+            && root.contains("pub struct DropdownBuilder<Message>")
+            && root.contains("pub fn dropdown_from_parts")
+            && !root.contains("fn dropdown_option_button")
+            && !root.contains("fn dropdown_builder_accepts_toggle_and_options"),
+        "dropdown builder root should own public model and builder entry points while delegating menu overlay and tests"
+    );
+    assert!(
+        menu.contains("pub fn dropdown_menu<")
+            && menu.contains("pub fn dropdown_menu_overlay<")
+            && menu.contains("fn dropdown_option_button"),
+        "dropdown menu and overlay assembly should live in the focused menu module"
+    );
+    assert!(
+        tests.contains("fn dropdown_height_tracks_expanded_options")
+            && tests.contains("fn dropdown_builder_accepts_toggle_and_options"),
+        "dropdown builder behavior tests should live in dropdown/tests.rs"
+    );
+}

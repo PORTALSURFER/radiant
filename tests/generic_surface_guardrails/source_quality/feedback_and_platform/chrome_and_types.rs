@@ -19,6 +19,7 @@ fn status_segments_use_named_parts_for_chrome_slots() {
     );
     assert!(
         tests.contains("fn status_segments_default_to_empty_text")
+            && tests.contains("fn content_view_chrome_groups_related_copy")
             && tests.contains("fn content_view_chrome_defaults_to_product_neutral_copy"),
         "chrome behavior coverage should live in gui/chrome/tests.rs"
     );
@@ -26,6 +27,17 @@ fn status_segments_use_named_parts_for_chrome_slots() {
         source.contains("Self::from_parts(StatusSegmentsParts {")
             && prelude.contains("StatusSegmentsParts"),
         "status segment compatibility constructor and prelude export should keep the named-parts path available"
+    );
+    assert!(
+        source.contains("pub struct ContentViewTabs")
+            && source.contains("pub struct ContentViewSearchChrome")
+            && source.contains("pub struct ContentViewActivityChrome")
+            && source.contains("pub struct ContentViewSortChrome")
+            && source.contains("pub struct ContentViewFooterChrome")
+            && source.contains("pub struct ContentViewChrome")
+            && prelude.contains("ContentViewTabs")
+            && prelude.contains("ContentViewFooterChrome"),
+        "content-view chrome should stay grouped by view concern and keep subgroup DTOs available from the prelude"
     );
 }
 

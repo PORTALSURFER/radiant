@@ -1223,11 +1223,12 @@ snapshot schema is generic Radiant API.
 ## Generic Panels And Forms
 
 `radiant::gui::chrome` contains generic chrome/status models such as
-`StatusSegments` and `ContentViewChrome`. `radiant::gui::feedback` contains
-compact feedback models such as `StatusLineLog` and `StatusLineEntry` for
-bounded one-line status messages from buttons, background workers, animations,
-and other app-owned systems. Host applications map product-specific copy into
-these slots; Radiant defaults stay product-neutral.
+`StatusSegments` and the grouped `ContentViewChrome` tab, search, activity,
+sort, and footer copy models. `radiant::gui::feedback` contains compact
+feedback models such as `StatusLineLog` and `StatusLineEntry` for bounded
+one-line status messages from buttons, background workers, animations, and
+other app-owned systems. Host applications map product-specific copy into these
+slots; Radiant defaults stay product-neutral.
 
 `radiant::gui::panel` contains generic split-pane and sidebar models such as
 `SplitPaneSlot`, `SplitPaneAssignedRow`, `SplitPaneTreePanel`, and

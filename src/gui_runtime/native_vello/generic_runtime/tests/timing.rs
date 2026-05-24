@@ -46,6 +46,82 @@ fn hover_redraws_do_not_reset_timed_animation_deadline() {
     assert_eq!(runner.last_timed_frame_drain, now);
 }
 
+#[test]
+fn pointer_routes_drain_due_frame_message_animation() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let interval = frame_cadence::animation_frame_interval(60);
+    runner.last_timed_frame_drain = Instant::now() - interval;
+    let mut outcome = GenericRouteOutcome {
+        routed: true,
+        redraw_requested: true,
+        ..GenericRouteOutcome::default()
+    };
+
+    runner.merge_due_timed_frame_for_route(&mut outcome);
+
+    assert!(outcome.routed);
+    assert!(outcome.needs_redraw());
+    assert!(
+        outcome.repaint_requested,
+        "due frame-message animation should refresh the scene even during pointer-heavy routes"
+    );
+}
+
+#[test]
+fn pointer_move_outcome_drain_keeps_frame_animation_moving() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let interval = frame_cadence::animation_frame_interval(60);
+    let stale_deadline = Instant::now() - interval;
+    runner.last_timed_frame_drain = stale_deadline;
+
+    runner.handle_gpu_surface_pointer_move_outcome(
+        GenericRouteOutcome {
+            routed: true,
+            redraw_requested: true,
+            ..GenericRouteOutcome::default()
+        },
+        Some(Point::new(4.0, 4.0)),
+        Point::new(5.0, 4.0),
+    );
+
+    assert!(
+        runner.last_timed_frame_drain > stale_deadline,
+        "pointer-move outcome handling should not starve due frame-message animation"
+    );
+}
+
+#[test]
+fn pointer_routes_do_not_overrun_timed_frame_cadence() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    runner.last_timed_frame_drain = Instant::now();
+    let mut outcome = GenericRouteOutcome {
+        routed: true,
+        redraw_requested: true,
+        ..GenericRouteOutcome::default()
+    };
+
+    runner.merge_due_timed_frame_for_route(&mut outcome);
+
+    assert!(outcome.routed);
+    assert!(outcome.needs_redraw());
+    assert!(
+        !outcome.repaint_requested,
+        "pointer routes should not queue extra frame messages before the cadence is due"
+    );
+}
+
 #[derive(Default)]
 struct TestFrameMessageBridge {
     queued: bool,

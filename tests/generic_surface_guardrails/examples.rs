@@ -140,6 +140,7 @@ fn api_docs_map_examples_to_target_areas() {
         "timeline_editor",
         "plugin_panel",
         "eq_editor",
+        "spectrogram",
         "split_workspace",
         "typography",
         "layout_diagnostics",

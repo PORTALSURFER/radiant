@@ -49,6 +49,7 @@ cargo run --example widget_gallery
 cargo run --example waveform_view
 cargo run --example timeline_editor
 cargo run --example eq_editor
+cargo run --example spectrogram
 ```
 
 Run all checked examples with:

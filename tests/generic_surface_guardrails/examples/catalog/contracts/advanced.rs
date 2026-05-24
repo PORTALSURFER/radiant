@@ -105,4 +105,18 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             "drag_handle_at_point",
         ],
     ),
+    (
+        "spectrogram",
+        &[
+            "Realtime Spectrogram",
+            ".animation(|state| state.running)",
+            ".on_frame(|| SpectrogramMessage::Frame)",
+            "PaintPrimitive::FillRect",
+            "prefers_pointer_move_paint_only",
+            "append_runtime_overlay_paint",
+            "spectrogram_runtime_hover_does_not_refresh_surface",
+            "generate_spectral_column",
+            "without_dsp",
+        ],
+    ),
 ];

@@ -1,6 +1,27 @@
 use super::*;
 
 #[test]
+fn application_facade_uses_explicit_public_exports() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source = fs::read_to_string(manifest_dir.join("src/application.rs"))
+        .expect("application facade should be readable");
+
+    assert!(
+        source.contains("pub use launch::{")
+            && source.contains("WindowBuilder")
+            && source.contains("StatefulAppBuilder")
+            && source.contains("pub use layout_builders::{")
+            && source.contains("virtual_list_window")
+            && source.contains("DEFAULT_COLUMN_SPACING"),
+        "application facade should name the launch and layout API surface explicitly"
+    );
+    assert!(
+        !source.contains("pub use launch::*;") && !source.contains("pub use layout_builders::*;"),
+        "application facade should not wildcard-export public launch or layout builders"
+    );
+}
+
+#[test]
 fn application_view_lowering_keeps_container_defaults_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module = fs::read_to_string(manifest_dir.join("src/application/view_node.rs"))

@@ -1,6 +1,6 @@
 use crate::gui::types::{Point, Rect, Vector2};
 
-use super::anchored::anchored_panel_rect;
+use super::anchored::{AnchoredPanelRectParts, anchored_panel_rect_from_parts};
 
 /// Drag state for a floating panel title bar or handle.
 ///
@@ -19,6 +19,19 @@ pub struct FloatingPanelDragParts {
     pub panel_rect: Rect,
     /// Pointer position captured when the drag starts.
     pub pointer: Point,
+}
+
+/// Named geometry request for a floating panel rectangle.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FloatingPanelRectParts {
+    /// Bounds that contain the floating panel origin.
+    pub bounds: Rect,
+    /// Requested top-left panel origin.
+    pub origin: Point,
+    /// Desired panel size.
+    pub size: Vector2,
+    /// Minimum inset from the containing bounds before clamping the origin.
+    pub inset: f32,
 }
 
 impl FloatingPanelDrag {
@@ -54,8 +67,23 @@ impl FloatingPanelDrag {
 /// The panel keeps its requested size. If the available bounds are too small,
 /// the origin clamps to the inset minimum and the panel may extend past the
 /// opposite edge rather than silently shrinking.
+pub fn floating_panel_rect_from_parts(parts: FloatingPanelRectParts) -> Rect {
+    anchored_panel_rect_from_parts(AnchoredPanelRectParts {
+        bounds: parts.bounds,
+        anchor: parts.origin,
+        size: parts.size,
+        inset: parts.inset,
+    })
+}
+
+/// Return a floating panel rectangle with its origin clamped inside `bounds`.
 pub fn floating_panel_rect(bounds: Rect, origin: Point, size: Vector2, inset: f32) -> Rect {
-    anchored_panel_rect(bounds, origin, size, inset)
+    floating_panel_rect_from_parts(FloatingPanelRectParts {
+        bounds,
+        origin,
+        size,
+        inset,
+    })
 }
 
 fn finite_or(value: f32, fallback: f32) -> f32 {

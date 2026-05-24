@@ -9,8 +9,8 @@ pub(super) fn details_header(state: &BrowserState) -> ui::StateView<BrowserState
             .iter()
             .map(|column| {
                 let id = column.id.clone();
-                let marker = if state.sort.column_id == column.id {
-                    match state.sort.direction {
+                let marker = if state.columns.sort.column_id == column.id {
+                    match state.columns.sort.direction {
                         ui::SortDirection::Ascending => " ^",
                         ui::SortDirection::Descending => " v",
                     }
@@ -58,8 +58,8 @@ pub(super) fn file_details_row(
     state: &BrowserState,
     file: &FileEntry,
 ) -> ui::StateView<BrowserState> {
-    let selected = state.selected_file.as_deref() == Some(file.id.as_str());
-    let editing = state.rename_file.as_deref() == Some(file.id.as_str());
+    let selected = state.selection.selected_file.as_deref() == Some(file.id.as_str());
+    let editing = state.rename.file.as_deref() == Some(file.id.as_str());
     let cells = state
         .visible_file_columns()
         .into_iter()
@@ -93,10 +93,10 @@ pub(super) fn file_details_row(
 
 fn file_name_editor(state: &BrowserState, file: &FileEntry) -> ui::StateView<BrowserState> {
     ui::row([
-        ui::text_input(state.file_rename_draft.clone())
+        ui::text_input(state.rename.file_draft.clone())
             .placeholder("File name")
             .bind_submit(
-                |state: &mut BrowserState| &mut state.file_rename_draft,
+                |state: &mut BrowserState| &mut state.rename.file_draft,
                 BrowserState::commit_file_rename,
             )
             .key(format!("file-rename-input-{}", file.id))

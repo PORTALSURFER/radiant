@@ -1,18 +1,35 @@
 /// Native text layout cache diagnostics for one native frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativeTextDiagnostics {
-    /// Text-layout cache hits observed while preparing this frame.
-    pub layout_cache_hits: u64,
-    /// Text-layout cache misses observed while preparing this frame.
-    pub layout_cache_misses: u64,
-    /// Text-layout cache evictions observed while preparing this frame.
-    pub layout_cache_evictions: u64,
-    /// Text atom cache hits observed while preparing this frame.
-    pub atom_cache_hits: u64,
-    /// Text atom cache misses observed while preparing this frame.
-    pub atom_cache_misses: u64,
-    /// Text atom cache evictions observed while preparing this frame.
-    pub atom_cache_evictions: u64,
+    /// Text layout and atom-cache activity observed while preparing this frame.
+    pub cache: NativeTextCacheDiagnostics,
+    /// Shaping and font coverage quality counters observed while preparing this frame.
+    pub quality: NativeTextQualityDiagnostics,
+}
+
+/// Text cache diagnostics for one native frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeTextCacheDiagnostics {
+    /// Text-layout cache counters.
+    pub layout: NativeTextCacheCounters,
+    /// Interned text atom cache counters.
+    pub atom: NativeTextCacheCounters,
+}
+
+/// Hit, miss, and eviction counters for one native text cache.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeTextCacheCounters {
+    /// Cache hits observed while preparing this frame.
+    pub hits: u64,
+    /// Cache misses observed while preparing this frame.
+    pub misses: u64,
+    /// Cache evictions observed while preparing this frame.
+    pub evictions: u64,
+}
+
+/// Text shaping and font coverage quality counters for one native frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeTextQualityDiagnostics {
     /// Text runs that contain shaping-sensitive Unicode handled by the basic native layout path.
     pub unsupported_shaping_runs: u64,
     /// Rendered Unicode scalar values in runs that need a real shaping engine.
@@ -27,13 +44,13 @@ impl NativeTextDiagnostics {
     /// Return whether this frame encountered text that needs more than the
     /// native renderer's current basic glyph mapping path.
     pub const fn has_shaping_limits(self) -> bool {
-        self.unsupported_shaping_runs > 0 || self.unsupported_shaping_scalars > 0
+        self.quality.has_shaping_limits()
     }
 
     /// Return whether this frame substituted or missed glyphs with the active
     /// native font configuration.
     pub const fn has_font_coverage_gaps(self) -> bool {
-        self.fallback_glyphs > 0 || self.missing_glyphs > 0
+        self.quality.has_font_coverage_gaps()
     }
 
     /// Return whether this frame exposed visible text-quality risk through
@@ -54,6 +71,20 @@ impl NativeTextDiagnostics {
             (false, true) => NativeTextQualityStatus::FontCoverageLimited,
             (true, true) => NativeTextQualityStatus::ShapingAndFontCoverageLimited,
         }
+    }
+}
+
+impl NativeTextQualityDiagnostics {
+    /// Return whether this frame encountered text that needs more than the
+    /// native renderer's current basic glyph mapping path.
+    pub const fn has_shaping_limits(self) -> bool {
+        self.unsupported_shaping_runs > 0 || self.unsupported_shaping_scalars > 0
+    }
+
+    /// Return whether this frame substituted or missed glyphs with the active
+    /// native font configuration.
+    pub const fn has_font_coverage_gaps(self) -> bool {
+        self.fallback_glyphs > 0 || self.missing_glyphs > 0
     }
 }
 

@@ -28,14 +28,14 @@ fn create_file_in_selected_folder_selects_created_file_for_rename() {
     state.create_file_in_selected_folder();
 
     assert_eq!(
-        state.selected_file.as_deref(),
+        state.selection.selected_file.as_deref(),
         Some(path_id(&expected).as_str())
     );
     assert_eq!(
-        state.rename_file.as_deref(),
+        state.rename.file.as_deref(),
         Some(path_id(&expected).as_str())
     );
-    assert_eq!(state.file_rename_draft, "New File.txt");
+    assert_eq!(state.rename.file_draft, "New File.txt");
     assert!(expected.is_file());
     let _ = fs::remove_dir_all(&root);
 }
@@ -110,8 +110,8 @@ fn delete_file_from_context_clears_selection_and_reloads() {
 
     state.delete_file_from_context();
 
-    assert_eq!(state.selected_file, None);
-    assert_eq!(state.context_file, None);
+    assert_eq!(state.selection.selected_file, None);
+    assert_eq!(state.context.context_file, None);
     assert!(!file.exists());
     assert!(state.selected_folder().files.is_empty());
     let _ = fs::remove_dir_all(&root);

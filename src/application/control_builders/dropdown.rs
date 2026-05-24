@@ -2,50 +2,21 @@ use crate::application::{StateAction, ViewNode, button, stack};
 use std::sync::Arc;
 
 mod menu;
+mod model;
 
 #[cfg(test)]
 #[path = "dropdown/tests.rs"]
 mod tests;
 
 pub use menu::{dropdown_menu, dropdown_menu_height, dropdown_menu_overlay};
-
-/// One selectable item in a generic dropdown control.
-#[derive(Clone, Debug, PartialEq)]
-pub struct DropdownOption<Message> {
-    /// Visible option label.
-    pub label: String,
-    /// Whether this option represents the current value.
-    pub selected: bool,
-    /// Host message emitted when the option is selected.
-    pub message: Message,
-}
-
-impl<Message> DropdownOption<Message> {
-    /// Build one dropdown option.
-    pub fn new(label: impl Into<String>, selected: bool, message: Message) -> Self {
-        Self {
-            label: label.into(),
-            selected,
-            message,
-        }
-    }
-}
-
-/// Named construction fields for a generic dropdown.
-#[derive(Clone, Debug, PartialEq)]
-pub struct DropdownParts<Message> {
-    /// Visible label for the currently selected value.
-    pub selected_label: String,
-    /// Whether the option list is expanded over the toggle.
-    pub open: bool,
-    /// Host message emitted when the collapsed control is activated.
-    pub toggle_message: Message,
-    /// Ordered selectable options.
-    pub options: Vec<DropdownOption<Message>>,
-}
+pub use model::{DropdownOption, DropdownOptionParts, DropdownOptionSelection, DropdownParts};
 
 /// Builder for generic dropdown controls.
 pub struct DropdownBuilderNeedsToggle<Message> {
+    state: DropdownBuilderState<Message>,
+}
+
+struct DropdownBuilderState<Message> {
     selected_label: String,
     open: bool,
     options: Vec<DropdownOption<Message>>,
@@ -53,33 +24,65 @@ pub struct DropdownBuilderNeedsToggle<Message> {
 
 /// Builder for generic dropdown controls after the required toggle message is set.
 pub struct DropdownBuilder<Message> {
-    selected_label: String,
-    open: bool,
+    state: DropdownBuilderState<Message>,
     toggle_message: Message,
-    options: Vec<DropdownOption<Message>>,
+}
+
+impl<Message> DropdownBuilderState<Message> {
+    fn new(selected_label: impl Into<String>, open: bool) -> Self {
+        Self {
+            selected_label: selected_label.into(),
+            open,
+            options: Vec::new(),
+        }
+    }
+
+    fn add_option_from_parts(&mut self, parts: DropdownOptionParts<Message>) {
+        self.options.push(DropdownOption::from_parts(parts));
+    }
+
+    fn add_options(&mut self, options: impl IntoIterator<Item = DropdownOption<Message>>) {
+        self.options.extend(options);
+    }
+
+    fn into_parts(self, toggle_message: Message) -> DropdownParts<Message> {
+        DropdownParts {
+            selected_label: self.selected_label,
+            open: self.open,
+            toggle_message,
+            options: self.options,
+        }
+    }
 }
 
 impl<Message> DropdownBuilderNeedsToggle<Message> {
     /// Emit the supplied host message when the collapsed control is activated.
     pub fn toggle_message(self, message: Message) -> DropdownBuilder<Message> {
         DropdownBuilder {
-            selected_label: self.selected_label,
-            open: self.open,
+            state: self.state,
             toggle_message: message,
-            options: self.options,
         }
     }
 
     /// Add one selectable option before assigning the required toggle message.
     pub fn option(mut self, label: impl Into<String>, selected: bool, message: Message) -> Self {
-        self.options
-            .push(DropdownOption::new(label, selected, message));
+        self.state.add_option_from_parts(DropdownOptionParts {
+            label: label.into(),
+            selection: DropdownOptionSelection::from_selected(selected),
+            message,
+        });
+        self
+    }
+
+    /// Add one selectable option from named fields before assigning the required toggle message.
+    pub fn option_from_parts(mut self, parts: DropdownOptionParts<Message>) -> Self {
+        self.state.add_option_from_parts(parts);
         self
     }
 
     /// Add several selectable options before assigning the required toggle message.
     pub fn options(mut self, options: impl IntoIterator<Item = DropdownOption<Message>>) -> Self {
-        self.options.extend(options);
+        self.state.add_options(options);
         self
     }
 }
@@ -87,14 +90,23 @@ impl<Message> DropdownBuilderNeedsToggle<Message> {
 impl<Message> DropdownBuilder<Message> {
     /// Add one selectable option.
     pub fn option(mut self, label: impl Into<String>, selected: bool, message: Message) -> Self {
-        self.options
-            .push(DropdownOption::new(label, selected, message));
+        self.state.add_option_from_parts(DropdownOptionParts {
+            label: label.into(),
+            selection: DropdownOptionSelection::from_selected(selected),
+            message,
+        });
+        self
+    }
+
+    /// Add one selectable option from named fields.
+    pub fn option_from_parts(mut self, parts: DropdownOptionParts<Message>) -> Self {
+        self.state.add_option_from_parts(parts);
         self
     }
 
     /// Add several selectable options.
     pub fn options(mut self, options: impl IntoIterator<Item = DropdownOption<Message>>) -> Self {
-        self.options.extend(options);
+        self.state.add_options(options);
         self
     }
 
@@ -103,12 +115,7 @@ impl<Message> DropdownBuilder<Message> {
     where
         Message: Clone + Send + Sync + 'static,
     {
-        dropdown_from_parts(DropdownParts {
-            selected_label: self.selected_label,
-            open: self.open,
-            toggle_message: self.toggle_message,
-            options: self.options,
-        })
+        dropdown_from_parts(self.state.into_parts(self.toggle_message))
     }
 }
 
@@ -118,9 +125,7 @@ pub fn dropdown<Message>(
     open: bool,
 ) -> DropdownBuilderNeedsToggle<Message> {
     DropdownBuilderNeedsToggle {
-        selected_label: selected_label.into(),
-        open,
-        options: Vec::new(),
+        state: DropdownBuilderState::new(selected_label, open),
     }
 }
 
@@ -158,7 +163,11 @@ pub fn dropdown_option<State: 'static>(
     selected: bool,
     apply: impl Fn(&mut State) + Send + Sync + 'static,
 ) -> DropdownOption<StateAction<State>> {
-    DropdownOption::new(label, selected, StateAction::new(apply))
+    DropdownOption::from_parts(DropdownOptionParts {
+        label: label.into(),
+        selection: DropdownOptionSelection::from_selected(selected),
+        message: StateAction::new(apply),
+    })
 }
 
 /// Build a state-mutating dropdown.

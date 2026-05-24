@@ -5,6 +5,21 @@ use std::time::Duration;
 pub struct NativeFrameTimingDiagnostics {
     /// Current source and precision of GPU timing information for this frame.
     pub gpu_timing_status: NativeGpuTimingStatus,
+    /// CPU-side work buckets performed while preparing the frame.
+    pub frame_work: NativeFrameWorkTimings,
+    /// Timing and cache state for the composited base frame.
+    pub composited_base: NativeCompositedBaseTiming,
+    /// Timing and primitive count for host-supplied transient overlays.
+    pub transient_overlay: NativeTransientOverlayTiming,
+    /// Time spent submitting GPU work and presenting the surface.
+    pub submit_present: Duration,
+    /// Time since the previous successful present.
+    pub since_last_present: Duration,
+}
+
+/// CPU-side work buckets performed while preparing one native frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeFrameWorkTimings {
     /// Time spent routing a coalesced GPU-surface wheel event.
     pub coalesced_wheel_route: Duration,
     /// Time spent refreshing the runtime surface snapshot.
@@ -15,18 +30,24 @@ pub struct NativeFrameTimingDiagnostics {
     pub render_to_texture: Duration,
     /// Time spent encoding the full-screen blit/composite pass.
     pub full_screen_blit: Duration,
+}
+
+/// Timing and cache state for a composited base frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeCompositedBaseTiming {
     /// Time spent refreshing the composited base frame.
-    pub composited_base_refresh: Duration,
+    pub refresh: Duration,
     /// Whether the composited base frame was reused from cache.
-    pub composited_base_cache_hit: bool,
+    pub cache_hit: bool,
+}
+
+/// Timing and primitive count for host-supplied transient overlays.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeTransientOverlayTiming {
     /// Time spent collecting transient overlay primitives.
-    pub transient_overlay_paint: Duration,
+    pub paint: Duration,
     /// Transient overlay primitive count.
-    pub transient_overlay_primitives: usize,
-    /// Time spent submitting GPU work and presenting the surface.
-    pub submit_present: Duration,
-    /// Time since the previous successful present.
-    pub since_last_present: Duration,
+    pub primitives: usize,
 }
 
 impl NativeFrameTimingDiagnostics {
@@ -38,14 +59,21 @@ impl NativeFrameTimingDiagnostics {
     /// this total remains an encode/submit/present envelope, not a backend GPU
     /// execution duration.
     pub fn cpu_envelope_total(self) -> Duration {
+        self.frame_work.total()
+            + self.composited_base.refresh
+            + self.transient_overlay.paint
+            + self.submit_present
+    }
+}
+
+impl NativeFrameWorkTimings {
+    /// Return the sum of tracked CPU-side frame preparation buckets.
+    pub fn total(self) -> Duration {
         self.coalesced_wheel_route
             + self.refresh_surface
             + self.paint_plan
             + self.render_to_texture
             + self.full_screen_blit
-            + self.composited_base_refresh
-            + self.transient_overlay_paint
-            + self.submit_present
     }
 }
 

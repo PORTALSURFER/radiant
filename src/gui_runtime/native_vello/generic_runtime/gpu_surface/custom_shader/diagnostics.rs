@@ -9,18 +9,18 @@ pub(super) fn record_unsupported_custom_shader(
     descriptor: &GpuShaderSurfaceDescriptor,
     stats: &mut GpuSurfaceRenderStats,
 ) {
-    stats.unsupported_custom_shader_surfaces += 1;
-    stats.unsupported_custom_shader_vertices += descriptor.vertex_count as usize;
-    stats.unsupported_custom_shader_source_bytes += descriptor
+    stats.custom_shader.unsupported.surfaces += 1;
+    stats.custom_shader.unsupported.vertices += descriptor.vertex_count as usize;
+    stats.custom_shader.unsupported.source_bytes += descriptor
         .wgsl_source
         .as_ref()
         .map_or(0, |source| source.len());
-    stats.unsupported_custom_shader_uniform_bytes += descriptor.uniform_bytes.len();
-    stats.unsupported_custom_shader_storage_bytes += descriptor.storage_bytes.len();
+    stats.custom_shader.unsupported.uniform_bytes += descriptor.uniform_bytes.len();
+    stats.custom_shader.unsupported.storage_bytes += descriptor.storage_bytes.len();
 }
 
 pub(super) fn record_failed_custom_shader_surface(stats: &mut GpuSurfaceRenderStats) {
-    stats.custom_shader_surfaces_failed += 1;
+    stats.custom_shader.failures.surfaces_failed += 1;
 }
 
 #[cfg(test)]
@@ -64,10 +64,10 @@ mod tests {
             &mut stats,
         );
 
-        assert_eq!(stats.unsupported_custom_shader_surfaces, 1);
-        assert_eq!(stats.unsupported_custom_shader_vertices, 6);
-        assert!(stats.unsupported_custom_shader_source_bytes > 0);
-        assert_eq!(stats.unsupported_custom_shader_uniform_bytes, 4);
-        assert_eq!(stats.unsupported_custom_shader_storage_bytes, 3);
+        assert_eq!(stats.custom_shader.unsupported.surfaces, 1);
+        assert_eq!(stats.custom_shader.unsupported.vertices, 6);
+        assert!(stats.custom_shader.unsupported.source_bytes > 0);
+        assert_eq!(stats.custom_shader.unsupported.uniform_bytes, 4);
+        assert_eq!(stats.custom_shader.unsupported.storage_bytes, 3);
     }
 }

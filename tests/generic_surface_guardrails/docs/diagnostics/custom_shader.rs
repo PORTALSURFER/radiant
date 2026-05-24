@@ -12,14 +12,15 @@ fn api_docs_describe_custom_shader_frame_diagnostics() {
     let normalized_docs = normalized(&docs);
     for required in [
         "custom shader pipeline rebuilds",
-        "`NativeGpuSurfaceDiagnostics::custom_shader_surfaces_rendered`",
-        "`custom_shader_pipeline_rebuilds`",
-        "`custom_shader_binding_rebuilds`",
-        "`custom_shader_binding_cache_hits`",
-        "`custom_shader_surfaces_failed`",
-        "`custom_shader_shader_module_failures`",
-        "`custom_shader_pipeline_failures`",
-        "`custom_shader_binding_failures`",
+        "`NativeGpuSurfaceDiagnostics::custom_shader`",
+        "`surfaces_rendered`",
+        "`pipeline_rebuilds`",
+        "`binding_rebuilds`",
+        "`binding_cache_hits`",
+        "`custom_shader.failures.surfaces_failed`",
+        "`custom_shader.failures.shader_module_failures`",
+        "`custom_shader.failures.pipeline_failures`",
+        "`custom_shader.failures.binding_failures`",
         "the native renderer also logs the backend validation error through tracing",
     ] {
         assert!(
@@ -28,19 +29,19 @@ fn api_docs_describe_custom_shader_frame_diagnostics() {
         );
     }
     for required in [
-        "custom_shader_surfaces_rendered",
-        "custom_shader_pipeline_rebuilds",
-        "custom_shader_binding_rebuilds",
-        "custom_shader_binding_cache_hits",
-        "custom_shader_surfaces_failed",
-        "custom_shader_shader_module_failures",
-        "custom_shader_pipeline_failures",
-        "custom_shader_binding_failures",
+        "surfaces_rendered",
+        "pipeline_rebuilds",
+        "binding_rebuilds",
+        "binding_cache_hits",
+        "surfaces_failed",
+        "shader_module_failures",
+        "pipeline_failures",
+        "binding_failures",
     ] {
         assert!(
             runtime_diagnostics.contains(required)
                 && native_diagnostics.contains(required)
-                && render_profile.contains(required),
+                && render_profile.contains(&format!("custom_shader_{required}")),
             "custom shader diagnostic field `{required}` should flow through public diagnostics and the render profile"
         );
     }

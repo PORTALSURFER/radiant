@@ -8,11 +8,11 @@ where
 {
     pub(super) fn handle_cursor_moved(&mut self, position: winit::dpi::PhysicalPosition<f64>) {
         let Some(position) = logical_point_from_winit(position) else {
-            self.last_cursor = None;
+            self.input.last_cursor = None;
             return;
         };
-        let previous = self.last_cursor;
-        self.last_cursor = Some(position);
+        let previous = self.input.last_cursor;
+        self.input.last_cursor = Some(position);
         if self.can_fast_path_native_hover_move(position) {
             self.update_gpu_surface_cursor_overlay(position);
             self.request_redraw_if_needed();
@@ -31,12 +31,12 @@ where
     }
 
     pub(super) fn handle_cursor_left(&mut self, event_loop: &ActiveEventLoop) {
-        if let Some(previous) = self.last_cursor
+        if let Some(previous) = self.input.last_cursor
             && self.clear_gpu_surface_cursor_overlay(previous)
         {
             self.request_redraw_if_needed();
         }
-        self.last_cursor = None;
+        self.input.last_cursor = None;
         let preview_hidden = self.core.runtime.hide_drag_preview_for_cursor_left();
         if preview_hidden {
             if self.core.runtime.external_drag_armed() {

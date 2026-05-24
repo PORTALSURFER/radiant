@@ -6,21 +6,21 @@ pub(super) fn create_clip(state: &mut TimelineEditorState, lane: usize, range: B
     if range.duration() < MIN_CLIP_BEATS {
         return;
     }
-    let id = state.next_clip_id;
-    state.next_clip_id += 1;
-    state.clips.push(TimelineClip {
+    let id = state.clip_store.next_clip_id;
+    state.clip_store.next_clip_id += 1;
+    state.clip_store.clips.push(TimelineClip {
         id,
         name: "New clip",
         lane: lane.min(LANE_COUNT - 1),
         range,
     });
     cut_overlapping_clips(state, Some(id), lane.min(LANE_COUNT - 1), range);
-    state.selected_clip = Some(id);
-    state.selection = Some(range);
-    state.playhead_beat = range.start;
-    state.status = format!("created clip {} on track {}", id, lane + 1);
-    state.feedback_nonce += 1;
-    state.revision += 1;
+    state.edit.selected_clip = Some(id);
+    state.edit.selection = Some(range);
+    state.playback.playhead_beat = range.start;
+    state.feedback.status = format!("created clip {} on track {}", id, lane + 1);
+    state.feedback.feedback_nonce += 1;
+    state.feedback.revision += 1;
 }
 
 pub(super) fn cut_overlapping_clips(
@@ -33,18 +33,18 @@ pub(super) fn cut_overlapping_clips(
         return;
     }
 
-    let mut next_split_id = state.next_clip_id;
-    let mut cut = Vec::with_capacity(state.clips.len() + 1);
-    for clip in state.clips.drain(..) {
+    let mut next_split_id = state.clip_store.next_clip_id;
+    let mut cut = Vec::with_capacity(state.clip_store.clips.len() + 1);
+    for clip in state.clip_store.clips.drain(..) {
         if Some(clip.id) == protected_clip || clip.lane != lane {
             cut.push(clip);
             continue;
         }
         append_cut_clip_segments(&mut cut, &mut next_split_id, clip, priority);
     }
-    state.next_clip_id = next_split_id;
+    state.clip_store.next_clip_id = next_split_id;
     cut.sort_by_key(|clip| (clip.lane, clip.range.start, clip.range.end, clip.id));
-    state.clips = cut;
+    state.clip_store.clips = cut;
 }
 
 fn append_cut_clip_segments(
@@ -95,11 +95,12 @@ fn ranges_overlap(a: BeatRange, b: BeatRange) -> bool {
 }
 
 pub(crate) fn duplicate_selected_clip(state: &mut TimelineEditorState) {
-    let Some(source_id) = state.selected_clip else {
-        state.status = "select a clip first".to_string();
+    let Some(source_id) = state.edit.selected_clip else {
+        state.feedback.status = "select a clip first".to_string();
         return;
     };
     let Some(source) = state
+        .clip_store
         .clips
         .iter()
         .find(|clip| clip.id == source_id)
@@ -109,9 +110,9 @@ pub(crate) fn duplicate_selected_clip(state: &mut TimelineEditorState) {
     };
     let duration = source.range.duration();
     let start = (source.range.end + 2).min(TOTAL_BEATS.saturating_sub(duration));
-    let id = state.next_clip_id;
-    state.next_clip_id += 1;
-    state.clips.push(TimelineClip {
+    let id = state.clip_store.next_clip_id;
+    state.clip_store.next_clip_id += 1;
+    state.clip_store.clips.push(TimelineClip {
         id,
         name: "Copy",
         lane: source.lane,
@@ -120,32 +121,32 @@ pub(crate) fn duplicate_selected_clip(state: &mut TimelineEditorState) {
             end: start + duration,
         },
     });
-    state.selected_clip = Some(id);
-    state.selection = Some(BeatRange {
+    state.edit.selected_clip = Some(id);
+    state.edit.selection = Some(BeatRange {
         start,
         end: start + duration,
     });
-    state.status = format!("duplicated clip {}", source_id);
-    state.revision += 1;
+    state.feedback.status = format!("duplicated clip {}", source_id);
+    state.feedback.revision += 1;
 }
 
 pub(crate) fn delete_selected_clip(state: &mut TimelineEditorState) {
-    let Some(clip_id) = state.selected_clip else {
-        state.status = "select a clip first".to_string();
+    let Some(clip_id) = state.edit.selected_clip else {
+        state.feedback.status = "select a clip first".to_string();
         return;
     };
-    let before = state.clips.len();
-    state.clips.retain(|clip| clip.id != clip_id);
-    if state.clips.len() == before {
-        state.status = format!("clip {} was already gone", clip_id);
-        state.selected_clip = None;
-        state.selection = None;
-        state.revision += 1;
+    let before = state.clip_store.clips.len();
+    state.clip_store.clips.retain(|clip| clip.id != clip_id);
+    if state.clip_store.clips.len() == before {
+        state.feedback.status = format!("clip {} was already gone", clip_id);
+        state.edit.selected_clip = None;
+        state.edit.selection = None;
+        state.feedback.revision += 1;
         return;
     }
-    state.selected_clip = None;
-    state.selection = None;
-    state.status = format!("deleted clip {}", clip_id);
-    state.feedback_nonce += 1;
-    state.revision += 1;
+    state.edit.selected_clip = None;
+    state.edit.selection = None;
+    state.feedback.status = format!("deleted clip {}", clip_id);
+    state.feedback.feedback_nonce += 1;
+    state.feedback.revision += 1;
 }

@@ -24,10 +24,10 @@ impl GpuSurfaceRenderer {
             .get(&surface_key)
             .is_none_or(|binding| binding.cache_key != cache_key);
         if !rebuild {
-            stats.custom_shader_binding_cache_hits += 1;
+            stats.custom_shader.binding_cache_hits += 1;
             return;
         }
-        stats.custom_shader_binding_rebuilds += 1;
+        stats.custom_shader.binding_rebuilds += 1;
         device.push_error_scope(wgpu::ErrorFilter::Validation);
         let surface_uniform_buffer = custom_shader_buffer(
             device,
@@ -73,7 +73,7 @@ impl GpuSurfaceRenderer {
             entries: &entries,
         });
         if let Some(error) = custom_shader_validation_error(device) {
-            stats.custom_shader_binding_failures += 1;
+            stats.custom_shader.failures.binding_failures += 1;
             warn!(
                 surface_key,
                 shader_key = %pipeline.key.shader_key,

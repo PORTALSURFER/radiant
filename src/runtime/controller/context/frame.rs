@@ -60,8 +60,8 @@ where
         self.surface.paint_plan_with_hover_into(
             &self.layout,
             theme,
-            self.hovered_container,
-            self.hovered_scroll_affordance,
+            self.interaction.hover.container,
+            self.interaction.hover.scroll_affordance,
             plan,
         );
     }
@@ -76,9 +76,9 @@ where
         theme: &ThemeTokens,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
-        self.append_widget_runtime_overlay(self.hovered_widget, theme, primitives);
-        if self.pointer_capture != self.hovered_widget {
-            self.append_widget_runtime_overlay(self.pointer_capture, theme, primitives);
+        self.append_widget_runtime_overlay(self.interaction.hover.widget, theme, primitives);
+        if self.interaction.pointer.capture != self.interaction.hover.widget {
+            self.append_widget_runtime_overlay(self.interaction.pointer.capture, theme, primitives);
         }
         self.append_drag_preview_overlay(theme, primitives);
     }
@@ -166,7 +166,13 @@ where
         theme: &ThemeTokens,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
-        let Some(session) = self.drag_session.as_ref().filter(|session| session.visible) else {
+        let Some(session) = self
+            .interaction
+            .drag
+            .session
+            .as_ref()
+            .filter(|session| session.visible)
+        else {
             return;
         };
         let rect = Rect::from_min_size(

@@ -9,14 +9,21 @@ fn split_pane_assigned_rows_use_named_parts_for_assignment_flags() {
 
     assert!(
         source.contains("pub struct SplitPaneAssignment")
+            && source.contains("pub enum SplitPaneAssignmentState")
             && source.contains("pub struct SplitPaneAssignedRowParts")
+            && source.contains("pub assignment: SplitPaneAssignmentState")
             && source.contains("pub fn from_parts(parts: SplitPaneAssignedRowParts) -> Self"),
         "split-pane assigned rows should expose named parts for readable public construction"
     );
     assert!(
         source.contains("Self::from_parts(SplitPaneAssignedRowParts {")
-            && source.contains("self.with_assignment(SplitPaneAssignment { upper, lower })"),
-        "split-pane compatibility constructors should delegate through named assignment objects"
+            && source.contains("pub const fn from_state(state: SplitPaneAssignmentState) -> Self")
+            && source.contains("pub const fn from_flags(upper: bool, lower: bool) -> Self")
+            && source.contains("pub const fn assignment_state(&self) -> SplitPaneAssignmentState")
+            && source.contains(
+                "pub fn with_assignment_state(self, state: SplitPaneAssignmentState) -> Self"
+            ),
+        "split-pane compatibility constructors should delegate through named assignment state"
     );
 }
 
@@ -43,6 +50,49 @@ fn floating_panel_drags_use_named_parts_for_pointer_geometry() {
 }
 
 #[test]
+fn panel_rect_helpers_use_named_parts_for_geometry_requests() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let anchored_path = manifest_dir.join("src/gui/panel/anchored.rs");
+    let floating_path = manifest_dir.join("src/gui/panel/floating.rs");
+    let module_path = manifest_dir.join("src/gui/panel.rs");
+    let tests_path = manifest_dir.join("src/gui/panel/tests.rs");
+    let anchored = fs::read_to_string(&anchored_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", anchored_path.display()));
+    let floating = fs::read_to_string(&floating_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", floating_path.display()));
+    let module = fs::read_to_string(&module_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", module_path.display()));
+    let tests = fs::read_to_string(&tests_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", tests_path.display()));
+
+    assert!(
+        anchored.contains("pub struct AnchoredPanelRectParts")
+            && anchored.contains("pub fn anchored_panel_rect_from_parts(")
+            && anchored.contains("anchored_panel_rect_from_parts(AnchoredPanelRectParts {"),
+        "anchored panel geometry should expose named parts and keep the positional helper as a wrapper"
+    );
+    assert!(
+        floating.contains("pub struct FloatingPanelRectParts")
+            && floating.contains("pub fn floating_panel_rect_from_parts(")
+            && floating.contains("floating_panel_rect_from_parts(FloatingPanelRectParts {"),
+        "floating panel geometry should expose named parts and keep the positional helper as a wrapper"
+    );
+    assert!(
+        module.contains("AnchoredPanelRectParts")
+            && module.contains("anchored_panel_rect_from_parts")
+            && module.contains("FloatingPanelRectParts")
+            && module.contains("floating_panel_rect_from_parts"),
+        "panel geometry named parts should remain exported through the panel facade"
+    );
+    assert!(
+        tests.contains("fn anchored_panel_rect_compatibility_helper_delegates_to_named_parts")
+            && tests
+                .contains("fn floating_panel_rect_compatibility_helper_delegates_to_named_parts"),
+        "panel geometry tests should cover named-parts construction and compatibility wrappers"
+    );
+}
+
+#[test]
 fn inline_badge_metrics_use_named_parts_for_geometry_tokens() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let badge = fs::read_to_string(manifest_dir.join("src/gui/badge.rs"))
@@ -62,7 +112,11 @@ fn inline_badge_metrics_use_named_parts_for_geometry_tokens() {
 
     assert!(
         badge.contains("mod model;")
-            && badge.contains("pub use model::{PillEditorPanel, SelectablePill};")
+            && badge.contains("PillEditorChoices")
+            && badge.contains("PillEditorInput")
+            && badge.contains("PillEditorPanel")
+            && badge.contains("PillEditorStatus")
+            && badge.contains("SelectablePill")
             && badge.contains("#[path = \"badge/tests.rs\"]")
             && !badge.contains("pub struct SelectablePill")
             && !badge.contains("fn selectable_pill_preserves_identity_label_and_state"),
@@ -70,10 +124,13 @@ fn inline_badge_metrics_use_named_parts_for_geometry_tokens() {
     );
     assert!(
         model.contains("pub struct SelectablePill")
+            && model.contains("pub struct PillEditorStatus")
+            && model.contains("pub struct PillEditorInput")
+            && model.contains("pub struct PillEditorChoices")
             && model.contains("pub struct PillEditorPanel")
             && tests.contains("fn selectable_pill_preserves_identity_label_and_state")
             && tests.contains("fn inline_badge_rects_handle_empty_or_cramped_inputs"),
-        "badge model DTOs and behavior tests should live in focused badge/model.rs and badge/tests.rs modules"
+        "badge model DTOs should stay split into focused submodels, with behavior tests in badge/tests.rs"
     );
     assert!(
         root.contains("mod geometry;")

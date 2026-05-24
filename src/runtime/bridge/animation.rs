@@ -14,6 +14,22 @@ pub struct RuntimeAnimationActivity {
     target_fps: Option<u32>,
 }
 
+/// Named animation demand used to construct [`RuntimeAnimationActivity`].
+///
+/// This keeps call sites from encoding the runtime policy as a pair of boolean
+/// flags, while preserving the compact compatibility constructor for existing
+/// custom bridges.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RuntimeAnimationDemand {
+    /// No animation-driven frames are needed.
+    #[default]
+    Idle,
+    /// Present paint-only frames over the cached surface.
+    PaintOnly,
+    /// Queue host frame messages before presenting animation frames.
+    FrameMessages,
+}
+
 impl RuntimeAnimationActivity {
     /// Return an inactive animation state.
     pub const fn idle() -> Self {
@@ -66,13 +82,24 @@ impl RuntimeAnimationActivity {
         }
     }
 
-    /// Build animation activity from explicit paint and message demands.
-    pub const fn new(paint_frames: bool, frame_messages: bool) -> Self {
-        Self {
-            paint_frames,
-            frame_messages: paint_frames && frame_messages,
-            target_fps: None,
+    /// Build animation activity from a named demand.
+    pub const fn from_demand(demand: RuntimeAnimationDemand) -> Self {
+        match demand {
+            RuntimeAnimationDemand::Idle => Self::idle(),
+            RuntimeAnimationDemand::PaintOnly => Self::paint_only(),
+            RuntimeAnimationDemand::FrameMessages => Self::frame_messages(),
         }
+    }
+
+    /// Build animation activity from explicit paint and message demands.
+    ///
+    /// Prefer [`Self::from_demand`] for new code so call sites name the policy
+    /// they intend instead of passing a pair of related booleans.
+    pub const fn new(paint_frames: bool, frame_messages: bool) -> Self {
+        Self::from_demand(RuntimeAnimationDemand::from_flags(
+            paint_frames,
+            frame_messages,
+        ))
     }
 
     /// Cap active animation to the requested frame rate.
@@ -118,6 +145,16 @@ impl RuntimeAnimationActivity {
             self.target_fps
         } else {
             None
+        }
+    }
+}
+
+impl RuntimeAnimationDemand {
+    pub(crate) const fn from_flags(paint_frames: bool, frame_messages: bool) -> Self {
+        match (paint_frames, frame_messages) {
+            (false, _) => Self::Idle,
+            (true, false) => Self::PaintOnly,
+            (true, true) => Self::FrameMessages,
         }
     }
 }

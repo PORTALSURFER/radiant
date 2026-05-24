@@ -145,18 +145,24 @@ fn text_field_paint_emits_chrome_selection_text_and_caret() {
         a: 4,
     };
     let output = text_field_paint(TextFieldPaint {
-        field_rect: Rect::from_min_max(Point::new(0.0, 0.0), Point::new(120.0, 24.0)),
-        text_rect: Rect::from_min_max(Point::new(8.0, 4.0), Point::new(112.0, 20.0)),
-        text: "query".to_string(),
-        caret_offset: 36.0,
-        selection_offsets: Some((8.0, 24.0)),
-        font_size: 12.0,
-        fill_color: color,
-        border_color: color,
-        selection_color: color,
-        caret_color: color,
-        text_color: color,
-        stroke_width: 2.0,
+        geometry: TextFieldPaintGeometry {
+            field_rect: Rect::from_min_max(Point::new(0.0, 0.0), Point::new(120.0, 24.0)),
+            text_rect: Rect::from_min_max(Point::new(8.0, 4.0), Point::new(112.0, 20.0)),
+        },
+        content: TextFieldPaintContent {
+            text: "query".to_string(),
+            caret_offset: 36.0,
+            selection_offsets: Some((8.0, 24.0)),
+            font_size: 12.0,
+        },
+        colors: TextFieldPaintColors {
+            fill_color: color,
+            border_color: color,
+            selection_color: color,
+            caret_color: color,
+            text_color: color,
+        },
+        stroke: TextFieldPaintStroke { stroke_width: 2.0 },
     });
 
     assert_eq!(output.primitives.len(), 7);

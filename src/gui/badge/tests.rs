@@ -36,15 +36,15 @@ fn selectable_pill_preserves_identity_label_and_state() {
 fn pill_editor_panel_defaults_to_closed_empty_panel() {
     let panel: PillEditorPanel<TriState> = PillEditorPanel::default();
 
-    assert!(!panel.open);
-    assert_eq!(panel.selected_count, 0);
-    assert_eq!(panel.header_label, "");
-    assert!(!panel.primary_action_enabled);
-    assert_eq!(panel.input_value, "");
-    assert_eq!(panel.input_placeholder, "");
-    assert_eq!(panel.exclusive_pills.len(), 2);
-    assert!(panel.option_pills.is_empty());
-    assert!(panel.create_pill.is_none());
+    assert!(!panel.status.open);
+    assert_eq!(panel.status.selected_count, 0);
+    assert_eq!(panel.status.header_label, "");
+    assert!(!panel.status.primary_action_enabled);
+    assert_eq!(panel.input.input_value, "");
+    assert_eq!(panel.input.input_placeholder, "");
+    assert_eq!(panel.choices.exclusive_pills.len(), 2);
+    assert!(panel.choices.option_pills.is_empty());
+    assert!(panel.choices.create_pill.is_none());
 }
 
 #[test]

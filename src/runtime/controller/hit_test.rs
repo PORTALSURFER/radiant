@@ -6,7 +6,9 @@ where
 {
     /// Return the first projected widget whose laid-out bounds contain `point`.
     pub fn widget_at(&self, point: Point) -> Option<WidgetId> {
-        self.pointer_widgets
+        self.traversal
+            .widgets
+            .pointer
             .visible()
             .iter()
             .rev()
@@ -20,7 +22,9 @@ where
     }
 
     pub(super) fn styled_container_at(&self, point: Point) -> Option<NodeId> {
-        self.styled_containers
+        self.traversal
+            .containers
+            .styled
             .visible()
             .iter()
             .rev()
@@ -29,7 +33,10 @@ where
     }
 
     pub(super) fn widget_clip_contains_point(&self, widget_id: WidgetId, point: Point) -> bool {
-        self.widget_clip_ancestors
+        self.traversal
+            .widgets
+            .paths
+            .clip_ancestors
             .get(&widget_id)
             .is_none_or(|clip_nodes| {
                 clip_nodes.as_slice().iter().all(|node_id| {
@@ -42,7 +49,9 @@ where
     }
 
     pub(super) fn container_clip_contains_point(&self, node_id: NodeId, point: Point) -> bool {
-        self.container_clip_ancestors
+        self.traversal
+            .containers
+            .clip_ancestors
             .get(&node_id)
             .is_none_or(|clip_nodes| {
                 clip_nodes.as_slice().iter().all(|clip_node| {
@@ -58,7 +67,11 @@ where
         let Some(widget_id) = widget_id else {
             return false;
         };
-        self.container_hover_suppression.contains(&widget_id)
+        self.traversal
+            .widgets
+            .paths
+            .container_hover_suppression
+            .contains(&widget_id)
     }
 
     pub(super) fn widget_accepts_stable_pointer_move(&self, widget_id: WidgetId) -> bool {
@@ -72,11 +85,13 @@ where
     }
 
     fn stable_hovered_widget_at(&self, point: Point) -> Option<WidgetId> {
-        let hovered = self.hovered_widget?;
+        let hovered = self.interaction.hover.widget?;
         if !self.widget_contains_point(hovered, point) {
             return None;
         }
-        self.pointer_widgets
+        self.traversal
+            .widgets
+            .pointer
             .visible_after(hovered)
             .iter()
             .rev()

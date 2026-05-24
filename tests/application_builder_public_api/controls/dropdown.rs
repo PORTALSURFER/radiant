@@ -60,8 +60,16 @@ fn application_builder_dropdown_exports_and_routes_messages() {
 
     let surface: UiSurface<GalleryMessage> = ui::dropdown("WASAPI", true)
         .toggle_message(GalleryMessage::ToggleDropdown)
-        .option("System default", false, GalleryMessage::Pick("default"))
-        .option("WASAPI", true, GalleryMessage::Pick("wasapi"))
+        .option_from_parts(ui::DropdownOptionParts {
+            label: "System default".into(),
+            selection: ui::DropdownOptionSelection::Unselected,
+            message: GalleryMessage::Pick("default"),
+        })
+        .option_from_parts(ui::DropdownOptionParts {
+            label: "WASAPI".into(),
+            selection: ui::DropdownOptionSelection::Selected,
+            message: GalleryMessage::Pick("wasapi"),
+        })
         .build()
         .id(1)
         .into_surface();

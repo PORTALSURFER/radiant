@@ -29,11 +29,18 @@ pub struct SpatialPoint {
 
 /// Summary of one two-dimensional spatial visualization panel.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct SpatialPanel {
+pub struct SpatialPanelStatus {
     /// Whether the spatial panel is currently active.
     pub active: bool,
     /// Human-readable panel summary line.
     pub summary: String,
+    /// Optional error text shown when spatial data cannot be loaded.
+    pub error: Option<String>,
+}
+
+/// Product-neutral labels for one two-dimensional spatial visualization panel.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct SpatialPanelLabels {
     /// Legend/status label for render mode and point density.
     pub legend_label: String,
     /// Selection/focus label for the currently highlighted item.
@@ -44,16 +51,37 @@ pub struct SpatialPanel {
     pub cluster_label: String,
     /// Viewport label describing zoom/pan state.
     pub viewport_label: String,
-    /// Optional error text shown when spatial data cannot be loaded.
-    pub error: Option<String>,
-    /// Current point render mode.
-    pub render_mode: PointRenderMode,
+}
+
+/// Selection and related-list focus state for one spatial visualization panel.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct SpatialPanelSelection {
     /// Host item id currently selected in spatial state, when any.
     pub selected_item_id: Option<String>,
     /// Host item id currently focused from a related list, when any.
     pub focused_item_id: Option<String>,
+}
+
+/// Render mode and point payload for one spatial visualization panel.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct SpatialPanelPoints {
+    /// Current point render mode.
+    pub render_mode: PointRenderMode,
     /// Points available for rendering in normalized spatial coordinates.
     pub points: Arc<[SpatialPoint]>,
+}
+
+/// Summary of one two-dimensional spatial visualization panel.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct SpatialPanel {
+    /// Activation, summary, and error state.
+    pub status: SpatialPanelStatus,
+    /// Product-neutral labels for projected spatial state.
+    pub labels: SpatialPanelLabels,
+    /// Selection and related-list focus state.
+    pub selection: SpatialPanelSelection,
+    /// Render mode and point payload.
+    pub points: SpatialPanelPoints,
 }
 
 /// Project normalized milli-unit coordinates into a rectangular spatial canvas.

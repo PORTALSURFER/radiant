@@ -51,13 +51,13 @@ fn native_gpu_signal_summary_cache_stays_in_focused_module() {
             && signal.contains("fn ensure_signal_body_texture")
             && signal.contains("fn ensure_signal_buffer")
             && !signal.contains("fn cached_signal_summary")
-            && !signal.contains("signal_summary_cache_hits"),
+            && !signal.contains("summary_cache_hits"),
         "GPU signal resource upload/rendering should delegate CPU summary caching"
     );
     assert!(
         summary.contains("fn cached_signal_summary")
-            && summary.contains("signal_summary_cache_hits")
-            && summary.contains("signal_summary_builds")
+            && summary.contains("signal.summary_cache_hits")
+            && summary.contains("signal.summary_builds")
             && summary.contains("GpuSignalSummary::from_interleaved_samples"),
         "GPU signal summary memoization should live in resources/signal/summary.rs"
     );

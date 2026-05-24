@@ -29,10 +29,10 @@ pub(super) fn apply_top_level_attributes(
     options: &NativeRunOptions,
 ) -> WindowAttributes {
     use winit::platform::windows::WindowAttributesExtWindows;
-    if let Some(owner) = options.owner_window_handle {
+    if let Some(owner) = options.window.behavior.owner_window_handle {
         attrs = attrs.with_owner_window(owner as _);
     }
-    if options.skip_taskbar {
+    if options.window.behavior.skip_taskbar {
         attrs = attrs.with_skip_taskbar(true);
     }
     attrs

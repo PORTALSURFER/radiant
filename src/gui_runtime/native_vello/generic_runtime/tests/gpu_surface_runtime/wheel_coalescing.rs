@@ -54,5 +54,5 @@ fn queued_gpu_surface_wheel_flushes_one_coalesced_update() {
         project_count,
         "coalesced wheel routing should not refresh until redraw applies deferred refresh"
     );
-    assert!(runner.deferred_surface_refresh);
+    assert!(runner.timing.deferred_surface_refresh);
 }

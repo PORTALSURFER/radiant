@@ -79,12 +79,12 @@ pub(crate) fn update_panel(state: &mut MixerState, message: MixerPanelMessage) {
             if state.selection.is_selected(channel) && state.selection.selected_indices().len() > 1
             {
                 let target_gain = model::gain_for_ratio(ratio);
-                let source_gain = state.channels[channel].gain_db;
+                let source_gain = state.channels[channel].controls.gain_db;
                 let delta = target_gain - source_gain;
                 let selected = state.selection.selected_indices().to_vec();
                 for selected_channel in selected {
                     if let Some(channel_state) = state.channels.get_mut(selected_channel) {
-                        channel_state.set_gain_from_db(channel_state.gain_db + delta);
+                        channel_state.set_gain_from_db(channel_state.controls.gain_db + delta);
                     }
                 }
             } else if let Some(channel_state) = state.channels.get_mut(channel) {
@@ -99,7 +99,7 @@ pub(crate) fn update_panel(state: &mut MixerState, message: MixerPanelMessage) {
             ratio,
         } => {
             if let Some(channel_state) = state.channels.get_mut(channel)
-                && let Some(send_state) = channel_state.sends.get_mut(send)
+                && let Some(send_state) = channel_state.controls.sends.get_mut(send)
             {
                 *send_state = ratio.clamp(0.0, 1.0);
                 state.selected_channel = channel;
@@ -110,19 +110,19 @@ pub(crate) fn update_panel(state: &mut MixerState, message: MixerPanelMessage) {
         }
         MixerPanelMessage::ToggleMute(channel) => {
             if let Some(channel_state) = state.channels.get_mut(channel) {
-                channel_state.muted = !channel_state.muted;
+                channel_state.flags.muted = !channel_state.flags.muted;
                 state.selected_channel = channel;
             }
         }
         MixerPanelMessage::ToggleSolo(channel) => {
             if let Some(channel_state) = state.channels.get_mut(channel) {
-                channel_state.solo = !channel_state.solo;
+                channel_state.flags.solo = !channel_state.flags.solo;
                 state.selected_channel = channel;
             }
         }
         MixerPanelMessage::ToggleArm(channel) => {
             if let Some(channel_state) = state.channels.get_mut(channel) {
-                channel_state.armed = !channel_state.armed;
+                channel_state.flags.armed = !channel_state.flags.armed;
                 state.selected_channel = channel;
             }
         }

@@ -1,6 +1,27 @@
 use super::*;
 
 #[test]
+fn application_facade_uses_explicit_public_exports() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source = fs::read_to_string(manifest_dir.join("src/application.rs"))
+        .expect("application facade should be readable");
+
+    assert!(
+        source.contains("pub use launch::{")
+            && source.contains("WindowBuilder")
+            && source.contains("StatefulAppBuilder")
+            && source.contains("pub use layout_builders::{")
+            && source.contains("virtual_list_window")
+            && source.contains("DEFAULT_COLUMN_SPACING"),
+        "application facade should name the launch and layout API surface explicitly"
+    );
+    assert!(
+        !source.contains("pub use launch::*;") && !source.contains("pub use layout_builders::*;"),
+        "application facade should not wildcard-export public launch or layout builders"
+    );
+}
+
+#[test]
 fn application_view_lowering_keeps_container_defaults_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module = fs::read_to_string(manifest_dir.join("src/application/view_node.rs"))
@@ -93,6 +114,9 @@ fn application_dropdown_builder_keeps_menu_overlay_and_tests_focused() {
     let root =
         fs::read_to_string(manifest_dir.join("src/application/control_builders/dropdown.rs"))
             .expect("application dropdown builder root should be readable");
+    let model =
+        fs::read_to_string(manifest_dir.join("src/application/control_builders/dropdown/model.rs"))
+            .expect("application dropdown model should be readable");
     let menu =
         fs::read_to_string(manifest_dir.join("src/application/control_builders/dropdown/menu.rs"))
             .expect("application dropdown menu module should be readable");
@@ -102,12 +126,24 @@ fn application_dropdown_builder_keeps_menu_overlay_and_tests_focused() {
 
     assert!(
         root.contains("mod menu;")
+            && root.contains("mod model;")
+            && root.contains("DropdownOptionSelection")
             && root.contains("#[path = \"dropdown/tests.rs\"]")
             && root.contains("pub struct DropdownBuilder<Message>")
+            && root.contains("pub fn option_from_parts")
             && root.contains("pub fn dropdown_from_parts")
+            && !root.contains("pub struct DropdownOptionParts<Message>")
             && !root.contains("fn dropdown_option_button")
             && !root.contains("fn dropdown_builder_accepts_toggle_and_options"),
-        "dropdown builder root should own public model and builder entry points while delegating menu overlay and tests"
+        "dropdown builder root should own builder entry points while delegating public DTOs, menu overlay, and tests"
+    );
+    assert!(
+        model.contains("pub struct DropdownOption<Message>")
+            && model.contains("pub struct DropdownOptionParts<Message>")
+            && model.contains("pub enum DropdownOptionSelection")
+            && model.contains("pub struct DropdownParts<Message>")
+            && model.contains("pub fn from_parts(parts: DropdownOptionParts<Message>) -> Self"),
+        "dropdown public DTOs should live in the focused model module"
     );
     assert!(
         menu.contains("pub fn dropdown_menu<")
@@ -117,7 +153,9 @@ fn application_dropdown_builder_keeps_menu_overlay_and_tests_focused() {
     );
     assert!(
         tests.contains("fn dropdown_height_tracks_expanded_options")
-            && tests.contains("fn dropdown_builder_accepts_toggle_and_options"),
-        "dropdown builder behavior tests should live in dropdown/tests.rs"
+            && tests.contains("fn dropdown_builder_accepts_toggle_and_options")
+            && tests
+                .contains("fn dropdown_option_compatibility_constructor_delegates_to_named_parts"),
+        "dropdown builder and named-option behavior tests should live in dropdown/tests.rs"
     );
 }

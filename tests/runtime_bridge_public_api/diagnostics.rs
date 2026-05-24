@@ -1,8 +1,13 @@
 use super::*;
 use radiant::runtime::{
-    NativeFrameDiagnostics, NativeFrameTimingDiagnostics, NativeGpuSurfaceDiagnostics,
+    NativeCompositedBaseTiming, NativeFrameDiagnostics, NativeFrameTimingDiagnostics,
+    NativeFrameWorkTimings, NativeGpuSurfaceCustomShaderDiagnostics,
+    NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
+    NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
     NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
-    NativeTextDiagnostics, NativeTextQualityStatus, RuntimeBridge,
+    NativeSceneSurfaceDiagnostics, NativeSceneTraversalDiagnostics, NativeTextCacheCounters,
+    NativeTextCacheDiagnostics, NativeTextDiagnostics, NativeTextQualityDiagnostics,
+    NativeTextQualityStatus, NativeTransientOverlayTiming, RuntimeBridge,
 };
 use std::time::Duration;
 
@@ -11,8 +16,14 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     let mut bridge = DiagnosticBridge::default();
     let diagnostics = NativeFrameDiagnostics {
         scene: NativeSceneDiagnostics {
-            paint_plan_primitives: 12,
-            custom_surface_count: 2,
+            traversal: NativeSceneTraversalDiagnostics {
+                paint_plan_primitives: 12,
+                ..NativeSceneTraversalDiagnostics::default()
+            },
+            surfaces: NativeSceneSurfaceDiagnostics {
+                custom_surface_count: 2,
+                ..NativeSceneSurfaceDiagnostics::default()
+            },
             ..NativeSceneDiagnostics::default()
         },
         retained_surfaces: NativeRetainedSurfaceDiagnostics {
@@ -23,41 +34,65 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
             ..NativeRetainedSurfaceDiagnostics::default()
         },
         gpu_surfaces: NativeGpuSurfaceDiagnostics {
-            signal_summary_cache_hits: 4,
-            custom_shader_surfaces_rendered: 2,
-            custom_shader_pipeline_rebuilds: 1,
-            custom_shader_binding_rebuilds: 1,
-            custom_shader_binding_cache_hits: 3,
-            custom_shader_surfaces_failed: 1,
-            custom_shader_shader_module_failures: 1,
-            custom_shader_pipeline_failures: 1,
-            custom_shader_binding_failures: 1,
-            unsupported_custom_shader_surfaces: 1,
-            unsupported_custom_shader_vertices: 6,
-            unsupported_custom_shader_source_bytes: 64,
-            unsupported_custom_shader_uniform_bytes: 16,
-            unsupported_custom_shader_storage_bytes: 128,
+            signal: NativeGpuSurfaceSignalDiagnostics {
+                summary_cache_hits: 4,
+                ..NativeGpuSurfaceSignalDiagnostics::default()
+            },
+            custom_shader: NativeGpuSurfaceCustomShaderDiagnostics {
+                surfaces_rendered: 2,
+                pipeline_rebuilds: 1,
+                binding_rebuilds: 1,
+                binding_cache_hits: 3,
+                failures: NativeGpuSurfaceCustomShaderFailureDiagnostics {
+                    surfaces_failed: 1,
+                    shader_module_failures: 1,
+                    pipeline_failures: 1,
+                    binding_failures: 1,
+                },
+                unsupported: NativeGpuSurfaceUnsupportedCustomShaderDiagnostics {
+                    surfaces: 1,
+                    vertices: 6,
+                    source_bytes: 64,
+                    uniform_bytes: 16,
+                    storage_bytes: 128,
+                },
+            },
             ..NativeGpuSurfaceDiagnostics::default()
         },
         text: NativeTextDiagnostics {
-            layout_cache_hits: 6,
-            atom_cache_misses: 2,
-            unsupported_shaping_runs: 1,
-            unsupported_shaping_scalars: 4,
-            fallback_glyphs: 3,
-            missing_glyphs: 1,
-            ..NativeTextDiagnostics::default()
+            cache: NativeTextCacheDiagnostics {
+                layout: NativeTextCacheCounters {
+                    hits: 6,
+                    ..NativeTextCacheCounters::default()
+                },
+                atom: NativeTextCacheCounters {
+                    misses: 2,
+                    ..NativeTextCacheCounters::default()
+                },
+            },
+            quality: NativeTextQualityDiagnostics {
+                unsupported_shaping_runs: 1,
+                unsupported_shaping_scalars: 4,
+                fallback_glyphs: 3,
+                missing_glyphs: 1,
+            },
         },
         timings: NativeFrameTimingDiagnostics {
             gpu_timing_status: NativeGpuTimingStatus::CpuEnvelopeOnly,
-            refresh_surface: Duration::from_micros(7),
-            paint_plan: Duration::from_micros(11),
-            render_to_texture: Duration::from_micros(13),
-            full_screen_blit: Duration::from_micros(17),
+            frame_work: NativeFrameWorkTimings {
+                refresh_surface: Duration::from_micros(7),
+                paint_plan: Duration::from_micros(11),
+                render_to_texture: Duration::from_micros(13),
+                full_screen_blit: Duration::from_micros(17),
+                ..NativeFrameWorkTimings::default()
+            },
+            composited_base: NativeCompositedBaseTiming::default(),
+            transient_overlay: NativeTransientOverlayTiming {
+                primitives: 5,
+                ..NativeTransientOverlayTiming::default()
+            },
             submit_present: Duration::from_micros(19),
             since_last_present: Duration::from_micros(1000),
-            transient_overlay_primitives: 5,
-            ..NativeFrameTimingDiagnostics::default()
         },
     };
 
@@ -73,7 +108,10 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     );
     assert_eq!(
         NativeTextDiagnostics {
-            unsupported_shaping_runs: 1,
+            quality: NativeTextQualityDiagnostics {
+                unsupported_shaping_runs: 1,
+                ..NativeTextQualityDiagnostics::default()
+            },
             ..NativeTextDiagnostics::default()
         }
         .quality_status(),
@@ -81,7 +119,10 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     );
     assert_eq!(
         NativeTextDiagnostics {
-            missing_glyphs: 1,
+            quality: NativeTextQualityDiagnostics {
+                missing_glyphs: 1,
+                ..NativeTextQualityDiagnostics::default()
+            },
             ..NativeTextDiagnostics::default()
         }
         .quality_status(),

@@ -70,6 +70,7 @@ fn assert_clip_preview(
 
 fn assert_clip(state: &TimelineEditorState, id: u32, lane: usize, range: BeatRange) {
     let clip = state
+        .clip_store
         .clips
         .iter()
         .find(|clip| clip.id == id)
@@ -80,6 +81,7 @@ fn assert_clip(state: &TimelineEditorState, id: u32, lane: usize, range: BeatRan
 
 fn assert_lane_has_no_overlaps(state: &TimelineEditorState, lane: usize) {
     let clips = state
+        .clip_store
         .clips
         .iter()
         .filter(|clip| clip.lane == lane)

@@ -12,15 +12,15 @@ where
     /// scene rebuilds from paint-only runtime overlays. Application-level event
     /// routing can keep using [`Self::dispatch_event`].
     pub fn dispatch_pointer_move_with_outcome(&mut self, position: Point) -> PointerMoveOutcome {
-        let previous_hovered_widget = self.hovered_widget();
-        let previous_hovered_container = self.hovered_container();
+        let previous_hovered_widget = self.interaction.hover.widget;
+        let previous_hovered_container = self.interaction.hover.container;
         let dispatch = self.dispatch_pointer_move_target(position);
         let target = dispatch.target;
         let repaint_requested = self.take_repaint_requested();
         let exit_requested = self.take_exit_requested();
-        let hover_changed = previous_hovered_widget != self.hovered_widget()
-            || previous_hovered_container != self.hovered_container();
-        let pointer_captured = self.pointer_capture().is_some();
+        let hover_changed = previous_hovered_widget != self.interaction.hover.widget
+            || previous_hovered_container != self.interaction.hover.container;
+        let pointer_captured = self.interaction.pointer.capture.is_some();
         let target_prefers_paint_only =
             target.is_some_and(|widget_id| self.widget_prefers_pointer_move_paint_only(widget_id));
         let drag_preview_can_paint_only =
@@ -64,7 +64,7 @@ where
 
     /// Return whether a runtime-owned drag preview session is active.
     pub fn drag_session_active(&self) -> bool {
-        self.drag_session.is_some()
+        self.interaction.drag.session.is_some()
     }
 
     /// Return the widget under a native file-drop pointer position.
@@ -78,15 +78,15 @@ where
     /// the originating surface must not keep treating later pointer motion as a
     /// continuation of the in-window press.
     pub(crate) fn cancel_pointer_capture(&mut self) {
-        self.pointer_capture = None;
-        self.pointer_capture_state = None;
-        self.scroll_drag_capture = None;
+        self.interaction.pointer.capture = None;
+        self.interaction.pointer.capture_state = None;
+        self.interaction.pointer.scroll_drag_capture = None;
     }
 
     /// End the runtime drag preview because ownership has moved to a native
     /// external drag loop.
     pub(crate) fn take_drag_preview_for_external_drag(&mut self) -> bool {
-        if self.drag_session.take().is_none() {
+        if self.interaction.drag.session.take().is_none() {
             return false;
         }
         self.repaint_requested = true;
@@ -98,7 +98,7 @@ where
     /// The drag session stays alive so a later pointer move back into the
     /// window can show the preview again and continue routing the same drag.
     pub(crate) fn hide_drag_preview_for_cursor_left(&mut self) -> bool {
-        let Some(session) = self.drag_session.as_mut() else {
+        let Some(session) = self.interaction.drag.session.as_mut() else {
             return false;
         };
         if !session.visible {

@@ -31,8 +31,8 @@ fn build_text_field_layout_uses_one_full_layout_pass() {
     let layout = build_text_field_layout(&mut renderer, &mut editor, "item alpha beta", 14.0, 48.0);
 
     let counters = renderer.take_layout_profile_counters();
-    assert_eq!((counters.layout_hits, counters.layout_misses), (0, 1));
-    assert_eq!(counters.atom_misses, 1);
+    assert_eq!((counters.layout.hits, counters.layout.misses), (0, 1));
+    assert_eq!(counters.atom.misses, 1);
     assert!(!layout.visible_text("item alpha beta").is_empty());
     assert!(byte_index_for_local_x(&layout, 0.0) <= "item alpha beta".len());
 }
@@ -51,7 +51,7 @@ fn text_field_layout_resolves_caret_offsets_without_second_layout_pass() {
     let counters = renderer.take_layout_profile_counters();
 
     assert!(selection_end > selection_start);
-    assert_eq!((counters.layout_hits, counters.layout_misses), (0, 1));
+    assert_eq!((counters.layout.hits, counters.layout.misses), (0, 1));
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn text_field_layout_rejects_invalid_font_size_before_cache_work() {
     let layout = build_text_field_layout(&mut renderer, &mut editor, text, f32::NAN, 96.0);
     let counters = renderer.take_layout_profile_counters();
 
-    assert_eq!((counters.layout_hits, counters.layout_misses), (0, 0));
+    assert_eq!((counters.layout.hits, counters.layout.misses), (0, 0));
     assert!(layout.visible_text(text).is_empty());
     assert_eq!(layout.caret_offset, 0.0);
 }

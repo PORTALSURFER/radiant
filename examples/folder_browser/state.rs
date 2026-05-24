@@ -7,24 +7,49 @@ use super::*;
 
 #[derive(Clone, Debug)]
 pub(super) struct BrowserState {
+    pub(super) selection: BrowserSelection,
+    pub(super) tree: BrowserTreeState,
+    pub(super) context: BrowserContextState,
+    pub(super) rename: BrowserRenameState,
+    pub(super) columns: BrowserColumnState,
+    pub(super) folders: Vec<FolderEntry>,
+    pub(super) status: String,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct BrowserSelection {
     pub(super) selected_folder: String,
     pub(super) selected_file: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct BrowserTreeState {
     pub(super) expanded_folders: HashSet<String>,
     pub(super) folder_drag: Option<FolderDrag>,
+    pub(super) tree_width: f32,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct BrowserContextState {
     pub(super) context_folder: Option<String>,
     pub(super) context_file: Option<String>,
     pub(super) context_position: Option<radiant::layout::Point>,
-    pub(super) rename_folder: Option<String>,
-    pub(super) rename_draft: String,
-    pub(super) rename_file: Option<String>,
-    pub(super) file_rename_draft: String,
     pub(super) context_column: Option<String>,
-    pub(super) column_resize: Option<ColumnResize>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct BrowserRenameState {
+    pub(super) folder: Option<String>,
+    pub(super) folder_draft: String,
+    pub(super) file: Option<String>,
+    pub(super) file_draft: String,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct BrowserColumnState {
     pub(super) file_columns: Vec<FileColumn>,
     pub(super) sort: ui::DetailsSort,
-    pub(super) tree_width: f32,
-    pub(super) folders: Vec<FolderEntry>,
-    pub(super) status: String,
+    pub(super) resize: Option<ColumnResize>,
 }
 
 impl Default for BrowserState {
@@ -38,29 +63,39 @@ impl BrowserState {
         let root_folder = load_root_folder(root);
         let root_id = root_folder.id.clone();
         Self {
-            selected_folder: root_id.clone(),
-            selected_file: None,
-            expanded_folders: [root_id].into_iter().collect(),
-            folder_drag: None,
-            context_folder: None,
-            context_file: None,
-            context_position: None,
-            rename_folder: None,
-            rename_draft: String::new(),
-            rename_file: None,
-            file_rename_draft: String::new(),
-            context_column: None,
-            column_resize: None,
-            file_columns: default_file_columns(),
-            sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
-            tree_width: 300.0,
+            selection: BrowserSelection {
+                selected_folder: root_id.clone(),
+                selected_file: None,
+            },
+            tree: BrowserTreeState {
+                expanded_folders: [root_id].into_iter().collect(),
+                folder_drag: None,
+                tree_width: 300.0,
+            },
+            context: BrowserContextState {
+                context_folder: None,
+                context_file: None,
+                context_position: None,
+                context_column: None,
+            },
+            rename: BrowserRenameState {
+                folder: None,
+                folder_draft: String::new(),
+                file: None,
+                file_draft: String::new(),
+            },
+            columns: BrowserColumnState {
+                file_columns: default_file_columns(),
+                sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
+                resize: None,
+            },
             folders: vec![root_folder],
             status: String::from("Drag a folder handle onto another folder"),
         }
     }
 
     pub(super) fn selected_folder(&self) -> &FolderEntry {
-        self.find_folder(&self.selected_folder)
+        self.find_folder(&self.selection.selected_folder)
             .unwrap_or(&self.folders[0])
     }
 
@@ -73,11 +108,11 @@ impl BrowserState {
     }
 
     pub(super) fn is_expanded(&self, id: &str) -> bool {
-        self.expanded_folders.contains(id)
+        self.tree.expanded_folders.contains(id)
     }
 
     pub(super) fn selected_file_label(&self) -> String {
-        let Some(id) = self.selected_file.as_deref() else {
+        let Some(id) = self.selection.selected_file.as_deref() else {
             return String::from("No file selected");
         };
         self.selected_folder()
@@ -89,7 +124,8 @@ impl BrowserState {
     }
 
     pub(super) fn visible_file_columns(&self) -> Vec<&FileColumn> {
-        self.file_columns
+        self.columns
+            .file_columns
             .iter()
             .filter(|column| column.visible)
             .collect()
@@ -98,7 +134,7 @@ impl BrowserState {
     pub(super) fn sorted_files(&self) -> Vec<&FileEntry> {
         let mut files = self.selected_folder().files.iter().collect::<Vec<_>>();
         files.sort_by(|a, b| {
-            let ordering = match self.sort.column_id.as_str() {
+            let ordering = match self.columns.sort.column_id.as_str() {
                 "size" => a
                     .size_bytes
                     .cmp(&b.size_bytes)
@@ -114,7 +150,7 @@ impl BrowserState {
                 "path" => a.id.cmp(&b.id),
                 _ => natural_name_cmp(&a.name, &b.name),
             };
-            match self.sort.direction {
+            match self.columns.sort.direction {
                 ui::SortDirection::Ascending => ordering,
                 ui::SortDirection::Descending => ordering.reverse(),
             }
@@ -142,8 +178,9 @@ impl BrowserState {
             depth,
             has_children: folder.has_children(),
             expanded: self.is_expanded(&folder.id),
-            selected: self.selected_folder == folder.id,
+            selected: self.selection.selected_folder == folder.id,
             drop_target: self
+                .tree
                 .folder_drag
                 .as_ref()
                 .and_then(|drag| drag.target_id.as_ref())

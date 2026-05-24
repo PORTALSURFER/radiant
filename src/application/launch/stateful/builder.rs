@@ -22,7 +22,7 @@ impl<State> StatefulAppBuilder<State> {
 
     /// Set the native window title.
     pub fn title(mut self, title: impl Into<String>) -> Self {
-        self.options.title = title.into();
+        self.options.window.title = title.into();
         self
     }
 
@@ -33,7 +33,7 @@ impl<State> StatefulAppBuilder<State> {
 
     /// Set the initial logical window size using floating-point logical pixels.
     pub fn logical_size(mut self, width: f32, height: f32) -> Self {
-        self.options.inner_size = Some([width, height]);
+        self.options.window.geometry.inner_size = Some([width, height]);
         self
     }
 
@@ -44,7 +44,7 @@ impl<State> StatefulAppBuilder<State> {
 
     /// Set the minimum logical window size using floating-point logical pixels.
     pub fn min_logical_size(mut self, width: f32, height: f32) -> Self {
-        self.options.min_inner_size = Some([width, height]);
+        self.options.window.geometry.min_inner_size = Some([width, height]);
         self
     }
 

@@ -44,6 +44,8 @@ fn surface_paint_plan_buffering_stays_with_capacity_policy() {
 #[test]
 fn runtime_paint_primitive_support_keeps_models_queries_and_tests_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let facade = fs::read_to_string(manifest_dir.join("src/runtime/paint.rs"))
+        .expect("runtime paint facade should be readable");
     let stats = fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/stats.rs"))
         .expect("paint primitive stats module should be readable");
     let stats_tests =
@@ -70,6 +72,15 @@ fn runtime_paint_primitive_support_keeps_models_queries_and_tests_focused() {
         fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/text/tests.rs"))
             .expect("paint primitive text tests should be readable");
 
+    assert!(
+        facade.contains("pub use primitives::{")
+            && facade.contains("PaintPrimitive")
+            && facade.contains("SurfacePaintPlan")
+            && facade.contains("TransientOverlayContext")
+            && facade.contains("SvgParseError")
+            && !facade.contains("pub use primitives::*;"),
+        "runtime paint facade should explicitly name backend-neutral paint API exports"
+    );
     assert!(
         stats.contains("pub struct SurfacePaintStats")
             && stats.contains("pub fn stats(&self) -> SurfacePaintStats")
@@ -133,6 +144,32 @@ fn runtime_paint_primitive_support_keeps_models_queries_and_tests_focused() {
     assert!(
         text_tests.contains("fn paint_text_converts_compares_and_shares_storage"),
         "paint text behavior coverage should live in primitives/text/tests.rs"
+    );
+}
+
+#[test]
+fn gui_text_field_paint_input_stays_grouped_by_paint_concern() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let facade = fs::read_to_string(manifest_dir.join("src/gui/paint.rs"))
+        .expect("gui paint facade should be readable");
+    let text_field = fs::read_to_string(manifest_dir.join("src/gui/paint/text_field.rs"))
+        .expect("gui text-field paint helper should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/gui/paint/tests.rs"))
+        .expect("gui paint behavior tests should be readable");
+
+    assert!(
+        text_field.contains("pub struct TextFieldPaintGeometry")
+            && text_field.contains("pub struct TextFieldPaintContent")
+            && text_field.contains("pub struct TextFieldPaintColors")
+            && text_field.contains("pub struct TextFieldPaintStroke")
+            && text_field.contains("pub struct TextFieldPaint")
+            && facade.contains("TextFieldPaintGeometry")
+            && facade.contains("TextFieldPaintColors"),
+        "text-field paint inputs should stay grouped by geometry, content, colors, and stroke metrics"
+    );
+    assert!(
+        tests.contains("fn text_field_paint_emits_chrome_selection_text_and_caret"),
+        "text-field paint behavior coverage should stay in gui/paint/tests.rs"
     );
 }
 

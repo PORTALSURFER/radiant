@@ -19,7 +19,7 @@ impl GpuSurfaceRenderer {
         if !rebuild {
             return;
         }
-        stats.custom_shader_pipeline_rebuilds += 1;
+        stats.custom_shader.pipeline_rebuilds += 1;
         self.resources.custom_shader_bindings.remove(&surface_key);
         device.push_error_scope(wgpu::ErrorFilter::Validation);
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -27,7 +27,7 @@ impl GpuSurfaceRenderer {
             source: wgpu::ShaderSource::Wgsl(key.wgsl_source.as_ref().into()),
         });
         if let Some(error) = custom_shader_validation_error(device) {
-            stats.custom_shader_shader_module_failures += 1;
+            stats.custom_shader.failures.shader_module_failures += 1;
             warn!(
                 surface_key,
                 shader_key = %key.shader_key,
@@ -76,7 +76,7 @@ impl GpuSurfaceRenderer {
             cache: None,
         });
         if let Some(error) = custom_shader_validation_error(device) {
-            stats.custom_shader_pipeline_failures += 1;
+            stats.custom_shader.failures.pipeline_failures += 1;
             warn!(
                 surface_key,
                 shader_key = %key.shader_key,

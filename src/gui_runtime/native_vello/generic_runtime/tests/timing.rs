@@ -35,15 +35,15 @@ fn hover_redraws_do_not_reset_timed_animation_deadline() {
     );
     let interval = frame_cadence::animation_frame_interval(60);
     let now = Instant::now();
-    runner.last_redraw = now;
-    runner.last_timed_frame_drain = now - interval;
+    runner.timing.last_redraw = now;
+    runner.timing.last_timed_frame_drain = now - interval;
 
     let activity = runner.core.animation_activity();
     let outcome = runner.drain_timed_frame_now(now, activity, false);
 
     assert!(outcome.routed);
     assert!(outcome.needs_redraw());
-    assert_eq!(runner.last_timed_frame_drain, now);
+    assert_eq!(runner.timing.last_timed_frame_drain, now);
 }
 
 #[test]
@@ -54,7 +54,7 @@ fn pointer_routes_drain_due_frame_message_animation() {
         Vector2::new(320.0, 40.0),
     );
     let interval = frame_cadence::animation_frame_interval(60);
-    runner.last_timed_frame_drain = Instant::now() - interval;
+    runner.timing.last_timed_frame_drain = Instant::now() - interval;
     let mut outcome = GenericRouteOutcome {
         routed: true,
         redraw_requested: true,
@@ -80,7 +80,7 @@ fn pointer_move_outcome_drain_keeps_frame_animation_moving() {
     );
     let interval = frame_cadence::animation_frame_interval(60);
     let stale_deadline = Instant::now() - interval;
-    runner.last_timed_frame_drain = stale_deadline;
+    runner.timing.last_timed_frame_drain = stale_deadline;
 
     runner.handle_gpu_surface_pointer_move_outcome(
         GenericRouteOutcome {
@@ -93,7 +93,7 @@ fn pointer_move_outcome_drain_keeps_frame_animation_moving() {
     );
 
     assert!(
-        runner.last_timed_frame_drain > stale_deadline,
+        runner.timing.last_timed_frame_drain > stale_deadline,
         "pointer-move outcome handling should not starve due frame-message animation"
     );
 }
@@ -105,7 +105,7 @@ fn pointer_routes_do_not_overrun_timed_frame_cadence() {
         TestFrameMessageBridge::default(),
         Vector2::new(320.0, 40.0),
     );
-    runner.last_timed_frame_drain = Instant::now();
+    runner.timing.last_timed_frame_drain = Instant::now();
     let mut outcome = GenericRouteOutcome {
         routed: true,
         redraw_requested: true,

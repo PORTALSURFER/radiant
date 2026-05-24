@@ -6,11 +6,11 @@ where
 {
     /// Return whether a native external drag session is currently armed.
     pub fn external_drag_armed(&self) -> bool {
-        self.external_drag_session.is_some()
+        self.interaction.drag.external_session.is_some()
     }
 
     pub(crate) fn take_external_drag_session(&mut self) -> Option<ExternalDragSession<Message>> {
-        self.external_drag_session.take()
+        self.interaction.drag.external_session.take()
     }
 
     pub(crate) fn dispatch_external_drag_result(

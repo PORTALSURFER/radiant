@@ -54,7 +54,7 @@ fn layout_cache_eviction_keeps_recently_used_entries() {
     assert!(cache.layout_cache.contains_key(&hot_key));
     assert!(cache.layout_cache.contains_key(&fresh_key));
     assert!(cache.layout_cache.len() <= TEXT_LAYOUT_CACHE_CAPACITY);
-    assert_eq!(cache.text_layout_evictions, 1);
+    assert_eq!(cache.layout_profile.evictions, 1);
 }
 
 #[test]
@@ -87,9 +87,9 @@ fn cached_layout_hits_report_glyph_diagnostics_for_current_frame() {
     let _ = cache.record_layout_cache_hit(&key);
 
     let counters = cache.take_profile_counters();
-    assert_eq!(counters.layout_hits, 1);
-    assert_eq!(counters.unsupported_shaping_runs, 1);
-    assert_eq!(counters.unsupported_shaping_scalars, 4);
-    assert_eq!(counters.fallback_glyphs, 2);
-    assert_eq!(counters.missing_glyphs, 1);
+    assert_eq!(counters.layout.hits, 1);
+    assert_eq!(counters.quality.unsupported_shaping_runs, 1);
+    assert_eq!(counters.quality.unsupported_shaping_scalars, 4);
+    assert_eq!(counters.quality.fallback_glyphs, 2);
+    assert_eq!(counters.quality.missing_glyphs, 1);
 }

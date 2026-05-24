@@ -7,6 +7,8 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
         .expect("visualization test root should be readable");
     let spatial = fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/spatial.rs"))
         .expect("spatial visualization tests should be readable");
+    let spatial_model = fs::read_to_string(manifest_dir.join("src/gui/visualization/spatial.rs"))
+        .expect("spatial visualization model should be readable");
     let canvas = fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/canvas.rs"))
         .expect("canvas visualization tests should be readable");
     let signal = fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/signal.rs"))
@@ -37,6 +39,7 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
     );
     assert!(
         spatial.contains("fn normalized_milli_point_projects_and_clamps_into_rect")
+            && spatial.contains("fn spatial_panel_groups_labels_selection_and_point_data")
             && canvas.contains("fn canvas_invalidation_splits_scene_and_interaction_rebuilds")
             && signal.contains("fn signal_tool_state_preserves_generic_interaction_flags")
             && timeline.contains("mod mapper;")
@@ -45,6 +48,14 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
             && timeline.contains("mod fixtures;")
             && !timeline.contains("fn timeline_motion_state_aggregates_surface_chrome_tools"),
         "visualization behavior tests should stay grouped by spatial, canvas, signal, and timeline concerns"
+    );
+    assert!(
+        spatial_model.contains("pub struct SpatialPanelStatus")
+            && spatial_model.contains("pub struct SpatialPanelLabels")
+            && spatial_model.contains("pub struct SpatialPanelSelection")
+            && spatial_model.contains("pub struct SpatialPanelPoints")
+            && spatial_model.contains("pub struct SpatialPanel"),
+        "spatial panel state should stay grouped by status, labels, selection, and point data"
     );
     assert!(
         timeline_mapper.contains("fn timeline_coordinate_mapper_projects_and_back_projects_micros")

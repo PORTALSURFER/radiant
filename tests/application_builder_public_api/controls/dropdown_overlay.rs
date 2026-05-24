@@ -32,11 +32,11 @@ fn application_builder_dropdown_overlay_routes_above_dismiss_layer() {
                     20.0,
                     20.0,
                     Some(100.0),
-                    vec![ui::DropdownOption::new(
-                        "WASAPI",
-                        false,
-                        OverlayMessage::Pick,
-                    )],
+                    vec![ui::DropdownOption::from_parts(ui::DropdownOptionParts {
+                        label: "WASAPI".into(),
+                        selection: ui::DropdownOptionSelection::Unselected,
+                        message: OverlayMessage::Pick,
+                    })],
                 ),
             ])
             .fill()

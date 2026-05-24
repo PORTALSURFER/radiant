@@ -10,9 +10,9 @@ where
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
         if key != crate::gui::input::KeyCode::Space
-            || self.modifiers.control_key()
-            || self.modifiers.super_key()
-            || self.modifiers.alt_key()
+            || self.input.modifiers.control_key()
+            || self.input.modifiers.super_key()
+            || self.input.modifiers.alt_key()
             || !self.core.has_focused_text_input()
         {
             return false;
@@ -26,7 +26,7 @@ where
         key: crate::gui::input::KeyCode,
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
-        if !(self.modifiers.control_key() || self.modifiers.super_key()) {
+        if !(self.input.modifiers.control_key() || self.input.modifiers.super_key()) {
             return false;
         }
         match key {
@@ -37,7 +37,7 @@ where
             }
             crate::gui::input::KeyCode::C => {
                 if let Some(selection) = self.core.focused_text_selection() {
-                    if let Some(clipboard) = &mut self.clipboard {
+                    if let Some(clipboard) = &mut self.input.clipboard {
                         let _ = clipboard.set_text(selection);
                     }
                     route_outcome.routed = true;
@@ -47,7 +47,7 @@ where
             }
             crate::gui::input::KeyCode::X => {
                 if let Some(selection) = self.core.focused_text_selection() {
-                    if let Some(clipboard) = &mut self.clipboard {
+                    if let Some(clipboard) = &mut self.input.clipboard {
                         let _ = clipboard.set_text(selection);
                     }
                     let outcome = self.core.route_text_edit(TextEditCommand::CutSelection);
@@ -57,7 +57,7 @@ where
                 false
             }
             crate::gui::input::KeyCode::V => {
-                let Some(clipboard) = &mut self.clipboard else {
+                let Some(clipboard) = &mut self.input.clipboard else {
                     return false;
                 };
                 let Ok(text) = clipboard.get_text() else {
@@ -86,8 +86,9 @@ where
         key: crate::gui::input::KeyCode,
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
-        let extend_selection = self.modifiers.shift_key();
-        let word_navigation = self.modifiers.control_key() || self.modifiers.super_key();
+        let extend_selection = self.input.modifiers.shift_key();
+        let word_navigation =
+            self.input.modifiers.control_key() || self.input.modifiers.super_key();
         let command = match key {
             crate::gui::input::KeyCode::ArrowLeft if word_navigation => {
                 TextEditCommand::MoveWordLeft { extend_selection }

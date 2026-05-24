@@ -8,6 +8,19 @@ use super::{
     widget::PianoRollWidget,
 };
 
+#[path = "widget_paint/grid.rs"]
+#[cfg(any())]
+mod grid;
+#[path = "widget_paint/keyboard.rs"]
+#[cfg(any())]
+mod keyboard;
+#[path = "widget_paint/note.rs"]
+#[cfg(any())]
+mod note;
+#[path = "widget_paint/overlay.rs"]
+#[cfg(any())]
+mod overlay;
+
 pub(super) fn append_editor_clip_start(
     widget: &PianoRollWidget,
     primitives: &mut Vec<PaintPrimitive>,

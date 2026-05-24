@@ -2,6 +2,10 @@ use super::*;
 
 #[path = "examples/catalog.rs"]
 mod catalog;
+#[path = "examples/support.rs"]
+mod support;
+
+use support::registered_example_names;
 
 #[test]
 fn generic_native_example_is_registered_and_uses_application_builders() {
@@ -209,30 +213,4 @@ fn assert_no_local_windows_paths_in_examples(manifest_dir: &Path) {
         "maintained examples should use arguments, environment variables, or temp paths instead of hardcoded local Windows paths:\n{}",
         violations.join("\n")
     );
-}
-
-fn registered_example_names(manifest: &str) -> Vec<String> {
-    let mut names = Vec::new();
-    let mut in_example = false;
-
-    for line in manifest.lines().map(str::trim) {
-        match line {
-            "[[example]]" => in_example = true,
-            line if line.starts_with("[[") || line.starts_with('[') => in_example = false,
-            line if in_example && line.starts_with("name = ") => {
-                if let Some(name) = quoted_toml_value(line) {
-                    names.push(name.to_owned());
-                }
-            }
-            _ => {}
-        }
-    }
-
-    names
-}
-
-fn quoted_toml_value(line: &str) -> Option<&str> {
-    line.split_once('"')
-        .and_then(|(_, tail)| tail.split_once('"'))
-        .map(|(value, _)| value)
 }

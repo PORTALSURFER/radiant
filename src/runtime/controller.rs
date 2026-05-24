@@ -11,10 +11,13 @@ mod focus;
 mod hit_order;
 mod hit_test;
 mod input;
+mod interaction_state;
 mod pointer;
 mod scratch;
 mod scroll;
 mod state;
+mod traversal_state;
+mod work;
 
 pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};
@@ -34,11 +37,12 @@ use crate::{
     },
     layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState, NodeId, OverflowPolicy},
     theme::ThemeTokens,
-    widgets::{WidgetId, WidgetInput, WidgetKey, WidgetState},
+    widgets::{WidgetId, WidgetInput, WidgetKey},
 };
-use hit_order::HitOrderIndex;
+use interaction_state::{RuntimeInteractionState, ScrollDragCapture};
 use scratch::RuntimeScratch;
-use std::collections::{HashMap, HashSet};
+use traversal_state::RuntimeTraversalState;
+use work::RuntimeWorkQueues;
 
 /// Direction for deterministic keyboard focus traversal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -47,12 +51,6 @@ pub enum FocusTraversal {
     Forward,
     /// Move to the previous keyboard-focusable widget in declarative tree order.
     Backward,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct ScrollDragCapture {
-    node_id: NodeId,
-    grip_fraction: f32,
 }
 
 /// Stateful generic runtime controller for message-driven Radiant hosts.
@@ -76,37 +74,12 @@ where
     layout: LayoutOutput,
     layout_state: LayoutState,
     layout_debug_options: LayoutDebugOptions,
-    widget_hit_order: Vec<WidgetId>,
-    focusable_widgets: HitOrderIndex,
-    pointer_widgets: HitOrderIndex,
-    widget_paths: HashMap<WidgetId, WidgetPath>,
-    previous_widget_paths: HashMap<WidgetId, WidgetPath>,
-    container_hover_suppression: HashSet<WidgetId>,
-    keyboard_focus_widgets: HitOrderIndex,
-    wheel_widgets: HitOrderIndex,
-    stateful_widget_order: Vec<WidgetId>,
-    styled_containers: HitOrderIndex,
-    scroll_containers: HitOrderIndex,
-    widget_clip_ancestors: HashMap<WidgetId, ClipAncestors>,
-    container_clip_ancestors: HashMap<NodeId, ClipAncestors>,
-    scroll_content_by_container: HashMap<NodeId, NodeId>,
+    traversal: RuntimeTraversalState,
     scratch: RuntimeScratch,
-    focused_widget: Option<WidgetId>,
-    pending_key_chord: Option<KeyPress>,
-    hovered_container: Option<NodeId>,
-    hovered_widget: Option<WidgetId>,
-    pointer_capture: Option<WidgetId>,
-    pointer_capture_state: Option<(WidgetId, WidgetState)>,
-    hovered_scroll_affordance: Option<NodeId>,
-    scroll_drag_capture: Option<ScrollDragCapture>,
+    interaction: RuntimeInteractionState<Message>,
     repaint_requested: bool,
     exit_requested: bool,
-    runtime_commands: Vec<Command<Message>>,
-    runtime_command_batch: Vec<Command<Message>>,
-    runtime_messages: Vec<Message>,
-    runtime_message_batch: Vec<Message>,
-    external_drag_session: Option<ExternalDragSession<Message>>,
-    drag_session: Option<DragSession>,
+    runtime_work: RuntimeWorkQueues<Message>,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>

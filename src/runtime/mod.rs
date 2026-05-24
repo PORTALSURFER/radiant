@@ -32,17 +32,19 @@ mod surface;
 
 pub use crate::gui_runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS,
-    NativeGenericRunError, NativeGenericRunReport, NativeGenericRuntimeArtifacts, NativeGpuBackend,
-    NativeGpuOptions, NativePopupOptions, NativeRunOptions, NativeRunOptionsError,
-    NativeStartupTimingArtifact, NativeTextOptions, NativeWindowMode, RuntimeRunReport,
-    WindowIconRgba, WindowManifest, WindowManifestError, WindowSpec, WindowSpecError,
-    WindowSpecParts, run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
+    NativeFrameOptions, NativeGenericRunError, NativeGenericRunReport,
+    NativeGenericRuntimeArtifacts, NativeGpuBackend, NativeGpuOptions, NativePopupOptions,
+    NativeRunOptions, NativeRunOptionsError, NativeStartupTimingArtifact, NativeTextOptions,
+    NativeWindowBehavior, NativeWindowGeometry, NativeWindowMode, NativeWindowOptions,
+    RuntimeRunReport, WindowIconRgba, WindowManifest, WindowManifestError, WindowSpec,
+    WindowSpecError, WindowSpecParts, run_native_vello_runtime,
+    run_native_vello_runtime_with_artifacts,
 };
 pub use bridge::{
     App, AuxiliaryWindow, DeclarativeCommandRuntimeBridge, DeclarativeCommandRuntimeBridgeParts,
     DeclarativeOwnedCommandRuntimeBridge, DeclarativeOwnedCommandRuntimeBridgeParts,
     DeclarativeOwnedRuntimeBridge, DeclarativeOwnedRuntimeBridgeParts, DeclarativeRuntimeBridge,
-    DeclarativeRuntimeBridgeParts, RuntimeAnimationActivity, RuntimeBridge,
+    DeclarativeRuntimeBridgeParts, RuntimeAnimationActivity, RuntimeAnimationDemand, RuntimeBridge,
     declarative_command_runtime_bridge, declarative_owned_command_runtime_bridge,
     declarative_owned_runtime_bridge, declarative_runtime_bridge,
 };
@@ -52,9 +54,16 @@ pub use controller::{
     RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceRuntime,
 };
 pub use diagnostics::{
-    NativeFrameDiagnostics, NativeFrameTimingDiagnostics, NativeGpuSurfaceDiagnostics,
-    NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
-    NativeTextDiagnostics, NativeTextQualityStatus, RetainedSurfaceCachePolicy,
+    NativeCompositedBaseTiming, NativeFrameDiagnostics, NativeFrameTimingDiagnostics,
+    NativeFrameWorkTimings, NativeGpuSurfaceAtlasDiagnostics, NativeGpuSurfaceCompositeDiagnostics,
+    NativeGpuSurfaceCustomShaderDiagnostics, NativeGpuSurfaceCustomShaderFailureDiagnostics,
+    NativeGpuSurfaceDiagnostics, NativeGpuSurfaceSignalDiagnostics,
+    NativeGpuSurfaceUnsupportedCustomShaderDiagnostics, NativeGpuTimingStatus,
+    NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics, NativeSceneMediaDiagnostics,
+    NativeSceneSurfaceDiagnostics, NativeSceneTextDiagnostics, NativeSceneTraversalDiagnostics,
+    NativeTextCacheCounters, NativeTextCacheDiagnostics, NativeTextDiagnostics,
+    NativeTextQualityDiagnostics, NativeTextQualityStatus, NativeTransientOverlayTiming,
+    RetainedSurfaceCachePolicy,
 };
 pub(crate) use drag::DragSession;
 pub use drag::{DragPreview, DragRequest};

@@ -7,7 +7,7 @@ fn native_gpu_hover_survives_scene_rebuilds() {
         GpuWheelBridge::default(),
         Vector2::new(240.0, 80.0),
     );
-    runner.last_cursor = Some(Point::new(60.0, 20.0));
+    runner.input.last_cursor = Some(Point::new(60.0, 20.0));
     runner.rebuild_scene();
 
     let surface = runner

@@ -53,6 +53,7 @@ fn file_column_resize_clamps_width() {
     );
 
     let width = state
+        .columns
         .file_columns
         .iter()
         .find(|column| column.id == "kind")

@@ -20,7 +20,9 @@ fn runtime_diagnostics_models_stay_in_focused_modules() {
             && root.contains("mod scene;")
             && root.contains("mod cache_policy;")
             && root.contains("pub use frame::NativeFrameDiagnostics")
-            && root.contains("pub use text::{NativeTextDiagnostics, NativeTextQualityStatus}")
+            && root.contains("NativeTextDiagnostics")
+            && root.contains("NativeTextQualityStatus")
+            && root.contains("NativeGpuSurfaceCustomShaderDiagnostics")
             && !root.contains("pub struct NativeTextDiagnostics")
             && !root.contains("pub struct NativeGpuSurfaceDiagnostics"),
         "runtime diagnostics root should index focused public diagnostics modules"
@@ -28,12 +30,22 @@ fn runtime_diagnostics_models_stay_in_focused_modules() {
     assert!(
         frame.contains("pub struct NativeFrameDiagnostics")
             && text.contains("pub struct NativeTextDiagnostics")
+            && text.contains("pub struct NativeTextCacheDiagnostics")
+            && text.contains("pub struct NativeTextCacheCounters")
+            && text.contains("pub struct NativeTextQualityDiagnostics")
             && text.contains("pub enum NativeTextQualityStatus")
             && timing.contains("pub struct NativeFrameTimingDiagnostics")
+            && timing.contains("pub struct NativeFrameWorkTimings")
+            && timing.contains("pub struct NativeCompositedBaseTiming")
+            && timing.contains("pub struct NativeTransientOverlayTiming")
             && timing.contains("pub enum NativeGpuTimingStatus")
             && gpu_surface.contains("pub struct NativeGpuSurfaceDiagnostics")
             && retained_surface.contains("pub struct NativeRetainedSurfaceDiagnostics")
             && scene.contains("pub struct NativeSceneDiagnostics")
+            && scene.contains("pub struct NativeSceneTraversalDiagnostics")
+            && scene.contains("pub struct NativeSceneTextDiagnostics")
+            && scene.contains("pub struct NativeSceneMediaDiagnostics")
+            && scene.contains("pub struct NativeSceneSurfaceDiagnostics")
             && cache_policy.contains("pub struct RetainedSurfaceCachePolicy"),
         "each runtime diagnostics concern should live with its focused model and policy"
     );

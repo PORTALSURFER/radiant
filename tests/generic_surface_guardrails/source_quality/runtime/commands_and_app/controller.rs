@@ -3,8 +3,18 @@ use super::*;
 #[test]
 fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let controller = fs::read_to_string(manifest_dir.join("src/runtime/controller.rs"))
+        .expect("runtime controller root should be readable");
+    let interaction_state =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/interaction_state.rs"))
+            .expect("runtime controller interaction state should be readable");
+    let traversal_state =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/traversal_state.rs"))
+            .expect("runtime controller traversal state should be readable");
     let root = fs::read_to_string(manifest_dir.join("src/runtime/controller/commands.rs"))
         .expect("runtime controller command root should be readable");
+    let work = fs::read_to_string(manifest_dir.join("src/runtime/controller/work.rs"))
+        .expect("runtime controller work queues should be readable");
     let outcome =
         fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/outcome.rs"))
             .expect("runtime command outcome module should be readable");
@@ -51,9 +61,55 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
     );
     assert!(
         drain.contains("pub fn drain_runtime_messages")
-            && drain.contains("take_runtime_command_batch_into")
+            && drain.contains(".drain_bridge_commands")
+            && drain.contains(".drain_bridge_messages")
             && !root.contains("pub fn drain_runtime_messages"),
         "runtime work draining should live in commands/drain.rs"
+    );
+    assert!(
+        controller.contains("mod work;")
+            && controller.contains("runtime_work: RuntimeWorkQueues<Message>")
+            && !controller.contains("runtime_commands: Vec<Command<Message>>")
+            && !controller.contains("runtime_messages: Vec<Message>"),
+        "surface runtime should keep runtime work queues behind one focused controller field"
+    );
+    assert!(
+        work.contains("pub(super) struct RuntimeWorkQueues<Message>")
+            && work.contains("fn drain_bridge_commands")
+            && work.contains("fn drain_bridge_messages")
+            && work.contains("fn has_remaining_work"),
+        "runtime work queue ownership should live in controller/work.rs"
+    );
+    assert!(
+        controller.contains("mod interaction_state;")
+            && controller.contains("interaction: RuntimeInteractionState<Message>")
+            && !controller.contains("focused_widget: Option<WidgetId>")
+            && !controller.contains("pointer_capture: Option<WidgetId>")
+            && !controller.contains("drag_session: Option<DragSession>"),
+        "surface runtime should group interaction ownership behind one focused controller field"
+    );
+    assert!(
+        interaction_state.contains("pub(super) struct RuntimeInteractionState<Message>")
+            && interaction_state.contains("pub(super) struct RuntimeFocusState")
+            && interaction_state.contains("pub(super) struct RuntimeHoverState")
+            && interaction_state.contains("pub(super) struct RuntimePointerState")
+            && interaction_state.contains("pub(super) struct RuntimeDragState<Message>"),
+        "focus, hover, pointer capture, and drag state should stay in controller/interaction_state.rs"
+    );
+    assert!(
+        controller.contains("mod traversal_state;")
+            && controller.contains("traversal: RuntimeTraversalState")
+            && !controller.contains("widget_hit_order: Vec<WidgetId>")
+            && !controller.contains("focusable_widgets: HitOrderIndex")
+            && !controller.contains("widget_paths: HashMap"),
+        "surface runtime should group projected traversal indexes behind one focused controller field"
+    );
+    assert!(
+        traversal_state.contains("pub(super) struct RuntimeTraversalState")
+            && traversal_state.contains("pub(super) struct RuntimeWidgetTraversal")
+            && traversal_state.contains("pub(super) struct RuntimeWidgetPathState")
+            && traversal_state.contains("pub(super) struct RuntimeContainerTraversal"),
+        "widget paths, hit orders, and container indexes should stay in controller/traversal_state.rs"
     );
     assert!(
         dispatch.contains("fn execute_command_inner")

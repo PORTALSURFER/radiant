@@ -1,6 +1,6 @@
 use super::super::{
-    ColumnSummary, ColumnSummaryParts, EditableRowKind, EditableTreeActions, EditableTreeRow,
-    EditableTreeRowParts,
+    ColumnSummary, ColumnSummaryParts, EditableRowKind, EditableTreeActions,
+    EditableTreeDraftInputParts, EditableTreeInputFocus, EditableTreeRow, EditableTreeRowParts,
 };
 
 #[test]
@@ -56,14 +56,39 @@ fn editable_tree_row_preserves_existing_and_draft_state() {
 
     assert_eq!(existing.label, "Root");
     assert_eq!(existing.detail, "3 items");
-    assert!(existing.selected);
-    assert!(existing.is_root);
-    assert!(existing.has_children);
-    assert!(existing.expanded);
+    assert!(existing.flags.selected);
+    assert!(existing.flags.is_root);
+    assert!(existing.flags.has_children);
+    assert!(existing.flags.expanded);
     assert_eq!(existing.kind, EditableRowKind::Existing);
     assert_eq!(existing.backing_index, Some(7));
     assert_eq!(draft.kind, EditableRowKind::RenameDraft);
-    assert_eq!(draft.input_value.as_deref(), Some("Draft"));
-    assert!(draft.input_focused);
-    assert!(draft.select_all_on_focus);
+    assert_eq!(draft.input.value.as_deref(), Some("Draft"));
+    assert!(draft.input.focused);
+    assert!(draft.input.select_all_on_focus);
+}
+
+#[test]
+fn editable_tree_draft_rows_support_named_input_parts() {
+    let input = EditableTreeDraftInputParts {
+        value: String::from("Draft"),
+        placeholder: String::from("Name"),
+        focus: EditableTreeInputFocus::Focused,
+        ..EditableTreeDraftInputParts::default()
+    };
+    let draft = EditableTreeRow::create_draft_from_parts(
+        2,
+        EditableTreeDraftInputParts {
+            error: Some(String::from("required")),
+            ..input
+        },
+    );
+
+    assert_eq!(draft.kind, EditableRowKind::CreateDraft);
+    assert_eq!(draft.depth, 2);
+    assert_eq!(draft.input.value.as_deref(), Some("Draft"));
+    assert_eq!(draft.input.placeholder.as_deref(), Some("Name"));
+    assert_eq!(draft.input.error.as_deref(), Some("required"));
+    assert!(draft.input.focused);
+    assert!(!draft.input.select_all_on_focus);
 }

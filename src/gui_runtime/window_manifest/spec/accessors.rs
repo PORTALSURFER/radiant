@@ -4,22 +4,22 @@ use crate::gui_runtime::NativePopupOptions;
 impl WindowSpec {
     /// Return the configured window title.
     pub fn title(&self) -> &str {
-        self.options.title.as_str()
+        self.options.window.title.as_str()
     }
 
     /// Return the configured initial logical window size, if one was set.
     pub const fn inner_size(&self) -> Option<[f32; 2]> {
-        self.options.inner_size
+        self.options.window.geometry.inner_size
     }
 
     /// Return the configured minimum logical window size, if one was set.
     pub const fn min_inner_size(&self) -> Option<[f32; 2]> {
-        self.options.min_inner_size
+        self.options.window.geometry.min_inner_size
     }
 
     /// Return whether native file drag-and-drop is enabled when supported.
     pub const fn drag_and_drop_enabled(&self) -> bool {
-        self.options.drag_and_drop
+        self.options.window.behavior.drag_and_drop
     }
 
     /// Return whether this descriptor represents a floating popup window.
@@ -34,7 +34,7 @@ impl WindowSpec {
 
     /// Return the target animation frame rate for this window.
     pub const fn target_frame_rate(&self) -> u32 {
-        self.options.target_fps
+        self.options.frame.target_fps
     }
 
     /// Return the effective target animation frame rate after native policy clamping.

@@ -21,37 +21,12 @@ where
             layout: LayoutOutput::default(),
             layout_state: LayoutState::default(),
             layout_debug_options: LayoutDebugOptions::default(),
-            widget_hit_order: Vec::new(),
-            focusable_widgets: HitOrderIndex::default(),
-            pointer_widgets: HitOrderIndex::default(),
-            widget_paths: HashMap::new(),
-            previous_widget_paths: HashMap::new(),
-            container_hover_suppression: HashSet::new(),
-            keyboard_focus_widgets: HitOrderIndex::default(),
-            wheel_widgets: HitOrderIndex::default(),
-            stateful_widget_order: Vec::new(),
-            styled_containers: HitOrderIndex::default(),
-            scroll_containers: HitOrderIndex::default(),
-            widget_clip_ancestors: HashMap::new(),
-            container_clip_ancestors: HashMap::new(),
-            scroll_content_by_container: HashMap::new(),
+            traversal: RuntimeTraversalState::default(),
             scratch: RuntimeScratch::default(),
-            focused_widget: None,
-            pending_key_chord: None,
-            hovered_container: None,
-            hovered_widget: None,
-            pointer_capture: None,
-            pointer_capture_state: None,
-            hovered_scroll_affordance: None,
-            scroll_drag_capture: None,
+            interaction: RuntimeInteractionState::default(),
             repaint_requested: false,
             exit_requested: false,
-            runtime_commands: Vec::new(),
-            runtime_command_batch: Vec::new(),
-            runtime_messages: Vec::new(),
-            runtime_message_batch: Vec::new(),
-            external_drag_session: None,
-            drag_session: None,
+            runtime_work: RuntimeWorkQueues::default(),
         };
         runtime.relayout_with_traversal(traversal);
         runtime
@@ -70,7 +45,10 @@ where
     /// Reproject the latest host state into a fresh immutable surface snapshot.
     pub fn refresh(&mut self) {
         let mut next_surface = self.bridge.pull_surface();
-        std::mem::swap(&mut self.previous_widget_paths, &mut self.widget_paths);
+        std::mem::swap(
+            &mut self.traversal.widgets.paths.previous,
+            &mut self.traversal.widgets.paths.current,
+        );
         let mut traversal = self.take_reusable_traversal_index(true);
         let layout_root = next_surface.runtime_projection_reusing_with_scratch(
             &mut traversal,
@@ -81,54 +59,70 @@ where
             &self.surface,
             &traversal.stateful_widget_order,
             &traversal.widget_paths,
-            &self.previous_widget_paths,
+            &self.traversal.widgets.paths.previous,
         );
         self.surface = next_surface;
         self.layout_root = layout_root;
         self.restore_pointer_capture_state();
         self.relayout_with_traversal(traversal);
         self.clear_stale_interaction_state();
-        if let Some(widget_id) = self.focused_widget {
+        if let Some(widget_id) = self.interaction.focus.focused_widget {
             self.route_focus_changed(widget_id, true);
         }
     }
 
     fn clear_stale_interaction_state(&mut self) {
         if self
+            .interaction
+            .focus
             .focused_widget
-            .is_some_and(|widget_id| !self.focusable_widgets.contains(widget_id))
+            .is_some_and(|widget_id| !self.traversal.widgets.focusable.contains(widget_id))
         {
-            self.focused_widget = None;
+            self.interaction.focus.focused_widget = None;
+        }
+        if self.interaction.pointer.capture.is_some_and(|widget_id| {
+            !self
+                .traversal
+                .widgets
+                .paths
+                .current
+                .contains_key(&widget_id)
+        }) {
+            self.interaction.pointer.capture = None;
         }
         if self
-            .pointer_capture
-            .is_some_and(|widget_id| !self.widget_paths.contains_key(&widget_id))
-        {
-            self.pointer_capture = None;
-        }
-        if self
+            .interaction
+            .pointer
             .scroll_drag_capture
-            .is_some_and(|capture| !self.scroll_containers.contains(capture.node_id))
+            .is_some_and(|capture| !self.traversal.containers.scroll.contains(capture.node_id))
         {
-            self.scroll_drag_capture = None;
+            self.interaction.pointer.scroll_drag_capture = None;
         }
         if self
-            .hovered_scroll_affordance
-            .is_some_and(|node_id| !self.scroll_containers.contains(node_id))
+            .interaction
+            .hover
+            .scroll_affordance
+            .is_some_and(|node_id| !self.traversal.containers.scroll.contains(node_id))
         {
-            self.hovered_scroll_affordance = None;
+            self.interaction.hover.scroll_affordance = None;
+        }
+        if self.interaction.hover.widget.is_some_and(|widget_id| {
+            !self
+                .traversal
+                .widgets
+                .paths
+                .current
+                .contains_key(&widget_id)
+        }) {
+            self.interaction.hover.widget = None;
         }
         if self
-            .hovered_widget
-            .is_some_and(|widget_id| !self.widget_paths.contains_key(&widget_id))
+            .interaction
+            .hover
+            .container
+            .is_some_and(|node_id| !self.traversal.containers.styled.contains(node_id))
         {
-            self.hovered_widget = None;
-        }
-        if self
-            .hovered_container
-            .is_some_and(|node_id| !self.styled_containers.contains(node_id))
-        {
-            self.hovered_container = None;
+            self.interaction.hover.container = None;
         }
     }
 }

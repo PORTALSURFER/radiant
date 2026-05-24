@@ -5,6 +5,7 @@ pub(crate) fn column_context_menu(
     column_id: &str,
 ) -> ui::StateView<BrowserState> {
     let column_name = state
+        .columns
         .file_columns
         .iter()
         .find(|column| column.id == column_id)
@@ -15,7 +16,7 @@ pub(crate) fn column_context_menu(
             .fill_width()
             .height(22.0),
     ];
-    actions.extend(state.file_columns.iter().map(|column| {
+    actions.extend(state.columns.file_columns.iter().map(|column| {
         let id = column.id.clone();
         let marker = if column.visible { "[x]" } else { "[ ]" };
         let label = if column.id == "name" {

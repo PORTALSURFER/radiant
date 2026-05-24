@@ -2,36 +2,59 @@ use crate::TOTAL_BEATS;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TimelineEditorState {
+    pub(crate) playback: TimelinePlaybackState,
+    pub(crate) edit: TimelineEditState,
+    pub(crate) clip_store: TimelineClipStore,
+    pub(crate) feedback: TimelineFeedbackState,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct TimelinePlaybackState {
     pub(crate) playing: bool,
     pub(crate) repeat_enabled: bool,
     pub(crate) playhead_beat: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct TimelineEditState {
     pub(crate) selected_clip: Option<u32>,
     pub(crate) selection: Option<BeatRange>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct TimelineClipStore {
     pub(crate) next_clip_id: u32,
+    pub(crate) clips: Vec<TimelineClip>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct TimelineFeedbackState {
     pub(crate) revision: u64,
     pub(crate) feedback_nonce: u64,
     pub(crate) status: String,
-    pub(crate) clips: Vec<TimelineClip>,
 }
 
 impl Default for TimelineEditorState {
     fn default() -> Self {
         Self {
-            playing: false,
-            repeat_enabled: true,
-            playhead_beat: 18,
-            selected_clip: Some(2),
-            selection: Some(BeatRange { start: 16, end: 28 }),
-            next_clip_id: 5,
-            revision: 1,
-            feedback_nonce: 0,
-            status: "ready".to_string(),
-            clips: vec![
-                TimelineClip::new(1, "Kick loop", 0, 0, 16),
-                TimelineClip::new(2, "Bass phrase", 1, 12, 28),
-                TimelineClip::new(3, "Chord stab", 2, 28, 44),
-                TimelineClip::new(4, "Vocal chop", 3, 42, 58),
-            ],
+            playback: TimelinePlaybackState {
+                playing: false,
+                repeat_enabled: true,
+                playhead_beat: 18,
+            },
+            edit: TimelineEditState {
+                selected_clip: Some(2),
+                selection: Some(BeatRange { start: 16, end: 28 }),
+            },
+            clip_store: TimelineClipStore {
+                next_clip_id: 5,
+                clips: DEFAULT_CLIPS.into_iter().map(TimelineClip::new).collect(),
+            },
+            feedback: TimelineFeedbackState {
+                revision: 1,
+                feedback_nonce: 0,
+                status: "ready".to_string(),
+            },
         }
     }
 }
@@ -45,15 +68,50 @@ pub(crate) struct TimelineClip {
 }
 
 impl TimelineClip {
-    pub(crate) fn new(id: u32, name: &'static str, lane: usize, start: u32, end: u32) -> Self {
+    pub(crate) fn new(parts: TimelineClipParts) -> Self {
         Self {
-            id,
-            name,
-            lane,
-            range: BeatRange { start, end },
+            id: parts.id,
+            name: parts.name,
+            lane: parts.lane,
+            range: parts.range,
         }
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TimelineClipParts {
+    pub(crate) id: u32,
+    pub(crate) name: &'static str,
+    pub(crate) lane: usize,
+    pub(crate) range: BeatRange,
+}
+
+const DEFAULT_CLIPS: [TimelineClipParts; 4] = [
+    TimelineClipParts {
+        id: 1,
+        name: "Kick loop",
+        lane: 0,
+        range: BeatRange { start: 0, end: 16 },
+    },
+    TimelineClipParts {
+        id: 2,
+        name: "Bass phrase",
+        lane: 1,
+        range: BeatRange { start: 12, end: 28 },
+    },
+    TimelineClipParts {
+        id: 3,
+        name: "Chord stab",
+        lane: 2,
+        range: BeatRange { start: 28, end: 44 },
+    },
+    TimelineClipParts {
+        id: 4,
+        name: "Vocal chop",
+        lane: 3,
+        range: BeatRange { start: 42, end: 58 },
+    },
+];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct BeatRange {

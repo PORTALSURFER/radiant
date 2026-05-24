@@ -148,8 +148,8 @@ This keeps segment ownership explicit for dense retained surfaces without each
 application inventing a separate bit layout and diagnostic vocabulary.
 `NativeRunOptions` keeps platform/window integration policy behind Radiant's
 native runtime boundary. Common launch code can stay platform-neutral while
-still configuring window title, logical size, minimum size, maximized state,
-decorations, icon, target frame rate, and whether native file drag-and-drop is
+still configuring `window.title`, `window.geometry`, `window.behavior`,
+`window.icon`, `frame.target_fps`, and whether native file drag-and-drop is
 requested on platforms that support it. Native animation frame rates are
 normalized through `NativeRunOptions::normalized_target_fps()` and the exported
 `MIN_NATIVE_TARGET_FPS` / `MAX_NATIVE_TARGET_FPS` bounds before timed redraws
@@ -250,8 +250,9 @@ over the cached surface without queuing application frame messages. Use
 window's maximum native cadence; Radiant clamps the requested rate through the
 same `NativeRunOptions` frame-rate bounds and never exceeds the window target.
 Custom runtime bridges can report the same split explicitly with
-`RuntimeAnimationActivity`, distinguishing frame-message animation from
-paint-only presentation work and optionally carrying a per-activity target FPS.
+`RuntimeAnimationActivity` and `RuntimeAnimationDemand`, distinguishing
+frame-message animation from paint-only presentation work and optionally
+carrying a per-activity target FPS.
 When a paint-only transient overlay is present, the native Vello runtime also
 caches the composed Vello scene plus retained GPU surfaces as a base frame, so
 later overlay-only frames can present that stable composition and draw the
@@ -340,6 +341,9 @@ next to each other. This keeps the explicit widget API aligned with the
 declarative builder model: stable IDs, content, state, and layout contracts are
 named at the construction boundary instead of being inferred from argument
 order.
+Application-level compound controls follow the same rule: dropdown option parts
+use `DropdownOptionSelection` instead of a raw selected flag, so public examples
+can distinguish current-value state from the host message routed on activation.
 
 Single-line text editing is split between reusable state and widget routing:
 `TextInputState` owns the portable value, caret, and selection model, while
@@ -553,6 +557,10 @@ Large item-indexed lists can use `VirtualListWindowRequest` and
 `VirtualListWindow` from `radiant::gui::list` before projecting widgets. This
 keeps host-side list projection bounded while `layout::VirtualizationPolicy`
 continues to handle pixel-based scroll-container virtualization.
+Editable list/tree projections use named construction parts such as
+`EditableTreeRowParts` and `EditableTreeDraftInputParts` so selection,
+hierarchy, draft text, validation, and focus policy remain explicit at call
+sites instead of being encoded as positional boolean lists.
 Application-builder code that owns a resolved logical window can use
 `virtual_list_window(...)` for fixed-height rows; it preserves full scroll
 extent with spacer rows while only projecting the materialized item range.
@@ -688,21 +696,22 @@ execute WGSL-backed descriptors that use Radiant's built-in surface uniform
 ABI at `@group(0) @binding(0)`, optional app uniform payload bytes at
 `@group(0) @binding(1)`, and optional read-only storage payload bytes at
 `@group(0) @binding(2)`. Native frame diagnostics expose direct custom-shader
-work, including custom shader pipeline rebuilds, through
-`NativeGpuSurfaceDiagnostics::custom_shader_surfaces_rendered`,
-`custom_shader_pipeline_rebuilds`, `custom_shader_binding_rebuilds`,
-and `custom_shader_binding_cache_hits`, so rendered surfaces and shader
-pipeline/bind-group cache activity stay distinct from descriptors that cannot
-be handed to the direct WGPU path. Native WGPU validation failures are counted
-separately through `custom_shader_surfaces_failed`,
-`custom_shader_shader_module_failures`, `custom_shader_pipeline_failures`, and
-`custom_shader_binding_failures`; the native renderer also logs the backend
-validation error through tracing. Descriptors that do not provide source or
-stage entry points report skipped surfaces through
-`NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces`,
-`unsupported_custom_shader_vertices`, `unsupported_custom_shader_source_bytes`,
-`unsupported_custom_shader_uniform_bytes`, and
-`unsupported_custom_shader_storage_bytes` instead of silently treating them as
+work, including custom shader pipeline rebuilds, under
+`NativeGpuSurfaceDiagnostics::custom_shader`: `surfaces_rendered`,
+`pipeline_rebuilds`, `binding_rebuilds`, and `binding_cache_hits`, so rendered
+surfaces and shader pipeline/bind-group cache activity stay distinct from
+descriptors that cannot be handed to the direct WGPU path. Native WGPU
+validation failures are counted separately through
+`custom_shader.failures.surfaces_failed`,
+`custom_shader.failures.shader_module_failures`,
+`custom_shader.failures.pipeline_failures`, and
+`custom_shader.failures.binding_failures`; the native renderer also logs the
+backend validation error through tracing. Descriptors that do not provide source
+or stage entry points report skipped surfaces through
+`custom_shader.unsupported.surfaces`, `custom_shader.unsupported.vertices`,
+`custom_shader.unsupported.source_bytes`,
+`custom_shader.unsupported.uniform_bytes`, and
+`custom_shader.unsupported.storage_bytes` instead of silently treating them as
 built-in atlas or signal content.
 `GpuSurfaceContent::validate()` returns a typed `GpuSurfaceContentError` for
 invalid atlas rectangles, signal ranges, empty payloads, and summary-shape
@@ -954,10 +963,13 @@ For interactive native runs, set `RADIANT_NATIVE_RENDER_PROFILE=1` before
 launch to emit a per-frame `radiant native render profile` tracing line. The
 same counters are also exposed to custom hosts through
 `RuntimeBridge::observe_frame_diagnostics(...)` as `NativeFrameDiagnostics`, so
-apps can collect frame diagnostics without parsing logs. The profile separates
-paint-plan primitive counts, Vello scene encode categories, retained-surface
-bridge/cache/miss counts, custom-surface fallback counts, GPU-surface
-render/cache counts, transient-overlay primitive counts, and timing for surface
+apps can collect frame diagnostics without parsing logs. The scene diagnostics
+are grouped into `traversal`, `text`, `media`, and `surfaces` buckets so hosts
+can inspect paint-plan traversal, text encoding, image/SVG encoding, and
+GPU/custom-surface handoff without treating the payload as one flat counter bag.
+The profile separates retained-surface bridge/cache/miss counts,
+custom-surface fallback counts, GPU-surface render/cache counts,
+transient-overlay primitive counts, and timing for surface
 refresh, paint-plan generation, Vello render-to-texture, composed-base refresh
 or cache hits for transient overlays, transient-overlay paint callbacks,
 GPU-surface composition, and presentation.
@@ -966,19 +978,24 @@ GPU-surface composition, and presentation.
 these timing buckets are CPU-side encode/submit/present envelopes, not backend
 GPU timestamp query durations. Future timestamp-query support should extend this
 status instead of silently changing the meaning of existing timing fields.
+Frame timings are grouped into `frame_work`, `composited_base`, and
+`transient_overlay` buckets so hosts can inspect related work without treating
+the diagnostics payload as one flat timing bag.
 Use `NativeFrameTimingDiagnostics::cpu_envelope_total()` for a single tracked
 CPU-side frame-work total; it excludes `since_last_present`, which is frame
 cadence rather than work performed for the current frame. The native render
 profile log emits the same tracked total as `frame_cpu_envelope_total_us` for
 profiling.
-`NativeRunOptions::retained_surface_cache` accepts `RetainedSurfaceCachePolicy`
-for apps that need to tune or disable retained custom-surface frame reuse during
-profiling.
-`NativeFrameDiagnostics::text` exposes native text layout-cache hits, misses,
-and evictions, text atom-cache activity, shaping-sensitive run/scalar counts,
-and fallback/missing glyph counts so hosts can detect repeated text measurement,
-cache churn, basic-layout Unicode limits, or font coverage gaps without parsing
-renderer logs. `NativeTextDiagnostics::has_shaping_limits()`,
+`NativeRunOptions::frame.retained_surface_cache` accepts
+`RetainedSurfaceCachePolicy` for apps that need to tune or disable retained
+custom-surface frame reuse during profiling.
+`NativeFrameDiagnostics::text` groups native text diagnostics into
+`cache.layout`, `cache.atom`, and `quality` counters. The cache groups expose
+layout-cache and text atom-cache hits, misses, and evictions; the quality group
+exposes shaping-sensitive run/scalar counts and fallback/missing glyph counts
+so hosts can detect repeated text measurement, cache churn, basic-layout
+Unicode limits, or font coverage gaps without parsing renderer logs.
+`NativeTextDiagnostics::has_shaping_limits()`,
 `has_font_coverage_gaps()`, and `has_text_quality_warnings()` provide the
 stable summary predicates applications can use for debug overlays, telemetry, or
 local quality gates without duplicating raw counter policy.
@@ -1049,7 +1066,7 @@ for the native surface-uniform ABI. Native runs expose custom shader
 render/cache/failure diagnostics; shader module, pipeline, or bind-group
 validation failures are counted separately from missing handoff data. Backends
 without a matching shader handoff still report the surface through
-`NativeGpuSurfaceDiagnostics::unsupported_custom_shader_surfaces` and the
+`NativeGpuSurfaceDiagnostics::custom_shader.unsupported.surfaces` and the
 related skipped vertex/source/uniform/storage counters rather than creating a
 separate WGPU-facing application API.
 Run `cargo run --example multi_window_manifest` for a checked manifest sandbox
@@ -1232,17 +1249,19 @@ snapshot schema is generic Radiant API.
 ## Generic Panels And Forms
 
 `radiant::gui::chrome` contains generic chrome/status models such as
-`StatusSegments` and `ContentViewChrome`. `radiant::gui::feedback` contains
-compact feedback models such as `StatusLineLog` and `StatusLineEntry` for
-bounded one-line status messages from buttons, background workers, animations,
-and other app-owned systems. Host applications map product-specific copy into
-these slots; Radiant defaults stay product-neutral.
+`StatusSegments` and the grouped `ContentViewChrome` tab, search, activity,
+sort, and footer copy models. `radiant::gui::feedback` contains compact
+feedback models such as `StatusLineLog` and `StatusLineEntry` for bounded
+one-line status messages from buttons, background workers, animations, and
+other app-owned systems. Host applications map product-specific copy into these
+slots; Radiant defaults stay product-neutral.
 
 `radiant::gui::panel` contains generic split-pane and sidebar models such as
-`SplitPaneSlot`, `SplitPaneAssignedRow`, `SplitPaneTreePanel`, and
-`SplitPaneSidebarState`, plus `anchored_panel_rect` for clamped popup/panel
-placement. Host applications map product-specific navigation, workspace,
-project, or asset concepts onto these reusable panel structures.
+`SplitPaneSlot`, `SplitPaneAssignmentState`, `SplitPaneAssignedRow`,
+`SplitPaneTreePanel`, and `SplitPaneSidebarState`, plus `anchored_panel_rect`
+for clamped popup/panel placement. Host applications map product-specific
+navigation, workspace, project, or asset concepts onto these reusable panel
+structures.
 
 `radiant::gui::badge` contains compact label and pill primitives such as
 `SelectablePill`, `PillEditorPanel`, `InlineBadgeMetrics`,
@@ -1254,13 +1273,14 @@ metadata, filters, status chips, or other product-specific labels without
 embedding domain terms in Radiant.
 
 `radiant::gui::form` contains reusable form and picker models such as
-`DecimalTextInputPolicy`, `SummaryField`, `OptionItem`, `PairedPickerTarget`,
-`PairedPickerValue`, `PairedStatusPanel`, and `PreferencePanelState`.
+`DecimalTextInputPolicy`, `SummaryField`, `OptionItem`, `OptionSelectionState`,
+`PairedPickerTarget`, `PairedPickerValue`, `PairedStatusPanel`,
+`PreferencePanelVisibility`, and `PreferencePanelState`.
 `PairedStatusPanel` models a two-sided status/picker surface with summary rows,
 active picker identity, and option lists while leaving the meaning of those
 options to the host. `PreferencePanelState` models generic settings-panel
-visibility, a primary text value, fixed-size toggle state, and an auxiliary
-label without owning product-specific preference names.
+visibility through a named state, a primary text value, fixed-size toggle
+state, and an auxiliary label without owning product-specific preference names.
 
 `radiant::gui::text_layout` contains retained text-line placement helpers such
 as `TextLineInsets`, `centered_text_line`, `top_text_line`, and

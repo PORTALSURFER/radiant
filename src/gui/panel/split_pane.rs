@@ -9,7 +9,15 @@ mod sidebar_state;
 mod slot;
 mod tree_panel;
 
-pub use assigned_row::{SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment};
-pub use sidebar_state::SplitPaneSidebarState;
+pub use assigned_row::{
+    SplitPaneAssignedRow, SplitPaneAssignedRowParts, SplitPaneAssignment, SplitPaneAssignmentState,
+};
+pub use sidebar_state::{
+    SplitPaneSidebarChrome, SplitPaneSidebarContent, SplitPaneSidebarPanes,
+    SplitPaneSidebarSelection, SplitPaneSidebarState, SplitPaneSidebarTreeControls,
+};
 pub use slot::SplitPaneSlot;
-pub use tree_panel::SplitPaneTreePanel;
+pub use tree_panel::{
+    SplitPaneTreePanel, SplitPaneTreePanelActivity, SplitPaneTreePanelAssignment,
+    SplitPaneTreePanelContent, SplitPaneTreePanelControls, SplitPaneTreePanelIdentity,
+};

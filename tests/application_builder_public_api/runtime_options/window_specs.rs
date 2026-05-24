@@ -23,8 +23,11 @@ fn window_specs_describe_multiple_windows_without_opening_runtime() {
     assert_eq!(inspector.target_frame_rate(), 60);
     assert_eq!(inspector.normalized_target_frame_rate(), 60);
     let options: NativeRunOptions = inspector.into();
-    assert_eq!(options.inner_size, Some([320.5, 500.25]));
-    assert_eq!(options.min_inner_size, Some([300.25, 420.5]));
+    assert_eq!(options.window.geometry.inner_size, Some([320.5, 500.25]));
+    assert_eq!(
+        options.window.geometry.min_inner_size,
+        Some([300.25, 420.5])
+    );
 }
 
 #[test]
@@ -32,8 +35,14 @@ fn window_specs_support_named_parts_construction() {
     let spec = WindowSpec::from_parts(WindowSpecParts {
         key: "main".to_owned(),
         options: NativeRunOptions {
-            title: "Main".to_owned(),
-            inner_size: Some([640.0, 480.0]),
+            window: NativeWindowOptions {
+                title: "Main".to_owned(),
+                geometry: NativeWindowGeometry {
+                    inner_size: Some([640.0, 480.0]),
+                    ..NativeWindowGeometry::default()
+                },
+                ..NativeWindowOptions::default()
+            },
             ..NativeRunOptions::default()
         },
     });
@@ -53,7 +62,7 @@ fn window_specs_describe_floating_popup_windows() {
     assert_eq!(popup.title(), "Drag Preview");
     assert!(popup.is_popup());
     assert_eq!(popup.inner_size(), Some([180.0, 64.0]));
-    assert!(!popup.native_options().decorations);
+    assert!(!popup.native_options().window.behavior.decorations);
     assert!(!popup.drag_and_drop_enabled());
     assert_eq!(
         popup.popup_options().and_then(|popup| popup.position),

@@ -17,7 +17,10 @@ pub use shapes::{
 };
 pub use svg::DrawSvg;
 pub use text::{TextAlign, TextRun};
-pub use text_field::{TextFieldPaint, TextFieldPaintOutput, text_field_paint};
+pub use text_field::{
+    TextFieldPaint, TextFieldPaintColors, TextFieldPaintContent, TextFieldPaintGeometry,
+    TextFieldPaintOutput, TextFieldPaintStroke, text_field_paint,
+};
 
 #[cfg(test)]
 mod tests;

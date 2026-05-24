@@ -39,62 +39,65 @@ pub(super) fn maybe_log_render_profile(
         scene_gpu_surfaces = stats.gpu_surface_count,
         scene_custom_surfaces = stats.custom_surface_count,
         scene_custom_surface_fallbacks = stats.custom_surface_fallback_count,
-        text_layout_cache_hits = text_stats.layout_hits,
-        text_layout_cache_misses = text_stats.layout_misses,
-        text_layout_cache_evictions = text_stats.layout_evictions,
-        text_atom_cache_hits = text_stats.atom_hits,
-        text_atom_cache_misses = text_stats.atom_misses,
-        text_atom_cache_evictions = text_stats.atom_evictions,
-        text_unsupported_shaping_runs = text_stats.unsupported_shaping_runs,
-        text_unsupported_shaping_scalars = text_stats.unsupported_shaping_scalars,
-        text_fallback_glyphs = text_stats.fallback_glyphs,
-        text_missing_glyphs = text_stats.missing_glyphs,
+        text_layout_cache_hits = text_stats.layout.hits,
+        text_layout_cache_misses = text_stats.layout.misses,
+        text_layout_cache_evictions = text_stats.layout.evictions,
+        text_atom_cache_hits = text_stats.atom.hits,
+        text_atom_cache_misses = text_stats.atom.misses,
+        text_atom_cache_evictions = text_stats.atom.evictions,
+        text_unsupported_shaping_runs = text_stats.quality.unsupported_shaping_runs,
+        text_unsupported_shaping_scalars = text_stats.quality.unsupported_shaping_scalars,
+        text_fallback_glyphs = text_stats.quality.fallback_glyphs,
+        text_missing_glyphs = text_stats.quality.missing_glyphs,
         text_quality_status = text_quality_status(text_stats),
         retained_bridge_calls = stats.bridge_calls,
         retained_cache_hits = stats.cache_hits,
         retained_surface_misses = stats.retained_surface_miss_count,
         retained_frame_primitives = stats.retained_frame_primitive_count,
         retained_frame_text_runs = stats.retained_frame_text_run_count,
-        gpu_surface_atlas_texture_uploads = gpu_surface_stats.atlas_texture_uploads,
-        gpu_surface_atlas_texture_cache_hits = gpu_surface_stats.atlas_texture_cache_hits,
-        gpu_signal_summary_builds = gpu_surface_stats.signal_summary_builds,
-        gpu_signal_summary_cache_hits = gpu_surface_stats.signal_summary_cache_hits,
+        gpu_surface_atlas_texture_uploads = gpu_surface_stats.atlas.texture_uploads,
+        gpu_surface_atlas_texture_cache_hits = gpu_surface_stats.atlas.texture_cache_hits,
+        gpu_signal_summary_builds = gpu_surface_stats.signal.summary_builds,
+        gpu_signal_summary_cache_hits = gpu_surface_stats.signal.summary_cache_hits,
         refresh_surface_us = frame.refresh_surface.as_micros(),
         paint_plan_us = frame.paint_plan.as_micros(),
         render_to_texture_us = render_to_texture_elapsed.as_micros(),
         full_screen_blit_encode_us = frame.full_screen_blit.as_micros(),
         coalesced_wheel_route_us = frame.coalesced_wheel_route.as_micros(),
-        gpu_signal_body_renders = gpu_surface_stats.signal_body_renders,
-        gpu_signal_body_cache_hits = gpu_surface_stats.signal_body_cache_hits,
-        gpu_signal_body_encode_us = gpu_surface_stats.signal_body_encode_elapsed.as_micros(),
-        gpu_surface_composite_binding_rebuilds = gpu_surface_stats.composite_binding_rebuilds,
-        gpu_surface_composite_binding_cache_hits = gpu_surface_stats.composite_binding_cache_hits,
+        gpu_signal_body_renders = gpu_surface_stats.signal.body_renders,
+        gpu_signal_body_cache_hits = gpu_surface_stats.signal.body_cache_hits,
+        gpu_signal_body_encode_us = gpu_surface_stats.signal.body_encode_elapsed.as_micros(),
+        gpu_surface_composite_binding_rebuilds = gpu_surface_stats.composite.binding_rebuilds,
+        gpu_surface_composite_binding_cache_hits = gpu_surface_stats.composite.binding_cache_hits,
         gpu_surface_custom_shader_surfaces_rendered =
-            gpu_surface_stats.custom_shader_surfaces_rendered,
+            gpu_surface_stats.custom_shader.surfaces_rendered,
         gpu_surface_custom_shader_pipeline_rebuilds =
-            gpu_surface_stats.custom_shader_pipeline_rebuilds,
+            gpu_surface_stats.custom_shader.pipeline_rebuilds,
         gpu_surface_custom_shader_binding_rebuilds =
-            gpu_surface_stats.custom_shader_binding_rebuilds,
+            gpu_surface_stats.custom_shader.binding_rebuilds,
         gpu_surface_custom_shader_binding_cache_hits =
-            gpu_surface_stats.custom_shader_binding_cache_hits,
-        gpu_surface_custom_shader_surfaces_failed = gpu_surface_stats.custom_shader_surfaces_failed,
-        gpu_surface_custom_shader_shader_module_failures =
-            gpu_surface_stats.custom_shader_shader_module_failures,
+            gpu_surface_stats.custom_shader.binding_cache_hits,
+        gpu_surface_custom_shader_surfaces_failed =
+            gpu_surface_stats.custom_shader.failures.surfaces_failed,
+        gpu_surface_custom_shader_shader_module_failures = gpu_surface_stats
+            .custom_shader
+            .failures
+            .shader_module_failures,
         gpu_surface_custom_shader_pipeline_failures =
-            gpu_surface_stats.custom_shader_pipeline_failures,
+            gpu_surface_stats.custom_shader.failures.pipeline_failures,
         gpu_surface_custom_shader_binding_failures =
-            gpu_surface_stats.custom_shader_binding_failures,
+            gpu_surface_stats.custom_shader.failures.binding_failures,
         gpu_surface_unsupported_custom_shader_surfaces =
-            gpu_surface_stats.unsupported_custom_shader_surfaces,
+            gpu_surface_stats.custom_shader.unsupported.surfaces,
         gpu_surface_unsupported_custom_shader_vertices =
-            gpu_surface_stats.unsupported_custom_shader_vertices,
+            gpu_surface_stats.custom_shader.unsupported.vertices,
         gpu_surface_unsupported_custom_shader_source_bytes =
-            gpu_surface_stats.unsupported_custom_shader_source_bytes,
+            gpu_surface_stats.custom_shader.unsupported.source_bytes,
         gpu_surface_unsupported_custom_shader_uniform_bytes =
-            gpu_surface_stats.unsupported_custom_shader_uniform_bytes,
+            gpu_surface_stats.custom_shader.unsupported.uniform_bytes,
         gpu_surface_unsupported_custom_shader_storage_bytes =
-            gpu_surface_stats.unsupported_custom_shader_storage_bytes,
-        gpu_surface_composite_encode_us = gpu_surface_stats.composite_encode_elapsed.as_micros(),
+            gpu_surface_stats.custom_shader.unsupported.storage_bytes,
+        gpu_surface_composite_encode_us = gpu_surface_stats.composite.encode_elapsed.as_micros(),
         frame_cpu_envelope_total_us = cpu_envelope_total.as_micros(),
         gpu_timing_status = "cpu_envelope_only",
         composited_base_refresh_us = frame.composited_base_refresh.as_micros(),
@@ -123,8 +126,9 @@ fn tracked_cpu_envelope_total(
 
 fn text_quality_status(text_stats: TextLayoutProfileCounters) -> &'static str {
     match (
-        text_stats.unsupported_shaping_runs > 0 || text_stats.unsupported_shaping_scalars > 0,
-        text_stats.fallback_glyphs > 0 || text_stats.missing_glyphs > 0,
+        text_stats.quality.unsupported_shaping_runs > 0
+            || text_stats.quality.unsupported_shaping_scalars > 0,
+        text_stats.quality.fallback_glyphs > 0 || text_stats.quality.missing_glyphs > 0,
     ) {
         (false, false) => "clean",
         (true, false) => "shaping_limited",

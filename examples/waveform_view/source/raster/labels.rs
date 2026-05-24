@@ -1,4 +1,4 @@
-use super::WaveformRaster;
+use super::{PixelPaint, WaveformRaster};
 
 pub(super) fn draw_band_labels(raster: &mut WaveformRaster) {
     let labels = [
@@ -9,30 +9,72 @@ pub(super) fn draw_band_labels(raster: &mut WaveformRaster) {
     ];
     let mut x = 8;
     for (label, color) in labels {
-        draw_block_label(raster, x, 8, label, color);
+        draw_block_label(
+            raster,
+            LabelPaint {
+                x,
+                y: 8,
+                label,
+                color,
+            },
+        );
         x += label.len() * 6 + 18;
     }
 }
 
-fn draw_block_label(raster: &mut WaveformRaster, x: usize, y: usize, label: &str, color: [u8; 4]) {
-    for swatch_x in x..x + 8 {
-        for swatch_y in y + 1..y + 9 {
-            raster.blend_pixel(swatch_x, swatch_y, color, 0.85);
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct LabelPaint<'a> {
+    x: usize,
+    y: usize,
+    label: &'a str,
+    color: [u8; 4],
+}
+
+fn draw_block_label(raster: &mut WaveformRaster, paint: LabelPaint<'_>) {
+    for swatch_x in paint.x..paint.x + 8 {
+        for swatch_y in paint.y + 1..paint.y + 9 {
+            raster.blend_pixel(PixelPaint {
+                x: swatch_x,
+                y: swatch_y,
+                color: paint.color,
+                alpha: 0.85,
+            });
         }
     }
-    let mut cursor = x + 12;
-    for ch in label.chars() {
-        draw_glyph(raster, cursor, y, ch, color);
+    let mut cursor = paint.x + 12;
+    for ch in paint.label.chars() {
+        draw_glyph(
+            raster,
+            GlyphPaint {
+                x: cursor,
+                y: paint.y,
+                ch,
+                color: paint.color,
+            },
+        );
         cursor += 5;
     }
 }
 
-fn draw_glyph(raster: &mut WaveformRaster, x: usize, y: usize, ch: char, color: [u8; 4]) {
-    let rows = glyph_rows(ch);
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct GlyphPaint {
+    x: usize,
+    y: usize,
+    ch: char,
+    color: [u8; 4],
+}
+
+fn draw_glyph(raster: &mut WaveformRaster, paint: GlyphPaint) {
+    let rows = glyph_rows(paint.ch);
     for (row, bits) in rows.iter().enumerate() {
         for col in 0..3 {
             if bits & (1 << (2 - col)) != 0 {
-                raster.blend_pixel(x + col, y + row, color, 0.9);
+                raster.blend_pixel(PixelPaint {
+                    x: paint.x + col,
+                    y: paint.y + row,
+                    color: paint.color,
+                    alpha: 0.9,
+                });
             }
         }
     }

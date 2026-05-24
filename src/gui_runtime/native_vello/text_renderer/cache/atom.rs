@@ -1,25 +1,17 @@
 //! Bounded text atom interning for native text layout cache keys.
 
+use super::TextCacheProfileCounters;
 use std::collections::{HashMap, VecDeque};
 use std::mem;
 use std::sync::Arc;
 
 const TEXT_ATOM_CACHE_CAPACITY: usize = 4_096;
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(super) struct TextAtomProfileCounters {
-    pub(super) hits: u64,
-    pub(super) misses: u64,
-    pub(super) evictions: u64,
-}
-
 pub(super) struct TextAtomCache {
     cache: HashMap<Arc<str>, u64>,
     order: VecDeque<(Arc<str>, u64)>,
     clock: u64,
-    hits: u64,
-    misses: u64,
-    evictions: u64,
+    profile: TextCacheProfileCounters,
 }
 
 impl TextAtomCache {
@@ -28,9 +20,7 @@ impl TextAtomCache {
             cache: HashMap::with_capacity(TEXT_ATOM_CACHE_CAPACITY / 2),
             order: VecDeque::with_capacity(TEXT_ATOM_CACHE_CAPACITY),
             clock: 0,
-            hits: 0,
-            misses: 0,
-            evictions: 0,
+            profile: TextCacheProfileCounters::default(),
         }
     }
 
@@ -46,11 +36,11 @@ impl TextAtomCache {
             }
             self.order.push_back((Arc::clone(&atom), stamp));
             self.compact_order_if_needed();
-            self.hits = self.hits.saturating_add(1);
+            self.profile.hits = self.profile.hits.saturating_add(1);
             return atom;
         }
 
-        self.misses = self.misses.saturating_add(1);
+        self.profile.misses = self.profile.misses.saturating_add(1);
         let atom: Arc<str> = Arc::from(text);
         self.cache.insert(Arc::clone(&atom), stamp);
         self.order.push_back((Arc::clone(&atom), stamp));
@@ -58,16 +48,8 @@ impl TextAtomCache {
         atom
     }
 
-    pub(super) fn take_profile_counters(&mut self) -> TextAtomProfileCounters {
-        let counters = TextAtomProfileCounters {
-            hits: self.hits,
-            misses: self.misses,
-            evictions: self.evictions,
-        };
-        self.hits = 0;
-        self.misses = 0;
-        self.evictions = 0;
-        counters
+    pub(super) fn take_profile_counters(&mut self) -> TextCacheProfileCounters {
+        std::mem::take(&mut self.profile)
     }
 
     /// Compact queued atom-order metadata after repeated cache hits append stale stamps.
@@ -101,7 +83,7 @@ impl TextAtomCache {
                 continue;
             }
             if self.cache.remove(candidate.as_ref()).is_some() {
-                self.evictions = self.evictions.saturating_add(1);
+                self.profile.evictions = self.profile.evictions.saturating_add(1);
             }
         }
     }
@@ -131,7 +113,7 @@ mod tests {
         assert!(Arc::ptr_eq(&first, &second));
         assert_eq!(
             cache.take_profile_counters(),
-            TextAtomProfileCounters {
+            TextCacheProfileCounters {
                 hits: 1,
                 misses: 1,
                 evictions: 0,

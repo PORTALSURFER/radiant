@@ -11,6 +11,8 @@ fn preference_panel_state_uses_named_parts_for_projection_fields() {
 
     assert!(
         source.contains("pub struct PreferencePanelParts")
+            && source.contains("pub enum PreferencePanelVisibility")
+            && source.contains("pub visibility: PreferencePanelVisibility")
             && source.contains("pub fn from_parts(parts: PreferencePanelParts<TOGGLES>) -> Self")
             && source.contains("#[path = \"form/tests.rs\"]")
             && !source.contains(
@@ -20,10 +22,17 @@ fn preference_panel_state_uses_named_parts_for_projection_fields() {
     );
     assert!(
         tests.contains("fn option_item_preserves_label_selection_and_value")
+            && tests.contains("fn option_item_supports_named_selection_parts")
             && tests.contains(
                 "fn preference_panel_state_preserves_visibility_text_toggles_and_auxiliary_label"
             ),
         "form root behavior coverage should live in form/tests.rs"
+    );
+    assert!(
+        source.contains("pub struct OptionItemParts<Value>")
+            && source.contains("pub enum OptionSelectionState")
+            && source.contains("pub fn from_parts(parts: OptionItemParts<Value>) -> Self"),
+        "generic form option items should expose named parts for readable selection construction"
     );
     assert!(
         source.contains("mod numeric;")
@@ -35,6 +44,11 @@ fn preference_panel_state_uses_named_parts_for_projection_fields() {
     assert!(
         source.contains("Self::from_parts(PreferencePanelParts {"),
         "the positional compatibility constructor should delegate through the named parts object"
+    );
+    assert!(
+        source.contains("PreferencePanelVisibility::from_visible(visible)")
+            && tests.contains("fn preference_panel_visibility_round_trips_compatibility_flags"),
+        "preference panel compatibility flags should round-trip through the named visibility state"
     );
 }
 
@@ -103,13 +117,19 @@ fn gui_core_state_primitives_keep_behavior_tests_focused() {
         "focus behavior coverage should live in gui/focus/tests.rs"
     );
     assert!(
-        frame.contains("pub struct FrameBuildResult")
+        frame.contains("pub struct FrameBuildCounts")
+            && frame.contains("pub struct FrameRebuildFlags")
+            && frame.contains("pub struct FrameAnimationRequest")
+            && frame.contains("pub struct FrameBuildTiming")
+            && frame.contains("pub struct FramePresentResult")
+            && frame.contains("pub struct FrameBuildResult")
             && frame.contains("#[path = \"frame/tests.rs\"]")
             && !frame.contains("fn frame_build_result_defaults_to_no_work_observed"),
-        "frame feedback state should live in gui/frame.rs while behavior tests stay delegated"
+        "frame feedback state should stay grouped by counts, rebuilds, animation, timing, and presentation while behavior tests stay delegated"
     );
     assert!(
-        frame_tests.contains("fn frame_build_result_defaults_to_no_work_observed"),
+        frame_tests.contains("fn frame_build_result_defaults_to_no_work_observed")
+            && frame_tests.contains("fn frame_build_result_groups_related_feedback"),
         "frame behavior coverage should live in gui/frame/tests.rs"
     );
     assert!(

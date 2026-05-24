@@ -68,6 +68,36 @@ fn native_timed_frame_drain_does_not_recompute_selected_cadence() {
 }
 
 #[test]
+fn native_runner_keeps_window_input_and_timing_state_grouped() {
+    let module = read_runtime_source("src/gui_runtime/native_vello/generic_runtime.rs");
+    let runner = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner.rs");
+    let state = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner_state.rs");
+
+    assert!(
+        module.contains("mod runner_state;")
+            && module.contains(
+                "use runner_state::{NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState};"
+            ),
+        "generic runtime should expose focused native runner state groups"
+    );
+    assert!(
+        runner.contains("window: NativeRunnerWindowState")
+            && runner.contains("input: NativeRunnerInputState")
+            && runner.contains("timing: NativeRunnerTimingState")
+            && !runner.contains("window_id: Option<WindowId>")
+            && !runner.contains("last_cursor: Option<Point>")
+            && !runner.contains("startup_timing: StartupTimingProfile"),
+        "native runner root should group window resources, input state, and timing state"
+    );
+    assert!(
+        state.contains("struct NativeRunnerWindowState")
+            && state.contains("struct NativeRunnerInputState")
+            && state.contains("struct NativeRunnerTimingState"),
+        "native runner state groups should stay in runner_state.rs"
+    );
+}
+
+#[test]
 fn native_render_surface_target_size_stays_in_focused_module() {
     let module = read_runtime_source("src/gui_runtime/native_vello/generic_runtime.rs");
     let present = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/present.rs");

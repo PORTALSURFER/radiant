@@ -19,7 +19,8 @@ where
         rect: Rect,
         viewport: Vector2,
     ) -> Option<GuiPaintFrame> {
-        self.retained_painters
+        self.lifecycle
+            .retained_painters
             .get_mut(&descriptor.key)
             .and_then(|paint| paint(&mut self.state, descriptor, rect, viewport))
     }
@@ -29,7 +30,7 @@ where
         context: TransientOverlayContext<'_>,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
-        if let Some(paint) = self.transient_overlay.as_mut() {
+        if let Some(paint) = self.lifecycle.transient_overlay.as_mut() {
             paint(&mut self.state, context, primitives);
         }
     }

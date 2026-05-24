@@ -28,6 +28,7 @@ mod present;
 mod render_profile;
 mod route_outcome;
 mod runner;
+mod runner_state;
 mod runtime_helpers;
 mod runtime_wakeup;
 mod scene;
@@ -54,6 +55,7 @@ use post_gpu_overlay::PostGpuOverlayRenderer;
 use render_profile::{RenderFrameProfile, maybe_log_render_profile};
 pub(in crate::gui_runtime::native_vello) use route_outcome::GenericRouteOutcome;
 use runner::GenericNativeVelloRunner;
+use runner_state::{NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState};
 use runtime_helpers::{
     GpuSurfaceInteractionRegion, collect_gpu_surface_interaction_regions, maybe_log_route_profile,
     render_profile_enabled, scroll_delta_to_logical,
@@ -151,7 +153,7 @@ where
     let shutdown_timing = runner.core.runtime.bridge_mut().on_runtime_exit();
     NativeGenericRunReport {
         artifacts: NativeGenericRuntimeArtifacts {
-            startup_timing: runner.startup_timing.export_artifact(),
+            startup_timing: runner.timing.startup_timing.export_artifact(),
             shutdown_timing,
         },
         result: run_result,
@@ -201,7 +203,11 @@ pub type NativeGenericRunReport =
     crate::gui_runtime::RuntimeRunReport<NativeGenericRuntimeArtifacts, NativeGenericRunError>;
 
 fn initial_viewport(options: &NativeRunOptions) -> Vector2 {
-    let [width, height] = options.inner_size.unwrap_or([1280.0, 720.0]);
+    let [width, height] = options
+        .window
+        .geometry
+        .inner_size
+        .unwrap_or([1280.0, 720.0]);
     Vector2::new(width.max(1.0), height.max(1.0))
 }
 

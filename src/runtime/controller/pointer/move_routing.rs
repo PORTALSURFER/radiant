@@ -23,7 +23,7 @@ where
         emitted_output |= hover_changed.emitted_output;
         emitted_output |= self.route_captured_pass_through_move(position, pointer_widget);
 
-        let Some(target) = self.pointer_capture.or(pointer_widget) else {
+        let Some(target) = self.interaction.pointer.capture.or(pointer_widget) else {
             return PointerMoveDispatch {
                 target: None,
                 emitted_output,
@@ -40,7 +40,9 @@ where
         mut emitted_output: bool,
     ) -> PointerMoveDispatch {
         let accepts_stable_pointer_move = self.widget_accepts_stable_pointer_move(target);
-        if !hover_changed.changed && self.pointer_capture.is_none() && !accepts_stable_pointer_move
+        if !hover_changed.changed
+            && self.interaction.pointer.capture.is_none()
+            && !accepts_stable_pointer_move
         {
             return PointerMoveDispatch {
                 target: Some(target),
@@ -54,7 +56,7 @@ where
             // update local preview state even when the widget opts out of
             // stable hover motion. Request repaint here so cursor, handle, and
             // drag previews stay responsive without reducer churn.
-            if accepts_stable_pointer_move || self.pointer_capture.is_some() {
+            if accepts_stable_pointer_move || self.interaction.pointer.capture.is_some() {
                 self.repaint_requested = true;
             }
             emitted_output |= emitted;
@@ -66,7 +68,7 @@ where
     }
 
     fn update_drag_preview_position(&mut self, position: Point) {
-        let Some(session) = self.drag_session.as_mut() else {
+        let Some(session) = self.interaction.drag.session.as_mut() else {
             return;
         };
         if session.pointer == position && session.visible {
@@ -79,15 +81,15 @@ where
 
     fn update_hovered_scroll_affordance(&mut self, position: Point) {
         let hovered_scroll_affordance = self.scroll_affordance_at(position);
-        if self.hovered_scroll_affordance == hovered_scroll_affordance {
+        if self.interaction.hover.scroll_affordance == hovered_scroll_affordance {
             return;
         }
-        self.hovered_scroll_affordance = hovered_scroll_affordance;
+        self.interaction.hover.scroll_affordance = hovered_scroll_affordance;
         self.repaint_requested = true;
     }
 
     fn pointer_widget_for_move(&self, position: Point) -> Option<WidgetId> {
-        if self.pointer_capture.is_some() {
+        if self.interaction.pointer.capture.is_some() {
             self.widget_at(position)
         } else {
             self.pointer_widget_at_for_move(position)
@@ -100,10 +102,10 @@ where
         } else {
             self.styled_container_at(position)
         };
-        if self.hovered_container == hover_container {
+        if self.interaction.hover.container == hover_container {
             return;
         }
-        self.hovered_container = hover_container;
+        self.interaction.hover.container = hover_container;
         self.repaint_requested = true;
     }
 
@@ -112,7 +114,9 @@ where
         position: Point,
         pointer_widget: Option<WidgetId>,
     ) -> Option<WidgetId> {
-        self.pointer_capture
+        self.interaction
+            .pointer
+            .capture
             .filter(|widget_id| {
                 self.layout
                     .rects
@@ -120,7 +124,9 @@ where
                     .is_some_and(|rect| rect.contains(position))
             })
             .or_else(|| {
-                self.pointer_capture
+                self.interaction
+                    .pointer
+                    .capture
                     .is_none()
                     .then_some(pointer_widget)
                     .flatten()
@@ -132,19 +138,21 @@ where
         position: Point,
         hover_widget: Option<WidgetId>,
     ) -> PointerHoverTransition {
-        if self.hovered_widget == hover_widget {
+        if self.interaction.hover.widget == hover_widget {
             return PointerHoverTransition {
                 changed: false,
                 emitted_output: false,
             };
         }
         let emitted_output = self
-            .hovered_widget
+            .interaction
+            .hover
+            .widget
             .and_then(|previous| {
                 self.dispatch_input_output(previous, WidgetInput::PointerMove { position })
             })
             .unwrap_or(false);
-        self.hovered_widget = hover_widget;
+        self.interaction.hover.widget = hover_widget;
         PointerHoverTransition {
             changed: true,
             emitted_output,
@@ -156,7 +164,9 @@ where
         position: Point,
         pointer_widget: Option<WidgetId>,
     ) -> bool {
-        let (Some(captured), Some(pointer_widget)) = (self.pointer_capture, pointer_widget) else {
+        let (Some(captured), Some(pointer_widget)) =
+            (self.interaction.pointer.capture, pointer_widget)
+        else {
             return false;
         };
         if pointer_widget == captured || !self.widget_accepts_stable_pointer_move(pointer_widget) {

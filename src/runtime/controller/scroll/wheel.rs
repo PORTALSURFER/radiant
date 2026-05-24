@@ -101,7 +101,9 @@ where
     }
 
     fn wheel_widget_at(&self, point: Point) -> Option<WidgetId> {
-        self.wheel_widgets
+        self.traversal
+            .widgets
+            .wheel
             .visible()
             .iter()
             .rev()

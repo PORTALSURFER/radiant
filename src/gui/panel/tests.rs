@@ -42,13 +42,34 @@ fn anchored_panel_rect_clamps_anchor_inside_inset_bounds() {
     let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 160.0));
 
     assert_eq!(
+        anchored_panel_rect_from_parts(AnchoredPanelRectParts {
+            bounds,
+            anchor: Point::new(250.0, 0.0),
+            size: Vector2::new(80.0, 40.0),
+            inset: 8.0,
+        }),
+        Rect::from_min_max(Point::new(122.0, 28.0), Point::new(202.0, 68.0))
+    );
+}
+
+#[test]
+fn anchored_panel_rect_compatibility_helper_delegates_to_named_parts() {
+    let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 160.0));
+    let from_parts = anchored_panel_rect_from_parts(AnchoredPanelRectParts {
+        bounds,
+        anchor: Point::new(250.0, 0.0),
+        size: Vector2::new(80.0, 40.0),
+        inset: 8.0,
+    });
+
+    assert_eq!(
         anchored_panel_rect(
             bounds,
             Point::new(250.0, 0.0),
             Vector2::new(80.0, 40.0),
             8.0,
         ),
-        Rect::from_min_max(Point::new(122.0, 28.0), Point::new(202.0, 68.0))
+        from_parts
     );
 }
 
@@ -94,13 +115,34 @@ fn floating_panel_rect_clamps_origin_inside_bounds() {
     let bounds = Rect::from_min_max(Point::new(0.0, 40.0), Point::new(320.0, 220.0));
 
     assert_eq!(
+        floating_panel_rect_from_parts(FloatingPanelRectParts {
+            bounds,
+            origin: Point::new(260.0, 10.0),
+            size: Vector2::new(100.0, 80.0),
+            inset: 12.0,
+        }),
+        Rect::from_min_max(Point::new(208.0, 52.0), Point::new(308.0, 132.0))
+    );
+}
+
+#[test]
+fn floating_panel_rect_compatibility_helper_delegates_to_named_parts() {
+    let bounds = Rect::from_min_max(Point::new(0.0, 40.0), Point::new(320.0, 220.0));
+    let from_parts = floating_panel_rect_from_parts(FloatingPanelRectParts {
+        bounds,
+        origin: Point::new(260.0, 10.0),
+        size: Vector2::new(100.0, 80.0),
+        inset: 12.0,
+    });
+
+    assert_eq!(
         floating_panel_rect(
             bounds,
             Point::new(260.0, 10.0),
             Vector2::new(100.0, 80.0),
             12.0,
         ),
-        Rect::from_min_max(Point::new(208.0, 52.0), Point::new(308.0, 132.0))
+        from_parts
     );
 }
 
@@ -146,46 +188,77 @@ fn split_pane_assigned_row_preserves_labels_and_assignments() {
         detail: String::from("ready"),
         selected: true,
         missing: false,
-        assignment: SplitPaneAssignment {
-            upper: true,
-            lower: false,
-        },
+        assignment: SplitPaneAssignmentState::Upper,
     });
 
     assert_eq!(row.label, "Inbox");
     assert_eq!(row.detail, "ready");
     assert!(row.selected);
     assert!(!row.missing);
+    assert_eq!(row.assignment_state(), SplitPaneAssignmentState::Upper);
     assert!(row.assigned_to_upper_pane);
     assert!(!row.assigned_to_lower_pane);
+}
+
+#[test]
+fn split_pane_assignment_state_round_trips_compatibility_flags() {
+    for (state, upper, lower) in [
+        (SplitPaneAssignmentState::Free, false, false),
+        (SplitPaneAssignmentState::Upper, true, false),
+        (SplitPaneAssignmentState::Lower, false, true),
+        (SplitPaneAssignmentState::Both, true, true),
+    ] {
+        let assignment = SplitPaneAssignment::from_state(state);
+
+        assert_eq!(assignment.upper, upper);
+        assert_eq!(assignment.lower, lower);
+        assert_eq!(assignment.state(), state);
+        assert_eq!(SplitPaneAssignmentState::from_flags(upper, lower), state);
+    }
+}
+
+#[test]
+fn split_pane_assigned_row_assigns_panes_without_exposing_flag_mutation() {
+    let mut row = SplitPaneAssignedRow::new("Console", "idle", false, false)
+        .with_assignment_state(SplitPaneAssignmentState::Upper);
+
+    row.assign_to_pane(SplitPaneSlot::Lower);
+
+    assert_eq!(row.assignment_state(), SplitPaneAssignmentState::Both);
 }
 
 #[test]
 fn split_pane_tree_panel_defaults_to_empty_unassigned_panel() {
     let panel: SplitPaneTreePanel = SplitPaneTreePanel::default();
 
-    assert_eq!(panel.pane, SplitPaneSlot::Upper);
-    assert!(!panel.active);
-    assert!(!panel.has_item);
-    assert!(panel.tree_rows.is_empty());
-    assert_eq!(panel.focused_tree_row, None);
+    assert_eq!(panel.identity.pane, SplitPaneSlot::Upper);
+    assert!(!panel.assignment.active);
+    assert!(!panel.assignment.has_item);
+    assert!(panel.content.tree_rows.is_empty());
+    assert_eq!(panel.content.focused_tree_row, None);
 }
 
 #[test]
 fn split_pane_sidebar_state_routes_active_pane() {
     let mut sidebar: SplitPaneSidebarState = SplitPaneSidebarState {
-        active_pane: SplitPaneSlot::Lower,
-        lower_pane: SplitPaneTreePanel {
-            title: String::from("Lower"),
-            ..SplitPaneTreePanel::default()
+        panes: SplitPaneSidebarPanes {
+            active_pane: SplitPaneSlot::Lower,
+            lower_pane: SplitPaneTreePanel {
+                identity: SplitPaneTreePanelIdentity {
+                    title: String::from("Lower"),
+                    ..SplitPaneTreePanelIdentity::default()
+                },
+                ..SplitPaneTreePanel::default()
+            },
+            ..SplitPaneSidebarPanes::default()
         },
         ..SplitPaneSidebarState::default()
     };
 
-    assert_eq!(sidebar.active_pane_model().title, "Lower");
-    sidebar.pane_mut(SplitPaneSlot::Upper).title = String::from("Upper");
-    sidebar.active_pane_model_mut().item_label = String::from("Active");
+    assert_eq!(sidebar.active_pane_model().identity.title, "Lower");
+    sidebar.pane_mut(SplitPaneSlot::Upper).identity.title = String::from("Upper");
+    sidebar.active_pane_model_mut().assignment.item_label = String::from("Active");
 
-    assert_eq!(sidebar.upper_pane.title, "Upper");
-    assert_eq!(sidebar.lower_pane.item_label, "Active");
+    assert_eq!(sidebar.panes.upper_pane.identity.title, "Upper");
+    assert_eq!(sidebar.panes.lower_pane.assignment.item_label, "Active");
 }

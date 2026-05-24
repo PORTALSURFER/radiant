@@ -13,15 +13,15 @@ use radiant::gui::{
 };
 
 pub(crate) fn timeline_surface(state: &TimelineEditorState) -> TimelineMotionState {
-    let selection = state.selection.map(|range| {
+    let selection = state.edit.selection.map(|range| {
         NormalizedRange::from_micros(beat_to_micros(range.start), beat_to_micros(range.end))
     });
     let surface = TimelineSurfaceState::from_parts(TimelineSurfaceParts {
         viewport: TimelineViewport::from_parts(TimelineViewportParts::default()),
         transport: TimelineTransportState::from_parts(TimelineTransportParts {
-            cursor_milli: Some(beat_to_normalized(state.playhead_beat)),
+            cursor_milli: Some(beat_to_normalized(state.playback.playhead_beat)),
             playhead_milli: None,
-            playhead_micros: Some(beat_to_micros(state.playhead_beat)),
+            playhead_micros: Some(beat_to_micros(state.playback.playhead_beat)),
             selection,
         }),
         edit_preview: TimelineEditPreview::from_parts(TimelineEditPreviewParts {
@@ -39,14 +39,14 @@ pub(crate) fn timeline_surface(state: &TimelineEditorState) -> TimelineMotionSta
             trailing_curve_milli: None,
         }),
         feedback_events: TimelineFeedbackEvents::from_parts(TimelineFeedbackParts {
-            primary_success_nonce: state.feedback_nonce,
+            primary_success_nonce: state.feedback.feedback_nonce,
             primary_failure_nonce: 0,
-            secondary_success_nonce: state.revision,
+            secondary_success_nonce: state.feedback.revision,
         }),
         presentation: TimelinePresentationState::from_parts(TimelinePresentationParts {
             guide_step_micros: Some(beat_to_micros(4)),
             guide_origin_micros: 0,
-            repeat_enabled: state.repeat_enabled,
+            repeat_enabled: state.playback.repeat_enabled,
             primary_label: Some("Arrangement".to_string()),
             viewport_label: Some(format!("{} beats", TOTAL_BEATS)),
         }),
@@ -54,29 +54,34 @@ pub(crate) fn timeline_surface(state: &TimelineEditorState) -> TimelineMotionSta
             Some("arrangement timeline atlas".to_string()),
             false,
             false,
-            Some(state.revision),
+            Some(state.feedback.revision),
             None,
         ),
         markers: state
+            .clip_store
             .clips
             .iter()
             .map(|clip| {
                 marker(
                     beat_to_normalized(clip.range.start),
                     beat_to_normalized(clip.range.end),
-                    state.selected_clip == Some(clip.id),
+                    state.edit.selected_clip == Some(clip.id),
                 )
             })
             .collect(),
     });
 
     TimelineMotionState::new(
-        state.playing,
+        state.playback.playing,
         surface,
         SignalChromeState::new(
-            if state.playing { "playing" } else { "idle" },
+            if state.playback.playing {
+                "playing"
+            } else {
+                "idle"
+            },
             true,
-            Some(format!("beat {}", state.playhead_beat)),
+            Some(format!("beat {}", state.playback.playhead_beat)),
             ChannelViewMode::Stereo,
         ),
         SignalToolState::from_flags(SignalToolFlags {
@@ -102,6 +107,7 @@ fn marker(start: u16, end: u16, selected: bool) -> TimelineMarkerPreview {
 
 pub(crate) fn clip_range(state: &TimelineEditorState, clip_id: u32) -> Option<BeatRange> {
     state
+        .clip_store
         .clips
         .iter()
         .find(|clip| clip.id == clip_id)
@@ -124,7 +130,7 @@ pub(crate) fn timeline_label(
         "{} / clips {} / playhead beat {} / {}",
         timeline.chrome.status_hint,
         timeline.surface.markers.len(),
-        state.playhead_beat,
-        state.status
+        state.playback.playhead_beat,
+        state.feedback.status
     )
 }

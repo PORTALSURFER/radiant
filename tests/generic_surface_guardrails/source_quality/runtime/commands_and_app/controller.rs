@@ -17,6 +17,8 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
         .expect("runtime controller work queues should be readable");
     let scratch = fs::read_to_string(manifest_dir.join("src/runtime/controller/scratch.rs"))
         .expect("runtime controller scratch buffers should be readable");
+    let state = fs::read_to_string(manifest_dir.join("src/runtime/controller/state.rs"))
+        .expect("runtime controller state module should be readable");
     let outcome =
         fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/outcome.rs"))
             .expect("runtime command outcome module should be readable");
@@ -110,6 +112,17 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
             && scratch.contains("projection_scroll_stack: Vec<NodeId>")
             && scratch.contains("projection_child_path: Vec<usize>"),
         "runtime controller scratch buffers should name layout and geometry dependencies without inheriting the controller root"
+    );
+    assert!(
+        state.contains("use super::SurfaceRuntime;")
+            && state.contains("use crate::{runtime::RuntimeBridge, widgets::WidgetId};")
+            && !state.contains("use super::*;")
+            && state.contains("mod layout;")
+            && state.contains("mod lifecycle;")
+            && state.contains("mod traversal;")
+            && state.contains("fn capture_pointer_capture_state")
+            && state.contains("fn restore_pointer_capture_state"),
+        "runtime controller state root should name controller, bridge, and widget identity dependencies without inheriting the controller root"
     );
     assert!(
         controller.contains("mod interaction_state;")

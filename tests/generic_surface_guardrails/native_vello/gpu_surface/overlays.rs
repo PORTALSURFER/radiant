@@ -32,6 +32,14 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
             .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/signal_pipeline.rs"),
     )
     .expect("GPU surface signal pipeline module should be readable");
+    let signal = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/signal.rs"),
+    )
+    .expect("GPU surface signal renderer module should be readable");
+    let stats = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/stats.rs"),
+    )
+    .expect("GPU surface stats module should be readable");
     let custom_shader = fs::read_to_string(
         manifest_dir
             .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader.rs"),
@@ -83,6 +91,30 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
         ),
     )
     .expect("GPU surface signal cache-key type module should be readable");
+    let resource_cache = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/cache.rs"),
+    )
+    .expect("GPU surface resource cache module should be readable");
+    let resource_atlas = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/atlas.rs"),
+    )
+    .expect("GPU surface atlas resource module should be readable");
+    let resource_pipeline = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/pipeline.rs"),
+    )
+    .expect("GPU surface pipeline resource module should be readable");
+    let resource_signal = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/signal.rs"),
+    )
+    .expect("GPU surface signal resource module should be readable");
+    let resource_signal_summary = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/signal/summary.rs",
+    ))
+    .expect("GPU surface signal summary resource module should be readable");
 
     assert!(
         renderer.contains("mod overlays;")
@@ -131,6 +163,14 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
             signal_pipeline.as_str(),
         ),
         (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/signal.rs",
+            signal.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/stats.rs",
+            stats.as_str(),
+        ),
+        (
             "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader.rs",
             custom_shader.as_str(),
         ),
@@ -174,6 +214,26 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
             "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/signal/cache_key.rs",
             type_signal_cache_key.as_str(),
         ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/cache.rs",
+            resource_cache.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/atlas.rs",
+            resource_atlas.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/pipeline.rs",
+            resource_pipeline.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/signal.rs",
+            resource_signal.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/signal/summary.rs",
+            resource_signal_summary.as_str(),
+        ),
     ] {
         let production_source = source
             .split("#[cfg(test)]")
@@ -181,7 +241,8 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
             .expect("production source should precede tests");
         assert!(
             !production_source.contains("use super::*;")
-                && !production_source.contains("use super::super::*;"),
+                && !production_source.contains("use super::super::*;")
+                && !production_source.contains("use super::super::super::*;"),
             "{path} should import the GPU-surface dependencies it actually uses"
         );
     }

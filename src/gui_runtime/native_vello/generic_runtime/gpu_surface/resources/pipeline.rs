@@ -1,4 +1,6 @@
-use super::super::*;
+use super::super::GpuSurfaceRenderer;
+use super::super::gpu_surface_types::{GpuSurfacePipeline, SignalPipeline};
+use vello::wgpu;
 
 impl GpuSurfaceRenderer {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn ensure_pipeline(

@@ -2,15 +2,7 @@
 
 use super::device::{wgpu_device_id, wgpu_target_matches};
 use crate::gui::types::{Rect as UiRect, Vector2};
-use crate::runtime::{
-    GpuSignalGainPreview, GpuSignalSummary, GpuSignalSummaryBucket, GpuSurfaceContent,
-    PaintGpuSurface, PaintPrimitive,
-};
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use crate::runtime::{GpuSurfaceContent, PaintPrimitive};
 use vello::wgpu;
 
 mod active_keys;
@@ -27,14 +19,7 @@ mod signal_pipeline;
 mod stats;
 mod visibility;
 use active_keys::ActiveGpuSurfaceKeys;
-use encoding::{signal_uniforms_as_bytes, summary_bucket_bytes, summary_bucket_value_count};
-use gpu_surface_types::{
-    CachedSignalSummary, CustomShaderBinding, CustomShaderPipeline, GpuSurfaceCompositeBinding,
-    GpuSurfacePipeline, GpuSurfaceTexture, GpuSurfaceTextureIdentity, SignalBodyCacheKey,
-    SignalBodyCacheKeyParts, SignalBodyTexture, SignalBuffer, SignalBufferCacheKey, SignalPipeline,
-    SignalUniforms,
-};
-use passes::{signal_body_render_pass, surface_pixel_extent};
+use gpu_surface_types::{GpuSurfacePipeline, SignalPipeline};
 use resources::GpuSurfaceResourceCache;
 #[cfg(test)]
 pub(super) use signal_pipeline::GPU_SIGNAL_SHADER;
@@ -125,6 +110,7 @@ impl GpuSurfaceRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     #[test]
     fn gpu_surface_renderer_prunes_inactive_signal_summaries() {

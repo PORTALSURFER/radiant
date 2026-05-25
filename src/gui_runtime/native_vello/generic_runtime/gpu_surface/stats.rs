@@ -1,4 +1,4 @@
-use super::*;
+use std::time::Duration;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct GpuSurfaceRenderStats {

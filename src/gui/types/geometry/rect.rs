@@ -67,6 +67,44 @@ impl Rect {
         )
     }
 
+    /// Project a normalized horizontal ratio into this rectangle.
+    pub fn x_for_ratio(self, ratio: f32) -> f32 {
+        self.x_for_ratio_unclamped(ratio.clamp(0.0, 1.0))
+    }
+
+    /// Project a normalized vertical ratio into this rectangle from top to bottom.
+    pub fn y_for_ratio(self, ratio: f32) -> f32 {
+        self.y_for_ratio_unclamped(ratio.clamp(0.0, 1.0))
+    }
+
+    /// Project a horizontal ratio into this rectangle without clamping.
+    pub fn x_for_ratio_unclamped(self, ratio: f32) -> f32 {
+        self.min.x + self.width() * ratio
+    }
+
+    /// Project a vertical ratio into this rectangle without clamping.
+    pub fn y_for_ratio_unclamped(self, ratio: f32) -> f32 {
+        self.min.y + self.height() * ratio
+    }
+
+    /// Convert an x coordinate into a normalized horizontal ratio inside this rectangle.
+    pub fn ratio_for_x(self, x: f32) -> f32 {
+        let width = self.width();
+        if !x.is_finite() || !width.is_finite() || width <= f32::EPSILON {
+            return 0.0;
+        }
+        ((x - self.min.x) / width).clamp(0.0, 1.0)
+    }
+
+    /// Convert a y coordinate into a normalized vertical ratio inside this rectangle.
+    pub fn ratio_for_y(self, y: f32) -> f32 {
+        let height = self.height();
+        if !y.is_finite() || !height.is_finite() || height <= f32::EPSILON {
+            return 0.0;
+        }
+        ((y - self.min.y) / height).clamp(0.0, 1.0)
+    }
+
     /// Return whether the point lies inside the rectangle bounds.
     pub fn contains(self, point: Point) -> bool {
         point.x >= self.min.x

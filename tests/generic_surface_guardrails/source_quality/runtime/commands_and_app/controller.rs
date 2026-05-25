@@ -217,9 +217,14 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
 
     assert!(
         pointer.contains("mod move_routing;")
+            && pointer.contains("use super::{PointerMoveOutcome, SurfaceRuntime};")
+            && pointer.contains("gui::types::Point")
+            && pointer.contains("runtime::RuntimeBridge")
+            && pointer.contains("widgets::{WidgetId, WidgetInput}")
+            && !pointer.starts_with("use super::*;")
             && !pointer.contains("fn route_pointer_move_to_target")
             && !pointer.contains("fn update_drag_preview_position"),
-        "pointer controller root should delegate pointer-move routing internals"
+        "pointer controller root should name pointer, geometry, bridge, and widget dependencies while delegating pointer-move routing internals"
     );
     assert!(
         move_routing.contains("fn dispatch_pointer_move_target")

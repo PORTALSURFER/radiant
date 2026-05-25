@@ -1,4 +1,9 @@
-use super::*;
+use super::{PointerMoveOutcome, SurfaceRuntime};
+use crate::{
+    gui::types::Point,
+    runtime::RuntimeBridge,
+    widgets::{WidgetId, WidgetInput},
+};
 
 mod move_routing;
 

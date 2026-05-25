@@ -1,7 +1,6 @@
 use radiant::prelude::*;
 
 use super::{
-    NoteSelectionMode, PianoRollMessage,
     geometry::{
         beat_for_x_view, pitch_for_y_view, quantize_beat, row_height_for, x_for_beat_view,
         y_for_pitch_view,
@@ -9,6 +8,11 @@ use super::{
     model::{PianoNote, PianoRollViewport},
 };
 use radiant::widgets::PointerModifiers;
+
+#[path = "drag/message.rs"]
+mod message;
+#[path = "drag/preview.rs"]
+mod preview;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum PianoDrag {
@@ -93,138 +97,6 @@ impl PianoDrag {
             source_start_beat: note.start_beat,
             source_pitch: note.pitch,
             length_beats: note.length_beats,
-        }
-    }
-
-    pub(super) fn message_for(
-        self,
-        grid: Rect,
-        viewport: PianoRollViewport,
-        position: Point,
-    ) -> PianoRollMessage {
-        match self {
-            Self::Create { pitch, start_beat } => {
-                let end_beat = quantize_beat(beat_for_x_view(grid, viewport, position.x))
-                    .max(start_beat + 0.25);
-                PianoRollMessage::CreateNote {
-                    pitch,
-                    start_beat,
-                    length_beats: (end_beat - start_beat).clamp(0.25, 4.0),
-                }
-            }
-            Self::Move {
-                id,
-                ids,
-                beat_offset,
-                pitch_offset,
-                source_start_beat,
-                source_pitch,
-                ..
-            } => {
-                let pitch = pitch_for_y_view(grid, viewport, position.y) - pitch_offset;
-                let start_beat =
-                    quantize_beat(beat_for_x_view(grid, viewport, position.x) - beat_offset);
-                if ids.len() > 1 {
-                    PianoRollMessage::MoveNotes {
-                        ids,
-                        pitch_delta: pitch - source_pitch,
-                        beat_delta: start_beat - source_start_beat,
-                    }
-                } else {
-                    PianoRollMessage::MoveNote {
-                        id,
-                        pitch,
-                        start_beat,
-                    }
-                }
-            }
-            Self::ResizeStart { id, end_beat } => {
-                let start_beat =
-                    quantize_beat(beat_for_x_view(grid, viewport, position.x)).min(end_beat - 0.25);
-                PianoRollMessage::ResizeNote {
-                    id,
-                    start_beat,
-                    length_beats: end_beat - start_beat,
-                }
-            }
-            Self::ResizeEnd { id, start_beat } => PianoRollMessage::ResizeNote {
-                id,
-                start_beat,
-                length_beats: quantize_beat(
-                    beat_for_x_view(grid, viewport, position.x) - start_beat,
-                )
-                .max(0.25),
-            },
-            Self::Pan {
-                start,
-                viewport: start_viewport,
-            } => PianoRollMessage::PanViewport {
-                beat_delta: -(position.x - start.x) * start_viewport.visible_beats
-                    / grid.width().max(1.0),
-                pitch_delta: ((position.y - start.y)
-                    / row_height_for(grid, start_viewport).max(1.0))
-                .round() as i32,
-            },
-            Self::Marquee { .. } => PianoRollMessage::SelectNotes {
-                ids: Vec::new(),
-                mode: NoteSelectionMode::Replace,
-            },
-            Self::Velocity { ids, velocity } => PianoRollMessage::SetVelocity { ids, velocity },
-        }
-    }
-
-    pub(super) fn preview_note(
-        self,
-        grid: Rect,
-        viewport: PianoRollViewport,
-        position: Point,
-        source: PianoNote,
-    ) -> PianoNote {
-        match self {
-            Self::Create { pitch, start_beat } => {
-                let end_beat = quantize_beat(beat_for_x_view(grid, viewport, position.x))
-                    .max(start_beat + 0.25);
-                PianoNote {
-                    pitch,
-                    start_beat,
-                    length_beats: (end_beat - start_beat).clamp(0.25, 4.0),
-                    ..source
-                }
-            }
-            Self::Move {
-                beat_offset,
-                pitch_offset,
-                source_start_beat,
-                source_pitch,
-                length_beats: _,
-                ..
-            } => PianoNote {
-                pitch: source.pitch + pitch_for_y_view(grid, viewport, position.y)
-                    - pitch_offset
-                    - source_pitch,
-                start_beat: source.start_beat
-                    + quantize_beat(beat_for_x_view(grid, viewport, position.x) - beat_offset)
-                    - source_start_beat,
-                ..source
-            },
-            Self::ResizeStart { end_beat, .. } => {
-                let start_beat =
-                    quantize_beat(beat_for_x_view(grid, viewport, position.x)).min(end_beat - 0.25);
-                PianoNote {
-                    start_beat,
-                    length_beats: end_beat - start_beat,
-                    ..source
-                }
-            }
-            Self::ResizeEnd { start_beat, .. } => PianoNote {
-                start_beat,
-                length_beats: quantize_beat(
-                    beat_for_x_view(grid, viewport, position.x) - start_beat,
-                )
-                .max(0.25),
-                ..source
-            },
-            Self::Pan { .. } | Self::Marquee { .. } | Self::Velocity { .. } => source,
         }
     }
 }

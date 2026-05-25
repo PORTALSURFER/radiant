@@ -1,7 +1,7 @@
 use super::{GenericNativeVelloRunner, GenericRouteOutcome};
 use crate::gui::input::KeyCode;
 use crate::runtime::RuntimeBridge;
-use crate::widgets::TextEditCommand;
+use crate::widgets::{TextEditCommand, WidgetKey};
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
@@ -81,6 +81,46 @@ where
                 outcome.routed
             }
             _ => false,
+        }
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn route_focused_text_input_before_shortcuts(
+        &mut self,
+        key: KeyCode,
+        text: Option<&str>,
+        route_outcome: &mut GenericRouteOutcome,
+    ) -> bool {
+        if self.input.modifiers.control_key()
+            || self.input.modifiers.super_key()
+            || self.input.modifiers.alt_key()
+            || !self.core.has_focused_text_input()
+        {
+            return false;
+        }
+
+        match key {
+            KeyCode::Backspace => {
+                let outcome = self.core.route_text_edit(TextEditCommand::Backspace);
+                route_outcome.merge(outcome);
+                outcome.routed
+            }
+            KeyCode::Delete => {
+                let outcome = self.core.route_text_edit(TextEditCommand::Delete);
+                route_outcome.merge(outcome);
+                outcome.routed
+            }
+            KeyCode::Enter => {
+                let outcome = self.core.route_widget_key(WidgetKey::Enter);
+                route_outcome.merge(outcome);
+                outcome.routed
+            }
+            _ => {
+                let Some(text) = text else {
+                    return false;
+                };
+                self.route_text_input(text, route_outcome);
+                route_outcome.routed
+            }
         }
     }
 

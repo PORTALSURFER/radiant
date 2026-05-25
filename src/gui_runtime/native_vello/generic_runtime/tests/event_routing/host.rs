@@ -1,4 +1,9 @@
 use super::super::*;
+use crate::gui::{
+    focus::FocusSurface,
+    input::{KeyCode, KeyPress},
+    shortcuts::ShortcutResolution,
+};
 use crate::widgets::{TextEditCommand, WidgetKey};
 
 #[test]
@@ -98,6 +103,52 @@ fn generic_core_routes_text_edit_commands_only_to_text_inputs() {
 }
 
 #[test]
+fn focused_text_input_typing_preempts_host_shortcuts() {
+    let bridge = ShortcutDemoBridge::default();
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        bridge,
+        Vector2::new(320.0, 40.0),
+    );
+    focus_demo_text_input(&mut runner.core);
+
+    let mut outcome = GenericRouteOutcome::default();
+    assert!(runner.route_focused_text_input_before_shortcuts(KeyCode::E, Some("e"), &mut outcome,));
+
+    assert_eq!(runner.core.runtime.bridge().state.name, "e");
+    assert_eq!(runner.core.runtime.bridge().state.count, 0);
+}
+
+#[test]
+fn focused_text_input_backspace_preempts_host_shortcuts() {
+    let bridge = ShortcutDemoBridge::default();
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        bridge,
+        Vector2::new(320.0, 40.0),
+    );
+    focus_demo_text_input(&mut runner.core);
+
+    let mut type_outcome = GenericRouteOutcome::default();
+    assert!(runner.route_focused_text_input_before_shortcuts(
+        KeyCode::E,
+        Some("e"),
+        &mut type_outcome,
+    ));
+    assert_eq!(runner.core.runtime.bridge().state.name, "e");
+
+    let mut backspace_outcome = GenericRouteOutcome::default();
+    assert!(runner.route_focused_text_input_before_shortcuts(
+        KeyCode::Backspace,
+        None,
+        &mut backspace_outcome,
+    ));
+
+    assert_eq!(runner.core.runtime.bridge().state.name, "");
+    assert_eq!(runner.core.runtime.bridge().state.count, 0);
+}
+
+#[test]
 fn generic_core_routes_second_nearby_press_as_double_click() {
     let bridge = CanvasBridge::default();
     let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));
@@ -123,6 +174,53 @@ fn generic_core_routes_second_nearby_press_as_double_click() {
     );
 
     assert_eq!(core.runtime.bridge().text, "double");
+}
+
+#[derive(Default)]
+struct ShortcutDemoBridge {
+    state: DemoState,
+}
+
+impl RuntimeBridge<DemoMessage> for ShortcutDemoBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        demo_surface(&self.state)
+    }
+
+    fn reduce_message(&mut self, message: DemoMessage) {
+        match message {
+            DemoMessage::Increment => self.state.count += 1,
+            DemoMessage::Rename(name) => self.state.name = name,
+        }
+    }
+
+    fn resolve_key_press(
+        &mut self,
+        _pending_chord: Option<KeyPress>,
+        press: KeyPress,
+        _focus: FocusSurface,
+    ) -> ShortcutResolution<DemoMessage> {
+        match press.key {
+            KeyCode::Backspace | KeyCode::E => ShortcutResolution::action(DemoMessage::Increment),
+            _ => ShortcutResolution::unhandled(),
+        }
+    }
+}
+
+fn focus_demo_text_input<Bridge>(core: &mut GenericNativeRuntimeCore<Bridge, DemoMessage>)
+where
+    Bridge: RuntimeBridge<DemoMessage>,
+{
+    let input_point = core
+        .runtime
+        .layout()
+        .rects
+        .get(&12)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("text input should be laid out");
+    assert!(
+        core.route_pointer_press(input_point, PointerButton::Primary)
+            .routed
+    );
 }
 
 #[test]

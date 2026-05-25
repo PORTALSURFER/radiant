@@ -218,6 +218,40 @@ fn native_render_surface_target_size_stays_in_focused_module() {
 }
 
 #[test]
+fn native_surface_setup_uses_explicit_imports() {
+    let surface = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/surface.rs");
+    let production_surface = surface
+        .split("#[cfg(test)]")
+        .next()
+        .expect("surface production source should precede tests");
+
+    assert!(
+        surface.contains("use super::{")
+            && surface.contains("GenericNativeVelloRunner")
+            && surface.contains("generic_window_attributes")
+            && surface.contains("reveal_window_after_surface_setup")
+            && surface.contains("gui::types::Vector2")
+            && surface.contains("select_present_mode")
+            && surface.contains("startup_renderer_options")
+            && surface.contains("runtime::RuntimeBridge")
+            && surface.contains("use std::{sync::Arc, time::Instant};")
+            && surface.contains("use tracing::{error, info, warn};")
+            && surface.contains("use vello::{Renderer, wgpu};")
+            && surface.contains("use winit::{")
+            && !surface.starts_with("use super::*;"),
+        "native surface setup should name runner, window policy, viewport, renderer config, bridge, timing, tracing, Vello/WGPU, and Winit dependencies"
+    );
+    assert!(
+        production_surface.contains("fn initialize_runtime")
+            && production_surface.contains("fn resize_surface")
+            && production_surface.contains("fn acquire_present_surface_texture")
+            && production_surface.contains("fn surface_size_changed")
+            && !production_surface.contains("winit::dpi::PhysicalSize"),
+        "native surface setup should keep initialization, resize, acquire, and physical-size comparison focused"
+    );
+}
+
+#[test]
 fn native_wgpu_device_target_helpers_use_explicit_imports() {
     let device = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/device.rs");
 

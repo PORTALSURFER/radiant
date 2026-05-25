@@ -16,6 +16,22 @@ mod pipeline;
 use diagnostics::{record_failed_custom_shader_surface, record_unsupported_custom_shader};
 use pipeline::{CustomShaderPipelineRequest, custom_shader_pipeline_key};
 
+struct CustomShaderBufferUploadRequest<'a, 'target> {
+    target: &'a mut GpuSurfaceRenderTarget<'target>,
+    surface: &'a PaintGpuSurface,
+    descriptor: &'a GpuShaderSurfaceDescriptor,
+    binding: &'a CustomShaderBinding,
+}
+
+struct CustomShaderDrawRequest<'a, 'target> {
+    target: &'a mut GpuSurfaceRenderTarget<'target>,
+    surface: &'a PaintGpuSurface,
+    descriptor: &'a GpuShaderSurfaceDescriptor,
+    pipeline: &'a CustomShaderPipeline,
+    binding: &'a CustomShaderBinding,
+    occlusion_regions: &'a [UiRect],
+}
+
 impl GpuSurfaceRenderer {
     pub(super) fn render_custom_shader(
         &mut self,
@@ -38,14 +54,21 @@ impl GpuSurfaceRenderer {
             record_failed_custom_shader_surface(stats);
             return;
         };
-        upload_custom_shader_buffers(target, surface, descriptor, binding);
-        encode_custom_shader_draw(
+        upload_custom_shader_buffers(CustomShaderBufferUploadRequest {
             target,
             surface,
             descriptor,
-            pipeline,
             binding,
-            occlusion_regions,
+        });
+        encode_custom_shader_draw(
+            CustomShaderDrawRequest {
+                target,
+                surface,
+                descriptor,
+                pipeline,
+                binding,
+                occlusion_regions,
+            },
             stats,
         );
         stats.custom_shader.surfaces_rendered += 1;
@@ -107,50 +130,45 @@ fn supported_custom_shader_descriptor<'a>(
     Some(descriptor)
 }
 
-fn upload_custom_shader_buffers(
-    target: &mut GpuSurfaceRenderTarget<'_>,
-    surface: &PaintGpuSurface,
-    descriptor: &GpuShaderSurfaceDescriptor,
-    binding: &CustomShaderBinding,
-) {
+fn upload_custom_shader_buffers(request: CustomShaderBufferUploadRequest<'_, '_>) {
     let uniforms = GpuSurfaceUniforms {
-        dest: surface_dest(surface, target.dpi_scale),
-        target_size: [target.size.x.max(1.0), target.size.y.max(1.0)],
+        dest: surface_dest(request.surface, request.target.dpi_scale),
+        target_size: [
+            request.target.size.x.max(1.0),
+            request.target.size.y.max(1.0),
+        ],
         ..GpuSurfaceUniforms::default()
     };
-    target.queue.write_buffer(
-        &binding.surface_uniform_buffer,
+    request.target.queue.write_buffer(
+        &request.binding.surface_uniform_buffer,
         0,
         uniforms_as_bytes(&uniforms),
     );
-    if let Some(buffer) = &binding.app_uniform_buffer {
-        target
+    if let Some(buffer) = &request.binding.app_uniform_buffer {
+        request
+            .target
             .queue
-            .write_buffer(buffer, 0, &descriptor.uniform_bytes);
+            .write_buffer(buffer, 0, &request.descriptor.uniform_bytes);
     }
-    if let Some(buffer) = &binding.storage_buffer {
-        target
+    if let Some(buffer) = &request.binding.storage_buffer {
+        request
+            .target
             .queue
-            .write_buffer(buffer, 0, &descriptor.storage_bytes);
+            .write_buffer(buffer, 0, &request.descriptor.storage_bytes);
     }
 }
 
 fn encode_custom_shader_draw(
-    target: &mut GpuSurfaceRenderTarget<'_>,
-    surface: &PaintGpuSurface,
-    descriptor: &GpuShaderSurfaceDescriptor,
-    pipeline: &CustomShaderPipeline,
-    binding: &CustomShaderBinding,
-    occlusion_regions: &[UiRect],
+    request: CustomShaderDrawRequest<'_, '_>,
     stats: &mut GpuSurfaceRenderStats,
 ) {
     let started = Instant::now();
-    let mut pass = gpu_surface_render_pass(target.encoder, target.target_view);
-    pass.set_pipeline(&pipeline.pipeline);
-    pass.set_bind_group(0, &binding.bind_group, &[]);
-    for region in visible_surface_regions(surface.rect, occlusion_regions) {
-        if set_surface_scissor(&mut pass, region, target.dpi_scale) {
-            pass.draw(0..descriptor.vertex_count, 0..1);
+    let mut pass = gpu_surface_render_pass(request.target.encoder, request.target.target_view);
+    pass.set_pipeline(&request.pipeline.pipeline);
+    pass.set_bind_group(0, &request.binding.bind_group, &[]);
+    for region in visible_surface_regions(request.surface.rect, request.occlusion_regions) {
+        if set_surface_scissor(&mut pass, region, request.target.dpi_scale) {
+            pass.draw(0..request.descriptor.vertex_count, 0..1);
         }
     }
     drop(pass);

@@ -1,6 +1,17 @@
 //! Focused state groups owned by the generic native Vello runner.
 
-use super::*;
+use super::PendingGpuSurfaceWheel;
+use crate::gui::types::Point;
+use crate::gui_runtime::native_vello::startup::StartupTimingProfile;
+use std::{sync::Arc, time::Instant};
+use vello::{
+    Renderer,
+    util::{RenderContext, RenderSurface},
+};
+use winit::{
+    keyboard::ModifiersState,
+    window::{Window, WindowId},
+};
 
 #[derive(Default)]
 pub(super) struct NativeRunnerWindowState {
@@ -14,7 +25,7 @@ pub(super) struct NativeRunnerWindowState {
 pub(super) struct NativeRunnerInputState {
     pub(super) last_cursor: Option<Point>,
     pub(super) clipboard: Option<arboard::Clipboard>,
-    pub(super) modifiers: winit::keyboard::ModifiersState,
+    pub(super) modifiers: ModifiersState,
     pub(super) last_navigation_key_repeat: Option<Instant>,
     pub(super) pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
 }
@@ -24,7 +35,7 @@ impl Default for NativeRunnerInputState {
         Self {
             last_cursor: None,
             clipboard: arboard::Clipboard::new().ok(),
-            modifiers: winit::keyboard::ModifiersState::default(),
+            modifiers: ModifiersState::default(),
             last_navigation_key_repeat: None,
             pending_gpu_surface_wheel: None,
         }

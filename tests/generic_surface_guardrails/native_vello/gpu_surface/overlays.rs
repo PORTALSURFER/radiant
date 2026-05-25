@@ -19,10 +19,24 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/encoding.rs"),
     )
     .expect("GPU surface encoding module should be readable");
+    let atlas = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/atlas.rs"),
+    )
+    .expect("GPU surface atlas renderer module should be readable");
+    let pipeline = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/pipeline.rs"),
+    )
+    .expect("GPU surface pipeline module should be readable");
+    let signal_pipeline = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/signal_pipeline.rs"),
+    )
+    .expect("GPU surface signal pipeline module should be readable");
 
     assert!(
-        renderer.contains("mod overlays;") && renderer.contains("use overlays::vertical_overlays;"),
-        "GPU surface renderer should route overlay uniform packing through a focused module"
+        renderer.contains("mod overlays;")
+            && atlas.contains("use super::overlays::vertical_overlays;"),
+        "GPU surface atlas rendering should route overlay uniform packing through a focused module"
     );
     let production_renderer = renderer
         .split("#[cfg(test)]")
@@ -46,12 +60,24 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
             encoding.as_str(),
         ),
         (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/atlas.rs",
+            atlas.as_str(),
+        ),
+        (
             "src/gui_runtime/native_vello/generic_runtime/gpu_surface/overlays.rs",
             overlays.as_str(),
         ),
         (
             "src/gui_runtime/native_vello/generic_runtime/gpu_surface/passes.rs",
             passes.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/pipeline.rs",
+            pipeline.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/signal_pipeline.rs",
+            signal_pipeline.as_str(),
         ),
     ] {
         let production_source = source

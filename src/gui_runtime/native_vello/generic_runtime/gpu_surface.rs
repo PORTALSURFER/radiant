@@ -33,12 +33,10 @@ use encoding::{
 };
 use gpu_surface_types::{
     CachedSignalSummary, CustomShaderBinding, CustomShaderBindingKey, CustomShaderPipeline,
-    CustomShaderPipelineKey, GpuSurfaceCompositeBinding, GpuSurfaceCompositeBindingKey,
-    GpuSurfacePipeline, GpuSurfaceTexture, GpuSurfaceTextureIdentity, GpuSurfaceUniforms,
-    SignalBodyCacheKey, SignalBodyCacheKeyParts, SignalBodyTexture, SignalBuffer,
-    SignalBufferCacheKey, SignalPipeline, SignalUniforms,
+    CustomShaderPipelineKey, GpuSurfaceCompositeBinding, GpuSurfacePipeline, GpuSurfaceTexture,
+    GpuSurfaceTextureIdentity, GpuSurfaceUniforms, SignalBodyCacheKey, SignalBodyCacheKeyParts,
+    SignalBodyTexture, SignalBuffer, SignalBufferCacheKey, SignalPipeline, SignalUniforms,
 };
-use overlays::vertical_overlays;
 use passes::{
     SurfacePixelExtent, gpu_surface_render_pass, set_surface_scissor, signal_body_render_pass,
     surface_dest, surface_pixel_extent,

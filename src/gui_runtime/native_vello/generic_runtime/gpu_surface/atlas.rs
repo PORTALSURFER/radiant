@@ -1,5 +1,17 @@
-use super::*;
+use super::encoding::uniforms_as_bytes;
+use super::gpu_surface_types::{
+    GpuSurfaceCompositeBinding, GpuSurfaceCompositeBindingKey, GpuSurfaceTextureIdentity,
+    GpuSurfaceUniforms,
+};
+use super::overlays::vertical_overlays;
+use super::passes::{gpu_surface_render_pass, set_surface_scissor, surface_dest};
+use super::stats::GpuSurfaceRenderStats;
+use super::visibility::visible_surface_regions;
+use super::{GpuSurfaceRenderTarget, GpuSurfaceRenderer};
+use crate::gui::types::Rect as UiRect;
 use crate::runtime::PaintGpuSurface;
+use std::time::Instant;
+use vello::wgpu;
 
 pub(super) struct TextureViewRenderRequest<'a> {
     pub(super) surface: &'a PaintGpuSurface,

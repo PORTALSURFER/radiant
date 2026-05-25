@@ -1,4 +1,5 @@
-use super::*;
+use super::super::wgpu_target_matches;
+use vello::wgpu;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct GpuSurfacePipeline {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) format:

@@ -34,7 +34,7 @@ use gpu_surface_types::{
     SignalBodyCacheKeyParts, SignalBodyTexture, SignalBuffer, SignalBufferCacheKey, SignalPipeline,
     SignalUniforms,
 };
-use passes::{SurfacePixelExtent, signal_body_render_pass, surface_pixel_extent};
+use passes::{signal_body_render_pass, surface_pixel_extent};
 use resources::GpuSurfaceResourceCache;
 #[cfg(test)]
 pub(super) use signal_pipeline::GPU_SIGNAL_SHADER;

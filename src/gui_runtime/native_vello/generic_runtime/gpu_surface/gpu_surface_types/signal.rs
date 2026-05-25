@@ -1,6 +1,9 @@
-use super::*;
-
 mod cache_key;
+
+use super::super::wgpu_device_id;
+use crate::runtime::GpuSignalSummary;
+use std::sync::Arc;
+use vello::wgpu;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) use cache_key::{
     SignalBodyCacheKey, SignalBodyCacheKeyParts, SignalBufferCacheKey, signal_body_matches_key,

@@ -50,6 +50,39 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/pipeline.rs",
     ))
     .expect("GPU surface custom shader pipeline module should be readable");
+    let gpu_surface_types = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types.rs"),
+    )
+    .expect("GPU surface type module should be readable");
+    let type_pipeline = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/pipeline.rs",
+    ))
+    .expect("GPU surface pipeline type module should be readable");
+    let type_composite = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/composite.rs",
+    ))
+    .expect("GPU surface composite type module should be readable");
+    let type_texture = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/texture.rs",
+    ))
+    .expect("GPU surface texture type module should be readable");
+    let type_custom_shader = fs::read_to_string(
+        manifest_dir.join(
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/custom_shader.rs",
+        ),
+    )
+    .expect("GPU surface custom-shader type module should be readable");
+    let type_signal = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/signal.rs",
+    ))
+    .expect("GPU surface signal type module should be readable");
+    let type_signal_cache_key = fs::read_to_string(
+        manifest_dir.join(
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/signal/cache_key.rs",
+        ),
+    )
+    .expect("GPU surface signal cache-key type module should be readable");
 
     assert!(
         renderer.contains("mod overlays;")
@@ -112,6 +145,34 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
         (
             "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/pipeline.rs",
             custom_shader_pipeline.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types.rs",
+            gpu_surface_types.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/pipeline.rs",
+            type_pipeline.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/composite.rs",
+            type_composite.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/texture.rs",
+            type_texture.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/custom_shader.rs",
+            type_custom_shader.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/signal.rs",
+            type_signal.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/signal/cache_key.rs",
+            type_signal_cache_key.as_str(),
         ),
     ] {
         let production_source = source

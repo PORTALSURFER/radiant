@@ -25,14 +25,12 @@ pub use events::{Event, PointerMoveOutcome};
 pub use scroll::ScrollUpdate;
 
 use super::{
-    ClipAncestors, Command, DragSession, ExternalDragSession, PaintPrimitive, RuntimeBridge,
-    SurfaceFrame, SurfacePaintPlan, SurfaceRuntimeProjection, SurfaceTraversalIndex, UiSurface,
-    WidgetDispatchResult, WidgetPath, empty_paint_plan_for_layout,
+    ClipAncestors, Command, DragSession, ExternalDragSession, RuntimeBridge,
+    SurfaceRuntimeProjection, SurfaceTraversalIndex, UiSurface, WidgetDispatchResult, WidgetPath,
 };
 use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState, NodeId},
-    theme::ThemeTokens,
     widgets::{WidgetId, WidgetInput},
 };
 use interaction_state::{RuntimeInteractionState, ScrollDragCapture};

@@ -217,6 +217,31 @@ fn native_runner_keeps_window_input_and_timing_state_grouped() {
         "native runner root should group window resources, input state, and timing state"
     );
     assert!(
+        runner.contains("use super::{")
+            && runner.contains("AuxiliaryNativeWindow")
+            && runner.contains("GenericNativeRuntimeCore")
+            && runner.contains("GenericRouteOutcome")
+            && runner.contains("NativeRunnerInputState")
+            && runner.contains("NativeRunnerTimingState")
+            && runner.contains("NativeRunnerWindowState")
+            && runner.contains("NativeVelloFrameState")
+            && runner.contains("RuntimeWakeup")
+            && runner.contains("SurfaceSceneEncodeContext")
+            && runner.contains("TimedFrameCadence")
+            && runner.contains("encode_surface_paint_plan_to_scene")
+            && runner.contains("timed_frame_cadence")
+            && runner.contains("timed_frame_target_fps")
+            && runner.contains("gui::types::Vector2")
+            && runner.contains("gui_runtime::native_vello::NativeTextRenderer")
+            && runner.contains("RuntimeAnimationActivity")
+            && runner.contains("RuntimeBridge")
+            && runner.contains("NativeRunOptions")
+            && runner.contains("use std::time::Instant;")
+            && runner.contains("use winit::event_loop::ActiveEventLoop;")
+            && !runner.starts_with("use super::*;"),
+        "native runner should name runtime state, frame state, route outcome, scene rebuild, timed-frame, text renderer, runtime, timing, and event-loop dependencies"
+    );
+    assert!(
         state.contains("struct NativeRunnerWindowState")
             && state.contains("struct NativeRunnerInputState")
             && state.contains("struct NativeRunnerTimingState")

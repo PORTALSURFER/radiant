@@ -1,6 +1,18 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
-use super::*;
+use super::{
+    AuxiliaryNativeWindow, GenericNativeRuntimeCore, GenericRouteOutcome, NativeRunnerInputState,
+    NativeRunnerTimingState, NativeRunnerWindowState, NativeVelloFrameState, RuntimeWakeup,
+    SurfaceSceneEncodeContext, TimedFrameCadence, encode_surface_paint_plan_to_scene,
+    timed_frame_cadence, timed_frame_target_fps,
+};
+use crate::{
+    gui::types::Vector2,
+    gui_runtime::native_vello::NativeTextRenderer,
+    runtime::{NativeRunOptions, RuntimeAnimationActivity, RuntimeBridge},
+};
+use std::time::Instant;
+use winit::event_loop::ActiveEventLoop;
 
 pub(super) struct GenericNativeVelloRunner<Bridge, Message>
 where
@@ -49,7 +61,7 @@ where
     pub(super) fn drain_timed_frame_now(
         &mut self,
         now: Instant,
-        animation_activity: crate::runtime::RuntimeAnimationActivity,
+        animation_activity: RuntimeAnimationActivity,
         needs_text_caret_animation: bool,
     ) -> GenericRouteOutcome {
         self.timing.last_timed_frame_drain = now;

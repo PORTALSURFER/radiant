@@ -49,6 +49,13 @@ pub(crate) enum MixerPanelMessage {
     ToggleArm(usize),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MixerChannelFlag {
+    Mute,
+    Solo,
+    Arm,
+}
+
 pub(crate) fn update(state: &mut MixerState, message: MixerMessage) {
     match message {
         MixerMessage::Frame => state.tick(),
@@ -63,69 +70,95 @@ pub(crate) fn update(state: &mut MixerState, message: MixerMessage) {
 pub(crate) fn update_panel(state: &mut MixerState, message: MixerPanelMessage) {
     match message {
         MixerPanelMessage::Select { channel, modifiers } => {
-            let channel = channel.min(CHANNEL_COUNT - 1);
-            state.selected_channel = channel;
-            state.selection.select(channel, CHANNEL_COUNT, modifiers);
+            select_channel(state, channel, modifiers);
         }
         MixerPanelMessage::SetGain {
             channel,
             ratio,
             selection,
         } => {
-            let channel = channel.min(CHANNEL_COUNT - 1);
-            if let Some(modifiers) = selection {
-                state.selection.select(channel, CHANNEL_COUNT, modifiers);
-            }
-            if state.selection.is_selected(channel) && state.selection.selected_indices().len() > 1
-            {
-                let target_gain = model::gain_for_ratio(ratio);
-                let source_gain = state.channels[channel].controls.gain_db;
-                let delta = target_gain - source_gain;
-                let selected = state.selection.selected_indices().to_vec();
-                for selected_channel in selected {
-                    if let Some(channel_state) = state.channels.get_mut(selected_channel) {
-                        channel_state.set_gain_from_db(channel_state.controls.gain_db + delta);
-                    }
-                }
-            } else if let Some(channel_state) = state.channels.get_mut(channel) {
-                channel_state.set_gain_from_ratio(ratio);
-                state.selected_channel = channel;
-            }
-            state.selected_channel = channel;
+            set_channel_gain(state, channel, ratio, selection);
         }
         MixerPanelMessage::SetSend {
             channel,
             send,
             ratio,
         } => {
-            if let Some(channel_state) = state.channels.get_mut(channel)
-                && let Some(send_state) = channel_state.controls.sends.get_mut(send)
-            {
-                *send_state = ratio.clamp(0.0, 1.0);
-                state.selected_channel = channel;
-            }
+            set_channel_send(state, channel, send, ratio);
         }
         MixerPanelMessage::Reorder { from, insert } => {
             reorder_channels(state, from, insert);
         }
         MixerPanelMessage::ToggleMute(channel) => {
-            if let Some(channel_state) = state.channels.get_mut(channel) {
-                channel_state.flags.muted = !channel_state.flags.muted;
-                state.selected_channel = channel;
-            }
+            toggle_channel_flag(state, channel, MixerChannelFlag::Mute);
         }
         MixerPanelMessage::ToggleSolo(channel) => {
-            if let Some(channel_state) = state.channels.get_mut(channel) {
-                channel_state.flags.solo = !channel_state.flags.solo;
-                state.selected_channel = channel;
-            }
+            toggle_channel_flag(state, channel, MixerChannelFlag::Solo);
         }
         MixerPanelMessage::ToggleArm(channel) => {
-            if let Some(channel_state) = state.channels.get_mut(channel) {
-                channel_state.flags.armed = !channel_state.flags.armed;
-                state.selected_channel = channel;
-            }
+            toggle_channel_flag(state, channel, MixerChannelFlag::Arm);
         }
+    }
+}
+
+fn select_channel(state: &mut MixerState, channel: usize, modifiers: ListSelectionModifiers) {
+    let channel = channel.min(CHANNEL_COUNT - 1);
+    state.selected_channel = channel;
+    state.selection.select(channel, CHANNEL_COUNT, modifiers);
+}
+
+fn set_channel_gain(
+    state: &mut MixerState,
+    channel: usize,
+    ratio: f32,
+    selection: Option<ListSelectionModifiers>,
+) {
+    let channel = channel.min(CHANNEL_COUNT - 1);
+    if let Some(modifiers) = selection {
+        state.selection.select(channel, CHANNEL_COUNT, modifiers);
+    }
+
+    if should_adjust_selected_gains(state, channel) {
+        adjust_selected_gains(state, channel, ratio);
+    } else if let Some(channel_state) = state.channels.get_mut(channel) {
+        channel_state.set_gain_from_ratio(ratio);
+    }
+    state.selected_channel = channel;
+}
+
+fn should_adjust_selected_gains(state: &MixerState, channel: usize) -> bool {
+    state.selection.is_selected(channel) && state.selection.selected_indices().len() > 1
+}
+
+fn adjust_selected_gains(state: &mut MixerState, source_channel: usize, ratio: f32) {
+    let target_gain = model::gain_for_ratio(ratio);
+    let source_gain = state.channels[source_channel].controls.gain_db;
+    let delta = target_gain - source_gain;
+    let selected = state.selection.selected_indices().to_vec();
+    for selected_channel in selected {
+        if let Some(channel_state) = state.channels.get_mut(selected_channel) {
+            channel_state.set_gain_from_db(channel_state.controls.gain_db + delta);
+        }
+    }
+}
+
+fn set_channel_send(state: &mut MixerState, channel: usize, send: usize, ratio: f32) {
+    if let Some(channel_state) = state.channels.get_mut(channel)
+        && let Some(send_state) = channel_state.controls.sends.get_mut(send)
+    {
+        *send_state = ratio.clamp(0.0, 1.0);
+        state.selected_channel = channel;
+    }
+}
+
+fn toggle_channel_flag(state: &mut MixerState, channel: usize, flag: MixerChannelFlag) {
+    if let Some(channel_state) = state.channels.get_mut(channel) {
+        match flag {
+            MixerChannelFlag::Mute => channel_state.flags.muted = !channel_state.flags.muted,
+            MixerChannelFlag::Solo => channel_state.flags.solo = !channel_state.flags.solo,
+            MixerChannelFlag::Arm => channel_state.flags.armed = !channel_state.flags.armed,
+        }
+        state.selected_channel = channel;
     }
 }
 

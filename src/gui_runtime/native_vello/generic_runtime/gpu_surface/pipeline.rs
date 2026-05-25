@@ -1,4 +1,6 @@
-use super::*;
+use super::gpu_surface_types::GpuSurfacePipeline;
+use super::wgpu_device_id;
+use vello::wgpu;
 
 impl GpuSurfacePipeline {
     pub(super) fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {

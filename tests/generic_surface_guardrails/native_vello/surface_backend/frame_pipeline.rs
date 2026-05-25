@@ -6,7 +6,6 @@ fn native_generic_runtime_root_uses_explicit_facade_imports() {
 
     assert!(
         module.contains("use super::{")
-            && module.contains("NativeGpuBackend")
             && module.contains("NativeRunOptions")
             && module.contains("NativeRunOptionsError")
             && module.contains("NativeStartupTimingArtifact")
@@ -17,7 +16,6 @@ fn native_generic_runtime_root_uses_explicit_facade_imports() {
             && module.contains("sync::Arc")
             && module.contains("time::Instant")
             && module.contains("use tracing::{info, warn};")
-            && module.contains("use vello::{util::RenderContext, wgpu};")
             && module.contains("use winit::event_loop::EventLoop;")
             && module.contains("#[cfg(test)]")
             && module.contains("gui::types::{Point, Rect as UiRect, Rgba8}")
@@ -28,7 +26,7 @@ fn native_generic_runtime_root_uses_explicit_facade_imports() {
             && module
                 .contains("RuntimeRunReport<NativeGenericRuntimeArtifacts, NativeGenericRunError>")
             && !module.starts_with("use super::*;"),
-        "generic native runtime root should name facade, runtime, geometry, timing, event-loop, tracing, and GPU setup dependencies"
+        "generic native runtime root should name facade, runtime, geometry, timing, event-loop, and tracing dependencies"
     );
 }
 
@@ -347,6 +345,8 @@ fn native_render_surface_target_size_stays_in_focused_module() {
 #[test]
 fn native_surface_setup_uses_explicit_imports() {
     let surface = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/surface.rs");
+    let backend =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/surface/backend.rs");
     let production_surface = surface
         .split("#[cfg(test)]")
         .next()
@@ -375,6 +375,15 @@ fn native_surface_setup_uses_explicit_imports() {
             && production_surface.contains("fn surface_size_changed")
             && !production_surface.contains("winit::dpi::PhysicalSize"),
         "native surface setup should keep initialization, resize, acquire, and physical-size comparison focused"
+    );
+    assert!(
+        backend.contains("use crate::gui_runtime::{NativeGpuBackend, NativeRunOptions};")
+            && backend.contains("use vello::{util::RenderContext, wgpu};")
+            && backend.contains("fn render_context_for_options")
+            && backend.contains("fn wgpu_backends")
+            && !backend.starts_with("use super::*;")
+            && !backend.starts_with("use super::super::*;"),
+        "native surface backend setup should name run options, GPU backend policy, render context, and WGPU dependencies explicitly"
     );
 }
 

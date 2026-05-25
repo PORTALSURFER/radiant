@@ -1,4 +1,5 @@
-use super::super::*;
+use crate::gui_runtime::{NativeGpuBackend, NativeRunOptions};
+use vello::{util::RenderContext, wgpu};
 
 pub(super) fn render_context_for_options(options: &NativeRunOptions) -> RenderContext {
     let Some(backends) = wgpu_backends(options.gpu.backend) else {

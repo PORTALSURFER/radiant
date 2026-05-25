@@ -1,8 +1,7 @@
 //! Generic `RuntimeBridge` native Vello runner.
 
 use super::{
-    NativeGpuBackend, NativeRunOptions, NativeRunOptionsError, NativeStartupTimingArtifact,
-    RuntimeUserEvent,
+    NativeRunOptions, NativeRunOptionsError, NativeStartupTimingArtifact, RuntimeUserEvent,
 };
 use crate::{
     gui::{repaint::RepaintSignal, types::Vector2},
@@ -11,7 +10,6 @@ use crate::{
 };
 use std::{sync::Arc, time::Instant};
 use tracing::{info, warn};
-use vello::{util::RenderContext, wgpu};
 use winit::event_loop::EventLoop;
 
 #[cfg(test)]

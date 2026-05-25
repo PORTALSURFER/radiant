@@ -38,9 +38,7 @@ mod surface_size;
 mod window;
 
 use auxiliary::{AuxiliaryNativeWindow, AuxiliaryWindowEventResult};
-use composited_base::{
-    BaseFramePresentState, BaseFramePresentTarget, CompositedBaseFrame, present_base_frame,
-};
+use composited_base::CompositedBaseFrame;
 pub(in crate::gui_runtime::native_vello) use core::{GenericNativeRuntimeCore, PointerPressStamp};
 use frame_cadence::{TimedFrameCadence, timed_frame_cadence, timed_frame_target_fps};
 use frame_state::NativeVelloFrameState;
@@ -65,7 +63,6 @@ pub(in crate::gui_runtime::native_vello) use scene::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneTextRunBuffer,
     SurfaceSceneEncodeContext, encode_surface_paint_plan_to_scene,
 };
-use scene_texture::render_scene_texture_if_needed;
 use surface_size::RenderSurfacePixelSize;
 use window::{
     generic_window_attributes, hide_window_after_first_present, owner_window_handle,

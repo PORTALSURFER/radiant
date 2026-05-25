@@ -1,7 +1,17 @@
-use super::*;
+use super::{
+    GenericNativeVelloRunner, RenderFrameProfile, RenderSurfacePixelSize,
+    hide_window_after_first_present, maybe_log_render_profile, post_gpu_overlay,
+    reveal_window_after_first_present,
+};
+use crate::runtime::RuntimeBridge;
+use std::time::Instant;
+use vello::wgpu;
+use winit::event_loop::ActiveEventLoop;
 
 mod diagnostics;
 
+use super::composited_base::{BaseFramePresentState, BaseFramePresentTarget, present_base_frame};
+use super::scene_texture::render_scene_texture_if_needed;
 use diagnostics::{NativeFrameDiagnosticsParts, native_frame_diagnostics};
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>

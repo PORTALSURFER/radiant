@@ -3,12 +3,10 @@ mod paint_geometry;
 #[path = "pulse_meter/visual.rs"]
 mod visual;
 
-use self::paint_geometry::{
-    inset, push_ratio_circle, push_ratio_rect, push_rect, push_wrapped_ratio_bar,
-};
+use self::paint_geometry::{inset, push_ratio_circle, push_ratio_rect, push_wrapped_ratio_bar};
 use self::visual::{PulseMeterVisual, wrap01};
 use radiant::{
-    gui::paint::{BorderSides, PaintFrame, Primitive, border_fill_rects},
+    gui::paint::{BorderSides, PaintFrame},
     layout::Rect,
     theme::ThemeTokens,
 };
@@ -31,8 +29,8 @@ pub(super) fn pulse_meter_frame(
     let center_y = (track.min.y + track.max.y) * 0.5;
     let mut frame = PaintFrame::default();
     frame.primitives.reserve(22);
-    push_rect(&mut frame, track, visual.track_color(theme));
-    push_rect(&mut frame, rail, visual.rail_color(theme));
+    frame.push_rect(track, visual.track_color(theme));
+    frame.push_rect(rail, visual.rail_color(theme));
     for marker in visual.beat_markers {
         push_ratio_rect(
             &mut frame,
@@ -75,11 +73,7 @@ pub(super) fn pulse_meter_frame(
         visual.playhead_width,
         visual.playhead_line_color(theme),
     );
-    frame.primitives.extend(
-        border_fill_rects(track, theme.border_emphasis, 1.0, BorderSides::ALL)
-            .into_iter()
-            .map(Primitive::Rect),
-    );
+    frame.push_border_rects(track, theme.border_emphasis, 1.0, BorderSides::ALL);
     frame
 }
 

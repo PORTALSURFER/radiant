@@ -3,7 +3,7 @@ mod paint_geometry;
 #[path = "pulse_meter/visual.rs"]
 mod visual;
 
-use self::paint_geometry::{inset, push_ratio_circle, push_ratio_rect, push_wrapped_ratio_bar};
+use self::paint_geometry::{push_ratio_circle, push_ratio_rect, push_wrapped_ratio_bar};
 use self::visual::{PulseMeterVisual, wrap01};
 use radiant::{
     gui::paint::{BorderSides, PaintFrame},
@@ -23,9 +23,9 @@ pub(super) fn pulse_meter_frame(
     theme: &ThemeTokens,
 ) -> PaintFrame {
     let visual = PulseMeterVisual::resolve(phase, running);
-    let track = inset(bounds, 2.0, 7.0);
-    let rail = inset(track, 8.0, 10.0);
-    let pulse_lane = inset(track, 8.0, 6.0);
+    let track = bounds.inset_symmetric_saturating(2.0, 7.0);
+    let rail = track.inset_symmetric_saturating(8.0, 10.0);
+    let pulse_lane = track.inset_symmetric_saturating(8.0, 6.0);
     let center_y = (track.min.y + track.max.y) * 0.5;
     let mut frame = PaintFrame::default();
     frame.primitives.reserve(22);
@@ -68,7 +68,7 @@ pub(super) fn pulse_meter_frame(
     );
     push_ratio_rect(
         &mut frame,
-        inset(track, 2.0, 3.0),
+        track.inset_symmetric_saturating(2.0, 3.0),
         visual.playhead_start,
         visual.playhead_width,
         visual.playhead_line_color(theme),

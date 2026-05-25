@@ -92,10 +92,3 @@ pub(super) fn push_ratio_rect(
         color,
     );
 }
-
-pub(super) fn inset(rect: Rect, x: f32, y: f32) -> Rect {
-    Rect::from_min_max(
-        Point::new(rect.min.x + x, rect.min.y + y),
-        Point::new(rect.max.x - x, rect.max.y - y),
-    )
-}

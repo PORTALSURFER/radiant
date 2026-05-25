@@ -123,7 +123,15 @@ where
             WindowEvent::KeyboardInput { event, .. } => {
                 self.handle_keyboard_event(event_loop, event)
             }
-            WindowEvent::ModifiersChanged(modifiers) => self.input.modifiers = modifiers.state(),
+            WindowEvent::ModifiersChanged(modifiers) => {
+                self.input.modifiers = modifiers.state();
+                let routed =
+                    self.core
+                        .route_pointer_modifiers_changed(pointer_modifiers_from_winit(
+                            self.input.modifiers,
+                        ));
+                self.handle_route_outcome(event_loop, routed);
+            }
             WindowEvent::RedrawRequested => self.redraw(event_loop),
             _ => {}
         }

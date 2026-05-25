@@ -13,11 +13,13 @@ impl PianoDrag {
         viewport: PianoRollViewport,
         position: Point,
         source: PianoNote,
+        snap_enabled: bool,
     ) -> PianoNote {
         let projection = DragProjection {
             grid,
             viewport,
             position,
+            snap_enabled,
         };
         match self {
             Self::Create { pitch, start_beat } => {
@@ -45,7 +47,11 @@ impl PianoDrag {
             Self::ResizeEnd { start_beat, .. } => {
                 resize_end_preview(projection, source, start_beat)
             }
-            Self::Pan { .. } | Self::Marquee { .. } | Self::Velocity { .. } => source,
+            Self::Pan { .. }
+            | Self::Marquee { .. }
+            | Self::TimeSelection { .. }
+            | Self::MoveTimeSelection { .. }
+            | Self::Velocity { .. } => source,
         }
     }
 }
@@ -55,6 +61,7 @@ struct DragProjection {
     grid: Rect,
     viewport: PianoRollViewport,
     position: Point,
+    snap_enabled: bool,
 }
 
 struct MovePreviewOffsets {
@@ -70,16 +77,18 @@ fn create_preview(
     pitch: i32,
     start_beat: f32,
 ) -> PianoNote {
-    let end_beat = quantize_beat(beat_for_x_view(
-        projection.grid,
-        projection.viewport,
-        projection.position.x,
-    ))
-    .max(start_beat + 0.25);
+    let start_beat = projection.resolve_beat(start_beat);
+    let end_beat = projection
+        .resolve_beat(beat_for_x_view(
+            projection.grid,
+            projection.viewport,
+            projection.position.x,
+        ))
+        .max(start_beat + 0.25);
     PianoNote {
         pitch,
         start_beat,
-        length_beats: (end_beat - start_beat).clamp(0.25, 4.0),
+        length_beats: (end_beat - start_beat).max(0.25).clamp(0.25, 4.0),
         ..source
     }
 }
@@ -95,7 +104,7 @@ fn move_preview(
             - offsets.pitch_offset
             - offsets.source_pitch,
         start_beat: source.start_beat
-            + quantize_beat(
+            + projection.resolve_beat(
                 beat_for_x_view(projection.grid, projection.viewport, projection.position.x)
                     - offsets.beat_offset,
             )
@@ -105,12 +114,13 @@ fn move_preview(
 }
 
 fn resize_start_preview(projection: DragProjection, source: PianoNote, end_beat: f32) -> PianoNote {
-    let start_beat = quantize_beat(beat_for_x_view(
-        projection.grid,
-        projection.viewport,
-        projection.position.x,
-    ))
-    .min(end_beat - 0.25);
+    let start_beat = projection
+        .resolve_beat(beat_for_x_view(
+            projection.grid,
+            projection.viewport,
+            projection.position.x,
+        ))
+        .min(end_beat - 0.25);
     PianoNote {
         start_beat,
         length_beats: end_beat - start_beat,
@@ -121,11 +131,22 @@ fn resize_start_preview(projection: DragProjection, source: PianoNote, end_beat:
 fn resize_end_preview(projection: DragProjection, source: PianoNote, start_beat: f32) -> PianoNote {
     PianoNote {
         start_beat,
-        length_beats: quantize_beat(
-            beat_for_x_view(projection.grid, projection.viewport, projection.position.x)
-                - start_beat,
-        )
-        .max(0.25),
+        length_beats: projection
+            .resolve_beat(
+                beat_for_x_view(projection.grid, projection.viewport, projection.position.x)
+                    - start_beat,
+            )
+            .max(0.25),
         ..source
+    }
+}
+
+impl DragProjection {
+    fn resolve_beat(self, beat: f32) -> f32 {
+        if self.snap_enabled {
+            quantize_beat(beat)
+        } else {
+            beat
+        }
     }
 }

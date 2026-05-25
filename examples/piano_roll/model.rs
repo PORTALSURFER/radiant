@@ -13,13 +13,31 @@ pub(crate) use note::PianoNote;
 pub(crate) use viewport::PianoRollViewport;
 
 use super::{PianoRollTool, TOTAL_BEATS, geometry::pitch_label};
+use radiant::prelude::UndoHistory;
 pub(crate) const STRESS_NOTE_COUNT: usize = 4096;
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PianoRollSnapshot {
+    pub(crate) edit_cursor_beat: Option<f32>,
+    pub(crate) time_selection: Option<(f32, f32)>,
+    pub(crate) snap_enabled: bool,
+    pub(crate) viewport: PianoRollViewport,
+    pub(crate) tool: PianoRollTool,
+    pub(crate) selected_note: Option<u32>,
+    pub(crate) selected_notes: Vec<u32>,
+    pub(crate) selected_pitch: Option<i32>,
+    pub(crate) notes: Vec<PianoNote>,
+}
 
 #[derive(Clone, Debug)]
 pub(crate) struct PianoRollState {
     pub(crate) running: bool,
     pub(crate) frame: u64,
     pub(crate) playhead_beat: f32,
+    pub(crate) history: UndoHistory<PianoRollSnapshot>,
+    pub(crate) edit_cursor_beat: Option<f32>,
+    pub(crate) time_selection: Option<(f32, f32)>,
+    pub(crate) snap_enabled: bool,
     pub(crate) viewport: PianoRollViewport,
     pub(crate) tool: PianoRollTool,
     pub(crate) selected_note: Option<u32>,
@@ -34,6 +52,10 @@ impl Default for PianoRollState {
             running: true,
             frame: 0,
             playhead_beat: 0.0,
+            history: UndoHistory::new(),
+            edit_cursor_beat: None,
+            time_selection: None,
+            snap_enabled: true,
             viewport: PianoRollViewport::default(),
             tool: PianoRollTool::Paint,
             selected_note: Some(2),
@@ -55,6 +77,32 @@ impl Default for PianoRollState {
 }
 
 impl PianoRollState {
+    pub(crate) fn snapshot(&self) -> PianoRollSnapshot {
+        PianoRollSnapshot {
+            edit_cursor_beat: self.edit_cursor_beat,
+            time_selection: self.time_selection,
+            snap_enabled: self.snap_enabled,
+            viewport: self.viewport,
+            tool: self.tool,
+            selected_note: self.selected_note,
+            selected_notes: self.selected_notes.clone(),
+            selected_pitch: self.selected_pitch,
+            notes: self.notes.clone(),
+        }
+    }
+
+    pub(crate) fn restore_snapshot(&mut self, snapshot: PianoRollSnapshot) {
+        self.edit_cursor_beat = snapshot.edit_cursor_beat;
+        self.time_selection = snapshot.time_selection;
+        self.snap_enabled = snapshot.snap_enabled;
+        self.viewport = snapshot.viewport;
+        self.tool = snapshot.tool;
+        self.selected_note = snapshot.selected_note;
+        self.selected_notes = snapshot.selected_notes;
+        self.selected_pitch = snapshot.selected_pitch;
+        self.notes = snapshot.notes;
+    }
+
     pub(crate) fn tick(&mut self) {
         if !self.running {
             return;
@@ -64,7 +112,11 @@ impl PianoRollState {
     }
 
     pub(crate) fn reset(&mut self) {
-        *self = Self::default();
+        let history = std::mem::take(&mut self.history);
+        *self = Self {
+            history,
+            ..Self::default()
+        };
     }
 
     pub(crate) fn status(&self) -> String {
@@ -83,8 +135,9 @@ impl PianoRollState {
             .selected_pitch
             .map(pitch_label)
             .unwrap_or_else(|| "none".into());
+        let snap = if self.snap_enabled { "snap" } else { "free" };
         format!(
-            "{transport} | {:?} | {note_load} {} notes | playhead {:.2} | beats {:.1}-{:.1} | pitches {}-{} | selected {} ({selected}) | lane {selected_pitch} | synthetic GUI data",
+            "{transport} | {:?} | {snap} | {note_load} {} notes | playhead {:.2} | beats {:.1}-{:.1} | pitches {}-{} | selected {} ({selected}) | lane {selected_pitch} | synthetic GUI data",
             self.tool,
             self.notes.len(),
             self.playhead_beat,

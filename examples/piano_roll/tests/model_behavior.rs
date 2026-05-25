@@ -33,3 +33,94 @@ fn piano_roll_viewport_zoom_and_pan_updates_visible_range() {
     assert_eq!(state.viewport.pitch_start, 56);
     assert!(state.status().contains("beats 7.0-15.0"));
 }
+
+#[test]
+fn piano_roll_undo_redo_restores_registered_note_edits() {
+    let mut state = PianoRollState::default();
+    let initial_notes = state.notes.clone();
+
+    update(
+        &mut state,
+        AppMessage::Roll(PianoRollMessage::CreateNote {
+            pitch: 60,
+            start_beat: 6.0,
+            length_beats: 1.0,
+        }),
+    );
+
+    assert_ne!(state.notes, initial_notes);
+    assert_eq!(state.history.undo_len(), 1);
+    update(&mut state, AppMessage::Undo);
+    assert_eq!(state.notes, initial_notes);
+    assert_eq!(state.history.redo_len(), 1);
+
+    update(&mut state, AppMessage::Redo);
+    assert_ne!(state.notes, initial_notes);
+    assert_eq!(state.history.undo_len(), 1);
+}
+
+#[test]
+fn piano_roll_undo_redo_shortcuts_route_through_radiant_history_support() {
+    let bridge = piano_roll_test_bridge(PianoRollState::default());
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(1040.0, 620.0));
+    let initial_status = status_text(&runtime);
+
+    assert!(runtime.dispatch_key_press(
+        KeyPress::with_command(KeyCode::Z),
+        None,
+        FocusSurface::None
+    ));
+    assert_eq!(
+        status_text(&runtime),
+        initial_status,
+        "empty undo history should be handled without changing state"
+    );
+
+    runtime.dispatch_message(AppMessage::Roll(PianoRollMessage::ZoomTime { factor: 0.5 }));
+    assert_ne!(status_text(&runtime), initial_status);
+
+    assert!(runtime.dispatch_key_press(
+        KeyPress::with_command(KeyCode::Z),
+        None,
+        FocusSurface::None
+    ));
+    assert_eq!(status_text(&runtime), initial_status);
+
+    assert!(runtime.dispatch_key_press(
+        KeyPress::with_command(KeyCode::Y),
+        None,
+        FocusSurface::None
+    ));
+    assert_ne!(status_text(&runtime), initial_status);
+}
+
+#[test]
+fn piano_roll_velocity_updates_coalesce_into_one_undo_step() {
+    let mut state = PianoRollState::default();
+    let initial = state.snapshot();
+
+    update(
+        &mut state,
+        AppMessage::Roll(PianoRollMessage::SetVelocity {
+            ids: vec![2],
+            velocity: 0.2,
+        }),
+    );
+    update(
+        &mut state,
+        AppMessage::Roll(PianoRollMessage::SetVelocity {
+            ids: vec![2],
+            velocity: 0.4,
+        }),
+    );
+
+    assert_eq!(state.history.undo_len(), 1);
+    assert!(
+        state
+            .notes
+            .iter()
+            .any(|note| { note.id == 2 && (note.velocity - 0.4).abs() < f32::EPSILON })
+    );
+    update(&mut state, AppMessage::Undo);
+    assert_eq!(state.snapshot(), initial);
+}

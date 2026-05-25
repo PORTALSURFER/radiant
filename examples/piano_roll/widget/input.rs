@@ -9,7 +9,7 @@ use super::super::{
     widget_paint::{
         append_drag_preview, append_editor_clip_end, append_editor_clip_start, append_grid,
         append_hover_guides, append_keyboard, append_keyboard_interaction, append_note,
-        append_selected_pitch_lane, append_velocity_lane,
+        append_selected_pitch_lane, append_time_selection, append_velocity_lane,
     },
 };
 
@@ -30,6 +30,10 @@ impl Widget for PianoRollWidget {
             WidgetInput::PointerMove { position } => {
                 self.handle_pointer_move(grid, bounds, position)
             }
+            WidgetInput::PointerModifiersChanged { modifiers } => {
+                self.pointer_modifiers = modifiers;
+                None
+            }
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Primary,
@@ -45,6 +49,11 @@ impl Widget for PianoRollWidget {
                 button: PointerButton::Primary,
                 modifiers,
             } if grid.contains(position) => self.handle_primary_press(grid, position, modifiers),
+            WidgetInput::PointerDoubleClick {
+                position,
+                button: PointerButton::Primary,
+                ..
+            } if grid.contains(position) => self.handle_primary_double_click(grid, position),
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Auxiliary,
@@ -60,13 +69,13 @@ impl Widget for PianoRollWidget {
             WidgetInput::PointerRelease {
                 position,
                 button: PointerButton::Primary | PointerButton::Auxiliary,
-                ..
+                modifiers,
             }
             | WidgetInput::PointerDrop {
                 position,
                 button: PointerButton::Primary | PointerButton::Auxiliary,
-                ..
-            } => self.finish_drag(grid, bounds, position),
+                modifiers,
+            } => self.finish_drag(grid, bounds, position, modifiers),
             WidgetInput::Wheel {
                 position,
                 delta,
@@ -100,6 +109,7 @@ impl Widget for PianoRollWidget {
             self.hover_pitch = previous.hover_pitch;
             self.active_pitch = previous.active_pitch;
             self.hover_position = previous.hover_position;
+            self.pointer_modifiers = previous.pointer_modifiers;
             self.drag = previous.drag.clone();
         }
     }
@@ -145,6 +155,7 @@ impl Widget for PianoRollWidget {
         );
         append_keyboard_interaction(self, primitives, bounds, theme);
         append_editor_clip_start(self, primitives, grid);
+        append_time_selection(self, primitives, grid, theme);
         append_hover_guides(self, primitives, grid, theme);
         if let Some(position) = self.hover_position {
             append_drag_preview(

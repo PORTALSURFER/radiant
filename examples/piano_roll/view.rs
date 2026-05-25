@@ -14,6 +14,9 @@ pub(crate) fn project_surface(state: &mut PianoRollState) -> View<AppMessage> {
                 state.selected_note,
                 state.selected_notes.clone(),
                 state.selected_pitch,
+                state.edit_cursor_beat,
+                state.time_selection,
+                state.snap_enabled,
                 state.playhead_beat,
                 state.viewport,
                 state.tool,
@@ -54,6 +57,22 @@ fn header_row(state: &PianoRollState) -> View<AppMessage> {
         .subtle()
         .message(AppMessage::Roll(PianoRollMessage::ToggleStressNotes))
         .size(86.0, 30.0),
+        button(if state.snap_enabled {
+            "Snap On"
+        } else {
+            "Snap Off"
+        })
+        .subtle()
+        .message(AppMessage::Roll(PianoRollMessage::ToggleSnap))
+        .size(86.0, 30.0),
+        button("Undo")
+            .subtle()
+            .message(AppMessage::Undo)
+            .size(62.0, 30.0),
+        button("Redo")
+            .subtle()
+            .message(AppMessage::Redo)
+            .size(62.0, 30.0),
         button("H-")
             .subtle()
             .message(AppMessage::Roll(PianoRollMessage::ZoomTime {
@@ -123,7 +142,22 @@ fn status_row(state: &PianoRollState) -> View<AppMessage> {
     row([
         stat_tile("Notes", state.notes.len().to_string()),
         stat_tile("Selected", state.selected_notes.len().to_string()),
-        stat_tile("Grid", "1/4 beat"),
+        stat_tile(
+            "Grid",
+            if state.snap_enabled {
+                "Snap 1/4"
+            } else {
+                "Free"
+            },
+        ),
+        stat_tile(
+            "History",
+            format!(
+                "U{} / R{}",
+                state.history.undo_len(),
+                state.history.redo_len()
+            ),
+        ),
         stat_tile(
             "Range",
             format!(

@@ -60,6 +60,11 @@ pub enum Event {
         /// Pointer position in surface logical coordinates.
         position: Point,
     },
+    /// Pointer modifier state changed while the pointer remains active.
+    PointerModifiersChanged {
+        /// Latest platform-neutral pointer modifier state.
+        modifiers: PointerModifiers,
+    },
     /// Pointer press started at the given surface position.
     PointerPress {
         /// Pointer position in surface logical coordinates.
@@ -120,6 +125,9 @@ where
                 None
             }
             Event::PointerMove { position } => self.dispatch_pointer_move_target(position).target,
+            Event::PointerModifiersChanged { modifiers } => {
+                self.dispatch_pointer_modifiers_changed(modifiers)
+            }
             Event::PointerPress {
                 position,
                 button,

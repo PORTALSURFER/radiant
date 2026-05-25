@@ -46,6 +46,16 @@ pub(super) enum PianoDrag {
         current: Point,
         modifiers: PointerModifiers,
     },
+    TimeSelection {
+        start: Point,
+        current: Point,
+    },
+    MoveTimeSelection {
+        source_start_beat: f32,
+        source_end_beat: f32,
+        grab_beat: f32,
+        current: Point,
+    },
     Velocity {
         ids: Vec<u32>,
         velocity: f32,

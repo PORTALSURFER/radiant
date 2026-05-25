@@ -122,7 +122,14 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 self.runner.handle_keyboard_event(event_loop, event)
             }
             WindowEvent::ModifiersChanged(modifiers) => {
-                self.runner.input.modifiers = modifiers.state()
+                self.runner.input.modifiers = modifiers.state();
+                let routed =
+                    self.runner
+                        .core
+                        .route_pointer_modifiers_changed(pointer_modifiers_from_winit(
+                            self.runner.input.modifiers,
+                        ));
+                self.runner.handle_route_outcome(event_loop, routed);
             }
             WindowEvent::RedrawRequested => self.runner.redraw(event_loop),
             _ => {}

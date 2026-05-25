@@ -63,5 +63,7 @@ pub mod svg;
 pub mod text_layout;
 /// Geometry and image buffer types shared by UI code.
 pub mod types;
+/// Generic undo/redo history primitives for application-owned state.
+pub mod undo;
 /// Generic visualization primitives.
 pub mod visualization;

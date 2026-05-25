@@ -9,6 +9,7 @@ impl PianoRollWidget {
         grid: Rect,
         position: Point,
         drag: PianoDrag,
+        modifiers: PointerModifiers,
     ) -> Option<WidgetOutput> {
         if matches!(drag, PianoDrag::Pan { .. }) {
             return None;
@@ -25,10 +26,46 @@ impl PianoRollWidget {
                 velocity,
             }));
         }
+        if let PianoDrag::TimeSelection { .. } = drag {
+            return Some(WidgetOutput::custom(drag.message_for(
+                grid,
+                self.viewport,
+                position,
+                self.snap_enabled,
+            )));
+        }
+        if let PianoDrag::MoveTimeSelection {
+            source_start_beat,
+            source_end_beat,
+            grab_beat,
+            current,
+        } = drag
+        {
+            let (start_beat, _) = self.moved_time_selection_beats(
+                source_start_beat,
+                source_end_beat,
+                grab_beat,
+                current,
+                grid,
+            );
+            if modifiers.command {
+                return Some(WidgetOutput::custom(PianoRollMessage::CopyTimeSelection {
+                    source_start_beat,
+                    source_end_beat,
+                    target_start_beat: start_beat,
+                }));
+            }
+            return Some(WidgetOutput::custom(PianoRollMessage::MoveTimeSelection {
+                source_start_beat,
+                source_end_beat,
+                target_start_beat: start_beat,
+            }));
+        }
         Some(WidgetOutput::custom(drag.message_for(
             grid,
             self.viewport,
             position,
+            self.snap_enabled,
         )))
     }
 

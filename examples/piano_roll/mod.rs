@@ -32,6 +32,8 @@ pub(crate) enum AppMessage {
     Frame,
     ToggleRun,
     Reset,
+    Undo,
+    Redo,
     Roll(PianoRollMessage),
 }
 
@@ -67,6 +69,24 @@ pub(crate) enum PianoRollMessage {
         ids: Vec<u32>,
         velocity: f32,
     },
+    SetCursor {
+        beat: f32,
+    },
+    SetTimeSelection {
+        start_beat: f32,
+        end_beat: f32,
+    },
+    MoveTimeSelection {
+        source_start_beat: f32,
+        source_end_beat: f32,
+        target_start_beat: f32,
+    },
+    CopyTimeSelection {
+        source_start_beat: f32,
+        source_end_beat: f32,
+        target_start_beat: f32,
+    },
+    ToggleSnap,
     PanViewport {
         beat_delta: f32,
         pitch_delta: i32,
@@ -105,7 +125,69 @@ pub(crate) fn update(state: &mut PianoRollState, message: AppMessage) {
         AppMessage::ToggleRun => {
             state.running = !state.running;
         }
-        AppMessage::Reset => state.reset(),
-        AppMessage::Roll(message) => state.apply_roll_message(message),
+        AppMessage::Reset => {
+            let before = state.snapshot();
+            state.reset();
+            let after = state.snapshot();
+            state
+                .history
+                .register_change("Reset piano roll", before, &after);
+        }
+        AppMessage::Undo => {
+            let current = state.snapshot();
+            if let Some(transition) = state.history.undo(&current) {
+                state.restore_snapshot(transition.state);
+            }
+        }
+        AppMessage::Redo => {
+            let current = state.snapshot();
+            if let Some(transition) = state.history.redo(&current) {
+                state.restore_snapshot(transition.state);
+            }
+        }
+        AppMessage::Roll(message) => apply_undoable_roll_message(state, message),
     }
+}
+
+fn apply_undoable_roll_message(state: &mut PianoRollState, message: PianoRollMessage) {
+    let registration = undo_registration_for(&message);
+    let before = registration.as_ref().map(|_| state.snapshot());
+    state.apply_roll_message(message);
+    if let (Some((label, merge_key)), Some(before)) = (registration, before) {
+        let after = state.snapshot();
+        if let Some(merge_key) = merge_key {
+            state
+                .history
+                .register_change_coalescing(label, merge_key, before, &after);
+        } else {
+            state.history.register_change(label, before, &after);
+        }
+    }
+}
+
+fn undo_registration_for(message: &PianoRollMessage) -> Option<(&'static str, Option<String>)> {
+    let label = match message {
+        PianoRollMessage::SelectNote(_) => "Select note",
+        PianoRollMessage::SelectPitch(_) => "Select pitch",
+        PianoRollMessage::SelectNotes { .. } => "Select notes",
+        PianoRollMessage::CreateNote { .. } => "Create note",
+        PianoRollMessage::MoveNote { .. } | PianoRollMessage::MoveNotes { .. } => "Move notes",
+        PianoRollMessage::ResizeNote { .. } => "Resize note",
+        PianoRollMessage::SetVelocity { ids, .. } => {
+            return Some(("Change velocity", Some(format!("velocity:{ids:?}"))));
+        }
+        PianoRollMessage::SetCursor { .. } => "Set cursor",
+        PianoRollMessage::SetTimeSelection { .. } => "Set time selection",
+        PianoRollMessage::MoveTimeSelection { .. } => "Move time selection",
+        PianoRollMessage::CopyTimeSelection { .. } => "Copy time selection",
+        PianoRollMessage::ToggleSnap => "Toggle snap",
+        PianoRollMessage::PanViewport { .. } => "Pan viewport",
+        PianoRollMessage::ZoomTime { .. }
+        | PianoRollMessage::ZoomPitch { .. }
+        | PianoRollMessage::ZoomViewport { .. } => "Zoom viewport",
+        PianoRollMessage::SetTool(_) => "Change tool",
+        PianoRollMessage::ToggleStressNotes => "Toggle stress notes",
+        PianoRollMessage::DeleteSelected => "Delete selected notes",
+    };
+    Some((label, None))
 }

@@ -1,10 +1,11 @@
 use radiant::prelude::*;
 use radiant::widgets::PaintBounds;
+use radiant::widgets::PointerModifiers;
 
 use super::{
     PianoRollTool,
     drag::PianoDrag,
-    geometry::{row_height_for, x_for_beat_view, y_for_pitch_view},
+    geometry::{beat_for_x_view, quantize_beat, row_height_for, x_for_beat_view, y_for_pitch_view},
     model::{PianoNote, PianoRollViewport},
 };
 
@@ -26,6 +27,9 @@ pub(crate) struct PianoRollWidget {
     pub(super) selected_note: Option<u32>,
     pub(super) selected_notes: Vec<u32>,
     pub(super) selected_pitch: Option<i32>,
+    pub(super) edit_cursor_beat: Option<f32>,
+    pub(super) time_selection: Option<(f32, f32)>,
+    pub(super) snap_enabled: bool,
     pub(super) playhead_beat: f32,
     pub(super) viewport: PianoRollViewport,
     pub(super) tool: PianoRollTool,
@@ -33,6 +37,7 @@ pub(crate) struct PianoRollWidget {
     pub(crate) hover_pitch: Option<i32>,
     pub(crate) active_pitch: Option<i32>,
     pub(super) hover_position: Option<Point>,
+    pub(super) pointer_modifiers: PointerModifiers,
     pub(super) drag: Option<PianoDrag>,
 }
 
@@ -42,6 +47,9 @@ impl PianoRollWidget {
         selected_note: Option<u32>,
         selected_notes: Vec<u32>,
         selected_pitch: Option<i32>,
+        edit_cursor_beat: Option<f32>,
+        time_selection: Option<(f32, f32)>,
+        snap_enabled: bool,
         playhead_beat: f32,
         viewport: PianoRollViewport,
         tool: PianoRollTool,
@@ -60,6 +68,9 @@ impl PianoRollWidget {
             selected_note,
             selected_notes,
             selected_pitch,
+            edit_cursor_beat,
+            time_selection,
+            snap_enabled,
             playhead_beat,
             viewport,
             tool,
@@ -67,6 +78,7 @@ impl PianoRollWidget {
             hover_pitch: None,
             active_pitch: None,
             hover_position: None,
+            pointer_modifiers: PointerModifiers::default(),
             drag: None,
         }
     }
@@ -127,6 +139,116 @@ impl PianoRollWidget {
         Some(rect_from_points(*start, *current))
     }
 
+    pub(crate) fn active_time_selection_rect(&self, grid: Rect) -> Option<Rect> {
+        if let Some(PianoDrag::TimeSelection { start, current }) = self.drag.as_ref() {
+            return Some(self.time_selection_rect_for_points(grid, *start, *current));
+        }
+        if let Some(PianoDrag::MoveTimeSelection {
+            source_start_beat,
+            source_end_beat,
+            grab_beat,
+            current,
+        }) = self.drag.as_ref()
+        {
+            let (start, end) = self.moved_time_selection_beats(
+                *source_start_beat,
+                *source_end_beat,
+                *grab_beat,
+                *current,
+                grid,
+            );
+            return Some(self.time_selection_rect_for_beats(grid, start, end));
+        }
+        let (start_beat, end_beat) = self.time_selection?;
+        Some(self.time_selection_rect_for_beats(grid, start_beat, end_beat))
+    }
+
+    pub(crate) fn moving_time_selection_source_rect(&self, grid: Rect) -> Option<Rect> {
+        let PianoDrag::MoveTimeSelection {
+            source_start_beat,
+            source_end_beat,
+            ..
+        } = self.drag.as_ref()?
+        else {
+            return None;
+        };
+        Some(self.time_selection_rect_for_beats(grid, *source_start_beat, *source_end_beat))
+    }
+
+    pub(crate) fn moving_time_selection_clears_source(&self) -> bool {
+        matches!(self.drag, Some(PianoDrag::MoveTimeSelection { .. }))
+            && !self.pointer_modifiers.command
+    }
+
+    pub(crate) fn time_selection_contains(&self, grid: Rect, position: Point) -> bool {
+        self.time_selection
+            .map(|(start, end)| self.time_selection_rect_for_beats(grid, start, end))
+            .is_some_and(|rect| rect.contains(position))
+    }
+
+    fn time_selection_rect_for_beats(&self, grid: Rect, start_beat: f32, end_beat: f32) -> Rect {
+        let x0 = x_for_beat_view(grid, self.viewport, start_beat);
+        let x1 = x_for_beat_view(grid, self.viewport, end_beat);
+        Rect::from_min_max(
+            Point::new(x0.min(x1), grid.min.y),
+            Point::new(x0.max(x1), grid.max.y),
+        )
+    }
+
+    pub(crate) fn moved_time_selection_beats(
+        &self,
+        source_start_beat: f32,
+        source_end_beat: f32,
+        grab_beat: f32,
+        current: Point,
+        grid: Rect,
+    ) -> (f32, f32) {
+        let length = (source_end_beat - source_start_beat).abs();
+        let delta = self.beat_for_position(grid, current) - grab_beat;
+        let target_start = (source_start_beat + delta).clamp(0.0, super::TOTAL_BEATS - length);
+        (target_start, target_start + length)
+    }
+
+    pub(crate) fn edit_cursor_x(&self, grid: Rect) -> Option<f32> {
+        match self.drag.as_ref() {
+            Some(PianoDrag::TimeSelection { start, .. }) => Some(self.x_for_position(grid, *start)),
+            _ => self
+                .edit_cursor_beat
+                .map(|beat| x_for_beat_view(grid, self.viewport, beat)),
+        }
+    }
+
+    pub(crate) fn hover_cursor_x(&self, grid: Rect, position: Point) -> f32 {
+        self.x_for_position(grid, position)
+    }
+
+    pub(crate) fn beat_for_position(&self, grid: Rect, position: Point) -> f32 {
+        self.resolve_beat(beat_for_x_view(grid, self.viewport, position.x))
+    }
+
+    pub(crate) fn resolve_beat(&self, beat: f32) -> f32 {
+        let beat = beat.clamp(0.0, super::TOTAL_BEATS);
+        if self.snap_enabled {
+            quantize_beat(beat)
+        } else {
+            beat
+        }
+    }
+
+    pub(crate) fn x_for_position(&self, grid: Rect, position: Point) -> f32 {
+        x_for_beat_view(grid, self.viewport, self.beat_for_position(grid, position))
+            .clamp(grid.min.x, grid.max.x)
+    }
+
+    fn time_selection_rect_for_points(&self, grid: Rect, start: Point, current: Point) -> Rect {
+        let x0 = self.x_for_position(grid, start);
+        let x1 = self.x_for_position(grid, current);
+        Rect::from_min_max(
+            Point::new(x0.min(x1), grid.min.y),
+            Point::new(x0.max(x1), grid.max.y),
+        )
+    }
+
     pub(crate) fn keyboard_pitch_rect(&self, keyboard: Rect, pitch: i32) -> Rect {
         let y = y_for_pitch_view(keyboard, self.viewport, pitch);
         Rect::from_min_max(
@@ -139,6 +261,7 @@ impl PianoRollWidget {
         let drag = self.drag.as_ref()?;
         let source = match drag {
             PianoDrag::Pan { .. } | PianoDrag::Marquee { .. } => return None,
+            PianoDrag::TimeSelection { .. } | PianoDrag::MoveTimeSelection { .. } => return None,
             PianoDrag::Velocity { .. } => return None,
             PianoDrag::Create { pitch, start_beat } => PianoNote {
                 id: u32::MAX,
@@ -153,7 +276,7 @@ impl PianoRollWidget {
         };
         Some(
             drag.clone()
-                .preview_note(grid, self.viewport, position, source),
+                .preview_note(grid, self.viewport, position, source, self.snap_enabled),
         )
     }
 
@@ -172,8 +295,34 @@ impl PianoRollWidget {
                     self.viewport,
                     position,
                     note,
+                    self.snap_enabled,
                 )
             })
+            .collect()
+    }
+
+    pub(crate) fn time_slice_preview_notes(&self, grid: Rect) -> Vec<PianoNote> {
+        let Some(PianoDrag::MoveTimeSelection {
+            source_start_beat,
+            source_end_beat,
+            grab_beat,
+            current,
+        }) = self.drag.as_ref()
+        else {
+            return Vec::new();
+        };
+        let (source_start, source_end) = if source_start_beat <= source_end_beat {
+            (*source_start_beat, *source_end_beat)
+        } else {
+            (*source_end_beat, *source_start_beat)
+        };
+        let (target_start, _) =
+            self.moved_time_selection_beats(source_start, source_end, *grab_beat, *current, grid);
+        let beat_delta = target_start - source_start;
+        self.notes
+            .iter()
+            .copied()
+            .filter_map(|note| clipped_note_for_range(note, source_start, source_end, beat_delta))
             .collect()
     }
 }
@@ -183,4 +332,26 @@ fn rect_from_points(a: Point, b: Point) -> Rect {
         Point::new(a.x.min(b.x), a.y.min(b.y)),
         Point::new(a.x.max(b.x), a.y.max(b.y)),
     )
+}
+
+fn clipped_note_for_range(
+    note: PianoNote,
+    start_beat: f32,
+    end_beat: f32,
+    beat_delta: f32,
+) -> Option<PianoNote> {
+    if note.start_beat >= end_beat || note.end_beat() <= start_beat {
+        return None;
+    }
+    let clipped_start = note.start_beat.max(start_beat);
+    let clipped_end = note.end_beat().min(end_beat);
+    let length_beats = clipped_end - clipped_start;
+    if length_beats <= f32::EPSILON {
+        return None;
+    }
+    Some(PianoNote {
+        start_beat: clipped_start + beat_delta,
+        length_beats,
+        ..note
+    })
 }

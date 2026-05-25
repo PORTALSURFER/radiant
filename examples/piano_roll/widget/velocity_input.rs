@@ -1,6 +1,8 @@
 use radiant::prelude::*;
 
-use super::super::{drag::PianoDrag, geometry::x_for_beat_view, model::PianoNote};
+use super::super::{
+    PianoRollMessage, drag::PianoDrag, geometry::x_for_beat_view, model::PianoNote,
+};
 use super::PianoRollWidget;
 
 impl PianoRollWidget {
@@ -17,7 +19,7 @@ impl PianoRollWidget {
             self.selected_notes = vec![note.id];
             vec![note.id]
         };
-        self.hover_note = Some(note.id);
+        self.hover_note = None;
         self.hover_position = Some(position);
         self.drag = Some(PianoDrag::Velocity {
             ids,
@@ -30,18 +32,23 @@ impl PianoRollWidget {
         &mut self,
         bounds: Rect,
         position: Point,
-    ) -> bool {
+    ) -> Option<WidgetOutput> {
         let velocity_lane = self.velocity_rect(bounds);
-        let Some(PianoDrag::Velocity {
-            ref mut velocity, ..
-        }) = self.drag
-        else {
-            return false;
-        };
-        *velocity = velocity_for_y(velocity_lane, position.y);
+        let next_velocity = velocity_for_y(velocity_lane, position.y);
         self.hover_position = Some(position);
+        self.hover_note = None;
         self.hover_pitch = None;
-        true
+        let Some(PianoDrag::Velocity { ids, velocity }) = self.drag.as_mut() else {
+            return None;
+        };
+        if (*velocity - next_velocity).abs() < 0.001 {
+            return None;
+        }
+        *velocity = next_velocity;
+        Some(WidgetOutput::custom(PianoRollMessage::SetVelocity {
+            ids: ids.clone(),
+            velocity: next_velocity,
+        }))
     }
 
     pub(crate) fn velocity_preview_stem_rect(&self, lane: Rect, note: PianoNote) -> Rect {

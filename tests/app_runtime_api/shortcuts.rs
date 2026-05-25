@@ -84,3 +84,26 @@ fn shortcut_layer_public_api_handles_modal_layers_and_dynamic_fallbacks() {
         ShortcutResolution::action(DemoMessage::Increment)
     );
 }
+
+#[test]
+fn undo_history_public_api_wraps_state_mutations_and_shortcuts() {
+    let mut history = radiant::gui::undo::UndoHistory::new();
+    let mut value = String::from("one");
+
+    assert!(history.apply("rename", &mut value, |value| {
+        *value = String::from("two");
+    }));
+    assert_eq!(value, "two");
+
+    let undo = history.undo(&value).expect("undo checkpoint");
+    value = undo.state;
+    assert_eq!(value, "one");
+
+    let redo = history.redo(&value).expect("redo checkpoint");
+    value = redo.state;
+    assert_eq!(value, "two");
+    assert_eq!(
+        radiant::gui::undo::UndoRedoIntent::from_key_press(KeyPress::with_command(KeyCode::Z)),
+        Some(radiant::gui::undo::UndoRedoIntent::Undo)
+    );
+}

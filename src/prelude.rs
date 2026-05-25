@@ -51,6 +51,7 @@ pub use crate::gui::{
     range::IndexViewport,
     shortcuts::{ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution},
     svg::SvgIcon,
+    undo::{UndoCheckpoint, UndoHistory, UndoRedoIntent, UndoTransition},
 };
 pub use crate::layout::LayoutOutput;
 pub use crate::runtime::{

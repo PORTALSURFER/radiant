@@ -123,6 +123,11 @@ pub enum WidgetInput {
         /// Pointer position in the widget host's logical coordinate space.
         position: Point,
     },
+    /// Pointer modifier state changed while the pointer remains active.
+    PointerModifiersChanged {
+        /// Latest platform-neutral pointer modifier state.
+        modifiers: PointerModifiers,
+    },
     /// Primary or auxiliary pointer press started at the given point.
     PointerPress {
         /// Pointer position in the widget host's logical coordinate space.

@@ -6,6 +6,12 @@ use super::super::{
     widget::PianoRollWidget,
 };
 
+const LABEL_FONT_SIZE: f32 = 12.0;
+const LABEL_BASELINE: f32 = 16.0;
+const LABEL_LEFT_INSET: f32 = 6.0;
+const LABEL_VERTICAL_PADDING: f32 = 3.0;
+const MIN_LABEL_WIDTH: f32 = 24.0;
+
 pub(crate) fn append_keyboard(
     widget: &PianoRollWidget,
     primitives: &mut Vec<PaintPrimitive>,
@@ -162,14 +168,30 @@ fn append_key_row(
     };
     push_rect(primitives, widget.common.id, key_rect, fill);
     push_stroke(primitives, widget.common.id, key_rect, theme.border, 1.0);
-    if !black_key || pitch % 12 == 0 {
+    if key_label_fits(keyboard, key_rect, widget.viewport) {
+        let label_rect = Rect::from_min_max(
+            Point::new(key_rect.min.x + LABEL_LEFT_INSET, rect.min.y),
+            Point::new(key_rect.max.x, rect.max.y),
+        );
         push_text(
             primitives,
             widget.common.id,
             pitch_label(pitch),
-            rect,
+            label_rect,
             theme.text_muted,
-            PaintTextAlign::Center,
+            PaintTextAlign::Left,
         );
     }
+}
+
+fn key_label_fits(
+    keyboard: Rect,
+    key_rect: Rect,
+    viewport: super::super::model::PianoRollViewport,
+) -> bool {
+    let row_height = row_height_for(keyboard, viewport);
+    let label_width = key_rect.width() - LABEL_LEFT_INSET;
+    row_height >= LABEL_BASELINE + LABEL_VERTICAL_PADDING
+        && row_height >= LABEL_FONT_SIZE + LABEL_VERTICAL_PADDING * 2.0
+        && label_width >= MIN_LABEL_WIDTH
 }

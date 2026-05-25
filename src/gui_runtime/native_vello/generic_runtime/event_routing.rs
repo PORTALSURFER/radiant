@@ -49,6 +49,17 @@ where
         }
     }
 
+    pub(in crate::gui_runtime::native_vello) fn route_pointer_modifiers_changed(
+        &mut self,
+        modifiers: PointerModifiers,
+    ) -> GenericRouteOutcome {
+        let routed = self
+            .runtime
+            .dispatch_event(Event::PointerModifiersChanged { modifiers })
+            .is_some();
+        self.route_outcome(routed)
+    }
+
     #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn route_pointer_press(
         &mut self,

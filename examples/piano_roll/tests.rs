@@ -41,6 +41,13 @@ mod wheel_navigation;
 fn piano_roll_test_bridge(state: PianoRollState) -> impl RuntimeBridge<AppMessage> {
     radiant::app(state)
         .view(project_surface)
+        .shortcuts(
+            |_, _, press, _| match UndoRedoIntent::from_key_press(press) {
+                Some(UndoRedoIntent::Undo) => ShortcutResolution::action(AppMessage::Undo),
+                Some(UndoRedoIntent::Redo) => ShortcutResolution::action(AppMessage::Redo),
+                None => ShortcutResolution::unhandled(),
+            },
+        )
         .animation(|state| state.running)
         .on_frame(|| AppMessage::Frame)
         .update(update)

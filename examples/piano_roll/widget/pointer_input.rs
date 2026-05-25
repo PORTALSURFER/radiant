@@ -36,8 +36,28 @@ impl PianoRollWidget {
             self.hover_pitch = hovered_pitch(self.viewport, keyboard, grid, position);
             return None;
         }
-        if self.update_velocity_drag(bounds, position) {
+        if let Some(PianoDrag::TimeSelection {
+            ref mut current, ..
+        }) = self.drag
+        {
+            *current = position;
+            self.hover_position = Some(position);
+            self.hover_note = None;
+            self.hover_pitch = hovered_pitch(self.viewport, keyboard, grid, position);
             return None;
+        }
+        if let Some(PianoDrag::MoveTimeSelection {
+            ref mut current, ..
+        }) = self.drag
+        {
+            *current = position;
+            self.hover_position = Some(position);
+            self.hover_note = None;
+            self.hover_pitch = None;
+            return None;
+        }
+        if matches!(self.drag, Some(PianoDrag::Velocity { .. })) {
+            return self.update_velocity_drag(bounds, position);
         }
         self.hover_position = grid.contains(position).then_some(position);
         if self.drag.is_some() {
@@ -53,8 +73,27 @@ impl PianoRollWidget {
         position: Point,
         modifiers: PointerModifiers,
     ) -> Option<WidgetOutput> {
+        self.pointer_modifiers = modifiers;
         let beat = beat_for_x_view(grid, self.viewport, position.x);
         let pitch = pitch_for_y_view(grid, self.viewport, position.y);
+        if self.tool != PianoRollTool::Select
+            && !modifiers.shift
+            && self.time_selection_contains(grid, position)
+        {
+            let Some((source_start_beat, source_end_beat)) = self.time_selection else {
+                return None;
+            };
+            self.hover_position = Some(position);
+            self.hover_note = None;
+            self.hover_pitch = None;
+            self.drag = Some(PianoDrag::MoveTimeSelection {
+                source_start_beat,
+                source_end_beat,
+                grab_beat: self.beat_for_position(grid, position),
+                current: position,
+            });
+            return None;
+        }
         if let Some(id) = self.note_at_position(grid, position) {
             return self.handle_note_press(grid, id, position, modifiers);
         }
@@ -69,8 +108,38 @@ impl PianoRollWidget {
             });
             return None;
         }
-        self.drag = Some(PianoDrag::create(pitch, beat));
-        None
+        let cursor_beat = self.resolve_beat(beat);
+        self.edit_cursor_beat = Some(cursor_beat);
+        self.time_selection = None;
+        self.drag = Some(PianoDrag::TimeSelection {
+            start: position,
+            current: position,
+        });
+        Some(WidgetOutput::custom(PianoRollMessage::SetCursor {
+            beat: cursor_beat,
+        }))
+    }
+
+    pub(in crate::piano_roll::widget) fn handle_primary_double_click(
+        &mut self,
+        grid: Rect,
+        position: Point,
+    ) -> Option<WidgetOutput> {
+        if self.note_at_position(grid, position).is_some() {
+            return None;
+        }
+        let beat = beat_for_x_view(grid, self.viewport, position.x);
+        let pitch = pitch_for_y_view(grid, self.viewport, position.y);
+        self.hover_position = Some(position);
+        self.hover_note = None;
+        self.hover_pitch = Some(pitch);
+        let cursor_beat = self.resolve_beat(beat);
+        self.edit_cursor_beat = Some(cursor_beat);
+        self.time_selection = None;
+        self.drag = Some(PianoDrag::create(pitch, cursor_beat));
+        Some(WidgetOutput::custom(PianoRollMessage::SetCursor {
+            beat: cursor_beat,
+        }))
     }
 
     pub(in crate::piano_roll::widget) fn handle_keyboard_press(
@@ -91,13 +160,14 @@ impl PianoRollWidget {
         grid: Rect,
         bounds: Rect,
         position: Point,
+        modifiers: PointerModifiers,
     ) -> Option<WidgetOutput> {
         let drag = self.drag.take();
         self.active_pitch = None;
         self.hover_note = self.note_at_position(grid, position);
         let keyboard = self.keyboard_rect(bounds);
         self.hover_pitch = hovered_pitch(self.viewport, keyboard, grid, position);
-        drag.and_then(|drag| self.message_for_finished_drag(grid, position, drag))
+        drag.and_then(|drag| self.message_for_finished_drag(grid, position, drag, modifiers))
     }
 
     fn handle_pan_drag(

@@ -12,6 +12,9 @@ fn piano_roll_velocity_drag_edits_selected_notes_together() {
         state.selected_note,
         state.selected_notes.clone(),
         state.selected_pitch,
+        state.edit_cursor_beat,
+        state.time_selection,
+        state.snap_enabled,
         state.playhead_beat,
         state.viewport,
         state.tool,
@@ -35,15 +38,43 @@ fn piano_roll_velocity_drag_edits_selected_notes_together() {
         press.is_none(),
         "velocity drag should not commit a state update on press"
     );
+    assert_eq!(
+        widget.hover_note, None,
+        "velocity drag should not keep an editor hover overlay on the edited note"
+    );
 
-    let move_output = widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
-    assert!(move_output.is_none());
+    let move_message = widget
+        .handle_input(bounds, WidgetInput::PointerMove { position: end })
+        .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
+        .expect("velocity drag move should publish the edited value for live note repaint");
+    match move_message {
+        PianoRollMessage::SetVelocity { ids, velocity } => {
+            assert_eq!(ids, vec![2, 3]);
+            assert!(
+                (velocity - 0.28).abs() < 0.02,
+                "dragging lower in the velocity lane should update selected notes before release"
+            );
+            state.apply_roll_message(PianoRollMessage::SetVelocity { ids, velocity });
+        }
+        other => panic!("expected live velocity edit message, got {other:?}"),
+    }
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
         &mut overlay,
         bounds,
         &LayoutOutput::default(),
         &ThemeTokens::default(),
+    );
+    let grid = widget.editor_rect(bounds);
+    let edited_note_rect = widget.note_rect(grid, note);
+    assert!(
+        !overlay.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if fill.rect == edited_note_rect
+                    && fill.color == paint::translucent(ThemeTokens::default().highlight_cyan, 72)
+        )),
+        "velocity drag should not paint a note-hover overlay that disappears on release"
     );
     assert!(
         overlay.iter().any(|primitive| {
@@ -54,6 +85,37 @@ fn piano_roll_velocity_drag_edits_selected_notes_together() {
             )
         }),
         "velocity drag should paint the edited bars locally before release"
+    );
+    let live_widget = PianoRollWidget::new(
+        state.notes.clone(),
+        state.selected_note,
+        state.selected_notes.clone(),
+        state.selected_pitch,
+        state.edit_cursor_beat,
+        state.time_selection,
+        state.snap_enabled,
+        state.playhead_beat,
+        state.viewport,
+        state.tool,
+    );
+    let grid = live_widget.editor_rect(bounds);
+    let live_note = state
+        .notes
+        .iter()
+        .copied()
+        .find(|note| note.id == 2)
+        .expect("edited note should still exist");
+    let mut live_paint = Vec::new();
+    live_widget.append_paint(
+        &mut live_paint,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    let live_alpha = fill_alpha_for_rect(&live_paint, live_widget.note_rect(grid, live_note));
+    assert!(
+        live_alpha < 130,
+        "live velocity updates should lower the note fill alpha before release"
     );
     let release = widget
         .handle_input(

@@ -37,6 +37,7 @@ pub(crate) const GENERIC_SOURCE_ROOTS: &[&str] = &[
     "src/gui/svg.rs",
     "src/gui/text_layout",
     "src/gui/types.rs",
+    "src/gui/undo.rs",
     "src/gui/visualization.rs",
 ];
 

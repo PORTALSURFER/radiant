@@ -115,4 +115,25 @@ where
         )
         .then_some(widget_id)
     }
+
+    pub(super) fn dispatch_pointer_modifiers_changed(
+        &mut self,
+        modifiers: PointerModifiers,
+    ) -> Option<WidgetId> {
+        let widget_id = self
+            .interaction
+            .pointer
+            .capture
+            .or(self.interaction.hover.widget)?;
+        let routed = self.dispatch_input(
+            widget_id,
+            WidgetInput::PointerModifiersChanged { modifiers },
+        );
+        if routed {
+            self.repaint_requested = true;
+            Some(widget_id)
+        } else {
+            None
+        }
+    }
 }

@@ -184,6 +184,8 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
             .expect("runtime pointer move routing module should be readable");
     let hit_test = fs::read_to_string(manifest_dir.join("src/runtime/controller/hit_test.rs"))
         .expect("runtime controller hit-test module should be readable");
+    let hit_order = fs::read_to_string(manifest_dir.join("src/runtime/controller/hit_order.rs"))
+        .expect("runtime controller hit-order module should be readable");
 
     assert!(
         pointer.contains("mod move_routing;")
@@ -209,5 +211,14 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
             && hit_test.contains("pub fn widget_at")
             && hit_test.contains("fn stable_hovered_widget_at"),
         "runtime controller hit testing should name controller, geometry, layout, bridge, widget, and traversal dependencies"
+    );
+    assert!(
+        hit_order.contains("use std::collections::HashMap;")
+            && hit_order.contains("use crate::layout::{LayoutOutput, NodeId};")
+            && !hit_order.starts_with("use super::*;")
+            && hit_order.contains("pub(super) struct HitOrderIndex")
+            && hit_order.contains("fn collect_hit_rank")
+            && hit_order.contains("fn collect_visible_hit_order"),
+        "runtime controller hit-order indexing should name its collection, layout, and node dependencies without inheriting the controller root"
     );
 }

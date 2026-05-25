@@ -1,4 +1,12 @@
-use super::*;
+use std::collections::HashMap;
+
+use super::{
+    HitOrderIndex, collect_hit_rank, collect_visible_hit_order, hit_rank, visible_hit_order,
+};
+use crate::{
+    gui::types::{Point, Rect, Vector2},
+    layout::LayoutOutput,
+};
 
 #[test]
 fn sparse_visible_hit_order_preserves_traversal_order() {

@@ -20,6 +20,14 @@ impl Rect {
         Self { min, max }
     }
 
+    /// Construct a normalized rectangle from any two opposite corners.
+    pub fn from_points(a: Point, b: Point) -> Self {
+        Self::from_min_max(
+            Point::new(a.x.min(b.x), a.y.min(b.y)),
+            Point::new(a.x.max(b.x), a.y.max(b.y)),
+        )
+    }
+
     /// Construct a rectangle from a minimum corner and size.
     pub fn from_min_size(min: Point, size: Vector2) -> Self {
         Self {
@@ -65,6 +73,26 @@ impl Rect {
             && point.x <= self.max.x
             && point.y >= self.min.y
             && point.y <= self.max.y
+    }
+
+    /// Return whether this rectangle intersects `other`, including shared edges.
+    pub fn intersects(self, other: Self) -> bool {
+        self.min.x <= other.max.x
+            && self.max.x >= other.min.x
+            && self.min.y <= other.max.y
+            && self.max.y >= other.min.y
+    }
+
+    /// Return whether this rectangle overlaps `other` with positive area.
+    pub fn overlaps(self, other: Self) -> bool {
+        self.width() > 0.0
+            && self.height() > 0.0
+            && other.width() > 0.0
+            && other.height() > 0.0
+            && self.min.x < other.max.x
+            && self.max.x > other.min.x
+            && self.min.y < other.max.y
+            && self.max.y > other.min.y
     }
 
     /// Return an empty rectangle at this rectangle's minimum corner.

@@ -88,7 +88,7 @@ fn append_marquee_preview(
     theme: &ThemeTokens,
 ) {
     for note in &widget.notes {
-        if rects_overlap(widget.note_rect(grid, *note), rect) {
+        if widget.note_rect(grid, *note).intersects(rect) {
             append_note_hover_effect(widget, primitives, grid, *note, theme);
         }
     }
@@ -167,8 +167,4 @@ fn append_time_slice_drag_preview(
             2.0,
         );
     }
-}
-
-fn rects_overlap(a: Rect, b: Rect) -> bool {
-    a.min.x <= b.max.x && a.max.x >= b.min.x && a.min.y <= b.max.y && a.max.y >= b.min.y
 }

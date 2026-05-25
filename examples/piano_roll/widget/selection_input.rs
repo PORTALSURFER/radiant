@@ -84,7 +84,7 @@ impl PianoRollWidget {
         start: Point,
         modifiers: PointerModifiers,
     ) -> WidgetOutput {
-        let rect = rect_from_points(start, position).clamp_to(grid);
+        let rect = Rect::from_points(start, position).clamp_to(grid);
         WidgetOutput::custom(PianoRollMessage::SelectNotes {
             ids: self.note_ids_intersecting(grid, rect),
             mode: marquee_selection_mode(modifiers),
@@ -94,7 +94,7 @@ impl PianoRollWidget {
     fn note_ids_intersecting(&self, grid: Rect, rect: Rect) -> Vec<u32> {
         self.notes
             .iter()
-            .filter(|note| rects_overlap(self.note_rect(grid, **note), rect))
+            .filter(|note| self.note_rect(grid, **note).intersects(rect))
             .map(|note| note.id)
             .collect()
     }
@@ -107,7 +107,7 @@ impl PianoRollWidget {
         modifiers: PointerModifiers,
     ) -> WidgetOutput {
         let lane = self.velocity_rect(bounds);
-        let rect = rect_from_points(start, position).clamp_to(lane);
+        let rect = Rect::from_points(start, position).clamp_to(lane);
         WidgetOutput::custom(PianoRollMessage::SelectNotes {
             ids: self.velocity_marquee_note_ids(lane, rect),
             mode: self.velocity_marquee_selection_mode(modifiers),
@@ -121,15 +121,4 @@ fn marquee_selection_mode(modifiers: PointerModifiers) -> NoteSelectionMode {
     } else {
         NoteSelectionMode::Replace
     }
-}
-
-fn rect_from_points(a: Point, b: Point) -> Rect {
-    Rect::from_min_max(
-        Point::new(a.x.min(b.x), a.y.min(b.y)),
-        Point::new(a.x.max(b.x), a.y.max(b.y)),
-    )
-}
-
-fn rects_overlap(a: Rect, b: Rect) -> bool {
-    a.min.x <= b.max.x && a.max.x >= b.min.x && a.min.y <= b.max.y && a.max.y >= b.min.y
 }

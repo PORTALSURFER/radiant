@@ -163,14 +163,14 @@ impl PianoRollWidget {
         let PianoDrag::VelocityMarquee { start, current, .. } = self.drag.as_ref()? else {
             return None;
         };
-        Some(rect_from_points(*start, *current))
+        Some(Rect::from_points(*start, *current))
     }
 
     pub(crate) fn velocity_marquee_note_ids(&self, lane: Rect, rect: Rect) -> Vec<u32> {
         let rect = rect.clamp_to(lane);
         self.notes
             .iter()
-            .filter(|note| rects_overlap(self.velocity_handle_rect(lane, **note), rect))
+            .filter(|note| self.velocity_handle_rect(lane, **note).intersects(rect))
             .map(|note| note.id)
             .collect()
     }
@@ -231,15 +231,4 @@ impl PianoRollWidget {
 
 fn velocity_for_y(lane: Rect, y: f32) -> f32 {
     ((lane.max.y - y) / lane.height().max(1.0)).clamp(0.0, 1.0)
-}
-
-fn rect_from_points(a: Point, b: Point) -> Rect {
-    Rect::from_min_max(
-        Point::new(a.x.min(b.x), a.y.min(b.y)),
-        Point::new(a.x.max(b.x), a.y.max(b.y)),
-    )
-}
-
-fn rects_overlap(a: Rect, b: Rect) -> bool {
-    a.min.x <= b.max.x && a.max.x >= b.min.x && a.min.y <= b.max.y && a.max.y >= b.min.y
 }

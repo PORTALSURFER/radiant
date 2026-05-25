@@ -88,7 +88,7 @@ impl PianoRollWidget {
         let PianoDrag::Marquee { start, current, .. } = self.drag.as_ref()? else {
             return None;
         };
-        Some(rect_from_points(*start, *current))
+        Some(Rect::from_points(*start, *current))
     }
 
     pub(crate) fn active_time_selection_rect(&self, grid: Rect) -> Option<Rect> {
@@ -208,11 +208,4 @@ impl PianoRollWidget {
             Point::new(keyboard.max.x, y + row_height_for(keyboard, self.viewport)),
         )
     }
-}
-
-fn rect_from_points(a: Point, b: Point) -> Rect {
-    Rect::from_min_max(
-        Point::new(a.x.min(b.x), a.y.min(b.y)),
-        Point::new(a.x.max(b.x), a.y.max(b.y)),
-    )
 }

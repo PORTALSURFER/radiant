@@ -12,6 +12,14 @@ fn rect_clamp_to_limits_rect_to_bounds() {
 }
 
 #[test]
+fn rect_from_points_normalizes_opposite_corners() {
+    assert_eq!(
+        Rect::from_points(Point::new(90.0, 20.0), Point::new(10.0, 70.0)),
+        Rect::from_min_max(Point::new(10.0, 20.0), Point::new(90.0, 70.0))
+    );
+}
+
+#[test]
 fn rect_clamp_to_returns_empty_bounds_origin_for_disjoint_rect() {
     let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 120.0));
     let rect = Rect::from_min_max(Point::new(200.0, 40.0), Point::new(250.0, 80.0));
@@ -34,6 +42,21 @@ fn rect_center_returns_midpoint() {
     let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 30.0));
 
     assert_eq!(rect.center(), Point::new(30.0, 25.0));
+}
+
+#[test]
+fn rect_intersection_helpers_distinguish_edge_contact_from_positive_overlap() {
+    let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 80.0));
+    let touching = Rect::from_min_max(Point::new(50.0, 40.0), Point::new(80.0, 60.0));
+    let overlapping = Rect::from_min_max(Point::new(49.0, 40.0), Point::new(80.0, 60.0));
+    let disjoint = Rect::from_min_max(Point::new(51.0, 40.0), Point::new(80.0, 60.0));
+
+    assert!(rect.intersects(touching));
+    assert!(!rect.overlaps(touching));
+    assert!(rect.intersects(overlapping));
+    assert!(rect.overlaps(overlapping));
+    assert!(!rect.intersects(disjoint));
+    assert!(!rect.overlaps(disjoint));
 }
 
 #[test]

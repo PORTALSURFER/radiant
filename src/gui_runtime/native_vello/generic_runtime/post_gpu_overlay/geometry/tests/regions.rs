@@ -146,3 +146,34 @@ fn replayable_vertices_in_regions_clip_stroke_edges_to_gpu_regions() {
     assert!((vertices[0].position[0] - -0.8).abs() < 0.0001);
     assert!((vertices[1].position[0] - -0.6).abs() < 0.0001);
 }
+
+#[test]
+fn replayable_vertices_in_regions_clip_text_without_changing_paint_run() {
+    let primitive = text("kick.wav");
+    let PaintPrimitive::Text(original_text) = &primitive else {
+        panic!("fixture should produce text primitive");
+    };
+    let original_rect = original_text.rect;
+    let primitives = [primitive];
+    let regions = [UiRect::from_min_size(
+        Point::new(4.0, 4.0),
+        Vector2::new(12.0, 18.0),
+    )];
+    let mut full_vertices = Vec::new();
+    let mut clipped_vertices = Vec::new();
+
+    replayable_vertices_into(&primitives, Vector2::new(160.0, 60.0), &mut full_vertices);
+    replayable_vertices_in_regions_into(
+        &primitives,
+        Vector2::new(160.0, 60.0),
+        &regions,
+        &mut clipped_vertices,
+    );
+
+    assert!(!clipped_vertices.is_empty());
+    assert!(clipped_vertices.len() < full_vertices.len());
+    let PaintPrimitive::Text(text) = &primitives[0] else {
+        panic!("fixture should remain a text primitive");
+    };
+    assert_eq!(text.rect, original_rect);
+}

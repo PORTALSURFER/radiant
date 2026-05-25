@@ -13,7 +13,16 @@ pub(super) fn push_text_vertices(
     target_size: Vector2,
     text: &PaintTextRun,
 ) {
-    let Some(layout) = BitmapTextLayout::for_run(text) else {
+    push_text_vertices_in_rect(vertices, target_size, text, text.rect);
+}
+
+pub(super) fn push_text_vertices_in_rect(
+    vertices: &mut Vec<OverlayVertex>,
+    target_size: Vector2,
+    text: &PaintTextRun,
+    rect: UiRect,
+) {
+    let Some(layout) = BitmapTextLayout::for_run(text, rect) else {
         return;
     };
     let mut x = layout.start_x;
@@ -29,7 +38,7 @@ pub(super) fn push_text_vertices(
             );
         }
         x += layout.advance;
-        if x >= text.rect.max.x {
+        if x >= rect.max.x {
             break;
         }
     }
@@ -44,20 +53,20 @@ struct BitmapTextLayout {
 }
 
 impl BitmapTextLayout {
-    fn for_run(text: &PaintTextRun) -> Option<Self> {
-        if !text_is_renderable(text) {
+    fn for_run(text: &PaintTextRun, rect: UiRect) -> Option<Self> {
+        if !text_is_renderable(text, rect) {
             return None;
         }
         let scale = (text.font_size / GLYPH_HEIGHT).clamp(1.0, 3.0);
         let advance = GLYPH_ADVANCE * scale;
-        let max_chars = (text.rect.width() / advance).floor().max(0.0) as usize;
+        let max_chars = (rect.width() / advance).floor().max(0.0) as usize;
         if max_chars == 0 {
             return None;
         }
         let text_width = text.text.chars().take(max_chars).count() as f32 * advance;
         Some(Self {
-            start_x: aligned_start_x(text, text_width),
-            y: text.rect.min.y + ((text.rect.height() - GLYPH_HEIGHT * scale) * 0.5).max(0.0),
+            start_x: aligned_start_x(text, rect, text_width),
+            y: rect.min.y + ((rect.height() - GLYPH_HEIGHT * scale) * 0.5).max(0.0),
             advance,
             scale,
             max_chars,
@@ -68,19 +77,19 @@ impl BitmapTextLayout {
 const GLYPH_HEIGHT: f32 = 7.0;
 const GLYPH_ADVANCE: f32 = 6.0;
 
-fn text_is_renderable(text: &PaintTextRun) -> bool {
+fn text_is_renderable(text: &PaintTextRun, rect: UiRect) -> bool {
     !text.text.is_empty()
-        && text.rect.has_finite_positive_area()
+        && rect.has_finite_positive_area()
         && text.color.a != 0
         && text.font_size > 0.0
         && text.font_size.is_finite()
 }
 
-fn aligned_start_x(text: &PaintTextRun, text_width: f32) -> f32 {
+fn aligned_start_x(text: &PaintTextRun, rect: UiRect, text_width: f32) -> f32 {
     match text.align {
-        PaintTextAlign::Left => text.rect.min.x,
-        PaintTextAlign::Center => text.rect.min.x + (text.rect.width() - text_width) * 0.5,
-        PaintTextAlign::Right => text.rect.max.x - text_width,
+        PaintTextAlign::Left => rect.min.x,
+        PaintTextAlign::Center => rect.min.x + (rect.width() - text_width) * 0.5,
+        PaintTextAlign::Right => rect.max.x - text_width,
     }
 }
 

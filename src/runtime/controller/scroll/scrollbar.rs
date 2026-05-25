@@ -1,7 +1,14 @@
 //! Scrollbar hit testing and drag routing.
 
-use super::{super::*, ScrollUpdate};
-use crate::runtime::paint::resolve_scroll_affordance;
+use super::{
+    super::{ScrollDragCapture, SurfaceRuntime},
+    ScrollUpdate,
+};
+use crate::{
+    gui::types::{Point, Rect, Vector2},
+    layout::NodeId,
+    runtime::{RuntimeBridge, paint::resolve_scroll_affordance},
+};
 
 #[cfg(test)]
 #[path = "scrollbar/tests.rs"]

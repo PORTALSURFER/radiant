@@ -29,8 +29,8 @@ use super::{
     UiSurface, WidgetDispatchResult, WidgetPath,
 };
 use crate::{
-    gui::types::{Point, Rect, Vector2},
-    layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState, NodeId},
+    gui::types::Rect,
+    layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState},
     widgets::{WidgetId, WidgetInput},
 };
 use interaction_state::{RuntimeInteractionState, ScrollDragCapture};

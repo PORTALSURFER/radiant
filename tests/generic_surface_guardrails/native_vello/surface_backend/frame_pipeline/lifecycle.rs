@@ -130,11 +130,27 @@ fn native_auxiliary_windows_use_explicit_runtime_imports() {
     assert!(
         auxiliary.contains("use super::{")
             && auxiliary.contains("GenericNativeVelloRunner")
+            && auxiliary.contains("GenericRouteOutcome")
             && auxiliary.contains("owner_window_handle")
             && auxiliary.contains("scroll_delta_to_logical")
-            && auxiliary.contains("use crate::runtime::{AuxiliaryWindow, NativeRunOptions};")
+            && auxiliary.contains(
+                "use crate::runtime::{AuxiliaryWindow, NativeRunOptions, RuntimeBridge};"
+            )
             && auxiliary.contains("use winit::{")
             && !auxiliary.starts_with("use super::*;"),
         "auxiliary windows should name their runner, runtime helper, public model, and winit dependencies"
     );
+    assert!(
+        auxiliary.contains("fn dispatch_auxiliary_messages")
+            && auxiliary.contains("fn sync_auxiliary_windows")
+            && auxiliary.contains("project_auxiliary_windows")
+            && !runner_contains_auxiliary_sync_root(),
+        "auxiliary projection sync and dispatched auxiliary messages should stay with the auxiliary window module"
+    );
+}
+
+fn runner_contains_auxiliary_sync_root() -> bool {
+    let runner = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner.rs");
+    runner.contains("fn dispatch_auxiliary_messages")
+        || runner.contains("fn sync_auxiliary_windows")
 }

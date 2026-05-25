@@ -15,6 +15,8 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
         .expect("runtime controller command root should be readable");
     let work = fs::read_to_string(manifest_dir.join("src/runtime/controller/work.rs"))
         .expect("runtime controller work queues should be readable");
+    let scratch = fs::read_to_string(manifest_dir.join("src/runtime/controller/scratch.rs"))
+        .expect("runtime controller scratch buffers should be readable");
     let outcome =
         fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/outcome.rs"))
             .expect("runtime command outcome module should be readable");
@@ -97,6 +99,17 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
             && work.contains("fn drain_bridge_messages")
             && work.contains("fn has_remaining_work"),
         "runtime work queue ownership should live in controller/work.rs"
+    );
+    assert!(
+        scratch.contains("use crate::{")
+            && scratch.contains("gui::types::Vector2")
+            && scratch.contains("layout::NodeId")
+            && !scratch.starts_with("use super::*;")
+            && scratch.contains("pub(super) struct RuntimeScratch")
+            && scratch.contains("scroll_clamp_updates: Vec<(NodeId, Vector2)>")
+            && scratch.contains("projection_scroll_stack: Vec<NodeId>")
+            && scratch.contains("projection_child_path: Vec<usize>"),
+        "runtime controller scratch buffers should name layout and geometry dependencies without inheriting the controller root"
     );
     assert!(
         controller.contains("mod interaction_state;")

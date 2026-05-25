@@ -1,4 +1,4 @@
-use super::*;
+use crate::{gui::types::Vector2, layout::NodeId};
 
 /// Reusable temporary buffers for runtime projection and layout synchronization.
 #[derive(Default)]

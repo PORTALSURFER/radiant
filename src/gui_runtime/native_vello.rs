@@ -1,6 +1,6 @@
 //! Native `winit + vello` runtime for generic `RuntimeBridge` hosts.
 
-use super::{NativeRunOptions, NativeRunOptionsError, NativeTextOptions, WindowIconRgba};
+use super::{NativeRunOptions, NativeTextOptions, WindowIconRgba};
 use crate::gui::{
     paint::TextAlign,
     types::{Point, Rect as UiRect, Rgba8},

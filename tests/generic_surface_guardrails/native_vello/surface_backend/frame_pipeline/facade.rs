@@ -7,11 +7,8 @@ fn native_generic_runtime_root_uses_explicit_facade_imports() {
     assert!(
         module.contains("use super::{")
             && module.contains("NativeRunOptions")
-            && module.contains("NativeRunOptionsError")
-            && module.contains("NativeStartupTimingArtifact")
             && module.contains("RuntimeUserEvent")
             && module.contains("gui::{repaint::RepaintSignal, types::Vector2}")
-            && module.contains("gui_runtime::RuntimeRunReport")
             && module.contains("runtime::RuntimeBridge")
             && module.contains("sync::Arc")
             && module.contains("time::Instant")
@@ -22,11 +19,35 @@ fn native_generic_runtime_root_uses_explicit_facade_imports() {
             && module.contains("gui_runtime::native_vello::NativeTextRenderer")
             && module.contains("use std::time::Duration;")
             && module.contains("use vello::Scene;")
-            && module.contains("type NativeGenericRunReport =")
-            && module
-                .contains("RuntimeRunReport<NativeGenericRuntimeArtifacts, NativeGenericRunError>")
+            && module.contains("mod run_report;")
+            && module.contains("pub use run_report::{")
+            && module.contains("NativeGenericRunError")
+            && module.contains("NativeGenericRunReport")
+            && module.contains("NativeGenericRuntimeArtifacts")
             && !module.starts_with("use super::*;"),
-        "generic native runtime root should name facade, runtime, geometry, timing, event-loop, and tracing dependencies"
+        "generic native runtime root should name startup, runtime, geometry, timing, event-loop, tracing, and report-boundary dependencies"
+    );
+}
+
+#[test]
+fn native_generic_runtime_report_types_stay_in_report_module() {
+    let module = read_runtime_source("src/gui_runtime/native_vello/generic_runtime.rs");
+    let run_report =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/run_report.rs");
+
+    assert!(
+        !module.contains("pub enum NativeGenericRunError")
+            && !module.contains("pub struct NativeGenericRuntimeArtifacts")
+            && run_report.contains("NativeRunOptionsError")
+            && run_report.contains("NativeStartupTimingArtifact")
+            && run_report.contains("RuntimeRunReport")
+            && run_report.contains("pub struct NativeGenericRuntimeArtifacts")
+            && run_report.contains("pub enum NativeGenericRunError")
+            && run_report.contains("type NativeGenericRunReport =")
+            && run_report
+                .contains("RuntimeRunReport<NativeGenericRuntimeArtifacts, NativeGenericRunError>")
+            && !run_report.starts_with("use super::*;"),
+        "generic runtime report artifacts and typed errors should stay in the focused run_report module"
     );
 }
 

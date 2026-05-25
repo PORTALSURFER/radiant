@@ -37,6 +37,9 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
     let external_drag =
         fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/external_drag.rs"))
             .expect("runtime command external drag module should be readable");
+    let scroll_wheel =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/scroll/wheel.rs"))
+            .expect("runtime controller scroll wheel module should be readable");
     let scrolling =
         fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/scrolling.rs"))
             .expect("runtime command scrolling module should be readable");
@@ -220,6 +223,16 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
             && scrolling.contains("runtime::RuntimeBridge")
             && !scrolling.starts_with("use super::super::*;"),
         "external drag and scrolling command helpers should own their drag, scroll, geometry, layout, and bridge dependencies"
+    );
+    assert!(
+        scroll_wheel.contains("use super::super::{CommandOutcome, SurfaceRuntime};")
+            && scroll_wheel.contains("gui::types::{Point, Vector2}")
+            && scroll_wheel.contains("runtime::{RuntimeBridge, WidgetDispatchResult}")
+            && scroll_wheel.contains("widgets::{PointerModifiers, WidgetId, WidgetInput}")
+            && !scroll_wheel.starts_with("use super::super::*;")
+            && scroll_wheel.contains("fn dispatch_wheel_at_with_refresh")
+            && scroll_wheel.contains("fn wheel_widget_at"),
+        "runtime controller wheel routing should name command outcome, controller, geometry, bridge, dispatch result, pointer, and widget dependencies without inheriting the controller root"
     );
     assert!(
         tests.contains("mod batching;")

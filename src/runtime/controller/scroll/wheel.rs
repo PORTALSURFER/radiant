@@ -1,7 +1,11 @@
 //! Wheel routing for scrollable and wheel-aware runtime surfaces.
 
-use super::super::*;
-use crate::widgets::PointerModifiers;
+use super::super::{CommandOutcome, SurfaceRuntime};
+use crate::{
+    gui::types::{Point, Vector2},
+    runtime::{RuntimeBridge, WidgetDispatchResult},
+    widgets::{PointerModifiers, WidgetId, WidgetInput},
+};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where

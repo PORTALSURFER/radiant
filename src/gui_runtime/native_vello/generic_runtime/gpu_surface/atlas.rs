@@ -69,15 +69,15 @@ impl GpuSurfaceRenderer {
             return;
         };
         let surface = request.surface;
-        let (overlay_ratios, overlay_widths, overlay_colors) = vertical_overlays(&surface.overlays);
+        let overlay_uniforms = vertical_overlays(&surface.overlays);
         let uniforms = GpuSurfaceUniforms {
             dest: surface_dest(surface),
             source: request.source,
             target_size: [target.size.x.max(1.0), target.size.y.max(1.0)],
             _padding: [0.0; 2],
-            overlay_ratios,
-            overlay_widths,
-            overlay_colors,
+            overlay_ratios: overlay_uniforms.ratios,
+            overlay_widths: overlay_uniforms.widths,
+            overlay_colors: overlay_uniforms.colors,
         };
         let cache_key = GpuSurfaceCompositeBindingKey {
             pipeline_generation: self.pipeline_generation,

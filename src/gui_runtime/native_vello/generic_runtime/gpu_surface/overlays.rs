@@ -3,7 +3,12 @@ use crate::{gui::types::Rgba8, runtime::GpuSurfaceOverlay};
 
 pub(super) type OverlayVec4Slots = [[f32; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS];
 pub(super) type OverlayColorSlots = [[f32; 4]; MAX_GPU_SURFACE_OVERLAYS];
-pub(super) type VerticalOverlayUniforms = (OverlayVec4Slots, OverlayVec4Slots, OverlayColorSlots);
+
+pub(super) struct VerticalOverlayUniforms {
+    pub(super) ratios: OverlayVec4Slots,
+    pub(super) widths: OverlayVec4Slots,
+    pub(super) colors: OverlayColorSlots,
+}
 
 #[derive(Clone, Copy)]
 struct VerticalOverlayParts {
@@ -38,7 +43,11 @@ pub(super) fn vertical_overlays(overlays: &[GpuSurfaceOverlay]) -> VerticalOverl
         widths[index / 4][index % 4] = parts.width;
         colors[index] = rgba_to_float(parts.color);
     }
-    (ratios, widths, colors)
+    VerticalOverlayUniforms {
+        ratios,
+        widths,
+        colors,
+    }
 }
 
 fn vertical_overlay_parts(overlay: GpuSurfaceOverlay) -> VerticalOverlayParts {
@@ -118,7 +127,7 @@ mod tests {
 
     #[test]
     fn vertical_overlay_uniforms_sanitize_invalid_cursor_inputs() {
-        let (ratios, widths, colors) = vertical_overlays(&[
+        let uniforms = vertical_overlays(&[
             GpuSurfaceOverlay::VerticalCursor {
                 ratio: f32::NAN,
                 color: WHITE,
@@ -131,16 +140,16 @@ mod tests {
             },
         ]);
 
-        assert_eq!(ratios[0][0], -1.0);
-        assert_eq!(widths[0][0], 1.0);
-        assert_eq!(ratios[0][1], 1.0);
-        assert_eq!(widths[0][1], 1.0);
-        assert_eq!(colors[0], rgba_to_float(WHITE));
+        assert_eq!(uniforms.ratios[0][0], -1.0);
+        assert_eq!(uniforms.widths[0][0], 1.0);
+        assert_eq!(uniforms.ratios[0][1], 1.0);
+        assert_eq!(uniforms.widths[0][1], 1.0);
+        assert_eq!(uniforms.colors[0], rgba_to_float(WHITE));
     }
 
     #[test]
     fn vertical_overlay_uniforms_order_and_sanitize_ranges() {
-        let (ratios, widths, _) = vertical_overlays(&[
+        let uniforms = vertical_overlays(&[
             GpuSurfaceOverlay::HorizontalRange {
                 start: 0.8,
                 end: 0.2,
@@ -153,9 +162,9 @@ mod tests {
             },
         ]);
 
-        assert_eq!(ratios[0][0], 0.2);
-        assert_eq!(widths[0][0], -0.8);
-        assert_eq!(ratios[0][1], -1.0);
-        assert_eq!(widths[0][1], 1.0);
+        assert_eq!(uniforms.ratios[0][0], 0.2);
+        assert_eq!(uniforms.widths[0][0], -0.8);
+        assert_eq!(uniforms.ratios[0][1], -1.0);
+        assert_eq!(uniforms.widths[0][1], 1.0);
     }
 }

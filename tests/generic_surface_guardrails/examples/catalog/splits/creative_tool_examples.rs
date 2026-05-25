@@ -136,6 +136,24 @@ fn piano_roll_example_stays_split_by_widget_input_paint_and_tests() {
             && !paint.contains("fn append_velocity_pillar("),
         "piano roll paint root should split grid, keyboard, note, overlay, and velocity concerns"
     );
+    let tests = fs::read_to_string(manifest_dir.join("examples/piano_roll/tests.rs"))
+        .expect("piano roll tests module should be readable");
+    assert!(
+        tests.contains("#[path = \"tests/model_behavior.rs\"]")
+            && tests.contains("#[path = \"tests/paint_static.rs\"]")
+            && tests.contains("#[path = \"tests/note_drag.rs\"]")
+            && tests.contains("#[path = \"tests/selection.rs\"]")
+            && tests.contains("#[path = \"tests/wheel_navigation.rs\"]")
+            && tests.contains("#[path = \"tests/pan_navigation.rs\"]")
+            && tests.contains("#[path = \"tests/marquee_stress.rs\"]")
+            && tests.contains("#[path = \"tests/marquee_selection.rs\"]")
+            && tests.contains("#[path = \"tests/velocity_paint.rs\"]")
+            && tests.contains("#[path = \"tests/velocity_drag.rs\"]")
+            && tests.contains("#[path = \"tests/hover_overlay.rs\"]")
+            && tests.contains("#[path = \"tests/keyboard_hover.rs\"]")
+            && tests.contains("#[path = \"tests/runtime.rs\"]"),
+        "piano roll tests should stay grouped by model, paint, input, navigation, marquee, velocity, hover, keyboard, and runtime concerns"
+    );
 
     for path in [
         "examples/piano_roll.rs",
@@ -148,6 +166,19 @@ fn piano_roll_example_stays_split_by_widget_input_paint_and_tests() {
         "examples/piano_roll/mod.rs",
         "examples/piano_roll/paint.rs",
         "examples/piano_roll/tests.rs",
+        "examples/piano_roll/tests/hover_overlay.rs",
+        "examples/piano_roll/tests/keyboard_hover.rs",
+        "examples/piano_roll/tests/marquee_selection.rs",
+        "examples/piano_roll/tests/marquee_stress.rs",
+        "examples/piano_roll/tests/model_behavior.rs",
+        "examples/piano_roll/tests/note_drag.rs",
+        "examples/piano_roll/tests/paint_static.rs",
+        "examples/piano_roll/tests/pan_navigation.rs",
+        "examples/piano_roll/tests/runtime.rs",
+        "examples/piano_roll/tests/selection.rs",
+        "examples/piano_roll/tests/velocity_drag.rs",
+        "examples/piano_roll/tests/velocity_paint.rs",
+        "examples/piano_roll/tests/wheel_navigation.rs",
         "examples/piano_roll/view.rs",
         "examples/piano_roll/widget.rs",
         "examples/piano_roll/widget/input.rs",
@@ -163,13 +194,8 @@ fn piano_roll_example_stays_split_by_widget_input_paint_and_tests() {
     ] {
         let source = fs::read_to_string(manifest_dir.join(path))
             .unwrap_or_else(|err| panic!("{path} should be readable: {err}"));
-        let line_limit = if path == "examples/piano_roll/tests.rs" {
-            2_000
-        } else {
-            250
-        };
         assert!(
-            source.lines().count() <= line_limit,
+            source.lines().count() <= 250,
             "{path} should stay within the example module target"
         );
     }

@@ -10,14 +10,22 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn gpu_su
 ) -> Vec<UiRect> {
     let mut regions = Vec::new();
     for primitive in suffix {
-        let PaintPrimitive::FillRect(fill) = primitive else {
-            continue;
-        };
-        if fill.color.a < OPAQUE_SUFFIX_OCCLUSION_ALPHA {
-            continue;
-        }
-        if let Some(region) = intersect_rect(surface_rect, fill.rect) {
-            regions.push(region);
+        match primitive {
+            PaintPrimitive::FillRect(fill) if fill.color.a >= OPAQUE_SUFFIX_OCCLUSION_ALPHA => {
+                if let Some(region) = intersect_rect(surface_rect, fill.rect) {
+                    regions.push(region);
+                }
+            }
+            PaintPrimitive::FillRectBatch(fill)
+                if fill.color.a >= OPAQUE_SUFFIX_OCCLUSION_ALPHA =>
+            {
+                for rect in fill.rects.iter().copied() {
+                    if let Some(region) = intersect_rect(surface_rect, rect) {
+                        regions.push(region);
+                    }
+                }
+            }
+            _ => {}
         }
     }
     regions

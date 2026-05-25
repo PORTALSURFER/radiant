@@ -79,6 +79,7 @@ fn api_docs_describe_the_structural_boundary_strategy() {
         "SurfaceRuntime::borrowed_frame_into(...)",
         "reuse `SurfacePaintPlan` primitive storage",
         "SurfaceRuntime::dispatch_pointer_move_with_outcome(...)",
+        "SurfaceRuntime::dispatch_pointer_move_deferred_refresh_with_outcome(...)",
         "PointerMoveOutcome",
         "paint-only overlay requests",
         "Native popup windows are revealed as soon as the window surface and initial Radiant scene are prepared",

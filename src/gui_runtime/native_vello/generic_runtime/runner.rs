@@ -153,6 +153,8 @@ where
         if outcome.needs_scene_rebuild() {
             self.rebuild_scene();
             self.sync_auxiliary_windows(event_loop);
+        } else if outcome.deferred_surface_refresh_requested {
+            self.timing.deferred_surface_refresh = true;
         }
         if outcome.needs_redraw() {
             self.request_redraw_if_needed();

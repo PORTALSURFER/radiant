@@ -5,6 +5,7 @@ pub(in crate::gui_runtime::native_vello) struct GenericRouteOutcome {
     pub(in crate::gui_runtime::native_vello) redraw_requested: bool,
     pub(in crate::gui_runtime::native_vello) repaint_requested: bool,
     pub(in crate::gui_runtime::native_vello) paint_only_requested: bool,
+    pub(in crate::gui_runtime::native_vello) deferred_surface_refresh_requested: bool,
     pub(in crate::gui_runtime::native_vello) exit_requested: bool,
     pub(in crate::gui_runtime::native_vello) runtime_work_remaining: bool,
     pub(in crate::gui_runtime::native_vello) dpi_scale_override: Option<crate::theme::DpiScale>,
@@ -13,7 +14,9 @@ pub(in crate::gui_runtime::native_vello) struct GenericRouteOutcome {
 
 impl GenericRouteOutcome {
     pub(in crate::gui_runtime::native_vello) fn needs_redraw(self) -> bool {
-        self.needs_scene_rebuild() || self.paint_only_requested
+        self.needs_scene_rebuild()
+            || self.paint_only_requested
+            || self.deferred_surface_refresh_requested
     }
 
     pub(in crate::gui_runtime::native_vello) fn needs_scene_rebuild(self) -> bool {
@@ -25,6 +28,7 @@ impl GenericRouteOutcome {
         self.redraw_requested |= other.redraw_requested;
         self.repaint_requested |= other.repaint_requested;
         self.paint_only_requested |= other.paint_only_requested;
+        self.deferred_surface_refresh_requested |= other.deferred_surface_refresh_requested;
         self.exit_requested |= other.exit_requested;
         self.runtime_work_remaining |= other.runtime_work_remaining;
         self.dpi_scale_override = other.dpi_scale_override.or(self.dpi_scale_override);
@@ -42,6 +46,10 @@ mod tests {
             paint_only_requested: true,
             ..GenericRouteOutcome::default()
         };
+        let deferred = GenericRouteOutcome {
+            deferred_surface_refresh_requested: true,
+            ..GenericRouteOutcome::default()
+        };
         let scene = GenericRouteOutcome {
             repaint_requested: true,
             ..GenericRouteOutcome::default()
@@ -49,6 +57,8 @@ mod tests {
 
         assert!(paint_only.needs_redraw());
         assert!(!paint_only.needs_scene_rebuild());
+        assert!(deferred.needs_redraw());
+        assert!(!deferred.needs_scene_rebuild());
         assert!(scene.needs_redraw());
         assert!(scene.needs_scene_rebuild());
     }
@@ -63,6 +73,7 @@ mod tests {
 
         outcome.merge(GenericRouteOutcome {
             paint_only_requested: true,
+            deferred_surface_refresh_requested: true,
             exit_requested: true,
             runtime_work_remaining: true,
             ..GenericRouteOutcome::default()
@@ -71,6 +82,7 @@ mod tests {
         assert!(outcome.routed);
         assert!(outcome.repaint_requested);
         assert!(outcome.paint_only_requested);
+        assert!(outcome.deferred_surface_refresh_requested);
         assert!(outcome.exit_requested);
         assert!(outcome.runtime_work_remaining);
     }

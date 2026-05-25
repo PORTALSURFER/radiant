@@ -117,6 +117,17 @@ impl<State> UndoHistory<State> {
         self.redo.len()
     }
 
+    /// Return whether a new change with `merge_key` can merge into the latest
+    /// undo checkpoint without creating a new checkpoint or clearing redo.
+    pub fn can_coalesce_change(&self, merge_key: &str) -> bool {
+        self.redo.is_empty()
+            && self
+                .undo
+                .last()
+                .and_then(|checkpoint| checkpoint.merge_key.as_deref())
+                == Some(merge_key)
+    }
+
     /// Remove all undo and redo checkpoints.
     pub fn clear(&mut self) {
         self.undo.clear();
@@ -315,15 +326,19 @@ mod tests {
         let mut history = UndoHistory::new();
         let mut value = 0;
 
+        assert!(!history.can_coalesce_change("drag:1"));
         let before = value;
         value = 1;
         assert!(history.register_change_coalescing("drag", "drag:1", before, &value));
+        assert!(history.can_coalesce_change("drag:1"));
+        assert!(!history.can_coalesce_change("drag:2"));
         let before = value;
         value = 2;
         assert!(history.register_change_coalescing("drag", "drag:1", before, &value));
 
         assert_eq!(history.undo_len(), 1);
         assert_eq!(history.undo(&value).unwrap().state, 0);
+        assert!(!history.can_coalesce_change("drag:1"));
     }
 
     #[test]

@@ -30,8 +30,11 @@ fn push_visible_interaction_regions(
     suffix: &[PaintPrimitive],
     output: &mut Vec<GpuSurfaceInteractionRegion>,
 ) {
-    let visible =
-        visible_rects_after_occlusion(region.rect, suffix.iter().filter_map(opaque_fill_rect));
+    let mut opaque_rects = Vec::new();
+    for primitive in suffix {
+        push_opaque_fill_rects(primitive, &mut opaque_rects);
+    }
+    let visible = visible_rects_after_occlusion(region.rect, opaque_rects.iter().copied());
     output.extend(
         visible
             .into_iter()
@@ -39,12 +42,24 @@ fn push_visible_interaction_regions(
     );
 }
 
-fn opaque_fill_rect(primitive: &PaintPrimitive) -> Option<Rect> {
-    let PaintPrimitive::FillRect(fill) = primitive else {
-        return None;
-    };
-    (fill.color.a >= OPAQUE_SUFFIX_OCCLUSION_ALPHA && fill.rect.has_finite_positive_area())
-        .then_some(fill.rect)
+fn push_opaque_fill_rects(primitive: &PaintPrimitive, output: &mut Vec<Rect>) {
+    match primitive {
+        PaintPrimitive::FillRect(fill)
+            if fill.color.a >= OPAQUE_SUFFIX_OCCLUSION_ALPHA
+                && fill.rect.has_finite_positive_area() =>
+        {
+            output.push(fill.rect);
+        }
+        PaintPrimitive::FillRectBatch(fill) if fill.color.a >= OPAQUE_SUFFIX_OCCLUSION_ALPHA => {
+            output.extend(
+                fill.rects
+                    .iter()
+                    .copied()
+                    .filter(|rect| rect.has_finite_positive_area()),
+            );
+        }
+        _ => {}
+    }
 }
 
 #[cfg(test)]

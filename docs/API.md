@@ -40,6 +40,7 @@ runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`,
 `PointerButton`, `FocusBehavior`, and backend-neutral paint primitives such as
 `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`,
+`PaintFillRectBatch`,
 `PaintFillPath`, `PaintPathCommand`, `PaintTransform`, and `PaintTextRun`. It
 also includes the geometry, layout, image, color, and theme
 types needed in widget method signatures, including `Rect`, `Point`, `Vector2`,
@@ -665,12 +666,13 @@ editor-style widgets can also emit nested clip primitives for internal
 viewports, timelines, canvases, and lanes without relying on per-shape geometry
 clamping.
 
-Standard widgets emit Vello-friendly paint primitives such as fills, strokes,
-text, images, clips, and overlays. Specialized realtime visuals can instead
-emit `PaintPrimitive::GpuSurface` through `GpuSurfaceWidget` or a custom
-`Widget` implementation. GPU surfaces are still normal Radiant widgets: they
-own stable identity, receive layout bounds, can route widget input, and paint
-through the same `SurfacePaintPlan` as Vello-backed widgets.
+Standard widgets emit Vello-friendly paint primitives such as fills, batched
+same-color rectangle fills, strokes, text, images, clips, and overlays.
+Specialized realtime visuals can instead emit `PaintPrimitive::GpuSurface`
+through `GpuSurfaceWidget` or a custom `Widget` implementation. GPU surfaces
+are still normal Radiant widgets: they own stable identity, receive layout
+bounds, can route widget input, and paint through the same `SurfacePaintPlan` as
+Vello-backed widgets.
 
 Use retained GPU surfaces for dense visuals where the payload is naturally
 texture, signal, or shader data: waveform bodies, meters, scopes, large preview
@@ -823,6 +825,11 @@ scene-rebuild repaint requests, paint-only overlay requests, and exit requests
 in one controller-owned result. Native and embedded renderers should use that
 outcome when deciding between rebuilding the cached scene and presenting a
 runtime overlay over the existing scene.
+Native renderers that receive very high frequency pointer updates can use
+`SurfaceRuntime::dispatch_pointer_move_deferred_refresh_with_outcome(...)` to
+reduce emitted widget messages immediately while deferring surface projection,
+layout, and scene rebuild until the next redraw. This keeps drag reducers
+current without forcing one declarative refresh per OS cursor event.
 Application builders can register host-owned shortcut catalogs with
 `.shortcuts(...)`. The runtime supplies pending chord state, normalized
 `KeyPress`, and `FocusSurface`; returning `ShortcutResolution::action(message)`

@@ -17,9 +17,31 @@ where
     /// scene rebuilds from paint-only runtime overlays. Application-level event
     /// routing can keep using [`Self::dispatch_event`].
     pub fn dispatch_pointer_move_with_outcome(&mut self, position: Point) -> PointerMoveOutcome {
+        self.dispatch_pointer_move_with_refresh_outcome(position, true)
+    }
+
+    /// Route pointer motion while deferring host-surface refresh from emitted
+    /// widget messages until the caller explicitly refreshes the runtime.
+    ///
+    /// Native backends use this during high-frequency pointer motion to
+    /// coalesce many model updates into the next redraw instead of refreshing
+    /// the declarative surface once per OS cursor event.
+    pub fn dispatch_pointer_move_deferred_refresh_with_outcome(
+        &mut self,
+        position: Point,
+    ) -> PointerMoveOutcome {
+        self.dispatch_pointer_move_with_refresh_outcome(position, false)
+    }
+
+    fn dispatch_pointer_move_with_refresh_outcome(
+        &mut self,
+        position: Point,
+        refresh_after_message: bool,
+    ) -> PointerMoveOutcome {
         let previous_hovered_widget = self.interaction.hover.widget;
         let previous_hovered_container = self.interaction.hover.container;
-        let dispatch = self.dispatch_pointer_move_target(position);
+        let dispatch =
+            self.dispatch_pointer_move_target_with_refresh(position, refresh_after_message);
         let target = dispatch.target;
         let repaint_requested = self.take_repaint_requested();
         let exit_requested = self.take_exit_requested();

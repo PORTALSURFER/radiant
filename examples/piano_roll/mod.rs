@@ -153,6 +153,12 @@ pub(crate) fn update(state: &mut PianoRollState, message: AppMessage) {
 
 fn apply_undoable_roll_message(state: &mut PianoRollState, message: PianoRollMessage) {
     let registration = undo_registration_for(&message);
+    if let Some((_, Some(merge_key))) = registration.as_ref()
+        && state.history.can_coalesce_change(merge_key)
+    {
+        state.apply_roll_message(message);
+        return;
+    }
     let before = registration.as_ref().map(|_| state.snapshot());
     state.apply_roll_message(message);
     if let (Some((label, merge_key)), Some(before)) = (registration, before) {

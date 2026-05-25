@@ -46,6 +46,14 @@ where
             return;
         }
         if outcome.paint_only_requested && !outcome.needs_scene_rebuild() {
+            if outcome.deferred_surface_refresh_requested {
+                self.timing.deferred_surface_refresh = true;
+            }
+            self.request_redraw_if_needed();
+            return;
+        }
+        if outcome.deferred_surface_refresh_requested && !outcome.needs_scene_rebuild() {
+            self.timing.deferred_surface_refresh = true;
             self.request_redraw_if_needed();
             return;
         }

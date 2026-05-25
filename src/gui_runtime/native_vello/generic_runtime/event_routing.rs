@@ -24,6 +24,7 @@ where
             repaint_requested: self.runtime.take_repaint_requested()
                 || pending.surface_repaint_requested,
             paint_only_requested: pending.paint_only_requested,
+            deferred_surface_refresh_requested: false,
             exit_requested: self.runtime.take_exit_requested() || pending.exit_requested,
             runtime_work_remaining: pending.runtime_work_remaining,
             dpi_scale_override: pending.dpi_scale_override,
@@ -35,11 +36,18 @@ where
         &mut self,
         position: Point,
     ) -> GenericRouteOutcome {
-        let outcome = self.runtime.dispatch_pointer_move_with_outcome(position);
+        let outcome = self
+            .runtime
+            .dispatch_pointer_move_deferred_refresh_with_outcome(position);
         let pending = self.runtime.take_pending_input_command_outcome();
+        if outcome.hover_changed && pending.surface_refresh_requested {
+            self.runtime.refresh();
+        }
         GenericRouteOutcome {
             routed: outcome.routed(),
-            redraw_requested: outcome.hover_changed || pending.surface_refresh_requested,
+            redraw_requested: outcome.hover_changed,
+            deferred_surface_refresh_requested: pending.surface_refresh_requested
+                && !outcome.hover_changed,
             repaint_requested: outcome.repaint_requested || pending.surface_repaint_requested,
             paint_only_requested: outcome.paint_only_requested || pending.paint_only_requested,
             exit_requested: outcome.exit_requested || pending.exit_requested,

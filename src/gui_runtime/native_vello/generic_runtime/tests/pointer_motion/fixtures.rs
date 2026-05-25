@@ -51,10 +51,12 @@ impl Widget for PointerMoveWidget {
 #[derive(Default)]
 pub(super) struct PointerMoveBridge {
     pub(super) moves: usize,
+    pub(super) project_count: usize,
 }
 
 impl RuntimeBridge<PointerMoveMessage> for PointerMoveBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<PointerMoveMessage>> {
+        self.project_count += 1;
         Arc::new(UiSurface::new(SurfaceNode::custom_widget(
             PointerMoveWidget::new(),
             WidgetMessageMapper::typed(|message: PointerMoveMessage| message),

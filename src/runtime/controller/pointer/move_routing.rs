@@ -13,6 +13,14 @@ where
         &mut self,
         position: Point,
     ) -> PointerMoveDispatch {
+        self.dispatch_pointer_move_target_with_refresh(position, true)
+    }
+
+    pub(in crate::runtime::controller) fn dispatch_pointer_move_target_with_refresh(
+        &mut self,
+        position: Point,
+        refresh_after_message: bool,
+    ) -> PointerMoveDispatch {
         let mut emitted_output = false;
         self.update_drag_preview_position(position);
         if self.drag_scrollbar_to(position) {
@@ -24,9 +32,11 @@ where
         self.update_hovered_container(position, pointer_widget);
 
         let hover_widget = self.hover_widget_for_move(position, pointer_widget);
-        let hover_changed = self.route_hover_transition(position, hover_widget);
+        let hover_changed =
+            self.route_hover_transition(position, hover_widget, refresh_after_message);
         emitted_output |= hover_changed.emitted_output;
-        emitted_output |= self.route_captured_pass_through_move(position, pointer_widget);
+        emitted_output |=
+            self.route_captured_pass_through_move(position, pointer_widget, refresh_after_message);
 
         let Some(target) = self.interaction.pointer.capture.or(pointer_widget) else {
             return PointerMoveDispatch {
@@ -34,7 +44,13 @@ where
                 emitted_output,
             };
         };
-        self.route_pointer_move_to_target(position, target, hover_changed, emitted_output)
+        self.route_pointer_move_to_target(
+            position,
+            target,
+            hover_changed,
+            emitted_output,
+            refresh_after_message,
+        )
     }
 
     fn route_pointer_move_to_target(
@@ -43,6 +59,7 @@ where
         target: WidgetId,
         hover_changed: PointerHoverTransition,
         mut emitted_output: bool,
+        refresh_after_message: bool,
     ) -> PointerMoveDispatch {
         let accepts_stable_pointer_move = self.widget_accepts_stable_pointer_move(target);
         if !hover_changed.changed
@@ -54,14 +71,20 @@ where
                 emitted_output,
             };
         }
-        let routed = self.dispatch_input_output(target, WidgetInput::PointerMove { position });
+        let routed = self.dispatch_input_output_with_refresh(
+            target,
+            WidgetInput::PointerMove { position },
+            refresh_after_message,
+        );
         if let Some(emitted) = routed {
             // Stable pointer-move widgets may update local paint-only hover
             // state without emitting host messages. Captured drags can also
             // update local preview state even when the widget opts out of
             // stable hover motion. Request repaint here so cursor, handle, and
             // drag previews stay responsive without reducer churn.
-            if accepts_stable_pointer_move || self.interaction.pointer.capture.is_some() {
+            if (!emitted || refresh_after_message)
+                && (accepts_stable_pointer_move || self.interaction.pointer.capture.is_some())
+            {
                 self.repaint_requested = true;
             }
             emitted_output |= emitted;
@@ -142,6 +165,7 @@ where
         &mut self,
         position: Point,
         hover_widget: Option<WidgetId>,
+        refresh_after_message: bool,
     ) -> PointerHoverTransition {
         if self.interaction.hover.widget == hover_widget {
             return PointerHoverTransition {
@@ -154,7 +178,11 @@ where
             .hover
             .widget
             .and_then(|previous| {
-                self.dispatch_input_output(previous, WidgetInput::PointerMove { position })
+                self.dispatch_input_output_with_refresh(
+                    previous,
+                    WidgetInput::PointerMove { position },
+                    refresh_after_message,
+                )
             })
             .unwrap_or(false);
         self.interaction.hover.widget = hover_widget;
@@ -168,6 +196,7 @@ where
         &mut self,
         position: Point,
         pointer_widget: Option<WidgetId>,
+        refresh_after_message: bool,
     ) -> bool {
         let (Some(captured), Some(pointer_widget)) =
             (self.interaction.pointer.capture, pointer_widget)
@@ -177,9 +206,12 @@ where
         if pointer_widget == captured || !self.widget_accepts_stable_pointer_move(pointer_widget) {
             return false;
         }
-        let emitted =
-            self.dispatch_input_output(pointer_widget, WidgetInput::PointerMove { position });
-        if emitted.is_some() {
+        let emitted = self.dispatch_input_output_with_refresh(
+            pointer_widget,
+            WidgetInput::PointerMove { position },
+            refresh_after_message,
+        );
+        if emitted.is_some_and(|emitted| !emitted || refresh_after_message) {
             self.repaint_requested = true;
         }
         emitted.unwrap_or(false)

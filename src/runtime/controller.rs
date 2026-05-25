@@ -94,13 +94,28 @@ where
         widget_id: WidgetId,
         input: WidgetInput,
     ) -> Option<bool> {
+        self.dispatch_input_output_with_refresh(widget_id, input, true)
+    }
+
+    pub(super) fn dispatch_input_output_with_refresh(
+        &mut self,
+        widget_id: WidgetId,
+        input: WidgetInput,
+        refresh_after_message: bool,
+    ) -> Option<bool> {
         let bounds = self.layout.rects.get(&widget_id).copied()?;
         let result = self.dispatch_surface_input(widget_id, bounds, input)?;
         self.capture_pointer_capture_state(widget_id);
         let emitted_output = !matches!(result, WidgetDispatchResult::NoOutput);
         match result {
             WidgetDispatchResult::Message(message) => {
-                let outcome = self.dispatch_message(message);
+                let outcome = if refresh_after_message {
+                    self.dispatch_message(message)
+                } else {
+                    let mut outcome = CommandOutcome::default();
+                    self.dispatch_message_inner(message, &mut outcome);
+                    outcome
+                };
                 self.pending_input_command_outcome.merge(outcome);
             }
             WidgetDispatchResult::UnmappedOutput => self.relayout(),

@@ -130,6 +130,7 @@ where
             redraw_requested: outcome.surface_refresh_requested,
             repaint_requested: outcome.surface_repaint_requested,
             paint_only_requested: outcome.paint_only_requested,
+            deferred_surface_refresh_requested: false,
             exit_requested: outcome.exit_requested,
             runtime_work_remaining: outcome.runtime_work_remaining,
             dpi_scale_override: outcome.dpi_scale_override,

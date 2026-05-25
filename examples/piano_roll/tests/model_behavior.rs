@@ -122,3 +122,30 @@ fn piano_roll_velocity_updates_coalesce_into_one_undo_step() {
     update(&mut state, AppMessage::Undo);
     assert_eq!(state.snapshot(), initial);
 }
+
+#[test]
+fn piano_roll_coalesced_velocity_updates_skip_redundant_snapshots() {
+    let mut state = PianoRollState::default();
+
+    update(
+        &mut state,
+        AppMessage::Roll(PianoRollMessage::SetVelocities {
+            velocities: vec![(2, 0.2)],
+        }),
+    );
+    let undo_len = state.history.undo_len();
+    update(
+        &mut state,
+        AppMessage::Roll(PianoRollMessage::SetVelocities {
+            velocities: vec![(2, 0.4)],
+        }),
+    );
+
+    assert_eq!(state.history.undo_len(), undo_len);
+    assert!(
+        state
+            .notes
+            .iter()
+            .any(|note| { note.id == 2 && (note.velocity - 0.4).abs() < f32::EPSILON })
+    );
+}

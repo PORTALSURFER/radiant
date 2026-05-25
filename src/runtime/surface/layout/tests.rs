@@ -1,6 +1,9 @@
-use super::*;
 use crate::{
-    layout::{SizeModeCross, SizeModeMain, SlotParams, Vector2, VirtualizationAxis},
+    layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams, Vector2, VirtualizationAxis},
+    runtime::{
+        SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
+        surface::{SurfaceTraversalIndex, SurfaceTraversalStats, WidgetPath},
+    },
     widgets::{ButtonWidget, WidgetSizing},
 };
 
@@ -15,7 +18,7 @@ fn runtime_projection_matches_separate_layout_and_traversal_passes() {
                 SlotParams {
                     size_main: SizeModeMain::Fixed(28.0),
                     size_cross: SizeModeCross::Fill,
-                    constraints: crate::layout::Constraints::unconstrained(),
+                    constraints: Constraints::unconstrained(),
                     margin: Default::default(),
                     align_cross_override: None,
                     allow_fixed_compress: false,
@@ -64,7 +67,7 @@ fn runtime_projection_reusing_clears_stale_traversal_without_shrinking_buffers()
                 SlotParams {
                     size_main: SizeModeMain::Fixed(28.0),
                     size_cross: SizeModeCross::Fill,
-                    constraints: crate::layout::Constraints::unconstrained(),
+                    constraints: Constraints::unconstrained(),
                     margin: Default::default(),
                     align_cross_override: None,
                     allow_fixed_compress: false,

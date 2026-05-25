@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime::NativePopupOptions;
 use crate::runtime::{NativeWindowBehavior, NativeWindowOptions};
 
 #[test]

@@ -15,6 +15,11 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
         .expect("runtime controller command root should be readable");
     let work = fs::read_to_string(manifest_dir.join("src/runtime/controller/work.rs"))
         .expect("runtime controller work queues should be readable");
+    let context = fs::read_to_string(manifest_dir.join("src/runtime/controller/context.rs"))
+        .expect("runtime controller context module should be readable");
+    let context_frame =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/context/frame.rs"))
+            .expect("runtime controller context frame module should be readable");
     let scratch = fs::read_to_string(manifest_dir.join("src/runtime/controller/scratch.rs"))
         .expect("runtime controller scratch buffers should be readable");
     let focus = fs::read_to_string(manifest_dir.join("src/runtime/controller/focus.rs"))
@@ -103,6 +108,32 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
             && work.contains("fn drain_bridge_messages")
             && work.contains("fn has_remaining_work"),
         "runtime work queue ownership should live in controller/work.rs"
+    );
+    assert!(
+        context.contains("use super::SurfaceRuntime;")
+            && context.contains("gui::types::{Rect, Vector2}")
+            && context.contains("layout::{LayoutDebugOptions, LayoutOutput, NodeId}")
+            && context.contains("runtime::{RuntimeBridge, UiSurface}")
+            && context.contains("widgets::WidgetId")
+            && !context.starts_with("use super::*;")
+            && context.contains("pub struct RuntimeContext<'a, Message>"),
+        "runtime controller context should name view, layout, geometry, bridge, and widget dependencies without inheriting the controller root"
+    );
+    assert!(
+        context_frame.contains("use super::super::SurfaceRuntime;")
+            && context_frame.contains("gui::types::{Point, Rect}")
+            && context_frame.contains("layout::LayoutOutput")
+            && context_frame.contains("PaintPrimitive")
+            && context_frame.contains("RuntimeBridge")
+            && context_frame.contains("SurfaceFrame")
+            && context_frame.contains("SurfacePaintPlan")
+            && context_frame.contains("empty_paint_plan_for_layout")
+            && context_frame.contains("theme::ThemeTokens")
+            && context_frame.contains("widgets::WidgetId")
+            && !context_frame.starts_with("use super::super::*;")
+            && context_frame.contains("fn append_widget_runtime_overlay")
+            && context_frame.contains("fn append_drag_preview_overlay"),
+        "runtime controller context frame helpers should name paint, layout, geometry, theme, bridge, and widget dependencies without inheriting the controller root"
     );
     assert!(
         scratch.contains("use crate::{")

@@ -267,8 +267,10 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
         !passes.contains("fn vertical_overlays")
             && !passes.contains("fn normalized_ratio")
             && overlays.contains("fn vertical_overlays")
+            && overlays.contains("struct VerticalOverlayParts")
+            && overlays.contains("fn vertical_overlay_parts")
             && overlays.contains("fn normalized_ratio")
             && overlays.contains("fn rgba_to_float"),
-        "overlay uniform packing should not live with WGPU render-pass and scissor setup"
+        "overlay uniform packing should use named parts in its focused module instead of living with WGPU render-pass and scissor setup"
     );
 }

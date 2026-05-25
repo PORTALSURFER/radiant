@@ -30,14 +30,10 @@ use super::{
     WidgetDispatchResult, WidgetPath, empty_paint_plan_for_layout,
 };
 use crate::{
-    gui::{
-        focus::FocusSurface,
-        input::KeyPress,
-        types::{Point, Rect, Vector2},
-    },
+    gui::types::{Point, Rect, Vector2},
     layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState, NodeId},
     theme::ThemeTokens,
-    widgets::{WidgetId, WidgetInput, WidgetKey},
+    widgets::{WidgetId, WidgetInput},
 };
 use interaction_state::{RuntimeInteractionState, ScrollDragCapture};
 use scratch::RuntimeScratch;

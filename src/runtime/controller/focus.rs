@@ -1,5 +1,11 @@
-use super::*;
 use std::collections::HashMap;
+
+use super::{FocusTraversal, SurfaceRuntime};
+use crate::{
+    gui::{focus::FocusSurface, input::KeyPress},
+    runtime::RuntimeBridge,
+    widgets::{WidgetId, WidgetInput, WidgetKey},
+};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where

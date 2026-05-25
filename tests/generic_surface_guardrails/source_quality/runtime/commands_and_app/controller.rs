@@ -17,6 +17,8 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
         .expect("runtime controller work queues should be readable");
     let scratch = fs::read_to_string(manifest_dir.join("src/runtime/controller/scratch.rs"))
         .expect("runtime controller scratch buffers should be readable");
+    let focus = fs::read_to_string(manifest_dir.join("src/runtime/controller/focus.rs"))
+        .expect("runtime controller focus module should be readable");
     let state = fs::read_to_string(manifest_dir.join("src/runtime/controller/state.rs"))
         .expect("runtime controller state module should be readable");
     let outcome =
@@ -112,6 +114,15 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
             && scratch.contains("projection_scroll_stack: Vec<NodeId>")
             && scratch.contains("projection_child_path: Vec<usize>"),
         "runtime controller scratch buffers should name layout and geometry dependencies without inheriting the controller root"
+    );
+    assert!(
+        focus.contains("use super::{FocusTraversal, SurfaceRuntime};")
+            && focus.contains("gui::{focus::FocusSurface, input::KeyPress}")
+            && focus.contains("runtime::RuntimeBridge")
+            && focus.contains("widgets::{WidgetId, WidgetInput, WidgetKey}")
+            && !focus.starts_with("use super::*;")
+            && focus.contains("fn next_focus_target"),
+        "runtime controller focus routing should name traversal, keyboard, bridge, and widget dependencies without inheriting the controller root"
     );
     assert!(
         state.contains("use super::SurfaceRuntime;")

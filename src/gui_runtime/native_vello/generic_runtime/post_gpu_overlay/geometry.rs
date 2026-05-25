@@ -84,12 +84,10 @@ pub(super) fn append_replayable_vertices_in_regions(
                     }
                 }
             }
-            PaintPrimitive::Text(text) => {
+            PaintPrimitive::Text(text_run) => {
                 for region in regions {
-                    if let Some(rect) = intersect_rect(text.rect, *region) {
-                        let mut clipped = text.clone();
-                        clipped.rect = rect;
-                        push_text_vertices(vertices, target_size, &clipped);
+                    if let Some(rect) = intersect_rect(text_run.rect, *region) {
+                        text::push_text_vertices_in_rect(vertices, target_size, text_run, rect);
                     }
                 }
             }

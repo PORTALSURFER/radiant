@@ -16,6 +16,8 @@ pub enum PointerButton {
 pub enum WidgetKey {
     /// Activate or submit the focused widget.
     Enter,
+    /// Request completion for the focused widget.
+    Tab,
     /// Activate the focused widget.
     Space,
     /// Move one logical position toward the leading edge.
@@ -41,6 +43,7 @@ impl WidgetKey {
     pub fn from_key_code(key: KeyCode) -> Option<Self> {
         Some(match key {
             KeyCode::Enter => Self::Enter,
+            KeyCode::Tab => Self::Tab,
             KeyCode::Space => Self::Space,
             KeyCode::Backspace => Self::Backspace,
             KeyCode::ArrowLeft => Self::ArrowLeft,

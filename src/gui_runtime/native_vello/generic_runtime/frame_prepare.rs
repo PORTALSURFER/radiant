@@ -24,7 +24,7 @@ where
         self.core.paint_plan_into(&mut self.frame.last_paint_plan);
         profile.paint_plan = started.elapsed();
 
-        self.frame.mark_composited_base_dirty();
+        self.frame.mark_scene_texture_dirty();
         collect_gpu_surface_interaction_regions(
             &self.frame.last_paint_plan.primitives,
             &mut self.frame.gpu_surface_interaction_regions,

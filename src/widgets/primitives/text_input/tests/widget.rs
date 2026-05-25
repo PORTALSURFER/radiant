@@ -38,6 +38,12 @@ fn text_input_editing_emits_changed_and_submitted_messages() {
             value: String::from("ab"),
         })
     );
+    assert_eq!(
+        input.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Tab)),
+        Some(TextInputMessage::CompletionRequested {
+            value: String::from("ab"),
+        })
+    );
 }
 
 #[test]

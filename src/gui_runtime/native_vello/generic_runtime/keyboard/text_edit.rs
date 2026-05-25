@@ -114,6 +114,11 @@ where
                 route_outcome.merge(outcome);
                 outcome.routed
             }
+            KeyCode::Tab => {
+                let outcome = self.core.route_widget_key(WidgetKey::Tab);
+                route_outcome.merge(outcome);
+                outcome.routed
+            }
             _ => {
                 let Some(text) = text else {
                     return false;

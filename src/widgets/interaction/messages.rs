@@ -76,6 +76,11 @@ pub enum TextInputMessage {
         /// Submitted single-line text value.
         value: String,
     },
+    /// The current text value requested host-defined completion.
+    CompletionRequested {
+        /// Current single-line text value at completion time.
+        value: String,
+    },
 }
 
 /// Message emitted by a reusable scrollbar primitive.

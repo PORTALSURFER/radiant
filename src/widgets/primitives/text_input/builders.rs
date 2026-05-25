@@ -22,9 +22,9 @@ impl<Message> SurfaceNode<Message> {
         map: impl Fn(String) -> Message + Send + Sync + 'static,
     ) -> Self {
         Self::text_input_mapped(id, value, sizing, move |message| match message {
-            TextInputMessage::Changed { value } | TextInputMessage::Submitted { value } => {
-                map(value)
-            }
+            TextInputMessage::Changed { value }
+            | TextInputMessage::Submitted { value }
+            | TextInputMessage::CompletionRequested { value } => map(value),
         })
     }
 

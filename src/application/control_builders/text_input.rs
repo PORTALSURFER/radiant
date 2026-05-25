@@ -55,9 +55,9 @@ impl TextInputBuilder {
         map: impl Fn(String) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
         self.message_event(move |message| match message {
-            TextInputMessage::Changed { value } | TextInputMessage::Submitted { value } => {
-                map(value)
-            }
+            TextInputMessage::Changed { value }
+            | TextInputMessage::Submitted { value }
+            | TextInputMessage::CompletionRequested { value } => map(value),
         })
     }
 
@@ -116,6 +116,9 @@ impl TextInputBuilder {
                     TextInputMessage::Submitted { value } => {
                         *field(state) = value.clone();
                         submit(state);
+                    }
+                    TextInputMessage::CompletionRequested { value } => {
+                        *field(state) = value.clone();
                     }
                 })
             }),

@@ -27,7 +27,7 @@ pub use crate::application::{
     selectable_property_panel, selectable_sortable_details_list, slider, slider_mapped,
     sortable_details_list, spacer, stack, state_dropdown, text, text_input, text_input_mapped,
     toggle, toggle_mapped, tree_list, tree_list_with_drag, virtual_list, virtual_list_window,
-    virtual_scroll, widget, window,
+    virtual_scroll, widget, window, wrap,
 };
 pub use crate::gui::types::{ImageRgba, ImageRgbaError, Point, Rect, Rgba8, Vector2};
 pub use crate::gui::{

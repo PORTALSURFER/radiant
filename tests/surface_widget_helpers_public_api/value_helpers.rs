@@ -17,7 +17,9 @@ fn text_input_and_toggle_helpers_map_value_messages() {
                 "Raw",
                 WidgetSizing::fixed(Vector2::new(140.0, 28.0)),
                 |message| match message {
-                    TextInputMessage::Changed { value } | TextInputMessage::Submitted { value } => {
+                    TextInputMessage::Changed { value }
+                    | TextInputMessage::Submitted { value }
+                    | TextInputMessage::CompletionRequested { value } => {
                         DemoMessage::Rename(format!("raw:{value}"))
                     }
                 },

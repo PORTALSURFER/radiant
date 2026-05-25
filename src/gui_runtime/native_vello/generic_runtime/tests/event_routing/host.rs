@@ -149,6 +149,31 @@ fn focused_text_input_backspace_preempts_host_shortcuts() {
 }
 
 #[test]
+fn focused_text_input_tab_routes_completion_before_host_shortcuts() {
+    let bridge = ShortcutDemoBridge::default();
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        bridge,
+        Vector2::new(320.0, 40.0),
+    );
+    focus_demo_text_input(&mut runner.core);
+
+    let mut type_outcome = GenericRouteOutcome::default();
+    assert!(runner.route_focused_text_input_before_shortcuts(
+        KeyCode::E,
+        Some("e"),
+        &mut type_outcome,
+    ));
+    let mut tab_outcome = GenericRouteOutcome::default();
+    assert!(
+        runner.route_focused_text_input_before_shortcuts(KeyCode::Tab, None, &mut tab_outcome,)
+    );
+
+    assert_eq!(runner.core.runtime.bridge().state.name, "e");
+    assert_eq!(runner.core.runtime.bridge().state.count, 0);
+}
+
+#[test]
 fn generic_core_routes_second_nearby_press_as_double_click() {
     let bridge = CanvasBridge::default();
     let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));

@@ -23,6 +23,9 @@ impl TextInputWidget {
             WidgetKey::Enter if self.props.submit_on_enter => Some(TextInputMessage::Submitted {
                 value: self.state.value.clone(),
             }),
+            WidgetKey::Tab => Some(TextInputMessage::CompletionRequested {
+                value: self.state.value.clone(),
+            }),
             _ => {
                 let result = self.state.apply_key(key);
                 result.value_changed.then(|| TextInputMessage::Changed {

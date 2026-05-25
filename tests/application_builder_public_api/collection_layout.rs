@@ -213,3 +213,33 @@ fn application_builder_grid_lowers_to_fixed_column_tile_layout() {
     assert!(third.min.y > first.min.y);
     assert_eq!(first.height(), 28.0);
 }
+
+#[test]
+fn application_builder_wrap_flows_fixed_width_items_to_new_rows() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<()> = ui::wrap(
+        (0..4).map(|index| {
+            ui::text(format!("Tag {index}"))
+                .id(200 + index)
+                .size(70.0, 20.0)
+        }),
+        6.0,
+        5.0,
+    )
+    .id(20)
+    .padding(4.0)
+    .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 120.0)),
+    );
+    let first = layout.rects[&200];
+    let second = layout.rects[&201];
+    let third = layout.rects[&202];
+
+    assert!(second.min.x > first.max.x);
+    assert_eq!(first.min.y, second.min.y);
+    assert_eq!(third.min.x, first.min.x);
+    assert!(third.min.y > first.min.y);
+}

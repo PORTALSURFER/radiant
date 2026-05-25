@@ -1,8 +1,11 @@
 use super::{
-    super::{GenericNativeRuntimeCore, demo_bridge},
+    super::{GenericNativeRuntimeCore, GenericNativeVelloRunner, RenderFrameProfile, demo_bridge},
     fixtures::{LocalPointerMoveBridge, PointerMoveBridge},
 };
-use crate::layout::{Point, Vector2};
+use crate::{
+    layout::{Point, Vector2},
+    runtime::NativeRunOptions,
+};
 
 #[test]
 fn pointer_move_inside_same_widget_does_not_request_redundant_redraw() {
@@ -78,6 +81,42 @@ fn pointer_move_messages_defer_surface_refresh_until_redraw_after_hover_enters()
         2,
         "stable pointer-move messages should reduce immediately but coalesce surface projection until redraw"
     );
+}
+
+#[test]
+fn deferred_pointer_move_refresh_invalidates_scene_texture() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PointerMoveBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    runner.rebuild_scene();
+    runner.frame.scene_texture_dirty = false;
+    runner.frame.composited_base_dirty = false;
+    let point = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&71)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("pointer widget should be laid out");
+
+    let first = runner.core.route_pointer_move(point);
+    assert!(first.needs_scene_rebuild());
+    runner.rebuild_scene();
+    runner.frame.scene_texture_dirty = false;
+    runner.frame.composited_base_dirty = false;
+
+    let second = runner
+        .core
+        .route_pointer_move(Point::new(point.x + 1.0, point.y));
+    assert!(second.deferred_surface_refresh_requested);
+    runner.timing.deferred_surface_refresh = true;
+    runner.refresh_deferred_surface_if_needed(&mut RenderFrameProfile::default());
+
+    assert!(runner.frame.scene_texture_dirty);
+    assert!(runner.frame.composited_base_dirty);
 }
 
 #[test]

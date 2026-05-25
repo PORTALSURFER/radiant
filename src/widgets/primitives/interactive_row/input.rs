@@ -1,7 +1,12 @@
 //! Backend-neutral input behavior for interactive rows.
 
-use super::*;
-use crate::widgets::interaction::{DragHandleMessage, PointerButton, WidgetKey};
+use super::InteractiveRowWidget;
+use crate::{
+    gui::types::Rect,
+    widgets::interaction::{
+        DragHandleMessage, InteractiveRowMessage, PointerButton, WidgetInput, WidgetKey,
+    },
+};
 
 impl InteractiveRowWidget {
     /// Route one backend-neutral interaction into the row.

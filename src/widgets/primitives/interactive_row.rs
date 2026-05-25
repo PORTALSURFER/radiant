@@ -5,7 +5,7 @@ use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
-use crate::widgets::interaction::{InteractiveRowMessage, WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{WidgetInput, WidgetOutput};
 use crate::widgets::primitives::support::{WidgetCommon, push_control_chrome};
 
 mod builders;

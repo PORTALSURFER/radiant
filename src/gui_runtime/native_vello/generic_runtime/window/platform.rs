@@ -1,6 +1,7 @@
 //! Platform-specific native window attribute extensions.
 
-use crate::gui_runtime::native_vello::*;
+use crate::gui_runtime::{NativePopupOptions, NativeRunOptions};
+use winit::{window::Window, window::WindowAttributes};
 
 #[cfg(target_os = "windows")]
 pub(super) fn apply_drag_and_drop_attributes(

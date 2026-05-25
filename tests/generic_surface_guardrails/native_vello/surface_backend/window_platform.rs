@@ -12,6 +12,8 @@ fn native_window_platform_attributes_stay_in_focused_module() {
         window.contains("mod platform;")
             && window.contains("platform::apply_drag_and_drop_attributes")
             && window.contains("platform::apply_popup_attributes")
+            && !window.contains("use crate::gui_runtime::native_vello::*;")
+            && !window.contains("use super::*;")
             && !window.contains("WindowAttributesExtWindows")
             && !window.contains("cfg(target_os"),
         "generic window attributes should delegate platform extension hooks"
@@ -21,8 +23,10 @@ fn native_window_platform_attributes_stay_in_focused_module() {
             && platform.contains("#[cfg(not(target_os = \"windows\"))]")
             && platform.contains("WindowAttributesExtWindows")
             && platform.contains("with_drag_and_drop(true)")
-            && platform.contains("with_skip_taskbar(true)"),
-        "target-specific window attribute extensions should stay in window/platform.rs"
+            && platform.contains("with_skip_taskbar(true)")
+            && !platform.contains("use crate::gui_runtime::native_vello::*;")
+            && !platform.contains("use super::*;"),
+        "target-specific window attribute extensions should stay in window/platform.rs with explicit imports"
     );
     assert!(
         tests.contains("generic_native_window_uses_configured_drag_and_drop_policy")

@@ -1,6 +1,11 @@
 //! Window attribute construction for the generic native Vello runtime.
 
-use crate::gui_runtime::native_vello::*;
+use crate::gui_runtime::native_vello::icon_from_rgba;
+use crate::gui_runtime::{NativePopupOptions, NativeRunOptions, NativeWindowMode};
+use winit::{
+    dpi::{LogicalPosition, LogicalSize, Position, Size},
+    window::{Window, WindowAttributes, WindowLevel},
+};
 
 mod platform;
 

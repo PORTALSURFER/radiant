@@ -1,8 +1,7 @@
 //! Native `winit + vello` runtime for generic `RuntimeBridge` hosts.
 
 use super::{
-    NativeGpuBackend, NativePopupOptions, NativeRunOptions, NativeRunOptionsError,
-    NativeTextOptions, NativeWindowMode, WindowIconRgba,
+    NativeGpuBackend, NativeRunOptions, NativeRunOptionsError, NativeTextOptions, WindowIconRgba,
 };
 use crate::gui::{
     paint::TextAlign,
@@ -19,11 +18,10 @@ use vello::util::{RenderContext, RenderSurface};
 use vello::{AaConfig, RenderParams, Renderer, Scene, wgpu};
 use winit::{
     application::ApplicationHandler,
-    dpi::{LogicalPosition, LogicalSize, Position, Size},
     event::{ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{Key, NamedKey, PhysicalKey},
-    window::{Window, WindowAttributes, WindowId, WindowLevel},
+    window::{Window, WindowId},
 };
 
 mod generic_runtime;

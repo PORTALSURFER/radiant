@@ -1,4 +1,5 @@
-use super::*;
+use crate::gui::types::Vector2;
+use vello::util::RenderSurface;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct RenderSurfacePixelSize {

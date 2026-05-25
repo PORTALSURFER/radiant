@@ -123,8 +123,24 @@ fn native_render_surface_target_size_stays_in_focused_module() {
         !present.contains("surface.config.width as f32")
             && !composited.contains("surface.config.width as f32")
             && surface_size.contains("pub(super) struct RenderSurfacePixelSize")
-            && surface_size.contains("fn logical_size"),
-        "direct WGPU target size conversion should stay centralized instead of repeating raw config casts"
+            && surface_size.contains("fn logical_size")
+            && surface_size.contains("use crate::gui::types::Vector2;")
+            && surface_size.contains("use vello::util::RenderSurface;")
+            && !surface_size.starts_with("use super::*;"),
+        "direct WGPU target size conversion should stay centralized with explicit geometry and surface dependencies"
+    );
+}
+
+#[test]
+fn native_wgpu_device_target_helpers_use_explicit_imports() {
+    let device = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/device.rs");
+
+    assert!(
+        device.contains("use vello::wgpu;")
+            && device.contains("fn wgpu_device_id")
+            && device.contains("fn wgpu_target_matches")
+            && !device.starts_with("use super::*;"),
+        "native WGPU target helpers should name their WGPU dependency instead of inheriting the runtime root"
     );
 }
 

@@ -14,6 +14,8 @@ mod input;
 mod navigation_input;
 #[path = "widget/pointer_input.rs"]
 mod pointer_input;
+#[path = "widget/selection_input.rs"]
+mod selection_input;
 #[path = "widget/velocity_input.rs"]
 mod velocity_input;
 

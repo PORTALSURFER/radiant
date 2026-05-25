@@ -1,6 +1,12 @@
-use super::super::*;
+use super::super::GpuSurfaceRenderer;
+use super::super::gpu_surface_types::{
+    CustomShaderBinding, CustomShaderBindingKey, GpuSurfaceUniforms,
+};
+use super::super::stats::GpuSurfaceRenderStats;
 use super::diagnostics::custom_shader_validation_error;
 use crate::runtime::GpuShaderSurfaceDescriptor;
+use tracing::warn;
+use vello::wgpu;
 
 impl GpuSurfaceRenderer {
     pub(super) fn ensure_custom_shader_binding(

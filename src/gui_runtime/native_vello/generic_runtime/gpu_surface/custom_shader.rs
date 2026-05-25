@@ -1,6 +1,12 @@
-use crate::runtime::PaintGpuSurface;
-
-use super::*;
+use super::encoding::uniforms_as_bytes;
+use super::gpu_surface_types::GpuSurfaceUniforms;
+use super::passes::{gpu_surface_render_pass, set_surface_scissor, surface_dest};
+use super::stats::GpuSurfaceRenderStats;
+use super::visibility::visible_surface_regions;
+use super::{GpuSurfaceRenderTarget, GpuSurfaceRenderer};
+use crate::gui::types::Rect as UiRect;
+use crate::runtime::{GpuSurfaceContent, PaintGpuSurface};
+use std::time::Instant;
 #[path = "custom_shader/binding.rs"]
 mod binding;
 #[path = "custom_shader/diagnostics.rs"]
@@ -18,8 +24,7 @@ impl GpuSurfaceRenderer {
         occlusion_regions: &[UiRect],
         stats: &mut GpuSurfaceRenderStats,
     ) {
-        let crate::runtime::GpuSurfaceContent::CustomShader { descriptor } = &surface.content
-        else {
+        let GpuSurfaceContent::CustomShader { descriptor } = &surface.content else {
             return;
         };
         if descriptor.wgsl_source.is_none() || descriptor.fragment_entry_point.is_none() {

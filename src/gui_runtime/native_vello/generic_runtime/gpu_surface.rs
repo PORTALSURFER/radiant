@@ -11,7 +11,6 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use tracing::warn;
 use vello::wgpu;
 
 mod active_keys;
@@ -28,25 +27,20 @@ mod signal_pipeline;
 mod stats;
 mod visibility;
 use active_keys::ActiveGpuSurfaceKeys;
-use encoding::{
-    signal_uniforms_as_bytes, summary_bucket_bytes, summary_bucket_value_count, uniforms_as_bytes,
-};
+use encoding::{signal_uniforms_as_bytes, summary_bucket_bytes, summary_bucket_value_count};
 use gpu_surface_types::{
-    CachedSignalSummary, CustomShaderBinding, CustomShaderBindingKey, CustomShaderPipeline,
-    CustomShaderPipelineKey, GpuSurfaceCompositeBinding, GpuSurfacePipeline, GpuSurfaceTexture,
-    GpuSurfaceTextureIdentity, GpuSurfaceUniforms, SignalBodyCacheKey, SignalBodyCacheKeyParts,
-    SignalBodyTexture, SignalBuffer, SignalBufferCacheKey, SignalPipeline, SignalUniforms,
+    CachedSignalSummary, CustomShaderBinding, CustomShaderPipeline, GpuSurfaceCompositeBinding,
+    GpuSurfacePipeline, GpuSurfaceTexture, GpuSurfaceTextureIdentity, SignalBodyCacheKey,
+    SignalBodyCacheKeyParts, SignalBodyTexture, SignalBuffer, SignalBufferCacheKey, SignalPipeline,
+    SignalUniforms,
 };
-use passes::{
-    SurfacePixelExtent, gpu_surface_render_pass, set_surface_scissor, signal_body_render_pass,
-    surface_dest, surface_pixel_extent,
-};
+use passes::{SurfacePixelExtent, signal_body_render_pass, surface_pixel_extent};
 use resources::GpuSurfaceResourceCache;
 #[cfg(test)]
 pub(super) use signal_pipeline::GPU_SIGNAL_SHADER;
 pub(super) use stats::GpuSurfaceRenderStats;
 use visibility::gpu_surface_opaque_suffix_regions;
-pub(super) use visibility::{gpu_surface_visible_suffix_regions_into, visible_surface_regions};
+pub(super) use visibility::gpu_surface_visible_suffix_regions_into;
 
 #[derive(Default)]
 pub(super) struct GpuSurfaceRenderer {

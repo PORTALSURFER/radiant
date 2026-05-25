@@ -32,6 +32,24 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
             .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/signal_pipeline.rs"),
     )
     .expect("GPU surface signal pipeline module should be readable");
+    let custom_shader = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader.rs"),
+    )
+    .expect("GPU surface custom shader renderer module should be readable");
+    let custom_shader_binding =
+        fs::read_to_string(manifest_dir.join(
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/binding.rs",
+        ))
+        .expect("GPU surface custom shader binding module should be readable");
+    let custom_shader_diagnostics = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/diagnostics.rs",
+    ))
+    .expect("GPU surface custom shader diagnostics module should be readable");
+    let custom_shader_pipeline = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/pipeline.rs",
+    ))
+    .expect("GPU surface custom shader pipeline module should be readable");
 
     assert!(
         renderer.contains("mod overlays;")
@@ -79,13 +97,30 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
             "src/gui_runtime/native_vello/generic_runtime/gpu_surface/signal_pipeline.rs",
             signal_pipeline.as_str(),
         ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader.rs",
+            custom_shader.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/binding.rs",
+            custom_shader_binding.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/diagnostics.rs",
+            custom_shader_diagnostics.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/pipeline.rs",
+            custom_shader_pipeline.as_str(),
+        ),
     ] {
         let production_source = source
             .split("#[cfg(test)]")
             .next()
             .expect("production source should precede tests");
         assert!(
-            !production_source.contains("use super::*;"),
+            !production_source.contains("use super::*;")
+                && !production_source.contains("use super::super::*;"),
             "{path} should import the GPU-surface dependencies it actually uses"
         );
     }

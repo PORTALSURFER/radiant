@@ -1,5 +1,6 @@
-use super::super::*;
+use super::super::stats::GpuSurfaceRenderStats;
 use crate::runtime::GpuShaderSurfaceDescriptor;
+use vello::wgpu;
 
 pub(super) fn custom_shader_validation_error(device: &wgpu::Device) -> Option<wgpu::Error> {
     pollster::block_on(device.pop_error_scope())
@@ -28,8 +29,9 @@ mod tests {
     use super::*;
     use crate::{
         layout::{Point, Rect, Vector2},
-        runtime::{GpuSurfaceCapabilities, GpuSurfaceContent},
+        runtime::{GpuSurfaceCapabilities, GpuSurfaceContent, PaintGpuSurface},
     };
+    use std::sync::Arc;
 
     #[test]
     fn custom_shader_unsupported_diagnostics_count_payload_bytes() {
@@ -58,7 +60,7 @@ mod tests {
 
         record_unsupported_custom_shader(
             match &surface.content {
-                GpuSurfaceContent::CustomShader { descriptor } => descriptor,
+                GpuSurfaceContent::CustomShader { descriptor } => descriptor.as_ref(),
                 _ => unreachable!(),
             },
             &mut stats,

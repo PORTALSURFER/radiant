@@ -31,7 +31,7 @@ pub(in crate::runtime) use traversal::{
 };
 pub use widget::{MessageMapper, SurfaceWidget, WidgetMessageMapper};
 
-pub(in crate::runtime) use crate::{layout::NodeId, widgets::WidgetId};
+pub(in crate::runtime) use crate::widgets::WidgetId;
 
 /// Top-level immutable UI surface projected by a generic Radiant host.
 pub struct UiSurface<Message> {

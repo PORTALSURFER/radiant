@@ -16,17 +16,18 @@ fn uniform_virtual_window_matches_visible_span_bounds() {
         distributed_spacing: 1.0,
     };
 
-    let (start, end, first, last_exclusive, clamped) =
-        compute_virtual_window(&metrics, 20_000.0, 140.0, 16.0);
+    let window = compute_virtual_window(&metrics, 20_000.0, 140.0, 16.0);
 
-    assert!(!clamped);
-    assert_eq!(start, 19_984.0);
-    assert_eq!(end, 20_156.0);
-    assert!(first > 0);
-    assert!(last_exclusive > first);
-    assert!(last_exclusive - first < 16);
-    let first_span = metrics.span(first).expect("first visible span");
-    let last_span = metrics.span(last_exclusive - 1).expect("last visible span");
-    assert!(first_span.end > start);
-    assert!(last_span.start < end);
+    assert!(!window.clamped);
+    assert_eq!(window.start, 19_984.0);
+    assert_eq!(window.end, 20_156.0);
+    assert!(window.first > 0);
+    assert!(window.last_exclusive > window.first);
+    assert!(window.last_exclusive - window.first < 16);
+    let first_span = metrics.span(window.first).expect("first visible span");
+    let last_span = metrics
+        .span(window.last_exclusive - 1)
+        .expect("last visible span");
+    assert!(first_span.end > window.start);
+    assert!(last_span.start < window.end);
 }

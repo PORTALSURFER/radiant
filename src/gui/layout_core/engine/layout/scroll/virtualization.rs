@@ -85,13 +85,13 @@ pub(super) fn layout_virtualized_child(
             "virtualization overscan was non-finite or negative and was clamped",
         );
     }
-    let (window_start, window_end, first, last_exclusive, bounds_clamped) = compute_virtual_window(
+    let window = compute_virtual_window(
         &metrics,
         viewport_main_start,
         viewport_main_size,
         overscan_px,
     );
-    if bounds_clamped {
+    if window.clamped {
         context.push_diagnostic(
             container.id,
             LayoutDiagnosticCode::VirtualizationWindowClamped,
@@ -99,7 +99,7 @@ pub(super) fn layout_virtualized_child(
         );
     }
 
-    if first >= last_exclusive {
+    if window.first >= window.last_exclusive {
         context.push_diagnostic(
             container.id,
             LayoutDiagnosticCode::VirtualizationAlignmentFallback,
@@ -108,14 +108,17 @@ pub(super) fn layout_virtualized_child(
         return false;
     }
 
-    let first_before_margin =
-        first_before_margin(content_container.children.as_slice(), first, horizontal);
-    let cursor_main_start = cursor_before_first(first_before_margin, first, &metrics);
+    let first_before_margin = first_before_margin(
+        content_container.children.as_slice(),
+        window.first,
+        horizontal,
+    );
+    let cursor_main_start = cursor_before_first(first_before_margin, window.first, &metrics);
     context.set_linear_window(
         child.child.id(),
         ResolvedLinearWindow {
-            first,
-            last_exclusive,
+            first: window.first,
+            last_exclusive: window.last_exclusive,
             cursor_main_start,
             metrics: Arc::clone(&metrics),
         },
@@ -127,25 +130,25 @@ pub(super) fn layout_virtualized_child(
         container.id,
         child_rect,
         horizontal,
-        window_start,
-        window_end,
+        window.start,
+        window.end,
         context,
     );
     context.record_virtual_window_info(
         container.id,
         VirtualWindowInfo {
             total_children: content_container.children.len(),
-            first_index: first,
-            last_index_exclusive: last_exclusive,
-            culled_before: first,
+            first_index: window.first,
+            last_index_exclusive: window.last_exclusive,
+            culled_before: window.first,
             culled_after: content_container
                 .children
                 .len()
-                .saturating_sub(last_exclusive),
+                .saturating_sub(window.last_exclusive),
             viewport_main_start,
             viewport_main_end: viewport_main_start + viewport_main_size,
-            window_main_start: window_start,
-            window_main_end: window_end,
+            window_main_start: window.start,
+            window_main_end: window.end,
             resolved_total_main: metrics.total_main,
             alignment_mode: content_container.policy.align_main,
         },

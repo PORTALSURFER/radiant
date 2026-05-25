@@ -143,10 +143,12 @@ fn layout_scroll_virtual_window_search_stays_focused() {
     assert!(
         !helpers.contains("fn lower_bound_end")
             && !helpers.contains("fn lower_bound_start")
+            && window.contains("struct ComputedVirtualWindow")
             && window.contains("fn compute_virtual_window")
             && window.contains("fn lower_bound_end")
-            && window.contains("fn lower_bound_start"),
-        "virtual-window binary search bounds should live in scroll_helpers/window.rs"
+            && window.contains("fn lower_bound_start")
+            && !window.contains("-> (f32, f32, usize, usize, bool)"),
+        "virtual-window binary search bounds should live in scroll_helpers/window.rs and return a named window model"
     );
     assert!(
         helpers.contains("#[path = \"scroll_helpers/tests.rs\"]")

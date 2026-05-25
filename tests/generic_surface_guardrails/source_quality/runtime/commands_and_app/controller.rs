@@ -182,6 +182,8 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
     let move_routing =
         fs::read_to_string(manifest_dir.join("src/runtime/controller/pointer/move_routing.rs"))
             .expect("runtime pointer move routing module should be readable");
+    let hit_test = fs::read_to_string(manifest_dir.join("src/runtime/controller/hit_test.rs"))
+        .expect("runtime controller hit-test module should be readable");
 
     assert!(
         pointer.contains("mod move_routing;")
@@ -196,5 +198,16 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
             && move_routing.contains("fn update_hovered_scroll_affordance")
             && move_routing.contains("fn route_captured_pass_through_move"),
         "pointer move routing should group drag preview, hover, and captured move policy"
+    );
+    assert!(
+        hit_test.contains("use super::SurfaceRuntime;")
+            && hit_test.contains("gui::types::Point")
+            && hit_test.contains("layout::NodeId")
+            && hit_test.contains("runtime::{RuntimeBridge, SurfaceWidget}")
+            && hit_test.contains("widgets::WidgetId")
+            && !hit_test.starts_with("use super::*;")
+            && hit_test.contains("pub fn widget_at")
+            && hit_test.contains("fn stable_hovered_widget_at"),
+        "runtime controller hit testing should name controller, geometry, layout, bridge, widget, and traversal dependencies"
     );
 }

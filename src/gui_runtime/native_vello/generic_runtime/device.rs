@@ -1,4 +1,4 @@
-use super::*;
+use vello::wgpu;
 
 pub(super) fn wgpu_device_id(device: &wgpu::Device) -> usize {
     device as *const wgpu::Device as usize

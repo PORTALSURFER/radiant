@@ -57,7 +57,11 @@ pub(crate) fn append_velocity_handle_hover(
     };
     if matches!(
         widget.drag,
-        Some(PianoDrag::Velocity { .. } | PianoDrag::VelocityMarquee { .. })
+        Some(
+            PianoDrag::Velocity { .. }
+                | PianoDrag::VelocityRelative { .. }
+                | PianoDrag::VelocityMarquee { .. }
+        )
     ) {
         return;
     }
@@ -137,7 +141,7 @@ pub(in crate::piano_roll::widget_paint) fn append_velocity_drag_preview(
     lane: Rect,
     theme: &ThemeTokens,
 ) -> bool {
-    let Some(PianoDrag::Velocity { ids, .. }) = widget.drag.as_ref() else {
+    let Some(ids) = velocity_drag_ids(widget.drag.as_ref()) else {
         return false;
     };
     if ids.len() < BATCHED_VELOCITY_FILL_THRESHOLD {
@@ -197,6 +201,15 @@ pub(in crate::piano_roll::widget_paint) fn append_velocity_drag_preview(
         1.0,
     );
     true
+}
+
+fn velocity_drag_ids(drag: Option<&PianoDrag>) -> Option<&[u32]> {
+    match drag {
+        Some(PianoDrag::Velocity { ids, .. } | PianoDrag::VelocityRelative { ids, .. }) => {
+            Some(ids.as_slice())
+        }
+        _ => None,
+    }
 }
 
 fn append_velocity_lane_grid(

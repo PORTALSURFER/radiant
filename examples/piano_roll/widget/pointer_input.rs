@@ -66,7 +66,10 @@ impl PianoRollWidget {
         if matches!(self.drag, Some(PianoDrag::VelocityMarquee { .. })) {
             return self.update_velocity_marquee_drag(position);
         }
-        if matches!(self.drag, Some(PianoDrag::Velocity { .. })) {
+        if matches!(
+            self.drag,
+            Some(PianoDrag::Velocity { .. } | PianoDrag::VelocityRelative { .. })
+        ) {
             return self.update_velocity_drag(bounds, position);
         }
         self.hover_velocity_note = velocity
@@ -247,6 +250,9 @@ impl PianoRollWidget {
         position: Point,
         modifiers: PointerModifiers,
     ) -> Option<WidgetOutput> {
+        if modifiers.alt {
+            return self.start_note_velocity_drag(id, position, modifiers);
+        }
         if modifiers.shift || modifiers.command {
             self.hover_note = Some(id);
             self.hover_note_resize_edge = None;

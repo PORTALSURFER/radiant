@@ -162,6 +162,127 @@ fn piano_roll_velocity_drag_edits_selected_notes_together() {
 }
 
 #[test]
+fn piano_roll_alt_dragging_note_adjusts_velocity() {
+    let mut state = PianoRollState::default();
+    let mut widget = PianoRollWidget::new(
+        state.notes.clone(),
+        state.selected_note,
+        state.selected_notes.clone(),
+        state.selected_pitch,
+        state.edit_cursor_beat,
+        state.time_selection,
+        state.snap_enabled,
+        state.playhead_beat,
+        state.viewport,
+        state.tool,
+    );
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
+    let grid = widget.editor_rect(bounds);
+    let note = widget.note_by_id(2).expect("selected note should exist");
+    let start = widget.note_rect(grid, note).center();
+    let raised = Point::new(start.x, start.y - 32.0);
+
+    let press = widget.handle_input(
+        bounds,
+        WidgetInput::PointerPress {
+            position: start,
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers {
+                alt: true,
+                ..PointerModifiers::default()
+            },
+        },
+    );
+
+    assert!(
+        press.is_none(),
+        "selected alt-drag starts without reselection"
+    );
+    assert!(matches!(
+        widget.drag,
+        Some(PianoDrag::VelocityRelative { ref ids, .. }) if ids == &[2]
+    ));
+
+    let live = widget
+        .handle_input(bounds, WidgetInput::PointerMove { position: raised })
+        .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
+        .expect("alt note velocity drag should publish live values for small selections");
+    match live {
+        PianoRollMessage::SetVelocities { velocities } => {
+            assert!(
+                (velocity_for(&velocities, 2) - 1.0).abs() < f32::EPSILON,
+                "dragging upward should raise the note velocity"
+            );
+            state.apply_roll_message(PianoRollMessage::SetVelocities { velocities });
+        }
+        other => panic!("expected live velocity values, got {other:?}"),
+    }
+
+    let release = widget
+        .handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: raised,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers {
+                    alt: true,
+                    ..PointerModifiers::default()
+                },
+            },
+        )
+        .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
+        .expect("alt note velocity drag should commit on release");
+    assert!(matches!(release, PianoRollMessage::SetVelocities { .. }));
+}
+
+#[test]
+fn piano_roll_alt_dragging_unselected_note_selects_it_before_velocity_drag() {
+    let mut state = PianoRollState::default();
+    state.apply_roll_message(PianoRollMessage::SelectNotes {
+        ids: vec![2, 3],
+        mode: NoteSelectionMode::Replace,
+    });
+    let mut widget = PianoRollWidget::new(
+        state.notes.clone(),
+        state.selected_note,
+        state.selected_notes.clone(),
+        state.selected_pitch,
+        state.edit_cursor_beat,
+        state.time_selection,
+        state.snap_enabled,
+        state.playhead_beat,
+        state.viewport,
+        state.tool,
+    );
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
+    let grid = widget.editor_rect(bounds);
+    let note = widget.note_by_id(4).expect("unselected note should exist");
+    let start = widget.note_rect(grid, note).center();
+
+    let press = widget
+        .handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: start,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers {
+                    alt: true,
+                    ..PointerModifiers::default()
+                },
+            },
+        )
+        .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
+        .expect("alt-dragging an unselected note should select it immediately");
+
+    assert_eq!(press, PianoRollMessage::SelectNote(4));
+    assert_eq!(widget.selected_notes, vec![4]);
+    assert!(matches!(
+        widget.drag,
+        Some(PianoDrag::VelocityRelative { ref ids, .. }) if ids == &[4]
+    ));
+}
+
+#[test]
 fn piano_roll_velocity_drag_starts_only_from_handle_rect() {
     let mut state = PianoRollState::default();
     state.apply_roll_message(PianoRollMessage::SelectNotes {

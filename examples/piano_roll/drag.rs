@@ -68,20 +68,37 @@ pub(super) enum PianoDrag {
         current_pointer_velocity: f32,
         start_velocities: Vec<(u32, f32)>,
     },
+    VelocityRelative {
+        ids: Vec<u32>,
+        start_y: f32,
+        current_y: f32,
+        start_velocities: Vec<(u32, f32)>,
+    },
 }
 
 impl PianoDrag {
     pub(super) fn velocity_values(&self) -> Option<Vec<(u32, f32)>> {
-        let Self::Velocity {
-            start_pointer_velocity,
-            current_pointer_velocity,
-            start_velocities,
-            ..
-        } = self
-        else {
-            return None;
+        let (delta, start_velocities) = match self {
+            Self::Velocity {
+                start_pointer_velocity,
+                current_pointer_velocity,
+                start_velocities,
+                ..
+            } => (
+                current_pointer_velocity - start_pointer_velocity,
+                start_velocities,
+            ),
+            Self::VelocityRelative {
+                start_y,
+                current_y,
+                start_velocities,
+                ..
+            } => (
+                (start_y - current_y) / NOTE_VELOCITY_DRAG_PIXELS_PER_UNIT,
+                start_velocities,
+            ),
+            _ => return None,
         };
-        let delta = current_pointer_velocity - start_pointer_velocity;
         Some(
             start_velocities
                 .iter()
@@ -91,22 +108,35 @@ impl PianoDrag {
     }
 
     pub(super) fn velocity_for_note(&self, id: u32) -> Option<f32> {
-        let Self::Velocity {
-            start_pointer_velocity,
-            current_pointer_velocity,
-            start_velocities,
-            ..
-        } = self
-        else {
-            return None;
+        let (delta, start_velocities) = match self {
+            Self::Velocity {
+                start_pointer_velocity,
+                current_pointer_velocity,
+                start_velocities,
+                ..
+            } => (
+                current_pointer_velocity - start_pointer_velocity,
+                start_velocities,
+            ),
+            Self::VelocityRelative {
+                start_y,
+                current_y,
+                start_velocities,
+                ..
+            } => (
+                (start_y - current_y) / NOTE_VELOCITY_DRAG_PIXELS_PER_UNIT,
+                start_velocities,
+            ),
+            _ => return None,
         };
-        let delta = current_pointer_velocity - start_pointer_velocity;
         start_velocities
             .binary_search_by_key(&id, |(note_id, _)| *note_id)
             .ok()
             .map(|index| (start_velocities[index].1 + delta).clamp(0.0, 1.0))
     }
 }
+
+pub(super) const NOTE_VELOCITY_DRAG_PIXELS_PER_UNIT: f32 = 160.0;
 
 impl PianoDrag {
     pub(super) fn create(pitch: i32, start_beat: f32) -> Self {

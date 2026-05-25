@@ -295,7 +295,7 @@ impl PianoRollWidget {
             PianoDrag::Pan { .. } | PianoDrag::Marquee { .. } => return None,
             PianoDrag::VelocityMarquee { .. } => return None,
             PianoDrag::TimeSelection { .. } | PianoDrag::MoveTimeSelection { .. } => return None,
-            PianoDrag::Velocity { .. } => return None,
+            PianoDrag::Velocity { .. } | PianoDrag::VelocityRelative { .. } => return None,
             PianoDrag::Create { pitch, start_beat } => PianoNote {
                 id: u32::MAX,
                 pitch: *pitch,

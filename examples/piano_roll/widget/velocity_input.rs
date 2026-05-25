@@ -72,18 +72,27 @@ impl PianoRollWidget {
         self.hover_note = None;
         self.hover_velocity_note = None;
         self.hover_pitch = None;
-        let Some(PianoDrag::Velocity {
-            ids,
-            current_pointer_velocity,
-            ..
-        }) = self.drag.as_mut()
-        else {
-            return None;
+        let ids = match self.drag.as_mut() {
+            Some(PianoDrag::Velocity {
+                ids,
+                current_pointer_velocity,
+                ..
+            }) => {
+                if (*current_pointer_velocity - next_velocity).abs() < 0.001 {
+                    return None;
+                }
+                *current_pointer_velocity = next_velocity;
+                ids.clone()
+            }
+            Some(PianoDrag::VelocityRelative { ids, current_y, .. }) => {
+                if (*current_y - position.y).abs() < 0.5 {
+                    return None;
+                }
+                *current_y = position.y;
+                ids.clone()
+            }
+            _ => return None,
         };
-        if (*current_pointer_velocity - next_velocity).abs() < 0.001 {
-            return None;
-        }
-        *current_pointer_velocity = next_velocity;
         if ids.len() > LIVE_VELOCITY_UPDATE_SELECTION_LIMIT {
             return None;
         }
@@ -95,6 +104,40 @@ impl PianoRollWidget {
         Some(WidgetOutput::custom(PianoRollMessage::SetVelocities {
             velocities,
         }))
+    }
+
+    pub(in crate::piano_roll::widget) fn start_note_velocity_drag(
+        &mut self,
+        id: u32,
+        position: Point,
+        modifiers: PointerModifiers,
+    ) -> Option<WidgetOutput> {
+        let note_was_selected = self.note_is_selected(id);
+        let mut ids = if note_was_selected && !self.selected_notes.is_empty() {
+            self.selected_notes.clone()
+        } else if modifiers.command {
+            let mut ids = self.selected_notes.clone();
+            ids.push(id);
+            ids
+        } else {
+            self.selected_note = Some(id);
+            self.selected_notes = vec![id];
+            vec![id]
+        };
+        SelectionSet::normalize_vec(&mut ids);
+        self.hover_note = Some(id);
+        self.hover_note_resize_edge = None;
+        self.hover_velocity_note = None;
+        self.hover_position = Some(position);
+        let start_velocities = self.start_velocities_for(&ids);
+        self.drag = Some(PianoDrag::VelocityRelative {
+            ids,
+            start_y: position.y,
+            current_y: position.y,
+            start_velocities,
+        });
+        (!note_was_selected && !modifiers.command)
+            .then(|| WidgetOutput::custom(PianoRollMessage::SelectNote(id)))
     }
 
     pub(crate) fn velocity_preview_stem_rect(&self, lane: Rect, note: PianoNote) -> Rect {

@@ -77,6 +77,12 @@ impl PianoDrag {
                 current_pointer_velocity,
                 start_velocities,
             ),
+            Self::VelocityRelative {
+                start_y,
+                current_y,
+                start_velocities,
+                ..
+            } => relative_velocity_message(start_y, current_y, start_velocities),
         }
     }
 }
@@ -228,6 +234,20 @@ fn velocity_message(
     start_velocities: Vec<(u32, f32)>,
 ) -> PianoRollMessage {
     let delta = current_pointer_velocity - start_pointer_velocity;
+    PianoRollMessage::SetVelocities {
+        velocities: start_velocities
+            .into_iter()
+            .map(|(id, velocity)| (id, (velocity + delta).clamp(0.0, 1.0)))
+            .collect(),
+    }
+}
+
+fn relative_velocity_message(
+    start_y: f32,
+    current_y: f32,
+    start_velocities: Vec<(u32, f32)>,
+) -> PianoRollMessage {
+    let delta = (start_y - current_y) / super::NOTE_VELOCITY_DRAG_PIXELS_PER_UNIT;
     PianoRollMessage::SetVelocities {
         velocities: start_velocities
             .into_iter()

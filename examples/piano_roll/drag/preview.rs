@@ -52,7 +52,8 @@ impl PianoDrag {
             | Self::VelocityMarquee { .. }
             | Self::TimeSelection { .. }
             | Self::MoveTimeSelection { .. }
-            | Self::Velocity { .. } => source,
+            | Self::Velocity { .. }
+            | Self::VelocityRelative { .. } => source,
         }
     }
 }

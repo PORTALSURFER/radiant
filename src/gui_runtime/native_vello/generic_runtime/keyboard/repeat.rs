@@ -1,26 +1,21 @@
-use super::*;
+use crate::gui::input::KeyCode;
+use std::time::{Duration, Instant};
 
 const NAVIGATION_KEY_REPEAT_INTERVAL: Duration = Duration::from_millis(45);
 
 pub(super) fn should_route_keypress(
-    key: crate::gui::input::KeyCode,
+    key: KeyCode,
     repeat: bool,
     last_navigation_repeat: &mut Option<Instant>,
     now: Instant,
 ) -> bool {
     if !repeat {
-        if matches!(
-            key,
-            crate::gui::input::KeyCode::ArrowUp | crate::gui::input::KeyCode::ArrowDown
-        ) {
+        if matches!(key, KeyCode::ArrowUp | KeyCode::ArrowDown) {
             *last_navigation_repeat = None;
         }
         return true;
     }
-    if !matches!(
-        key,
-        crate::gui::input::KeyCode::ArrowUp | crate::gui::input::KeyCode::ArrowDown
-    ) {
+    if !matches!(key, KeyCode::ArrowUp | KeyCode::ArrowDown) {
         return false;
     }
     if last_navigation_repeat
@@ -35,7 +30,6 @@ pub(super) fn should_route_keypress(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::input::KeyCode;
 
     #[test]
     fn repeated_navigation_keys_are_throttled_without_repeating_other_shortcuts() {

@@ -80,3 +80,26 @@ fn native_file_drop_routing_uses_explicit_runtime_imports() {
         "native file drop routing should keep hover, cancel, drop, and target resolution in the focused module"
     );
 }
+
+#[test]
+fn native_keyboard_repeat_policy_uses_explicit_imports() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repeat = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/keyboard/repeat.rs"),
+    )
+    .expect("native keyboard repeat policy module should be readable");
+
+    assert!(
+        repeat.contains("use crate::gui::input::KeyCode;")
+            && repeat.contains("use std::time::{Duration, Instant};")
+            && !repeat.starts_with("use super::*;"),
+        "native keyboard repeat policy should import only key and timing dependencies"
+    );
+    assert!(
+        repeat.contains("const NAVIGATION_KEY_REPEAT_INTERVAL")
+            && repeat.contains("fn should_route_keypress(")
+            && repeat.contains("KeyCode::ArrowUp | KeyCode::ArrowDown")
+            && !repeat.contains("crate::gui::input::KeyCode::"),
+        "native keyboard repeat policy should stay focused on navigation key throttling"
+    );
+}

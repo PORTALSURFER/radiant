@@ -186,6 +186,8 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
         .expect("runtime controller hit-test module should be readable");
     let hit_order = fs::read_to_string(manifest_dir.join("src/runtime/controller/hit_order.rs"))
         .expect("runtime controller hit-order module should be readable");
+    let input = fs::read_to_string(manifest_dir.join("src/runtime/controller/input.rs"))
+        .expect("runtime controller input module should be readable");
 
     assert!(
         pointer.contains("mod move_routing;")
@@ -220,5 +222,15 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
             && hit_order.contains("fn collect_hit_rank")
             && hit_order.contains("fn collect_visible_hit_order"),
         "runtime controller hit-order indexing should name its collection, layout, and node dependencies without inheriting the controller root"
+    );
+    assert!(
+        input.contains("use super::SurfaceRuntime;")
+            && input.contains("gui::types::Rect")
+            && input.contains("runtime::{RuntimeBridge, SurfaceWidget, WidgetDispatchResult}")
+            && input.contains("widgets::{WidgetId, WidgetInput}")
+            && !input.starts_with("use super::*;")
+            && input.contains("fn dispatch_surface_input")
+            && input.contains("fn surface_widget_mut"),
+        "runtime controller input dispatch should name controller, geometry, bridge, widget, dispatch-result, and widget-input dependencies"
     );
 }

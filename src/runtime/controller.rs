@@ -26,8 +26,8 @@ pub use scroll::ScrollUpdate;
 
 use super::{
     ClipAncestors, Command, DragSession, ExternalDragSession, PaintPrimitive, RuntimeBridge,
-    SurfaceFrame, SurfacePaintPlan, SurfaceRuntimeProjection, SurfaceTraversalIndex, SurfaceWidget,
-    UiSurface, WidgetDispatchResult, WidgetPath, empty_paint_plan_for_layout,
+    SurfaceFrame, SurfacePaintPlan, SurfaceRuntimeProjection, SurfaceTraversalIndex, UiSurface,
+    WidgetDispatchResult, WidgetPath, empty_paint_plan_for_layout,
 };
 use crate::{
     gui::{

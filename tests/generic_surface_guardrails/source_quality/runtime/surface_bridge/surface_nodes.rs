@@ -84,14 +84,21 @@ fn runtime_surface_focus_order_keeps_collection_and_tests_focused() {
     assert!(
         focus.contains("pub fn keyboard_focus_order_into")
             && focus.contains("pub fn keyboard_focus_order(&self)")
+            && focus.contains("use super::{SurfaceNode, UiSurface, WidgetId};")
+            && !focus.starts_with("use super::*;")
             && focus.contains("fn append_keyboard_focus_order")
             && focus.contains("#[path = \"focus/tests.rs\"]")
             && !focus.contains("fn keyboard_focus_order_collects_only_keyboard_focusable_widgets"),
-        "runtime surface focus ordering should live in surface/focus.rs while behavior tests stay delegated"
+        "runtime surface focus ordering should name surface and widget identity dependencies while behavior tests stay delegated"
     );
     assert!(
         tests.contains("fn keyboard_focus_order_collects_only_keyboard_focusable_widgets")
             && tests.contains("fn keyboard_focus_order_into_reuses_existing_storage"),
         "runtime surface focus behavior coverage should live in surface/focus/tests.rs"
+    );
+    assert!(
+        tests.contains("runtime::{SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper}")
+            && !tests.starts_with("use super::*;"),
+        "runtime surface focus tests should name their surface construction dependencies instead of inheriting focus module imports"
     );
 }

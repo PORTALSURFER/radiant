@@ -38,6 +38,11 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/diagnostics.rs",
     ))
     .expect("GPU surface custom shader diagnostics module should be readable");
+    let custom_shader_draw = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/draw.rs"),
+    )
+    .expect("GPU surface custom shader draw module should be readable");
     let custom_shader_types = fs::read_to_string(
         manifest_dir.join(
             "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/custom_shader.rs",
@@ -65,12 +70,17 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
             && custom_shader.contains("#[path = \"custom_shader/pipeline.rs\"]")
             && custom_shader.contains("#[path = \"custom_shader/binding.rs\"]")
             && custom_shader.contains("#[path = \"custom_shader/diagnostics.rs\"]")
+            && custom_shader.contains("#[path = \"custom_shader/draw.rs\"]")
             && custom_shader.contains("self.ensure_custom_shader_pipeline")
             && custom_shader.contains("self.ensure_custom_shader_binding")
+            && custom_shader.contains("draw::upload_custom_shader_buffers")
+            && custom_shader.contains("draw::encode_custom_shader_draw")
             && custom_shader.contains("record_unsupported_custom_shader")
             && custom_shader.contains("custom_shader.surfaces_rendered += 1")
             && !custom_shader.contains("fn ensure_custom_shader_pipeline")
             && !custom_shader.contains("fn ensure_custom_shader_binding")
+            && !custom_shader.contains("fn upload_custom_shader_buffers")
+            && !custom_shader.contains("fn encode_custom_shader_draw")
             && !custom_shader.contains("fn custom_shader_layout_entries")
             && !custom_shader.contains("fn custom_shader_buffer")
             && !custom_shader.contains("device.create_shader_module")
@@ -112,6 +122,18 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
             && custom_shader_binding
                 .contains("device.push_error_scope(wgpu::ErrorFilter::Validation)"),
         "native custom shader bind-group and payload-buffer setup should stay in the binding module"
+    );
+    assert!(
+        custom_shader_draw.contains("struct CustomShaderBufferUploadRequest")
+            && custom_shader_draw.contains("struct CustomShaderDrawRequest")
+            && custom_shader_draw.contains("fn upload_custom_shader_buffers")
+            && custom_shader_draw.contains("fn encode_custom_shader_draw")
+            && custom_shader_draw.contains("uniforms_as_bytes")
+            && custom_shader_draw.contains("gpu_surface_render_pass")
+            && custom_shader_draw.contains("visible_surface_regions")
+            && custom_shader_draw.contains("surface_dest")
+            && custom_shader_draw.contains("pass.draw(0..request.descriptor.vertex_count"),
+        "native custom shader draw encoding and per-frame uploads should stay in the draw module"
     );
     assert!(
         custom_shader_diagnostics.contains("fn custom_shader_validation_error")

@@ -2,7 +2,12 @@ use super::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, frame::encode_paint_frame_to_scene,
     shape::encode_rect_stroke,
 };
-use crate::{gui_runtime::native_vello::*, runtime::PaintCustomSurface};
+use crate::{
+    gui::types::{Rgba8, Vector2},
+    gui_runtime::native_vello::NativeTextRenderer,
+    runtime::{PaintCustomSurface, RuntimeBridge},
+};
+use vello::Scene;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_custom_surface<
     Bridge,

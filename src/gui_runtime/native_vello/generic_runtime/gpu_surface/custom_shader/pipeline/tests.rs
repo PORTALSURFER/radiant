@@ -43,7 +43,7 @@ fn custom_shader_pipeline_key_tracks_payload_bindings() {
 #[test]
 fn custom_shader_layout_entries_always_start_with_surface_uniforms() {
     let key = custom_shader_test_key(CustomShaderPayloads::None);
-    let entries = custom_shader_layout_entries(&key);
+    let entries = layout::custom_shader_layout_entries(&key);
 
     assert_eq!(entries.len(), 1);
     assert_uniform_binding(&entries[0], 0);
@@ -51,11 +51,13 @@ fn custom_shader_layout_entries_always_start_with_surface_uniforms() {
 
 #[test]
 fn custom_shader_layout_entries_include_optional_payload_bindings() {
-    let uniform_entries =
-        custom_shader_layout_entries(&custom_shader_test_key(CustomShaderPayloads::Uniform));
-    let storage_entries =
-        custom_shader_layout_entries(&custom_shader_test_key(CustomShaderPayloads::Storage));
-    let combined_entries = custom_shader_layout_entries(&custom_shader_test_key(
+    let uniform_entries = layout::custom_shader_layout_entries(&custom_shader_test_key(
+        CustomShaderPayloads::Uniform,
+    ));
+    let storage_entries = layout::custom_shader_layout_entries(&custom_shader_test_key(
+        CustomShaderPayloads::Storage,
+    ));
+    let combined_entries = layout::custom_shader_layout_entries(&custom_shader_test_key(
         CustomShaderPayloads::UniformStorage,
     ));
 

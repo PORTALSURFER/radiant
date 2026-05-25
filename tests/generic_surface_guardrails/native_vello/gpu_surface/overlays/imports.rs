@@ -37,6 +37,7 @@ fn native_gpu_surface_modules_use_explicit_imports() {
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/diagnostics.rs",
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/draw.rs",
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/pipeline.rs",
+        "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/pipeline/layout.rs",
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types.rs",
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/pipeline.rs",
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/gpu_surface_types/composite.rs",

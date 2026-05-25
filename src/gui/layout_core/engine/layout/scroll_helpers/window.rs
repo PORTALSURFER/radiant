@@ -1,14 +1,34 @@
 use super::super::super::cache::LinearVirtualMetrics;
 
+pub(in crate::gui::layout_core::engine::layout) struct ComputedVirtualWindow {
+    pub(in crate::gui::layout_core::engine::layout) start: f32,
+    pub(in crate::gui::layout_core::engine::layout) end: f32,
+    pub(in crate::gui::layout_core::engine::layout) first: usize,
+    pub(in crate::gui::layout_core::engine::layout) last_exclusive: usize,
+    pub(in crate::gui::layout_core::engine::layout) clamped: bool,
+}
+
+impl ComputedVirtualWindow {
+    fn empty() -> Self {
+        Self {
+            start: 0.0,
+            end: 0.0,
+            first: 0,
+            last_exclusive: 0,
+            clamped: false,
+        }
+    }
+}
+
 /// Compute a virtualized child window over cached span metrics.
 pub(in crate::gui::layout_core::engine::layout) fn compute_virtual_window(
     metrics: &LinearVirtualMetrics,
     viewport_start: f32,
     viewport_size: f32,
     overscan_px: f32,
-) -> (f32, f32, usize, usize, bool) {
+) -> ComputedVirtualWindow {
     if metrics.is_empty() {
-        return (0.0, 0.0, 0, 0, false);
+        return ComputedVirtualWindow::empty();
     }
     let max_main = metrics.total_main.max(0.0);
     let mut clamped = false;
@@ -34,7 +54,13 @@ pub(in crate::gui::layout_core::engine::layout) fn compute_virtual_window(
         first_index = first_index.min(metrics.len() - 1);
         last_exclusive = (first_index + 1).min(metrics.len());
     }
-    (start, end.max(start), first_index, last_exclusive, clamped)
+    ComputedVirtualWindow {
+        start,
+        end: end.max(start),
+        first: first_index,
+        last_exclusive,
+        clamped,
+    }
 }
 
 fn lower_bound_end(metrics: &LinearVirtualMetrics, value: f32) -> usize {

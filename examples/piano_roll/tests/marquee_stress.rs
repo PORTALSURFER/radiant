@@ -19,18 +19,7 @@ fn piano_roll_stress_mode_generates_thousands_of_notes_for_marquee_selection() {
 fn piano_roll_marquee_selects_thousands_of_notes_with_paint_only_preview() {
     let mut state = PianoRollState::default();
     state.apply_roll_message(PianoRollMessage::ToggleStressNotes);
-    let mut widget = PianoRollWidget::new(
-        state.notes.clone(),
-        state.selected_note,
-        state.selected_notes.clone(),
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let start = Point::new(grid.min.x + 1.0, grid.min.y + 1.0);

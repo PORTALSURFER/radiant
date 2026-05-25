@@ -1,7 +1,9 @@
 use radiant::prelude::*;
 use radiant::widgets::PointerModifiers;
 
-use super::super::{PianoRollMessage, widget::PianoRollWidget};
+use super::super::{
+    PianoRollMessage, geometry::row_height_for, model::PianoRollViewport, widget::PianoRollWidget,
+};
 
 impl PianoRollWidget {
     pub(in crate::piano_roll::widget) fn handle_wheel(
@@ -40,5 +42,28 @@ impl PianoRollWidget {
                 2
             },
         }
+    }
+
+    pub(in crate::piano_roll::widget) fn handle_pan_drag(
+        &mut self,
+        grid: Rect,
+        position: Point,
+        start: Point,
+        start_viewport: PianoRollViewport,
+    ) -> Option<WidgetOutput> {
+        self.hover_position = Some(position);
+        let beat_delta =
+            -(position.x - start.x) * start_viewport.visible_beats / grid.width().max(1.0);
+        let pitch_delta =
+            ((position.y - start.y) / row_height_for(grid, start_viewport).max(1.0)).round() as i32;
+        let target = start_viewport.panned(beat_delta, pitch_delta);
+        let (beat_delta, pitch_delta) = self.viewport.pan_delta_to(target);
+        if beat_delta.abs() < f32::EPSILON && pitch_delta == 0 {
+            return None;
+        }
+        Some(WidgetOutput::custom(PianoRollMessage::PanViewport {
+            beat_delta,
+            pitch_delta,
+        }))
     }
 }

@@ -3,18 +3,7 @@ use super::*;
 #[test]
 fn piano_roll_shift_forces_marquee_and_command_toggles_note_selection() {
     let state = PianoRollState::default();
-    let mut widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let note = widget.note_by_id(3).expect("note should exist");
@@ -80,18 +69,7 @@ fn piano_roll_selected_notes_paint_persistent_orange_borders() {
         ids: vec![2, 3],
         mode: NoteSelectionMode::Replace,
     });
-    let widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let mut primitives = Vec::new();

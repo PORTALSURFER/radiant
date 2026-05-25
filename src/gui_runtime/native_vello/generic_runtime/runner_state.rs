@@ -1,8 +1,9 @@
 //! Focused state groups owned by the generic native Vello runner.
 
 use super::PendingGpuSurfaceWheel;
+use crate::gui::types::Point;
 use crate::gui_runtime::native_vello::startup::StartupTimingProfile;
-use crate::{gui::types::Point, widgets::WidgetCursor};
+use crate::widgets::WidgetCursor;
 use std::{sync::Arc, time::Instant};
 use vello::{
     Renderer,

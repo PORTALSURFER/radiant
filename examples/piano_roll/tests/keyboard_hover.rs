@@ -3,18 +3,7 @@ use super::*;
 #[test]
 fn piano_roll_keyboard_press_lights_pitch_lane_and_selects_pitch() {
     let mut state = PianoRollState::default();
-    let mut widget = PianoRollWidget::new(
-        state.notes.clone(),
-        state.selected_note,
-        state.selected_notes.clone(),
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let keyboard = widget.keyboard_rect(bounds);
     let grid = widget.editor_rect(bounds);
@@ -69,18 +58,7 @@ fn piano_roll_keyboard_press_lights_pitch_lane_and_selects_pitch() {
 
     state.apply_roll_message(PianoRollMessage::SelectPitch(pitch));
     assert_eq!(state.selected_pitch, Some(pitch));
-    let selected_widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let selected_widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let mut primitives = Vec::new();
     selected_widget.append_paint(
         &mut primitives,
@@ -105,18 +83,7 @@ fn piano_roll_keyboard_press_lights_pitch_lane_and_selects_pitch() {
 #[test]
 fn piano_roll_grid_hover_lights_matching_left_keyboard_note_row() {
     let state = PianoRollState::default();
-    let mut widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let keyboard = widget.keyboard_rect(bounds);

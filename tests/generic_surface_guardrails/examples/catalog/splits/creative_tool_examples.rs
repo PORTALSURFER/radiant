@@ -118,12 +118,14 @@ fn piano_roll_example_stays_split_by_widget_input_paint_and_tests() {
     );
     assert!(
         widget.contains("#[path = \"widget/input.rs\"]")
+            && widget.contains("#[path = \"widget/geometry_view.rs\"]")
             && widget.contains("#[path = \"widget/navigation_input.rs\"]")
+            && widget.contains("#[path = \"widget/note_input.rs\"]")
             && widget.contains("#[path = \"widget/pointer_input.rs\"]")
             && widget.contains("#[path = \"widget/velocity_input.rs\"]")
             && !widget.contains("fn handle_primary_press(")
             && !widget.contains("fn append_runtime_overlay_paint("),
-        "piano roll widget root should keep state and geometry while input, navigation input, pointer input, velocity input, and widget trait plumbing stay delegated"
+        "piano roll widget root should keep state while geometry, input, navigation input, pointer input, velocity input, and widget trait plumbing stay delegated"
     );
     assert!(
         paint.contains("#[path = \"widget_paint/grid.rs\"]")
@@ -171,25 +173,38 @@ fn piano_roll_example_stays_split_by_widget_input_paint_and_tests() {
         "examples/piano_roll/tests/marquee_selection.rs",
         "examples/piano_roll/tests/marquee_stress.rs",
         "examples/piano_roll/tests/model_behavior.rs",
+        "examples/piano_roll/tests/note_move_drag.rs",
         "examples/piano_roll/tests/note_drag.rs",
+        "examples/piano_roll/tests/note_static_paint.rs",
         "examples/piano_roll/tests/paint_static.rs",
         "examples/piano_roll/tests/pan_navigation.rs",
         "examples/piano_roll/tests/runtime.rs",
         "examples/piano_roll/tests/selection.rs",
+        "examples/piano_roll/tests/time_selection_drag.rs",
+        "examples/piano_roll/tests/time_selection_preview.rs",
         "examples/piano_roll/tests/velocity_drag.rs",
+        "examples/piano_roll/tests/velocity_drag_alt.rs",
+        "examples/piano_roll/tests/velocity_drag_group.rs",
         "examples/piano_roll/tests/velocity_paint.rs",
         "examples/piano_roll/tests/wheel_navigation.rs",
         "examples/piano_roll/view.rs",
         "examples/piano_roll/widget.rs",
+        "examples/piano_roll/widget/geometry_view.rs",
         "examples/piano_roll/widget/input.rs",
         "examples/piano_roll/widget/navigation_input.rs",
+        "examples/piano_roll/widget/note_input.rs",
         "examples/piano_roll/widget/pointer_input.rs",
         "examples/piano_roll/widget/velocity_input.rs",
         "examples/piano_roll/widget_paint.rs",
         "examples/piano_roll/widget_paint/grid.rs",
+        "examples/piano_roll/widget_paint/keyboard/octave.rs",
         "examples/piano_roll/widget_paint/keyboard.rs",
         "examples/piano_roll/widget_paint/note.rs",
+        "examples/piano_roll/widget_paint/overlay/drag_preview.rs",
+        "examples/piano_roll/widget_paint/overlay/hover.rs",
+        "examples/piano_roll/widget_paint/overlay/time_selection.rs",
         "examples/piano_roll/widget_paint/overlay.rs",
+        "examples/piano_roll/widget_paint/velocity/drag_preview.rs",
         "examples/piano_roll/widget_paint/velocity.rs",
     ] {
         let source = fs::read_to_string(manifest_dir.join(path))

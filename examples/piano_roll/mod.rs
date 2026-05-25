@@ -21,7 +21,7 @@ use std::hash::{Hash, Hasher};
 
 pub(crate) use model::PianoRollState;
 pub(crate) use view::project_surface;
-pub(crate) use widget::PianoRollWidget;
+pub(crate) use widget::{PianoRollWidget, PianoRollWidgetParts};
 
 pub(crate) const PIANO_ROLL_WIDGET_ID: u64 = 92;
 pub(crate) const STATUS_WIDGET_ID: u64 = 93;

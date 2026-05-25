@@ -5,7 +5,7 @@ use super::{
     geometry::{row_height_for, x_for_beat_view, y_for_pitch_view},
     model::{PianoNote, STRESS_NOTE_COUNT},
     paint, project_surface, update,
-    widget::{NoteResizeEdge, PianoRollWidget},
+    widget::{NoteResizeEdge, PianoRollWidget, PianoRollWidgetParts},
 };
 use radiant::prelude::*;
 use radiant::runtime::{RuntimeBridge, SurfaceRuntime};
@@ -23,6 +23,10 @@ mod marquee_stress;
 mod model_behavior;
 #[path = "tests/note_drag.rs"]
 mod note_drag;
+#[path = "tests/note_move_drag.rs"]
+mod note_move_drag;
+#[path = "tests/note_static_paint.rs"]
+mod note_static_paint;
 #[path = "tests/paint_static.rs"]
 mod paint_static;
 #[path = "tests/pan_navigation.rs"]
@@ -31,8 +35,16 @@ mod pan_navigation;
 mod runtime;
 #[path = "tests/selection.rs"]
 mod selection;
+#[path = "tests/time_selection_drag.rs"]
+mod time_selection_drag;
+#[path = "tests/time_selection_preview.rs"]
+mod time_selection_preview;
 #[path = "tests/velocity_drag.rs"]
 mod velocity_drag;
+#[path = "tests/velocity_drag_alt.rs"]
+mod velocity_drag_alt;
+#[path = "tests/velocity_drag_group.rs"]
+mod velocity_drag_group;
 #[path = "tests/velocity_paint.rs"]
 mod velocity_paint;
 #[path = "tests/wheel_navigation.rs"]
@@ -79,4 +91,11 @@ fn fill_alpha_for_rect(primitives: &[PaintPrimitive], rect: Rect) -> u8 {
             _ => None,
         })
         .expect("fill primitive for note rect should be painted")
+}
+
+fn velocity_for(velocities: &[(u32, f32)], id: u32) -> f32 {
+    velocities
+        .iter()
+        .find_map(|(note_id, velocity)| (*note_id == id).then_some(*velocity))
+        .unwrap_or_else(|| panic!("missing velocity for note {id}"))
 }

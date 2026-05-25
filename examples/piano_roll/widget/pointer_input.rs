@@ -2,9 +2,9 @@ use radiant::prelude::*;
 use radiant::widgets::PointerModifiers;
 
 use super::super::{
-    NoteSelectionMode, PianoRollMessage, PianoRollTool,
+    PianoRollMessage, PianoRollTool,
     drag::PianoDrag,
-    geometry::{beat_for_x_view, pitch_for_y_view, row_height_for},
+    geometry::{beat_for_x_view, pitch_for_y_view},
     model::PianoRollViewport,
     widget::PianoRollWidget,
 };
@@ -118,9 +118,7 @@ impl PianoRollWidget {
             return None;
         }
         if self.tool != PianoRollTool::Select && self.time_selection_contains(grid, position) {
-            let Some((source_start_beat, source_end_beat)) = self.time_selection else {
-                return None;
-            };
+            let (source_start_beat, source_end_beat) = self.time_selection?;
             self.hover_position = Some(position);
             self.hover_note = None;
             self.hover_note_resize_edge = None;
@@ -219,78 +217,6 @@ impl PianoRollWidget {
             self.message_for_finished_drag(grid, bounds, position, drag, modifiers)
         })
     }
-
-    fn handle_pan_drag(
-        &mut self,
-        grid: Rect,
-        position: Point,
-        start: Point,
-        start_viewport: PianoRollViewport,
-    ) -> Option<WidgetOutput> {
-        self.hover_position = Some(position);
-        let beat_delta =
-            -(position.x - start.x) * start_viewport.visible_beats / grid.width().max(1.0);
-        let pitch_delta =
-            ((position.y - start.y) / row_height_for(grid, start_viewport).max(1.0)).round() as i32;
-        let target = start_viewport.panned(beat_delta, pitch_delta);
-        let (beat_delta, pitch_delta) = self.viewport.pan_delta_to(target);
-        if beat_delta.abs() < f32::EPSILON && pitch_delta == 0 {
-            return None;
-        }
-        Some(WidgetOutput::custom(PianoRollMessage::PanViewport {
-            beat_delta,
-            pitch_delta,
-        }))
-    }
-
-    fn handle_note_press(
-        &mut self,
-        grid: Rect,
-        id: u32,
-        position: Point,
-        modifiers: PointerModifiers,
-    ) -> Option<WidgetOutput> {
-        if modifiers.alt {
-            return self.start_note_velocity_drag(id, position, modifiers);
-        }
-        if modifiers.shift || modifiers.command {
-            self.hover_note = Some(id);
-            self.hover_note_resize_edge = None;
-            self.hover_velocity_note = None;
-            self.hover_position = Some(position);
-            return Some(WidgetOutput::custom(PianoRollMessage::SelectNotes {
-                ids: vec![id],
-                mode: selection_mode(modifiers),
-            }));
-        }
-        self.start_note_drag(grid, id, position)
-    }
-
-    fn start_note_drag(&mut self, grid: Rect, id: u32, position: Point) -> Option<WidgetOutput> {
-        let note = self.note_by_id(id)?;
-        let ids = if self.note_is_selected(id) && !self.selected_notes.is_empty() {
-            self.selected_notes.clone()
-        } else {
-            self.selected_note = Some(id);
-            self.selected_notes = vec![id];
-            vec![id]
-        };
-        self.hover_note = Some(id);
-        self.hover_note_resize_edge = None;
-        self.hover_velocity_note = None;
-        self.drag = Some(PianoDrag::from_note_hit(
-            grid,
-            self.viewport,
-            note,
-            ids.clone(),
-            position,
-        ));
-        if ids.len() == 1 && ids[0] == id {
-            Some(WidgetOutput::custom(PianoRollMessage::SelectNote(id)))
-        } else {
-            None
-        }
-    }
 }
 
 fn hovered_pitch(
@@ -306,14 +232,4 @@ fn hovered_pitch(
         return Some(pitch_for_y_view(grid, viewport, position.y));
     }
     None
-}
-
-fn selection_mode(modifiers: PointerModifiers) -> NoteSelectionMode {
-    if modifiers.command {
-        NoteSelectionMode::Toggle
-    } else if modifiers.shift {
-        NoteSelectionMode::Add
-    } else {
-        NoteSelectionMode::Replace
-    }
 }

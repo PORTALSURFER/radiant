@@ -25,8 +25,8 @@ pub use events::{Event, PointerMoveOutcome};
 pub use scroll::ScrollUpdate;
 
 use super::{
-    ClipAncestors, Command, DragSession, ExternalDragSession, RuntimeBridge,
-    SurfaceRuntimeProjection, SurfaceTraversalIndex, UiSurface, WidgetDispatchResult, WidgetPath,
+    ClipAncestors, Command, DragSession, ExternalDragSession, RuntimeBridge, SurfaceTraversalIndex,
+    UiSurface, WidgetDispatchResult, WidgetPath,
 };
 use crate::{
     gui::types::{Point, Rect, Vector2},

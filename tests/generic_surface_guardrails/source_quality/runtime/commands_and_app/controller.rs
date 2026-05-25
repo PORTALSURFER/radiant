@@ -26,6 +26,15 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
         .expect("runtime controller focus module should be readable");
     let state = fs::read_to_string(manifest_dir.join("src/runtime/controller/state.rs"))
         .expect("runtime controller state module should be readable");
+    let state_layout =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/state/layout.rs"))
+            .expect("runtime controller state layout module should be readable");
+    let state_lifecycle =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/state/lifecycle.rs"))
+            .expect("runtime controller state lifecycle module should be readable");
+    let state_traversal =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/state/traversal.rs"))
+            .expect("runtime controller state traversal module should be readable");
     let outcome =
         fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/outcome.rs"))
             .expect("runtime command outcome module should be readable");
@@ -168,6 +177,38 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
             && state.contains("fn capture_pointer_capture_state")
             && state.contains("fn restore_pointer_capture_state"),
         "runtime controller state root should name controller, bridge, and widget identity dependencies without inheriting the controller root"
+    );
+    assert!(
+        state_layout.contains("use super::super::{SurfaceRuntime, SurfaceTraversalIndex};")
+            && state_layout.contains("gui::types::Vector2")
+            && state_layout.contains("layout::LayoutDiagnosticCode")
+            && state_layout.contains("runtime::RuntimeBridge")
+            && !state_layout.starts_with("use super::super::*;")
+            && state_layout.contains("fn sync_scroll_offsets"),
+        "runtime controller state layout should name controller, traversal, geometry, diagnostic, and bridge dependencies without inheriting the controller root"
+    );
+    assert!(
+        state_lifecycle.contains("RuntimeInteractionState")
+            && state_lifecycle.contains("RuntimeScratch")
+            && state_lifecycle.contains("RuntimeTraversalState")
+            && state_lifecycle.contains("RuntimeWorkQueues")
+            && state_lifecycle.contains("SurfaceRuntime")
+            && state_lifecycle.contains("gui::types::{Point, Rect, Vector2}")
+            && state_lifecycle
+                .contains("layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState}")
+            && state_lifecycle.contains("runtime::{RuntimeBridge, SurfaceRuntimeProjection}")
+            && !state_lifecycle.starts_with("use super::super::*;")
+            && state_lifecycle.contains("fn clear_stale_interaction_state")
+            && state_lifecycle.contains("fn normalized_viewport"),
+        "runtime controller state lifecycle should name runtime state, geometry, layout, bridge, and projection dependencies without inheriting the controller root"
+    );
+    assert!(
+        state_traversal.contains("use super::super::SurfaceRuntime;")
+            && state_traversal.contains("runtime::{RuntimeBridge, SurfaceTraversalIndex}")
+            && !state_traversal.starts_with("use super::super::*;")
+            && state_traversal.contains("fn install_traversal_index")
+            && state_traversal.contains("fn take_reusable_traversal_index"),
+        "runtime controller state traversal should name controller, bridge, and traversal dependencies without inheriting the controller root"
     );
     assert!(
         controller.contains("mod interaction_state;")

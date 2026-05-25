@@ -5,6 +5,13 @@ pub(super) type OverlayVec4Slots = [[f32; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS];
 pub(super) type OverlayColorSlots = [[f32; 4]; MAX_GPU_SURFACE_OVERLAYS];
 pub(super) type VerticalOverlayUniforms = (OverlayVec4Slots, OverlayVec4Slots, OverlayColorSlots);
 
+#[derive(Clone, Copy)]
+struct VerticalOverlayParts {
+    ratio: f32,
+    color: Rgba8,
+    width: f32,
+}
+
 pub(super) fn vertical_overlays(overlays: &[GpuSurfaceOverlay]) -> VerticalOverlayUniforms {
     let mut ratios = [[-1.0; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS];
     let mut widths = [[1.0; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS];
@@ -26,21 +33,25 @@ pub(super) fn vertical_overlays(overlays: &[GpuSurfaceOverlay]) -> VerticalOverl
         .take(MAX_GPU_SURFACE_OVERLAYS)
         .enumerate()
     {
-        let (ratio, color, width) = vertical_overlay_parts(*overlay);
-        ratios[index / 4][index % 4] = ratio;
-        widths[index / 4][index % 4] = width;
-        colors[index] = rgba_to_float(color);
+        let parts = vertical_overlay_parts(*overlay);
+        ratios[index / 4][index % 4] = parts.ratio;
+        widths[index / 4][index % 4] = parts.width;
+        colors[index] = rgba_to_float(parts.color);
     }
     (ratios, widths, colors)
 }
 
-fn vertical_overlay_parts(overlay: GpuSurfaceOverlay) -> (f32, Rgba8, f32) {
+fn vertical_overlay_parts(overlay: GpuSurfaceOverlay) -> VerticalOverlayParts {
     match overlay {
         GpuSurfaceOverlay::HorizontalRange { start, end, color } => {
             let Some((start, end)) = normalized_range(start, end) else {
                 return hidden_overlay(color);
             };
-            (start, color, -end)
+            VerticalOverlayParts {
+                ratio: start,
+                color,
+                width: -end,
+            }
         }
         GpuSurfaceOverlay::VerticalCursor {
             ratio,
@@ -51,11 +62,11 @@ fn vertical_overlay_parts(overlay: GpuSurfaceOverlay) -> (f32, Rgba8, f32) {
             ratio,
             color,
             width,
-        } => (
-            normalized_ratio(ratio).unwrap_or(-1.0),
+        } => VerticalOverlayParts {
+            ratio: normalized_ratio(ratio).unwrap_or(-1.0),
             color,
-            normalized_line_width(width),
-        ),
+            width: normalized_line_width(width),
+        },
     }
 }
 
@@ -77,8 +88,12 @@ fn normalized_line_width(width: f32) -> f32 {
     }
 }
 
-fn hidden_overlay(color: Rgba8) -> (f32, Rgba8, f32) {
-    (-1.0, color, 1.0)
+fn hidden_overlay(color: Rgba8) -> VerticalOverlayParts {
+    VerticalOverlayParts {
+        ratio: -1.0,
+        color,
+        width: 1.0,
+    }
 }
 
 fn rgba_to_float(color: Rgba8) -> [f32; 4] {

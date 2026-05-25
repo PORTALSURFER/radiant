@@ -181,6 +181,9 @@ fn runtime_scroll_support_keeps_affordance_and_hit_tests_focused() {
     let paint_scroll_tests =
         fs::read_to_string(manifest_dir.join("src/runtime/paint/scroll/tests.rs"))
             .expect("runtime paint scroll tests should be readable");
+    let controller_scroll =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/scroll.rs"))
+            .expect("runtime controller scroll root should be readable");
     let controller_scrollbar =
         fs::read_to_string(manifest_dir.join("src/runtime/controller/scroll/scrollbar.rs"))
             .expect("runtime controller scrollbar helpers should be readable");
@@ -200,6 +203,16 @@ fn runtime_scroll_support_keeps_affordance_and_hit_tests_focused() {
         paint_scroll_tests.contains("fn scroll_affordance_clamps_thumb_to_cramped_track")
             && paint_scroll_tests.contains("fn scroll_affordance_rejects_nonfinite_layout_rects"),
         "runtime scroll paint behavior coverage should live in paint/scroll/tests.rs"
+    );
+    assert!(
+        controller_scroll.contains("use super::SurfaceRuntime;")
+            && controller_scroll.contains("gui::types::{Point, Vector2}")
+            && controller_scroll.contains("layout::{NodeId, OverflowPolicy}")
+            && controller_scroll.contains("runtime::RuntimeBridge")
+            && !controller_scroll.starts_with("use super::*;")
+            && controller_scroll.contains("pub struct ScrollUpdate")
+            && controller_scroll.contains("fn scroll_container_at"),
+        "runtime controller scroll root should name controller, geometry, layout, bridge, and scroll-update dependencies"
     );
     assert!(
         controller_scrollbar.contains("fn scrollbar_hit_column_contains_point")

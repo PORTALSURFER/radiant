@@ -1,7 +1,12 @@
 mod scrollbar;
 mod wheel;
 
-use super::*;
+use super::SurfaceRuntime;
+use crate::{
+    gui::types::{Point, Vector2},
+    layout::{NodeId, OverflowPolicy},
+    runtime::RuntimeBridge,
+};
 
 /// Runtime-owned scroll movement reported to host bridges.
 #[derive(Clone, Copy, Debug, PartialEq)]

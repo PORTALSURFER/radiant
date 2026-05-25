@@ -35,7 +35,7 @@ use crate::{
         input::KeyPress,
         types::{Point, Rect, Vector2},
     },
-    layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState, NodeId, OverflowPolicy},
+    layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState, NodeId},
     theme::ThemeTokens,
     widgets::{WidgetId, WidgetInput, WidgetKey},
 };

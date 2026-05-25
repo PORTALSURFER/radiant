@@ -7,7 +7,7 @@ use super::super::{
     widget::PianoRollWidget,
 };
 
-pub(super) fn append_grid(
+pub(crate) fn append_grid(
     widget: &PianoRollWidget,
     primitives: &mut Vec<PaintPrimitive>,
     grid: Rect,

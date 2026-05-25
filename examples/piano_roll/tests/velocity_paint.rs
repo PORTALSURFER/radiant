@@ -67,6 +67,52 @@ fn piano_roll_velocity_pillars_align_to_note_start() {
 }
 
 #[test]
+fn piano_roll_velocity_handle_hover_paints_runtime_highlight() {
+    let state = PianoRollState::default();
+    let mut widget = PianoRollWidget::new(
+        state.notes.clone(),
+        state.selected_note,
+        state.selected_notes,
+        state.selected_pitch,
+        state.edit_cursor_beat,
+        state.time_selection,
+        state.snap_enabled,
+        state.playhead_beat,
+        state.viewport,
+        state.tool,
+    );
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
+    let lane = widget.velocity_rect(bounds);
+    let note = widget.note_by_id(2).expect("default note should exist");
+    let handle = widget.velocity_handle_rect(lane, note);
+
+    widget.handle_input(
+        bounds,
+        WidgetInput::PointerMove {
+            position: handle.center(),
+        },
+    );
+    let mut overlay = Vec::new();
+    widget.append_runtime_overlay_paint(
+        &mut overlay,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+
+    assert_eq!(widget.hover_velocity_note, Some(note.id));
+    assert!(overlay.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::StrokeRect(stroke)
+                if stroke.rect == handle
+                    && stroke.color == paint::translucent(ThemeTokens::default().text_primary, 245)
+                    && stroke.width == 2.0
+        )
+    }));
+}
+
+#[test]
 fn piano_roll_note_fill_alpha_tracks_velocity_with_visible_floor() {
     let mut state = PianoRollState::default();
     state.notes = vec![

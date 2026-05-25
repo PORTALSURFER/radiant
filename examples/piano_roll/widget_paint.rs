@@ -19,7 +19,7 @@ pub(super) use keyboard::{
 };
 pub(super) use note::append_notes;
 pub(super) use overlay::{append_drag_preview, append_hover_guides, append_time_selection};
-pub(super) use velocity::append_velocity_lane;
+pub(super) use velocity::{append_velocity_handle_hover, append_velocity_lane};
 
 pub(super) fn append_editor_clip_start(
     widget: &PianoRollWidget,

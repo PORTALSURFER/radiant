@@ -29,6 +29,7 @@ impl PianoRollWidget {
         };
         SelectionSet::normalize_vec(&mut ids);
         self.hover_note = None;
+        self.hover_velocity_note = None;
         self.hover_position = Some(position);
         let start_pointer_velocity = velocity_for_y(lane, position.y);
         self.drag = Some(PianoDrag::Velocity {
@@ -50,6 +51,7 @@ impl PianoRollWidget {
         *current = position;
         self.hover_position = Some(position);
         self.hover_note = None;
+        self.hover_velocity_note = None;
         self.hover_pitch = None;
         None
     }
@@ -63,6 +65,7 @@ impl PianoRollWidget {
         let next_velocity = velocity_for_y(velocity_lane, position.y);
         self.hover_position = Some(position);
         self.hover_note = None;
+        self.hover_velocity_note = None;
         self.hover_pitch = None;
         let Some(PianoDrag::Velocity {
             current_pointer_velocity,
@@ -124,28 +127,16 @@ impl PianoRollWidget {
         }
     }
 
-    fn velocity_note_at(&self, lane: Rect, position: Point) -> Option<PianoNote> {
+    pub(in crate::piano_roll::widget) fn velocity_note_at(
+        &self,
+        lane: Rect,
+        position: Point,
+    ) -> Option<PianoNote> {
         self.notes
             .iter()
             .rev()
             .copied()
-            .find(|note| {
-                self.note_is_selected(note.id)
-                    && self.velocity_column_rect(lane, *note).contains(position)
-            })
-            .or_else(|| {
-                self.notes
-                    .iter()
-                    .rev()
-                    .copied()
-                    .find(|note| self.velocity_handle_rect(lane, *note).contains(position))
-            })
-    }
-
-    fn velocity_column_rect(&self, lane: Rect, note: PianoNote) -> Rect {
-        let x0 = x_for_beat_view(lane, self.viewport, note.start_beat);
-        let x1 = x_for_beat_view(lane, self.viewport, note.end_beat()).max(x0 + 8.0);
-        Rect::from_min_max(Point::new(x0, lane.min.y), Point::new(x1, lane.max.y))
+            .find(|note| self.velocity_handle_rect(lane, *note).contains(position))
     }
 
     fn start_velocity_marquee(
@@ -154,6 +145,7 @@ impl PianoRollWidget {
         modifiers: PointerModifiers,
     ) -> Option<WidgetOutput> {
         self.hover_note = None;
+        self.hover_velocity_note = None;
         self.hover_pitch = None;
         self.hover_position = Some(position);
         self.drag = Some(PianoDrag::VelocityMarquee {

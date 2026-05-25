@@ -43,6 +43,40 @@ pub(crate) fn append_velocity_lane(
     );
 }
 
+pub(crate) fn append_velocity_handle_hover(
+    widget: &PianoRollWidget,
+    primitives: &mut Vec<PaintPrimitive>,
+    lane: Rect,
+    theme: &ThemeTokens,
+) {
+    let Some(note) = widget
+        .hover_velocity_note
+        .and_then(|id| widget.note_by_id(id))
+    else {
+        return;
+    };
+    if matches!(
+        widget.drag,
+        Some(PianoDrag::Velocity { .. } | PianoDrag::VelocityMarquee { .. })
+    ) {
+        return;
+    }
+    let handle = widget.velocity_handle_rect(lane, note).clamp_to(lane);
+    push_rect(
+        primitives,
+        widget.common.id,
+        handle,
+        translucent(theme.highlight_orange, 180),
+    );
+    push_stroke(
+        primitives,
+        widget.common.id,
+        handle,
+        translucent(theme.text_primary, 245),
+        2.0,
+    );
+}
+
 fn append_velocity_pillars(
     widget: &PianoRollWidget,
     primitives: &mut Vec<PaintPrimitive>,

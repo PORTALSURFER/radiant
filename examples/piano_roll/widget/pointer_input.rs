@@ -18,6 +18,7 @@ impl PianoRollWidget {
     ) -> Option<WidgetOutput> {
         self.common.state.hovered = bounds.contains(position);
         let keyboard = self.keyboard_rect(bounds);
+        let velocity = self.velocity_rect(bounds);
         self.hover_pitch = hovered_pitch(self.viewport, keyboard, grid, position);
         if let Some(PianoDrag::Pan {
             start,
@@ -33,6 +34,7 @@ impl PianoRollWidget {
             *current = position;
             self.hover_position = Some(position);
             self.hover_note = None;
+            self.hover_velocity_note = None;
             self.hover_pitch = hovered_pitch(self.viewport, keyboard, grid, position);
             return None;
         }
@@ -43,6 +45,7 @@ impl PianoRollWidget {
             *current = position;
             self.hover_position = Some(position);
             self.hover_note = None;
+            self.hover_velocity_note = None;
             self.hover_pitch = hovered_pitch(self.viewport, keyboard, grid, position);
             return None;
         }
@@ -53,6 +56,7 @@ impl PianoRollWidget {
             *current = position;
             self.hover_position = Some(position);
             self.hover_note = None;
+            self.hover_velocity_note = None;
             self.hover_pitch = None;
             return None;
         }
@@ -62,11 +66,22 @@ impl PianoRollWidget {
         if matches!(self.drag, Some(PianoDrag::Velocity { .. })) {
             return self.update_velocity_drag(bounds, position);
         }
+        self.hover_velocity_note = velocity
+            .contains(position)
+            .then(|| {
+                self.velocity_note_at(velocity, position)
+                    .map(|note| note.id)
+            })
+            .flatten();
         self.hover_position = grid.contains(position).then_some(position);
         if self.drag.is_some() {
             return None;
         }
-        self.hover_note = self.note_at_position(grid, position);
+        self.hover_note = if self.hover_velocity_note.is_some() {
+            None
+        } else {
+            self.note_at_position(grid, position)
+        };
         None
     }
 
@@ -82,6 +97,7 @@ impl PianoRollWidget {
         if modifiers.shift {
             self.hover_position = Some(position);
             self.hover_note = None;
+            self.hover_velocity_note = None;
             self.hover_pitch = Some(pitch);
             self.drag = Some(PianoDrag::Marquee {
                 start: position,
@@ -96,6 +112,7 @@ impl PianoRollWidget {
             };
             self.hover_position = Some(position);
             self.hover_note = None;
+            self.hover_velocity_note = None;
             self.hover_pitch = None;
             self.drag = Some(PianoDrag::MoveTimeSelection {
                 source_start_beat,
@@ -110,6 +127,7 @@ impl PianoRollWidget {
         }
         self.hover_position = Some(position);
         self.hover_note = None;
+        self.hover_velocity_note = None;
         self.hover_pitch = Some(pitch);
         if self.tool == PianoRollTool::Select {
             self.drag = Some(PianoDrag::Marquee {
@@ -143,6 +161,7 @@ impl PianoRollWidget {
         let pitch = pitch_for_y_view(grid, self.viewport, position.y);
         self.hover_position = Some(position);
         self.hover_note = None;
+        self.hover_velocity_note = None;
         self.hover_pitch = Some(pitch);
         let cursor_beat = self.resolve_beat(beat);
         self.edit_cursor_beat = Some(cursor_beat);
@@ -161,6 +180,7 @@ impl PianoRollWidget {
         let pitch = pitch_for_y_view(keyboard, self.viewport, position.y);
         self.hover_position = Some(position);
         self.hover_note = None;
+        self.hover_velocity_note = None;
         self.hover_pitch = Some(pitch);
         self.active_pitch = Some(pitch);
         Some(WidgetOutput::custom(PianoRollMessage::SelectPitch(pitch)))
@@ -176,6 +196,7 @@ impl PianoRollWidget {
         let drag = self.drag.take();
         self.active_pitch = None;
         self.hover_note = self.note_at_position(grid, position);
+        self.hover_velocity_note = None;
         let keyboard = self.keyboard_rect(bounds);
         self.hover_pitch = hovered_pitch(self.viewport, keyboard, grid, position);
         drag.and_then(|drag| {
@@ -215,6 +236,7 @@ impl PianoRollWidget {
     ) -> Option<WidgetOutput> {
         if modifiers.shift || modifiers.command {
             self.hover_note = Some(id);
+            self.hover_velocity_note = None;
             self.hover_position = Some(position);
             return Some(WidgetOutput::custom(PianoRollMessage::SelectNotes {
                 ids: vec![id],
@@ -234,6 +256,7 @@ impl PianoRollWidget {
             vec![id]
         };
         self.hover_note = Some(id);
+        self.hover_velocity_note = None;
         self.drag = Some(PianoDrag::from_note_hit(
             grid,
             self.viewport,

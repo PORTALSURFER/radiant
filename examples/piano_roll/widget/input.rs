@@ -9,7 +9,8 @@ use super::super::{
     widget_paint::{
         append_drag_preview, append_editor_clip_end, append_editor_clip_start, append_grid,
         append_hover_guides, append_keyboard, append_keyboard_interaction, append_notes,
-        append_selected_pitch_lane, append_time_selection, append_velocity_lane,
+        append_selected_pitch_lane, append_time_selection, append_velocity_handle_hover,
+        append_velocity_lane,
     },
 };
 
@@ -108,6 +109,7 @@ impl Widget for PianoRollWidget {
         if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
             self.common.state = previous.common.state;
             self.hover_note = previous.hover_note;
+            self.hover_velocity_note = previous.hover_velocity_note;
             self.hover_pitch = previous.hover_pitch;
             self.active_pitch = previous.active_pitch;
             self.hover_position = previous.hover_position;
@@ -157,6 +159,7 @@ impl Widget for PianoRollWidget {
         append_editor_clip_start(self, primitives, grid);
         append_time_selection(self, primitives, grid, theme);
         append_hover_guides(self, primitives, grid, theme);
+        append_velocity_handle_hover(self, primitives, self.velocity_rect(bounds), theme);
         if let Some(position) = self.hover_position {
             append_drag_preview(
                 self,

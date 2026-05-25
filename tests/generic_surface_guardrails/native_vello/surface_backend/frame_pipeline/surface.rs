@@ -53,6 +53,7 @@ fn native_surface_setup_uses_explicit_imports() {
             && surface.contains("select_present_mode")
             && surface.contains("startup_renderer_options")
             && surface.contains("runtime::RuntimeBridge")
+            && surface.contains("theme::DpiScale")
             && surface.contains("use std::{sync::Arc, time::Instant};")
             && surface.contains("use tracing::{error, info, warn};")
             && surface.contains("use vello::{Renderer, wgpu};")
@@ -63,10 +64,14 @@ fn native_surface_setup_uses_explicit_imports() {
     assert!(
         production_surface.contains("fn initialize_runtime")
             && production_surface.contains("fn resize_surface")
+            && production_surface.contains("fn update_native_dpi_scale")
+            && production_surface.contains("fn set_dpi_scale_override")
+            && production_surface.contains("fn active_dpi_scale")
+            && production_surface.contains("fn logical_viewport_for_size")
             && production_surface.contains("fn acquire_present_surface_texture")
             && production_surface.contains("fn surface_size_changed")
             && !production_surface.contains("winit::dpi::PhysicalSize"),
-        "native surface setup should keep initialization, resize, acquire, and physical-size comparison focused"
+        "native surface setup should keep initialization, resize, DPI viewport conversion, acquire, and physical-size comparison focused"
     );
     assert!(
         backend.contains("use crate::gui_runtime::{NativeGpuBackend, NativeRunOptions};")

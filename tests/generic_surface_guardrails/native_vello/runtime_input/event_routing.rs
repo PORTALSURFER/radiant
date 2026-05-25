@@ -188,7 +188,8 @@ fn native_pointer_lifecycle_uses_explicit_imports() {
         lifecycle_pointer.contains("fn handle_cursor_moved(")
             && lifecycle_pointer.contains("fn handle_cursor_left(")
             && lifecycle_pointer.contains("PhysicalPosition<f64>")
-            && lifecycle_pointer.contains("logical_point_from_winit(position)")
+            && lifecycle_pointer
+                .contains("logical_point_from_winit(position, self.window.dpi_scale)")
             && lifecycle_pointer.contains("maybe_log_route_profile(\"pointer_move\"")
             && !lifecycle_pointer.contains("winit::dpi::PhysicalPosition"),
         "native pointer lifecycle should keep cursor move and cursor-left routing focused"

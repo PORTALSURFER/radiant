@@ -20,6 +20,16 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             "radiant_theme_playground",
         ],
     ),
+    (
+        "dpi_scaling",
+        &[
+            "use radiant::theme::DpiScale;",
+            "Command::set_dpi_scale(",
+            "Command::set_window_logical_size(",
+            "DpiScaleChoice::Two",
+            "dpi_scaling_example_projects_metrics_for_selected_scale",
+        ],
+    ),
     ("scroll", &["scroll_column(", ".fill_height()"]),
     (
         "sizing",

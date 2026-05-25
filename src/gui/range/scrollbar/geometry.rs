@@ -9,21 +9,21 @@ pub fn resolve_normalized_scrollbar(
     if request.track.width() <= 1.0 || request.track.height() <= 1.0 {
         return None;
     }
-    let (start, _, span) = clamped_normalized_span(request.start_micros, request.end_micros);
-    if span >= 999_999 {
+    let span = NormalizedScrollbarSpan::new(request.start_micros, request.end_micros);
+    if span.width_micros >= 999_999 {
         return None;
     }
 
     let min_thumb_width = request.min_thumb_width.max(1.0).min(request.track.width());
-    let thumb_width = (request.track.width() * (span as f32 / 1_000_000.0))
+    let thumb_width = (request.track.width() * span.width_ratio())
         .round()
         .clamp(min_thumb_width, request.track.width());
     let travel = (request.track.width() - thumb_width).max(0.0);
-    let max_start = 1_000_000u32.saturating_sub(span);
+    let max_start = span.max_start_micros();
     let start_ratio = if max_start == 0 {
         0.0
     } else {
-        start.min(max_start) as f32 / max_start as f32
+        span.start_micros.min(max_start) as f32 / max_start as f32
     };
     let thumb_min_x = (request.track.min.x + travel * start_ratio).round();
     let thumb_max_x = (thumb_min_x + thumb_width).min(request.track.max.x);
@@ -67,8 +67,8 @@ pub fn normalized_scrollbar_center_for_pointer(
     pointer_x: f32,
     thumb_pointer_offset_x: f32,
 ) -> Option<u32> {
-    let (_, _, span) = clamped_normalized_span(start_micros, end_micros);
-    let max_start = 1_000_000u32.saturating_sub(span);
+    let span = NormalizedScrollbarSpan::new(start_micros, end_micros);
+    let max_start = span.max_start_micros();
     let thumb_width = scrollbar
         .thumb
         .width()
@@ -82,7 +82,7 @@ pub fn normalized_scrollbar_center_for_pointer(
         .clamp(scrollbar.track.min.x, scrollbar.track.max.x - thumb_width);
     let start_ratio = ((thumb_min_x - scrollbar.track.min.x) / travel).clamp(0.0, 1.0);
     let view_start = ((start_ratio * max_start as f32).round() as u32).min(max_start);
-    Some((view_start + span / 2).min(1_000_000))
+    Some(span.center_for_start(view_start))
 }
 
 /// Resolve the normalized viewport center for a click inside the scrollbar track.
@@ -104,9 +104,33 @@ pub fn normalized_scrollbar_center_at_point(
     )
 }
 
-fn clamped_normalized_span(start_micros: u32, end_micros: u32) -> (u32, u32, u32) {
-    let start = start_micros.min(1_000_000);
-    let end = end_micros.min(1_000_000).max(start.saturating_add(1));
-    let span = end.saturating_sub(start).max(1);
-    (start, end, span)
+struct NormalizedScrollbarSpan {
+    start_micros: u32,
+    width_micros: u32,
+}
+
+impl NormalizedScrollbarSpan {
+    fn new(start_micros: u32, end_micros: u32) -> Self {
+        let start_micros = start_micros.min(1_000_000);
+        let end_micros = end_micros
+            .min(1_000_000)
+            .max(start_micros.saturating_add(1));
+        let width_micros = end_micros.saturating_sub(start_micros).max(1);
+        Self {
+            start_micros,
+            width_micros,
+        }
+    }
+
+    fn width_ratio(&self) -> f32 {
+        self.width_micros as f32 / 1_000_000.0
+    }
+
+    fn max_start_micros(&self) -> u32 {
+        1_000_000u32.saturating_sub(self.width_micros)
+    }
+
+    fn center_for_start(&self, start_micros: u32) -> u32 {
+        (start_micros + self.width_micros / 2).min(1_000_000)
+    }
 }

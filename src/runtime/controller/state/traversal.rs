@@ -1,4 +1,5 @@
-use super::super::*;
+use super::super::SurfaceRuntime;
+use crate::runtime::{RuntimeBridge, SurfaceTraversalIndex};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where

@@ -1,4 +1,5 @@
-use super::super::*;
+use super::super::{SurfaceRuntime, SurfaceTraversalIndex};
+use crate::{gui::types::Vector2, layout::LayoutDiagnosticCode, runtime::RuntimeBridge};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
@@ -46,8 +47,7 @@ where
                 .diagnostics
                 .iter()
                 .filter(|diagnostic| {
-                    diagnostic.code
-                        == crate::layout::LayoutDiagnosticCode::InvalidScrollOffsetClamped
+                    diagnostic.code == LayoutDiagnosticCode::InvalidScrollOffsetClamped
                 })
                 .filter_map(|diagnostic| {
                     let child_rect = self.layout.rects.get(

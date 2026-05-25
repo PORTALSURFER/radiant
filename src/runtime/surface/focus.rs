@@ -1,4 +1,4 @@
-use super::*;
+use super::{SurfaceNode, UiSurface, WidgetId};
 
 #[cfg(test)]
 #[path = "focus/tests.rs"]

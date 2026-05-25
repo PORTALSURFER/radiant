@@ -6,65 +6,132 @@ use crate::runtime::GpuShaderSurfaceDescriptor;
 use tracing::warn;
 use vello::wgpu;
 
+pub(super) struct CustomShaderPipelineRequest<'a> {
+    pub(super) surface_key: u64,
+    pub(super) device: &'a wgpu::Device,
+    pub(super) target_format: wgpu::TextureFormat,
+    pub(super) key: CustomShaderPipelineKey,
+}
+
+struct CreatedCustomShaderPipeline {
+    bind_group_layout: wgpu::BindGroupLayout,
+    pipeline: wgpu::RenderPipeline,
+}
+
 impl GpuSurfaceRenderer {
     pub(super) fn ensure_custom_shader_pipeline(
         &mut self,
-        surface_key: u64,
-        device: &wgpu::Device,
-        target_format: wgpu::TextureFormat,
-        key: CustomShaderPipelineKey,
+        request: CustomShaderPipelineRequest<'_>,
         stats: &mut GpuSurfaceRenderStats,
     ) {
-        let rebuild = self
-            .resources
-            .custom_shader_pipelines
-            .get(&surface_key)
-            .is_none_or(|pipeline| !pipeline.matches(device, target_format, &key));
-        if !rebuild {
+        if !self.custom_shader_pipeline_needs_rebuild(&request) {
             return;
         }
         stats.custom_shader.pipeline_rebuilds += 1;
-        self.resources.custom_shader_bindings.remove(&surface_key);
-        device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("radiant_custom_shader_surface_shader"),
-            source: wgpu::ShaderSource::Wgsl(key.wgsl_source.as_ref().into()),
-        });
-        if let Some(error) = custom_shader_validation_error(device) {
-            stats.custom_shader.failures.shader_module_failures += 1;
-            warn!(
-                surface_key,
-                shader_key = %key.shader_key,
-                error = %error,
-                "radiant custom shader WGSL module validation failed"
-            );
-            self.resources.custom_shader_pipelines.remove(&surface_key);
+        self.resources
+            .custom_shader_bindings
+            .remove(&request.surface_key);
+        let Some(shader) = create_custom_shader_module(&request, stats) else {
+            self.resources
+                .custom_shader_pipelines
+                .remove(&request.surface_key);
             return;
-        }
-        device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("radiant_custom_shader_surface_bind_group_layout"),
-            entries: &custom_shader_layout_entries(&key),
+        };
+        let Some(created) = create_custom_shader_pipeline(&request, &shader, stats) else {
+            self.resources
+                .custom_shader_pipelines
+                .remove(&request.surface_key);
+            return;
+        };
+        self.resources.custom_shader_pipelines.insert(
+            request.surface_key,
+            CustomShaderPipeline {
+                format: request.target_format,
+                device: wgpu_device_id(request.device),
+                key: request.key,
+                bind_group_layout: created.bind_group_layout,
+                pipeline: created.pipeline,
+            },
+        );
+    }
+
+    fn custom_shader_pipeline_needs_rebuild(
+        &self,
+        request: &CustomShaderPipelineRequest<'_>,
+    ) -> bool {
+        self.resources
+            .custom_shader_pipelines
+            .get(&request.surface_key)
+            .is_none_or(|pipeline| {
+                !pipeline.matches(request.device, request.target_format, &request.key)
+            })
+    }
+}
+
+fn create_custom_shader_module(
+    request: &CustomShaderPipelineRequest<'_>,
+    stats: &mut GpuSurfaceRenderStats,
+) -> Option<wgpu::ShaderModule> {
+    request
+        .device
+        .push_error_scope(wgpu::ErrorFilter::Validation);
+    let shader = request
+        .device
+        .create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("radiant_custom_shader_surface_shader"),
+            source: wgpu::ShaderSource::Wgsl(request.key.wgsl_source.as_ref().into()),
         });
-        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+    if let Some(error) = custom_shader_validation_error(request.device) {
+        stats.custom_shader.failures.shader_module_failures += 1;
+        warn!(
+            surface_key = request.surface_key,
+            shader_key = %request.key.shader_key,
+            error = %error,
+            "radiant custom shader WGSL module validation failed"
+        );
+        return None;
+    }
+    Some(shader)
+}
+
+fn create_custom_shader_pipeline(
+    request: &CustomShaderPipelineRequest<'_>,
+    shader: &wgpu::ShaderModule,
+    stats: &mut GpuSurfaceRenderStats,
+) -> Option<CreatedCustomShaderPipeline> {
+    request
+        .device
+        .push_error_scope(wgpu::ErrorFilter::Validation);
+    let bind_group_layout =
+        request
+            .device
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("radiant_custom_shader_surface_bind_group_layout"),
+                entries: &custom_shader_layout_entries(&request.key),
+            });
+    let layout = request
+        .device
+        .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("radiant_custom_shader_surface_pipeline_layout"),
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+    let pipeline = request
+        .device
+        .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("radiant_custom_shader_surface_pipeline"),
             layout: Some(&layout),
             vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some(&key.vertex_entry_point),
+                module: shader,
+                entry_point: Some(&request.key.vertex_entry_point),
                 buffers: &[],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some(&key.fragment_entry_point),
+                module: shader,
+                entry_point: Some(&request.key.fragment_entry_point),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: target_format,
+                    format: request.target_format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -79,30 +146,22 @@ impl GpuSurfaceRenderer {
             multiview: None,
             cache: None,
         });
-        if let Some(error) = custom_shader_validation_error(device) {
-            stats.custom_shader.failures.pipeline_failures += 1;
-            warn!(
-                surface_key,
-                shader_key = %key.shader_key,
-                vertex_entry_point = %key.vertex_entry_point,
-                fragment_entry_point = %key.fragment_entry_point,
-                error = %error,
-                "radiant custom shader render pipeline validation failed"
-            );
-            self.resources.custom_shader_pipelines.remove(&surface_key);
-            return;
-        }
-        self.resources.custom_shader_pipelines.insert(
-            surface_key,
-            CustomShaderPipeline {
-                format: target_format,
-                device: wgpu_device_id(device),
-                key,
-                bind_group_layout,
-                pipeline,
-            },
+    if let Some(error) = custom_shader_validation_error(request.device) {
+        stats.custom_shader.failures.pipeline_failures += 1;
+        warn!(
+            surface_key = request.surface_key,
+            shader_key = %request.key.shader_key,
+            vertex_entry_point = %request.key.vertex_entry_point,
+            fragment_entry_point = %request.key.fragment_entry_point,
+            error = %error,
+            "radiant custom shader render pipeline validation failed"
         );
+        return None;
     }
+    Some(CreatedCustomShaderPipeline {
+        bind_group_layout,
+        pipeline,
+    })
 }
 
 fn custom_shader_layout_entries(key: &CustomShaderPipelineKey) -> Vec<wgpu::BindGroupLayoutEntry> {
@@ -157,46 +216,5 @@ pub(super) fn custom_shader_pipeline_key(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn custom_shader_pipeline_key_requires_source_and_fragment_entry() {
-        let missing_source = GpuShaderSurfaceDescriptor::new("test/custom-shader")
-            .fragment_entry_point("fragment_main");
-        let missing_fragment = GpuShaderSurfaceDescriptor::new("test/custom-shader").wgsl_source(
-            "@vertex fn vertex_main() -> @builtin(position) vec4<f32> { return vec4<f32>(); }",
-        );
-        let complete = missing_fragment
-            .clone()
-            .fragment_entry_point("fragment_main");
-
-        assert_eq!(custom_shader_pipeline_key(&missing_source), None);
-        assert_eq!(custom_shader_pipeline_key(&missing_fragment), None);
-        assert_eq!(
-            custom_shader_pipeline_key(&complete).map(|key| (
-                key.fragment_entry_point,
-                key.has_uniform_payload,
-                key.has_storage_payload,
-            )),
-            Some((String::from("fragment_main"), false, false))
-        );
-    }
-
-    #[test]
-    fn custom_shader_pipeline_key_tracks_payload_bindings() {
-        let descriptor = GpuShaderSurfaceDescriptor::new("test/custom-shader")
-            .wgsl_source(
-                "@vertex fn vertex_main() -> @builtin(position) vec4<f32> { return vec4<f32>(); }",
-            )
-            .fragment_entry_point("fragment_main")
-            .uniform_bytes([1, 2, 3, 4])
-            .storage_bytes([5, 6, 7, 8]);
-
-        assert_eq!(
-            custom_shader_pipeline_key(&descriptor)
-                .map(|key| (key.has_uniform_payload, key.has_storage_payload,)),
-            Some((true, true))
-        );
-    }
-}
+#[path = "pipeline/tests.rs"]
+mod tests;

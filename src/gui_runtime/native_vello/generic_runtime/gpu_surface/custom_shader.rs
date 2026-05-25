@@ -14,7 +14,7 @@ mod diagnostics;
 #[path = "custom_shader/pipeline.rs"]
 mod pipeline;
 use diagnostics::{record_failed_custom_shader_surface, record_unsupported_custom_shader};
-use pipeline::custom_shader_pipeline_key;
+use pipeline::{CustomShaderPipelineRequest, custom_shader_pipeline_key};
 
 impl GpuSurfaceRenderer {
     pub(super) fn render_custom_shader(
@@ -37,10 +37,12 @@ impl GpuSurfaceRenderer {
             return;
         };
         self.ensure_custom_shader_pipeline(
-            surface.key,
-            target.device,
-            target.format,
-            pipeline_key,
+            CustomShaderPipelineRequest {
+                surface_key: surface.key,
+                device: target.device,
+                target_format: target.format,
+                key: pipeline_key,
+            },
             stats,
         );
         if !self

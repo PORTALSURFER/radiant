@@ -101,18 +101,34 @@ fn interactive_row_primitive_keeps_surface_mappers_focused() {
     let builders =
         fs::read_to_string(manifest_dir.join("src/widgets/primitives/interactive_row/builders.rs"))
             .expect("interactive-row primitive builders should be readable");
+    let input =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/interactive_row/input.rs"))
+            .expect("interactive-row input module should be readable");
 
     assert!(
         root.contains("mod builders;")
+            && root.contains("mod input;")
             && root.contains("pub struct InteractiveRowWidget")
             && root.contains("impl Widget for InteractiveRowWidget")
             && !root.contains("impl<Message> WidgetMessageMapper<Message>"),
-        "interactive-row primitive root should own widget behavior and delegate runtime mappers"
+        "interactive-row primitive root should own widget state while delegating runtime mappers and backend-neutral input routing"
     );
     assert!(
         builders.contains("impl<Message> WidgetMessageMapper<Message>")
             && builders.contains("pub fn interactive_row("),
         "interactive-row runtime mapper helper should live in interactive_row/builders.rs"
+    );
+    assert!(
+        input.contains("use super::InteractiveRowWidget;")
+            && input.contains("gui::types::Rect")
+            && input.contains("InteractiveRowMessage")
+            && input.contains("WidgetInput")
+            && input.contains("DragHandleMessage")
+            && input.contains("PointerButton")
+            && input.contains("WidgetKey")
+            && !input.contains("use super::*;")
+            && input.contains("pub fn handle_input("),
+        "interactive-row input routing should name row, geometry, input, key, pointer, drag, and output-message dependencies explicitly"
     );
 }
 

@@ -1,4 +1,4 @@
-use super::super::*;
+use crate::gui::types::Rect as UiRect;
 use crate::gui_runtime::native_vello::generic_runtime::runtime_helpers::intersect_rect;
 use crate::runtime::PaintPrimitive;
 
@@ -26,7 +26,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn gpu_su
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::types::{Point, Rgba8};
+    use crate::gui::types::{Point, Rgba8, Vector2};
 
     #[test]
     fn gpu_surface_opaque_suffix_regions_ignore_translucent_fills() {

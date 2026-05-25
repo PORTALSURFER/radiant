@@ -14,22 +14,37 @@ struct CustomShaderBindingBuffers {
     storage_buffer: Option<wgpu::Buffer>,
 }
 
+pub(super) struct CustomShaderBindingRequest<'a> {
+    pub(super) device: &'a wgpu::Device,
+    pub(super) surface_key: u64,
+    pub(super) descriptor: &'a GpuShaderSurfaceDescriptor,
+}
+
+struct CustomShaderBufferSpec {
+    label: Option<&'static str>,
+    size: usize,
+    usage: wgpu::BufferUsages,
+}
+
 impl GpuSurfaceRenderer {
     pub(super) fn ensure_custom_shader_binding(
         &mut self,
-        device: &wgpu::Device,
-        surface_key: u64,
-        descriptor: &GpuShaderSurfaceDescriptor,
+        request: CustomShaderBindingRequest<'_>,
         stats: &mut GpuSurfaceRenderStats,
     ) {
-        let Some(pipeline) = self.resources.custom_shader_pipelines.get(&surface_key) else {
+        let device = request.device;
+        let Some(pipeline) = self
+            .resources
+            .custom_shader_pipelines
+            .get(&request.surface_key)
+        else {
             return;
         };
-        let cache_key = custom_shader_binding_key(&pipeline.key, descriptor);
+        let cache_key = custom_shader_binding_key(&pipeline.key, request.descriptor);
         let rebuild = self
             .resources
             .custom_shader_bindings
-            .get(&surface_key)
+            .get(&request.surface_key)
             .is_none_or(|binding| binding.cache_key != cache_key);
         if !rebuild {
             stats.custom_shader.binding_cache_hits += 1;
@@ -37,23 +52,25 @@ impl GpuSurfaceRenderer {
         }
         stats.custom_shader.binding_rebuilds += 1;
         device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let buffers = custom_shader_binding_buffers(device, descriptor);
+        let buffers = custom_shader_binding_buffers(device, request.descriptor);
         let bind_group = custom_shader_bind_group(device, &pipeline.bind_group_layout, &buffers);
         if let Some(error) = custom_shader_validation_error(device) {
             stats.custom_shader.failures.binding_failures += 1;
             warn!(
-                surface_key,
+                surface_key = request.surface_key,
                 shader_key = %pipeline.key.shader_key,
-                uniform_bytes = descriptor.uniform_bytes.len(),
-                storage_bytes = descriptor.storage_bytes.len(),
+                uniform_bytes = request.descriptor.uniform_bytes.len(),
+                storage_bytes = request.descriptor.storage_bytes.len(),
                 error = %error,
                 "radiant custom shader bind group validation failed"
             );
-            self.resources.custom_shader_bindings.remove(&surface_key);
+            self.resources
+                .custom_shader_bindings
+                .remove(&request.surface_key);
             return;
         }
         self.resources.custom_shader_bindings.insert(
-            surface_key,
+            request.surface_key,
             CustomShaderBinding {
                 cache_key,
                 surface_uniform_buffer: buffers.surface_uniform_buffer,
@@ -82,24 +99,30 @@ fn custom_shader_binding_buffers(
 ) -> CustomShaderBindingBuffers {
     let surface_uniform_buffer = custom_shader_buffer(
         device,
-        Some("radiant_custom_shader_surface_uniforms"),
-        std::mem::size_of::<GpuSurfaceUniforms>(),
-        wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        CustomShaderBufferSpec {
+            label: Some("radiant_custom_shader_surface_uniforms"),
+            size: std::mem::size_of::<GpuSurfaceUniforms>(),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        },
     );
     let app_uniform_buffer = (!descriptor.uniform_bytes.is_empty()).then(|| {
         custom_shader_buffer(
             device,
-            Some("radiant_custom_shader_app_uniforms"),
-            descriptor.uniform_bytes.len(),
-            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            CustomShaderBufferSpec {
+                label: Some("radiant_custom_shader_app_uniforms"),
+                size: descriptor.uniform_bytes.len(),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            },
         )
     });
     let storage_buffer = (!descriptor.storage_bytes.is_empty()).then(|| {
         custom_shader_buffer(
             device,
-            Some("radiant_custom_shader_storage"),
-            descriptor.storage_bytes.len(),
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            CustomShaderBufferSpec {
+                label: Some("radiant_custom_shader_storage"),
+                size: descriptor.storage_bytes.len(),
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            },
         )
     });
     CustomShaderBindingBuffers {
@@ -144,16 +167,11 @@ fn custom_shader_bind_group_entries(
     entries
 }
 
-fn custom_shader_buffer(
-    device: &wgpu::Device,
-    label: Option<&'static str>,
-    size: usize,
-    usage: wgpu::BufferUsages,
-) -> wgpu::Buffer {
+fn custom_shader_buffer(device: &wgpu::Device, spec: CustomShaderBufferSpec) -> wgpu::Buffer {
     device.create_buffer(&wgpu::BufferDescriptor {
-        label,
-        size: size as wgpu::BufferAddress,
-        usage,
+        label: spec.label,
+        size: spec.size as wgpu::BufferAddress,
+        usage: spec.usage,
         mapped_at_creation: false,
     })
 }

@@ -13,6 +13,7 @@ mod binding;
 mod diagnostics;
 #[path = "custom_shader/pipeline.rs"]
 mod pipeline;
+use binding::CustomShaderBindingRequest;
 use diagnostics::{record_failed_custom_shader_surface, record_unsupported_custom_shader};
 use pipeline::{CustomShaderPipelineRequest, custom_shader_pipeline_key};
 
@@ -102,7 +103,14 @@ impl GpuSurfaceRenderer {
             record_failed_custom_shader_surface(stats);
             return false;
         }
-        self.ensure_custom_shader_binding(target.device, surface.key, descriptor, stats);
+        self.ensure_custom_shader_binding(
+            CustomShaderBindingRequest {
+                device: target.device,
+                surface_key: surface.key,
+                descriptor,
+            },
+            stats,
+        );
         if self
             .resources
             .custom_shader_bindings

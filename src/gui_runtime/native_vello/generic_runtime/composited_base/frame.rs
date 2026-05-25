@@ -1,4 +1,5 @@
-use super::*;
+use super::super::device::wgpu_device_id;
+use vello::wgpu;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime) struct CompositedBaseFrame {
     _texture: wgpu::Texture,

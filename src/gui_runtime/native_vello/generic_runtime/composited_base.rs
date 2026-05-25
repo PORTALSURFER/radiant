@@ -1,8 +1,11 @@
 //! Cached composed frame used by paint-only transient overlay presentations.
 
-use super::device::wgpu_device_id;
-use super::*;
+use super::{GpuSurfaceRenderer, RenderFrameProfile, RenderSurfacePixelSize, gpu_surface};
+#[cfg(test)]
+use crate::gui::types::{Point, Rect as UiRect, Rgba8, Vector2};
 use crate::runtime::{PaintPrimitive, SurfacePaintPlan};
+use std::time::Instant;
+use vello::{util::RenderSurface, wgpu};
 
 mod frame;
 pub(super) use frame::CompositedBaseFrame;

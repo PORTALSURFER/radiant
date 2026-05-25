@@ -1,12 +1,15 @@
 //! Pointer lifecycle helpers for the generic native Vello runner.
 
-use super::*;
+use super::{GenericNativeVelloRunner, logical_point_from_winit, maybe_log_route_profile};
+use crate::runtime::RuntimeBridge;
+use std::time::Instant;
+use winit::{dpi::PhysicalPosition, event_loop::ActiveEventLoop};
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    pub(super) fn handle_cursor_moved(&mut self, position: winit::dpi::PhysicalPosition<f64>) {
+    pub(super) fn handle_cursor_moved(&mut self, position: PhysicalPosition<f64>) {
         let Some(position) = logical_point_from_winit(position) else {
             self.input.last_cursor = None;
             return;

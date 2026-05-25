@@ -103,3 +103,31 @@ fn native_keyboard_repeat_policy_uses_explicit_imports() {
         "native keyboard repeat policy should stay focused on navigation key throttling"
     );
 }
+
+#[test]
+fn native_keyboard_text_edit_routing_uses_explicit_imports() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let text_edit = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/keyboard/text_edit.rs"),
+    )
+    .expect("native keyboard text-edit routing module should be readable");
+
+    assert!(
+        text_edit.contains("use super::{GenericNativeVelloRunner, GenericRouteOutcome};")
+            && text_edit.contains("use crate::gui::input::KeyCode;")
+            && text_edit.contains("use crate::runtime::RuntimeBridge;")
+            && text_edit.contains("use crate::widgets::TextEditCommand;")
+            && !text_edit.starts_with("use super::*;"),
+        "native keyboard text-edit routing should name runner, route outcome, key, bridge, and command dependencies"
+    );
+    assert!(
+        text_edit.contains("fn route_space_text_input(")
+            && text_edit.contains("fn route_text_input_shortcut(")
+            && text_edit.contains("fn route_text_navigation_key(")
+            && text_edit.contains("fn route_text_input(")
+            && text_edit.contains("KeyCode::ArrowLeft")
+            && text_edit.contains("TextEditCommand::MoveWordLeft")
+            && !text_edit.contains("crate::gui::input::KeyCode::"),
+        "native keyboard text-edit routing should keep shortcut, navigation, space, and printable text paths focused"
+    );
+}

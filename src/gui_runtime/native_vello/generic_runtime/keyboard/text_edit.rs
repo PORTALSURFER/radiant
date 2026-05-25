@@ -1,4 +1,7 @@
-use super::*;
+use super::{GenericNativeVelloRunner, GenericRouteOutcome};
+use crate::gui::input::KeyCode;
+use crate::runtime::RuntimeBridge;
+use crate::widgets::TextEditCommand;
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
@@ -6,10 +9,10 @@ where
 {
     pub(super) fn route_space_text_input(
         &mut self,
-        key: crate::gui::input::KeyCode,
+        key: KeyCode,
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
-        if key != crate::gui::input::KeyCode::Space
+        if key != KeyCode::Space
             || self.input.modifiers.control_key()
             || self.input.modifiers.super_key()
             || self.input.modifiers.alt_key()
@@ -23,19 +26,19 @@ where
 
     pub(super) fn route_text_input_shortcut(
         &mut self,
-        key: crate::gui::input::KeyCode,
+        key: KeyCode,
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
         if !(self.input.modifiers.control_key() || self.input.modifiers.super_key()) {
             return false;
         }
         match key {
-            crate::gui::input::KeyCode::A => {
+            KeyCode::A => {
                 let outcome = self.core.route_text_edit(TextEditCommand::SelectAll);
                 route_outcome.merge(outcome);
                 outcome.routed
             }
-            crate::gui::input::KeyCode::C => {
+            KeyCode::C => {
                 if let Some(selection) = self.core.focused_text_selection() {
                     if let Some(clipboard) = &mut self.input.clipboard {
                         let _ = clipboard.set_text(selection);
@@ -45,7 +48,7 @@ where
                 }
                 false
             }
-            crate::gui::input::KeyCode::X => {
+            KeyCode::X => {
                 if let Some(selection) = self.core.focused_text_selection() {
                     if let Some(clipboard) = &mut self.input.clipboard {
                         let _ = clipboard.set_text(selection);
@@ -56,7 +59,7 @@ where
                 }
                 false
             }
-            crate::gui::input::KeyCode::V => {
+            KeyCode::V => {
                 let Some(clipboard) = &mut self.input.clipboard else {
                     return false;
                 };
@@ -67,12 +70,12 @@ where
                 route_outcome.merge(outcome);
                 outcome.routed
             }
-            crate::gui::input::KeyCode::Backspace => {
+            KeyCode::Backspace => {
                 let outcome = self.core.route_text_edit(TextEditCommand::DeleteWordLeft);
                 route_outcome.merge(outcome);
                 outcome.routed
             }
-            crate::gui::input::KeyCode::Delete => {
+            KeyCode::Delete => {
                 let outcome = self.core.route_text_edit(TextEditCommand::DeleteWordRight);
                 route_outcome.merge(outcome);
                 outcome.routed
@@ -83,25 +86,23 @@ where
 
     pub(super) fn route_text_navigation_key(
         &mut self,
-        key: crate::gui::input::KeyCode,
+        key: KeyCode,
         route_outcome: &mut GenericRouteOutcome,
     ) -> bool {
         let extend_selection = self.input.modifiers.shift_key();
         let word_navigation =
             self.input.modifiers.control_key() || self.input.modifiers.super_key();
         let command = match key {
-            crate::gui::input::KeyCode::ArrowLeft if word_navigation => {
+            KeyCode::ArrowLeft if word_navigation => {
                 TextEditCommand::MoveWordLeft { extend_selection }
             }
-            crate::gui::input::KeyCode::ArrowRight if word_navigation => {
+            KeyCode::ArrowRight if word_navigation => {
                 TextEditCommand::MoveWordRight { extend_selection }
             }
-            crate::gui::input::KeyCode::ArrowLeft => TextEditCommand::MoveLeft { extend_selection },
-            crate::gui::input::KeyCode::ArrowRight => {
-                TextEditCommand::MoveRight { extend_selection }
-            }
-            crate::gui::input::KeyCode::Home => TextEditCommand::MoveHome { extend_selection },
-            crate::gui::input::KeyCode::End => TextEditCommand::MoveEnd { extend_selection },
+            KeyCode::ArrowLeft => TextEditCommand::MoveLeft { extend_selection },
+            KeyCode::ArrowRight => TextEditCommand::MoveRight { extend_selection },
+            KeyCode::Home => TextEditCommand::MoveHome { extend_selection },
+            KeyCode::End => TextEditCommand::MoveEnd { extend_selection },
             _ => return false,
         };
         let outcome = self.core.route_text_edit(command);

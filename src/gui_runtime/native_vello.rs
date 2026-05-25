@@ -8,7 +8,7 @@ use crate::gui::{
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
 use crate::runtime::{PaintTextInput, RuntimeBridge};
-use crate::widgets::{TextEditCommand, WidgetKey};
+use crate::widgets::WidgetKey;
 use std::{
     sync::Arc,
     time::{Duration, Instant},

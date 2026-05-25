@@ -30,6 +30,7 @@ fn native_gpu_surface_modules_use_explicit_imports() {
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/pipeline.rs",
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/signal_pipeline.rs",
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/signal.rs",
+        "src/gui_runtime/native_vello/generic_runtime/gpu_surface/signal/uniforms.rs",
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/stats.rs",
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader.rs",
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/binding.rs",

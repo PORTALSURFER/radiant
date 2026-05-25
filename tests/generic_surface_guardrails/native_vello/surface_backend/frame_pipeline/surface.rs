@@ -39,6 +39,8 @@ fn native_surface_setup_uses_explicit_imports() {
     let surface = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/surface.rs");
     let backend =
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/surface/backend.rs");
+    let viewport =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/surface/viewport.rs");
     let production_surface = surface
         .split("#[cfg(test)]")
         .next()
@@ -58,6 +60,8 @@ fn native_surface_setup_uses_explicit_imports() {
             && surface.contains("use tracing::{error, info, warn};")
             && surface.contains("use vello::{Renderer, wgpu};")
             && surface.contains("use winit::{")
+            && surface.contains("mod viewport;")
+            && surface.contains("use viewport::{logical_viewport_for_size, surface_size_changed};")
             && !surface.starts_with("use super::*;"),
         "native surface setup should name runner, window policy, viewport, renderer config, bridge, timing, tracing, Vello/WGPU, and Winit dependencies"
     );
@@ -67,11 +71,21 @@ fn native_surface_setup_uses_explicit_imports() {
             && production_surface.contains("fn update_native_dpi_scale")
             && production_surface.contains("fn set_dpi_scale_override")
             && production_surface.contains("fn active_dpi_scale")
-            && production_surface.contains("fn logical_viewport_for_size")
             && production_surface.contains("fn acquire_present_surface_texture")
-            && production_surface.contains("fn surface_size_changed")
+            && !production_surface.contains("fn logical_viewport_for_size")
+            && !production_surface.contains("fn surface_size_changed")
             && !production_surface.contains("winit::dpi::PhysicalSize"),
-        "native surface setup should keep initialization, resize, DPI viewport conversion, acquire, and physical-size comparison focused"
+        "native surface setup should keep initialization, resize, DPI updates, and surface acquire focused"
+    );
+    assert!(
+        viewport.contains("use crate::{gui::types::Vector2, theme::DpiScale};")
+            && viewport.contains("use winit::dpi::PhysicalSize;")
+            && viewport.contains("fn logical_viewport_for_size")
+            && viewport.contains("fn surface_size_changed")
+            && viewport.contains("native_surface_resize_detects_only_real_physical_size_changes")
+            && viewport.contains("native_surface_viewport_uses_logical_size_for_current_dpi_scale")
+            && !viewport.starts_with("use super::*;"),
+        "native surface viewport helpers should keep pure DPI and physical-size conversion logic in a focused module"
     );
     assert!(
         backend.contains("use crate::gui_runtime::{NativeGpuBackend, NativeRunOptions};")

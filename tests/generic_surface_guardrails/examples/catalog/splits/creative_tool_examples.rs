@@ -118,9 +118,12 @@ fn piano_roll_example_stays_split_by_widget_input_paint_and_tests() {
     );
     assert!(
         widget.contains("#[path = \"widget/input.rs\"]")
+            && widget.contains("#[path = \"widget/navigation_input.rs\"]")
+            && widget.contains("#[path = \"widget/pointer_input.rs\"]")
+            && widget.contains("#[path = \"widget/velocity_input.rs\"]")
             && !widget.contains("fn handle_primary_press(")
             && !widget.contains("fn append_runtime_overlay_paint("),
-        "piano roll widget root should keep state and geometry while input and widget trait plumbing stay delegated"
+        "piano roll widget root should keep state and geometry while input, navigation input, pointer input, velocity input, and widget trait plumbing stay delegated"
     );
     assert!(
         paint.contains("#[path = \"widget_paint/grid.rs\"]")
@@ -148,6 +151,9 @@ fn piano_roll_example_stays_split_by_widget_input_paint_and_tests() {
         "examples/piano_roll/view.rs",
         "examples/piano_roll/widget.rs",
         "examples/piano_roll/widget/input.rs",
+        "examples/piano_roll/widget/navigation_input.rs",
+        "examples/piano_roll/widget/pointer_input.rs",
+        "examples/piano_roll/widget/velocity_input.rs",
         "examples/piano_roll/widget_paint.rs",
         "examples/piano_roll/widget_paint/grid.rs",
         "examples/piano_roll/widget_paint/keyboard.rs",
@@ -159,8 +165,6 @@ fn piano_roll_example_stays_split_by_widget_input_paint_and_tests() {
             .unwrap_or_else(|err| panic!("{path} should be readable: {err}"));
         let line_limit = if path == "examples/piano_roll/tests.rs" {
             2_000
-        } else if path == "examples/piano_roll/widget/input.rs" {
-            750
         } else {
             250
         };

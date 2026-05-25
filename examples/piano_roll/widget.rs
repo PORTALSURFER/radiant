@@ -10,6 +10,12 @@ use super::{
 
 #[path = "widget/input.rs"]
 mod input;
+#[path = "widget/navigation_input.rs"]
+mod navigation_input;
+#[path = "widget/pointer_input.rs"]
+mod pointer_input;
+#[path = "widget/velocity_input.rs"]
+mod velocity_input;
 
 #[derive(Clone, Debug)]
 pub(crate) struct PianoRollWidget {

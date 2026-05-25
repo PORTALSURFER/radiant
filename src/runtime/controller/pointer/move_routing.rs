@@ -1,4 +1,9 @@
-use super::*;
+use super::{PointerMoveDispatch, SurfaceRuntime};
+use crate::{
+    gui::types::Point,
+    runtime::RuntimeBridge,
+    widgets::{WidgetId, WidgetInput},
+};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where

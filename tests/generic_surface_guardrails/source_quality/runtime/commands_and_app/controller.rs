@@ -285,11 +285,16 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
     );
     assert!(
         move_routing.contains("fn dispatch_pointer_move_target")
+            && move_routing.contains("use super::{PointerMoveDispatch, SurfaceRuntime};")
+            && move_routing.contains("gui::types::Point")
+            && move_routing.contains("runtime::RuntimeBridge")
+            && move_routing.contains("widgets::{WidgetId, WidgetInput}")
+            && !move_routing.starts_with("use super::*;")
             && move_routing.contains("fn route_pointer_move_to_target")
             && move_routing.contains("fn update_drag_preview_position")
             && move_routing.contains("fn update_hovered_scroll_affordance")
             && move_routing.contains("fn route_captured_pass_through_move"),
-        "pointer move routing should group drag preview, hover, and captured move policy"
+        "pointer move routing should group drag preview, hover, and captured move policy while naming its controller, geometry, bridge, and widget dependencies"
     );
     assert!(
         hit_test.contains("use super::SurfaceRuntime;")

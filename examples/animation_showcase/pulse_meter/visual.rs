@@ -85,12 +85,7 @@ impl PulseMeterVisual {
         PulseMarker {
             center,
             width: 0.0035,
-            color: Rgba8 {
-                r: 176,
-                g: 182,
-                b: 194,
-                a: alpha,
-            },
+            color: Rgba8::new(176, 182, 194, alpha),
         }
     }
 
@@ -99,12 +94,12 @@ impl PulseMeterVisual {
             center: wrap01(spec.center),
             width: spec.width,
             height_ratio: spec.height_ratio,
-            color: Rgba8 {
-                r: 255,
-                g: 116,
-                b: 76,
-                a: if running { spec.alpha } else { spec.alpha / 3 },
-            },
+            color: Rgba8::new(
+                255,
+                116,
+                76,
+                if running { spec.alpha } else { spec.alpha / 3 },
+            ),
         }
     }
 
@@ -112,23 +107,23 @@ impl PulseMeterVisual {
         if self.running {
             theme.surface_base
         } else {
-            with_alpha(theme.surface_base, 210)
+            theme.surface_base.with_alpha(210)
         }
     }
 
     pub(super) fn rail_color(self, theme: &ThemeTokens) -> Rgba8 {
         if self.running {
-            with_alpha(theme.grid_soft, 95)
+            theme.grid_soft.with_alpha(95)
         } else {
-            with_alpha(theme.grid_soft, 48)
+            theme.grid_soft.with_alpha(48)
         }
     }
 
     pub(super) fn glow_color(self, theme: &ThemeTokens) -> Rgba8 {
         if self.running {
-            with_alpha(theme.highlight_orange, 70)
+            theme.highlight_orange.with_alpha(70)
         } else {
-            with_alpha(theme.highlight_orange, 32)
+            theme.highlight_orange.with_alpha(32)
         }
     }
 
@@ -136,7 +131,7 @@ impl PulseMeterVisual {
         if self.running {
             theme.highlight_orange
         } else {
-            with_alpha(theme.highlight_orange, 115)
+            theme.highlight_orange.with_alpha(115)
         }
     }
 
@@ -144,7 +139,7 @@ impl PulseMeterVisual {
         if self.running {
             theme.text_primary
         } else {
-            with_alpha(theme.text_primary, 150)
+            theme.text_primary.with_alpha(150)
         }
     }
 }
@@ -159,11 +154,6 @@ struct PulseBarSpec {
 
 pub(super) fn wrap01(value: f32) -> f32 {
     value.rem_euclid(1.0)
-}
-
-fn with_alpha(mut color: Rgba8, alpha: u8) -> Rgba8 {
-    color.a = alpha;
-    color
 }
 
 fn smoothstep(edge0: f32, edge1: f32, value: f32) -> f32 {

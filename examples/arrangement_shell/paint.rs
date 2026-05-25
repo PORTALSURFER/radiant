@@ -1,59 +1,12 @@
 use radiant::prelude::*;
-use radiant::runtime::{PaintFillRect, PaintStrokeRect};
+pub(crate) use radiant::runtime::{
+    push_fill_rect as push_rect, push_stroke_rect as push_stroke, push_text,
+};
 
 pub(crate) fn rgba(r: u8, g: u8, b: u8, a: u8) -> Rgba8 {
-    Rgba8 { r, g, b, a }
+    Rgba8::new(r, g, b, a)
 }
 
-pub(crate) fn translucent(mut color: Rgba8, alpha: u8) -> Rgba8 {
-    color.a = alpha;
-    color
-}
-
-pub(crate) fn push_rect(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: u64,
-    rect: Rect,
-    color: Rgba8,
-) {
-    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-        widget_id,
-        rect,
-        color,
-    }));
-}
-
-pub(crate) fn push_stroke(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: u64,
-    rect: Rect,
-    color: Rgba8,
-    width: f32,
-) {
-    primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-        widget_id,
-        rect,
-        color,
-        width,
-    }));
-}
-
-pub(crate) fn push_text(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: u64,
-    text: impl Into<String>,
-    rect: Rect,
-    color: Rgba8,
-    align: PaintTextAlign,
-) {
-    primitives.push(PaintPrimitive::Text(PaintTextRun {
-        widget_id,
-        text: text.into().into(),
-        rect,
-        font_size: 12.0,
-        baseline: Some(16.0),
-        color,
-        align,
-        wrap: TextWrap::None,
-    }));
+pub(crate) fn translucent(color: Rgba8, alpha: u8) -> Rgba8 {
+    color.with_alpha(alpha)
 }

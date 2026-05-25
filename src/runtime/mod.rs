@@ -84,8 +84,10 @@ pub use paint::{
     PaintFillRect, PaintFillRectBatch, PaintFillRule, PaintGpuSurface, PaintImage,
     PaintOverlayPanel, PaintPath, PaintPathCommand, PaintPointList, PaintPrimitive, PaintRectList,
     PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintStrokeRectBatch, PaintSvg,
-    PaintSvgDocument, PaintText, PaintTextAlign, PaintTextInput, PaintTextRun, PaintTransform,
-    Renderer, SurfacePaintPlan, SurfacePaintStats, SvgParseError, TransientOverlayContext,
+    PaintSvgDocument, PaintText, PaintTextAlign, PaintTextInput, PaintTextMetrics, PaintTextRun,
+    PaintTransform, Renderer, SurfacePaintPlan, SurfacePaintStats, SvgParseError,
+    TransientOverlayContext, push_fill_rect, push_fill_rect_batch, push_stroke_rect,
+    push_stroke_rect_batch, push_text, push_text_run_with_metrics,
 };
 pub(crate) use paint::{
     blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,

@@ -50,6 +50,13 @@ builders lower into the same `UiSurface`, `SurfaceNode`, `SurfaceChild`,
 `WidgetSizing`, and `RuntimeBridge` contracts available through the explicit
 runtime modules.
 
+Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`, and
+`Rgba8::blend_toward` for common color manipulation. For paint-plan emission,
+`push_fill_rect`, `push_fill_rect_batch`, `push_stroke_rect`,
+`push_stroke_rect_batch`, `push_text`, `PaintTextMetrics`, and
+`push_text_run_with_metrics` provide the reusable primitive construction path
+used by complex examples and custom widgets.
+
 No-state apps can launch without naming `NativeRunOptions`, `RuntimeBridge`,
 `UiSurface`, `SurfaceNode`, `SurfaceChild`, or `WidgetSizing`:
 

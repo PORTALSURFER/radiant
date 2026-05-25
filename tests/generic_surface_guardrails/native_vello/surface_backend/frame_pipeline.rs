@@ -125,6 +125,41 @@ fn native_timed_frame_drain_does_not_recompute_selected_cadence() {
 }
 
 #[test]
+fn native_lifecycle_uses_explicit_imports() {
+    let lifecycle =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs");
+
+    assert!(
+        lifecycle.contains("use super::{")
+            && lifecycle.contains("AuxiliaryWindowEventResult")
+            && lifecycle.contains("GenericNativeVelloRunner")
+            && lifecycle.contains("RuntimeUserEvent")
+            && lifecycle.contains("TimedFrameCadence")
+            && lifecycle.contains("maybe_log_route_profile")
+            && lifecycle.contains("pointer_button_from_winit")
+            && lifecycle.contains("scroll_delta_to_logical")
+            && lifecycle.contains("should_start_popup_window_drag")
+            && lifecycle.contains("timed_frame_cadence")
+            && lifecycle.contains("timed_frame_target_fps")
+            && lifecycle.contains("use crate::runtime::RuntimeBridge;")
+            && lifecycle.contains("use std::time::Instant;")
+            && lifecycle.contains("use tracing::warn;")
+            && lifecycle.contains("use winit::{")
+            && !lifecycle.starts_with("use super::*;"),
+        "native lifecycle should name runner, auxiliary routing, runtime event, cadence, input conversion, popup policy, bridge, timing, logging, and Winit dependencies"
+    );
+    assert!(
+        lifecycle.contains("impl<Bridge, Message> ApplicationHandler<RuntimeUserEvent>")
+            && lifecycle.contains("fn window_event(")
+            && lifecycle.contains("fn user_event(")
+            && lifecycle.contains("fn about_to_wait(")
+            && lifecycle.contains("ControlFlow::WaitUntil")
+            && !lifecycle.contains("winit::event::WindowEvent"),
+        "native lifecycle should keep Winit callbacks and timed-frame wake policy focused"
+    );
+}
+
+#[test]
 fn native_runner_keeps_window_input_and_timing_state_grouped() {
     let module = read_runtime_source("src/gui_runtime/native_vello/generic_runtime.rs");
     let runner = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner.rs");

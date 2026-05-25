@@ -15,12 +15,7 @@ use std::{
 use tracing::{info, warn};
 use vello::util::RenderContext;
 use vello::{Scene, wgpu};
-use winit::{
-    application::ApplicationHandler,
-    event::{ElementState, WindowEvent},
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    window::WindowId,
-};
+use winit::event_loop::{ActiveEventLoop, EventLoop};
 
 mod generic_runtime;
 mod runtime_config;

@@ -82,6 +82,49 @@ fn native_file_drop_routing_uses_explicit_runtime_imports() {
 }
 
 #[test]
+fn native_pointer_click_classification_stays_in_focused_module() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let runtime_root =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/generic_runtime.rs"))
+            .expect("native runtime root should be readable");
+    let event_routing = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/event_routing.rs"),
+    )
+    .expect("native event routing module should be readable");
+    let pointer_click = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/pointer_click.rs"),
+    )
+    .expect("native pointer click module should be readable");
+
+    assert!(
+        runtime_root.contains("mod pointer_click;")
+            && runtime_root.contains("use pointer_click::pointer_press_event;"),
+        "native runtime root should expose pointer click classification through a focused helper"
+    );
+    assert!(
+        event_routing.contains("pointer_press_event(")
+            && !event_routing.contains("DOUBLE_CLICK_MAX_INTERVAL")
+            && !event_routing.contains("DOUBLE_CLICK_MAX_DISTANCE")
+            && !event_routing.contains("fn is_double_click("),
+        "native event routing should delegate double-click classification instead of owning timing and distance policy"
+    );
+    assert!(
+        pointer_click.contains("use super::PointerPressStamp;")
+            && pointer_click.contains("runtime::Event")
+            && pointer_click.contains("widgets::{PointerButton, PointerModifiers}")
+            && pointer_click.contains("const DOUBLE_CLICK_MAX_INTERVAL")
+            && pointer_click.contains("const DOUBLE_CLICK_MAX_DISTANCE")
+            && pointer_click.contains("fn pointer_press_event(")
+            && pointer_click.contains("fn is_double_click(")
+            && pointer_click.contains("nearby_repeated_press_routes_as_double_click")
+            && pointer_click
+                .contains("stale_distant_or_different_button_press_routes_as_single_press")
+            && !pointer_click.starts_with("use super::*;"),
+        "native pointer click classification should keep pure double-click policy, event selection, and tests together"
+    );
+}
+
+#[test]
 fn native_keyboard_repeat_policy_uses_explicit_imports() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let repeat = fs::read_to_string(

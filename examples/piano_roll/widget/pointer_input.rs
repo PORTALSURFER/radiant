@@ -164,45 +164,6 @@ impl PianoRollWidget {
             None
         }
     }
-
-    fn message_for_finished_drag(
-        &self,
-        grid: Rect,
-        position: Point,
-        drag: PianoDrag,
-    ) -> Option<WidgetOutput> {
-        if matches!(drag, PianoDrag::Pan { .. }) {
-            None
-        } else if let PianoDrag::Marquee {
-            start, modifiers, ..
-        } = drag
-        {
-            let rect = rect_from_points(start, position).clamp_to(grid);
-            Some(WidgetOutput::custom(PianoRollMessage::SelectNotes {
-                ids: self.note_ids_intersecting(grid, rect),
-                mode: marquee_selection_mode(modifiers),
-            }))
-        } else if let PianoDrag::Velocity { ids, velocity } = drag {
-            Some(WidgetOutput::custom(PianoRollMessage::SetVelocity {
-                ids,
-                velocity,
-            }))
-        } else {
-            Some(WidgetOutput::custom(drag.message_for(
-                grid,
-                self.viewport,
-                position,
-            )))
-        }
-    }
-
-    fn note_ids_intersecting(&self, grid: Rect, rect: Rect) -> Vec<u32> {
-        self.notes
-            .iter()
-            .filter(|note| rects_overlap(self.note_rect(grid, **note), rect))
-            .map(|note| note.id)
-            .collect()
-    }
 }
 
 fn hovered_pitch(
@@ -228,23 +189,4 @@ fn selection_mode(modifiers: PointerModifiers) -> NoteSelectionMode {
     } else {
         NoteSelectionMode::Replace
     }
-}
-
-fn marquee_selection_mode(modifiers: PointerModifiers) -> NoteSelectionMode {
-    if modifiers.shift && modifiers.command {
-        NoteSelectionMode::Add
-    } else {
-        NoteSelectionMode::Replace
-    }
-}
-
-fn rect_from_points(a: Point, b: Point) -> Rect {
-    Rect::from_min_max(
-        Point::new(a.x.min(b.x), a.y.min(b.y)),
-        Point::new(a.x.max(b.x), a.y.max(b.y)),
-    )
-}
-
-fn rects_overlap(a: Rect, b: Rect) -> bool {
-    a.min.x <= b.max.x && a.max.x >= b.min.x && a.min.y <= b.max.y && a.max.y >= b.min.y
 }

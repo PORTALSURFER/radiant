@@ -1,4 +1,4 @@
-use super::*;
+use crate::gui::types::Rect as UiRect;
 use crate::gui_runtime::native_vello::generic_runtime::runtime_helpers::visible_rects_after_occlusion;
 use crate::runtime::PaintPrimitive;
 
@@ -37,7 +37,7 @@ pub(crate) fn visible_surface_regions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::types::{Point, Rgba8};
+    use crate::gui::types::{Point, Rgba8, Vector2};
     use crate::gui_runtime::native_vello::generic_runtime::runtime_helpers::intersect_rect;
     use crate::runtime::{GpuSurfaceCapabilities, GpuSurfaceContent, PaintGpuSurface};
     use std::sync::Arc;

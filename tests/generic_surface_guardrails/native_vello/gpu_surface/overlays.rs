@@ -115,6 +115,15 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/signal/summary.rs",
     ))
     .expect("GPU surface signal summary resource module should be readable");
+    let visibility = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/visibility.rs"),
+    )
+    .expect("GPU surface visibility module should be readable");
+    let visibility_occlusion =
+        fs::read_to_string(manifest_dir.join(
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/visibility/occlusion.rs",
+        ))
+        .expect("GPU surface visibility occlusion module should be readable");
 
     assert!(
         renderer.contains("mod overlays;")
@@ -233,6 +242,14 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
         (
             "src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/signal/summary.rs",
             resource_signal_summary.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/visibility.rs",
+            visibility.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/visibility/occlusion.rs",
+            visibility_occlusion.as_str(),
         ),
     ] {
         let production_source = source

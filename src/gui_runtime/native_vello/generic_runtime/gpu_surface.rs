@@ -1,7 +1,7 @@
 //! Native GPU renderer for retained generic GPU-surface paint primitives.
 
 use super::device::{wgpu_device_id, wgpu_target_matches};
-use crate::gui::types::{Rect as UiRect, Vector2};
+use crate::gui::types::Vector2;
 use crate::runtime::{GpuSurfaceContent, PaintPrimitive};
 use vello::wgpu;
 

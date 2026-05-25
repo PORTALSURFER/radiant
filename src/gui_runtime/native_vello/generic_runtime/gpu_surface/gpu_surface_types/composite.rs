@@ -1,5 +1,5 @@
 use super::signal::SignalBodyCacheKey;
-use super::*;
+use vello::wgpu;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct GpuSurfaceCompositeBinding
 {

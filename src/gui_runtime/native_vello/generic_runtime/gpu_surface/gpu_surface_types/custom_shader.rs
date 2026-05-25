@@ -1,4 +1,6 @@
-use super::*;
+use super::super::wgpu_target_matches;
+use std::sync::Arc;
+use vello::wgpu;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CustomShaderPipelineKey

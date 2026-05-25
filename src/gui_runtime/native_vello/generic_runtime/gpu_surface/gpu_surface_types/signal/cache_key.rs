@@ -1,4 +1,5 @@
-use super::super::*;
+use super::super::super::passes::SurfacePixelExtent;
+use crate::runtime::GpuSignalGainPreview;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct SignalBodyCacheKeyParts
 {

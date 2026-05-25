@@ -1,4 +1,5 @@
-use super::*;
+use super::super::wgpu_device_id;
+use vello::wgpu;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct GpuSurfaceTexture {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) device: usize,

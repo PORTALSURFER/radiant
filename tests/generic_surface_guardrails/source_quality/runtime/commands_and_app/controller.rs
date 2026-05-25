@@ -245,6 +245,9 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
 #[test]
 fn pointer_controller_keeps_move_routing_in_focused_module() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let pointer_events =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/events/pointer.rs"))
+            .expect("runtime pointer event controller should be readable");
     let pointer = fs::read_to_string(manifest_dir.join("src/runtime/controller/pointer.rs"))
         .expect("runtime pointer controller should be readable");
     let move_routing =
@@ -257,6 +260,18 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
     let input = fs::read_to_string(manifest_dir.join("src/runtime/controller/input.rs"))
         .expect("runtime controller input module should be readable");
 
+    assert!(
+        pointer_events.contains("use super::SurfaceRuntime;")
+            && pointer_events.contains("gui::types::Point")
+            && pointer_events.contains("runtime::RuntimeBridge")
+            && pointer_events
+                .contains("widgets::{PointerButton, PointerModifiers, WidgetId, WidgetInput}")
+            && !pointer_events.starts_with("use super::*;")
+            && pointer_events.contains("fn dispatch_pointer_press_event")
+            && pointer_events.contains("fn dispatch_pointer_double_click_event")
+            && pointer_events.contains("fn dispatch_pointer_release_event"),
+        "pointer event routing should name controller, geometry, bridge, and widget-input dependencies without inheriting the event root"
+    );
     assert!(
         pointer.contains("mod move_routing;")
             && pointer.contains("use super::{PointerMoveOutcome, SurfaceRuntime};")

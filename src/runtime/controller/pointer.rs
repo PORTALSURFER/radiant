@@ -61,7 +61,9 @@ where
             input,
             WidgetInput::PointerPress { .. } | WidgetInput::PointerDoubleClick { .. }
         ) {
-            let _ = self.focus_widget(widget_id);
+            if !self.focus_widget(widget_id) {
+                self.clear_focus();
+            }
         }
         self.dispatch_input_output(widget_id, input)
             .map(|emitted_output| (widget_id, emitted_output))
@@ -119,4 +121,87 @@ where
 pub(super) struct PointerMoveDispatch {
     pub(super) target: Option<WidgetId>,
     pub(super) emitted_output: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        gui::types::Vector2,
+        layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams},
+        runtime::{Event, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
+        widgets::{PointerButton, PointerModifiers, TextInputWidget, TextWidget, WidgetSizing},
+    };
+    use std::sync::Arc;
+
+    struct FocusTestBridge;
+
+    impl RuntimeBridge<usize> for FocusTestBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+            Arc::new(UiSurface::new(SurfaceNode::column(
+                1,
+                0.0,
+                vec![
+                    fixed_child(
+                        28.0,
+                        SurfaceNode::widget(
+                            TextInputWidget::new(
+                                10,
+                                "tag",
+                                WidgetSizing::fixed(Vector2::new(160.0, 28.0)),
+                            ),
+                            WidgetMessageMapper::none(),
+                        ),
+                    ),
+                    fixed_child(
+                        28.0,
+                        SurfaceNode::widget(
+                            TextWidget::new(
+                                20,
+                                "Passive hit target",
+                                WidgetSizing::fixed(Vector2::new(160.0, 28.0)),
+                            ),
+                            WidgetMessageMapper::dynamic(|_| Some(20)),
+                        ),
+                    ),
+                ],
+            )))
+        }
+
+        fn reduce_message(&mut self, _message: usize) {}
+    }
+
+    fn fixed_child<Message>(height: f32, child: SurfaceNode<Message>) -> SurfaceChild<Message> {
+        SurfaceChild::new(
+            SlotParams {
+                size_main: SizeModeMain::Fixed(height),
+                size_cross: SizeModeCross::Fill,
+                constraints: Constraints::unconstrained(),
+                margin: Default::default(),
+                align_cross_override: None,
+                allow_fixed_compress: false,
+            },
+            child,
+        )
+    }
+
+    #[test]
+    fn pointer_press_on_non_focusable_hit_target_clears_existing_focus() {
+        let mut runtime = SurfaceRuntime::new(FocusTestBridge, Vector2::new(200.0, 80.0));
+
+        runtime.dispatch_event(Event::PointerPress {
+            position: Point::new(4.0, 4.0),
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+        });
+        assert_eq!(runtime.focused_widget(), Some(10));
+
+        runtime.dispatch_event(Event::PointerPress {
+            position: Point::new(4.0, 32.0),
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+        });
+
+        assert_eq!(runtime.focused_widget(), None);
+    }
 }

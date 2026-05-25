@@ -1,4 +1,8 @@
-use super::super::super::*;
+use super::super::super::GpuSurfaceRenderer;
+use super::super::super::gpu_surface_types::CachedSignalSummary;
+use super::super::super::stats::GpuSurfaceRenderStats;
+use crate::runtime::GpuSignalSummary;
+use std::sync::Arc;
 
 impl GpuSurfaceRenderer {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn cached_signal_summary(

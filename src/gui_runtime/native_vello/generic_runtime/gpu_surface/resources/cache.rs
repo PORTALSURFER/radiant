@@ -1,4 +1,9 @@
-use super::super::{ActiveGpuSurfaceKeys, *};
+use super::super::active_keys::ActiveGpuSurfaceKeys;
+use super::super::gpu_surface_types::{
+    CachedSignalSummary, CustomShaderBinding, CustomShaderPipeline, GpuSurfaceCompositeBinding,
+    GpuSurfaceTexture, SignalBodyTexture, SignalBuffer,
+};
+use std::collections::HashMap;
 
 #[derive(Default)]
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct GpuSurfaceResourceCache

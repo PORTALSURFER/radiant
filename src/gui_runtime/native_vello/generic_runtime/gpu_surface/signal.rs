@@ -1,7 +1,15 @@
 use super::atlas::TextureViewRenderRequest;
-use super::*;
-use crate::runtime::{GpuSurfaceContent, PaintGpuSurface};
+use super::gpu_surface_types::{
+    GpuSurfaceTextureIdentity, SignalBodyCacheKey, SignalBodyCacheKeyParts, SignalBufferCacheKey,
+    SignalUniforms,
+};
+use super::passes::surface_pixel_extent;
+use super::stats::GpuSurfaceRenderStats;
+use super::{GpuSurfaceRenderTarget, GpuSurfaceRenderer};
+use crate::gui::types::Rect as UiRect;
+use crate::runtime::{GpuSignalGainPreview, GpuSurfaceContent, PaintGpuSurface};
 use std::sync::Arc;
+use vello::wgpu;
 
 impl GpuSurfaceRenderer {
     pub(super) fn render_signal(

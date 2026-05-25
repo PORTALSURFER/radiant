@@ -1,5 +1,9 @@
-use super::*;
-use crate::runtime::WidgetDispatchResult;
+use super::SurfaceRuntime;
+use crate::{
+    gui::types::Rect,
+    runtime::{RuntimeBridge, SurfaceWidget, WidgetDispatchResult},
+    widgets::{WidgetId, WidgetInput},
+};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where

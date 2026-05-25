@@ -1,8 +1,8 @@
 use super::{
-    GenericNativeVelloRunner, initial_viewport, owner_window_handle, pointer_button_from_winit,
-    pointer_modifiers_from_winit, scroll_delta_to_logical,
+    GenericNativeVelloRunner, GenericRouteOutcome, initial_viewport, owner_window_handle,
+    pointer_button_from_winit, pointer_modifiers_from_winit, scroll_delta_to_logical,
 };
-use crate::runtime::{AuxiliaryWindow, NativeRunOptions};
+use crate::runtime::{AuxiliaryWindow, NativeRunOptions, RuntimeBridge};
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;
 use winit::{
@@ -192,4 +192,48 @@ impl<Message> AuxiliaryNativeWindow<Message> {
 pub(super) struct AuxiliaryWindowEventResult<Message> {
     pub(super) closed: bool,
     pub(super) messages: Vec<Message>,
+}
+
+impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
+where
+    Bridge: RuntimeBridge<Message>,
+{
+    pub(super) fn dispatch_auxiliary_messages(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        messages: Vec<Message>,
+    ) {
+        let mut outcome = GenericRouteOutcome::default();
+        for message in messages {
+            let command_outcome = self.core.runtime.dispatch_message(message);
+            outcome.merge(self.core.route_command_outcome(command_outcome));
+        }
+        self.handle_route_outcome(event_loop, outcome);
+        self.sync_auxiliary_windows(event_loop);
+    }
+
+    pub(super) fn sync_auxiliary_windows(&mut self, event_loop: &ActiveEventLoop) {
+        let projections = self.core.runtime.bridge_mut().project_auxiliary_windows();
+        let mut projected_keys = Vec::with_capacity(projections.len());
+        for projection in projections {
+            projected_keys.push(projection.key.clone());
+            if let Some(window) = self
+                .auxiliary_windows
+                .iter_mut()
+                .find(|window| window.key() == projection.key)
+            {
+                window.update_projection(projection);
+            } else {
+                let parent_window = self.window.window.as_deref();
+                let mut window = AuxiliaryNativeWindow::new(projection, &self.options);
+                window.initialize_runtime(event_loop, parent_window);
+                self.auxiliary_windows.push(window);
+            }
+        }
+        for window in &mut self.auxiliary_windows {
+            if !projected_keys.iter().any(|key| key == window.key()) {
+                window.hide();
+            }
+        }
+    }
 }

@@ -29,6 +29,10 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/pipeline/tests.rs",
     ))
     .expect("GPU surface custom shader pipeline tests should be readable");
+    let custom_shader_pipeline_layout = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/pipeline/layout.rs",
+    ))
+    .expect("GPU surface custom shader pipeline layout module should be readable");
     let custom_shader_binding =
         fs::read_to_string(manifest_dir.join(
             "src/gui_runtime/native_vello/generic_runtime/gpu_surface/custom_shader/binding.rs",
@@ -92,12 +96,12 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
             && custom_shader_pipeline.contains("struct CustomShaderPipelineRequest")
             && custom_shader_pipeline.contains("struct CreatedCustomShaderPipeline")
             && custom_shader_pipeline.contains("fn custom_shader_pipeline_needs_rebuild")
+            && custom_shader_pipeline.contains("#[path = \"pipeline/layout.rs\"]")
             && custom_shader_pipeline.contains("fn create_custom_shader_module")
             && custom_shader_pipeline.contains("fn create_custom_shader_pipeline")
-            && custom_shader_pipeline.contains("custom_shader_layout_entries")
-            && custom_shader_pipeline.contains("binding: 1")
-            && custom_shader_pipeline.contains("binding: 2")
-            && custom_shader_pipeline.contains("BufferBindingType::Storage { read_only: true }")
+            && custom_shader_pipeline.contains("create_custom_shader_bind_group_layout")
+            && !custom_shader_pipeline.contains("fn custom_shader_layout_entries")
+            && !custom_shader_pipeline.contains("fn custom_shader_buffer_layout_entry")
             && custom_shader_pipeline.contains(".create_shader_module")
             && custom_shader_pipeline.contains(".create_render_pipeline")
             && custom_shader_pipeline.contains("custom_shader.pipeline_rebuilds += 1")
@@ -109,6 +113,17 @@ fn gpu_surface_render_stats_stay_in_focused_diagnostics_module() {
             && custom_shader_pipeline_tests
                 .contains("fn custom_shader_pipeline_key_tracks_payload_bindings"),
         "native custom shader pipeline setup and validation diagnostics should stay in the pipeline module"
+    );
+    assert!(
+        custom_shader_pipeline_layout.contains("fn create_custom_shader_bind_group_layout")
+            && custom_shader_pipeline_layout.contains("fn create_custom_shader_pipeline_layout")
+            && custom_shader_pipeline_layout.contains("fn custom_shader_layout_entries")
+            && custom_shader_pipeline_layout.contains("fn custom_shader_buffer_layout_entry")
+            && custom_shader_pipeline_layout.contains("binding: 1")
+            && custom_shader_pipeline_layout.contains("binding: 2")
+            && custom_shader_pipeline_layout
+                .contains("BufferBindingType::Storage { read_only: true }"),
+        "native custom shader pipeline layout construction should stay in the layout module"
     );
     assert!(
         custom_shader_binding.contains("fn ensure_custom_shader_binding")

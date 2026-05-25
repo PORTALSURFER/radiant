@@ -103,6 +103,30 @@ fn native_runner_keeps_window_input_and_timing_state_grouped() {
 }
 
 #[test]
+fn native_auxiliary_windows_use_explicit_runtime_imports() {
+    let module = read_runtime_source("src/gui_runtime/native_vello/generic_runtime.rs");
+    let auxiliary =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/auxiliary.rs");
+
+    assert!(
+        module.contains("mod auxiliary;")
+            && module
+                .contains("use auxiliary::{AuxiliaryNativeWindow, AuxiliaryWindowEventResult};"),
+        "generic runtime should expose auxiliary windows as a focused module"
+    );
+    assert!(
+        auxiliary.contains("use super::{")
+            && auxiliary.contains("GenericNativeVelloRunner")
+            && auxiliary.contains("owner_window_handle")
+            && auxiliary.contains("scroll_delta_to_logical")
+            && auxiliary.contains("use crate::runtime::{AuxiliaryWindow, NativeRunOptions};")
+            && auxiliary.contains("use winit::{")
+            && !auxiliary.starts_with("use super::*;"),
+        "auxiliary windows should name their runner, runtime helper, public model, and winit dependencies"
+    );
+}
+
+#[test]
 fn native_render_surface_target_size_stays_in_focused_module() {
     let module = read_runtime_source("src/gui_runtime/native_vello/generic_runtime.rs");
     let present = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/present.rs");

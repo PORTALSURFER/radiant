@@ -2,6 +2,8 @@
 mod editing;
 #[path = "model/note.rs"]
 mod note;
+#[path = "model/selection.rs"]
+mod selection;
 #[path = "model/viewport.rs"]
 mod viewport;
 
@@ -9,7 +11,7 @@ pub(crate) use note::PianoNote;
 pub(crate) use viewport::PianoRollViewport;
 
 use super::{
-    LOW_PITCH, NoteSelectionMode, PITCH_ROWS, PianoRollMessage, PianoRollTool, TOTAL_BEATS,
+    LOW_PITCH, PITCH_ROWS, PianoRollMessage, PianoRollTool, TOTAL_BEATS,
     geometry::{pitch_label, synthetic_velocity},
 };
 use editing::clamp_pitch;
@@ -137,57 +139,6 @@ impl PianoRollState {
             PianoRollMessage::SetTool(tool) => self.tool = tool,
             PianoRollMessage::ToggleStressNotes => self.toggle_stress_notes(),
             PianoRollMessage::DeleteSelected => self.delete_selected(),
-        }
-    }
-
-    fn delete_selected(&mut self) {
-        if self.selected_notes.is_empty()
-            && let Some(id) = self.selected_note
-        {
-            self.selected_notes.push(id);
-        }
-        let selected = self.selected_notes.clone();
-        self.notes.retain(|note| !selected.contains(&note.id));
-        self.selected_notes.clear();
-        self.selected_note = None;
-    }
-
-    fn replace_selection(&mut self, ids: impl IntoIterator<Item = u32>) {
-        self.selected_notes = ids
-            .into_iter()
-            .filter(|id| self.notes.iter().any(|note| note.id == *id))
-            .collect();
-        self.selected_notes.sort_unstable();
-        self.selected_notes.dedup();
-        self.selected_note = self.selected_notes.first().copied();
-    }
-
-    fn select_notes(&mut self, ids: Vec<u32>, mode: NoteSelectionMode) {
-        match mode {
-            NoteSelectionMode::Replace => self.replace_selection(ids),
-            NoteSelectionMode::Add => {
-                self.selected_notes.extend(ids);
-                self.selected_notes
-                    .retain(|id| self.notes.iter().any(|note| note.id == *id));
-                self.selected_notes.sort_unstable();
-                self.selected_notes.dedup();
-                self.selected_note = self.selected_notes.first().copied();
-            }
-            NoteSelectionMode::Toggle => {
-                for id in ids {
-                    if let Some(index) = self
-                        .selected_notes
-                        .iter()
-                        .position(|selected| *selected == id)
-                    {
-                        self.selected_notes.remove(index);
-                    } else if self.notes.iter().any(|note| note.id == id) {
-                        self.selected_notes.push(id);
-                    }
-                }
-                self.selected_notes.sort_unstable();
-                self.selected_note = self.selected_notes.first().copied();
-            }
         }
     }
 

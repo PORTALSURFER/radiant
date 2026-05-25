@@ -92,8 +92,13 @@ fn native_runner_keeps_window_input_and_timing_state_grouped() {
     assert!(
         state.contains("struct NativeRunnerWindowState")
             && state.contains("struct NativeRunnerInputState")
-            && state.contains("struct NativeRunnerTimingState"),
-        "native runner state groups should stay in runner_state.rs"
+            && state.contains("struct NativeRunnerTimingState")
+            && state.contains("use super::PendingGpuSurfaceWheel;")
+            && state.contains("use crate::gui::types::Point;")
+            && state.contains("use vello::{")
+            && state.contains("use winit::{")
+            && !state.starts_with("use super::*;"),
+        "native runner state groups should stay in runner_state.rs with explicit runtime, window, and timing dependencies"
     );
 }
 

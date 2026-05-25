@@ -31,7 +31,7 @@ mod startup;
 mod text_edit;
 mod text_renderer;
 
-use self::{startup::*, text_renderer::*};
+use self::text_renderer::*;
 pub(in crate::gui_runtime::native_vello) use runtime_config::{
     select_present_mode, startup_renderer_options,
 };

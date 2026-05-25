@@ -1,6 +1,11 @@
 //! Native render profiling diagnostics for the generic Vello runtime.
 
-use super::*;
+use super::{
+    RetainedSurfaceEncodeStats, gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
+};
+use crate::gui_runtime::native_vello::TextLayoutProfileCounters;
+use std::time::Duration;
+use tracing::info;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(super) struct RenderFrameProfile {
@@ -21,7 +26,7 @@ pub(super) fn maybe_log_render_profile(
     text_stats: TextLayoutProfileCounters,
     render_to_texture_elapsed: Duration,
     frame: RenderFrameProfile,
-    gpu_surface_stats: gpu_surface::GpuSurfaceRenderStats,
+    gpu_surface_stats: GpuSurfaceRenderStats,
     since_last_present: Duration,
 ) {
     if !render_profile_enabled() {

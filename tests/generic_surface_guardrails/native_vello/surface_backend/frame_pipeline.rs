@@ -145,6 +145,22 @@ fn native_wgpu_device_target_helpers_use_explicit_imports() {
 }
 
 #[test]
+fn native_render_profile_uses_explicit_imports() {
+    let render_profile =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/render_profile.rs");
+
+    assert!(
+        render_profile.contains("use std::time::Duration;")
+            && render_profile.contains("use tracing::info;")
+            && render_profile.contains("RetainedSurfaceEncodeStats")
+            && render_profile.contains("GpuSurfaceRenderStats")
+            && render_profile.contains("TextLayoutProfileCounters")
+            && !render_profile.contains("use super::*;"),
+        "native render profile diagnostics should name their timing, tracing, scene, text, and GPU stats dependencies"
+    );
+}
+
+#[test]
 fn native_runtime_config_boundary_uses_explicit_imports_and_exports() {
     let facade = read_runtime_source("src/gui_runtime/native_vello.rs");
     let runtime_config = read_runtime_source("src/gui_runtime/native_vello/runtime_config.rs");

@@ -41,7 +41,7 @@ pub(crate) fn cell_at_position(matrix: Rect, position: Point) -> Option<MatrixCe
 }
 
 pub(crate) fn amount_for_position(rect: Rect, position: Point) -> f32 {
-    let ratio = ((rect.max.y - position.y) / rect.height().max(1.0)).clamp(0.0, 1.0);
+    let ratio = rect.ratio_for_y_from_bottom(position.y);
     ratio * 2.0 - 1.0
 }
 

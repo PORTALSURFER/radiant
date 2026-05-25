@@ -3,18 +3,9 @@ use super::*;
 #[test]
 fn piano_roll_marquee_preview_lights_intersecting_notes_like_hover() {
     let state = PianoRollState::default();
-    let mut widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        PianoRollTool::Select,
-    );
+    let mut parts = PianoRollWidgetParts::from_state(&state);
+    parts.tool = PianoRollTool::Select;
+    let mut widget = PianoRollWidget::new(parts);
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let note = widget.note_by_id(2).expect("default note should exist");
@@ -58,18 +49,7 @@ fn piano_roll_marquee_preview_lights_intersecting_notes_like_hover() {
 fn piano_roll_shift_drag_uses_marquee_selection_in_paint_tool() {
     let state = PianoRollState::default();
     assert_eq!(state.tool, PianoRollTool::Paint);
-    let mut widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let start = Point::new(grid.min.x + 1.0, grid.min.y + 1.0);
@@ -120,18 +100,7 @@ fn piano_roll_shift_command_marquee_adds_to_existing_selection() {
         ids: vec![2],
         mode: NoteSelectionMode::Replace,
     });
-    let mut widget = PianoRollWidget::new(
-        state.notes.clone(),
-        state.selected_note,
-        state.selected_notes.clone(),
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let note = widget.note_by_id(3).expect("target note should exist");

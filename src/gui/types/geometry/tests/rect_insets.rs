@@ -75,3 +75,21 @@ fn rect_inset_uniform_saturating_caps_at_half_extents() {
         Rect::from_min_max(Point::new(30.0, 25.0), Point::new(30.0, 25.0))
     );
 }
+
+#[test]
+fn rect_inset_symmetric_saturating_supports_independent_axes() {
+    let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 30.0));
+
+    assert_eq!(
+        rect.inset_symmetric_saturating(6.0, 2.0),
+        Rect::from_min_max(Point::new(16.0, 22.0), Point::new(44.0, 28.0))
+    );
+    assert_eq!(
+        rect.inset_symmetric_saturating(80.0, 1.0),
+        Rect::from_min_max(Point::new(30.0, 21.0), Point::new(30.0, 29.0))
+    );
+    assert_eq!(
+        rect.inset_symmetric_saturating(-4.0, 80.0),
+        Rect::from_min_max(Point::new(10.0, 25.0), Point::new(50.0, 25.0))
+    );
+}

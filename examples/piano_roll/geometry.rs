@@ -7,12 +7,11 @@ pub(crate) fn row_height_for(rect: Rect, viewport: PianoRollViewport) -> f32 {
 }
 
 pub(crate) fn x_for_beat_view(grid: Rect, viewport: PianoRollViewport, beat: f32) -> f32 {
-    grid.min.x + grid.width() * ((beat - viewport.beat_start) / viewport.visible_beats)
+    grid.x_for_ratio_unclamped((beat - viewport.beat_start) / viewport.visible_beats)
 }
 
 pub(crate) fn beat_for_x_view(grid: Rect, viewport: PianoRollViewport, x: f32) -> f32 {
-    (viewport.beat_start + ((x - grid.min.x) / grid.width().max(1.0)) * viewport.visible_beats)
-        .clamp(0.0, TOTAL_BEATS)
+    (viewport.beat_start + grid.ratio_for_x(x) * viewport.visible_beats).clamp(0.0, TOTAL_BEATS)
 }
 
 pub(crate) fn y_for_pitch_view(grid: Rect, viewport: PianoRollViewport, pitch: i32) -> f32 {

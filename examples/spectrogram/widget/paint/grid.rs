@@ -19,7 +19,7 @@ fn append_horizontal_lines(
     theme: &ThemeTokens,
 ) {
     for fraction in [0.25, 0.5, 0.75] {
-        let y = plot.max.y - plot.height() * fraction;
+        let y = plot.y_for_ratio_from_bottom(fraction);
         push_rect(
             primitives,
             widget_id,
@@ -36,7 +36,7 @@ fn append_vertical_lines(
     theme: &ThemeTokens,
 ) {
     for fraction in [0.25, 0.5, 0.75] {
-        let x = plot.min.x + plot.width() * fraction;
+        let x = plot.x_for_ratio(fraction);
         push_rect(
             primitives,
             widget_id,

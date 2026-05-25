@@ -51,6 +51,30 @@ fn paint_frame_equality_includes_gradient_primitives() {
 }
 
 #[test]
+fn paint_frame_push_helpers_append_shape_primitives() {
+    let color = Rgba8 {
+        r: 1,
+        g: 2,
+        b: 3,
+        a: 4,
+    };
+    let mut frame = PaintFrame::default();
+    let rect = Rect::from_min_max(Point::new(2.0, 4.0), Point::new(12.0, 16.0));
+
+    frame.push_rect(rect, color);
+    frame.push_circle(Point::new(20.0, 24.0), 6.0, color);
+    frame.push_border_rects(rect, color, 1.0, BorderSides::ALL);
+
+    assert!(
+        matches!(frame.primitives[0], Primitive::Rect(FillRect { rect: pushed, color: pushed_color }) if pushed == rect && pushed_color == color)
+    );
+    assert!(
+        matches!(frame.primitives[1], Primitive::Circle(FillCircle { center, radius, color: pushed_color }) if center == Point::new(20.0, 24.0) && radius == 6.0 && pushed_color == color)
+    );
+    assert_eq!(frame.primitives.len(), 6);
+}
+
+#[test]
 fn paint_frame_can_carry_svg_primitives() {
     let svg = r##"<svg viewBox="0 0 4 4"><rect width="4" height="4"/></svg>"##;
     let document = crate::runtime::PaintSvgDocument::from_svg(svg).expect("svg should parse");

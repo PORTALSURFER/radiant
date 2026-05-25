@@ -7,18 +7,7 @@ fn piano_roll_middle_mouse_drag_pans_view() {
     state.viewport.visible_beats = 8.0;
     state.viewport.pitch_start = 52;
     state.viewport.visible_pitches = 8;
-    let mut widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let start = grid.center();
@@ -64,18 +53,7 @@ fn piano_roll_middle_mouse_vertical_pan_accumulates_sub_row_motion() {
     let mut state = PianoRollState::default();
     state.viewport.visible_pitches = 8;
     state.viewport.pitch_start = 52;
-    let mut widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let row_height = row_height_for(grid, state.viewport);

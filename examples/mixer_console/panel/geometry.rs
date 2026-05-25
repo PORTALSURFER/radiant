@@ -24,15 +24,15 @@ impl MixerPanelWidget {
 
     pub(crate) fn fader_rect(&self, strip: Rect) -> Rect {
         Rect::from_min_max(
-            Point::new(strip.min.x + strip.width() * 0.58, strip.min.y + 56.0),
-            Point::new(strip.min.x + strip.width() * 0.86, strip.max.y - 150.0),
+            Point::new(strip.x_for_ratio(0.58), strip.min.y + 56.0),
+            Point::new(strip.x_for_ratio(0.86), strip.max.y - 150.0),
         )
     }
 
     pub(crate) fn meter_rect(&self, strip: Rect) -> Rect {
         Rect::from_min_max(
-            Point::new(strip.min.x + strip.width() * 0.14, strip.min.y + 50.0),
-            Point::new(strip.min.x + strip.width() * 0.42, strip.max.y - 150.0),
+            Point::new(strip.x_for_ratio(0.14), strip.min.y + 50.0),
+            Point::new(strip.x_for_ratio(0.42), strip.max.y - 150.0),
         )
     }
 
@@ -93,12 +93,12 @@ impl MixerPanelWidget {
 
     pub(super) fn fader_ratio_at(&self, strip: Rect, position: Point) -> f32 {
         let fader = self.fader_rect(strip);
-        ((fader.max.y - position.y) / fader.height().max(1.0)).clamp(0.0, 1.0)
+        fader.ratio_for_y_from_bottom(position.y)
     }
 
     pub(super) fn send_ratio_at(&self, strip: Rect, send: usize, position: Point) -> f32 {
         let send = self.send_rect(strip, send);
-        ((position.x - send.min.x) / send.width().max(1.0)).clamp(0.0, 1.0)
+        send.ratio_for_x(position.x)
     }
 
     pub(super) fn send_at(&self, strip: Rect, position: Point) -> Option<usize> {

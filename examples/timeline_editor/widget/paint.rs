@@ -8,12 +8,12 @@ mod clips;
 use radiant::gui::types::Rgba8;
 use radiant::layout::{Point, Rect};
 use radiant::runtime::{
-    PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintTextAlign, PaintTextRun,
+    PaintPrimitive, PaintTextAlign, PaintTextMetrics, push_text_run_with_metrics,
 };
 use radiant::theme::ThemeTokens;
-use radiant::widgets::TextWrap;
 
 pub(super) use clips::clip_fill_for_lane;
+pub(super) use radiant::runtime::{push_fill_rect as push_rect, push_stroke_rect as push_stroke};
 
 pub(super) fn append_timeline_paint(
     widget: &ArrangementTimelineWidget,
@@ -114,34 +114,6 @@ pub(super) fn append_timeline_paint(
     clips::append_clip_paint(widget, primitives, geometry, theme);
 }
 
-pub(super) fn push_rect(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: u64,
-    rect: Rect,
-    color: Rgba8,
-) {
-    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-        widget_id,
-        rect,
-        color,
-    }));
-}
-
-pub(super) fn push_stroke(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: u64,
-    rect: Rect,
-    color: Rgba8,
-    width: f32,
-) {
-    primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-        widget_id,
-        rect,
-        color,
-        width,
-    }));
-}
-
 pub(super) fn push_text(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: u64,
@@ -150,16 +122,15 @@ pub(super) fn push_text(
     color: Rgba8,
     align: PaintTextAlign,
 ) {
-    primitives.push(PaintPrimitive::Text(PaintTextRun {
+    push_text_run_with_metrics(
+        primitives,
         widget_id,
-        text: text.into().into(),
+        text,
         rect,
-        font_size: 13.0,
-        baseline: Some(18.0),
         color,
         align,
-        wrap: TextWrap::None,
-    }));
+        PaintTextMetrics::new(13.0, Some(18.0)),
+    );
 }
 
 pub(super) fn push_resize_handles(
@@ -186,7 +157,6 @@ pub(super) fn push_resize_handles(
     );
 }
 
-fn translucent(mut color: Rgba8, alpha: u8) -> Rgba8 {
-    color.a = alpha;
-    color
+fn translucent(color: Rgba8, alpha: u8) -> Rgba8 {
+    color.with_alpha(alpha)
 }

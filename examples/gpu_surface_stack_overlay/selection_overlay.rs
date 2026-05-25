@@ -34,19 +34,13 @@ impl SelectionOverlay {
     }
 
     fn ratio_from_position(bounds: Rect, position: Point) -> f32 {
-        ((position.x - bounds.min.x) / bounds.width().max(1.0)).clamp(0.0, 1.0)
+        bounds.ratio_for_x(position.x)
     }
 
     fn selection_rect(&self, bounds: Rect) -> Rect {
         Rect::from_min_max(
-            Point::new(
-                bounds.min.x + bounds.width() * self.selection_start,
-                bounds.min.y,
-            ),
-            Point::new(
-                bounds.min.x + bounds.width() * self.selection_end,
-                bounds.max.y,
-            ),
+            Point::new(bounds.x_for_ratio(self.selection_start), bounds.min.y),
+            Point::new(bounds.x_for_ratio(self.selection_end), bounds.max.y),
         )
     }
 

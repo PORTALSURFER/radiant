@@ -3,22 +3,22 @@ use radiant::prelude::*;
 use super::super::model::{MAX_FREQ_HZ, MAX_GAIN_DB, MIN_FREQ_HZ, MIN_GAIN_DB};
 
 pub(crate) fn x_for_freq(plot: Rect, freq_hz: f32) -> f32 {
-    plot.min.x + plot.width() * ratio_for_freq(freq_hz)
+    plot.x_for_ratio(ratio_for_freq(freq_hz))
 }
 
 pub(crate) fn y_for_gain(plot: Rect, gain_db: f32) -> f32 {
     let ratio = ((gain_db.clamp(MIN_GAIN_DB, MAX_GAIN_DB) - MIN_GAIN_DB)
         / (MAX_GAIN_DB - MIN_GAIN_DB))
         .clamp(0.0, 1.0);
-    plot.max.y - plot.height() * ratio
+    plot.y_for_ratio(1.0 - ratio)
 }
 
 pub(super) fn freq_for_x(plot: Rect, x: f32) -> f32 {
-    freq_for_ratio(((x - plot.min.x) / plot.width().max(1.0)).clamp(0.0, 1.0))
+    freq_for_ratio(plot.ratio_for_x(x))
 }
 
 pub(super) fn gain_for_y(plot: Rect, y: f32) -> f32 {
-    let ratio = ((plot.max.y - y) / plot.height().max(1.0)).clamp(0.0, 1.0);
+    let ratio = 1.0 - plot.ratio_for_y(y);
     MIN_GAIN_DB + (MAX_GAIN_DB - MIN_GAIN_DB) * ratio
 }
 

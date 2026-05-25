@@ -60,7 +60,7 @@ impl<'a> SurfacePaintContext<'a> {
         self.layout
             .rects
             .get(&node_id)
-            .is_none_or(|rect| rects_overlap(*rect, clip_rect))
+            .is_none_or(|rect| rect.overlaps(clip_rect))
     }
 
     pub(super) fn child_is_past_ordered_clip<Message>(
@@ -80,15 +80,4 @@ impl<'a> SurfacePaintContext<'a> {
             _ => false,
         }
     }
-}
-
-fn rects_overlap(a: Rect, b: Rect) -> bool {
-    a.width() > 0.0
-        && a.height() > 0.0
-        && b.width() > 0.0
-        && b.height() > 0.0
-        && a.min.x < b.max.x
-        && a.max.x > b.min.x
-        && a.min.y < b.max.y
-        && a.max.y > b.min.y
 }

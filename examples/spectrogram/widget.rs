@@ -45,7 +45,7 @@ impl SpectrogramWidget {
         if !plot.contains(position) || self.columns.is_empty() {
             return None;
         }
-        let ratio = ((position.x - plot.min.x) / plot.width().max(1.0)).clamp(0.0, 0.999);
+        let ratio = plot.ratio_for_x(position.x).min(0.999);
         Some((ratio * self.columns.len() as f32).floor() as usize)
     }
 }

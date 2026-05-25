@@ -2,25 +2,14 @@ use radiant::prelude::*;
 
 use super::{
     AppMessage, DATA_SOURCE_NOTE, PIANO_ROLL_WIDGET_ID, PianoRollMessage, PianoRollState,
-    PianoRollTool, PianoRollWidget, STATUS_WIDGET_ID,
+    PianoRollTool, PianoRollWidget, PianoRollWidgetParts, STATUS_WIDGET_ID,
 };
 
 pub(crate) fn project_surface(state: &mut PianoRollState) -> View<AppMessage> {
     column([
         header_row(state),
         custom_widget_mapped(
-            PianoRollWidget::new(
-                state.notes.clone(),
-                state.selected_note,
-                state.selected_notes.clone(),
-                state.selected_pitch,
-                state.edit_cursor_beat,
-                state.time_selection,
-                state.snap_enabled,
-                state.playhead_beat,
-                state.viewport,
-                state.tool,
-            ),
+            PianoRollWidget::new(PianoRollWidgetParts::from_state(state)),
             AppMessage::Roll,
         )
         .id(PIANO_ROLL_WIDGET_ID)

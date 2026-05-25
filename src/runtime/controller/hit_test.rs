@@ -3,7 +3,8 @@ use crate::{
     gui::types::Point,
     layout::NodeId,
     runtime::{RuntimeBridge, SurfaceWidget},
-    widgets::{WidgetCursor, WidgetId},
+    widgets::WidgetCursor,
+    widgets::WidgetId,
 };
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>

@@ -20,6 +20,14 @@ impl Rect {
         Self { min, max }
     }
 
+    /// Construct a normalized rectangle from any two opposite corners.
+    pub fn from_points(a: Point, b: Point) -> Self {
+        Self::from_min_max(
+            Point::new(a.x.min(b.x), a.y.min(b.y)),
+            Point::new(a.x.max(b.x), a.y.max(b.y)),
+        )
+    }
+
     /// Construct a rectangle from a minimum corner and size.
     pub fn from_min_size(min: Point, size: Vector2) -> Self {
         Self {
@@ -59,12 +67,89 @@ impl Rect {
         )
     }
 
+    /// Project a normalized horizontal ratio into this rectangle.
+    pub fn x_for_ratio(self, ratio: f32) -> f32 {
+        self.x_for_ratio_unclamped(ratio.clamp(0.0, 1.0))
+    }
+
+    /// Project a normalized vertical ratio into this rectangle from top to bottom.
+    pub fn y_for_ratio(self, ratio: f32) -> f32 {
+        self.y_for_ratio_unclamped(ratio.clamp(0.0, 1.0))
+    }
+
+    /// Project a normalized vertical ratio into this rectangle from bottom to top.
+    pub fn y_for_ratio_from_bottom(self, ratio: f32) -> f32 {
+        self.y_for_ratio_from_bottom_unclamped(ratio.clamp(0.0, 1.0))
+    }
+
+    /// Project a horizontal ratio into this rectangle without clamping.
+    pub fn x_for_ratio_unclamped(self, ratio: f32) -> f32 {
+        self.min.x + self.width() * ratio
+    }
+
+    /// Project a vertical ratio into this rectangle without clamping.
+    pub fn y_for_ratio_unclamped(self, ratio: f32) -> f32 {
+        self.min.y + self.height() * ratio
+    }
+
+    /// Project a bottom-up vertical ratio into this rectangle without clamping.
+    pub fn y_for_ratio_from_bottom_unclamped(self, ratio: f32) -> f32 {
+        self.max.y - self.height() * ratio
+    }
+
+    /// Convert an x coordinate into a normalized horizontal ratio inside this rectangle.
+    pub fn ratio_for_x(self, x: f32) -> f32 {
+        let width = self.width();
+        if !x.is_finite() || !width.is_finite() || width <= f32::EPSILON {
+            return 0.0;
+        }
+        ((x - self.min.x) / width).clamp(0.0, 1.0)
+    }
+
+    /// Convert a y coordinate into a normalized vertical ratio inside this rectangle.
+    pub fn ratio_for_y(self, y: f32) -> f32 {
+        let height = self.height();
+        if !y.is_finite() || !height.is_finite() || height <= f32::EPSILON {
+            return 0.0;
+        }
+        ((y - self.min.y) / height).clamp(0.0, 1.0)
+    }
+
+    /// Convert a y coordinate into a normalized bottom-up vertical ratio inside this rectangle.
+    pub fn ratio_for_y_from_bottom(self, y: f32) -> f32 {
+        let height = self.height();
+        if !y.is_finite() || !height.is_finite() || height <= f32::EPSILON {
+            return 0.0;
+        }
+        ((self.max.y - y) / height).clamp(0.0, 1.0)
+    }
+
     /// Return whether the point lies inside the rectangle bounds.
     pub fn contains(self, point: Point) -> bool {
         point.x >= self.min.x
             && point.x <= self.max.x
             && point.y >= self.min.y
             && point.y <= self.max.y
+    }
+
+    /// Return whether this rectangle intersects `other`, including shared edges.
+    pub fn intersects(self, other: Self) -> bool {
+        self.min.x <= other.max.x
+            && self.max.x >= other.min.x
+            && self.min.y <= other.max.y
+            && self.max.y >= other.min.y
+    }
+
+    /// Return whether this rectangle overlaps `other` with positive area.
+    pub fn overlaps(self, other: Self) -> bool {
+        self.width() > 0.0
+            && self.height() > 0.0
+            && other.width() > 0.0
+            && other.height() > 0.0
+            && self.min.x < other.max.x
+            && self.max.x > other.min.x
+            && self.min.y < other.max.y
+            && self.max.y > other.min.y
     }
 
     /// Return an empty rectangle at this rectangle's minimum corner.

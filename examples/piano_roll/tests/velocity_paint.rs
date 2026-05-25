@@ -4,18 +4,7 @@ use super::*;
 fn piano_roll_velocity_lane_paints_dense_pillars_for_stress_notes() {
     let mut state = PianoRollState::default();
     state.apply_roll_message(PianoRollMessage::ToggleStressNotes);
-    let widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let mut primitives = Vec::new();
 
@@ -42,18 +31,7 @@ fn piano_roll_velocity_lane_paints_dense_pillars_for_stress_notes() {
 #[test]
 fn piano_roll_velocity_pillars_align_to_note_start() {
     let state = PianoRollState::default();
-    let widget = PianoRollWidget::new(
-        state.notes.clone(),
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let lane = widget.velocity_rect(bounds);
     let note = widget.note_by_id(2).expect("default note should exist");
@@ -69,18 +47,7 @@ fn piano_roll_velocity_pillars_align_to_note_start() {
 #[test]
 fn piano_roll_velocity_handle_hover_paints_runtime_highlight() {
     let state = PianoRollState::default();
-    let mut widget = PianoRollWidget::new(
-        state.notes.clone(),
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let lane = widget.velocity_rect(bounds);
     let note = widget.note_by_id(2).expect("default note should exist");
@@ -115,18 +82,7 @@ fn piano_roll_velocity_handle_hover_paints_runtime_highlight() {
 #[test]
 fn piano_roll_selected_velocity_handle_uses_note_selection_orange() {
     let state = PianoRollState::default();
-    let widget = PianoRollWidget::new(
-        state.notes.clone(),
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let lane = widget.velocity_rect(bounds);
     let note = widget.note_by_id(2).expect("selected note should exist");
@@ -170,18 +126,7 @@ fn piano_roll_note_fill_alpha_tracks_velocity_with_visible_floor() {
     ];
     state.selected_note = None;
     state.selected_notes.clear();
-    let widget = PianoRollWidget::new(
-        state.notes.clone(),
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let quiet_rect = widget.note_rect(grid, state.notes[0]);
@@ -218,18 +163,7 @@ fn piano_roll_selected_note_fill_alpha_tracks_velocity_while_border_marks_select
     }];
     state.selected_note = Some(101);
     state.selected_notes = vec![101];
-    let widget = PianoRollWidget::new(
-        state.notes.clone(),
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let rect = widget.note_rect(grid, state.notes[0]);

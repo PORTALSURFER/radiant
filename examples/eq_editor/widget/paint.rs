@@ -45,7 +45,7 @@ fn append_analyzer(
     let points = (0..96)
         .map(|index| {
             let ratio = index as f32 / 95.0;
-            let x = plot.min.x + plot.width() * ratio;
+            let x = plot.x_for_ratio(ratio);
             let wave = ((ratio * 5.8).sin() * 0.45 + (ratio * 18.0).sin() * 0.12).max(-0.9);
             let height = plot.height() * (0.18 + (1.0 - ratio).powf(0.7) * 0.32 + wave * 0.08);
             Point::new(x, floor - height)
@@ -70,7 +70,7 @@ fn append_curve(
             let ratio = index as f32 / 159.0;
             let freq = geometry::freq_for_ratio(ratio);
             Point::new(
-                plot.min.x + plot.width() * ratio,
+                plot.x_for_ratio(ratio),
                 y_for_gain(plot, response_gain_db(&widget.bands, freq)),
             )
         })

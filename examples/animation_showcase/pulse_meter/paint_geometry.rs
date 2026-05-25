@@ -1,9 +1,6 @@
 use super::wrap01;
 use radiant::{
-    gui::{
-        paint::{FillCircle, FillRect, PaintFrame, Primitive},
-        types::Rgba8,
-    },
+    gui::{paint::PaintFrame, types::Rgba8},
     layout::{Point, Rect},
 };
 
@@ -51,11 +48,10 @@ fn push_ratio_bar_segment(
         return;
     }
     let center_y = (lane.min.y + lane.max.y) * 0.5;
-    push_rect(
-        frame,
+    frame.push_rect(
         Rect::from_min_max(
-            Point::new(lane.min.x + lane.width() * start, center_y - height * 0.5),
-            Point::new(lane.min.x + lane.width() * end, center_y + height * 0.5),
+            Point::new(lane.x_for_ratio(start), center_y - height * 0.5),
+            Point::new(lane.x_for_ratio(end), center_y + height * 0.5),
         ),
         color,
     );
@@ -72,12 +68,8 @@ pub(super) fn push_ratio_circle(
     if radius <= 0.0 {
         return;
     }
-    let center_x = track.min.x + track.width() * center_ratio.clamp(0.0, 1.0);
-    frame.primitives.push(Primitive::Circle(FillCircle {
-        center: Point::new(center_x, center_y),
-        radius,
-        color,
-    }));
+    let center_x = track.x_for_ratio(center_ratio);
+    frame.push_circle(Point::new(center_x, center_y), radius, color);
 }
 
 pub(super) fn push_ratio_rect(
@@ -92,25 +84,11 @@ pub(super) fn push_ratio_rect(
     if end <= start {
         return;
     }
-    push_rect(
-        frame,
+    frame.push_rect(
         Rect::from_min_max(
-            Point::new(track.min.x + track.width() * start, track.min.y),
-            Point::new(track.min.x + track.width() * end, track.max.y),
+            Point::new(track.x_for_ratio(start), track.min.y),
+            Point::new(track.x_for_ratio(end), track.max.y),
         ),
         color,
     );
-}
-
-pub(super) fn push_rect(frame: &mut PaintFrame, rect: Rect, color: Rgba8) {
-    frame
-        .primitives
-        .push(Primitive::Rect(FillRect { rect, color }));
-}
-
-pub(super) fn inset(rect: Rect, x: f32, y: f32) -> Rect {
-    Rect::from_min_max(
-        Point::new(rect.min.x + x, rect.min.y + y),
-        Point::new(rect.max.x - x, rect.max.y - y),
-    )
 }

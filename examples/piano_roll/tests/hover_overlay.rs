@@ -3,18 +3,7 @@ use super::*;
 #[test]
 fn piano_roll_hover_uses_paint_only_runtime_overlay() {
     let state = PianoRollState::default();
-    let mut widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let note = widget.note_by_id(2).expect("default note should exist");
@@ -47,18 +36,7 @@ fn piano_roll_hover_uses_paint_only_runtime_overlay() {
 #[test]
 fn piano_roll_hover_lights_entire_note_tail() {
     let state = PianoRollState::default();
-    let mut widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let note = widget.note_by_id(2).expect("default note should exist");
@@ -97,18 +75,7 @@ fn piano_roll_hover_lights_entire_note_tail() {
 #[test]
 fn piano_roll_hover_paints_left_resize_bracket_cursor() {
     let state = PianoRollState::default();
-    let mut widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let note = widget.note_by_id(2).expect("default note should exist");
@@ -153,18 +120,7 @@ fn piano_roll_hover_paints_left_resize_bracket_cursor() {
 #[test]
 fn piano_roll_hover_paints_right_resize_bracket_cursor() {
     let state = PianoRollState::default();
-    let mut widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
     let note = widget.note_by_id(2).expect("default note should exist");
@@ -209,18 +165,7 @@ fn piano_roll_hover_paints_right_resize_bracket_cursor() {
 #[test]
 fn piano_roll_hover_lights_left_keyboard_note_row() {
     let state = PianoRollState::default();
-    let mut widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let keyboard = widget.keyboard_rect(bounds);
     let pitch = 60;

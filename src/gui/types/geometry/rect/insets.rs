@@ -41,8 +41,13 @@ impl Rect {
 
     /// Return this rectangle with a symmetric inset capped at half width and height.
     pub fn inset_uniform_saturating(self, inset: f32) -> Self {
-        let inset_x = inset.max(0.0).min((self.width() * 0.5).max(0.0));
-        let inset_y = inset.max(0.0).min((self.height() * 0.5).max(0.0));
+        self.inset_symmetric_saturating(inset, inset)
+    }
+
+    /// Return this rectangle with symmetric horizontal and vertical insets.
+    pub fn inset_symmetric_saturating(self, horizontal: f32, vertical: f32) -> Self {
+        let inset_x = horizontal.max(0.0).min((self.width() * 0.5).max(0.0));
+        let inset_y = vertical.max(0.0).min((self.height() * 0.5).max(0.0));
         Self::from_min_max(
             Point::new(self.min.x + inset_x, self.min.y + inset_y),
             Point::new(self.max.x - inset_x, self.max.y - inset_y),

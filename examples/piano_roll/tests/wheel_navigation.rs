@@ -3,18 +3,7 @@ use super::*;
 #[test]
 fn piano_roll_plain_vertical_wheel_zooms_pitch_only() {
     let state = PianoRollState::default();
-    let mut widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
 
@@ -48,18 +37,7 @@ fn piano_roll_plain_vertical_wheel_zooms_pitch_only() {
 #[test]
 fn piano_roll_alt_vertical_wheel_zooms_time_only() {
     let state = PianoRollState::default();
-    let mut widget = PianoRollWidget::new(
-        state.notes.clone(),
-        state.selected_note,
-        state.selected_notes.clone(),
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
 
@@ -96,18 +74,7 @@ fn piano_roll_alt_vertical_wheel_zooms_time_only() {
 #[test]
 fn piano_roll_horizontal_wheel_still_pans_time_range() {
     let state = PianoRollState::default();
-    let mut widget = PianoRollWidget::new(
-        state.notes,
-        state.selected_note,
-        state.selected_notes,
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
+    let mut widget = PianoRollWidget::new(PianoRollWidgetParts::from_state(&state));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
     let grid = widget.editor_rect(bounds);
 

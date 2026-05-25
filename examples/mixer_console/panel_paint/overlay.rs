@@ -54,7 +54,7 @@ pub(super) fn append_send_drag_overlay(
     let fill = Rect::from_min_max(
         rect.min,
         Point::new(
-            rect.min.x + rect.width() * widget.send_display_ratio(channel_index, send),
+            rect.x_for_ratio(widget.send_display_ratio(channel_index, send)),
             rect.max.y,
         ),
     );
@@ -140,7 +140,7 @@ fn append_preview_knob(
     fader: Rect,
     theme: &ThemeTokens,
 ) {
-    let knob_y = fader.max.y - fader.height() * widget.fader_display_ratio(channel_index);
+    let knob_y = fader.y_for_ratio_from_bottom(widget.fader_display_ratio(channel_index));
     let knob = Rect::from_min_size(
         Point::new(fader.min.x, knob_y - 8.0),
         Vector2::new(fader.width(), 16.0),

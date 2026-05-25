@@ -126,8 +126,12 @@ fn piano_roll_example_stays_split_by_widget_input_paint_and_tests() {
         paint.contains("#[path = \"widget_paint/grid.rs\"]")
             && paint.contains("#[path = \"widget_paint/keyboard.rs\"]")
             && paint.contains("#[path = \"widget_paint/note.rs\"]")
-            && paint.contains("#[path = \"widget_paint/overlay.rs\"]"),
-        "piano roll paint root should split grid, keyboard, note, and overlay concerns"
+            && paint.contains("#[path = \"widget_paint/overlay.rs\"]")
+            && paint.contains("#[path = \"widget_paint/velocity.rs\"]")
+            && !paint.contains("#[cfg(any())]")
+            && !paint.contains("fn append_key_row(")
+            && !paint.contains("fn append_velocity_pillar("),
+        "piano roll paint root should split grid, keyboard, note, overlay, and velocity concerns"
     );
 
     for path in [
@@ -149,15 +153,13 @@ fn piano_roll_example_stays_split_by_widget_input_paint_and_tests() {
         "examples/piano_roll/widget_paint/keyboard.rs",
         "examples/piano_roll/widget_paint/note.rs",
         "examples/piano_roll/widget_paint/overlay.rs",
+        "examples/piano_roll/widget_paint/velocity.rs",
     ] {
         let source = fs::read_to_string(manifest_dir.join(path))
             .unwrap_or_else(|err| panic!("{path} should be readable: {err}"));
         let line_limit = if path == "examples/piano_roll/tests.rs" {
             2_000
-        } else if matches!(
-            path,
-            "examples/piano_roll/widget/input.rs" | "examples/piano_roll/widget_paint.rs"
-        ) {
+        } else if path == "examples/piano_roll/widget/input.rs" {
             750
         } else {
             250

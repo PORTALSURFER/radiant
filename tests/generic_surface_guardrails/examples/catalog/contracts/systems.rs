@@ -24,8 +24,10 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         "dpi_scaling",
         &[
             "use radiant::theme::DpiScale;",
+            "DpiScale::new(",
             "Command::set_dpi_scale(",
             "Command::set_window_logical_size(",
+            "physical_to_logical(",
             "DpiScaleChoice::Two",
             "dpi_scaling_example_projects_metrics_for_selected_scale",
         ],

@@ -1,4 +1,5 @@
-use super::*;
+use super::SurfaceRuntime;
+use crate::runtime::RuntimeBridge;
 
 /// Summary of one command-dispatch pass through a [`SurfaceRuntime`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

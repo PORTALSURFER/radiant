@@ -1,4 +1,5 @@
-use super::*;
+use super::gpu_surface_types::{GPU_SURFACE_OVERLAY_VEC4_SLOTS, MAX_GPU_SURFACE_OVERLAYS};
+use crate::{gui::types::Rgba8, runtime::GpuSurfaceOverlay};
 
 pub(super) type OverlayVec4Slots = [[f32; 4]; GPU_SURFACE_OVERLAY_VEC4_SLOTS];
 pub(super) type OverlayColorSlots = [[f32; 4]; MAX_GPU_SURFACE_OVERLAYS];

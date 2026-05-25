@@ -1,7 +1,8 @@
-use super::*;
+use super::gpu_surface_types::{GpuSurfaceUniforms, SignalUniforms};
 use crate::gui_runtime::native_vello::generic_runtime::gpu_upload_bytes::{
     GpuUploadBytes, upload_slice_as_bytes, upload_value_as_bytes,
 };
+use crate::runtime::GpuSignalSummaryBucket;
 
 pub(super) fn uniforms_as_bytes(uniforms: &GpuSurfaceUniforms) -> &[u8] {
     upload_value_as_bytes(uniforms)

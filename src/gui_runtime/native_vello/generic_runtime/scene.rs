@@ -1,7 +1,13 @@
 //! Scene encoding for generic runtime paint plans.
 
 use super::runtime_helpers::GpuSurfaceInteractionRegion;
-use crate::gui_runtime::native_vello::*;
+use crate::{
+    gui::types::{Rgba8, Vector2},
+    gui_runtime::native_vello::{NativeTextRenderer, to_kurbo_rect},
+    runtime::{PaintPrimitive, RuntimeBridge},
+};
+use std::{sync::Arc, time::Duration};
+use vello::{Scene, kurbo::Affine, peniko::Fill};
 
 mod cache;
 mod clip;

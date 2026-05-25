@@ -140,9 +140,14 @@ fn normalized_scrollbars_keep_model_and_geometry_focused() {
     assert!(
         geometry.contains("pub fn resolve_normalized_scrollbar")
             && geometry.contains("pub fn normalized_scrollbar_center_for_pointer")
-            && geometry.contains("fn clamped_normalized_span")
+            && geometry.contains("struct NormalizedScrollbarSpan")
+            && geometry.contains("fn width_ratio")
+            && geometry.contains("fn max_start_micros")
+            && geometry.contains("fn center_for_start")
+            && !geometry.contains("fn clamped_normalized_span")
+            && !geometry.contains("-> (u32, u32, u32)")
             && !geometry.contains("pub struct NormalizedScrollbar"),
-        "normalized scrollbar geometry and pointer resolution should live in scrollbar/geometry.rs"
+        "normalized scrollbar geometry should use a named internal span model instead of positional normalized-span tuples"
     );
     assert!(
         range.contains("NormalizedScrollbarRequest")

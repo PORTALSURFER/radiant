@@ -18,6 +18,11 @@ struct CreatedCustomShaderPipeline {
     pipeline: wgpu::RenderPipeline,
 }
 
+struct CustomShaderBufferLayoutSpec {
+    binding: u32,
+    ty: wgpu::BufferBindingType,
+}
+
 impl GpuSurfaceRenderer {
     pub(super) fn ensure_custom_shader_pipeline(
         &mut self,
@@ -102,25 +107,59 @@ fn create_custom_shader_pipeline(
     request
         .device
         .push_error_scope(wgpu::ErrorFilter::Validation);
-    let bind_group_layout =
-        request
-            .device
-            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("radiant_custom_shader_surface_bind_group_layout"),
-                entries: &custom_shader_layout_entries(&request.key),
-            });
-    let layout = request
+    let bind_group_layout = create_custom_shader_bind_group_layout(request);
+    let layout = create_custom_shader_pipeline_layout(request.device, &bind_group_layout);
+    let pipeline = create_custom_shader_render_pipeline(request, shader, &layout);
+    if let Some(error) = custom_shader_validation_error(request.device) {
+        stats.custom_shader.failures.pipeline_failures += 1;
+        warn!(
+            surface_key = request.surface_key,
+            shader_key = %request.key.shader_key,
+            vertex_entry_point = %request.key.vertex_entry_point,
+            fragment_entry_point = %request.key.fragment_entry_point,
+            error = %error,
+            "radiant custom shader render pipeline validation failed"
+        );
+        return None;
+    }
+    Some(CreatedCustomShaderPipeline {
+        bind_group_layout,
+        pipeline,
+    })
+}
+
+fn create_custom_shader_bind_group_layout(
+    request: &CustomShaderPipelineRequest<'_>,
+) -> wgpu::BindGroupLayout {
+    request
         .device
-        .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("radiant_custom_shader_surface_pipeline_layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
-        });
-    let pipeline = request
+        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("radiant_custom_shader_surface_bind_group_layout"),
+            entries: &custom_shader_layout_entries(&request.key),
+        })
+}
+
+fn create_custom_shader_pipeline_layout(
+    device: &wgpu::Device,
+    bind_group_layout: &wgpu::BindGroupLayout,
+) -> wgpu::PipelineLayout {
+    device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("radiant_custom_shader_surface_pipeline_layout"),
+        bind_group_layouts: &[bind_group_layout],
+        push_constant_ranges: &[],
+    })
+}
+
+fn create_custom_shader_render_pipeline(
+    request: &CustomShaderPipelineRequest<'_>,
+    shader: &wgpu::ShaderModule,
+    layout: &wgpu::PipelineLayout,
+) -> wgpu::RenderPipeline {
+    request
         .device
         .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("radiant_custom_shader_surface_pipeline"),
-            layout: Some(&layout),
+            layout: Some(layout),
             vertex: wgpu::VertexState {
                 module: shader,
                 entry_point: Some(&request.key.vertex_entry_point),
@@ -145,61 +184,48 @@ fn create_custom_shader_pipeline(
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
             cache: None,
-        });
-    if let Some(error) = custom_shader_validation_error(request.device) {
-        stats.custom_shader.failures.pipeline_failures += 1;
-        warn!(
-            surface_key = request.surface_key,
-            shader_key = %request.key.shader_key,
-            vertex_entry_point = %request.key.vertex_entry_point,
-            fragment_entry_point = %request.key.fragment_entry_point,
-            error = %error,
-            "radiant custom shader render pipeline validation failed"
-        );
-        return None;
-    }
-    Some(CreatedCustomShaderPipeline {
-        bind_group_layout,
-        pipeline,
-    })
+        })
 }
 
 fn custom_shader_layout_entries(key: &CustomShaderPipelineKey) -> Vec<wgpu::BindGroupLayoutEntry> {
-    let mut entries = vec![wgpu::BindGroupLayoutEntry {
-        binding: 0,
+    let mut entries = vec![custom_shader_buffer_layout_entry(
+        CustomShaderBufferLayoutSpec {
+            binding: 0,
+            ty: wgpu::BufferBindingType::Uniform,
+        },
+    )];
+    if key.has_uniform_payload {
+        entries.push(custom_shader_buffer_layout_entry(
+            CustomShaderBufferLayoutSpec {
+                binding: 1,
+                ty: wgpu::BufferBindingType::Uniform,
+            },
+        ));
+    }
+    if key.has_storage_payload {
+        entries.push(custom_shader_buffer_layout_entry(
+            CustomShaderBufferLayoutSpec {
+                binding: 2,
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+            },
+        ));
+    }
+    entries
+}
+
+fn custom_shader_buffer_layout_entry(
+    spec: CustomShaderBufferLayoutSpec,
+) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry {
+        binding: spec.binding,
         visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
         ty: wgpu::BindingType::Buffer {
-            ty: wgpu::BufferBindingType::Uniform,
+            ty: spec.ty,
             has_dynamic_offset: false,
             min_binding_size: None,
         },
         count: None,
-    }];
-    if key.has_uniform_payload {
-        entries.push(wgpu::BindGroupLayoutEntry {
-            binding: 1,
-            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        });
     }
-    if key.has_storage_payload {
-        entries.push(wgpu::BindGroupLayoutEntry {
-            binding: 2,
-            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Storage { read_only: true },
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        });
-    }
-    entries
 }
 
 pub(super) fn custom_shader_pipeline_key(

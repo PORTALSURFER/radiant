@@ -102,3 +102,36 @@ fn runtime_surface_focus_order_keeps_collection_and_tests_focused() {
         "runtime surface focus tests should name their surface construction dependencies instead of inheriting focus module imports"
     );
 }
+
+#[test]
+fn runtime_surface_input_dispatch_keeps_dependencies_explicit() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let input = fs::read_to_string(manifest_dir.join("src/runtime/surface/input.rs"))
+        .expect("runtime surface input dispatch should be readable");
+    let tests = fs::read_to_string(manifest_dir.join("src/runtime/surface/input/tests.rs"))
+        .expect("runtime surface input tests should be readable");
+
+    assert!(
+        input.contains("use super::{SurfaceNode, SurfaceWidget, WidgetPath};")
+            && input.contains("gui::types::Rect")
+            && input.contains("widgets::{WidgetId, WidgetInput, WidgetOutput}")
+            && input.contains("std::collections::HashMap")
+            && !input.starts_with("use super::*;")
+            && input.contains("pub(in crate::runtime) enum WidgetDispatchResult")
+            && input.contains("fn synchronize_widget_state_from_paths")
+            && input.contains("fn dispatch_input_at_path")
+            && input.contains("fn find_widget_mut_at_path"),
+        "runtime surface input dispatch should name surface, path, geometry, widget input, output, and collection dependencies"
+    );
+    assert!(
+        tests.contains("surface::{WidgetDispatchResult, WidgetPath}")
+            && tests.contains("SurfaceChild, SurfaceNode, WidgetMessageMapper")
+            && tests.contains("widgets::{")
+            && tests.contains("std::collections::HashMap")
+            && !tests.starts_with("use super::*;")
+            && tests.contains("fn dispatch_input_at_child_path_routes_without_tree_search")
+            && tests
+                .contains("fn synchronize_widget_state_from_paths_preserves_state_after_reorder"),
+        "runtime surface input tests should name their surface construction, dispatch result, path, widget, and collection dependencies"
+    );
+}

@@ -1,8 +1,14 @@
-use super::*;
 use crate::{
-    gui::types::{Point, Vector2},
-    widgets::{ButtonWidget, PointerButton, ScrollbarAxis, ScrollbarWidget, WidgetSizing},
+    gui::types::{Point, Rect, Vector2},
+    runtime::{
+        SurfaceChild, SurfaceNode, WidgetMessageMapper,
+        surface::{WidgetDispatchResult, WidgetPath},
+    },
+    widgets::{
+        ButtonWidget, PointerButton, ScrollbarAxis, ScrollbarWidget, WidgetInput, WidgetSizing,
+    },
 };
+use std::collections::HashMap;
 
 #[test]
 fn dispatch_input_at_child_path_routes_without_tree_search() {

@@ -1,4 +1,4 @@
-use super::*;
+use super::{SurfaceNode, SurfaceWidget, WidgetPath};
 use crate::{
     gui::types::Rect,
     widgets::{WidgetId, WidgetInput, WidgetOutput},

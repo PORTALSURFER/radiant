@@ -12,14 +12,14 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 use vello::util::RenderContext;
-use vello::{Renderer, Scene, wgpu};
+use vello::{Scene, wgpu};
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    window::{Window, WindowId},
+    window::WindowId,
 };
 
 mod generic_runtime;

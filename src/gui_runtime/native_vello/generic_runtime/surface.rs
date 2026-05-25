@@ -1,6 +1,17 @@
 //! Window, surface, and renderer setup for the generic native Vello runner.
 
-use super::*;
+use super::{
+    GenericNativeVelloRunner, generic_window_attributes, reveal_window_after_surface_setup,
+};
+use crate::{
+    gui::types::Vector2,
+    gui_runtime::native_vello::{select_present_mode, startup_renderer_options},
+    runtime::RuntimeBridge,
+};
+use std::{sync::Arc, time::Instant};
+use tracing::{error, info, warn};
+use vello::{Renderer, wgpu};
+use winit::{dpi::PhysicalSize, event_loop::ActiveEventLoop, window::Window};
 
 mod backend;
 
@@ -104,7 +115,7 @@ where
         self.sync_auxiliary_windows(event_loop);
     }
 
-    pub(super) fn resize_surface(&mut self, size: winit::dpi::PhysicalSize<u32>) {
+    pub(super) fn resize_surface(&mut self, size: PhysicalSize<u32>) {
         if size.width == 0 || size.height == 0 {
             return;
         }
@@ -151,11 +162,7 @@ where
     }
 }
 
-fn surface_size_changed(
-    current_width: u32,
-    current_height: u32,
-    next: winit::dpi::PhysicalSize<u32>,
-) -> bool {
+fn surface_size_changed(current_width: u32, current_height: u32, next: PhysicalSize<u32>) -> bool {
     current_width != next.width || current_height != next.height
 }
 

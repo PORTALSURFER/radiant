@@ -1,9 +1,10 @@
 //! Native file drag/drop event routing.
 
-use super::*;
+use super::GenericNativeVelloRunner;
 use crate::runtime::{NativeFileDrop, RuntimeBridge};
 use crate::widgets::WidgetId;
 use std::path::PathBuf;
+use winit::event_loop::ActiveEventLoop;
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where

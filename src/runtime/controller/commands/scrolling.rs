@@ -1,4 +1,9 @@
-use super::super::*;
+use super::super::{ScrollUpdate, SurfaceRuntime};
+use crate::{
+    gui::types::{Point, Vector2},
+    layout::NodeId,
+    runtime::RuntimeBridge,
+};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where

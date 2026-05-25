@@ -20,6 +20,9 @@ pub(super) struct NativeRunnerWindowState {
     pub(super) render_ctx: Option<RenderContext>,
     pub(super) render_surface: Option<RenderSurface<'static>>,
     pub(super) renderer: Option<Renderer>,
+    pub(super) native_dpi_scale: crate::theme::DpiScale,
+    pub(super) dpi_scale: crate::theme::DpiScale,
+    pub(super) dpi_scale_override: Option<crate::theme::DpiScale>,
 }
 
 pub(super) struct NativeRunnerInputState {

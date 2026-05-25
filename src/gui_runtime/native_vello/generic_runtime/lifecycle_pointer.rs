@@ -10,7 +10,7 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     pub(super) fn handle_cursor_moved(&mut self, position: PhysicalPosition<f64>) {
-        let Some(position) = logical_point_from_winit(position) else {
+        let Some(position) = logical_point_from_winit(position, self.window.dpi_scale) else {
             self.input.last_cursor = None;
             return;
         };

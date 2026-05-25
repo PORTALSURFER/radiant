@@ -169,6 +169,10 @@ name = "theme_playground"
 path = "examples/theme_playground.rs"
 
 [[example]]
+name = "dpi_scaling"
+path = "examples/dpi_scaling.rs"
+
+[[example]]
 name = "scroll"
 path = "examples/scroll.rs"
 

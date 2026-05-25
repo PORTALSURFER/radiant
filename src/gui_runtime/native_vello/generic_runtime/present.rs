@@ -61,6 +61,7 @@ where
             &dev_handle.device,
             &dev_handle.queue,
             surface,
+            self.window.dpi_scale,
             event_loop,
         ) else {
             return;
@@ -85,6 +86,7 @@ where
                 queue: &dev_handle.queue,
                 encoder: &mut encoder,
                 surface_view: &surface_view,
+                dpi_scale: self.window.dpi_scale,
             },
             &self.frame.last_paint_plan,
             &self.frame.transient_overlay_primitives,
@@ -98,7 +100,7 @@ where
                 encoder: &mut encoder,
                 target_view: &surface_view,
                 format: surface.config.format,
-                size: surface_size.logical_size(),
+                size: surface_size.logical_size(self.window.dpi_scale),
             },
             &self.frame.last_paint_plan.primitives,
             &self.frame.transient_overlay_primitives,

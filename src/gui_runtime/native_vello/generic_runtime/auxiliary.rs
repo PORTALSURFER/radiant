@@ -109,7 +109,9 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 };
             }
             WindowEvent::Resized(size) => self.runner.resize_surface(size),
-            WindowEvent::ScaleFactorChanged { .. } => self.runner.request_redraw_if_needed(),
+            WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                self.runner.update_native_dpi_scale(scale_factor);
+            }
             WindowEvent::CursorMoved { position, .. } => self.runner.handle_cursor_moved(position),
             WindowEvent::CursorLeft { .. } => self.runner.handle_cursor_left(event_loop),
             WindowEvent::MouseInput { button, state, .. } => {
@@ -161,7 +163,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         let Some(position) = self.runner.input.last_cursor else {
             return;
         };
-        let delta = scroll_delta_to_logical(delta);
+        let delta = scroll_delta_to_logical(delta, self.runner.window.dpi_scale);
         if self.runner.can_coalesce_gpu_surface_wheel(position, delta) {
             let modifiers = pointer_modifiers_from_winit(self.runner.input.modifiers);
             self.runner

@@ -32,13 +32,17 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     fn route_outcome(&mut self, routed: bool) -> GenericRouteOutcome {
+        let pending = self.runtime.take_pending_input_command_outcome();
         GenericRouteOutcome {
             routed,
-            redraw_requested: routed,
-            repaint_requested: self.runtime.take_repaint_requested(),
-            paint_only_requested: false,
-            exit_requested: self.runtime.take_exit_requested(),
-            runtime_work_remaining: false,
+            redraw_requested: routed || pending.surface_refresh_requested,
+            repaint_requested: self.runtime.take_repaint_requested()
+                || pending.surface_repaint_requested,
+            paint_only_requested: pending.paint_only_requested,
+            exit_requested: self.runtime.take_exit_requested() || pending.exit_requested,
+            runtime_work_remaining: pending.runtime_work_remaining,
+            dpi_scale_override: pending.dpi_scale_override,
+            window_logical_size: pending.window_logical_size,
         }
     }
 
@@ -47,13 +51,16 @@ where
         position: Point,
     ) -> GenericRouteOutcome {
         let outcome = self.runtime.dispatch_pointer_move_with_outcome(position);
+        let pending = self.runtime.take_pending_input_command_outcome();
         GenericRouteOutcome {
             routed: outcome.routed(),
-            redraw_requested: outcome.hover_changed,
-            repaint_requested: outcome.repaint_requested,
-            paint_only_requested: outcome.paint_only_requested,
-            exit_requested: outcome.exit_requested,
-            runtime_work_remaining: false,
+            redraw_requested: outcome.hover_changed || pending.surface_refresh_requested,
+            repaint_requested: outcome.repaint_requested || pending.surface_repaint_requested,
+            paint_only_requested: outcome.paint_only_requested || pending.paint_only_requested,
+            exit_requested: outcome.exit_requested || pending.exit_requested,
+            runtime_work_remaining: pending.runtime_work_remaining,
+            dpi_scale_override: pending.dpi_scale_override,
+            window_logical_size: pending.window_logical_size,
         }
     }
 

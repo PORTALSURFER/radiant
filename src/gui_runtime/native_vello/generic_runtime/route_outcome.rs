@@ -1,5 +1,5 @@
 /// Routing result consumed by redraw, scene refresh, and runtime wakeup policy.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(in crate::gui_runtime::native_vello) struct GenericRouteOutcome {
     pub(in crate::gui_runtime::native_vello) routed: bool,
     pub(in crate::gui_runtime::native_vello) redraw_requested: bool,
@@ -7,6 +7,8 @@ pub(in crate::gui_runtime::native_vello) struct GenericRouteOutcome {
     pub(in crate::gui_runtime::native_vello) paint_only_requested: bool,
     pub(in crate::gui_runtime::native_vello) exit_requested: bool,
     pub(in crate::gui_runtime::native_vello) runtime_work_remaining: bool,
+    pub(in crate::gui_runtime::native_vello) dpi_scale_override: Option<crate::theme::DpiScale>,
+    pub(in crate::gui_runtime::native_vello) window_logical_size: Option<crate::layout::Vector2>,
 }
 
 impl GenericRouteOutcome {
@@ -25,6 +27,8 @@ impl GenericRouteOutcome {
         self.paint_only_requested |= other.paint_only_requested;
         self.exit_requested |= other.exit_requested;
         self.runtime_work_remaining |= other.runtime_work_remaining;
+        self.dpi_scale_override = other.dpi_scale_override.or(self.dpi_scale_override);
+        self.window_logical_size = other.window_logical_size.or(self.window_logical_size);
     }
 }
 

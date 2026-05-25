@@ -5,7 +5,7 @@ use super::super::{
 use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState},
-    runtime::{RuntimeBridge, SurfaceRuntimeProjection},
+    runtime::{CommandOutcome, RuntimeBridge, SurfaceRuntimeProjection},
 };
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -34,6 +34,7 @@ where
             interaction: RuntimeInteractionState::default(),
             repaint_requested: false,
             exit_requested: false,
+            pending_input_command_outcome: CommandOutcome::default(),
             runtime_work: RuntimeWorkQueues::default(),
         };
         runtime.relayout_with_traversal(traversal);

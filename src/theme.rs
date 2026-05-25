@@ -10,7 +10,9 @@ mod visual_policy;
 
 use crate::gui::types::Rgba8;
 use dark::dark_palette;
-pub use scale::{DEFAULT_UI_SCALE, ViewportScaleTier, clamp_ui_scale, effective_ui_scale};
+pub use scale::{
+    DEFAULT_UI_SCALE, DpiScale, ViewportScaleTier, clamp_ui_scale, effective_ui_scale,
+};
 use visual_policy::{TierVisualPolicy, visual_policy_for_tier};
 
 /// Generic core theme bundle for reusable Radiant primitives.

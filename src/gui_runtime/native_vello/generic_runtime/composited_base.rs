@@ -15,6 +15,7 @@ pub(super) struct BaseFramePresentTarget<'a> {
     pub(super) queue: &'a wgpu::Queue,
     pub(super) encoder: &'a mut wgpu::CommandEncoder,
     pub(super) surface_view: &'a wgpu::TextureView,
+    pub(super) dpi_scale: crate::theme::DpiScale,
 }
 
 pub(super) struct BaseFramePresentState<'a> {
@@ -86,7 +87,8 @@ fn present_live_base(
             encoder: target.encoder,
             target_view: target.surface_view,
             format: surface.config.format,
-            size: surface_size.logical_size(),
+            size: surface_size.physical_size(),
+            dpi_scale: target.dpi_scale,
         },
         &paint_plan.primitives,
     )
@@ -116,7 +118,8 @@ fn refresh_composited_base_frame(
             encoder: target.encoder,
             target_view: &frame.view,
             format: surface.config.format,
-            size: surface_size.logical_size(),
+            size: surface_size.physical_size(),
+            dpi_scale: target.dpi_scale,
         },
         &paint_plan.primitives,
     );

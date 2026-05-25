@@ -144,6 +144,12 @@ where
             event_loop.exit();
             return;
         }
+        if let Some(scale) = outcome.dpi_scale_override {
+            self.set_dpi_scale_override(scale);
+        }
+        if let Some(size) = outcome.window_logical_size {
+            self.set_window_logical_size(size);
+        }
         if outcome.needs_scene_rebuild() {
             self.rebuild_scene();
             self.sync_auxiliary_windows(event_loop);

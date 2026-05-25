@@ -92,10 +92,12 @@ where
         match result {
             WidgetDispatchResult::Message(message) => {
                 if refresh_after_message {
-                    self.dispatch_message(message);
+                    let outcome = self.dispatch_message(message);
+                    self.pending_input_command_outcome.merge(outcome);
                 } else {
                     let mut outcome = CommandOutcome::default();
                     self.dispatch_message_inner(message, &mut outcome);
+                    self.pending_input_command_outcome.merge(outcome);
                 }
             }
             WidgetDispatchResult::UnmappedOutput => self.relayout(),

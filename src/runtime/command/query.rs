@@ -17,6 +17,8 @@ impl<Message> Command<Message> {
             | Self::BeginExternalDrag { .. }
             | Self::BeginDrag { .. }
             | Self::PlatformRequest { .. }
+            | Self::SetDpiScale(_)
+            | Self::SetWindowLogicalSize(_)
             | Self::EndExternalDrag
             | Self::EndDrag
             | Self::Exit => false,
@@ -36,7 +38,9 @@ impl<Message> Command<Message> {
     /// batches explicit and avoids accidentally skipping surface reprojection.
     pub fn repaint_scope(&self) -> Option<RepaintScope> {
         match self {
-            Self::RequestRepaint => Some(RepaintScope::Surface),
+            Self::RequestRepaint | Self::SetDpiScale(_) | Self::SetWindowLogicalSize(_) => {
+                Some(RepaintScope::Surface)
+            }
             Self::RequestPaintOnly => Some(RepaintScope::PaintOnly),
             Self::Batch(commands) => commands
                 .iter()

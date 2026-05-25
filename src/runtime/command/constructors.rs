@@ -4,6 +4,7 @@ use crate::{
         DragRequest, ExternalDragOutcome, ExternalDragRequest, PlatformRequest, PlatformResponse,
         RepaintScope,
     },
+    theme::DpiScale,
     widgets::WidgetId,
 };
 use std::time::Duration;
@@ -46,6 +47,16 @@ impl<Message> Command<Message> {
     /// Build a command that repaints without refreshing the declarative surface.
     pub const fn request_paint_only() -> Self {
         Self::RequestPaintOnly
+    }
+
+    /// Build a command that overrides native DPI scale for the active runtime adapter.
+    pub const fn set_dpi_scale(scale: DpiScale) -> Self {
+        Self::SetDpiScale(scale)
+    }
+
+    /// Build a command that requests a native-window logical viewport size.
+    pub const fn set_window_logical_size(size: crate::layout::Vector2) -> Self {
+        Self::SetWindowLogicalSize(size)
     }
 
     /// Build a repaint command from a typed repaint scope.

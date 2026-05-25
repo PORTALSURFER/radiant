@@ -42,6 +42,8 @@ impl<Message> Command<Message> {
             | Self::BeginExternalDrag { .. }
             | Self::BeginDrag { .. }
             | Self::PlatformRequest { .. }
+            | Self::SetDpiScale(_)
+            | Self::SetWindowLogicalSize(_)
             | Self::EndExternalDrag
             | Self::EndDrag
             | Self::Exit => 0,
@@ -68,6 +70,8 @@ impl<Message> Command<Message> {
             | Self::BeginExternalDrag { .. }
             | Self::BeginDrag { .. }
             | Self::PlatformRequest { .. }
+            | Self::SetDpiScale(_)
+            | Self::SetWindowLogicalSize(_)
             | Self::EndExternalDrag
             | Self::EndDrag
             | Self::Exit => {}

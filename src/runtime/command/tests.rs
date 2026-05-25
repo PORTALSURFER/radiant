@@ -133,3 +133,24 @@ fn repaint_scope_merges_nested_batches_with_surface_winning() {
     assert_eq!(command.repaint_scope(), Some(RepaintScope::Surface));
     assert!(!command.requests_paint_only());
 }
+
+#[test]
+fn dpi_scale_commands_request_surface_repaint_without_flattening_messages() {
+    let command = Command::<&str>::set_dpi_scale(crate::theme::DpiScale::new(2.0));
+
+    assert!(!command.is_empty());
+    assert_eq!(command.repaint_scope(), Some(RepaintScope::Surface));
+    assert!(command.requests_repaint());
+    assert_eq!(command.into_messages(), Vec::<&str>::new());
+}
+
+#[test]
+fn window_size_commands_request_surface_repaint_without_flattening_messages() {
+    let command =
+        Command::<&str>::set_window_logical_size(crate::layout::Vector2::new(760.0, 520.0));
+
+    assert!(!command.is_empty());
+    assert_eq!(command.repaint_scope(), Some(RepaintScope::Surface));
+    assert!(command.requests_repaint());
+    assert_eq!(command.into_messages(), Vec::<&str>::new());
+}

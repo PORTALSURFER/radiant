@@ -1,10 +1,15 @@
 //! Renderer-frame state owned by the generic native Vello runner.
 
-use super::*;
+use super::{
+    CompositedBaseFrame, GpuSurfaceInteractionRegion, GpuSurfaceRenderer, PostGpuOverlayRenderer,
+    RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneTextRunBuffer,
+};
 use crate::{
-    runtime::{RetainedSurfaceCachePolicy, SurfacePaintPlan},
+    gui_runtime::native_vello::NativeTextRenderer,
+    runtime::{PaintPrimitive, RetainedSurfaceCachePolicy, SurfacePaintPlan},
     theme::ThemeTokens,
 };
+use vello::Scene;
 
 pub(super) struct NativeVelloFrameState {
     pub(super) text_renderer: NativeTextRenderer,
@@ -12,7 +17,7 @@ pub(super) struct NativeVelloFrameState {
     pub(super) gpu_surface_renderer: GpuSurfaceRenderer,
     pub(super) post_gpu_overlay_renderer: PostGpuOverlayRenderer,
     pub(super) last_paint_plan: SurfacePaintPlan,
-    pub(super) transient_overlay_primitives: Vec<crate::runtime::PaintPrimitive>,
+    pub(super) transient_overlay_primitives: Vec<PaintPrimitive>,
     pub(super) composited_base_frame: Option<CompositedBaseFrame>,
     pub(super) composited_base_dirty: bool,
     pub(super) retained_surface_cache: RetainedSurfaceFrameCache,

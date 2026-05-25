@@ -48,6 +48,39 @@ fn native_frame_preparation_stays_out_of_present_driver() {
 }
 
 #[test]
+fn native_frame_state_uses_explicit_imports() {
+    let frame_state =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/frame_state.rs");
+
+    assert!(
+        frame_state.contains("use super::{")
+            && frame_state.contains("CompositedBaseFrame")
+            && frame_state.contains("GpuSurfaceInteractionRegion")
+            && frame_state.contains("GpuSurfaceRenderer")
+            && frame_state.contains("PostGpuOverlayRenderer")
+            && frame_state.contains("RetainedSurfaceEncodeStats")
+            && frame_state.contains("RetainedSurfaceFrameCache")
+            && frame_state.contains("SceneTextRunBuffer")
+            && frame_state.contains("gui_runtime::native_vello::NativeTextRenderer")
+            && frame_state.contains(
+                "runtime::{PaintPrimitive, RetainedSurfaceCachePolicy, SurfacePaintPlan}"
+            )
+            && frame_state.contains("theme::ThemeTokens")
+            && frame_state.contains("use vello::Scene;")
+            && !frame_state.starts_with("use super::*;"),
+        "native frame state should name renderer, cache, runtime, theme, and scene dependencies"
+    );
+    assert!(
+        frame_state.contains("struct NativeVelloFrameState")
+            && frame_state.contains("transient_overlay_primitives: Vec<PaintPrimitive>")
+            && frame_state.contains("fn mark_scene_texture_dirty")
+            && frame_state.contains("fn mark_composited_base_dirty")
+            && !frame_state.contains("Vec<crate::runtime::PaintPrimitive>"),
+        "native frame state should own frame buffers, caches, and dirty flags without hidden runtime imports"
+    );
+}
+
+#[test]
 fn native_timed_frame_drain_does_not_recompute_selected_cadence() {
     let lifecycle =
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs");

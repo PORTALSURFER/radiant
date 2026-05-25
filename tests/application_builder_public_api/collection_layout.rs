@@ -242,4 +242,6 @@ fn application_builder_wrap_flows_fixed_width_items_to_new_rows() {
     assert_eq!(first.min.y, second.min.y);
     assert_eq!(third.min.x, first.min.x);
     assert!(third.min.y > first.min.y);
+    assert_eq!(first.height(), 20.0);
+    assert_eq!(second.height(), 20.0);
 }

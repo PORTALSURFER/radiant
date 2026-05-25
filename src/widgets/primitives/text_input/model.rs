@@ -14,6 +14,18 @@ pub struct TextInputProps {
     pub submit_on_enter: bool,
     /// Optional maximum number of Unicode scalar values accepted by the field.
     pub character_limit: Option<usize>,
+    /// Visual chrome treatment for the input bounds.
+    pub chrome: TextInputChrome,
+}
+
+/// Visual chrome treatment for a reusable single-line text input.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TextInputChrome {
+    /// Paint the normal input fill, border, and focus outline.
+    #[default]
+    Full,
+    /// Paint only a subtle baseline and focus underline.
+    Underline,
 }
 
 /// Mutable interaction state for a reusable single-line text input.

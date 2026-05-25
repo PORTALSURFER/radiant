@@ -94,8 +94,8 @@ pub use crate::widgets::{
     ImageWidgetParts, InteractiveRowMessage, InteractiveRowWidget, InteractiveRowWidgetParts,
     ListItemWidgetParts, PointerButton, ScrollbarAxis, ScrollbarMessage, ScrollbarWidgetParts,
     SelectableWidgetParts, SliderMessage, SliderWidget, SliderWidgetParts, TextAlign,
-    TextInputEditResult, TextInputState, TextInputWidgetParts, TextWidgetParts, TextWrap,
-    ToggleWidgetParts, Widget, WidgetCommon, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
-    WidgetProminence, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone,
-    WidgetVisualTokens, resolve_widget_visual_tokens,
+    TextInputChrome, TextInputEditResult, TextInputState, TextInputWidgetParts, TextWidgetParts,
+    TextWrap, ToggleWidgetParts, Widget, WidgetCommon, WidgetCursor, WidgetInput, WidgetKey,
+    WidgetOutput, WidgetProminence, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle,
+    WidgetTone, WidgetVisualTokens, resolve_widget_visual_tokens,
 };

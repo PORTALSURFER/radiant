@@ -4,17 +4,38 @@ use crate::runtime::{
     inset_rect, optical_centered_baseline,
 };
 use crate::theme::ThemeTokens;
-use crate::widgets::primitives::{WidgetCommon, text_input::TextInputWidget};
+use crate::widgets::primitives::{
+    WidgetCommon,
+    text_input::{TextInputChrome, TextInputWidget},
+};
 
 const COMPACT_INPUT_HEIGHT: f32 = 28.0;
 
 fn push_text_input_chrome(
     primitives: &mut Vec<PaintPrimitive>,
     common: &WidgetCommon,
+    chrome: TextInputChrome,
     bounds: Rect,
     theme: &ThemeTokens,
 ) {
     let tokens = crate::widgets::resolve_widget_visual_tokens(theme, common.style, common.state);
+    if chrome == TextInputChrome::Underline {
+        let y = bounds.max.y - 1.0;
+        primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+            widget_id: common.id,
+            rect: Rect::from_min_max(
+                crate::gui::types::Point::new(bounds.min.x, y),
+                crate::gui::types::Point::new(bounds.max.x, bounds.max.y),
+            ),
+            color: if common.state.focused {
+                tokens.emphasis
+            } else {
+                theme.text_muted
+            },
+            width: 1.0,
+        }));
+        return;
+    }
     let fill = if common.state.disabled {
         tokens.fill
     } else if common.state.hovered {
@@ -55,7 +76,7 @@ pub(super) fn push_text_input_widget_paint(
 ) {
     let tokens =
         crate::widgets::resolve_widget_visual_tokens(theme, input.common.style, input.common.state);
-    push_text_input_chrome(primitives, &input.common, bounds, theme);
+    push_text_input_chrome(primitives, &input.common, input.props.chrome, bounds, theme);
     let rect = text_input_content_rect(bounds);
     let font_size = input_font_size(bounds);
     primitives.push(PaintPrimitive::TextInput(PaintTextInput {

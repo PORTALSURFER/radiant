@@ -3,7 +3,7 @@ use crate::{
         MappedWidget, StateAction, ViewNode, default_text_input_sizing, view_node_from_widget,
     },
     runtime::WidgetMessageMapper,
-    widgets::{TextInputMessage, TextInputWidget, WidgetProminence, WidgetStyle},
+    widgets::{TextInputChrome, TextInputMessage, TextInputWidget, WidgetProminence, WidgetStyle},
 };
 use std::sync::Arc;
 
@@ -13,6 +13,7 @@ pub struct TextInputBuilder {
     placeholder: Option<String>,
     style: Option<WidgetStyle>,
     selection: Option<(usize, usize)>,
+    chrome: TextInputChrome,
 }
 
 impl TextInputBuilder {
@@ -46,6 +47,12 @@ impl TextInputBuilder {
         let mut style = self.style.unwrap_or_default();
         style.prominence = WidgetProminence::Subtle;
         self.style = Some(style);
+        self
+    }
+
+    /// Use a minimal underline-only input chrome instead of a boxed field.
+    pub fn underline(mut self) -> Self {
+        self.chrome = TextInputChrome::Underline;
         self
     }
 
@@ -133,9 +140,11 @@ impl TextInputBuilder {
             placeholder,
             style,
             selection,
+            chrome,
         } = self;
         let mut input = TextInputWidget::new(0, value, default_text_input_sizing());
         input.props.placeholder = placeholder.map(Into::into);
+        input.props.chrome = chrome;
         if let Some((anchor, caret)) = selection {
             input.state.selection_anchor = anchor;
             input.state.caret = caret;
@@ -151,6 +160,7 @@ pub fn text_input(value: impl Into<String>) -> TextInputBuilder {
         placeholder: None,
         style: None,
         selection: None,
+        chrome: TextInputChrome::Full,
     }
 }
 

@@ -36,6 +36,7 @@ pub use slider::{SliderProps, SliderState, SliderWidget, SliderWidgetParts};
 pub use support::WidgetCommon;
 pub use text::{TextAlign, TextWidget, TextWidgetParts, TextWrap};
 pub use text_input::{
-    TextInputEditResult, TextInputProps, TextInputState, TextInputWidget, TextInputWidgetParts,
+    TextInputChrome, TextInputEditResult, TextInputProps, TextInputState, TextInputWidget,
+    TextInputWidgetParts,
 };
 pub use toggle::{ToggleProps, ToggleState, ToggleWidget, ToggleWidgetParts};

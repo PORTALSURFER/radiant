@@ -1,4 +1,4 @@
-use super::*;
+use std::time::Instant;
 
 mod artifact;
 mod logging;

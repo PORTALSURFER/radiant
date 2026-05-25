@@ -1,4 +1,11 @@
-use super::*;
+use super::SurfaceRuntime;
+use crate::runtime::{Command, RuntimeBridge};
+
+#[cfg(test)]
+pub(super) use crate::{
+    gui::types::{Point, Vector2},
+    runtime::UiSurface,
+};
 
 pub(super) mod batching;
 mod dispatch;

@@ -1,4 +1,8 @@
 use super::*;
+use crate::{
+    gui::types::Vector2,
+    runtime::{DragSession, ExternalDragSession},
+};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where

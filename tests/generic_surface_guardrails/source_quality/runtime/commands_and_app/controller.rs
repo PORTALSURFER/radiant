@@ -23,6 +23,12 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
     let dispatch =
         fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/dispatch.rs"))
             .expect("runtime command dispatch module should be readable");
+    let external_drag =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/external_drag.rs"))
+            .expect("runtime command external drag module should be readable");
+    let scrolling =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/scrolling.rs"))
+            .expect("runtime command scrolling module should be readable");
     let tests = fs::read_to_string(manifest_dir.join("src/runtime/controller/commands/tests.rs"))
         .expect("runtime command test root should be readable");
     let test_batching =
@@ -53,6 +59,15 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
             "runtime controller command root should delegate `{required}`"
         );
     }
+    assert!(
+        root.contains("use super::SurfaceRuntime;")
+            && root.contains("use crate::runtime::{Command, RuntimeBridge};")
+            && root.contains("#[cfg(test)]")
+            && root.contains("gui::types::{Point, Vector2}")
+            && root.contains("runtime::UiSurface")
+            && !root.starts_with("use super::*;"),
+        "runtime controller command root should name production dependencies and keep fixture-only geometry/surface imports under cfg(test)"
+    );
     assert!(
         outcome.contains("pub struct CommandOutcome")
             && outcome.contains("fn finish_command_outcome")
@@ -115,8 +130,19 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
         dispatch.contains("fn execute_command_inner")
             && dispatch.contains("Command::PlatformRequest")
             && dispatch.contains("Command::ScrollFixedRowIntoView")
+            && dispatch.contains("gui::types::Vector2")
+            && dispatch.contains("runtime::{DragSession, ExternalDragSession}")
             && !root.contains("fn execute_command_inner"),
         "command execution branches should live in commands/dispatch.rs"
+    );
+    assert!(
+        external_drag.contains("runtime::{ExternalDragOutcome, ExternalDragSession}")
+            && scrolling.contains("use super::super::{ScrollUpdate, SurfaceRuntime};")
+            && scrolling.contains("gui::types::{Point, Vector2}")
+            && scrolling.contains("layout::NodeId")
+            && scrolling.contains("runtime::RuntimeBridge")
+            && !scrolling.starts_with("use super::super::*;"),
+        "external drag and scrolling command helpers should own their drag, scroll, geometry, layout, and bridge dependencies"
     );
     assert!(
         tests.contains("mod batching;")

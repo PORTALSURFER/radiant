@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime::{ExternalDragOutcome, ExternalDragSession};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where

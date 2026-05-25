@@ -106,6 +106,16 @@ fn piano_roll_example_stays_split_by_widget_input_paint_and_tests() {
             "piano roll module root should delegate `{required}`"
         );
     }
+    let model = fs::read_to_string(manifest_dir.join("examples/piano_roll/model.rs"))
+        .expect("piano roll model module should be readable");
+    assert!(
+        model.contains("#[path = \"model/editing.rs\"]")
+            && model.contains("#[path = \"model/note.rs\"]")
+            && model.contains("#[path = \"model/viewport.rs\"]")
+            && model.contains("pub(crate) use note::PianoNote")
+            && model.contains("pub(crate) use viewport::PianoRollViewport"),
+        "piano roll model root should delegate editing, note, and viewport domains while preserving its public model boundary"
+    );
     assert!(
         widget.contains("#[path = \"widget/input.rs\"]")
             && !widget.contains("fn handle_primary_press(")
@@ -125,6 +135,9 @@ fn piano_roll_example_stays_split_by_widget_input_paint_and_tests() {
         "examples/piano_roll/drag.rs",
         "examples/piano_roll/geometry.rs",
         "examples/piano_roll/model.rs",
+        "examples/piano_roll/model/editing.rs",
+        "examples/piano_roll/model/note.rs",
+        "examples/piano_roll/model/viewport.rs",
         "examples/piano_roll/mod.rs",
         "examples/piano_roll/paint.rs",
         "examples/piano_roll/tests.rs",
@@ -143,9 +156,7 @@ fn piano_roll_example_stays_split_by_widget_input_paint_and_tests() {
             2_000
         } else if matches!(
             path,
-            "examples/piano_roll/model.rs"
-                | "examples/piano_roll/widget/input.rs"
-                | "examples/piano_roll/widget_paint.rs"
+            "examples/piano_roll/widget/input.rs" | "examples/piano_roll/widget_paint.rs"
         ) {
             750
         } else {

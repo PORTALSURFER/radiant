@@ -1,4 +1,9 @@
-use super::*;
+use super::NativeVelloFrameState;
+use crate::gui_runtime::native_vello::color_from_rgba;
+use std::time::{Duration, Instant};
+use tracing::error;
+use vello::{AaConfig, RenderParams, Renderer, util::RenderSurface, wgpu};
+use winit::event_loop::ActiveEventLoop;
 
 pub(super) fn render_scene_texture_if_needed(
     frame: &mut NativeVelloFrameState,

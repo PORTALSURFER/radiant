@@ -19,6 +19,20 @@ fn native_vello_scene_texture_rendering_stays_out_of_present_driver() {
             && scene_texture.contains("frame.mark_composited_base_dirty();"),
         "present driver should delegate dirty scene texture rendering to the focused scene_texture module"
     );
+    assert!(
+        scene_texture.contains("use super::NativeVelloFrameState;")
+            && scene_texture.contains("use crate::gui_runtime::native_vello::color_from_rgba;")
+            && scene_texture.contains("use std::time::{Duration, Instant};")
+            && scene_texture.contains("use tracing::error;")
+            && scene_texture.contains("AaConfig")
+            && scene_texture.contains("RenderParams")
+            && scene_texture.contains("Renderer")
+            && scene_texture.contains("util::RenderSurface")
+            && scene_texture.contains("wgpu")
+            && scene_texture.contains("use winit::event_loop::ActiveEventLoop;")
+            && !scene_texture.starts_with("use super::*;"),
+        "scene texture rendering should name its frame, color, timing, tracing, Vello, WGPU, and event-loop dependencies"
+    );
 }
 
 #[test]

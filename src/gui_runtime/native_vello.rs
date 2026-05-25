@@ -15,7 +15,7 @@ use std::{
 };
 use tracing::{error, info, warn};
 use vello::util::{RenderContext, RenderSurface};
-use vello::{AaConfig, RenderParams, Renderer, Scene, wgpu};
+use vello::{Renderer, Scene, wgpu};
 use winit::{
     application::ApplicationHandler,
     event::{ElementState, WindowEvent},

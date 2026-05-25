@@ -5,6 +5,7 @@ mod key_code;
 use crate::{
     gui::input::{KeyCode, KeyPress},
     layout::Point,
+    theme::DpiScale,
     widgets::{PointerButton, PointerModifiers},
 };
 use winit::dpi::PhysicalPosition;
@@ -12,8 +13,14 @@ use winit::event::MouseButton;
 
 pub(super) use key_code::key_code_from_winit;
 
-pub(super) fn logical_point_from_winit(position: PhysicalPosition<f64>) -> Option<Point> {
-    let point = Point::new(position.x as f32, position.y as f32);
+pub(super) fn logical_point_from_winit(
+    position: PhysicalPosition<f64>,
+    dpi_scale: DpiScale,
+) -> Option<Point> {
+    let point = Point::new(
+        dpi_scale.physical_to_logical(position.x as f32),
+        dpi_scale.physical_to_logical(position.y as f32),
+    );
     point.is_finite().then_some(point)
 }
 
@@ -55,15 +62,15 @@ mod tests {
     #[test]
     fn logical_point_from_winit_rejects_nonfinite_or_overflowing_coordinates() {
         assert_eq!(
-            logical_point_from_winit(PhysicalPosition::new(12.5, 20.25)),
+            logical_point_from_winit(PhysicalPosition::new(25.0, 40.5), DpiScale::new(2.0)),
             Some(Point::new(12.5, 20.25))
         );
         assert_eq!(
-            logical_point_from_winit(PhysicalPosition::new(f64::NAN, 20.25)),
+            logical_point_from_winit(PhysicalPosition::new(f64::NAN, 20.25), DpiScale::ONE),
             None
         );
         assert_eq!(
-            logical_point_from_winit(PhysicalPosition::new(f64::MAX, 20.25)),
+            logical_point_from_winit(PhysicalPosition::new(f64::MAX, 20.25), DpiScale::ONE),
             None
         );
     }

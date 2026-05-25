@@ -102,7 +102,8 @@ where
                 .resolve_key_press(self.interaction.focus.pending_key_chord, press, focus);
         self.interaction.focus.pending_key_chord = resolution.pending_chord;
         if let Some(message) = resolution.action {
-            self.dispatch_message(message);
+            let outcome = self.dispatch_message(message);
+            self.pending_input_command_outcome.merge(outcome);
             return true;
         }
         if resolution.handled {

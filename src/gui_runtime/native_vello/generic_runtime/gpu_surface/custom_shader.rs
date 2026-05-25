@@ -63,7 +63,7 @@ impl GpuSurfaceRenderer {
             return;
         };
         let uniforms = GpuSurfaceUniforms {
-            dest: surface_dest(surface),
+            dest: surface_dest(surface, target.dpi_scale),
             target_size: [target.size.x.max(1.0), target.size.y.max(1.0)],
             ..GpuSurfaceUniforms::default()
         };
@@ -87,7 +87,7 @@ impl GpuSurfaceRenderer {
         pass.set_pipeline(&pipeline.pipeline);
         pass.set_bind_group(0, &binding.bind_group, &[]);
         for region in visible_surface_regions(surface.rect, occlusion_regions) {
-            if set_surface_scissor(&mut pass, region) {
+            if set_surface_scissor(&mut pass, region, target.dpi_scale) {
                 pass.draw(0..descriptor.vertex_count, 0..1);
             }
         }

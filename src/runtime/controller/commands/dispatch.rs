@@ -52,6 +52,20 @@ where
                 outcome.repaint_requested = true;
                 outcome.paint_only_requested = true;
             }
+            Command::SetDpiScale(scale) => {
+                self.repaint_requested = true;
+                outcome.repaint_requested = true;
+                outcome.surface_repaint_requested = true;
+                outcome.surface_refresh_requested = true;
+                outcome.dpi_scale_override = Some(scale);
+            }
+            Command::SetWindowLogicalSize(size) => {
+                self.repaint_requested = true;
+                outcome.repaint_requested = true;
+                outcome.surface_repaint_requested = true;
+                outcome.surface_refresh_requested = true;
+                outcome.window_logical_size = Some(size);
+            }
             Command::After { delay, message } => {
                 if self.bridge.schedule_message(delay, message) {
                     outcome.repaint_requested = true;

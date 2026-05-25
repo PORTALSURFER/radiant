@@ -44,6 +44,7 @@ pub(super) struct GpuSurfaceRenderTarget<'a> {
     pub(super) target_view: &'a wgpu::TextureView,
     pub(super) format: wgpu::TextureFormat,
     pub(super) size: Vector2,
+    pub(super) dpi_scale: crate::theme::DpiScale,
 }
 
 impl GpuSurfaceRenderer {

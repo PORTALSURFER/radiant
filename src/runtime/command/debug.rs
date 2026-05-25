@@ -12,6 +12,10 @@ where
             Self::Batch(commands) => f.debug_tuple("Batch").field(commands).finish(),
             Self::RequestRepaint => f.write_str("RequestRepaint"),
             Self::RequestPaintOnly => f.write_str("RequestPaintOnly"),
+            Self::SetDpiScale(scale) => f.debug_tuple("SetDpiScale").field(scale).finish(),
+            Self::SetWindowLogicalSize(size) => {
+                f.debug_tuple("SetWindowLogicalSize").field(size).finish()
+            }
             Self::After { delay, message } => f
                 .debug_struct("After")
                 .field("delay", delay)

@@ -132,6 +132,8 @@ where
             paint_only_requested: outcome.paint_only_requested,
             exit_requested: outcome.exit_requested,
             runtime_work_remaining: outcome.runtime_work_remaining,
+            dpi_scale_override: outcome.dpi_scale_override,
+            window_logical_size: outcome.window_logical_size,
         }
     }
 

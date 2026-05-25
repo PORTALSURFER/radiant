@@ -71,7 +71,7 @@ impl GpuSurfaceRenderer {
         let surface = request.surface;
         let overlay_uniforms = vertical_overlays(&surface.overlays);
         let uniforms = GpuSurfaceUniforms {
-            dest: surface_dest(surface),
+            dest: surface_dest(surface, target.dpi_scale),
             source: request.source,
             target_size: [target.size.x.max(1.0), target.size.y.max(1.0)],
             _padding: [0.0; 2],
@@ -136,7 +136,7 @@ impl GpuSurfaceRenderer {
         pass.set_pipeline(&pipeline.pipeline);
         pass.set_bind_group(0, &binding.bind_group, &[]);
         for region in visible_surface_regions(surface.rect, request.occlusion_regions) {
-            if set_surface_scissor(&mut pass, region) {
+            if set_surface_scissor(&mut pass, region, target.dpi_scale) {
                 pass.draw(0..6, 0..1);
             }
         }

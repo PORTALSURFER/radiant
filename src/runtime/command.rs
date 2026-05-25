@@ -3,7 +3,7 @@
 use super::drag::DragRequest;
 use super::external_drag::{ExternalDragCompletion, ExternalDragRequest};
 use super::platform::{PlatformCompletion, PlatformRequest};
-use crate::{gui::types::Vector2, layout::NodeId, widgets::WidgetId};
+use crate::{gui::types::Vector2, layout::NodeId, theme::DpiScale, widgets::WidgetId};
 use std::time::Duration;
 
 mod constructors;
@@ -39,6 +39,10 @@ pub enum Command<Message> {
     RequestRepaint,
     /// Request redraw without forcing declarative surface reprojection.
     RequestPaintOnly,
+    /// Override the active native DPI scale for runtime adapters that own native windows.
+    SetDpiScale(DpiScale),
+    /// Request a native-window logical viewport size from runtime adapters that own windows.
+    SetWindowLogicalSize(Vector2),
     /// Dispatch a host-defined message after a delay.
     After {
         /// Delay before the message is delivered.

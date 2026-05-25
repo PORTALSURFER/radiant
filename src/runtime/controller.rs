@@ -73,6 +73,7 @@ where
     interaction: RuntimeInteractionState<Message>,
     repaint_requested: bool,
     exit_requested: bool,
+    pending_input_command_outcome: CommandOutcome,
     runtime_work: RuntimeWorkQueues<Message>,
 }
 
@@ -99,7 +100,8 @@ where
         let emitted_output = !matches!(result, WidgetDispatchResult::NoOutput);
         match result {
             WidgetDispatchResult::Message(message) => {
-                self.dispatch_message(message);
+                let outcome = self.dispatch_message(message);
+                self.pending_input_command_outcome.merge(outcome);
             }
             WidgetDispatchResult::UnmappedOutput => self.relayout(),
             WidgetDispatchResult::NoOutput => {}

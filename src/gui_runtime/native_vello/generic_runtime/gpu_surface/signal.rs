@@ -35,12 +35,16 @@ impl GpuSurfaceRenderer {
             _ => return,
         };
         let visible = (shape.frame_range[1] - shape.frame_range[0]).max(1.0);
-        let frames_per_pixel = visible / surface.rect.width().max(1.0);
+        let frames_per_pixel = visible
+            / target
+                .dpi_scale
+                .logical_to_physical(surface.rect.width())
+                .max(1.0);
         let level_index = summary.level_for_frames_per_pixel(frames_per_pixel);
         let Some(level) = summary.levels.get(level_index) else {
             return;
         };
-        let Some(body_extent) = surface_pixel_extent(surface.rect) else {
+        let Some(body_extent) = surface_pixel_extent(surface.rect, target.dpi_scale) else {
             return;
         };
         let gain_preview = signal_gain_preview(&surface.content);

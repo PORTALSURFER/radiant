@@ -461,9 +461,11 @@ hook for hosts that only mutate state; `RuntimeBridge::update` can return
 return `CommandOutcome` with dispatched-message and repaint-request summaries.
 `Command<Message>` is the generic runtime-visible follow-up value for host
 reducers that need to queue messages, batch runtime-visible work, request
-repaint, schedule delayed messages, run background work, move focus, or request
-runtime exit. Hosts that inspect only the immediate messages in a command can
-use `Command::into_messages_into(...)` to reuse caller-owned storage, while
+repaint, schedule delayed messages, run background work, move focus, override
+native DPI through `Command::set_dpi_scale(...)`, request a native-window
+logical viewport size through `Command::set_window_logical_size(...)`, or
+request runtime exit. Hosts that inspect only the immediate messages in a command can use
+`Command::into_messages_into(...)` to reuse caller-owned storage, while
 `Command::into_messages()` remains the allocating convenience wrapper.
 `RepaintScope` is the typed repaint specificity contract: `Surface` requests a
 surface refresh plus repaint, while `PaintOnly` repaints the current paint plan
@@ -1026,7 +1028,7 @@ manual validation:
 | Custom widgets and retained GPU surfaces | `custom_widget`, `gpu_surface`, `custom_shader_surface`, `gpu_surface_stack_overlay`, `waveform_view` |
 | Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `inspector_panel`, `plugin_panel`, `eq_editor`, `spectrogram`, `mixer_console`, `piano_roll`, `modulation_matrix`, `arrangement_shell`, `split_workspace` |
 | Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame` |
-| Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame` |
+| Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling` |
 
 Run an example interactively with `cargo run --example <name>`. Showcase
 examples use portable defaults, with optional inputs for real local data:
@@ -1147,6 +1149,9 @@ Run `cargo run --example theme_playground` for a theme-token sandbox that
 compares density scale, tone, prominence, and interactive state through normal
 application views. It is intended to make theme policy visually inspectable, not
 only to prove that token colors resolve.
+Run `cargo run --example dpi_scaling` for a native DPI sandbox that forces the
+active runtime DPI scale from the example UI, then shows logical-point sizing,
+physical framebuffer conversion, and pointer remapping through `DpiScale`.
 Run `cargo run --example paint_helpers` for direct paint helper output around
 borders and text-field chrome.
 Run `cargo run --example passive_widgets` for passive button, toggle, text

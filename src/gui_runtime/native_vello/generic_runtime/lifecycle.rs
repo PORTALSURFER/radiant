@@ -57,7 +57,9 @@ where
             }
             WindowEvent::CloseRequested => {}
             WindowEvent::Resized(size) => self.resize_surface(size),
-            WindowEvent::ScaleFactorChanged { .. } => self.request_redraw_if_needed(),
+            WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                self.update_native_dpi_scale(scale_factor);
+            }
             WindowEvent::CursorMoved { position, .. } => {
                 self.handle_cursor_moved(position);
             }
@@ -101,7 +103,7 @@ where
                 let Some(position) = self.input.last_cursor else {
                     return;
                 };
-                let delta = scroll_delta_to_logical(delta);
+                let delta = scroll_delta_to_logical(delta, self.window.dpi_scale);
                 let modifiers = pointer_modifiers_from_winit(self.input.modifiers);
                 if self.can_coalesce_gpu_surface_wheel(position, delta) {
                     self.queue_gpu_surface_wheel(position, delta, modifiers);

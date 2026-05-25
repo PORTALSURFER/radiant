@@ -1,4 +1,4 @@
-use super::{DEFAULT_UI_SCALE, ThemeTokens, ViewportScaleTier, effective_ui_scale};
+use super::{DEFAULT_UI_SCALE, DpiScale, ThemeTokens, ViewportScaleTier, effective_ui_scale};
 
 #[test]
 fn viewport_width_maps_to_scale_tiers() {
@@ -21,6 +21,17 @@ fn effective_ui_scale_clamps_and_applies_default_multiplier() {
     assert_eq!(effective_ui_scale(0.5), DEFAULT_UI_SCALE);
     assert!((effective_ui_scale(1.5) - (1.5 * DEFAULT_UI_SCALE)).abs() < 0.0001);
     assert_eq!(effective_ui_scale(4.0), 3.0);
+}
+
+#[test]
+fn dpi_scale_sanitizes_and_converts_between_native_and_logical_units() {
+    assert_eq!(DpiScale::new(f64::NAN), DpiScale::ONE);
+    assert_eq!(DpiScale::new(0.0), DpiScale::ONE);
+
+    let scale = DpiScale::new(1.5);
+    assert_eq!(scale.factor(), 1.5);
+    assert_eq!(scale.physical_to_logical(150.0), 100.0);
+    assert_eq!(scale.logical_to_physical(100.0), 150.0);
 }
 
 #[test]

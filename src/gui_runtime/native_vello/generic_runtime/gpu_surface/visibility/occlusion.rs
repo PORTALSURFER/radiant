@@ -26,6 +26,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn gpu_su
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gui::types::Point;
 
     #[test]
     fn gpu_surface_opaque_suffix_regions_ignore_translucent_fills() {

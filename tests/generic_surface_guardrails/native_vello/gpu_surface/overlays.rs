@@ -17,9 +17,25 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
     .expect("GPU surface overlay uniform module should be readable");
 
     assert!(
-        renderer.contains("mod overlays;") && renderer.contains("use overlays::*;"),
+        renderer.contains("mod overlays;") && renderer.contains("use overlays::vertical_overlays;"),
         "GPU surface renderer should route overlay uniform packing through a focused module"
     );
+    let production_renderer = renderer
+        .split("#[cfg(test)]")
+        .next()
+        .expect("renderer production source should precede tests");
+    for wildcard in [
+        "use super::*;",
+        "use encoding::*;",
+        "use gpu_surface_types::*;",
+        "use overlays::*;",
+        "use passes::*;",
+    ] {
+        assert!(
+            !production_renderer.contains(wildcard),
+            "GPU surface renderer root should use explicit imports instead of `{wildcard}`"
+        );
+    }
     assert!(
         !passes.contains("fn vertical_overlays")
             && !passes.contains("fn normalized_ratio")

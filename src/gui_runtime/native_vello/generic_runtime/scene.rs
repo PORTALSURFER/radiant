@@ -28,7 +28,7 @@ use custom_surface::encode_custom_surface;
 use image::encode_image;
 use shape::{
     encode_path_fill, encode_polygon_fill, encode_polygon_stroke, encode_polyline_stroke,
-    encode_rect, encode_rect_stroke,
+    encode_rect, encode_rect_batch, encode_rect_stroke, encode_rect_stroke_batch,
 };
 use svg::encode_svg;
 use text::encode_text;
@@ -91,6 +91,9 @@ where
         match primitive {
             PaintPrimitive::ClipStart(_) | PaintPrimitive::ClipEnd(_) => {}
             PaintPrimitive::FillRect(fill) => encode_rect(scene, fill.color, fill.rect),
+            PaintPrimitive::FillRectBatch(fill) => {
+                encode_rect_batch(scene, fill.color, &fill.rects);
+            }
             PaintPrimitive::FillPath(fill) => {
                 encode_path_fill(
                     scene,
@@ -106,6 +109,9 @@ where
             }
             PaintPrimitive::StrokeRect(stroke) => {
                 encode_rect_stroke(scene, stroke.color, stroke.width, stroke.rect);
+            }
+            PaintPrimitive::StrokeRectBatch(stroke) => {
+                encode_rect_stroke_batch(scene, stroke.color, stroke.width, &stroke.rects);
             }
             PaintPrimitive::FillPolygon(fill) => {
                 encode_polygon_fill(scene, fill.color, &fill.points);

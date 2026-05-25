@@ -46,6 +46,11 @@ pub(super) enum PianoDrag {
         current: Point,
         modifiers: PointerModifiers,
     },
+    VelocityMarquee {
+        start: Point,
+        current: Point,
+        modifiers: PointerModifiers,
+    },
     TimeSelection {
         start: Point,
         current: Point,
@@ -58,8 +63,48 @@ pub(super) enum PianoDrag {
     },
     Velocity {
         ids: Vec<u32>,
-        velocity: f32,
+        start_pointer_velocity: f32,
+        current_pointer_velocity: f32,
+        start_velocities: Vec<(u32, f32)>,
     },
+}
+
+impl PianoDrag {
+    pub(super) fn velocity_values(&self) -> Option<Vec<(u32, f32)>> {
+        let Self::Velocity {
+            start_pointer_velocity,
+            current_pointer_velocity,
+            start_velocities,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let delta = current_pointer_velocity - start_pointer_velocity;
+        Some(
+            start_velocities
+                .iter()
+                .map(|(id, velocity)| (*id, (velocity + delta).clamp(0.0, 1.0)))
+                .collect(),
+        )
+    }
+
+    pub(super) fn velocity_for_note(&self, id: u32) -> Option<f32> {
+        let Self::Velocity {
+            start_pointer_velocity,
+            current_pointer_velocity,
+            start_velocities,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let delta = current_pointer_velocity - start_pointer_velocity;
+        start_velocities
+            .binary_search_by_key(&id, |(note_id, _)| *note_id)
+            .ok()
+            .map(|index| (start_velocities[index].1 + delta).clamp(0.0, 1.0))
+    }
 }
 
 impl PianoDrag {

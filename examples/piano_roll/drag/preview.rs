@@ -49,6 +49,7 @@ impl PianoDrag {
             }
             Self::Pan { .. }
             | Self::Marquee { .. }
+            | Self::VelocityMarquee { .. }
             | Self::TimeSelection { .. }
             | Self::MoveTimeSelection { .. }
             | Self::Velocity { .. } => source,

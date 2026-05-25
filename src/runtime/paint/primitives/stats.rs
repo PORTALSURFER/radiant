@@ -44,10 +44,12 @@ impl SurfacePaintPlan {
             match primitive {
                 PaintPrimitive::ClipStart(_) | PaintPrimitive::ClipEnd(_) => stats.clips += 1,
                 PaintPrimitive::FillRect(_)
+                | PaintPrimitive::FillRectBatch(_)
                 | PaintPrimitive::FillPath(_)
                 | PaintPrimitive::FillPolygon(_) => stats.fills += 1,
                 PaintPrimitive::Svg(_) => stats.svg_documents += 1,
                 PaintPrimitive::StrokeRect(_)
+                | PaintPrimitive::StrokeRectBatch(_)
                 | PaintPrimitive::StrokePolygon(_)
                 | PaintPrimitive::StrokePolyline(_) => stats.strokes += 1,
                 PaintPrimitive::Text(_) | PaintPrimitive::TextInput(_) => stats.text += 1,

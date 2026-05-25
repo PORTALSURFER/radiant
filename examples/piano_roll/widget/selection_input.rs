@@ -7,6 +7,7 @@ impl PianoRollWidget {
     pub(in crate::piano_roll::widget) fn message_for_finished_drag(
         &self,
         grid: Rect,
+        bounds: Rect,
         position: Point,
         drag: PianoDrag,
         modifiers: PointerModifiers,
@@ -20,10 +21,17 @@ impl PianoRollWidget {
         {
             return Some(self.marquee_selection_output(grid, position, start, modifiers));
         }
-        if let PianoDrag::Velocity { ids, velocity } = drag {
-            return Some(WidgetOutput::custom(PianoRollMessage::SetVelocity {
-                ids,
-                velocity,
+        if let PianoDrag::VelocityMarquee {
+            start, modifiers, ..
+        } = drag
+        {
+            return Some(
+                self.velocity_marquee_selection_output(bounds, position, start, modifiers),
+            );
+        }
+        if let Some(velocities) = drag.velocity_values() {
+            return Some(WidgetOutput::custom(PianoRollMessage::SetVelocities {
+                velocities,
             }));
         }
         if let PianoDrag::TimeSelection { .. } = drag {
@@ -89,6 +97,21 @@ impl PianoRollWidget {
             .filter(|note| rects_overlap(self.note_rect(grid, **note), rect))
             .map(|note| note.id)
             .collect()
+    }
+
+    fn velocity_marquee_selection_output(
+        &self,
+        bounds: Rect,
+        position: Point,
+        start: Point,
+        modifiers: PointerModifiers,
+    ) -> WidgetOutput {
+        let lane = self.velocity_rect(bounds);
+        let rect = rect_from_points(start, position).clamp_to(lane);
+        WidgetOutput::custom(PianoRollMessage::SelectNotes {
+            ids: self.velocity_marquee_note_ids(lane, rect),
+            mode: self.velocity_marquee_selection_mode(modifiers),
+        })
     }
 }
 

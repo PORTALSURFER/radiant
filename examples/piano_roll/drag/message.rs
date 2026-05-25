@@ -48,7 +48,7 @@ impl PianoDrag {
                 start,
                 viewport: start_viewport,
             } => pan_message(projection, start, start_viewport),
-            Self::Marquee { .. } => PianoRollMessage::SelectNotes {
+            Self::Marquee { .. } | Self::VelocityMarquee { .. } => PianoRollMessage::SelectNotes {
                 ids: Vec::new(),
                 mode: NoteSelectionMode::Replace,
             },
@@ -67,7 +67,16 @@ impl PianoDrag {
                 grab_beat,
                 current,
             ),
-            Self::Velocity { ids, velocity } => PianoRollMessage::SetVelocity { ids, velocity },
+            Self::Velocity {
+                start_pointer_velocity,
+                current_pointer_velocity,
+                start_velocities,
+                ..
+            } => velocity_message(
+                start_pointer_velocity,
+                current_pointer_velocity,
+                start_velocities,
+            ),
         }
     }
 }
@@ -210,6 +219,20 @@ fn move_time_selection_message(
     PianoRollMessage::SetTimeSelection {
         start_beat: target_start,
         end_beat: target_start + length,
+    }
+}
+
+fn velocity_message(
+    start_pointer_velocity: f32,
+    current_pointer_velocity: f32,
+    start_velocities: Vec<(u32, f32)>,
+) -> PianoRollMessage {
+    let delta = current_pointer_velocity - start_pointer_velocity;
+    PianoRollMessage::SetVelocities {
+        velocities: start_velocities
+            .into_iter()
+            .map(|(id, velocity)| (id, (velocity + delta).clamp(0.0, 1.0)))
+            .collect(),
     }
 }
 

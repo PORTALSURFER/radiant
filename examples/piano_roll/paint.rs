@@ -1,5 +1,6 @@
 use radiant::prelude::*;
-use radiant::runtime::{PaintFillRect, PaintStrokeRect};
+use radiant::runtime::{PaintFillRect, PaintFillRectBatch, PaintStrokeRect, PaintStrokeRectBatch};
+use std::sync::Arc;
 
 pub(crate) fn blend_color(a: Rgba8, b: Rgba8, t: f32) -> Rgba8 {
     let t = t.clamp(0.0, 1.0);
@@ -33,6 +34,22 @@ pub(crate) fn push_rect(
     }));
 }
 
+pub(crate) fn push_rect_batch(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    rects: Vec<Rect>,
+    color: Rgba8,
+) {
+    if rects.is_empty() {
+        return;
+    }
+    primitives.push(PaintPrimitive::FillRectBatch(PaintFillRectBatch {
+        widget_id,
+        rects: Arc::from(rects),
+        color,
+    }));
+}
+
 pub(crate) fn push_stroke(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: u64,
@@ -43,6 +60,24 @@ pub(crate) fn push_stroke(
     primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
         widget_id,
         rect,
+        color,
+        width,
+    }));
+}
+
+pub(crate) fn push_stroke_batch(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    rects: Vec<Rect>,
+    color: Rgba8,
+    width: f32,
+) {
+    if rects.is_empty() {
+        return;
+    }
+    primitives.push(PaintPrimitive::StrokeRectBatch(PaintStrokeRectBatch {
+        widget_id,
+        rects: Arc::from(rects),
         color,
         width,
     }));

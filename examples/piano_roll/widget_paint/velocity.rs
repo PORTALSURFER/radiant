@@ -5,9 +5,13 @@ use super::super::{
     drag::PianoDrag,
     geometry::x_for_beat_view,
     model::PianoNote,
-    paint::{push_rect, push_stroke, push_text, rgba, translucent},
+    paint::{
+        push_rect, push_rect_batch, push_stroke, push_stroke_batch, push_text, rgba, translucent,
+    },
     widget::PianoRollWidget,
 };
+
+const BATCHED_VELOCITY_FILL_THRESHOLD: usize = 16;
 
 pub(crate) fn append_velocity_lane(
     widget: &PianoRollWidget,
@@ -25,9 +29,7 @@ pub(crate) fn append_velocity_lane(
         1.0,
     );
     append_velocity_lane_grid(widget, primitives, grid, lane, theme);
-    for note in &widget.notes {
-        append_velocity_pillar(widget, primitives, lane, *note, theme);
-    }
+    append_velocity_pillars(widget, primitives, lane, theme);
     push_text(
         primitives,
         widget.common.id,
@@ -41,6 +43,53 @@ pub(crate) fn append_velocity_lane(
     );
 }
 
+fn append_velocity_pillars(
+    widget: &PianoRollWidget,
+    primitives: &mut Vec<PaintPrimitive>,
+    lane: Rect,
+    theme: &ThemeTokens,
+) {
+    if widget.selected_note_count() < BATCHED_VELOCITY_FILL_THRESHOLD {
+        for note in &widget.notes {
+            append_velocity_pillar(widget, primitives, lane, *note, theme);
+        }
+        return;
+    }
+
+    let mut selected_fills = Vec::new();
+    for note in &widget.notes {
+        if widget.note_is_selected(note.id) {
+            let stem = widget.velocity_preview_stem_rect(lane, *note);
+            let handle = widget.velocity_handle_rect(lane, *note);
+            if stem.max.x >= lane.min.x && stem.min.x <= lane.max.x {
+                selected_fills.push(stem.clamp_to(lane));
+                selected_fills.push(handle.clamp_to(lane));
+            }
+        } else {
+            append_velocity_pillar(widget, primitives, lane, *note, theme);
+        }
+    }
+    push_rect_batch(
+        primitives,
+        widget.common.id,
+        selected_fills,
+        translucent(theme.highlight_blue, 230),
+    );
+    let mut selected_strokes = Vec::new();
+    for note in &widget.notes {
+        if widget.note_is_selected(note.id) {
+            selected_strokes.push(widget.velocity_handle_rect(lane, *note).clamp_to(lane));
+        }
+    }
+    push_stroke_batch(
+        primitives,
+        widget.common.id,
+        selected_strokes,
+        translucent(theme.text_primary, 210),
+        1.0,
+    );
+}
+
 pub(in crate::piano_roll::widget_paint) fn append_velocity_drag_preview(
     widget: &PianoRollWidget,
     primitives: &mut Vec<PaintPrimitive>,
@@ -50,31 +99,62 @@ pub(in crate::piano_roll::widget_paint) fn append_velocity_drag_preview(
     let Some(PianoDrag::Velocity { ids, .. }) = widget.drag.as_ref() else {
         return false;
     };
-    for id in ids {
-        if let Some(note) = widget.note_by_id(*id) {
-            let stem = widget.velocity_preview_stem_rect(lane, note).clamp_to(lane);
-            let handle = widget.velocity_handle_rect(lane, note).clamp_to(lane);
-            push_rect(
-                primitives,
-                widget.common.id,
-                stem,
-                translucent(theme.highlight_orange, 240),
-            );
-            push_rect(
-                primitives,
-                widget.common.id,
-                handle,
-                translucent(theme.highlight_orange, 255),
-            );
-            push_stroke(
-                primitives,
-                widget.common.id,
-                handle,
-                translucent(theme.text_primary, 230),
-                1.0,
-            );
+    if ids.len() < BATCHED_VELOCITY_FILL_THRESHOLD {
+        for note in &widget.notes {
+            if SelectionSet::slice_contains(ids, &note.id) {
+                let stem = widget
+                    .velocity_preview_stem_rect(lane, *note)
+                    .clamp_to(lane);
+                let handle = widget.velocity_handle_rect(lane, *note).clamp_to(lane);
+                push_rect(
+                    primitives,
+                    widget.common.id,
+                    stem,
+                    translucent(theme.highlight_orange, 240),
+                );
+                push_rect(
+                    primitives,
+                    widget.common.id,
+                    handle,
+                    translucent(theme.highlight_orange, 255),
+                );
+                push_stroke(
+                    primitives,
+                    widget.common.id,
+                    handle,
+                    translucent(theme.text_primary, 230),
+                    1.0,
+                );
+            }
+        }
+        return true;
+    }
+    let mut fills = Vec::with_capacity(ids.len().saturating_mul(2));
+    let mut handles = Vec::with_capacity(ids.len());
+    for note in &widget.notes {
+        if SelectionSet::slice_contains(ids, &note.id) {
+            let stem = widget
+                .velocity_preview_stem_rect(lane, *note)
+                .clamp_to(lane);
+            let handle = widget.velocity_handle_rect(lane, *note).clamp_to(lane);
+            fills.push(stem);
+            fills.push(handle);
+            handles.push(handle);
         }
     }
+    push_rect_batch(
+        primitives,
+        widget.common.id,
+        fills,
+        translucent(theme.highlight_orange, 245),
+    );
+    push_stroke_batch(
+        primitives,
+        widget.common.id,
+        handles,
+        translucent(theme.text_primary, 230),
+        1.0,
+    );
     true
 }
 
@@ -132,6 +212,18 @@ fn append_velocity_pillar(
     };
     push_rect(primitives, widget.common.id, stem.clamp_to(lane), fill);
     push_rect(primitives, widget.common.id, handle.clamp_to(lane), fill);
+    append_velocity_handle_stroke(widget, primitives, lane, note, theme);
+}
+
+fn append_velocity_handle_stroke(
+    widget: &PianoRollWidget,
+    primitives: &mut Vec<PaintPrimitive>,
+    lane: Rect,
+    note: PianoNote,
+    theme: &ThemeTokens,
+) {
+    let handle = widget.velocity_handle_rect(lane, note);
+    let selected = widget.note_is_selected(note.id);
     push_stroke(
         primitives,
         widget.common.id,

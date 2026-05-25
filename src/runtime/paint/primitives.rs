@@ -12,8 +12,8 @@ pub use clip::{PaintClipEnd, PaintClipStart};
 pub use path::{PaintFillRule, PaintPath, PaintPathCommand, PaintTransform};
 pub use plan::{PaintPrimitive, Renderer, SurfacePaintPlan, TransientOverlayContext};
 pub use shape::{
-    PaintFillPath, PaintFillPolygon, PaintFillRect, PaintPointList, PaintStrokePolygon,
-    PaintStrokePolyline, PaintStrokeRect,
+    PaintFillPath, PaintFillPolygon, PaintFillRect, PaintFillRectBatch, PaintPointList,
+    PaintRectList, PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintStrokeRectBatch,
 };
 pub use stats::SurfacePaintStats;
 pub use surface::{PaintCustomSurface, PaintGpuSurface, PaintImage};

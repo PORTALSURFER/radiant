@@ -1,10 +1,14 @@
 use crate::{
     gui::types::{Point, Rect as UiRect, Rgba8},
     gui_runtime::native_vello::{color_from_rgba, to_kurbo_rect},
-    runtime::{PaintFillRule, PaintPath, PaintTransform},
+    runtime::{PaintFillRule, PaintPath, PaintRectList, PaintTransform},
 };
 use kurbo::Stroke;
-use vello::{Scene, kurbo::Affine, peniko::Fill};
+use vello::{
+    Scene,
+    kurbo::{Affine, BezPath, Point as KurboPoint},
+    peniko::Fill,
+};
 
 mod geometry;
 
@@ -53,6 +57,35 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_rect(
     );
 }
 
+pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_rect_batch(
+    scene: &mut Scene,
+    color: Rgba8,
+    rects: &PaintRectList,
+) {
+    let mut path = BezPath::new();
+    for rect in rects
+        .iter()
+        .copied()
+        .filter(|rect| rect.has_finite_positive_area())
+    {
+        path.move_to(KurboPoint::new(rect.min.x as f64, rect.min.y as f64));
+        path.line_to(KurboPoint::new(rect.max.x as f64, rect.min.y as f64));
+        path.line_to(KurboPoint::new(rect.max.x as f64, rect.max.y as f64));
+        path.line_to(KurboPoint::new(rect.min.x as f64, rect.max.y as f64));
+        path.close_path();
+    }
+    if path.is_empty() {
+        return;
+    }
+    scene.fill(
+        Fill::NonZero,
+        Affine::IDENTITY,
+        color_from_rgba(color),
+        None,
+        &path,
+    );
+}
+
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_rect_stroke(
     scene: &mut Scene,
     color: Rgba8,
@@ -68,6 +101,39 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_rect_
         color_from_rgba(color),
         None,
         &to_kurbo_rect(rect),
+    );
+}
+
+pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_rect_stroke_batch(
+    scene: &mut Scene,
+    color: Rgba8,
+    width: f32,
+    rects: &PaintRectList,
+) {
+    if !paintable_stroke_width(width) {
+        return;
+    }
+    let mut path = BezPath::new();
+    for rect in rects
+        .iter()
+        .copied()
+        .filter(|rect| rect.has_finite_positive_area())
+    {
+        path.move_to(KurboPoint::new(rect.min.x as f64, rect.min.y as f64));
+        path.line_to(KurboPoint::new(rect.max.x as f64, rect.min.y as f64));
+        path.line_to(KurboPoint::new(rect.max.x as f64, rect.max.y as f64));
+        path.line_to(KurboPoint::new(rect.min.x as f64, rect.max.y as f64));
+        path.close_path();
+    }
+    if path.is_empty() {
+        return;
+    }
+    scene.stroke(
+        &Stroke::new(width as f64),
+        Affine::IDENTITY,
+        color_from_rgba(color),
+        None,
+        &path,
     );
 }
 

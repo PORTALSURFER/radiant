@@ -3,6 +3,7 @@ use crate::piano_roll::{
     LOW_PITCH, NoteSelectionMode, PITCH_ROWS, TOTAL_BEATS,
     geometry::{quantize_beat, synthetic_velocity},
 };
+use radiant::prelude::SelectionSet;
 
 impl PianoRollState {
     pub(super) fn create_note(&mut self, pitch: i32, start_beat: f32, length_beats: f32) {
@@ -84,14 +85,25 @@ impl PianoRollState {
         self.replace_selection(ids);
     }
 
-    pub(super) fn set_velocity(&mut self, ids: Vec<u32>, velocity: f32) {
-        let velocity = velocity.clamp(0.0, 1.0);
+    pub(super) fn set_velocities(&mut self, mut velocities: Vec<(u32, f32)>) {
+        if !SelectionSet::slice_is_sorted_unique_by_key(&velocities, |(id, _)| *id) {
+            velocities.sort_unstable_by_key(|(id, _)| *id);
+            velocities.dedup_by_key(|(id, _)| *id);
+        }
+        let mut ids = Vec::with_capacity(velocities.len());
         for note in &mut self.notes {
-            if ids.contains(&note.id) {
-                note.velocity = velocity;
+            if let Ok(index) = velocities.binary_search_by_key(&note.id, |(id, _)| *id) {
+                note.velocity = velocities[index].1.clamp(0.0, 1.0);
+                ids.push(note.id);
             }
         }
-        if !ids.is_empty() {
+        if ids.is_empty() {
+            return;
+        }
+        SelectionSet::normalize_vec(&mut ids);
+        if self.selected_notes == ids {
+            self.selected_note = self.selected_notes.first().copied();
+        } else {
             self.select_notes(ids, NoteSelectionMode::Replace);
         }
     }

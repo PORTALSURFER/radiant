@@ -8,7 +8,7 @@ use super::super::{
     widget::PianoRollWidget,
     widget_paint::{
         append_drag_preview, append_editor_clip_end, append_editor_clip_start, append_grid,
-        append_hover_guides, append_keyboard, append_keyboard_interaction, append_note,
+        append_hover_guides, append_keyboard, append_keyboard_interaction, append_notes,
         append_selected_pitch_lane, append_time_selection, append_velocity_lane,
     },
 };
@@ -42,8 +42,10 @@ impl Widget for PianoRollWidget {
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Primary,
-                ..
-            } if velocity.contains(position) => self.handle_velocity_press(velocity, position),
+                modifiers,
+            } if velocity.contains(position) => {
+                self.handle_velocity_press(velocity, position, modifiers)
+            }
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Primary,
@@ -127,9 +129,7 @@ impl Widget for PianoRollWidget {
         append_grid(self, primitives, grid, theme);
         append_selected_pitch_lane(self, primitives, bounds, grid, theme);
         append_editor_clip_start(self, primitives, grid);
-        for note in &self.notes {
-            append_note(self, primitives, grid, *note, theme);
-        }
+        append_notes(self, primitives, grid, &self.notes, theme);
         append_editor_clip_end(self, primitives);
         push_stroke(primitives, self.common.id, grid, theme.border_emphasis, 1.0);
         append_velocity_lane(self, primitives, grid, self.velocity_rect(bounds), theme);

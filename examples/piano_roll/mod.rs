@@ -16,6 +16,9 @@ mod widget;
 #[path = "widget_paint.rs"]
 mod widget_paint;
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
 pub(crate) use model::PianoRollState;
 pub(crate) use view::project_surface;
 pub(crate) use widget::PianoRollWidget;
@@ -65,9 +68,8 @@ pub(crate) enum PianoRollMessage {
         start_beat: f32,
         length_beats: f32,
     },
-    SetVelocity {
-        ids: Vec<u32>,
-        velocity: f32,
+    SetVelocities {
+        velocities: Vec<(u32, f32)>,
     },
     SetCursor {
         beat: f32,
@@ -173,8 +175,8 @@ fn undo_registration_for(message: &PianoRollMessage) -> Option<(&'static str, Op
         PianoRollMessage::CreateNote { .. } => "Create note",
         PianoRollMessage::MoveNote { .. } | PianoRollMessage::MoveNotes { .. } => "Move notes",
         PianoRollMessage::ResizeNote { .. } => "Resize note",
-        PianoRollMessage::SetVelocity { ids, .. } => {
-            return Some(("Change velocity", Some(format!("velocity:{ids:?}"))));
+        PianoRollMessage::SetVelocities { velocities } => {
+            return Some(("Change velocity", Some(velocity_merge_key(velocities))));
         }
         PianoRollMessage::SetCursor { .. } => "Set cursor",
         PianoRollMessage::SetTimeSelection { .. } => "Set time selection",
@@ -190,4 +192,13 @@ fn undo_registration_for(message: &PianoRollMessage) -> Option<(&'static str, Op
         PianoRollMessage::DeleteSelected => "Delete selected notes",
     };
     Some((label, None))
+}
+
+fn velocity_merge_key(velocities: &[(u32, f32)]) -> String {
+    let mut ids = velocities.iter().map(|(id, _)| *id).collect::<Vec<_>>();
+    ids.sort_unstable();
+    ids.dedup();
+    let mut hasher = DefaultHasher::new();
+    ids.hash(&mut hasher);
+    format!("velocity:{}:{:016x}", ids.len(), hasher.finish())
 }

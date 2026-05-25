@@ -20,6 +20,24 @@ pub struct PaintFillRect {
     pub color: Rgba8,
 }
 
+/// Shared immutable rectangle list used by batched rectangle paint primitives.
+pub type PaintRectList = Arc<[Rect]>;
+
+/// Batched filled rectangle primitive in logical surface coordinates.
+///
+/// Use this when a widget needs to paint many independent rectangles with the
+/// same color. Native renderers can encode the batch as one backend shape
+/// instead of one scene operation per rectangle.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaintFillRectBatch {
+    /// Widget that produced this primitive.
+    pub widget_id: WidgetId,
+    /// Rectangles to fill, in local paint order.
+    pub rects: PaintRectList,
+    /// Fill color applied to every rectangle.
+    pub color: Rgba8,
+}
+
 /// Filled bezier path primitive in logical surface coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PaintFillPath {
@@ -43,6 +61,23 @@ pub struct PaintStrokeRect {
     /// Rectangle to stroke.
     pub rect: Rect,
     /// Stroke color.
+    pub color: Rgba8,
+    /// Stroke width in logical pixels.
+    pub width: f32,
+}
+
+/// Batched stroked rectangle primitive in logical surface coordinates.
+///
+/// Use this when a widget needs to stroke many independent rectangles with the
+/// same color and width. Native renderers can encode the batch as one backend
+/// path instead of one scene operation per rectangle.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaintStrokeRectBatch {
+    /// Widget that produced this primitive.
+    pub widget_id: WidgetId,
+    /// Rectangles to stroke, in local paint order.
+    pub rects: PaintRectList,
+    /// Stroke color applied to every rectangle.
     pub color: Rgba8,
     /// Stroke width in logical pixels.
     pub width: f32,

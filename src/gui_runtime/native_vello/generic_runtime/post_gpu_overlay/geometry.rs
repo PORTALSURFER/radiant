@@ -2,7 +2,7 @@ mod text;
 
 use crate::{
     gui::types::{Point, Rect as UiRect, Rgba8, Vector2},
-    runtime::{PaintPrimitive, PaintStrokeRect},
+    runtime::{PaintPrimitive, PaintStrokeRect, PaintStrokeRectBatch},
 };
 
 use super::vertex::OverlayVertex;
@@ -45,8 +45,16 @@ pub(super) fn append_replayable_vertices(
             PaintPrimitive::FillRect(fill) => {
                 push_rect_vertices(vertices, target_size, fill.rect, fill.color);
             }
+            PaintPrimitive::FillRectBatch(fill) => {
+                for rect in fill.rects.iter().copied() {
+                    push_rect_vertices(vertices, target_size, rect, fill.color);
+                }
+            }
             PaintPrimitive::StrokeRect(stroke) => {
                 push_stroke_vertices(vertices, target_size, stroke);
+            }
+            PaintPrimitive::StrokeRectBatch(stroke) => {
+                push_stroke_batch_vertices(vertices, target_size, stroke);
             }
             PaintPrimitive::Text(text) => {
                 push_text_vertices(vertices, target_size, text);
@@ -68,10 +76,20 @@ pub(super) fn append_replayable_vertices_in_regions(
     for primitive in primitives {
         match primitive {
             PaintPrimitive::FillRect(fill) if fill.color.a >= OPAQUE_REVEALED_FILL_ALPHA => {}
+            PaintPrimitive::FillRectBatch(fill) if fill.color.a >= OPAQUE_REVEALED_FILL_ALPHA => {}
             PaintPrimitive::FillRect(fill) => {
                 for region in regions {
                     if let Some(rect) = intersect_rect(fill.rect, *region) {
                         push_rect_vertices(vertices, target_size, rect, fill.color);
+                    }
+                }
+            }
+            PaintPrimitive::FillRectBatch(fill) => {
+                for source in fill.rects.iter().copied() {
+                    for region in regions {
+                        if let Some(rect) = intersect_rect(source, *region) {
+                            push_rect_vertices(vertices, target_size, rect, fill.color);
+                        }
                     }
                 }
             }
@@ -80,6 +98,17 @@ pub(super) fn append_replayable_vertices_in_regions(
                     for region in regions {
                         if let Some(rect) = intersect_rect(edge, *region) {
                             push_rect_vertices(vertices, target_size, rect, stroke.color);
+                        }
+                    }
+                }
+            }
+            PaintPrimitive::StrokeRectBatch(stroke) => {
+                for source in stroke.rects.iter().copied() {
+                    for edge in stroke_rect_edges(source, stroke.width) {
+                        for region in regions {
+                            if let Some(rect) = intersect_rect(edge, *region) {
+                                push_rect_vertices(vertices, target_size, rect, stroke.color);
+                            }
                         }
                     }
                 }
@@ -117,6 +146,18 @@ fn push_stroke_vertices(
 ) {
     for rect in stroke_rect_edges(stroke.rect, stroke.width) {
         push_rect_vertices(vertices, target_size, rect, stroke.color);
+    }
+}
+
+fn push_stroke_batch_vertices(
+    vertices: &mut Vec<OverlayVertex>,
+    target_size: Vector2,
+    stroke: &PaintStrokeRectBatch,
+) {
+    for source in stroke.rects.iter().copied() {
+        for rect in stroke_rect_edges(source, stroke.width) {
+            push_rect_vertices(vertices, target_size, rect, stroke.color);
+        }
     }
 }
 

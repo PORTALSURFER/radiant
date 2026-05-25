@@ -81,11 +81,11 @@ pub use gpu_surface::{
 };
 pub use paint::{
     PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillPolygon,
-    PaintFillRect, PaintFillRule, PaintGpuSurface, PaintImage, PaintOverlayPanel, PaintPath,
-    PaintPathCommand, PaintPointList, PaintPrimitive, PaintStrokePolygon, PaintStrokePolyline,
-    PaintStrokeRect, PaintSvg, PaintSvgDocument, PaintText, PaintTextAlign, PaintTextInput,
-    PaintTextRun, PaintTransform, Renderer, SurfacePaintPlan, SurfacePaintStats, SvgParseError,
-    TransientOverlayContext,
+    PaintFillRect, PaintFillRectBatch, PaintFillRule, PaintGpuSurface, PaintImage,
+    PaintOverlayPanel, PaintPath, PaintPathCommand, PaintPointList, PaintPrimitive, PaintRectList,
+    PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintStrokeRectBatch, PaintSvg,
+    PaintSvgDocument, PaintText, PaintTextAlign, PaintTextInput, PaintTextRun, PaintTransform,
+    Renderer, SurfacePaintPlan, SurfacePaintStats, SvgParseError, TransientOverlayContext,
 };
 pub(crate) use paint::{
     blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,

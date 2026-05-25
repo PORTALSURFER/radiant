@@ -1,5 +1,6 @@
 use super::PianoRollState;
 use crate::piano_roll::NoteSelectionMode;
+use radiant::prelude::SelectionSet;
 
 impl PianoRollState {
     pub(super) fn delete_selected(&mut self) {
@@ -15,11 +16,18 @@ impl PianoRollState {
     }
 
     pub(super) fn replace_selection(&mut self, ids: impl IntoIterator<Item = u32>) {
-        self.selected_notes = ids
+        let note_ids = self.sorted_note_ids();
+        let mut next = ids
             .into_iter()
-            .filter(|id| self.notes.iter().any(|note| note.id == *id))
-            .collect();
-        self.normalize_selection();
+            .filter(|id| note_ids.contains(id))
+            .collect::<Vec<_>>();
+        SelectionSet::normalize_vec(&mut next);
+        if self.selected_notes == next {
+            self.selected_note = self.selected_notes.first().copied();
+            return;
+        }
+        self.selected_notes = next;
+        self.selected_note = self.selected_notes.first().copied();
     }
 
     pub(super) fn select_notes(&mut self, ids: Vec<u32>, mode: NoteSelectionMode) {
@@ -32,12 +40,13 @@ impl PianoRollState {
 
     fn add_notes_to_selection(&mut self, ids: Vec<u32>) {
         self.selected_notes.extend(ids);
-        self.selected_notes
-            .retain(|id| self.notes.iter().any(|note| note.id == *id));
+        let note_ids = self.sorted_note_ids();
+        self.selected_notes.retain(|id| note_ids.contains(id));
         self.normalize_selection();
     }
 
     fn toggle_notes_in_selection(&mut self, ids: Vec<u32>) {
+        let note_ids = self.sorted_note_ids();
         for id in ids {
             if let Some(index) = self
                 .selected_notes
@@ -45,7 +54,7 @@ impl PianoRollState {
                 .position(|selected| *selected == id)
             {
                 self.selected_notes.remove(index);
-            } else if self.notes.iter().any(|note| note.id == id) {
+            } else if note_ids.contains(&id) {
                 self.selected_notes.push(id);
             }
         }
@@ -53,8 +62,11 @@ impl PianoRollState {
     }
 
     fn normalize_selection(&mut self) {
-        self.selected_notes.sort_unstable();
-        self.selected_notes.dedup();
+        SelectionSet::normalize_vec(&mut self.selected_notes);
         self.selected_note = self.selected_notes.first().copied();
+    }
+
+    fn sorted_note_ids(&self) -> SelectionSet<u32> {
+        SelectionSet::from_items(self.notes.iter().map(|note| note.id))
     }
 }

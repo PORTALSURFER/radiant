@@ -2,11 +2,12 @@ use radiant::prelude::*;
 
 use super::{
     super::{
+        TOTAL_BEATS,
+        geometry::{row_height_for, x_for_beat_view},
         model::PianoNote,
         paint::{push_rect, push_stroke, rgba, translucent},
         widget::PianoRollWidget,
     },
-    grid::append_grid,
     note::append_note,
     velocity::append_velocity_drag_preview,
 };
@@ -46,7 +47,7 @@ pub(crate) fn append_time_selection(
         && source.width() >= 1.0
     {
         push_rect(primitives, widget.common.id, source, rgba(8, 12, 18, 255));
-        append_grid(widget, primitives, grid, theme);
+        append_source_mask_grid(widget, primitives, grid, source, theme);
     }
     if let Some(selection) = widget.active_time_selection_rect(grid) {
         let rect = selection.clamp_to(grid);
@@ -101,12 +102,134 @@ pub(crate) fn append_drag_preview(
         append_marquee_preview(widget, primitives, grid, rect, theme);
         return;
     }
+    if let Some(rect) = widget
+        .velocity_marquee_rect()
+        .map(|rect| rect.clamp_to(velocity_lane))
+    {
+        append_velocity_marquee_preview(widget, primitives, velocity_lane, rect, theme);
+        return;
+    }
     let slice_notes = widget.time_slice_preview_notes(grid);
     if !slice_notes.is_empty() {
         append_time_slice_drag_preview(widget, primitives, grid, &slice_notes, theme);
         return;
     }
     append_note_drag_preview(widget, primitives, grid, position, theme);
+}
+
+fn append_source_mask_grid(
+    widget: &PianoRollWidget,
+    primitives: &mut Vec<PaintPrimitive>,
+    grid: Rect,
+    source: Rect,
+    theme: &ThemeTokens,
+) {
+    append_source_mask_pitch_lines(widget, primitives, grid, source, theme);
+    append_source_mask_beat_lines(widget, primitives, grid, source, theme);
+}
+
+fn append_source_mask_pitch_lines(
+    widget: &PianoRollWidget,
+    primitives: &mut Vec<PaintPrimitive>,
+    grid: Rect,
+    source: Rect,
+    theme: &ThemeTokens,
+) {
+    for row in 0..=widget.viewport.row_count() {
+        let y = grid.min.y + row as f32 * row_height_for(grid, widget.viewport);
+        let line = Rect::from_min_max(
+            Point::new(source.min.x, y),
+            Point::new(source.max.x, y + 1.0),
+        );
+        if line.max.y < source.min.y || line.min.y > source.max.y {
+            continue;
+        }
+        let color = if row % 12 == 0 {
+            translucent(theme.grid_strong, 170)
+        } else {
+            translucent(theme.grid_soft, 105)
+        };
+        push_rect(primitives, widget.common.id, line.clamp_to(source), color);
+    }
+}
+
+fn append_source_mask_beat_lines(
+    widget: &PianoRollWidget,
+    primitives: &mut Vec<PaintPrimitive>,
+    grid: Rect,
+    source: Rect,
+    theme: &ThemeTokens,
+) {
+    let first = (widget.viewport.beat_start * 4.0).floor().max(0.0) as usize;
+    let last = (widget.viewport.beat_end() * 4.0)
+        .ceil()
+        .min(TOTAL_BEATS * 4.0) as usize;
+    for beat in first..=last {
+        let x = x_for_beat_view(grid, widget.viewport, beat as f32 / 4.0);
+        let line = Rect::from_min_max(
+            Point::new(x, source.min.y),
+            Point::new(x + 1.0, source.max.y),
+        );
+        if line.max.x < source.min.x || line.min.x > source.max.x {
+            continue;
+        }
+        push_rect(
+            primitives,
+            widget.common.id,
+            line.clamp_to(source),
+            source_mask_beat_line_color(beat, theme),
+        );
+    }
+}
+
+fn source_mask_beat_line_color(beat: usize, theme: &ThemeTokens) -> Rgba8 {
+    if beat.is_multiple_of(16) {
+        translucent(theme.grid_strong, 190)
+    } else if beat.is_multiple_of(4) {
+        translucent(theme.grid_strong, 125)
+    } else {
+        translucent(theme.grid_soft, 80)
+    }
+}
+
+fn append_velocity_marquee_preview(
+    widget: &PianoRollWidget,
+    primitives: &mut Vec<PaintPrimitive>,
+    lane: Rect,
+    rect: Rect,
+    theme: &ThemeTokens,
+) {
+    for id in widget.velocity_marquee_note_ids(lane, rect) {
+        if let Some(note) = widget.note_by_id(id) {
+            let handle = widget.velocity_handle_rect(lane, note).clamp_to(lane);
+            push_rect(
+                primitives,
+                widget.common.id,
+                handle,
+                translucent(theme.highlight_orange, 230),
+            );
+            push_stroke(
+                primitives,
+                widget.common.id,
+                handle,
+                translucent(theme.text_primary, 230),
+                1.0,
+            );
+        }
+    }
+    push_rect(
+        primitives,
+        widget.common.id,
+        rect,
+        translucent(theme.highlight_blue, 34),
+    );
+    push_stroke(
+        primitives,
+        widget.common.id,
+        rect,
+        translucent(theme.highlight_cyan, 220),
+        2.0,
+    );
 }
 
 fn append_marquee_preview(

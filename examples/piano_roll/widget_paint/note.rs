@@ -2,9 +2,79 @@ use radiant::prelude::*;
 
 use super::super::{
     model::PianoNote,
-    paint::{blend_color, push_rect, push_stroke, rgba, translucent},
+    paint::{
+        blend_color, push_rect, push_rect_batch, push_stroke, push_stroke_batch, rgba, translucent,
+    },
     widget::PianoRollWidget,
 };
+
+const BATCHED_NOTE_FILL_THRESHOLD: usize = 16;
+
+pub(crate) fn append_notes(
+    widget: &PianoRollWidget,
+    primitives: &mut Vec<PaintPrimitive>,
+    grid: Rect,
+    notes: &[PianoNote],
+    theme: &ThemeTokens,
+) {
+    if widget.selected_note_count() < BATCHED_NOTE_FILL_THRESHOLD {
+        for note in notes {
+            append_note(widget, primitives, grid, *note, theme);
+        }
+        return;
+    }
+
+    let mut selected_fills = Vec::new();
+    for note in notes {
+        let rect = widget.note_rect(grid, *note);
+        if widget.note_is_selected(note.id) {
+            selected_fills.push(rect);
+        } else {
+            push_rect(
+                primitives,
+                widget.common.id,
+                rect,
+                note_fill(*note, false, theme),
+            );
+        }
+    }
+    if let Some(note) = notes
+        .iter()
+        .copied()
+        .find(|note| widget.note_is_selected(note.id))
+    {
+        push_rect_batch(
+            primitives,
+            widget.common.id,
+            selected_fills,
+            note_fill(note, true, theme),
+        );
+    }
+    let mut selected_strokes = Vec::new();
+    let mut selected_resize_handles = Vec::new();
+    for note in notes {
+        if widget.note_is_selected(note.id) {
+            let rect = widget.note_rect(grid, *note);
+            selected_strokes.push(rect);
+            selected_resize_handles.push(resize_handle_rect(rect));
+        } else {
+            append_note_stroke_and_handle(widget, primitives, grid, *note, theme);
+        }
+    }
+    push_stroke_batch(
+        primitives,
+        widget.common.id,
+        selected_strokes,
+        note_stroke(true, theme),
+        2.0,
+    );
+    push_rect_batch(
+        primitives,
+        widget.common.id,
+        selected_resize_handles,
+        translucent(theme.text_primary, 150),
+    );
+}
 
 pub(crate) fn append_note(
     widget: &PianoRollWidget,
@@ -17,6 +87,18 @@ pub(crate) fn append_note(
     let selected = widget.note_is_selected(note.id);
     let fill = note_fill(note, selected, theme);
     push_rect(primitives, widget.common.id, rect, fill);
+    append_note_stroke_and_handle(widget, primitives, grid, note, theme);
+}
+
+fn append_note_stroke_and_handle(
+    widget: &PianoRollWidget,
+    primitives: &mut Vec<PaintPrimitive>,
+    grid: Rect,
+    note: PianoNote,
+    theme: &ThemeTokens,
+) {
+    let rect = widget.note_rect(grid, note);
+    let selected = widget.note_is_selected(note.id);
     push_stroke(
         primitives,
         widget.common.id,
@@ -63,10 +145,14 @@ fn append_resize_handle(
     push_rect(
         primitives,
         widget.common.id,
-        Rect::from_min_max(
-            Point::new(rect.max.x - 5.0, rect.min.y + 2.0),
-            Point::new(rect.max.x - 2.0, rect.max.y - 2.0),
-        ),
+        resize_handle_rect(rect),
         translucent(theme.text_primary, 150),
     );
+}
+
+fn resize_handle_rect(rect: Rect) -> Rect {
+    Rect::from_min_max(
+        Point::new(rect.max.x - 5.0, rect.min.y + 2.0),
+        Point::new(rect.max.x - 2.0, rect.max.y - 2.0),
+    )
 }

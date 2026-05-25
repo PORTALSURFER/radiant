@@ -101,16 +101,14 @@ fn piano_roll_velocity_updates_coalesce_into_one_undo_step() {
 
     update(
         &mut state,
-        AppMessage::Roll(PianoRollMessage::SetVelocity {
-            ids: vec![2],
-            velocity: 0.2,
+        AppMessage::Roll(PianoRollMessage::SetVelocities {
+            velocities: vec![(2, 0.2)],
         }),
     );
     update(
         &mut state,
-        AppMessage::Roll(PianoRollMessage::SetVelocity {
-            ids: vec![2],
-            velocity: 0.4,
+        AppMessage::Roll(PianoRollMessage::SetVelocities {
+            velocities: vec![(2, 0.4)],
         }),
     );
 

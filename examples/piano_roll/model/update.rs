@@ -34,7 +34,7 @@ impl PianoRollState {
                 start_beat,
                 length_beats,
             } => self.resize_note(id, start_beat, length_beats),
-            PianoRollMessage::SetVelocity { ids, velocity } => self.set_velocity(ids, velocity),
+            PianoRollMessage::SetVelocities { velocities } => self.set_velocities(velocities),
             PianoRollMessage::SetCursor { beat } => self.set_cursor(beat),
             PianoRollMessage::SetTimeSelection {
                 start_beat,

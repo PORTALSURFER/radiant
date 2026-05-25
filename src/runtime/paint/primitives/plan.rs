@@ -1,8 +1,9 @@
 use super::PaintSvg;
 use super::{
     PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillPolygon,
-    PaintFillRect, PaintGpuSurface, PaintImage, PaintOverlayPanel, PaintStrokePolygon,
-    PaintStrokePolyline, PaintStrokeRect, PaintTextInput, PaintTextRun,
+    PaintFillRect, PaintFillRectBatch, PaintGpuSurface, PaintImage, PaintOverlayPanel,
+    PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintStrokeRectBatch, PaintTextInput,
+    PaintTextRun,
 };
 use crate::{
     gui::types::{Rgba8, Vector2},
@@ -23,12 +24,16 @@ pub enum PaintPrimitive {
     ClipEnd(PaintClipEnd),
     /// Fill a rectangle.
     FillRect(PaintFillRect),
+    /// Fill many rectangles with one color.
+    FillRectBatch(PaintFillRectBatch),
     /// Fill a bezier path.
     FillPath(PaintFillPath),
     /// Paint a retained SVG document.
     Svg(PaintSvg),
     /// Stroke a rectangle.
     StrokeRect(PaintStrokeRect),
+    /// Stroke many rectangles with one color and width.
+    StrokeRectBatch(PaintStrokeRectBatch),
     /// Fill a polygon.
     FillPolygon(PaintFillPolygon),
     /// Stroke a polygon.

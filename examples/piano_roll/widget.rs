@@ -66,7 +66,7 @@ impl PianoRollWidget {
             common,
             notes,
             selected_note,
-            selected_notes,
+            selected_notes: sorted_unique_ids(selected_notes),
             selected_pitch,
             edit_cursor_beat,
             time_selection,
@@ -129,7 +129,15 @@ impl PianoRollWidget {
     }
 
     pub(crate) fn note_is_selected(&self, id: u32) -> bool {
-        self.selected_note == Some(id) || self.selected_notes.binary_search(&id).is_ok()
+        self.selected_note == Some(id) || SelectionSet::slice_contains(&self.selected_notes, &id)
+    }
+
+    pub(crate) fn selected_note_count(&self) -> usize {
+        if self.selected_notes.is_empty() && self.selected_note.is_some() {
+            1
+        } else {
+            self.selected_notes.len()
+        }
     }
 
     pub(crate) fn marquee_rect(&self) -> Option<Rect> {
@@ -261,6 +269,7 @@ impl PianoRollWidget {
         let drag = self.drag.as_ref()?;
         let source = match drag {
             PianoDrag::Pan { .. } | PianoDrag::Marquee { .. } => return None,
+            PianoDrag::VelocityMarquee { .. } => return None,
             PianoDrag::TimeSelection { .. } | PianoDrag::MoveTimeSelection { .. } => return None,
             PianoDrag::Velocity { .. } => return None,
             PianoDrag::Create { pitch, start_beat } => PianoNote {
@@ -325,6 +334,11 @@ impl PianoRollWidget {
             .filter_map(|note| clipped_note_for_range(note, source_start, source_end, beat_delta))
             .collect()
     }
+}
+
+fn sorted_unique_ids(mut ids: Vec<u32>) -> Vec<u32> {
+    SelectionSet::normalize_vec(&mut ids);
+    ids
 }
 
 fn rect_from_points(a: Point, b: Point) -> Rect {

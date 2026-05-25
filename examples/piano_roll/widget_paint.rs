@@ -17,7 +17,7 @@ pub(super) use grid::append_grid;
 pub(super) use keyboard::{
     append_keyboard, append_keyboard_interaction, append_selected_pitch_lane,
 };
-pub(super) use note::append_note;
+pub(super) use note::append_notes;
 pub(super) use overlay::{append_drag_preview, append_hover_guides, append_time_selection};
 pub(super) use velocity::append_velocity_lane;
 

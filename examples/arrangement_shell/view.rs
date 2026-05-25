@@ -1,9 +1,15 @@
 use radiant::prelude::*;
 
+#[path = "view/components.rs"]
+mod components;
+
 use super::{
     ARRANGEMENT_WIDGET_ID, AppMessage, ArrangementOverviewWidget, BROWSER_ITEMS, DATA_SOURCE_NOTE,
-    STATUS_WIDGET_ID, ShellMessage, TRACKS,
-    model::{ArrangementShellState, TrackMeter},
+    STATUS_WIDGET_ID, ShellMessage, TRACKS, model::ArrangementShellState,
+};
+use components::{
+    collapsed_panel, meter_tile, panel_style, panel_toggle_label, stat_tile, subtle_style,
+    track_button_style,
 };
 
 pub(crate) fn project_surface(state: &mut ArrangementShellState) -> View<AppMessage> {
@@ -144,65 +150,4 @@ fn track_selector_row(state: &ArrangementShellState) -> View<AppMessage> {
         .collect::<Vec<_>>())
     .fill_width()
     .spacing(8.0)
-}
-
-fn collapsed_panel(label: &'static str, width: f32) -> View<AppMessage> {
-    column([text(label).height(24.0).fill_width()])
-        .style(panel_style())
-        .padding(10.0)
-        .size(width, 400.0)
-}
-
-fn meter_tile(meter: TrackMeter) -> View<AppMessage> {
-    column([
-        text(TRACKS[meter.track]).height(20.0).fill_width(),
-        text(format!(
-            "lvl {:>3}% pk {:>3}%",
-            (meter.level * 100.0) as u32,
-            (meter.peak * 100.0) as u32
-        ))
-        .height(22.0)
-        .fill_width(),
-    ])
-    .style(panel_style())
-    .padding(10.0)
-    .height(64.0)
-    .fill_width()
-}
-
-fn stat_tile(label: impl Into<String>, value: impl Into<String>) -> View<AppMessage> {
-    column([
-        text(label.into()).height(20.0).fill_width(),
-        text(value.into()).height(22.0).fill_width(),
-    ])
-    .style(subtle_style())
-    .padding(8.0)
-    .height(58.0)
-    .fill_width()
-}
-
-fn panel_toggle_label(open: bool, name: &'static str) -> String {
-    format!("{} {name}", if open { "Hide" } else { "Show" })
-}
-
-fn track_button_style(selected: bool) -> WidgetStyle {
-    if selected {
-        WidgetStyle {
-            tone: WidgetTone::Accent,
-            prominence: WidgetProminence::Subtle,
-        }
-    } else {
-        subtle_style()
-    }
-}
-
-fn panel_style() -> WidgetStyle {
-    subtle_style()
-}
-
-fn subtle_style() -> WidgetStyle {
-    WidgetStyle {
-        tone: WidgetTone::Neutral,
-        prominence: WidgetProminence::Subtle,
-    }
 }

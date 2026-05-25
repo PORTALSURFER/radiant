@@ -2,8 +2,7 @@ use radiant::prelude::*;
 use radiant::widgets::PointerModifiers;
 
 use super::super::{
-    NoteSelectionMode, PianoRollMessage, drag::PianoDrag, geometry::x_for_beat_view,
-    model::PianoNote,
+    NoteSelectionMode, drag::PianoDrag, geometry::x_for_beat_view, model::PianoNote,
 };
 use super::PianoRollWidget;
 
@@ -76,14 +75,7 @@ impl PianoRollWidget {
             return None;
         }
         *current_pointer_velocity = next_velocity;
-        let velocities = self
-            .drag
-            .as_ref()
-            .and_then(PianoDrag::velocity_values)
-            .unwrap_or_default();
-        Some(WidgetOutput::custom(PianoRollMessage::SetVelocities {
-            velocities,
-        }))
+        None
     }
 
     pub(crate) fn velocity_preview_stem_rect(&self, lane: Rect, note: PianoNote) -> Rect {

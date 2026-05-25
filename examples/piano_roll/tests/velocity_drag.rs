@@ -43,24 +43,11 @@ fn piano_roll_velocity_drag_edits_selected_notes_together() {
         "velocity drag should not keep an editor hover overlay on the edited note"
     );
 
-    let move_message = widget
-        .handle_input(bounds, WidgetInput::PointerMove { position: end })
-        .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
-        .expect("velocity drag move should publish the edited value for live note repaint");
-    match move_message {
-        PianoRollMessage::SetVelocities { velocities } => {
-            assert_eq!(
-                velocities.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
-                vec![2, 3]
-            );
-            assert!(
-                (velocity_for(&velocities, 2) - 0.28).abs() < 0.02,
-                "dragging lower in the velocity lane should update selected notes before release"
-            );
-            state.apply_roll_message(PianoRollMessage::SetVelocities { velocities });
-        }
-        other => panic!("expected live velocity edit message, got {other:?}"),
-    }
+    let move_output = widget.handle_input(bounds, WidgetInput::PointerMove { position: end });
+    assert!(
+        move_output.is_none(),
+        "velocity drag moves should stay paint-only and avoid host batch updates"
+    );
     let mut overlay = Vec::new();
     widget.append_runtime_overlay_paint(
         &mut overlay,
@@ -88,37 +75,6 @@ fn piano_roll_velocity_drag_edits_selected_notes_together() {
             )
         }),
         "velocity drag should paint the edited bars locally before release"
-    );
-    let live_widget = PianoRollWidget::new(
-        state.notes.clone(),
-        state.selected_note,
-        state.selected_notes.clone(),
-        state.selected_pitch,
-        state.edit_cursor_beat,
-        state.time_selection,
-        state.snap_enabled,
-        state.playhead_beat,
-        state.viewport,
-        state.tool,
-    );
-    let grid = live_widget.editor_rect(bounds);
-    let live_note = state
-        .notes
-        .iter()
-        .copied()
-        .find(|note| note.id == 2)
-        .expect("edited note should still exist");
-    let mut live_paint = Vec::new();
-    live_widget.append_paint(
-        &mut live_paint,
-        bounds,
-        &LayoutOutput::default(),
-        &ThemeTokens::default(),
-    );
-    let live_alpha = fill_alpha_for_rect(&live_paint, live_widget.note_rect(grid, live_note));
-    assert!(
-        live_alpha < 130,
-        "live velocity updates should lower the note fill alpha before release"
     );
     let release = widget
         .handle_input(
@@ -263,18 +219,31 @@ fn piano_roll_velocity_lane_marquee_selects_handles_for_group_velocity_drag() {
             modifiers: PointerModifiers::default(),
         },
     );
+    let drag_position = Point::new(
+        selected_handle.center().x,
+        lane.min.y + lane.height() * 0.25,
+    );
+    let move_output = selected_widget.handle_input(
+        bounds,
+        WidgetInput::PointerMove {
+            position: drag_position,
+        },
+    );
+    assert!(
+        move_output.is_none(),
+        "group velocity drag should keep pointer moves paint-only"
+    );
     let group_velocity = selected_widget
         .handle_input(
             bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(
-                    selected_handle.center().x,
-                    lane.min.y + lane.height() * 0.25,
-                ),
+            WidgetInput::PointerRelease {
+                position: drag_position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
-        .expect("dragging a marquee-selected handle should edit the selected group");
+        .expect("releasing a marquee-selected handle should edit the selected group");
 
     match group_velocity {
         PianoRollMessage::SetVelocities { velocities } => {
@@ -323,41 +292,46 @@ fn piano_roll_group_velocity_drag_preserves_offsets_until_floor_or_ceiling() {
             modifiers: PointerModifiers::default(),
         },
     );
+    let lower_position = Point::new(handle.center().x, lane.min.y + lane.height() * 0.72);
+    assert!(
+        widget
+            .handle_input(
+                bounds,
+                WidgetInput::PointerMove {
+                    position: lower_position,
+                },
+            )
+            .is_none(),
+        "relative velocity drag should keep live pointer moves paint-only"
+    );
     let lower = widget
-        .handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(handle.center().x, lane.min.y + lane.height() * 0.72),
-            },
-        )
-        .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
-        .expect("relative velocity drag should emit live values");
+        .drag
+        .as_ref()
+        .and_then(PianoDrag::velocity_values)
+        .expect("relative velocity drag should retain live preview values");
 
-    match lower {
-        PianoRollMessage::SetVelocities { velocities } => {
-            assert!((velocity_for(&velocities, 2) - 0.28).abs() < 0.02);
-            assert!((velocity_for(&velocities, 3) - 0.10).abs() < 0.02);
-        }
-        other => panic!("expected relative velocity values, got {other:?}"),
-    }
+    assert!((velocity_for(&lower, 2) - 0.28).abs() < 0.02);
+    assert!((velocity_for(&lower, 3) - 0.10).abs() < 0.02);
 
+    assert!(
+        widget
+            .handle_input(
+                bounds,
+                WidgetInput::PointerMove {
+                    position: Point::new(handle.center().x, lane.max.y),
+                },
+            )
+            .is_none(),
+        "dragging to the floor should stay paint-only until release"
+    );
     let floor = widget
-        .handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(handle.center().x, lane.max.y),
-            },
-        )
-        .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
-        .expect("dragging to the floor should emit clamped values");
+        .drag
+        .as_ref()
+        .and_then(PianoDrag::velocity_values)
+        .expect("dragging to the floor should retain clamped preview values");
 
-    match floor {
-        PianoRollMessage::SetVelocities { velocities } => {
-            assert_eq!(velocity_for(&velocities, 2), 0.0);
-            assert_eq!(velocity_for(&velocities, 3), 0.0);
-        }
-        other => panic!("expected clamped relative velocity values, got {other:?}"),
-    }
+    assert_eq!(velocity_for(&floor, 2), 0.0);
+    assert_eq!(velocity_for(&floor, 3), 0.0);
 }
 
 #[test]
@@ -394,15 +368,28 @@ fn piano_roll_stress_velocity_drag_updates_all_selected_notes_without_reselectin
             modifiers: PointerModifiers::default(),
         },
     );
+    let drag_position = Point::new(handle.center().x, lane.min.y);
+    let move_output = widget.handle_input(
+        bounds,
+        WidgetInput::PointerMove {
+            position: drag_position,
+        },
+    );
+    assert!(
+        move_output.is_none(),
+        "stress velocity drag should not emit grouped updates on pointer moves"
+    );
     let output = widget
         .handle_input(
             bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(handle.center().x, lane.min.y),
+            WidgetInput::PointerRelease {
+                position: drag_position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
-        .expect("stress velocity drag should emit a grouped update");
+        .expect("stress velocity drag should commit one grouped update on release");
 
     match output {
         PianoRollMessage::SetVelocities { velocities } => {

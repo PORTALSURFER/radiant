@@ -1,7 +1,28 @@
 //! Generic `RuntimeBridge` native Vello runner.
 
-use super::*;
-use crate::gui::repaint::RepaintSignal;
+use super::{
+    NativeGpuBackend, NativeRunOptions, NativeRunOptionsError, NativeStartupTimingArtifact,
+    RuntimeUserEvent,
+};
+use crate::{
+    gui::{repaint::RepaintSignal, types::Vector2},
+    gui_runtime::RuntimeRunReport,
+    runtime::RuntimeBridge,
+};
+use std::{sync::Arc, time::Instant};
+use tracing::{info, warn};
+use vello::{util::RenderContext, wgpu};
+use winit::event_loop::EventLoop;
+
+#[cfg(test)]
+use crate::{
+    gui::types::{Point, Rect as UiRect, Rgba8},
+    gui_runtime::native_vello::NativeTextRenderer,
+};
+#[cfg(test)]
+use std::time::Duration;
+#[cfg(test)]
+use vello::Scene;
 
 mod auxiliary;
 mod composited_base;
@@ -197,7 +218,7 @@ impl std::error::Error for NativeGenericRunError {}
 
 /// Result plus structured artifacts returned by one generic native runtime execution.
 pub type NativeGenericRunReport =
-    crate::gui_runtime::RuntimeRunReport<NativeGenericRuntimeArtifacts, NativeGenericRunError>;
+    RuntimeRunReport<NativeGenericRuntimeArtifacts, NativeGenericRunError>;
 
 fn initial_viewport(options: &NativeRunOptions) -> Vector2 {
     let [width, height] = options

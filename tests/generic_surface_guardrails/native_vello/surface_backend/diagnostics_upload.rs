@@ -20,6 +20,15 @@ fn native_vello_present_diagnostics_stay_in_focused_module() {
             && diagnostics.contains("NativeFrameTimingDiagnostics"),
         "native frame diagnostics projection should live in present/diagnostics.rs"
     );
+    assert!(
+        diagnostics.contains(
+            "use super::super::{RenderFrameProfile, RetainedSurfaceEncodeStats, gpu_surface};"
+        ) && diagnostics
+            .contains("use crate::gui_runtime::native_vello::TextLayoutProfileCounters;")
+            && diagnostics.contains("use std::time::Duration;")
+            && !diagnostics.starts_with("use super::super::*;"),
+        "native frame diagnostics should name frame profile, encode stats, GPU stats, text stats, and timing dependencies"
+    );
 }
 
 #[test]

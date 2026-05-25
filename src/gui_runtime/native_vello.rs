@@ -8,14 +8,7 @@ use crate::gui::{
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
 use crate::runtime::{PaintTextInput, RuntimeBridge};
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
-use tracing::{info, warn};
-use vello::util::RenderContext;
 use vello::{Scene, wgpu};
-use winit::event_loop::EventLoop;
 
 mod generic_runtime;
 mod runtime_config;

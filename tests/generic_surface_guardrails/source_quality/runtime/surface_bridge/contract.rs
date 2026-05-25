@@ -46,6 +46,10 @@ fn runtime_bridge_contract_documents_adapter_hook_groups() {
         fs::read_to_string(manifest_dir.join("docs/API.md")).expect("API docs should be readable");
     let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
 
+    assert!(
+        contract.lines().count() <= 250,
+        "RuntimeBridge contract should stay concise enough to scan as one public adapter surface"
+    );
     for group in [
         "Surface projection.",
         "State updates and input policy.",

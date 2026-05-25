@@ -1,5 +1,13 @@
 use super::*;
-use crate::runtime::GpuSignalSummaryBucket;
+use crate::gui::types::Rect as UiRect;
+use crate::gui_runtime::native_vello::generic_runtime::gpu_surface::gpu_surface_types::SignalBodyCacheKeyParts;
+use crate::gui_runtime::native_vello::generic_runtime::gpu_surface::passes::surface_pixel_extent;
+use crate::layout::{Point, Vector2};
+use crate::runtime::{
+    GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,
+};
+use crate::theme::DpiScale;
+use std::sync::Arc;
 
 #[test]
 fn signal_uniforms_group_shape_level_and_gain_preview() {
@@ -15,12 +23,9 @@ fn signal_uniforms_group_shape_level_and_gain_preview() {
     };
     let body_key = SignalBodyCacheKey::new(SignalBodyCacheKeyParts {
         revision: 9,
-        extent: super::surface_pixel_extent(
-            UiRect::from_min_size(
-                crate::layout::Point::new(0.0, 0.0),
-                crate::layout::Vector2::new(96.0, 48.0),
-            ),
-            crate::theme::DpiScale::default(),
+        extent: surface_pixel_extent(
+            UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(96.0, 48.0)),
+            DpiScale::default(),
         )
         .expect("finite rect has an extent"),
         frames: shape.frames,

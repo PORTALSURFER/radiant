@@ -2,7 +2,8 @@ mod layout;
 mod lifecycle;
 mod traversal;
 
-use super::*;
+use super::SurfaceRuntime;
+use crate::{runtime::RuntimeBridge, widgets::WidgetId};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where

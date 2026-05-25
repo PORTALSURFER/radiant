@@ -1,4 +1,5 @@
 use super::super::*;
+use crate::widgets::TextEditCommand;
 
 #[test]
 fn generic_core_routes_pointer_and_key_input_to_host_messages() {

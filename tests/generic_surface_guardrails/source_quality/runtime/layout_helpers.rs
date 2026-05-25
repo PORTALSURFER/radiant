@@ -9,22 +9,43 @@ fn layout_row_helpers_keep_geometry_and_tests_focused() {
         .expect("layout row helper rects should be readable");
     let tests = fs::read_to_string(manifest_dir.join("src/gui/layout_core/row_helpers/tests.rs"))
         .expect("layout row helper tests should be readable");
+    let fixed_rects = fs::read_to_string(
+        manifest_dir.join("src/gui/layout_core/row_helpers/tests/fixed_rects.rs"),
+    )
+    .expect("layout fixed row rect tests should be readable");
+    let fitting =
+        fs::read_to_string(manifest_dir.join("src/gui/layout_core/row_helpers/tests/fitting.rs"))
+            .expect("layout row fitting tests should be readable");
+    let stacked_rows = fs::read_to_string(
+        manifest_dir.join("src/gui/layout_core/row_helpers/tests/stacked_rows.rs"),
+    )
+    .expect("layout stacked row tests should be readable");
+    let widths =
+        fs::read_to_string(manifest_dir.join("src/gui/layout_core/row_helpers/tests/widths.rs"))
+            .expect("layout row width tests should be readable");
 
     assert!(
         root.contains("mod fitting;")
             && root.contains("mod rects;")
             && root.contains("mod widths;")
             && root.contains("#[path = \"row_helpers/tests.rs\"]")
+            && root.contains("#[path = \"row_helpers/tests.rs\"]")
             && !root.contains("fn fixed_width_row_rects_start_places_items_from_left_edge"),
         "layout row helper root should re-export focused geometry modules while behavior tests stay delegated"
     );
     assert!(
-        tests.contains("fn fixed_width_row_rects_start_places_items_from_left_edge")
-            && tests.contains("fn visible_suffix_widths_normalizes_negative_dimensions")
-            && tests.contains(
+        tests.contains("#[path = \"tests/fixed_rects.rs\"]")
+            && tests.contains("#[path = \"tests/fitting.rs\"]")
+            && tests.contains("#[path = \"tests/stacked_rows.rs\"]")
+            && tests.contains("#[path = \"tests/widths.rs\"]")
+            && !tests.contains("fn fixed_width_row_rects_start_places_items_from_left_edge")
+            && fixed_rects.contains("fn fixed_width_row_rects_start_places_items_from_left_edge")
+            && fitting.contains("fn visible_suffix_widths_normalizes_negative_dimensions")
+            && fitting.contains(
                 "fn fixed_width_item_extent_for_available_width_fits_items_after_reserved_gaps"
-            ),
-        "layout row helper behavior coverage should live in row_helpers/tests.rs"
+            )
+            && widths.contains("fn grouped_fixed_width_row_width_counts_visible_groups_and_gaps"),
+        "layout row helper behavior coverage should live in focused row_helpers/tests modules"
     );
     assert!(
         rects.contains("pub struct StackedRowRectsParts")
@@ -35,8 +56,8 @@ fn layout_row_helpers_keep_geometry_and_tests_focused() {
         "stacked-row geometry should expose named parts while preserving compatibility helpers"
     );
     assert!(
-        tests.contains("fn stacked_row_rects_compatibility_helper_delegates_to_named_parts")
-            && tests.contains(
+        stacked_rows.contains("fn stacked_row_rects_compatibility_helper_delegates_to_named_parts")
+            && stacked_rows.contains(
                 "fn stacked_row_rects_into_compatibility_helper_delegates_to_named_parts"
             ),
         "stacked-row tests should cover named-parts construction and compatibility wrappers"

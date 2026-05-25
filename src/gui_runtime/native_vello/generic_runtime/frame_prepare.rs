@@ -1,6 +1,10 @@
 //! Per-frame model refresh and transient overlay preparation.
 
-use super::*;
+use super::{
+    GenericNativeVelloRunner, RenderFrameProfile, collect_gpu_surface_interaction_regions,
+};
+use crate::runtime::RuntimeBridge;
+use std::time::Instant;
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where

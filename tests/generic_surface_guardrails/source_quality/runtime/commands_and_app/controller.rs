@@ -71,8 +71,11 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
     assert!(
         outcome.contains("pub struct CommandOutcome")
             && outcome.contains("fn finish_command_outcome")
+            && outcome.contains("use super::SurfaceRuntime;")
+            && outcome.contains("use crate::runtime::RuntimeBridge;")
+            && !outcome.starts_with("use super::*;")
             && !root.contains("pub struct CommandOutcome"),
-        "command pass result and finalization should live in commands/outcome.rs"
+        "command pass result and finalization should live in commands/outcome.rs with explicit controller and bridge dependencies"
     );
     assert!(
         drain.contains("pub fn drain_runtime_messages")
@@ -130,13 +133,19 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
         dispatch.contains("fn execute_command_inner")
             && dispatch.contains("Command::PlatformRequest")
             && dispatch.contains("Command::ScrollFixedRowIntoView")
+            && dispatch.contains("use super::{CommandOutcome, SurfaceRuntime};")
             && dispatch.contains("gui::types::Vector2")
-            && dispatch.contains("runtime::{DragSession, ExternalDragSession}")
+            && dispatch
+                .contains("runtime::{Command, DragSession, ExternalDragSession, RuntimeBridge}")
+            && !dispatch.starts_with("use super::*;")
             && !root.contains("fn execute_command_inner"),
         "command execution branches should live in commands/dispatch.rs"
     );
     assert!(
-        external_drag.contains("runtime::{ExternalDragOutcome, ExternalDragSession}")
+        external_drag.contains("use super::{CommandOutcome, SurfaceRuntime};")
+            && external_drag
+                .contains("runtime::{ExternalDragOutcome, ExternalDragSession, RuntimeBridge}")
+            && !external_drag.starts_with("use super::*;")
             && scrolling.contains("use super::super::{ScrollUpdate, SurfaceRuntime};")
             && scrolling.contains("gui::types::{Point, Vector2}")
             && scrolling.contains("layout::NodeId")

@@ -1,6 +1,8 @@
 //! Backend-neutral event routing helpers for the generic native runner.
 
-use super::{GenericNativeRuntimeCore, GenericRouteOutcome, PointerPressStamp};
+use super::{
+    GenericNativeRuntimeCore, GenericRouteOutcome, PointerPressStamp, pointer_press_event,
+};
 use crate::gui::{
     focus::FocusSurface,
     input::KeyPress,
@@ -8,24 +10,7 @@ use crate::gui::{
 };
 use crate::runtime::{Event, RuntimeBridge};
 use crate::widgets::{PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey};
-use std::time::{Duration, Instant};
-
-const DOUBLE_CLICK_MAX_INTERVAL: Duration = Duration::from_millis(500);
-const DOUBLE_CLICK_MAX_DISTANCE: f32 = 5.0;
-
-fn is_double_click(
-    last: PointerPressStamp,
-    now: Instant,
-    position: Point,
-    button: PointerButton,
-) -> bool {
-    if last.button != button || now.duration_since(last.at) > DOUBLE_CLICK_MAX_INTERVAL {
-        return false;
-    }
-    let dx = position.x - last.position.x;
-    let dy = position.y - last.position.y;
-    (dx * dx + dy * dy) <= DOUBLE_CLICK_MAX_DISTANCE * DOUBLE_CLICK_MAX_DISTANCE
-}
+use std::time::Instant;
 
 impl<Bridge, Message> GenericNativeRuntimeCore<Bridge, Message>
 where
@@ -80,27 +65,12 @@ where
         modifiers: PointerModifiers,
     ) -> GenericRouteOutcome {
         let now = Instant::now();
-        let is_double_click = self
-            .last_pointer_press
-            .is_some_and(|last| is_double_click(last, now, position, button));
+        let event = pointer_press_event(self.last_pointer_press, now, position, button, modifiers);
         self.last_pointer_press = Some(PointerPressStamp {
             at: now,
             position,
             button,
         });
-        let event = if is_double_click {
-            Event::PointerDoubleClick {
-                position,
-                button,
-                modifiers,
-            }
-        } else {
-            Event::PointerPress {
-                position,
-                button,
-                modifiers,
-            }
-        };
         let routed = self.runtime.dispatch_event(event).is_some();
         self.route_outcome(routed)
     }

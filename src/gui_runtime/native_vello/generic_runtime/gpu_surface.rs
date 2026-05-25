@@ -1,10 +1,10 @@
 //! Native GPU renderer for retained generic GPU-surface paint primitives.
 
 use super::device::{wgpu_device_id, wgpu_target_matches};
-use crate::gui::types::{Rect as UiRect, Rgba8, Vector2};
+use crate::gui::types::{Rect as UiRect, Vector2};
 use crate::runtime::{
     GpuSignalGainPreview, GpuSignalSummary, GpuSignalSummaryBucket, GpuSurfaceContent,
-    GpuSurfaceOverlay, PaintGpuSurface, PaintPrimitive,
+    PaintGpuSurface, PaintPrimitive,
 };
 use std::{
     collections::HashMap,
@@ -33,11 +33,10 @@ use encoding::{
 };
 use gpu_surface_types::{
     CachedSignalSummary, CustomShaderBinding, CustomShaderBindingKey, CustomShaderPipeline,
-    CustomShaderPipelineKey, GPU_SURFACE_OVERLAY_VEC4_SLOTS, GpuSurfaceCompositeBinding,
-    GpuSurfaceCompositeBindingKey, GpuSurfacePipeline, GpuSurfaceTexture,
-    GpuSurfaceTextureIdentity, GpuSurfaceUniforms, MAX_GPU_SURFACE_OVERLAYS, SignalBodyCacheKey,
-    SignalBodyCacheKeyParts, SignalBodyTexture, SignalBuffer, SignalBufferCacheKey, SignalPipeline,
-    SignalUniforms,
+    CustomShaderPipelineKey, GpuSurfaceCompositeBinding, GpuSurfaceCompositeBindingKey,
+    GpuSurfacePipeline, GpuSurfaceTexture, GpuSurfaceTextureIdentity, GpuSurfaceUniforms,
+    SignalBodyCacheKey, SignalBodyCacheKeyParts, SignalBodyTexture, SignalBuffer,
+    SignalBufferCacheKey, SignalPipeline, SignalUniforms,
 };
 use overlays::vertical_overlays;
 use passes::{

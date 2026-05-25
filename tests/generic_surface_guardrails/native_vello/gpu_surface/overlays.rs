@@ -15,6 +15,10 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/overlays.rs"),
     )
     .expect("GPU surface overlay uniform module should be readable");
+    let encoding = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/gpu_surface/encoding.rs"),
+    )
+    .expect("GPU surface encoding module should be readable");
 
     assert!(
         renderer.contains("mod overlays;") && renderer.contains("use overlays::vertical_overlays;"),
@@ -34,6 +38,29 @@ fn native_gpu_surface_overlay_uniforms_stay_in_focused_module() {
         assert!(
             !production_renderer.contains(wildcard),
             "GPU surface renderer root should use explicit imports instead of `{wildcard}`"
+        );
+    }
+    for (path, source) in [
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/encoding.rs",
+            encoding.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/overlays.rs",
+            overlays.as_str(),
+        ),
+        (
+            "src/gui_runtime/native_vello/generic_runtime/gpu_surface/passes.rs",
+            passes.as_str(),
+        ),
+    ] {
+        let production_source = source
+            .split("#[cfg(test)]")
+            .next()
+            .expect("production source should precede tests");
+        assert!(
+            !production_source.contains("use super::*;"),
+            "{path} should import the GPU-surface dependencies it actually uses"
         );
     }
     assert!(

@@ -8,7 +8,6 @@ use crate::gui::{
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
 use crate::runtime::{PaintTextInput, RuntimeBridge};
-use crate::widgets::WidgetKey;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -20,7 +19,6 @@ use winit::{
     application::ApplicationHandler,
     event::{ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    keyboard::{Key, NamedKey, PhysicalKey},
     window::{Window, WindowId},
 };
 

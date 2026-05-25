@@ -7,6 +7,7 @@ use crate::{
     gui::types::Vector2,
     gui_runtime::native_vello::{select_present_mode, startup_renderer_options},
     runtime::RuntimeBridge,
+    theme::DpiScale,
 };
 use std::{sync::Arc, time::Instant};
 use tracing::{error, info, warn};
@@ -37,7 +38,7 @@ where
         };
         self.timing.startup_timing.mark_window_created();
         self.window.id = Some(window.id());
-        self.window.native_dpi_scale = crate::theme::DpiScale::new(window.scale_factor());
+        self.window.native_dpi_scale = DpiScale::new(window.scale_factor());
         self.window.dpi_scale = self.active_dpi_scale();
         self.window.window = Some(Arc::clone(&window));
 
@@ -137,14 +138,14 @@ where
     }
 
     pub(super) fn update_native_dpi_scale(&mut self, scale_factor: f64) {
-        self.window.native_dpi_scale = crate::theme::DpiScale::new(scale_factor);
+        self.window.native_dpi_scale = DpiScale::new(scale_factor);
         if self.apply_active_dpi_scale_to_viewport() {
             self.rebuild_scene();
         }
         self.request_redraw_if_needed();
     }
 
-    pub(super) fn set_dpi_scale_override(&mut self, scale: crate::theme::DpiScale) {
+    pub(super) fn set_dpi_scale_override(&mut self, scale: DpiScale) {
         self.window.dpi_scale_override = Some(scale);
         let _ = self.apply_active_dpi_scale_to_viewport();
     }
@@ -153,7 +154,7 @@ where
         let width = size.x.max(1.0);
         let height = size.y.max(1.0);
         if let Some(window) = self.window.window.as_ref() {
-            let physical_size = winit::dpi::PhysicalSize::new(
+            let physical_size = PhysicalSize::new(
                 self.window.dpi_scale.logical_to_physical(width).ceil() as u32,
                 self.window.dpi_scale.logical_to_physical(height).ceil() as u32,
             );
@@ -176,7 +177,7 @@ where
         true
     }
 
-    fn active_dpi_scale(&self) -> crate::theme::DpiScale {
+    fn active_dpi_scale(&self) -> DpiScale {
         self.window
             .dpi_scale_override
             .unwrap_or(self.window.native_dpi_scale)
@@ -210,10 +211,7 @@ where
     }
 }
 
-fn logical_viewport_for_size(
-    size: PhysicalSize<u32>,
-    dpi_scale: crate::theme::DpiScale,
-) -> Vector2 {
+fn logical_viewport_for_size(size: PhysicalSize<u32>, dpi_scale: DpiScale) -> Vector2 {
     Vector2::new(
         dpi_scale.physical_to_logical(size.width.max(1) as f32),
         dpi_scale.physical_to_logical(size.height.max(1) as f32),
@@ -227,7 +225,7 @@ fn surface_size_changed(current_width: u32, current_height: u32, next: PhysicalS
 #[cfg(test)]
 mod tests {
     use super::{logical_viewport_for_size, surface_size_changed};
-    use crate::layout::Vector2;
+    use crate::{layout::Vector2, theme::DpiScale};
     use winit::dpi::PhysicalSize;
 
     #[test]
@@ -240,10 +238,7 @@ mod tests {
     #[test]
     fn native_surface_viewport_uses_logical_size_for_current_dpi_scale() {
         assert_eq!(
-            logical_viewport_for_size(
-                PhysicalSize::new(1800, 1200),
-                crate::theme::DpiScale::new(1.5)
-            ),
+            logical_viewport_for_size(PhysicalSize::new(1800, 1200), DpiScale::new(1.5)),
             Vector2::new(1200.0, 800.0)
         );
     }

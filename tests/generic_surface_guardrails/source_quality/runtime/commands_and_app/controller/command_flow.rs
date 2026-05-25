@@ -107,3 +107,43 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
         "runtime controller command tests should stay grouped by batching, drain, external drag, platform, and fixtures concerns"
     );
 }
+
+#[test]
+fn runtime_surface_public_command_tests_stay_grouped_by_command_concern() {
+    let root = controller_source("tests/runtime_surface_public_api/commands.rs");
+    let fixtures = controller_source("tests/runtime_surface_public_api/commands/fixtures.rs");
+    let repaint = controller_source("tests/runtime_surface_public_api/commands/repaint.rs");
+    let runtime_commands =
+        controller_source("tests/runtime_surface_public_api/commands/runtime_commands.rs");
+    let window = controller_source("tests/runtime_surface_public_api/commands/window.rs");
+
+    assert!(
+        root.contains("#[path = \"commands/fixtures.rs\"]")
+            && root.contains("#[path = \"commands/repaint.rs\"]")
+            && root.contains("#[path = \"commands/runtime_commands.rs\"]")
+            && root.contains("#[path = \"commands/window.rs\"]")
+            && !root.contains("fn surface_runtime_executes_command_messages_and_repaint_requests")
+            && !root.contains("struct RuntimeCommandBridge"),
+        "runtime surface public command test root should index fixtures, repaint, runtime command, and window command groups"
+    );
+    assert!(
+        fixtures.contains("enum CommandDemoMessage")
+            && fixtures.contains("struct CommandDemoBridge")
+            && fixtures.contains("struct RuntimeCommandBridge")
+            && fixtures.contains("fn project_demo_surface")
+            && fixtures.contains("fn drain_until_messages"),
+        "runtime surface public command fixtures should own bridge, surface projection, and drain helpers"
+    );
+    assert!(
+        repaint.contains("fn surface_runtime_treats_mixed_repaint_batches_as_surface_refreshes")
+            && repaint
+                .contains("fn surface_runtime_executes_command_messages_and_repaint_requests")
+            && runtime_commands
+                .contains("fn surface_runtime_executes_focus_exit_and_deferred_commands")
+            && window
+                .contains("fn surface_runtime_reports_dpi_scale_overrides_as_surface_refreshes")
+            && window
+                .contains("fn surface_runtime_reports_window_size_requests_as_surface_refreshes"),
+        "runtime surface public command behavior should stay grouped by repaint, deferred runtime commands, and window commands"
+    );
+}

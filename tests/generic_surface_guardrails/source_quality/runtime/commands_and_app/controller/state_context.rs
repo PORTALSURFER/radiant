@@ -145,7 +145,9 @@ fn runtime_controller_state_modules_use_explicit_dependencies() {
             && state_lifecycle.contains("gui::types::{Point, Rect, Vector2}")
             && state_lifecycle
                 .contains("layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState}")
-            && state_lifecycle.contains("runtime::{RuntimeBridge, SurfaceRuntimeProjection}")
+            && state_lifecycle.contains("CommandOutcome")
+            && state_lifecycle.contains("RuntimeBridge")
+            && state_lifecycle.contains("SurfaceRuntimeProjection")
             && !state_lifecycle.starts_with("use super::super::*;")
             && state_lifecycle.contains("fn clear_stale_interaction_state")
             && state_lifecycle.contains("fn normalized_viewport"),

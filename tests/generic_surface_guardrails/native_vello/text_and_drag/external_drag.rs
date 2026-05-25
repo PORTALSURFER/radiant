@@ -87,10 +87,15 @@ fn native_external_drag_platform_selection_stays_focused() {
 
     assert!(
         orchestration.contains("mod platform;")
+            && orchestration
+                .contains("use super::{GenericNativeVelloRunner, GenericRouteOutcome};")
+            && orchestration.contains("use crate::runtime::{ExternalDragPayload, RuntimeBridge};")
+            && orchestration.contains("use tracing::info;")
             && orchestration.contains("platform::start_external_drag(&session.request)")
+            && !orchestration.starts_with("use super::*;")
             && !orchestration.contains("cfg(target_os")
             && !orchestration.contains("External drag-out is only supported on Windows"),
-        "external drag runner orchestration should delegate platform selection"
+        "external drag runner orchestration should name its runtime dependencies and delegate platform selection"
     );
     assert!(
         platform.contains("#[cfg(target_os = \"windows\")]")

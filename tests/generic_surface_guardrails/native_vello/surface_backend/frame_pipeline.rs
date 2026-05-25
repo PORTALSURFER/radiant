@@ -264,3 +264,25 @@ fn native_runtime_config_boundary_uses_explicit_imports_and_exports() {
         "runtime_config should import only renderer option types instead of inheriting the native Vello root"
     );
 }
+
+#[test]
+fn native_startup_timing_uses_explicit_imports() {
+    let startup = read_runtime_source("src/gui_runtime/native_vello/startup.rs");
+
+    assert!(
+        startup.contains("use std::time::Instant;")
+            && startup.contains("mod artifact;")
+            && startup.contains("mod logging;")
+            && startup.contains("pub use artifact::NativeStartupTimingArtifact;")
+            && !startup.starts_with("use super::*;"),
+        "native startup timing should name its timing dependency and keep artifact/logging concerns local"
+    );
+    assert!(
+        startup.contains("struct StartupTimingProfile")
+            && startup.contains("fn maybe_emit_summary")
+            && startup.contains("fn export_artifact")
+            && startup.contains("fn failure_reason")
+            && startup.contains("fn ms_between"),
+        "native startup timing should keep profile state, summary export, failure reason, and duration math focused"
+    );
+}

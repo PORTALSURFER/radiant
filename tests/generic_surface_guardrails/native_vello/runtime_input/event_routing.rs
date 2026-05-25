@@ -54,3 +54,29 @@ fn native_event_routing_tests_stay_grouped_by_input_concern() {
         "native event-routing tests should stay grouped by host, canvas, scroll, repaint, and drag/drop concerns"
     );
 }
+
+#[test]
+fn native_file_drop_routing_uses_explicit_runtime_imports() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let native_file_drop = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/native_file_drop.rs"),
+    )
+    .expect("native file drop routing module should be readable");
+
+    assert!(
+        native_file_drop.contains("use super::GenericNativeVelloRunner;")
+            && native_file_drop.contains("use crate::runtime::{NativeFileDrop, RuntimeBridge};")
+            && native_file_drop.contains("use crate::widgets::WidgetId;")
+            && native_file_drop.contains("use std::path::PathBuf;")
+            && native_file_drop.contains("use winit::event_loop::ActiveEventLoop;")
+            && !native_file_drop.starts_with("use super::*;"),
+        "native file drop routing should name its runner, runtime model, widget id, path, and event-loop dependencies"
+    );
+    assert!(
+        native_file_drop.contains("NativeFileDrop::hover")
+            && native_file_drop.contains("NativeFileDrop::cancel")
+            && native_file_drop.contains("NativeFileDrop::dropped")
+            && native_file_drop.contains("native_file_drop_target"),
+        "native file drop routing should keep hover, cancel, drop, and target resolution in the focused module"
+    );
+}

@@ -1,4 +1,10 @@
-use super::*;
+use super::SurfaceRuntime;
+use crate::{
+    gui::types::Point,
+    layout::NodeId,
+    runtime::{RuntimeBridge, SurfaceWidget},
+    widgets::WidgetId,
+};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where

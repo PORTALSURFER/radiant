@@ -3,7 +3,7 @@ use crate::{
     gui::types::Point,
     layout::NodeId,
     runtime::{RuntimeBridge, SurfaceWidget},
-    widgets::WidgetId,
+    widgets::{WidgetCursor, WidgetId},
 };
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -25,6 +25,20 @@ where
     pub(super) fn pointer_widget_at_for_move(&self, point: Point) -> Option<WidgetId> {
         self.stable_hovered_widget_at(point)
             .or_else(|| self.widget_at(point))
+    }
+
+    /// Return the cursor requested by the active pointer target at `point`.
+    pub fn cursor_at(&self, point: Point) -> WidgetCursor {
+        self.interaction
+            .pointer
+            .capture
+            .or_else(|| self.pointer_widget_at_for_move(point))
+            .and_then(|widget_id| {
+                let bounds = *self.layout.rects.get(&widget_id)?;
+                self.surface_widget(widget_id)
+                    .and_then(|widget| widget.cursor_for_point(bounds, point))
+            })
+            .unwrap_or_default()
     }
 
     pub(super) fn styled_container_at(&self, point: Point) -> Option<NodeId> {

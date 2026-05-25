@@ -6,7 +6,7 @@ use super::{
         geometry::{row_height_for, x_for_beat_view},
         model::PianoNote,
         paint::{push_rect, push_stroke, rgba, translucent},
-        widget::PianoRollWidget,
+        widget::{NoteResizeEdge, PianoRollWidget},
     },
     note::append_note,
     velocity::append_velocity_drag_preview,
@@ -31,7 +31,56 @@ pub(crate) fn append_hover_guides(
     }
     if let Some(note) = widget.hover_note.and_then(|id| widget.note_by_id(id)) {
         append_note_hover_effect(widget, primitives, grid, note, theme);
+        if let Some(edge) = widget.hover_note_resize_edge {
+            append_note_resize_cursor(widget, primitives, grid, note, edge, theme);
+        }
     }
+}
+
+fn append_note_resize_cursor(
+    widget: &PianoRollWidget,
+    primitives: &mut Vec<PaintPrimitive>,
+    grid: Rect,
+    note: PianoNote,
+    edge: NoteResizeEdge,
+    theme: &ThemeTokens,
+) {
+    let rect = widget.note_rect(grid, note).clamp_to(grid);
+    let color = theme.highlight_orange;
+    let width = 2.0;
+    let tick = 7.0_f32.min(rect.width().max(0.0));
+    let x = match edge {
+        NoteResizeEdge::Start => rect.min.x,
+        NoteResizeEdge::End => rect.max.x - width,
+    };
+    let (tick_min_x, tick_max_x) = match edge {
+        NoteResizeEdge::Start => (x, x + tick),
+        NoteResizeEdge::End => (x + width - tick, x + width),
+    };
+    push_rect(
+        primitives,
+        widget.common.id,
+        Rect::from_min_max(Point::new(x, rect.min.y), Point::new(x + width, rect.max.y)),
+        color,
+    );
+    push_rect(
+        primitives,
+        widget.common.id,
+        Rect::from_min_max(
+            Point::new(tick_min_x, rect.min.y),
+            Point::new(tick_max_x, rect.min.y + width),
+        ),
+        color,
+    );
+    push_rect(
+        primitives,
+        widget.common.id,
+        Rect::from_min_max(
+            Point::new(tick_min_x, rect.max.y - width),
+            Point::new(tick_max_x, rect.max.y),
+        ),
+        color,
+    );
 }
 
 pub(crate) fn append_time_selection(

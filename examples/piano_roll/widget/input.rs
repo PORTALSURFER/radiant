@@ -105,10 +105,25 @@ impl Widget for PianoRollWidget {
         true
     }
 
+    fn cursor_for_point(&self, bounds: Rect, point: Point) -> Option<WidgetCursor> {
+        match self.drag.as_ref() {
+            Some(PianoDrag::ResizeStart { .. }) => return Some(WidgetCursor::ResizeLeft),
+            Some(PianoDrag::ResizeEnd { .. }) => return Some(WidgetCursor::ResizeRight),
+            _ => {}
+        }
+        let grid = self.editor_rect(bounds);
+        match self.note_resize_edge_at_position(grid, point) {
+            Some((_, super::NoteResizeEdge::Start)) => Some(WidgetCursor::ResizeLeft),
+            Some((_, super::NoteResizeEdge::End)) => Some(WidgetCursor::ResizeRight),
+            None => None,
+        }
+    }
+
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
             self.common.state = previous.common.state;
             self.hover_note = previous.hover_note;
+            self.hover_note_resize_edge = previous.hover_note_resize_edge;
             self.hover_velocity_note = previous.hover_velocity_note;
             self.hover_pitch = previous.hover_pitch;
             self.active_pitch = previous.active_pitch;

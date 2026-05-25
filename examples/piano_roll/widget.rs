@@ -34,6 +34,7 @@ pub(crate) struct PianoRollWidget {
     pub(super) viewport: PianoRollViewport,
     pub(super) tool: PianoRollTool,
     pub(crate) hover_note: Option<u32>,
+    pub(crate) hover_note_resize_edge: Option<NoteResizeEdge>,
     pub(crate) hover_velocity_note: Option<u32>,
     pub(crate) hover_pitch: Option<i32>,
     pub(crate) active_pitch: Option<i32>,
@@ -76,6 +77,7 @@ impl PianoRollWidget {
             viewport,
             tool,
             hover_note: None,
+            hover_note_resize_edge: None,
             hover_velocity_note: None,
             hover_pitch: None,
             active_pitch: None,
@@ -124,6 +126,26 @@ impl PianoRollWidget {
             .rev()
             .find(|note| self.note_rect(grid, **note).contains(position))
             .map(|note| note.id)
+    }
+
+    pub(crate) fn note_resize_edge_at_position(
+        &self,
+        grid: Rect,
+        position: Point,
+    ) -> Option<(u32, NoteResizeEdge)> {
+        self.notes.iter().rev().find_map(|note| {
+            let rect = self.note_rect(grid, *note);
+            if !rect.contains(position) {
+                return None;
+            }
+            if position.x <= rect.min.x + NOTE_RESIZE_EDGE_WIDTH {
+                return Some((note.id, NoteResizeEdge::Start));
+            }
+            if position.x >= rect.max.x - NOTE_RESIZE_EDGE_WIDTH {
+                return Some((note.id, NoteResizeEdge::End));
+            }
+            None
+        })
     }
 
     pub(crate) fn note_by_id(&self, id: u32) -> Option<PianoNote> {
@@ -336,6 +358,14 @@ impl PianoRollWidget {
             .filter_map(|note| clipped_note_for_range(note, source_start, source_end, beat_delta))
             .collect()
     }
+}
+
+pub(crate) const NOTE_RESIZE_EDGE_WIDTH: f32 = 8.0;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NoteResizeEdge {
+    Start,
+    End,
 }
 
 fn sorted_unique_ids(mut ids: Vec<u32>) -> Vec<u32> {

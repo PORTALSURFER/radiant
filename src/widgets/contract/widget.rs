@@ -1,12 +1,12 @@
 //! Object-safe widget trait shared by built-in primitives and custom widgets.
 
 use crate::{
-    gui::types::Rect,
+    gui::types::{Point, Rect},
     layout::LayoutOutput,
     runtime::PaintPrimitive,
     theme::ThemeTokens,
     widgets::{
-        interaction::{WidgetInput, WidgetOutput},
+        interaction::{WidgetCursor, WidgetInput, WidgetOutput},
         primitives::{TextAlign, TextWrap, WidgetCommon},
     },
 };
@@ -94,6 +94,15 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
     /// Widget-local pointer state does not need to emit host messages.
     fn accepts_pointer_move(&self) -> bool {
         true
+    }
+
+    /// Return the cursor this widget wants at `point` inside `bounds`.
+    ///
+    /// Returning `None` lets the runtime continue with the default cursor.
+    /// Implementations should compute this directly from widget state and
+    /// geometry; the runtime may call it on every pointer move.
+    fn cursor_for_point(&self, _bounds: Rect, _point: Point) -> Option<WidgetCursor> {
+        None
     }
 
     /// Return whether stable pointer motion can redraw this widget through

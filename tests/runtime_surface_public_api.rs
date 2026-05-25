@@ -20,8 +20,9 @@ use radiant::{
     widgets::{
         ButtonWidget, CanvasMessage, DragHandleMessage, DragHandleWidget, GpuSurfaceParts,
         GpuSurfaceWidget, PointerButton, RetainedSurfaceDescriptor, TextEditCommand,
-        TextInputWidget, TextWidget, Widget, WidgetInput, WidgetKey, WidgetProminence,
-        WidgetSizing, WidgetState, WidgetStyle, WidgetTone, resolve_widget_visual_tokens,
+        TextInputWidget, TextWidget, Widget, WidgetCommon, WidgetCursor, WidgetInput, WidgetKey,
+        WidgetOutput, WidgetProminence, WidgetSizing, WidgetState, WidgetStyle, WidgetTone,
+        resolve_widget_visual_tokens,
     },
 };
 use std::sync::Arc;
@@ -103,6 +104,69 @@ fn surface_runtime_hit_testing_prefers_topmost_declarative_widget() {
     let runtime = SurfaceRuntime::new(bridge, Vector2::new(140.0, 60.0));
 
     assert_eq!(runtime.widget_at(Point::new(16.0, 16.0)), Some(90));
+}
+
+#[test]
+fn surface_runtime_resolves_widget_cursor_at_hit_tested_point() {
+    #[derive(Clone)]
+    struct CursorWidget {
+        common: WidgetCommon,
+    }
+
+    impl Widget for CursorWidget {
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+            None
+        }
+
+        fn cursor_for_point(&self, bounds: Rect, point: Point) -> Option<WidgetCursor> {
+            (bounds.contains(point) && point.x <= bounds.center().x)
+                .then_some(WidgetCursor::ResizeLeft)
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<PaintPrimitive>,
+            _bounds: Rect,
+            _layout: &radiant::layout::LayoutOutput,
+            _theme: &ThemeTokens,
+        ) {
+        }
+    }
+
+    let bridge = declarative_runtime_bridge(
+        (),
+        |_state: &mut ()| {
+            let mut common = WidgetCommon::new(100, WidgetSizing::fixed(Vector2::new(80.0, 40.0)));
+            common.focus = radiant::widgets::FocusBehavior::Pointer;
+            Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+                CursorWidget { common },
+                WidgetMessageMapper::none(),
+            )))
+        },
+        |_state: &mut (), _message: DemoMessage| {},
+    );
+    let runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 60.0));
+
+    assert_eq!(
+        runtime.cursor_at(Point::new(8.0, 8.0)),
+        WidgetCursor::ResizeLeft
+    );
+    assert_eq!(
+        runtime.cursor_at(Point::new(72.0, 8.0)),
+        WidgetCursor::Default
+    );
+    assert_eq!(
+        runtime.cursor_at(Point::new(100.0, 50.0)),
+        WidgetCursor::Default
+    );
 }
 
 #[test]

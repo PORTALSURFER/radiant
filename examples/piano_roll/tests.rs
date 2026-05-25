@@ -5,7 +5,7 @@ use super::{
     geometry::{row_height_for, x_for_beat_view, y_for_pitch_view},
     model::{PianoNote, STRESS_NOTE_COUNT},
     paint, project_surface, update,
-    widget::PianoRollWidget,
+    widget::{NoteResizeEdge, PianoRollWidget},
 };
 use radiant::prelude::*;
 use radiant::runtime::{RuntimeBridge, SurfaceRuntime};

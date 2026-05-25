@@ -46,8 +46,23 @@ fn piano_roll_widget_paints_keyboard_grid_notes_and_playhead() {
         "default piano-roll rows are too short for 12px pitch labels"
     );
     assert!(
-        keyboard_pitch_labels(&primitives, keyboard).is_empty(),
-        "default keyboard pitch rows should hide labels when text cannot fit without clipping"
+        row_height_for(keyboard, viewport) * 12.0 >= 19.0,
+        "default piano-roll octave chunks should be tall enough for octave labels"
+    );
+    let keyboard_labels = keyboard_pitch_labels(&primitives, keyboard);
+    assert_eq!(
+        keyboard_labels
+            .iter()
+            .map(|text| text.text.as_str())
+            .collect::<Vec<_>>(),
+        ["C3", "C4"],
+        "compact keyboard should show octave C labels instead of per-note labels"
+    );
+    assert!(
+        keyboard_labels
+            .iter()
+            .all(|text| text.align == PaintTextAlign::Left),
+        "compact keyboard labels should stay left aligned"
     );
     assert!(
         overlay
@@ -114,7 +129,7 @@ fn piano_roll_paints_all_keyboard_pitch_labels_when_rows_are_tall_enough() {
 }
 
 #[test]
-fn piano_roll_hides_keyboard_pitch_labels_when_rows_are_too_short() {
+fn piano_roll_merges_keyboard_labels_into_octave_chunks_when_rows_are_too_short() {
     let state = PianoRollState::default();
     let viewport = state.viewport;
     let widget = PianoRollWidget::new(
@@ -144,13 +159,28 @@ fn piano_roll_hides_keyboard_pitch_labels_when_rows_are_too_short() {
         &ThemeTokens::default(),
     );
 
+    let pitch_labels = keyboard_pitch_labels(&primitives, keyboard);
+    assert_eq!(
+        pitch_labels
+            .iter()
+            .map(|text| text.text.as_str())
+            .collect::<Vec<_>>(),
+        ["C3", "C4"],
+        "keyboard labels should collapse to visible octave roots when pitch rows are too short"
+    );
     assert!(
-        !primitives.iter().any(|primitive| matches!(
-            primitive,
-            PaintPrimitive::Text(text)
-                if text.rect.min.x >= keyboard.min.x && text.rect.max.x <= keyboard.max.x
-        )),
-        "keyboard pitch labels should be hidden once rows are too short to fit text"
+        pitch_labels
+            .iter()
+            .all(|text| text.text.as_str().starts_with('C')),
+        "compact keyboard should not paint non-octave pitch labels"
+    );
+    let octave_strokes = keyboard_strokes(&primitives, keyboard)
+        .into_iter()
+        .filter(|stroke| stroke.rect.height() > row_height_for(keyboard, viewport) * 6.0)
+        .count();
+    assert!(
+        octave_strokes >= 2,
+        "compact keyboard should draw octave-sized chunks instead of per-note separators"
     );
 }
 
@@ -162,6 +192,17 @@ fn keyboard_pitch_labels(primitives: &[PaintPrimitive], keyboard: Rect) -> Vec<&
             _ => None,
         })
         .filter(|text| text.rect.min.x >= keyboard.min.x && text.rect.max.x <= keyboard.max.x)
+        .collect::<Vec<_>>()
+}
+
+fn keyboard_strokes(primitives: &[PaintPrimitive], keyboard: Rect) -> Vec<&PaintStrokeRect> {
+    primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::StrokeRect(stroke) => Some(stroke),
+            _ => None,
+        })
+        .filter(|stroke| stroke.rect.min.x >= keyboard.min.x && stroke.rect.max.x <= keyboard.max.x)
         .collect::<Vec<_>>()
 }
 

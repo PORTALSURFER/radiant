@@ -7,6 +7,8 @@ use super::super::{
 };
 use super::PianoRollWidget;
 
+const LIVE_VELOCITY_UPDATE_SELECTION_LIMIT: usize = 512;
+
 impl PianoRollWidget {
     pub(in crate::piano_roll::widget) fn handle_velocity_press(
         &mut self,
@@ -71,6 +73,7 @@ impl PianoRollWidget {
         self.hover_velocity_note = None;
         self.hover_pitch = None;
         let Some(PianoDrag::Velocity {
+            ids,
             current_pointer_velocity,
             ..
         }) = self.drag.as_mut()
@@ -81,7 +84,17 @@ impl PianoRollWidget {
             return None;
         }
         *current_pointer_velocity = next_velocity;
-        None
+        if ids.len() > LIVE_VELOCITY_UPDATE_SELECTION_LIMIT {
+            return None;
+        }
+        let velocities = self
+            .drag
+            .as_ref()
+            .and_then(PianoDrag::velocity_values)
+            .unwrap_or_default();
+        Some(WidgetOutput::custom(PianoRollMessage::SetVelocities {
+            velocities,
+        }))
     }
 
     pub(crate) fn velocity_preview_stem_rect(&self, lane: Rect, note: PianoNote) -> Rect {

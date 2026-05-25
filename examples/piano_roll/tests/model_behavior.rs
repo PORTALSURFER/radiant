@@ -95,6 +95,25 @@ fn piano_roll_undo_redo_shortcuts_route_through_radiant_history_support() {
 }
 
 #[test]
+fn piano_roll_resize_allows_notes_longer_than_four_beats() {
+    let mut state = PianoRollState::default();
+
+    state.apply_roll_message(PianoRollMessage::ResizeNote {
+        id: 2,
+        start_beat: 1.0,
+        length_beats: 8.0,
+    });
+
+    let note = state
+        .notes
+        .iter()
+        .find(|note| note.id == 2)
+        .expect("resized note should still exist");
+    assert_eq!(note.start_beat, 1.0);
+    assert_eq!(note.length_beats, 8.0);
+}
+
+#[test]
 fn piano_roll_velocity_updates_coalesce_into_one_undo_step() {
     let mut state = PianoRollState::default();
     let initial = state.snapshot();

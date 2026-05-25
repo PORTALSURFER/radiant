@@ -1,11 +1,13 @@
 //! Backend-neutral widget interaction events and emitted messages.
 
 mod canvas_gesture;
+mod cursor;
 mod input;
 mod messages;
 mod output;
 
 pub use canvas_gesture::{CanvasGestureEvent, CanvasGestureState, CanvasPointer};
+pub use cursor::WidgetCursor;
 pub use input::{PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey};
 pub use messages::{
     BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, GpuSurfaceMessage,

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn piano_roll_modifier_click_adds_and_toggles_note_selection() {
+fn piano_roll_shift_forces_marquee_and_command_toggles_note_selection() {
     let state = PianoRollState::default();
     let mut widget = PianoRollWidget::new(
         state.notes,
@@ -33,12 +33,21 @@ fn piano_roll_modifier_click_adds_and_toggles_note_selection() {
             },
         )
         .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned());
-    assert_eq!(
-        shift_output,
-        Some(PianoRollMessage::SelectNotes {
-            ids: vec![3],
-            mode: NoteSelectionMode::Add,
-        })
+    assert_eq!(shift_output, None);
+    assert!(
+        matches!(widget.drag, Some(PianoDrag::Marquee { .. })),
+        "shift should force marquee selection even when pressing directly on a note"
+    );
+    widget.handle_input(
+        bounds,
+        WidgetInput::PointerRelease {
+            position,
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers {
+                shift: true,
+                ..PointerModifiers::default()
+            },
+        },
     );
 
     let command_output = widget

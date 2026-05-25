@@ -187,5 +187,5 @@ pub(super) fn clamp_pitch(pitch: i32) -> i32 {
 }
 
 fn quantized_length(length_beats: f32) -> f32 {
-    quantize_beat(length_beats).clamp(0.25, 4.0)
+    quantize_beat(length_beats).max(0.25)
 }

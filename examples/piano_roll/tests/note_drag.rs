@@ -658,9 +658,19 @@ fn piano_roll_time_selection_move_preview_keeps_grid_and_command_restores_source
     assert!(
         move_overlay.iter().any(|primitive| matches!(
             primitive,
-            PaintPrimitive::FillRect(fill) if fill.color == paint::rgba(8, 12, 18, 255)
+            PaintPrimitive::FillRect(fill)
+                if fill.color == paint::rgba(8, 12, 18, 255)
+                    && fill.rect.width() < grid.width()
         )),
         "move preview should mask source notes"
+    );
+    assert!(
+        !move_overlay.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if fill.color == paint::rgba(8, 12, 18, 255) && fill.rect == grid
+        )),
+        "move preview must not repaint the full grid background over the base note layer"
     );
     assert!(
         move_overlay.iter().any(|primitive| matches!(
@@ -669,6 +679,12 @@ fn piano_roll_time_selection_move_preview_keeps_grid_and_command_restores_source
                 if fill.color == paint::translucent(ThemeTokens::default().grid_soft, 80)
         )),
         "source mask should redraw grid lines instead of leaving a black block"
+    );
+    assert!(
+        !move_overlay
+            .iter()
+            .any(|primitive| matches!(primitive, PaintPrimitive::Text(_))),
+        "runtime overlay should not repaint beat labels over the top ruler"
     );
 
     widget.handle_input(

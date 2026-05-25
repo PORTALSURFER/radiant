@@ -1,7 +1,7 @@
 use crate::{
-    gui::types::Rect,
+    gui::types::{Point, Rect},
     layout::LayoutNode,
-    widgets::{FocusBehavior, Widget, WidgetId, WidgetInput, WidgetOutput},
+    widgets::{FocusBehavior, Widget, WidgetCursor, WidgetId, WidgetInput, WidgetOutput},
 };
 
 mod mapper;
@@ -106,6 +106,16 @@ impl<Message> SurfaceWidget<Message> {
 
     pub(in crate::runtime) fn prefers_pointer_move_paint_only(&self) -> bool {
         !self.widget.common().state.disabled && self.widget.prefers_pointer_move_paint_only()
+    }
+
+    pub(in crate::runtime) fn cursor_for_point(
+        &self,
+        bounds: Rect,
+        point: Point,
+    ) -> Option<WidgetCursor> {
+        (!self.widget.common().state.disabled)
+            .then(|| self.widget.cursor_for_point(bounds, point))
+            .flatten()
     }
 
     pub(in crate::runtime) fn needs_state_synchronization(&self) -> bool {

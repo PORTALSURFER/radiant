@@ -110,7 +110,7 @@ fn create_message(projection: DragProjection, pitch: i32, start_beat: f32) -> Pi
     PianoRollMessage::CreateNote {
         pitch,
         start_beat,
-        length_beats: (end_beat - start_beat).max(0.25).clamp(0.25, 4.0),
+        length_beats: (end_beat - start_beat).max(0.25),
     }
 }
 

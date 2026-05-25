@@ -12,23 +12,27 @@ where
     pub(super) fn handle_cursor_moved(&mut self, position: PhysicalPosition<f64>) {
         let Some(position) = logical_point_from_winit(position, self.window.dpi_scale) else {
             self.input.last_cursor = None;
+            self.set_native_cursor(crate::widgets::WidgetCursor::Default);
             return;
         };
         let previous = self.input.last_cursor;
         self.input.last_cursor = Some(position);
         if self.can_fast_path_native_hover_move(position) {
             self.update_gpu_surface_cursor_overlay(position);
+            self.update_native_cursor_at_last_position();
             self.request_redraw_if_needed();
             return;
         }
         if previous.is_some_and(|previous| self.runtime_pointer_line_surface_contains(previous))
             && previous.is_some_and(|previous| self.clear_gpu_surface_cursor_overlay(previous))
         {
+            self.update_native_cursor_at_last_position();
             self.request_redraw_if_needed();
             return;
         }
         let started = Instant::now();
         let outcome = self.core.route_pointer_move(position);
+        self.update_native_cursor_at_last_position();
         maybe_log_route_profile("pointer_move", started.elapsed(), outcome);
         self.handle_gpu_surface_pointer_move_outcome(outcome, previous, position);
     }
@@ -40,6 +44,7 @@ where
             self.request_redraw_if_needed();
         }
         self.input.last_cursor = None;
+        self.set_native_cursor(crate::widgets::WidgetCursor::Default);
         let preview_hidden = self.core.runtime.hide_drag_preview_for_cursor_left();
         if preview_hidden {
             if self.core.runtime.external_drag_armed() {

@@ -95,6 +95,118 @@ fn piano_roll_hover_lights_entire_note_tail() {
 }
 
 #[test]
+fn piano_roll_hover_paints_left_resize_bracket_cursor() {
+    let state = PianoRollState::default();
+    let mut widget = PianoRollWidget::new(
+        state.notes,
+        state.selected_note,
+        state.selected_notes,
+        state.selected_pitch,
+        state.edit_cursor_beat,
+        state.time_selection,
+        state.snap_enabled,
+        state.playhead_beat,
+        state.viewport,
+        state.tool,
+    );
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
+    let grid = widget.editor_rect(bounds);
+    let note = widget.note_by_id(2).expect("default note should exist");
+    let note_rect = widget.note_rect(grid, note);
+
+    widget.handle_input(
+        bounds,
+        WidgetInput::PointerMove {
+            position: Point::new(note_rect.min.x + 2.0, note_rect.center().y),
+        },
+    );
+
+    let mut overlay = Vec::new();
+    widget.append_runtime_overlay_paint(
+        &mut overlay,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+
+    assert_eq!(widget.hover_note_resize_edge, Some(NoteResizeEdge::Start));
+    assert_eq!(
+        widget.cursor_for_point(
+            bounds,
+            Point::new(note_rect.min.x + 2.0, note_rect.center().y)
+        ),
+        Some(WidgetCursor::ResizeLeft)
+    );
+    assert!(overlay.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if fill.color == ThemeTokens::default().highlight_orange
+                    && fill.rect.min.x == note_rect.min.x
+                    && fill.rect.max.x == note_rect.min.x + 2.0
+                    && fill.rect.min.y == note_rect.min.y
+                    && fill.rect.max.y == note_rect.max.y
+        )
+    }));
+}
+
+#[test]
+fn piano_roll_hover_paints_right_resize_bracket_cursor() {
+    let state = PianoRollState::default();
+    let mut widget = PianoRollWidget::new(
+        state.notes,
+        state.selected_note,
+        state.selected_notes,
+        state.selected_pitch,
+        state.edit_cursor_beat,
+        state.time_selection,
+        state.snap_enabled,
+        state.playhead_beat,
+        state.viewport,
+        state.tool,
+    );
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
+    let grid = widget.editor_rect(bounds);
+    let note = widget.note_by_id(2).expect("default note should exist");
+    let note_rect = widget.note_rect(grid, note);
+
+    widget.handle_input(
+        bounds,
+        WidgetInput::PointerMove {
+            position: Point::new(note_rect.max.x - 2.0, note_rect.center().y),
+        },
+    );
+
+    let mut overlay = Vec::new();
+    widget.append_runtime_overlay_paint(
+        &mut overlay,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+
+    assert_eq!(widget.hover_note_resize_edge, Some(NoteResizeEdge::End));
+    assert_eq!(
+        widget.cursor_for_point(
+            bounds,
+            Point::new(note_rect.max.x - 2.0, note_rect.center().y)
+        ),
+        Some(WidgetCursor::ResizeRight)
+    );
+    assert!(overlay.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if fill.color == ThemeTokens::default().highlight_orange
+                    && fill.rect.min.x == note_rect.max.x - 2.0
+                    && fill.rect.max.x == note_rect.max.x
+                    && fill.rect.min.y == note_rect.min.y
+                    && fill.rect.max.y == note_rect.max.y
+        )
+    }));
+}
+
+#[test]
 fn piano_roll_hover_lights_left_keyboard_note_row() {
     let state = PianoRollState::default();
     let mut widget = PianoRollWidget::new(

@@ -6,6 +6,7 @@ use super::{
         y_for_pitch_view,
     },
     model::{PianoNote, PianoRollViewport},
+    widget::NOTE_RESIZE_EDGE_WIDTH,
 };
 use radiant::widgets::PointerModifiers;
 
@@ -132,13 +133,13 @@ impl PianoDrag {
                 y_for_pitch_view(grid, viewport, note.pitch) + row_height_for(grid, viewport),
             ),
         );
-        if position.x <= rect.min.x + 8.0 {
+        if position.x <= rect.min.x + NOTE_RESIZE_EDGE_WIDTH {
             return Self::ResizeStart {
                 id: note.id,
                 end_beat: note.end_beat(),
             };
         }
-        if position.x >= rect.max.x - 8.0 {
+        if position.x >= rect.max.x - NOTE_RESIZE_EDGE_WIDTH {
             return Self::ResizeEnd {
                 id: note.id,
                 start_beat: note.start_beat,

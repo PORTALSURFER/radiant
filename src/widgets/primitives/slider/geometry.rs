@@ -16,10 +16,9 @@ pub(super) fn value_for_position(bounds: Rect, position: Point) -> f32 {
 
 pub(super) fn track_rect(bounds: Rect) -> Rect {
     let y = bounds.min.y + (bounds.height() - TRACK_HEIGHT) * 0.5;
-    let inset = (THUMB_WIDTH * 0.5).min(bounds.width() * 0.5);
     Rect::from_min_max(
-        Point::new(bounds.min.x + inset, y),
-        Point::new(bounds.max.x - inset, y + TRACK_HEIGHT),
+        Point::new(bounds.min.x, y),
+        Point::new(bounds.max.x, y + TRACK_HEIGHT),
     )
 }
 

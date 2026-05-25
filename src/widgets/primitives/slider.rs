@@ -103,7 +103,7 @@ impl Widget for SliderWidget {
     }
 
     fn accepts_pointer_move(&self) -> bool {
-        false
+        true
     }
 
     fn append_paint(

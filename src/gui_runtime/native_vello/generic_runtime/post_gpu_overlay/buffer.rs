@@ -9,6 +9,18 @@ pub(super) struct OverlayVertexBuffer {
     device: usize,
 }
 
+#[derive(Clone, Copy)]
+struct CachedVertexBuffer {
+    capacity: wgpu::BufferAddress,
+    device: usize,
+}
+
+#[derive(Clone, Copy)]
+struct RequiredVertexBuffer {
+    capacity: wgpu::BufferAddress,
+    device: usize,
+}
+
 impl OverlayVertexBuffer {
     pub(super) fn upload(
         &mut self,
@@ -34,23 +46,27 @@ impl OverlayVertexBuffer {
 
     fn needs_buffer(&self, required_capacity: wgpu::BufferAddress, device: usize) -> bool {
         needs_vertex_buffer(
-            self.buffer.is_some(),
-            self.capacity,
-            self.device,
-            required_capacity,
-            device,
+            self.cached_buffer(),
+            RequiredVertexBuffer {
+                capacity: required_capacity,
+                device,
+            },
         )
+    }
+
+    fn cached_buffer(&self) -> Option<CachedVertexBuffer> {
+        self.buffer.as_ref().map(|_| CachedVertexBuffer {
+            capacity: self.capacity,
+            device: self.device,
+        })
     }
 }
 
-fn needs_vertex_buffer(
-    has_buffer: bool,
-    capacity: wgpu::BufferAddress,
-    device: usize,
-    required_capacity: wgpu::BufferAddress,
-    required_device: usize,
-) -> bool {
-    !has_buffer || capacity < required_capacity || device != required_device
+fn needs_vertex_buffer(cached: Option<CachedVertexBuffer>, required: RequiredVertexBuffer) -> bool {
+    let Some(cached) = cached else {
+        return true;
+    };
+    cached.capacity < required.capacity || cached.device != required.device
 }
 
 fn vertex_buffer_capacity_for(required_bytes: usize) -> wgpu::BufferAddress {
@@ -74,9 +90,38 @@ mod tests {
 
     #[test]
     fn vertex_buffer_cache_reuses_matching_capacity_and_device() {
-        assert!(!needs_vertex_buffer(true, 64, 7, 32, 7));
-        assert!(needs_vertex_buffer(false, 64, 7, 32, 7));
-        assert!(needs_vertex_buffer(true, 64, 7, 128, 7));
-        assert!(needs_vertex_buffer(true, 64, 7, 32, 8));
+        let cached = Some(CachedVertexBuffer {
+            capacity: 64,
+            device: 7,
+        });
+
+        assert!(!needs_vertex_buffer(
+            cached,
+            RequiredVertexBuffer {
+                capacity: 32,
+                device: 7
+            }
+        ));
+        assert!(needs_vertex_buffer(
+            None,
+            RequiredVertexBuffer {
+                capacity: 32,
+                device: 7
+            }
+        ));
+        assert!(needs_vertex_buffer(
+            cached,
+            RequiredVertexBuffer {
+                capacity: 128,
+                device: 7
+            }
+        ));
+        assert!(needs_vertex_buffer(
+            cached,
+            RequiredVertexBuffer {
+                capacity: 32,
+                device: 8
+            }
+        ));
     }
 }

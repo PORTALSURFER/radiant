@@ -11,6 +11,14 @@ fn vertex_buffer_upload_is_non_panicking() {
         !source.contains(".expect(") && !source.contains(".unwrap("),
         "post GPU overlay vertex buffer upload should handle missing cached buffers without panicking"
     );
+    assert!(
+        source.contains("struct CachedVertexBuffer")
+            && source.contains("struct RequiredVertexBuffer")
+            && source.contains("cached: Option<CachedVertexBuffer>")
+            && source.contains("required: RequiredVertexBuffer")
+            && !source.contains("has_buffer: bool"),
+        "post GPU overlay vertex buffer reuse policy should use named cache/request structs instead of a boolean flag"
+    );
 }
 
 #[test]

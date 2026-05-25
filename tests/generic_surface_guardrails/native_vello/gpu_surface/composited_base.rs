@@ -23,9 +23,23 @@ fn frame_cache_avoids_post_mutation_expect() {
         "composited base presentation should delegate cached texture ownership to the frame module"
     );
     assert!(
+        module.contains("use super::{GpuSurfaceRenderer, RenderFrameProfile, RenderSurfacePixelSize, gpu_surface};")
+            && module.contains("use crate::runtime::{PaintPrimitive, SurfacePaintPlan};")
+            && module.contains("use std::time::Instant;")
+            && module.contains("use vello::{util::RenderSurface, wgpu};")
+            && !module.starts_with("use super::*;"),
+        "composited base presenter should name GPU renderer, profile, surface size, runtime, timing, Vello, and WGPU dependencies"
+    );
+    assert!(
         !module.contains("struct CompositedBaseFrame")
             && source.contains("struct CompositedBaseFrame"),
         "cached composited base texture state should stay out of the presenter module"
+    );
+    assert!(
+        source.contains("use super::super::device::wgpu_device_id;")
+            && source.contains("use vello::wgpu;")
+            && !source.starts_with("use super::*;"),
+        "composited base frame cache should name its WGPU and device-id dependencies"
     );
     assert!(
         ensure_body.contains(".is_some_and(|frame| frame.matches(device, width, height, format))")

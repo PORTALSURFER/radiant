@@ -14,7 +14,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tracing::{error, info, warn};
-use vello::util::{RenderContext, RenderSurface};
+use vello::util::RenderContext;
 use vello::{Renderer, Scene, wgpu};
 use winit::{
     application::ApplicationHandler,

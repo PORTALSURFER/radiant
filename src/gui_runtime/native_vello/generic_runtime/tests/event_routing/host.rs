@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::widgets::TextEditCommand;
+use crate::widgets::{TextEditCommand, WidgetKey};
 
 #[test]
 fn generic_core_routes_pointer_and_key_input_to_host_messages() {

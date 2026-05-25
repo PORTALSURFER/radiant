@@ -105,6 +105,39 @@ fn native_keyboard_repeat_policy_uses_explicit_imports() {
 }
 
 #[test]
+fn native_keyboard_routing_uses_explicit_imports() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let keyboard = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/keyboard.rs"),
+    )
+    .expect("native keyboard routing module should be readable");
+
+    assert!(
+        keyboard.contains("use super::{")
+            && keyboard.contains("GenericNativeVelloRunner")
+            && keyboard.contains("GenericRouteOutcome")
+            && keyboard.contains("key_code_from_winit")
+            && keyboard.contains("keypress_from_input")
+            && keyboard.contains("use crate::{runtime::RuntimeBridge, widgets::WidgetKey};")
+            && keyboard.contains("use std::time::Instant;")
+            && keyboard.contains("event::{ElementState, KeyEvent}")
+            && keyboard.contains("event_loop::ActiveEventLoop")
+            && keyboard.contains("keyboard::{Key, NamedKey, PhysicalKey}")
+            && !keyboard.starts_with("use super::*;"),
+        "native keyboard routing should name runner, route outcome, input conversion, widget key, bridge, timing, and winit dependencies"
+    );
+    assert!(
+        keyboard.contains("fn handle_keyboard_event(")
+            && keyboard.contains("event: KeyEvent")
+            && keyboard.contains("should_route_keypress(")
+            && keyboard.contains("route_text_input_shortcut")
+            && keyboard.contains("WidgetKey::from_key_code")
+            && !keyboard.contains("winit::event::KeyEvent"),
+        "native keyboard routing should keep physical-key, shortcut, text, and widget-key paths focused"
+    );
+}
+
+#[test]
 fn native_keyboard_text_edit_routing_uses_explicit_imports() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let text_edit = fs::read_to_string(

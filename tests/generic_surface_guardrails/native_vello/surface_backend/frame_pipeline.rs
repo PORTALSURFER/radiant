@@ -9,8 +9,8 @@ fn native_vello_scene_texture_rendering_stays_out_of_present_driver() {
 
     assert!(
         module.contains("mod scene_texture;")
-            && module.contains("use scene_texture::render_scene_texture_if_needed;"),
-        "generic runtime should expose the Vello scene texture renderer as a focused module"
+            && present.contains("use super::scene_texture::render_scene_texture_if_needed;"),
+        "generic runtime should expose the Vello scene texture renderer as a focused module and the present driver should import it directly"
     );
     assert!(
         !present.contains("renderer.render_to_texture(")
@@ -32,6 +32,41 @@ fn native_vello_scene_texture_rendering_stays_out_of_present_driver() {
             && scene_texture.contains("use winit::event_loop::ActiveEventLoop;")
             && !scene_texture.starts_with("use super::*;"),
         "scene texture rendering should name its frame, color, timing, tracing, Vello, WGPU, and event-loop dependencies"
+    );
+}
+
+#[test]
+fn native_present_driver_uses_explicit_imports() {
+    let module = read_runtime_source("src/gui_runtime/native_vello/generic_runtime.rs");
+    let present = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/present.rs");
+
+    assert!(
+        present.contains("use super::{")
+            && present.contains("GenericNativeVelloRunner")
+            && present.contains("RenderFrameProfile")
+            && present.contains("RenderSurfacePixelSize")
+            && present.contains("hide_window_after_first_present")
+            && present.contains("maybe_log_render_profile")
+            && present.contains("post_gpu_overlay")
+            && present.contains("reveal_window_after_first_present")
+            && present.contains("use crate::runtime::RuntimeBridge;")
+            && present.contains("use std::time::Instant;")
+            && present.contains("use vello::wgpu;")
+            && present.contains("use winit::event_loop::ActiveEventLoop;")
+            && present.contains("use super::composited_base::{")
+            && present.contains("BaseFramePresentState")
+            && present.contains("BaseFramePresentTarget")
+            && present.contains("present_base_frame")
+            && present.contains("use super::scene_texture::render_scene_texture_if_needed;")
+            && !present.starts_with("use super::*;"),
+        "native present driver should name runner, frame profile, surface sizing, window policy, diagnostics, WGPU, event loop, base-frame, and scene-texture dependencies"
+    );
+    assert!(
+        !module.contains("BaseFramePresentState")
+            && !module.contains("BaseFramePresentTarget")
+            && !module.contains("present_base_frame")
+            && !module.contains("render_scene_texture_if_needed"),
+        "generic runtime root should not carry present-driver-only imports"
     );
 }
 

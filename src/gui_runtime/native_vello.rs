@@ -5,9 +5,9 @@ use super::{
 };
 use crate::gui::{
     paint::TextAlign,
-    types::{Point, Rect as UiRect, Rgba8, Vector2},
+    types::{Point, Rect as UiRect, Rgba8},
 };
-use crate::runtime::{PaintTextInput, RuntimeBridge};
+use crate::runtime::PaintTextInput;
 use vello::{Scene, wgpu};
 
 mod generic_runtime;

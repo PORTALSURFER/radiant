@@ -131,3 +131,33 @@ fn native_keyboard_text_edit_routing_uses_explicit_imports() {
         "native keyboard text-edit routing should keep shortcut, navigation, space, and printable text paths focused"
     );
 }
+
+#[test]
+fn native_pointer_lifecycle_uses_explicit_imports() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let lifecycle_pointer = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/lifecycle_pointer.rs"),
+    )
+    .expect("native pointer lifecycle module should be readable");
+
+    assert!(
+        lifecycle_pointer.contains(
+            "use super::{GenericNativeVelloRunner, logical_point_from_winit, maybe_log_route_profile};"
+        )
+            && lifecycle_pointer.contains("use crate::runtime::RuntimeBridge;")
+            && lifecycle_pointer.contains("use std::time::Instant;")
+            && lifecycle_pointer
+                .contains("use winit::{dpi::PhysicalPosition, event_loop::ActiveEventLoop};")
+            && !lifecycle_pointer.starts_with("use super::*;"),
+        "native pointer lifecycle should name runner, input conversion, profiling, bridge, timing, and winit dependencies"
+    );
+    assert!(
+        lifecycle_pointer.contains("fn handle_cursor_moved(")
+            && lifecycle_pointer.contains("fn handle_cursor_left(")
+            && lifecycle_pointer.contains("PhysicalPosition<f64>")
+            && lifecycle_pointer.contains("logical_point_from_winit(position)")
+            && lifecycle_pointer.contains("maybe_log_route_profile(\"pointer_move\"")
+            && !lifecycle_pointer.contains("winit::dpi::PhysicalPosition"),
+        "native pointer lifecycle should keep cursor move and cursor-left routing focused"
+    );
+}

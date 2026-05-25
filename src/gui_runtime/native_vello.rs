@@ -11,7 +11,6 @@ use crate::gui::{
 use crate::runtime::{PaintTextInput, RuntimeBridge};
 use crate::widgets::{TextEditCommand, WidgetKey};
 use std::{
-    collections::HashMap,
     sync::Arc,
     time::{Duration, Instant},
 };

@@ -83,6 +83,7 @@ fn surface_scissor_rect(rect: UiRect) -> Option<(u32, u32, SurfacePixelExtent)> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gui::types::Point;
 
     #[test]
     fn surface_scissor_rect_rejects_invalid_geometry() {

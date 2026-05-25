@@ -56,6 +56,7 @@ fn panel_rect_helpers_use_named_parts_for_geometry_requests() {
     let floating_path = manifest_dir.join("src/gui/panel/floating.rs");
     let module_path = manifest_dir.join("src/gui/panel.rs");
     let tests_path = manifest_dir.join("src/gui/panel/tests.rs");
+    let geometry_tests_path = manifest_dir.join("src/gui/panel/tests/geometry.rs");
     let anchored = fs::read_to_string(&anchored_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", anchored_path.display()));
     let floating = fs::read_to_string(&floating_path)
@@ -64,6 +65,8 @@ fn panel_rect_helpers_use_named_parts_for_geometry_requests() {
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", module_path.display()));
     let tests = fs::read_to_string(&tests_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", tests_path.display()));
+    let geometry_tests = fs::read_to_string(&geometry_tests_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", geometry_tests_path.display()));
 
     assert!(
         anchored.contains("pub struct AnchoredPanelRectParts")
@@ -85,10 +88,12 @@ fn panel_rect_helpers_use_named_parts_for_geometry_requests() {
         "panel geometry named parts should remain exported through the panel facade"
     );
     assert!(
-        tests.contains("fn anchored_panel_rect_compatibility_helper_delegates_to_named_parts")
-            && tests
+        tests.contains("mod geometry;")
+            && geometry_tests
+                .contains("fn anchored_panel_rect_compatibility_helper_delegates_to_named_parts")
+            && geometry_tests
                 .contains("fn floating_panel_rect_compatibility_helper_delegates_to_named_parts"),
-        "panel geometry tests should cover named-parts construction and compatibility wrappers"
+        "panel geometry tests should live in a focused module and cover named-parts construction plus compatibility wrappers"
     );
 }
 

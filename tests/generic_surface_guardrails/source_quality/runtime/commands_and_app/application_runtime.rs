@@ -153,6 +153,18 @@ fn app_bridge_groups_lifecycle_hooks_and_runtime_flags() {
             && bridge.contains("pub(in crate::application) struct AppBridgeRuntimeFlags"),
         "app bridge should keep lifecycle hooks and mutable runtime flags in focused field groups"
     );
+    assert!(
+        bridge.contains("use super::{")
+            && bridge.contains("AppAnimation")
+            && bridge.contains("AppRuntime")
+            && bridge.contains("AppStartup")
+            && bridge.contains("RetainedPainter")
+            && bridge.contains("TransientOverlayPainter")
+            && bridge.contains("UpdateContext")
+            && bridge.contains("use crate::{application::IntoView, runtime::Command};")
+            && !bridge.contains("use super::*;"),
+        "app bridge should name runtime lifecycle, queue, retained painter, update context, and command dependencies explicitly"
+    );
     let bridge_fields = bridge
         .split("pub(in crate::application) struct AppBridgeRuntimeFlags")
         .next()

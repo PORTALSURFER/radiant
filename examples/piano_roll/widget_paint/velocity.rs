@@ -90,14 +90,15 @@ fn append_velocity_pillars(
         return;
     }
 
-    let mut selected_fills = Vec::new();
+    let mut selected_stems = Vec::new();
+    let mut selected_handles = Vec::new();
     for note in &widget.notes {
         if widget.note_is_selected(note.id) {
             let stem = widget.velocity_preview_stem_rect(lane, *note);
             let handle = widget.velocity_handle_rect(lane, *note);
             if stem.max.x >= lane.min.x && stem.min.x <= lane.max.x {
-                selected_fills.push(stem.clamp_to(lane));
-                selected_fills.push(handle.clamp_to(lane));
+                selected_stems.push(stem.clamp_to(lane));
+                selected_handles.push(handle.clamp_to(lane));
             }
         } else {
             append_velocity_pillar(widget, primitives, lane, *note, theme);
@@ -106,8 +107,14 @@ fn append_velocity_pillars(
     push_rect_batch(
         primitives,
         widget.common.id,
-        selected_fills,
+        selected_stems,
         translucent(theme.highlight_blue, 230),
+    );
+    push_rect_batch(
+        primitives,
+        widget.common.id,
+        selected_handles,
+        theme.highlight_orange,
     );
     let mut selected_strokes = Vec::new();
     for note in &widget.notes {
@@ -245,8 +252,21 @@ fn append_velocity_pillar(
         translucent(theme.highlight_cyan, 175)
     };
     push_rect(primitives, widget.common.id, stem.clamp_to(lane), fill);
-    push_rect(primitives, widget.common.id, handle.clamp_to(lane), fill);
+    push_rect(
+        primitives,
+        widget.common.id,
+        handle.clamp_to(lane),
+        velocity_handle_fill(selected, theme),
+    );
     append_velocity_handle_stroke(widget, primitives, lane, note, theme);
+}
+
+fn velocity_handle_fill(selected: bool, theme: &ThemeTokens) -> Rgba8 {
+    if selected {
+        theme.highlight_orange
+    } else {
+        translucent(theme.highlight_cyan, 175)
+    }
 }
 
 fn append_velocity_handle_stroke(

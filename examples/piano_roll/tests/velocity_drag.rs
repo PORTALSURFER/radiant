@@ -159,6 +159,50 @@ fn piano_roll_velocity_drag_starts_only_from_handle_rect() {
 }
 
 #[test]
+fn piano_roll_velocity_drag_selects_unselected_handle_on_press_without_modifiers() {
+    let mut state = PianoRollState::default();
+    state.apply_roll_message(PianoRollMessage::SelectNotes {
+        ids: vec![2, 3],
+        mode: NoteSelectionMode::Replace,
+    });
+    let mut widget = PianoRollWidget::new(
+        state.notes.clone(),
+        state.selected_note,
+        state.selected_notes.clone(),
+        state.selected_pitch,
+        state.edit_cursor_beat,
+        state.time_selection,
+        state.snap_enabled,
+        state.playhead_beat,
+        state.viewport,
+        state.tool,
+    );
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
+    let lane = widget.velocity_rect(bounds);
+    let note = widget.note_by_id(4).expect("unselected note should exist");
+    let handle = widget.velocity_handle_rect(lane, note);
+
+    let press = widget
+        .handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: handle.center(),
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            },
+        )
+        .and_then(|output| output.typed_ref::<PianoRollMessage>().cloned())
+        .expect("pressing an unselected velocity handle should select it immediately");
+
+    assert_eq!(press, PianoRollMessage::SelectNote(4));
+    assert_eq!(widget.selected_notes, vec![4]);
+    assert!(matches!(
+        widget.drag,
+        Some(PianoDrag::Velocity { ref ids, .. }) if ids == &[4]
+    ));
+}
+
+#[test]
 fn piano_roll_velocity_lane_marquee_selects_handles_for_group_velocity_drag() {
     let mut state = PianoRollState::default();
     let mut widget = PianoRollWidget::new(

@@ -113,6 +113,43 @@ fn piano_roll_velocity_handle_hover_paints_runtime_highlight() {
 }
 
 #[test]
+fn piano_roll_selected_velocity_handle_uses_note_selection_orange() {
+    let state = PianoRollState::default();
+    let widget = PianoRollWidget::new(
+        state.notes.clone(),
+        state.selected_note,
+        state.selected_notes,
+        state.selected_pitch,
+        state.edit_cursor_beat,
+        state.time_selection,
+        state.snap_enabled,
+        state.playhead_beat,
+        state.viewport,
+        state.tool,
+    );
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 390.0));
+    let lane = widget.velocity_rect(bounds);
+    let note = widget.note_by_id(2).expect("selected note should exist");
+    let handle = widget.velocity_handle_rect(lane, note).clamp_to(lane);
+    let mut primitives = Vec::new();
+
+    widget.append_paint(
+        &mut primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+
+    assert!(primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if fill.rect == handle && fill.color == ThemeTokens::default().highlight_orange
+        )
+    }));
+}
+
+#[test]
 fn piano_roll_note_fill_alpha_tracks_velocity_with_visible_floor() {
     let mut state = PianoRollState::default();
     state.notes = vec![

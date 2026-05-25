@@ -2,7 +2,8 @@ use radiant::prelude::*;
 use radiant::widgets::PointerModifiers;
 
 use super::super::{
-    NoteSelectionMode, drag::PianoDrag, geometry::x_for_beat_view, model::PianoNote,
+    NoteSelectionMode, PianoRollMessage, drag::PianoDrag, geometry::x_for_beat_view,
+    model::PianoNote,
 };
 use super::PianoRollWidget;
 
@@ -20,7 +21,8 @@ impl PianoRollWidget {
         if modifiers.shift {
             return self.start_velocity_marquee(position, modifiers);
         }
-        let mut ids = if self.note_is_selected(note.id) && !self.selected_notes.is_empty() {
+        let note_was_selected = self.note_is_selected(note.id);
+        let mut ids = if note_was_selected && !self.selected_notes.is_empty() {
             self.selected_notes.clone()
         } else {
             self.selected_note = Some(note.id);
@@ -38,7 +40,8 @@ impl PianoRollWidget {
             start_pointer_velocity,
             current_pointer_velocity: start_pointer_velocity,
         });
-        None
+        (!note_was_selected && !modifiers.command)
+            .then(|| WidgetOutput::custom(PianoRollMessage::SelectNote(note.id)))
     }
 
     pub(in crate::piano_roll::widget) fn update_velocity_marquee_drag(

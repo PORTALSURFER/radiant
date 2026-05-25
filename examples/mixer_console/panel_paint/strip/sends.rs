@@ -47,7 +47,7 @@ fn send_fill_rect(
     Rect::from_min_max(
         rect.min,
         Point::new(
-            rect.min.x + rect.width() * widget.send_display_ratio(state.channel_index, send),
+            rect.x_for_ratio(widget.send_display_ratio(state.channel_index, send)),
             rect.max.y,
         ),
     )

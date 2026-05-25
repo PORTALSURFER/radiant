@@ -55,7 +55,7 @@ pub(crate) fn paint_playhead_overlay(
         return;
     };
     let ratio = (state.playhead_ratio + animation_time.as_secs_f32() * 0.18).fract();
-    let x = bounds.min.x + bounds.width() * ratio;
+    let x = bounds.x_for_ratio(ratio);
     primitives.push(PaintPrimitive::FillRect(PaintFillRect {
         widget_id: WAVEFORM_WIDGET_ID,
         rect: Rect::from_min_max(

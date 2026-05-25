@@ -54,8 +54,8 @@ fn push_ratio_bar_segment(
     push_rect(
         frame,
         Rect::from_min_max(
-            Point::new(lane.min.x + lane.width() * start, center_y - height * 0.5),
-            Point::new(lane.min.x + lane.width() * end, center_y + height * 0.5),
+            Point::new(lane.x_for_ratio(start), center_y - height * 0.5),
+            Point::new(lane.x_for_ratio(end), center_y + height * 0.5),
         ),
         color,
     );
@@ -72,7 +72,7 @@ pub(super) fn push_ratio_circle(
     if radius <= 0.0 {
         return;
     }
-    let center_x = track.min.x + track.width() * center_ratio.clamp(0.0, 1.0);
+    let center_x = track.x_for_ratio(center_ratio);
     frame.primitives.push(Primitive::Circle(FillCircle {
         center: Point::new(center_x, center_y),
         radius,
@@ -95,8 +95,8 @@ pub(super) fn push_ratio_rect(
     push_rect(
         frame,
         Rect::from_min_max(
-            Point::new(track.min.x + track.width() * start, track.min.y),
-            Point::new(track.min.x + track.width() * end, track.max.y),
+            Point::new(track.x_for_ratio(start), track.min.y),
+            Point::new(track.x_for_ratio(end), track.max.y),
         ),
         color,
     );

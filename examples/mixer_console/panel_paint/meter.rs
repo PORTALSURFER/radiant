@@ -53,7 +53,7 @@ fn append_meter_grid(
     theme: &ThemeTokens,
 ) {
     for fraction in [0.25, 0.5, 0.75] {
-        let y = meter.max.y - meter.height() * fraction;
+        let y = meter.y_for_ratio_from_bottom(fraction);
         push_rect(
             primitives,
             widget.common.id,
@@ -100,7 +100,7 @@ fn append_peak_and_readout(
     readout: MeterReadout,
     theme: &ThemeTokens,
 ) {
-    let peak_y = meter.max.y - meter.height() * ratio_for_meter_db(readout.peak_db);
+    let peak_y = meter.y_for_ratio_from_bottom(ratio_for_meter_db(readout.peak_db));
     push_rect(
         primitives,
         widget.common.id,

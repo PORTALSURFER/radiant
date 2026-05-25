@@ -77,6 +77,11 @@ impl Rect {
         self.y_for_ratio_unclamped(ratio.clamp(0.0, 1.0))
     }
 
+    /// Project a normalized vertical ratio into this rectangle from bottom to top.
+    pub fn y_for_ratio_from_bottom(self, ratio: f32) -> f32 {
+        self.y_for_ratio_from_bottom_unclamped(ratio.clamp(0.0, 1.0))
+    }
+
     /// Project a horizontal ratio into this rectangle without clamping.
     pub fn x_for_ratio_unclamped(self, ratio: f32) -> f32 {
         self.min.x + self.width() * ratio
@@ -85,6 +90,11 @@ impl Rect {
     /// Project a vertical ratio into this rectangle without clamping.
     pub fn y_for_ratio_unclamped(self, ratio: f32) -> f32 {
         self.min.y + self.height() * ratio
+    }
+
+    /// Project a bottom-up vertical ratio into this rectangle without clamping.
+    pub fn y_for_ratio_from_bottom_unclamped(self, ratio: f32) -> f32 {
+        self.max.y - self.height() * ratio
     }
 
     /// Convert an x coordinate into a normalized horizontal ratio inside this rectangle.
@@ -103,6 +113,15 @@ impl Rect {
             return 0.0;
         }
         ((y - self.min.y) / height).clamp(0.0, 1.0)
+    }
+
+    /// Convert a y coordinate into a normalized bottom-up vertical ratio inside this rectangle.
+    pub fn ratio_for_y_from_bottom(self, y: f32) -> f32 {
+        let height = self.height();
+        if !y.is_finite() || !height.is_finite() || height <= f32::EPSILON {
+            return 0.0;
+        }
+        ((self.max.y - y) / height).clamp(0.0, 1.0)
     }
 
     /// Return whether the point lies inside the rectangle bounds.

@@ -51,7 +51,7 @@ fn append_fader_marks(
     theme: &ThemeTokens,
 ) {
     for db in [-48.0, -24.0, -12.0, 0.0, 6.0] {
-        let y = fader.max.y - fader.height() * ratio_for_gain(db);
+        let y = fader.y_for_ratio_from_bottom(ratio_for_gain(db));
         push_rect(
             primitives,
             widget.common.id,
@@ -72,7 +72,7 @@ fn append_fader_knob(
     solo_dimmed: bool,
     theme: &ThemeTokens,
 ) {
-    let knob_y = fader.max.y - fader.height() * widget.fader_display_ratio(channel_index);
+    let knob_y = fader.y_for_ratio_from_bottom(widget.fader_display_ratio(channel_index));
     let knob = Rect::from_min_size(
         Point::new(fader.min.x, knob_y - 8.0),
         Vector2::new(fader.width(), 16.0),

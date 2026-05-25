@@ -49,7 +49,7 @@ fn append_frequency_label(
     ratio: f32,
     theme: &ThemeTokens,
 ) {
-    let y = plot.max.y - plot.height() * ratio;
+    let y = plot.y_for_ratio_from_bottom(ratio);
     push_text(
         primitives,
         widget_id,

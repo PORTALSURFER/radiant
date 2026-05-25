@@ -50,14 +50,20 @@ fn rect_ratio_projection_maps_between_axes_and_local_ratios() {
 
     assert_eq!(rect.x_for_ratio(0.25), 35.0);
     assert_eq!(rect.y_for_ratio(0.40), 40.0);
+    assert_eq!(rect.y_for_ratio_from_bottom(0.40), 50.0);
     assert_eq!(rect.x_for_ratio_unclamped(1.25), 135.0);
     assert_eq!(rect.y_for_ratio_unclamped(-0.20), 10.0);
+    assert!((rect.y_for_ratio_from_bottom_unclamped(1.20) - 10.0).abs() < 0.00001);
     assert_eq!(rect.ratio_for_x(35.0), 0.25);
     assert_eq!(rect.ratio_for_y(40.0), 0.40);
+    assert_eq!(rect.ratio_for_y_from_bottom(50.0), 0.40);
     assert_eq!(rect.x_for_ratio(-1.0), 10.0);
     assert_eq!(rect.y_for_ratio(2.0), 70.0);
+    assert_eq!(rect.y_for_ratio_from_bottom(2.0), 20.0);
     assert_eq!(rect.ratio_for_x(1_000.0), 1.0);
     assert_eq!(rect.ratio_for_y(-10.0), 0.0);
+    assert_eq!(rect.ratio_for_y_from_bottom(1_000.0), 0.0);
+    assert_eq!(rect.ratio_for_y_from_bottom(-10.0), 1.0);
 }
 
 #[test]
@@ -67,8 +73,10 @@ fn rect_ratio_projection_returns_zero_for_invalid_or_empty_axes() {
 
     assert_eq!(empty_width.ratio_for_x(10.0), 0.0);
     assert_eq!(empty_height.ratio_for_y(20.0), 0.0);
+    assert_eq!(empty_height.ratio_for_y_from_bottom(20.0), 0.0);
     assert_eq!(empty_width.ratio_for_x(f32::NAN), 0.0);
     assert_eq!(empty_height.ratio_for_y(f32::NAN), 0.0);
+    assert_eq!(empty_height.ratio_for_y_from_bottom(f32::NAN), 0.0);
 }
 
 #[test]

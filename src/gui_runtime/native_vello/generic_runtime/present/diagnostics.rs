@@ -1,4 +1,6 @@
-use super::super::*;
+use super::super::{RenderFrameProfile, RetainedSurfaceEncodeStats, gpu_surface};
+use crate::gui_runtime::native_vello::TextLayoutProfileCounters;
+use std::time::Duration;
 
 pub(super) struct NativeFrameDiagnosticsParts {
     pub(super) stats: RetainedSurfaceEncodeStats,

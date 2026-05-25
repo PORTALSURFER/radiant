@@ -1,6 +1,38 @@
 use super::read_runtime_source;
 
 #[test]
+fn native_generic_runtime_root_uses_explicit_facade_imports() {
+    let module = read_runtime_source("src/gui_runtime/native_vello/generic_runtime.rs");
+
+    assert!(
+        module.contains("use super::{")
+            && module.contains("NativeGpuBackend")
+            && module.contains("NativeRunOptions")
+            && module.contains("NativeRunOptionsError")
+            && module.contains("NativeStartupTimingArtifact")
+            && module.contains("RuntimeUserEvent")
+            && module.contains("gui::{repaint::RepaintSignal, types::Vector2}")
+            && module.contains("gui_runtime::RuntimeRunReport")
+            && module.contains("runtime::RuntimeBridge")
+            && module.contains("sync::Arc")
+            && module.contains("time::Instant")
+            && module.contains("use tracing::{info, warn};")
+            && module.contains("use vello::{util::RenderContext, wgpu};")
+            && module.contains("use winit::event_loop::EventLoop;")
+            && module.contains("#[cfg(test)]")
+            && module.contains("gui::types::{Point, Rect as UiRect, Rgba8}")
+            && module.contains("gui_runtime::native_vello::NativeTextRenderer")
+            && module.contains("use std::time::Duration;")
+            && module.contains("use vello::Scene;")
+            && module.contains("type NativeGenericRunReport =")
+            && module
+                .contains("RuntimeRunReport<NativeGenericRuntimeArtifacts, NativeGenericRunError>")
+            && !module.starts_with("use super::*;"),
+        "generic native runtime root should name facade, runtime, geometry, timing, event-loop, tracing, and GPU setup dependencies"
+    );
+}
+
+#[test]
 fn native_vello_scene_texture_rendering_stays_out_of_present_driver() {
     let module = read_runtime_source("src/gui_runtime/native_vello/generic_runtime.rs");
     let present = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/present.rs");

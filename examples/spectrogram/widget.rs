@@ -1,3 +1,4 @@
+use radiant::gui::visualization::HorizontalValueAxis;
 use radiant::prelude::*;
 use radiant::widgets::PaintBounds;
 
@@ -42,7 +43,9 @@ impl SpectrogramWidget {
         if !plot.contains(position) || self.columns.is_empty() {
             return None;
         }
-        let ratio = plot.ratio_for_x(position.x).min(0.999);
+        let ratio = HorizontalValueAxis::normalized(plot)
+            .value_for_x(position.x)
+            .min(0.999);
         Some((ratio * self.columns.len() as f32).floor() as usize)
     }
 }

@@ -3,8 +3,8 @@ use crate::model::{DemoMessage, DemoState};
 use crate::transient_overlay::overlay_accent;
 use crate::view::{SURFACE_HEIGHT, SURFACE_WIDTH};
 use radiant::gui::visualization::{
-    DragHandleRole, canvas_selection_edge_handles, canvas_selection_edge_visual_rect,
-    canvas_selection_rect, drag_handle_at_point,
+    DragHandleRole, HorizontalValueAxis, canvas_selection_edge_handles,
+    canvas_selection_edge_visual_rect, canvas_selection_rect, drag_handle_at_point,
 };
 
 const HANDLE_HIT_WIDTH: f32 = 18.0;
@@ -97,7 +97,9 @@ impl Widget for SelectionOverlay {
                 Some(WidgetOutput::custom(DemoMessage::ToggleSelection))
             }
             WidgetInput::PointerMove { position } if self.drag_handle.is_some() => {
-                self.resize_selection(bounds.ratio_for_x(position.x));
+                self.resize_selection(
+                    HorizontalValueAxis::normalized(bounds).value_for_x(position.x),
+                );
                 None
             }
             WidgetInput::PointerRelease {

@@ -32,8 +32,9 @@ fn append_vertical_lines(
     plot: Rect,
     theme: &ThemeTokens,
 ) {
+    let axis = HorizontalValueAxis::normalized(plot);
     for fraction in [0.25, 0.5, 0.75] {
-        let x = plot.x_for_ratio(fraction);
+        let x = axis.x_for_value(fraction);
         if let Some(line) = vertical_line_rect(plot, x, 1.0) {
             push_rect(primitives, widget_id, line, theme.grid_soft.with_alpha(120));
         }

@@ -4,7 +4,10 @@ use super::{
     source::{BAND_COUNT, WaveformFile, WaveformViewport},
 };
 use radiant::{
-    gui::types::{Point, Rect, Rgba8, Vector2},
+    gui::{
+        types::{Point, Rect, Rgba8, Vector2},
+        visualization::HorizontalValueAxis,
+    },
     layout::LayoutOutput,
     prelude as ui,
     runtime::{
@@ -60,7 +63,7 @@ impl WaveformWidget {
     }
 
     fn ratio_from_position(&self, bounds: Rect, position: Point) -> f32 {
-        bounds.ratio_for_x(position.x)
+        HorizontalValueAxis::normalized(bounds).value_for_x(position.x)
     }
 }
 

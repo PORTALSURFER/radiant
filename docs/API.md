@@ -629,6 +629,8 @@ signed vertical controls, `vertical_value_at_point`,
 vertical faders and meters, and
 `inline_indicator_layout` for compact text-relative status indicator clusters,
 `TimelineAxis` for reusable beat/time/sample-to-pixel and range-rectangle projection,
+`HorizontalValueAxis` and `HorizontalValueAxisParts` for reusable linear
+value-to-x and x-to-value projection,
 `VerticalValueAxis` and `VerticalValueAxisParts` for reusable bottom-up
 value-to-y and y-to-value projection,
 `HorizontalLogValueAxis` and `HorizontalLogValueAxisParts` for reusable

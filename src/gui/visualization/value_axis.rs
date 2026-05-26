@@ -1,5 +1,108 @@
 use crate::gui::types::Rect;
 
+/// Named fields for constructing a reusable horizontal value axis projector.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HorizontalValueAxisParts {
+    /// Rect used as the horizontal projection area.
+    pub rect: Rect,
+    /// Value projected at the left edge of the rect.
+    pub min: f32,
+    /// Value projected at the right edge of the rect.
+    pub max: f32,
+}
+
+impl HorizontalValueAxisParts {
+    /// Build axis parts for a visible value span.
+    pub const fn new(rect: Rect, min: f32, max: f32) -> Self {
+        Self { rect, min, max }
+    }
+}
+
+/// Reusable horizontal projector for editor values.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HorizontalValueAxis {
+    /// Rect used as the horizontal projection area.
+    pub rect: Rect,
+    /// Value projected at the left edge of the rect.
+    pub min: f32,
+    /// Value projected at the right edge of the rect.
+    pub max: f32,
+}
+
+impl HorizontalValueAxis {
+    /// Build a horizontal value axis from named parts.
+    pub const fn from_parts(parts: HorizontalValueAxisParts) -> Self {
+        Self {
+            rect: parts.rect,
+            min: parts.min,
+            max: parts.max,
+        }
+    }
+
+    /// Build a horizontal value axis for a visible value span.
+    pub const fn new(rect: Rect, min: f32, max: f32) -> Self {
+        Self::from_parts(HorizontalValueAxisParts::new(rect, min, max))
+    }
+
+    /// Build a normalized horizontal axis for ratios in `0.0..=1.0`.
+    pub const fn normalized(rect: Rect) -> Self {
+        Self::new(rect, 0.0, 1.0)
+    }
+
+    /// Project a value into x coordinates, clamped to the visible span.
+    pub fn x_for_value(self, value: f32) -> f32 {
+        self.x_for_value_unclamped(self.clamp_value(value))
+    }
+
+    /// Project a value into x coordinates without clamping the value.
+    pub fn x_for_value_unclamped(self, value: f32) -> f32 {
+        self.rect
+            .x_for_ratio_unclamped(self.ratio_for_value_unclamped(value))
+    }
+
+    /// Convert an x coordinate into a clamped value.
+    pub fn value_for_x(self, x: f32) -> f32 {
+        self.clamp_value(self.value_for_x_unclamped(x))
+    }
+
+    /// Convert an x coordinate into a value without clamping the x coordinate.
+    pub fn value_for_x_unclamped(self, x: f32) -> f32 {
+        let width = self.rect.width();
+        if !x.is_finite() || !width.is_finite() || width <= f32::EPSILON {
+            return self.min_or_zero();
+        }
+        self.min_or_zero() + ((x - self.rect.min.x) / width) * self.value_span()
+    }
+
+    /// Return the visible value span, using a safe minimum for degenerate spans.
+    pub fn value_span(self) -> f32 {
+        let span = self.max - self.min;
+        if span.is_finite() && span.abs() > f32::EPSILON {
+            span
+        } else {
+            1.0
+        }
+    }
+
+    fn ratio_for_value_unclamped(self, value: f32) -> f32 {
+        if !value.is_finite() {
+            return 0.0;
+        }
+        (value - self.min_or_zero()) / self.value_span()
+    }
+
+    fn clamp_value(self, value: f32) -> f32 {
+        if !value.is_finite() {
+            return self.min_or_zero();
+        }
+        value.clamp(self.min.min(self.max), self.min.max(self.max))
+    }
+
+    fn min_or_zero(self) -> f32 {
+        finite_or_zero(self.min)
+    }
+}
+
 /// Named fields for constructing a reusable horizontal logarithmic value axis projector.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HorizontalLogValueAxisParts {

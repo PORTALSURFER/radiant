@@ -34,7 +34,8 @@ pub use timeline::{
     TimelineTransportState, TimelineViewport, TimelineViewportParts,
 };
 pub use value_axis::{
-    HorizontalLogValueAxis, HorizontalLogValueAxisParts, VerticalValueAxis, VerticalValueAxisParts,
+    HorizontalLogValueAxis, HorizontalLogValueAxisParts, HorizontalValueAxis,
+    HorizontalValueAxisParts, VerticalValueAxis, VerticalValueAxisParts,
 };
 pub use value_marker::{VerticalValueMarker, vertical_value_marker};
 

@@ -7,7 +7,10 @@ use super::{
 };
 use radiant::prelude as ui;
 use radiant::{
-    gui::types::{Point, Rect, Rgba8, Vector2},
+    gui::{
+        types::{Point, Rect, Rgba8, Vector2},
+        visualization::HorizontalValueAxis,
+    },
     runtime::{PaintFillRect, PaintPrimitive, SurfacePaintPlan},
     widgets::{ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, WidgetSizing},
 };
@@ -55,7 +58,7 @@ pub(crate) fn paint_playhead_overlay(
         return;
     };
     let ratio = (state.playhead_ratio + animation_time.as_secs_f32() * 0.18).fract();
-    let x = bounds.x_for_ratio(ratio);
+    let x = HorizontalValueAxis::normalized(bounds).x_for_value(ratio);
     primitives.push(PaintPrimitive::FillRect(PaintFillRect {
         widget_id: WAVEFORM_WIDGET_ID,
         rect: Rect::from_min_max(

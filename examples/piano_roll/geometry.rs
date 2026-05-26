@@ -1,10 +1,10 @@
-use radiant::gui::visualization::TimelineAxis;
+use radiant::gui::visualization::{TimelineAxis, TimelinePitchLayout};
 use radiant::prelude::*;
 
 use super::{TOTAL_BEATS, model::PianoRollViewport};
 
 pub(crate) fn row_height_for(rect: Rect, viewport: PianoRollViewport) -> f32 {
-    rect.height() / viewport.row_count() as f32
+    pitch_layout(rect, viewport).row_height()
 }
 
 pub(crate) fn x_for_beat_view(grid: Rect, viewport: PianoRollViewport, beat: f32) -> f32 {
@@ -26,14 +26,10 @@ pub(crate) fn beat_range_rect_view(
     beat_axis(grid, viewport).range_rect_unclamped(start_beat, end_beat)
 }
 
-pub(crate) fn y_for_pitch_view(grid: Rect, viewport: PianoRollViewport, pitch: i32) -> f32 {
-    let row = viewport.pitch_end() - pitch;
-    grid.min.y + row as f32 * row_height_for(grid, viewport)
-}
-
 pub(crate) fn pitch_for_y_view(grid: Rect, viewport: PianoRollViewport, y: f32) -> i32 {
-    let row = ((y - grid.min.y) / row_height_for(grid, viewport).max(1.0)).floor() as i32;
-    (viewport.pitch_end() - row).clamp(viewport.pitch_start, viewport.pitch_end())
+    pitch_layout(grid, viewport)
+        .pitch_at(Point::new(grid.min.x, y.clamp(grid.min.y, grid.max.y)))
+        .unwrap_or(viewport.pitch_start)
 }
 
 pub(crate) fn quantize_beat(beat: f32) -> f32 {
@@ -65,4 +61,8 @@ pub(crate) fn beat_axis(grid: Rect, viewport: PianoRollViewport) -> TimelineAxis
         viewport.beat_start,
         viewport.beat_start + viewport.visible_beats,
     )
+}
+
+pub(crate) fn pitch_layout(grid: Rect, viewport: PianoRollViewport) -> TimelinePitchLayout {
+    TimelinePitchLayout::new(grid, viewport.pitch_start, viewport.row_count())
 }

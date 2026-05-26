@@ -74,7 +74,7 @@ fn piano_roll_moving_time_selection_previews_clipped_notes_at_target() {
     let grid = widget.editor_rect(bounds);
     let start = Point::new(
         x_for_beat_view(grid, state.viewport, 4.25),
-        y_for_pitch_view(grid, state.viewport, 60) + 4.0,
+        pitch_layout(grid, state.viewport).y_for_pitch(60) + 4.0,
     );
     let end = Point::new(x_for_beat_view(grid, state.viewport, 8.25), start.y);
 
@@ -107,7 +107,7 @@ fn piano_roll_time_selection_move_preview_keeps_grid_and_command_restores_source
     let grid = widget.editor_rect(bounds);
     let start = Point::new(
         x_for_beat_view(grid, state.viewport, 4.25),
-        y_for_pitch_view(grid, state.viewport, 60) + 4.0,
+        pitch_layout(grid, state.viewport).y_for_pitch(60) + 4.0,
     );
     let end = Point::new(x_for_beat_view(grid, state.viewport, 8.25), start.y);
 

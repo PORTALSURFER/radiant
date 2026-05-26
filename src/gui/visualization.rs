@@ -32,9 +32,9 @@ pub use timeline::{
     TimelineAxis, TimelineAxisParts, TimelineCoordinateMapper, TimelineEditPreview,
     TimelineEditPreviewParts, TimelineFeedbackEvents, TimelineFeedbackParts, TimelineItemLayout,
     TimelineItemLayoutParts, TimelineLaneLayout, TimelineLaneLayoutParts, TimelineMarkerPreview,
-    TimelineMotionState, TimelinePresentationParts, TimelinePresentationState,
-    TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportParts, TimelineTransportState,
-    TimelineViewport, TimelineViewportParts,
+    TimelineMotionState, TimelinePitchLayout, TimelinePitchLayoutParts, TimelinePresentationParts,
+    TimelinePresentationState, TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportParts,
+    TimelineTransportState, TimelineViewport, TimelineViewportParts,
 };
 pub use value_axis::{
     HorizontalLogValueAxis, HorizontalLogValueAxisParts, HorizontalValueAxis,

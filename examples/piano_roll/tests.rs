@@ -2,7 +2,7 @@ use super::{
     AppMessage, DATA_SOURCE_NOTE, NoteSelectionMode, PIANO_ROLL_WIDGET_ID, PITCH_ROWS,
     PianoRollMessage, PianoRollState, PianoRollTool, STATUS_WIDGET_ID, TOTAL_BEATS,
     drag::PianoDrag,
-    geometry::{row_height_for, x_for_beat_view, y_for_pitch_view},
+    geometry::{pitch_layout, row_height_for, x_for_beat_view},
     model::{PianoNote, STRESS_NOTE_COUNT},
     project_surface, update,
     widget::{NoteResizeEdge, PianoRollWidget, PianoRollWidgetParts},

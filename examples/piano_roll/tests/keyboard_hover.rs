@@ -88,8 +88,8 @@ fn piano_roll_grid_hover_lights_matching_left_keyboard_note_row() {
     let grid = widget.editor_rect(bounds);
     let keyboard = widget.keyboard_rect(bounds);
     let pitch = 57;
-    let y =
-        y_for_pitch_view(grid, state.viewport, pitch) + row_height_for(grid, state.viewport) * 0.5;
+    let y = pitch_layout(grid, state.viewport).y_for_pitch(pitch)
+        + row_height_for(grid, state.viewport) * 0.5;
 
     widget.handle_input(
         bounds,

@@ -77,3 +77,22 @@ fn timeline_item_layout_uses_named_parts_for_clip_geometry() {
         "timeline item layout compatibility constructors should delegate through named parts"
     );
 }
+
+#[test]
+fn timeline_pitch_layout_uses_named_parts_for_note_editor_rows() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/visualization/timeline/pitch.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+
+    assert!(
+        source.contains("pub struct TimelinePitchLayoutParts")
+            && source.contains("pub const fn from_parts(parts: TimelinePitchLayoutParts) -> Self"),
+        "timeline pitch layout should expose named parts for readable note-editor row geometry"
+    );
+    assert!(
+        source.contains("pub fn pitch_rect(self, pitch: i32) -> Rect")
+            && source.contains("pub fn pitch_at(self, position: Point) -> Option<i32>"),
+        "timeline pitch layout should own pitch row projection and hit testing"
+    );
+}

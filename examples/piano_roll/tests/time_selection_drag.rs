@@ -8,7 +8,7 @@ fn piano_roll_single_drag_selects_time_range_with_overlay() {
     let grid = widget.editor_rect(bounds);
     let start = Point::new(
         x_for_beat_view(grid, state.viewport, 4.10),
-        y_for_pitch_view(grid, state.viewport, 58) + 4.0,
+        pitch_layout(grid, state.viewport).y_for_pitch(58) + 4.0,
     );
     let end = Point::new(x_for_beat_view(grid, state.viewport, 7.60), start.y);
 
@@ -116,7 +116,7 @@ fn piano_roll_dragging_time_selection_moves_selection_as_object() {
     let grid = widget.editor_rect(bounds);
     let start = Point::new(
         x_for_beat_view(grid, state.viewport, 5.0),
-        y_for_pitch_view(grid, state.viewport, 58) + 4.0,
+        pitch_layout(grid, state.viewport).y_for_pitch(58) + 4.0,
     );
     let end = Point::new(x_for_beat_view(grid, state.viewport, 6.0), start.y);
 
@@ -170,7 +170,7 @@ fn piano_roll_command_dragging_time_selection_copies_notes_to_target_range() {
     let grid = widget.editor_rect(bounds);
     let start = Point::new(
         x_for_beat_view(grid, state.viewport, 5.0),
-        y_for_pitch_view(grid, state.viewport, 58) + 4.0,
+        pitch_layout(grid, state.viewport).y_for_pitch(58) + 4.0,
     );
     let end = Point::new(x_for_beat_view(grid, state.viewport, 8.0), start.y);
 

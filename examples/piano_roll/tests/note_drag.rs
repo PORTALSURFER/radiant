@@ -8,7 +8,7 @@ fn piano_roll_drag_paints_new_note_length_before_commit() {
     let grid = widget.editor_rect(bounds);
     let start = Point::new(
         x_for_beat_view(grid, state.viewport, 6.10),
-        y_for_pitch_view(grid, state.viewport, 58) + 4.0,
+        pitch_layout(grid, state.viewport).y_for_pitch(58) + 4.0,
     );
     let end = Point::new(x_for_beat_view(grid, state.viewport, 7.60), start.y);
 
@@ -69,7 +69,7 @@ fn piano_roll_single_click_places_edit_cursor_without_creating_note() {
     let grid = widget.editor_rect(bounds);
     let position = Point::new(
         x_for_beat_view(grid, state.viewport, 6.10),
-        y_for_pitch_view(grid, state.viewport, 58) + 4.0,
+        pitch_layout(grid, state.viewport).y_for_pitch(58) + 4.0,
     );
 
     let press = widget
@@ -108,7 +108,7 @@ fn piano_roll_snap_on_hover_cursor_uses_nearest_snap_point() {
     let grid = widget.editor_rect(bounds);
     let hover = Point::new(
         x_for_beat_view(grid, state.viewport, 6.10),
-        y_for_pitch_view(grid, state.viewport, 58) + 4.0,
+        pitch_layout(grid, state.viewport).y_for_pitch(58) + 4.0,
     );
 
     widget.handle_input(bounds, WidgetInput::PointerMove { position: hover });
@@ -148,7 +148,7 @@ fn piano_roll_snap_off_places_cursor_at_exact_pointer_beat() {
     let grid = widget.editor_rect(bounds);
     let position = Point::new(
         x_for_beat_view(grid, state.viewport, 6.10),
-        y_for_pitch_view(grid, state.viewport, 58) + 4.0,
+        pitch_layout(grid, state.viewport).y_for_pitch(58) + 4.0,
     );
 
     let press = widget

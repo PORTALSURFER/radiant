@@ -1,8 +1,7 @@
 use super::super::{
     TOTAL_BEATS,
     geometry::{
-        beat_for_x_view, beat_range_rect_view, quantize_beat, row_height_for, x_for_beat_view,
-        y_for_pitch_view,
+        beat_for_x_view, beat_range_rect_view, pitch_layout, quantize_beat, x_for_beat_view,
     },
     model::PianoNote,
 };
@@ -39,11 +38,10 @@ impl PianoRollWidget {
     pub(crate) fn note_rect(&self, grid: Rect, note: PianoNote) -> Rect {
         let x0 = x_for_beat_view(grid, self.viewport, note.start_beat);
         let x1 = x_for_beat_view(grid, self.viewport, note.end_beat());
-        let y0 = y_for_pitch_view(grid, self.viewport, note.pitch);
-        Rect::from_min_max(
-            Point::new(x0, y0 + 2.0),
-            Point::new(x1, y0 + row_height_for(grid, self.viewport) - 2.0),
-        )
+        let row = pitch_layout(grid, self.viewport)
+            .pitch_rect(note.pitch)
+            .inset_vertical(2.0, 2.0);
+        Rect::from_min_max(Point::new(x0, row.min.y), Point::new(x1, row.max.y))
     }
 
     pub(super) fn note_at_position(&self, grid: Rect, position: Point) -> Option<u32> {
@@ -203,10 +201,6 @@ impl PianoRollWidget {
     }
 
     pub(crate) fn keyboard_pitch_rect(&self, keyboard: Rect, pitch: i32) -> Rect {
-        let y = y_for_pitch_view(keyboard, self.viewport, pitch);
-        Rect::from_min_max(
-            Point::new(keyboard.min.x, y),
-            Point::new(keyboard.max.x, y + row_height_for(keyboard, self.viewport)),
-        )
+        pitch_layout(keyboard, self.viewport).pitch_rect(pitch)
     }
 }

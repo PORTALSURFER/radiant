@@ -24,6 +24,9 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
     let timeline_metadata =
         fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/timeline/metadata.rs"))
             .expect("timeline metadata tests should be readable");
+    let timeline_pitch =
+        fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/timeline/pitch.rs"))
+            .expect("timeline pitch tests should be readable");
     let timeline_aggregate =
         fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/timeline/aggregate.rs"))
             .expect("timeline aggregate tests should be readable");
@@ -48,6 +51,7 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
             && timeline.contains("mod item;")
             && timeline.contains("mod mapper;")
             && timeline.contains("mod metadata;")
+            && timeline.contains("mod pitch;")
             && timeline.contains("mod aggregate;")
             && timeline.contains("mod fixtures;")
             && !timeline.contains("fn timeline_motion_state_aggregates_surface_chrome_tools"),
@@ -67,9 +71,10 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
             && timeline_metadata.contains(
                 "fn timeline_transport_state_preserves_positions_and_resolves_micro_playhead"
             )
+            && timeline_pitch.contains("fn timeline_pitch_layout_projects_top_down_pitch_rows")
             && timeline_aggregate
                 .contains("fn timeline_motion_state_aggregates_surface_chrome_tools")
             && timeline_fixtures.contains("fn timeline_viewport_parts"),
-        "timeline visualization tests should stay grouped by item, mapper, metadata, aggregate, and fixture concerns"
+        "timeline visualization tests should stay grouped by item, mapper, metadata, pitch, aggregate, and fixture concerns"
     );
 }

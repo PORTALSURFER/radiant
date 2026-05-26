@@ -1,6 +1,6 @@
 use super::super::{
-    DenseGridCell, DenseGridLayout, DenseGridLayoutParts, DenseGridRasterLayout,
-    DenseGridRasterLayoutParts, DenseGridRowOrigin,
+    DenseGridCell, DenseGridLabelLayout, DenseGridLayout, DenseGridLayoutParts,
+    DenseGridRasterLayout, DenseGridRasterLayoutParts, DenseGridRowOrigin,
 };
 use crate::gui::types::{Point, Rect};
 
@@ -47,6 +47,41 @@ fn dense_grid_layout_rejects_empty_or_invalid_geometry() {
     assert!(!DenseGridLayout::new(rect, 0, 4).is_valid());
     assert!(!DenseGridLayout::new(rect, 4, 0).is_valid());
     assert!(!DenseGridLayout::new(rect.empty_at_min(), 4, 4).is_valid());
+}
+
+#[test]
+fn dense_grid_label_layout_projects_row_and_column_gutters() {
+    let grid = DenseGridLayout::new(
+        Rect::from_min_max(Point::new(100.0, 50.0), Point::new(300.0, 170.0)),
+        3,
+        4,
+    );
+    let labels = DenseGridLabelLayout::new(grid);
+
+    assert_eq!(
+        labels.row_label_rect(
+            Rect::from_min_max(Point::new(20.0, 50.0), Point::new(92.0, 170.0)),
+            1,
+        ),
+        Some(Rect::from_min_max(
+            Point::new(20.0, 90.0),
+            Point::new(92.0, 130.0)
+        ))
+    );
+    assert_eq!(
+        labels.column_label_rect(
+            Rect::from_min_max(Point::new(100.0, 12.0), Point::new(300.0, 44.0)),
+            2,
+        ),
+        Some(Rect::from_min_max(
+            Point::new(200.0, 12.0),
+            Point::new(250.0, 44.0)
+        ))
+    );
+    assert_eq!(
+        labels.row_label_rect(Rect::from_min_max(grid.rect.min, grid.rect.max), 3),
+        None
+    );
 }
 
 #[test]

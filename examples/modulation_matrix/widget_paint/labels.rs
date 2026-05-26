@@ -1,6 +1,6 @@
 use super::super::{
-    DESTINATIONS, MatrixCell, SOURCES,
-    geometry::{cell_rect, destination_label_rect, source_label_rect},
+    DESTINATIONS, SOURCES,
+    geometry::{destination_label_rect, source_label_rect},
     paint::push_text,
     widget::ModulationMatrixWidget,
 };
@@ -25,18 +25,11 @@ fn append_source_labels(
     theme: &ThemeTokens,
 ) {
     for (source, label) in SOURCES.iter().enumerate() {
-        let cell = cell_rect(
-            matrix,
-            MatrixCell {
-                source,
-                destination: 0,
-            },
-        );
         push_text(
             primitives,
             widget.common.id,
             *label,
-            source_label_rect(bounds, matrix, cell),
+            source_label_rect(bounds, matrix, source),
             theme.text_muted,
             PaintTextAlign::Right,
         );
@@ -50,18 +43,11 @@ fn append_destination_labels(
     theme: &ThemeTokens,
 ) {
     for (destination, label) in DESTINATIONS.iter().enumerate() {
-        let cell = cell_rect(
-            matrix,
-            MatrixCell {
-                source: 0,
-                destination,
-            },
-        );
         push_text(
             primitives,
             widget.common.id,
             *label,
-            destination_label_rect(matrix, cell),
+            destination_label_rect(matrix, destination),
             theme.text_muted,
             PaintTextAlign::Center,
         );

@@ -49,6 +49,27 @@ pub struct DenseGridLayout {
     pub columns: usize,
 }
 
+/// Named fields for dense grid row and column label projection.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DenseGridLabelLayoutParts {
+    /// Base dense grid projection.
+    pub grid: DenseGridLayout,
+}
+
+impl DenseGridLabelLayoutParts {
+    /// Build dense grid label layout parts.
+    pub const fn new(grid: DenseGridLayout) -> Self {
+        Self { grid }
+    }
+}
+
+/// Reusable label geometry for row/column labels around dense visualization grids.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DenseGridLabelLayout {
+    /// Base dense grid projection.
+    pub grid: DenseGridLayout,
+}
+
 /// Vertical row ordering for dense raster-style grid projection.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DenseGridRowOrigin {
@@ -150,6 +171,36 @@ impl DenseGridLayout {
             row: row.min(self.rows - 1),
             column: column.min(self.columns - 1),
         })
+    }
+}
+
+impl DenseGridLabelLayout {
+    /// Build dense grid label layout from named parts.
+    pub const fn from_parts(parts: DenseGridLabelLayoutParts) -> Self {
+        Self { grid: parts.grid }
+    }
+
+    /// Build dense grid label layout.
+    pub const fn new(grid: DenseGridLayout) -> Self {
+        Self::from_parts(DenseGridLabelLayoutParts::new(grid))
+    }
+
+    /// Return the rect for one row label inside a caller-provided label gutter.
+    pub fn row_label_rect(self, label_bounds: Rect, row: usize) -> Option<Rect> {
+        let cell = self.grid.cell_rect(DenseGridCell::new(row, 0))?;
+        Some(Rect::from_min_max(
+            Point::new(label_bounds.min.x, cell.min.y),
+            Point::new(label_bounds.max.x, cell.max.y),
+        ))
+    }
+
+    /// Return the rect for one column label inside a caller-provided label gutter.
+    pub fn column_label_rect(self, label_bounds: Rect, column: usize) -> Option<Rect> {
+        let cell = self.grid.cell_rect(DenseGridCell::new(0, column))?;
+        Some(Rect::from_min_max(
+            Point::new(cell.min.x, label_bounds.min.y),
+            Point::new(cell.max.x, label_bounds.max.y),
+        ))
     }
 }
 

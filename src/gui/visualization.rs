@@ -19,8 +19,8 @@ pub use canvas::{
 };
 pub use color_ramp::{ColorRamp, ColorRampStop};
 pub use grid::{
-    DenseGridCell, DenseGridLayout, DenseGridLayoutParts, DenseGridRasterLayout,
-    DenseGridRasterLayoutParts, DenseGridRowOrigin,
+    DenseGridCell, DenseGridLabelLayout, DenseGridLabelLayoutParts, DenseGridLayout,
+    DenseGridLayoutParts, DenseGridRasterLayout, DenseGridRasterLayoutParts, DenseGridRowOrigin,
 };
 pub use signal::{
     ChannelViewMode, SignalChromeParts, SignalChromeState, SignalRasterPreview,

@@ -73,9 +73,11 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
     );
     assert!(
         grid_model.contains("pub struct DenseGridRasterLayoutParts")
+            && grid_model.contains("pub struct DenseGridLabelLayoutParts")
             && grid_model.contains("pub enum DenseGridRowOrigin")
+            && grid_model.contains("pub fn row_label_rect(self, label_bounds: Rect, row: usize)")
             && grid_model.contains("pub fn cell_rect(self, cell: DenseGridCell) -> Option<Rect>"),
-        "dense grid visualization model should own reusable raster cell projection"
+        "dense grid visualization model should own reusable raster and label projection"
     );
     assert!(
         timeline_mapper.contains("fn timeline_coordinate_mapper_projects_and_back_projects_micros")

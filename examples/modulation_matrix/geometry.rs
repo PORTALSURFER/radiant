@@ -18,18 +18,16 @@ fn matrix_cell(cell: DenseGridCell) -> MatrixCell {
     .clamped()
 }
 
-pub(crate) fn source_label_rect(bounds: Rect, matrix: Rect, cell: Rect) -> Rect {
-    Rect::from_min_max(
-        Point::new(bounds.min.x + 12.0, cell.min.y),
-        Point::new(matrix.min.x - 8.0, cell.max.y),
-    )
+pub(crate) fn source_label_rect(bounds: Rect, matrix: Rect, source: usize) -> Rect {
+    DenseGridLabelLayout::new(matrix_grid(matrix))
+        .row_label_rect(source_label_bounds(bounds, matrix), source)
+        .unwrap_or_else(|| matrix.empty_at_min())
 }
 
-pub(crate) fn destination_label_rect(matrix: Rect, cell: Rect) -> Rect {
-    Rect::from_min_max(
-        Point::new(cell.min.x, matrix.min.y - 38.0),
-        Point::new(cell.max.x, matrix.min.y - 6.0),
-    )
+pub(crate) fn destination_label_rect(matrix: Rect, destination: usize) -> Rect {
+    DenseGridLabelLayout::new(matrix_grid(matrix))
+        .column_label_rect(destination_label_bounds(matrix), destination)
+        .unwrap_or_else(|| matrix.empty_at_min())
 }
 
 pub(crate) fn cell_rect(matrix: Rect, cell: MatrixCell) -> Rect {
@@ -50,4 +48,18 @@ pub(crate) fn amount_for_position(rect: Rect, position: Point) -> f32 {
 
 pub(crate) fn amount_bar_rect(rect: Rect, amount: f32) -> Option<Rect> {
     vertical_bipolar_fill_rect(rect, amount, 12.0, 0.44)
+}
+
+fn source_label_bounds(bounds: Rect, matrix: Rect) -> Rect {
+    Rect::from_min_max(
+        Point::new(bounds.min.x + 12.0, matrix.min.y),
+        Point::new(matrix.min.x - 8.0, matrix.max.y),
+    )
+}
+
+fn destination_label_bounds(matrix: Rect) -> Rect {
+    Rect::from_min_max(
+        Point::new(matrix.min.x, matrix.min.y - 38.0),
+        Point::new(matrix.max.x, matrix.min.y - 6.0),
+    )
 }

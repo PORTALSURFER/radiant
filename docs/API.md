@@ -613,6 +613,7 @@ row-major item window before projecting visible grid cells into
 Timeline and signal visualizations can use `ColorRamp` and `ColorRampStop` for
 reusable normalized heatmap/intensity palettes, `DenseGridLayout` and
 `DenseGridCell` for reusable dense-grid projection and hit testing,
+`DenseGridLabelLayout` for row and column label gutters around dense grids,
 `DenseGridRasterLayout` for seam-aware top-down or bottom-up raster cell
 projection,
 `SignalChromeState` for reusable

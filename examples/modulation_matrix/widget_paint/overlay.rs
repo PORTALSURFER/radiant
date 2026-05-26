@@ -1,6 +1,6 @@
 use super::super::{
     geometry::cell_rect,
-    paint::{push_rect, push_stroke, translucent},
+    paint::{push_rect, push_stroke},
     widget::ModulationMatrixWidget,
 };
 use radiant::prelude::*;
@@ -29,7 +29,7 @@ fn append_cursor_guide(
             primitives,
             widget.common.id,
             line,
-            translucent(theme.text_muted, 70),
+            theme.text_muted.with_alpha(70),
         );
     }
 }
@@ -45,7 +45,7 @@ fn append_hovered_cell(
             primitives,
             widget.common.id,
             cell_rect(matrix, cell),
-            translucent(theme.highlight_cyan, 190),
+            theme.highlight_cyan.with_alpha(190),
             2.0,
         );
     }

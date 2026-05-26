@@ -1,7 +1,5 @@
 use super::super::{
-    DESTINATION_COUNT, MatrixCell, SOURCE_COUNT,
-    geometry::cell_rect,
-    paint::{push_rect, translucent},
+    DESTINATION_COUNT, MatrixCell, SOURCE_COUNT, geometry::cell_rect, paint::push_rect,
     widget::ModulationMatrixWidget,
 };
 use radiant::prelude::*;
@@ -47,6 +45,6 @@ fn append_activity_pulse(
             Point::new(x, rect.min.y + 7.0),
             Vector2::new(4.0, rect.height() - 14.0),
         ),
-        translucent(theme.text_primary, 70),
+        theme.text_primary.with_alpha(70),
     );
 }

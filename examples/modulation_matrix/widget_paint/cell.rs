@@ -1,7 +1,7 @@
 use super::super::{
     MatrixCell,
     geometry::{amount_bar_rect, cell_rect},
-    paint::{push_rect, push_stroke, push_text, translucent},
+    paint::{push_rect, push_stroke, push_text},
     widget::ModulationMatrixWidget,
 };
 use radiant::prelude::*;
@@ -26,7 +26,7 @@ pub(super) fn append_cell(
         primitives,
         widget.common.id,
         rect,
-        translucent(theme.border, 130),
+        theme.border.with_alpha(130),
         1.0,
     );
     append_zero_line(widget, primitives, rect, theme);
@@ -49,7 +49,7 @@ fn append_zero_line(
             Point::new(rect.min.x + 8.0, center_y),
             Point::new(rect.max.x - 8.0, center_y + 1.0),
         ),
-        translucent(theme.grid_soft, 140),
+        theme.grid_soft.with_alpha(140),
     );
 }
 

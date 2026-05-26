@@ -6,7 +6,7 @@ use crate::{
     },
     layout::{
         ContainerKind, ContainerPolicy, GridPolicy, NodeId, VirtualizationAxis,
-        VirtualizationPolicy,
+        VirtualizationPolicy, WrapPolicy,
     },
     runtime::{SurfaceChild, SurfaceNode},
 };
@@ -101,6 +101,19 @@ impl<'a> ViewLowering<'a> {
                     ..base_policy()
                 };
                 let children = self.lower_slot_children(children, child_scope, false);
+                styled_container(self, policy, children)
+            }
+            ViewNodeKind::Wrap {
+                item_gap,
+                line_gap,
+                children,
+            } => {
+                let policy = ContainerPolicy {
+                    kind: ContainerKind::Wrap,
+                    wrap: WrapPolicy { item_gap, line_gap },
+                    ..base_policy()
+                };
+                let children = self.lower_slot_children(children, child_scope, true);
                 styled_container(self, policy, children)
             }
             ViewNodeKind::Scroll { child } => {

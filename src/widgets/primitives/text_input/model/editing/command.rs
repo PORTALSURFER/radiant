@@ -106,9 +106,11 @@ impl TextInputState {
             }
             WidgetKey::Backspace => self.backspace(),
             WidgetKey::Delete => self.delete_forward(),
-            WidgetKey::Enter | WidgetKey::Space | WidgetKey::ArrowUp | WidgetKey::ArrowDown => {
-                TextInputEditResult::default()
-            }
+            WidgetKey::Enter
+            | WidgetKey::Tab
+            | WidgetKey::Space
+            | WidgetKey::ArrowUp
+            | WidgetKey::ArrowDown => TextInputEditResult::default(),
         }
     }
 }

@@ -1,9 +1,12 @@
 use crate::gui::types::{Point, Rect, Vector2};
+use crate::runtime::PaintPrimitive;
+use crate::theme::ThemeTokens;
+use crate::widgets::Widget;
 use crate::widgets::interaction::{
     PointerButton, TextEditCommand, TextInputMessage, WidgetInput, WidgetKey,
 };
 
-use super::super::{TextInputWidget, WidgetSizing};
+use super::super::{TextInputChrome, TextInputWidget, WidgetSizing};
 
 #[test]
 fn text_input_editing_emits_changed_and_submitted_messages() {
@@ -35,6 +38,12 @@ fn text_input_editing_emits_changed_and_submitted_messages() {
     assert_eq!(
         input.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
         Some(TextInputMessage::Submitted {
+            value: String::from("ab"),
+        })
+    );
+    assert_eq!(
+        input.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Tab)),
+        Some(TextInputMessage::CompletionRequested {
             value: String::from("ab"),
         })
     );
@@ -175,4 +184,39 @@ fn text_input_selection_range_clamps_stale_public_state() {
 
     assert_eq!(input.selection_range(), (3, 3));
     assert_eq!(input.selected_text(), None);
+}
+
+#[test]
+fn underline_text_input_paints_baseline_without_box_chrome() {
+    let mut input = TextInputWidget::new(
+        7,
+        "",
+        WidgetSizing::new(Vector2::new(100.0, 18.0), Vector2::new(160.0, 18.0)),
+    );
+    input.props.chrome = TextInputChrome::Underline;
+    input.props.placeholder = Some("add tag".into());
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 18.0));
+    let mut primitives = Vec::new();
+
+    input.append_paint(
+        &mut primitives,
+        bounds,
+        &crate::layout::LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+
+    assert!(
+        !primitives
+            .iter()
+            .any(|primitive| matches!(primitive, PaintPrimitive::FillRect(_)))
+    );
+    assert!(primitives.iter().any(|primitive| matches!(
+        primitive,
+        PaintPrimitive::StrokeRect(stroke) if (stroke.rect.height() - 1.0).abs() < 0.01
+    )));
+    assert!(
+        primitives
+            .iter()
+            .any(|primitive| matches!(primitive, PaintPrimitive::TextInput(_)))
+    );
 }

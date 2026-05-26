@@ -88,7 +88,7 @@ pub use layout_builders::{
     DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING, column, column_key,
     drag_preview, drag_preview_sized, drop_marker, grid, grid_with_gaps, list, list_row,
     list_row_id, overlay_panel, row, row_key, scroll, scroll_column, stack, virtual_list,
-    virtual_list_window, virtual_scroll,
+    virtual_list_window, virtual_scroll, wrap,
 };
 mod ids;
 pub(in crate::application) use ids::{IdGenerator, scoped_key_id};

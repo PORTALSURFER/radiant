@@ -73,6 +73,21 @@ pub fn grid_with_gaps<Message>(
     .with_reserved_descendant_identity(has_reserved_descendant_identity)
 }
 
+/// Build a wrapping flow container with explicit item and line gaps.
+pub fn wrap<Message>(
+    children: impl IntoIterator<Item = ViewNode<Message>>,
+    item_gap: f32,
+    line_gap: f32,
+) -> ViewNode<Message> {
+    let (children, has_reserved_descendant_identity) = collect_children(children);
+    ViewNode::new(ViewNodeKind::Wrap {
+        item_gap,
+        line_gap,
+        children,
+    })
+    .with_reserved_descendant_identity(has_reserved_descendant_identity)
+}
+
 /// Build a stack container that overlays children in paint order.
 pub fn stack<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
     let (children, has_reserved_descendant_identity) = collect_children(children);

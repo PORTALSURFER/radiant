@@ -19,7 +19,7 @@ mod paint;
 #[cfg(test)]
 mod tests;
 
-pub use model::{TextInputEditResult, TextInputProps, TextInputState};
+pub use model::{TextInputChrome, TextInputEditResult, TextInputProps, TextInputState};
 
 /// Public single-line text-input primitive.
 #[derive(Clone, Debug, PartialEq)]
@@ -54,6 +54,7 @@ impl TextInputWidget {
                 placeholder: None,
                 submit_on_enter: true,
                 character_limit: None,
+                chrome: TextInputChrome::Full,
             },
             state: TextInputState::from_value(parts.value),
         }

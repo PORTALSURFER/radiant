@@ -90,7 +90,10 @@ pub(in super::super) fn demo_surface(state: &DemoState) -> Arc<UiSurface<DemoMes
                     input,
                     WidgetMessageMapper::text_input(|message| match message {
                         TextInputMessage::Changed { value }
-                        | TextInputMessage::Submitted { value } => DemoMessage::Rename(value),
+                        | TextInputMessage::Submitted { value }
+                        | TextInputMessage::CompletionRequested { value } => {
+                            DemoMessage::Rename(value)
+                        }
                     }),
                 ),
             ),

@@ -3,7 +3,7 @@ use crate::{
         MappedWidget, StateAction, ViewNode, default_text_input_sizing, view_node_from_widget,
     },
     runtime::WidgetMessageMapper,
-    widgets::{TextInputMessage, TextInputWidget, WidgetProminence, WidgetStyle},
+    widgets::{TextInputChrome, TextInputMessage, TextInputWidget, WidgetProminence, WidgetStyle},
 };
 use std::sync::Arc;
 
@@ -13,6 +13,7 @@ pub struct TextInputBuilder {
     placeholder: Option<String>,
     style: Option<WidgetStyle>,
     selection: Option<(usize, usize)>,
+    chrome: TextInputChrome,
 }
 
 impl TextInputBuilder {
@@ -49,15 +50,21 @@ impl TextInputBuilder {
         self
     }
 
+    /// Use a minimal underline-only input chrome instead of a boxed field.
+    pub fn underline(mut self) -> Self {
+        self.chrome = TextInputChrome::Underline;
+        self
+    }
+
     /// Emit a host message mapped from the input value.
     pub fn message<Message: 'static>(
         self,
         map: impl Fn(String) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
         self.message_event(move |message| match message {
-            TextInputMessage::Changed { value } | TextInputMessage::Submitted { value } => {
-                map(value)
-            }
+            TextInputMessage::Changed { value }
+            | TextInputMessage::Submitted { value }
+            | TextInputMessage::CompletionRequested { value } => map(value),
         })
     }
 
@@ -117,6 +124,9 @@ impl TextInputBuilder {
                         *field(state) = value.clone();
                         submit(state);
                     }
+                    TextInputMessage::CompletionRequested { value } => {
+                        *field(state) = value.clone();
+                    }
                 })
             }),
         ));
@@ -130,9 +140,11 @@ impl TextInputBuilder {
             placeholder,
             style,
             selection,
+            chrome,
         } = self;
         let mut input = TextInputWidget::new(0, value, default_text_input_sizing());
         input.props.placeholder = placeholder.map(Into::into);
+        input.props.chrome = chrome;
         if let Some((anchor, caret)) = selection {
             input.state.selection_anchor = anchor;
             input.state.caret = caret;
@@ -148,6 +160,7 @@ pub fn text_input(value: impl Into<String>) -> TextInputBuilder {
         placeholder: None,
         style: None,
         selection: None,
+        chrome: TextInputChrome::Full,
     }
 }
 

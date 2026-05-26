@@ -100,6 +100,11 @@ where
             .is_some_and(SurfaceWidget::accepts_pointer_move)
     }
 
+    pub(super) fn widget_allows_captured_pointer_pass_through(&self, widget_id: WidgetId) -> bool {
+        self.surface_widget(widget_id)
+            .is_some_and(SurfaceWidget::allows_captured_pointer_pass_through)
+    }
+
     pub(crate) fn widget_prefers_pointer_move_paint_only(&self, widget_id: WidgetId) -> bool {
         self.surface_widget(widget_id)
             .is_some_and(SurfaceWidget::prefers_pointer_move_paint_only)

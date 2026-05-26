@@ -49,6 +49,14 @@ where
                 self.handle_route_outcome(event_loop, route_outcome);
                 return;
             }
+            if self.route_focused_text_input_before_shortcuts(
+                key,
+                keyboard_event_text(&event),
+                &mut route_outcome,
+            ) {
+                self.handle_route_outcome(event_loop, route_outcome);
+                return;
+            }
             let outcome = self.core.route_key_press(
                 keypress_from_input(key, self.input.modifiers),
                 WidgetKey::from_key_code(key),
@@ -75,4 +83,14 @@ where
         }
         self.handle_route_outcome(event_loop, route_outcome);
     }
+}
+
+fn keyboard_event_text(event: &KeyEvent) -> Option<&str> {
+    event.text.as_ref().map(|text| text.as_str()).or_else(|| {
+        if let Key::Character(text) = &event.logical_key {
+            Some(text.as_str())
+        } else {
+            None
+        }
+    })
 }

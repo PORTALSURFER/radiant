@@ -108,6 +108,10 @@ impl<Message> SurfaceWidget<Message> {
         !self.widget.common().state.disabled && self.widget.prefers_pointer_move_paint_only()
     }
 
+    pub(in crate::runtime) fn allows_captured_pointer_pass_through(&self) -> bool {
+        !self.widget.common().state.disabled && self.widget.allows_captured_pointer_pass_through()
+    }
+
     pub(in crate::runtime) fn cursor_for_point(
         &self,
         bounds: Rect,

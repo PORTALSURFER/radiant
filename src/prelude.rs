@@ -27,7 +27,7 @@ pub use crate::application::{
     selectable_property_panel, selectable_sortable_details_list, slider, slider_mapped,
     sortable_details_list, spacer, stack, state_dropdown, text, text_input, text_input_mapped,
     toggle, toggle_mapped, tree_list, tree_list_with_drag, virtual_list, virtual_list_window,
-    virtual_scroll, widget, window,
+    virtual_scroll, widget, window, wrap,
 };
 pub use crate::gui::types::{ImageRgba, ImageRgbaError, Point, Rect, Rgba8, Vector2};
 pub use crate::gui::{
@@ -94,8 +94,8 @@ pub use crate::widgets::{
     ImageWidgetParts, InteractiveRowMessage, InteractiveRowWidget, InteractiveRowWidgetParts,
     ListItemWidgetParts, PointerButton, ScrollbarAxis, ScrollbarMessage, ScrollbarWidgetParts,
     SelectableWidgetParts, SliderMessage, SliderWidget, SliderWidgetParts, TextAlign,
-    TextInputEditResult, TextInputState, TextInputWidgetParts, TextWidgetParts, TextWrap,
-    ToggleWidgetParts, Widget, WidgetCommon, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
-    WidgetProminence, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone,
-    WidgetVisualTokens, resolve_widget_visual_tokens,
+    TextInputChrome, TextInputEditResult, TextInputState, TextInputWidgetParts, TextWidgetParts,
+    TextWrap, ToggleWidgetParts, Widget, WidgetCommon, WidgetCursor, WidgetInput, WidgetKey,
+    WidgetOutput, WidgetProminence, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle,
+    WidgetTone, WidgetVisualTokens, resolve_widget_visual_tokens,
 };

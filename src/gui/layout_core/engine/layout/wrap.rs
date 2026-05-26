@@ -1,7 +1,7 @@
 //! Wrap container layout strategy.
 
 use super::layout_node;
-use super::linear::resolve_nonfill_main;
+use super::linear::{resolve_cross_layout, resolve_nonfill_main};
 use crate::gui::layout_core::engine::LayoutContext;
 use crate::gui::layout_core::engine::direct::direct_widget_measure;
 use crate::gui::layout_core::tree::ContainerNode;
@@ -27,11 +27,12 @@ pub(super) fn layout_wrap(container: &ContainerNode, content: Rect, context: &mu
             context,
             child.child.id(),
         );
-        let height = resolve_nonfill_main(
-            false,
-            child,
+        let height = resolve_cross_layout(
+            true,
+            child.slot.size_cross,
             measured,
             content.height(),
+            child.slot,
             context,
             child.child.id(),
         );

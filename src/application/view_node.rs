@@ -54,6 +54,11 @@ pub(in crate::application) enum ViewNodeKind<Message> {
         row_gap: f32,
         children: Vec<ViewNode<Message>>,
     },
+    Wrap {
+        item_gap: f32,
+        line_gap: f32,
+        children: Vec<ViewNode<Message>>,
+    },
     Scroll {
         child: Box<ViewNode<Message>>,
     },

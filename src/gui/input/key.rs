@@ -37,6 +37,8 @@ pub enum KeyCode {
     E,
     /// Enter/Return key.
     Enter,
+    /// Tab key.
+    Tab,
     /// Escape key.
     Escape,
     /// Backspace key.

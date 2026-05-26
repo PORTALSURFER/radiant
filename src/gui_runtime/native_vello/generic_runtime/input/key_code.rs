@@ -27,6 +27,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) fn key_code_from_winit
         WinitKeyCode::KeyD => KeyCode::D,
         WinitKeyCode::KeyE => KeyCode::E,
         WinitKeyCode::Enter | WinitKeyCode::NumpadEnter => KeyCode::Enter,
+        WinitKeyCode::Tab => KeyCode::Tab,
         WinitKeyCode::Escape => KeyCode::Escape,
         WinitKeyCode::Backspace => KeyCode::Backspace,
         WinitKeyCode::Delete => KeyCode::Delete,
@@ -99,6 +100,7 @@ mod tests {
             key_code_from_winit(WinitKeyCode::NumpadEnter),
             Some(KeyCode::Enter)
         );
+        assert_eq!(key_code_from_winit(WinitKeyCode::Tab), Some(KeyCode::Tab));
         assert_eq!(
             key_code_from_winit(WinitKeyCode::Delete),
             Some(KeyCode::Delete)
@@ -115,6 +117,6 @@ mod tests {
 
     #[test]
     fn key_code_from_winit_returns_none_for_unsupported_code() {
-        assert_eq!(key_code_from_winit(WinitKeyCode::Tab), None);
+        assert_eq!(key_code_from_winit(WinitKeyCode::CapsLock), None);
     }
 }

@@ -1,4 +1,7 @@
-use super::super::{HorizontalStripLayout, HorizontalStripLayoutParts};
+use super::super::{
+    HorizontalStripLayout, HorizontalStripLayoutParts, VerticalStripStackLayout,
+    VerticalStripStackLayoutParts, VerticalStripStackOrigin,
+};
 use crate::gui::types::{Point, Rect};
 
 #[test]
@@ -62,4 +65,65 @@ fn horizontal_strip_layout_rejects_invalid_or_cramped_geometry() {
     assert!(!HorizontalStripLayout::new(rect.empty_at_min(), 2, 4.0).is_valid());
     assert!(!HorizontalStripLayout::new(rect, 2, 40.0).is_valid());
     assert_eq!(HorizontalStripLayout::new(rect, 2, f32::NAN).gap(), 0.0);
+}
+
+#[test]
+fn vertical_strip_stack_layout_projects_top_anchored_slots() {
+    let layout = VerticalStripStackLayout::new(
+        Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 120.0)),
+        4,
+        12.0,
+        6.0,
+    );
+
+    assert_eq!(
+        layout.slot_rect(2),
+        Some(Rect::from_min_max(
+            Point::new(10.0, 56.0),
+            Point::new(110.0, 68.0)
+        ))
+    );
+    assert_eq!(layout.slot_at_position(Point::new(20.0, 61.0)), Some(2));
+    assert_eq!(layout.slot_at_position(Point::new(20.0, 70.0)), None);
+}
+
+#[test]
+fn vertical_strip_stack_layout_projects_bottom_anchored_slots() {
+    let layout = VerticalStripStackLayout::from_parts(VerticalStripStackLayoutParts::new(
+        Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 120.0)),
+        4,
+        12.0,
+        6.0,
+        VerticalStripStackOrigin::Bottom,
+    ));
+
+    assert_eq!(
+        layout.slot_rect(0),
+        Some(Rect::from_min_max(
+            Point::new(10.0, 108.0),
+            Point::new(110.0, 120.0)
+        ))
+    );
+    assert_eq!(
+        layout.slot_rect(3),
+        Some(Rect::from_min_max(
+            Point::new(10.0, 54.0),
+            Point::new(110.0, 66.0)
+        ))
+    );
+    assert_eq!(layout.slot_at_position(Point::new(20.0, 113.0)), Some(0));
+    assert_eq!(layout.slot_at_position(Point::new(20.0, 103.0)), None);
+}
+
+#[test]
+fn vertical_strip_stack_layout_sanitizes_invalid_inputs() {
+    let rect = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(100.0, 40.0));
+
+    assert!(!VerticalStripStackLayout::new(rect, 0, 12.0, 2.0).is_valid());
+    assert!(!VerticalStripStackLayout::new(rect.empty_at_min(), 2, 12.0, 2.0).is_valid());
+    assert!(!VerticalStripStackLayout::new(rect, 2, f32::NAN, 2.0).is_valid());
+    assert_eq!(
+        VerticalStripStackLayout::new(rect, 2, 12.0, f32::NAN).gap(),
+        0.0
+    );
 }

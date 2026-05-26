@@ -30,7 +30,10 @@ pub use spatial::{
     PointRenderMode, SpatialPanel, SpatialPanelLabels, SpatialPanelPoints, SpatialPanelSelection,
     SpatialPanelStatus, SpatialPoint, normalized_milli_point_in_rect,
 };
-pub use strip_layout::{HorizontalStripLayout, HorizontalStripLayoutParts};
+pub use strip_layout::{
+    HorizontalStripLayout, HorizontalStripLayoutParts, VerticalStripStackLayout,
+    VerticalStripStackLayoutParts, VerticalStripStackOrigin,
+};
 pub use timeline::{
     TimelineAxis, TimelineAxisParts, TimelineCoordinateMapper, TimelineEditPreview,
     TimelineEditPreviewParts, TimelineFeedbackEvents, TimelineFeedbackParts, TimelineItemLayout,

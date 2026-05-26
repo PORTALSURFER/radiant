@@ -648,6 +648,9 @@ positive logarithmic value-to-x and x-to-value projection,
 `TimelineLaneLayout` for reusable track and lane rectangles,
 `HorizontalStripLayout` and `HorizontalStripLayoutParts` for gapped dense
 channel/tool-strip projection, hit testing, and insertion markers,
+`VerticalStripStackLayout`, `VerticalStripStackLayoutParts`, and
+`VerticalStripStackOrigin` for repeated top- or bottom-anchored control slots
+inside dense strips,
 `vertical_value_marker` and `VerticalValueMarker` for bottom-anchored value stems
 and interactive handles,
 `CanvasLayer`, `DragHandle`, `canvas_selection_rect`,

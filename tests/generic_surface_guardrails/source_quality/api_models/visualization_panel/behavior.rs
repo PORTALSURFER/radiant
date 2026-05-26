@@ -17,6 +17,12 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
         .expect("dense grid visualization model should be readable");
     let signal = fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/signal.rs"))
         .expect("signal visualization tests should be readable");
+    let strip =
+        fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/strip_layout.rs"))
+            .expect("strip visualization tests should be readable");
+    let strip_model =
+        fs::read_to_string(manifest_dir.join("src/gui/visualization/strip_layout.rs"))
+            .expect("strip visualization model should be readable");
     let timeline = fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/timeline.rs"))
         .expect("timeline visualization test root should be readable");
     let timeline_mapper =
@@ -54,6 +60,7 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
             && canvas.contains("fn canvas_invalidation_splits_scene_and_interaction_rebuilds")
             && grid.contains("fn dense_grid_raster_layout_projects_bottom_up_cells_with_bleed")
             && signal.contains("fn signal_tool_state_preserves_generic_interaction_flags")
+            && strip.contains("fn vertical_strip_stack_layout_projects_bottom_anchored_slots")
             && timeline.contains("mod item;")
             && timeline.contains("mod mapper;")
             && timeline.contains("mod metadata;")
@@ -78,6 +85,14 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
             && grid_model.contains("pub fn row_label_rect(self, label_bounds: Rect, row: usize)")
             && grid_model.contains("pub fn cell_rect(self, cell: DenseGridCell) -> Option<Rect>"),
         "dense grid visualization model should own reusable raster and label projection"
+    );
+    assert!(
+        strip_model.contains("pub struct HorizontalStripLayoutParts")
+            && strip_model.contains("pub struct VerticalStripStackLayoutParts")
+            && strip_model.contains("pub enum VerticalStripStackOrigin")
+            && strip_model.contains("pub fn slot_rect(self, slot: usize) -> Option<Rect>")
+            && strip_model.contains("pub fn strip_rect(self, strip: usize) -> Option<Rect>"),
+        "strip visualization model should own reusable dense strip and stacked slot projection"
     );
     assert!(
         timeline_mapper.contains("fn timeline_coordinate_mapper_projects_and_back_projects_micros")

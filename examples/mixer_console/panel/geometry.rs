@@ -26,20 +26,15 @@ impl MixerPanelWidget {
     }
 
     pub(crate) fn send_rect(&self, strip: Rect, send: usize) -> Rect {
-        let y = strip.max.y - 136.0 + send as f32 * 18.0;
-        Rect::from_min_size(
-            Point::new(strip.min.x + 5.0, y),
-            Vector2::new(strip.width() - 10.0, 12.0),
-        )
+        self.send_layout(strip)
+            .slot_rect(send)
+            .unwrap_or_else(|| strip.empty_at_min())
     }
 
     pub(crate) fn button_rect(&self, strip: Rect, index: usize) -> Rect {
-        let width = (strip.width() - 10.0) / 3.0;
-        let x = strip.min.x + 4.0 + index as f32 * (width + 1.0);
-        Rect::from_min_size(
-            Point::new(x, strip.max.y - 72.0),
-            Vector2::new(width.max(1.0), 22.0),
-        )
+        self.button_layout(strip)
+            .strip_rect(index)
+            .unwrap_or_else(|| strip.empty_at_min())
     }
 
     pub(super) fn channel_at(&self, bounds: Rect, position: Point) -> Option<usize> {
@@ -71,5 +66,24 @@ impl MixerPanelWidget {
 
     fn strip_layout(&self, bounds: Rect) -> HorizontalStripLayout {
         HorizontalStripLayout::new(self.console_rect(bounds), CHANNEL_COUNT, 4.0)
+    }
+
+    fn send_layout(&self, strip: Rect) -> VerticalStripStackLayout {
+        let control_rect = Rect::from_min_max(
+            Point::new(strip.min.x + 5.0, strip.max.y - 136.0),
+            Point::new(strip.max.x - 5.0, strip.max.y),
+        );
+        VerticalStripStackLayout::new(control_rect, SEND_COUNT, 12.0, 6.0)
+    }
+
+    fn button_layout(&self, strip: Rect) -> HorizontalStripLayout {
+        HorizontalStripLayout::new(
+            Rect::from_min_size(
+                Point::new(strip.min.x + 4.0, strip.max.y - 72.0),
+                Vector2::new(strip.width() - 8.0, 22.0),
+            ),
+            3,
+            1.0,
+        )
     }
 }

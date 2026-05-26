@@ -1,5 +1,147 @@
 use crate::gui::types::{Point, Rect, Vector2};
 
+/// Vertical edge used to anchor repeated strip slots.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VerticalStripStackOrigin {
+    /// Stack slots downward from the top edge.
+    Top,
+    /// Stack slots upward from the bottom edge.
+    Bottom,
+}
+
+/// Named fields for constructing reusable vertical strip slot geometry.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VerticalStripStackLayoutParts {
+    /// Rect that contains all stacked slots.
+    pub rect: Rect,
+    /// Number of slots in the stack.
+    pub slot_count: usize,
+    /// Height of each slot in logical pixels.
+    pub slot_height: f32,
+    /// Gap between adjacent slots in logical pixels.
+    pub gap: f32,
+    /// Edge that anchors the repeated slots.
+    pub origin: VerticalStripStackOrigin,
+}
+
+impl VerticalStripStackLayoutParts {
+    /// Build vertical strip stack layout parts.
+    pub const fn new(
+        rect: Rect,
+        slot_count: usize,
+        slot_height: f32,
+        gap: f32,
+        origin: VerticalStripStackOrigin,
+    ) -> Self {
+        Self {
+            rect,
+            slot_count,
+            slot_height,
+            gap,
+            origin,
+        }
+    }
+}
+
+/// Reusable vertical repeated-slot geometry for dense editor strips.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VerticalStripStackLayout {
+    /// Rect that contains all stacked slots.
+    pub rect: Rect,
+    /// Number of slots in the stack.
+    pub slot_count: usize,
+    /// Height of each slot in logical pixels.
+    pub slot_height: f32,
+    /// Gap between adjacent slots in logical pixels.
+    pub gap: f32,
+    /// Edge that anchors the repeated slots.
+    pub origin: VerticalStripStackOrigin,
+}
+
+impl VerticalStripStackLayout {
+    /// Build a vertical strip stack layout from named parts.
+    pub const fn from_parts(parts: VerticalStripStackLayoutParts) -> Self {
+        Self {
+            rect: parts.rect,
+            slot_count: parts.slot_count,
+            slot_height: parts.slot_height,
+            gap: parts.gap,
+            origin: parts.origin,
+        }
+    }
+
+    /// Build top-anchored vertical strip stack geometry.
+    pub const fn new(rect: Rect, slot_count: usize, slot_height: f32, gap: f32) -> Self {
+        Self::from_parts(VerticalStripStackLayoutParts::new(
+            rect,
+            slot_count,
+            slot_height,
+            gap,
+            VerticalStripStackOrigin::Top,
+        ))
+    }
+
+    /// Build bottom-anchored vertical strip stack geometry.
+    pub const fn from_bottom(rect: Rect, slot_count: usize, slot_height: f32, gap: f32) -> Self {
+        Self::from_parts(VerticalStripStackLayoutParts::new(
+            rect,
+            slot_count,
+            slot_height,
+            gap,
+            VerticalStripStackOrigin::Bottom,
+        ))
+    }
+
+    /// Return whether this layout can produce finite slot geometry.
+    pub fn is_valid(self) -> bool {
+        self.slot_count > 0
+            && self.rect.has_finite_positive_area()
+            && self.slot_height() > 0.0
+            && self.slot_height() <= self.rect.height()
+    }
+
+    /// Return the sanitized gap between adjacent slots.
+    pub fn gap(self) -> f32 {
+        finite_nonnegative(self.gap)
+    }
+
+    /// Return the sanitized slot height.
+    pub fn slot_height(self) -> f32 {
+        finite_nonnegative(self.slot_height)
+    }
+
+    /// Return the rect for a stacked slot index.
+    pub fn slot_rect(self, slot: usize) -> Option<Rect> {
+        if !self.is_valid() || slot >= self.slot_count {
+            return None;
+        }
+        let slot_height = self.slot_height();
+        let stride = slot_height + self.gap();
+        let y = match self.origin {
+            VerticalStripStackOrigin::Top => self.rect.min.y + slot as f32 * stride,
+            VerticalStripStackOrigin::Bottom => {
+                self.rect.max.y - slot_height - slot as f32 * stride
+            }
+        };
+        let rect = Rect::from_min_size(
+            Point::new(self.rect.min.x, y),
+            Vector2::new(self.rect.width(), slot_height),
+        );
+        rect.overlaps(self.rect).then(|| rect.clamp_to(self.rect))
+    }
+
+    /// Return the slot containing a point.
+    pub fn slot_at_position(self, position: Point) -> Option<usize> {
+        if !self.is_valid() || !self.rect.contains(position) {
+            return None;
+        }
+        (0..self.slot_count).find(|slot| {
+            self.slot_rect(*slot)
+                .is_some_and(|rect| rect.contains(position))
+        })
+    }
+}
+
 /// Named fields for constructing reusable horizontal strip geometry.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HorizontalStripLayoutParts {

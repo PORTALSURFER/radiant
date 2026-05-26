@@ -18,11 +18,11 @@ pub use spatial::{
     SpatialPanelStatus, SpatialPoint, normalized_milli_point_in_rect,
 };
 pub use timeline::{
-    TimelineCoordinateMapper, TimelineEditPreview, TimelineEditPreviewParts,
-    TimelineFeedbackEvents, TimelineFeedbackParts, TimelineMarkerPreview, TimelineMotionState,
-    TimelinePresentationParts, TimelinePresentationState, TimelineSurfaceParts,
-    TimelineSurfaceState, TimelineTransportParts, TimelineTransportState, TimelineViewport,
-    TimelineViewportParts,
+    TimelineAxis, TimelineAxisParts, TimelineCoordinateMapper, TimelineEditPreview,
+    TimelineEditPreviewParts, TimelineFeedbackEvents, TimelineFeedbackParts, TimelineLaneLayout,
+    TimelineLaneLayoutParts, TimelineMarkerPreview, TimelineMotionState, TimelinePresentationParts,
+    TimelinePresentationState, TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportParts,
+    TimelineTransportState, TimelineViewport, TimelineViewportParts,
 };
 
 #[cfg(test)]

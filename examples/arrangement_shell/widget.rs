@@ -2,7 +2,7 @@ use radiant::prelude::*;
 use radiant::widgets::PaintBounds;
 
 use super::{
-    geometry::{track_height, x_for_beat},
+    geometry::{track_layout, x_for_beat},
     model::ArrangementClip,
 };
 
@@ -53,10 +53,10 @@ impl ArrangementOverviewWidget {
     pub(crate) fn clip_rect(&self, timeline: Rect, clip: ArrangementClip) -> Rect {
         let x0 = x_for_beat(timeline, clip.start_beat);
         let x1 = x_for_beat(timeline, clip.end_beat());
-        let y = timeline.min.y + clip.track as f32 * track_height(timeline);
+        let track_rect = track_layout(timeline).lane_rect(clip.track);
         Rect::from_min_max(
-            Point::new(x0, y + 8.0),
-            Point::new(x1, y + track_height(timeline) - 8.0),
+            Point::new(x0, track_rect.min.y + 8.0),
+            Point::new(x1, track_rect.max.y - 8.0),
         )
     }
 

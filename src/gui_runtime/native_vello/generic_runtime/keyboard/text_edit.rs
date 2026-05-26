@@ -1,7 +1,8 @@
 use super::{GenericNativeVelloRunner, GenericRouteOutcome};
 use crate::gui::input::KeyCode;
 use crate::runtime::RuntimeBridge;
-use crate::widgets::{TextEditCommand, WidgetKey};
+use crate::widgets::TextEditCommand;
+use crate::widgets::WidgetKey;
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where

@@ -4,6 +4,7 @@ use super::super::{
     CLIP_HEIGHT, HEADER_WIDTH, LANE_COUNT, LANE_HEIGHT, RULER_HEIGHT, TOTAL_BEATS, TRACK_PAD,
     model::{BeatRange, TimelineClip},
 };
+use radiant::gui::visualization::{TimelineAxis, TimelineLaneLayout};
 use radiant::layout::{Point, Rect};
 
 #[derive(Clone, Copy)]
@@ -11,6 +12,8 @@ pub(crate) struct TimelineGeometry {
     pub(crate) header: Rect,
     pub(crate) ruler: Rect,
     pub(crate) lanes: Rect,
+    axis: TimelineAxis,
+    lane_layout: TimelineLaneLayout,
 }
 
 impl TimelineGeometry {
@@ -27,19 +30,20 @@ impl TimelineGeometry {
             Point::new(bounds.min.x + HEADER_WIDTH, bounds.min.y + RULER_HEIGHT),
             bounds.max,
         );
+        let axis =
+            TimelineAxis::new(lanes, 0.0, TOTAL_BEATS as f32).with_trailing_padding(TRACK_PAD);
+        let lane_layout = TimelineLaneLayout::fixed_height(lanes, LANE_COUNT, LANE_HEIGHT);
         Self {
             header,
             ruler,
             lanes,
+            axis,
+            lane_layout,
         }
     }
 
     pub(crate) fn lane_rect(self, lane: usize) -> Rect {
-        let y = self.lanes.min.y + lane as f32 * LANE_HEIGHT;
-        Rect::from_min_max(
-            Point::new(self.lanes.min.x, y),
-            Point::new(self.lanes.max.x, (y + LANE_HEIGHT).min(self.lanes.max.y)),
-        )
+        self.lane_layout.lane_rect(lane)
     }
 
     pub(crate) fn clip_rect(self, clip: &TimelineClip) -> Rect {
@@ -56,7 +60,7 @@ impl TimelineGeometry {
     }
 
     pub(crate) fn x_for_beat(self, beat: u32) -> f32 {
-        self.lanes.min.x + self.beat_width() * beat.min(TOTAL_BEATS) as f32
+        self.axis.x_for_value(beat as f32)
     }
 
     pub(crate) fn cursor_x_at(self, position: Point) -> Option<f32> {
@@ -68,18 +72,10 @@ impl TimelineGeometry {
 
     pub(crate) fn beat_at(self, position: Point) -> Option<u32> {
         self.cursor_x_at(position)?;
-        Some(((position.x - self.lanes.min.x) / self.beat_width()).round() as u32)
+        Some(self.axis.value_for_x(position.x).round() as u32)
     }
 
     pub(crate) fn lane_at(self, position: Point) -> Option<usize> {
-        if !self.lanes.contains(position) {
-            return None;
-        }
-        Some(((position.y - self.lanes.min.y) / LANE_HEIGHT).floor() as usize)
-            .map(|lane| lane.min(LANE_COUNT - 1))
-    }
-
-    fn beat_width(self) -> f32 {
-        ((self.lanes.width() - TRACK_PAD).max(1.0)) / TOTAL_BEATS as f32
+        self.lane_layout.lane_at(position)
     }
 }

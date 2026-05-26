@@ -53,6 +53,7 @@ pub use crate::gui::{
     shortcuts::{ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution},
     svg::SvgIcon,
     undo::{UndoCheckpoint, UndoHistory, UndoRedoIntent, UndoTransition},
+    visualization::{TimelineAxis, TimelineAxisParts, TimelineLaneLayout, TimelineLaneLayoutParts},
 };
 pub use crate::layout::LayoutOutput;
 pub use crate::runtime::{

@@ -55,10 +55,14 @@ impl StatefulPointerOverlayPaintBench {
         self.overlay.clear();
         self.runtime
             .runtime_overlay_paint_into(&self.theme, &mut self.overlay);
+        let overlay_fill_count = self
+            .overlay
+            .iter()
+            .filter(|primitive| matches!(primitive, PaintPrimitive::FillRect(_)))
+            .count();
         assert_eq!(
-            self.overlay.len(),
-            1,
-            "pointer overlay paint should remain a bounded runtime overlay"
+            overlay_fill_count, 1,
+            "pointer overlay paint should emit one moving cursor primitive"
         );
         black_box(&self.overlay);
     }

@@ -611,6 +611,8 @@ indeterminate progress segments, `horizontal_progress_track_rect` for switching
 between determinate and indeterminate progress tracks, `horizontal_meter_fill_rect` and
 `horizontal_discrete_meter_fill_rect` for reusable meter geometry, and
 `inline_indicator_layout` for compact text-relative status indicator clusters,
+`TimelineAxis` for reusable beat/time/sample-to-pixel projection,
+`TimelineLaneLayout` for reusable track and lane rectangles,
 `TimelineViewport` for normalized viewport bounds,
 `TimelineTransportState` for cursor/playhead/selection positions,
 `TimelineEditPreview` and `TimelineEditPreviewParts` for editable range and
@@ -1311,12 +1313,13 @@ backend-owned, and free of hidden global synchronization while avoiding
 host-domain text semantics.
 
 `radiant::gui::visualization` contains generic visualization models such as
-`TimelineViewport`, `TimelineTransportState`, `TimelineEditPreview`,
-`TimelineFeedbackEvents`, `TimelinePresentationState`, `SignalRasterPreview`,
-`TimelineSurfaceParts`, `TimelineSurfaceState`, `TimelineMotionState`, and
-`normalized_milli_point_in_rect`. Hosts can map product-specific media or
-spatial surfaces into these reusable visualization slots while keeping domain
-workflow state outside Radiant.
+`TimelineAxis`, `TimelineLaneLayout`, `TimelineViewport`,
+`TimelineTransportState`, `TimelineEditPreview`, `TimelineFeedbackEvents`,
+`TimelinePresentationState`, `SignalRasterPreview`, `TimelineSurfaceParts`,
+`TimelineSurfaceState`, `TimelineMotionState`, and
+`normalized_milli_point_in_rect`. Hosts can map product-specific media,
+timeline values, lanes, or spatial surfaces into these reusable visualization
+slots while keeping domain workflow state outside Radiant.
 
 ## Invalidation And Lifecycle
 

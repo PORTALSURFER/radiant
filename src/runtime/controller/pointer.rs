@@ -82,10 +82,9 @@ where
         if matches!(
             input,
             WidgetInput::PointerPress { .. } | WidgetInput::PointerDoubleClick { .. }
-        ) {
-            if !self.focus_widget(widget_id) {
-                self.clear_focus();
-            }
+        ) && !self.focus_widget(widget_id)
+        {
+            self.clear_focus();
         }
         self.dispatch_input_output(widget_id, input)
             .map(|emitted_output| (widget_id, emitted_output))

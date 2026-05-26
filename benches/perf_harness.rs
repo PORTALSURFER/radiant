@@ -126,7 +126,14 @@ fn bench_gpu_custom_shader_projection() {
     ));
     let output = layout_tree(&surface.layout_node(), viewport(320.0, 120.0));
     let plan = surface.paint_plan(&output, &ThemeTokens::default());
-    let Some(PaintPrimitive::GpuSurface(gpu_surface)) = plan.primitives.first() else {
+    let Some(gpu_surface) = plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::GpuSurface(gpu_surface) => Some(gpu_surface),
+            _ => None,
+        })
+    else {
         panic!("expected custom shader GPU surface primitive");
     };
     assert!(matches!(

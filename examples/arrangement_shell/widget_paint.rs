@@ -2,7 +2,7 @@ use radiant::prelude::*;
 
 use super::{
     TOTAL_BEATS, TRACKS,
-    geometry::{track_height, track_label_rect, x_for_beat},
+    geometry::{track_label_rect, track_layout, x_for_beat},
     model::ArrangementClip,
     paint::{push_rect, push_stroke, push_text, rgba, translucent},
     widget::ArrangementOverviewWidget,
@@ -122,11 +122,7 @@ fn append_beat_lines(
 }
 
 fn track_row_rect(timeline: Rect, track: usize) -> Rect {
-    let y = timeline.min.y + track as f32 * track_height(timeline);
-    Rect::from_min_max(
-        Point::new(timeline.min.x, y),
-        Point::new(timeline.max.x, y + track_height(timeline)),
-    )
+    track_layout(timeline).lane_rect(track)
 }
 
 fn track_row_fill(track: usize) -> Rgba8 {

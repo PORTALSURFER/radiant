@@ -1,6 +1,9 @@
-use super::wrap01;
 use radiant::{
-    gui::{paint::PaintFrame, types::Rgba8},
+    gui::{
+        feedback::{horizontal_value_range_rect, horizontal_wrapped_value_range_rects},
+        paint::PaintFrame,
+        types::Rgba8,
+    },
     layout::{Point, Rect},
 };
 
@@ -12,49 +15,17 @@ pub(super) fn push_wrapped_ratio_bar(
     height_ratio: f32,
     color: Rgba8,
 ) {
-    let width = width_ratio.max(0.0);
-    let width = width.min(0.08);
-    if width <= 0.0 {
-        return;
+    for segment in horizontal_wrapped_value_range_rects(
+        lane,
+        center_ratio,
+        width_ratio.min(0.08),
+        height_ratio,
+    )
+    .into_iter()
+    .flatten()
+    {
+        frame.push_rect(segment, color);
     }
-    let center = wrap01(center_ratio);
-    let start = center - width * 0.5;
-    let end = center + width * 0.5;
-    if start < 0.0 {
-        push_ratio_bar_segment(frame, lane, start + 1.0, 1.0, height_ratio, color);
-        push_ratio_bar_segment(frame, lane, 0.0, end, height_ratio, color);
-        return;
-    }
-    if end > 1.0 {
-        push_ratio_bar_segment(frame, lane, start, 1.0, height_ratio, color);
-        push_ratio_bar_segment(frame, lane, 0.0, end - 1.0, height_ratio, color);
-        return;
-    }
-    push_ratio_bar_segment(frame, lane, start, end, height_ratio, color);
-}
-
-fn push_ratio_bar_segment(
-    frame: &mut PaintFrame,
-    lane: Rect,
-    start: f32,
-    end: f32,
-    height_ratio: f32,
-    color: Rgba8,
-) {
-    let start = start.clamp(0.0, 1.0);
-    let end = end.clamp(0.0, 1.0);
-    let height = lane.height() * height_ratio.clamp(0.0, 1.0);
-    if end <= start || height <= 0.0 {
-        return;
-    }
-    let center_y = (lane.min.y + lane.max.y) * 0.5;
-    frame.push_rect(
-        Rect::from_min_max(
-            Point::new(lane.x_for_ratio(start), center_y - height * 0.5),
-            Point::new(lane.x_for_ratio(end), center_y + height * 0.5),
-        ),
-        color,
-    );
 }
 
 pub(super) fn push_ratio_circle(
@@ -79,16 +50,9 @@ pub(super) fn push_ratio_rect(
     width_ratio: f32,
     color: Rgba8,
 ) {
-    let start = start_ratio.clamp(0.0, 1.0);
-    let end = (start + width_ratio.max(0.0)).clamp(0.0, 1.0);
-    if end <= start {
-        return;
+    if let Some(rect) =
+        horizontal_value_range_rect(track, start_ratio, start_ratio + width_ratio, 1.0)
+    {
+        frame.push_rect(rect, color);
     }
-    frame.push_rect(
-        Rect::from_min_max(
-            Point::new(track.x_for_ratio(start), track.min.y),
-            Point::new(track.x_for_ratio(end), track.max.y),
-        ),
-        color,
-    );
 }

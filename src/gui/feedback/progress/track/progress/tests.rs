@@ -1,6 +1,7 @@
 use super::{
     horizontal_progress_activity_rect, horizontal_progress_fill_rect,
-    horizontal_progress_track_rect,
+    horizontal_progress_track_rect, horizontal_value_range_rect,
+    horizontal_wrapped_value_range_rects,
 };
 use crate::gui::types::{Point, Rect};
 
@@ -109,4 +110,71 @@ fn horizontal_progress_track_rect_switches_between_activity_and_fill() {
     let determinate = horizontal_progress_track_rect(track, 1, 4, 0.5, 0.24, 18.0).expect("fill");
     assert_eq!(determinate.min, track.min);
     assert_eq!(determinate.max, Point::new(35.0, 28.0));
+}
+
+#[test]
+fn horizontal_value_range_rect_centers_segment_height() {
+    let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
+
+    assert_eq!(
+        horizontal_value_range_rect(track, 0.25, 0.75, 0.5),
+        Some(Rect::from_min_max(
+            Point::new(35.0, 30.0),
+            Point::new(85.0, 50.0)
+        ))
+    );
+    assert_eq!(horizontal_value_range_rect(track, 0.75, 0.25, 0.5), None);
+    assert_eq!(horizontal_value_range_rect(track, 0.25, 0.75, 0.0), None);
+}
+
+#[test]
+fn horizontal_wrapped_value_range_rects_split_across_track_edges() {
+    let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
+
+    assert_eq!(
+        horizontal_wrapped_value_range_rects(track, 0.5, 0.20, 1.0),
+        [
+            Some(Rect::from_min_max(
+                Point::new(50.0, 20.0),
+                Point::new(70.0, 60.0)
+            )),
+            None
+        ]
+    );
+    let wrapped = horizontal_wrapped_value_range_rects(track, 0.96, 0.12, 0.5);
+    assert_eq!(
+        wrapped[0],
+        Some(Rect::from_min_max(
+            Point::new(100.0, 30.0),
+            Point::new(110.0, 50.0)
+        ))
+    );
+    assert_rect_near(
+        wrapped[1].expect("wrapped head segment"),
+        Rect::from_min_max(Point::new(10.0, 30.0), Point::new(12.0, 50.0)),
+    );
+    assert_eq!(
+        horizontal_wrapped_value_range_rects(track, f32::NAN, 0.10, 1.0),
+        [
+            Some(Rect::from_min_max(
+                Point::new(105.0, 20.0),
+                Point::new(110.0, 60.0)
+            )),
+            Some(Rect::from_min_max(
+                Point::new(10.0, 20.0),
+                Point::new(15.0, 60.0)
+            ))
+        ]
+    );
+    assert_eq!(
+        horizontal_wrapped_value_range_rects(track, 0.5, 0.0, 1.0),
+        [None, None]
+    );
+}
+
+fn assert_rect_near(actual: Rect, expected: Rect) {
+    assert!((actual.min.x - expected.min.x).abs() < 0.001);
+    assert!((actual.min.y - expected.min.y).abs() < 0.001);
+    assert!((actual.max.x - expected.max.x).abs() < 0.001);
+    assert!((actual.max.y - expected.max.y).abs() < 0.001);
 }

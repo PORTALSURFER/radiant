@@ -37,7 +37,8 @@ pub use crate::gui::{
         StatusSegmentsParts,
     },
     feedback::{
-        StatusLineEntry, StatusLineEntryParts, StatusLineLog, vertical_bipolar_fill_rect,
+        StatusLineEntry, StatusLineEntryParts, StatusLineLog, horizontal_value_range_rect,
+        horizontal_wrapped_value_range_rects, vertical_bipolar_fill_rect,
         vertical_bipolar_value_at_point, vertical_center_track_rect, vertical_meter_lane_fill_rect,
         vertical_value_at_point, vertical_value_knob_rect, vertical_value_line_rect,
     },

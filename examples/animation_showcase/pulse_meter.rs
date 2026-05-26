@@ -4,7 +4,7 @@ mod paint_geometry;
 mod visual;
 
 use self::paint_geometry::{push_ratio_circle, push_ratio_rect, push_wrapped_ratio_bar};
-use self::visual::{PulseMeterVisual, wrap01};
+use self::visual::PulseMeterVisual;
 use radiant::{
     gui::paint::{BorderSides, PaintFrame},
     layout::Rect,

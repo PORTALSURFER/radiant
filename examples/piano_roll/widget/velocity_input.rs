@@ -38,7 +38,7 @@ impl PianoRollWidget {
         self.hover_note = None;
         self.hover_velocity_note = None;
         self.hover_position = Some(position);
-        let start_pointer_velocity = velocity_for_y(lane, position.y);
+        let start_pointer_velocity = VerticalValueAxis::new(lane, 0.0, 1.0).value_for_y(position.y);
         self.drag = Some(PianoDrag::Velocity {
             start_velocities: self.start_velocities_for(&ids),
             ids,
@@ -70,7 +70,7 @@ impl PianoRollWidget {
         position: Point,
     ) -> Option<WidgetOutput> {
         let velocity_lane = self.velocity_rect(bounds);
-        let next_velocity = velocity_for_y(velocity_lane, position.y);
+        let next_velocity = VerticalValueAxis::new(velocity_lane, 0.0, 1.0).value_for_y(position.y);
         self.hover_position = Some(position);
         self.hover_note = None;
         self.hover_velocity_note = None;
@@ -239,8 +239,4 @@ impl PianoRollWidget {
         velocities.sort_unstable_by_key(|(id, _)| *id);
         velocities
     }
-}
-
-fn velocity_for_y(lane: Rect, y: f32) -> f32 {
-    lane.ratio_for_y_from_bottom(y)
 }

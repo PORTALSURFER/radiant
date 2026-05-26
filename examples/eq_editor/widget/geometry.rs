@@ -7,10 +7,7 @@ pub(crate) fn x_for_freq(plot: Rect, freq_hz: f32) -> f32 {
 }
 
 pub(crate) fn y_for_gain(plot: Rect, gain_db: f32) -> f32 {
-    let ratio = ((gain_db.clamp(MIN_GAIN_DB, MAX_GAIN_DB) - MIN_GAIN_DB)
-        / (MAX_GAIN_DB - MIN_GAIN_DB))
-        .clamp(0.0, 1.0);
-    plot.y_for_ratio(1.0 - ratio)
+    VerticalValueAxis::new(plot, MIN_GAIN_DB, MAX_GAIN_DB).y_for_value(gain_db)
 }
 
 pub(super) fn freq_for_x(plot: Rect, x: f32) -> f32 {
@@ -18,8 +15,7 @@ pub(super) fn freq_for_x(plot: Rect, x: f32) -> f32 {
 }
 
 pub(super) fn gain_for_y(plot: Rect, y: f32) -> f32 {
-    let ratio = 1.0 - plot.ratio_for_y(y);
-    MIN_GAIN_DB + (MAX_GAIN_DB - MIN_GAIN_DB) * ratio
+    VerticalValueAxis::new(plot, MIN_GAIN_DB, MAX_GAIN_DB).value_for_y(y)
 }
 
 fn ratio_for_freq(freq_hz: f32) -> f32 {

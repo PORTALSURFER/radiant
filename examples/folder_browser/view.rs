@@ -1,6 +1,12 @@
-use super::file_view::{column_context_menu, file_context_menu, file_view};
+use super::file_view::file_view;
 use super::tree::{folder_tree, splitter};
 use super::*;
+
+const SURFACE_WIDTH: f32 = 900.0;
+const SURFACE_HEIGHT: f32 = 540.0;
+const FOLDER_MENU_SIZE: ui::Vector2 = ui::Vector2 { x: 190.0, y: 126.0 };
+const FILE_MENU_SIZE: ui::Vector2 = ui::Vector2 { x: 190.0, y: 126.0 };
+const COLUMN_MENU_SIZE: ui::Vector2 = ui::Vector2 { x: 210.0, y: 250.0 };
 
 pub(super) fn project_surface(state: &mut BrowserState) -> ui::StateView<BrowserState> {
     let page = ui::column([
@@ -17,7 +23,7 @@ pub(super) fn project_surface(state: &mut BrowserState) -> ui::StateView<Browser
     .padding(12.0)
     .spacing(8.0);
     if has_context_menu(state) {
-        ui::stack([page, context_menu_overlay(state)])
+        ui::stack([page, context_menu_layer(state)])
             .fill_width()
             .fill_height()
     } else {
@@ -47,78 +53,105 @@ fn header(state: &BrowserState) -> ui::StateView<BrowserState> {
     .spacing(12.0)
 }
 
-fn context_menu_overlay(state: &BrowserState) -> ui::StateView<BrowserState> {
-    let (width, height, menu) = if let Some(folder_id) = state.context.context_folder.as_ref() {
-        (
-            FOLDER_MENU_WIDTH,
-            FOLDER_MENU_HEIGHT,
-            context_menu(state, folder_id),
+fn context_menu_layer(state: &BrowserState) -> ui::StateView<BrowserState> {
+    let bounds = ui::Rect::from_min_size(
+        ui::Point::new(0.0, 0.0),
+        ui::Vector2::new(SURFACE_WIDTH, SURFACE_HEIGHT),
+    );
+    let anchor = state.context.context_position.unwrap_or_default();
+    if let Some(folder_id) = state.context.context_folder.as_ref() {
+        return ui::context_menu_overlay(
+            bounds,
+            anchor,
+            FOLDER_MENU_SIZE,
+            folder_context_menu_title(state, folder_id),
+            [
+                ui::MenuItem::new("Rename", BrowserState::begin_rename_from_context).primary(),
+                ui::MenuItem::new("New Folder", BrowserState::create_folder_from_context).subtle(),
+                ui::MenuItem::new("Cancel", BrowserState::close_context_menu).subtle(),
+            ],
         )
-    } else if let Some(column_id) = state.context.context_column.as_ref() {
-        (
-            COLUMN_MENU_WIDTH,
-            COLUMN_MENU_HEIGHT,
-            column_context_menu(state, column_id),
+        .key("context-menu-overlay");
+    }
+    if let Some(column_id) = state.context.context_column.as_ref() {
+        return ui::context_menu_overlay(
+            bounds,
+            anchor,
+            COLUMN_MENU_SIZE,
+            column_context_menu_title(state, column_id),
+            column_context_menu_items(state),
         )
-    } else if let Some(file_id) = state.context.context_file.as_ref() {
-        (
-            FILE_MENU_WIDTH,
-            FILE_MENU_HEIGHT,
-            file_context_menu(state, file_id),
+        .key("context-menu-overlay");
+    }
+    if let Some(file_id) = state.context.context_file.as_ref() {
+        return ui::context_menu_overlay(
+            bounds,
+            anchor,
+            FILE_MENU_SIZE,
+            file_context_menu_title(state, file_id),
+            [
+                ui::MenuItem::new("Rename", BrowserState::begin_file_rename_from_context).primary(),
+                ui::MenuItem::new("Delete", BrowserState::delete_file_from_context).subtle(),
+                ui::MenuItem::new("Cancel", BrowserState::close_file_context_menu).subtle(),
+            ],
         )
-    } else {
-        (0.0, 0.0, ui::text(""))
-    };
-    let (left, top) = anchored_context_menu_position(state.context.context_position, width, height);
-    ui::column([
-        ui::text("").fill_width().height(top),
-        ui::row([
-            ui::text("").size(left, 1.0),
-            menu,
-            ui::text("").fill_width().height(1.0),
-        ])
-        .fill_width()
-        .height(height),
-        ui::text("").fill_width().fill_height(),
-    ])
-    .fill_width()
-    .fill_height()
-    .key("context-menu-overlay")
+        .key("context-menu-overlay");
+    }
+    ui::text("").key("context-menu-overlay")
 }
 
-fn context_menu(state: &BrowserState, folder_id: &str) -> ui::StateView<BrowserState> {
+fn folder_context_menu_title(state: &BrowserState, folder_id: &str) -> String {
     let folder_name = state
         .find_folder(folder_id)
         .map(|folder| folder.name.clone())
         .unwrap_or_else(|| String::from("folder"));
-    ui::column([
-        ui::text(format!("Actions for {folder_name}"))
-            .fill_width()
-            .height(22.0),
-        ui::button("Rename")
-            .primary()
-            .on_click(BrowserState::begin_rename_from_context)
-            .fill_width()
-            .height(28.0),
-        ui::button("New Folder")
+    format!("Actions for {folder_name}")
+}
+
+fn file_context_menu_title(state: &BrowserState, file_id: &str) -> String {
+    let file_name = state
+        .selected_folder()
+        .files
+        .iter()
+        .find(|file| file.id == file_id)
+        .map(|file| file.name.clone())
+        .unwrap_or_else(|| String::from("item"));
+    format!("Actions for {file_name}")
+}
+
+fn column_context_menu_title(state: &BrowserState, column_id: &str) -> String {
+    let column_name = state
+        .columns
+        .file_columns
+        .iter()
+        .find(|column| column.id == column_id)
+        .map(|column| column.label.clone())
+        .unwrap_or_else(|| String::from("columns"));
+    format!("Columns from {column_name}")
+}
+
+fn column_context_menu_items(state: &BrowserState) -> Vec<ui::MenuItem<BrowserState>> {
+    let mut items = state
+        .columns
+        .file_columns
+        .iter()
+        .map(|column| {
+            let id = column.id.clone();
+            let marker = if column.visible { "[x]" } else { "[ ]" };
+            let label = if column.id == "name" {
+                format!("{marker} {} locked", column.label)
+            } else {
+                format!("{marker} {}", column.label)
+            };
+            ui::MenuItem::new(label, move |state: &mut BrowserState| {
+                state.toggle_file_column(id.clone());
+            })
             .subtle()
-            .on_click(BrowserState::create_folder_from_context)
-            .fill_width()
-            .height(28.0),
-        ui::button("Cancel")
-            .subtle()
-            .on_click(BrowserState::close_context_menu)
-            .fill_width()
-            .height(28.0),
-    ])
-    .style(ui::WidgetStyle {
-        tone: ui::WidgetTone::Accent,
-        prominence: ui::WidgetProminence::Strong,
-    })
-    .width(190.0)
-    .height(126.0)
-    .padding(8.0)
-    .spacing(6.0)
+        })
+        .collect::<Vec<_>>();
+    items.push(ui::MenuItem::new("Reset Defaults", BrowserState::reset_file_columns).primary());
+    items.push(ui::MenuItem::new("Close", BrowserState::close_column_context_menu).subtle());
+    items
 }
 
 pub(super) fn panel(

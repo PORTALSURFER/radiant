@@ -8,6 +8,8 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             "RADIANT_FOLDER_BROWSER_ROOT",
             "BrowserState::from_root(",
             "view::project_surface",
+            "ui::context_menu_overlay(",
+            "ui::MenuItem::new(",
             "examples/folder_browser/actions.rs",
             "examples/folder_browser/file_view.rs",
             "examples/folder_browser/storage.rs",

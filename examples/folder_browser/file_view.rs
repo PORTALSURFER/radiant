@@ -1,12 +1,9 @@
 //! File details pane projection for the folder browser example.
 
-#[path = "file_view/menus.rs"]
-mod menus;
 #[path = "file_view/table.rs"]
 mod table;
 
 use super::*;
-pub(super) use menus::{column_context_menu, file_context_menu};
 use table::{details_header, file_details_row};
 
 pub(super) fn file_view(state: &BrowserState) -> ui::StateView<BrowserState> {

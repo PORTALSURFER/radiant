@@ -8,8 +8,6 @@ mod actions;
 mod columns;
 #[path = "folder_browser/file_view.rs"]
 mod file_view;
-#[path = "folder_browser/menu_geometry.rs"]
-mod menu_geometry;
 #[path = "folder_browser/model.rs"]
 mod model;
 #[path = "folder_browser/state.rs"]
@@ -21,7 +19,6 @@ mod tree;
 #[path = "folder_browser/view.rs"]
 mod view;
 use columns::*;
-use menu_geometry::*;
 use model::*;
 use state::*;
 use storage::*;

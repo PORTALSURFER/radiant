@@ -24,32 +24,6 @@ fn opening_context_menu_records_target_folder() {
 }
 
 #[test]
-fn context_menu_position_anchors_to_cursor_and_clamps_near_edges() {
-    let cursor = radiant::layout::Point::new(300.0, 200.0);
-
-    assert_eq!(
-        anchored_context_menu_position(Some(cursor), FOLDER_MENU_WIDTH, FOLDER_MENU_HEIGHT),
-        (300.0, 200.0)
-    );
-    assert_eq!(
-        anchored_context_menu_position(
-            Some(radiant::layout::Point::new(300.0, 520.0)),
-            FOLDER_MENU_WIDTH,
-            FOLDER_MENU_HEIGHT
-        ),
-        (300.0, 414.0)
-    );
-    assert_eq!(
-        anchored_context_menu_position(
-            Some(radiant::layout::Point::new(880.0, 200.0)),
-            FOLDER_MENU_WIDTH,
-            FOLDER_MENU_HEIGHT
-        ),
-        (710.0, 200.0)
-    );
-}
-
-#[test]
 fn rename_from_context_opens_inline_editor_with_folder_name() {
     let mut state = test_state();
 

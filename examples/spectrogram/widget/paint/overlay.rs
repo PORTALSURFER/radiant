@@ -9,10 +9,12 @@ pub(super) fn append_hover(
     x: f32,
     theme: &ThemeTokens,
 ) {
-    push_rect(
-        primitives,
-        widget_id,
-        Rect::from_min_max(Point::new(x, plot.min.y), Point::new(x + 2.0, plot.max.y)),
-        translucent(theme.accent_mint, 180),
-    );
+    if let Some(line) = vertical_line_rect(plot, x, 2.0) {
+        push_rect(
+            primitives,
+            widget_id,
+            line,
+            translucent(theme.accent_mint, 180),
+        );
+    }
 }

@@ -23,14 +23,12 @@ fn append_cursor_guide(
 ) {
     if let Some(position) = widget.hover_position
         && matrix.contains(position)
+        && let Some(line) = vertical_line_rect(matrix, position.x, 1.0)
     {
         push_rect(
             primitives,
             widget.common.id,
-            Rect::from_min_max(
-                Point::new(position.x, matrix.min.y),
-                Point::new(position.x + 1.0, matrix.max.y),
-            ),
+            line,
             translucent(theme.text_muted, 70),
         );
     }

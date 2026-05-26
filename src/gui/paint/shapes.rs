@@ -93,6 +93,30 @@ pub(super) fn for_each_border_fill_rect(
     }
 }
 
+/// Return a filled horizontal line rectangle spanning `bounds` at `y`.
+pub fn horizontal_line_rect(bounds: Rect, y: f32, stroke: f32) -> Option<Rect> {
+    line_stroke(stroke).and_then(|stroke| {
+        (bounds.has_finite_positive_area() && y.is_finite()).then_some(Rect::from_min_max(
+            Point::new(bounds.min.x, y),
+            Point::new(bounds.max.x, y + stroke),
+        ))
+    })
+}
+
+/// Return a filled vertical line rectangle spanning `bounds` at `x`.
+pub fn vertical_line_rect(bounds: Rect, x: f32, stroke: f32) -> Option<Rect> {
+    line_stroke(stroke).and_then(|stroke| {
+        (bounds.has_finite_positive_area() && x.is_finite()).then_some(Rect::from_min_max(
+            Point::new(x, bounds.min.y),
+            Point::new(x + stroke, bounds.max.y),
+        ))
+    })
+}
+
+fn line_stroke(stroke: f32) -> Option<f32> {
+    (stroke.is_finite() && stroke > 0.0).then_some(stroke)
+}
+
 /// Filled circle draw primitive.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FillCircle {

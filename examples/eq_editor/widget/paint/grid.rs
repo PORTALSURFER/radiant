@@ -30,12 +30,9 @@ fn append_frequency_line(
     } else {
         theme.grid_soft
     };
-    push_rect(
-        primitives,
-        widget.common.id,
-        Rect::from_min_max(Point::new(x, plot.min.y), Point::new(x + 1.0, plot.max.y)),
-        color,
-    );
+    if let Some(line) = vertical_line_rect(plot, x, 1.0) {
+        push_rect(primitives, widget.common.id, line, color);
+    }
 }
 
 fn append_gain_grid(
@@ -62,12 +59,9 @@ fn append_gain_line(
     } else {
         theme.grid_soft
     };
-    push_rect(
-        primitives,
-        widget.common.id,
-        Rect::from_min_max(Point::new(plot.min.x, y), Point::new(plot.max.x, y + 1.0)),
-        color,
-    );
+    if let Some(line) = horizontal_line_rect(plot, y, 1.0) {
+        push_rect(primitives, widget.common.id, line, color);
+    }
     push_text(
         primitives,
         widget.common.id,

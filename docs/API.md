@@ -46,7 +46,8 @@ also includes the geometry, layout, image, color, and theme
 types needed in widget method signatures, including `Rect`, `Point`, `Vector2`,
 `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, and `ThemeTokens`, plus
 app-facing asset helpers such as `SvgIcon`, common feedback geometry helpers
-such as `horizontal_progress_fill_rect`, plus the builder types needed by method chains. These
+such as `horizontal_progress_fill_rect`, paint geometry helpers such as
+`horizontal_line_rect` and `vertical_line_rect`, plus the builder types needed by method chains. These
 builders lower into the same `UiSurface`, `SurfaceNode`, `SurfaceChild`,
 `WidgetSizing`, and `RuntimeBridge` contracts available through the explicit
 runtime modules.
@@ -773,8 +774,9 @@ compatibility diagnostics and generic runtime diagnostics on the same mechanism
 without coupling the public runtime API to a host application model.
 `radiant::gui::paint` also exposes lower-level backend-neutral paint payloads
 such as `PaintFrame`, `Primitive`, `TextRun`, `FillRect`, `FillCircle`,
-`FillLinearGradient`, and `DrawImage` for retained renderer adapters that need
-frame-oriented scene data rather than a full declarative `SurfacePaintPlan`.
+`FillLinearGradient`, `DrawImage`, `horizontal_line_rect`, and
+`vertical_line_rect` for retained renderer adapters that need frame-oriented
+scene data rather than a full declarative `SurfacePaintPlan`.
 
 ## Context
 

@@ -140,22 +140,20 @@ fn append_hover_crosshair(
     position: Point,
     theme: &ThemeTokens,
 ) {
-    paint::push_rect(
-        primitives,
-        widget.common.id,
-        Rect::from_min_max(
-            Point::new(position.x, plot.min.y),
-            Point::new(position.x + 1.0, plot.max.y),
-        ),
-        translucent(theme.text_muted, 110),
-    );
-    paint::push_rect(
-        primitives,
-        widget.common.id,
-        Rect::from_min_max(
-            Point::new(plot.min.x, position.y),
-            Point::new(plot.max.x, position.y + 1.0),
-        ),
-        translucent(theme.text_muted, 80),
-    );
+    if let Some(line) = vertical_line_rect(plot, position.x, 1.0) {
+        paint::push_rect(
+            primitives,
+            widget.common.id,
+            line,
+            translucent(theme.text_muted, 110),
+        );
+    }
+    if let Some(line) = horizontal_line_rect(plot, position.y, 1.0) {
+        paint::push_rect(
+            primitives,
+            widget.common.id,
+            line,
+            translucent(theme.text_muted, 80),
+        );
+    }
 }

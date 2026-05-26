@@ -54,6 +54,7 @@ pub use crate::gui::{
         VirtualListController, VirtualListStackMetrics, VirtualListStackMetricsParts,
         VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window,
     },
+    paint::{horizontal_line_rect, vertical_line_rect},
     range::IndexViewport,
     selection::SelectionSet,
     shortcuts::{ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution},

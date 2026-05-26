@@ -161,6 +161,38 @@ fn push_border_fill_rects_appends_to_existing_buffer() {
 }
 
 #[test]
+fn line_rect_helpers_span_bounds_with_requested_stroke() {
+    let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 80.0));
+
+    assert_eq!(
+        horizontal_line_rect(bounds, 35.0, 2.0),
+        Some(Rect::from_min_max(
+            Point::new(10.0, 35.0),
+            Point::new(50.0, 37.0)
+        ))
+    );
+    assert_eq!(
+        vertical_line_rect(bounds, 25.0, 3.0),
+        Some(Rect::from_min_max(
+            Point::new(25.0, 20.0),
+            Point::new(28.0, 80.0)
+        ))
+    );
+}
+
+#[test]
+fn line_rect_helpers_reject_invalid_geometry() {
+    let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 80.0));
+    let empty = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(10.0, 80.0));
+
+    assert_eq!(horizontal_line_rect(bounds, f32::NAN, 1.0), None);
+    assert_eq!(vertical_line_rect(bounds, f32::INFINITY, 1.0), None);
+    assert_eq!(horizontal_line_rect(empty, 35.0, 1.0), None);
+    assert_eq!(vertical_line_rect(bounds, 25.0, 0.0), None);
+    assert_eq!(vertical_line_rect(bounds, 25.0, f32::NAN), None);
+}
+
+#[test]
 fn text_field_paint_emits_chrome_selection_text_and_caret() {
     let color = Rgba8 {
         r: 1,

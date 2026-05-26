@@ -137,6 +137,90 @@ pub fn drag_handle_at_point(handles: &[DragHandle], point: Point) -> Option<Drag
         .find(|handle| handle.enabled && handle.rect.contains(point))
 }
 
+fn finite_non_negative(value: f32) -> f32 {
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
+    }
+}
+
+fn horizontal_resize_edge_width(rect: Rect, requested_width: f32) -> Option<f32> {
+    if !rect.has_finite_positive_area() {
+        return None;
+    }
+    let width = finite_non_negative(requested_width).min(rect.width() * 0.5);
+    (width > 0.0).then_some(width)
+}
+
+/// Return hit-test handles for the horizontal resize edges of a rectangle.
+pub fn horizontal_resize_edge_handles(
+    rect: Rect,
+    edge_width: f32,
+    capture_token: u64,
+) -> Option<[DragHandle; 2]> {
+    let width = horizontal_resize_edge_width(rect, edge_width)?;
+    Some([
+        DragHandle::new(
+            DragHandleRole::Start,
+            Rect::from_min_max(rect.min, Point::new(rect.min.x + width, rect.max.y)),
+            capture_token,
+        ),
+        DragHandle::new(
+            DragHandleRole::End,
+            Rect::from_min_max(Point::new(rect.max.x - width, rect.min.y), rect.max),
+            capture_token,
+        ),
+    ])
+}
+
+/// Return body, start-edge, and end-edge handles for a horizontally resizable rectangle.
+///
+/// Handles are returned in paint-order priority: body first, then start, then
+/// end. Passing the result to [`drag_handle_at_point`] gives edges priority
+/// over the body when hit targets overlap.
+pub fn horizontal_resize_handles(
+    rect: Rect,
+    edge_width: f32,
+    capture_token: u64,
+) -> Option<[DragHandle; 3]> {
+    let [start, end] = horizontal_resize_edge_handles(rect, edge_width, capture_token)?;
+    Some([
+        DragHandle::new(DragHandleRole::Body, rect, capture_token),
+        start,
+        end,
+    ])
+}
+
+/// Return the visible affordance rectangle for one horizontal resize edge.
+pub fn horizontal_resize_edge_visual_rect(
+    rect: Rect,
+    role: DragHandleRole,
+    width: f32,
+    edge_inset: f32,
+    vertical_inset: f32,
+) -> Option<Rect> {
+    if !rect.has_finite_positive_area() {
+        return None;
+    }
+    let width = finite_non_negative(width);
+    let edge_inset = finite_non_negative(edge_inset);
+    let vertical_inset = finite_non_negative(vertical_inset).min(rect.height() * 0.5);
+    let visual_height = rect.height() - vertical_inset * 2.0;
+    if width <= 0.0 || visual_height <= 0.0 || width + edge_inset > rect.width() {
+        return None;
+    }
+    let (min_x, max_x) = match role {
+        DragHandleRole::Start => (rect.min.x + edge_inset, rect.min.x + edge_inset + width),
+        DragHandleRole::End => (rect.max.x - edge_inset - width, rect.max.x - edge_inset),
+        _ => return None,
+    };
+    Some(Rect::from_min_max(
+        Point::new(min_x, rect.min.y + vertical_inset),
+        Point::new(max_x, rect.max.y - vertical_inset),
+    ))
+}
+
 fn normalized_fraction(value: f32) -> f32 {
     if value.is_finite() {
         value.clamp(0.0, 1.0)
@@ -170,11 +254,7 @@ pub fn canvas_selection_edge_handles(
     capture_token: u64,
 ) -> Option<[DragHandle; 2]> {
     let selection = canvas_selection_rect(bounds, start_fraction, end_fraction)?;
-    let width = if hit_width.is_finite() {
-        hit_width.max(0.0)
-    } else {
-        0.0
-    };
+    let width = finite_non_negative(hit_width);
     if width <= 0.0 {
         return None;
     }
@@ -208,17 +288,8 @@ pub fn canvas_selection_edge_visual_rect(
     if !bounds.has_finite_positive_area() {
         return None;
     }
-    let width = if width.is_finite() {
-        width.max(0.0)
-    } else {
-        0.0
-    };
-    let inset = if vertical_inset.is_finite() {
-        vertical_inset.max(0.0)
-    } else {
-        0.0
-    }
-    .min(bounds.height() * 0.5);
+    let width = finite_non_negative(width);
+    let inset = finite_non_negative(vertical_inset).min(bounds.height() * 0.5);
     if width <= 0.0 || bounds.height() - inset * 2.0 <= 0.0 {
         return None;
     }

@@ -6,6 +6,7 @@ use super::{
 mod clips;
 
 use radiant::gui::types::Rgba8;
+use radiant::gui::visualization::{DragHandleRole, horizontal_resize_edge_visual_rect};
 use radiant::layout::{Point, Rect};
 use radiant::runtime::{
     PaintPrimitive, PaintTextAlign, PaintTextMetrics, push_text_run_with_metrics,
@@ -139,22 +140,13 @@ pub(super) fn push_resize_handles(
     rect: Rect,
     color: Rgba8,
 ) {
-    let width = RESIZE_HANDLE_WIDTH.min((rect.width() * 0.5).max(0.0));
-    if width <= 0.0 {
-        return;
+    for role in [DragHandleRole::Start, DragHandleRole::End] {
+        if let Some(handle) =
+            horizontal_resize_edge_visual_rect(rect, role, RESIZE_HANDLE_WIDTH, 0.0, 0.0)
+        {
+            push_rect(primitives, widget_id, handle, color);
+        }
     }
-    push_rect(
-        primitives,
-        widget_id,
-        Rect::from_min_max(rect.min, Point::new(rect.min.x + width, rect.max.y)),
-        color,
-    );
-    push_rect(
-        primitives,
-        widget_id,
-        Rect::from_min_max(Point::new(rect.max.x - width, rect.min.y), rect.max),
-        color,
-    );
 }
 
 fn translucent(color: Rgba8, alpha: u8) -> Rgba8 {

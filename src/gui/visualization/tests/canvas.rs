@@ -2,6 +2,7 @@ use super::super::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts, DragHandle,
     DragHandleRole, canvas_layer_at_point, canvas_selection_edge_handles,
     canvas_selection_edge_visual_rect, canvas_selection_rect, drag_handle_at_point,
+    horizontal_resize_edge_handles, horizontal_resize_edge_visual_rect, horizontal_resize_handles,
 };
 use crate::gui::types::{Point, Rect};
 
@@ -79,6 +80,75 @@ fn drag_handle_hit_testing_uses_reverse_paint_order_and_enabled_state() {
         Some(DragHandleRole::Body)
     );
     assert_eq!(drag_handle_at_point(&handles, Point::new(5.0, 20.0)), None);
+}
+
+#[test]
+fn horizontal_resize_handles_prioritize_edges_over_body() {
+    let rect = Rect::from_min_max(Point::new(20.0, 30.0), Point::new(120.0, 70.0));
+    let handles = horizontal_resize_handles(rect, 12.0, 99).expect("handles");
+
+    assert_eq!(handles[0].role, DragHandleRole::Body);
+    assert_eq!(handles[0].capture_token, 99);
+    assert_eq!(
+        handles[1].rect,
+        Rect::from_min_max(Point::new(20.0, 30.0), Point::new(32.0, 70.0))
+    );
+    assert_eq!(
+        handles[2].rect,
+        Rect::from_min_max(Point::new(108.0, 30.0), Point::new(120.0, 70.0))
+    );
+    assert_eq!(
+        drag_handle_at_point(&handles, Point::new(25.0, 50.0)).map(|handle| handle.role),
+        Some(DragHandleRole::Start)
+    );
+    assert_eq!(
+        drag_handle_at_point(&handles, Point::new(60.0, 50.0)).map(|handle| handle.role),
+        Some(DragHandleRole::Body)
+    );
+    assert_eq!(
+        drag_handle_at_point(&handles, Point::new(116.0, 50.0)).map(|handle| handle.role),
+        Some(DragHandleRole::End)
+    );
+}
+
+#[test]
+fn horizontal_resize_edges_clamp_to_half_width() {
+    let rect = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(10.0, 20.0));
+    let handles = horizontal_resize_edge_handles(rect, 12.0, 7).expect("handles");
+
+    assert_eq!(
+        handles[0].rect,
+        Rect::from_min_max(Point::new(0.0, 0.0), Point::new(5.0, 20.0))
+    );
+    assert_eq!(
+        handles[1].rect,
+        Rect::from_min_max(Point::new(5.0, 0.0), Point::new(10.0, 20.0))
+    );
+    assert_eq!(horizontal_resize_edge_handles(rect, 0.0, 7), None);
+}
+
+#[test]
+fn horizontal_resize_edge_visual_rect_supports_insets() {
+    let rect = Rect::from_min_max(Point::new(20.0, 30.0), Point::new(120.0, 70.0));
+
+    assert_eq!(
+        horizontal_resize_edge_visual_rect(rect, DragHandleRole::Start, 5.0, 2.0, 4.0),
+        Some(Rect::from_min_max(
+            Point::new(22.0, 34.0),
+            Point::new(27.0, 66.0)
+        ))
+    );
+    assert_eq!(
+        horizontal_resize_edge_visual_rect(rect, DragHandleRole::End, 5.0, 2.0, 4.0),
+        Some(Rect::from_min_max(
+            Point::new(113.0, 34.0),
+            Point::new(118.0, 66.0)
+        ))
+    );
+    assert_eq!(
+        horizontal_resize_edge_visual_rect(rect, DragHandleRole::Body, 5.0, 2.0, 4.0),
+        None
+    );
 }
 
 #[test]

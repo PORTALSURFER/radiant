@@ -11,6 +11,7 @@ pub use canvas::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts, DragHandle,
     DragHandleRole, canvas_layer_at_point, canvas_selection_edge_handles,
     canvas_selection_edge_visual_rect, canvas_selection_rect, drag_handle_at_point,
+    horizontal_resize_edge_handles, horizontal_resize_edge_visual_rect, horizontal_resize_handles,
 };
 pub use color_ramp::{ColorRamp, ColorRampStop};
 pub use grid::{DenseGridCell, DenseGridLayout, DenseGridLayoutParts};

@@ -4,6 +4,9 @@ use super::super::{
     model::PianoNote,
 };
 use super::{NOTE_RESIZE_EDGE_WIDTH, NoteResizeEdge, PianoDrag, PianoRollWidget};
+use radiant::gui::visualization::{
+    DragHandleRole, drag_handle_at_point, horizontal_resize_edge_handles,
+};
 use radiant::prelude::*;
 
 impl PianoRollWidget {
@@ -55,16 +58,16 @@ impl PianoRollWidget {
     ) -> Option<(u32, NoteResizeEdge)> {
         self.notes.iter().rev().find_map(|note| {
             let rect = self.note_rect(grid, *note);
-            if !rect.contains(position) {
-                return None;
+            let role = drag_handle_at_point(
+                &horizontal_resize_edge_handles(rect, NOTE_RESIZE_EDGE_WIDTH, note.id as u64)?,
+                position,
+            )?
+            .role;
+            match role {
+                DragHandleRole::Start => Some((note.id, NoteResizeEdge::Start)),
+                DragHandleRole::End => Some((note.id, NoteResizeEdge::End)),
+                _ => None,
             }
-            if position.x <= rect.min.x + NOTE_RESIZE_EDGE_WIDTH {
-                return Some((note.id, NoteResizeEdge::Start));
-            }
-            if position.x >= rect.max.x - NOTE_RESIZE_EDGE_WIDTH {
-                return Some((note.id, NoteResizeEdge::End));
-            }
-            None
         })
     }
 

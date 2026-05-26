@@ -1,3 +1,4 @@
+use radiant::gui::visualization::{DragHandleRole, horizontal_resize_edge_visual_rect};
 use radiant::prelude::*;
 
 use super::super::{
@@ -147,8 +148,6 @@ fn append_resize_handle(
 }
 
 fn resize_handle_rect(rect: Rect) -> Rect {
-    Rect::from_min_max(
-        Point::new(rect.max.x - 5.0, rect.min.y + 2.0),
-        Point::new(rect.max.x - 2.0, rect.max.y - 2.0),
-    )
+    horizontal_resize_edge_visual_rect(rect, DragHandleRole::End, 3.0, 2.0, 2.0)
+        .unwrap_or_else(|| rect.empty_at_max())
 }

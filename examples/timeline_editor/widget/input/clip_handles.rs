@@ -1,7 +1,9 @@
 use super::super::{ArrangementTimelineWidget, RESIZE_HANDLE_WIDTH, ResizeEdge, TimelineGeometry};
 use crate::model::TimelineClip;
-use radiant::gui::visualization::{DragHandle, DragHandleRole, drag_handle_at_point};
-use radiant::layout::{Point, Rect};
+use radiant::gui::visualization::{
+    DragHandle, DragHandleRole, drag_handle_at_point, horizontal_resize_handles,
+};
+use radiant::layout::Point;
 
 #[derive(Clone, Copy)]
 pub(super) struct TimelineClipHandle {
@@ -30,7 +32,7 @@ pub(super) fn clip_handle_at(
     position: Point,
 ) -> Option<TimelineClipHandle> {
     widget.clips.iter().rev().find_map(|clip| {
-        let role = drag_handle_at_point(&clip_drag_handles(geometry, clip), position)?.role;
+        let role = drag_handle_at_point(&clip_drag_handles(geometry, clip)?, position)?.role;
         Some(TimelineClipHandle {
             clip_id: clip.id,
             clip_name: clip.name,
@@ -43,28 +45,16 @@ pub(super) fn clip_handle_at(
     })
 }
 
-fn clip_drag_handles(geometry: TimelineGeometry, clip: &TimelineClip) -> [DragHandle; 3] {
+fn clip_drag_handles(geometry: TimelineGeometry, clip: &TimelineClip) -> Option<[DragHandle; 3]> {
     let rect = geometry.clip_rect(clip).inset_vertical(-4.0, -4.0);
-    let width = RESIZE_HANDLE_WIDTH.min((rect.width() * 0.5).max(0.0));
-    [
-        DragHandle::new(DragHandleRole::Body, rect, clip.id as u64),
-        DragHandle::new(
-            DragHandleRole::Start,
-            Rect::from_min_max(rect.min, Point::new(rect.min.x + width, rect.max.y)),
-            clip.id as u64,
-        ),
-        DragHandle::new(
-            DragHandleRole::End,
-            Rect::from_min_max(Point::new(rect.max.x - width, rect.min.y), rect.max),
-            clip.id as u64,
-        ),
-    ]
+    horizontal_resize_handles(rect, RESIZE_HANDLE_WIDTH, clip.id as u64)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::model::TimelineEditorState;
+    use radiant::layout::Rect;
     use radiant::layout::Vector2;
 
     #[test]

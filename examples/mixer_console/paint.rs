@@ -5,11 +5,11 @@ pub(crate) use radiant::runtime::{
 
 pub(crate) fn meter_color(db: f32) -> Rgba8 {
     if db > -3.0 {
-        rgba(255, 82, 52, 255)
+        Rgba8::new(255, 82, 52, 255)
     } else if db > -10.0 {
-        rgba(255, 190, 72, 255)
+        Rgba8::new(255, 190, 72, 255)
     } else {
-        rgba(60, 214, 154, 255)
+        Rgba8::new(60, 214, 154, 255)
     }
 }
 
@@ -28,12 +28,4 @@ pub(crate) fn send_color(send: usize, theme: &ThemeTokens) -> Rgba8 {
         1 => theme.highlight_blue,
         _ => theme.highlight_orange,
     }
-}
-
-pub(crate) fn rgba(r: u8, g: u8, b: u8, a: u8) -> Rgba8 {
-    Rgba8::new(r, g, b, a)
-}
-
-pub(crate) fn translucent(color: Rgba8, alpha: u8) -> Rgba8 {
-    color.with_alpha(alpha)
 }

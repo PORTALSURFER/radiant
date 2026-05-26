@@ -1,4 +1,3 @@
-use super::super::paint;
 use super::super::panel::MixerDragTarget;
 use super::*;
 
@@ -134,7 +133,7 @@ fn mixer_strip_drag_paints_insertion_line_without_spreading_strips() {
             primitive,
             PaintPrimitive::FillRect(fill)
                 if fill.rect == target_line
-                    && fill.color == paint::translucent(ThemeTokens::default().highlight_cyan, 235)
+                    && fill.color == ThemeTokens::default().highlight_cyan.with_alpha(235)
         )
     }));
 }

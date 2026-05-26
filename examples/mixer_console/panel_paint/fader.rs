@@ -1,5 +1,5 @@
 use super::super::model::ratio_for_gain;
-use super::super::paint::{push_rect, push_stroke, rgba, translucent};
+use super::super::paint::{push_rect, push_stroke};
 use super::super::panel::MixerPanelWidget;
 use radiant::prelude::*;
 
@@ -93,7 +93,7 @@ fn append_fader_knob(
 
 fn fader_track_color(solo_dimmed: bool, theme: &ThemeTokens) -> Rgba8 {
     if solo_dimmed {
-        translucent(theme.grid_soft, 130)
+        theme.grid_soft.with_alpha(130)
     } else {
         theme.grid_strong
     }
@@ -101,7 +101,7 @@ fn fader_track_color(solo_dimmed: bool, theme: &ThemeTokens) -> Rgba8 {
 
 fn fader_knob_color(solo_dimmed: bool, theme: &ThemeTokens) -> Rgba8 {
     if solo_dimmed {
-        rgba(86, 92, 100, 220)
+        Rgba8::new(86, 92, 100, 220)
     } else {
         theme.highlight_blue
     }

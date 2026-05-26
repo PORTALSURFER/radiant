@@ -1,5 +1,5 @@
 use super::super::MixerPanelMessage;
-use super::super::paint::{push_stroke, translucent};
+use super::super::paint::push_stroke;
 use super::interaction::list_selection_modifiers;
 use super::{MixerDragTarget, MixerPanelWidget};
 use radiant::prelude::*;
@@ -79,7 +79,7 @@ impl Widget for MixerPanelWidget {
                 primitives,
                 self.common.id,
                 strip,
-                translucent(theme.highlight_cyan, 170),
+                theme.highlight_cyan.with_alpha(170),
                 2.0,
             );
         }

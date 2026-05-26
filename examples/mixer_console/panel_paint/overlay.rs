@@ -1,5 +1,5 @@
 use super::super::model::CHANNEL_COUNT;
-use super::super::paint::{push_rect, push_stroke, send_color, translucent};
+use super::super::paint::{push_rect, push_stroke, send_color};
 use super::super::panel::{MeterReadout, MixerPanelWidget};
 use super::fader;
 use super::meter;
@@ -26,7 +26,7 @@ pub(super) fn append_fader_drag_overlay(
                 Point::new(fader_rect.min.x - 2.0, fader_rect.min.y - 12.0),
                 Point::new(fader_rect.max.x + 2.0, fader_rect.max.y + 12.0),
             ),
-            translucent(theme.surface_base, 245),
+            theme.surface_base.with_alpha(245),
         );
         fader::append_fader_track(
             widget,
@@ -77,7 +77,7 @@ pub(super) fn append_reorder_drag_overlay(
         primitives,
         widget.common.id,
         source,
-        translucent(theme.text_primary, 135),
+        theme.text_primary.with_alpha(135),
         2.0,
     );
     if let Some(insert) = widget.interaction.reorder_insert {
@@ -86,7 +86,7 @@ pub(super) fn append_reorder_drag_overlay(
             primitives,
             widget.common.id,
             line,
-            translucent(theme.highlight_cyan, 235),
+            theme.highlight_cyan.with_alpha(235),
         );
         push_stroke(
             primitives,

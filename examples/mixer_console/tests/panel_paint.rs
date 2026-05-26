@@ -1,5 +1,4 @@
 use super::super::model::CHANNEL_LABELS;
-use super::super::paint;
 use super::*;
 
 #[test]
@@ -21,7 +20,7 @@ fn mixer_solo_grays_non_solo_meter_paint() {
         primitives.iter().any(|primitive| {
             matches!(
                 primitive,
-                PaintPrimitive::FillRect(fill) if fill.color == paint::rgba(75, 80, 86, 180)
+                PaintPrimitive::FillRect(fill) if fill.color == Rgba8::new(75, 80, 86, 180)
             )
         }),
         "solo mode should gray out non-solo meter fills"

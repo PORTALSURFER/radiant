@@ -1,5 +1,5 @@
 use super::super::model::{MixerChannel, ratio_for_meter_db};
-use super::super::paint::{meter_color, push_rect, push_text, rgba, translucent};
+use super::super::paint::{meter_color, push_rect, push_text};
 use super::super::panel::{MeterReadout, MixerPanelWidget};
 use radiant::prelude::*;
 
@@ -58,7 +58,7 @@ fn append_meter_grid(
                 primitives,
                 widget.common.id,
                 line,
-                translucent(theme.grid_soft, 120),
+                theme.grid_soft.with_alpha(120),
             );
         }
     }
@@ -128,15 +128,15 @@ fn append_peak_and_readout(
 
 fn meter_track_color(solo_dimmed: bool) -> Rgba8 {
     if solo_dimmed {
-        rgba(14, 15, 17, 255)
+        Rgba8::new(14, 15, 17, 255)
     } else {
-        rgba(8, 13, 18, 255)
+        Rgba8::new(8, 13, 18, 255)
     }
 }
 
 fn meter_fill_color(solo_dimmed: bool, meter_db: f32) -> Rgba8 {
     if solo_dimmed {
-        rgba(75, 80, 86, 180)
+        Rgba8::new(75, 80, 86, 180)
     } else {
         meter_color(meter_db)
     }
@@ -144,7 +144,7 @@ fn meter_fill_color(solo_dimmed: bool, meter_db: f32) -> Rgba8 {
 
 fn peak_color(solo_dimmed: bool, theme: &ThemeTokens) -> Rgba8 {
     if solo_dimmed {
-        rgba(90, 94, 98, 160)
+        Rgba8::new(90, 94, 98, 160)
     } else {
         theme.highlight_orange
     }
@@ -152,7 +152,7 @@ fn peak_color(solo_dimmed: bool, theme: &ThemeTokens) -> Rgba8 {
 
 fn readout_color(solo_dimmed: bool, theme: &ThemeTokens) -> Rgba8 {
     if solo_dimmed {
-        rgba(118, 123, 128, 180)
+        Rgba8::new(118, 123, 128, 180)
     } else {
         theme.text_muted
     }

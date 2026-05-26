@@ -67,6 +67,24 @@ fn rect_ratio_projection_maps_between_axes_and_local_ratios() {
 }
 
 #[test]
+fn rect_horizontal_ratio_span_projects_full_height_sub_rect() {
+    let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 70.0));
+
+    assert_eq!(
+        rect.horizontal_ratio_span(0.25, 0.75),
+        Rect::from_min_max(Point::new(35.0, 20.0), Point::new(85.0, 70.0))
+    );
+    assert_eq!(
+        rect.horizontal_ratio_span(0.75, 0.25),
+        Rect::from_min_max(Point::new(35.0, 20.0), Point::new(85.0, 70.0))
+    );
+    assert_eq!(
+        rect.horizontal_ratio_span(-1.0, 2.0),
+        Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 70.0))
+    );
+}
+
+#[test]
 fn rect_ratio_projection_returns_zero_for_invalid_or_empty_axes() {
     let empty_width = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(10.0, 70.0));
     let empty_height = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 20.0));

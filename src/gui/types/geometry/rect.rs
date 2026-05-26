@@ -87,6 +87,16 @@ impl Rect {
         self.min.x + self.width() * ratio
     }
 
+    /// Return a full-height sub-rectangle bounded by two horizontal ratios.
+    pub fn horizontal_ratio_span(self, start_ratio: f32, end_ratio: f32) -> Self {
+        let start = self.x_for_ratio(start_ratio);
+        let end = self.x_for_ratio(end_ratio);
+        Self::from_min_max(
+            Point::new(start.min(end), self.min.y),
+            Point::new(start.max(end), self.max.y),
+        )
+    }
+
     /// Project a vertical ratio into this rectangle without clamping.
     pub fn y_for_ratio_unclamped(self, ratio: f32) -> f32 {
         self.min.y + self.height() * ratio

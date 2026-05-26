@@ -14,17 +14,15 @@ impl MixerPanelWidget {
     }
 
     pub(crate) fn fader_rect(&self, strip: Rect) -> Rect {
-        Rect::from_min_max(
-            Point::new(strip.x_for_ratio(0.58), strip.min.y + 56.0),
-            Point::new(strip.x_for_ratio(0.86), strip.max.y - 150.0),
-        )
+        strip
+            .horizontal_ratio_span(0.58, 0.86)
+            .inset_vertical(56.0, 150.0)
     }
 
     pub(crate) fn meter_rect(&self, strip: Rect) -> Rect {
-        Rect::from_min_max(
-            Point::new(strip.x_for_ratio(0.14), strip.min.y + 50.0),
-            Point::new(strip.x_for_ratio(0.42), strip.max.y - 150.0),
-        )
+        strip
+            .horizontal_ratio_span(0.14, 0.42)
+            .inset_vertical(50.0, 150.0)
     }
 
     pub(crate) fn send_rect(&self, strip: Rect, send: usize) -> Rect {
@@ -64,7 +62,7 @@ impl MixerPanelWidget {
 
     pub(super) fn send_ratio_at(&self, strip: Rect, send: usize, position: Point) -> f32 {
         let send = self.send_rect(strip, send);
-        send.ratio_for_x(position.x)
+        HorizontalValueAxis::normalized(send).value_for_x(position.x)
     }
 
     pub(super) fn send_at(&self, strip: Rect, position: Point) -> Option<usize> {

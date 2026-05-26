@@ -820,6 +820,8 @@ process-global lock.
 `Rect::inset` provides product-neutral four-sided inset geometry for plotting
 areas, panels, and control tracks. `Rect::inset_horizontal` provides
 horizontal-only text and control inset geometry.
+`Rect::horizontal_ratio_span` provides full-height horizontal sub-rect
+projection for dense strip and control layouts.
 `Rect::center` provides shared midpoint geometry for routing, hit testing, and
 retained rendering adapters.
 `Rect::empty_at_min` and `Rect::empty_at_max` provide explicit zero-size

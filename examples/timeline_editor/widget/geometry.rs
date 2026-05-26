@@ -59,6 +59,10 @@ impl TimelineGeometry {
         )
     }
 
+    pub(crate) fn beat_range_rect(self, range: BeatRange) -> Rect {
+        self.axis.range_rect(range.start as f32, range.end as f32)
+    }
+
     pub(crate) fn x_for_beat(self, beat: u32) -> f32 {
         self.axis.x_for_value(beat as f32)
     }

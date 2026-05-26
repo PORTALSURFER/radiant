@@ -1,6 +1,9 @@
 use super::super::{
     TOTAL_BEATS,
-    geometry::{beat_for_x_view, quantize_beat, row_height_for, x_for_beat_view, y_for_pitch_view},
+    geometry::{
+        beat_for_x_view, beat_range_rect_view, quantize_beat, row_height_for, x_for_beat_view,
+        y_for_pitch_view,
+    },
     model::PianoNote,
 };
 use super::{NOTE_RESIZE_EDGE_WIDTH, NoteResizeEdge, PianoDrag, PianoRollWidget};
@@ -142,12 +145,7 @@ impl PianoRollWidget {
     }
 
     fn time_selection_rect_for_beats(&self, grid: Rect, start_beat: f32, end_beat: f32) -> Rect {
-        let x0 = x_for_beat_view(grid, self.viewport, start_beat);
-        let x1 = x_for_beat_view(grid, self.viewport, end_beat);
-        Rect::from_min_max(
-            Point::new(x0.min(x1), grid.min.y),
-            Point::new(x0.max(x1), grid.max.y),
-        )
+        beat_range_rect_view(grid, self.viewport, start_beat, end_beat)
     }
 
     pub(crate) fn moved_time_selection_beats(

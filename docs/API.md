@@ -626,7 +626,7 @@ signed vertical controls, `vertical_value_at_point`,
 `vertical_meter_lane_fill_rect`, and `vertical_value_line_rect` for normalized
 vertical faders and meters, and
 `inline_indicator_layout` for compact text-relative status indicator clusters,
-`TimelineAxis` for reusable beat/time/sample-to-pixel projection,
+`TimelineAxis` for reusable beat/time/sample-to-pixel and range-rectangle projection,
 `TimelineLaneLayout` for reusable track and lane rectangles,
 `CanvasLayer`, `DragHandle`, `canvas_selection_rect`,
 `canvas_selection_edge_handles`, and `canvas_selection_edge_visual_rect` for

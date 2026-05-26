@@ -104,10 +104,7 @@ pub(super) fn append_timeline_paint(
         push_rect(
             primitives,
             widget.common.id,
-            Rect::from_min_max(
-                Point::new(geometry.x_for_beat(selection.start), geometry.lanes.min.y),
-                Point::new(geometry.x_for_beat(selection.end), geometry.lanes.max.y),
-            ),
+            geometry.beat_range_rect(selection),
             translucent(theme.highlight_blue, 64),
         );
     }

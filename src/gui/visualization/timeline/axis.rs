@@ -1,4 +1,4 @@
-use crate::gui::types::Rect;
+use crate::gui::types::{Point, Rect};
 
 /// Named fields for constructing a reusable timeline axis projector.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -80,6 +80,19 @@ impl TimelineAxis {
         rect.min.x + rect.width().max(1.0) * self.ratio_for_value_unclamped(value)
     }
 
+    /// Project a timeline value range into a full-height rect, clamped to the visible span.
+    pub fn range_rect(self, start: f32, end: f32) -> Rect {
+        self.range_rect_from_x(self.x_for_value(start), self.x_for_value(end))
+    }
+
+    /// Project a timeline value range into a full-height rect without clamping values.
+    pub fn range_rect_unclamped(self, start: f32, end: f32) -> Rect {
+        self.range_rect_from_x(
+            self.x_for_value_unclamped(start),
+            self.x_for_value_unclamped(end),
+        )
+    }
+
     /// Convert an x coordinate into a clamped timeline value.
     pub fn value_for_x(self, x: f32) -> f32 {
         self.clamp_value(self.value_for_x_unclamped(x))
@@ -134,5 +147,13 @@ impl TimelineAxis {
         } else {
             0.0
         }
+    }
+
+    fn range_rect_from_x(self, x0: f32, x1: f32) -> Rect {
+        let rect = self.projection_rect();
+        Rect::from_min_max(
+            Point::new(x0.min(x1), rect.min.y),
+            Point::new(x0.max(x1), rect.max.y),
+        )
     }
 }

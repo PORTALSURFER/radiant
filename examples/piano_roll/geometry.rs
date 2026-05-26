@@ -17,6 +17,15 @@ pub(crate) fn beat_for_x_view(grid: Rect, viewport: PianoRollViewport, x: f32) -
         .clamp(0.0, TOTAL_BEATS)
 }
 
+pub(crate) fn beat_range_rect_view(
+    grid: Rect,
+    viewport: PianoRollViewport,
+    start_beat: f32,
+    end_beat: f32,
+) -> Rect {
+    beat_axis(grid, viewport).range_rect_unclamped(start_beat, end_beat)
+}
+
 pub(crate) fn y_for_pitch_view(grid: Rect, viewport: PianoRollViewport, pitch: i32) -> f32 {
     let row = viewport.pitch_end() - pitch;
     grid.min.y + row as f32 * row_height_for(grid, viewport)
@@ -50,7 +59,7 @@ pub(crate) fn pitch_label(pitch: i32) -> String {
     )
 }
 
-fn beat_axis(grid: Rect, viewport: PianoRollViewport) -> TimelineAxis {
+pub(crate) fn beat_axis(grid: Rect, viewport: PianoRollViewport) -> TimelineAxis {
     TimelineAxis::new(
         grid,
         viewport.beat_start,

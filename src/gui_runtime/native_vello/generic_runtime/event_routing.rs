@@ -40,14 +40,17 @@ where
             .runtime
             .dispatch_pointer_move_deferred_refresh_with_outcome(position);
         let pending = self.runtime.take_pending_input_command_outcome();
-        if outcome.hover_changed && pending.surface_refresh_requested {
+        let captured_pointer_refresh =
+            outcome.pointer_captured && pending.surface_refresh_requested;
+        if pending.surface_refresh_requested && outcome.hover_changed && !captured_pointer_refresh {
             self.runtime.refresh();
         }
+        let defer_surface_refresh = pending.surface_refresh_requested
+            && (!outcome.hover_changed || captured_pointer_refresh);
         GenericRouteOutcome {
             routed: outcome.routed(),
-            redraw_requested: outcome.hover_changed,
-            deferred_surface_refresh_requested: pending.surface_refresh_requested
-                && !outcome.hover_changed,
+            redraw_requested: outcome.hover_changed && !captured_pointer_refresh,
+            deferred_surface_refresh_requested: defer_surface_refresh,
             repaint_requested: outcome.repaint_requested || pending.surface_repaint_requested,
             paint_only_requested: outcome.paint_only_requested || pending.paint_only_requested,
             exit_requested: outcome.exit_requested || pending.exit_requested,

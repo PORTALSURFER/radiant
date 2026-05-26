@@ -96,6 +96,17 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
         true
     }
 
+    /// Return whether other widgets under the pointer may receive pointer-move
+    /// events while this widget owns pointer capture.
+    ///
+    /// Keep this enabled for drag sources that need live drop-target hover
+    /// feedback. Disable it for exclusive controls such as splitters and resize
+    /// handles where moving away from the handle should not activate unrelated
+    /// hover surfaces before release.
+    fn allows_captured_pointer_pass_through(&self) -> bool {
+        true
+    }
+
     /// Return the cursor this widget wants at `point` inside `bounds`.
     ///
     /// Returning `None` lets the runtime continue with the default cursor.

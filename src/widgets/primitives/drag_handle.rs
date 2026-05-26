@@ -65,6 +65,10 @@ impl Widget for DragHandleWidget {
         false
     }
 
+    fn allows_captured_pointer_pass_through(&self) -> bool {
+        false
+    }
+
     fn append_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,

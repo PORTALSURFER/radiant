@@ -7,9 +7,9 @@ use crate::{
         SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
     },
     widgets::{
-        ButtonWidget, CanvasMessage, PointerButton, ScrollbarAxis, ScrollbarMessage,
-        ScrollbarWidget, TextInputMessage, TextInputWidget, Widget, WidgetCommon, WidgetInput,
-        WidgetOutput, WidgetSizing,
+        ButtonWidget, CanvasMessage, DragHandleWidget, PointerButton, ScrollbarAxis,
+        ScrollbarMessage, ScrollbarWidget, TextInputMessage, TextInputWidget, Widget, WidgetCommon,
+        WidgetId, WidgetInput, WidgetOutput, WidgetSizing,
     },
 };
 use winit::{dpi::Position, window::WindowLevel};

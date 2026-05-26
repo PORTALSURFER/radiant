@@ -203,6 +203,9 @@ where
         else {
             return false;
         };
+        if !self.widget_allows_captured_pointer_pass_through(captured) {
+            return false;
+        }
         if pointer_widget == captured || !self.widget_accepts_stable_pointer_move(pointer_widget) {
             return false;
         }

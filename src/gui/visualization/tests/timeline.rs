@@ -14,3 +14,5 @@ mod mapper;
 mod metadata;
 #[path = "timeline/pitch.rs"]
 mod pitch;
+#[path = "timeline/value_marker.rs"]
+mod value_marker;

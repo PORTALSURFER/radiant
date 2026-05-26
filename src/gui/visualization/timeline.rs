@@ -11,6 +11,7 @@ mod pitch;
 mod presentation;
 mod surface;
 mod transport;
+mod value_marker;
 mod viewport;
 
 pub use axis::{TimelineAxis, TimelineAxisParts};
@@ -27,4 +28,5 @@ pub use pitch::{
 pub use presentation::{TimelinePresentationParts, TimelinePresentationState};
 pub use surface::{TimelineMotionState, TimelineSurfaceParts, TimelineSurfaceState};
 pub use transport::{TimelineTransportParts, TimelineTransportState};
+pub use value_marker::{TimelineValueMarkerLayout, TimelineValueMarkerLayoutParts};
 pub use viewport::{TimelineViewport, TimelineViewportParts};

@@ -634,6 +634,7 @@ vertical faders and meters, and
 horizontal and vertical insets,
 `TimelinePitchLayout` for reusable top-down pitch-row projection and hit testing,
 `TimelinePitchItemLayout` for reusable note-like item rectangles on pitch rows,
+`TimelineValueMarkerLayout` for reusable velocity and automation marker geometry,
 `HorizontalValueAxis` and `HorizontalValueAxisParts` for reusable linear
 value-to-x and x-to-value projection,
 `VerticalValueAxis` and `VerticalValueAxisParts` for reusable bottom-up

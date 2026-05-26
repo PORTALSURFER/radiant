@@ -1,9 +1,9 @@
-use radiant::gui::visualization::{VerticalValueMarker, vertical_value_marker};
+use radiant::gui::visualization::VerticalValueMarker;
 use radiant::prelude::*;
 use radiant::widgets::PointerModifiers;
 
 use super::super::{
-    NoteSelectionMode, PianoRollMessage, drag::PianoDrag, geometry::x_for_beat_view,
+    NoteSelectionMode, PianoRollMessage, drag::PianoDrag, geometry::timeline_value_marker_layout,
     model::PianoNote,
 };
 use super::PianoRollWidget;
@@ -161,14 +161,13 @@ impl PianoRollWidget {
             .as_ref()
             .and_then(|drag| drag.velocity_for_note(note.id))
             .unwrap_or(note.velocity);
-        let x0 = x_for_beat_view(lane, self.viewport, note.start_beat);
-        vertical_value_marker(
+        timeline_value_marker_layout(
             lane,
-            x0,
-            velocity,
+            self.viewport,
             VELOCITY_STEM_WIDTH,
             VELOCITY_HANDLE_SIZE,
         )
+        .marker_unclamped(note.start_beat, velocity)
     }
 
     pub(crate) fn velocity_marquee_rect(&self) -> Option<Rect> {

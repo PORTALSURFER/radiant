@@ -1,4 +1,6 @@
-use radiant::gui::visualization::{TimelineAxis, TimelinePitchItemLayout, TimelinePitchLayout};
+use radiant::gui::visualization::{
+    TimelineAxis, TimelinePitchItemLayout, TimelinePitchLayout, TimelineValueMarkerLayout,
+};
 use radiant::prelude::*;
 
 use super::{TOTAL_BEATS, model::PianoRollViewport};
@@ -72,4 +74,13 @@ pub(crate) fn pitch_item_layout(
     viewport: PianoRollViewport,
 ) -> TimelinePitchItemLayout {
     TimelinePitchItemLayout::new(beat_axis(grid, viewport), pitch_layout(grid, viewport))
+}
+
+pub(crate) fn timeline_value_marker_layout(
+    lane: Rect,
+    viewport: PianoRollViewport,
+    stem_width: f32,
+    handle_size: f32,
+) -> TimelineValueMarkerLayout {
+    TimelineValueMarkerLayout::new(beat_axis(lane, viewport), stem_width, handle_size)
 }

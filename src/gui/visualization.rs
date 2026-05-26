@@ -35,7 +35,8 @@ pub use timeline::{
     TimelineMotionState, TimelinePitchItemLayout, TimelinePitchItemLayoutParts,
     TimelinePitchLayout, TimelinePitchLayoutParts, TimelinePresentationParts,
     TimelinePresentationState, TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportParts,
-    TimelineTransportState, TimelineViewport, TimelineViewportParts,
+    TimelineTransportState, TimelineValueMarkerLayout, TimelineValueMarkerLayoutParts,
+    TimelineViewport, TimelineViewportParts,
 };
 pub use value_axis::{
     HorizontalLogValueAxis, HorizontalLogValueAxisParts, HorizontalValueAxis,

@@ -109,3 +109,23 @@ fn timeline_pitch_layout_uses_named_parts_for_note_editor_rows() {
         "timeline pitch item layout should own clamped and unclamped note-item projection"
     );
 }
+
+#[test]
+fn timeline_value_marker_layout_uses_named_parts_for_automation_geometry() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/visualization/timeline/value_marker.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+
+    assert!(
+        source.contains("pub struct TimelineValueMarkerLayoutParts")
+            && source
+                .contains("pub const fn from_parts(parts: TimelineValueMarkerLayoutParts) -> Self"),
+        "timeline value marker layout should expose named parts for readable automation geometry"
+    );
+    assert!(
+        source.contains("pub fn marker(self, timeline_value: f32, value: f32)")
+            && source.contains("pub fn marker_unclamped(self, timeline_value: f32, value: f32)"),
+        "timeline value marker layout should own clamped and unclamped value-marker projection"
+    );
+}

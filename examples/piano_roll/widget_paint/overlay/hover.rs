@@ -16,12 +16,14 @@ pub(crate) fn append_hover_guides(
         && grid.contains(position)
     {
         let x = widget.hover_cursor_x(grid, position);
-        push_rect(
-            primitives,
-            widget.common.id,
-            Rect::from_min_max(Point::new(x, grid.min.y), Point::new(x + 1.0, grid.max.y)),
-            theme.text_muted.with_alpha(90),
-        );
+        if let Some(line) = vertical_line_rect(grid, x, 1.0) {
+            push_rect(
+                primitives,
+                widget.common.id,
+                line,
+                theme.text_muted.with_alpha(90),
+            );
+        }
     }
     if let Some(note) = widget.hover_note.and_then(|id| widget.note_by_id(id)) {
         append_note_hover_effect(widget, primitives, grid, note, theme);
@@ -51,12 +53,9 @@ fn append_note_resize_cursor(
         NoteResizeEdge::Start => (x, x + tick),
         NoteResizeEdge::End => (x + width - tick, x + width),
     };
-    push_rect(
-        primitives,
-        widget.common.id,
-        Rect::from_min_max(Point::new(x, rect.min.y), Point::new(x + width, rect.max.y)),
-        color,
-    );
+    if let Some(line) = vertical_line_rect(rect, x, width) {
+        push_rect(primitives, widget.common.id, line, color);
+    }
     push_rect(
         primitives,
         widget.common.id,

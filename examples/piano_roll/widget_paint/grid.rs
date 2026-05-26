@@ -36,12 +36,9 @@ fn append_pitch_lines(
         } else {
             theme.grid_soft.with_alpha(105)
         };
-        push_rect(
-            primitives,
-            widget.common.id,
-            Rect::from_min_max(Point::new(grid.min.x, y), Point::new(grid.max.x, y + 1.0)),
-            color,
-        );
+        if let Some(line) = horizontal_line_rect(grid, y, 1.0) {
+            push_rect(primitives, widget.common.id, line, color);
+        }
     }
 }
 
@@ -68,12 +65,14 @@ fn append_beat_line(
     theme: &ThemeTokens,
 ) {
     let x = x_for_beat_view(grid, widget.viewport, beat as f32 / 4.0);
-    push_rect(
-        primitives,
-        widget.common.id,
-        Rect::from_min_max(Point::new(x, grid.min.y), Point::new(x + 1.0, grid.max.y)),
-        beat_line_color(beat, theme),
-    );
+    if let Some(line) = vertical_line_rect(grid, x, 1.0) {
+        push_rect(
+            primitives,
+            widget.common.id,
+            line,
+            beat_line_color(beat, theme),
+        );
+    }
     if beat.is_multiple_of(4) && beat < (TOTAL_BEATS as usize * 4) {
         push_text(
             primitives,

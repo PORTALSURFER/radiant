@@ -152,12 +152,14 @@ fn append_velocity_lane_grid(
 ) {
     for row in 1..4 {
         let y = lane.min.y + lane.height() * row as f32 / 4.0;
-        push_rect(
-            primitives,
-            widget.common.id,
-            Rect::from_min_max(Point::new(lane.min.x, y), Point::new(lane.max.x, y + 1.0)),
-            theme.grid_soft.with_alpha(70),
-        );
+        if let Some(line) = horizontal_line_rect(lane, y, 1.0) {
+            push_rect(
+                primitives,
+                widget.common.id,
+                line,
+                theme.grid_soft.with_alpha(70),
+            );
+        }
     }
     let first = (widget.viewport.beat_start * 4.0).floor().max(0.0) as usize;
     let last = (widget.viewport.beat_end() * 4.0)
@@ -168,12 +170,14 @@ fn append_velocity_lane_grid(
             continue;
         }
         let x = x_for_beat_view(grid, widget.viewport, beat as f32 / 4.0);
-        push_rect(
-            primitives,
-            widget.common.id,
-            Rect::from_min_max(Point::new(x, lane.min.y), Point::new(x + 1.0, lane.max.y)),
-            theme.grid_strong.with_alpha(95),
-        );
+        if let Some(line) = vertical_line_rect(lane, x, 1.0) {
+            push_rect(
+                primitives,
+                widget.common.id,
+                line,
+                theme.grid_strong.with_alpha(95),
+            );
+        }
     }
 }
 

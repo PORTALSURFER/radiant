@@ -47,21 +47,22 @@ pub(crate) fn append_time_selection(
     }
     if let Some(cursor_x) = widget.edit_cursor_x(grid) {
         let x = cursor_x.clamp(grid.min.x, grid.max.x);
-        push_rect(
-            primitives,
-            widget.common.id,
-            Rect::from_min_max(Point::new(x, grid.min.y), Point::new(x + 2.0, grid.max.y)),
-            theme.text_primary.with_alpha(210),
-        );
-        push_rect(
-            primitives,
-            widget.common.id,
-            Rect::from_min_max(
-                Point::new(x + 2.0, grid.min.y),
-                Point::new(x + 3.0, grid.max.y),
-            ),
-            theme.highlight_cyan.with_alpha(145),
-        );
+        if let Some(line) = vertical_line_rect(grid, x, 2.0) {
+            push_rect(
+                primitives,
+                widget.common.id,
+                line,
+                theme.text_primary.with_alpha(210),
+            );
+        }
+        if let Some(line) = vertical_line_rect(grid, x + 2.0, 1.0) {
+            push_rect(
+                primitives,
+                widget.common.id,
+                line,
+                theme.highlight_cyan.with_alpha(145),
+            );
+        }
     }
 }
 
@@ -85,11 +86,10 @@ fn append_source_mask_pitch_lines(
 ) {
     for row in 0..=widget.viewport.row_count() {
         let y = grid.min.y + row as f32 * row_height_for(grid, widget.viewport);
-        let line = Rect::from_min_max(
-            Point::new(source.min.x, y),
-            Point::new(source.max.x, y + 1.0),
-        );
-        if line.max.y < source.min.y || line.min.y > source.max.y {
+        let Some(line) = horizontal_line_rect(source, y, 1.0) else {
+            continue;
+        };
+        if !line.intersects(source) {
             continue;
         }
         let color = if row % 12 == 0 {
@@ -114,11 +114,10 @@ fn append_source_mask_beat_lines(
         .min(TOTAL_BEATS * 4.0) as usize;
     for beat in first..=last {
         let x = x_for_beat_view(grid, widget.viewport, beat as f32 / 4.0);
-        let line = Rect::from_min_max(
-            Point::new(x, source.min.y),
-            Point::new(x + 1.0, source.max.y),
-        );
-        if line.max.x < source.min.x || line.min.x > source.max.x {
+        let Some(line) = vertical_line_rect(source, x, 1.0) else {
+            continue;
+        };
+        if !line.intersects(source) {
             continue;
         }
         push_rect(

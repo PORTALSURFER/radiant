@@ -5,9 +5,7 @@ use super::super::{
     drag::PianoDrag,
     geometry::x_for_beat_view,
     model::PianoNote,
-    paint::{
-        push_rect, push_rect_batch, push_stroke, push_stroke_batch, push_text, rgba, translucent,
-    },
+    paint::{push_rect, push_rect_batch, push_stroke, push_stroke_batch, push_text},
     widget::PianoRollWidget,
 };
 
@@ -25,12 +23,17 @@ pub(crate) fn append_velocity_lane(
     lane: Rect,
     theme: &ThemeTokens,
 ) {
-    push_rect(primitives, widget.common.id, lane, rgba(10, 13, 18, 255));
+    push_rect(
+        primitives,
+        widget.common.id,
+        lane,
+        Rgba8::new(10, 13, 18, 255),
+    );
     push_stroke(
         primitives,
         widget.common.id,
         lane,
-        translucent(theme.border_emphasis, 150),
+        theme.border_emphasis.with_alpha(150),
         1.0,
     );
     append_velocity_lane_grid(widget, primitives, grid, lane, theme);
@@ -75,13 +78,13 @@ pub(crate) fn append_velocity_handle_hover(
         primitives,
         widget.common.id,
         handle,
-        translucent(theme.highlight_orange, 180),
+        theme.highlight_orange.with_alpha(180),
     );
     push_stroke(
         primitives,
         widget.common.id,
         handle,
-        translucent(theme.text_primary, 245),
+        theme.text_primary.with_alpha(245),
         2.0,
     );
 }
@@ -117,7 +120,7 @@ fn append_velocity_pillars(
         primitives,
         widget.common.id,
         selected_stems,
-        translucent(theme.highlight_blue, 230),
+        theme.highlight_blue.with_alpha(230),
     );
     push_rect_batch(
         primitives,
@@ -135,7 +138,7 @@ fn append_velocity_pillars(
         primitives,
         widget.common.id,
         selected_strokes,
-        translucent(theme.text_primary, 210),
+        theme.text_primary.with_alpha(210),
         1.0,
     );
 }
@@ -153,7 +156,7 @@ fn append_velocity_lane_grid(
             primitives,
             widget.common.id,
             Rect::from_min_max(Point::new(lane.min.x, y), Point::new(lane.max.x, y + 1.0)),
-            translucent(theme.grid_soft, 70),
+            theme.grid_soft.with_alpha(70),
         );
     }
     let first = (widget.viewport.beat_start * 4.0).floor().max(0.0) as usize;
@@ -169,7 +172,7 @@ fn append_velocity_lane_grid(
             primitives,
             widget.common.id,
             Rect::from_min_max(Point::new(x, lane.min.y), Point::new(x + 1.0, lane.max.y)),
-            translucent(theme.grid_strong, 95),
+            theme.grid_strong.with_alpha(95),
         );
     }
 }
@@ -188,9 +191,9 @@ fn append_velocity_pillar(
     }
     let selected = widget.note_is_selected(note.id);
     let fill = if selected {
-        translucent(theme.highlight_blue, 230)
+        theme.highlight_blue.with_alpha(230)
     } else {
-        translucent(theme.highlight_cyan, 175)
+        theme.highlight_cyan.with_alpha(175)
     };
     push_rect(primitives, widget.common.id, stem.clamp_to(lane), fill);
     push_rect(
@@ -206,7 +209,7 @@ fn velocity_handle_fill(selected: bool, theme: &ThemeTokens) -> Rgba8 {
     if selected {
         theme.highlight_orange
     } else {
-        translucent(theme.highlight_cyan, 175)
+        theme.highlight_cyan.with_alpha(175)
     }
 }
 
@@ -223,7 +226,9 @@ fn append_velocity_handle_stroke(
         primitives,
         widget.common.id,
         handle.clamp_to(lane),
-        translucent(theme.text_primary, if selected { 210 } else { 120 }),
+        theme
+            .text_primary
+            .with_alpha(if selected { 210 } else { 120 }),
         1.0,
     );
 }

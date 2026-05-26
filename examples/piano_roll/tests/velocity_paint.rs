@@ -73,7 +73,7 @@ fn piano_roll_velocity_handle_hover_paints_runtime_highlight() {
             primitive,
             PaintPrimitive::StrokeRect(stroke)
                 if stroke.rect == handle
-                    && stroke.color == paint::translucent(ThemeTokens::default().text_primary, 245)
+                    && stroke.color == ThemeTokens::default().text_primary.with_alpha(245)
                     && stroke.width == 2.0
         )
     }));

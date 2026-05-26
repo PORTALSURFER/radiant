@@ -39,7 +39,7 @@ fn piano_roll_drag_routes_move_message() {
     assert!(
         overlay
             .iter()
-            .any(|primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color == paint::translucent(ThemeTokens::default().highlight_blue, 120))),
+            .any(|primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color == ThemeTokens::default().highlight_blue.with_alpha(120))),
         "moving a held note should paint a local drag preview"
     );
     let release = widget.handle_input(
@@ -103,7 +103,7 @@ fn piano_roll_dragging_selected_note_moves_the_selected_group() {
     assert!(
         overlay
             .iter()
-            .filter(|primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color == paint::translucent(ThemeTokens::default().highlight_blue, 120)))
+            .filter(|primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color == ThemeTokens::default().highlight_blue.with_alpha(120)))
             .count()
             >= 2,
         "drag preview should show every selected note moving together"

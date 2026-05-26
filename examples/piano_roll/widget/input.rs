@@ -4,7 +4,7 @@ use super::super::{
     PianoRollMessage,
     drag::PianoDrag,
     geometry::x_for_beat_view,
-    paint::{push_rect, push_stroke, translucent},
+    paint::{push_rect, push_stroke},
     widget::PianoRollWidget,
     widget_paint::{
         append_drag_preview, append_editor_clip_end, append_editor_clip_start, append_grid,
@@ -168,7 +168,7 @@ impl Widget for PianoRollWidget {
                 Point::new(playhead_x, grid.min.y),
                 Point::new(playhead_x + 2.0, grid.max.y),
             ),
-            translucent(theme.highlight_orange, 210),
+            theme.highlight_orange.with_alpha(210),
         );
         append_keyboard_interaction(self, primitives, bounds, theme);
         append_editor_clip_start(self, primitives, grid);

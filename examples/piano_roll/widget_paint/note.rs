@@ -3,7 +3,7 @@ use radiant::prelude::*;
 
 use super::super::{
     model::PianoNote,
-    paint::{push_rect, push_rect_batch, push_stroke, push_stroke_batch, rgba, translucent},
+    paint::{push_rect, push_rect_batch, push_stroke, push_stroke_batch},
     widget::PianoRollWidget,
 };
 
@@ -71,7 +71,7 @@ pub(crate) fn append_notes(
         primitives,
         widget.common.id,
         selected_resize_handles,
-        translucent(theme.text_primary, 150),
+        theme.text_primary.with_alpha(150),
     );
 }
 
@@ -122,14 +122,14 @@ fn note_fill(note: PianoNote, selected: bool, theme: &ThemeTokens) -> Rgba8 {
 
 fn velocity_alpha(color: Rgba8, velocity: f32) -> Rgba8 {
     let alpha = (51.0 + velocity.clamp(0.0, 1.0) * 204.0).round() as u8;
-    rgba(color.r, color.g, color.b, alpha)
+    Rgba8::new(color.r, color.g, color.b, alpha)
 }
 
 fn note_stroke(selected: bool, theme: &ThemeTokens) -> Rgba8 {
     if selected {
         theme.highlight_orange
     } else {
-        translucent(theme.border_emphasis, 145)
+        theme.border_emphasis.with_alpha(145)
     }
 }
 
@@ -143,7 +143,7 @@ fn append_resize_handle(
         primitives,
         widget.common.id,
         resize_handle_rect(rect),
-        translucent(theme.text_primary, 150),
+        theme.text_primary.with_alpha(150),
     );
 }
 

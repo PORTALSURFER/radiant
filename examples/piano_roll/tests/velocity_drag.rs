@@ -64,7 +64,7 @@ fn piano_roll_velocity_drag_edits_selected_notes_together() {
             primitive,
             PaintPrimitive::FillRect(fill)
                 if fill.rect == edited_note_rect
-                    && fill.color == paint::translucent(ThemeTokens::default().highlight_cyan, 72)
+                    && fill.color == ThemeTokens::default().highlight_cyan.with_alpha(72)
         )),
         "velocity drag should not paint a note-hover overlay that disappears on release"
     );
@@ -73,7 +73,7 @@ fn piano_roll_velocity_drag_edits_selected_notes_together() {
             matches!(
                 primitive,
                 PaintPrimitive::FillRect(fill)
-                    if fill.color == paint::translucent(ThemeTokens::default().highlight_orange, 240)
+                    if fill.color == ThemeTokens::default().highlight_orange.with_alpha(240)
             )
         }),
         "velocity drag should paint the edited bars locally before release"

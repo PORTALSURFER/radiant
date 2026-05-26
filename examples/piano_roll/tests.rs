@@ -4,7 +4,7 @@ use super::{
     drag::PianoDrag,
     geometry::{row_height_for, x_for_beat_view, y_for_pitch_view},
     model::{PianoNote, STRESS_NOTE_COUNT},
-    paint, project_surface, update,
+    project_surface, update,
     widget::{NoteResizeEdge, PianoRollWidget, PianoRollWidgetParts},
 };
 use radiant::prelude::*;

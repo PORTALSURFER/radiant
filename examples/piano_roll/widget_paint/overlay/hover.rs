@@ -2,7 +2,7 @@ use radiant::prelude::*;
 
 use super::super::super::{
     model::PianoNote,
-    paint::{push_rect, push_stroke, translucent},
+    paint::{push_rect, push_stroke},
     widget::{NoteResizeEdge, PianoRollWidget},
 };
 
@@ -20,7 +20,7 @@ pub(crate) fn append_hover_guides(
             primitives,
             widget.common.id,
             Rect::from_min_max(Point::new(x, grid.min.y), Point::new(x + 1.0, grid.max.y)),
-            translucent(theme.text_muted, 90),
+            theme.text_muted.with_alpha(90),
         );
     }
     if let Some(note) = widget.hover_note.and_then(|id| widget.note_by_id(id)) {
@@ -90,19 +90,19 @@ pub(super) fn append_note_hover_effect(
         primitives,
         widget.common.id,
         note_rect.clamp_to(grid),
-        translucent(theme.highlight_orange, 90),
+        theme.highlight_orange.with_alpha(90),
     );
     push_rect(
         primitives,
         widget.common.id,
         note_rect,
-        translucent(theme.highlight_cyan, 72),
+        theme.highlight_cyan.with_alpha(72),
     );
     push_rect(
         primitives,
         widget.common.id,
         tail_rect,
-        translucent(theme.highlight_cyan, 145),
+        theme.highlight_cyan.with_alpha(145),
     );
     push_stroke(
         primitives,

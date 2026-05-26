@@ -2,7 +2,7 @@ use radiant::prelude::*;
 
 use super::super::super::{
     geometry::{is_black_key, pitch_label, row_height_for},
-    paint::{push_rect, push_stroke, push_text, rgba, translucent},
+    paint::{push_rect, push_stroke, push_text},
     widget::PianoRollWidget,
 };
 use super::{LABEL_BASELINE, LABEL_LEFT_INSET, LABEL_VERTICAL_PADDING, MIN_LABEL_WIDTH};
@@ -37,16 +37,16 @@ fn append_octave_label_chunk(
         return;
     }
     let fill = if c_pitch.div_euclid(12) % 2 == 0 {
-        rgba(24, 27, 32, 255)
+        Rgba8::new(24, 27, 32, 255)
     } else {
-        rgba(20, 23, 28, 255)
+        Rgba8::new(20, 23, 28, 255)
     };
     push_rect(primitives, widget.common.id, chunk, fill);
     push_stroke(
         primitives,
         widget.common.id,
         chunk,
-        translucent(theme.border, 170),
+        theme.border.with_alpha(170),
         1.0,
     );
     if octave_label_fits(chunk) {
@@ -83,9 +83,9 @@ fn append_compact_key_stripes(
             continue;
         }
         let color = if is_black_key(pitch) {
-            rgba(38, 42, 50, 255)
+            Rgba8::new(38, 42, 50, 255)
         } else {
-            translucent(theme.text_primary, 160)
+            theme.text_primary.with_alpha(160)
         };
         push_rect(primitives, widget.common.id, rect, color);
     }
@@ -93,7 +93,7 @@ fn append_compact_key_stripes(
         primitives,
         widget.common.id,
         key_strip,
-        translucent(theme.border_emphasis, 150),
+        theme.border_emphasis.with_alpha(150),
         1.0,
     );
 }

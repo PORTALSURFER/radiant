@@ -2,7 +2,7 @@ use radiant::prelude::*;
 
 use super::super::super::{
     drag::PianoDrag,
-    paint::{push_rect, push_rect_batch, push_stroke, push_stroke_batch, translucent},
+    paint::{push_rect, push_rect_batch, push_stroke, push_stroke_batch},
     widget::PianoRollWidget,
 };
 use super::BATCHED_VELOCITY_FILL_THRESHOLD;
@@ -27,19 +27,19 @@ pub(in crate::piano_roll::widget_paint) fn append_velocity_drag_preview(
                     primitives,
                     widget.common.id,
                     stem,
-                    translucent(theme.highlight_orange, 240),
+                    theme.highlight_orange.with_alpha(240),
                 );
                 push_rect(
                     primitives,
                     widget.common.id,
                     handle,
-                    translucent(theme.highlight_orange, 255),
+                    theme.highlight_orange.with_alpha(255),
                 );
                 push_stroke(
                     primitives,
                     widget.common.id,
                     handle,
-                    translucent(theme.text_primary, 230),
+                    theme.text_primary.with_alpha(230),
                     1.0,
                 );
             }
@@ -63,13 +63,13 @@ pub(in crate::piano_roll::widget_paint) fn append_velocity_drag_preview(
         primitives,
         widget.common.id,
         fills,
-        translucent(theme.highlight_orange, 245),
+        theme.highlight_orange.with_alpha(245),
     );
     push_stroke_batch(
         primitives,
         widget.common.id,
         handles,
-        translucent(theme.text_primary, 230),
+        theme.text_primary.with_alpha(230),
         1.0,
     );
     true

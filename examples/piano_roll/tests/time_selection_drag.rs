@@ -35,7 +35,7 @@ fn piano_roll_single_drag_selects_time_range_with_overlay() {
         overlay.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::FillRect(fill)
-                if fill.color == paint::translucent(ThemeTokens::default().highlight_blue, 42)
+                if fill.color == ThemeTokens::default().highlight_blue.with_alpha(42)
         )),
         "time-selection drag should paint a translucent beat-range overlay"
     );
@@ -78,7 +78,7 @@ fn piano_roll_single_drag_selects_time_range_with_overlay() {
         persistent_overlay.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::FillRect(fill)
-                if fill.color == paint::translucent(ThemeTokens::default().highlight_blue, 42)
+                if fill.color == ThemeTokens::default().highlight_blue.with_alpha(42)
         )),
         "committed time selection should remain visible after release"
     );

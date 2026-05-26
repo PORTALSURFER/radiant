@@ -2,7 +2,7 @@ use radiant::prelude::*;
 
 use super::super::super::{
     model::PianoNote,
-    paint::{push_rect, push_stroke, translucent},
+    paint::{push_rect, push_stroke},
     widget::PianoRollWidget,
 };
 use super::{
@@ -54,13 +54,13 @@ fn append_velocity_marquee_preview(
                 primitives,
                 widget.common.id,
                 handle,
-                translucent(theme.highlight_orange, 230),
+                theme.highlight_orange.with_alpha(230),
             );
             push_stroke(
                 primitives,
                 widget.common.id,
                 handle,
-                translucent(theme.text_primary, 230),
+                theme.text_primary.with_alpha(230),
                 1.0,
             );
         }
@@ -69,13 +69,13 @@ fn append_velocity_marquee_preview(
         primitives,
         widget.common.id,
         rect,
-        translucent(theme.highlight_blue, 34),
+        theme.highlight_blue.with_alpha(34),
     );
     push_stroke(
         primitives,
         widget.common.id,
         rect,
-        translucent(theme.highlight_cyan, 220),
+        theme.highlight_cyan.with_alpha(220),
         2.0,
     );
 }
@@ -96,13 +96,13 @@ fn append_marquee_preview(
         primitives,
         widget.common.id,
         rect,
-        translucent(theme.highlight_blue, 34),
+        theme.highlight_blue.with_alpha(34),
     );
     push_stroke(
         primitives,
         widget.common.id,
         rect,
-        translucent(theme.highlight_cyan, 220),
+        theme.highlight_cyan.with_alpha(220),
         2.0,
     );
 }
@@ -120,13 +120,13 @@ fn append_note_drag_preview(
             primitives,
             widget.common.id,
             rect,
-            translucent(theme.highlight_blue, 120),
+            theme.highlight_blue.with_alpha(120),
         );
         push_stroke(
             primitives,
             widget.common.id,
             rect,
-            translucent(theme.text_primary, 230),
+            theme.text_primary.with_alpha(230),
             2.0,
         );
         push_rect(
@@ -163,7 +163,7 @@ fn append_time_slice_drag_preview(
             primitives,
             widget.common.id,
             widget.note_rect(grid, *note),
-            translucent(theme.text_primary, 220),
+            theme.text_primary.with_alpha(220),
             2.0,
         );
     }

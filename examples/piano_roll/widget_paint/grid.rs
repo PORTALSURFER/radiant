@@ -3,7 +3,7 @@ use radiant::prelude::*;
 use super::super::{
     TOTAL_BEATS,
     geometry::{row_height_for, x_for_beat_view},
-    paint::{push_rect, push_text, rgba, translucent},
+    paint::{push_rect, push_text},
     widget::PianoRollWidget,
 };
 
@@ -13,7 +13,12 @@ pub(crate) fn append_grid(
     grid: Rect,
     theme: &ThemeTokens,
 ) {
-    push_rect(primitives, widget.common.id, grid, rgba(8, 12, 18, 255));
+    push_rect(
+        primitives,
+        widget.common.id,
+        grid,
+        Rgba8::new(8, 12, 18, 255),
+    );
     append_pitch_lines(widget, primitives, grid, theme);
     append_beat_lines(widget, primitives, grid, theme);
 }
@@ -27,9 +32,9 @@ fn append_pitch_lines(
     for row in 0..=widget.viewport.row_count() {
         let y = grid.min.y + row as f32 * row_height_for(grid, widget.viewport);
         let color = if row % 12 == 0 {
-            translucent(theme.grid_strong, 170)
+            theme.grid_strong.with_alpha(170)
         } else {
-            translucent(theme.grid_soft, 105)
+            theme.grid_soft.with_alpha(105)
         };
         push_rect(
             primitives,
@@ -86,10 +91,10 @@ fn append_beat_line(
 
 fn beat_line_color(beat: usize, theme: &ThemeTokens) -> Rgba8 {
     if beat.is_multiple_of(16) {
-        translucent(theme.grid_strong, 190)
+        theme.grid_strong.with_alpha(190)
     } else if beat.is_multiple_of(4) {
-        translucent(theme.grid_strong, 125)
+        theme.grid_strong.with_alpha(125)
     } else {
-        translucent(theme.grid_soft, 80)
+        theme.grid_soft.with_alpha(80)
     }
 }

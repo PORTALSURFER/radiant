@@ -3,7 +3,7 @@ use radiant::prelude::*;
 use super::super::super::{
     TOTAL_BEATS,
     geometry::{row_height_for, x_for_beat_view},
-    paint::{push_rect, push_stroke, rgba, translucent},
+    paint::{push_rect, push_stroke},
     widget::PianoRollWidget,
 };
 
@@ -19,7 +19,12 @@ pub(crate) fn append_time_selection(
             .map(|rect| rect.clamp_to(grid))
         && source.width() >= 1.0
     {
-        push_rect(primitives, widget.common.id, source, rgba(8, 12, 18, 255));
+        push_rect(
+            primitives,
+            widget.common.id,
+            source,
+            Rgba8::new(8, 12, 18, 255),
+        );
         append_source_mask_grid(widget, primitives, grid, source, theme);
     }
     if let Some(selection) = widget.active_time_selection_rect(grid) {
@@ -29,13 +34,13 @@ pub(crate) fn append_time_selection(
                 primitives,
                 widget.common.id,
                 rect,
-                translucent(theme.highlight_blue, 42),
+                theme.highlight_blue.with_alpha(42),
             );
             push_stroke(
                 primitives,
                 widget.common.id,
                 rect,
-                translucent(theme.highlight_cyan, 215),
+                theme.highlight_cyan.with_alpha(215),
                 1.5,
             );
         }
@@ -46,7 +51,7 @@ pub(crate) fn append_time_selection(
             primitives,
             widget.common.id,
             Rect::from_min_max(Point::new(x, grid.min.y), Point::new(x + 2.0, grid.max.y)),
-            translucent(theme.text_primary, 210),
+            theme.text_primary.with_alpha(210),
         );
         push_rect(
             primitives,
@@ -55,7 +60,7 @@ pub(crate) fn append_time_selection(
                 Point::new(x + 2.0, grid.min.y),
                 Point::new(x + 3.0, grid.max.y),
             ),
-            translucent(theme.highlight_cyan, 145),
+            theme.highlight_cyan.with_alpha(145),
         );
     }
 }
@@ -88,9 +93,9 @@ fn append_source_mask_pitch_lines(
             continue;
         }
         let color = if row % 12 == 0 {
-            translucent(theme.grid_strong, 170)
+            theme.grid_strong.with_alpha(170)
         } else {
-            translucent(theme.grid_soft, 105)
+            theme.grid_soft.with_alpha(105)
         };
         push_rect(primitives, widget.common.id, line.clamp_to(source), color);
     }
@@ -127,10 +132,10 @@ fn append_source_mask_beat_lines(
 
 fn source_mask_beat_line_color(beat: usize, theme: &ThemeTokens) -> Rgba8 {
     if beat.is_multiple_of(16) {
-        translucent(theme.grid_strong, 190)
+        theme.grid_strong.with_alpha(190)
     } else if beat.is_multiple_of(4) {
-        translucent(theme.grid_strong, 125)
+        theme.grid_strong.with_alpha(125)
     } else {
-        translucent(theme.grid_soft, 80)
+        theme.grid_soft.with_alpha(80)
     }
 }

@@ -37,7 +37,7 @@ fn piano_roll_keyboard_press_lights_pitch_lane_and_selects_pitch() {
             matches!(
                 primitive,
                 PaintPrimitive::FillRect(fill)
-                    if fill.color == paint::translucent(ThemeTokens::default().highlight_orange, 72)
+                    if fill.color == ThemeTokens::default().highlight_orange.with_alpha(72)
                         && fill.rect.min.y == lane.min.y
                         && fill.rect.max.y == lane.max.y
             )
@@ -71,7 +71,7 @@ fn piano_roll_keyboard_press_lights_pitch_lane_and_selects_pitch() {
             matches!(
                 primitive,
                 PaintPrimitive::FillRect(fill)
-                    if fill.color == paint::translucent(ThemeTokens::default().highlight_blue, 30)
+                    if fill.color == ThemeTokens::default().highlight_blue.with_alpha(30)
                         && fill.rect.min.y == lane.min.y
                         && fill.rect.max.y == lane.max.y
             )
@@ -112,7 +112,7 @@ fn piano_roll_grid_hover_lights_matching_left_keyboard_note_row() {
             matches!(
                 primitive,
                 PaintPrimitive::FillRect(fill)
-                    if fill.color == paint::translucent(ThemeTokens::default().highlight_orange, 85)
+                    if fill.color == ThemeTokens::default().highlight_orange.with_alpha(85)
                         && fill.rect.min.y == row.min.y
                         && fill.rect.max.y == row.max.y
             )

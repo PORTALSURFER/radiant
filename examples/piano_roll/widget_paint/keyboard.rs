@@ -2,7 +2,7 @@ use radiant::prelude::*;
 
 use super::super::{
     geometry::{is_black_key, pitch_label, row_height_for},
-    paint::{push_rect, push_stroke, push_text, rgba, translucent},
+    paint::{push_rect, push_stroke, push_text},
     widget::PianoRollWidget,
 };
 
@@ -27,7 +27,7 @@ pub(crate) fn append_keyboard(
         primitives,
         widget.common.id,
         keyboard,
-        rgba(17, 19, 23, 255),
+        Rgba8::new(17, 19, 23, 255),
     );
     if keyboard_paint_mode(keyboard, widget) == KeyboardPaintMode::Octaves {
         append_octave_keyboard(widget, primitives, keyboard, theme);
@@ -54,21 +54,21 @@ pub(crate) fn append_selected_pitch_lane(
         primitives,
         keyboard,
         pitch,
-        translucent(theme.highlight_blue, 110),
-        translucent(theme.highlight_cyan, 220),
+        theme.highlight_blue.with_alpha(110),
+        theme.highlight_cyan.with_alpha(220),
     );
     let row = widget.keyboard_pitch_rect(grid, pitch).clamp_to(grid);
     push_rect(
         primitives,
         widget.common.id,
         row,
-        translucent(theme.highlight_blue, 30),
+        theme.highlight_blue.with_alpha(30),
     );
     push_stroke(
         primitives,
         widget.common.id,
         row,
-        translucent(theme.highlight_cyan, 115),
+        theme.highlight_cyan.with_alpha(115),
         1.0,
     );
 }
@@ -86,11 +86,10 @@ pub(crate) fn append_keyboard_interaction(
             primitives,
             keyboard,
             pitch,
-            translucent(
-                theme.highlight_orange,
-                if is_black_key(pitch) { 120 } else { 85 },
-            ),
-            translucent(theme.highlight_orange, 230),
+            theme
+                .highlight_orange
+                .with_alpha(if is_black_key(pitch) { 120 } else { 85 }),
+            theme.highlight_orange.with_alpha(230),
         );
     }
     if let Some(pitch) = widget.active_pitch {
@@ -99,8 +98,8 @@ pub(crate) fn append_keyboard_interaction(
             primitives,
             keyboard,
             pitch,
-            translucent(theme.highlight_orange, 180),
-            translucent(theme.text_primary, 235),
+            theme.highlight_orange.with_alpha(180),
+            theme.text_primary.with_alpha(235),
         );
         let grid = widget.editor_rect(bounds);
         let row = widget.keyboard_pitch_rect(grid, pitch).clamp_to(grid);
@@ -108,13 +107,13 @@ pub(crate) fn append_keyboard_interaction(
             primitives,
             widget.common.id,
             row,
-            translucent(theme.highlight_orange, 72),
+            theme.highlight_orange.with_alpha(72),
         );
         push_stroke(
             primitives,
             widget.common.id,
             row,
-            translucent(theme.highlight_orange, 210),
+            theme.highlight_orange.with_alpha(210),
             1.0,
         );
     }
@@ -162,7 +161,7 @@ fn append_key_row(
     );
     let black_key = is_black_key(pitch);
     let fill = if black_key {
-        rgba(30, 34, 41, 255)
+        Rgba8::new(30, 34, 41, 255)
     } else {
         theme.surface_raised
     };

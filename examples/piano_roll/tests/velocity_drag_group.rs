@@ -39,7 +39,7 @@ fn piano_roll_velocity_lane_marquee_selects_handles_for_group_velocity_drag() {
         overlay.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::StrokeRect(stroke)
-                if stroke.color == paint::translucent(ThemeTokens::default().highlight_cyan, 220)
+                if stroke.color == ThemeTokens::default().highlight_cyan.with_alpha(220)
                     && stroke.width == 2.0
         )),
         "velocity marquee should paint a lane-local selection rectangle"

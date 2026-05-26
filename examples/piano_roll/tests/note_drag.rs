@@ -38,7 +38,7 @@ fn piano_roll_drag_paints_new_note_length_before_commit() {
     assert!(
         overlay
             .iter()
-            .any(|primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color == paint::translucent(ThemeTokens::default().highlight_blue, 120))),
+            .any(|primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color == ThemeTokens::default().highlight_blue.with_alpha(120))),
         "new-note paint drag should show a local note preview"
     );
 
@@ -125,14 +125,14 @@ fn piano_roll_snap_on_hover_cursor_uses_nearest_snap_point() {
         primitive,
         PaintPrimitive::FillRect(fill)
             if (fill.rect.min.x - snapped_x).abs() < 0.01
-                && fill.color == paint::translucent(ThemeTokens::default().text_muted, 90)
+                && fill.color == ThemeTokens::default().text_muted.with_alpha(90)
     )));
     assert!(
         !overlay.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::FillRect(fill)
                 if (fill.rect.min.x - hover.x).abs() < 0.01
-                    && fill.color == paint::translucent(ThemeTokens::default().text_muted, 90)
+                    && fill.color == ThemeTokens::default().text_muted.with_alpha(90)
         )),
         "snap-on hover line should not paint at the raw pointer x"
     );

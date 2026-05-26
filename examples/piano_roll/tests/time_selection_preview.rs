@@ -133,7 +133,7 @@ fn piano_roll_time_selection_move_preview_keeps_grid_and_command_restores_source
         move_overlay.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::FillRect(fill)
-                if fill.color == paint::rgba(8, 12, 18, 255)
+                if fill.color == Rgba8::new(8, 12, 18, 255)
                     && fill.rect.width() < grid.width()
         )),
         "move preview should mask source notes"
@@ -142,7 +142,7 @@ fn piano_roll_time_selection_move_preview_keeps_grid_and_command_restores_source
         !move_overlay.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::FillRect(fill)
-                if fill.color == paint::rgba(8, 12, 18, 255) && fill.rect == grid
+                if fill.color == Rgba8::new(8, 12, 18, 255) && fill.rect == grid
         )),
         "move preview must not repaint the full grid background over the base note layer"
     );
@@ -150,7 +150,7 @@ fn piano_roll_time_selection_move_preview_keeps_grid_and_command_restores_source
         move_overlay.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::FillRect(fill)
-                if fill.color == paint::translucent(ThemeTokens::default().grid_soft, 80)
+                if fill.color == ThemeTokens::default().grid_soft.with_alpha(80)
         )),
         "source mask should redraw grid lines instead of leaving a black block"
     );
@@ -181,7 +181,7 @@ fn piano_roll_time_selection_move_preview_keeps_grid_and_command_restores_source
     assert!(
         !copy_overlay.iter().any(|primitive| matches!(
             primitive,
-            PaintPrimitive::FillRect(fill) if fill.color == paint::rgba(8, 12, 18, 255)
+            PaintPrimitive::FillRect(fill) if fill.color == Rgba8::new(8, 12, 18, 255)
         )),
         "copy preview should leave the source notes and grid untouched"
     );

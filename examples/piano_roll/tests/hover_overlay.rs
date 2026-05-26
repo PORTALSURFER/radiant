@@ -193,7 +193,7 @@ fn piano_roll_hover_lights_left_keyboard_note_row() {
             matches!(
                 primitive,
                 PaintPrimitive::FillRect(fill)
-                    if fill.color == paint::translucent(ThemeTokens::default().highlight_orange, 85)
+                    if fill.color == ThemeTokens::default().highlight_orange.with_alpha(85)
                         && fill.rect.min.x == keyboard.min.x
                         && fill.rect.max.x == keyboard.max.x
                         && fill.rect.min.y == row.min.y

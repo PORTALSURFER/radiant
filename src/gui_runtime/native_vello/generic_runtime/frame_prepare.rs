@@ -11,7 +11,7 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     pub(super) fn refresh_deferred_surface_if_needed(&mut self, profile: &mut RenderFrameProfile) {
-        if !self.timing.deferred_surface_refresh {
+        if !self.timing.deferred_surface_refresh || self.timing.deferred_scene_rebuild {
             return;
         }
 
@@ -32,6 +32,20 @@ where
         self.timing
             .startup_timing
             .mark_deferred_model_refresh_done();
+    }
+
+    pub(super) fn rebuild_deferred_scene_if_needed(&mut self, profile: &mut RenderFrameProfile) {
+        if !self.timing.deferred_scene_rebuild {
+            return;
+        }
+
+        let started = Instant::now();
+        if self.timing.deferred_surface_refresh {
+            self.core.refresh_surface();
+            self.timing.deferred_surface_refresh = false;
+        }
+        self.rebuild_scene_for_interactive_route_now();
+        profile.deferred_scene_rebuild = started.elapsed();
     }
 
     pub(super) fn paint_transient_overlays(&mut self, profile: &mut RenderFrameProfile) {

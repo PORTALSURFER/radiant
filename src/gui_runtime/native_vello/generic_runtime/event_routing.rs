@@ -25,6 +25,8 @@ where
                 || pending.surface_repaint_requested,
             paint_only_requested: pending.paint_only_requested,
             deferred_surface_refresh_requested: false,
+            interactive_surface_refresh_requested: false,
+            interactive_scene_rebuild_requested: false,
             exit_requested: self.runtime.take_exit_requested() || pending.exit_requested,
             runtime_work_remaining: pending.runtime_work_remaining,
             dpi_scale_override: pending.dpi_scale_override,
@@ -45,12 +47,14 @@ where
         if pending.surface_refresh_requested && outcome.hover_changed && !captured_pointer_refresh {
             self.runtime.refresh();
         }
-        let defer_surface_refresh = pending.surface_refresh_requested
-            && (!outcome.hover_changed || captured_pointer_refresh);
         GenericRouteOutcome {
             routed: outcome.routed(),
-            redraw_requested: outcome.hover_changed && !captured_pointer_refresh,
-            deferred_surface_refresh_requested: defer_surface_refresh,
+            redraw_requested: outcome.hover_changed || captured_pointer_refresh,
+            deferred_surface_refresh_requested: pending.surface_refresh_requested
+                && !outcome.hover_changed
+                && !captured_pointer_refresh,
+            interactive_surface_refresh_requested: captured_pointer_refresh,
+            interactive_scene_rebuild_requested: captured_pointer_refresh,
             repaint_requested: outcome.repaint_requested || pending.surface_repaint_requested,
             paint_only_requested: outcome.paint_only_requested || pending.paint_only_requested,
             exit_requested: outcome.exit_requested || pending.exit_requested,

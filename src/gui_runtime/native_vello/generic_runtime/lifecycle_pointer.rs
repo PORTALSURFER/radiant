@@ -32,7 +32,9 @@ where
         }
         let started = Instant::now();
         let outcome = self.core.route_pointer_move(position);
-        self.update_native_cursor_at_last_position();
+        if self.core.runtime.pointer_capture().is_none() {
+            self.update_native_cursor_at_last_position();
+        }
         maybe_log_route_profile("pointer_move", started.elapsed(), outcome);
         self.handle_gpu_surface_pointer_move_outcome(outcome, previous, position);
     }

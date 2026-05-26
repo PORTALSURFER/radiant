@@ -26,6 +26,15 @@ where
         if self.drag_scrollbar_to(position) {
             return PointerMoveDispatch::default();
         }
+        if let Some(captured) = self.non_passthrough_pointer_capture() {
+            return self.route_pointer_move_to_target(
+                position,
+                captured,
+                PointerHoverTransition::default(),
+                false,
+                refresh_after_message,
+            );
+        }
         self.update_hovered_scroll_affordance(position);
 
         let pointer_widget = self.pointer_widget_for_move(position);
@@ -93,6 +102,13 @@ where
             target: routed.map(|_| target),
             emitted_output,
         }
+    }
+
+    fn non_passthrough_pointer_capture(&self) -> Option<WidgetId> {
+        self.interaction
+            .pointer
+            .capture
+            .filter(|widget_id| !self.widget_allows_captured_pointer_pass_through(*widget_id))
     }
 
     fn update_drag_preview_position(&mut self, position: Point) {

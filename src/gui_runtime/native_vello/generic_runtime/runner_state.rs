@@ -4,12 +4,16 @@ use super::PendingGpuSurfaceWheel;
 use crate::gui::types::Point;
 use crate::gui_runtime::native_vello::startup::StartupTimingProfile;
 use crate::widgets::WidgetCursor;
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use vello::{
     Renderer,
     util::{RenderContext, RenderSurface},
 };
 use winit::{
+    dpi::PhysicalSize,
     keyboard::ModifiersState,
     window::{Window, WindowId},
 };
@@ -56,18 +60,27 @@ pub(super) struct NativeRunnerTimingState {
     pub(super) last_redraw: Instant,
     pub(super) last_timed_frame_drain: Instant,
     pub(super) deferred_surface_refresh: bool,
+    pub(super) deferred_scene_rebuild: bool,
+    pub(super) last_interactive_scene_rebuild: Instant,
+    pub(super) pending_surface_resize: Option<PhysicalSize<u32>>,
+    pub(super) last_live_surface_resize: Instant,
 }
 
 impl Default for NativeRunnerTimingState {
     fn default() -> Self {
+        let now = Instant::now();
         Self {
             redraw_requested: false,
             startup_timing: StartupTimingProfile::new(),
             first_frame_presented: false,
-            animation_origin: Instant::now(),
-            last_redraw: Instant::now(),
-            last_timed_frame_drain: Instant::now(),
+            animation_origin: now,
+            last_redraw: now,
+            last_timed_frame_drain: now,
             deferred_surface_refresh: false,
+            deferred_scene_rebuild: false,
+            last_interactive_scene_rebuild: now - Duration::from_secs(1),
+            pending_surface_resize: None,
+            last_live_surface_resize: now - Duration::from_secs(1),
         }
     }
 }

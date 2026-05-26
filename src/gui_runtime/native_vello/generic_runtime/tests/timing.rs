@@ -1,4 +1,6 @@
 use super::*;
+use crate::runtime::RuntimeAnimationActivity;
+use winit::dpi::PhysicalSize;
 
 #[test]
 fn generic_core_is_repaint_driven_when_host_reports_no_animation() {
@@ -120,6 +122,153 @@ fn pointer_routes_do_not_overrun_timed_frame_cadence() {
         !outcome.repaint_requested,
         "pointer routes should not queue extra frame messages before the cadence is due"
     );
+}
+
+#[test]
+fn pointer_routes_skip_animation_poll_before_native_frame_cadence_is_due() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        CountingAnimationActivityBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let interval = frame_cadence::animation_frame_interval(runner.options.normalized_target_fps());
+    let mut outcome = GenericRouteOutcome {
+        routed: true,
+        redraw_requested: true,
+        ..GenericRouteOutcome::default()
+    };
+
+    runner.timing.last_timed_frame_drain = Instant::now();
+    runner.merge_due_timed_frame_for_route(&mut outcome);
+    assert_eq!(runner.core.runtime.bridge().animation_activity_polls, 0);
+
+    runner.timing.last_timed_frame_drain = Instant::now() - interval;
+    runner.merge_due_timed_frame_for_route(&mut outcome);
+    assert_eq!(runner.core.runtime.bridge().animation_activity_polls, 1);
+}
+
+#[test]
+fn interactive_scene_rebuilds_are_capped_to_frame_cadence() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let now = Instant::now();
+    let interval = frame_cadence::animation_frame_interval(runner.options.normalized_target_fps());
+
+    runner.timing.last_interactive_scene_rebuild = now;
+    assert!(!runner.should_rebuild_interactive_scene_now(now));
+
+    runner.timing.last_interactive_scene_rebuild = now - interval;
+    assert!(runner.should_rebuild_interactive_scene_now(now));
+}
+
+#[test]
+fn surface_resizes_are_capped_to_frame_cadence() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let now = Instant::now();
+    let interval = frame_cadence::animation_frame_interval(runner.options.normalized_target_fps());
+
+    runner.timing.last_live_surface_resize = now;
+    assert!(!runner.should_resize_surface_now(now));
+
+    runner.timing.last_live_surface_resize = now - interval;
+    assert!(runner.should_resize_surface_now(now));
+}
+
+#[test]
+fn deferred_surface_resize_keeps_latest_nonzero_size() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+
+    runner.defer_surface_resize(PhysicalSize::new(400, 240));
+    runner.defer_surface_resize(PhysicalSize::new(0, 480));
+    runner.defer_surface_resize(PhysicalSize::new(640, 360));
+
+    assert_eq!(
+        runner.timing.pending_surface_resize,
+        Some(PhysicalSize::new(640, 360))
+    );
+}
+
+#[test]
+fn deferred_interactive_scene_rebuild_is_flushed_before_paint() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+
+    runner.defer_interactive_scene_rebuild();
+    runner.rebuild_deferred_scene_if_needed(&mut RenderFrameProfile::default());
+
+    assert!(!runner.timing.deferred_scene_rebuild);
+    assert!(runner.frame.scene_texture_dirty);
+}
+
+#[test]
+fn deferred_interactive_scene_rebuild_refreshes_surface_once_before_paint() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        CountingProjectBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    let project_count = runner.core.runtime.bridge().project_count;
+
+    runner.defer_interactive_scene_rebuild();
+    runner.rebuild_deferred_scene_if_needed(&mut RenderFrameProfile::default());
+
+    assert!(!runner.timing.deferred_scene_rebuild);
+    assert!(!runner.timing.deferred_surface_refresh);
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        project_count + 1,
+        "deferred interactive rebuild should refresh and encode in one frame-boundary pass"
+    );
+}
+
+#[derive(Default)]
+struct CountingProjectBridge {
+    project_count: usize,
+}
+
+impl RuntimeBridge<DemoMessage> for CountingProjectBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        self.project_count += 1;
+        demo_surface(&DemoState::default())
+    }
+
+    fn update(&mut self, _message: DemoMessage) -> Command<DemoMessage> {
+        Command::none()
+    }
+}
+
+#[derive(Default)]
+struct CountingAnimationActivityBridge {
+    animation_activity_polls: usize,
+}
+
+impl RuntimeBridge<DemoMessage> for CountingAnimationActivityBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        demo_surface(&DemoState::default())
+    }
+
+    fn animation_activity(&mut self) -> RuntimeAnimationActivity {
+        self.animation_activity_polls += 1;
+        RuntimeAnimationActivity::idle()
+    }
+
+    fn update(&mut self, _message: DemoMessage) -> Command<DemoMessage> {
+        Command::none()
+    }
 }
 
 #[derive(Default)]

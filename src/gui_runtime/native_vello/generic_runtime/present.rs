@@ -23,6 +23,7 @@ where
         if !self.timing.first_frame_presented {
             self.timing.startup_timing.mark_first_redraw_started();
         }
+        self.apply_pending_surface_resize_if_needed();
         let Some(window) = self.window.window.clone() else {
             return;
         };
@@ -41,6 +42,7 @@ where
         let mut profile = RenderFrameProfile::default();
         self.flush_pending_gpu_surface_wheel(&mut profile);
         self.refresh_deferred_surface_if_needed(&mut profile);
+        self.rebuild_deferred_scene_if_needed(&mut profile);
         self.paint_transient_overlays(&mut profile);
         let Some(surface) = self.window.render_surface.as_mut() else {
             return;

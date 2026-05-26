@@ -6,6 +6,8 @@ pub(in crate::gui_runtime::native_vello) struct GenericRouteOutcome {
     pub(in crate::gui_runtime::native_vello) repaint_requested: bool,
     pub(in crate::gui_runtime::native_vello) paint_only_requested: bool,
     pub(in crate::gui_runtime::native_vello) deferred_surface_refresh_requested: bool,
+    pub(in crate::gui_runtime::native_vello) interactive_surface_refresh_requested: bool,
+    pub(in crate::gui_runtime::native_vello) interactive_scene_rebuild_requested: bool,
     pub(in crate::gui_runtime::native_vello) exit_requested: bool,
     pub(in crate::gui_runtime::native_vello) runtime_work_remaining: bool,
     pub(in crate::gui_runtime::native_vello) dpi_scale_override: Option<crate::theme::DpiScale>,
@@ -29,6 +31,8 @@ impl GenericRouteOutcome {
         self.repaint_requested |= other.repaint_requested;
         self.paint_only_requested |= other.paint_only_requested;
         self.deferred_surface_refresh_requested |= other.deferred_surface_refresh_requested;
+        self.interactive_surface_refresh_requested |= other.interactive_surface_refresh_requested;
+        self.interactive_scene_rebuild_requested |= other.interactive_scene_rebuild_requested;
         self.exit_requested |= other.exit_requested;
         self.runtime_work_remaining |= other.runtime_work_remaining;
         self.dpi_scale_override = other.dpi_scale_override.or(self.dpi_scale_override);
@@ -74,6 +78,8 @@ mod tests {
         outcome.merge(GenericRouteOutcome {
             paint_only_requested: true,
             deferred_surface_refresh_requested: true,
+            interactive_surface_refresh_requested: true,
+            interactive_scene_rebuild_requested: true,
             exit_requested: true,
             runtime_work_remaining: true,
             ..GenericRouteOutcome::default()
@@ -83,6 +89,8 @@ mod tests {
         assert!(outcome.repaint_requested);
         assert!(outcome.paint_only_requested);
         assert!(outcome.deferred_surface_refresh_requested);
+        assert!(outcome.interactive_surface_refresh_requested);
+        assert!(outcome.interactive_scene_rebuild_requested);
         assert!(outcome.exit_requested);
         assert!(outcome.runtime_work_remaining);
     }

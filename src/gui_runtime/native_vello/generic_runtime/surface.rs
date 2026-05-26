@@ -1,7 +1,8 @@
 //! Window, surface, and renderer setup for the generic native Vello runner.
 
 use super::{
-    GenericNativeVelloRunner, generic_window_attributes, reveal_window_after_surface_setup,
+    GenericNativeVelloRunner, animation_frame_interval, generic_window_attributes,
+    reveal_window_after_surface_setup,
 };
 use crate::{
     gui::types::Vector2,
@@ -124,6 +125,39 @@ where
         if size.width == 0 || size.height == 0 {
             return;
         }
+        let now = Instant::now();
+        if !self.should_resize_surface_now(now) {
+            self.defer_surface_resize(size);
+            self.request_redraw_if_needed();
+            return;
+        }
+        self.resize_surface_now(size, true);
+    }
+
+    pub(super) fn should_resize_surface_now(&self, now: Instant) -> bool {
+        let interval = animation_frame_interval(self.options.normalized_target_fps());
+        now.duration_since(self.timing.last_live_surface_resize) >= interval
+    }
+
+    pub(super) fn defer_surface_resize(&mut self, size: PhysicalSize<u32>) {
+        if size.width == 0 || size.height == 0 {
+            return;
+        }
+        self.timing.pending_surface_resize = Some(size);
+    }
+
+    pub(super) fn apply_pending_surface_resize_if_needed(&mut self) {
+        let Some(size) = self.timing.pending_surface_resize.take() else {
+            return;
+        };
+        self.resize_surface_now(size, false);
+    }
+
+    pub(super) fn resize_surface_now(&mut self, size: PhysicalSize<u32>, request_redraw: bool) {
+        if size.width == 0 || size.height == 0 {
+            return;
+        }
+        self.timing.pending_surface_resize = None;
         if let (Some(render_ctx), Some(surface)) = (
             self.window.render_ctx.as_ref(),
             self.window.render_surface.as_mut(),
@@ -135,7 +169,10 @@ where
             self.core
                 .set_viewport(logical_viewport_for_size(size, self.window.dpi_scale));
             self.rebuild_scene();
-            self.request_redraw_if_needed();
+            self.timing.last_live_surface_resize = Instant::now();
+            if request_redraw {
+                self.request_redraw_if_needed();
+            }
         }
     }
 
@@ -194,7 +231,7 @@ where
         match surface.surface.get_current_texture() {
             Ok(frame) => Some(frame),
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                self.resize_surface(window.inner_size());
+                self.resize_surface_now(window.inner_size(), true);
                 None
             }
             Err(wgpu::SurfaceError::OutOfMemory) => {

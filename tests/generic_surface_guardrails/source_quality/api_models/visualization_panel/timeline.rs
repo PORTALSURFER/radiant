@@ -79,6 +79,24 @@ fn timeline_item_layout_uses_named_parts_for_clip_geometry() {
 }
 
 #[test]
+fn timeline_lane_layout_owns_label_gutter_projection() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/visualization/timeline/lanes.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+
+    assert!(
+        source.contains("pub struct TimelineLaneLayoutParts")
+            && source.contains("pub const fn from_parts(parts: TimelineLaneLayoutParts) -> Self"),
+        "timeline lane layout should expose named parts for reusable lane geometry"
+    );
+    assert!(
+        source.contains("pub fn lane_label_rect(self, label_bounds: Rect, lane: usize) -> Rect"),
+        "timeline lane layout should own aligned lane label gutter projection"
+    );
+}
+
+#[test]
 fn timeline_panel_layout_uses_named_parts_for_editor_chrome() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/visualization/timeline/panel.rs");

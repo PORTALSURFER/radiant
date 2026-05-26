@@ -26,3 +26,15 @@ fn timeline_lane_layout_uses_fixed_height_and_clamps_last_lane() {
     assert_eq!(lanes.lane_at(Point::new(20.0, 109.0)), Some(2));
     assert_eq!(lanes.lane_at(Point::new(20.0, 140.0)), None);
 }
+
+#[test]
+fn timeline_lane_layout_projects_label_gutter_rects() {
+    let rect = Rect::from_min_max(Point::new(80.0, 20.0), Point::new(280.0, 140.0));
+    let label_bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(72.0, 140.0));
+    let lanes = TimelineLaneLayout::even(rect, 3);
+
+    assert_eq!(
+        lanes.lane_label_rect(label_bounds, 1),
+        Rect::from_min_max(Point::new(10.0, 60.0), Point::new(72.0, 100.0))
+    );
+}

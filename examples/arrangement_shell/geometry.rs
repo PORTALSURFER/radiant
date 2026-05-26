@@ -14,11 +14,11 @@ pub(crate) fn beat_for_x(timeline: Rect, x: f32) -> f32 {
 }
 
 pub(crate) fn track_label_rect(timeline: Rect, track: usize) -> Rect {
-    let track_rect = track_layout(timeline).lane_rect(track);
-    Rect::from_min_max(
-        Point::new(timeline.min.x - 64.0, track_rect.min.y),
-        Point::new(timeline.min.x - 8.0, track_rect.max.y),
-    )
+    let label_bounds = Rect::from_min_max(
+        Point::new(timeline.min.x - 64.0, timeline.min.y),
+        Point::new(timeline.min.x - 8.0, timeline.max.y),
+    );
+    track_layout(timeline).lane_label_rect(label_bounds, track)
 }
 
 pub(crate) fn beat_range_item_rect(timeline: Rect, track: usize, start: f32, end: f32) -> Rect {

@@ -84,6 +84,16 @@ impl TimelineLaneLayout {
         )
     }
 
+    /// Return a label-gutter rect aligned with a lane's vertical span.
+    pub fn lane_label_rect(self, label_bounds: Rect, lane: usize) -> Rect {
+        let lane_rect = self.lane_rect(lane);
+        Rect::from_min_max(
+            Point::new(label_bounds.min.x, lane_rect.min.y),
+            Point::new(label_bounds.max.x, lane_rect.max.y),
+        )
+        .clamp_to(label_bounds)
+    }
+
     /// Return the lane at a pointer position.
     pub fn lane_at(self, position: Point) -> Option<usize> {
         if self.lane_count == 0 || !self.rect.contains(position) {

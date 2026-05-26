@@ -645,7 +645,7 @@ value-to-x and x-to-value projection,
 value-to-y and y-to-value projection,
 `HorizontalLogValueAxis` and `HorizontalLogValueAxisParts` for reusable
 positive logarithmic value-to-x and x-to-value projection,
-`TimelineLaneLayout` for reusable track and lane rectangles,
+`TimelineLaneLayout` for reusable track, lane, and aligned label-gutter rectangles,
 `HorizontalStripLayout` and `HorizontalStripLayoutParts` for gapped dense
 channel/tool-strip projection, hit testing, and insertion markers,
 `VerticalStripStackLayout`, `VerticalStripStackLayoutParts`, and

@@ -6,6 +6,7 @@ mod grid;
 mod signal;
 mod spatial;
 mod timeline;
+mod value_marker;
 
 pub use canvas::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts, DragHandle,
@@ -30,6 +31,7 @@ pub use timeline::{
     TimelinePresentationState, TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportParts,
     TimelineTransportState, TimelineViewport, TimelineViewportParts,
 };
+pub use value_marker::{VerticalValueMarker, vertical_value_marker};
 
 #[cfg(test)]
 mod tests;

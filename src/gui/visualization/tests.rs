@@ -4,3 +4,4 @@ mod grid;
 mod signal;
 mod spatial;
 mod timeline;
+mod value_marker;

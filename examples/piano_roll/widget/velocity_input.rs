@@ -1,3 +1,4 @@
+use radiant::gui::visualization::{VerticalValueMarker, vertical_value_marker};
 use radiant::prelude::*;
 use radiant::widgets::PointerModifiers;
 
@@ -8,6 +9,8 @@ use super::super::{
 use super::PianoRollWidget;
 
 const LIVE_VELOCITY_UPDATE_SELECTION_LIMIT: usize = 512;
+const VELOCITY_STEM_WIDTH: f32 = 2.0;
+const VELOCITY_HANDLE_SIZE: f32 = 8.0;
 
 impl PianoRollWidget {
     pub(in crate::piano_roll::widget) fn handle_velocity_press(
@@ -141,21 +144,30 @@ impl PianoRollWidget {
     }
 
     pub(crate) fn velocity_preview_stem_rect(&self, lane: Rect, note: PianoNote) -> Rect {
+        self.velocity_marker(lane, note)
+            .map(|marker| marker.stem)
+            .unwrap_or_else(|| lane.empty_at_min())
+    }
+
+    pub(crate) fn velocity_handle_rect(&self, lane: Rect, note: PianoNote) -> Rect {
+        self.velocity_marker(lane, note)
+            .map(|marker| marker.handle)
+            .unwrap_or_else(|| lane.empty_at_min())
+    }
+
+    fn velocity_marker(&self, lane: Rect, note: PianoNote) -> Option<VerticalValueMarker> {
         let velocity = self
             .drag
             .as_ref()
             .and_then(|drag| drag.velocity_for_note(note.id))
             .unwrap_or(note.velocity);
         let x0 = x_for_beat_view(lane, self.viewport, note.start_beat);
-        let y = lane.y_for_ratio_from_bottom(velocity);
-        Rect::from_min_max(Point::new(x0 - 1.0, y), Point::new(x0 + 1.0, lane.max.y))
-    }
-
-    pub(crate) fn velocity_handle_rect(&self, lane: Rect, note: PianoNote) -> Rect {
-        let stem = self.velocity_preview_stem_rect(lane, note);
-        Rect::from_min_size(
-            Point::new(stem.center().x - 4.0, stem.min.y - 4.0),
-            Vector2::new(8.0, 8.0),
+        vertical_value_marker(
+            lane,
+            x0,
+            velocity,
+            VELOCITY_STEM_WIDTH,
+            VELOCITY_HANDLE_SIZE,
         )
     }
 

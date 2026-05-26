@@ -4,7 +4,7 @@ use super::ArrangementOverviewWidget;
 use crate::arrangement_shell::{
     ShellMessage,
     geometry::{beat_for_x, x_for_beat},
-    paint::{push_rect, push_stroke, translucent},
+    paint::{push_rect, push_stroke},
     widget_paint::{append_clip, append_grid, append_hover_guides},
 };
 
@@ -90,7 +90,7 @@ impl Widget for ArrangementOverviewWidget {
                 primitives,
                 self.common.id,
                 line,
-                translucent(theme.highlight_orange, 210),
+                theme.highlight_orange.with_alpha(210),
             );
         }
         append_hover_guides(self, primitives, timeline, theme);

@@ -4,7 +4,7 @@ use super::{
     TOTAL_BEATS, TRACKS,
     geometry::{track_label_rect, track_layout, x_for_beat},
     model::ArrangementClip,
-    paint::{push_rect, push_stroke, push_text, rgba, translucent},
+    paint::{push_rect, push_stroke, push_text},
     widget::ArrangementOverviewWidget,
 };
 
@@ -14,7 +14,12 @@ pub(super) fn append_grid(
     timeline: Rect,
     theme: &ThemeTokens,
 ) {
-    push_rect(primitives, widget.common.id, timeline, rgba(8, 12, 18, 255));
+    push_rect(
+        primitives,
+        widget.common.id,
+        timeline,
+        Rgba8::new(8, 12, 18, 255),
+    );
     append_track_rows(widget, primitives, timeline, theme);
     append_beat_lines(widget, primitives, timeline, theme);
 }
@@ -64,7 +69,7 @@ pub(super) fn append_hover_guides(
             primitives,
             widget.common.id,
             line,
-            translucent(theme.text_muted, 80),
+            theme.text_muted.with_alpha(80),
         );
     }
     if let Some(id) = widget.hover_clip
@@ -74,7 +79,7 @@ pub(super) fn append_hover_guides(
             primitives,
             widget.common.id,
             widget.clip_rect(timeline, clip),
-            translucent(theme.highlight_cyan, 190),
+            theme.highlight_cyan.with_alpha(190),
             2.0,
         );
     }
@@ -125,17 +130,17 @@ fn track_row_rect(timeline: Rect, track: usize) -> Rect {
 
 fn track_row_fill(track: usize) -> Rgba8 {
     if track.is_multiple_of(2) {
-        rgba(11, 16, 23, 255)
+        Rgba8::new(11, 16, 23, 255)
     } else {
-        rgba(14, 19, 27, 255)
+        Rgba8::new(14, 19, 27, 255)
     }
 }
 
 fn beat_line_color(beat: usize, theme: &ThemeTokens) -> Rgba8 {
     if beat.is_multiple_of(4) {
-        translucent(theme.grid_strong, 160)
+        theme.grid_strong.with_alpha(160)
     } else {
-        translucent(theme.grid_soft, 90)
+        theme.grid_soft.with_alpha(90)
     }
 }
 
@@ -151,6 +156,6 @@ fn clip_stroke(selected: bool, theme: &ThemeTokens) -> Rgba8 {
     if selected {
         theme.border_emphasis
     } else {
-        translucent(theme.border_emphasis, 140)
+        theme.border_emphasis.with_alpha(140)
     }
 }

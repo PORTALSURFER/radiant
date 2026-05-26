@@ -2,7 +2,8 @@ use super::super::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts, DragHandle,
     DragHandleRole, canvas_layer_at_point, canvas_selection_edge_handles,
     canvas_selection_edge_visual_rect, canvas_selection_rect, drag_handle_at_point,
-    horizontal_resize_edge_handles, horizontal_resize_edge_visual_rect, horizontal_resize_handles,
+    horizontal_resize_edge_bracket_rects, horizontal_resize_edge_handles,
+    horizontal_resize_edge_visual_rect, horizontal_resize_handles,
 };
 use crate::gui::types::{Point, Rect};
 
@@ -147,6 +148,32 @@ fn horizontal_resize_edge_visual_rect_supports_insets() {
     );
     assert_eq!(
         horizontal_resize_edge_visual_rect(rect, DragHandleRole::Body, 5.0, 2.0, 4.0),
+        None
+    );
+}
+
+#[test]
+fn horizontal_resize_edge_bracket_rects_project_edge_and_ticks() {
+    let rect = Rect::from_min_max(Point::new(20.0, 30.0), Point::new(120.0, 70.0));
+
+    assert_eq!(
+        horizontal_resize_edge_bracket_rects(rect, DragHandleRole::Start, 2.0, 7.0),
+        Some([
+            Rect::from_min_max(Point::new(20.0, 30.0), Point::new(22.0, 70.0)),
+            Rect::from_min_max(Point::new(20.0, 30.0), Point::new(27.0, 32.0)),
+            Rect::from_min_max(Point::new(20.0, 68.0), Point::new(27.0, 70.0)),
+        ])
+    );
+    assert_eq!(
+        horizontal_resize_edge_bracket_rects(rect, DragHandleRole::End, 2.0, 7.0),
+        Some([
+            Rect::from_min_max(Point::new(118.0, 30.0), Point::new(120.0, 70.0)),
+            Rect::from_min_max(Point::new(113.0, 30.0), Point::new(120.0, 32.0)),
+            Rect::from_min_max(Point::new(113.0, 68.0), Point::new(120.0, 70.0)),
+        ])
+    );
+    assert_eq!(
+        horizontal_resize_edge_bracket_rects(rect, DragHandleRole::Body, 2.0, 7.0),
         None
     );
 }

@@ -66,6 +66,7 @@ pub use crate::gui::{
         DragHandleRole, TimelineAxis, TimelineAxisParts, TimelineLaneLayout,
         TimelineLaneLayoutParts, canvas_layer_at_point, canvas_selection_edge_handles,
         canvas_selection_edge_visual_rect, canvas_selection_rect, drag_handle_at_point,
+        horizontal_resize_edge_bracket_rects,
     },
 };
 pub use crate::layout::LayoutOutput;

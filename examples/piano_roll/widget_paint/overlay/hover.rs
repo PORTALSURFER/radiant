@@ -1,3 +1,4 @@
+use radiant::gui::visualization::{DragHandleRole, horizontal_resize_edge_bracket_rects};
 use radiant::prelude::*;
 
 use super::super::super::{
@@ -43,37 +44,15 @@ fn append_note_resize_cursor(
 ) {
     let rect = widget.note_rect(grid, note).clamp_to(grid);
     let color = theme.highlight_orange;
-    let width = 2.0;
-    let tick = 7.0_f32.min(rect.width().max(0.0));
-    let x = match edge {
-        NoteResizeEdge::Start => rect.min.x,
-        NoteResizeEdge::End => rect.max.x - width,
+    let role = match edge {
+        NoteResizeEdge::Start => DragHandleRole::Start,
+        NoteResizeEdge::End => DragHandleRole::End,
     };
-    let (tick_min_x, tick_max_x) = match edge {
-        NoteResizeEdge::Start => (x, x + tick),
-        NoteResizeEdge::End => (x + width - tick, x + width),
-    };
-    if let Some(line) = vertical_line_rect(rect, x, width) {
-        push_rect(primitives, widget.common.id, line, color);
+    if let Some(rects) = horizontal_resize_edge_bracket_rects(rect, role, 2.0, 7.0) {
+        for rect in rects {
+            push_rect(primitives, widget.common.id, rect, color);
+        }
     }
-    push_rect(
-        primitives,
-        widget.common.id,
-        Rect::from_min_max(
-            Point::new(tick_min_x, rect.min.y),
-            Point::new(tick_max_x, rect.min.y + width),
-        ),
-        color,
-    );
-    push_rect(
-        primitives,
-        widget.common.id,
-        Rect::from_min_max(
-            Point::new(tick_min_x, rect.max.y - width),
-            Point::new(tick_max_x, rect.max.y),
-        ),
-        color,
-    );
 }
 
 pub(super) fn append_note_hover_effect(

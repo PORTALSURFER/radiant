@@ -633,8 +633,9 @@ vertical faders and meters, and
 `vertical_value_marker` and `VerticalValueMarker` for bottom-anchored value stems
 and interactive handles,
 `CanvasLayer`, `DragHandle`, `canvas_selection_rect`,
-`canvas_selection_edge_handles`, and `canvas_selection_edge_visual_rect` for
-generic retained-canvas layering, selection, and resize handle geometry,
+`canvas_selection_edge_handles`, `canvas_selection_edge_visual_rect`, and
+`horizontal_resize_edge_bracket_rects` for generic retained-canvas layering,
+selection, and resize handle geometry,
 `TimelineViewport` for normalized viewport bounds,
 `TimelineTransportState` for cursor/playhead/selection positions,
 `TimelineEditPreview` and `TimelineEditPreviewParts` for editable range and

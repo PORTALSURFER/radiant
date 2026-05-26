@@ -221,6 +221,59 @@ pub fn horizontal_resize_edge_visual_rect(
     ))
 }
 
+/// Return a three-rect bracket affordance for one horizontal resize edge.
+///
+/// The rectangles are returned as the vertical edge stem, top tick, and bottom
+/// tick. This shape is useful for editor-style timeline and canvas items where
+/// the resize affordance should read as a bracket instead of a plain edge bar.
+pub fn horizontal_resize_edge_bracket_rects(
+    rect: Rect,
+    role: DragHandleRole,
+    stroke: f32,
+    tick_length: f32,
+) -> Option<[Rect; 3]> {
+    if !rect.has_finite_positive_area() {
+        return None;
+    }
+    let stroke = finite_non_negative(stroke)
+        .min(rect.width())
+        .min(rect.height());
+    let tick_length = finite_non_negative(tick_length).min(rect.width());
+    if stroke <= 0.0 || tick_length <= 0.0 {
+        return None;
+    }
+
+    let (stem_min_x, tick_min_x, tick_max_x) = match role {
+        DragHandleRole::Start => {
+            let stem_min_x = rect.min.x;
+            (stem_min_x, stem_min_x, stem_min_x + tick_length)
+        }
+        DragHandleRole::End => {
+            let stem_min_x = rect.max.x - stroke;
+            (
+                stem_min_x,
+                stem_min_x + stroke - tick_length,
+                stem_min_x + stroke,
+            )
+        }
+        _ => return None,
+    };
+    Some([
+        Rect::from_min_max(
+            Point::new(stem_min_x, rect.min.y),
+            Point::new(stem_min_x + stroke, rect.max.y),
+        ),
+        Rect::from_min_max(
+            Point::new(tick_min_x, rect.min.y),
+            Point::new(tick_max_x, rect.min.y + stroke),
+        ),
+        Rect::from_min_max(
+            Point::new(tick_min_x, rect.max.y - stroke),
+            Point::new(tick_max_x, rect.max.y),
+        ),
+    ])
+}
+
 fn normalized_fraction(value: f32) -> f32 {
     if value.is_finite() {
         value.clamp(0.0, 1.0)

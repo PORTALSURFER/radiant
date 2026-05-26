@@ -5,6 +5,7 @@ mod color_ramp;
 mod grid;
 mod signal;
 mod spatial;
+mod strip_layout;
 mod timeline;
 mod value_axis;
 mod value_marker;
@@ -26,6 +27,7 @@ pub use spatial::{
     PointRenderMode, SpatialPanel, SpatialPanelLabels, SpatialPanelPoints, SpatialPanelSelection,
     SpatialPanelStatus, SpatialPoint, normalized_milli_point_in_rect,
 };
+pub use strip_layout::{HorizontalStripLayout, HorizontalStripLayoutParts};
 pub use timeline::{
     TimelineAxis, TimelineAxisParts, TimelineCoordinateMapper, TimelineEditPreview,
     TimelineEditPreviewParts, TimelineFeedbackEvents, TimelineFeedbackParts, TimelineLaneLayout,

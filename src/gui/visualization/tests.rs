@@ -3,6 +3,7 @@ mod color_ramp;
 mod grid;
 mod signal;
 mod spatial;
+mod strip_layout;
 mod timeline;
 mod value_axis;
 mod value_marker;

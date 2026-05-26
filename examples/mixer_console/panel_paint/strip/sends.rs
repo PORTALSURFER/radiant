@@ -29,26 +29,15 @@ fn append_send(
         rect,
         style::send_track_color(state, theme),
     );
-    push_rect(
-        primitives,
-        widget.common.id,
-        send_fill_rect(widget, state, rect, send),
-        style::send_fill_color(state, send, theme),
-    );
+    if let Some(fill) =
+        horizontal_progress_fill_rect(rect, widget.send_display_ratio(state.channel_index, send))
+    {
+        push_rect(
+            primitives,
+            widget.common.id,
+            fill,
+            style::send_fill_color(state, send, theme),
+        );
+    }
     push_stroke(primitives, widget.common.id, rect, theme.border, 1.0);
-}
-
-fn send_fill_rect(
-    widget: &MixerPanelWidget,
-    state: StripPaintState,
-    rect: Rect,
-    send: usize,
-) -> Rect {
-    Rect::from_min_max(
-        rect.min,
-        Point::new(
-            rect.x_for_ratio(widget.send_display_ratio(state.channel_index, send)),
-            rect.max.y,
-        ),
-    )
 }

@@ -51,14 +51,11 @@ pub(super) fn append_send_drag_overlay(
     let strip = widget.strip_rect(bounds, channel_index);
     let rect = widget.send_rect(strip, send);
     push_rect(primitives, widget.common.id, rect, theme.bg_tertiary);
-    let fill = Rect::from_min_max(
-        rect.min,
-        Point::new(
-            rect.x_for_ratio(widget.send_display_ratio(channel_index, send)),
-            rect.max.y,
-        ),
-    );
-    push_rect(primitives, widget.common.id, fill, send_color(send, theme));
+    if let Some(fill) =
+        horizontal_progress_fill_rect(rect, widget.send_display_ratio(channel_index, send))
+    {
+        push_rect(primitives, widget.common.id, fill, send_color(send, theme));
+    }
     push_stroke(
         primitives,
         widget.common.id,

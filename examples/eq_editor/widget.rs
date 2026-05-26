@@ -49,10 +49,7 @@ impl EqEditorWidget {
     }
 
     pub(super) fn plot_rect(&self, bounds: Rect) -> Rect {
-        Rect::from_min_max(
-            Point::new(bounds.min.x + 48.0, bounds.min.y + 22.0),
-            Point::new(bounds.max.x - 18.0, bounds.max.y - 34.0),
-        )
+        bounds.inset(48.0, 22.0, 18.0, 34.0)
     }
 
     pub(super) fn handle_center(&self, plot: Rect, band: EqBand) -> Point {

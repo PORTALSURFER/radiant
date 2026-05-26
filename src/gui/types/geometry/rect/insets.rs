@@ -1,6 +1,12 @@
 use super::{Point, Rect};
 
 impl Rect {
+    /// Return this rectangle with left, top, right, and bottom insets applied.
+    pub fn inset(self, left: f32, top: f32, right: f32, bottom: f32) -> Self {
+        self.inset_horizontal(left, right)
+            .inset_vertical(top, bottom)
+    }
+
     /// Return this rectangle with horizontal insets applied.
     pub fn inset_horizontal(self, left: f32, right: f32) -> Self {
         let min_x = (self.min.x + left.max(0.0)).min(self.max.x);

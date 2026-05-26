@@ -4,10 +4,7 @@ use radiant::prelude::*;
 
 impl MixerPanelWidget {
     pub(super) fn console_rect(&self, bounds: Rect) -> Rect {
-        Rect::from_min_max(
-            Point::new(bounds.min.x + 12.0, bounds.min.y + 12.0),
-            Point::new(bounds.max.x - 12.0, bounds.max.y - 12.0),
-        )
+        bounds.inset(12.0, 12.0, 12.0, 12.0)
     }
 
     pub(crate) fn strip_rect(&self, bounds: Rect, channel: usize) -> Rect {

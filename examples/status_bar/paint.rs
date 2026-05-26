@@ -5,7 +5,7 @@ use radiant::{
         paint::{BorderSides, PaintFrame},
         types::Rgba8,
     },
-    layout::{Point, Rect},
+    layout::Rect,
     theme::ThemeTokens,
 };
 
@@ -17,10 +17,7 @@ pub(super) fn progress_frame(
     theme: &ThemeTokens,
 ) -> PaintFrame {
     let mut frame = PaintFrame::default();
-    let track = Rect::from_min_max(
-        Point::new(bounds.min.x + 2.0, bounds.min.y + 4.0),
-        Point::new(bounds.max.x - 2.0, bounds.max.y - 4.0),
-    );
+    let track = bounds.inset(2.0, 4.0, 2.0, 4.0);
     frame.push_rect(track, theme.bg_tertiary);
     if let Some(fill) = horizontal_progress_fill_rect(track, state.aggregate_progress()) {
         frame.push_rect(fill, theme.accent_copper);

@@ -44,10 +44,7 @@ impl ArrangementOverviewWidget {
     }
 
     pub(crate) fn timeline_rect(&self, bounds: Rect) -> Rect {
-        Rect::from_min_max(
-            Point::new(bounds.min.x + 72.0, bounds.min.y + 34.0),
-            Point::new(bounds.max.x - 18.0, bounds.max.y - 16.0),
-        )
+        bounds.inset(72.0, 34.0, 18.0, 16.0)
     }
 
     pub(crate) fn clip_rect(&self, timeline: Rect, clip: ArrangementClip) -> Rect {

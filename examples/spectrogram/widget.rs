@@ -35,10 +35,7 @@ impl SpectrogramWidget {
     }
 
     pub(super) fn plot_rect(&self, bounds: Rect) -> Rect {
-        Rect::from_min_max(
-            Point::new(bounds.min.x + 54.0, bounds.min.y + 18.0),
-            Point::new(bounds.max.x - 18.0, bounds.max.y - 36.0),
-        )
+        bounds.inset(54.0, 18.0, 18.0, 36.0)
     }
 
     fn column_at_position(&self, plot: Rect, position: Point) -> Option<usize> {

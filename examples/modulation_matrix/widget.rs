@@ -43,10 +43,7 @@ impl ModulationMatrixWidget {
     }
 
     pub(crate) fn matrix_rect(&self, bounds: Rect) -> Rect {
-        Rect::from_min_max(
-            Point::new(bounds.min.x + 112.0, bounds.min.y + 54.0),
-            Point::new(bounds.max.x - 18.0, bounds.max.y - 22.0),
-        )
+        bounds.inset(112.0, 54.0, 18.0, 22.0)
     }
 
     #[cfg(test)]

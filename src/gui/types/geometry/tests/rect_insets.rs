@@ -1,6 +1,20 @@
 use super::super::{Point, Rect};
 
 #[test]
+fn rect_inset_applies_four_sides_and_clamps_to_rect_edges() {
+    let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 40.0));
+
+    assert_eq!(
+        rect.inset(4.0, 3.0, 6.0, 5.0),
+        Rect::from_min_max(Point::new(14.0, 23.0), Point::new(44.0, 35.0))
+    );
+    assert_eq!(
+        rect.inset(80.0, 3.0, 6.0, 80.0),
+        Rect::from_min_max(Point::new(50.0, 23.0), Point::new(50.0, 23.0))
+    );
+}
+
+#[test]
 fn rect_inset_horizontal_clamps_to_rect_edges() {
     let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 30.0));
 

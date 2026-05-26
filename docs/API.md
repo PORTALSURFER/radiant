@@ -807,8 +807,9 @@ into compact integer coordinates.
 baseline snapping for retained text rows. `TextLineLayoutCache` lets renderer
 adapters own text-line placement caches explicitly instead of sharing a
 process-global lock.
-`Rect::inset_horizontal` provides product-neutral horizontal text and control
-inset geometry.
+`Rect::inset` provides product-neutral four-sided inset geometry for plotting
+areas, panels, and control tracks. `Rect::inset_horizontal` provides
+horizontal-only text and control inset geometry.
 `Rect::center` provides shared midpoint geometry for routing, hit testing, and
 retained rendering adapters.
 `Rect::empty_at_min` and `Rect::empty_at_max` provide explicit zero-size

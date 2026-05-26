@@ -11,6 +11,10 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
         .expect("spatial visualization model should be readable");
     let canvas = fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/canvas.rs"))
         .expect("canvas visualization tests should be readable");
+    let grid = fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/grid.rs"))
+        .expect("dense grid visualization tests should be readable");
+    let grid_model = fs::read_to_string(manifest_dir.join("src/gui/visualization/grid.rs"))
+        .expect("dense grid visualization model should be readable");
     let signal = fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/signal.rs"))
         .expect("signal visualization tests should be readable");
     let timeline = fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/timeline.rs"))
@@ -37,6 +41,7 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
     assert!(
         root.contains("mod spatial;")
             && root.contains("mod canvas;")
+            && root.contains("mod grid;")
             && root.contains("mod signal;")
             && root.contains("mod timeline;")
             && !root.contains("fn timeline_motion_state")
@@ -47,6 +52,7 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
         spatial.contains("fn normalized_milli_point_projects_and_clamps_into_rect")
             && spatial.contains("fn spatial_panel_groups_labels_selection_and_point_data")
             && canvas.contains("fn canvas_invalidation_splits_scene_and_interaction_rebuilds")
+            && grid.contains("fn dense_grid_raster_layout_projects_bottom_up_cells_with_bleed")
             && signal.contains("fn signal_tool_state_preserves_generic_interaction_flags")
             && timeline.contains("mod item;")
             && timeline.contains("mod mapper;")
@@ -64,6 +70,12 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
             && spatial_model.contains("pub struct SpatialPanelPoints")
             && spatial_model.contains("pub struct SpatialPanel"),
         "spatial panel state should stay grouped by status, labels, selection, and point data"
+    );
+    assert!(
+        grid_model.contains("pub struct DenseGridRasterLayoutParts")
+            && grid_model.contains("pub enum DenseGridRowOrigin")
+            && grid_model.contains("pub fn cell_rect(self, cell: DenseGridCell) -> Option<Rect>"),
+        "dense grid visualization model should own reusable raster cell projection"
     );
     assert!(
         timeline_mapper.contains("fn timeline_coordinate_mapper_projects_and_back_projects_micros")

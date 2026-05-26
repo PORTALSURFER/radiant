@@ -18,7 +18,10 @@ pub use canvas::{
     horizontal_resize_edge_visual_rect, horizontal_resize_handles,
 };
 pub use color_ramp::{ColorRamp, ColorRampStop};
-pub use grid::{DenseGridCell, DenseGridLayout, DenseGridLayoutParts};
+pub use grid::{
+    DenseGridCell, DenseGridLayout, DenseGridLayoutParts, DenseGridRasterLayout,
+    DenseGridRasterLayoutParts, DenseGridRowOrigin,
+};
 pub use signal::{
     ChannelViewMode, SignalChromeParts, SignalChromeState, SignalRasterPreview,
     SignalRasterPreviewParts, SignalToolFlags, SignalToolState,

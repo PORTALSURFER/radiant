@@ -7,13 +7,6 @@ use radiant::prelude::*;
 struct ColumnPaint<'a> {
     column: &'a SpectralColumn,
     index: usize,
-    count: usize,
-}
-
-#[derive(Clone, Copy)]
-struct CellSize {
-    width: f32,
-    height: f32,
 }
 
 pub(super) fn append_cells(
@@ -24,21 +17,15 @@ pub(super) fn append_cells(
         return;
     }
 
-    let cell = CellSize {
-        width: frame.plot.width() / frame.columns.len() as f32,
-        height: frame.plot.height() / BINS as f32,
-    };
+    let raster = DenseGridRasterLayout::bottom_up(frame.plot, BINS, frame.columns.len())
+        .with_horizontal_bleed(0.5)
+        .with_vertical_bleed(0.5);
     for (index, column) in frame.columns.iter().enumerate() {
         append_column_cells(
             primitives,
             frame.widget_id,
-            frame.plot,
-            ColumnPaint {
-                column,
-                index,
-                count: frame.columns.len(),
-            },
-            cell,
+            raster,
+            ColumnPaint { column, index },
         );
     }
 }
@@ -46,25 +33,13 @@ pub(super) fn append_cells(
 fn append_column_cells(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: u64,
-    plot: Rect,
+    raster: DenseGridRasterLayout,
     column: ColumnPaint<'_>,
-    cell: CellSize,
 ) {
-    let x0 = plot.min.x + column.index as f32 * cell.width;
-    let x1 = if column.index + 1 == column.count {
-        plot.max.x
-    } else {
-        x0 + cell.width + 0.5
-    };
-
     for (bin_index, energy) in column.column.bins.iter().enumerate() {
-        let y1 = plot.max.y - bin_index as f32 * cell.height;
-        let y0 = (y1 - cell.height - 0.5).max(plot.min.y);
-        push_rect(
-            primitives,
-            widget_id,
-            Rect::from_min_max(Point::new(x0, y0), Point::new(x1, y1)),
-            spectrogram_color(*energy),
-        );
+        let Some(rect) = raster.cell_rect(DenseGridCell::new(bin_index, column.index)) else {
+            continue;
+        };
+        push_rect(primitives, widget_id, rect, spectrogram_color(*energy));
     }
 }

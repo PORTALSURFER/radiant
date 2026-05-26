@@ -1,4 +1,7 @@
-use super::super::{DenseGridCell, DenseGridLayout, DenseGridLayoutParts};
+use super::super::{
+    DenseGridCell, DenseGridLayout, DenseGridLayoutParts, DenseGridRasterLayout,
+    DenseGridRasterLayoutParts, DenseGridRowOrigin,
+};
 use crate::gui::types::{Point, Rect};
 
 #[test]
@@ -44,4 +47,54 @@ fn dense_grid_layout_rejects_empty_or_invalid_geometry() {
     assert!(!DenseGridLayout::new(rect, 0, 4).is_valid());
     assert!(!DenseGridLayout::new(rect, 4, 0).is_valid());
     assert!(!DenseGridLayout::new(rect.empty_at_min(), 4, 4).is_valid());
+}
+
+#[test]
+fn dense_grid_raster_layout_projects_bottom_up_cells_with_bleed() {
+    let layout = DenseGridRasterLayout::bottom_up(
+        Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 120.0)),
+        4,
+        2,
+    )
+    .with_horizontal_bleed(0.5)
+    .with_vertical_bleed(0.5);
+
+    assert_eq!(
+        layout.cell_rect(DenseGridCell::new(0, 0)),
+        Some(Rect::from_min_max(
+            Point::new(10.0, 94.5),
+            Point::new(110.5, 120.0)
+        ))
+    );
+    assert_eq!(
+        layout.cell_rect(DenseGridCell::new(3, 1)),
+        Some(Rect::from_min_max(
+            Point::new(110.0, 20.0),
+            Point::new(210.0, 45.0)
+        ))
+    );
+}
+
+#[test]
+fn dense_grid_raster_layout_sanitizes_bleed_and_rejects_invalid_cells() {
+    let grid = DenseGridLayout::from_parts(DenseGridLayoutParts::new(
+        Rect::from_min_max(Point::new(0.0, 0.0), Point::new(40.0, 40.0)),
+        2,
+        2,
+    ));
+    let layout = DenseGridRasterLayout::from_parts(DenseGridRasterLayoutParts {
+        grid,
+        row_origin: DenseGridRowOrigin::Top,
+        horizontal_bleed: f32::NAN,
+        vertical_bleed: -2.0,
+    });
+
+    assert_eq!(
+        layout.cell_rect(DenseGridCell::new(0, 0)),
+        Some(Rect::from_min_max(
+            Point::new(0.0, 0.0),
+            Point::new(20.0, 20.0)
+        ))
+    );
+    assert_eq!(layout.cell_rect(DenseGridCell::new(2, 0)), None);
 }

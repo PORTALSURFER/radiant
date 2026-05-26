@@ -62,8 +62,9 @@ pub use crate::gui::{
     undo::{UndoCheckpoint, UndoHistory, UndoRedoIntent, UndoTransition},
     visualization::{
         CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts, ColorRamp,
-        ColorRampStop, DenseGridCell, DenseGridLayout, DenseGridLayoutParts, DragHandle,
-        DragHandleRole, HorizontalLogValueAxis, HorizontalLogValueAxisParts, HorizontalStripLayout,
+        ColorRampStop, DenseGridCell, DenseGridLayout, DenseGridLayoutParts, DenseGridRasterLayout,
+        DenseGridRasterLayoutParts, DenseGridRowOrigin, DragHandle, DragHandleRole,
+        HorizontalLogValueAxis, HorizontalLogValueAxisParts, HorizontalStripLayout,
         HorizontalStripLayoutParts, HorizontalValueAxis, HorizontalValueAxisParts, TimelineAxis,
         TimelineAxisParts, TimelineItemLayout, TimelineItemLayoutParts, TimelineLaneLayout,
         TimelineLaneLayoutParts, TimelinePanelLayout, TimelinePanelLayoutParts,

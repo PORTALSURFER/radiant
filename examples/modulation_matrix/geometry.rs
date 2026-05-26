@@ -2,6 +2,22 @@ use radiant::prelude::*;
 
 use super::{DESTINATION_COUNT, MatrixCell, SOURCE_COUNT};
 
+fn matrix_grid(matrix: Rect) -> DenseGridLayout {
+    DenseGridLayout::new(matrix, SOURCE_COUNT, DESTINATION_COUNT)
+}
+
+fn dense_cell(cell: MatrixCell) -> DenseGridCell {
+    DenseGridCell::new(cell.source, cell.destination)
+}
+
+fn matrix_cell(cell: DenseGridCell) -> MatrixCell {
+    MatrixCell {
+        source: cell.row,
+        destination: cell.column,
+    }
+    .clamped()
+}
+
 pub(crate) fn source_label_rect(bounds: Rect, matrix: Rect, cell: Rect) -> Rect {
     Rect::from_min_max(
         Point::new(bounds.min.x + 12.0, cell.min.y),
@@ -17,46 +33,21 @@ pub(crate) fn destination_label_rect(matrix: Rect, cell: Rect) -> Rect {
 }
 
 pub(crate) fn cell_rect(matrix: Rect, cell: MatrixCell) -> Rect {
-    let width = matrix.width() / DESTINATION_COUNT as f32;
-    let height = matrix.height() / SOURCE_COUNT as f32;
-    let x = matrix.min.x + cell.destination as f32 * width;
-    let y = matrix.min.y + cell.source as f32 * height;
-    Rect::from_min_size(Point::new(x, y), Vector2::new(width, height))
+    matrix_grid(matrix)
+        .cell_rect(dense_cell(cell.clamped()))
+        .unwrap_or_else(|| matrix.empty_at_min())
 }
 
 pub(crate) fn cell_at_position(matrix: Rect, position: Point) -> Option<MatrixCell> {
-    if !matrix.contains(position) {
-        return None;
-    }
-    let destination =
-        ((position.x - matrix.min.x) / (matrix.width() / DESTINATION_COUNT as f32)) as usize;
-    let source = ((position.y - matrix.min.y) / (matrix.height() / SOURCE_COUNT as f32)) as usize;
-    Some(
-        MatrixCell {
-            source,
-            destination,
-        }
-        .clamped(),
-    )
+    matrix_grid(matrix)
+        .cell_at_position(position)
+        .map(matrix_cell)
 }
 
 pub(crate) fn amount_for_position(rect: Rect, position: Point) -> f32 {
-    let ratio = rect.ratio_for_y_from_bottom(position.y);
-    ratio * 2.0 - 1.0
+    vertical_bipolar_value_at_point(rect, position)
 }
 
-pub(crate) fn amount_bar_rect(rect: Rect, amount: f32) -> Rect {
-    let center = rect.center().y;
-    let available = rect.height() * 0.44;
-    if amount >= 0.0 {
-        Rect::from_min_max(
-            Point::new(rect.min.x + 12.0, center - available * amount),
-            Point::new(rect.max.x - 12.0, center),
-        )
-    } else {
-        Rect::from_min_max(
-            Point::new(rect.min.x + 12.0, center),
-            Point::new(rect.max.x - 12.0, center + available * amount.abs()),
-        )
-    }
+pub(crate) fn amount_bar_rect(rect: Rect, amount: f32) -> Option<Rect> {
+    vertical_bipolar_fill_rect(rect, amount, 12.0, 0.44)
 }

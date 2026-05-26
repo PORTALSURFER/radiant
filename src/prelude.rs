@@ -36,7 +36,10 @@ pub use crate::gui::{
         ContentViewSearchChrome, ContentViewSortChrome, ContentViewTabs, StatusSegments,
         StatusSegmentsParts,
     },
-    feedback::{StatusLineEntry, StatusLineEntryParts, StatusLineLog},
+    feedback::{
+        StatusLineEntry, StatusLineEntryParts, StatusLineLog, vertical_bipolar_fill_rect,
+        vertical_bipolar_value_at_point,
+    },
     focus::FocusSurface,
     input::{KeyCode, KeyPress},
     invalidation::{
@@ -54,8 +57,8 @@ pub use crate::gui::{
     svg::SvgIcon,
     undo::{UndoCheckpoint, UndoHistory, UndoRedoIntent, UndoTransition},
     visualization::{
-        ColorRamp, ColorRampStop, TimelineAxis, TimelineAxisParts, TimelineLaneLayout,
-        TimelineLaneLayoutParts,
+        ColorRamp, ColorRampStop, DenseGridCell, DenseGridLayout, DenseGridLayoutParts,
+        TimelineAxis, TimelineAxisParts, TimelineLaneLayout, TimelineLaneLayoutParts,
     },
 };
 pub use crate::layout::LayoutOutput;

@@ -11,7 +11,7 @@ pub use inline::{
 pub use progress::{
     ProgressOverlay, horizontal_discrete_meter_fill_rect, horizontal_meter_fill_rect,
     horizontal_progress_activity_rect, horizontal_progress_fill_rect,
-    horizontal_progress_track_rect,
+    horizontal_progress_track_rect, vertical_bipolar_fill_rect, vertical_bipolar_value_at_point,
 };
 pub use status::{
     ConfirmPrompt, DragOverlay, HealthState, PromptIntent, RecoverySummary, StatusLineEntry,

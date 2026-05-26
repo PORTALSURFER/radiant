@@ -2,6 +2,7 @@
 
 mod canvas;
 mod color_ramp;
+mod grid;
 mod signal;
 mod spatial;
 mod timeline;
@@ -11,6 +12,7 @@ pub use canvas::{
     DragHandleRole, canvas_layer_at_point, drag_handle_at_point,
 };
 pub use color_ramp::{ColorRamp, ColorRampStop};
+pub use grid::{DenseGridCell, DenseGridLayout, DenseGridLayoutParts};
 pub use signal::{
     ChannelViewMode, SignalChromeParts, SignalChromeState, SignalRasterPreview,
     SignalRasterPreviewParts, SignalToolFlags, SignalToolState,

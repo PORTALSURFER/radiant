@@ -60,16 +60,18 @@ fn append_amount_bar(
     amount: f32,
     theme: &ThemeTokens,
 ) {
-    push_rect(
-        primitives,
-        widget.common.id,
-        amount_bar_rect(rect, amount),
-        if amount >= 0.0 {
-            theme.highlight_cyan
-        } else {
-            theme.highlight_orange
-        },
-    );
+    if let Some(fill_rect) = amount_bar_rect(rect, amount) {
+        push_rect(
+            primitives,
+            widget.common.id,
+            fill_rect,
+            if amount >= 0.0 {
+                theme.highlight_cyan
+            } else {
+                theme.highlight_orange
+            },
+        );
+    }
     push_text(
         primitives,
         widget.common.id,

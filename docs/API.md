@@ -54,6 +54,8 @@ Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`,
 `Rgba8::blend_toward`, and `Rgba8::blend_opaque_toward` for common color
 manipulation. Dense visualizations can use `ColorRamp` and `ColorRampStop` for
 normalized heatmap and intensity palettes without local interpolation helpers.
+Custom matrix or heatmap widgets can use `DenseGridLayout` and `DenseGridCell`
+for reusable row/column cell projection and hit testing.
 For paint-plan emission,
 `push_fill_rect`, `push_fill_rect_batch`, `push_stroke_rect`,
 `push_stroke_rect_batch`, `push_text`, `PaintTextMetrics`, and
@@ -606,14 +608,18 @@ Dense card or tile grids can use `VirtualGridWindowRequest` and
 row-major item window before projecting visible grid cells into
 `SurfaceNode::grid` or a virtual scroll area.
 Timeline and signal visualizations can use `ColorRamp` and `ColorRampStop` for
-reusable normalized heatmap/intensity palettes, `SignalChromeState` for reusable
+reusable normalized heatmap/intensity palettes, `DenseGridLayout` and
+`DenseGridCell` for reusable dense-grid projection and hit testing,
+`SignalChromeState` for reusable
 status/reference/channel chrome, `SignalToolFlags` and `SignalToolState` for
 generic enabled/visible tool flags, `SignalRasterPreview` for retained raster
 image payloads and loading state, `horizontal_progress_fill_rect` for resolving normalized
 progress-track fill geometry, `horizontal_progress_activity_rect` for
 indeterminate progress segments, `horizontal_progress_track_rect` for switching
 between determinate and indeterminate progress tracks, `horizontal_meter_fill_rect` and
-`horizontal_discrete_meter_fill_rect` for reusable meter geometry, and
+`horizontal_discrete_meter_fill_rect` for reusable meter geometry,
+`vertical_bipolar_value_at_point` and `vertical_bipolar_fill_rect` for centered
+signed vertical controls, and
 `inline_indicator_layout` for compact text-relative status indicator clusters,
 `TimelineAxis` for reusable beat/time/sample-to-pixel projection,
 `TimelineLaneLayout` for reusable track and lane rectangles,

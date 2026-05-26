@@ -117,6 +117,21 @@ impl TimelineAxis {
         x.clamp(rect.min.x, rect.max.x)
     }
 
+    /// Return the clamped x coordinate for a point inside the projection span.
+    pub fn cursor_x_at(self, position: Point) -> Option<f32> {
+        let rect = self.projection_rect();
+        if !position.x.is_finite() || position.x < rect.min.x || position.x > rect.max.x {
+            return None;
+        }
+        Some(self.clamp_x(position.x))
+    }
+
+    /// Return the clamped timeline value for a point inside the projection span.
+    pub fn value_at_point(self, position: Point) -> Option<f32> {
+        self.cursor_x_at(position)?;
+        Some(self.value_for_x(position.x))
+    }
+
     /// Return the visible value span, using a safe minimum for degenerate spans.
     pub fn value_span(self) -> f32 {
         let span = self.end - self.start;

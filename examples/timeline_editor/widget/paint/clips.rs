@@ -1,7 +1,6 @@
 use super::super::{ArrangementTimelineWidget, TimelineGeometry};
 use super::{push_rect, push_resize_handles, push_stroke, push_text};
 use radiant::gui::types::Rgba8;
-use radiant::layout::{Point, Rect};
 use radiant::runtime::{PaintPrimitive, PaintTextAlign};
 use radiant::theme::ThemeTokens;
 
@@ -35,17 +34,14 @@ pub(super) fn append_clip_paint(
         push_rect(
             primitives,
             widget.common.id,
-            Rect::from_min_max(rect.min, Point::new(rect.min.x + 5.0, rect.max.y)),
+            rect.left_edge_strip(5.0),
             theme.surface_overlay,
         );
         push_text(
             primitives,
             widget.common.id,
             clip.name,
-            Rect::from_min_max(
-                Point::new(rect.min.x + 12.0, rect.min.y + 6.0),
-                Point::new(rect.max.x - 8.0, rect.max.y),
-            ),
+            rect.inset(12.0, 6.0, 8.0, 0.0),
             theme.text_primary,
             PaintTextAlign::Left,
         );

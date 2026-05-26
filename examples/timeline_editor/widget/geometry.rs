@@ -11,7 +11,6 @@ use radiant::layout::{Point, Rect};
 pub(crate) struct TimelineGeometry {
     pub(crate) header: Rect,
     pub(crate) ruler: Rect,
-    pub(crate) lanes: Rect,
     axis: TimelineAxis,
     lane_layout: TimelineLaneLayout,
 }
@@ -36,7 +35,6 @@ impl TimelineGeometry {
         Self {
             header,
             ruler,
-            lanes,
             axis,
             lane_layout,
         }
@@ -68,15 +66,11 @@ impl TimelineGeometry {
     }
 
     pub(crate) fn cursor_x_at(self, position: Point) -> Option<f32> {
-        if position.x < self.lanes.min.x || position.x > self.lanes.max.x {
-            return None;
-        }
-        Some(position.x.clamp(self.lanes.min.x, self.lanes.max.x))
+        self.axis.cursor_x_at(position)
     }
 
     pub(crate) fn beat_at(self, position: Point) -> Option<u32> {
-        self.cursor_x_at(position)?;
-        Some(self.axis.value_for_x(position.x).round() as u32)
+        Some(self.axis.value_at_point(position)?.round() as u32)
     }
 
     pub(crate) fn lane_at(self, position: Point) -> Option<usize> {

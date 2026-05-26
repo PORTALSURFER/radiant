@@ -25,6 +25,18 @@ fn timeline_axis_supports_unclamped_projection_for_offscreen_items() {
 }
 
 #[test]
+fn timeline_axis_maps_points_inside_projection_span() {
+    let rect = Rect::from_min_max(Point::new(10.0, 4.0), Point::new(210.0, 40.0));
+    let axis = TimelineAxis::new(rect, 16.0, 80.0).with_trailing_padding(8.0);
+
+    assert_eq!(axis.cursor_x_at(Point::new(106.0, 100.0)), Some(106.0));
+    assert_eq!(axis.value_at_point(Point::new(106.0, 100.0)), Some(48.0));
+    assert_eq!(axis.cursor_x_at(Point::new(206.0, 100.0)), None);
+    assert_eq!(axis.value_at_point(Point::new(9.0, 100.0)), None);
+    assert_eq!(axis.cursor_x_at(Point::new(f32::NAN, 100.0)), None);
+}
+
+#[test]
 fn timeline_axis_projects_value_ranges_to_full_height_rects() {
     let rect = Rect::from_min_max(Point::new(10.0, 4.0), Point::new(210.0, 40.0));
     let axis = TimelineAxis::new(rect, 16.0, 80.0).with_trailing_padding(8.0);

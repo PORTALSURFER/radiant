@@ -33,7 +33,9 @@ pub use timeline::{
     TimelinePresentationState, TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportParts,
     TimelineTransportState, TimelineViewport, TimelineViewportParts,
 };
-pub use value_axis::{VerticalValueAxis, VerticalValueAxisParts};
+pub use value_axis::{
+    HorizontalLogValueAxis, HorizontalLogValueAxisParts, VerticalValueAxis, VerticalValueAxisParts,
+};
 pub use value_marker::{VerticalValueMarker, vertical_value_marker};
 
 #[cfg(test)]

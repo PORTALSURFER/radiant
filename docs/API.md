@@ -631,6 +631,8 @@ vertical faders and meters, and
 `TimelineAxis` for reusable beat/time/sample-to-pixel and range-rectangle projection,
 `VerticalValueAxis` and `VerticalValueAxisParts` for reusable bottom-up
 value-to-y and y-to-value projection,
+`HorizontalLogValueAxis` and `HorizontalLogValueAxisParts` for reusable
+positive logarithmic value-to-x and x-to-value projection,
 `TimelineLaneLayout` for reusable track and lane rectangles,
 `vertical_value_marker` and `VerticalValueMarker` for bottom-anchored value stems
 and interactive handles,

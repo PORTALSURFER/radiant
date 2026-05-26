@@ -11,12 +11,3 @@ const SPECTROGRAM_STOPS: [ColorRampStop; 5] = [
 pub(super) fn spectrogram_color(energy: f32) -> Rgba8 {
     ColorRamp::new(&SPECTROGRAM_STOPS).sample(energy)
 }
-
-pub(super) fn rgba(r: u8, g: u8, b: u8, a: u8) -> Rgba8 {
-    Rgba8 { r, g, b, a }
-}
-
-pub(super) fn translucent(mut color: Rgba8, alpha: u8) -> Rgba8 {
-    color.a = alpha;
-    color
-}

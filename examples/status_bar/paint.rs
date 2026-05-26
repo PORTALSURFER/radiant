@@ -25,13 +25,9 @@ pub(super) fn progress_frame(
     if state.active_count() > 0 || state.animation_running {
         let position = ((state.frame % 120) as f32) / 119.0;
         if let Some(activity) = horizontal_progress_activity_rect(track, position, 0.26, 24.0) {
-            frame.push_rect(activity, rgba(255, 184, 132, 188));
+            frame.push_rect(activity, Rgba8::new(255, 184, 132, 188));
         }
     }
     frame.push_border_rects(track, theme.border_emphasis, 1.0, BorderSides::ALL);
     frame
-}
-
-const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Rgba8 {
-    Rgba8 { r, g, b, a }
 }

@@ -1,4 +1,4 @@
-use super::{EqEditorWidget, geometry, paint, translucent};
+use super::{EqEditorWidget, geometry, paint};
 use crate::model::EqEditorMessage;
 use radiant::prelude::*;
 
@@ -145,7 +145,7 @@ fn append_hover_crosshair(
             primitives,
             widget.common.id,
             line,
-            translucent(theme.text_muted, 110),
+            theme.text_muted.with_alpha(110),
         );
     }
     if let Some(line) = horizontal_line_rect(plot, position.y, 1.0) {
@@ -153,7 +153,7 @@ fn append_hover_crosshair(
             primitives,
             widget.common.id,
             line,
-            translucent(theme.text_muted, 80),
+            theme.text_muted.with_alpha(80),
         );
     }
 }

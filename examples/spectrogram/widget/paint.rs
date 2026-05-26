@@ -14,7 +14,6 @@ mod overlay;
 mod primitives;
 
 use super::super::model::SpectralColumn;
-use color::rgba;
 use primitives::{push_rect, push_stroke};
 
 pub(super) struct SpectrogramPaintFrame<'a> {
@@ -40,7 +39,7 @@ pub(super) fn append_base(
         primitives,
         frame.widget_id,
         frame.plot,
-        rgba(7, 11, 18, 255),
+        Rgba8::new(7, 11, 18, 255),
     );
     cells::append_cells(primitives, &frame);
     grid::append_grid(primitives, frame.widget_id, frame.plot, theme);

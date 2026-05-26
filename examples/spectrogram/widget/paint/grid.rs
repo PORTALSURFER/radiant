@@ -1,4 +1,3 @@
-use super::color::translucent;
 use super::primitives::push_rect;
 use radiant::prelude::*;
 
@@ -21,12 +20,7 @@ fn append_horizontal_lines(
     for fraction in [0.25, 0.5, 0.75] {
         let y = plot.y_for_ratio_from_bottom(fraction);
         if let Some(line) = horizontal_line_rect(plot, y, 1.0) {
-            push_rect(
-                primitives,
-                widget_id,
-                line,
-                translucent(theme.grid_soft, 150),
-            );
+            push_rect(primitives, widget_id, line, theme.grid_soft.with_alpha(150));
         }
     }
 }
@@ -40,12 +34,7 @@ fn append_vertical_lines(
     for fraction in [0.25, 0.5, 0.75] {
         let x = plot.x_for_ratio(fraction);
         if let Some(line) = vertical_line_rect(plot, x, 1.0) {
-            push_rect(
-                primitives,
-                widget_id,
-                line,
-                translucent(theme.grid_soft, 120),
-            );
+            push_rect(primitives, widget_id, line, theme.grid_soft.with_alpha(120));
         }
     }
 }

@@ -55,7 +55,7 @@ fn append_analyzer(
     primitives.push(PaintPrimitive::FillPolygon(PaintFillPolygon {
         widget_id: widget.common.id,
         points: Arc::from(points),
-        color: translucent(theme.highlight_blue, 46),
+        color: theme.highlight_blue.with_alpha(46),
     }));
 }
 

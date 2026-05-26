@@ -74,8 +74,3 @@ impl EqEditorWidget {
             .map(|(id, _)| id)
     }
 }
-
-fn translucent(mut color: Rgba8, alpha: u8) -> Rgba8 {
-    color.a = alpha;
-    color
-}

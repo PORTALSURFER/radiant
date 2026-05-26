@@ -1,4 +1,3 @@
-use super::color::translucent;
 use super::primitives::push_rect;
 use radiant::prelude::*;
 
@@ -14,7 +13,7 @@ pub(super) fn append_hover(
             primitives,
             widget_id,
             line,
-            translucent(theme.accent_mint, 180),
+            theme.accent_mint.with_alpha(180),
         );
     }
 }

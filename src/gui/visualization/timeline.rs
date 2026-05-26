@@ -7,6 +7,7 @@ mod item;
 mod lanes;
 mod mapper;
 mod marker;
+mod panel;
 mod pitch;
 mod presentation;
 mod surface;
@@ -21,6 +22,7 @@ pub use item::{TimelineItemLayout, TimelineItemLayoutParts};
 pub use lanes::{TimelineLaneLayout, TimelineLaneLayoutParts};
 pub use mapper::TimelineCoordinateMapper;
 pub use marker::TimelineMarkerPreview;
+pub use panel::{TimelinePanelLayout, TimelinePanelLayoutParts};
 pub use pitch::{
     TimelinePitchItemLayout, TimelinePitchItemLayoutParts, TimelinePitchLayout,
     TimelinePitchLayoutParts,

@@ -630,6 +630,7 @@ signed vertical controls, `vertical_value_at_point`,
 vertical faders and meters, and
 `inline_indicator_layout` for compact text-relative status indicator clusters,
 `TimelineAxis` for reusable beat/time/sample-to-pixel, point-to-value, and range-rectangle projection,
+`TimelinePanelLayout` for reusable header, ruler, and lane panel splits,
 `TimelineItemLayout` for reusable lane-centered item rectangles with optional
 horizontal and vertical insets,
 `TimelinePitchLayout` for reusable top-down pitch-row projection and hit testing,

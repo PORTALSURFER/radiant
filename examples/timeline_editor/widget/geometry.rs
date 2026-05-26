@@ -4,7 +4,9 @@ use super::super::{
     CLIP_HEIGHT, HEADER_WIDTH, LANE_COUNT, LANE_HEIGHT, RULER_HEIGHT, TOTAL_BEATS, TRACK_PAD,
     model::{BeatRange, TimelineClip},
 };
-use radiant::gui::visualization::{TimelineAxis, TimelineItemLayout, TimelineLaneLayout};
+use radiant::gui::visualization::{
+    TimelineAxis, TimelineItemLayout, TimelineLaneLayout, TimelinePanelLayout,
+};
 use radiant::layout::{Point, Rect};
 
 const CLIP_HORIZONTAL_INSET: f32 = 2.0;
@@ -19,24 +21,13 @@ pub(crate) struct TimelineGeometry {
 
 impl TimelineGeometry {
     pub(crate) fn new(bounds: Rect) -> Self {
-        let header = Rect::from_min_max(
-            bounds.min,
-            Point::new(bounds.min.x + HEADER_WIDTH, bounds.max.y),
-        );
-        let ruler = Rect::from_min_max(
-            Point::new(bounds.min.x + HEADER_WIDTH, bounds.min.y),
-            Point::new(bounds.max.x, bounds.min.y + RULER_HEIGHT),
-        );
-        let lanes = Rect::from_min_max(
-            Point::new(bounds.min.x + HEADER_WIDTH, bounds.min.y + RULER_HEIGHT),
-            bounds.max,
-        );
-        let axis =
-            TimelineAxis::new(lanes, 0.0, TOTAL_BEATS as f32).with_trailing_padding(TRACK_PAD);
-        let lane_layout = TimelineLaneLayout::fixed_height(lanes, LANE_COUNT, LANE_HEIGHT);
+        let panel = TimelinePanelLayout::new(bounds, HEADER_WIDTH, RULER_HEIGHT);
+        let axis = TimelineAxis::new(panel.lanes, 0.0, TOTAL_BEATS as f32)
+            .with_trailing_padding(TRACK_PAD);
+        let lane_layout = TimelineLaneLayout::fixed_height(panel.lanes, LANE_COUNT, LANE_HEIGHT);
         Self {
-            header,
-            ruler,
+            header: panel.header,
+            ruler: panel.ruler,
             axis,
             lane_layout,
         }

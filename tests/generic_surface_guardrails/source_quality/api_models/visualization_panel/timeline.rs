@@ -79,6 +79,26 @@ fn timeline_item_layout_uses_named_parts_for_clip_geometry() {
 }
 
 #[test]
+fn timeline_panel_layout_uses_named_parts_for_editor_chrome() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/visualization/timeline/panel.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+
+    assert!(
+        source.contains("pub struct TimelinePanelLayoutParts")
+            && source.contains("pub fn from_parts(parts: TimelinePanelLayoutParts) -> Self"),
+        "timeline panel layout should expose named parts for reusable editor chrome splits"
+    );
+    assert!(
+        source.contains("pub header: Rect")
+            && source.contains("pub ruler: Rect")
+            && source.contains("pub lanes: Rect"),
+        "timeline panel layout should own header, ruler, and lane rectangles"
+    );
+}
+
+#[test]
 fn timeline_pitch_layout_uses_named_parts_for_note_editor_rows() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/gui/visualization/timeline/pitch.rs");

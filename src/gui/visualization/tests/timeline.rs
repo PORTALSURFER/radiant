@@ -12,6 +12,8 @@ mod lanes;
 mod mapper;
 #[path = "timeline/metadata.rs"]
 mod metadata;
+#[path = "timeline/panel.rs"]
+mod panel;
 #[path = "timeline/pitch.rs"]
 mod pitch;
 #[path = "timeline/value_marker.rs"]

@@ -66,11 +66,12 @@ pub use crate::gui::{
         DragHandleRole, HorizontalLogValueAxis, HorizontalLogValueAxisParts, HorizontalStripLayout,
         HorizontalStripLayoutParts, HorizontalValueAxis, HorizontalValueAxisParts, TimelineAxis,
         TimelineAxisParts, TimelineItemLayout, TimelineItemLayoutParts, TimelineLaneLayout,
-        TimelineLaneLayoutParts, TimelinePitchItemLayout, TimelinePitchItemLayoutParts,
-        TimelinePitchLayout, TimelinePitchLayoutParts, TimelineValueMarkerLayout,
-        TimelineValueMarkerLayoutParts, VerticalValueAxis, VerticalValueAxisParts,
-        canvas_layer_at_point, canvas_selection_edge_handles, canvas_selection_edge_visual_rect,
-        canvas_selection_rect, drag_handle_at_point, horizontal_resize_edge_bracket_rects,
+        TimelineLaneLayoutParts, TimelinePanelLayout, TimelinePanelLayoutParts,
+        TimelinePitchItemLayout, TimelinePitchItemLayoutParts, TimelinePitchLayout,
+        TimelinePitchLayoutParts, TimelineValueMarkerLayout, TimelineValueMarkerLayoutParts,
+        VerticalValueAxis, VerticalValueAxisParts, canvas_layer_at_point,
+        canvas_selection_edge_handles, canvas_selection_edge_visual_rect, canvas_selection_rect,
+        drag_handle_at_point, horizontal_resize_edge_bracket_rects,
     },
 };
 pub use crate::layout::LayoutOutput;

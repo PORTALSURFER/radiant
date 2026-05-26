@@ -5,17 +5,7 @@ use crate::{
 };
 
 pub(crate) fn blend_color(from: Rgba8, to: Rgba8, amount: f32) -> Rgba8 {
-    let amount = amount.clamp(0.0, 1.0);
-    Rgba8 {
-        r: blend_channel(from.r, to.r, amount),
-        g: blend_channel(from.g, to.g, amount),
-        b: blend_channel(from.b, to.b, amount),
-        a: blend_channel(from.a, to.a, amount),
-    }
-}
-
-fn blend_channel(from: u8, to: u8, amount: f32) -> u8 {
-    ((from as f32) + (((to as f32) - (from as f32)) * amount)).round() as u8
+    from.blend_toward(to, amount)
 }
 
 pub(crate) fn diagonal_cut_rect_points(rect: Rect) -> PaintPointList {

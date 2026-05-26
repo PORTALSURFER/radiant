@@ -1,7 +1,7 @@
 use super::super::{
     MatrixCell,
     geometry::{amount_bar_rect, cell_rect},
-    paint::{blend_color, push_rect, push_stroke, push_text, translucent},
+    paint::{push_rect, push_stroke, push_text, translucent},
     widget::ModulationMatrixWidget,
 };
 use radiant::prelude::*;
@@ -82,7 +82,9 @@ fn append_amount_bar(
 
 fn cell_fill(selected: bool, theme: &ThemeTokens) -> Rgba8 {
     if selected {
-        blend_color(theme.surface_raised, theme.highlight_blue, 0.18)
+        theme
+            .surface_raised
+            .blend_opaque_toward(theme.highlight_blue, 0.18)
     } else {
         theme.surface_base
     }

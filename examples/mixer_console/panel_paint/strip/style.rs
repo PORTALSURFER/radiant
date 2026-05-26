@@ -1,5 +1,5 @@
 use super::{SoloVisual, StripPaintState};
-use crate::mixer_console::paint::{blend_color, group_color, rgba, send_color, translucent};
+use crate::mixer_console::paint::{group_color, rgba, send_color, translucent};
 use crate::mixer_console::panel::MixerPanelWidget;
 use radiant::prelude::*;
 
@@ -9,15 +9,17 @@ pub(super) fn strip_fill(
     theme: &ThemeTokens,
 ) -> Rgba8 {
     if widget.selection.is_selected(state.channel_index) {
-        blend_color(theme.surface_raised, theme.highlight_blue, 0.20)
+        theme
+            .surface_raised
+            .blend_opaque_toward(theme.highlight_blue, 0.20)
     } else if state.solo_visual == SoloVisual::Dimmed {
-        blend_color(theme.surface_base, theme.bg_primary, 0.42)
+        theme
+            .surface_base
+            .blend_opaque_toward(theme.bg_primary, 0.42)
     } else {
-        blend_color(
-            theme.surface_base,
-            group_color(state.channel.group(), theme),
-            0.10,
-        )
+        theme
+            .surface_base
+            .blend_opaque_toward(group_color(state.channel.group(), theme), 0.10)
     }
 }
 

@@ -34,8 +34,31 @@ impl Rgba8 {
             a: blend_channel(self.a, other.a, amount),
         }
     }
+
+    /// Linearly blend this color's RGB channels toward another color after
+    /// resolving both colors as fully opaque.
+    pub fn blend_opaque_toward(self, other: Self, amount: f32) -> Self {
+        self.with_alpha(255)
+            .blend_toward(other.with_alpha(255), amount)
+    }
 }
 
 fn blend_channel(from: u8, to: u8, amount: f32) -> u8 {
     ((from as f32) + (((to as f32) - (from as f32)) * amount)).round() as u8
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blend_opaque_toward_ignores_source_alpha() {
+        let from = Rgba8::new(10, 20, 30, 40);
+        let to = Rgba8::new(110, 220, 130, 120);
+
+        assert_eq!(
+            from.blend_opaque_toward(to, 0.5),
+            Rgba8::new(60, 120, 80, 255)
+        );
+    }
 }

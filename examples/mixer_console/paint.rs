@@ -30,10 +30,6 @@ pub(crate) fn send_color(send: usize, theme: &ThemeTokens) -> Rgba8 {
     }
 }
 
-pub(crate) fn blend_color(a: Rgba8, b: Rgba8, t: f32) -> Rgba8 {
-    a.with_alpha(255).blend_toward(b.with_alpha(255), t)
-}
-
 pub(crate) fn rgba(r: u8, g: u8, b: u8, a: u8) -> Rgba8 {
     Rgba8::new(r, g, b, a)
 }

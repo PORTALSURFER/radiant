@@ -2,9 +2,7 @@ use radiant::prelude::*;
 
 use super::super::{
     model::PianoNote,
-    paint::{
-        blend_color, push_rect, push_rect_batch, push_stroke, push_stroke_batch, rgba, translucent,
-    },
+    paint::{push_rect, push_rect_batch, push_stroke, push_stroke_batch, rgba, translucent},
     widget::PianoRollWidget,
 };
 
@@ -114,11 +112,9 @@ fn note_fill(note: PianoNote, selected: bool, theme: &ThemeTokens) -> Rgba8 {
         return velocity_alpha(theme.highlight_blue, note.velocity);
     }
     velocity_alpha(
-        blend_color(
-            theme.highlight_cyan,
-            theme.highlight_blue,
-            note.velocity * 0.45,
-        ),
+        theme
+            .highlight_cyan
+            .blend_opaque_toward(theme.highlight_blue, note.velocity * 0.45),
         note.velocity,
     )
 }

@@ -4,10 +4,6 @@ pub(crate) use radiant::runtime::{
     push_stroke_rect as push_stroke, push_stroke_rect_batch as push_stroke_batch, push_text,
 };
 
-pub(crate) fn blend_color(a: Rgba8, b: Rgba8, t: f32) -> Rgba8 {
-    a.with_alpha(255).blend_toward(b.with_alpha(255), t)
-}
-
 pub(crate) fn rgba(r: u8, g: u8, b: u8, a: u8) -> Rgba8 {
     Rgba8::new(r, g, b, a)
 }

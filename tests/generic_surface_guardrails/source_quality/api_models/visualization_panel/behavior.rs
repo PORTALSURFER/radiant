@@ -18,6 +18,9 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
     let timeline_mapper =
         fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/timeline/mapper.rs"))
             .expect("timeline mapper tests should be readable");
+    let timeline_item =
+        fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/timeline/item.rs"))
+            .expect("timeline item tests should be readable");
     let timeline_metadata =
         fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/timeline/metadata.rs"))
             .expect("timeline metadata tests should be readable");
@@ -42,6 +45,7 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
             && spatial.contains("fn spatial_panel_groups_labels_selection_and_point_data")
             && canvas.contains("fn canvas_invalidation_splits_scene_and_interaction_rebuilds")
             && signal.contains("fn signal_tool_state_preserves_generic_interaction_flags")
+            && timeline.contains("mod item;")
             && timeline.contains("mod mapper;")
             && timeline.contains("mod metadata;")
             && timeline.contains("mod aggregate;")
@@ -59,12 +63,13 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
     );
     assert!(
         timeline_mapper.contains("fn timeline_coordinate_mapper_projects_and_back_projects_micros")
+            && timeline_item.contains("fn timeline_item_layout_projects_centered_lane_items")
             && timeline_metadata.contains(
                 "fn timeline_transport_state_preserves_positions_and_resolves_micro_playhead"
             )
             && timeline_aggregate
                 .contains("fn timeline_motion_state_aggregates_surface_chrome_tools")
             && timeline_fixtures.contains("fn timeline_viewport_parts"),
-        "timeline visualization tests should stay grouped by mapper, metadata, aggregate, and fixture concerns"
+        "timeline visualization tests should stay grouped by item, mapper, metadata, aggregate, and fixture concerns"
     );
 }

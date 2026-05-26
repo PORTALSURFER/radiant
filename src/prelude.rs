@@ -65,10 +65,10 @@ pub use crate::gui::{
         ColorRampStop, DenseGridCell, DenseGridLayout, DenseGridLayoutParts, DragHandle,
         DragHandleRole, HorizontalLogValueAxis, HorizontalLogValueAxisParts, HorizontalStripLayout,
         HorizontalStripLayoutParts, HorizontalValueAxis, HorizontalValueAxisParts, TimelineAxis,
-        TimelineAxisParts, TimelineLaneLayout, TimelineLaneLayoutParts, VerticalValueAxis,
-        VerticalValueAxisParts, canvas_layer_at_point, canvas_selection_edge_handles,
-        canvas_selection_edge_visual_rect, canvas_selection_rect, drag_handle_at_point,
-        horizontal_resize_edge_bracket_rects,
+        TimelineAxisParts, TimelineItemLayout, TimelineItemLayoutParts, TimelineLaneLayout,
+        TimelineLaneLayoutParts, VerticalValueAxis, VerticalValueAxisParts, canvas_layer_at_point,
+        canvas_selection_edge_handles, canvas_selection_edge_visual_rect, canvas_selection_rect,
+        drag_handle_at_point, horizontal_resize_edge_bracket_rects,
     },
 };
 pub use crate::layout::LayoutOutput;

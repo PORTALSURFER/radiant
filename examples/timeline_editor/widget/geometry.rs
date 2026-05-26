@@ -4,8 +4,10 @@ use super::super::{
     CLIP_HEIGHT, HEADER_WIDTH, LANE_COUNT, LANE_HEIGHT, RULER_HEIGHT, TOTAL_BEATS, TRACK_PAD,
     model::{BeatRange, TimelineClip},
 };
-use radiant::gui::visualization::{TimelineAxis, TimelineLaneLayout};
+use radiant::gui::visualization::{TimelineAxis, TimelineItemLayout, TimelineLaneLayout};
 use radiant::layout::{Point, Rect};
+
+const CLIP_HORIZONTAL_INSET: f32 = 2.0;
 
 #[derive(Clone, Copy)]
 pub(crate) struct TimelineGeometry {
@@ -49,12 +51,8 @@ impl TimelineGeometry {
     }
 
     pub(crate) fn clip_rect_for_range(self, lane: usize, range: BeatRange) -> Rect {
-        let lane_rect = self.lane_rect(lane);
-        let y = lane_rect.min.y + (lane_rect.height() - CLIP_HEIGHT) * 0.5;
-        Rect::from_min_max(
-            Point::new(self.x_for_beat(range.start) + 2.0, y),
-            Point::new(self.x_for_beat(range.end) - 2.0, y + CLIP_HEIGHT),
-        )
+        self.item_layout()
+            .item_rect(lane, range.start as f32, range.end as f32)
     }
 
     pub(crate) fn beat_range_rect(self, range: BeatRange) -> Rect {
@@ -75,5 +73,10 @@ impl TimelineGeometry {
 
     pub(crate) fn lane_at(self, position: Point) -> Option<usize> {
         self.lane_layout.lane_at(position)
+    }
+
+    fn item_layout(self) -> TimelineItemLayout {
+        TimelineItemLayout::new(self.axis, self.lane_layout, CLIP_HEIGHT)
+            .with_horizontal_inset(CLIP_HORIZONTAL_INSET)
     }
 }

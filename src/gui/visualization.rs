@@ -30,10 +30,11 @@ pub use spatial::{
 pub use strip_layout::{HorizontalStripLayout, HorizontalStripLayoutParts};
 pub use timeline::{
     TimelineAxis, TimelineAxisParts, TimelineCoordinateMapper, TimelineEditPreview,
-    TimelineEditPreviewParts, TimelineFeedbackEvents, TimelineFeedbackParts, TimelineLaneLayout,
-    TimelineLaneLayoutParts, TimelineMarkerPreview, TimelineMotionState, TimelinePresentationParts,
-    TimelinePresentationState, TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportParts,
-    TimelineTransportState, TimelineViewport, TimelineViewportParts,
+    TimelineEditPreviewParts, TimelineFeedbackEvents, TimelineFeedbackParts, TimelineItemLayout,
+    TimelineItemLayoutParts, TimelineLaneLayout, TimelineLaneLayoutParts, TimelineMarkerPreview,
+    TimelineMotionState, TimelinePresentationParts, TimelinePresentationState,
+    TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportParts, TimelineTransportState,
+    TimelineViewport, TimelineViewportParts,
 };
 pub use value_axis::{
     HorizontalLogValueAxis, HorizontalLogValueAxisParts, HorizontalValueAxis,

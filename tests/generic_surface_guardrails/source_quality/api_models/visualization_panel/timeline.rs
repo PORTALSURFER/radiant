@@ -58,3 +58,22 @@ fn timeline_viewport_uses_named_parts_for_precision_bounds() {
         "timeline viewport compatibility/default constructors should delegate through named parts"
     );
 }
+
+#[test]
+fn timeline_item_layout_uses_named_parts_for_clip_geometry() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/gui/visualization/timeline/item.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+
+    assert!(
+        source.contains("pub struct TimelineItemLayoutParts")
+            && source.contains("pub const fn from_parts(parts: TimelineItemLayoutParts) -> Self"),
+        "timeline item layout should expose named parts for readable reusable item geometry"
+    );
+    assert!(
+        source.contains("Self::from_parts(TimelineItemLayoutParts::new(")
+            && source.contains("pub fn item_rect(self, lane: usize, start: f32, end: f32) -> Rect"),
+        "timeline item layout compatibility constructors should delegate through named parts"
+    );
+}

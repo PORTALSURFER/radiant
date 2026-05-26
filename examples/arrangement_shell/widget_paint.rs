@@ -57,14 +57,13 @@ pub(super) fn append_hover_guides(
     timeline: Rect,
     theme: &ThemeTokens,
 ) {
-    if let Some(position) = widget.hover_position {
+    if let Some(position) = widget.hover_position
+        && let Some(line) = vertical_line_rect(timeline, position.x, 1.0)
+    {
         push_rect(
             primitives,
             widget.common.id,
-            Rect::from_min_max(
-                Point::new(position.x, timeline.min.y),
-                Point::new(position.x + 1.0, timeline.max.y),
-            ),
+            line,
             translucent(theme.text_muted, 80),
         );
     }
@@ -109,15 +108,14 @@ fn append_beat_lines(
 ) {
     for beat in 0..=TOTAL_BEATS as usize {
         let x = x_for_beat(timeline, beat as f32);
-        push_rect(
-            primitives,
-            widget.common.id,
-            Rect::from_min_max(
-                Point::new(x, timeline.min.y),
-                Point::new(x + 1.0, timeline.max.y),
-            ),
-            beat_line_color(beat, theme),
-        );
+        if let Some(line) = vertical_line_rect(timeline, x, 1.0) {
+            push_rect(
+                primitives,
+                widget.common.id,
+                line,
+                beat_line_color(beat, theme),
+            );
+        }
     }
 }
 

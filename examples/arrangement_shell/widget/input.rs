@@ -85,15 +85,14 @@ impl Widget for ArrangementOverviewWidget {
     ) {
         let timeline = self.timeline_rect(bounds);
         let playhead_x = x_for_beat(timeline, self.playhead_beat);
-        push_rect(
-            primitives,
-            self.common.id,
-            Rect::from_min_max(
-                Point::new(playhead_x, timeline.min.y),
-                Point::new(playhead_x + 2.0, timeline.max.y),
-            ),
-            translucent(theme.highlight_orange, 210),
-        );
+        if let Some(line) = vertical_line_rect(timeline, playhead_x, 2.0) {
+            push_rect(
+                primitives,
+                self.common.id,
+                line,
+                translucent(theme.highlight_orange, 210),
+            );
+        }
         append_hover_guides(self, primitives, timeline, theme);
     }
 }

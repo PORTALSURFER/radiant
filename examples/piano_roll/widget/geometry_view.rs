@@ -1,7 +1,8 @@
 use super::super::{
     TOTAL_BEATS,
     geometry::{
-        beat_for_x_view, beat_range_rect_view, pitch_layout, quantize_beat, x_for_beat_view,
+        beat_for_x_view, beat_range_rect_view, pitch_item_layout, pitch_layout, quantize_beat,
+        x_for_beat_view,
     },
     model::PianoNote,
 };
@@ -36,12 +37,9 @@ impl PianoRollWidget {
     }
 
     pub(crate) fn note_rect(&self, grid: Rect, note: PianoNote) -> Rect {
-        let x0 = x_for_beat_view(grid, self.viewport, note.start_beat);
-        let x1 = x_for_beat_view(grid, self.viewport, note.end_beat());
-        let row = pitch_layout(grid, self.viewport)
-            .pitch_rect(note.pitch)
-            .inset_vertical(2.0, 2.0);
-        Rect::from_min_max(Point::new(x0, row.min.y), Point::new(x1, row.max.y))
+        pitch_item_layout(grid, self.viewport)
+            .with_vertical_inset(2.0)
+            .item_rect_unclamped(note.pitch, note.start_beat, note.end_beat())
     }
 
     pub(super) fn note_at_position(&self, grid: Rect, position: Point) -> Option<u32> {

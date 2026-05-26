@@ -20,7 +20,10 @@ pub use item::{TimelineItemLayout, TimelineItemLayoutParts};
 pub use lanes::{TimelineLaneLayout, TimelineLaneLayoutParts};
 pub use mapper::TimelineCoordinateMapper;
 pub use marker::TimelineMarkerPreview;
-pub use pitch::{TimelinePitchLayout, TimelinePitchLayoutParts};
+pub use pitch::{
+    TimelinePitchItemLayout, TimelinePitchItemLayoutParts, TimelinePitchLayout,
+    TimelinePitchLayoutParts,
+};
 pub use presentation::{TimelinePresentationParts, TimelinePresentationState};
 pub use surface::{TimelineMotionState, TimelineSurfaceParts, TimelineSurfaceState};
 pub use transport::{TimelineTransportParts, TimelineTransportState};

@@ -1,7 +1,7 @@
 use radiant::prelude::*;
 
 use super::{
-    geometry::{beat_for_x_view, pitch_for_y_view, pitch_layout, quantize_beat, x_for_beat_view},
+    geometry::{beat_for_x_view, pitch_for_y_view, pitch_item_layout, quantize_beat},
     model::{PianoNote, PianoRollViewport},
     widget::NOTE_RESIZE_EDGE_WIDTH,
 };
@@ -150,10 +150,10 @@ impl PianoDrag {
         ids: Vec<u32>,
         position: Point,
     ) -> Self {
-        let row = pitch_layout(grid, viewport).pitch_rect(note.pitch);
-        let rect = Rect::from_min_max(
-            Point::new(x_for_beat_view(grid, viewport, note.start_beat), row.min.y),
-            Point::new(x_for_beat_view(grid, viewport, note.end_beat()), row.max.y),
+        let rect = pitch_item_layout(grid, viewport).item_rect_unclamped(
+            note.pitch,
+            note.start_beat,
+            note.end_beat(),
         );
         if position.x <= rect.min.x + NOTE_RESIZE_EDGE_WIDTH {
             return Self::ResizeStart {

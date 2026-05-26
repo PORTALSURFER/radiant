@@ -1,4 +1,4 @@
-use radiant::gui::visualization::{TimelineAxis, TimelinePitchLayout};
+use radiant::gui::visualization::{TimelineAxis, TimelinePitchItemLayout, TimelinePitchLayout};
 use radiant::prelude::*;
 
 use super::{TOTAL_BEATS, model::PianoRollViewport};
@@ -65,4 +65,11 @@ pub(crate) fn beat_axis(grid: Rect, viewport: PianoRollViewport) -> TimelineAxis
 
 pub(crate) fn pitch_layout(grid: Rect, viewport: PianoRollViewport) -> TimelinePitchLayout {
     TimelinePitchLayout::new(grid, viewport.pitch_start, viewport.row_count())
+}
+
+pub(crate) fn pitch_item_layout(
+    grid: Rect,
+    viewport: PianoRollViewport,
+) -> TimelinePitchItemLayout {
+    TimelinePitchItemLayout::new(beat_axis(grid, viewport), pitch_layout(grid, viewport))
 }

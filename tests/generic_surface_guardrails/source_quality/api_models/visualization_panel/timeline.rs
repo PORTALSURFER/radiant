@@ -95,4 +95,17 @@ fn timeline_pitch_layout_uses_named_parts_for_note_editor_rows() {
             && source.contains("pub fn pitch_at(self, position: Point) -> Option<i32>"),
         "timeline pitch layout should own pitch row projection and hit testing"
     );
+    assert!(
+        source.contains("pub struct TimelinePitchItemLayoutParts")
+            && source
+                .contains("pub const fn from_parts(parts: TimelinePitchItemLayoutParts) -> Self"),
+        "timeline pitch item layout should expose named parts for readable note-item geometry"
+    );
+    assert!(
+        source.contains("pub fn item_rect(self, pitch: i32, start: f32, end: f32) -> Rect")
+            && source.contains(
+                "pub fn item_rect_unclamped(self, pitch: i32, start: f32, end: f32) -> Rect"
+            ),
+        "timeline pitch item layout should own clamped and unclamped note-item projection"
+    );
 }

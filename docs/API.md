@@ -633,6 +633,7 @@ vertical faders and meters, and
 `TimelineItemLayout` for reusable lane-centered item rectangles with optional
 horizontal and vertical insets,
 `TimelinePitchLayout` for reusable top-down pitch-row projection and hit testing,
+`TimelinePitchItemLayout` for reusable note-like item rectangles on pitch rows,
 `HorizontalValueAxis` and `HorizontalValueAxisParts` for reusable linear
 value-to-x and x-to-value projection,
 `VerticalValueAxis` and `VerticalValueAxisParts` for reusable bottom-up

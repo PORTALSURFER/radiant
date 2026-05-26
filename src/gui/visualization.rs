@@ -32,7 +32,8 @@ pub use timeline::{
     TimelineAxis, TimelineAxisParts, TimelineCoordinateMapper, TimelineEditPreview,
     TimelineEditPreviewParts, TimelineFeedbackEvents, TimelineFeedbackParts, TimelineItemLayout,
     TimelineItemLayoutParts, TimelineLaneLayout, TimelineLaneLayoutParts, TimelineMarkerPreview,
-    TimelineMotionState, TimelinePitchLayout, TimelinePitchLayoutParts, TimelinePresentationParts,
+    TimelineMotionState, TimelinePitchItemLayout, TimelinePitchItemLayoutParts,
+    TimelinePitchLayout, TimelinePitchLayoutParts, TimelinePresentationParts,
     TimelinePresentationState, TimelineSurfaceParts, TimelineSurfaceState, TimelineTransportParts,
     TimelineTransportState, TimelineViewport, TimelineViewportParts,
 };

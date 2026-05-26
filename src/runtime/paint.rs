@@ -12,8 +12,9 @@ pub(super) use chrome::{push_container_chrome, push_overlay_panel};
 pub(super) use debug::{push_clip_end, push_clip_start, push_layout_debug_overlay};
 pub(crate) use geometry::{blend_color, diagonal_cut_rect_points, inset_rect, push_axis_stroke};
 pub use helpers::{
-    PaintTextMetrics, push_fill_rect, push_fill_rect_batch, push_stroke_rect,
-    push_stroke_rect_batch, push_text, push_text_run_with_metrics,
+    PaintTextMetrics, push_fill_polygon, push_fill_rect, push_fill_rect_batch,
+    push_stroke_polyline, push_stroke_rect, push_stroke_rect_batch, push_text,
+    push_text_run_with_metrics,
 };
 pub use primitives::{
     PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillPolygon,

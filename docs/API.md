@@ -60,9 +60,10 @@ Custom matrix or heatmap widgets can use `DenseGridLayout` and `DenseGridCell`
 for reusable row/column cell projection and hit testing.
 For paint-plan emission,
 `push_fill_rect`, `push_fill_rect_batch`, `push_stroke_rect`,
-`push_stroke_rect_batch`, `push_text`, `PaintTextMetrics`, and
-`push_text_run_with_metrics` provide the reusable primitive construction path
-used by complex examples and custom widgets.
+`push_stroke_rect_batch`, `push_fill_polygon`, `push_stroke_polyline`,
+`push_text`, `PaintTextMetrics`, and `push_text_run_with_metrics` provide the
+reusable primitive construction path used by complex examples and custom
+widgets.
 
 No-state apps can launch without naming `NativeRunOptions`, `RuntimeBridge`,
 `UiSurface`, `SurfaceNode`, `SurfaceChild`, or `WidgetSizing`:

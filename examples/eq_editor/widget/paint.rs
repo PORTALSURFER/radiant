@@ -1,6 +1,4 @@
 use super::*;
-use radiant::runtime::{PaintFillPolygon, PaintStrokePolyline};
-use std::sync::Arc;
 
 #[path = "paint/grid.rs"]
 mod grid;
@@ -9,7 +7,7 @@ mod primitives;
 
 use grid::append_grid;
 pub(super) use primitives::push_rect;
-use primitives::{push_stroke, push_text};
+use primitives::{push_fill_polygon, push_stroke, push_stroke_polyline, push_text};
 
 pub(super) fn append_eq_paint(
     widget: &EqEditorWidget,
@@ -42,21 +40,21 @@ fn append_analyzer(
     theme: &ThemeTokens,
 ) {
     let floor = plot.max.y;
+    let axis = HorizontalValueAxis::normalized(plot);
     let points = (0..96)
         .map(|index| {
             let ratio = index as f32 / 95.0;
-            let x = plot.x_for_ratio(ratio);
             let wave = ((ratio * 5.8).sin() * 0.45 + (ratio * 18.0).sin() * 0.12).max(-0.9);
             let height = plot.height() * (0.18 + (1.0 - ratio).powf(0.7) * 0.32 + wave * 0.08);
-            Point::new(x, floor - height)
+            Point::new(axis.x_for_value(ratio), floor - height)
         })
-        .chain([Point::new(plot.max.x, floor), Point::new(plot.min.x, floor)])
-        .collect::<Vec<_>>();
-    primitives.push(PaintPrimitive::FillPolygon(PaintFillPolygon {
-        widget_id: widget.common.id,
-        points: Arc::from(points),
-        color: theme.highlight_blue.with_alpha(46),
-    }));
+        .chain([Point::new(plot.max.x, floor), Point::new(plot.min.x, floor)]);
+    push_fill_polygon(
+        primitives,
+        widget.common.id,
+        points,
+        theme.highlight_blue.with_alpha(46),
+    );
 }
 
 fn append_curve(
@@ -65,22 +63,16 @@ fn append_curve(
     plot: Rect,
     theme: &ThemeTokens,
 ) {
-    let points = (0..160)
-        .map(|index| {
-            let ratio = index as f32 / 159.0;
-            let freq = geometry::freq_for_ratio(ratio);
-            Point::new(
-                plot.x_for_ratio(ratio),
-                y_for_gain(plot, response_gain_db(&widget.bands, freq)),
-            )
-        })
-        .collect::<Vec<_>>();
-    primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
-        widget_id: widget.common.id,
-        points: Arc::from(points),
-        color: theme.accent_mint,
-        width: 3.0,
-    }));
+    let axis = HorizontalValueAxis::normalized(plot);
+    let points = (0..160).map(|index| {
+        let ratio = index as f32 / 159.0;
+        let freq = geometry::freq_for_ratio(ratio);
+        Point::new(
+            axis.x_for_value(ratio),
+            y_for_gain(plot, response_gain_db(&widget.bands, freq)),
+        )
+    });
+    push_stroke_polyline(primitives, widget.common.id, points, theme.accent_mint, 3.0);
 }
 
 fn append_band_handles(

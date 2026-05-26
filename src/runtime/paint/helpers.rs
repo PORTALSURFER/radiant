@@ -1,9 +1,9 @@
 use super::{
-    PaintFillRect, PaintFillRectBatch, PaintPrimitive, PaintStrokeRect, PaintStrokeRectBatch,
-    PaintText, PaintTextAlign, PaintTextRun,
+    PaintFillPolygon, PaintFillRect, PaintFillRectBatch, PaintPrimitive, PaintStrokePolyline,
+    PaintStrokeRect, PaintStrokeRectBatch, PaintText, PaintTextAlign, PaintTextRun,
 };
 use crate::{
-    gui::types::{Rect, Rgba8},
+    gui::types::{Point, Rect, Rgba8},
     widgets::{TextWrap, WidgetId},
 };
 use std::sync::Arc;
@@ -102,6 +102,44 @@ pub fn push_stroke_rect_batch(
     }));
 }
 
+/// Push a filled polygon from generated or caller-owned points.
+pub fn push_fill_polygon(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    points: impl IntoIterator<Item = Point>,
+    color: Rgba8,
+) {
+    let points = points.into_iter().collect::<Vec<_>>();
+    if points.len() < 3 {
+        return;
+    }
+    primitives.push(PaintPrimitive::FillPolygon(PaintFillPolygon {
+        widget_id,
+        points: Arc::from(points),
+        color,
+    }));
+}
+
+/// Push an open stroked polyline from generated or caller-owned points.
+pub fn push_stroke_polyline(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    points: impl IntoIterator<Item = Point>,
+    color: Rgba8,
+    width: f32,
+) {
+    let points = points.into_iter().collect::<Vec<_>>();
+    if points.len() < 2 {
+        return;
+    }
+    primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
+        widget_id,
+        points: Arc::from(points),
+        color,
+        width,
+    }));
+}
+
 /// Push a single-line text run with explicit metrics into a runtime paint primitive buffer.
 pub fn push_text_run_with_metrics(
     primitives: &mut Vec<PaintPrimitive>,
@@ -155,6 +193,63 @@ mod tests {
         push_fill_rect_batch(&mut primitives, 7, Vec::new(), Rgba8::new(1, 2, 3, 4));
         push_stroke_rect_batch(&mut primitives, 7, Vec::new(), Rgba8::new(1, 2, 3, 4), 1.0);
         assert!(primitives.is_empty());
+    }
+
+    #[test]
+    fn polygon_and_polyline_helpers_skip_degenerate_point_lists() {
+        let mut primitives = Vec::new();
+
+        push_fill_polygon(
+            &mut primitives,
+            7,
+            [Point::new(0.0, 0.0), Point::new(10.0, 0.0)],
+            Rgba8::new(1, 2, 3, 4),
+        );
+        push_stroke_polyline(
+            &mut primitives,
+            7,
+            [Point::new(0.0, 0.0)],
+            Rgba8::new(1, 2, 3, 4),
+            1.0,
+        );
+
+        assert!(primitives.is_empty());
+    }
+
+    #[test]
+    fn polygon_and_polyline_helpers_emit_shared_point_lists() {
+        let mut primitives = Vec::new();
+
+        push_fill_polygon(
+            &mut primitives,
+            7,
+            [
+                Point::new(0.0, 0.0),
+                Point::new(10.0, 0.0),
+                Point::new(10.0, 10.0),
+            ],
+            Rgba8::new(1, 2, 3, 4),
+        );
+        push_stroke_polyline(
+            &mut primitives,
+            9,
+            [Point::new(1.0, 2.0), Point::new(3.0, 4.0)],
+            Rgba8::new(5, 6, 7, 8),
+            2.0,
+        );
+
+        let [
+            PaintPrimitive::FillPolygon(fill),
+            PaintPrimitive::StrokePolyline(stroke),
+        ] = primitives.as_slice()
+        else {
+            panic!("expected polygon and polyline primitives");
+        };
+        assert_eq!(fill.widget_id, 7);
+        assert_eq!(fill.points.len(), 3);
+        assert_eq!(stroke.widget_id, 9);
+        assert_eq!(stroke.points.len(), 2);
+        assert_eq!(stroke.width, 2.0);
     }
 
     #[test]

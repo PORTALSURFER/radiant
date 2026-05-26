@@ -53,13 +53,14 @@ fn append_meter_grid(
     theme: &ThemeTokens,
 ) {
     for fraction in [0.25, 0.5, 0.75] {
-        let y = meter.y_for_ratio_from_bottom(fraction);
-        push_rect(
-            primitives,
-            widget.common.id,
-            Rect::from_min_max(Point::new(meter.min.x, y), Point::new(meter.max.x, y + 1.0)),
-            translucent(theme.grid_soft, 120),
-        );
+        if let Some(line) = vertical_value_line_rect(meter, fraction, 0.0, 1.0) {
+            push_rect(
+                primitives,
+                widget.common.id,
+                line,
+                translucent(theme.grid_soft, 120),
+            );
+        }
     }
 }
 
@@ -83,12 +84,14 @@ fn append_meter_lanes(
         meter_ratio
     };
     for (index, ratio) in [left_ratio, right_ratio].into_iter().enumerate() {
-        push_rect(
-            primitives,
-            widget.common.id,
-            meter_lane_rect(meter, index, ratio),
-            meter_fill_color(solo_dimmed, readout.meter_db),
-        );
+        if let Some(lane) = vertical_meter_lane_fill_rect(meter, index, 2, ratio, 2.0, 3.0) {
+            push_rect(
+                primitives,
+                widget.common.id,
+                lane,
+                meter_fill_color(solo_dimmed, readout.meter_db),
+            );
+        }
     }
 }
 
@@ -100,16 +103,16 @@ fn append_peak_and_readout(
     readout: MeterReadout,
     theme: &ThemeTokens,
 ) {
-    let peak_y = meter.y_for_ratio_from_bottom(ratio_for_meter_db(readout.peak_db));
-    push_rect(
-        primitives,
-        widget.common.id,
-        Rect::from_min_max(
-            Point::new(meter.min.x + 2.0, peak_y),
-            Point::new(meter.max.x - 2.0, peak_y + 2.0),
-        ),
-        peak_color(solo_dimmed, theme),
-    );
+    if let Some(peak) =
+        vertical_value_line_rect(meter, ratio_for_meter_db(readout.peak_db), 2.0, 2.0)
+    {
+        push_rect(
+            primitives,
+            widget.common.id,
+            peak,
+            peak_color(solo_dimmed, theme),
+        );
+    }
     push_text(
         primitives,
         widget.common.id,
@@ -129,16 +132,6 @@ fn meter_track_color(solo_dimmed: bool) -> Rgba8 {
     } else {
         rgba(8, 13, 18, 255)
     }
-}
-
-fn meter_lane_rect(meter: Rect, index: usize, ratio: f32) -> Rect {
-    let lane_gap = 2.0;
-    let lane_width = ((meter.width() - 6.0 - lane_gap) / 2.0).max(1.0);
-    let x = meter.min.x + 3.0 + index as f32 * (lane_width + lane_gap);
-    Rect::from_min_max(
-        Point::new(x, meter.max.y - (meter.height() - 6.0) * ratio),
-        Point::new(x + lane_width, meter.max.y - 3.0),
-    )
 }
 
 fn meter_fill_color(solo_dimmed: bool, meter_db: f32) -> Rgba8 {

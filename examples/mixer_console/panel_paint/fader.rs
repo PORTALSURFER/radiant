@@ -31,15 +31,14 @@ pub(super) fn append_fader_track(
     solo_dimmed: bool,
     theme: &ThemeTokens,
 ) {
-    push_rect(
-        primitives,
-        widget.common.id,
-        Rect::from_min_max(
-            Point::new(center_x - 2.0, fader.min.y),
-            Point::new(center_x + 2.0, fader.max.y),
-        ),
-        fader_track_color(solo_dimmed, theme),
-    );
+    if let Some(track) = vertical_center_track_rect(fader, 4.0) {
+        push_rect(
+            primitives,
+            widget.common.id,
+            track,
+            fader_track_color(solo_dimmed, theme),
+        );
+    }
     append_fader_marks(widget, primitives, fader, center_x, theme);
 }
 
@@ -51,16 +50,17 @@ fn append_fader_marks(
     theme: &ThemeTokens,
 ) {
     for db in [-48.0, -24.0, -12.0, 0.0, 6.0] {
-        let y = fader.y_for_ratio_from_bottom(ratio_for_gain(db));
-        push_rect(
-            primitives,
-            widget.common.id,
+        if let Some(mark) = vertical_value_line_rect(
             Rect::from_min_max(
-                Point::new(center_x - 10.0, y),
-                Point::new(center_x + 10.0, y + 1.0),
+                Point::new(center_x - 10.0, fader.min.y),
+                Point::new(center_x + 10.0, fader.max.y),
             ),
-            theme.grid_soft,
-        );
+            ratio_for_gain(db),
+            0.0,
+            1.0,
+        ) {
+            push_rect(primitives, widget.common.id, mark, theme.grid_soft);
+        }
     }
 }
 
@@ -72,24 +72,23 @@ fn append_fader_knob(
     solo_dimmed: bool,
     theme: &ThemeTokens,
 ) {
-    let knob_y = fader.y_for_ratio_from_bottom(widget.fader_display_ratio(channel_index));
-    let knob = Rect::from_min_size(
-        Point::new(fader.min.x, knob_y - 8.0),
-        Vector2::new(fader.width(), 16.0),
-    );
-    push_rect(
-        primitives,
-        widget.common.id,
-        knob,
-        fader_knob_color(solo_dimmed, theme),
-    );
-    push_stroke(
-        primitives,
-        widget.common.id,
-        knob,
-        theme.border_emphasis,
-        1.0,
-    );
+    if let Some(knob) =
+        vertical_value_knob_rect(fader, widget.fader_display_ratio(channel_index), 16.0)
+    {
+        push_rect(
+            primitives,
+            widget.common.id,
+            knob,
+            fader_knob_color(solo_dimmed, theme),
+        );
+        push_stroke(
+            primitives,
+            widget.common.id,
+            knob,
+            theme.border_emphasis,
+            1.0,
+        );
+    }
 }
 
 fn fader_track_color(solo_dimmed: bool, theme: &ThemeTokens) -> Rgba8 {

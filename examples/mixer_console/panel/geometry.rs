@@ -92,8 +92,7 @@ impl MixerPanelWidget {
     }
 
     pub(super) fn fader_ratio_at(&self, strip: Rect, position: Point) -> f32 {
-        let fader = self.fader_rect(strip);
-        fader.ratio_for_y_from_bottom(position.y)
+        vertical_value_at_point(self.fader_rect(strip), position)
     }
 
     pub(super) fn send_ratio_at(&self, strip: Rect, send: usize, position: Point) -> f32 {

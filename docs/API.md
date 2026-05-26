@@ -619,7 +619,10 @@ indeterminate progress segments, `horizontal_progress_track_rect` for switching
 between determinate and indeterminate progress tracks, `horizontal_meter_fill_rect` and
 `horizontal_discrete_meter_fill_rect` for reusable meter geometry,
 `vertical_bipolar_value_at_point` and `vertical_bipolar_fill_rect` for centered
-signed vertical controls, and
+signed vertical controls, `vertical_value_at_point`,
+`vertical_center_track_rect`, `vertical_value_knob_rect`,
+`vertical_meter_lane_fill_rect`, and `vertical_value_line_rect` for normalized
+vertical faders and meters, and
 `inline_indicator_layout` for compact text-relative status indicator clusters,
 `TimelineAxis` for reusable beat/time/sample-to-pixel projection,
 `TimelineLaneLayout` for reusable track and lane rectangles,

@@ -140,17 +140,16 @@ fn append_preview_knob(
     fader: Rect,
     theme: &ThemeTokens,
 ) {
-    let knob_y = fader.y_for_ratio_from_bottom(widget.fader_display_ratio(channel_index));
-    let knob = Rect::from_min_size(
-        Point::new(fader.min.x, knob_y - 8.0),
-        Vector2::new(fader.width(), 16.0),
-    );
-    push_rect(primitives, widget.common.id, knob, theme.highlight_blue);
-    push_stroke(
-        primitives,
-        widget.common.id,
-        knob,
-        theme.border_emphasis,
-        1.0,
-    );
+    if let Some(knob) =
+        vertical_value_knob_rect(fader, widget.fader_display_ratio(channel_index), 16.0)
+    {
+        push_rect(primitives, widget.common.id, knob, theme.highlight_blue);
+        push_stroke(
+            primitives,
+            widget.common.id,
+            knob,
+            theme.border_emphasis,
+            1.0,
+        );
+    }
 }

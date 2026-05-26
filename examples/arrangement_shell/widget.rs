@@ -1,10 +1,7 @@
 use radiant::prelude::*;
 use radiant::widgets::PaintBounds;
 
-use super::{
-    geometry::{track_layout, x_for_beat},
-    model::ArrangementClip,
-};
+use super::{geometry::beat_range_item_rect, model::ArrangementClip};
 
 #[path = "widget/input.rs"]
 mod input;
@@ -48,13 +45,7 @@ impl ArrangementOverviewWidget {
     }
 
     pub(crate) fn clip_rect(&self, timeline: Rect, clip: ArrangementClip) -> Rect {
-        let x0 = x_for_beat(timeline, clip.start_beat);
-        let x1 = x_for_beat(timeline, clip.end_beat());
-        let track_rect = track_layout(timeline).lane_rect(clip.track);
-        Rect::from_min_max(
-            Point::new(x0, track_rect.min.y + 8.0),
-            Point::new(x1, track_rect.max.y - 8.0),
-        )
+        beat_range_item_rect(timeline, clip.track, clip.start_beat, clip.end_beat())
     }
 
     fn clip_at_position(&self, timeline: Rect, position: Point) -> Option<u32> {

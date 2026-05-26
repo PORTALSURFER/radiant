@@ -12,6 +12,8 @@ pub struct TimelineItemLayoutParts {
     pub item_height: f32,
     /// Horizontal inset applied inside the projected value range.
     pub horizontal_inset: f32,
+    /// Vertical inset applied inside each lane before item height is resolved.
+    pub vertical_inset: f32,
 }
 
 impl TimelineItemLayoutParts {
@@ -22,6 +24,7 @@ impl TimelineItemLayoutParts {
             lanes,
             item_height,
             horizontal_inset: 0.0,
+            vertical_inset: 0.0,
         }
     }
 }
@@ -37,6 +40,8 @@ pub struct TimelineItemLayout {
     pub item_height: f32,
     /// Horizontal inset applied inside the projected value range.
     pub horizontal_inset: f32,
+    /// Vertical inset applied inside each lane before item height is resolved.
+    pub vertical_inset: f32,
 }
 
 impl TimelineItemLayout {
@@ -47,6 +52,7 @@ impl TimelineItemLayout {
             lanes: parts.lanes,
             item_height: parts.item_height,
             horizontal_inset: parts.horizontal_inset,
+            vertical_inset: parts.vertical_inset,
         }
     }
 
@@ -55,20 +61,34 @@ impl TimelineItemLayout {
         Self::from_parts(TimelineItemLayoutParts::new(axis, lanes, item_height))
     }
 
+    /// Build timeline item layout that fills each lane before insets are applied.
+    pub const fn fill_lanes(axis: TimelineAxis, lanes: TimelineLaneLayout) -> Self {
+        Self::new(axis, lanes, f32::INFINITY)
+    }
+
     /// Return this item layout with horizontal padding inside each projected range.
     pub const fn with_horizontal_inset(mut self, inset: f32) -> Self {
         self.horizontal_inset = inset;
         self
     }
 
+    /// Return this item layout with vertical padding inside each lane.
+    pub const fn with_vertical_inset(mut self, inset: f32) -> Self {
+        self.vertical_inset = inset;
+        self
+    }
+
     /// Project a value range into a vertically centered item rect on a lane.
     pub fn item_rect(self, lane: usize, start: f32, end: f32) -> Rect {
-        let lane_rect = self.lanes.lane_rect(lane);
-        let inset = finite_nonnegative(self.horizontal_inset);
+        let lane_rect = self.lanes.lane_rect(lane).inset_vertical(
+            finite_nonnegative(self.vertical_inset),
+            finite_nonnegative(self.vertical_inset),
+        );
+        let horizontal_inset = finite_nonnegative(self.horizontal_inset);
         let range_rect = self
             .axis
             .range_rect(start, end)
-            .inset_horizontal(inset, inset);
+            .inset_horizontal(horizontal_inset, horizontal_inset);
         let height = self.resolved_item_height(lane_rect);
         let min_y = lane_rect.min.y + ((lane_rect.height() - height) * 0.5).max(0.0);
         Rect::from_min_max(

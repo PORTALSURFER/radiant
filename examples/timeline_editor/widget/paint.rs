@@ -105,7 +105,7 @@ pub(super) fn append_timeline_paint(
             primitives,
             widget.common.id,
             geometry.beat_range_rect(selection),
-            translucent(theme.highlight_blue, 64),
+            theme.highlight_blue.with_alpha(64),
         );
     }
 
@@ -144,8 +144,4 @@ pub(super) fn push_resize_handles(
             push_rect(primitives, widget_id, handle, color);
         }
     }
-}
-
-fn translucent(color: Rgba8, alpha: u8) -> Rgba8 {
-    color.with_alpha(alpha)
 }

@@ -52,7 +52,9 @@ runtime modules.
 
 Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`,
 `Rgba8::blend_toward`, and `Rgba8::blend_opaque_toward` for common color
-manipulation. For paint-plan emission,
+manipulation. Dense visualizations can use `ColorRamp` and `ColorRampStop` for
+normalized heatmap and intensity palettes without local interpolation helpers.
+For paint-plan emission,
 `push_fill_rect`, `push_fill_rect_batch`, `push_stroke_rect`,
 `push_stroke_rect_batch`, `push_text`, `PaintTextMetrics`, and
 `push_text_run_with_metrics` provide the reusable primitive construction path
@@ -603,7 +605,8 @@ Dense card or tile grids can use `VirtualGridWindowRequest` and
 `VirtualGridWindow` from the same module to resolve an allocation-free
 row-major item window before projecting visible grid cells into
 `SurfaceNode::grid` or a virtual scroll area.
-Timeline and signal visualizations can use `SignalChromeState` for reusable
+Timeline and signal visualizations can use `ColorRamp` and `ColorRampStop` for
+reusable normalized heatmap/intensity palettes, `SignalChromeState` for reusable
 status/reference/channel chrome, `SignalToolFlags` and `SignalToolState` for
 generic enabled/visible tool flags, `SignalRasterPreview` for retained raster
 image payloads and loading state, `horizontal_progress_fill_rect` for resolving normalized

@@ -1,6 +1,7 @@
 //! Generic visualization primitives.
 
 mod canvas;
+mod color_ramp;
 mod signal;
 mod spatial;
 mod timeline;
@@ -9,6 +10,7 @@ pub use canvas::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts, DragHandle,
     DragHandleRole, canvas_layer_at_point, drag_handle_at_point,
 };
+pub use color_ramp::{ColorRamp, ColorRampStop};
 pub use signal::{
     ChannelViewMode, SignalChromeParts, SignalChromeState, SignalRasterPreview,
     SignalRasterPreviewParts, SignalToolFlags, SignalToolState,

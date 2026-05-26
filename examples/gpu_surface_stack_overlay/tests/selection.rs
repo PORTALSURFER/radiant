@@ -1,6 +1,7 @@
-use crate::model::{DemoMessage, DemoState, ResizeHandle};
+use crate::model::{DemoMessage, DemoState};
 use crate::selection_overlay::SelectionOverlay;
 use crate::view::{SURFACE_HEIGHT, SURFACE_WIDTH};
+use radiant::gui::visualization::DragHandleRole;
 use radiant::prelude::*;
 use radiant::runtime::{Event, RuntimeBridge, SurfaceRuntime};
 use radiant::widgets::{TextWidget, WidgetId};
@@ -12,7 +13,7 @@ fn resize_selection_keeps_minimum_width() {
         selection_end: 0.68,
         ..DemoState::default()
     });
-    overlay.drag_handle = Some(ResizeHandle::Start);
+    overlay.drag_handle = Some(DragHandleRole::Start);
 
     overlay.resize_selection(0.67);
 
@@ -22,7 +23,7 @@ fn resize_selection_keeps_minimum_width() {
 #[test]
 fn resize_preview_stays_widget_local_until_release() {
     let mut overlay = SelectionOverlay::new(&DemoState::default());
-    overlay.drag_handle = Some(ResizeHandle::Start);
+    overlay.drag_handle = Some(DragHandleRole::Start);
     let bounds = Rect::from_min_size(
         Point::new(0.0, 0.0),
         Vector2::new(SURFACE_WIDTH, SURFACE_HEIGHT),
@@ -37,13 +38,13 @@ fn resize_preview_stays_widget_local_until_release() {
 
     assert!(output.is_none());
     assert_eq!(overlay.selection_start, 0.32);
-    assert_eq!(overlay.drag_handle, Some(ResizeHandle::Start));
+    assert_eq!(overlay.drag_handle, Some(DragHandleRole::Start));
 }
 
 #[test]
 fn resize_release_commits_final_selection_once() {
     let mut overlay = SelectionOverlay::new(&DemoState::default());
-    overlay.drag_handle = Some(ResizeHandle::End);
+    overlay.drag_handle = Some(DragHandleRole::End);
     overlay.selection_end = 0.74;
     let bounds = Rect::from_min_size(
         Point::new(0.0, 0.0),
@@ -116,7 +117,7 @@ fn runtime_resize_drag_previews_locally_and_commits_once() {
 
     let overlay = selection_overlay(&runtime);
     assert_eq!(overlay.selection_start, 0.32);
-    assert_eq!(overlay.drag_handle, Some(ResizeHandle::Start));
+    assert_eq!(overlay.drag_handle, Some(DragHandleRole::Start));
     assert_eq!(
         text_widget(&runtime, 2).text,
         "selection 22% - 68%",

@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::gui::types::{Point, Rect};
+use crate::gui::types::{Point, Rect, Vector2};
 
 /// Paint and input order for a generic layered canvas.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -135,6 +135,98 @@ pub fn drag_handle_at_point(handles: &[DragHandle], point: Point) -> Option<Drag
         .rev()
         .copied()
         .find(|handle| handle.enabled && handle.rect.contains(point))
+}
+
+fn normalized_fraction(value: f32) -> f32 {
+    if value.is_finite() {
+        value.clamp(0.0, 1.0)
+    } else {
+        0.0
+    }
+}
+
+/// Return a normalized horizontal selection rectangle inside a canvas.
+pub fn canvas_selection_rect(bounds: Rect, start_fraction: f32, end_fraction: f32) -> Option<Rect> {
+    if !bounds.has_finite_positive_area() {
+        return None;
+    }
+    let start = normalized_fraction(start_fraction);
+    let end = normalized_fraction(end_fraction);
+    if end <= start {
+        return None;
+    }
+    Some(Rect::from_min_max(
+        Point::new(bounds.x_for_ratio(start), bounds.min.y),
+        Point::new(bounds.x_for_ratio(end), bounds.max.y),
+    ))
+}
+
+/// Return hit-test handles for the start and end edges of a normalized canvas selection.
+pub fn canvas_selection_edge_handles(
+    bounds: Rect,
+    start_fraction: f32,
+    end_fraction: f32,
+    hit_width: f32,
+    capture_token: u64,
+) -> Option<[DragHandle; 2]> {
+    let selection = canvas_selection_rect(bounds, start_fraction, end_fraction)?;
+    let width = if hit_width.is_finite() {
+        hit_width.max(0.0)
+    } else {
+        0.0
+    };
+    if width <= 0.0 {
+        return None;
+    }
+    Some([
+        DragHandle::new(
+            DragHandleRole::Start,
+            Rect::from_min_size(
+                Point::new(selection.min.x - width * 0.5, bounds.min.y),
+                Vector2::new(width, bounds.height()),
+            ),
+            capture_token,
+        ),
+        DragHandle::new(
+            DragHandleRole::End,
+            Rect::from_min_size(
+                Point::new(selection.max.x - width * 0.5, bounds.min.y),
+                Vector2::new(width, bounds.height()),
+            ),
+            capture_token,
+        ),
+    ])
+}
+
+/// Return the visible edge handle for a normalized canvas selection.
+pub fn canvas_selection_edge_visual_rect(
+    bounds: Rect,
+    edge_fraction: f32,
+    width: f32,
+    vertical_inset: f32,
+) -> Option<Rect> {
+    if !bounds.has_finite_positive_area() {
+        return None;
+    }
+    let width = if width.is_finite() {
+        width.max(0.0)
+    } else {
+        0.0
+    };
+    let inset = if vertical_inset.is_finite() {
+        vertical_inset.max(0.0)
+    } else {
+        0.0
+    }
+    .min(bounds.height() * 0.5);
+    if width <= 0.0 || bounds.height() - inset * 2.0 <= 0.0 {
+        return None;
+    }
+    let center_x = bounds.x_for_ratio(normalized_fraction(edge_fraction));
+    Some(Rect::from_min_size(
+        Point::new(center_x - width * 0.5, bounds.min.y + inset),
+        Vector2::new(width, bounds.height() - inset * 2.0),
+    ))
 }
 
 /// Retained canvas/timeline invalidation summary.

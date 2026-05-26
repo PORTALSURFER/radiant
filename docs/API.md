@@ -628,6 +628,9 @@ vertical faders and meters, and
 `inline_indicator_layout` for compact text-relative status indicator clusters,
 `TimelineAxis` for reusable beat/time/sample-to-pixel projection,
 `TimelineLaneLayout` for reusable track and lane rectangles,
+`CanvasLayer`, `DragHandle`, `canvas_selection_rect`,
+`canvas_selection_edge_handles`, and `canvas_selection_edge_visual_rect` for
+generic retained-canvas layering, selection, and resize handle geometry,
 `TimelineViewport` for normalized viewport bounds,
 `TimelineTransportState` for cursor/playhead/selection positions,
 `TimelineEditPreview` and `TimelineEditPreviewParts` for editable range and

@@ -1,9 +1,3 @@
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum ResizeHandle {
-    Start,
-    End,
-}
-
 #[derive(Debug)]
 pub(super) struct DemoState {
     pub(super) selected: bool,

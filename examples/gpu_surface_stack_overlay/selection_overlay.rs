@@ -1,9 +1,16 @@
 use super::*;
-use crate::model::{DemoMessage, DemoState, ResizeHandle};
+use crate::model::{DemoMessage, DemoState};
 use crate::transient_overlay::overlay_accent;
 use crate::view::{SURFACE_HEIGHT, SURFACE_WIDTH};
+use radiant::gui::visualization::{
+    DragHandleRole, canvas_selection_edge_handles, canvas_selection_edge_visual_rect,
+    canvas_selection_rect, drag_handle_at_point,
+};
 
 const HANDLE_HIT_WIDTH: f32 = 18.0;
+const HANDLE_VISUAL_WIDTH: f32 = 8.0;
+const HANDLE_INSET: f32 = 16.0;
+const ACTIVE_HANDLE_INSET: f32 = 8.0;
 
 #[derive(Clone)]
 pub(super) struct SelectionOverlay {
@@ -11,7 +18,7 @@ pub(super) struct SelectionOverlay {
     selected: bool,
     pub(super) selection_start: f32,
     pub(super) selection_end: f32,
-    pub(super) drag_handle: Option<ResizeHandle>,
+    pub(super) drag_handle: Option<DragHandleRole>,
 }
 
 impl SelectionOverlay {
@@ -33,31 +40,19 @@ impl SelectionOverlay {
         }
     }
 
-    fn ratio_from_position(bounds: Rect, position: Point) -> f32 {
-        bounds.ratio_for_x(position.x)
+    fn selection_rect(&self, bounds: Rect) -> Option<Rect> {
+        canvas_selection_rect(bounds, self.selection_start, self.selection_end)
     }
 
-    fn selection_rect(&self, bounds: Rect) -> Rect {
-        Rect::from_min_max(
-            Point::new(bounds.x_for_ratio(self.selection_start), bounds.min.y),
-            Point::new(bounds.x_for_ratio(self.selection_end), bounds.max.y),
-        )
-    }
-
-    fn handle_at(&self, bounds: Rect, position: Point) -> Option<ResizeHandle> {
-        let selection = self.selection_rect(bounds);
-        [
-            (ResizeHandle::Start, selection.min.x),
-            (ResizeHandle::End, selection.max.x),
-        ]
-        .into_iter()
-        .find_map(|(handle, x)| {
-            let rect = Rect::from_min_size(
-                Point::new(x - HANDLE_HIT_WIDTH * 0.5, bounds.min.y),
-                Vector2::new(HANDLE_HIT_WIDTH, bounds.height()),
-            );
-            rect.contains(position).then_some(handle)
-        })
+    fn handle_at(&self, bounds: Rect, position: Point) -> Option<DragHandleRole> {
+        let handles = canvas_selection_edge_handles(
+            bounds,
+            self.selection_start,
+            self.selection_end,
+            HANDLE_HIT_WIDTH,
+            self.common.id,
+        )?;
+        drag_handle_at_point(&handles, position).map(|handle| handle.role)
     }
 
     fn accent(&self) -> Rgba8 {
@@ -67,13 +62,14 @@ impl SelectionOverlay {
     pub(super) fn resize_selection(&mut self, ratio: f32) {
         let ratio = ratio.clamp(0.02, 0.98);
         match self.drag_handle {
-            Some(ResizeHandle::Start) => {
+            Some(DragHandleRole::Start) => {
                 self.selection_start = ratio.min(self.selection_end - 0.04);
             }
-            Some(ResizeHandle::End) => {
+            Some(DragHandleRole::End) => {
                 self.selection_end = ratio.max(self.selection_start + 0.04);
             }
             None => {}
+            Some(_) => {}
         }
     }
 }
@@ -101,7 +97,7 @@ impl Widget for SelectionOverlay {
                 Some(WidgetOutput::custom(DemoMessage::ToggleSelection))
             }
             WidgetInput::PointerMove { position } if self.drag_handle.is_some() => {
-                self.resize_selection(Self::ratio_from_position(bounds, position));
+                self.resize_selection(bounds.ratio_for_x(position.x));
                 None
             }
             WidgetInput::PointerRelease {
@@ -135,7 +131,9 @@ impl Widget for SelectionOverlay {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
-        let selection = self.selection_rect(bounds);
+        let Some(selection) = self.selection_rect(bounds) else {
+            return;
+        };
         let accent = self.accent();
         primitives.push(PaintPrimitive::FillRect(PaintFillRect {
             widget_id: self.common.id,
@@ -148,23 +146,30 @@ impl Widget for SelectionOverlay {
             color: accent,
             width: 2.0,
         }));
-        for (handle, x) in [
-            (ResizeHandle::Start, selection.min.x),
-            (ResizeHandle::End, selection.max.x),
+        for (handle, fraction) in [
+            (DragHandleRole::Start, self.selection_start),
+            (DragHandleRole::End, self.selection_end),
         ] {
             let active = self.drag_handle == Some(handle);
-            let handle_rect = Rect::from_min_size(
-                Point::new(x - 4.0, bounds.min.y + if active { 8.0 } else { 16.0 }),
-                Vector2::new(8.0, bounds.height() - if active { 16.0 } else { 32.0 }),
-            );
-            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-                widget_id: self.common.id,
-                rect: handle_rect,
-                color: Rgba8 {
-                    a: if active { 255 } else { accent.a },
-                    ..accent
+            if let Some(handle_rect) = canvas_selection_edge_visual_rect(
+                bounds,
+                fraction,
+                HANDLE_VISUAL_WIDTH,
+                if active {
+                    ACTIVE_HANDLE_INSET
+                } else {
+                    HANDLE_INSET
                 },
-            }));
+            ) {
+                primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+                    widget_id: self.common.id,
+                    rect: handle_rect,
+                    color: Rgba8 {
+                        a: if active { 255 } else { accent.a },
+                        ..accent
+                    },
+                }));
+            }
         }
     }
 }

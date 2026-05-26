@@ -59,8 +59,11 @@ pub use crate::gui::{
     svg::SvgIcon,
     undo::{UndoCheckpoint, UndoHistory, UndoRedoIntent, UndoTransition},
     visualization::{
-        ColorRamp, ColorRampStop, DenseGridCell, DenseGridLayout, DenseGridLayoutParts,
-        TimelineAxis, TimelineAxisParts, TimelineLaneLayout, TimelineLaneLayoutParts,
+        CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts, ColorRamp,
+        ColorRampStop, DenseGridCell, DenseGridLayout, DenseGridLayoutParts, DragHandle,
+        DragHandleRole, TimelineAxis, TimelineAxisParts, TimelineLaneLayout,
+        TimelineLaneLayoutParts, canvas_layer_at_point, canvas_selection_edge_handles,
+        canvas_selection_edge_visual_rect, canvas_selection_rect, drag_handle_at_point,
     },
 };
 pub use crate::layout::LayoutOutput;

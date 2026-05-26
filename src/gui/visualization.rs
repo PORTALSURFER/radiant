@@ -9,7 +9,8 @@ mod timeline;
 
 pub use canvas::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts, DragHandle,
-    DragHandleRole, canvas_layer_at_point, drag_handle_at_point,
+    DragHandleRole, canvas_layer_at_point, canvas_selection_edge_handles,
+    canvas_selection_edge_visual_rect, canvas_selection_rect, drag_handle_at_point,
 };
 pub use color_ramp::{ColorRamp, ColorRampStop};
 pub use grid::{DenseGridCell, DenseGridLayout, DenseGridLayoutParts};

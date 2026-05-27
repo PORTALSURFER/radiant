@@ -5,10 +5,11 @@ use radiant::{
     layout::Vector2,
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, DragHandleMessage,
-        DragHandleWidget, ImageWidget, ListItemMessage, ListItemWidget, PointerButton,
-        ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, SelectableMessage, SelectableWidget,
-        SliderMessage, SliderWidget, TextInputMessage, TextInputWidget, ToggleMessage,
-        ToggleWidget, Widget, WidgetInput, WidgetKey, WidgetSizing,
+        DragHandleWidget, ImageWidget, InteractiveRowMessage, InteractiveRowWidget,
+        ListItemMessage, ListItemWidget, PointerButton, ScrollbarAxis, ScrollbarMessage,
+        ScrollbarWidget, SelectableMessage, SelectableWidget, SliderMessage, SliderWidget,
+        TextInputMessage, TextInputWidget, ToggleMessage, ToggleWidget, Widget, WidgetInput,
+        WidgetKey, WidgetSizing,
     },
 };
 use std::sync::Arc;

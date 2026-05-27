@@ -43,6 +43,14 @@ impl InteractiveRowWidget {
                 self.dragged = false;
                 None
             }
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Secondary,
+                ..
+            } if bounds.contains(position) => {
+                self.common.state.hovered = true;
+                Some(InteractiveRowMessage::SecondaryActivate { position })
+            }
             WidgetInput::PointerRelease {
                 position,
                 button: PointerButton::Primary,

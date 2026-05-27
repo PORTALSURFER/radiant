@@ -48,6 +48,27 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         ],
     ),
     (
+        "svg",
+        &[
+            "use radiant::prelude::*;",
+            "SvgIcon::from_svg(",
+            "icon_button(",
+            "PaintPrimitive::Svg(",
+            "svg_example_paints_retained_svg_icons",
+        ],
+    ),
+    (
+        "floating_overlay",
+        &[
+            "use radiant::prelude::*;",
+            "floating_layer(",
+            ".key(\"floating-overlay-layer\")",
+            "Point::new(",
+            "Vector2::new(",
+            "overlay_menu()",
+        ],
+    ),
+    (
         "status_bar",
         &[
             "use radiant::prelude::*;",

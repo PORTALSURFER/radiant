@@ -153,3 +153,24 @@ fn gui_svg_keeps_icon_parser_model_and_hit_testing_in_focused_modules() {
         "SVG shape hit-testing should live in the hit-test module"
     );
 }
+
+#[test]
+fn native_vello_svg_encoder_transforms_svg_content_not_only_clip() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let encoder = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/scene/svg.rs"),
+    )
+    .expect("native Vello SVG encoder should be readable");
+
+    assert!(
+        encoder.contains("let mut svg_scene = Scene::new();")
+            && encoder.contains("vello_svg::append_tree_with(&mut svg_scene")
+            && encoder.contains("scene.push_clip_layer(Fill::NonZero, transform, &source_bounds);")
+            && encoder.contains("scene.append(&svg_scene, Some(transform));"),
+        "Vello layer transforms only affect the clip path; SVG content must be appended with the destination transform"
+    );
+    assert!(
+        !encoder.contains("scene.push_layer("),
+        "SVG encoding should not rely on push_layer transform for drawing commands"
+    );
+}

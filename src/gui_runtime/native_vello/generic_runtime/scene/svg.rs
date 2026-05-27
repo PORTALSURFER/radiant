@@ -1,10 +1,6 @@
 use crate::{gui::types::Rect as UiRect, runtime::PaintSvg};
 use kurbo::Rect as KurboRect;
-use vello::{
-    Scene,
-    kurbo::Affine,
-    peniko::{BlendMode, Fill},
-};
+use vello::{Scene, kurbo::Affine, peniko::Fill};
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_svg(
     scene: &mut Scene,
@@ -16,14 +12,11 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_svg(
         return;
     };
 
-    scene.push_layer(
-        Fill::NonZero,
-        BlendMode::default(),
-        1.0,
-        transform,
-        &source_bounds,
-    );
-    vello_svg::append_tree_with(scene, svg.document.tree(), &mut |_, _| {});
+    let mut svg_scene = Scene::new();
+    vello_svg::append_tree_with(&mut svg_scene, svg.document.tree(), &mut |_, _| {});
+
+    scene.push_clip_layer(Fill::NonZero, transform, &source_bounds);
+    scene.append(&svg_scene, Some(transform));
     scene.pop_layer();
 }
 

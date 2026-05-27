@@ -85,6 +85,10 @@ name = "toolbar_icons"
 path = "examples/toolbar_icons.rs"
 
 [[example]]
+name = "svg"
+path = "examples/svg.rs"
+
+[[example]]
 name = "status_bar"
 path = "examples/status_bar.rs"
 

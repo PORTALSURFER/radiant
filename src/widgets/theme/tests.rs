@@ -45,6 +45,23 @@ fn accent_widgets_use_accent_color_when_active() {
 }
 
 #[test]
+fn strong_warning_controls_keep_dark_text_on_warning_fill() {
+    let theme = ThemeTokens::default();
+    let tokens = resolve_widget_visual_tokens(
+        &theme,
+        WidgetStyle {
+            tone: WidgetTone::Warning,
+            prominence: WidgetProminence::Strong,
+        },
+        WidgetState::default(),
+    );
+
+    assert_eq!(tokens.fill, theme.accent_warning);
+    assert_eq!(tokens.foreground, theme.bg_primary);
+    assert_eq!(tokens.emphasis, theme.accent_warning);
+}
+
+#[test]
 fn neutral_active_controls_use_selected_surface() {
     let theme = ThemeTokens::default();
     let base = resolve_widget_visual_tokens(&theme, WidgetStyle::default(), WidgetState::default());

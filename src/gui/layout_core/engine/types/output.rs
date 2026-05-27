@@ -23,6 +23,16 @@ pub struct LayoutOutput {
 }
 
 impl LayoutOutput {
+    pub(in crate::gui::layout_core) fn clear_reusing_storage(&mut self) {
+        self.rects.clear();
+        self.overflowed.clear();
+        self.overflow_flags.clear();
+        self.diagnostics.clear();
+        self.debug_primitives.clear();
+        self.virtual_windows.clear();
+        self.stats = LayoutStats::default();
+    }
+
     /// Return one resolved node rectangle or the caller-provided fallback.
     pub fn rect_for(&self, node_id: NodeId, fallback: Rect) -> Rect {
         self.rects.get(&node_id).copied().unwrap_or(fallback)

@@ -92,6 +92,22 @@ where
         self.append_drag_preview_overlay(theme, primitives);
     }
 
+    /// Return whether runtime-local overlay painting can emit primitives.
+    ///
+    /// This is intentionally conservative for widget overlays: a hovered or
+    /// captured widget may decide not to paint anything, but without calling the
+    /// widget we only know that it is a candidate.
+    pub fn has_runtime_overlay_paint(&self) -> bool {
+        self.interaction.hover.widget.is_some()
+            || self.interaction.pointer.capture.is_some()
+            || self
+                .interaction
+                .drag
+                .session
+                .as_ref()
+                .is_some_and(|session| session.visible)
+    }
+
     /// Package the current runtime viewport, layout, and paint plan for a host renderer.
     ///
     /// Unlike [`UiSurface::frame`](crate::runtime::UiSurface::frame), this uses

@@ -1,8 +1,7 @@
 //! Window, surface, and renderer setup for the generic native Vello runner.
 
 use super::{
-    GenericNativeVelloRunner, animation_frame_interval, generic_window_attributes,
-    reveal_window_after_surface_setup,
+    GenericNativeVelloRunner, generic_window_attributes, reveal_window_after_surface_setup,
 };
 use crate::{
     gui::types::Vector2,
@@ -13,7 +12,7 @@ use crate::{
 use std::{sync::Arc, time::Instant};
 use tracing::{error, info, warn};
 use vello::{Renderer, wgpu};
-use winit::{dpi::PhysicalSize, event_loop::ActiveEventLoop, window::Window};
+use winit::{dpi::PhysicalSize, event_loop::ActiveEventLoop};
 
 mod backend;
 mod viewport;
@@ -125,18 +124,8 @@ where
         if size.width == 0 || size.height == 0 {
             return;
         }
-        let now = Instant::now();
-        if !self.should_resize_surface_now(now) {
-            self.defer_surface_resize(size);
-            self.request_redraw_if_needed();
-            return;
-        }
-        self.resize_surface_now(size, true);
-    }
-
-    pub(super) fn should_resize_surface_now(&self, now: Instant) -> bool {
-        let interval = animation_frame_interval(self.options.normalized_target_fps());
-        now.duration_since(self.timing.last_live_surface_resize) >= interval
+        self.defer_surface_resize(size);
+        self.request_redraw_if_needed();
     }
 
     pub(super) fn defer_surface_resize(&mut self, size: PhysicalSize<u32>) {
@@ -150,12 +139,16 @@ where
         let Some(size) = self.timing.pending_surface_resize.take() else {
             return;
         };
-        self.resize_surface_now(size, false);
+        self.timing.surface_resize_applied_this_frame = self.resize_surface_now(size, false);
     }
 
-    pub(super) fn resize_surface_now(&mut self, size: PhysicalSize<u32>, request_redraw: bool) {
+    pub(super) fn resize_surface_now(
+        &mut self,
+        size: PhysicalSize<u32>,
+        request_redraw: bool,
+    ) -> bool {
         if size.width == 0 || size.height == 0 {
-            return;
+            return false;
         }
         self.timing.pending_surface_resize = None;
         if let (Some(render_ctx), Some(surface)) = (
@@ -163,17 +156,16 @@ where
             self.window.render_surface.as_mut(),
         ) {
             if !surface_size_changed(surface.config.width, surface.config.height, size) {
-                return;
+                return false;
             }
             render_ctx.resize_surface(surface, size.width, size.height);
-            self.core
-                .set_viewport(logical_viewport_for_size(size, self.window.dpi_scale));
-            self.rebuild_scene();
-            self.timing.last_live_surface_resize = Instant::now();
+            self.defer_viewport_resize(logical_viewport_for_size(size, self.window.dpi_scale));
             if request_redraw {
                 self.request_redraw_if_needed();
             }
+            return true;
         }
+        false
     }
 
     pub(super) fn update_native_dpi_scale(&mut self, scale_factor: f64) {
@@ -225,13 +217,19 @@ where
     pub(super) fn acquire_present_surface_texture(
         &mut self,
         event_loop: &ActiveEventLoop,
-        window: &Window,
     ) -> Option<wgpu::SurfaceTexture> {
-        let surface = self.window.render_surface.as_mut()?;
-        match surface.surface.get_current_texture() {
+        let texture = {
+            let surface = self.window.render_surface.as_mut()?;
+            surface.surface.get_current_texture()
+        };
+        match texture {
             Ok(frame) => Some(frame),
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                self.resize_surface_now(window.inner_size(), true);
+                let Some(window) = self.window.window.as_ref() else {
+                    return None;
+                };
+                let size = window.inner_size();
+                let _ = self.resize_surface_now(size, true);
                 None
             }
             Err(wgpu::SurfaceError::OutOfMemory) => {

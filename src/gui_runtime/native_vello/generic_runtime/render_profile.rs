@@ -4,11 +4,12 @@ use super::{
     RetainedSurfaceEncodeStats, gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
 };
 use crate::gui_runtime::native_vello::TextLayoutProfileCounters;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tracing::info;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(super) struct RenderFrameProfile {
+    pub(super) record_timings: bool,
     pub(super) coalesced_wheel_route: Duration,
     pub(super) refresh_surface: Duration,
     pub(super) paint_plan: Duration,
@@ -19,6 +20,24 @@ pub(super) struct RenderFrameProfile {
     pub(super) transient_overlay_paint: Duration,
     pub(super) transient_overlay_primitives: usize,
     pub(super) submit_present: Duration,
+}
+
+impl RenderFrameProfile {
+    pub(super) fn recording(record_timings: bool) -> Self {
+        Self {
+            record_timings,
+            ..Self::default()
+        }
+    }
+
+    pub(super) fn measure<T>(&self, operation: impl FnOnce() -> T) -> (T, Duration) {
+        if !self.record_timings {
+            return (operation(), Duration::ZERO);
+        }
+        let started = Instant::now();
+        let output = operation();
+        (output, started.elapsed())
+    }
 }
 
 pub(super) fn maybe_log_render_profile(

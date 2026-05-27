@@ -16,11 +16,12 @@ where
     }
 
     pub(in crate::runtime::controller) fn relayout_current_surface(&mut self) {
-        self.layout = self.layout_engine.layout_with_state(
+        self.layout_engine.layout_with_state_into(
             &self.layout_root,
             self.viewport,
             &self.layout_state,
             self.layout_debug_options,
+            &mut self.layout,
         );
         self.refresh_visible_traversal_orders();
         self.sync_scroll_offsets();
@@ -30,11 +31,12 @@ where
         &mut self,
         traversal: SurfaceTraversalIndex,
     ) {
-        self.layout = self.layout_engine.layout_with_state(
+        self.layout_engine.layout_with_state_into(
             &self.layout_root,
             self.viewport,
             &self.layout_state,
             self.layout_debug_options,
+            &mut self.layout,
         );
         self.install_traversal_index(traversal);
         self.sync_scroll_offsets();

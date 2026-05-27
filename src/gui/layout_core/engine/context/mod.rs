@@ -49,7 +49,7 @@ pub(super) struct LayoutContext<'a> {
     state: &'a LayoutState,
     debug_options: LayoutDebugOptions,
     debug_node_filter: Option<&'a HashSet<NodeId>>,
-    pub(super) output: LayoutOutput,
+    pub(super) output: &'a mut LayoutOutput,
 }
 
 impl<'a> LayoutContext<'a> {
@@ -58,6 +58,7 @@ impl<'a> LayoutContext<'a> {
         cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
         virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
         scratch: &'a mut LayoutScratch,
+        output: &'a mut LayoutOutput,
         measure_dirty: &'a HashSet<NodeId>,
         state: &'a LayoutState,
         debug_options: LayoutDebugOptions,
@@ -69,6 +70,7 @@ impl<'a> LayoutContext<'a> {
         scratch.linear_windows.clear();
         scratch.linear_sizes.clear();
         scratch.linear_unresolved.clear();
+        output.clear_reusing_storage();
         Self {
             measured: &mut scratch.measured,
             measured_by_node: &mut scratch.measured_by_node,
@@ -82,7 +84,7 @@ impl<'a> LayoutContext<'a> {
             state,
             debug_options,
             debug_node_filter,
-            output: LayoutOutput::default(),
+            output,
         }
     }
 }

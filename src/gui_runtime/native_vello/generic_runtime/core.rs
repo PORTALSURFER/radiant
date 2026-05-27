@@ -48,10 +48,8 @@ where
         }
     }
 
-    pub(super) fn set_viewport(&mut self, viewport: Vector2) {
-        let _ = self
-            .runtime
-            .dispatch_event(crate::runtime::Event::Resize { viewport });
+    pub(super) fn set_viewport(&mut self, viewport: Vector2) -> bool {
+        self.runtime.set_viewport_and_report_relayout(viewport)
     }
 
     #[cfg(test)]
@@ -76,12 +74,24 @@ where
         );
     }
 
+    pub(super) fn has_transient_overlay_painter(&self) -> bool {
+        self.runtime.bridge().has_transient_overlay_painter()
+    }
+
     pub(super) fn paint_runtime_overlay(
         &self,
         primitives: &mut Vec<crate::runtime::PaintPrimitive>,
     ) {
         self.runtime
             .runtime_overlay_paint_into(&self.theme, primitives);
+    }
+
+    pub(super) fn has_runtime_overlay_paint(&self) -> bool {
+        self.runtime.has_runtime_overlay_paint()
+    }
+
+    pub(super) fn has_frame_diagnostics_observer(&self) -> bool {
+        self.runtime.bridge().has_frame_diagnostics_observer()
     }
 
     pub(super) fn refresh_surface(&mut self) {

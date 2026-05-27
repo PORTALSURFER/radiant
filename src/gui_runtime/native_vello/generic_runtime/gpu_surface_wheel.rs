@@ -3,7 +3,6 @@
 use super::{GenericNativeVelloRunner, RenderFrameProfile, maybe_log_route_profile};
 use crate::gui::types::{Point, Vector2};
 use crate::widgets::PointerModifiers;
-use std::time::Instant;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PendingGpuSurfaceWheel {
@@ -44,13 +43,14 @@ where
         let Some(pending) = self.input.pending_gpu_surface_wheel.take() else {
             return;
         };
-        let started = Instant::now();
-        let outcome = self.core.route_scroll_deferred_refresh_with_modifiers(
-            pending.position,
-            pending.delta,
-            pending.modifiers,
-        );
-        profile.coalesced_wheel_route = started.elapsed();
+        let (outcome, elapsed) = profile.measure(|| {
+            self.core.route_scroll_deferred_refresh_with_modifiers(
+                pending.position,
+                pending.delta,
+                pending.modifiers,
+            )
+        });
+        profile.coalesced_wheel_route = elapsed;
         maybe_log_route_profile("coalesced_wheel", profile.coalesced_wheel_route, outcome);
         if outcome.needs_redraw() {
             self.timing.deferred_surface_refresh = true;

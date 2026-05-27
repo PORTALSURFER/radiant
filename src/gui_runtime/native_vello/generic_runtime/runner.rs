@@ -111,6 +111,8 @@ where
 
     pub(super) fn rebuild_scene(&mut self) {
         self.timing.deferred_scene_rebuild = false;
+        self.timing.deferred_scene_rebuild_requires_encode = false;
+        let _ = self.apply_pending_viewport_resize_if_needed();
         self.core.paint_plan_into(&mut self.frame.last_paint_plan);
         let viewport = self.core.runtime.viewport();
         self.frame.last_scene_stats = encode_surface_paint_plan_to_scene(
@@ -126,8 +128,9 @@ where
                 animation_time: self.timing.animation_origin.elapsed(),
             },
         );
+        self.frame.refresh_post_gpu_overlay_cache();
         self.restore_native_hover_cursor_overlay();
-        self.frame.mark_scene_texture_dirty();
+        self.frame.mark_scene_content_dirty();
     }
 
     pub(super) fn rebuild_scene_for_interactive_route_now(&mut self) {
@@ -149,9 +152,26 @@ where
         now.duration_since(self.timing.last_interactive_scene_rebuild) >= interval
     }
 
+    pub(super) fn defer_scene_rebuild(&mut self) {
+        self.timing.deferred_scene_rebuild = true;
+        self.timing.deferred_scene_rebuild_requires_encode = true;
+    }
+
+    pub(super) fn defer_viewport_resize(&mut self, viewport: Vector2) {
+        self.timing.pending_viewport_resize = Some(viewport);
+        self.timing.deferred_scene_rebuild = true;
+    }
+
+    pub(super) fn apply_pending_viewport_resize_if_needed(&mut self) -> Option<bool> {
+        let Some(viewport) = self.timing.pending_viewport_resize.take() else {
+            return None;
+        };
+        Some(self.core.set_viewport(viewport))
+    }
+
     pub(super) fn defer_interactive_scene_rebuild(&mut self) {
         self.timing.deferred_surface_refresh = true;
-        self.timing.deferred_scene_rebuild = true;
+        self.defer_scene_rebuild();
     }
 
     fn restore_native_hover_cursor_overlay(&mut self) {
@@ -179,6 +199,7 @@ where
         if let Some(size) = outcome.window_logical_size {
             self.set_window_logical_size(size);
         }
+        let mut sync_auxiliary_windows_now = false;
         if outcome.needs_scene_rebuild() {
             if outcome.interactive_scene_rebuild_requested {
                 let now = Instant::now();
@@ -188,15 +209,20 @@ where
                     } else {
                         self.rebuild_scene_for_interactive_route_now();
                     }
+                    self.defer_auxiliary_window_sync();
                 } else {
                     self.defer_interactive_scene_rebuild();
+                    self.defer_auxiliary_window_sync();
                 }
             } else {
                 self.rebuild_scene();
+                sync_auxiliary_windows_now = true;
             }
-            self.sync_auxiliary_windows(event_loop);
         } else if outcome.deferred_surface_refresh_requested {
             self.timing.deferred_surface_refresh = true;
+        }
+        if sync_auxiliary_windows_now {
+            self.sync_auxiliary_windows(event_loop);
         }
         if outcome.needs_redraw() {
             self.request_redraw_if_needed();

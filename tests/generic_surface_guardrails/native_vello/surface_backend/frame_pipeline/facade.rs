@@ -60,7 +60,8 @@ fn native_vello_scene_texture_rendering_stays_out_of_present_driver() {
 
     assert!(
         module.contains("mod scene_texture;")
-            && present.contains("use super::scene_texture::render_scene_texture_if_needed;"),
+            && present.contains("render_scene_texture_if_needed")
+            && present.contains("render_scene_to_surface_view"),
         "generic runtime should expose the Vello scene texture renderer as a focused module and the present driver should import it directly"
     );
     assert!(
@@ -108,7 +109,9 @@ fn native_present_driver_uses_explicit_imports() {
             && present.contains("BaseFramePresentState")
             && present.contains("BaseFramePresentTarget")
             && present.contains("present_base_frame")
-            && present.contains("use super::scene_texture::render_scene_texture_if_needed;")
+            && present.contains("use super::scene_texture::{")
+            && present.contains("render_scene_texture_if_needed")
+            && present.contains("render_scene_to_surface_view")
             && !present.starts_with("use super::*;"),
         "native present driver should name runner, frame profile, surface sizing, window policy, diagnostics, WGPU, event loop, base-frame, and scene-texture dependencies"
     );
@@ -151,9 +154,9 @@ fn native_frame_preparation_stays_out_of_present_driver() {
             && frame_prepare.contains("RenderFrameProfile")
             && frame_prepare.contains("collect_gpu_surface_interaction_regions")
             && frame_prepare.contains("use crate::runtime::RuntimeBridge;")
-            && frame_prepare.contains("use std::time::Instant;")
+            && frame_prepare.contains("profile.measure(||")
             && !frame_prepare.starts_with("use super::*;"),
-        "frame preparation should name runner, render profile, GPU-region collection, bridge, and timing dependencies"
+        "frame preparation should name runner, render profile, GPU-region collection, bridge, and profiled timing dependencies"
     );
 }
 

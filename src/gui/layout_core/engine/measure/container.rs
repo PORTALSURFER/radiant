@@ -40,6 +40,7 @@ pub(super) fn measure_container(
         ContainerKind::ScrollView => scroll::measure_scroll_view(container, inner, context),
         ContainerKind::Wrap => wrap::measure_wrap(container, inner, context),
         ContainerKind::SwitchLayout => boxes::measure_switch_layout(container, inner, context),
+        ContainerKind::FloatingLayer => boxes::measure_floating_layer(container, context),
     };
 
     Vector2::new(

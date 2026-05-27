@@ -20,8 +20,8 @@ pub use frame::SurfaceFrame;
 pub(in crate::runtime) use input::WidgetDispatchResult;
 pub(in crate::runtime) use layout::SurfaceRuntimeProjection;
 pub use node::{
-    SurfaceChild, SurfaceChildParts, SurfaceContainer, SurfaceContainerParts, SurfaceNode,
-    SurfaceOverlay,
+    SurfaceChild, SurfaceChildParts, SurfaceContainer, SurfaceContainerParts, SurfaceFloatingLayer,
+    SurfaceNode, SurfaceOverlay,
 };
 pub(in crate::runtime) use paint::{clear_paint_plan_for_layout, empty_paint_plan_for_layout};
 pub(in crate::runtime) use path::{ClipAncestors, WidgetPath};

@@ -21,6 +21,10 @@ pub(super) fn policy_hash(policy: &ContainerPolicy, hasher: &mut impl Hasher) {
     hash_f32(policy.grid.row_gap, hasher);
     hash_f32(policy.wrap.item_gap, hasher);
     hash_f32(policy.wrap.line_gap, hasher);
+    hash_f32(policy.floating.offset.x, hasher);
+    hash_f32(policy.floating.offset.y, hasher);
+    hash_f32(policy.floating.size.x, hasher);
+    hash_f32(policy.floating.size.y, hasher);
     policy.aspect_ratio.map(f32::to_bits).hash(hasher);
     for breakpoint in &policy.switch_breakpoints {
         hash_f32(breakpoint.min_width, hasher);
@@ -65,6 +69,7 @@ fn container_kind_code(value: ContainerKind) -> u8 {
         ContainerKind::ScrollView => 7,
         ContainerKind::Wrap => 8,
         ContainerKind::SwitchLayout => 9,
+        ContainerKind::FloatingLayer => 10,
     }
 }
 

@@ -125,6 +125,10 @@ name = "context_menu"
 path = "examples/context_menu.rs"
 
 [[example]]
+name = "floating_overlay"
+path = "examples/floating_overlay.rs"
+
+[[example]]
 name = "paint_helpers"
 path = "examples/paint_helpers.rs"
 

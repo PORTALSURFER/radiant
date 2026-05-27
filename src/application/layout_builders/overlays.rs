@@ -26,6 +26,36 @@ pub fn overlay_panel<Message>(
     })
 }
 
+/// Build a non-interactive floating child tree positioned relative to its parent.
+///
+/// The layer paints regular view content without contributing intrinsic size and
+/// does not register its child widgets for pointer or wheel input.
+pub fn floating_layer<Message>(
+    offset: Point,
+    size: Vector2,
+    child: ViewNode<Message>,
+) -> ViewNode<Message> {
+    floating_layer_with_input(offset, size, child, false)
+}
+
+/// Build a floating child tree positioned relative to its parent.
+///
+/// Set `interactive` when the floating content should receive pointer, wheel,
+/// focus, and state synchronization traversal like normal content.
+pub fn floating_layer_with_input<Message>(
+    offset: Point,
+    size: Vector2,
+    child: ViewNode<Message>,
+    interactive: bool,
+) -> ViewNode<Message> {
+    ViewNode::new(ViewNodeKind::FloatingLayer {
+        offset,
+        size,
+        child: Box::new(child),
+        interactive,
+    })
+}
+
 /// Build a floating drop marker in surface coordinates.
 pub fn drop_marker<Message>(x: f32, y: f32, width: f32, height: f32) -> ViewNode<Message> {
     ViewNode::new(ViewNodeKind::OverlayPanel {

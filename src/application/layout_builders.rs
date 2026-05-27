@@ -11,5 +11,8 @@ pub use containers::{
     grid_with_gaps, row, row_key, stack, wrap,
 };
 pub use lists::{list, list_row, list_row_id, scroll_column, virtual_list, virtual_list_window};
-pub use overlays::{drag_preview, drag_preview_sized, drop_marker, overlay_panel};
+pub use overlays::{
+    drag_preview, drag_preview_sized, drop_marker, floating_layer, floating_layer_with_input,
+    overlay_panel,
+};
 pub use scroll::{scroll, virtual_scroll};

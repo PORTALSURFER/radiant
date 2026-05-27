@@ -154,6 +154,15 @@ impl<'a> ViewLowering<'a> {
                     SurfaceNode::overlay_marker(id, rect, style.unwrap_or_default())
                 }
             }
+            ViewNodeKind::FloatingLayer {
+                offset,
+                size,
+                child,
+                interactive,
+            } => {
+                let child = self.lower_node(*child, child_scope);
+                SurfaceNode::floating_layer(id, offset, size, child, interactive)
+            }
         }
     }
 }

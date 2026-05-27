@@ -6,6 +6,8 @@ mod slot;
 mod virtualization;
 
 pub use alignment::{CrossAlign, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain};
-pub use container::{ContainerKind, ContainerPolicy, GridPolicy, SwitchBreakpoint, WrapPolicy};
+pub use container::{
+    ContainerKind, ContainerPolicy, FloatingLayerPolicy, GridPolicy, SwitchBreakpoint, WrapPolicy,
+};
 pub use slot::{Insets, SlotParams};
 pub use virtualization::{VirtualizationAxis, VirtualizationPolicy};

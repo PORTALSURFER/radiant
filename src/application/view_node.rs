@@ -73,6 +73,12 @@ pub(in crate::application) enum ViewNodeKind<Message> {
         rect: crate::gui::types::Rect,
         label: Option<String>,
     },
+    FloatingLayer {
+        offset: crate::gui::types::Point,
+        size: crate::layout::Vector2,
+        child: Box<ViewNode<Message>>,
+        interactive: bool,
+    },
 }
 
 impl<Message> From<SurfaceNode<Message>> for ViewNode<Message> {

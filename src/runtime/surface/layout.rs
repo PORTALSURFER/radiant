@@ -59,6 +59,13 @@ impl<Message> SurfaceNode<Message> {
             }
             Self::Widget(widget) => widget.layout_node(),
             Self::Overlay(overlay) => LayoutNode::widget(overlay.id, Vector2::new(0.0, 0.0)),
+            Self::FloatingLayer(layer) => {
+                let mut children = Vec::with_capacity(layer.container.children.len());
+                for child in &layer.container.children {
+                    children.push(SlotChild::new(child.slot, child.child.layout_node()));
+                }
+                LayoutNode::container(layer.container.id, layer.container.policy.clone(), children)
+            }
         }
     }
 
@@ -90,6 +97,29 @@ impl<Message> SurfaceNode<Message> {
                 widget.layout_node()
             }
             Self::Overlay(overlay) => LayoutNode::widget(overlay.id, Vector2::new(0.0, 0.0)),
+            Self::FloatingLayer(layer) => {
+                let mut children = Vec::with_capacity(layer.container.children.len());
+                if layer.interactive {
+                    let is_scroll =
+                        begin_container_runtime(&layer.container, scroll_stack, traversal);
+                    for (child_index, child) in layer.container.children.iter().enumerate() {
+                        child_path.push(child_index);
+                        children.push(SlotChild::new(
+                            child.slot,
+                            child
+                                .child
+                                .project_runtime(scroll_stack, child_path, traversal),
+                        ));
+                        child_path.pop();
+                    }
+                    end_container_runtime(is_scroll, scroll_stack);
+                } else {
+                    for child in &layer.container.children {
+                        children.push(SlotChild::new(child.slot, child.child.layout_node()));
+                    }
+                }
+                LayoutNode::container(layer.container.id, layer.container.policy.clone(), children)
+            }
         }
     }
 
@@ -126,6 +156,20 @@ impl<Message> SurfaceNode<Message> {
                 record_widget_runtime(widget, scroll_stack, child_path, traversal);
             }
             Self::Overlay(_) => {}
+            Self::FloatingLayer(layer) => {
+                if !layer.interactive {
+                    return;
+                }
+                let is_scroll = begin_container_runtime(&layer.container, scroll_stack, traversal);
+                for (child_index, child) in layer.container.children.iter().enumerate() {
+                    child_path.push(child_index);
+                    child
+                        .child
+                        .collect_runtime_index(scroll_stack, child_path, traversal);
+                    child_path.pop();
+                }
+                end_container_runtime(is_scroll, scroll_stack);
+            }
         }
     }
 }

@@ -146,6 +146,8 @@ pub enum SurfaceNode<Message> {
     Widget(SurfaceWidget<Message>),
     /// A non-interactive floating overlay painted above normal layout content.
     Overlay(SurfaceOverlay),
+    /// A floating child tree that can paint out of normal layout flow.
+    FloatingLayer(SurfaceFloatingLayer<Message>),
 }
 
 /// Non-interactive floating overlay descriptor.
@@ -157,12 +159,28 @@ pub struct SurfaceOverlay {
     pub(super) style: WidgetStyle,
 }
 
+/// One floating child tree with explicit layout placement and input policy.
+pub struct SurfaceFloatingLayer<Message> {
+    pub(super) container: SurfaceContainer<Message>,
+    pub(super) interactive: bool,
+}
+
+impl<Message> Clone for SurfaceFloatingLayer<Message> {
+    fn clone(&self) -> Self {
+        Self {
+            container: self.container.clone(),
+            interactive: self.interactive,
+        }
+    }
+}
+
 impl<Message> Clone for SurfaceNode<Message> {
     fn clone(&self) -> Self {
         match self {
             Self::Container(container) => Self::Container(container.clone()),
             Self::Widget(widget) => Self::Widget(widget.clone()),
             Self::Overlay(overlay) => Self::Overlay(overlay.clone()),
+            Self::FloatingLayer(layer) => Self::FloatingLayer(layer.clone()),
         }
     }
 }
@@ -174,6 +192,7 @@ impl<Message> SurfaceNode<Message> {
             Self::Container(container) => container.id,
             Self::Widget(widget) => widget.id(),
             Self::Overlay(overlay) => overlay.id,
+            Self::FloatingLayer(layer) => layer.container.id,
         }
     }
 }

@@ -24,6 +24,7 @@
 //! - [`ContainerKind::ScrollView`](crate::layout::ContainerKind::ScrollView)
 //! - [`ContainerKind::Wrap`](crate::layout::ContainerKind::Wrap)
 //! - [`ContainerKind::SwitchLayout`](crate::layout::ContainerKind::SwitchLayout)
+//! - [`ContainerKind::FloatingLayer`](crate::layout::ContainerKind::FloatingLayer)
 //!
 //! # Example
 //!
@@ -81,8 +82,8 @@ pub use engine::{
     VirtualWindowInfo, layout_tree, layout_tree_with_state,
 };
 pub use model::{
-    ContainerKind, ContainerPolicy, CrossAlign, GridPolicy, Insets, MainAlign, OverflowPolicy,
-    SizeModeCross, SizeModeMain, SlotParams, SwitchBreakpoint, VirtualizationAxis,
+    ContainerKind, ContainerPolicy, CrossAlign, FloatingLayerPolicy, GridPolicy, Insets, MainAlign,
+    OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams, SwitchBreakpoint, VirtualizationAxis,
     VirtualizationPolicy, WrapPolicy,
 };
 pub use row_helpers::{

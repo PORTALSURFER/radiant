@@ -54,6 +54,29 @@ impl<Message> SurfaceNode<Message> {
                 }
             }
             Self::Overlay(_) => {}
+            Self::FloatingLayer(layer) => {
+                if !layer.interactive {
+                    return;
+                }
+                let is_scroll = layer.container.policy.kind == ContainerKind::ScrollView;
+                if scroll_depth > 0 {
+                    stats.clipped_containers += 1;
+                }
+                if is_scroll {
+                    stats.scroll_containers += 1;
+                }
+                if layer.container.style.is_some() && layer.container.hoverable {
+                    stats.styled_hoverable_containers += 1;
+                }
+                let child_scroll_depth = scroll_depth + usize::from(is_scroll);
+                for child in &layer.container.children {
+                    child.child.collect_runtime_traversal_stats(
+                        depth + 1,
+                        child_scroll_depth,
+                        stats,
+                    );
+                }
+            }
         }
     }
 }

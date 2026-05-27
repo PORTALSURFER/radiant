@@ -1,6 +1,7 @@
 //! Container-specific layout policy values.
 
 use super::{CrossAlign, Insets, MainAlign, OverflowPolicy, VirtualizationPolicy};
+use crate::gui::types::{Point, Vector2};
 
 /// Grid-specific policy values.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -37,6 +38,24 @@ impl Default for WrapPolicy {
         Self {
             item_gap: 0.0,
             line_gap: 0.0,
+        }
+    }
+}
+
+/// Explicit placement for a floating child laid out relative to its container.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FloatingLayerPolicy {
+    /// Child origin relative to the floating layer content origin.
+    pub offset: Point,
+    /// Child bounds used by the floating layer layout pass.
+    pub size: Vector2,
+}
+
+impl Default for FloatingLayerPolicy {
+    fn default() -> Self {
+        Self {
+            offset: Point::new(0.0, 0.0),
+            size: Vector2::new(0.0, 0.0),
         }
     }
 }
@@ -90,6 +109,8 @@ pub enum ContainerKind {
     Wrap,
     /// Select one branch child based on the available width.
     SwitchLayout,
+    /// Place one child at explicit floating coordinates without contributing intrinsic size.
+    FloatingLayer,
 }
 
 /// Shared policy configuration for container nodes.
@@ -111,6 +132,8 @@ pub struct ContainerPolicy {
     pub grid: GridPolicy,
     /// Wrap-specific options.
     pub wrap: WrapPolicy,
+    /// Floating-layer-specific child placement.
+    pub floating: FloatingLayerPolicy,
     /// Aspect ratio used by `AspectBox` (width / height).
     pub aspect_ratio: Option<f32>,
     /// Branch selection ranges for `SwitchLayout`.
@@ -130,6 +153,7 @@ impl Default for ContainerPolicy {
             overflow: OverflowPolicy::Clip,
             grid: GridPolicy::default(),
             wrap: WrapPolicy::default(),
+            floating: FloatingLayerPolicy::default(),
             aspect_ratio: None,
             switch_breakpoints: Vec::new(),
             virtualization: None,

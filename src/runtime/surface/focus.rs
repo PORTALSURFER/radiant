@@ -37,6 +37,13 @@ impl<Message> SurfaceNode<Message> {
                 }
             }
             Self::Overlay(_) => {}
+            Self::FloatingLayer(layer) => {
+                if layer.interactive {
+                    for child in &layer.container.children {
+                        child.child.append_keyboard_focus_order(order);
+                    }
+                }
+            }
         }
     }
 }

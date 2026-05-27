@@ -93,6 +93,12 @@ impl<Message> SurfaceNode<Message> {
             }
             Self::Widget(_) => None,
             Self::Overlay(_) => None,
+            Self::FloatingLayer(layer) if layer.interactive => layer
+                .container
+                .children
+                .iter()
+                .find_map(|child| child.child.dispatch_output(widget_id, output)),
+            Self::FloatingLayer(_) => None,
         }
     }
 
@@ -104,6 +110,12 @@ impl<Message> SurfaceNode<Message> {
                 .find_map(|child| child.child.find_widget(widget_id)),
             Self::Widget(widget) => (widget.id() == widget_id).then_some(widget),
             Self::Overlay(_) => None,
+            Self::FloatingLayer(layer) if layer.interactive => layer
+                .container
+                .children
+                .iter()
+                .find_map(|child| child.child.find_widget(widget_id)),
+            Self::FloatingLayer(_) => None,
         }
     }
 
@@ -118,6 +130,16 @@ impl<Message> SurfaceNode<Message> {
                 .get(*child_index)?
                 .child
                 .find_widget_at_path(remaining_path),
+            (Self::FloatingLayer(layer), Some((child_index, remaining_path)))
+                if layer.interactive =>
+            {
+                layer
+                    .container
+                    .children
+                    .get(*child_index)?
+                    .child
+                    .find_widget_at_path(remaining_path)
+            }
             _ => None,
         }
     }
@@ -133,6 +155,12 @@ impl<Message> SurfaceNode<Message> {
                 .find_map(|child| child.child.find_widget_mut(widget_id)),
             Self::Widget(widget) => (widget.id() == widget_id).then_some(widget),
             Self::Overlay(_) => None,
+            Self::FloatingLayer(layer) if layer.interactive => layer
+                .container
+                .children
+                .iter_mut()
+                .find_map(|child| child.child.find_widget_mut(widget_id)),
+            Self::FloatingLayer(_) => None,
         }
     }
 
@@ -147,6 +175,16 @@ impl<Message> SurfaceNode<Message> {
                 .get_mut(*child_index)?
                 .child
                 .find_widget_mut_at_path(remaining_path),
+            (Self::FloatingLayer(layer), Some((child_index, remaining_path)))
+                if layer.interactive =>
+            {
+                layer
+                    .container
+                    .children
+                    .get_mut(*child_index)?
+                    .child
+                    .find_widget_mut_at_path(remaining_path)
+            }
             _ => None,
         }
     }

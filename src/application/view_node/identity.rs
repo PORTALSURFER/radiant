@@ -43,6 +43,9 @@ impl<Message> ViewNode<Message> {
             ViewNodeKind::Scroll { child } | ViewNodeKind::VirtualScroll { child, .. } => {
                 child.collect_reserved_ids(child_scope, ids)
             }
+            ViewNodeKind::FloatingLayer { child, .. } => {
+                child.collect_reserved_ids(child_scope, ids)
+            }
             _ => {}
         }
     }

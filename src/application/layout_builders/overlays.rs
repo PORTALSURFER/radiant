@@ -48,12 +48,14 @@ pub fn floating_layer_with_input<Message>(
     child: ViewNode<Message>,
     interactive: bool,
 ) -> ViewNode<Message> {
+    let has_reserved_descendant_identity = child.has_reserved_identity_in_subtree();
     ViewNode::new(ViewNodeKind::FloatingLayer {
         offset,
         size,
         child: Box::new(child),
         interactive,
     })
+    .with_reserved_descendant_identity(has_reserved_descendant_identity)
 }
 
 /// Build a floating drop marker in surface coordinates.

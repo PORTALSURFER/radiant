@@ -88,6 +88,14 @@ impl Widget for BadgeWidget {
         false
     }
 
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
+            return;
+        };
+        self.common.state = previous.common.state;
+        self.state = previous.state;
+    }
+
     fn append_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,

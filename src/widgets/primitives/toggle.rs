@@ -99,6 +99,16 @@ impl Widget for ToggleWidget {
         false
     }
 
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
+            return;
+        };
+        self.common.state.hovered = previous.common.state.hovered;
+        self.common.state.pressed = previous.common.state.pressed;
+        self.common.state.focused = previous.common.state.focused;
+        self.state.armed = previous.state.armed;
+    }
+
     fn append_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,

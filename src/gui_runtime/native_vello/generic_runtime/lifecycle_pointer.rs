@@ -23,12 +23,12 @@ where
             self.request_redraw_if_needed();
             return;
         }
-        if previous.is_some_and(|previous| self.runtime_pointer_line_surface_contains(previous))
-            && previous.is_some_and(|previous| self.clear_gpu_surface_cursor_overlay(previous))
-        {
+        let cleared_previous_gpu_hover = previous
+            .is_some_and(|previous| self.runtime_pointer_line_surface_contains(previous))
+            && previous.is_some_and(|previous| self.clear_gpu_surface_cursor_overlay(previous));
+        if cleared_previous_gpu_hover {
             self.update_native_cursor_at_last_position();
             self.request_redraw_if_needed();
-            return;
         }
         let started = Instant::now();
         let outcome = self.core.route_pointer_move(position);

@@ -2,7 +2,8 @@ mod model;
 mod view;
 
 pub use model::{
-    DetailsColumn, DetailsColumnParts, DetailsRow, DetailsRowParts, DetailsSort, DetailsSortParts,
-    SortDirection,
+    DetailsColumn, DetailsColumnParts, DetailsColumnPlacement, DetailsRow, DetailsRowParts,
+    DetailsSort, DetailsSortParts, SortDirection, details_column_reorder_index,
+    reorder_details_columns_by_id,
 };
 pub use view::{selectable_sortable_details_list, sortable_details_list};

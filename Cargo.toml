@@ -85,6 +85,10 @@ name = "toolbar_icons"
 path = "examples/toolbar_icons.rs"
 
 [[example]]
+name = "svg"
+path = "examples/svg.rs"
+
+[[example]]
 name = "status_bar"
 path = "examples/status_bar.rs"
 
@@ -123,6 +127,10 @@ path = "examples/inspector_panel.rs"
 [[example]]
 name = "context_menu"
 path = "examples/context_menu.rs"
+
+[[example]]
+name = "floating_overlay"
+path = "examples/floating_overlay.rs"
 
 [[example]]
 name = "paint_helpers"

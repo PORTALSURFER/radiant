@@ -25,6 +25,10 @@ where
             .and_then(|paint| paint(&mut self.state, descriptor, rect, viewport))
     }
 
+    pub(super) fn has_app_transient_overlay_painter(&self) -> bool {
+        self.lifecycle.transient_overlay.is_some()
+    }
+
     pub(super) fn paint_app_transient_overlay(
         &mut self,
         context: TransientOverlayContext<'_>,

@@ -23,16 +23,18 @@ where
             self.request_redraw_if_needed();
             return;
         }
-        if previous.is_some_and(|previous| self.runtime_pointer_line_surface_contains(previous))
-            && previous.is_some_and(|previous| self.clear_gpu_surface_cursor_overlay(previous))
-        {
+        let cleared_previous_gpu_hover = previous
+            .is_some_and(|previous| self.runtime_pointer_line_surface_contains(previous))
+            && previous.is_some_and(|previous| self.clear_gpu_surface_cursor_overlay(previous));
+        if cleared_previous_gpu_hover {
             self.update_native_cursor_at_last_position();
             self.request_redraw_if_needed();
-            return;
         }
         let started = Instant::now();
         let outcome = self.core.route_pointer_move(position);
-        self.update_native_cursor_at_last_position();
+        if self.core.runtime.pointer_capture().is_none() {
+            self.update_native_cursor_at_last_position();
+        }
         maybe_log_route_profile("pointer_move", started.elapsed(), outcome);
         self.handle_gpu_surface_pointer_move_outcome(outcome, previous, position);
     }

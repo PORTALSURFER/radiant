@@ -37,5 +37,6 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
         ContainerKind::ScrollView => scroll::layout_scroll_view(container, content, context),
         ContainerKind::Wrap => wrap::layout_wrap(container, content, context),
         ContainerKind::SwitchLayout => boxes::layout_switch(container, content, context),
+        ContainerKind::FloatingLayer => boxes::layout_floating_layer(container, content, context),
     }
 }

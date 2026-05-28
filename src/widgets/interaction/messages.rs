@@ -35,6 +35,11 @@ pub enum ListItemMessage {
 pub enum InteractiveRowMessage {
     /// The row was activated by pointer or keyboard input.
     Activate,
+    /// The row received a secondary/right pointer click.
+    SecondaryActivate {
+        /// Pointer position where the secondary activation occurred.
+        position: Point,
+    },
     /// The row is being used as a primary-pointer drag surface.
     Drag(DragHandleMessage),
     /// A primary-pointer drop landed inside this row.

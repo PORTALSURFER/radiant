@@ -112,12 +112,20 @@ where
         self.render_app_retained_surface(descriptor, rect, viewport)
     }
 
+    fn has_transient_overlay_painter(&self) -> bool {
+        self.has_app_transient_overlay_painter()
+    }
+
     fn paint_transient_overlay(
         &mut self,
         context: TransientOverlayContext<'_>,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
         self.paint_app_transient_overlay(context, primitives);
+    }
+
+    fn has_frame_diagnostics_observer(&self) -> bool {
+        false
     }
 
     fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {

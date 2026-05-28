@@ -138,6 +138,27 @@ pub(super) fn layout_switch(container: &ContainerNode, content: Rect, context: &
     layout_node(&child.child, content, context);
 }
 
+pub(super) fn layout_floating_layer(
+    container: &ContainerNode,
+    content: Rect,
+    context: &mut LayoutContext,
+) {
+    let Some(child) = container.children.first() else {
+        return;
+    };
+    let policy = container.policy.floating;
+    let origin = Point::new(
+        content.min.x + policy.offset.x,
+        content.min.y + policy.offset.y,
+    );
+    let rect = Rect::from_min_size(
+        origin,
+        Vector2::new(policy.size.x.max(0.0), policy.size.y.max(0.0)),
+    );
+    context.record_slot_margin(child.child.id(), rect, child.slot.margin);
+    layout_node(&child.child, rect, context);
+}
+
 pub(super) fn place_aligned_rect(
     content: Rect,
     width: f32,

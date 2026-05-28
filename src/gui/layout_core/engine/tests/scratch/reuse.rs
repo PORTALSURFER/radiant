@@ -1,7 +1,7 @@
 use crate::gui::{
     layout_core::{
         constraints::Constraints,
-        engine::{LayoutDebugOptions, LayoutEngine, LayoutState},
+        engine::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState},
         model::{
             ContainerKind, ContainerPolicy, OverflowPolicy, SizeModeCross, SizeModeMain,
             SlotParams, VirtualizationAxis, VirtualizationPolicy,
@@ -93,6 +93,58 @@ fn layout_engine_reuses_scratch_maps_between_passes() {
 
     assert!(debug.virtual_windows.contains_key(&1));
     assert!(engine.scratch.measured_by_node.capacity() > 0);
+}
+
+#[test]
+fn layout_engine_can_reuse_caller_owned_output_storage() {
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::Column,
+            ..ContainerPolicy::default()
+        },
+        (0..8)
+            .map(|index| {
+                SlotChild::new(
+                    SlotParams {
+                        size_main: SizeModeMain::Fixed(12.0),
+                        size_cross: SizeModeCross::Fill,
+                        constraints: Constraints::unconstrained(),
+                        margin: Default::default(),
+                        align_cross_override: None,
+                        allow_fixed_compress: false,
+                    },
+                    LayoutNode::widget(index + 10, Vector2::new(40.0, 12.0)),
+                )
+            })
+            .collect(),
+    );
+    let viewport = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 120.0));
+    let mut engine = LayoutEngine::default();
+    let mut output = LayoutOutput::default();
+
+    engine.layout_with_state_into(
+        &root,
+        viewport,
+        &LayoutState::default(),
+        LayoutDebugOptions::all_enabled(),
+        &mut output,
+    );
+    let diagnostics_capacity = output.diagnostics.capacity();
+    let debug_capacity = output.debug_primitives.capacity();
+    assert!(output.rects.contains_key(&17));
+
+    engine.layout_with_state_into(
+        &root,
+        viewport,
+        &LayoutState::default(),
+        LayoutDebugOptions::all_enabled(),
+        &mut output,
+    );
+
+    assert!(output.rects.contains_key(&17));
+    assert!(output.diagnostics.capacity() >= diagnostics_capacity);
+    assert!(output.debug_primitives.capacity() >= debug_capacity);
 }
 
 #[test]

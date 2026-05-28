@@ -4,20 +4,40 @@ use super::{
     RetainedSurfaceEncodeStats, gpu_surface::GpuSurfaceRenderStats, render_profile_enabled,
 };
 use crate::gui_runtime::native_vello::TextLayoutProfileCounters;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tracing::info;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(super) struct RenderFrameProfile {
+    pub(super) record_timings: bool,
     pub(super) coalesced_wheel_route: Duration,
     pub(super) refresh_surface: Duration,
     pub(super) paint_plan: Duration,
+    pub(super) deferred_scene_rebuild: Duration,
     pub(super) full_screen_blit: Duration,
     pub(super) composited_base_refresh: Duration,
     pub(super) composited_base_cache_hit: bool,
     pub(super) transient_overlay_paint: Duration,
     pub(super) transient_overlay_primitives: usize,
     pub(super) submit_present: Duration,
+}
+
+impl RenderFrameProfile {
+    pub(super) fn recording(record_timings: bool) -> Self {
+        Self {
+            record_timings,
+            ..Self::default()
+        }
+    }
+
+    pub(super) fn measure<T>(&self, operation: impl FnOnce() -> T) -> (T, Duration) {
+        if !self.record_timings {
+            return (operation(), Duration::ZERO);
+        }
+        let started = Instant::now();
+        let output = operation();
+        (output, started.elapsed())
+    }
 }
 
 pub(super) fn maybe_log_render_profile(
@@ -66,6 +86,7 @@ pub(super) fn maybe_log_render_profile(
         gpu_signal_summary_cache_hits = gpu_surface_stats.signal.summary_cache_hits,
         refresh_surface_us = frame.refresh_surface.as_micros(),
         paint_plan_us = frame.paint_plan.as_micros(),
+        deferred_scene_rebuild_us = frame.deferred_scene_rebuild.as_micros(),
         render_to_texture_us = render_to_texture_elapsed.as_micros(),
         full_screen_blit_encode_us = frame.full_screen_blit.as_micros(),
         coalesced_wheel_route_us = frame.coalesced_wheel_route.as_micros(),

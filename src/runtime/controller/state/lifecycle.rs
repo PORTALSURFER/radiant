@@ -43,12 +43,23 @@ where
 
     /// Replace the viewport and recompute layout for the current surface.
     pub fn set_viewport(&mut self, viewport: Vector2) {
+        let _ = self.set_viewport_and_report_relayout(viewport);
+    }
+
+    /// Replace the viewport and report whether the rounded layout root changed.
+    pub(crate) fn set_viewport_and_report_relayout(&mut self, viewport: Vector2) -> bool {
         let viewport = normalized_viewport(viewport);
         if self.viewport == viewport {
-            return;
+            return false;
         }
+        let previous_layout_viewport = layout_effective_viewport(self.viewport);
+        let next_layout_viewport = layout_effective_viewport(viewport);
         self.viewport = viewport;
+        if previous_layout_viewport == next_layout_viewport {
+            return false;
+        }
         self.relayout_current_surface();
+        true
     }
 
     /// Reproject the latest host state into a fresh immutable surface snapshot.
@@ -140,5 +151,15 @@ fn normalized_viewport(viewport: Vector2) -> Rect {
     Rect::from_min_size(
         Point::new(0.0, 0.0),
         Vector2::new(viewport.x.max(1.0), viewport.y.max(1.0)),
+    )
+}
+
+fn layout_effective_viewport(viewport: Rect) -> Rect {
+    Rect::from_min_size(
+        Point::new(viewport.min.x.floor(), viewport.min.y.floor()),
+        Vector2::new(
+            viewport.width().round().max(0.0),
+            viewport.height().round().max(0.0),
+        ),
     )
 }

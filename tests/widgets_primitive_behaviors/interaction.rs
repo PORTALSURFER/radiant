@@ -40,6 +40,28 @@ fn list_item_invocation_is_public_and_deterministic() {
 }
 
 #[test]
+fn interactive_row_emits_secondary_activation() {
+    let mut row = InteractiveRowWidget::new(31, WidgetSizing::fixed(Vector2::new(120.0, 18.0)));
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
+
+    assert_eq!(
+        row.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(16.0, 8.0),
+                button: PointerButton::Secondary,
+                modifiers: Default::default(),
+            },
+        ),
+        Some(InteractiveRowMessage::SecondaryActivate {
+            position: Point::new(16.0, 8.0)
+        })
+    );
+    assert!(row.common.state.hovered);
+    assert!(!row.common.state.pressed);
+}
+
+#[test]
 fn drag_handle_emits_captured_drag_lifecycle() {
     let mut handle = DragHandleWidget::new(12, WidgetSizing::fixed(Vector2::new(24.0, 24.0)));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(24.0, 24.0));

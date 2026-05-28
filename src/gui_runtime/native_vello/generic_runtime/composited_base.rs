@@ -4,7 +4,6 @@ use super::{GpuSurfaceRenderer, RenderFrameProfile, RenderSurfacePixelSize, gpu_
 #[cfg(test)]
 use crate::gui::types::{Point, Rect as UiRect, Rgba8, Vector2};
 use crate::runtime::{PaintPrimitive, SurfacePaintPlan};
-use std::time::Instant;
 use vello::{util::RenderSurface, wgpu};
 
 mod frame;
@@ -31,9 +30,16 @@ pub(super) fn present_base_frame(
     target: &mut BaseFramePresentTarget<'_>,
     paint_plan: &SurfacePaintPlan,
     transient_overlay_primitives: &[PaintPrimitive],
+    has_gpu_surfaces: bool,
 ) -> gpu_surface::GpuSurfaceRenderStats {
     if !should_use_composited_base(transient_overlay_primitives) {
-        return present_live_base(state.gpu_surface_renderer, surface, target, paint_plan);
+        return present_live_base(
+            state.gpu_surface_renderer,
+            surface,
+            target,
+            paint_plan,
+            has_gpu_surfaces,
+        );
     }
 
     let (frame, frame_recreated) = CompositedBaseFrame::ensure(
@@ -52,6 +58,7 @@ pub(super) fn present_base_frame(
             surface,
             target,
             paint_plan,
+            has_gpu_surfaces,
             state.profile,
         )
     } else {
@@ -72,14 +79,18 @@ fn present_live_base(
     surface: &RenderSurface<'_>,
     target: &mut BaseFramePresentTarget<'_>,
     paint_plan: &SurfacePaintPlan,
+    has_gpu_surfaces: bool,
 ) -> gpu_surface::GpuSurfaceRenderStats {
-    let surface_size = RenderSurfacePixelSize::from_surface(surface);
     surface.blitter.copy(
         target.device,
         target.encoder,
         &surface.target_view,
         target.surface_view,
     );
+    if !should_render_gpu_surfaces(has_gpu_surfaces) {
+        return gpu_surface::GpuSurfaceRenderStats::default();
+    }
+    let surface_size = RenderSurfacePixelSize::from_surface(surface);
     gpu_surface_renderer.render(
         &mut gpu_surface::GpuSurfaceRenderTarget {
             device: target.device,
@@ -101,30 +112,36 @@ fn refresh_composited_base_frame(
     surface: &RenderSurface<'_>,
     target: &mut BaseFramePresentTarget<'_>,
     paint_plan: &SurfacePaintPlan,
+    has_gpu_surfaces: bool,
     profile: &mut RenderFrameProfile,
 ) -> gpu_surface::GpuSurfaceRenderStats {
-    let surface_size = RenderSurfacePixelSize::from_surface(surface);
-    let started = Instant::now();
-    surface.blitter.copy(
-        target.device,
-        target.encoder,
-        &surface.target_view,
-        &frame.view,
-    );
-    let stats = gpu_surface_renderer.render(
-        &mut gpu_surface::GpuSurfaceRenderTarget {
-            device: target.device,
-            queue: target.queue,
-            encoder: target.encoder,
-            target_view: &frame.view,
-            format: surface.config.format,
-            size: surface_size.physical_size(),
-            dpi_scale: target.dpi_scale,
-        },
-        &paint_plan.primitives,
-    );
+    let (stats, elapsed) = profile.measure(|| {
+        surface.blitter.copy(
+            target.device,
+            target.encoder,
+            &surface.target_view,
+            &frame.view,
+        );
+        if should_render_gpu_surfaces(has_gpu_surfaces) {
+            let surface_size = RenderSurfacePixelSize::from_surface(surface);
+            gpu_surface_renderer.render(
+                &mut gpu_surface::GpuSurfaceRenderTarget {
+                    device: target.device,
+                    queue: target.queue,
+                    encoder: target.encoder,
+                    target_view: &frame.view,
+                    format: surface.config.format,
+                    size: surface_size.physical_size(),
+                    dpi_scale: target.dpi_scale,
+                },
+                &paint_plan.primitives,
+            )
+        } else {
+            gpu_surface::GpuSurfaceRenderStats::default()
+        }
+    });
     *base_dirty = false;
-    profile.composited_base_refresh = started.elapsed();
+    profile.composited_base_refresh = elapsed;
     stats
 }
 
@@ -134,6 +151,10 @@ fn composited_base_needs_refresh(base_dirty: bool, frame_recreated: bool) -> boo
 
 fn should_use_composited_base(transient_overlay_primitives: &[PaintPrimitive]) -> bool {
     !transient_overlay_primitives.is_empty()
+}
+
+fn should_render_gpu_surfaces(has_gpu_surfaces: bool) -> bool {
+    has_gpu_surfaces
 }
 
 #[cfg(test)]
@@ -163,5 +184,11 @@ mod tests {
                 },
             }
         )]));
+    }
+
+    #[test]
+    fn gpu_surface_composition_is_needed_only_when_scene_contains_gpu_surfaces() {
+        assert!(!should_render_gpu_surfaces(false));
+        assert!(should_render_gpu_surfaces(true));
     }
 }

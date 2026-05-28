@@ -178,6 +178,14 @@ pub trait RuntimeBridge<Message> {
         None
     }
 
+    /// Return whether [`Self::paint_transient_overlay`] can emit primitives.
+    ///
+    /// The default is conservative so custom bridges that already override
+    /// painting keep their current behavior without also implementing this hint.
+    fn has_transient_overlay_painter(&self) -> bool {
+        true
+    }
+
     /// Paint transient overlay primitives for the current presentation frame.
     ///
     /// Use this for lightweight visuals that need frame-rate updates without
@@ -192,6 +200,14 @@ pub trait RuntimeBridge<Message> {
     }
 
     // Diagnostics and lifecycle.
+
+    /// Return whether [`Self::observe_frame_diagnostics`] consumes native frame diagnostics.
+    ///
+    /// The default is conservative so custom bridges that already observe
+    /// diagnostics keep receiving them without also implementing this hint.
+    fn has_frame_diagnostics_observer(&self) -> bool {
+        true
+    }
 
     /// Observe structured diagnostics for one native presentation frame.
     fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}

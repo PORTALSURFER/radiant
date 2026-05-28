@@ -1,12 +1,11 @@
 //! Immediate shape replay for paint ordered above native GPU surfaces.
 
 mod buffer;
-mod geometry;
+pub(super) mod geometry;
 mod pipeline;
 mod target;
 mod vertex;
 
-use super::gpu_surface::gpu_surface_visible_suffix_regions_into;
 use crate::gui::types::Rect as UiRect;
 use buffer::OverlayVertexBuffer;
 use geometry::{append_replayable_vertices, replayable_vertices_in_regions_into};
@@ -18,25 +17,27 @@ use vertex::{OverlayVertex, overlay_vertex_bytes};
 pub(super) struct PostGpuOverlayRenderer {
     pipeline: Option<PostGpuOverlayPipeline>,
     vertices: Vec<OverlayVertex>,
-    gpu_regions: Vec<UiRect>,
     vertex_buffer: OverlayVertexBuffer,
 }
 
 impl PostGpuOverlayRenderer {
-    pub(super) fn render_layers(
+    pub(super) fn render_cached_layers(
         &mut self,
         target: &mut PostGpuOverlayRenderTarget<'_>,
-        primitives: &[crate::runtime::PaintPrimitive],
+        suffix: Option<&[crate::runtime::PaintPrimitive]>,
+        gpu_regions: &[UiRect],
         overlay_primitives: &[crate::runtime::PaintPrimitive],
     ) {
-        let suffix = geometry::replayable_suffix(primitives);
-        gpu_surface_visible_suffix_regions_into(primitives, &mut self.gpu_regions);
+        if overlay_primitives.is_empty() && (suffix.is_none() || gpu_regions.is_empty()) {
+            self.vertices.clear();
+            return;
+        }
         if overlay_primitives.is_empty() {
             if let Some(suffix) = suffix {
                 replayable_vertices_in_regions_into(
                     suffix,
                     target.size,
-                    &self.gpu_regions,
+                    gpu_regions,
                     &mut self.vertices,
                 );
             } else {
@@ -48,7 +49,7 @@ impl PostGpuOverlayRenderer {
                 geometry::append_replayable_vertices_in_regions(
                     suffix,
                     target.size,
-                    &self.gpu_regions,
+                    gpu_regions,
                     &mut self.vertices,
                 );
             }

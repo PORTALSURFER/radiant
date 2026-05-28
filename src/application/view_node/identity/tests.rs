@@ -1,6 +1,8 @@
 use super::*;
 use crate::{
-    application::{ROOT_KEY_SCOPE, column, grid, row, row_key, text},
+    application::{ROOT_KEY_SCOPE, column, floating_layer, grid, row, row_key, text},
+    gui::types::Point,
+    layout::Vector2,
     runtime::{SurfaceNode, WidgetMessageMapper},
     widgets::{ButtonWidget, WidgetSizing},
 };
@@ -60,6 +62,26 @@ fn reserved_id_collection_includes_grid_child_identities() {
         assert!(ids.contains(&id));
     }
     assert!(ids.capacity() >= 32);
+}
+
+#[test]
+fn reserved_id_collection_includes_floating_layer_child_identities() {
+    let view: ViewNode<()> = row([floating_layer(
+        Point::new(0.0, -24.0),
+        Vector2::new(120.0, 24.0),
+        column([
+            text("floating").key("floating-label"),
+            text("fixed").id(12_345),
+        ])
+        .key("floating-content"),
+    )
+    .key("floating-layer")]);
+    let mut ids = Vec::new();
+
+    view.collect_reserved_ids(ROOT_KEY_SCOPE, &mut ids);
+
+    assert_eq!(ids.len(), 4);
+    assert!(ids.contains(&12_345));
 }
 
 #[test]

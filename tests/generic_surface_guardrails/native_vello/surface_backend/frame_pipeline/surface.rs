@@ -117,11 +117,12 @@ fn native_render_profile_uses_explicit_imports() {
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/render_profile.rs");
 
     assert!(
-        render_profile.contains("use std::time::Duration;")
+        render_profile.contains("use std::time::{Duration, Instant};")
             && render_profile.contains("use tracing::info;")
             && render_profile.contains("RetainedSurfaceEncodeStats")
             && render_profile.contains("GpuSurfaceRenderStats")
             && render_profile.contains("TextLayoutProfileCounters")
+            && render_profile.contains("fn measure<T>")
             && !render_profile.contains("use super::*;"),
         "native render profile diagnostics should name their timing, tracing, scene, text, and GPU stats dependencies"
     );

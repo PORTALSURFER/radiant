@@ -25,10 +25,10 @@ fn frame_cache_avoids_post_mutation_expect() {
     assert!(
         module.contains("use super::{GpuSurfaceRenderer, RenderFrameProfile, RenderSurfacePixelSize, gpu_surface};")
             && module.contains("use crate::runtime::{PaintPrimitive, SurfacePaintPlan};")
-            && module.contains("use std::time::Instant;")
+            && module.contains("profile.measure(||")
             && module.contains("use vello::{util::RenderSurface, wgpu};")
             && !module.starts_with("use super::*;"),
-        "composited base presenter should name GPU renderer, profile, surface size, runtime, timing, Vello, and WGPU dependencies"
+        "composited base presenter should name GPU renderer, profile, surface size, runtime, profiled timing, Vello, and WGPU dependencies"
     );
     assert!(
         !module.contains("struct CompositedBaseFrame")

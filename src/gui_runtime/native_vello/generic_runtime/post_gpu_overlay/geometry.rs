@@ -8,6 +8,20 @@ use crate::{
 use super::vertex::OverlayVertex;
 use text::push_text_vertices;
 
+pub(in crate::gui_runtime::native_vello::generic_runtime) fn primitive_is_replayable(
+    primitive: &PaintPrimitive,
+) -> bool {
+    matches!(
+        primitive,
+        PaintPrimitive::FillRect(_)
+            | PaintPrimitive::FillRectBatch(_)
+            | PaintPrimitive::StrokeRect(_)
+            | PaintPrimitive::StrokeRectBatch(_)
+            | PaintPrimitive::Text(_)
+    )
+}
+
+#[cfg(test)]
 pub(super) fn replayable_suffix(primitives: &[PaintPrimitive]) -> Option<&[PaintPrimitive]> {
     primitives
         .iter()

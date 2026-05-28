@@ -5,6 +5,7 @@ use super::{
 use crate::{
     layout::{Point, Vector2},
     runtime::NativeRunOptions,
+    widgets::PointerButton,
 };
 
 #[test]
@@ -80,6 +81,57 @@ fn pointer_move_messages_defer_surface_refresh_until_redraw_after_hover_enters()
         core.runtime.bridge().project_count,
         2,
         "stable pointer-move messages should reduce immediately but coalesce surface projection until redraw"
+    );
+}
+
+#[test]
+fn captured_pointer_move_message_marks_interactive_refresh_for_resizes() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PointerMoveBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    let point = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&71)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("pointer widget should be laid out");
+
+    let press = runner
+        .core
+        .route_pointer_press(point, PointerButton::Primary);
+    assert!(press.routed);
+
+    let project_count_before_move = runner.core.runtime.bridge().project_count;
+    let drag_move = runner
+        .core
+        .route_pointer_move(Point::new(point.x + 4.0, point.y));
+
+    assert!(drag_move.routed);
+    assert!(drag_move.needs_scene_rebuild());
+    assert!(!drag_move.deferred_surface_refresh_requested);
+    assert!(drag_move.interactive_surface_refresh_requested);
+    assert!(drag_move.interactive_scene_rebuild_requested);
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        project_count_before_move,
+        "captured pointer routing should let the runner cadence-limit surface projection"
+    );
+
+    runner.handle_gpu_surface_pointer_move_outcome(
+        drag_move,
+        Some(point),
+        Point::new(point.x + 4.0, point.y),
+    );
+
+    assert_eq!(runner.core.runtime.bridge().moves, 1);
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        project_count_before_move + 1,
+        "the first captured resize move still refreshes immediately to keep live redraw"
     );
 }
 

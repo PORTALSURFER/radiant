@@ -59,7 +59,9 @@ mod window;
 use auxiliary::{AuxiliaryNativeWindow, AuxiliaryWindowEventResult};
 use composited_base::CompositedBaseFrame;
 pub(in crate::gui_runtime::native_vello) use core::{GenericNativeRuntimeCore, PointerPressStamp};
-use frame_cadence::{TimedFrameCadence, timed_frame_cadence, timed_frame_target_fps};
+use frame_cadence::{
+    TimedFrameCadence, animation_frame_interval, timed_frame_cadence, timed_frame_target_fps,
+};
 use frame_state::NativeVelloFrameState;
 use gpu_surface::GpuSurfaceRenderer;
 use gpu_surface_wheel::PendingGpuSurfaceWheel;

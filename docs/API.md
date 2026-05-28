@@ -1087,8 +1087,8 @@ manual validation:
 | First-use application API | `hello_world`, `generic_native`, `counter` |
 | State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `sample_source_list`, `animation_showcase` |
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
-| Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `form`, `volume_slider`, `passive_widgets` |
-| Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `context_menu`, `tree_and_details`, `folder_browser`, `paint_helpers` |
+| Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
+| Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
 | Custom widgets and retained GPU surfaces | `custom_widget`, `gpu_surface`, `custom_shader_surface`, `gpu_surface_stack_overlay`, `waveform_view` |
 | Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `inspector_panel`, `plugin_panel`, `eq_editor`, `spectrogram`, `mixer_console`, `piano_roll`, `modulation_matrix`, `arrangement_shell`, `split_workspace` |
 | Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame` |
@@ -1161,6 +1161,8 @@ stateful examples.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
 that composes `MenuItem`, `menu(...)`, and `context_menu_overlay(...)` with
 normal state callbacks.
+Run `cargo run --example floating_overlay` for a floating-layer sandbox that
+positions an overlay menu without changing the underlying page layout.
 Run `cargo run --example split_workspace` for an editor-style split workspace
 that uses `SplitPaneSidebarState`, `SplitPaneSlot`, and generic Radiant views
 without adding docking-specific runtime concepts.
@@ -1200,6 +1202,9 @@ IDs, and small `+` / `-` row actions.
 Run `cargo run --example toolbar_icons` for a horizontal SVG-icon toolbar
 sandbox that uses custom toggle buttons, state-driven active highlights, and
 muted inactive vector icons.
+Run `cargo run --example svg` for a focused SVG icon sandbox that parses
+inline vector assets through `SvgIcon::from_svg(...)` and paints them through
+the standard `icon_button(...)` builder.
 Run `cargo run --example status_bar` for a bottom status-bar sandbox that shows
 button actions, toggle state, animation updates, and background worker progress
 flowing into a one-line log and retained-canvas progress strip.

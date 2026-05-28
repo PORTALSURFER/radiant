@@ -220,6 +220,7 @@ where
     }
 
     pub(super) fn sync_auxiliary_windows(&mut self, event_loop: &ActiveEventLoop) {
+        self.timing.deferred_auxiliary_window_sync = false;
         let projections = self.core.runtime.bridge_mut().project_auxiliary_windows();
         let mut projected_keys = Vec::with_capacity(projections.len());
         for projection in projections {
@@ -241,6 +242,19 @@ where
             if !projected_keys.iter().any(|key| key == window.key()) {
                 window.hide();
             }
+        }
+    }
+
+    pub(super) fn defer_auxiliary_window_sync(&mut self) {
+        self.timing.deferred_auxiliary_window_sync = true;
+    }
+
+    pub(super) fn sync_deferred_auxiliary_windows_if_needed(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+    ) {
+        if self.timing.deferred_auxiliary_window_sync {
+            self.sync_auxiliary_windows(event_loop);
         }
     }
 }

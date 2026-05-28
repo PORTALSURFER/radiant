@@ -54,3 +54,18 @@ pub(super) fn measure_switch_layout(
     }
     Vector2::new(0.0, 0.0)
 }
+
+pub(super) fn measure_floating_layer(
+    container: &ContainerNode,
+    context: &mut LayoutContext,
+) -> Vector2 {
+    if let Some(child) = container.children.first() {
+        let policy = container.policy.floating;
+        let _ = measure_node(
+            &child.child,
+            Constraints::new(0.0, policy.size.x.max(0.0), 0.0, policy.size.y.max(0.0)),
+            context,
+        );
+    }
+    Vector2::new(0.0, 0.0)
+}

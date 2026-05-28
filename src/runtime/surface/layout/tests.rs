@@ -1,4 +1,5 @@
 use crate::{
+    gui::types::{Point, Rect},
     layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams, Vector2, VirtualizationAxis},
     runtime::{
         SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
@@ -54,6 +55,79 @@ fn runtime_projection_matches_separate_layout_and_traversal_passes() {
         projection.traversal.scroll_content_by_container,
         traversal.scroll_content_by_container
     );
+}
+
+#[test]
+fn noninteractive_floating_layer_lays_out_without_pointer_hit_order() {
+    let surface: UiSurface<()> = UiSurface::new(SurfaceNode::stack(
+        1,
+        vec![
+            SurfaceChild::fill(SurfaceNode::widget(
+                ButtonWidget::new(10, "Base", WidgetSizing::fixed(Vector2::new(96.0, 28.0))),
+                WidgetMessageMapper::none(),
+            )),
+            SurfaceChild::fill(SurfaceNode::floating_layer(
+                20,
+                Point::new(8.0, -24.0),
+                Vector2::new(120.0, 24.0),
+                SurfaceNode::widget(
+                    ButtonWidget::new(
+                        30,
+                        "Floating",
+                        WidgetSizing::fixed(Vector2::new(120.0, 24.0)),
+                    ),
+                    WidgetMessageMapper::none(),
+                ),
+                false,
+            )),
+        ],
+    ));
+
+    let projection = surface.runtime_projection();
+    let layout = surface.layout(Rect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(200.0, 80.0),
+    ));
+
+    assert_eq!(projection.traversal.pointer_hit_order, vec![10]);
+    assert_eq!(
+        layout.rects.get(&30).copied(),
+        Some(Rect::from_min_size(
+            Point::new(8.0, -24.0),
+            Vector2::new(120.0, 24.0)
+        ))
+    );
+}
+
+#[test]
+fn interactive_floating_layer_registers_child_hit_order() {
+    let surface: UiSurface<()> = UiSurface::new(SurfaceNode::stack(
+        1,
+        vec![
+            SurfaceChild::fill(SurfaceNode::widget(
+                ButtonWidget::new(10, "Base", WidgetSizing::fixed(Vector2::new(96.0, 28.0))),
+                WidgetMessageMapper::none(),
+            )),
+            SurfaceChild::fill(SurfaceNode::floating_layer(
+                20,
+                Point::new(8.0, 8.0),
+                Vector2::new(120.0, 24.0),
+                SurfaceNode::widget(
+                    ButtonWidget::new(
+                        30,
+                        "Floating",
+                        WidgetSizing::fixed(Vector2::new(120.0, 24.0)),
+                    ),
+                    WidgetMessageMapper::none(),
+                ),
+                true,
+            )),
+        ],
+    ));
+
+    let projection = surface.runtime_projection();
+
+    assert_eq!(projection.traversal.pointer_hit_order, vec![10, 30]);
 }
 
 #[test]

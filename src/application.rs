@@ -47,8 +47,9 @@ mod tree_list;
 pub use tree_list::{TreeListItem, TreeListItemParts, tree_list, tree_list_with_drag};
 mod details_list;
 pub use details_list::{
-    DetailsColumn, DetailsColumnParts, DetailsRow, DetailsRowParts, DetailsSort, DetailsSortParts,
-    SortDirection, selectable_sortable_details_list, sortable_details_list,
+    DetailsColumn, DetailsColumnParts, DetailsColumnPlacement, DetailsRow, DetailsRowParts,
+    DetailsSort, DetailsSortParts, SortDirection, details_column_reorder_index,
+    reorder_details_columns_by_id, selectable_sortable_details_list, sortable_details_list,
 };
 mod property_panel;
 pub use property_panel::{
@@ -86,9 +87,9 @@ pub use control_builders::{
 mod layout_builders;
 pub use layout_builders::{
     DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING, column, column_key,
-    drag_preview, drag_preview_sized, drop_marker, grid, grid_with_gaps, list, list_row,
-    list_row_id, overlay_panel, row, row_key, scroll, scroll_column, stack, virtual_list,
-    virtual_list_window, virtual_scroll, wrap,
+    drag_preview, drag_preview_sized, drop_marker, floating_layer, floating_layer_with_input, grid,
+    grid_with_gaps, list, list_row, list_row_id, overlay_panel, row, row_key, scroll,
+    scroll_column, stack, virtual_list, virtual_list_window, virtual_scroll, wrap,
 };
 mod ids;
 pub(in crate::application) use ids::{IdGenerator, scoped_key_id};

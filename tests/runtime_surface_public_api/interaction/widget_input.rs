@@ -89,3 +89,105 @@ fn surface_runtime_routes_widget_input_and_reprojects_surface() {
         "F"
     );
 }
+
+#[derive(Clone, Debug, PartialEq)]
+enum ReleaseRefreshMessage {
+    Activate,
+    Toggle(bool),
+    Refresh,
+}
+
+#[derive(Default)]
+struct ReleaseRefreshState {
+    activations: usize,
+    checked: bool,
+    refreshes: usize,
+}
+
+#[test]
+fn surface_runtime_preserves_badge_release_activation_across_refresh() {
+    let bridge = declarative_runtime_bridge(
+        ReleaseRefreshState::default(),
+        |state: &mut ReleaseRefreshState| {
+            Arc::new(UiSurface::new(SurfaceNode::badge(
+                20,
+                format!("Tag {}", state.refreshes),
+                WidgetSizing::fixed(Vector2::new(72.0, 24.0)),
+                ReleaseRefreshMessage::Activate,
+            )))
+        },
+        |state: &mut ReleaseRefreshState, message| match message {
+            ReleaseRefreshMessage::Activate => state.activations += 1,
+            ReleaseRefreshMessage::Toggle(checked) => state.checked = checked,
+            ReleaseRefreshMessage::Refresh => state.refreshes += 1,
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(96.0, 40.0));
+    let point = Point::new(24.0, 12.0);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: point,
+            button: PointerButton::Primary,
+            modifiers: Default::default(),
+        }),
+        Some(20)
+    );
+    runtime.dispatch_message(ReleaseRefreshMessage::Refresh);
+    assert_eq!(runtime.bridge().state().activations, 0);
+    assert_eq!(runtime.bridge().state().refreshes, 1);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: point,
+            button: PointerButton::Primary,
+            modifiers: Default::default(),
+        }),
+        Some(20)
+    );
+    assert_eq!(runtime.bridge().state().activations, 1);
+}
+
+#[test]
+fn surface_runtime_preserves_toggle_release_activation_across_refresh() {
+    let bridge = declarative_runtime_bridge(
+        ReleaseRefreshState::default(),
+        |state: &mut ReleaseRefreshState| {
+            Arc::new(UiSurface::new(SurfaceNode::toggle_with_checked(
+                20,
+                format!("Loop {}", state.refreshes),
+                state.checked,
+                WidgetSizing::fixed(Vector2::new(96.0, 24.0)),
+                ReleaseRefreshMessage::Toggle,
+            )))
+        },
+        |state: &mut ReleaseRefreshState, message| match message {
+            ReleaseRefreshMessage::Activate => state.activations += 1,
+            ReleaseRefreshMessage::Toggle(checked) => state.checked = checked,
+            ReleaseRefreshMessage::Refresh => state.refreshes += 1,
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 40.0));
+    let point = Point::new(24.0, 12.0);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: point,
+            button: PointerButton::Primary,
+            modifiers: Default::default(),
+        }),
+        Some(20)
+    );
+    runtime.dispatch_message(ReleaseRefreshMessage::Refresh);
+    assert!(!runtime.bridge().state().checked);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: point,
+            button: PointerButton::Primary,
+            modifiers: Default::default(),
+        }),
+        Some(20)
+    );
+    assert!(runtime.bridge().state().checked);
+}

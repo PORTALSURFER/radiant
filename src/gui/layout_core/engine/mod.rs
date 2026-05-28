@@ -103,6 +103,20 @@ impl LayoutEngine {
         state: &LayoutState,
         debug: LayoutDebugOptions,
     ) -> LayoutOutput {
+        let mut output = LayoutOutput::default();
+        self.layout_with_state_into(root, root_rect, state, debug, &mut output);
+        output
+    }
+
+    /// Compute layout output into an existing output buffer.
+    pub fn layout_with_state_into(
+        &mut self,
+        root: &LayoutNode,
+        root_rect: Rect,
+        state: &LayoutState,
+        debug: LayoutDebugOptions,
+        output: &mut LayoutOutput,
+    ) {
         let constraints = Constraints {
             min_w: 0.0,
             max_w: root_rect.width().max(0.0),
@@ -110,7 +124,7 @@ impl LayoutEngine {
             max_h: root_rect.height().max(0.0),
         };
 
-        let output = {
+        {
             let debug_node_filter = if debug.enabled && !self.layout_dirty.is_empty() {
                 Some(&self.layout_dirty)
             } else {
@@ -120,6 +134,7 @@ impl LayoutEngine {
                 &mut self.measure_cache,
                 &mut self.virtual_cache,
                 &mut self.scratch,
+                output,
                 &self.measure_dirty,
                 state,
                 debug,
@@ -128,13 +143,11 @@ impl LayoutEngine {
             let normalized = context.normalize_constraints(root.id(), constraints);
             measure::measure_node(root, normalized, &mut context);
             layout::layout_node(root, round_rect(root_rect), &mut context);
-            context.output
-        };
+        }
 
         self.prune_stale_measure_cache();
         self.prune_stale_virtual_cache();
         self.clear_dirty();
-        output
     }
 
     fn prune_stale_measure_cache(&mut self) {

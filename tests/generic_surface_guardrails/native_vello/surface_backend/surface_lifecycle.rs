@@ -6,15 +6,18 @@ fn native_surface_texture_acquire_stays_with_surface_lifecycle() {
     let surface = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/surface.rs");
 
     assert!(
-        present.contains("self.acquire_present_surface_texture(event_loop, &window)")
+        present.contains("self.acquire_present_surface_texture(event_loop)")
+            && present.contains("self.window.window.is_none()")
+            && !present.contains("window.clone()")
             && !present.contains("get_current_texture()")
             && !present.contains("SurfaceError::OutOfMemory"),
-        "present driver should delegate WGPU surface texture acquisition and recovery"
+        "present driver should delegate WGPU surface texture acquisition and recovery without cloning the window on every frame"
     );
     assert!(
         surface.contains("fn acquire_present_surface_texture")
             && surface.contains("get_current_texture()")
             && surface.contains("SurfaceError::Lost | wgpu::SurfaceError::Outdated")
+            && surface.contains("window.inner_size()")
             && surface.contains("SurfaceError::OutOfMemory"),
         "surface texture acquisition and surface-error handling should stay with surface lifecycle"
     );

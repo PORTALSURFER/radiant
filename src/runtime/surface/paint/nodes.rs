@@ -134,6 +134,14 @@ impl<Message> SurfaceNode<Message> {
                 }
             }
             Self::Overlay(overlay) => overlay.append_paint(context, plan),
+            Self::FloatingLayer(layer) => {
+                layer.container.append_chrome_paint(context, plan);
+                for child in &layer.container.children {
+                    if context.should_paint_node(child.child.id()) {
+                        child.child.append_paint_with_context(context, plan);
+                    }
+                }
+            }
         }
     }
 

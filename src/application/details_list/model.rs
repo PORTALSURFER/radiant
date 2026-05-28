@@ -153,10 +153,8 @@ pub fn details_column_reorder_index(
     let mut target = 0usize;
     for placement in placements {
         let midpoint = x + placement.width * 0.5;
-        if placement.id != dragged_id {
-            if pointer_x > midpoint {
-                target += 1;
-            }
+        if placement.id != dragged_id && pointer_x > midpoint {
+            target += 1;
         }
         x += placement.width + column_gap.max(0.0);
     }

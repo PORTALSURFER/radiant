@@ -225,9 +225,7 @@ where
         match texture {
             Ok(frame) => Some(frame),
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                let Some(window) = self.window.window.as_ref() else {
-                    return None;
-                };
+                let window = self.window.window.as_ref()?;
                 let size = window.inner_size();
                 let _ = self.resize_surface_now(size, true);
                 None

@@ -163,9 +163,7 @@ where
     }
 
     pub(super) fn apply_pending_viewport_resize_if_needed(&mut self) -> Option<bool> {
-        let Some(viewport) = self.timing.pending_viewport_resize.take() else {
-            return None;
-        };
+        let viewport = self.timing.pending_viewport_resize.take()?;
         Some(self.core.set_viewport(viewport))
     }
 

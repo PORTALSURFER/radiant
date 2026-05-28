@@ -11,7 +11,9 @@ use winit::event_loop::ActiveEventLoop;
 mod diagnostics;
 
 use super::composited_base::{BaseFramePresentState, BaseFramePresentTarget, present_base_frame};
-use super::scene_texture::{render_scene_texture_if_needed, render_scene_to_surface_view};
+use super::scene_texture::{
+    SceneTextureContext, render_scene_texture_if_needed, render_scene_to_surface_view,
+};
 use diagnostics::{NativeFrameDiagnosticsParts, native_frame_diagnostics};
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -54,17 +56,20 @@ where
         let surface_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut scene_texture_context = SceneTextureContext {
+            renderer,
+            device: &dev_handle.device,
+            queue: &dev_handle.queue,
+            surface,
+            dpi_scale: self.window.dpi_scale,
+            record_timing: profile.record_timings,
+            event_loop,
+        };
         if render_resize_frame_directly {
             let Some(render_to_texture_elapsed) = render_scene_to_surface_view(
                 &mut self.frame,
-                renderer,
-                &dev_handle.device,
-                &dev_handle.queue,
-                surface,
+                &mut scene_texture_context,
                 &surface_view,
-                self.window.dpi_scale,
-                profile.record_timings,
-                event_loop,
             ) else {
                 return;
             };
@@ -78,16 +83,9 @@ where
             );
             return;
         }
-        let Some(render_to_texture_elapsed) = render_scene_texture_if_needed(
-            &mut self.frame,
-            renderer,
-            &dev_handle.device,
-            &dev_handle.queue,
-            surface,
-            self.window.dpi_scale,
-            profile.record_timings,
-            event_loop,
-        ) else {
+        let Some(render_to_texture_elapsed) =
+            render_scene_texture_if_needed(&mut self.frame, &mut scene_texture_context)
+        else {
             return;
         };
         let mut encoder =

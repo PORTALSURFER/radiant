@@ -24,6 +24,12 @@ pub(super) struct BaseFramePresentState<'a> {
     pub(super) profile: &'a mut RenderFrameProfile,
 }
 
+struct BaseFrameRefreshState<'a> {
+    base_dirty: &'a mut bool,
+    gpu_surface_renderer: &'a mut GpuSurfaceRenderer,
+    profile: &'a mut RenderFrameProfile,
+}
+
 pub(super) fn present_base_frame(
     state: &mut BaseFramePresentState<'_>,
     surface: &RenderSurface<'_>,
@@ -51,15 +57,18 @@ pub(super) fn present_base_frame(
     );
     let needs_refresh = composited_base_needs_refresh(*state.base_dirty, frame_recreated);
     let stats = if needs_refresh {
+        let refresh_state = BaseFrameRefreshState {
+            base_dirty: state.base_dirty,
+            gpu_surface_renderer: state.gpu_surface_renderer,
+            profile: state.profile,
+        };
         refresh_composited_base_frame(
             frame,
-            state.base_dirty,
-            state.gpu_surface_renderer,
+            refresh_state,
             surface,
             target,
             paint_plan,
             has_gpu_surfaces,
-            state.profile,
         )
     } else {
         state.profile.composited_base_cache_hit = true;
@@ -107,15 +116,13 @@ fn present_live_base(
 
 fn refresh_composited_base_frame(
     frame: &CompositedBaseFrame,
-    base_dirty: &mut bool,
-    gpu_surface_renderer: &mut GpuSurfaceRenderer,
+    state: BaseFrameRefreshState<'_>,
     surface: &RenderSurface<'_>,
     target: &mut BaseFramePresentTarget<'_>,
     paint_plan: &SurfacePaintPlan,
     has_gpu_surfaces: bool,
-    profile: &mut RenderFrameProfile,
 ) -> gpu_surface::GpuSurfaceRenderStats {
-    let (stats, elapsed) = profile.measure(|| {
+    let (stats, elapsed) = state.profile.measure(|| {
         surface.blitter.copy(
             target.device,
             target.encoder,
@@ -124,7 +131,7 @@ fn refresh_composited_base_frame(
         );
         if should_render_gpu_surfaces(has_gpu_surfaces) {
             let surface_size = RenderSurfacePixelSize::from_surface(surface);
-            gpu_surface_renderer.render(
+            state.gpu_surface_renderer.render(
                 &mut gpu_surface::GpuSurfaceRenderTarget {
                     device: target.device,
                     queue: target.queue,
@@ -140,8 +147,8 @@ fn refresh_composited_base_frame(
             gpu_surface::GpuSurfaceRenderStats::default()
         }
     });
-    *base_dirty = false;
-    profile.composited_base_refresh = elapsed;
+    *state.base_dirty = false;
+    state.profile.composited_base_refresh = elapsed;
     stats
 }
 

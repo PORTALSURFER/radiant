@@ -5,15 +5,25 @@ use tracing::error;
 use vello::{AaConfig, RenderParams, Renderer, util::RenderSurface, wgpu};
 use winit::event_loop::ActiveEventLoop;
 
+pub(super) struct SceneTextureContext<'a> {
+    pub(super) renderer: &'a mut Renderer,
+    pub(super) device: &'a wgpu::Device,
+    pub(super) queue: &'a wgpu::Queue,
+    pub(super) surface: &'a RenderSurface<'a>,
+    pub(super) dpi_scale: crate::theme::DpiScale,
+    pub(super) record_timing: bool,
+    pub(super) event_loop: &'a ActiveEventLoop,
+}
+
+struct SceneTextureTarget<'a> {
+    view: &'a wgpu::TextureView,
+    width: u32,
+    height: u32,
+}
+
 pub(super) fn render_scene_texture_if_needed(
     frame: &mut NativeVelloFrameState,
-    renderer: &mut Renderer,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    surface: &RenderSurface<'_>,
-    dpi_scale: crate::theme::DpiScale,
-    record_timing: bool,
-    event_loop: &ActiveEventLoop,
+    context: &mut SceneTextureContext<'_>,
 ) -> Option<Duration> {
     if !frame.scene_texture_dirty {
         return Some(Duration::ZERO);
@@ -21,15 +31,12 @@ pub(super) fn render_scene_texture_if_needed(
 
     let elapsed = render_scene_to_view(
         frame,
-        renderer,
-        device,
-        queue,
-        &surface.target_view,
-        surface.config.width,
-        surface.config.height,
-        dpi_scale,
-        record_timing,
-        event_loop,
+        context,
+        SceneTextureTarget {
+            view: &context.surface.target_view,
+            width: context.surface.config.width,
+            height: context.surface.config.height,
+        },
     )?;
 
     frame.scene_texture_dirty = false;
@@ -39,53 +46,37 @@ pub(super) fn render_scene_texture_if_needed(
 
 pub(super) fn render_scene_to_surface_view(
     frame: &mut NativeVelloFrameState,
-    renderer: &mut Renderer,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    surface: &RenderSurface<'_>,
+    context: &mut SceneTextureContext<'_>,
     surface_view: &wgpu::TextureView,
-    dpi_scale: crate::theme::DpiScale,
-    record_timing: bool,
-    event_loop: &ActiveEventLoop,
 ) -> Option<Duration> {
     render_scene_to_view(
         frame,
-        renderer,
-        device,
-        queue,
-        surface_view,
-        surface.config.width,
-        surface.config.height,
-        dpi_scale,
-        record_timing,
-        event_loop,
+        context,
+        SceneTextureTarget {
+            view: surface_view,
+            width: context.surface.config.width,
+            height: context.surface.config.height,
+        },
     )
 }
 
 fn render_scene_to_view(
     frame: &mut NativeVelloFrameState,
-    renderer: &mut Renderer,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    target_view: &wgpu::TextureView,
-    width: u32,
-    height: u32,
-    dpi_scale: crate::theme::DpiScale,
-    record_timing: bool,
-    event_loop: &ActiveEventLoop,
+    context: &mut SceneTextureContext<'_>,
+    target: SceneTextureTarget<'_>,
 ) -> Option<Duration> {
-    let render_started = record_timing.then(Instant::now);
+    let render_started = context.record_timing.then(Instant::now);
     let base_color = color_from_rgba(frame.last_paint_plan.clear_color);
-    let scene = frame.scene_for_dpi_scale(dpi_scale);
-    let result = renderer.render_to_texture(
-        device,
-        queue,
+    let scene = frame.scene_for_dpi_scale(context.dpi_scale);
+    let result = context.renderer.render_to_texture(
+        context.device,
+        context.queue,
         scene,
-        target_view,
+        target.view,
         &RenderParams {
             base_color,
-            width,
-            height,
+            width: target.width,
+            height: target.height,
             antialiasing_method: AaConfig::Area,
         },
     );
@@ -97,7 +88,7 @@ fn render_scene_to_view(
             "radiant generic native vello: render_to_texture failed: {:?}",
             err
         );
-        event_loop.exit();
+        context.event_loop.exit();
         return None;
     }
 

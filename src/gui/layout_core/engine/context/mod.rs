@@ -52,39 +52,41 @@ pub(super) struct LayoutContext<'a> {
     pub(super) output: &'a mut LayoutOutput,
 }
 
+pub(super) struct LayoutContextParts<'a> {
+    pub(super) cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
+    pub(super) virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
+    pub(super) scratch: &'a mut LayoutScratch,
+    pub(super) output: &'a mut LayoutOutput,
+    pub(super) measure_dirty: &'a HashSet<NodeId>,
+    pub(super) state: &'a LayoutState,
+    pub(super) debug_options: LayoutDebugOptions,
+    pub(super) debug_node_filter: Option<&'a HashSet<NodeId>>,
+}
+
 impl<'a> LayoutContext<'a> {
     /// Build a fresh layout-engine scratchpad for one evaluation pass.
-    pub(super) fn new(
-        cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
-        virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
-        scratch: &'a mut LayoutScratch,
-        output: &'a mut LayoutOutput,
-        measure_dirty: &'a HashSet<NodeId>,
-        state: &'a LayoutState,
-        debug_options: LayoutDebugOptions,
-        debug_node_filter: Option<&'a HashSet<NodeId>>,
-    ) -> Self {
-        scratch.measured.clear();
-        scratch.measured_by_node.clear();
-        scratch.virtual_touched.clear();
-        scratch.linear_windows.clear();
-        scratch.linear_sizes.clear();
-        scratch.linear_unresolved.clear();
-        output.clear_reusing_storage();
+    pub(super) fn new(parts: LayoutContextParts<'a>) -> Self {
+        parts.scratch.measured.clear();
+        parts.scratch.measured_by_node.clear();
+        parts.scratch.virtual_touched.clear();
+        parts.scratch.linear_windows.clear();
+        parts.scratch.linear_sizes.clear();
+        parts.scratch.linear_unresolved.clear();
+        parts.output.clear_reusing_storage();
         Self {
-            measured: &mut scratch.measured,
-            measured_by_node: &mut scratch.measured_by_node,
-            virtual_touched: &mut scratch.virtual_touched,
-            cache,
-            virtual_cache,
-            linear_windows: &mut scratch.linear_windows,
-            linear_sizes: &mut scratch.linear_sizes,
-            linear_unresolved: &mut scratch.linear_unresolved,
-            measure_dirty,
-            state,
-            debug_options,
-            debug_node_filter,
-            output,
+            measured: &mut parts.scratch.measured,
+            measured_by_node: &mut parts.scratch.measured_by_node,
+            virtual_touched: &mut parts.scratch.virtual_touched,
+            cache: parts.cache,
+            virtual_cache: parts.virtual_cache,
+            linear_windows: &mut parts.scratch.linear_windows,
+            linear_sizes: &mut parts.scratch.linear_sizes,
+            linear_unresolved: &mut parts.scratch.linear_unresolved,
+            measure_dirty: parts.measure_dirty,
+            state: parts.state,
+            debug_options: parts.debug_options,
+            debug_node_filter: parts.debug_node_filter,
+            output: parts.output,
         }
     }
 }

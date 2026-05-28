@@ -18,7 +18,7 @@ use cache::{
     CachedVirtualMetrics, MeasureCacheKey, VirtualizationCacheKey, invalidate_virtual_cache_for,
     invalidate_virtual_cache_for_any,
 };
-use context::{LayoutContext, LayoutScratch};
+use context::{LayoutContext, LayoutContextParts, LayoutScratch};
 pub use types::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
     LayoutDiagnosticCode, LayoutOutput, LayoutState, LayoutStats, OverflowInfo, VirtualWindowInfo,
@@ -130,16 +130,16 @@ impl LayoutEngine {
             } else {
                 None
             };
-            let mut context = LayoutContext::new(
-                &mut self.measure_cache,
-                &mut self.virtual_cache,
-                &mut self.scratch,
+            let mut context = LayoutContext::new(LayoutContextParts {
+                cache: &mut self.measure_cache,
+                virtual_cache: &mut self.virtual_cache,
+                scratch: &mut self.scratch,
                 output,
-                &self.measure_dirty,
+                measure_dirty: &self.measure_dirty,
                 state,
-                debug,
+                debug_options: debug,
                 debug_node_filter,
-            );
+            });
             let normalized = context.normalize_constraints(root.id(), constraints);
             measure::measure_node(root, normalized, &mut context);
             layout::layout_node(root, round_rect(root_rect), &mut context);

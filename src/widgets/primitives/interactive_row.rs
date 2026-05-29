@@ -79,6 +79,12 @@ impl InteractiveRowWidget {
         self
     }
 
+    /// Mark whether a related row drag is currently active in the same container.
+    pub fn with_drag_active(mut self, drag_active: bool) -> Self {
+        self.props.drag_active = drag_active;
+        self
+    }
+
     /// Mark this row as the source of the current external/container drag.
     pub fn with_drag_source(mut self, drag_source: bool) -> Self {
         self.props.drag_source = drag_source;

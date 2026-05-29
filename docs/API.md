@@ -159,6 +159,10 @@ Resizable and reorderable details headers can keep interaction state in
 `details_column_drag_content_left(...)`, `details_column_reorder_index(...)`,
 and `reorder_details_columns_by_id(...)` for stable framework-owned column
 geometry behavior.
+Custom row painters can compose `InteractiveRowWidget` directly for shared
+dense-row hover, activation, drag-source, drag-active, drop-target, and retained
+hover synchronization behavior while keeping domain-specific row visuals in the
+host widget.
 Large list and tree-style surfaces can use `VirtualListController` when they
 need durable item-index viewport state outside the declarative scroll container.
 It wraps the existing virtual-window, row-scroll, focus guard-band, and

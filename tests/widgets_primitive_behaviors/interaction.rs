@@ -120,7 +120,7 @@ fn interactive_row_active_drag_source_releases_after_refresh() {
 fn interactive_row_suppresses_hover_during_external_drag() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
     let mut row = InteractiveRowWidget::new(34, WidgetSizing::fixed(Vector2::new(120.0, 18.0)))
-        .with_drop_target(true);
+        .with_drag_active(true);
     row.common.state.hovered = true;
 
     assert_eq!(

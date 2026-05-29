@@ -92,6 +92,14 @@ impl PointerShieldWidget {
             .with_pointer_drop(false)
     }
 
+    /// Build a shield that only reports captured pointer drops.
+    pub fn pointer_drop_only(active: bool) -> Self {
+        Self::fill(active)
+            .with_pointer_move(false)
+            .with_pointer_press(false)
+            .with_pointer_release(false)
+    }
+
     /// Set whether the shield intercepts pointer input.
     pub fn active(mut self, active: bool) -> Self {
         self.props.active = active;

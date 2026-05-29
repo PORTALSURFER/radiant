@@ -249,6 +249,37 @@ fn pointer_shield_blocks_configured_pointer_events_inside_bounds() {
 }
 
 #[test]
+fn pointer_shield_drop_only_reports_only_captured_drops() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
+    let shield = PointerShieldWidget::pointer_drop_only(true);
+
+    assert_eq!(
+        shield.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(16.0, 8.0),
+            },
+        ),
+        None
+    );
+    assert_eq!(
+        shield.handle_input(
+            bounds,
+            WidgetInput::PointerDrop {
+                position: Point::new(16.0, 8.0),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        ),
+        Some(PointerShieldMessage::PointerDrop {
+            position: Point::new(16.0, 8.0),
+            button: PointerButton::Primary,
+            modifiers: Default::default(),
+        })
+    );
+}
+
+#[test]
 fn pointer_shield_stays_quiet_when_inactive_or_outside_bounds() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
     let inactive = PointerShieldWidget::fill(false);

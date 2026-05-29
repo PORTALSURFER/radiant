@@ -194,6 +194,8 @@ without painting can use `PointerShieldWidget`. It emits generic
 `PointerShieldMessage` values for configured pointer moves, presses, releases,
 and drops, so applications can block interaction during modal/loading states or
 clear stale drag-hover state without app-local invisible hit-test widgets.
+Convenience constructors such as `.pointer_move_only(...)` and
+`.pointer_drop_only(...)` cover common transparent overlay policies.
 Passive visual feedback layers can use `FeedbackOverlayWidget` for background
 tints, determinate progress fills, and edge-band accents without app-local
 paint-only custom widgets.

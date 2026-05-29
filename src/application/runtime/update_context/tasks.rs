@@ -3,7 +3,7 @@ use crate::{
         CancellationToken, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, TaskCompletion,
         TaskTicket,
     },
-    runtime::{Command, ResourceCompletion, ResourceCompletionParts, ResourceSlot},
+    runtime::{Command, ResourceCompletion, ResourceCompletionParts, ResourceSlot, TaskPriority},
 };
 
 use super::UpdateContext;
@@ -23,7 +23,20 @@ impl<Message> UpdateContext<Message> {
     ) where
         Output: Send + 'static,
     {
-        self.command(Command::perform(name, work, map));
+        self.spawn_with_priority(name, TaskPriority::Background, work, map);
+    }
+
+    /// Run work on a runtime-managed business thread with a scheduling hint.
+    pub fn spawn_with_priority<Output>(
+        &mut self,
+        name: &'static str,
+        priority: TaskPriority,
+        work: impl FnOnce() -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + Send + 'static,
+    ) where
+        Output: Send + 'static,
+    {
+        self.command(Command::perform_with_priority(name, priority, work, map));
     }
 
     /// Run cancellable work on a runtime-managed business thread.
@@ -40,7 +53,22 @@ impl<Message> UpdateContext<Message> {
     ) where
         Output: Send + 'static,
     {
-        self.spawn(name, move || work(token), map);
+        self.spawn_cancellable_with_priority(name, TaskPriority::Background, token, work, map);
+    }
+
+    /// Run cancellable work with a scheduling hint on a runtime-managed
+    /// business thread.
+    pub fn spawn_cancellable_with_priority<Output>(
+        &mut self,
+        name: &'static str,
+        priority: TaskPriority,
+        token: CancellationToken,
+        work: impl FnOnce(CancellationToken) -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + Send + 'static,
+    ) where
+        Output: Send + 'static,
+    {
+        self.spawn_with_priority(name, priority, move || work(token), map);
     }
 
     /// Start the latest task for one host-owned resource and run work on a

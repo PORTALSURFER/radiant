@@ -2,7 +2,7 @@ use super::super::AppBridge;
 use crate::{
     application::{IntoView, UpdateContext},
     gui::repaint::RepaintSignal,
-    runtime::Command,
+    runtime::{Command, TaskPriority},
 };
 use std::{sync::Arc, time::Duration};
 
@@ -26,13 +26,14 @@ where
     pub(super) fn spawn_runtime_message_task(
         &mut self,
         name: &'static str,
+        priority: TaskPriority,
         work: Box<dyn FnOnce() -> Message + Send + 'static>,
     ) -> bool {
         if !self.runtime.is_alive() {
             return false;
         }
         let runtime = Arc::downgrade(&self.runtime);
-        self.runtime.spawn_business_task(name, move || {
+        self.runtime.spawn_business_task(name, priority, move || {
             let message = work();
             if let Some(runtime) = runtime.upgrade() {
                 let _ = runtime.enqueue(message);

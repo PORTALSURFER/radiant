@@ -105,3 +105,22 @@ fn update_context_can_spawn_cancellable_work() {
         },
     );
 }
+
+#[test]
+fn update_context_accepts_task_priority_hints() {
+    let token = radiant::prelude::CancellationToken::new();
+    let mut context = radiant::prelude::UpdateContext::default();
+    context.spawn_cancellable_with_priority(
+        "idle-cancel-test",
+        radiant::prelude::TaskPriority::Idle,
+        token,
+        |token| token.is_cancelled(),
+        |_| DemoMessage::Increment,
+    );
+    context.spawn_with_priority(
+        "interactive-test",
+        radiant::prelude::TaskPriority::Interactive,
+        || 1_u8,
+        |_| DemoMessage::Increment,
+    );
+}

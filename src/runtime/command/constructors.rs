@@ -1,4 +1,4 @@
-use super::Command;
+use super::{Command, TaskPriority};
 use crate::{
     runtime::{
         DragRequest, ExternalDragOutcome, ExternalDragRequest, PlatformRequest, PlatformResponse,
@@ -87,8 +87,23 @@ impl<Message> Command<Message> {
     where
         Output: Send + 'static,
     {
+        Self::perform_with_priority(name, TaskPriority::Background, work, map)
+    }
+
+    /// Build a background-work command with an explicit runtime scheduling
+    /// priority hint.
+    pub fn perform_with_priority<Output>(
+        name: &'static str,
+        priority: TaskPriority,
+        work: impl FnOnce() -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + Send + 'static,
+    ) -> Self
+    where
+        Output: Send + 'static,
+    {
         Self::Perform {
             name,
+            priority,
             work: Box::new(move || map(work())),
         }
     }

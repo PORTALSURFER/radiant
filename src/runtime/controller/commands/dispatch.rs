@@ -71,8 +71,12 @@ where
                     outcome.repaint_requested = true;
                 }
             }
-            Command::Perform { name, work } => {
-                if self.bridge.spawn_message_task(name, work) {
+            Command::Perform {
+                name,
+                priority,
+                work,
+            } => {
+                if self.bridge.spawn_message_task(name, priority, work) {
                     outcome.repaint_requested = true;
                 }
             }

@@ -16,6 +16,24 @@ mod scroll;
 pub use repaint::RepaintScope;
 pub use scroll::{ScrollFixedRowIntoViewParts, ScrollIntoViewParts};
 
+/// Runtime hint for host-owned background work scheduled through Radiant.
+///
+/// Radiant treats this as a best-effort scheduling hint. Platforms that cannot
+/// adjust worker priority keep the same queueing behavior without changing the
+/// public command contract.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TaskPriority {
+    /// User-visible work that should complete promptly without running on the
+    /// UI/event/render path.
+    Interactive,
+    /// Ordinary background work. This is the default and preserves Radiant's
+    /// existing business-worker behavior.
+    #[default]
+    Background,
+    /// Opportunistic work that should yield to interaction and rendering.
+    Idle,
+}
+
 /// Runtime-facing command produced by host application logic.
 ///
 /// Radiant commands are intentionally small and domain-neutral. Hosts keep
@@ -54,6 +72,8 @@ pub enum Command<Message> {
     Perform {
         /// Human-readable task name for diagnostics.
         name: &'static str,
+        /// Best-effort priority hint for the runtime-owned worker lane.
+        priority: TaskPriority,
         /// Background work lowered into a message-producing closure.
         work: Box<dyn FnOnce() -> Message + Send + 'static>,
     },

@@ -21,7 +21,11 @@ where
                 .field("delay", delay)
                 .field("message", message)
                 .finish(),
-            Self::Perform { name, .. } => f.debug_struct("Perform").field("name", name).finish(),
+            Self::Perform { name, priority, .. } => f
+                .debug_struct("Perform")
+                .field("name", name)
+                .field("priority", priority)
+                .finish(),
             Self::Focus(widget_id) => f.debug_tuple("Focus").field(widget_id).finish(),
             Self::ScrollTo { node_id, offset } => f
                 .debug_struct("ScrollTo")

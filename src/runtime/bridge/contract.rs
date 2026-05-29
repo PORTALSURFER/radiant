@@ -9,7 +9,8 @@ use crate::gui::{
 };
 use crate::runtime::{
     Command, NativeFileDrop, NativeFrameDiagnostics, PaintPrimitive, PlatformCompletion,
-    PlatformRequest, PlatformServiceFallback, ScrollUpdate, TransientOverlayContext, UiSurface,
+    PlatformRequest, PlatformServiceFallback, ScrollUpdate, TaskPriority, TransientOverlayContext,
+    UiSurface,
 };
 use crate::widgets::RetainedSurfaceDescriptor;
 use std::{sync::Arc, time::Duration};
@@ -95,6 +96,7 @@ pub trait RuntimeBridge<Message> {
     fn spawn_message_task(
         &mut self,
         _name: &'static str,
+        _priority: TaskPriority,
         _work: Box<dyn FnOnce() -> Message + Send + 'static>,
     ) -> bool {
         false

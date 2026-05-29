@@ -2,6 +2,7 @@ use super::{
     AppRuntime, BusinessThreadPool, business_thread_name, default_business_worker_count,
     sleep_while_runtime_alive, spawn_business_thread,
 };
+use crate::runtime::TaskPriority;
 use std::{
     sync::{Arc, mpsc},
     thread,
@@ -37,7 +38,7 @@ fn business_thread_pool_runs_queued_work_on_named_workers() {
     let (sender, receiver) = mpsc::channel();
     for index in 0..4 {
         let sender = sender.clone();
-        assert!(pool.spawn("test-job", move || {
+        assert!(pool.spawn("test-job", TaskPriority::Background, move || {
             let thread_name = thread::current().name().unwrap_or_default().to_string();
             sender.send((index, thread_name)).expect("send work result");
         }));
@@ -61,7 +62,7 @@ fn business_thread_pool_rejects_work_when_no_workers_are_available() {
     let ran = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let ran_task = Arc::clone(&ran);
 
-    assert!(!pool.spawn("test-job", move || {
+    assert!(!pool.spawn("test-job", TaskPriority::Background, move || {
         ran_task.store(true, std::sync::atomic::Ordering::Release);
     }));
 

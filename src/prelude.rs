@@ -79,6 +79,7 @@ pub use crate::gui::{
     },
 };
 pub use crate::layout::LayoutOutput;
+pub use crate::runtime::TaskPriority;
 pub use crate::runtime::{
     AuxiliaryWindow, Command, ConfirmDialogParts, ConfirmDialogRequest, ConfirmationButtons,
     ConfirmationLevel, ConfirmationResponse, DragPreview, DragRequest, EmbeddedFont,

@@ -134,6 +134,10 @@ work is rejected consistently without host-specific task-id plumbing. Use
 selection, search query, or inspector target should only start after it remains
 current for a short delay; the delayed message carries the same ticket type and
 should be accepted through the same `LatestTask` methods. Use
+`UpdateContext::spawn_with_priority(...)` or
+`spawn_cancellable_with_priority(...)` when background work should carry a
+best-effort `TaskPriority` hint, such as idle-priority indexing or interactive
+preview preparation. Use
 `KeyedLatestTasks` with `UpdateContext::spawn_latest_for(...)` when the same
 replace-latest behavior is needed independently for many keys, such as row
 previews, folder scans, or document-local workers.

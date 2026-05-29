@@ -48,7 +48,9 @@ pub use bridge::{
     declarative_command_runtime_bridge, declarative_owned_command_runtime_bridge,
     declarative_owned_runtime_bridge, declarative_runtime_bridge,
 };
-pub use command::{Command, RepaintScope, ScrollFixedRowIntoViewParts, ScrollIntoViewParts};
+pub use command::{
+    Command, RepaintScope, ScrollFixedRowIntoViewParts, ScrollIntoViewParts, TaskPriority,
+};
 pub use controller::{
     CommandOutcome, Event, FocusTraversal, PointerMoveOutcome, RuntimeContext, RuntimeSurfaceFrame,
     RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceRuntime,

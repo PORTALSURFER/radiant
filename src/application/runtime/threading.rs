@@ -1,4 +1,5 @@
 use super::AppRuntime;
+use crate::runtime::TaskPriority;
 use std::sync::{
     Arc, Mutex, Weak,
     mpsc::{self, Sender},
@@ -12,7 +13,10 @@ const RUNTIME_CANCEL_POLL: std::time::Duration = std::time::Duration::from_milli
 const BUSINESS_THREAD_PREFIX: &str = "radiant-business";
 const DEFAULT_BUSINESS_WORKERS: usize = 2;
 
-type BusinessJob = Box<dyn FnOnce() + Send + 'static>;
+struct BusinessJob {
+    priority: TaskPriority,
+    work: Box<dyn FnOnce() + Send + 'static>,
+}
 
 /// Runtime-owned lane for application business work.
 ///
@@ -60,7 +64,12 @@ impl BusinessThreadPool {
         }
     }
 
-    pub(super) fn spawn(&self, name: &'static str, work: impl FnOnce() + Send + 'static) -> bool {
+    pub(super) fn spawn(
+        &self,
+        name: &'static str,
+        priority: TaskPriority,
+        work: impl FnOnce() + Send + 'static,
+    ) -> bool {
         let Some(sender) = &self.sender else {
             tracing::warn!(
                 work.name = name,
@@ -68,7 +77,10 @@ impl BusinessThreadPool {
             );
             return false;
         };
-        match sender.send(Box::new(work)) {
+        match sender.send(BusinessJob {
+            priority,
+            work: Box::new(work),
+        }) {
             Ok(()) => true,
             Err(_) => {
                 tracing::warn!(
@@ -90,12 +102,14 @@ impl BusinessThreadPool {
 }
 
 fn worker_loop(receiver: Arc<Mutex<mpsc::Receiver<BusinessJob>>>) {
-    platform::configure_business_worker_thread();
+    platform::configure_business_worker_thread(TaskPriority::Background);
     loop {
         let Ok(job) = lock_business_receiver(&receiver).recv() else {
             break;
         };
-        job();
+        platform::configure_business_worker_thread(job.priority);
+        (job.work)();
+        platform::configure_business_worker_thread(TaskPriority::Background);
     }
 }
 

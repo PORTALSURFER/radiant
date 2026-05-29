@@ -79,6 +79,7 @@ impl RuntimeBridge<DemoMessage> for RuntimeCommandBridge {
     fn spawn_message_task(
         &mut self,
         _name: &'static str,
+        _priority: radiant::runtime::TaskPriority,
         work: Box<dyn FnOnce() -> DemoMessage + Send + 'static>,
     ) -> bool {
         let pending = Arc::clone(&self.pending);

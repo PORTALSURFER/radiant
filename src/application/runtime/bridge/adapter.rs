@@ -70,9 +70,10 @@ where
     fn spawn_message_task(
         &mut self,
         name: &'static str,
+        priority: crate::runtime::TaskPriority,
         work: Box<dyn FnOnce() -> Message + Send + 'static>,
     ) -> bool {
-        self.spawn_runtime_message_task(name, work)
+        self.spawn_runtime_message_task(name, priority, work)
     }
 
     fn take_runtime_commands(&mut self) -> Vec<Command<Message>> {

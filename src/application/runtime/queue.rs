@@ -1,5 +1,6 @@
 use super::threading::BusinessThreadPool;
 use super::timer::TimerLane;
+use crate::runtime::TaskPriority;
 use crate::{gui::repaint::RepaintSignal, runtime::Command};
 use std::sync::{
     Arc, Mutex, OnceLock,
@@ -60,12 +61,13 @@ impl<Message> AppRuntime<Message> {
     pub(super) fn spawn_business_task(
         &self,
         name: &'static str,
+        priority: TaskPriority,
         work: impl FnOnce() + Send + 'static,
     ) -> bool {
         if !self.is_alive() {
             return false;
         }
-        self.business.spawn(name, work)
+        self.business.spawn(name, priority, work)
     }
 
     pub(super) fn take_pending(&self) -> Vec<Message> {

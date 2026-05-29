@@ -62,6 +62,26 @@ fn interactive_row_emits_secondary_activation() {
 }
 
 #[test]
+fn interactive_row_emits_double_activation() {
+    let mut row = InteractiveRowWidget::new(37, WidgetSizing::fixed(Vector2::new(120.0, 18.0)));
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
+
+    assert_eq!(
+        row.handle_input(
+            bounds,
+            WidgetInput::PointerDoubleClick {
+                position: Point::new(16.0, 8.0),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        ),
+        Some(InteractiveRowMessage::DoubleActivate)
+    );
+    assert!(row.common.state.hovered);
+    assert!(!row.common.state.pressed);
+}
+
+#[test]
 fn interactive_row_clears_stale_hover_when_requested() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
     let mut previous =

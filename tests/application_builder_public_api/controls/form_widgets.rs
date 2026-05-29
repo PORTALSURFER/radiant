@@ -15,6 +15,7 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
             .droppable(true)
             .mapped(|message| match message {
                 ui::InteractiveRowMessage::Activate => "row",
+                ui::InteractiveRowMessage::DoubleActivate => "double-row",
                 ui::InteractiveRowMessage::Drag(_) => "drag",
                 ui::InteractiveRowMessage::SecondaryActivate { .. } => "secondary",
                 ui::InteractiveRowMessage::Drop => "drop",

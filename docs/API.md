@@ -166,6 +166,8 @@ host widget.
 Rows that need active drag-source motion after a retained refresh can opt into
 `with_drag_source_motion(...)`; rows that should accept drops without producing
 drop-hover messages can use `with_drop_only(...)`.
+Rows emit `DoubleActivate` for primary-button double-click flows such as
+opening an item, entering rename mode, or drilling into a details row.
 Large list and tree-style surfaces can use `VirtualListController` when they
 need durable item-index viewport state outside the declarative scroll container.
 It wraps the existing virtual-window, row-scroll, focus guard-band, and

@@ -197,6 +197,9 @@ clear stale drag-hover state without app-local invisible hit-test widgets.
 Passive visual feedback layers can use `FeedbackOverlayWidget` for background
 tints, determinate progress fills, and edge-band accents without app-local
 paint-only custom widgets.
+Status surfaces and background-job indicators can use `ProgressBarWidget` for
+theme-backed determinate or indeterminate horizontal progress, with optional
+pointer activation when the bar should open details.
 Retained custom surfaces can use `RetainedSegmentPlan` with
 `RetainedSegmentRevisions` to name static and overlay paint segments, derive
 stable invalidation masks, and bump only the revisions affected by a change.

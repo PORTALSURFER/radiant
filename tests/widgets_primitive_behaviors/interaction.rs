@@ -316,6 +316,66 @@ fn feedback_overlay_paints_background_progress_and_edge_bands() {
 }
 
 #[test]
+fn progress_bar_paints_determinate_track_and_fill() {
+    let widget = ProgressBarWidget::determinate(0.4)
+        .with_colors(
+            radiant::gui::types::Rgba8::new(10, 20, 30, 210),
+            radiant::gui::types::Rgba8::new(220, 120, 40, 210),
+        )
+        .with_max_track_height(8.0);
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 20.0));
+    let mut primitives = Vec::new();
+
+    widget.append_paint(
+        &mut primitives,
+        bounds,
+        &Default::default(),
+        &Default::default(),
+    );
+
+    let fills: Vec<_> = primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            radiant::runtime::PaintPrimitive::FillRect(fill) => Some(fill),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(fills.len(), 2);
+    assert_eq!(fills[0].rect.height(), 8.0);
+    assert_eq!(fills[0].rect.min.y, 6.0);
+    assert_eq!(fills[1].rect.width(), 40.0);
+}
+
+#[test]
+fn progress_bar_can_emit_activation_when_enabled() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 12.0));
+    let mut widget = ProgressBarWidget::indeterminate(0.5).with_activation();
+
+    assert_eq!(
+        widget.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(20.0, 6.0),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        ),
+        None
+    );
+    assert_eq!(
+        widget.handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(20.0, 6.0),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        ),
+        Some(ProgressBarMessage::Activate)
+    );
+}
+
+#[test]
 fn drag_handle_emits_captured_drag_lifecycle() {
     let mut handle = DragHandleWidget::new(12, WidgetSizing::fixed(Vector2::new(24.0, 24.0)));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(24.0, 24.0));

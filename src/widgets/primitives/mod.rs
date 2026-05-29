@@ -12,6 +12,7 @@ mod image;
 mod interactive_row;
 mod list_item;
 mod pointer_shield;
+mod progress_bar;
 mod scrollbar;
 mod selectable;
 mod slider;
@@ -35,6 +36,10 @@ pub use image::{ImageProps, ImageWidget, ImageWidgetParts};
 pub use interactive_row::{InteractiveRowProps, InteractiveRowWidget, InteractiveRowWidgetParts};
 pub use list_item::{ListItemWidget, ListItemWidgetParts};
 pub use pointer_shield::{PointerShieldProps, PointerShieldWidget, PointerShieldWidgetParts};
+pub use progress_bar::{
+    ProgressBarMessage, ProgressBarMode, ProgressBarProps, ProgressBarWidget,
+    ProgressBarWidgetParts,
+};
 pub use scrollbar::{
     ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget, ScrollbarWidgetParts,
 };

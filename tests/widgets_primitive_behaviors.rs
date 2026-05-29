@@ -10,9 +10,10 @@ use radiant::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, DragHandleMessage,
         DragHandleWidget, FeedbackOverlayWidget, ImageWidget, InteractiveRowMessage,
         InteractiveRowWidget, ListItemMessage, ListItemWidget, PointerButton, PointerShieldMessage,
-        PointerShieldWidget, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, SelectableMessage,
-        SelectableWidget, SliderMessage, SliderWidget, TextInputMessage, TextInputWidget,
-        ToggleMessage, ToggleWidget, Widget, WidgetInput, WidgetKey, WidgetSizing,
+        PointerShieldWidget, ProgressBarMessage, ProgressBarWidget, ScrollbarAxis,
+        ScrollbarMessage, ScrollbarWidget, SelectableMessage, SelectableWidget, SliderMessage,
+        SliderWidget, TextInputMessage, TextInputWidget, ToggleMessage, ToggleWidget, Widget,
+        WidgetInput, WidgetKey, WidgetSizing,
     },
 };
 use std::sync::Arc;

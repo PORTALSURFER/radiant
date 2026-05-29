@@ -81,11 +81,12 @@ pub use primitives::{
     GpuSurfaceWidget, IconButtonWidget, IconButtonWidgetParts, ImageProps, ImageWidget,
     ImageWidgetParts, InteractiveRowProps, InteractiveRowWidget, InteractiveRowWidgetParts,
     ListItemWidget, ListItemWidgetParts, PointerShieldProps, PointerShieldWidget,
-    PointerShieldWidgetParts, RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarProps,
-    ScrollbarState, ScrollbarWidget, ScrollbarWidgetParts, SelectableProps, SelectableWidget,
-    SelectableWidgetParts, SliderProps, SliderState, SliderWidget, SliderWidgetParts, TextAlign,
-    TextInputChrome, TextInputEditResult, TextInputProps, TextInputState, TextInputWidget,
-    TextInputWidgetParts, TextWidget, TextWidgetParts, TextWrap, ToggleProps, ToggleState,
-    ToggleWidget, ToggleWidgetParts, WidgetCommon,
+    PointerShieldWidgetParts, ProgressBarMessage, ProgressBarMode, ProgressBarProps,
+    ProgressBarWidget, ProgressBarWidgetParts, RetainedSurfaceDescriptor, ScrollbarAxis,
+    ScrollbarProps, ScrollbarState, ScrollbarWidget, ScrollbarWidgetParts, SelectableProps,
+    SelectableWidget, SelectableWidgetParts, SliderProps, SliderState, SliderWidget,
+    SliderWidgetParts, TextAlign, TextInputChrome, TextInputEditResult, TextInputProps,
+    TextInputState, TextInputWidget, TextInputWidgetParts, TextWidget, TextWidgetParts, TextWrap,
+    ToggleProps, ToggleState, ToggleWidget, ToggleWidgetParts, WidgetCommon,
 };
 pub use theme::{WidgetVisualTokens, resolve_widget_visual_tokens};

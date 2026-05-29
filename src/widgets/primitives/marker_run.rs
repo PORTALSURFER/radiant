@@ -146,24 +146,24 @@ impl Widget for MarkerRunWidget {
         let Some(color) = self.props.color else {
             return;
         };
-        for rect in marker_rects(bounds, self.props) {
+        for_each_marker_rect(bounds, self.props, |rect| {
             primitives.push(PaintPrimitive::FillRect(PaintFillRect {
                 widget_id: self.common.id,
                 rect,
                 color,
             }));
-        }
+        });
     }
 }
 
-fn marker_rects(bounds: Rect, props: MarkerRunProps) -> Vec<Rect> {
+fn for_each_marker_rect(bounds: Rect, props: MarkerRunProps, mut push: impl FnMut(Rect)) {
     if !bounds.has_finite_positive_area() || props.count == 0 || props.side == 0 {
-        return Vec::new();
+        return;
     }
 
     let side = (props.side as f32).min(bounds.width()).min(bounds.height());
     if side <= 0.0 {
-        return Vec::new();
+        return;
     }
 
     let count = props.count as usize;
@@ -171,12 +171,13 @@ fn marker_rects(bounds: Rect, props: MarkerRunProps) -> Vec<Rect> {
     let total_width = count as f32 * side + count.saturating_sub(1) as f32 * gap;
     let start_x = marker_start_x(bounds, props.align, total_width, props.inset as f32);
     let y = bounds.min.y + (bounds.height() - side) * 0.5;
-    (0..count)
-        .map(|index| {
-            let x = start_x + index as f32 * (side + gap);
-            Rect::from_min_max(Point::new(x, y), Point::new(x + side, y + side))
-        })
-        .collect()
+    for index in 0..count {
+        let x = start_x + index as f32 * (side + gap);
+        push(Rect::from_min_max(
+            Point::new(x, y),
+            Point::new(x + side, y + side),
+        ));
+    }
 }
 
 fn marker_start_x(bounds: Rect, align: MarkerRunAlign, total_width: f32, inset: f32) -> f32 {
@@ -200,6 +201,12 @@ mod tests {
 
     fn bounds() -> Rect {
         Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 40.0))
+    }
+
+    fn marker_rects(bounds: Rect, props: MarkerRunProps) -> Vec<Rect> {
+        let mut rects = Vec::new();
+        for_each_marker_rect(bounds, props, |rect| rects.push(rect));
+        rects
     }
 
     #[test]

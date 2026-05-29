@@ -277,6 +277,45 @@ fn pointer_shield_stays_quiet_when_inactive_or_outside_bounds() {
 }
 
 #[test]
+fn feedback_overlay_paints_background_progress_and_edge_bands() {
+    let widget = FeedbackOverlayWidget::fill()
+        .with_background(radiant::gui::types::Rgba8::new(1, 2, 3, 40))
+        .with_progress(0.25, radiant::gui::types::Rgba8::new(4, 5, 6, 80))
+        .with_edge(
+            radiant::gui::types::Rgba8::new(7, 8, 9, 120),
+            3.0,
+            BorderSides {
+                top: true,
+                bottom: true,
+                left: false,
+                right: false,
+            },
+        );
+    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(100.0, 40.0));
+    let mut primitives = Vec::new();
+
+    widget.append_paint(
+        &mut primitives,
+        bounds,
+        &Default::default(),
+        &Default::default(),
+    );
+
+    let fills: Vec<_> = primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            radiant::runtime::PaintPrimitive::FillRect(fill) => Some(fill),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(fills.len(), 4);
+    assert_eq!(fills[0].rect, bounds);
+    assert_eq!(fills[1].rect.width(), 25.0);
+    assert_eq!(fills[2].rect, bounds.top_edge_strip(3.0));
+    assert_eq!(fills[3].rect, bounds.bottom_edge_strip(3.0));
+}
+
+#[test]
 fn drag_handle_emits_captured_drag_lifecycle() {
     let mut handle = DragHandleWidget::new(12, WidgetSizing::fixed(Vector2::new(24.0, 24.0)));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(24.0, 24.0));

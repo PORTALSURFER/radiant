@@ -30,6 +30,7 @@ pub use crate::application::{
     state_dropdown, text, text_input, text_input_mapped, toggle, toggle_mapped, tree_list,
     tree_list_with_drag, virtual_list, virtual_list_window, virtual_scroll, widget, window, wrap,
 };
+pub use crate::gui::paint::BorderSides;
 pub use crate::gui::types::{ImageRgba, ImageRgbaError, Point, Rect, Rgba8, Vector2};
 pub use crate::gui::{
     chrome::{
@@ -117,14 +118,15 @@ pub use crate::theme::ThemeTokens;
 pub use crate::widgets::{
     ActivationInputPolicy, ActivationInputResult, BadgeWidgetParts, ButtonWidgetParts,
     CanvasGestureEvent, CanvasGestureState, CanvasPointer, CanvasWidgetParts, CardWidgetParts,
-    DragHandleMessage, DragHandleWidgetParts, FocusBehavior, GpuSurfaceMessage, GpuSurfaceParts,
-    GpuSurfaceWidget, IconButtonWidget, IconButtonWidgetParts, ImageWidgetParts,
-    InteractiveRowMessage, InteractiveRowWidget, InteractiveRowWidgetParts, ListItemWidgetParts,
-    PointerButton, PointerShieldMessage, PointerShieldWidget, PointerShieldWidgetParts,
-    ScrollbarAxis, ScrollbarMessage, ScrollbarWidgetParts, SelectableWidgetParts, SliderMessage,
-    SliderWidget, SliderWidgetParts, TextAlign, TextInputChrome, TextInputEditResult,
-    TextInputState, TextInputWidgetParts, TextWidgetParts, TextWrap, ToggleWidgetParts, Widget,
-    WidgetCommon, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput, WidgetProminence,
-    WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone, WidgetVisualTokens,
-    handle_activation_input, resolve_widget_visual_tokens,
+    DragHandleMessage, DragHandleWidgetParts, FeedbackOverlayEdge, FeedbackOverlayProgress,
+    FeedbackOverlayProps, FeedbackOverlayWidget, FeedbackOverlayWidgetParts, FocusBehavior,
+    GpuSurfaceMessage, GpuSurfaceParts, GpuSurfaceWidget, IconButtonWidget, IconButtonWidgetParts,
+    ImageWidgetParts, InteractiveRowMessage, InteractiveRowWidget, InteractiveRowWidgetParts,
+    ListItemWidgetParts, PointerButton, PointerShieldMessage, PointerShieldWidget,
+    PointerShieldWidgetParts, ScrollbarAxis, ScrollbarMessage, ScrollbarWidgetParts,
+    SelectableWidgetParts, SliderMessage, SliderWidget, SliderWidgetParts, TextAlign,
+    TextInputChrome, TextInputEditResult, TextInputState, TextInputWidgetParts, TextWidgetParts,
+    TextWrap, ToggleWidgetParts, Widget, WidgetCommon, WidgetCursor, WidgetInput, WidgetKey,
+    WidgetOutput, WidgetProminence, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle,
+    WidgetTone, WidgetVisualTokens, handle_activation_input, resolve_widget_visual_tokens,
 };

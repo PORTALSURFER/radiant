@@ -194,6 +194,9 @@ without painting can use `PointerShieldWidget`. It emits generic
 `PointerShieldMessage` values for configured pointer moves, presses, releases,
 and drops, so applications can block interaction during modal/loading states or
 clear stale drag-hover state without app-local invisible hit-test widgets.
+Passive visual feedback layers can use `FeedbackOverlayWidget` for background
+tints, determinate progress fills, and edge-band accents without app-local
+paint-only custom widgets.
 Retained custom surfaces can use `RetainedSegmentPlan` with
 `RetainedSegmentRevisions` to name static and overlay paint segments, derive
 stable invalidation masks, and bump only the revisions affected by a change.

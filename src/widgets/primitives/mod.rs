@@ -5,6 +5,7 @@ mod button;
 mod canvas;
 mod card;
 mod drag_handle;
+mod feedback_overlay;
 mod gpu_surface;
 mod icon_button;
 mod image;
@@ -24,6 +25,10 @@ pub use button::{ButtonProps, ButtonState, ButtonWidget, ButtonWidgetParts};
 pub use canvas::{CanvasWidget, CanvasWidgetParts, RetainedSurfaceDescriptor};
 pub use card::{CardWidget, CardWidgetParts};
 pub use drag_handle::{DragHandleWidget, DragHandleWidgetParts};
+pub use feedback_overlay::{
+    FeedbackOverlayEdge, FeedbackOverlayProgress, FeedbackOverlayProps, FeedbackOverlayWidget,
+    FeedbackOverlayWidgetParts,
+};
 pub use gpu_surface::{GpuSurfaceParts, GpuSurfaceWidget};
 pub use icon_button::{IconButtonWidget, IconButtonWidgetParts};
 pub use image::{ImageProps, ImageWidget, ImageWidgetParts};

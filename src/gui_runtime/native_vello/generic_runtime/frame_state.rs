@@ -5,13 +5,15 @@ use super::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneTextRunBuffer,
     gpu_surface::gpu_surface_visible_suffix_regions_into, post_gpu_overlay,
 };
+use crate::theme::DpiScale;
 use crate::{
     gui::types::Rect as UiRect,
     gui_runtime::native_vello::NativeTextRenderer,
     runtime::{PaintPrimitive, RetainedSurfaceCachePolicy, SurfacePaintPlan},
-    theme::{DpiScale, ThemeTokens},
+    theme::ThemeTokens,
 };
-use vello::{Scene, kurbo::Affine};
+use vello::Scene;
+use vello::kurbo::Affine;
 
 pub(super) struct NativeVelloFrameState {
     pub(super) text_renderer: NativeTextRenderer,

@@ -38,7 +38,8 @@ runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `StateView`, `Command`, `EmbeddedFont`, `StatusSegments`, `StatusLineLog`,
 `StatusLineEntry`, `ContentViewChrome`, common custom-widget authoring contracts such as
 `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`,
-`PointerButton`, `FocusBehavior`, and backend-neutral paint primitives such as
+`PointerButton`, `FocusBehavior`, `ActivationInputPolicy`,
+`handle_activation_input`, and backend-neutral paint primitives such as
 `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`,
 `PaintFillRectBatch`,
 `PaintFillPath`, `PaintPathCommand`, `PaintTransform`, and `PaintTextRun`. It
@@ -169,6 +170,11 @@ double-click, drop, wheel, and focus-change events. This keeps waveform,
 timeline, node-editor, and other direct-manipulation widgets on a shared
 backend-neutral interaction contract while the application still owns domain
 actions such as range selection or marker editing.
+Custom clickable widgets that need their own paint code can use
+`handle_activation_input` with `ActivationInputPolicy::pointer_only()` or
+`ActivationInputPolicy::focusable()` to share Radiant's hover, pressed, focus,
+pointer activation, and keyboard activation transitions without reimplementing
+that state machine.
 Retained custom surfaces can use `RetainedSegmentPlan` with
 `RetainedSegmentRevisions` to name static and overlay paint segments, derive
 stable invalidation masks, and bump only the revisions affected by a change.

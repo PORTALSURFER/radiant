@@ -115,14 +115,15 @@ pub use crate::runtime::{
 };
 pub use crate::theme::ThemeTokens;
 pub use crate::widgets::{
-    BadgeWidgetParts, ButtonWidgetParts, CanvasGestureEvent, CanvasGestureState, CanvasPointer,
-    CanvasWidgetParts, CardWidgetParts, DragHandleMessage, DragHandleWidgetParts, FocusBehavior,
-    GpuSurfaceMessage, GpuSurfaceParts, GpuSurfaceWidget, IconButtonWidget, IconButtonWidgetParts,
-    ImageWidgetParts, InteractiveRowMessage, InteractiveRowWidget, InteractiveRowWidgetParts,
-    ListItemWidgetParts, PointerButton, ScrollbarAxis, ScrollbarMessage, ScrollbarWidgetParts,
-    SelectableWidgetParts, SliderMessage, SliderWidget, SliderWidgetParts, TextAlign,
-    TextInputChrome, TextInputEditResult, TextInputState, TextInputWidgetParts, TextWidgetParts,
-    TextWrap, ToggleWidgetParts, Widget, WidgetCommon, WidgetCursor, WidgetInput, WidgetKey,
-    WidgetOutput, WidgetProminence, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle,
-    WidgetTone, WidgetVisualTokens, resolve_widget_visual_tokens,
+    ActivationInputPolicy, ActivationInputResult, BadgeWidgetParts, ButtonWidgetParts,
+    CanvasGestureEvent, CanvasGestureState, CanvasPointer, CanvasWidgetParts, CardWidgetParts,
+    DragHandleMessage, DragHandleWidgetParts, FocusBehavior, GpuSurfaceMessage, GpuSurfaceParts,
+    GpuSurfaceWidget, IconButtonWidget, IconButtonWidgetParts, ImageWidgetParts,
+    InteractiveRowMessage, InteractiveRowWidget, InteractiveRowWidgetParts, ListItemWidgetParts,
+    PointerButton, ScrollbarAxis, ScrollbarMessage, ScrollbarWidgetParts, SelectableWidgetParts,
+    SliderMessage, SliderWidget, SliderWidgetParts, TextAlign, TextInputChrome,
+    TextInputEditResult, TextInputState, TextInputWidgetParts, TextWidgetParts, TextWrap,
+    ToggleWidgetParts, Widget, WidgetCommon, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
+    WidgetProminence, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone,
+    WidgetVisualTokens, handle_activation_input, resolve_widget_visual_tokens,
 };

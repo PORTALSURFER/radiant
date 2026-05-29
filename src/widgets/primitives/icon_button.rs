@@ -8,7 +8,7 @@ use crate::runtime::{
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{
-    ButtonMessage, PointerButton, WidgetInput, WidgetKey, WidgetOutput,
+    ActivationInputPolicy, ButtonMessage, WidgetInput, WidgetOutput, handle_activation_input,
 };
 use crate::widgets::primitives::support::{WidgetCommon, push_button_chrome};
 
@@ -63,54 +63,14 @@ impl Widget for IconButtonWidget {
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        if self.common.state.disabled {
-            self.common.state.pressed = false;
-            return None;
-        }
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = true;
-                self.common.state.focused = true;
-                None
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } => {
-                let activated = self.common.state.pressed && bounds.contains(position);
-                self.common.state.pressed = false;
-                self.common.state.hovered = bounds.contains(position);
-                activated.then(|| WidgetOutput::typed(ButtonMessage::Activate))
-            }
-            WidgetInput::FocusChanged(focused) => {
-                self.common.state.focused = focused;
-                if !focused {
-                    self.common.state.pressed = false;
-                }
-                None
-            }
-            WidgetInput::KeyPress(WidgetKey::Enter | WidgetKey::Space)
-                if self.common.state.focused =>
-            {
-                Some(WidgetOutput::typed(ButtonMessage::Activate))
-            }
-            _ => {
-                if matches!(input, WidgetInput::PointerRelease { .. }) {
-                    self.common.state.pressed = false;
-                }
-                None
-            }
-        }
+        handle_activation_input(
+            &mut self.common.state,
+            bounds,
+            &input,
+            ActivationInputPolicy::focusable(),
+        )
+        .activated()
+        .then(|| WidgetOutput::typed(ButtonMessage::Activate))
     }
 
     fn accepts_pointer_move(&self) -> bool {

@@ -4,6 +4,7 @@ mod badge;
 mod button;
 mod canvas;
 mod card;
+mod color_marker;
 mod drag_handle;
 mod feedback_overlay;
 mod gpu_surface;
@@ -25,6 +26,9 @@ pub use badge::{BadgeProps, BadgeState, BadgeWidget, BadgeWidgetParts};
 pub use button::{ButtonProps, ButtonState, ButtonWidget, ButtonWidgetParts};
 pub use canvas::{CanvasWidget, CanvasWidgetParts, RetainedSurfaceDescriptor};
 pub use card::{CardWidget, CardWidgetParts};
+pub use color_marker::{
+    ColorMarkerAlign, ColorMarkerProps, ColorMarkerWidget, ColorMarkerWidgetParts,
+};
 pub use drag_handle::{DragHandleWidget, DragHandleWidgetParts};
 pub use feedback_overlay::{
     FeedbackOverlayEdge, FeedbackOverlayProgress, FeedbackOverlayProps, FeedbackOverlayWidget,

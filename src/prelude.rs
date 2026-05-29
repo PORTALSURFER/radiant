@@ -118,6 +118,7 @@ pub use crate::theme::ThemeTokens;
 pub use crate::widgets::{
     ActivationInputPolicy, ActivationInputResult, BadgeWidgetParts, ButtonWidgetParts,
     CanvasGestureEvent, CanvasGestureState, CanvasPointer, CanvasWidgetParts, CardWidgetParts,
+    ColorMarkerAlign, ColorMarkerProps, ColorMarkerWidget, ColorMarkerWidgetParts,
     DragHandleMessage, DragHandleWidgetParts, FeedbackOverlayEdge, FeedbackOverlayProgress,
     FeedbackOverlayProps, FeedbackOverlayWidget, FeedbackOverlayWidgetParts, FocusBehavior,
     GpuSurfaceMessage, GpuSurfaceParts, GpuSurfaceWidget, IconButtonWidget, IconButtonWidgetParts,

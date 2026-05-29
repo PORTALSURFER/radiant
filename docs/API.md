@@ -192,6 +192,8 @@ that state machine.
 Text-like widgets support semantic foreground roles such as
 `TextColorRole::Muted`, so applications can express low-emphasis labels without
 app-local paint-only text widgets or hard-coded theme colors.
+Passive cell, legend, and swatch indicators can use `ColorMarkerWidget` to draw
+small aligned color markers without application-owned paint-only widgets.
 Transparent overlay layers that need to consume or observe pointer traffic
 without painting can use `PointerShieldWidget`. It emits generic
 `PointerShieldMessage` values for configured pointer moves, presses, releases,

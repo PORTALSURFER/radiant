@@ -427,6 +427,35 @@ fn text_widget_can_use_muted_foreground_role() {
 }
 
 #[test]
+fn color_marker_paints_right_aligned_square() {
+    let color = radiant::gui::types::Rgba8::new(12, 34, 56, 200);
+    let widget = ColorMarkerWidget::new(Some(color));
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 20.0));
+    let mut primitives = Vec::new();
+
+    widget.append_paint(
+        &mut primitives,
+        bounds,
+        &Default::default(),
+        &Default::default(),
+    );
+
+    let fills: Vec<_> = primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            radiant::runtime::PaintPrimitive::FillRect(fill) => Some(fill),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(fills.len(), 1);
+    assert_eq!(fills[0].color, color);
+    assert_eq!(
+        fills[0].rect,
+        Rect::from_min_max(Point::new(66.0, 5.0), Point::new(76.0, 15.0))
+    );
+}
+
+#[test]
 fn drag_handle_emits_captured_drag_lifecycle() {
     let mut handle = DragHandleWidget::new(12, WidgetSizing::fixed(Vector2::new(24.0, 24.0)));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(24.0, 24.0));

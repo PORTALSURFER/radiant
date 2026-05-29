@@ -163,6 +163,9 @@ Custom row painters can compose `InteractiveRowWidget` directly for shared
 dense-row hover, activation, drag-source, drag-active, drop-target, and retained
 hover synchronization behavior while keeping domain-specific row visuals in the
 host widget.
+Rows that need active drag-source motion after a retained refresh can opt into
+`with_drag_source_motion(...)`; rows that should accept drops without producing
+drop-hover messages can use `with_drop_only(...)`.
 Large list and tree-style surfaces can use `VirtualListController` when they
 need durable item-index viewport state outside the declarative scroll container.
 It wraps the existing virtual-window, row-scroll, focus guard-band, and

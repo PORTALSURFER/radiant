@@ -117,6 +117,27 @@ fn interactive_row_active_drag_source_releases_after_refresh() {
 }
 
 #[test]
+fn interactive_row_can_report_active_drag_source_motion_after_refresh() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
+    let mut row = InteractiveRowWidget::new(35, WidgetSizing::fixed(Vector2::new(120.0, 18.0)))
+        .with_drag()
+        .with_drag_source(true)
+        .with_drag_source_motion(true);
+
+    assert_eq!(
+        row.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(34.0, 8.0),
+            },
+        ),
+        Some(InteractiveRowMessage::Drag(DragHandleMessage::Moved {
+            position: Point::new(34.0, 8.0),
+        }))
+    );
+}
+
+#[test]
 fn interactive_row_suppresses_hover_during_external_drag() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
     let mut row = InteractiveRowWidget::new(34, WidgetSizing::fixed(Vector2::new(120.0, 18.0)))
@@ -133,6 +154,34 @@ fn interactive_row_suppresses_hover_during_external_drag() {
         None
     );
     assert!(!row.common.state.hovered);
+}
+
+#[test]
+fn interactive_row_drop_only_accepts_release_without_hover_notification() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
+    let mut row = InteractiveRowWidget::new(36, WidgetSizing::fixed(Vector2::new(120.0, 18.0)))
+        .with_drop_only(true);
+
+    assert_eq!(
+        row.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(16.0, 8.0),
+            },
+        ),
+        None
+    );
+    assert_eq!(
+        row.handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(16.0, 8.0),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        ),
+        Some(InteractiveRowMessage::Drop)
+    );
 }
 
 #[test]

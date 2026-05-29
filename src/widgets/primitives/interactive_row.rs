@@ -32,8 +32,12 @@ pub struct InteractiveRowProps {
     pub drag_active: bool,
     /// Whether this row is the source of the active drag in this container.
     pub drag_source: bool,
+    /// Whether active drag-source rows emit move messages from pointer motion.
+    pub drag_source_motion: bool,
     /// Whether pointer hover should be ignored and cleared for this row.
     pub suppress_hover: bool,
+    /// Whether active drop-target hover emits hover messages.
+    pub drop_hover: bool,
     /// Clear stale hover state when a retained row is synchronized.
     pub clear_hover_on_sync: bool,
 }
@@ -76,6 +80,15 @@ impl InteractiveRowWidget {
     pub fn with_drop_target(mut self, drag_active: bool) -> Self {
         self.props.droppable = true;
         self.props.drag_active = drag_active;
+        self.props.drop_hover = true;
+        self
+    }
+
+    /// Enable drop handling without hover-drop notifications.
+    pub fn with_drop_only(mut self, drag_active: bool) -> Self {
+        self.props.droppable = true;
+        self.props.drag_active = drag_active;
+        self.props.drop_hover = false;
         self
     }
 
@@ -88,6 +101,12 @@ impl InteractiveRowWidget {
     /// Mark this row as the source of the current external/container drag.
     pub fn with_drag_source(mut self, drag_source: bool) -> Self {
         self.props.drag_source = drag_source;
+        self
+    }
+
+    /// Emit move messages while this row is already the active drag source.
+    pub fn with_drag_source_motion(mut self, enabled: bool) -> Self {
+        self.props.drag_source_motion = enabled;
         self
     }
 

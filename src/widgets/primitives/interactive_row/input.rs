@@ -17,13 +17,19 @@ impl InteractiveRowWidget {
     ) -> Option<InteractiveRowMessage> {
         match input {
             WidgetInput::PointerMove { position } => {
-                if self.props.suppress_hover || (self.props.drag_active && !self.props.drag_source)
+                if self.props.suppress_hover
+                    || (self.props.drag_active && !self.props.drag_source && !self.props.droppable)
                 {
                     self.common.state.hovered = false;
                     return None;
                 }
                 self.common.state.hovered = bounds.contains(position);
                 if self.props.drag_source {
+                    if self.props.drag_source_motion {
+                        return Some(InteractiveRowMessage::Drag(DragHandleMessage::Moved {
+                            position,
+                        }));
+                    }
                     return None;
                 }
                 if self.common.state.pressed && self.props.draggable {
@@ -35,7 +41,11 @@ impl InteractiveRowWidget {
                     };
                     return Some(InteractiveRowMessage::Drag(message));
                 }
-                if self.common.state.hovered && self.props.droppable && self.props.drag_active {
+                if self.common.state.hovered
+                    && self.props.droppable
+                    && self.props.drag_active
+                    && self.props.drop_hover
+                {
                     return Some(InteractiveRowMessage::HoverDropTarget);
                 }
                 None
@@ -64,6 +74,16 @@ impl InteractiveRowWidget {
                 button: PointerButton::Primary,
                 ..
             } => {
+                if self.props.droppable
+                    && self.props.drag_active
+                    && !self.props.drag_source
+                    && bounds.contains(position)
+                {
+                    self.common.state.pressed = false;
+                    self.common.state.hovered = true;
+                    self.dragged = false;
+                    return Some(InteractiveRowMessage::Drop);
+                }
                 let activated =
                     self.common.state.pressed && !self.dragged && bounds.contains(position);
                 let dragged = self.props.drag_source || (self.common.state.pressed && self.dragged);

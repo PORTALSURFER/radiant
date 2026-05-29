@@ -28,6 +28,23 @@ fn latest_task_tracks_current_ticket_and_tags_spawned_completion() {
 }
 
 #[test]
+fn update_context_schedules_delayed_latest_messages() {
+    let mut latest = radiant::prelude::LatestTask::new();
+    let mut context = radiant::prelude::UpdateContext::default();
+    context.after_latest(
+        &mut latest,
+        std::time::Duration::from_millis(25),
+        |ticket| {
+            assert_eq!(ticket.id(), 1);
+            DemoMessage::Increment
+        },
+    );
+
+    assert_eq!(latest.active().map(|ticket| ticket.id()), Some(1));
+    assert!(latest.finish(latest.active().expect("latest scheduled")));
+}
+
+#[test]
 fn update_context_exposes_platform_service_helpers() {
     let mut context = radiant::prelude::UpdateContext::default();
     context.pick_folder(

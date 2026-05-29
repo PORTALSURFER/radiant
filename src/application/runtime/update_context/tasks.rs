@@ -1,11 +1,13 @@
 use crate::{
     application::{
         CancellationToken, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, TaskCompletion,
+        TaskTicket,
     },
     runtime::{Command, ResourceCompletion, ResourceCompletionParts, ResourceSlot},
 };
 
 use super::UpdateContext;
+use std::time::Duration;
 
 impl<Message> UpdateContext<Message> {
     /// Run work on a runtime-managed business thread and map the output into a
@@ -65,6 +67,24 @@ impl<Message> UpdateContext<Message> {
             },
             map,
         );
+    }
+
+    /// Schedule a delayed message for the latest request for one host-owned
+    /// resource.
+    ///
+    /// This is useful for debounced work such as selection previews, search
+    /// requests, or inspector loads. The returned message receives the ticket
+    /// created before the delay was scheduled. Hosts should accept it with
+    /// [`LatestTask::finish`] or inspect it with [`LatestTask::is_active`] so
+    /// older delayed messages cannot start stale work.
+    pub fn after_latest(
+        &mut self,
+        latest: &mut LatestTask,
+        delay: Duration,
+        map: impl FnOnce(TaskTicket) -> Message,
+    ) {
+        let ticket = latest.begin();
+        self.after(delay, map(ticket));
     }
 
     /// Start the latest task for one key in a keyed task registry and run work

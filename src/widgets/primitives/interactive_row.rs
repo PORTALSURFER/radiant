@@ -30,6 +30,12 @@ pub struct InteractiveRowProps {
     pub droppable: bool,
     /// Whether another row drag is currently active in this container.
     pub drag_active: bool,
+    /// Whether this row is the source of the active drag in this container.
+    pub drag_source: bool,
+    /// Whether pointer hover should be ignored and cleared for this row.
+    pub suppress_hover: bool,
+    /// Clear stale hover state when a retained row is synchronized.
+    pub clear_hover_on_sync: bool,
 }
 
 /// Named construction fields for [`InteractiveRowWidget`].
@@ -72,6 +78,24 @@ impl InteractiveRowWidget {
         self.props.drag_active = drag_active;
         self
     }
+
+    /// Mark this row as the source of the current external/container drag.
+    pub fn with_drag_source(mut self, drag_source: bool) -> Self {
+        self.props.drag_source = drag_source;
+        self
+    }
+
+    /// Ignore pointer hover for this row while preserving other interactions.
+    pub fn suppress_hover(mut self, suppress_hover: bool) -> Self {
+        self.props.suppress_hover = suppress_hover;
+        self
+    }
+
+    /// Clear retained hover during widget synchronization.
+    pub fn clear_hover_on_sync(mut self) -> Self {
+        self.props.clear_hover_on_sync = true;
+        self
+    }
 }
 
 impl Widget for InteractiveRowWidget {
@@ -94,6 +118,9 @@ impl Widget for InteractiveRowWidget {
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
             self.common.state = previous.common.state;
+            if self.props.clear_hover_on_sync {
+                self.common.state.hovered = false;
+            }
             self.dragged = previous.dragged;
         }
     }

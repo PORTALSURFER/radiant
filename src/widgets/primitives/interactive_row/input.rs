@@ -17,7 +17,15 @@ impl InteractiveRowWidget {
     ) -> Option<InteractiveRowMessage> {
         match input {
             WidgetInput::PointerMove { position } => {
+                if self.props.suppress_hover || (self.props.drag_active && !self.props.drag_source)
+                {
+                    self.common.state.hovered = false;
+                    return None;
+                }
                 self.common.state.hovered = bounds.contains(position);
+                if self.props.drag_source {
+                    return None;
+                }
                 if self.common.state.pressed && self.props.draggable {
                     let message = if self.dragged {
                         DragHandleMessage::Moved { position }
@@ -58,7 +66,7 @@ impl InteractiveRowWidget {
             } => {
                 let activated =
                     self.common.state.pressed && !self.dragged && bounds.contains(position);
-                let dragged = self.common.state.pressed && self.dragged;
+                let dragged = self.props.drag_source || (self.common.state.pressed && self.dragged);
                 self.common.state.pressed = false;
                 self.common.state.hovered = bounds.contains(position);
                 self.dragged = false;

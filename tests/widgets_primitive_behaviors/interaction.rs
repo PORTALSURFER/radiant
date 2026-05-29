@@ -62,6 +62,80 @@ fn interactive_row_emits_secondary_activation() {
 }
 
 #[test]
+fn interactive_row_clears_stale_hover_when_requested() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
+    let mut previous =
+        InteractiveRowWidget::new(32, WidgetSizing::fixed(Vector2::new(120.0, 18.0)));
+    assert_eq!(
+        previous.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(16.0, 8.0),
+            },
+        ),
+        None
+    );
+    assert!(previous.common.state.hovered);
+
+    let mut row = InteractiveRowWidget::new(32, WidgetSizing::fixed(Vector2::new(120.0, 18.0)))
+        .clear_hover_on_sync();
+    row.synchronize_from_previous(&previous);
+
+    assert!(!row.common.state.hovered);
+}
+
+#[test]
+fn interactive_row_active_drag_source_releases_after_refresh() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
+    let mut row = InteractiveRowWidget::new(33, WidgetSizing::fixed(Vector2::new(120.0, 18.0)))
+        .with_drag()
+        .with_drag_source(true);
+
+    assert_eq!(
+        row.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(34.0, 8.0),
+            },
+        ),
+        None,
+        "runtime drag previews should own movement while the row is only the retained source"
+    );
+    assert_eq!(
+        row.handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(220.0, 90.0),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        ),
+        Some(InteractiveRowMessage::Drag(DragHandleMessage::Ended {
+            position: Point::new(220.0, 90.0),
+        }))
+    );
+}
+
+#[test]
+fn interactive_row_suppresses_hover_during_external_drag() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
+    let mut row = InteractiveRowWidget::new(34, WidgetSizing::fixed(Vector2::new(120.0, 18.0)))
+        .with_drop_target(true);
+    row.common.state.hovered = true;
+
+    assert_eq!(
+        row.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(16.0, 8.0),
+            },
+        ),
+        None
+    );
+    assert!(!row.common.state.hovered);
+}
+
+#[test]
 fn drag_handle_emits_captured_drag_lifecycle() {
     let mut handle = DragHandleWidget::new(12, WidgetSizing::fixed(Vector2::new(24.0, 24.0)));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(24.0, 24.0));

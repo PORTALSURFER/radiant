@@ -11,6 +11,7 @@ use crate::{
 pub struct BadgeBuilder {
     label: PaintText,
     style: Option<WidgetStyle>,
+    active: bool,
 }
 
 impl BadgeBuilder {
@@ -38,6 +39,12 @@ impl BadgeBuilder {
         self
     }
 
+    /// Mark this badge as active for visual state resolution.
+    pub fn active(mut self, active: bool) -> Self {
+        self.active = active;
+        self
+    }
+
     /// Emit one cloned host message when activated.
     pub fn message<Message>(self, message: Message) -> ViewNode<Message>
     where
@@ -52,10 +59,9 @@ impl BadgeBuilder {
         map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
         let sizing = default_badge_sizing(&self.label);
-        let mut node = view_node_from_widget(MappedWidget::new(
-            BadgeWidget::new(0, self.label, sizing),
-            WidgetMessageMapper::badge(map),
-        ));
+        let badge = BadgeWidget::new(0, self.label, sizing).with_active(self.active);
+        let mut node =
+            view_node_from_widget(MappedWidget::new(badge, WidgetMessageMapper::badge(map)));
         node.style = self.style;
         node
     }
@@ -74,6 +80,7 @@ pub fn badge(label: impl Into<String>) -> BadgeBuilder {
     BadgeBuilder {
         label: PaintText::from(label.into()),
         style: None,
+        active: false,
     }
 }
 

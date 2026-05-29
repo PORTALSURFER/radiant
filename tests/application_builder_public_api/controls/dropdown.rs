@@ -16,7 +16,10 @@ fn application_builder_gallery_widgets_lower_and_route_messages() {
     use radiant::prelude::{self as ui, IntoView};
 
     let surface: UiSurface<GalleryMessage> = ui::column([
-        ui::badge("Ready").message(GalleryMessage::Badge).id(10),
+        ui::badge("Ready")
+            .active(true)
+            .message(GalleryMessage::Badge)
+            .id(10),
         ui::selectable("Option", false)
             .message(GalleryMessage::Selected)
             .id(11),
@@ -27,6 +30,7 @@ fn application_builder_gallery_widgets_lower_and_route_messages() {
 
     let badge = widget_ref::<BadgeWidget, _>(&surface, 10, "badge");
     assert_eq!(badge.props.label, "Ready");
+    assert!(badge.common.state.active);
     assert_eq!(
         surface.dispatch_widget_output(
             10,

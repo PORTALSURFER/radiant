@@ -65,6 +65,12 @@ impl BadgeWidget {
         })
     }
 
+    /// Set the active visual state for this badge.
+    pub fn with_active(mut self, active: bool) -> Self {
+        self.common.state.active = active;
+        self
+    }
+
     /// Route one backend-neutral interaction into the badge.
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<BadgeMessage> {
         input::handle_badge_input(self, bounds, input)

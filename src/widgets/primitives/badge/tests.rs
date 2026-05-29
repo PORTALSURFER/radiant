@@ -46,3 +46,11 @@ fn focused_badge_enter_emits_activation() {
         Some(BadgeMessage::Activate)
     );
 }
+
+#[test]
+fn badge_can_be_marked_active() {
+    let badge = BadgeWidget::new(7, "Open", WidgetSizing::fixed(Vector2::new(72.0, 24.0)))
+        .with_active(true);
+
+    assert!(badge.common.state.active);
+}

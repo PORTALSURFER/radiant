@@ -205,6 +205,25 @@ fn interactive_row_drop_only_accepts_release_without_hover_notification() {
 }
 
 #[test]
+fn interactive_row_drop_hover_reports_pointer_position() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
+    let mut row = InteractiveRowWidget::new(38, WidgetSizing::fixed(Vector2::new(120.0, 18.0)))
+        .with_drop_target(true);
+
+    assert_eq!(
+        row.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(16.0, 8.0),
+            },
+        ),
+        Some(InteractiveRowMessage::HoverDropTarget {
+            position: Point::new(16.0, 8.0),
+        })
+    );
+}
+
+#[test]
 fn pointer_shield_blocks_configured_pointer_events_inside_bounds() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
     let shield = PointerShieldWidget::pointer_move_only(true).with_pointer_release(true);

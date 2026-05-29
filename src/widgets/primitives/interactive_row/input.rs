@@ -46,7 +46,7 @@ impl InteractiveRowWidget {
                     && self.props.drag_active
                     && self.props.drop_hover
                 {
-                    return Some(InteractiveRowMessage::HoverDropTarget);
+                    return Some(InteractiveRowMessage::HoverDropTarget { position });
                 }
                 None
             }

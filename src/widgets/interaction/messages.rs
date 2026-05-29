@@ -47,7 +47,10 @@ pub enum InteractiveRowMessage {
     /// A primary-pointer drop landed inside this row.
     Drop,
     /// The row was hovered while another row drag was active.
-    HoverDropTarget,
+    HoverDropTarget {
+        /// Pointer position where the drop target hover occurred.
+        position: Point,
+    },
 }
 
 /// Message emitted by a transparent pointer interception primitive.

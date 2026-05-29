@@ -45,6 +45,7 @@ pub use crate::gui::{
         vertical_value_line_rect,
     },
     focus::FocusSurface,
+    frame::{FrameCadenceConfig, FrameCadenceKind, FrameCadenceMonitor, FrameCadenceReport},
     input::{KeyCode, KeyPress},
     invalidation::{
         InvalidationMask, RetainedSegment, RetainedSegmentKind, RetainedSegmentMask,

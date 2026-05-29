@@ -123,13 +123,18 @@ fn gui_core_state_primitives_keep_behavior_tests_focused() {
             && frame.contains("pub struct FrameBuildTiming")
             && frame.contains("pub struct FramePresentResult")
             && frame.contains("pub struct FrameBuildResult")
+            && frame.contains("pub struct FrameCadenceMonitor")
+            && frame.contains("pub struct FrameCadenceConfig")
+            && frame.contains("pub enum FrameCadenceKind")
             && frame.contains("#[path = \"frame/tests.rs\"]")
             && !frame.contains("fn frame_build_result_defaults_to_no_work_observed"),
-        "frame feedback state should stay grouped by counts, rebuilds, animation, timing, and presentation while behavior tests stay delegated"
+        "frame feedback state should stay grouped by counts, rebuilds, animation, timing, presentation, and cadence while behavior tests stay delegated"
     );
     assert!(
         frame_tests.contains("fn frame_build_result_defaults_to_no_work_observed")
-            && frame_tests.contains("fn frame_build_result_groups_related_feedback"),
+            && frame_tests.contains("fn frame_build_result_groups_related_feedback")
+            && frame_tests
+                .contains("fn frame_cadence_monitor_classifies_start_normal_periodic_and_spikes"),
         "frame behavior coverage should live in gui/frame/tests.rs"
     );
     assert!(

@@ -2,8 +2,8 @@
 
 pub use crate::Result;
 pub use crate::application::{
-    BadgeBuilder, ButtonBuilder, CancellationToken, ContextMenuOverlayParts,
-    DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING,
+    ActionRowBuilder, BadgeBuilder, ButtonBuilder, CancellationToken, ContextMenuOverlayParts,
+    DEFAULT_ACTION_ROW_HEIGHT, DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING,
     DEFAULT_STYLED_CONTAINER_PADDING, DetailsColumn, DetailsColumnParts, DetailsColumnPlacement,
     DetailsColumnReorderDrag, DetailsColumnResizeDrag, DetailsRow, DetailsRowParts, DetailsSort,
     DetailsSortParts, DragHandleBuilder, DropdownBuilder, DropdownBuilderNeedsToggle,
@@ -14,9 +14,9 @@ pub use crate::application::{
     RunnableStatefulApp, ScrollbarBuilder, SelectableBuilder, SliderBuilder, SortDirection,
     StateAction, StateView, StatefulAppBuilder, StatefulAppWithView, Subscription, TaskCompletion,
     TaskTicket, TextInputBuilder, ToggleBuilder, TreeListItem, TreeListItemParts, UpdateContext,
-    View, ViewNode, WidgetView, WidgetViewContext, WindowBuilder, app, badge, badge_mapped,
-    badge_message, button, button_mapped, button_message, canvas, card, checkbox, column,
-    column_key, context_menu_overlay, context_menu_overlay_from_parts, custom_widget,
+    View, ViewNode, WidgetView, WidgetViewContext, WindowBuilder, action_row, app, badge,
+    badge_mapped, badge_message, button, button_mapped, button_message, canvas, card, checkbox,
+    column, column_key, context_menu_overlay, context_menu_overlay_from_parts, custom_widget,
     custom_widget_mapped, details_column_drag_content_left, details_column_reorder_index,
     drag_handle, drag_handle_mapped, drag_preview, drag_preview_sized, drop_marker, dropdown,
     dropdown_from_parts, dropdown_height, dropdown_menu, dropdown_menu_height,

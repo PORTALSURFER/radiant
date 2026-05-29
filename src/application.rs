@@ -76,10 +76,11 @@ pub(in crate::application) use builders::{
 };
 mod control_builders;
 pub use control_builders::{
-    BadgeBuilder, ButtonBuilder, DragHandleBuilder, DropdownBuilder, DropdownBuilderNeedsToggle,
-    DropdownOption, DropdownOptionParts, DropdownOptionSelection, DropdownParts, IconButtonBuilder,
-    InteractiveRowBuilder, ScrollbarBuilder, SelectableBuilder, SliderBuilder, TextInputBuilder,
-    ToggleBuilder, badge, badge_mapped, badge_message, button, button_mapped, button_message,
+    ActionRowBuilder, BadgeBuilder, ButtonBuilder, DEFAULT_ACTION_ROW_HEIGHT, DragHandleBuilder,
+    DropdownBuilder, DropdownBuilderNeedsToggle, DropdownOption, DropdownOptionParts,
+    DropdownOptionSelection, DropdownParts, IconButtonBuilder, InteractiveRowBuilder,
+    ScrollbarBuilder, SelectableBuilder, SliderBuilder, TextInputBuilder, ToggleBuilder,
+    action_row, badge, badge_mapped, badge_message, button, button_mapped, button_message,
     checkbox, drag_handle, drag_handle_mapped, dropdown, dropdown_from_parts, dropdown_height,
     dropdown_menu, dropdown_menu_height, dropdown_menu_overlay, dropdown_option, icon_button,
     interactive_row, scrollbar, selectable, selectable_mapped, slider, slider_mapped,

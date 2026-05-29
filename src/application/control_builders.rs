@@ -1,5 +1,6 @@
 //! Stateful control builders for the application facade.
 
+mod action_row;
 mod badge;
 mod button;
 mod drag_handle;
@@ -12,6 +13,7 @@ mod slider;
 mod text_input;
 mod toggle;
 
+pub use action_row::{ActionRowBuilder, DEFAULT_ACTION_ROW_HEIGHT, action_row};
 pub use badge::{BadgeBuilder, badge, badge_mapped, badge_message};
 pub use button::{ButtonBuilder, button, button_mapped, button_message};
 pub use drag_handle::{DragHandleBuilder, drag_handle, drag_handle_mapped};

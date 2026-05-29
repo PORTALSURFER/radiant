@@ -87,8 +87,8 @@ pub use primitives::{
     ProgressBarWidgetParts, RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarProps,
     ScrollbarState, ScrollbarWidget, ScrollbarWidgetParts, SelectableProps, SelectableWidget,
     SelectableWidgetParts, SliderProps, SliderState, SliderWidget, SliderWidgetParts, TextAlign,
-    TextColorRole, TextInputChrome, TextInputEditResult, TextInputProps, TextInputState,
-    TextInputWidget, TextInputWidgetParts, TextWidget, TextWidgetParts, TextWrap, ToggleProps,
-    ToggleState, ToggleWidget, ToggleWidgetParts, WidgetCommon,
+    TextBackgroundRole, TextColorRole, TextInputChrome, TextInputEditResult, TextInputProps,
+    TextInputState, TextInputWidget, TextInputWidgetParts, TextWidget, TextWidgetParts, TextWrap,
+    ToggleProps, ToggleState, ToggleWidget, ToggleWidgetParts, WidgetCommon,
 };
 pub use theme::{WidgetVisualTokens, resolve_widget_visual_tokens};

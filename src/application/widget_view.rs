@@ -1,8 +1,9 @@
 use crate::{
-    layout::NodeId,
+    layout::{NodeId, Vector2},
     runtime::{SurfaceNode, WidgetMessageMapper},
     widgets::{
-        TextAlign, TextColorRole, TextWrap, Widget, WidgetOutput, WidgetSizing, WidgetStyle,
+        TextAlign, TextBackgroundRole, TextColorRole, TextWrap, Widget, WidgetOutput, WidgetSizing,
+        WidgetStyle,
     },
 };
 use std::sync::Arc;
@@ -21,6 +22,8 @@ pub struct WidgetViewContext {
     pub(in crate::application) text_wrap: Option<TextWrap>,
     pub(in crate::application) text_align: Option<TextAlign>,
     pub(in crate::application) text_color: Option<TextColorRole>,
+    pub(in crate::application) text_background: Option<TextBackgroundRole>,
+    pub(in crate::application) text_inset: Option<Vector2>,
 }
 
 impl WidgetViewContext {
@@ -60,6 +63,12 @@ impl WidgetViewContext {
         }
         if let Some(color) = self.text_color {
             widget.set_text_color(color);
+        }
+        if let Some(background) = self.text_background {
+            widget.set_text_background(background);
+        }
+        if let Some(inset) = self.text_inset {
+            widget.set_text_inset(inset);
         }
     }
 }

@@ -1,7 +1,7 @@
 //! Reusable text and label primitive.
 
 use crate::gui::types::{Rect, Rgba8};
-use crate::layout::LayoutOutput;
+use crate::layout::{LayoutOutput, Vector2};
 use crate::runtime::{PaintPrimitive, PaintText};
 use crate::theme::ThemeTokens;
 
@@ -41,6 +41,17 @@ pub enum TextColorRole {
     Primary,
     /// Use the theme's muted text color.
     Muted,
+    /// Use the foreground color intended for text on strong accent fills.
+    OnAccent,
+    /// Use an explicit backend-neutral color.
+    Custom(Rgba8),
+}
+
+/// Semantic background fill for text-like widgets.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TextBackgroundRole {
+    /// Use a strong accent fill suitable for inline suggestions and labels.
+    Accent,
     /// Use an explicit backend-neutral color.
     Custom(Rgba8),
 }
@@ -58,6 +69,10 @@ pub struct TextWidget {
     pub align: TextAlign,
     /// Foreground color role used for paint.
     pub color: TextColorRole,
+    /// Optional background fill role used for paint.
+    pub background: Option<TextBackgroundRole>,
+    /// Insets applied to the text rectangle inside the assigned bounds.
+    pub inset: Vector2,
 }
 
 /// Named construction fields for a [`TextWidget`].
@@ -82,6 +97,8 @@ impl TextWidget {
             wrap: TextWrap::None,
             align: TextAlign::Left,
             color: TextColorRole::Primary,
+            background: None,
+            inset: Vector2::new(0.0, 0.0),
         }
     }
 
@@ -103,6 +120,18 @@ impl TextWidget {
     /// Set the semantic foreground color role.
     pub fn with_color(mut self, color: TextColorRole) -> Self {
         self.color = color;
+        self
+    }
+
+    /// Set an optional semantic background fill role.
+    pub fn with_background(mut self, background: TextBackgroundRole) -> Self {
+        self.background = Some(background);
+        self
+    }
+
+    /// Set text insets inside the assigned widget bounds.
+    pub fn with_inset(mut self, inset: Vector2) -> Self {
+        self.inset = Vector2::new(inset.x.max(0.0), inset.y.max(0.0));
         self
     }
 }
@@ -136,6 +165,16 @@ impl Widget for TextWidget {
 
     fn set_text_color(&mut self, color: TextColorRole) -> bool {
         self.color = color;
+        true
+    }
+
+    fn set_text_background(&mut self, background: TextBackgroundRole) -> bool {
+        self.background = Some(background);
+        true
+    }
+
+    fn set_text_inset(&mut self, inset: Vector2) -> bool {
+        self.inset = Vector2::new(inset.x.max(0.0), inset.y.max(0.0));
         true
     }
 

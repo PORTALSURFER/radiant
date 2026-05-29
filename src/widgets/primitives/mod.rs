@@ -52,7 +52,9 @@ pub use scrollbar::{
 pub use selectable::{SelectableProps, SelectableWidget, SelectableWidgetParts};
 pub use slider::{SliderProps, SliderState, SliderWidget, SliderWidgetParts};
 pub use support::WidgetCommon;
-pub use text::{TextAlign, TextColorRole, TextWidget, TextWidgetParts, TextWrap};
+pub use text::{
+    TextAlign, TextBackgroundRole, TextColorRole, TextWidget, TextWidgetParts, TextWrap,
+};
 pub use text_input::{
     TextInputChrome, TextInputEditResult, TextInputProps, TextInputState, TextInputWidget,
     TextInputWidgetParts,

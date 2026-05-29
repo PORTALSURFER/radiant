@@ -13,9 +13,9 @@ use slot::SlotBehavior;
 
 use crate::{
     application::WidgetView,
-    layout::{CrossAlign, Insets, MainAlign, NodeId},
+    layout::{CrossAlign, Insets, MainAlign, NodeId, Vector2},
     runtime::SurfaceNode,
-    widgets::{TextAlign, TextColorRole, TextWrap, WidgetSizing, WidgetStyle},
+    widgets::{TextAlign, TextBackgroundRole, TextColorRole, TextWrap, WidgetSizing, WidgetStyle},
 };
 
 /// Application view node with generated identity and default sizing.
@@ -36,6 +36,8 @@ pub struct ViewNode<Message> {
     text_wrap: Option<TextWrap>,
     text_align: Option<TextAlign>,
     text_color: Option<TextColorRole>,
+    text_background: Option<TextBackgroundRole>,
+    text_inset: Option<Vector2>,
 }
 
 pub(in crate::application) enum ViewNodeKind<Message> {
@@ -107,6 +109,8 @@ impl<Message> ViewNode<Message> {
             text_wrap: None,
             text_align: None,
             text_color: None,
+            text_background: None,
+            text_inset: None,
         }
     }
 

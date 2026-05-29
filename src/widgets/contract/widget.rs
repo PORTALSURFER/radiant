@@ -2,12 +2,12 @@
 
 use crate::{
     gui::types::{Point, Rect},
-    layout::LayoutOutput,
+    layout::{LayoutOutput, Vector2},
     runtime::PaintPrimitive,
     theme::ThemeTokens,
     widgets::{
         interaction::{WidgetCursor, WidgetInput, WidgetOutput},
-        primitives::{TextAlign, TextColorRole, TextWrap, WidgetCommon},
+        primitives::{TextAlign, TextBackgroundRole, TextColorRole, TextWrap, WidgetCommon},
     },
 };
 use std::any::Any;
@@ -150,6 +150,16 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
 
     /// Apply a semantic foreground color role when this widget supports text paint.
     fn set_text_color(&mut self, _color: TextColorRole) -> bool {
+        false
+    }
+
+    /// Apply a semantic background fill role when this widget supports text paint.
+    fn set_text_background(&mut self, _background: TextBackgroundRole) -> bool {
+        false
+    }
+
+    /// Apply text insets inside the assigned widget bounds when supported.
+    fn set_text_inset(&mut self, _inset: Vector2) -> bool {
         false
     }
 

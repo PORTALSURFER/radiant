@@ -427,6 +427,31 @@ fn text_widget_can_use_muted_foreground_role() {
 }
 
 #[test]
+fn text_widget_can_paint_accent_background_and_inset_text() {
+    let widget = TextWidget::new(46, "Ghost", WidgetSizing::fixed(Vector2::new(100.0, 18.0)))
+        .with_background(TextBackgroundRole::Accent)
+        .with_color(TextColorRole::OnAccent)
+        .with_inset(Vector2::new(3.0, 0.0));
+    let theme = radiant::theme::ThemeTokens::default();
+    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(100.0, 18.0));
+    let mut primitives = Vec::new();
+
+    widget.append_paint(&mut primitives, bounds, &Default::default(), &theme);
+
+    assert!(primitives.iter().any(|primitive| matches!(
+        primitive,
+        radiant::runtime::PaintPrimitive::FillRect(fill)
+            if fill.rect == bounds
+                && fill.color == theme.accent_mint.blend_toward(theme.bg_primary, 0.12)
+    )));
+    assert!(primitives.iter().any(|primitive| matches!(
+        primitive,
+        radiant::runtime::PaintPrimitive::Text(text)
+            if text.rect.min.x == bounds.min.x + 3.0 && text.color == theme.bg_primary
+    )));
+}
+
+#[test]
 fn color_marker_paints_right_aligned_square() {
     let color = radiant::gui::types::Rgba8::new(12, 34, 56, 200);
     let widget = ColorMarkerWidget::new(Some(color));

@@ -12,9 +12,9 @@ use radiant::{
         InteractiveRowMessage, InteractiveRowWidget, ListItemMessage, ListItemWidget,
         PointerButton, PointerShieldMessage, PointerShieldWidget, ProgressBarMessage,
         ProgressBarWidget, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, SelectableMessage,
-        SelectableWidget, SliderMessage, SliderWidget, TextColorRole, TextInputMessage,
-        TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, Widget, WidgetInput, WidgetKey,
-        WidgetSizing,
+        SelectableWidget, SliderMessage, SliderWidget, TextBackgroundRole, TextColorRole,
+        TextInputMessage, TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, Widget,
+        WidgetInput, WidgetKey, WidgetSizing,
     },
 };
 use std::sync::Arc;

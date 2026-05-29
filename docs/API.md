@@ -189,6 +189,9 @@ Custom clickable widgets that need their own paint code can use
 `ActivationInputPolicy::focusable()` to share Radiant's hover, pressed, focus,
 pointer activation, and keyboard activation transitions without reimplementing
 that state machine.
+Text-like widgets support semantic foreground roles such as
+`TextColorRole::Muted`, so applications can express low-emphasis labels without
+app-local paint-only text widgets or hard-coded theme colors.
 Transparent overlay layers that need to consume or observe pointer traffic
 without painting can use `PointerShieldWidget`. It emits generic
 `PointerShieldMessage` values for configured pointer moves, presses, releases,

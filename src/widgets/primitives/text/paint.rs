@@ -22,7 +22,7 @@ pub(super) fn push_text_widget_paint(
             text: text.text.clone(),
             rect: bounds,
             baseline: optical_centered_baseline(bounds, font_size),
-            color: theme.text_primary,
+            color: text_color(text.color, theme),
             align: match text.align {
                 TextAlign::Left => PaintTextAlign::Left,
                 TextAlign::Center => PaintTextAlign::Center,
@@ -32,4 +32,15 @@ pub(super) fn push_text_widget_paint(
             font_size,
         },
     );
+}
+
+fn text_color(
+    color: crate::widgets::TextColorRole,
+    theme: &ThemeTokens,
+) -> crate::gui::types::Rgba8 {
+    match color {
+        crate::widgets::TextColorRole::Primary => theme.text_primary,
+        crate::widgets::TextColorRole::Muted => theme.text_muted,
+        crate::widgets::TextColorRole::Custom(color) => color,
+    }
 }

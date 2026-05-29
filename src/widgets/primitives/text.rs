@@ -1,6 +1,6 @@
 //! Reusable text and label primitive.
 
-use crate::gui::types::Rect;
+use crate::gui::types::{Rect, Rgba8};
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, PaintText};
 use crate::theme::ThemeTokens;
@@ -33,6 +33,18 @@ pub enum TextAlign {
     Right,
 }
 
+/// Semantic foreground color for text-like widgets.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TextColorRole {
+    /// Use the theme's primary text color.
+    #[default]
+    Primary,
+    /// Use the theme's muted text color.
+    Muted,
+    /// Use an explicit backend-neutral color.
+    Custom(Rgba8),
+}
+
 /// Public label/text primitive.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextWidget {
@@ -44,6 +56,8 @@ pub struct TextWidget {
     pub wrap: TextWrap,
     /// Horizontal alignment used inside the assigned text rectangle.
     pub align: TextAlign,
+    /// Foreground color role used for paint.
+    pub color: TextColorRole,
 }
 
 /// Named construction fields for a [`TextWidget`].
@@ -67,6 +81,7 @@ impl TextWidget {
             text: parts.text,
             wrap: TextWrap::None,
             align: TextAlign::Left,
+            color: TextColorRole::Primary,
         }
     }
 
@@ -82,6 +97,12 @@ impl TextWidget {
     /// Set horizontal alignment inside the assigned text rectangle.
     pub fn with_align(mut self, align: TextAlign) -> Self {
         self.align = align;
+        self
+    }
+
+    /// Set the semantic foreground color role.
+    pub fn with_color(mut self, color: TextColorRole) -> Self {
+        self.color = color;
         self
     }
 }
@@ -110,6 +131,11 @@ impl Widget for TextWidget {
 
     fn set_text_align(&mut self, align: TextAlign) -> bool {
         self.align = align;
+        true
+    }
+
+    fn set_text_color(&mut self, color: TextColorRole) -> bool {
+        self.color = color;
         true
     }
 

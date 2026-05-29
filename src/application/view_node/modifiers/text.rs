@@ -1,5 +1,5 @@
 use super::super::ViewNode;
-use crate::widgets::{TextAlign, TextWrap};
+use crate::widgets::{TextAlign, TextColorRole, TextWrap};
 
 impl<Message> ViewNode<Message> {
     /// Allow text to wrap by words inside its assigned rectangle.
@@ -18,5 +18,16 @@ impl<Message> ViewNode<Message> {
     pub fn align_text(mut self, align: TextAlign) -> Self {
         self.text_align = Some(align);
         self
+    }
+
+    /// Set the semantic foreground color for text-like widgets.
+    pub fn text_color(mut self, color: TextColorRole) -> Self {
+        self.text_color = Some(color);
+        self
+    }
+
+    /// Use muted foreground text.
+    pub fn muted_text(self) -> Self {
+        self.text_color(TextColorRole::Muted)
     }
 }

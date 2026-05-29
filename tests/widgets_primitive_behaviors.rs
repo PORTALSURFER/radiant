@@ -12,8 +12,8 @@ use radiant::{
         InteractiveRowWidget, ListItemMessage, ListItemWidget, PointerButton, PointerShieldMessage,
         PointerShieldWidget, ProgressBarMessage, ProgressBarWidget, ScrollbarAxis,
         ScrollbarMessage, ScrollbarWidget, SelectableMessage, SelectableWidget, SliderMessage,
-        SliderWidget, TextInputMessage, TextInputWidget, ToggleMessage, ToggleWidget, Widget,
-        WidgetInput, WidgetKey, WidgetSizing,
+        SliderWidget, TextColorRole, TextInputMessage, TextInputWidget, TextWidget, ToggleMessage,
+        ToggleWidget, Widget, WidgetInput, WidgetKey, WidgetSizing,
     },
 };
 use std::sync::Arc;

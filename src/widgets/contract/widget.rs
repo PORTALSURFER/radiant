@@ -7,7 +7,7 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         interaction::{WidgetCursor, WidgetInput, WidgetOutput},
-        primitives::{TextAlign, TextWrap, WidgetCommon},
+        primitives::{TextAlign, TextColorRole, TextWrap, WidgetCommon},
     },
 };
 use std::any::Any;
@@ -145,6 +145,11 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
 
     /// Apply a declarative horizontal text alignment policy when this widget supports text layout.
     fn set_text_align(&mut self, _align: TextAlign) -> bool {
+        false
+    }
+
+    /// Apply a semantic foreground color role when this widget supports text paint.
+    fn set_text_color(&mut self, _color: TextColorRole) -> bool {
         false
     }
 

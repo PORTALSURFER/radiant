@@ -15,7 +15,7 @@ use crate::{
     application::WidgetView,
     layout::{CrossAlign, Insets, MainAlign, NodeId},
     runtime::SurfaceNode,
-    widgets::{TextAlign, TextWrap, WidgetSizing, WidgetStyle},
+    widgets::{TextAlign, TextColorRole, TextWrap, WidgetSizing, WidgetStyle},
 };
 
 /// Application view node with generated identity and default sizing.
@@ -35,6 +35,7 @@ pub struct ViewNode<Message> {
     input_only: bool,
     text_wrap: Option<TextWrap>,
     text_align: Option<TextAlign>,
+    text_color: Option<TextColorRole>,
 }
 
 pub(in crate::application) enum ViewNodeKind<Message> {
@@ -105,6 +106,7 @@ impl<Message> ViewNode<Message> {
             input_only: false,
             text_wrap: None,
             text_align: None,
+            text_color: None,
         }
     }
 

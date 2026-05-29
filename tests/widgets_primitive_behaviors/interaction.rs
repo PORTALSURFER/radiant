@@ -407,6 +407,26 @@ fn progress_bar_can_emit_activation_when_enabled() {
 }
 
 #[test]
+fn text_widget_can_use_muted_foreground_role() {
+    let widget = TextWidget::new(45, "Muted", WidgetSizing::fixed(Vector2::new(100.0, 20.0)))
+        .with_color(TextColorRole::Muted);
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut primitives = Vec::new();
+
+    widget.append_paint(
+        &mut primitives,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 20.0)),
+        &Default::default(),
+        &theme,
+    );
+
+    assert!(primitives.iter().any(|primitive| matches!(
+        primitive,
+        radiant::runtime::PaintPrimitive::Text(text) if text.color == theme.text_muted
+    )));
+}
+
+#[test]
 fn drag_handle_emits_captured_drag_lifecycle() {
     let mut handle = DragHandleWidget::new(12, WidgetSizing::fixed(Vector2::new(24.0, 24.0)));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(24.0, 24.0));

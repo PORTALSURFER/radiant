@@ -66,6 +66,7 @@ impl<'a> ViewLowering<'a> {
                 input_only: node.input_only,
                 text_wrap: node.text_wrap,
                 text_align: node.text_align,
+                text_color: node.text_color,
             }),
             ViewNodeKind::Row { spacing, children } => {
                 let policy = ContainerPolicy {

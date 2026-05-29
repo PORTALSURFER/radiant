@@ -49,6 +49,37 @@ fn details_list_columns_use_named_parts_for_public_column_fields() {
 }
 
 #[test]
+fn details_list_column_drag_state_stays_in_public_details_model() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/application/details_list/model.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let column_drag =
+        fs::read_to_string(manifest_dir.join("src/application/details_list/model/column_drag.rs"))
+            .expect("details-list column drag model should be readable");
+    let application = fs::read_to_string(manifest_dir.join("src/application.rs"))
+        .expect("application module should be readable");
+    let module = fs::read_to_string(manifest_dir.join("src/application/details_list.rs"))
+        .expect("details-list module should be readable");
+
+    assert!(
+        source.contains("mod column_drag;")
+            && source.contains("pub use column_drag::")
+            && column_drag.contains("pub struct DetailsColumnResizeDrag")
+            && column_drag.contains("pub struct DetailsColumnReorderDrag")
+            && column_drag.contains("pub fn details_column_drag_content_left"),
+        "details-list column drag state and geometry helpers should live in a focused public details model module"
+    );
+    assert!(
+        module.contains("DetailsColumnResizeDrag")
+            && module.contains("DetailsColumnReorderDrag")
+            && application.contains("DetailsColumnResizeDrag")
+            && application.contains("DetailsColumnReorderDrag"),
+        "details-column drag helpers should be exported through application facades"
+    );
+}
+
+#[test]
 fn details_list_sort_uses_named_parts_for_public_sort_fields() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/application/details_list/model.rs");

@@ -65,3 +65,24 @@ fn details_sort_supports_named_parts_construction() {
     assert_eq!(from_parts.column_id, "kind");
     assert_eq!(from_parts.direction.toggled(), ui::SortDirection::Ascending);
 }
+
+#[test]
+fn details_column_drag_helpers_cover_resize_and_reorder_state() {
+    use radiant::prelude as ui;
+
+    let resize = ui::DetailsColumnResizeDrag::new("name", 100.0, 240.0);
+    assert_eq!(resize.width_at(130.0, 48.0, 420.0), 270.0);
+    assert_eq!(resize.width_at(-500.0, 48.0, 420.0), 48.0);
+
+    let placements = vec![
+        ui::DetailsColumnPlacement::new("name", 240.0),
+        ui::DetailsColumnPlacement::new("rating", 68.0),
+        ui::DetailsColumnPlacement::new("extension", 54.0),
+    ];
+    let content_left = ui::details_column_drag_content_left(&placements, "rating", 300.0, 10.0)
+        .expect("rating column should exist");
+    let reorder = ui::DetailsColumnReorderDrag::new("rating", content_left);
+
+    assert_eq!(content_left, 16.0);
+    assert_eq!(reorder.target_index(&placements, 410.0, 10.0), Some(2));
+}

@@ -1,3 +1,9 @@
+#[path = "model/column_drag.rs"]
+mod column_drag;
+pub use column_drag::{
+    DetailsColumnReorderDrag, DetailsColumnResizeDrag, details_column_drag_content_left,
+};
+
 /// Sort direction displayed by a sortable details-list column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SortDirection {

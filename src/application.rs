@@ -47,8 +47,9 @@ mod tree_list;
 pub use tree_list::{TreeListItem, TreeListItemParts, tree_list, tree_list_with_drag};
 mod details_list;
 pub use details_list::{
-    DetailsColumn, DetailsColumnParts, DetailsColumnPlacement, DetailsRow, DetailsRowParts,
-    DetailsSort, DetailsSortParts, SortDirection, details_column_reorder_index,
+    DetailsColumn, DetailsColumnParts, DetailsColumnPlacement, DetailsColumnReorderDrag,
+    DetailsColumnResizeDrag, DetailsRow, DetailsRowParts, DetailsSort, DetailsSortParts,
+    SortDirection, details_column_drag_content_left, details_column_reorder_index,
     reorder_details_columns_by_id, selectable_sortable_details_list, sortable_details_list,
 };
 mod property_panel;

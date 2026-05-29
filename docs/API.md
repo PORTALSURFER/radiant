@@ -154,6 +154,11 @@ Higher-level application helpers follow the same logical-coordinate sizing
 model as view modifiers: fixed details-list columns use `f32` logical widths
 through `DetailsColumn::fixed(...)`, matching `.size(...)`, `.fixed(...)`, and
 other layout builders instead of introducing a separate integer sizing model.
+Resizable and reorderable details headers can keep interaction state in
+`DetailsColumnResizeDrag` and `DetailsColumnReorderDrag`, using
+`details_column_drag_content_left(...)`, `details_column_reorder_index(...)`,
+and `reorder_details_columns_by_id(...)` for stable framework-owned column
+geometry behavior.
 Large list and tree-style surfaces can use `VirtualListController` when they
 need durable item-index viewport state outside the declarative scroll container.
 It wraps the existing virtual-window, row-scroll, focus guard-band, and

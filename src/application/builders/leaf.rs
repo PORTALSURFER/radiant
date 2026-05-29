@@ -8,7 +8,7 @@ use crate::{
     layout::Vector2,
     runtime::{GpuSurfaceContent, PaintText, WidgetMessageMapper},
     widgets::{
-        ButtonWidget, CanvasWidget, CardWidget, GpuSurfaceMessage, GpuSurfaceParts,
+        BadgeWidget, ButtonWidget, CanvasWidget, CardWidget, GpuSurfaceMessage, GpuSurfaceParts,
         GpuSurfaceWidget, ImageWidget, TextInputWidget, TextWidget, ToggleWidget, Widget,
         WidgetInput, WidgetOutput, WidgetSizing,
     },
@@ -59,6 +59,14 @@ pub fn passive_button<Message: 'static>(label: impl Into<String>) -> ViewNode<Me
         PaintText::from(label.into()),
         default_button_sizing(""),
     ))
+}
+
+/// Build a passive badge view for retained surfaces that need badge chrome
+/// without host messages.
+pub fn passive_badge<Message: 'static>(label: impl Into<String>) -> ViewNode<Message> {
+    let label = PaintText::from(label.into());
+    let sizing = default_badge_sizing(&label);
+    view_node_from_widget(BadgeWidget::new(0, label, sizing))
 }
 
 /// Build a passive toggle view for retained surfaces that need toggle chrome

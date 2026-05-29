@@ -10,7 +10,7 @@ pub(in crate::application) use defaults::{
 pub(in crate::application) use leaf::view_node_from_widget;
 pub use leaf::{
     GpuSurfaceInputParts, canvas, card, custom_widget, custom_widget_mapped, gpu_surface,
-    gpu_surface_from_parts, gpu_surface_input, gpu_surface_input_from_parts, image, passive_button,
-    passive_text_input, passive_toggle, spacer, text, widget,
+    gpu_surface_from_parts, gpu_surface_input, gpu_surface_input_from_parts, image, passive_badge,
+    passive_button, passive_text_input, passive_toggle, spacer, text, widget,
 };
 pub(in crate::application) use styles::{danger_style, primary_style};

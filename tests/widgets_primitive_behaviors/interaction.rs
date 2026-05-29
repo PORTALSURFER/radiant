@@ -136,6 +136,78 @@ fn interactive_row_suppresses_hover_during_external_drag() {
 }
 
 #[test]
+fn pointer_shield_blocks_configured_pointer_events_inside_bounds() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
+    let shield = PointerShieldWidget::pointer_move_only(true).with_pointer_release(true);
+
+    assert_eq!(
+        shield.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(16.0, 8.0),
+            },
+        ),
+        Some(PointerShieldMessage::PointerMove {
+            position: Point::new(16.0, 8.0),
+        })
+    );
+    assert_eq!(
+        shield.handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(18.0, 8.0),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        ),
+        Some(PointerShieldMessage::PointerRelease {
+            position: Point::new(18.0, 8.0),
+            button: PointerButton::Primary,
+            modifiers: Default::default(),
+        })
+    );
+    assert_eq!(
+        shield.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(18.0, 8.0),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        ),
+        None
+    );
+}
+
+#[test]
+fn pointer_shield_stays_quiet_when_inactive_or_outside_bounds() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
+    let inactive = PointerShieldWidget::fill(false);
+    let active = PointerShieldWidget::fill(true);
+
+    assert!(!inactive.accepts_pointer_move());
+    assert!(inactive.common.state.disabled);
+    assert_eq!(
+        inactive.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(16.0, 8.0),
+            },
+        ),
+        None
+    );
+    assert_eq!(
+        active.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(160.0, 8.0),
+            },
+        ),
+        None
+    );
+}
+
+#[test]
 fn drag_handle_emits_captured_drag_lifecycle() {
     let mut handle = DragHandleWidget::new(12, WidgetSizing::fixed(Vector2::new(24.0, 24.0)));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(24.0, 24.0));

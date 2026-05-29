@@ -10,6 +10,7 @@ mod icon_button;
 mod image;
 mod interactive_row;
 mod list_item;
+mod pointer_shield;
 mod scrollbar;
 mod selectable;
 mod slider;
@@ -28,6 +29,7 @@ pub use icon_button::{IconButtonWidget, IconButtonWidgetParts};
 pub use image::{ImageProps, ImageWidget, ImageWidgetParts};
 pub use interactive_row::{InteractiveRowProps, InteractiveRowWidget, InteractiveRowWidgetParts};
 pub use list_item::{ListItemWidget, ListItemWidgetParts};
+pub use pointer_shield::{PointerShieldProps, PointerShieldWidget, PointerShieldWidgetParts};
 pub use scrollbar::{
     ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget, ScrollbarWidgetParts,
 };

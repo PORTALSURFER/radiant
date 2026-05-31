@@ -50,6 +50,24 @@ pub fn push_fill_rect(
     }));
 }
 
+/// Push a filled rectangle only when it has finite positive area.
+///
+/// Returns `true` when a primitive was appended. This is useful for dense
+/// custom widgets that derive paint rects from normalized values, hit regions,
+/// or clipped geometry where an empty segment should not enter the paint plan.
+pub fn push_visible_fill_rect(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    rect: Rect,
+    color: Rgba8,
+) -> bool {
+    if !rect.has_finite_positive_area() {
+        return false;
+    }
+    push_fill_rect(primitives, widget_id, rect, color);
+    true
+}
+
 /// Push a same-color filled rectangle batch into a runtime paint primitive buffer.
 pub fn push_fill_rect_batch(
     primitives: &mut Vec<PaintPrimitive>,
@@ -193,6 +211,41 @@ mod tests {
         push_fill_rect_batch(&mut primitives, 7, Vec::new(), Rgba8::new(1, 2, 3, 4));
         push_stroke_rect_batch(&mut primitives, 7, Vec::new(), Rgba8::new(1, 2, 3, 4), 1.0);
         assert!(primitives.is_empty());
+    }
+
+    #[test]
+    fn push_visible_fill_rect_skips_empty_or_invalid_rects() {
+        let mut primitives = Vec::new();
+        let color = Rgba8::new(1, 2, 3, 4);
+
+        assert!(!push_visible_fill_rect(
+            &mut primitives,
+            7,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(0.0, 12.0)),
+            color,
+        ));
+        assert!(!push_visible_fill_rect(
+            &mut primitives,
+            7,
+            Rect::from_min_size(Point::new(f32::NAN, 0.0), Vector2::new(12.0, 12.0)),
+            color,
+        ));
+        assert!(primitives.is_empty());
+    }
+
+    #[test]
+    fn push_visible_fill_rect_appends_positive_rects() {
+        let mut primitives = Vec::new();
+        let color = Rgba8::new(1, 2, 3, 4);
+        let rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(12.0, 8.0));
+
+        assert!(push_visible_fill_rect(&mut primitives, 7, rect, color));
+        assert_eq!(primitives.len(), 1);
+        assert!(matches!(
+            &primitives[0],
+            PaintPrimitive::FillRect(fill)
+                if fill.widget_id == 7 && fill.rect == rect && fill.color == color
+        ));
     }
 
     #[test]

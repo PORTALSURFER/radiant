@@ -68,7 +68,9 @@ For paint-plan emission,
 `push_stroke_rect_batch`, `push_fill_polygon`, `push_stroke_polyline`,
 `push_text`, `PaintTextMetrics`, and `push_text_run_with_metrics` provide the
 reusable primitive construction path used by complex examples and custom
-widgets.
+widgets. Dense custom widgets can use `push_visible_fill_rect` when derived or
+clipped geometry should only enter the paint plan if it has finite positive
+area.
 
 No-state apps can launch without naming `NativeRunOptions`, `RuntimeBridge`,
 `UiSurface`, `SurfaceNode`, `SurfaceChild`, or `WidgetSizing`:

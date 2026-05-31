@@ -53,6 +53,20 @@ fn window_specs_support_named_parts_construction() {
 }
 
 #[test]
+fn window_specs_describe_utility_windows() {
+    let inspector = WindowSpec::utility_window("inspector", "Inspector", 320.0, 420.0);
+
+    assert_eq!(inspector.key, "inspector");
+    assert_eq!(inspector.title(), "Inspector");
+    assert!(!inspector.is_popup());
+    assert_eq!(inspector.inner_size(), Some([320.0, 420.0]));
+    assert_eq!(inspector.min_inner_size(), Some([320.0, 420.0]));
+    assert!(!inspector.drag_and_drop_enabled());
+    assert!(inspector.native_options().window.behavior.decorations);
+    assert!(inspector.native_options().window.behavior.skip_taskbar);
+}
+
+#[test]
 fn window_specs_describe_floating_popup_windows() {
     let popup = WindowSpec::popup("drag-preview", "Drag Preview")
         .logical_size(180.0, 64.0)

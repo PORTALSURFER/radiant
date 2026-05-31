@@ -36,6 +36,19 @@ impl WindowSpec {
         })
     }
 
+    /// Build a secondary utility window descriptor.
+    ///
+    /// Utility windows are ordinary decorated top-level windows intended for
+    /// settings, inspectors, and tool panels.
+    pub fn utility_window(
+        key: impl Into<String>,
+        title: impl Into<String>,
+        width: f32,
+        height: f32,
+    ) -> Self {
+        Self::from_options(key, NativeRunOptions::utility_window(title, width, height))
+    }
+
     /// Build a borderless floating popup descriptor.
     ///
     /// Popup specs are intended for transient Radiant surfaces such as drag

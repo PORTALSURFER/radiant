@@ -10,6 +10,32 @@ pub use validation::NativeRunOptionsError;
 use validation::{validate_popup_drag_region, validate_position, validate_size};
 
 impl NativeRunOptions {
+    /// Return options configured for a secondary utility window.
+    ///
+    /// Utility windows are ordinary decorated top-level windows intended for
+    /// settings, inspectors, and tool panels. They stay out of the taskbar,
+    /// use the supplied logical size as both their initial and minimum inner
+    /// size, and disable native file drag-and-drop by default.
+    pub fn utility_window(title: impl Into<String>, width: f32, height: f32) -> Self {
+        Self {
+            window: NativeWindowOptions {
+                title: title.into(),
+                geometry: NativeWindowGeometry {
+                    inner_size: Some([width, height]),
+                    min_inner_size: Some([width, height]),
+                    ..NativeWindowGeometry::default()
+                },
+                behavior: NativeWindowBehavior {
+                    drag_and_drop: false,
+                    skip_taskbar: true,
+                    ..NativeWindowBehavior::default()
+                },
+                ..NativeWindowOptions::default()
+            },
+            ..Self::default()
+        }
+    }
+
     /// Return options configured for a transient floating popup window.
     pub fn popup(title: impl Into<String>) -> Self {
         Self {

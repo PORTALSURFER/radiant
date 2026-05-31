@@ -1,6 +1,20 @@
 use super::*;
 
 #[test]
+fn native_run_options_expose_utility_window_policy() {
+    let options = NativeRunOptions::utility_window("Audio Settings", 360.0, 420.0);
+
+    assert!(!options.is_popup());
+    assert_eq!(options.window.title, "Audio Settings");
+    assert_eq!(options.window.geometry.inner_size, Some([360.0, 420.0]));
+    assert_eq!(options.window.geometry.min_inner_size, Some([360.0, 420.0]));
+    assert!(options.window.behavior.decorations);
+    assert!(!options.window.behavior.drag_and_drop);
+    assert!(options.window.behavior.skip_taskbar);
+    assert_eq!(options.window.behavior.mode, NativeWindowMode::Window);
+}
+
+#[test]
 fn native_run_options_expose_floating_popup_policy() {
     let popup_policy = NativePopupOptions::default()
         .position(120.0, 240.0)

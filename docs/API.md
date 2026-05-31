@@ -754,10 +754,13 @@ and interactive handles,
 `canvas_selection_edge_handles`, `canvas_selection_edge_visual_rect`, and
 `horizontal_resize_edge_bracket_rects` for generic retained-canvas layering,
 selection, and resize handle geometry,
-`TimelineViewport` for normalized viewport bounds,
+`TimelineViewport` for normalized viewport bounds, including construction from
+integer `IndexViewport` ranges,
 `TimelineTransportState` for cursor/playhead/selection positions,
 `TimelineEditPreview` and `TimelineEditPreviewParts` for editable range and
-fade/curve handles,
+fade/curve handles, plus `TimelineEditHandle` and
+`TimelineEditHandleGeometry` for standard edit-handle projection and hit
+testing,
 `TimelineFeedbackEvents` for transient operation feedback tokens,
 `TimelinePresentationState` for guide spacing, repeat state, and compact labels,
 `TimelineMarkerPreview` for retained marker overlays, and

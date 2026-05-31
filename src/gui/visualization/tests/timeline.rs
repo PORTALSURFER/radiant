@@ -2,6 +2,8 @@
 mod aggregate;
 #[path = "timeline/axis.rs"]
 mod axis;
+#[path = "timeline/edit.rs"]
+mod edit;
 #[path = "timeline/fixtures.rs"]
 mod fixtures;
 #[path = "timeline/item.rs"]

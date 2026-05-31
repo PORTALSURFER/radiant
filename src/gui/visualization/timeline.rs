@@ -16,7 +16,9 @@ mod value_marker;
 mod viewport;
 
 pub use axis::{TimelineAxis, TimelineAxisParts};
-pub use edit::{TimelineEditPreview, TimelineEditPreviewParts};
+pub use edit::{
+    TimelineEditHandle, TimelineEditHandleGeometry, TimelineEditPreview, TimelineEditPreviewParts,
+};
 pub use feedback::{TimelineFeedbackEvents, TimelineFeedbackParts};
 pub use item::{TimelineItemLayout, TimelineItemLayoutParts};
 pub use lanes::{TimelineLaneLayout, TimelineLaneLayoutParts};

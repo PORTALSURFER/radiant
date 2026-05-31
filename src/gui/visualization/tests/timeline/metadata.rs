@@ -1,5 +1,5 @@
 use super::{super::super::*, fixtures::timeline_viewport_parts};
-use crate::gui::range::NormalizedRange;
+use crate::gui::range::{IndexViewport, NormalizedRange};
 
 #[test]
 fn timeline_transport_state_preserves_positions_and_resolves_micro_playhead() {
@@ -135,4 +135,16 @@ fn timeline_viewport_from_parts_preserves_multiresolution_bounds() {
     assert_eq!(viewport.end_milli, 900);
     assert_eq!(viewport.start_micros, 10_000);
     assert_eq!(viewport.end_nanos, 900_000_000);
+}
+
+#[test]
+fn timeline_viewport_from_index_viewport_projects_integer_bounds() {
+    let viewport = TimelineViewport::from_index_viewport(IndexViewport { start: 25, end: 75 }, 200);
+
+    assert_eq!(viewport.start_milli, 125);
+    assert_eq!(viewport.end_milli, 375);
+    assert_eq!(viewport.start_micros, 125_000);
+    assert_eq!(viewport.end_micros, 375_000);
+    assert_eq!(viewport.start_nanos, 125_000_000);
+    assert_eq!(viewport.end_nanos, 375_000_000);
 }

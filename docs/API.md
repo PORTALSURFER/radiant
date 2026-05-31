@@ -696,6 +696,8 @@ between determinate and indeterminate progress tracks, `horizontal_meter_fill_re
 `horizontal_discrete_meter_fill_rect` for reusable meter geometry,
 `horizontal_value_range_rect` and `horizontal_wrapped_value_range_rects` for
 normalized horizontal track ticks and wrapped phase/activity segments,
+`horizontal_value_cursor_rect` for pixel-stable full-height cursors on
+timeline, waveform, scrubber, and progress-like tracks,
 `vertical_bipolar_value_at_point` and `vertical_bipolar_fill_rect` for centered
 signed vertical controls, `vertical_value_at_point`,
 `vertical_center_track_rect`, `vertical_value_knob_rect`,

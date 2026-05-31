@@ -1,6 +1,6 @@
 use super::{
     horizontal_progress_activity_rect, horizontal_progress_fill_rect,
-    horizontal_progress_track_rect, horizontal_value_range_rect,
+    horizontal_progress_track_rect, horizontal_value_cursor_rect, horizontal_value_range_rect,
     horizontal_wrapped_value_range_rects,
 };
 use crate::gui::types::{Point, Rect};
@@ -125,6 +125,55 @@ fn horizontal_value_range_rect_centers_segment_height() {
     );
     assert_eq!(horizontal_value_range_rect(track, 0.75, 0.25, 0.5), None);
     assert_eq!(horizontal_value_range_rect(track, 0.25, 0.75, 0.0), None);
+}
+
+#[test]
+fn horizontal_value_cursor_rect_centers_pixel_stable_full_height_strip() {
+    let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
+
+    assert_eq!(
+        horizontal_value_cursor_rect(track, 0.333, 2.0),
+        Some(Rect::from_min_max(
+            Point::new(42.0, 20.0),
+            Point::new(44.0, 60.0)
+        ))
+    );
+    assert_eq!(
+        horizontal_value_cursor_rect(track, 0.0, 12.0),
+        Some(Rect::from_min_max(
+            Point::new(10.0, 20.0),
+            Point::new(22.0, 60.0)
+        ))
+    );
+    assert_eq!(
+        horizontal_value_cursor_rect(track, 1.0, 12.0),
+        Some(Rect::from_min_max(
+            Point::new(98.0, 20.0),
+            Point::new(110.0, 60.0)
+        ))
+    );
+}
+
+#[test]
+fn horizontal_value_cursor_rect_sanitizes_invalid_inputs() {
+    let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
+    let invalid_track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(f32::NAN, 60.0));
+
+    assert_eq!(horizontal_value_cursor_rect(invalid_track, 0.5, 2.0), None);
+    assert_eq!(
+        horizontal_value_cursor_rect(track, f32::NAN, 2.0),
+        Some(Rect::from_min_max(
+            Point::new(10.0, 20.0),
+            Point::new(12.0, 60.0)
+        ))
+    );
+    assert_eq!(
+        horizontal_value_cursor_rect(track, 0.5, f32::NAN),
+        Some(Rect::from_min_max(
+            Point::new(59.5, 20.0),
+            Point::new(60.5, 60.0)
+        ))
+    );
 }
 
 #[test]

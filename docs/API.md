@@ -207,8 +207,9 @@ without introducing mutable cursor plumbing at the call site.
 Timeline and waveform-style surfaces can use `IndexViewport` for generic
 integer range navigation. It owns clamping, visible fraction, scrollbar offset,
 anchor-preserving zoom, visible-span pan, and visible-to-absolute ratio
-projection so apps do not need to keep small-but-risky viewport math beside
-every custom canvas.
+projection, plus absolute-to-visible point and clipped range projection, so
+apps do not need to keep small-but-risky viewport math beside every custom
+canvas.
 Custom canvas widgets can use `CanvasGestureState` to turn raw `WidgetInput`
 pointer events into local and normalized hover, press, drag, release,
 double-click, drop, wheel, and focus-change events. This keeps waveform,

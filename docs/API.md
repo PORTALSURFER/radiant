@@ -57,6 +57,10 @@ Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`,
 `Rgba8::blend_toward`, and `Rgba8::blend_opaque_toward` for common color
 manipulation. Dense visualizations can use `ColorRamp` and `ColorRampStop` for
 normalized heatmap and intensity palettes without local interpolation helpers.
+Custom canvas, image, GPU surface, and overlay widgets can use
+`WidgetCommon::without_default_chrome()` when they still need Radiant's sizing,
+focus, hit testing, and style contracts but draw their own focus and state
+affordances.
 Custom matrix or heatmap widgets can use `DenseGridLayout` and `DenseGridCell`
 for reusable row/column cell projection and hit testing.
 For paint-plan emission,

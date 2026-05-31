@@ -66,6 +66,19 @@ impl WidgetCommon {
         self.with_focus(FocusBehavior::Keyboard)
     }
 
+    /// Return this contract configured for widgets that draw their own chrome.
+    ///
+    /// Custom canvas, image, GPU surface, and overlay widgets often still need
+    /// Radiant's sizing, focus, hit testing, and style contracts while painting
+    /// their own focus and state affordances. This helper disables Radiant's
+    /// default focus and state-layer paint responsibilities without changing
+    /// clipping, focus participation, or hit-testing behavior.
+    pub fn without_default_chrome(mut self) -> Self {
+        self.paint.paints_focus = false;
+        self.paint.paints_state_layers = false;
+        self
+    }
+
     /// Project this widget into the current public layout leaf representation.
     pub fn layout_node(&self) -> LayoutNode {
         self.sizing.layout_node(self.id)

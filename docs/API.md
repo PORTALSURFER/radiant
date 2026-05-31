@@ -1236,6 +1236,10 @@ control groups without repeating label text styling and stacked spacing.
 Centered fixed-size foreground surfaces can use `CenteredLayerParts`,
 `centered_layer(...)`, and `centered_layer_from_parts(...)` instead of
 rebuilding spacer rows and columns in application code.
+Fixed-size foreground surfaces that need edge or center placement can use
+`AnchoredLayerParts`, `LayerHorizontalAnchor`, `LayerVerticalAnchor`,
+`anchored_layer(...)`, and `anchored_layer_from_parts(...)` for generic
+top/center/bottom and left/center/right placement with edge insets.
 Dropdown overlays anchored to a trigger can use
 `DropdownMenuOverlayBelowParts`, `dropdown_menu_overlay_below(...)`, and
 `dropdown_menu_overlay_below_from_parts(...)` so application code supplies the

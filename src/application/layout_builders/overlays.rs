@@ -24,6 +24,77 @@ impl<Message> CenteredLayerParts<Message> {
     }
 }
 
+/// Horizontal child placement inside a full-size anchored layer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LayerHorizontalAnchor {
+    /// Place the child at the left edge after the configured inset.
+    Start,
+    /// Place the child centered horizontally.
+    Center,
+    /// Place the child at the right edge before the configured inset.
+    End,
+}
+
+/// Vertical child placement inside a full-size anchored layer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LayerVerticalAnchor {
+    /// Place the child at the top edge after the configured inset.
+    Start,
+    /// Place the child centered vertically.
+    Center,
+    /// Place the child at the bottom edge before the configured inset.
+    End,
+}
+
+/// Named construction fields for an anchored fixed-size child layer.
+pub struct AnchoredLayerParts<Message> {
+    /// Child view to place inside the layer.
+    pub child: ViewNode<Message>,
+    /// Fixed child size.
+    pub size: Vector2,
+    /// Horizontal placement policy.
+    pub horizontal: LayerHorizontalAnchor,
+    /// Vertical placement policy.
+    pub vertical: LayerVerticalAnchor,
+    /// Horizontal inset from the chosen edge.
+    pub inset_x: f32,
+    /// Vertical inset from the chosen edge.
+    pub inset_y: f32,
+}
+
+impl<Message> AnchoredLayerParts<Message> {
+    /// Build anchored-layer parts.
+    pub fn new(child: ViewNode<Message>, size: Vector2) -> Self {
+        Self {
+            child,
+            size,
+            horizontal: LayerHorizontalAnchor::Center,
+            vertical: LayerVerticalAnchor::Center,
+            inset_x: 0.0,
+            inset_y: 0.0,
+        }
+    }
+
+    /// Set the horizontal anchor.
+    pub fn horizontal(mut self, anchor: LayerHorizontalAnchor) -> Self {
+        self.horizontal = anchor;
+        self
+    }
+
+    /// Set the vertical anchor.
+    pub fn vertical(mut self, anchor: LayerVerticalAnchor) -> Self {
+        self.vertical = anchor;
+        self
+    }
+
+    /// Set both edge insets.
+    pub fn inset(mut self, x: f32, y: f32) -> Self {
+        self.inset_x = x.max(0.0);
+        self.inset_y = y.max(0.0);
+        self
+    }
+}
+
 /// Build a floating overlay panel in surface coordinates.
 pub fn overlay_panel<Message>(
     label: impl Into<String>,
@@ -57,20 +128,40 @@ pub fn centered_layer<Message: 'static>(
 pub fn centered_layer_from_parts<Message: 'static>(
     parts: CenteredLayerParts<Message>,
 ) -> ViewNode<Message> {
-    crate::application::column([
-        crate::application::spacer().fill_height(),
-        crate::application::row([
-            crate::application::spacer().fill_width(),
-            parts.child.size(parts.size.x, parts.size.y),
-            crate::application::spacer().fill_width(),
-        ])
-        .spacing(0.0)
-        .fill_width()
-        .height(parts.size.y),
-        crate::application::spacer().fill_height(),
-    ])
-    .spacing(0.0)
-    .fill()
+    anchored_layer_from_parts(
+        AnchoredLayerParts::new(parts.child, parts.size)
+            .horizontal(LayerHorizontalAnchor::Center)
+            .vertical(LayerVerticalAnchor::Center),
+    )
+}
+
+/// Build a full-size layer that anchors a fixed-size child.
+pub fn anchored_layer<Message: 'static>(
+    child: ViewNode<Message>,
+    size: Vector2,
+    horizontal: LayerHorizontalAnchor,
+    vertical: LayerVerticalAnchor,
+    inset_x: f32,
+    inset_y: f32,
+) -> ViewNode<Message> {
+    anchored_layer_from_parts(
+        AnchoredLayerParts::new(child, size)
+            .horizontal(horizontal)
+            .vertical(vertical)
+            .inset(inset_x, inset_y),
+    )
+}
+
+/// Build a full-size anchored layer from named parts.
+pub fn anchored_layer_from_parts<Message: 'static>(
+    parts: AnchoredLayerParts<Message>,
+) -> ViewNode<Message> {
+    let row = anchored_row(
+        parts.child.size(parts.size.x, parts.size.y),
+        parts.horizontal,
+        parts.inset_x,
+    );
+    anchored_column(row, parts.size.y, parts.vertical, parts.inset_y)
 }
 
 /// Build a full-size transparent layer that emits a dismiss message when activated.
@@ -173,13 +264,50 @@ pub fn drag_preview_sized<Message>(
     .style(primary_style())
 }
 
+fn anchored_column<Message: 'static>(
+    row: ViewNode<Message>,
+    height: f32,
+    anchor: LayerVerticalAnchor,
+    inset: f32,
+) -> ViewNode<Message> {
+    let inset = inset.max(0.0);
+    let row = row.fill_width().height(height);
+    let top = crate::application::spacer().fill_height();
+    let bottom = crate::application::spacer().fill_height();
+    let inset_spacer = crate::application::spacer().height(inset);
+    let column = match anchor {
+        LayerVerticalAnchor::Start => crate::application::column([inset_spacer, row, bottom]),
+        LayerVerticalAnchor::Center => crate::application::column([top, row, bottom]),
+        LayerVerticalAnchor::End => crate::application::column([top, row, inset_spacer]),
+    };
+    column.spacing(0.0).fill()
+}
+
+fn anchored_row<Message: 'static>(
+    child: ViewNode<Message>,
+    anchor: LayerHorizontalAnchor,
+    inset: f32,
+) -> ViewNode<Message> {
+    let inset = inset.max(0.0);
+    let left = crate::application::spacer().fill_width();
+    let right = crate::application::spacer().fill_width();
+    let inset_spacer = crate::application::spacer().width(inset).height(1.0);
+    let row = match anchor {
+        LayerHorizontalAnchor::Start => crate::application::row([inset_spacer, child, right]),
+        LayerHorizontalAnchor::Center => crate::application::row([left, child, right]),
+        LayerHorizontalAnchor::End => crate::application::row([left, child, inset_spacer]),
+    };
+    row.spacing(0.0).fill_width()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        application::{app, text},
+        application::{IntoView, app, text},
+        gui::types::Rect,
         layout::Vector2,
-        runtime::SurfaceRuntime,
+        runtime::{PaintPrimitive, SurfaceRuntime, UiSurface},
         widgets::{PointerButton, PointerModifiers, TextWidget, WidgetInput},
     };
 
@@ -238,5 +366,61 @@ mod tests {
                 .map(|widget| widget.text.as_str()),
             Some("activated")
         );
+    }
+
+    #[test]
+    fn anchored_layer_places_child_at_configured_edges() {
+        let frame = UiSurface::new(
+            anchored_layer::<()>(
+                text("details").id(90).size(80.0, 20.0),
+                Vector2::new(80.0, 20.0),
+                LayerHorizontalAnchor::End,
+                LayerVerticalAnchor::End,
+                12.0,
+                8.0,
+            )
+            .into_node(),
+        )
+        .frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 100.0)),
+            &Default::default(),
+        );
+
+        let text_rect = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) if text.widget_id == 90 => Some(text.rect),
+                _ => None,
+            })
+            .expect("anchored layer child should paint");
+
+        assert!((text_rect.min.x - 108.0).abs() < 0.01, "{text_rect:?}");
+        assert!((text_rect.min.y - 72.0).abs() < 0.01, "{text_rect:?}");
+    }
+
+    #[test]
+    fn centered_layer_uses_anchored_layer_center_policy() {
+        let frame = UiSurface::new(
+            centered_layer::<()>(text("center").id(91), Vector2::new(80.0, 20.0)).into_node(),
+        )
+        .frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 100.0)),
+            &Default::default(),
+        );
+
+        let text_rect = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) if text.widget_id == 91 => Some(text.rect),
+                _ => None,
+            })
+            .expect("centered layer child should paint");
+
+        assert!((text_rect.min.x - 60.0).abs() < 0.01, "{text_rect:?}");
+        assert!((text_rect.min.y - 40.0).abs() < 0.01, "{text_rect:?}");
     }
 }

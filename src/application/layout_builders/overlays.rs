@@ -1,6 +1,6 @@
 //! Floating overlay layout builders.
 
-use crate::application::{ViewNode, ViewNodeKind, button, primary_style};
+use crate::application::{ViewNode, ViewNodeKind, button, primary_style, stack};
 use crate::gui::types::Point;
 use crate::layout::Vector2;
 
@@ -88,6 +88,19 @@ where
         .fill()
 }
 
+/// Layer transparent input over visible content in one stacked view.
+///
+/// This is useful for composite controls where the application owns the visual
+/// row content but wants a generic button, interactive row, drag handle, or
+/// other input surface to cover the same bounds without painting its own
+/// chrome.
+pub fn input_overlay<Message: 'static>(
+    content: ViewNode<Message>,
+    input: ViewNode<Message>,
+) -> ViewNode<Message> {
+    stack([content, input.input_only()])
+}
+
 /// Build a non-interactive floating child tree positioned relative to its parent.
 ///
 /// The layer paints regular view content without contributing intrinsic size and
@@ -158,4 +171,72 @@ pub fn drag_preview_sized<Message>(
         size.y.max(1.0),
     )
     .style(primary_style())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        application::{app, text},
+        layout::Vector2,
+        runtime::SurfaceRuntime,
+        widgets::{PointerButton, PointerModifiers, TextWidget, WidgetInput},
+    };
+
+    #[derive(Clone, Debug, PartialEq)]
+    enum DemoMessage {
+        Activate,
+    }
+
+    #[derive(Default)]
+    struct DemoState {
+        activated: bool,
+    }
+
+    #[test]
+    fn input_overlay_routes_transparent_input_above_content() {
+        let bridge = app(DemoState::default())
+            .view(|state| {
+                input_overlay(
+                    text(if state.activated { "activated" } else { "idle" })
+                        .id(90)
+                        .fill_width()
+                        .height(22.0),
+                    button("").message(DemoMessage::Activate).fill(),
+                )
+                .fill()
+            })
+            .update(|state, message| match message {
+                DemoMessage::Activate => state.activated = true,
+            })
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 22.0));
+        let position = Point::new(8.0, 8.0);
+
+        runtime.dispatch_input_at(
+            position,
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            },
+        );
+        runtime.dispatch_input_at(
+            position,
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            },
+        );
+
+        assert_eq!(
+            runtime
+                .surface()
+                .find_widget(90)
+                .and_then(|widget| widget.widget_object().as_any().downcast_ref::<TextWidget>())
+                .map(|widget| widget.text.as_str()),
+            Some("activated")
+        );
+    }
 }

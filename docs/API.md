@@ -210,6 +210,9 @@ Convenience constructors such as `.pointer_move_only(...)` and
 Popover and menu stacks can use `dismiss_layer(message)` as a transparent
 full-surface activation layer behind foreground content, avoiding app-local
 empty input-only buttons for outside-click dismissal.
+Composite controls can use `input_overlay(content, input)` when visible content
+and a transparent input surface should share bounds without repeating a local
+two-child stack.
 Passive visual feedback layers can use `FeedbackOverlayWidget` for background
 tints, determinate progress fills, and edge-band accents without app-local
 paint-only custom widgets.

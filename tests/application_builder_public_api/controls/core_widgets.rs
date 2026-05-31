@@ -1,8 +1,9 @@
 use super::super::*;
 use radiant::widgets::{
-    BadgeMessage, BadgeWidget, ButtonWidget, ColorMarkerWidget, FeedbackOverlayWidget,
-    FocusBehavior, MarkerRunWidget, PaintBounds, SliderMessage, SliderWidget, TextInputWidget,
-    TextWidget, ToggleWidget, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
+    BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerWidget, DragHandleMessage,
+    FeedbackOverlayWidget, FocusBehavior, MarkerRunWidget, PaintBounds, SliderMessage,
+    SliderWidget, TextInputWidget, TextWidget, ToggleWidget, WidgetOutput, WidgetProminence,
+    WidgetStyle, WidgetTone,
 };
 
 #[test]
@@ -142,6 +143,43 @@ fn passive_badge_is_prelude_accessible_and_does_not_emit_messages() {
     assert_eq!(
         surface.dispatch_widget_output(22, WidgetOutput::typed(BadgeMessage::Activate)),
         None
+    );
+}
+
+#[test]
+fn button_builder_can_filter_secondary_activation_and_map_drag() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<&'static str> = ui::button("Name")
+        .click_or_drag("sort", |drag| match drag {
+            DragHandleMessage::Started { .. } => "drag-start",
+            DragHandleMessage::Moved { .. } => "drag-move",
+            DragHandleMessage::Ended { .. } => "drag-end",
+        })
+        .id(27)
+        .into_surface();
+
+    assert_eq!(
+        surface.dispatch_widget_output(27, WidgetOutput::typed(ButtonMessage::Activate)),
+        Some("sort")
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            27,
+            WidgetOutput::typed(ButtonMessage::SecondaryActivate {
+                position: ui::Point::new(1.0, 2.0)
+            }),
+        ),
+        None
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            27,
+            WidgetOutput::typed(ButtonMessage::Drag(DragHandleMessage::Moved {
+                position: ui::Point::new(3.0, 4.0)
+            })),
+        ),
+        Some("drag-move")
     );
 }
 

@@ -5,7 +5,9 @@ use crate::{
     },
     gui::types::Point,
     runtime::{PaintText, WidgetMessageMapper},
-    widgets::{ButtonMessage, ButtonWidget, DragHandleMessage, WidgetProminence, WidgetStyle},
+    widgets::{
+        ButtonMessage, ButtonWidget, DragHandleMessage, WidgetOutput, WidgetProminence, WidgetStyle,
+    },
 };
 
 mod state_actions;
@@ -74,6 +76,40 @@ impl ButtonBuilder {
         self,
         map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
+        self.with_message_mapper(WidgetMessageMapper::button(map))
+    }
+
+    /// Emit a host message for selected button outputs.
+    pub fn filter_mapped<Message: 'static>(
+        self,
+        map: impl Fn(ButtonMessage) -> Option<Message> + Send + Sync + 'static,
+    ) -> ViewNode<Message> {
+        self.with_message_mapper(WidgetMessageMapper::dynamic(move |output: WidgetOutput| {
+            output.typed_ref::<ButtonMessage>().cloned().and_then(&map)
+        }))
+    }
+
+    /// Emit one message when activated and mapped messages for drag lifecycle events.
+    pub fn click_or_drag<Message>(
+        self,
+        activate: Message,
+        drag: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+    ) -> ViewNode<Message>
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        self.draggable()
+            .filter_mapped(move |message| match message {
+                ButtonMessage::Activate => Some(activate.clone()),
+                ButtonMessage::Drag(message) => Some(drag(message)),
+                ButtonMessage::SecondaryActivate { .. } => None,
+            })
+    }
+
+    fn with_message_mapper<Message: 'static>(
+        self,
+        messages: WidgetMessageMapper<Message>,
+    ) -> ViewNode<Message> {
         let sizing = default_button_sizing(&self.label);
         let mut button = ButtonWidget::new(0, self.label, sizing);
         if self.secondary_click {
@@ -82,8 +118,7 @@ impl ButtonBuilder {
         if self.drag {
             button = button.with_drag();
         }
-        let mut node =
-            view_node_from_widget(MappedWidget::new(button, WidgetMessageMapper::button(map)));
+        let mut node = view_node_from_widget(MappedWidget::new(button, messages));
         node.style = self.style;
         node
     }

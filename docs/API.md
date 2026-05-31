@@ -1228,6 +1228,11 @@ control groups without repeating label text styling and stacked spacing.
 Centered fixed-size foreground surfaces can use `CenteredLayerParts`,
 `centered_layer(...)`, and `centered_layer_from_parts(...)` instead of
 rebuilding spacer rows and columns in application code.
+Dropdown overlays anchored to a trigger can use
+`DropdownMenuOverlayBelowParts`, `dropdown_menu_overlay_below(...)`, and
+`dropdown_menu_overlay_below_from_parts(...)` so application code supplies the
+trigger rectangle and gap rather than hand-adding trigger height to menu
+coordinates.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
 that composes `MenuItem`, `menu(...)`, and `context_menu_overlay(...)` with
 normal state callbacks.

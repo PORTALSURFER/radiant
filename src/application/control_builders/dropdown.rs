@@ -8,7 +8,10 @@ mod model;
 #[path = "dropdown/tests.rs"]
 mod tests;
 
-pub use menu::{dropdown_menu, dropdown_menu_height, dropdown_menu_overlay};
+pub use menu::{
+    DropdownMenuOverlayBelowParts, dropdown_menu, dropdown_menu_height, dropdown_menu_overlay,
+    dropdown_menu_overlay_below, dropdown_menu_overlay_below_from_parts,
+};
 pub use model::{DropdownOption, DropdownOptionParts, DropdownOptionSelection, DropdownParts};
 
 /// Builder for generic dropdown controls.

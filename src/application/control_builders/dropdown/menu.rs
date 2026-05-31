@@ -7,6 +7,48 @@ use super::DropdownOption;
 
 const DROPDOWN_MENU_PADDING: f32 = 4.0;
 
+/// Named construction fields for a dropdown menu overlay anchored below a trigger.
+pub struct DropdownMenuOverlayBelowParts<Message> {
+    /// Trigger left edge in the owning stack layer.
+    pub x: f32,
+    /// Trigger top edge in the owning stack layer.
+    pub trigger_y: f32,
+    /// Trigger height.
+    pub trigger_height: f32,
+    /// Gap between the trigger bottom and menu top.
+    pub gap: f32,
+    /// Optional fixed menu width. When omitted the menu fills remaining width.
+    pub width: Option<f32>,
+    /// Dropdown options shown in the overlay menu.
+    pub options: Vec<DropdownOption<Message>>,
+}
+
+impl<Message> DropdownMenuOverlayBelowParts<Message> {
+    /// Build named dropdown-overlay anchor parts.
+    pub fn new(
+        x: f32,
+        trigger_y: f32,
+        trigger_height: f32,
+        gap: f32,
+        options: Vec<DropdownOption<Message>>,
+    ) -> Self {
+        Self {
+            x,
+            trigger_y,
+            trigger_height,
+            gap,
+            width: None,
+            options,
+        }
+    }
+
+    /// Set a fixed menu width.
+    pub fn width(mut self, width: f32) -> Self {
+        self.width = Some(width);
+        self
+    }
+}
+
 /// Return the overlay menu height for a dropdown option list.
 pub fn dropdown_menu_height(option_count: usize) -> f32 {
     option_count as f32 * 22.0
@@ -35,6 +77,43 @@ where
     .spacing(3.0)
     .fill_width()
     .height(dropdown_menu_height(option_count))
+}
+
+/// Build a dropdown menu overlay positioned below a trigger rectangle.
+pub fn dropdown_menu_overlay_below<Message>(
+    x: f32,
+    trigger_y: f32,
+    trigger_height: f32,
+    gap: f32,
+    width: Option<f32>,
+    options: Vec<DropdownOption<Message>>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    dropdown_menu_overlay_below_from_parts(DropdownMenuOverlayBelowParts {
+        x,
+        trigger_y,
+        trigger_height,
+        gap,
+        width,
+        options,
+    })
+}
+
+/// Build a dropdown menu overlay below a trigger from named parts.
+pub fn dropdown_menu_overlay_below_from_parts<Message>(
+    parts: DropdownMenuOverlayBelowParts<Message>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    dropdown_menu_overlay(
+        parts.x,
+        parts.trigger_y.max(0.0) + parts.trigger_height.max(0.0) + parts.gap.max(0.0),
+        parts.width,
+        parts.options,
+    )
 }
 
 /// Build a dropdown menu overlay positioned inside a caller-owned stack layer.

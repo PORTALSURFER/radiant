@@ -24,9 +24,11 @@ pub use button::{ButtonBuilder, button, button_mapped, button_message};
 pub use color_marker::{ColorMarkerBuilder, color_marker};
 pub use drag_handle::{DragHandleBuilder, drag_handle, drag_handle_mapped};
 pub use dropdown::{
-    DropdownBuilder, DropdownBuilderNeedsToggle, DropdownOption, DropdownOptionParts,
-    DropdownOptionSelection, DropdownParts, dropdown, dropdown_from_parts, dropdown_height,
-    dropdown_menu, dropdown_menu_height, dropdown_menu_overlay, dropdown_option, state_dropdown,
+    DropdownBuilder, DropdownBuilderNeedsToggle, DropdownMenuOverlayBelowParts, DropdownOption,
+    DropdownOptionParts, DropdownOptionSelection, DropdownParts, dropdown, dropdown_from_parts,
+    dropdown_height, dropdown_menu, dropdown_menu_height, dropdown_menu_overlay,
+    dropdown_menu_overlay_below, dropdown_menu_overlay_below_from_parts, dropdown_option,
+    state_dropdown,
 };
 pub use feedback_overlay::{FeedbackOverlayBuilder, feedback_overlay};
 pub use icon_button::{IconButtonBuilder, icon_button};

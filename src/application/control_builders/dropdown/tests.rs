@@ -62,3 +62,37 @@ fn dropdown_option_compatibility_constructor_delegates_to_named_parts() {
         DropdownOptionSelection::Unselected
     );
 }
+
+#[test]
+fn dropdown_menu_overlay_below_positions_menu_after_trigger_gap() {
+    let _view = dropdown_menu_overlay_below(
+        12.0,
+        20.0,
+        24.0,
+        3.0,
+        Some(120.0),
+        vec![DropdownOption::new(
+            "WASAPI",
+            true,
+            Message::Select("wasapi"),
+        )],
+    );
+    let parts = DropdownMenuOverlayBelowParts::new(
+        12.0,
+        20.0,
+        24.0,
+        3.0,
+        vec![DropdownOption::new(
+            "WASAPI",
+            true,
+            Message::Select("wasapi"),
+        )],
+    )
+    .width(120.0);
+
+    assert_eq!(parts.x, 12.0);
+    assert_eq!(parts.trigger_y, 20.0);
+    assert_eq!(parts.trigger_height, 24.0);
+    assert_eq!(parts.gap, 3.0);
+    assert_eq!(parts.width, Some(120.0));
+}

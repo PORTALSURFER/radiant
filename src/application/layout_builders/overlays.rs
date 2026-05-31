@@ -9,6 +9,21 @@ const DRAG_PREVIEW_OFFSET_Y: f32 = 18.0;
 const DRAG_PREVIEW_DEFAULT_WIDTH: f32 = 168.0;
 const DRAG_PREVIEW_DEFAULT_HEIGHT: f32 = 24.0;
 
+/// Named construction fields for a centered fixed-size child layer.
+pub struct CenteredLayerParts<Message> {
+    /// Child view to center inside the layer.
+    pub child: ViewNode<Message>,
+    /// Fixed child size.
+    pub size: Vector2,
+}
+
+impl<Message> CenteredLayerParts<Message> {
+    /// Build centered-layer parts.
+    pub fn new(child: ViewNode<Message>, size: Vector2) -> Self {
+        Self { child, size }
+    }
+}
+
 /// Build a floating overlay panel in surface coordinates.
 pub fn overlay_panel<Message>(
     label: impl Into<String>,
@@ -24,6 +39,38 @@ pub fn overlay_panel<Message>(
         ),
         label: Some(label.into()),
     })
+}
+
+/// Build a full-size layer that centers a fixed-size child.
+///
+/// This is useful for modal panels, inspector windows, popovers, and embedded
+/// surfaces where application code knows the foreground size but should not
+/// manually rebuild spacer rows and columns to center it.
+pub fn centered_layer<Message: 'static>(
+    child: ViewNode<Message>,
+    size: Vector2,
+) -> ViewNode<Message> {
+    centered_layer_from_parts(CenteredLayerParts::new(child, size))
+}
+
+/// Build a full-size centered layer from named parts.
+pub fn centered_layer_from_parts<Message: 'static>(
+    parts: CenteredLayerParts<Message>,
+) -> ViewNode<Message> {
+    crate::application::column([
+        crate::application::spacer().fill_height(),
+        crate::application::row([
+            crate::application::spacer().fill_width(),
+            parts.child.size(parts.size.x, parts.size.y),
+            crate::application::spacer().fill_width(),
+        ])
+        .spacing(0.0)
+        .fill_width()
+        .height(parts.size.y),
+        crate::application::spacer().fill_height(),
+    ])
+    .spacing(0.0)
+    .fill()
 }
 
 /// Build a full-size transparent layer that emits a dismiss message when activated.

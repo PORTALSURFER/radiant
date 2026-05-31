@@ -70,3 +70,36 @@ fn application_builder_todo_layout_does_not_overlap_header_input_and_list() {
     assert!(first_row.min.y >= list.min.y);
     assert_eq!(first_row.height(), 44.0);
 }
+
+#[test]
+fn application_builder_centered_layer_centers_fixed_size_child() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<()> = ui::centered_layer(
+        ui::text("Dialog").key("centered-dialog").id(2),
+        Vector2::new(120.0, 80.0),
+    )
+    .id(1)
+    .into_surface();
+
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(400.0, 300.0)),
+    );
+    let child = layout.rects[&2];
+
+    assert_eq!(child.min.x, 140.0);
+    assert_eq!(child.min.y, 110.0);
+    assert_eq!(child.width(), 120.0);
+    assert_eq!(child.height(), 80.0);
+}
+
+#[test]
+fn centered_layer_parts_support_named_construction() {
+    use radiant::prelude as ui;
+
+    let parts: ui::CenteredLayerParts<()> =
+        ui::CenteredLayerParts::new(ui::text("Dialog"), Vector2::new(320.0, 180.0));
+
+    assert_eq!(parts.size, Vector2::new(320.0, 180.0));
+}

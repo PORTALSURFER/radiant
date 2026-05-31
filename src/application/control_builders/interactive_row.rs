@@ -2,13 +2,19 @@ use crate::{
     application::{MappedWidget, ViewNode, view_node_from_widget},
     runtime::WidgetMessageMapper,
     widgets::{
-        InteractiveRowMessage, InteractiveRowWidget, WidgetProminence, WidgetSizing, WidgetStyle,
+        FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds, WidgetProminence,
+        WidgetSizing, WidgetStyle,
     },
 };
 
 /// Builder for selectable, draggable, droppable dense rows.
 pub struct InteractiveRowBuilder {
     style: Option<WidgetStyle>,
+    sizing: WidgetSizing,
+    focus: Option<FocusBehavior>,
+    paint_bounds: Option<PaintBounds>,
+    paints_focus: Option<bool>,
+    paints_state_layers: Option<bool>,
     draggable: bool,
     droppable: bool,
     drop_hover: bool,
@@ -34,6 +40,36 @@ impl InteractiveRowBuilder {
         let mut style = self.style.unwrap_or_default();
         style.prominence = WidgetProminence::Subtle;
         self.style = Some(style);
+        self
+    }
+
+    /// Override the row widget sizing.
+    pub fn sizing(mut self, sizing: WidgetSizing) -> Self {
+        self.sizing = sizing;
+        self
+    }
+
+    /// Override keyboard focus behavior.
+    pub fn focus(mut self, focus: FocusBehavior) -> Self {
+        self.focus = Some(focus);
+        self
+    }
+
+    /// Override how this row's paint is bounded.
+    pub fn paint_bounds(mut self, bounds: PaintBounds) -> Self {
+        self.paint_bounds = Some(bounds);
+        self
+    }
+
+    /// Control whether this row paints focus affordances.
+    pub fn paint_focus(mut self, paint: bool) -> Self {
+        self.paints_focus = Some(paint);
+        self
+    }
+
+    /// Control whether this row paints its built-in hover and pressed layers.
+    pub fn paint_state_layers(mut self, paint: bool) -> Self {
+        self.paints_state_layers = Some(paint);
         self
     }
 
@@ -112,10 +148,22 @@ impl InteractiveRowBuilder {
         self,
         map: impl Fn(InteractiveRowMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
-        let mut row = InteractiveRowWidget::new(
-            0,
-            WidgetSizing::fixed(crate::layout::Vector2::new(1.0, 22.0)),
-        );
+        let style = self.style;
+        let row = self.widget();
+        let mut node = view_node_from_widget(MappedWidget::new(
+            row,
+            WidgetMessageMapper::interactive_row(map),
+        ));
+        node.style = style;
+        node
+    }
+
+    /// Build the configured row widget for custom composite widgets.
+    ///
+    /// This is useful when an application needs generic Radiant row input
+    /// behavior but owns specialized painting or layout around the hit target.
+    pub fn widget(self) -> InteractiveRowWidget {
+        let mut row = InteractiveRowWidget::new(0, self.sizing);
         if self.draggable {
             row = row.with_drag();
         }
@@ -150,12 +198,19 @@ impl InteractiveRowBuilder {
         if self.pointer_motion_active {
             row = row.with_pointer_motion_active(true);
         }
-        let mut node = view_node_from_widget(MappedWidget::new(
-            row,
-            WidgetMessageMapper::interactive_row(map),
-        ));
-        node.style = self.style;
-        node
+        if let Some(focus) = self.focus {
+            row.common.focus = focus;
+        }
+        if let Some(bounds) = self.paint_bounds {
+            row.common.paint.bounds = bounds;
+        }
+        if let Some(paint) = self.paints_focus {
+            row.common.paint.paints_focus = paint;
+        }
+        if let Some(paint) = self.paints_state_layers {
+            row.common.paint.paints_state_layers = paint;
+        }
+        row
     }
 }
 
@@ -163,6 +218,11 @@ impl InteractiveRowBuilder {
 pub fn interactive_row() -> InteractiveRowBuilder {
     InteractiveRowBuilder {
         style: None,
+        sizing: WidgetSizing::fixed(crate::layout::Vector2::new(1.0, 22.0)),
+        focus: None,
+        paint_bounds: None,
+        paints_focus: None,
+        paints_state_layers: None,
         draggable: false,
         droppable: false,
         drop_hover: false,

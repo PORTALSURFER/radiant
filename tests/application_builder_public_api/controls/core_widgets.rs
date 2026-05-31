@@ -1,8 +1,8 @@
 use super::super::*;
 use radiant::widgets::{
     BadgeMessage, BadgeWidget, ButtonWidget, ColorMarkerWidget, FeedbackOverlayWidget,
-    MarkerRunWidget, SliderMessage, SliderWidget, TextInputWidget, TextWidget, ToggleWidget,
-    WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
+    FocusBehavior, MarkerRunWidget, PaintBounds, SliderMessage, SliderWidget, TextInputWidget,
+    TextWidget, ToggleWidget, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
 };
 
 #[test]
@@ -252,4 +252,31 @@ fn interactive_row_builder_exposes_drag_source_configuration() {
     assert!(row.props.drag_source_motion);
     assert!(row.props.suppress_hover);
     assert!(row.props.clear_hover_on_sync);
+}
+
+#[test]
+fn interactive_row_builder_can_create_custom_input_layer_widget() {
+    use radiant::prelude as ui;
+
+    let row = ui::interactive_row()
+        .draggable()
+        .drag_active(true)
+        .drag_source(true)
+        .drag_source_motion(true)
+        .activation_modifiers()
+        .focus(FocusBehavior::None)
+        .paint_bounds(PaintBounds::ClipToRect)
+        .paint_focus(false)
+        .paint_state_layers(false)
+        .widget();
+
+    assert!(row.props.draggable);
+    assert!(row.props.drag_active);
+    assert!(row.props.drag_source);
+    assert!(row.props.drag_source_motion);
+    assert!(row.props.activation_modifiers);
+    assert_eq!(row.common.focus, FocusBehavior::None);
+    assert_eq!(row.common.paint.bounds, PaintBounds::ClipToRect);
+    assert!(!row.common.paint.paints_focus);
+    assert!(!row.common.paint.paints_state_layers);
 }

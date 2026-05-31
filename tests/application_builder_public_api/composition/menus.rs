@@ -112,6 +112,17 @@ fn application_builder_menus_support_named_parts_construction() {
 }
 
 #[test]
+fn application_builder_menu_height_matches_compact_menu_layout() {
+    use radiant::prelude as ui;
+
+    assert_eq!(ui::message_menu_height(0), 44.0);
+    assert_eq!(ui::message_menu_height(1), 72.0);
+    assert_eq!(ui::message_menu_height(2), 104.0);
+    assert_eq!(ui::message_menu_height(3), 136.0);
+    assert_eq!(ui::menu_height(2), ui::message_menu_height(2));
+}
+
+#[test]
 fn application_builder_drag_preview_paints_as_non_widget_overlay() {
     use radiant::prelude::{self as ui, IntoView};
 

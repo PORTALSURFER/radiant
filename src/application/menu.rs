@@ -13,6 +13,17 @@ pub use model::{
     MenuItemParts, MenuParts, MessageMenuParts,
 };
 
+/// Height of the title line in compact Radiant menus.
+pub const MENU_TITLE_HEIGHT: f32 = 22.0;
+/// Height of one command row in compact Radiant menus.
+pub const MENU_ITEM_HEIGHT: f32 = 28.0;
+/// Outer padding applied by compact Radiant menus.
+pub const MENU_PADDING: f32 = 8.0;
+/// Gap between the title and the command list.
+pub const MENU_SECTION_SPACING: f32 = 6.0;
+/// Gap between command rows.
+pub const MENU_ITEM_SPACING: f32 = 4.0;
+
 /// Build a compact vertical menu.
 pub fn menu<State: 'static>(
     title: impl Into<String>,
@@ -27,7 +38,7 @@ pub fn menu<State: 'static>(
 /// Build a compact vertical menu from named parts.
 pub fn menu_from_parts<State: 'static>(parts: MenuParts<State>) -> StateView<State> {
     column([
-        text(parts.title).fill_width().height(22.0),
+        text(parts.title).fill_width().height(MENU_TITLE_HEIGHT),
         column(
             parts
                 .items
@@ -36,15 +47,15 @@ pub fn menu_from_parts<State: 'static>(parts: MenuParts<State>) -> StateView<Sta
                 .map(|(index, item)| menu_item_button(index, item)),
         )
         .fill_width()
-        .spacing(4.0),
+        .spacing(MENU_ITEM_SPACING),
     ])
-    .style(WidgetStyle {
-        tone: WidgetTone::Accent,
-        prominence: WidgetProminence::Strong,
-    })
+    .style(WidgetStyle::new(
+        WidgetTone::Accent,
+        WidgetProminence::Strong,
+    ))
     .fill_width()
-    .padding(8.0)
-    .spacing(6.0)
+    .padding(MENU_PADDING)
+    .spacing(MENU_SECTION_SPACING)
 }
 
 /// Build a compact vertical menu that emits host messages.
@@ -57,10 +68,7 @@ where
 {
     message_menu_from_parts(MessageMenuParts {
         title: title.into(),
-        style: WidgetStyle {
-            tone: WidgetTone::Accent,
-            prominence: WidgetProminence::Strong,
-        },
+        style: WidgetStyle::new(WidgetTone::Accent, WidgetProminence::Strong),
         commands: commands.into_iter().collect(),
     })
 }
@@ -71,7 +79,7 @@ where
     Message: Clone + Send + Sync + 'static,
 {
     column([
-        text(parts.title).fill_width().height(22.0),
+        text(parts.title).fill_width().height(MENU_TITLE_HEIGHT),
         column(
             parts
                 .commands
@@ -80,12 +88,26 @@ where
                 .map(|(index, command)| menu_command_button(index, command)),
         )
         .fill_width()
-        .spacing(4.0),
+        .spacing(MENU_ITEM_SPACING),
     ])
     .style(parts.style)
     .fill_width()
-    .padding(8.0)
-    .spacing(6.0)
+    .padding(MENU_PADDING)
+    .spacing(MENU_SECTION_SPACING)
+}
+
+/// Return the normal compact menu height for a known number of items.
+pub fn menu_height(item_count: usize) -> f32 {
+    MENU_PADDING * 2.0
+        + MENU_TITLE_HEIGHT
+        + MENU_SECTION_SPACING
+        + item_count as f32 * MENU_ITEM_HEIGHT
+        + item_count.saturating_sub(1) as f32 * MENU_ITEM_SPACING
+}
+
+/// Return the normal compact message-menu height for a known number of commands.
+pub fn message_menu_height(command_count: usize) -> f32 {
+    menu_height(command_count)
 }
 
 /// Build a context menu overlaid at an anchored surface position.
@@ -153,10 +175,7 @@ where
         anchor,
         size,
         title: title.into(),
-        style: WidgetStyle {
-            tone: WidgetTone::Neutral,
-            prominence: WidgetProminence::Strong,
-        },
+        style: WidgetStyle::new(WidgetTone::Neutral, WidgetProminence::Strong),
         commands: commands.into_iter().collect(),
         dismiss_message,
     })
@@ -201,7 +220,7 @@ fn menu_item_button<State: 'static>(index: usize, item: MenuItem<State>) -> Stat
         .key(format!("menu-item-{index}"))
         .style(item.style)
         .fill_width()
-        .height(28.0)
+        .height(MENU_ITEM_HEIGHT)
 }
 
 fn menu_command_button<Message>(index: usize, command: MenuCommand<Message>) -> ViewNode<Message>
@@ -213,7 +232,7 @@ where
         .key(format!("menu-command-{index}"))
         .style(command.style)
         .fill_width()
-        .height(28.0)
+        .height(MENU_ITEM_HEIGHT)
 }
 
 #[cfg(test)]

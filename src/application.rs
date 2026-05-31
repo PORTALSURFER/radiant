@@ -66,7 +66,7 @@ pub use menu::{
     ContextMenuOverlayParts, DismissibleContextMenuParts, MenuCommand, MenuCommandParts, MenuItem,
     MenuItemParts, MenuParts, MessageMenuParts, context_menu_overlay,
     context_menu_overlay_from_parts, dismissible_context_menu, dismissible_context_menu_from_parts,
-    menu, menu_from_parts, message_menu, message_menu_from_parts,
+    menu, menu_from_parts, menu_height, message_menu, message_menu_from_parts, message_menu_height,
 };
 mod retained_canvas;
 pub use retained_canvas::{RetainedCanvasBuilder, retained_canvas, retained_canvas_with};

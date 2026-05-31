@@ -14,6 +14,7 @@ use std::{sync::Arc, time::Duration};
 mod animation;
 mod lifecycle;
 mod paint;
+mod platform_services;
 mod runtime_work;
 mod view;
 
@@ -74,6 +75,14 @@ where
         work: Box<dyn FnOnce() -> Message + Send + 'static>,
     ) -> bool {
         self.spawn_runtime_message_task(name, priority, work)
+    }
+
+    fn request_platform_service(
+        &mut self,
+        request: crate::runtime::PlatformRequest,
+        on_completed: crate::runtime::PlatformCompletion<Message>,
+    ) -> Result<(), crate::runtime::PlatformServiceFallback<Message>> {
+        self.request_app_platform_service(request, on_completed)
     }
 
     fn take_runtime_commands(&mut self) -> Vec<Command<Message>> {

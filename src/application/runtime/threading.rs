@@ -92,6 +92,10 @@ impl BusinessThreadPool {
         }
     }
 
+    pub(super) const fn is_available(&self) -> bool {
+        self.sender.is_some()
+    }
+
     #[cfg(test)]
     fn without_workers_for_test() -> Self {
         Self {

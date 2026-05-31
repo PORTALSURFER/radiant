@@ -70,6 +70,10 @@ impl<Message> AppRuntime<Message> {
         self.business.spawn(name, priority, work)
     }
 
+    pub(super) fn can_spawn_business_tasks(&self) -> bool {
+        self.business.is_available()
+    }
+
     pub(super) fn take_pending(&self) -> Vec<Message> {
         let pending = drain_runtime_vec(&self.pending);
         self.frame_pending.store(false, Ordering::Release);

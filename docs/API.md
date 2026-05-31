@@ -189,6 +189,10 @@ need durable item-index viewport state outside the declarative scroll container.
 It wraps the existing virtual-window, row-scroll, focus guard-band, and
 scrollbar projection helpers so applications do not need to keep viewport-start
 bookkeeping beside each large list.
+Controllers can be configured per projection pass with `configure(...)`, follow
+optional app-owned focus using `focus_optional(...)`, and consume native
+pixel-scroll offsets with `set_scroll_offset(...)` while preserving the same
+clamping and virtual-window contract.
 Overlay and retained-geometry code that needs to mirror compact stack spacing
 can use `StackedLayoutCursor` to accumulate item extents and gaps without
 app-local offset arithmetic.

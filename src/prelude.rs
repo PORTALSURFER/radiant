@@ -56,6 +56,10 @@ pub use crate::gui::{
         vertical_bipolar_value_at_point, vertical_center_track_rect, vertical_meter_lane_fill_rect,
         vertical_value_at_point, vertical_value_knob_rect, vertical_value_line_rect,
     },
+    flow::{
+        FlowItem, FlowItemWidth, FlowLayoutMetrics, FlowLayoutMetricsParts, flow_row_width,
+        flow_rows_height, flow_trailing_item_starts_new_row, pack_flow_rows, push_flow_row_item,
+    },
     focus::FocusSurface,
     frame::{FrameCadenceConfig, FrameCadenceKind, FrameCadenceMonitor, FrameCadenceReport},
     input::{KeyCode, KeyPress},

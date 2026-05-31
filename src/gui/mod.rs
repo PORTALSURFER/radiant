@@ -29,6 +29,8 @@ pub mod disclosure;
 pub mod feedback;
 /// Stable fingerprint helpers for retained cache invalidation.
 pub mod fingerprint;
+/// Generic inline flow-packing primitives.
+pub mod flow;
 /// Generic focus routing primitives.
 pub mod focus;
 /// Generic form and picker primitives.

@@ -17,6 +17,7 @@ pub use grid::{VirtualGridWindow, VirtualGridWindowRequest, resolve_virtual_grid
 pub use row_paint::{
     DenseRowMarkerEdge, DenseRowMarkerParts, DenseRowPalette, DenseRowVisualState,
     dense_row_fill_color, dense_row_inset_rect, dense_row_vertical_marker_rect,
+    push_dense_row_fill, push_dense_row_inset_stroke, push_dense_row_vertical_marker,
 };
 pub use selection::{ListSelectionController, ListSelectionModifiers, list_index_after_delta};
 pub use virtual_list::{

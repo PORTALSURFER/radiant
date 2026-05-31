@@ -1,4 +1,8 @@
-use crate::gui::types::{Point, Rect, Rgba8, Vector2};
+use crate::{
+    gui::types::{Point, Rect, Rgba8, Vector2},
+    runtime::{PaintPrimitive, push_fill_rect, push_stroke_rect},
+    widgets::WidgetId,
+};
 
 /// Generic visual state for a dense list or tree row.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -115,6 +119,28 @@ pub fn dense_row_fill_color(state: DenseRowVisualState, palette: DenseRowPalette
     }
 }
 
+/// Push the highest-priority dense-row fill for the supplied state and palette.
+///
+/// Returns `true` when a fill primitive was appended. This is the paint-plan
+/// counterpart to [`dense_row_fill_color`] for custom list and tree rows that
+/// reuse Radiant's dense-row state priority.
+pub fn push_dense_row_fill(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    bounds: Rect,
+    state: DenseRowVisualState,
+    palette: DenseRowPalette,
+) -> bool {
+    let Some(color) = dense_row_fill_color(state, palette) else {
+        return false;
+    };
+    if !bounds.has_finite_positive_area() {
+        return false;
+    }
+    push_fill_rect(primitives, widget_id, bounds, color);
+    true
+}
+
 /// Project an inset rectangle, returning `None` when the inset collapses it.
 pub fn dense_row_inset_rect(bounds: Rect, inset: f32) -> Option<Rect> {
     if !inset.is_finite() || inset < 0.0 {
@@ -125,6 +151,27 @@ pub fn dense_row_inset_rect(bounds: Rect, inset: f32) -> Option<Rect> {
         Point::new(bounds.max.x - inset, bounds.max.y - inset),
     );
     (rect.width() > 0.0 && rect.height() > 0.0).then_some(rect)
+}
+
+/// Push an inset dense-row outline when the inset produces visible geometry.
+///
+/// Returns `true` when a stroke primitive was appended.
+pub fn push_dense_row_inset_stroke(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    bounds: Rect,
+    inset: f32,
+    color: Rgba8,
+    width: f32,
+) -> bool {
+    if width <= 0.0 || !width.is_finite() {
+        return false;
+    }
+    let Some(rect) = dense_row_inset_rect(bounds, inset) else {
+        return false;
+    };
+    push_stroke_rect(primitives, widget_id, rect, color, width);
+    true
 }
 
 /// Project a vertically centered marker on one edge of a dense row.
@@ -152,4 +199,21 @@ pub fn dense_row_vertical_marker_rect(bounds: Rect, parts: DenseRowMarkerParts) 
         Point::new(x, bounds.min.y + (bounds.height() - marker_height) * 0.5),
         Vector2::new(parts.width, marker_height),
     ))
+}
+
+/// Push a vertically centered marker on one edge of a dense row.
+///
+/// Returns `true` when a marker primitive was appended.
+pub fn push_dense_row_vertical_marker(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    bounds: Rect,
+    parts: DenseRowMarkerParts,
+    color: Rgba8,
+) -> bool {
+    let Some(rect) = dense_row_vertical_marker_rect(bounds, parts) else {
+        return false;
+    };
+    push_fill_rect(primitives, widget_id, rect, color);
+    true
 }

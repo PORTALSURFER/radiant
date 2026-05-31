@@ -172,6 +172,10 @@ Custom row painters can compose `InteractiveRowWidget` directly for shared
 dense-row hover, activation, drag-source, drag-active, drop-target, and retained
 hover synchronization behavior while keeping domain-specific row visuals in the
 host widget.
+Dense custom row painters can use `push_dense_row_fill`,
+`push_dense_row_vertical_marker`, and `push_dense_row_inset_stroke` to append
+state-prioritized fills, edge markers, and outlines from Radiant's generic
+dense-row geometry helpers without repeating paint-plan guard code.
 Rows that need active drag-source motion after a retained refresh can opt into
 `with_drag_source_motion(...)`; rows that should accept drops without producing
 drop-hover messages can use `with_drop_only(...)`.

@@ -657,6 +657,11 @@ runtime adapter.
 `virtual_list_scroll_delta_from_units` converts already-normalized scroll units
 into bounded row deltas for wheel, touchpad, keyboard, or host-defined scroll
 inputs.
+Transient fixed-row list surfaces such as autocomplete popups, command
+palettes, and compact inspectors can use `bounded_list_visible_rows` and
+`bounded_list_height` to share the generic "hide when empty, cap visible rows,
+then scroll overflow" sizing contract without baking product-specific popup
+rules into app code.
 Compact toolbars and action strips can use
 `layout::fixed_width_row_rects_start`, `layout::fixed_width_row_rects_end`, and
 `layout::visible_suffix_widths` to place fixed-width controls through the

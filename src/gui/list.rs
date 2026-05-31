@@ -1,6 +1,7 @@
 //! Generic list and row state primitives.
 
 mod editable;
+mod geometry;
 mod grid;
 mod row_paint;
 mod selection;
@@ -11,6 +12,7 @@ pub use editable::{
     EditableTreeDraftInputParts, EditableTreeInputFocus, EditableTreeRow, EditableTreeRowFlags,
     EditableTreeRowInput, EditableTreeRowParts,
 };
+pub use geometry::{bounded_list_height, bounded_list_visible_rows};
 pub use grid::{VirtualGridWindow, VirtualGridWindowRequest, resolve_virtual_grid_window};
 pub use row_paint::{
     DenseRowMarkerEdge, DenseRowMarkerParts, DenseRowPalette, DenseRowVisualState,

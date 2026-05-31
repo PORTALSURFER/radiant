@@ -6,7 +6,7 @@ use radiant::{
         focus::FocusSurface,
         input::{KeyCode, KeyPress},
         repaint::RepaintSignal,
-        shortcuts::{ShortcutGesture, ShortcutLayer, ShortcutResolution},
+        shortcuts::{ShortcutGesture, ShortcutLayer, ShortcutResolution, ShortcutStack},
         types::{Point, Rect, Rgba8, Vector2},
     },
     layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams},

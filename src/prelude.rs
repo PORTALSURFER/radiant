@@ -75,7 +75,9 @@ pub use crate::gui::{
     paint::{horizontal_line_rect, vertical_line_rect},
     range::IndexViewport,
     selection::SelectionSet,
-    shortcuts::{ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution},
+    shortcuts::{
+        ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution, ShortcutStack,
+    },
     svg::SvgIcon,
     undo::{UndoCheckpoint, UndoHistory, UndoRedoIntent, UndoTransition},
     visualization::{

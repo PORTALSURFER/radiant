@@ -1,4 +1,4 @@
-use super::{ShortcutGesture, ShortcutLayer, ShortcutResolution};
+use super::{ShortcutGesture, ShortcutLayer, ShortcutResolution, ShortcutStack};
 use crate::gui::input::{KeyCode, KeyPress};
 
 #[test]
@@ -62,6 +62,41 @@ fn shortcut_layer_resolves_actions_and_modal_misses() {
     );
     assert_eq!(
         modal.resolve(KeyPress::new(KeyCode::N)),
+        ShortcutResolution::handled()
+    );
+}
+
+#[test]
+fn shortcut_stack_resolves_layers_by_priority_and_uses_fallback_on_miss() {
+    let stack = ShortcutStack::new()
+        .push_when(
+            false,
+            ShortcutLayer::modal().bind(KeyPress::new(KeyCode::Escape), 99),
+        )
+        .push(ShortcutLayer::new().bind(KeyPress::new(KeyCode::Escape), 1))
+        .push(ShortcutLayer::new().bind(KeyPress::new(KeyCode::N), 2));
+
+    assert_eq!(stack.layers().len(), 2);
+    assert_eq!(
+        stack.resolve(KeyPress::new(KeyCode::Escape)),
+        ShortcutResolution::action(1)
+    );
+    assert_eq!(
+        stack.resolve_or_else(KeyPress::new(KeyCode::Tab), || ShortcutResolution::action(
+            7
+        )),
+        ShortcutResolution::action(7)
+    );
+}
+
+#[test]
+fn shortcut_stack_stops_at_modal_layer_miss() {
+    let stack = ShortcutStack::new()
+        .push(ShortcutLayer::modal().bind(KeyPress::new(KeyCode::Escape), 1))
+        .push(ShortcutLayer::new().bind(KeyPress::new(KeyCode::N), 2));
+
+    assert_eq!(
+        stack.resolve(KeyPress::new(KeyCode::N)),
         ShortcutResolution::handled()
     );
 }

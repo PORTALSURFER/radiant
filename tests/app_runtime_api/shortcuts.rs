@@ -83,6 +83,16 @@ fn shortcut_layer_public_api_handles_modal_layers_and_dynamic_fallbacks() {
         }),
         ShortcutResolution::action(DemoMessage::Increment)
     );
+
+    let stack = ShortcutStack::new().push(modal).push(global).push_when(
+        false,
+        ShortcutLayer::new().bind(KeyPress::new(KeyCode::N), DemoMessage::Increment),
+    );
+    assert_eq!(stack.layers().len(), 2);
+    assert_eq!(
+        stack.resolve(KeyPress::new(KeyCode::N)),
+        ShortcutResolution::handled()
+    );
 }
 
 #[test]

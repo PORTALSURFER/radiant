@@ -11,6 +11,18 @@ fn rect_centered_square_clamps_side_and_centers() {
 }
 
 #[test]
+fn rect_square_around_centers_on_point() {
+    assert_eq!(
+        Rect::square_around(Point::new(20.0, 30.0), 8.0),
+        Rect::from_min_max(Point::new(16.0, 26.0), Point::new(24.0, 34.0))
+    );
+    assert_eq!(
+        Rect::square_around(Point::new(20.0, 30.0), 0.0),
+        Rect::from_min_max(Point::new(20.0, 30.0), Point::new(20.0, 30.0))
+    );
+}
+
+#[test]
 fn rect_centered_pixel_square_clamps_and_snaps_origin() {
     let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(49.0, 61.0));
 

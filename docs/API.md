@@ -931,6 +931,9 @@ geometry.
 `Rect::top_left_square`, `Rect::top_right_square`,
 `Rect::bottom_left_square`, and `Rect::bottom_right_square` provide anchored
 overlay geometry for controls, badges, range handles, and secondary glyphs.
+`Rect::square_around(...)` provides compact point-marker geometry for retained
+canvas and chart overlays, with callers free to clamp the result to their
+surface bounds.
 `Rect::top_edge_strip`, `Rect::bottom_edge_strip`, `Rect::left_edge_strip`,
 `Rect::right_edge_strip`, `Rect::horizontal_center_strip`, and
 `Rect::vertical_center_strip` provide edge and centered strip geometry for

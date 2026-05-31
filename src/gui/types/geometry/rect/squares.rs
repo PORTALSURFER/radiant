@@ -17,6 +17,18 @@ impl Rect {
         )
     }
 
+    /// Return a square centered around `center`.
+    ///
+    /// Non-positive sides return an empty rectangle at `center`.
+    pub fn square_around(center: Point, side: f32) -> Self {
+        let side = side.max(0.0);
+        let half = side * 0.5;
+        Self::from_min_max(
+            Point::new(center.x - half, center.y - half),
+            Point::new(center.x + half, center.y + half),
+        )
+    }
+
     /// Return a pixel-snapped centered square with a clamped side length.
     pub fn centered_pixel_square(
         self,

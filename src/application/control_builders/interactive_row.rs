@@ -13,6 +13,10 @@ pub struct InteractiveRowBuilder {
     droppable: bool,
     drop_hover: bool,
     drag_active: bool,
+    drag_source: bool,
+    drag_source_motion: bool,
+    suppress_hover: bool,
+    clear_hover_on_sync: bool,
     activation_modifiers: bool,
     pointer_motion_during_interaction: bool,
     pointer_motion_active: bool,
@@ -55,6 +59,36 @@ impl InteractiveRowBuilder {
         self
     }
 
+    /// Mark whether a related row drag is active in this row's container.
+    pub fn drag_active(mut self, active: bool) -> Self {
+        self.drag_active = active;
+        self
+    }
+
+    /// Mark this row as the source of the current container drag.
+    pub fn drag_source(mut self, source: bool) -> Self {
+        self.drag_source = source;
+        self
+    }
+
+    /// Emit drag move messages while this row remains the active drag source.
+    pub fn drag_source_motion(mut self, enabled: bool) -> Self {
+        self.drag_source_motion = enabled;
+        self
+    }
+
+    /// Ignore hover updates for this row while preserving activation and drag behavior.
+    pub fn suppress_hover(mut self, suppress: bool) -> Self {
+        self.suppress_hover = suppress;
+        self
+    }
+
+    /// Clear retained hover state when this row is synchronized from a previous tree.
+    pub fn clear_hover_on_sync(mut self) -> Self {
+        self.clear_hover_on_sync = true;
+        self
+    }
+
     /// Include primary-release modifier state in pointer activation messages.
     pub fn activation_modifiers(mut self) -> Self {
         self.activation_modifiers = true;
@@ -84,6 +118,21 @@ impl InteractiveRowBuilder {
         );
         if self.draggable {
             row = row.with_drag();
+        }
+        if self.drag_active {
+            row = row.with_drag_active(true);
+        }
+        if self.drag_source {
+            row = row.with_drag_source(true);
+        }
+        if self.drag_source_motion {
+            row = row.with_drag_source_motion(true);
+        }
+        if self.suppress_hover {
+            row = row.suppress_hover(true);
+        }
+        if self.clear_hover_on_sync {
+            row = row.clear_hover_on_sync();
         }
         if self.droppable {
             row = if self.drop_hover {
@@ -118,6 +167,10 @@ pub fn interactive_row() -> InteractiveRowBuilder {
         droppable: false,
         drop_hover: false,
         drag_active: false,
+        drag_source: false,
+        drag_source_motion: false,
+        suppress_hover: false,
+        clear_hover_on_sync: false,
         activation_modifiers: false,
         pointer_motion_during_interaction: false,
         pointer_motion_active: false,

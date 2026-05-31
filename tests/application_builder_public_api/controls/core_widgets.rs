@@ -193,3 +193,28 @@ fn marker_run_is_prelude_accessible_and_passive() {
         None
     );
 }
+
+#[test]
+fn interactive_row_builder_exposes_drag_source_configuration() {
+    use radiant::prelude::{self as ui, IntoView};
+    use radiant::widgets::InteractiveRowWidget;
+
+    let surface: UiSurface<DemoMessage> = ui::interactive_row()
+        .draggable()
+        .drag_active(true)
+        .drag_source(true)
+        .drag_source_motion(true)
+        .suppress_hover(true)
+        .clear_hover_on_sync()
+        .mapped(|_| DemoMessage::Increment)
+        .id(25)
+        .into_surface();
+
+    let row = widget_ref::<InteractiveRowWidget, _>(&surface, 25, "interactive row");
+    assert!(row.props.draggable);
+    assert!(row.props.drag_active);
+    assert!(row.props.drag_source);
+    assert!(row.props.drag_source_motion);
+    assert!(row.props.suppress_hover);
+    assert!(row.props.clear_hover_on_sync);
+}

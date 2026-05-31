@@ -1458,8 +1458,10 @@ visibility through a named state, a primary text value, fixed-size toggle
 state, and an auxiliary label without owning product-specific preference names.
 
 `radiant::gui::text_layout` contains retained text-line placement helpers such
-as `TextLineInsets`, `centered_text_line`, `top_text_line`, and
-`TextLineLayoutCache`. It also exposes deterministic approximate width helpers
+as `TextLineInsets`, `centered_text_line`, `top_text_line`,
+`centered_text_baseline`, and `TextLineLayoutCache`. The common placement and
+baseline helpers are also available through `radiant::prelude` for custom
+widget painters. The module also exposes deterministic approximate width helpers
 such as `TextWidthEstimate`, `estimated_text_width_in_range`, and
 `estimated_text_width_for_char_count_in_range` for layout decisions that must be
 made before renderer shaping metrics are available. The plain placement and

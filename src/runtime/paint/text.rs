@@ -33,5 +33,5 @@ pub(crate) fn input_font_size(rect: Rect) -> f32 {
 }
 
 pub(crate) fn optical_centered_baseline(rect: Rect, font_size: f32) -> Option<f32> {
-    Some((rect.height() * 0.5 + font_size * 0.35).max(0.0))
+    crate::gui::text_layout::centered_text_baseline(rect, font_size)
 }

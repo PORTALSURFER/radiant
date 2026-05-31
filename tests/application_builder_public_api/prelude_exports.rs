@@ -152,9 +152,18 @@ fn prelude_exports_custom_widget_signature_types() {
     let image = ui::ImageRgba::new(1, 1, vec![255, 255, 255, 255]).expect("valid image");
     let image_error = ui::ImageRgba::try_new(1, 1, vec![255]).expect_err("invalid image");
     let cursor = ui::horizontal_value_cursor_rect(rect, 0.5, 2.0).expect("cursor rect");
+    let text_line = ui::centered_text_line(rect, 13.0, ui::TextLineInsets::horizontal(2.0), 0.0);
+    let baseline = ui::centered_text_baseline(text_line, 13.0).expect("text baseline");
 
     assert_eq!(rect.width(), 8.0);
     assert_eq!(cursor.width(), 2.0);
+    assert!(baseline > 0.0);
+    assert_eq!(
+        ui::top_text_line(rect, 13.0, ui::TextLineInsets::horizontal(2.0))
+            .min
+            .y,
+        rect.min.y
+    );
     assert!(layout.rects.is_empty());
     assert_eq!(theme.text_primary.a, 255);
     assert_eq!(color.g, 2);

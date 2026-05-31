@@ -66,6 +66,11 @@ pub fn top_text_line(bounds: Rect, font_size: f32, insets: TextLineInsets) -> Re
     compute_text_line(bounds, font_size, insets, 0.0, TextLineMode::Top)
 }
 
+/// Return Radiant's default optical baseline for centered single-line text.
+pub fn centered_text_baseline(rect: Rect, font_size: f32) -> Option<f32> {
+    Some((rect.height() * 0.5 + font_size * 0.35).max(0.0))
+}
+
 /// Resolve a top-aligned text-line rect through an owned micro-layout cache.
 pub fn top_text_line_with_cache(
     cache: &mut TextLineLayoutCache,

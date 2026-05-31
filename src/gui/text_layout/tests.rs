@@ -160,6 +160,14 @@ fn snap_text_baseline_to_pixel_keeps_height_and_rounds_bottom_edge() {
 }
 
 #[test]
+fn centered_text_baseline_matches_default_optical_alignment() {
+    let line = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 33.0));
+
+    let baseline = centered_text_baseline(line, 13.0).expect("baseline");
+    assert!((baseline - 11.05).abs() < 0.0001);
+}
+
+#[test]
 fn estimated_text_width_uses_character_count_and_padding() {
     let metrics = TextWidthEstimate::new(7.0, 12.0);
 

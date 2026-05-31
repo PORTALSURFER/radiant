@@ -941,6 +941,9 @@ reusable retained paint paths and editor handles. Coordinate-centered variants
 `Rect::horizontal_strip_around_y` and `Rect::vertical_strip_around_x` shift
 inside bounds for edge-adjacent handles that should keep their requested size
 where possible.
+`Rect::intersection` provides explicit shared-area geometry for combining
+independent layout bands, hit regions, and retained paint overlays without
+hand-assembling min/max corners in application code.
 `Rect::union` provides shared bounding-box aggregation for retained rendering,
 hit testing, and automation paths.
 `StatusSegments::new(...)`, `StatusSegments::primary(...)`, and the

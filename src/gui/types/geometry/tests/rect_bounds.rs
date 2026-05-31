@@ -110,6 +110,21 @@ fn rect_intersection_helpers_distinguish_edge_contact_from_positive_overlap() {
     assert!(rect.overlaps(overlapping));
     assert!(!rect.intersects(disjoint));
     assert!(!rect.overlaps(disjoint));
+    assert_eq!(
+        rect.intersection(touching),
+        Some(Rect::from_min_max(
+            Point::new(50.0, 40.0),
+            Point::new(50.0, 60.0)
+        ))
+    );
+    assert_eq!(
+        rect.intersection(overlapping),
+        Some(Rect::from_min_max(
+            Point::new(49.0, 40.0),
+            Point::new(50.0, 60.0)
+        ))
+    );
+    assert_eq!(rect.intersection(disjoint), None);
 }
 
 #[test]

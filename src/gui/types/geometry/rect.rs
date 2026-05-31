@@ -162,6 +162,20 @@ impl Rect {
             && self.max.y > other.min.y
     }
 
+    /// Return the shared area of two rectangles, including edge contact.
+    ///
+    /// Disjoint rectangles return `None`. Rectangles that only touch at an edge
+    /// return a zero-width or zero-height rectangle at the contact edge.
+    pub fn intersection(self, other: Self) -> Option<Self> {
+        if !self.intersects(other) {
+            return None;
+        }
+        Some(Self::from_min_max(
+            Point::new(self.min.x.max(other.min.x), self.min.y.max(other.min.y)),
+            Point::new(self.max.x.min(other.max.x), self.max.y.min(other.max.y)),
+        ))
+    }
+
     /// Return an empty rectangle at this rectangle's minimum corner.
     pub fn empty_at_min(self) -> Self {
         Self::from_min_max(self.min, self.min)

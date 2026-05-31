@@ -73,6 +73,20 @@ impl InteractiveRowBuilder {
         self
     }
 
+    /// Configure this row as an input-only layer for app-owned custom painting.
+    ///
+    /// The row still routes pointer, keyboard, drag, and drop interactions, but
+    /// it does not request keyboard focus or paint Radiant's built-in focus and
+    /// hover/pressed layers. Custom composite widgets can use this preset when
+    /// they want generic row input behavior with their own visual state model.
+    pub fn custom_paint_hit_target(mut self) -> Self {
+        self.focus = Some(FocusBehavior::None);
+        self.paint_bounds = Some(PaintBounds::ClipToRect);
+        self.paints_focus = Some(false);
+        self.paints_state_layers = Some(false);
+        self
+    }
+
     /// Emit drag lifecycle messages from this row.
     pub fn draggable(mut self) -> Self {
         self.draggable = true;

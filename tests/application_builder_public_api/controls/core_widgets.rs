@@ -302,10 +302,7 @@ fn interactive_row_builder_can_create_custom_input_layer_widget() {
         .drag_source(true)
         .drag_source_motion(true)
         .activation_modifiers()
-        .focus(FocusBehavior::None)
-        .paint_bounds(PaintBounds::ClipToRect)
-        .paint_focus(false)
-        .paint_state_layers(false)
+        .custom_paint_hit_target()
         .widget();
 
     assert!(row.props.draggable);

@@ -158,3 +158,34 @@ fn snap_text_baseline_to_pixel_keeps_height_and_rounds_bottom_edge() {
         Rect::from_min_max(Point::new(10.0, 20.5), Point::new(110.0, 35.0))
     );
 }
+
+#[test]
+fn estimated_text_width_uses_character_count_and_padding() {
+    let metrics = TextWidthEstimate::new(7.0, 12.0);
+
+    assert_eq!(estimated_text_width("kick", metrics), 40.0);
+    assert_eq!(estimated_text_width_for_char_count(7, metrics), 61.0);
+}
+
+#[test]
+fn estimated_text_width_in_range_normalizes_invalid_bounds() {
+    let metrics = TextWidthEstimate::new(7.0, 12.0);
+
+    assert_eq!(
+        estimated_text_width_in_range("long sample label", metrics, 30.0, 80.0),
+        80.0
+    );
+    assert_eq!(
+        estimated_text_width_for_char_count_in_range(1, metrics, 30.0, 20.0),
+        30.0
+    );
+    assert_eq!(
+        estimated_text_width_for_char_count_in_range(
+            1,
+            TextWidthEstimate::new(f32::NAN, f32::INFINITY),
+            0.0,
+            20.0
+        ),
+        0.0
+    );
+}

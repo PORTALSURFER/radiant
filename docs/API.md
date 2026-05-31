@@ -1434,12 +1434,15 @@ state, and an auxiliary label without owning product-specific preference names.
 
 `radiant::gui::text_layout` contains retained text-line placement helpers such
 as `TextLineInsets`, `centered_text_line`, `top_text_line`, and
-`TextLineLayoutCache`. The plain placement helpers are deterministic and
-side-effect free; renderer adapters that need retention can pass an owned cache
-and font-family cache key to `centered_text_line_with_cache` or
-`top_text_line_with_cache`. That keeps hot-path text geometry reuse explicit,
-backend-owned, and free of hidden global synchronization while avoiding
-host-domain text semantics.
+`TextLineLayoutCache`. It also exposes deterministic approximate width helpers
+such as `TextWidthEstimate`, `estimated_text_width_in_range`, and
+`estimated_text_width_for_char_count_in_range` for layout decisions that must be
+made before renderer shaping metrics are available. The plain placement and
+width helpers are deterministic and side-effect free; renderer adapters that
+need retention can pass an owned cache and font-family cache key to
+`centered_text_line_with_cache` or `top_text_line_with_cache`. That keeps
+hot-path text geometry reuse explicit, backend-owned, and free of hidden global
+synchronization while avoiding host-domain text semantics.
 
 `radiant::gui::visualization` contains generic visualization models such as
 `TimelineAxis`, `TimelineLaneLayout`, `TimelineViewport`,

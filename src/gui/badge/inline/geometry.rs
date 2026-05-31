@@ -1,5 +1,6 @@
 use crate::gui::{
     badge::inline::{InlineBadgeMetrics, inline_badge_labels_owned_into},
+    text_layout::{TextWidthEstimate, estimated_text_width, estimated_text_width_in_range},
     types::{Point, Rect},
 };
 
@@ -8,7 +9,7 @@ pub fn inline_badge_text_width(text: &str, metrics: InlineBadgeMetrics) -> f32 {
     if text.is_empty() {
         return 0.0;
     }
-    ((text.chars().count() as f32) * (metrics.font_size * 0.56).max(1.0)).ceil()
+    estimated_text_width(text, badge_text_width_estimate(metrics))
 }
 
 /// Return the filled badge width needed for one inline badge label.
@@ -29,9 +30,7 @@ pub fn inline_badge_width_in_range(
     if text.is_empty() {
         return 0.0;
     }
-    let min_width = finite_nonnegative_width(min_width);
-    let max_width = finite_nonnegative_width(max_width).max(min_width);
-    inline_badge_width(text, metrics).clamp(min_width, max_width)
+    estimated_text_width_in_range(text, badge_width_estimate(metrics), min_width, max_width)
 }
 
 /// Return reserved width for a pre-split inline badge cluster.
@@ -169,10 +168,10 @@ pub fn inline_badge_text_origin(badge_rect: Rect, metrics: InlineBadgeMetrics) -
     )
 }
 
-fn finite_nonnegative_width(value: f32) -> f32 {
-    if value.is_finite() {
-        value.max(0.0)
-    } else {
-        0.0
-    }
+fn badge_text_width_estimate(metrics: InlineBadgeMetrics) -> TextWidthEstimate {
+    TextWidthEstimate::from_font_size(metrics.font_size, 0.56, 0.0)
+}
+
+fn badge_width_estimate(metrics: InlineBadgeMetrics) -> TextWidthEstimate {
+    TextWidthEstimate::from_font_size(metrics.font_size, 0.56, metrics.padding_x * 2.0)
 }

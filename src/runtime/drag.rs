@@ -1,7 +1,10 @@
 //! Runtime-owned pointer drag preview sessions.
 
 use crate::{
-    gui::types::{Point, Vector2},
+    gui::{
+        text_layout::{TextWidthEstimate, estimated_text_width_in_range},
+        types::{Point, Vector2},
+    },
     runtime::PaintText,
 };
 
@@ -93,10 +96,12 @@ impl DragPreviewTextSizing {
 
     /// Estimate the preview width for a label.
     pub fn width_for_label(self, label: &str) -> f32 {
-        let raw = label.chars().count() as f32 * self.character_width + self.horizontal_padding;
-        let min = self.min_width.max(1.0);
-        let max = self.max_width.max(min);
-        raw.clamp(min, max)
+        estimated_text_width_in_range(
+            label,
+            TextWidthEstimate::new(self.character_width, self.horizontal_padding),
+            self.min_width.max(1.0),
+            self.max_width,
+        )
     }
 }
 

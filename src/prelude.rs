@@ -90,6 +90,10 @@ pub use crate::gui::{
         ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution, ShortcutStack,
     },
     svg::SvgIcon,
+    text_layout::{
+        TextWidthEstimate, estimated_text_width, estimated_text_width_for_char_count,
+        estimated_text_width_for_char_count_in_range, estimated_text_width_in_range,
+    },
     undo::{UndoCheckpoint, UndoHistory, UndoRedoIntent, UndoTransition},
     visualization::{
         CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts, ColorRamp,

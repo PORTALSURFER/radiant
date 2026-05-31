@@ -207,6 +207,9 @@ paint-only custom widgets.
 Status surfaces and background-job indicators can use `ProgressBarWidget` for
 theme-backed determinate or indeterminate horizontal progress, with optional
 pointer activation when the bar should open details.
+Long-running work that reports fractional progress from tight worker loops can
+use `ProgressUpdateGate` to coalesce updates by time and delta before sending
+messages back into the UI, while still accepting terminal updates immediately.
 Retained custom surfaces can use `RetainedSegmentPlan` with
 `RetainedSegmentRevisions` to name static and overlay paint segments, derive
 stable invalidation masks, and bump only the revisions affected by a change.

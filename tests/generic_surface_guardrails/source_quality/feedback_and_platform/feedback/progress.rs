@@ -10,6 +10,11 @@ fn progress_feedback_keeps_overlay_state_and_track_geometry_focused() {
     let overlay_tests =
         fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/overlay/tests.rs"))
             .expect("progress overlay tests should be readable");
+    let throttle = fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/throttle.rs"))
+        .expect("progress update gate module should be readable");
+    let throttle_tests =
+        fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/throttle/tests.rs"))
+            .expect("progress update gate tests should be readable");
     let track = fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track.rs"))
         .expect("progress track module should be readable");
     let progress_track =
@@ -32,8 +37,10 @@ fn progress_feedback_keeps_overlay_state_and_track_geometry_focused() {
 
     for required in [
         "mod overlay;",
+        "mod throttle;",
         "mod track;",
-        "pub use overlay::ProgressOverlay;",
+        "pub use overlay::{ProgressOverlay, ProgressSnapshot};",
+        "pub use throttle::ProgressUpdateGate;",
         "pub use track::{",
     ] {
         assert!(
@@ -48,6 +55,7 @@ fn progress_feedback_keeps_overlay_state_and_track_geometry_focused() {
     );
     assert!(
         overlay.contains("pub struct ProgressOverlay")
+            && overlay.contains("pub struct ProgressSnapshot")
             && overlay.contains("pub visible: bool")
             && overlay.contains("pub cancel_requested: bool")
             && overlay.contains("#[path = \"overlay/tests.rs\"]")
@@ -56,8 +64,22 @@ fn progress_feedback_keeps_overlay_state_and_track_geometry_focused() {
     );
     assert!(
         overlay_tests.contains("fn progress_overlay_defaults_to_hidden_and_empty")
-            && overlay_tests.contains("ProgressOverlay::default()"),
+            && overlay_tests.contains("ProgressOverlay::default()")
+            && overlay_tests.contains("fn progress_snapshot_reports_indeterminate_progress"),
         "progress overlay behavior tests should live in progress/overlay/tests.rs"
+    );
+    assert!(
+        throttle.contains("pub struct ProgressUpdateGate")
+            && throttle.contains("pub fn accept_at")
+            && throttle.contains("#[path = \"throttle/tests.rs\"]")
+            && !throttle.contains("fn progress_update_gate_coalesces_tight_fraction_updates"),
+        "progress update throttling should live in progress/throttle.rs while behavior tests stay delegated"
+    );
+    assert!(
+        throttle_tests.contains("fn progress_update_gate_coalesces_tight_fraction_updates")
+            && throttle_tests
+                .contains("fn progress_update_gate_accepts_terminal_fraction_immediately"),
+        "progress update gate behavior tests should live in progress/throttle/tests.rs"
     );
     assert!(
         track.contains("mod meter;")
@@ -105,6 +127,7 @@ fn progress_feedback_keeps_overlay_state_and_track_geometry_focused() {
     );
     assert!(
         feedback.contains("ProgressOverlay")
+            && feedback.contains("ProgressUpdateGate")
             && feedback.contains("horizontal_progress_fill_rect")
             && feedback.contains("horizontal_meter_fill_rect"),
         "feedback facade should continue exporting progress overlay and track helpers"

@@ -9,7 +9,7 @@ pub use inline::{
     inline_indicator_reserved_width,
 };
 pub use progress::{
-    ProgressOverlay, ProgressSnapshot, horizontal_discrete_meter_fill_rect,
+    ProgressOverlay, ProgressSnapshot, ProgressUpdateGate, horizontal_discrete_meter_fill_rect,
     horizontal_meter_fill_rect, horizontal_progress_activity_rect, horizontal_progress_fill_rect,
     horizontal_progress_track_rect, horizontal_value_range_rect,
     horizontal_wrapped_value_range_rects, vertical_bipolar_fill_rect,

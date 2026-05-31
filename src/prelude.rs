@@ -60,9 +60,11 @@ pub use crate::gui::{
         RetainedSegmentPlan, RetainedSegmentRevisions,
     },
     list::{
-        ColumnSummary, ColumnSummaryParts, ListSelectionController, ListSelectionModifiers,
+        ColumnSummary, ColumnSummaryParts, DenseRowMarkerEdge, DenseRowMarkerParts,
+        DenseRowPalette, DenseRowVisualState, ListSelectionController, ListSelectionModifiers,
         VirtualListController, VirtualListStackMetrics, VirtualListStackMetricsParts,
-        VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window,
+        VirtualListWindow, VirtualListWindowRequest, dense_row_fill_color, dense_row_inset_rect,
+        dense_row_vertical_marker_rect, resolve_virtual_list_window,
     },
     paint::{horizontal_line_rect, vertical_line_rect},
     range::IndexViewport,

@@ -2,6 +2,7 @@
 
 mod editable;
 mod grid;
+mod row_paint;
 mod selection;
 mod virtual_list;
 
@@ -11,6 +12,10 @@ pub use editable::{
     EditableTreeRowInput, EditableTreeRowParts,
 };
 pub use grid::{VirtualGridWindow, VirtualGridWindowRequest, resolve_virtual_grid_window};
+pub use row_paint::{
+    DenseRowMarkerEdge, DenseRowMarkerParts, DenseRowPalette, DenseRowVisualState,
+    dense_row_fill_color, dense_row_inset_rect, dense_row_vertical_marker_rect,
+};
 pub use selection::{ListSelectionController, ListSelectionModifiers};
 pub use virtual_list::{
     MaterializedVirtualListItem, VirtualListController, VirtualListInvalidation,

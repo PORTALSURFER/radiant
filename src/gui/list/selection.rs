@@ -33,6 +33,23 @@ impl ListSelectionModifiers {
     }
 }
 
+/// Move an item index by a signed delta, clamped to the current list bounds.
+///
+/// This helper is intentionally stateless so hosts can keep durable selection
+/// identity in paths, ids, or other domain keys while sharing the generic
+/// keyboard-navigation rule.
+pub fn list_index_after_delta(current: usize, delta: isize, total_items: usize) -> Option<usize> {
+    if total_items == 0 {
+        return None;
+    }
+    let last_index = total_items.saturating_sub(1);
+    if delta.is_negative() {
+        Some(current.saturating_sub(delta.unsigned_abs()).min(last_index))
+    } else {
+        Some(current.saturating_add(delta as usize).min(last_index))
+    }
+}
+
 /// Reusable index-based focus, anchor, and multi-selection state for dense lists.
 ///
 /// Hosts keep ownership of durable row identity. This type tracks logical row

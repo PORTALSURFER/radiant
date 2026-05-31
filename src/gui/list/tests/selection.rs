@@ -1,4 +1,13 @@
-use super::super::{ListSelectionController, ListSelectionModifiers};
+use super::super::{ListSelectionController, ListSelectionModifiers, list_index_after_delta};
+
+#[test]
+fn list_index_after_delta_clamps_signed_navigation() {
+    assert_eq!(list_index_after_delta(2, 1, 5), Some(3));
+    assert_eq!(list_index_after_delta(2, -1, 5), Some(1));
+    assert_eq!(list_index_after_delta(2, 20, 5), Some(4));
+    assert_eq!(list_index_after_delta(2, -20, 5), Some(0));
+    assert_eq!(list_index_after_delta(0, 1, 0), None);
+}
 
 #[test]
 fn list_selection_controller_tracks_single_toggle_and_range_selection() {

@@ -60,6 +60,7 @@ fn prelude_exports_list_selection_controller() {
     assert_eq!(column.title, "Inbox");
     assert_eq!(column.item_count, 42);
     assert_eq!(metrics.stride(), 28.0);
+    assert_eq!(ui::list_index_after_delta(1, 1, 4), Some(2));
     assert_eq!(metrics.max_viewport_len, Some(6));
     assert_eq!(selection.selected_indices(), &[1, 2, 3]);
 }

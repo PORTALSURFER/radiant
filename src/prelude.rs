@@ -76,7 +76,7 @@ pub use crate::gui::{
     input::{KeyCode, KeyPress},
     invalidation::{
         InvalidationMask, RetainedSegment, RetainedSegmentKind, RetainedSegmentMask,
-        RetainedSegmentPlan, RetainedSegmentRevisions,
+        RetainedSegmentPlan, RetainedSegmentRevisions, RevisionCounter,
     },
     layout_core::StackedLayoutCursor,
     list::{

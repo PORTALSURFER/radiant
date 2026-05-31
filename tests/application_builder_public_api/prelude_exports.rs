@@ -70,6 +70,16 @@ fn prelude_exports_list_selection_controller() {
 }
 
 #[test]
+fn prelude_exports_revision_counter() {
+    let mut revision = ui::RevisionCounter::default();
+
+    assert_eq!(revision.get(), 0);
+    assert_eq!(revision.bump(), 1);
+    assert_eq!(revision.bump_if(false), 1);
+    assert_eq!(revision.bump_if(true), 2);
+}
+
+#[test]
 fn prelude_exports_custom_widget_authoring_contract() {
     use radiant::prelude::IntoView;
 

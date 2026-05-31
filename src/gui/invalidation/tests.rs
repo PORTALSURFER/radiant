@@ -1,6 +1,6 @@
 use super::{
     InvalidationMask, RetainedSegment, RetainedSegmentMask, RetainedSegmentPlan,
-    RetainedSegmentRevisions,
+    RetainedSegmentRevisions, RevisionCounter,
 };
 
 const VALID_MASK: u16 = 0b0111;
@@ -77,4 +77,15 @@ fn retained_segment_plan_names_groups_and_bumps_revisions() {
     PLAN.bump_revisions(&mut revisions, hover);
     assert_eq!(revisions.revisions, [0, 1, 0]);
     assert_eq!(PLAN.mask(0b1000).bits(), 0);
+}
+
+#[test]
+fn revision_counter_bumps_on_demand() {
+    let mut revision = RevisionCounter::new(u64::MAX);
+
+    assert_eq!(revision.get(), u64::MAX);
+    assert_eq!(revision.bump(), 0);
+    assert_eq!(revision.bump_if(false), 0);
+    assert_eq!(revision.bump_if(true), 1);
+    assert_eq!(revision.get(), 1);
 }

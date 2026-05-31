@@ -946,6 +946,9 @@ independent layout bands, hit regions, and retained paint overlays without
 hand-assembling min/max corners in application code.
 `Rect::union` provides shared bounding-box aggregation for retained rendering,
 hit testing, and automation paths.
+`RevisionCounter` provides a tiny GUI-state revision nonce for invalidating
+retained widget identity, cached projections, or host-owned retained resources
+after application-owned interaction state changes.
 `StatusSegments::new(...)`, `StatusSegments::primary(...)`, and the
 `with_left(...)` / `with_center(...)` / `with_right(...)` builders provide a
 structured left/center/right status-bar model for application chrome.
@@ -1491,10 +1494,10 @@ slots while keeping domain workflow state outside Radiant.
 Hosts project immutable surface snapshots. Radiant compares widget identity,
 layout inputs, style tokens, and paint data to keep redraw work focused. Generic
 invalidation primitives such as `InvalidationMask`, `RetainedSegmentMask`,
-`RetainedSegmentRevisions`, `StableFingerprint`, repaint signals, and frame
-feedback exist so backend runtimes can avoid unnecessary full-tree rebuilds and
-full redraws while still falling back conservatively when a host cannot provide
-fine-grained hints.
+`RetainedSegmentRevisions`, `RevisionCounter`, `StableFingerprint`, repaint
+signals, and frame feedback exist so backend runtimes can avoid unnecessary
+full-tree rebuilds and full redraws while still falling back conservatively
+when a host cannot provide fine-grained hints.
 
 `SurfaceRuntime` retains a `LayoutEngine` across refreshes and viewport changes
 instead of using the stateless one-shot layout helpers internally. That lets the

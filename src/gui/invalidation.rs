@@ -2,6 +2,7 @@
 
 mod mask;
 mod retained_mask;
+mod revision;
 mod segment;
 
 #[cfg(test)]
@@ -10,6 +11,7 @@ mod tests;
 
 pub use mask::InvalidationMask;
 pub use retained_mask::RetainedSegmentMask;
+pub use revision::RevisionCounter;
 pub use segment::{
     RetainedSegment, RetainedSegmentKind, RetainedSegmentPlan, RetainedSegmentRevisions,
 };

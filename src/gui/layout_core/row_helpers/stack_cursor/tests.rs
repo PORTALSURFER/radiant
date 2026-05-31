@@ -29,3 +29,13 @@ fn stacked_layout_cursor_can_continue_from_existing_offset() {
     assert_eq!(cursor.offset(), 19.0);
     assert_eq!(StackedLayoutCursor::from_offset(f32::NAN).offset(), 0.0);
 }
+
+#[test]
+fn stacked_layout_cursor_supports_chainable_optional_rows() {
+    let cursor = StackedLayoutCursor::new()
+        .advanced(20.0, 7.0)
+        .advanced_if(false, 999.0, 999.0)
+        .advanced_if(true, 18.0, 3.0);
+
+    assert_eq!(cursor.offset(), 48.0);
+}

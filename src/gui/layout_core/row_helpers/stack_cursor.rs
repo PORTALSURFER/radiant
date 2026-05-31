@@ -34,6 +34,27 @@ impl StackedLayoutCursor {
     pub fn advance(&mut self, item_extent: f32, gap_after: f32) {
         self.offset += finite_nonnegative(item_extent) + finite_nonnegative(gap_after);
     }
+
+    /// Return a cursor advanced past one item and the following gap.
+    ///
+    /// This is the chainable form of [`Self::advance`] for compact overlay
+    /// anchor calculations.
+    pub fn advanced(mut self, item_extent: f32, gap_after: f32) -> Self {
+        self.advance(item_extent, gap_after);
+        self
+    }
+
+    /// Conditionally return a cursor advanced past one item and the following gap.
+    ///
+    /// Use this when an optional row affects retained geometry or overlay
+    /// anchors and the app wants to keep the stack math declarative.
+    pub fn advanced_if(self, condition: bool, item_extent: f32, gap_after: f32) -> Self {
+        if condition {
+            self.advanced(item_extent, gap_after)
+        } else {
+            self
+        }
+    }
 }
 
 fn finite_nonnegative(value: f32) -> f32 {

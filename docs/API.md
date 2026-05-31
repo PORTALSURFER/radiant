@@ -199,7 +199,9 @@ pixel-scroll offsets with `set_scroll_offset(...)` while preserving the same
 clamping and virtual-window contract.
 Overlay and retained-geometry code that needs to mirror compact stack spacing
 can use `StackedLayoutCursor` to accumulate item extents and gaps without
-app-local offset arithmetic.
+app-local offset arithmetic. Use the chainable `advanced(...)` and
+`advanced_if(...)` forms when optional rows should affect overlay anchors
+without introducing mutable cursor plumbing at the call site.
 Timeline and waveform-style surfaces can use `IndexViewport` for generic
 integer range navigation. It owns clamping, visible fraction, scrollbar offset,
 anchor-preserving zoom, visible-span pan, and visible-to-absolute ratio

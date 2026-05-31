@@ -68,7 +68,7 @@ pub use diagnostics::{
     RetainedSurfaceCachePolicy,
 };
 pub(crate) use drag::DragSession;
-pub use drag::{DragPreview, DragRequest};
+pub use drag::{DragPreview, DragPreviewTextSizing, DragRequest};
 pub(crate) use external_drag::ExternalDragSession;
 pub use external_drag::{
     ExternalDragEffect, ExternalDragOutcome, ExternalDragPayload, ExternalDragPreview,

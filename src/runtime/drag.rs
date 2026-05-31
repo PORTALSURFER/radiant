@@ -17,6 +17,21 @@ pub struct DragPreview {
     pub size: Vector2,
 }
 
+/// Text-based sizing configuration for runtime drag previews.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DragPreviewTextSizing {
+    /// Approximate width assigned to each label character.
+    pub character_width: f32,
+    /// Horizontal space added around the label.
+    pub horizontal_padding: f32,
+    /// Minimum preview width.
+    pub min_width: f32,
+    /// Maximum preview width.
+    pub max_width: f32,
+    /// Preview height.
+    pub height: f32,
+}
+
 impl DragPreview {
     /// Build a drag preview from a label and explicit size.
     pub fn sized(label: impl Into<String>, size: Vector2) -> Self {
@@ -24,6 +39,64 @@ impl DragPreview {
             label: PaintText::from(label.into()),
             size: Vector2::new(size.x.max(1.0), size.y.max(1.0)),
         }
+    }
+
+    /// Build a drag preview whose width is estimated from its label text.
+    pub fn text_sized(label: impl Into<String>, sizing: DragPreviewTextSizing) -> Self {
+        let label = label.into();
+        let width = sizing.width_for_label(&label);
+        Self::sized(label, Vector2::new(width, sizing.height))
+    }
+}
+
+impl DragPreviewTextSizing {
+    /// Build default text sizing for the given preview height.
+    pub const fn new(height: f32) -> Self {
+        Self {
+            character_width: 7.0,
+            horizontal_padding: 28.0,
+            min_width: 96.0,
+            max_width: 280.0,
+            height,
+        }
+    }
+
+    /// Set the approximate per-character width.
+    pub const fn character_width(mut self, width: f32) -> Self {
+        self.character_width = width;
+        self
+    }
+
+    /// Set the horizontal padding.
+    pub const fn horizontal_padding(mut self, padding: f32) -> Self {
+        self.horizontal_padding = padding;
+        self
+    }
+
+    /// Set the minimum width.
+    pub const fn min_width(mut self, width: f32) -> Self {
+        self.min_width = width;
+        self
+    }
+
+    /// Set the maximum width.
+    pub const fn max_width(mut self, width: f32) -> Self {
+        self.max_width = width;
+        self
+    }
+
+    /// Set the preview height.
+    pub const fn height(mut self, height: f32) -> Self {
+        self.height = height;
+        self
+    }
+
+    /// Estimate the preview width for a label.
+    pub fn width_for_label(self, label: &str) -> f32 {
+        let raw = label.chars().count() as f32 * self.character_width + self.horizontal_padding;
+        let min = self.min_width.max(1.0);
+        let max = self.max_width.max(min);
+        raw.clamp(min, max)
     }
 }
 

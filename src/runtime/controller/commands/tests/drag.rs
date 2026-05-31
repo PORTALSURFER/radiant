@@ -1,7 +1,10 @@
 use super::fixtures::QueuedCommandBridge;
 use crate::{
     gui::types::{Point, Vector2},
-    runtime::{Command, DragPreview, DragRequest, Event, PaintPrimitive, SurfaceRuntime},
+    runtime::{
+        Command, DragPreview, DragPreviewTextSizing, DragRequest, Event, PaintPrimitive,
+        SurfaceRuntime,
+    },
     theme::ThemeTokens,
 };
 
@@ -63,4 +66,19 @@ fn drag_command_paints_runtime_preview_and_tracks_pointer_move() {
 
     runtime.execute_command(Command::end_drag());
     assert!(!runtime.drag_session_active());
+}
+
+#[test]
+fn drag_preview_text_sizing_clamps_estimated_label_width() {
+    let sizing = DragPreviewTextSizing::new(20.0)
+        .horizontal_padding(30.0)
+        .min_width(80.0)
+        .max_width(120.0);
+
+    assert_eq!(sizing.width_for_label("a"), 80.0);
+    assert_eq!(sizing.width_for_label("abcdefghij"), 100.0);
+    assert_eq!(sizing.width_for_label(&"a".repeat(200)), 120.0);
+
+    let preview = DragPreview::text_sized("abcdefghij", sizing);
+    assert_eq!(preview.size, Vector2::new(100.0, 20.0));
 }

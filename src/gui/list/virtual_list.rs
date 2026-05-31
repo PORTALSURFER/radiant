@@ -24,4 +24,5 @@ pub use scrollbar::{
 pub use window::{
     VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window,
     virtual_list_scroll_delta_from_units, virtual_list_view_start_after_scroll_delta,
+    virtual_list_view_start_for_scroll_offset,
 };

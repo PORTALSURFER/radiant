@@ -70,6 +70,7 @@ pub use crate::gui::{
         VirtualListController, VirtualListStackMetrics, VirtualListStackMetricsParts,
         VirtualListWindow, VirtualListWindowRequest, dense_row_fill_color, dense_row_inset_rect,
         dense_row_vertical_marker_rect, list_index_after_delta, resolve_virtual_list_window,
+        virtual_list_view_start_for_scroll_offset,
     },
     paint::{horizontal_line_rect, vertical_line_rect},
     range::IndexViewport,

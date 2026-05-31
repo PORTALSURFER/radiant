@@ -135,6 +135,23 @@ pub fn virtual_list_view_start_after_scroll_delta(
     Some(target as usize)
 }
 
+/// Resolve a virtual-list viewport start from a logical scroll offset.
+///
+/// This is useful for hosts receiving pixel-based scroll positions from a
+/// platform scroll container while their virtualized list model remains
+/// item-index based. The offset is clamped to the current item range and the
+/// row extent is floored at one logical unit to avoid division by zero.
+pub fn virtual_list_view_start_for_scroll_offset(
+    offset: f32,
+    row_extent: f32,
+    total_items: usize,
+) -> usize {
+    if total_items == 0 {
+        return 0;
+    }
+    ((offset.max(0.0) / row_extent.max(1.0)).floor() as usize).min(total_items.saturating_sub(1))
+}
+
 /// Convert signed logical scroll units into a bounded virtual-list row delta.
 ///
 /// `raw_units` should already be normalized by the caller: for example,

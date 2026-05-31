@@ -1,5 +1,6 @@
 use super::super::super::{
     VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window,
+    virtual_list_view_start_for_scroll_offset,
 };
 
 #[test]
@@ -80,4 +81,19 @@ fn virtual_list_window_handles_empty_or_zero_viewport_requests() {
         })
         .is_empty()
     );
+}
+
+#[test]
+fn virtual_list_view_start_for_scroll_offset_clamps_to_item_range() {
+    assert_eq!(virtual_list_view_start_for_scroll_offset(0.0, 22.0, 24), 0);
+    assert_eq!(
+        virtual_list_view_start_for_scroll_offset(23.0 * 22.0, 22.0, 24),
+        23
+    );
+    assert_eq!(
+        virtual_list_view_start_for_scroll_offset(-20.0, 22.0, 24),
+        0
+    );
+    assert_eq!(virtual_list_view_start_for_scroll_offset(10.0, 0.0, 24), 10);
+    assert_eq!(virtual_list_view_start_for_scroll_offset(10.0, 22.0, 0), 0);
 }

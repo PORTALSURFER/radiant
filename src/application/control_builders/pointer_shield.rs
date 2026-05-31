@@ -1,5 +1,6 @@
 use crate::{
     application::{MappedWidget, ViewNode, view_node_from_widget},
+    gui::types::Point,
     runtime::WidgetMessageMapper,
     widgets::{PointerShieldMessage, PointerShieldWidget},
 };
@@ -48,6 +49,47 @@ impl PointerShieldBuilder {
         view_node_from_widget(MappedWidget::new(
             self.widget,
             WidgetMessageMapper::typed(map),
+        ))
+    }
+
+    /// Build this shield as a passive input layer that emits no host messages.
+    pub fn view<Message: 'static>(self) -> ViewNode<Message> {
+        view_node_from_widget(self.widget)
+    }
+
+    /// Emit a cloned host message only when the shield receives a pointer drop.
+    pub fn on_drop<Message>(self, message: Message) -> ViewNode<Message>
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        view_node_from_widget(MappedWidget::new(
+            self.widget,
+            WidgetMessageMapper::dynamic(move |output| {
+                output
+                    .typed_ref::<PointerShieldMessage>()
+                    .and_then(|message_payload| match message_payload {
+                        PointerShieldMessage::PointerDrop { .. } => Some(message.clone()),
+                        _ => None,
+                    })
+            }),
+        ))
+    }
+
+    /// Emit a host message from pointer movement positions only.
+    pub fn on_pointer_move<Message: 'static>(
+        self,
+        map: impl Fn(Point) -> Message + Send + Sync + 'static,
+    ) -> ViewNode<Message> {
+        view_node_from_widget(MappedWidget::new(
+            self.widget,
+            WidgetMessageMapper::dynamic(move |output| {
+                output
+                    .typed_ref::<PointerShieldMessage>()
+                    .and_then(|message| match message {
+                        PointerShieldMessage::PointerMove { position } => Some(map(*position)),
+                        _ => None,
+                    })
+            }),
         ))
     }
 }

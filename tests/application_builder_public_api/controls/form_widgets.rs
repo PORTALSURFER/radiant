@@ -51,6 +51,17 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
         ui::pointer_drop_shield(true)
             .mapped(|_| "pointer-drop")
             .id(26),
+        ui::pointer_drop_shield(true).on_drop("drop-message").id(27),
+        ui::pointer_move_shield(true)
+            .on_pointer_move(|position| {
+                if position.x > 3.0 {
+                    "move-right"
+                } else {
+                    "move-left"
+                }
+            })
+            .id(28),
+        ui::pointer_shield(true).view().id(29),
     ])
     .into_surface();
 
@@ -140,6 +151,44 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
             }),
         ),
         Some("pointer-drop")
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            27,
+            radiant::widgets::WidgetOutput::typed(PointerShieldMessage::PointerDrop {
+                position: ui::Point::new(1.0, 2.0),
+                button: ui::PointerButton::Primary,
+                modifiers: Default::default(),
+            }),
+        ),
+        Some("drop-message")
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            27,
+            radiant::widgets::WidgetOutput::typed(PointerShieldMessage::PointerMove {
+                position: ui::Point::new(1.0, 2.0),
+            }),
+        ),
+        None
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            28,
+            radiant::widgets::WidgetOutput::typed(PointerShieldMessage::PointerMove {
+                position: ui::Point::new(4.0, 2.0),
+            }),
+        ),
+        Some("move-right")
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            29,
+            radiant::widgets::WidgetOutput::typed(PointerShieldMessage::PointerMove {
+                position: ui::Point::new(4.0, 2.0),
+            }),
+        ),
+        None
     );
 }
 

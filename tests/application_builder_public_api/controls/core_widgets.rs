@@ -1,7 +1,8 @@
 use super::super::*;
 use radiant::widgets::{
-    ButtonWidget, SliderMessage, SliderWidget, TextInputWidget, TextWidget, ToggleWidget,
-    WidgetProminence, WidgetStyle, WidgetTone,
+    BadgeMessage, BadgeWidget, ButtonWidget, ColorMarkerWidget, MarkerRunWidget, SliderMessage,
+    SliderWidget, TextInputWidget, TextWidget, ToggleWidget, WidgetOutput, WidgetProminence,
+    WidgetStyle, WidgetTone,
 };
 
 #[test]
@@ -116,8 +117,79 @@ fn application_builders_expose_padding_style_and_text_policy_helpers() {
     assert_eq!(
         surface.dispatch_widget_output(
             15,
-            radiant::widgets::WidgetOutput::typed(SliderMessage::ValueChanged { value: 0.75 }),
+            WidgetOutput::typed(SliderMessage::ValueChanged { value: 0.75 }),
         ),
         Some(())
+    );
+}
+
+#[test]
+fn passive_badge_is_prelude_accessible_and_does_not_emit_messages() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<()> = ui::passive_badge("KEEP")
+        .style(WidgetStyle {
+            tone: WidgetTone::Warning,
+            prominence: WidgetProminence::Subtle,
+        })
+        .id(22)
+        .into_surface();
+
+    let badge = widget_ref::<BadgeWidget, _>(&surface, 22, "badge");
+    assert_eq!(badge.props.label, "KEEP");
+    assert_eq!(badge.common.style.tone, WidgetTone::Warning);
+    assert_eq!(badge.common.style.prominence, WidgetProminence::Subtle);
+    assert_eq!(
+        surface.dispatch_widget_output(22, WidgetOutput::typed(BadgeMessage::Activate)),
+        None
+    );
+}
+
+#[test]
+fn color_marker_is_prelude_accessible_and_passive() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let color = ui::Rgba8::new(20, 40, 60, 255);
+    let surface: UiSurface<()> = ui::color_marker(Some(color))
+        .side(6)
+        .inset(2)
+        .align(ui::ColorMarkerAlign::Left)
+        .view()
+        .id(23)
+        .into_surface();
+
+    let marker = widget_ref::<ColorMarkerWidget, _>(&surface, 23, "color marker");
+    assert_eq!(marker.props.color, Some(color));
+    assert_eq!(marker.props.side, 6);
+    assert_eq!(marker.props.inset, 2);
+    assert_eq!(marker.props.align, ui::ColorMarkerAlign::Left);
+    assert_eq!(
+        surface.dispatch_widget_output(23, WidgetOutput::typed(())),
+        None
+    );
+}
+
+#[test]
+fn marker_run_is_prelude_accessible_and_passive() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let color = ui::Rgba8::new(80, 180, 90, 255);
+    let surface: UiSurface<()> = ui::marker_run(Some(color), 3)
+        .side(5)
+        .gap(4)
+        .inset(2)
+        .view()
+        .id(24)
+        .into_surface();
+
+    let markers = widget_ref::<MarkerRunWidget, _>(&surface, 24, "marker run");
+    assert_eq!(markers.props.color, Some(color));
+    assert_eq!(markers.props.count, 3);
+    assert_eq!(markers.props.side, 5);
+    assert_eq!(markers.props.gap, 4);
+    assert_eq!(markers.props.inset, 2);
+    assert_eq!(
+        surface.dispatch_widget_output(24, WidgetOutput::typed(())),
+        None
     );
 }

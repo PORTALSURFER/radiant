@@ -35,6 +35,11 @@ pub enum ListItemMessage {
 pub enum InteractiveRowMessage {
     /// The row was activated by pointer or keyboard input.
     Activate,
+    /// The row was activated by primary pointer input with modifier state.
+    ActivateWithModifiers {
+        /// Modifier state at release time.
+        modifiers: PointerModifiers,
+    },
     /// The row received a primary-button double activation.
     DoubleActivate,
     /// The row received a secondary/right pointer click.

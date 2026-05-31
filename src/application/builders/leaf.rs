@@ -1,6 +1,7 @@
 use super::defaults::{
-    default_button_sizing, default_canvas_sizing, default_card_sizing, default_gpu_surface_sizing,
-    default_text_input_sizing, default_text_sizing, default_toggle_sizing,
+    default_badge_sizing, default_button_sizing, default_canvas_sizing, default_card_sizing,
+    default_gpu_surface_sizing, default_text_input_sizing, default_text_sizing,
+    default_toggle_sizing,
 };
 use crate::{
     application::{DynamicWidget, MappedWidget, ViewNode, ViewNodeKind, WidgetView},

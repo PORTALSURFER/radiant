@@ -3,10 +3,14 @@
 mod action_row;
 mod badge;
 mod button;
+mod color_marker;
 mod drag_handle;
 mod dropdown;
 mod icon_button;
 mod interactive_row;
+mod marker_run;
+mod pointer_shield;
+mod progress_bar;
 mod scrollbar;
 mod selectable;
 mod slider;
@@ -16,6 +20,7 @@ mod toggle;
 pub use action_row::{ActionRowBuilder, DEFAULT_ACTION_ROW_HEIGHT, action_row};
 pub use badge::{BadgeBuilder, badge, badge_mapped, badge_message};
 pub use button::{ButtonBuilder, button, button_mapped, button_message};
+pub use color_marker::{ColorMarkerBuilder, color_marker};
 pub use drag_handle::{DragHandleBuilder, drag_handle, drag_handle_mapped};
 pub use dropdown::{
     DropdownBuilder, DropdownBuilderNeedsToggle, DropdownOption, DropdownOptionParts,
@@ -24,6 +29,13 @@ pub use dropdown::{
 };
 pub use icon_button::{IconButtonBuilder, icon_button};
 pub use interactive_row::{InteractiveRowBuilder, interactive_row};
+pub use marker_run::{MarkerRunBuilder, marker_run};
+pub use pointer_shield::{
+    PointerShieldBuilder, pointer_drop_shield, pointer_move_shield, pointer_shield,
+};
+pub use progress_bar::{
+    ProgressBarBuilder, determinate_progress_bar, indeterminate_progress_bar, progress_bar,
+};
 pub use scrollbar::{ScrollbarBuilder, scrollbar};
 pub use selectable::{SelectableBuilder, selectable, selectable_mapped};
 pub use slider::{SliderBuilder, slider, slider_mapped};

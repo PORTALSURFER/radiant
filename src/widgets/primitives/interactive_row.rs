@@ -40,6 +40,22 @@ pub struct InteractiveRowProps {
     pub drop_hover: bool,
     /// Clear stale hover state when a retained row is synchronized.
     pub clear_hover_on_sync: bool,
+    /// Emit modifier-aware activation messages for primary pointer release.
+    pub activation_modifiers: bool,
+    /// Pointer-motion routing policy for this row.
+    pub pointer_motion: InteractiveRowPointerMotion,
+    /// Extra app-owned activity that should keep pointer motion routed.
+    pub pointer_motion_active: bool,
+}
+
+/// Pointer-motion routing policy for dense interactive rows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum InteractiveRowPointerMotion {
+    /// Always receive pointer motion, allowing normal hover updates.
+    #[default]
+    Always,
+    /// Receive pointer motion only while pressed, dragging, dropping, or app-active.
+    DuringInteraction,
 }
 
 /// Named construction fields for [`InteractiveRowWidget`].
@@ -121,6 +137,24 @@ impl InteractiveRowWidget {
         self.props.clear_hover_on_sync = true;
         self
     }
+
+    /// Include primary-release modifier state in pointer activation messages.
+    pub fn with_activation_modifiers(mut self) -> Self {
+        self.props.activation_modifiers = true;
+        self
+    }
+
+    /// Restrict pointer-motion routing to active interactions.
+    pub fn with_pointer_motion_during_interaction(mut self) -> Self {
+        self.props.pointer_motion = InteractiveRowPointerMotion::DuringInteraction;
+        self
+    }
+
+    /// Mark app-owned interaction state that should keep pointer motion routed.
+    pub fn with_pointer_motion_active(mut self, active: bool) -> Self {
+        self.props.pointer_motion_active = active;
+        self
+    }
 }
 
 impl Widget for InteractiveRowWidget {
@@ -137,7 +171,15 @@ impl Widget for InteractiveRowWidget {
     }
 
     fn accepts_pointer_move(&self) -> bool {
-        true
+        match self.props.pointer_motion {
+            InteractiveRowPointerMotion::Always => true,
+            InteractiveRowPointerMotion::DuringInteraction => {
+                self.common.state.pressed
+                    || self.props.drag_active
+                    || self.props.drag_source
+                    || self.props.pointer_motion_active
+            }
+        }
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

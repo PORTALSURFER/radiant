@@ -1,5 +1,8 @@
 use super::super::*;
-use radiant::widgets::{SliderWidget, TextInputMessage, TextInputWidget};
+use radiant::widgets::{
+    PointerShieldMessage, PointerShieldWidget, ProgressBarMessage, ProgressBarWidget, SliderWidget,
+    TextInputMessage, TextInputWidget,
+};
 
 #[test]
 fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact_slider() {
@@ -13,8 +16,11 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
         ui::interactive_row()
             .draggable()
             .droppable(true)
+            .pointer_motion_during_interaction()
+            .pointer_motion_active(true)
             .mapped(|message| match message {
                 ui::InteractiveRowMessage::Activate => "row",
+                ui::InteractiveRowMessage::ActivateWithModifiers { .. } => "row-modifiers",
                 ui::InteractiveRowMessage::DoubleActivate => "double-row",
                 ui::InteractiveRowMessage::Drag(_) => "drag",
                 ui::InteractiveRowMessage::SecondaryActivate { .. } => "secondary",
@@ -22,6 +28,13 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
                 ui::InteractiveRowMessage::HoverDropTarget { .. } => "hover-drop",
             })
             .id(20),
+        ui::interactive_row()
+            .drop_only(true)
+            .mapped(|message| match message {
+                ui::InteractiveRowMessage::Drop => "drop-only",
+                _ => "drop-only-other",
+            })
+            .id(24),
         ui::scrollbar(ui::ScrollbarAxis::Horizontal)
             .viewport_fraction(0.25)
             .offset_fraction(0.5)
@@ -29,19 +42,44 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
             .id(21),
         ui::icon_button(icon).active(true).message("icon").id(22),
         ui::slider(0.25).compact().message(|_| "slider").id(23),
+        ui::determinate_progress_bar(0.4)
+            .colors(ui::Rgba8::new(1, 2, 3, 4), ui::Rgba8::new(5, 6, 7, 8))
+            .max_track_height(5.0)
+            .activatable()
+            .mapped(|_| "progress")
+            .id(25),
+        ui::pointer_drop_shield(true)
+            .mapped(|_| "pointer-drop")
+            .id(26),
     ])
     .into_surface();
 
     let row = widget_ref::<ui::InteractiveRowWidget, _>(&surface, 20, "interactive row");
     assert!(row.props.draggable);
     assert!(row.props.droppable);
+    assert!(row.props.drop_hover);
     assert!(row.props.drag_active);
+    assert_eq!(
+        row.props.pointer_motion,
+        ui::InteractiveRowPointerMotion::DuringInteraction
+    );
+    assert!(row.props.pointer_motion_active);
     assert_eq!(
         surface.dispatch_widget_output(
             20,
             radiant::widgets::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
         ),
         Some("row")
+    );
+    let drop_only = widget_ref::<ui::InteractiveRowWidget, _>(&surface, 24, "drop-only row");
+    assert!(drop_only.props.droppable);
+    assert!(!drop_only.props.drop_hover);
+    assert_eq!(
+        surface.dispatch_widget_output(
+            24,
+            radiant::widgets::WidgetOutput::typed(ui::InteractiveRowMessage::Drop),
+        ),
+        Some("drop-only")
     );
 
     let scrollbar = widget_ref::<radiant::widgets::ScrollbarWidget, _>(&surface, 21, "scrollbar");
@@ -71,6 +109,38 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
 
     let slider = widget_ref::<SliderWidget, _>(&surface, 23, "slider");
     assert_eq!(slider.common.sizing.preferred, Vector2::new(92.0, 20.0));
+    let progress = widget_ref::<ProgressBarWidget, _>(&surface, 25, "progress bar");
+    assert_eq!(
+        progress.props.mode,
+        radiant::widgets::ProgressBarMode::Determinate(0.4)
+    );
+    assert_eq!(progress.props.max_track_height, 5.0);
+    assert!(progress.props.interactive);
+    assert_eq!(
+        surface.dispatch_widget_output(
+            25,
+            radiant::widgets::WidgetOutput::typed(ProgressBarMessage::Activate),
+        ),
+        Some("progress")
+    );
+
+    let shield = widget_ref::<PointerShieldWidget, _>(&surface, 26, "pointer shield");
+    assert!(shield.props.active);
+    assert!(!shield.props.pointer_move);
+    assert!(!shield.props.pointer_press);
+    assert!(!shield.props.pointer_release);
+    assert!(shield.props.pointer_drop);
+    assert_eq!(
+        surface.dispatch_widget_output(
+            26,
+            radiant::widgets::WidgetOutput::typed(PointerShieldMessage::PointerDrop {
+                position: ui::Point::new(1.0, 2.0),
+                button: ui::PointerButton::Primary,
+                modifiers: Default::default(),
+            }),
+        ),
+        Some("pointer-drop")
+    );
 }
 
 #[test]

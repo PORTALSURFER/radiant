@@ -11,7 +11,11 @@ pub struct InteractiveRowBuilder {
     style: Option<WidgetStyle>,
     draggable: bool,
     droppable: bool,
+    drop_hover: bool,
     drag_active: bool,
+    activation_modifiers: bool,
+    pointer_motion_during_interaction: bool,
+    pointer_motion_active: bool,
 }
 
 impl InteractiveRowBuilder {
@@ -38,7 +42,34 @@ impl InteractiveRowBuilder {
     /// Emit drop and hover-drop-target messages.
     pub fn droppable(mut self, drag_active: bool) -> Self {
         self.droppable = true;
+        self.drop_hover = true;
         self.drag_active = drag_active;
+        self
+    }
+
+    /// Emit drop messages without hover-drop-target messages.
+    pub fn drop_only(mut self, drag_active: bool) -> Self {
+        self.droppable = true;
+        self.drop_hover = false;
+        self.drag_active = drag_active;
+        self
+    }
+
+    /// Include primary-release modifier state in pointer activation messages.
+    pub fn activation_modifiers(mut self) -> Self {
+        self.activation_modifiers = true;
+        self
+    }
+
+    /// Restrict pointer-motion routing to active row interactions.
+    pub fn pointer_motion_during_interaction(mut self) -> Self {
+        self.pointer_motion_during_interaction = true;
+        self
+    }
+
+    /// Mark app-owned interaction state that should keep pointer motion routed.
+    pub fn pointer_motion_active(mut self, active: bool) -> Self {
+        self.pointer_motion_active = active;
         self
     }
 
@@ -55,7 +86,20 @@ impl InteractiveRowBuilder {
             row = row.with_drag();
         }
         if self.droppable {
-            row = row.with_drop_target(self.drag_active);
+            row = if self.drop_hover {
+                row.with_drop_target(self.drag_active)
+            } else {
+                row.with_drop_only(self.drag_active)
+            };
+        }
+        if self.activation_modifiers {
+            row = row.with_activation_modifiers();
+        }
+        if self.pointer_motion_during_interaction {
+            row = row.with_pointer_motion_during_interaction();
+        }
+        if self.pointer_motion_active {
+            row = row.with_pointer_motion_active(true);
         }
         let mut node = view_node_from_widget(MappedWidget::new(
             row,
@@ -72,6 +116,10 @@ pub fn interactive_row() -> InteractiveRowBuilder {
         style: None,
         draggable: false,
         droppable: false,
+        drop_hover: false,
         drag_active: false,
+        activation_modifiers: false,
+        pointer_motion_during_interaction: false,
+        pointer_motion_active: false,
     }
 }

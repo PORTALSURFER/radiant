@@ -82,7 +82,7 @@ impl InteractiveRowWidget {
             WidgetInput::PointerRelease {
                 position,
                 button: PointerButton::Primary,
-                ..
+                modifiers,
             } => {
                 if self.props.droppable
                     && self.props.drag_active
@@ -105,7 +105,14 @@ impl InteractiveRowWidget {
                         position,
                     }));
                 }
-                activated.then_some(InteractiveRowMessage::Activate)
+                if !activated {
+                    return None;
+                }
+                if self.props.activation_modifiers {
+                    Some(InteractiveRowMessage::ActivateWithModifiers { modifiers })
+                } else {
+                    Some(InteractiveRowMessage::Activate)
+                }
             }
             WidgetInput::PointerDrop {
                 position,

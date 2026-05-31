@@ -82,6 +82,40 @@ fn interactive_row_emits_double_activation() {
 }
 
 #[test]
+fn interactive_row_can_emit_modifier_aware_pointer_activation() {
+    let mut row = InteractiveRowWidget::new(39, WidgetSizing::fixed(Vector2::new(120.0, 18.0)))
+        .with_activation_modifiers();
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
+    let modifiers = PointerModifiers {
+        shift: true,
+        ..PointerModifiers::default()
+    };
+
+    assert_eq!(
+        row.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(16.0, 8.0),
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            },
+        ),
+        None
+    );
+    assert_eq!(
+        row.handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(16.0, 8.0),
+                button: PointerButton::Primary,
+                modifiers,
+            },
+        ),
+        Some(InteractiveRowMessage::ActivateWithModifiers { modifiers })
+    );
+}
+
+#[test]
 fn interactive_row_clears_stale_hover_when_requested() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
     let mut previous =
@@ -155,6 +189,20 @@ fn interactive_row_can_report_active_drag_source_motion_after_refresh() {
             position: Point::new(34.0, 8.0),
         }))
     );
+}
+
+#[test]
+fn interactive_row_can_limit_pointer_motion_to_active_interactions() {
+    let mut row = InteractiveRowWidget::new(40, WidgetSizing::fixed(Vector2::new(120.0, 18.0)))
+        .with_pointer_motion_during_interaction();
+    assert!(!row.accepts_pointer_move());
+
+    row.common.state.pressed = true;
+    assert!(row.accepts_pointer_move());
+
+    row.common.state.pressed = false;
+    row = row.with_pointer_motion_active(true);
+    assert!(row.accepts_pointer_move());
 }
 
 #[test]

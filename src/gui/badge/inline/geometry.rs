@@ -19,6 +19,21 @@ pub fn inline_badge_width(text: &str, metrics: InlineBadgeMetrics) -> f32 {
     inline_badge_text_width(text, metrics) + (metrics.padding_x * 2.0)
 }
 
+/// Return a badge width clamped to a caller-defined logical-width range.
+pub fn inline_badge_width_in_range(
+    text: &str,
+    metrics: InlineBadgeMetrics,
+    min_width: f32,
+    max_width: f32,
+) -> f32 {
+    if text.is_empty() {
+        return 0.0;
+    }
+    let min_width = finite_nonnegative_width(min_width);
+    let max_width = finite_nonnegative_width(max_width).max(min_width);
+    inline_badge_width(text, metrics).clamp(min_width, max_width)
+}
+
 /// Return reserved width for a pre-split inline badge cluster.
 pub fn inline_badge_cluster_reserved_width(labels: &[String], metrics: InlineBadgeMetrics) -> f32 {
     if labels.is_empty() {
@@ -152,4 +167,12 @@ pub fn inline_badge_text_origin(badge_rect: Rect, metrics: InlineBadgeMetrics) -
         badge_rect.min.x + metrics.padding_x,
         badge_rect.min.y + ((badge_rect.height() - metrics.font_size) * 0.5).floor(),
     )
+}
+
+fn finite_nonnegative_width(value: f32) -> f32 {
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
+    }
 }

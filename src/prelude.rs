@@ -43,6 +43,13 @@ pub use crate::application::{MarkerRunBuilder, marker_run};
 pub use crate::gui::paint::BorderSides;
 pub use crate::gui::types::{ImageRgba, ImageRgbaError, Point, Rect, Rgba8, Vector2};
 pub use crate::gui::{
+    badge::{
+        InlineBadgeMetrics, InlineBadgeMetricsParts, inline_badge_cluster_reserved_width,
+        inline_badge_height, inline_badge_labels, inline_badge_labels_owned,
+        inline_badge_labels_owned_into, inline_badge_rects, inline_badge_rects_for_labels,
+        inline_badge_rects_for_labels_into, inline_badge_rects_into, inline_badge_text_origin,
+        inline_badge_text_width, inline_badge_width, inline_badge_width_in_range,
+    },
     chrome::{
         ContentViewActivityChrome, ContentViewChrome, ContentViewFooterChrome,
         ContentViewSearchChrome, ContentViewSortChrome, ContentViewTabs, StatusSegments,

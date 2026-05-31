@@ -3,7 +3,7 @@ use super::{
     inline_badge_cluster_reserved_width, inline_badge_height, inline_badge_labels_owned,
     inline_badge_labels_owned_into, inline_badge_rects, inline_badge_rects_for_labels,
     inline_badge_rects_for_labels_into, inline_badge_rects_into, inline_badge_text_origin,
-    inline_badge_width,
+    inline_badge_width, inline_badge_width_in_range,
 };
 use crate::gui::selection::TriState;
 use crate::gui::types::{Point, Rect};
@@ -55,6 +55,21 @@ fn inline_badge_labels_and_widths_are_stable() {
     assert_eq!(labels, ["One", "Two", "Three"]);
     assert_eq!(inline_badge_width("One", metrics), 23.0);
     assert_eq!(inline_badge_cluster_reserved_width(&labels, metrics), 90.0);
+}
+
+#[test]
+fn inline_badge_width_in_range_clamps_non_empty_labels() {
+    let metrics = badge_metrics();
+
+    assert_eq!(
+        inline_badge_width_in_range("One", metrics, 30.0, 80.0),
+        30.0
+    );
+    assert_eq!(
+        inline_badge_width_in_range("Long badge label", metrics, 30.0, 80.0),
+        80.0
+    );
+    assert_eq!(inline_badge_width_in_range("", metrics, 30.0, 80.0), 0.0);
 }
 
 #[test]

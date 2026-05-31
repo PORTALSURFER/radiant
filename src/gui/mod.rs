@@ -23,6 +23,8 @@ pub mod automation;
 pub mod badge;
 /// Generic chrome and status-surface primitives.
 pub mod chrome;
+/// Generic disclosure and mutually-exclusive open-state primitives.
+pub mod disclosure;
 /// Generic user-feedback surface primitives.
 pub mod feedback;
 /// Stable fingerprint helpers for retained cache invalidation.

@@ -45,6 +45,7 @@ pub use crate::gui::{
         ContentViewSearchChrome, ContentViewSortChrome, ContentViewTabs, StatusSegments,
         StatusSegmentsParts,
     },
+    disclosure::ExclusiveOpen,
     feedback::{
         ProgressSnapshot, ProgressUpdateGate, StatusLineEntry, StatusLineEntryParts, StatusLineLog,
         horizontal_progress_fill_rect, horizontal_value_range_rect,

@@ -6,6 +6,7 @@ mod button;
 mod color_marker;
 mod drag_handle;
 mod dropdown;
+mod feedback_overlay;
 mod icon_button;
 mod interactive_row;
 mod marker_run;
@@ -27,6 +28,7 @@ pub use dropdown::{
     DropdownOptionSelection, DropdownParts, dropdown, dropdown_from_parts, dropdown_height,
     dropdown_menu, dropdown_menu_height, dropdown_menu_overlay, dropdown_option, state_dropdown,
 };
+pub use feedback_overlay::{FeedbackOverlayBuilder, feedback_overlay};
 pub use icon_button::{IconButtonBuilder, icon_button};
 pub use interactive_row::{InteractiveRowBuilder, interactive_row};
 pub use marker_run::{MarkerRunBuilder, marker_run};

@@ -78,16 +78,16 @@ mod control_builders;
 pub use control_builders::{
     ActionRowBuilder, BadgeBuilder, ButtonBuilder, ColorMarkerBuilder, DEFAULT_ACTION_ROW_HEIGHT,
     DragHandleBuilder, DropdownBuilder, DropdownBuilderNeedsToggle, DropdownOption,
-    DropdownOptionParts, DropdownOptionSelection, DropdownParts, IconButtonBuilder,
-    InteractiveRowBuilder, MarkerRunBuilder, PointerShieldBuilder, ProgressBarBuilder,
-    ScrollbarBuilder, SelectableBuilder, SliderBuilder, TextInputBuilder, ToggleBuilder,
-    action_row, badge, badge_mapped, badge_message, button, button_mapped, button_message,
-    checkbox, color_marker, determinate_progress_bar, drag_handle, drag_handle_mapped, dropdown,
-    dropdown_from_parts, dropdown_height, dropdown_menu, dropdown_menu_height,
-    dropdown_menu_overlay, dropdown_option, icon_button, indeterminate_progress_bar,
-    interactive_row, marker_run, pointer_drop_shield, pointer_move_shield, pointer_shield,
-    progress_bar, scrollbar, selectable, selectable_mapped, slider, slider_mapped, state_dropdown,
-    text_input, text_input_mapped, toggle, toggle_mapped,
+    DropdownOptionParts, DropdownOptionSelection, DropdownParts, FeedbackOverlayBuilder,
+    IconButtonBuilder, InteractiveRowBuilder, MarkerRunBuilder, PointerShieldBuilder,
+    ProgressBarBuilder, ScrollbarBuilder, SelectableBuilder, SliderBuilder, TextInputBuilder,
+    ToggleBuilder, action_row, badge, badge_mapped, badge_message, button, button_mapped,
+    button_message, checkbox, color_marker, determinate_progress_bar, drag_handle,
+    drag_handle_mapped, dropdown, dropdown_from_parts, dropdown_height, dropdown_menu,
+    dropdown_menu_height, dropdown_menu_overlay, dropdown_option, feedback_overlay, icon_button,
+    indeterminate_progress_bar, interactive_row, marker_run, pointer_drop_shield,
+    pointer_move_shield, pointer_shield, progress_bar, scrollbar, selectable, selectable_mapped,
+    slider, slider_mapped, state_dropdown, text_input, text_input_mapped, toggle, toggle_mapped,
 };
 mod layout_builders;
 pub use layout_builders::{

@@ -1,8 +1,8 @@
 use super::super::*;
 use radiant::widgets::{
-    BadgeMessage, BadgeWidget, ButtonWidget, ColorMarkerWidget, MarkerRunWidget, SliderMessage,
-    SliderWidget, TextInputWidget, TextWidget, ToggleWidget, WidgetOutput, WidgetProminence,
-    WidgetStyle, WidgetTone,
+    BadgeMessage, BadgeWidget, ButtonWidget, ColorMarkerWidget, FeedbackOverlayWidget,
+    MarkerRunWidget, SliderMessage, SliderWidget, TextInputWidget, TextWidget, ToggleWidget,
+    WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
 };
 
 #[test]
@@ -190,6 +190,41 @@ fn marker_run_is_prelude_accessible_and_passive() {
     assert_eq!(markers.props.inset, 2);
     assert_eq!(
         surface.dispatch_widget_output(24, WidgetOutput::typed(())),
+        None
+    );
+}
+
+#[test]
+fn feedback_overlay_is_prelude_accessible_and_passive() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let background = ui::Rgba8::new(20, 24, 28, 90);
+    let fill = ui::Rgba8::new(180, 190, 200, 120);
+    let edge = ui::Rgba8::new(60, 200, 120, 220);
+    let surface: UiSurface<()> = ui::feedback_overlay()
+        .background(background)
+        .progress(0.5, fill)
+        .edge(
+            edge,
+            2.0,
+            ui::BorderSides {
+                top: true,
+                bottom: true,
+                left: false,
+                right: false,
+            },
+        )
+        .view()
+        .id(26)
+        .into_surface();
+
+    let overlay = widget_ref::<FeedbackOverlayWidget, _>(&surface, 26, "feedback overlay");
+    assert_eq!(overlay.props.background, Some(background));
+    assert_eq!(overlay.props.progress.expect("progress").fraction, 0.5);
+    assert_eq!(overlay.props.progress.expect("progress").color, fill);
+    assert_eq!(overlay.props.edge.expect("edge").color, edge);
+    assert_eq!(
+        surface.dispatch_widget_output(26, WidgetOutput::typed(())),
         None
     );
 }

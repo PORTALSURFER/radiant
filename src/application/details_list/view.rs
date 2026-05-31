@@ -1,6 +1,6 @@
 use super::model::{DetailsColumn, DetailsRow, DetailsSort};
 use crate::{
-    application::{StateStringCallback, StateView, button, column, row, scroll, text},
+    application::{StateStringCallback, StateView, View, button, column, row, scroll, text},
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 use std::sync::Arc;
@@ -119,9 +119,15 @@ fn sized_cell<State: 'static>(column: &DetailsColumn, cell: StateView<State>) ->
     }
 }
 
-fn compact_details_row<State: 'static>(
-    children: impl IntoIterator<Item = StateView<State>>,
-) -> StateView<State> {
+/// Build a compact horizontal details-row layout.
+///
+/// This is the same dense row frame used by Radiant's built-in details list:
+/// fixed 22px row height, small vertical padding, left/right chrome, and
+/// compact cell spacing. Host apps can reuse it when they need custom row
+/// content but still want details-list density and alignment.
+pub fn compact_details_row<Message>(
+    children: impl IntoIterator<Item = View<Message>>,
+) -> View<Message> {
     row(children)
         .fill_width()
         .height(22.0)

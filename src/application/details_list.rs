@@ -7,4 +7,4 @@ pub use model::{
     SortDirection, details_column_drag_content_left, details_column_reorder_index,
     reorder_details_columns_by_id,
 };
-pub use view::{selectable_sortable_details_list, sortable_details_list};
+pub use view::{compact_details_row, selectable_sortable_details_list, sortable_details_list};

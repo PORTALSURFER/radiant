@@ -86,3 +86,26 @@ fn details_column_drag_helpers_cover_resize_and_reorder_state() {
     assert_eq!(content_left, 16.0);
     assert_eq!(reorder.target_index(&placements, 410.0, 10.0), Some(2));
 }
+
+#[test]
+fn compact_details_row_exposes_details_list_density() {
+    use super::*;
+    use radiant::prelude as ui;
+    use radiant::prelude::IntoView;
+
+    let surface: UiSurface<ui::StateAction<DemoState>> = ui::column([ui::compact_details_row([
+        ui::text("Name").id(10).fixed(40.0, 20.0),
+        ui::text("Size").id(11).fixed(40.0, 20.0),
+    ])
+    .id(1)])
+    .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 40.0)),
+    );
+
+    assert_eq!(layout.rects[&1].height(), 22.0);
+    assert_eq!(layout.rects[&10].min.x, 8.0);
+    assert_eq!(layout.rects[&10].min.y, 1.0);
+    assert_eq!(layout.rects[&11].min.x, layout.rects[&10].max.x + 10.0);
+}

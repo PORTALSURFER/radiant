@@ -132,3 +132,25 @@ pub fn compact_details_row<Message>(
         .padding_y(1.0)
         .spacing(10.0)
 }
+
+/// Build a compact details-list header row.
+///
+/// This matches Radiant's dense details-list header chrome: fixed 24px height,
+/// accent subtle background, small vertical padding, left/right chrome, and
+/// compact cell spacing. Host apps can use it when they need custom sortable,
+/// resizable, or reorderable header cells but should not repeat details-list
+/// header styling.
+pub fn compact_details_header_row<Message>(
+    children: impl IntoIterator<Item = View<Message>>,
+) -> View<Message> {
+    row(children)
+        .style(WidgetStyle::new(
+            WidgetTone::Accent,
+            WidgetProminence::Subtle,
+        ))
+        .fill_width()
+        .height(24.0)
+        .padding_x(8.0)
+        .padding_y(2.0)
+        .spacing(10.0)
+}

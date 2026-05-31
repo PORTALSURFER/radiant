@@ -14,7 +14,8 @@ pub enum SortDirection {
 }
 
 impl SortDirection {
-    pub(super) fn marker(self) -> &'static str {
+    /// Return the compact suffix used for sorted details-list headers.
+    pub const fn marker(self) -> &'static str {
         match self {
             Self::Ascending => " ^",
             Self::Descending => " v",
@@ -64,6 +65,25 @@ impl DetailsSort {
             direction,
         })
     }
+
+    /// Return the compact display label for a details-list column header.
+    ///
+    /// The sort marker is appended only when `column_id` matches this sort
+    /// state. Applications that build custom details headers can use this to
+    /// keep marker copy consistent with Radiant's built-in details lists.
+    pub fn label_for(&self, column_id: &str, label: &str) -> String {
+        if self.column_id == column_id {
+            format!("{}{}", label, self.direction.marker())
+        } else {
+            label.to_string()
+        }
+    }
+}
+
+/// Return a compact details-list header label with a sort marker when active.
+pub fn details_sort_label(label: &str, column_id: &str, sort: Option<&DetailsSort>) -> String {
+    sort.map(|sort| sort.label_for(column_id, label))
+        .unwrap_or_else(|| label.to_string())
 }
 
 /// One sortable details-list column.
@@ -234,7 +254,8 @@ impl DetailsRow {
 #[cfg(test)]
 mod tests {
     use super::{
-        DetailsColumnPlacement, details_column_reorder_index, reorder_details_columns_by_id,
+        DetailsColumnPlacement, DetailsSort, SortDirection, details_column_reorder_index,
+        details_sort_label, reorder_details_columns_by_id,
     };
 
     #[test]
@@ -277,5 +298,15 @@ mod tests {
         ));
 
         assert_eq!(columns, ["name", "extension", "size", "rating"]);
+    }
+
+    #[test]
+    fn details_sort_label_marks_only_sorted_column() {
+        let sort = DetailsSort::new("name", SortDirection::Descending);
+
+        assert_eq!(details_sort_label("Name", "name", Some(&sort)), "Name v");
+        assert_eq!(details_sort_label("Size", "size", Some(&sort)), "Size");
+        assert_eq!(details_sort_label("Name", "name", None), "Name");
+        assert_eq!(SortDirection::Ascending.marker(), " ^");
     }
 }

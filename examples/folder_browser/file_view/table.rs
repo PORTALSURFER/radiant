@@ -3,21 +3,16 @@ use std::path::Path;
 use super::super::*;
 
 pub(super) fn details_header(state: &BrowserState) -> ui::StateView<BrowserState> {
-    details_header_row(
+    ui::compact_details_header_row(
         state
             .visible_file_columns()
             .iter()
             .map(|column| {
                 let id = column.id.clone();
-                let marker = if state.columns.sort.column_id == column.id {
-                    match state.columns.sort.direction {
-                        ui::SortDirection::Ascending => " ^",
-                        ui::SortDirection::Descending => " v",
-                    }
-                } else {
-                    ""
-                };
-                let label = format!("{}{}", column.label, marker);
+                let label = state
+                    .columns
+                    .sort
+                    .label_for(column.id.as_str(), column.label.as_str());
                 sized_cell(
                     column,
                     ui::row([
@@ -78,7 +73,7 @@ pub(super) fn file_details_row(
             sized_cell(column, cell)
         })
         .collect::<Vec<_>>();
-    compact_details_row(cells)
+    ui::compact_details_row(cells)
         .key(format!("file-row-{}", file.id))
         .style(if selected {
             ui::WidgetStyle {
@@ -166,30 +161,4 @@ fn sized_cell(
     cell: ui::StateView<BrowserState>,
 ) -> ui::StateView<BrowserState> {
     cell.size(column.width, 20.0)
-}
-
-fn compact_details_row(
-    children: impl IntoIterator<Item = ui::StateView<BrowserState>>,
-) -> ui::StateView<BrowserState> {
-    ui::row(children)
-        .fill_width()
-        .height(22.0)
-        .padding_x(8.0)
-        .padding_y(1.0)
-        .spacing(10.0)
-}
-
-fn details_header_row(
-    children: impl IntoIterator<Item = ui::StateView<BrowserState>>,
-) -> ui::StateView<BrowserState> {
-    ui::row(children)
-        .style(ui::WidgetStyle {
-            tone: ui::WidgetTone::Accent,
-            prominence: ui::WidgetProminence::Subtle,
-        })
-        .fill_width()
-        .height(24.0)
-        .padding_x(8.0)
-        .padding_y(2.0)
-        .spacing(10.0)
 }

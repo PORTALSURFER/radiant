@@ -64,6 +64,11 @@ fn details_sort_supports_named_parts_construction() {
     assert_eq!(from_parts, positional);
     assert_eq!(from_parts.column_id, "kind");
     assert_eq!(from_parts.direction.toggled(), ui::SortDirection::Ascending);
+    assert_eq!(from_parts.label_for("kind", "Kind"), "Kind v");
+    assert_eq!(
+        ui::details_sort_label("Name", "name", Some(&from_parts)),
+        "Name"
+    );
 }
 
 #[test]
@@ -107,5 +112,29 @@ fn compact_details_row_exposes_details_list_density() {
     assert_eq!(layout.rects[&1].height(), 22.0);
     assert_eq!(layout.rects[&10].min.x, 8.0);
     assert_eq!(layout.rects[&10].min.y, 1.0);
+    assert_eq!(layout.rects[&11].min.x, layout.rects[&10].max.x + 10.0);
+}
+
+#[test]
+fn compact_details_header_row_exposes_details_list_header_chrome() {
+    use super::*;
+    use radiant::prelude as ui;
+    use radiant::prelude::IntoView;
+
+    let surface: UiSurface<ui::StateAction<DemoState>> =
+        ui::column([ui::compact_details_header_row([
+            ui::text("Name").id(10).fixed(40.0, 20.0),
+            ui::text("Size").id(11).fixed(40.0, 20.0),
+        ])
+        .id(1)])
+        .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 40.0)),
+    );
+
+    assert_eq!(layout.rects[&1].height(), 24.0);
+    assert_eq!(layout.rects[&10].min.x, 8.0);
+    assert_eq!(layout.rects[&10].min.y, 2.0);
     assert_eq!(layout.rects[&11].min.x, layout.rects[&10].max.x + 10.0);
 }

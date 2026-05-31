@@ -176,6 +176,9 @@ need durable item-index viewport state outside the declarative scroll container.
 It wraps the existing virtual-window, row-scroll, focus guard-band, and
 scrollbar projection helpers so applications do not need to keep viewport-start
 bookkeeping beside each large list.
+Overlay and retained-geometry code that needs to mirror compact stack spacing
+can use `StackedLayoutCursor` to accumulate item extents and gaps without
+app-local offset arithmetic.
 Timeline and waveform-style surfaces can use `IndexViewport` for generic
 integer range navigation. It owns clamping, visible fraction, scrollbar offset,
 anchor-preserving zoom, visible-span pan, and visible-to-absolute ratio

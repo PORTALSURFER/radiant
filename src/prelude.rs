@@ -60,6 +60,7 @@ pub use crate::gui::{
         InvalidationMask, RetainedSegment, RetainedSegmentKind, RetainedSegmentMask,
         RetainedSegmentPlan, RetainedSegmentRevisions,
     },
+    layout_core::StackedLayoutCursor,
     list::{
         ColumnSummary, ColumnSummaryParts, DenseRowMarkerEdge, DenseRowMarkerParts,
         DenseRowPalette, DenseRowVisualState, ListSelectionController, ListSelectionModifiers,

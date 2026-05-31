@@ -4,5 +4,7 @@
 mod layouts;
 #[path = "composition/menus.rs"]
 mod menus;
+#[path = "composition/panel_sections.rs"]
+mod panel_sections;
 #[path = "composition/property_panels.rs"]
 mod property_panels;

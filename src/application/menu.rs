@@ -1,5 +1,5 @@
 use crate::{
-    application::{StateView, button, column, row, text},
+    application::{StateView, ViewNode, button, column, row, stack, text},
     gui::types::{Point, Rect},
     layout::Vector2,
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
@@ -8,7 +8,10 @@ use std::sync::Arc;
 
 mod model;
 
-pub use model::{ContextMenuOverlayParts, MenuItem, MenuItemParts, MenuParts};
+pub use model::{
+    ContextMenuOverlayParts, DismissibleContextMenuParts, MenuCommand, MenuCommandParts, MenuItem,
+    MenuItemParts, MenuParts, MessageMenuParts,
+};
 
 /// Build a compact vertical menu.
 pub fn menu<State: 'static>(
@@ -39,6 +42,47 @@ pub fn menu_from_parts<State: 'static>(parts: MenuParts<State>) -> StateView<Sta
         tone: WidgetTone::Accent,
         prominence: WidgetProminence::Strong,
     })
+    .fill_width()
+    .padding(8.0)
+    .spacing(6.0)
+}
+
+/// Build a compact vertical menu that emits host messages.
+pub fn message_menu<Message>(
+    title: impl Into<String>,
+    commands: impl IntoIterator<Item = MenuCommand<Message>>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    message_menu_from_parts(MessageMenuParts {
+        title: title.into(),
+        style: WidgetStyle {
+            tone: WidgetTone::Accent,
+            prominence: WidgetProminence::Strong,
+        },
+        commands: commands.into_iter().collect(),
+    })
+}
+
+/// Build a compact message-emitting menu from named parts.
+pub fn message_menu_from_parts<Message>(parts: MessageMenuParts<Message>) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    column([
+        text(parts.title).fill_width().height(22.0),
+        column(
+            parts
+                .commands
+                .into_iter()
+                .enumerate()
+                .map(|(index, command)| menu_command_button(index, command)),
+        )
+        .fill_width()
+        .spacing(4.0),
+    ])
+    .style(parts.style)
     .fill_width()
     .padding(8.0)
     .spacing(6.0)
@@ -94,6 +138,66 @@ pub fn context_menu_overlay_from_parts<State: 'static>(
     .fill_height()
 }
 
+/// Build a full-surface context-menu layer with an input-only dismiss backing.
+pub fn dismissible_context_menu<Message>(
+    anchor: Point,
+    size: Vector2,
+    title: impl Into<String>,
+    commands: impl IntoIterator<Item = MenuCommand<Message>>,
+    dismiss_message: Message,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    dismissible_context_menu_from_parts(DismissibleContextMenuParts {
+        anchor,
+        size,
+        title: title.into(),
+        style: WidgetStyle {
+            tone: WidgetTone::Neutral,
+            prominence: WidgetProminence::Strong,
+        },
+        commands: commands.into_iter().collect(),
+        dismiss_message,
+    })
+}
+
+/// Build a dismissible context-menu layer from named parts.
+pub fn dismissible_context_menu_from_parts<Message>(
+    parts: DismissibleContextMenuParts<Message>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    let top = parts.anchor.y.max(0.0);
+    let left = parts.anchor.x.max(0.0);
+    stack([
+        button("")
+            .message(parts.dismiss_message)
+            .key("context-menu-dismiss")
+            .input_only()
+            .fill(),
+        column([
+            text("").fill_width().height(top),
+            row([
+                text("").size(left, 1.0),
+                message_menu_from_parts(MessageMenuParts {
+                    title: parts.title,
+                    style: parts.style,
+                    commands: parts.commands,
+                })
+                .size(parts.size.x, parts.size.y),
+                text("").fill_width().height(1.0),
+            ])
+            .fill_width()
+            .height(parts.size.y),
+            text("").fill_width().fill_height(),
+        ])
+        .fill(),
+    ])
+    .fill()
+}
+
 fn menu_item_button<State: 'static>(index: usize, item: MenuItem<State>) -> StateView<State> {
     let on_select = Arc::clone(&item.on_select);
     button(item.label)
@@ -103,3 +207,18 @@ fn menu_item_button<State: 'static>(index: usize, item: MenuItem<State>) -> Stat
         .fill_width()
         .height(28.0)
 }
+
+fn menu_command_button<Message>(index: usize, command: MenuCommand<Message>) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    button(command.label)
+        .message(command.message)
+        .key(format!("menu-command-{index}"))
+        .style(command.style)
+        .fill_width()
+        .height(28.0)
+}
+
+#[cfg(test)]
+mod tests;

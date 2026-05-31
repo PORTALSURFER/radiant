@@ -1470,7 +1470,8 @@ slots; Radiant defaults stay product-neutral.
 `radiant::gui::panel` contains generic split-pane and sidebar models such as
 `SplitPaneSlot`, `SplitPaneAssignmentState`, `SplitPaneAssignedRow`,
 `SplitPaneTreePanel`, and `SplitPaneSidebarState`, plus `anchored_panel_rect`
-for clamped popup/panel placement. Host applications map product-specific
+for clamped popup/panel placement and `PanelResizeDrag` / `PanelResizeEdge` for
+splitter-driven pane resizing. Host applications map product-specific
 navigation, workspace, project, or asset concepts onto these reusable panel
 structures.
 

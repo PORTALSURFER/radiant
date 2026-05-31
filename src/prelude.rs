@@ -92,6 +92,7 @@ pub use crate::gui::{
         virtual_list_view_start_for_scroll_offset,
     },
     paint::{horizontal_line_rect, vertical_line_rect},
+    panel::{PanelResizeDrag, PanelResizeEdge},
     range::IndexViewport,
     selection::SelectionSet,
     shortcuts::{

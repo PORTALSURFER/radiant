@@ -29,6 +29,26 @@ fn labeled_primitive_widgets_support_named_parts_construction() {
 }
 
 #[test]
+fn widget_style_supports_named_construction_and_overrides() {
+    let style = radiant::widgets::WidgetStyle::new(
+        radiant::widgets::WidgetTone::Warning,
+        radiant::widgets::WidgetProminence::Subtle,
+    )
+    .with_tone(radiant::widgets::WidgetTone::Danger)
+    .with_prominence(radiant::widgets::WidgetProminence::Strong);
+
+    assert_eq!(style.tone, radiant::widgets::WidgetTone::Danger);
+    assert_eq!(style.prominence, radiant::widgets::WidgetProminence::Strong);
+    assert_eq!(
+        radiant::widgets::WidgetStyle::default(),
+        radiant::widgets::WidgetStyle::new(
+            radiant::widgets::WidgetTone::Neutral,
+            radiant::widgets::WidgetProminence::Normal,
+        )
+    );
+}
+
+#[test]
 fn interactive_primitive_widgets_support_named_parts_construction() {
     let badge = BadgeWidget::from_parts(BadgeWidgetParts {
         id: 33,

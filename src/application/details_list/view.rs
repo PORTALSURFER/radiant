@@ -98,10 +98,7 @@ fn details_row<State: 'static>(
     }))
     .key(format!("details-row-{}", row_data.id))
     .style(if row_data.selected {
-        WidgetStyle {
-            tone: WidgetTone::Accent,
-            prominence: WidgetProminence::Subtle,
-        }
+        WidgetStyle::new(WidgetTone::Accent, WidgetProminence::Subtle)
     } else {
         WidgetStyle::default()
     })

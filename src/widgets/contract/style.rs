@@ -35,11 +35,27 @@ pub struct WidgetStyle {
     pub prominence: WidgetProminence,
 }
 
+impl WidgetStyle {
+    /// Construct a style from explicit semantic tone and prominence.
+    pub const fn new(tone: WidgetTone, prominence: WidgetProminence) -> Self {
+        Self { tone, prominence }
+    }
+
+    /// Return this style with a different semantic tone.
+    pub const fn with_tone(mut self, tone: WidgetTone) -> Self {
+        self.tone = tone;
+        self
+    }
+
+    /// Return this style with a different visual prominence.
+    pub const fn with_prominence(mut self, prominence: WidgetProminence) -> Self {
+        self.prominence = prominence;
+        self
+    }
+}
+
 impl Default for WidgetStyle {
     fn default() -> Self {
-        Self {
-            tone: WidgetTone::Neutral,
-            prominence: WidgetProminence::Normal,
-        }
+        Self::new(WidgetTone::Neutral, WidgetProminence::Normal)
     }
 }

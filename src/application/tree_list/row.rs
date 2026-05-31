@@ -73,10 +73,7 @@ pub(super) fn tree_list_row<State: 'static>(
     ])
     .key(format!("tree-list-row-{}", item.id))
     .style(if item.drop_target {
-        WidgetStyle {
-            tone: WidgetTone::Accent,
-            prominence: WidgetProminence::Subtle,
-        }
+        WidgetStyle::new(WidgetTone::Accent, WidgetProminence::Subtle)
     } else {
         WidgetStyle::default()
     })

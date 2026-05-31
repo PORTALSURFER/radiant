@@ -1,6 +1,6 @@
 //! Reusable dense-list/tree row interaction primitive.
 
-use crate::gui::types::Rect;
+use crate::gui::{list::DenseRowVisualState, types::Rect};
 use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
@@ -10,6 +10,9 @@ use crate::widgets::primitives::support::{WidgetCommon, push_control_chrome};
 
 mod builders;
 mod input;
+
+#[cfg(test)]
+mod tests;
 
 /// Public interactive row primitive for selectable, draggable, droppable rows.
 #[derive(Clone, Debug, PartialEq)]
@@ -46,6 +49,17 @@ pub struct InteractiveRowProps {
     pub pointer_motion: InteractiveRowPointerMotion,
     /// Extra app-owned activity that should keep pointer motion routed.
     pub pointer_motion_active: bool,
+}
+
+/// Host-owned dense-row state that can be merged with interactive row state.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct InteractiveRowVisualStateParts {
+    /// The row is selected by the host application.
+    pub selected: bool,
+    /// The row is the committed target for an active operation.
+    pub active_target: bool,
+    /// The row is a valid candidate for an active operation.
+    pub candidate: bool,
 }
 
 /// Pointer-motion routing policy for dense interactive rows.
@@ -154,6 +168,17 @@ impl InteractiveRowWidget {
     pub fn with_pointer_motion_active(mut self, active: bool) -> Self {
         self.props.pointer_motion_active = active;
         self
+    }
+
+    /// Project this interactive row into generic dense-list visual state.
+    pub fn dense_visual_state(&self, parts: InteractiveRowVisualStateParts) -> DenseRowVisualState {
+        DenseRowVisualState {
+            selected: parts.selected,
+            hovered: self.common.state.hovered,
+            pressed: self.common.state.pressed,
+            active_target: parts.active_target,
+            candidate: parts.candidate,
+        }
     }
 }
 

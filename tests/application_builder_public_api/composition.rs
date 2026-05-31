@@ -1,5 +1,7 @@
 //! Public composition API coverage.
 
+#[path = "composition/labeled_controls.rs"]
+mod labeled_controls;
 #[path = "composition/layouts.rs"]
 mod layouts;
 #[path = "composition/menus.rs"]

@@ -1222,7 +1222,9 @@ panel sandbox that uses `PropertyRow`, `property_panel(...)`, and
 stateful examples. Compact titled panels with optional header actions can use
 `PanelSectionParts`, `panel_section(...)`, and `panel_section_from_parts(...)`
 instead of rebuilding title rows, padding, spacing, and neutral panel chrome in
-application code.
+application code. Compact control panels can use `LabeledControlParts`,
+`labeled_control(...)`, and `labeled_control_from_parts(...)` for label-over-
+control groups without repeating label text styling and stacked spacing.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
 that composes `MenuItem`, `menu(...)`, and `context_menu_overlay(...)` with
 normal state callbacks.

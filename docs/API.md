@@ -70,7 +70,10 @@ For paint-plan emission,
 reusable primitive construction path used by complex examples and custom
 widgets. Dense custom widgets can use `push_visible_fill_rect` when derived or
 clipped geometry should only enter the paint plan if it has finite positive
-area.
+area. Timeline, waveform, progress, and scrubber-style custom widgets can use
+`push_horizontal_value_range_fill` and `push_horizontal_value_cursor_fill` to
+append guarded normalized range and cursor fills without repeating local
+geometry-to-paint boilerplate.
 
 No-state apps can launch without naming `NativeRunOptions`, `RuntimeBridge`,
 `UiSurface`, `SurfaceNode`, `SurfaceChild`, or `WidgetSizing`:

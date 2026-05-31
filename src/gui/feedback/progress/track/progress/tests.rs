@@ -1,9 +1,11 @@
 use super::{
     horizontal_progress_activity_rect, horizontal_progress_fill_rect,
     horizontal_progress_track_rect, horizontal_value_cursor_rect, horizontal_value_range_rect,
-    horizontal_wrapped_value_range_rects,
+    horizontal_wrapped_value_range_rects, push_horizontal_value_cursor_fill,
+    push_horizontal_value_range_fill,
 };
 use crate::gui::types::{Point, Rect};
+use crate::{gui::types::Rgba8, runtime::PaintPrimitive};
 
 #[test]
 fn horizontal_progress_fill_rect_clamps_to_track() {
@@ -128,6 +130,54 @@ fn horizontal_value_range_rect_centers_segment_height() {
 }
 
 #[test]
+fn push_horizontal_value_range_fill_appends_visible_segment() {
+    let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
+    let color = Rgba8::new(1, 2, 3, 4);
+    let mut primitives = Vec::new();
+
+    assert!(push_horizontal_value_range_fill(
+        &mut primitives,
+        42,
+        track,
+        0.25,
+        0.75,
+        0.5,
+        color,
+    ));
+
+    assert_eq!(primitives.len(), 1);
+    match &primitives[0] {
+        PaintPrimitive::FillRect(fill) => {
+            assert_eq!(fill.widget_id, 42);
+            assert_eq!(
+                fill.rect,
+                Rect::from_min_max(Point::new(35.0, 30.0), Point::new(85.0, 50.0))
+            );
+            assert_eq!(fill.color, color);
+        }
+        primitive => panic!("expected fill rect, got {primitive:?}"),
+    }
+}
+
+#[test]
+fn push_horizontal_value_range_fill_skips_empty_segment() {
+    let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
+    let mut primitives = Vec::new();
+
+    assert!(!push_horizontal_value_range_fill(
+        &mut primitives,
+        42,
+        track,
+        0.75,
+        0.25,
+        0.5,
+        Rgba8::new(1, 2, 3, 4),
+    ));
+
+    assert!(primitives.is_empty());
+}
+
+#[test]
 fn horizontal_value_cursor_rect_centers_pixel_stable_full_height_strip() {
     let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
 
@@ -152,6 +202,52 @@ fn horizontal_value_cursor_rect_centers_pixel_stable_full_height_strip() {
             Point::new(110.0, 60.0)
         ))
     );
+}
+
+#[test]
+fn push_horizontal_value_cursor_fill_appends_visible_cursor() {
+    let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
+    let color = Rgba8::new(5, 6, 7, 8);
+    let mut primitives = Vec::new();
+
+    assert!(push_horizontal_value_cursor_fill(
+        &mut primitives,
+        43,
+        track,
+        0.333,
+        2.0,
+        color,
+    ));
+
+    assert_eq!(primitives.len(), 1);
+    match &primitives[0] {
+        PaintPrimitive::FillRect(fill) => {
+            assert_eq!(fill.widget_id, 43);
+            assert_eq!(
+                fill.rect,
+                Rect::from_min_max(Point::new(42.0, 20.0), Point::new(44.0, 60.0))
+            );
+            assert_eq!(fill.color, color);
+        }
+        primitive => panic!("expected fill rect, got {primitive:?}"),
+    }
+}
+
+#[test]
+fn push_horizontal_value_cursor_fill_skips_invalid_track() {
+    let invalid_track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(f32::NAN, 60.0));
+    let mut primitives = Vec::new();
+
+    assert!(!push_horizontal_value_cursor_fill(
+        &mut primitives,
+        43,
+        invalid_track,
+        0.5,
+        2.0,
+        Rgba8::new(5, 6, 7, 8),
+    ));
+
+    assert!(primitives.is_empty());
 }
 
 #[test]

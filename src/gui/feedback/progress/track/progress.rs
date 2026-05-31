@@ -1,5 +1,9 @@
 use super::sanitize::{finite_nonnegative, normalized_fraction};
-use crate::gui::types::{Point, Rect};
+use crate::{
+    gui::types::{Point, Rect, Rgba8},
+    runtime::{PaintPrimitive, push_visible_fill_rect},
+    widgets::WidgetId,
+};
 
 #[cfg(test)]
 #[path = "progress/tests.rs"]
@@ -105,6 +109,29 @@ pub fn horizontal_value_range_rect(
     ))
 }
 
+/// Push a normalized horizontal range segment into a paint primitive buffer.
+///
+/// Returns `true` when a fill primitive was appended. This combines
+/// [`horizontal_value_range_rect`] with Radiant's visible-rect paint guard so
+/// custom timeline, waveform, meter, and range widgets do not need local
+/// `Option<Rect>` paint boilerplate.
+pub fn push_horizontal_value_range_fill(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    track: Rect,
+    start_fraction: f32,
+    end_fraction: f32,
+    height_fraction: f32,
+    color: Rgba8,
+) -> bool {
+    let Some(rect) =
+        horizontal_value_range_rect(track, start_fraction, end_fraction, height_fraction)
+    else {
+        return false;
+    };
+    push_visible_fill_rect(primitives, widget_id, rect, color)
+}
+
 /// Return a full-height cursor strip centered on a normalized horizontal value.
 ///
 /// The cursor center is snapped to the nearest logical pixel to keep narrow
@@ -138,6 +165,24 @@ pub fn horizontal_value_cursor_rect(
         Point::new(left, track.min.y),
         Point::new(right, track.max.y),
     ))
+}
+
+/// Push a full-height cursor strip centered on a normalized horizontal value.
+///
+/// Returns `true` when a fill primitive was appended. This is the paint-plan
+/// counterpart to [`horizontal_value_cursor_rect`].
+pub fn push_horizontal_value_cursor_fill(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    track: Rect,
+    value_fraction: f32,
+    cursor_width: f32,
+    color: Rgba8,
+) -> bool {
+    let Some(rect) = horizontal_value_cursor_rect(track, value_fraction, cursor_width) else {
+        return false;
+    };
+    push_visible_fill_rect(primitives, widget_id, rect, color)
 }
 
 /// Return up to two normalized horizontal segments centered on `center_fraction`.

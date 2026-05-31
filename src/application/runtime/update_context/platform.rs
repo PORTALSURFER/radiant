@@ -83,6 +83,15 @@ impl<Message> UpdateContext<Message> {
         self.platform_request(PlatformRequest::OpenPath(path.into()), on_completed);
     }
 
+    /// Ask the platform integration to reveal or select a local path in the OS file manager.
+    pub fn reveal_path(
+        &mut self,
+        path: impl Into<std::path::PathBuf>,
+        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+    ) {
+        self.platform_request(PlatformRequest::RevealPath(path.into()), on_completed);
+    }
+
     /// Ask the platform integration to open a URL with the OS shell.
     pub fn open_url(
         &mut self,
@@ -90,6 +99,15 @@ impl<Message> UpdateContext<Message> {
         on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
     ) {
         self.platform_request(PlatformRequest::OpenUrl(url.into()), on_completed);
+    }
+
+    /// Ask the platform integration to copy text to the system clipboard.
+    pub fn copy_text(
+        &mut self,
+        text: impl Into<String>,
+        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+    ) {
+        self.platform_request(PlatformRequest::CopyText(text.into()), on_completed);
     }
 
     /// Ask the platform integration to show a confirmation dialog.

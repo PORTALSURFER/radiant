@@ -11,8 +11,12 @@ pub enum PlatformRequest {
     SaveFile(FileDialogRequest),
     /// Ask the platform integration to open a local path with the OS shell.
     OpenPath(PathBuf),
+    /// Ask the platform integration to reveal or select a local path in the OS file manager.
+    RevealPath(PathBuf),
     /// Ask the platform integration to open a URL with the OS shell.
     OpenUrl(String),
+    /// Ask the platform integration to copy text to the system clipboard.
+    CopyText(String),
     /// Ask the platform integration to show a confirmation dialog.
     Confirm(ConfirmDialogRequest),
 }

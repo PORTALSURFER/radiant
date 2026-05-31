@@ -44,7 +44,9 @@ fn perform_platform_request(request: PlatformRequest) -> Result<PlatformResponse
         PlatformRequest::PickFile(request) => pick_file(request),
         PlatformRequest::SaveFile(request) => save_file(request),
         PlatformRequest::OpenPath(path) => open_path(path),
+        PlatformRequest::RevealPath(path) => reveal_path(path),
         PlatformRequest::OpenUrl(url) => open_url(url),
+        PlatformRequest::CopyText(text) => copy_text(text),
         PlatformRequest::Confirm(request) => confirm(request),
     }
 }
@@ -100,8 +102,66 @@ fn open_path(path: std::path::PathBuf) -> Result<PlatformResponse, String> {
     Ok(PlatformResponse::Completed)
 }
 
+fn reveal_path(path: std::path::PathBuf) -> Result<PlatformResponse, String> {
+    if !path.exists() {
+        return Err(format!("Path not found: {}", path.display()));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let status = std::process::Command::new("explorer.exe")
+            .arg(format!("/select,{}", windows_explorer_target(&path)))
+            .status()
+            .map_err(|err| format!("Failed to launch explorer: {err}"))?;
+        if status.success() {
+            Ok(PlatformResponse::Completed)
+        } else {
+            Err(format!(
+                "Explorer exited unsuccessfully for {}",
+                path.display()
+            ))
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .status()
+            .map_err(|err| format!("Failed to launch Finder: {err}"))?;
+        if status.success() {
+            Ok(PlatformResponse::Completed)
+        } else {
+            Err(format!(
+                "Finder exited unsuccessfully for {}",
+                path.display()
+            ))
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let target = if path.is_dir() {
+            path.as_path()
+        } else {
+            path.parent()
+                .ok_or_else(|| String::from("Unable to resolve parent directory"))?
+        };
+        open::that(target)
+            .map_err(|err| format!("Could not reveal path {}: {err}", path.display()))?;
+        Ok(PlatformResponse::Completed)
+    }
+}
+
 fn open_url(url: String) -> Result<PlatformResponse, String> {
     open::that(url).map_err(|err| err.to_string())?;
+    Ok(PlatformResponse::Completed)
+}
+
+fn copy_text(text: String) -> Result<PlatformResponse, String> {
+    let mut clipboard =
+        arboard::Clipboard::new().map_err(|err| format!("Failed to open clipboard: {err}"))?;
+    clipboard
+        .set_text(text)
+        .map_err(|err| format!("Failed to copy text: {err}"))?;
     Ok(PlatformResponse::Completed)
 }
 
@@ -132,4 +192,9 @@ fn confirm(request: crate::runtime::ConfirmDialogRequest) -> Result<PlatformResp
         }
     };
     Ok(PlatformResponse::Confirmation(response))
+}
+
+#[cfg(target_os = "windows")]
+fn windows_explorer_target(path: &std::path::Path) -> String {
+    path.to_string_lossy().replace('/', "\\")
 }

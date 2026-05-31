@@ -45,15 +45,31 @@ fn platform_request_supports_shell_open_variants() {
             _ => 0,
         },
     ));
+    runtime.execute_command(Command::platform_request(
+        PlatformRequest::RevealPath(path.join("kick.wav")),
+        |result| match result.expect("platform request should complete") {
+            PlatformResponse::Canceled => 3,
+            _ => 0,
+        },
+    ));
+    runtime.execute_command(Command::platform_request(
+        PlatformRequest::CopyText(String::from("C:/samples/kick.wav")),
+        |result| match result.expect("platform request should complete") {
+            PlatformResponse::Canceled => 4,
+            _ => 0,
+        },
+    ));
 
     assert_eq!(
         runtime.bridge().requests,
         vec![
-            PlatformRequest::OpenPath(path),
+            PlatformRequest::OpenPath(path.clone()),
             PlatformRequest::OpenUrl(String::from("https://example.invalid")),
+            PlatformRequest::RevealPath(path.join("kick.wav")),
+            PlatformRequest::CopyText(String::from("C:/samples/kick.wav")),
         ]
     );
-    assert_eq!(runtime.bridge().dispatched, vec![1, 2]);
+    assert_eq!(runtime.bridge().dispatched, vec![1, 2, 3, 4]);
 }
 
 #[test]

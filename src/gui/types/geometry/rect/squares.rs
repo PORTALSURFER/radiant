@@ -70,18 +70,55 @@ impl Rect {
     /// Non-positive sides or empty rectangles return an empty rectangle at the
     /// top-right anchor.
     pub fn top_right_square(self, side: f32, inset: f32) -> Self {
+        self.corner_square(side, inset, false, true)
+    }
+
+    /// Return a square anchored to the rectangle's top-left corner.
+    ///
+    /// Non-positive sides or empty rectangles return an empty rectangle at the
+    /// top-left anchor.
+    pub fn top_left_square(self, side: f32, inset: f32) -> Self {
+        self.corner_square(side, inset, false, false)
+    }
+
+    /// Return a square anchored to the rectangle's bottom-left corner.
+    ///
+    /// Non-positive sides or empty rectangles return an empty rectangle at the
+    /// bottom-left anchor.
+    pub fn bottom_left_square(self, side: f32, inset: f32) -> Self {
+        self.corner_square(side, inset, true, false)
+    }
+
+    /// Return a square anchored to the rectangle's bottom-right corner.
+    ///
+    /// Non-positive sides or empty rectangles return an empty rectangle at the
+    /// bottom-right anchor.
+    pub fn bottom_right_square(self, side: f32, inset: f32) -> Self {
+        self.corner_square(side, inset, true, true)
+    }
+
+    fn corner_square(self, side: f32, inset: f32, bottom: bool, right: bool) -> Self {
         let inset = inset.max(0.0);
-        let max = Point::new(
-            (self.max.x - inset).max(self.min.x),
-            (self.min.y + inset).min(self.max.y),
-        );
+        let anchor_x = if right {
+            (self.max.x - inset).max(self.min.x)
+        } else {
+            (self.min.x + inset).min(self.max.x)
+        };
+        let anchor_y = if bottom {
+            (self.max.y - inset).max(self.min.y)
+        } else {
+            (self.min.y + inset).min(self.max.y)
+        };
+        let anchor = Point::new(anchor_x, anchor_y);
         if self.width() <= 0.0 || self.height() <= 0.0 || side <= 0.0 {
-            return Self::from_min_max(max, max);
+            return Self::from_min_max(anchor, anchor);
         }
         let side = side.min(self.width()).min(self.height());
+        let min_x = if right { anchor.x - side } else { anchor.x };
+        let min_y = if bottom { anchor.y - side } else { anchor.y };
         Self::from_min_max(
-            Point::new(max.x - side, max.y),
-            Point::new(max.x, max.y + side),
+            Point::new(min_x, min_y),
+            Point::new(min_x + side, min_y + side),
         )
         .clamp_to(self)
     }

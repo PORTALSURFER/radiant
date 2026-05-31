@@ -72,3 +72,43 @@ fn rect_centered_odd_pixel_square_normalizes_side_range_inputs() {
     assert_eq!(rect.centered_odd_pixel_square(f32::NAN, 9.0), None);
     assert_eq!(rect.centered_odd_pixel_square(5.0, f32::NAN), None);
 }
+
+#[test]
+fn rect_corner_squares_anchor_to_each_corner() {
+    let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 70.0));
+
+    assert_eq!(
+        rect.top_left_square(12.0, 3.0),
+        Rect::from_min_max(Point::new(13.0, 23.0), Point::new(25.0, 35.0))
+    );
+    assert_eq!(
+        rect.top_right_square(12.0, 3.0),
+        Rect::from_min_max(Point::new(35.0, 23.0), Point::new(47.0, 35.0))
+    );
+    assert_eq!(
+        rect.bottom_left_square(12.0, 3.0),
+        Rect::from_min_max(Point::new(13.0, 55.0), Point::new(25.0, 67.0))
+    );
+    assert_eq!(
+        rect.bottom_right_square(12.0, 3.0),
+        Rect::from_min_max(Point::new(35.0, 55.0), Point::new(47.0, 67.0))
+    );
+}
+
+#[test]
+fn rect_corner_squares_clamp_to_bounds() {
+    let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(18.0, 26.0));
+
+    assert_eq!(
+        rect.bottom_right_square(20.0, 0.0),
+        Rect::from_min_max(Point::new(12.0, 20.0), Point::new(18.0, 26.0))
+    );
+    assert_eq!(
+        rect.bottom_right_square(20.0, 100.0),
+        Rect::from_min_max(Point::new(10.0, 20.0), Point::new(10.0, 20.0))
+    );
+    assert_eq!(
+        rect.top_left_square(0.0, 2.0),
+        Rect::from_min_max(Point::new(12.0, 22.0), Point::new(12.0, 22.0))
+    );
+}

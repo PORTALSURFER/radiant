@@ -928,8 +928,9 @@ backend appends retained SVG documents through `vello_svg` during scene
 encoding.
 `Rect::stroke_aligned_rect` provides stroke-grid snapping for retained border
 geometry.
-`Rect::top_right_square` provides anchored overlay geometry for controls that
-compose primary and secondary glyphs.
+`Rect::top_left_square`, `Rect::top_right_square`,
+`Rect::bottom_left_square`, and `Rect::bottom_right_square` provide anchored
+overlay geometry for controls, badges, range handles, and secondary glyphs.
 `Rect::top_edge_strip`, `Rect::bottom_edge_strip`, `Rect::left_edge_strip`, and
 `Rect::right_edge_strip` provide border-edge geometry for reusable retained
 paint paths.

@@ -74,3 +74,47 @@ fn rect_edge_strips_clamp_to_rect_dimensions() {
         Rect::from_min_max(Point::new(10.0, 20.0), Point::new(10.0, 23.0))
     );
 }
+
+#[test]
+fn rect_center_strips_resolve_horizontal_and_vertical_axes() {
+    let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 70.0));
+
+    assert_eq!(
+        rect.horizontal_center_strip(12.0),
+        Rect::from_min_max(Point::new(10.0, 39.0), Point::new(50.0, 51.0))
+    );
+    assert_eq!(
+        rect.vertical_center_strip(8.0),
+        Rect::from_min_max(Point::new(26.0, 20.0), Point::new(34.0, 70.0))
+    );
+}
+
+#[test]
+fn rect_center_strips_clamp_to_rect_dimensions() {
+    let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(14.0, 23.0));
+
+    assert_eq!(rect.horizontal_center_strip(99.0), rect);
+    assert_eq!(rect.vertical_center_strip(99.0), rect);
+    assert_eq!(
+        rect.horizontal_center_strip(-1.0),
+        Rect::from_min_max(Point::new(10.0, 21.5), Point::new(14.0, 21.5))
+    );
+}
+
+#[test]
+fn rect_coordinate_center_strips_shift_inside_bounds() {
+    let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 70.0));
+
+    assert_eq!(
+        rect.vertical_strip_around_x(12.0, 10.0),
+        Rect::from_min_max(Point::new(10.0, 20.0), Point::new(20.0, 70.0))
+    );
+    assert_eq!(
+        rect.horizontal_strip_around_y(68.0, 12.0),
+        Rect::from_min_max(Point::new(10.0, 58.0), Point::new(50.0, 70.0))
+    );
+    assert_eq!(
+        rect.vertical_strip_around_x(80.0, 0.0),
+        Rect::from_min_max(Point::new(50.0, 20.0), Point::new(50.0, 70.0))
+    );
+}

@@ -931,9 +931,13 @@ geometry.
 `Rect::top_left_square`, `Rect::top_right_square`,
 `Rect::bottom_left_square`, and `Rect::bottom_right_square` provide anchored
 overlay geometry for controls, badges, range handles, and secondary glyphs.
-`Rect::top_edge_strip`, `Rect::bottom_edge_strip`, `Rect::left_edge_strip`, and
-`Rect::right_edge_strip` provide border-edge geometry for reusable retained
-paint paths.
+`Rect::top_edge_strip`, `Rect::bottom_edge_strip`, `Rect::left_edge_strip`,
+`Rect::right_edge_strip`, `Rect::horizontal_center_strip`, and
+`Rect::vertical_center_strip` provide edge and centered strip geometry for
+reusable retained paint paths and editor handles. Coordinate-centered variants
+`Rect::horizontal_strip_around_y` and `Rect::vertical_strip_around_x` shift
+inside bounds for edge-adjacent handles that should keep their requested size
+where possible.
 `Rect::union` provides shared bounding-box aggregation for retained rendering,
 hit testing, and automation paths.
 `StatusSegments::new(...)`, `StatusSegments::primary(...)`, and the

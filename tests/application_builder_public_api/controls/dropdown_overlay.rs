@@ -23,11 +23,7 @@ fn application_builder_dropdown_overlay_routes_above_dismiss_layer() {
                     .message(OverlayMessage::Dismiss)
                     .id(1000)
                     .fill(),
-                ui::button("")
-                    .message(OverlayMessage::Dismiss)
-                    .id(1001)
-                    .input_only()
-                    .fill(),
+                ui::dismiss_layer(OverlayMessage::Dismiss).id(1001),
                 ui::dropdown_menu_overlay(
                     20.0,
                     20.0,

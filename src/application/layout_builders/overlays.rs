@@ -1,6 +1,6 @@
 //! Floating overlay layout builders.
 
-use crate::application::{ViewNode, ViewNodeKind, primary_style};
+use crate::application::{ViewNode, ViewNodeKind, button, primary_style};
 use crate::gui::types::Point;
 use crate::layout::Vector2;
 
@@ -24,6 +24,21 @@ pub fn overlay_panel<Message>(
         ),
         label: Some(label.into()),
     })
+}
+
+/// Build a full-size transparent layer that emits a dismiss message when activated.
+///
+/// Use this behind popovers, menus, dropdowns, and transient panels that should
+/// close when the user clicks outside the foreground content.
+pub fn dismiss_layer<Message>(message: Message) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    button("")
+        .message(message)
+        .key("dismiss-layer")
+        .input_only()
+        .fill()
 }
 
 /// Build a non-interactive floating child tree positioned relative to its parent.

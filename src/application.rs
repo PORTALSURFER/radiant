@@ -94,9 +94,10 @@ pub use control_builders::{
 mod layout_builders;
 pub use layout_builders::{
     DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING, column, column_key,
-    drag_preview, drag_preview_sized, drop_marker, floating_layer, floating_layer_with_input, grid,
-    grid_with_gaps, list, list_row, list_row_id, overlay_panel, row, row_key, scroll,
-    scroll_column, stack, virtual_list, virtual_list_window, virtual_scroll, wrap,
+    dismiss_layer, drag_preview, drag_preview_sized, drop_marker, floating_layer,
+    floating_layer_with_input, grid, grid_with_gaps, list, list_row, list_row_id, overlay_panel,
+    row, row_key, scroll, scroll_column, stack, virtual_list, virtual_list_window, virtual_scroll,
+    wrap,
 };
 mod ids;
 pub(in crate::application) use ids::{IdGenerator, scoped_key_id};

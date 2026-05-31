@@ -1,5 +1,5 @@
 use crate::{
-    application::{StateView, ViewNode, button, column, row, stack, text},
+    application::{StateView, ViewNode, button, column, dismiss_layer, row, stack, text},
     gui::types::{Point, Rect},
     layout::Vector2,
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
@@ -172,11 +172,7 @@ where
     let top = parts.anchor.y.max(0.0);
     let left = parts.anchor.x.max(0.0);
     stack([
-        button("")
-            .message(parts.dismiss_message)
-            .key("context-menu-dismiss")
-            .input_only()
-            .fill(),
+        dismiss_layer(parts.dismiss_message).key("context-menu-dismiss"),
         column([
             text("").fill_width().height(top),
             row([

@@ -201,6 +201,9 @@ and drops, so applications can block interaction during modal/loading states or
 clear stale drag-hover state without app-local invisible hit-test widgets.
 Convenience constructors such as `.pointer_move_only(...)` and
 `.pointer_drop_only(...)` cover common transparent overlay policies.
+Popover and menu stacks can use `dismiss_layer(message)` as a transparent
+full-surface activation layer behind foreground content, avoiding app-local
+empty input-only buttons for outside-click dismissal.
 Passive visual feedback layers can use `FeedbackOverlayWidget` for background
 tints, determinate progress fills, and edge-band accents without app-local
 paint-only custom widgets.

@@ -1240,6 +1240,12 @@ Fixed-size foreground surfaces that need edge or center placement can use
 `AnchoredLayerParts`, `LayerHorizontalAnchor`, `LayerVerticalAnchor`,
 `anchored_layer(...)`, and `anchored_layer_from_parts(...)` for generic
 top/center/bottom and left/center/right placement with edge insets.
+Arbitrary floating content that should sit above or below a trigger rectangle
+inside a caller-owned stack layer can use `FloatingLayerAnchorParts`,
+`FloatingLayerPlacement`, `floating_layer_above(...)`,
+`floating_layer_below(...)`, and `floating_layer_around_from_parts(...)`
+instead of hand-computing popup, autocomplete, tooltip, or compact editor
+offsets in application code.
 Dropdown overlays anchored to a trigger can use
 `DropdownMenuOverlayBelowParts`, `dropdown_menu_overlay_below(...)`, and
 `dropdown_menu_overlay_below_from_parts(...)` so application code supplies the

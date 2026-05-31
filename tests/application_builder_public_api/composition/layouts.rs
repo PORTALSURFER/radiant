@@ -103,3 +103,73 @@ fn centered_layer_parts_support_named_construction() {
 
     assert_eq!(parts.size, Vector2::new(320.0, 180.0));
 }
+
+#[test]
+fn floating_layer_anchor_helpers_position_content_around_trigger() {
+    use radiant::{prelude as ui, prelude::IntoView, runtime::PaintPrimitive};
+
+    let frame = UiSurface::new(
+        ui::stack([
+            ui::text("").size(240.0, 140.0),
+            ui::floating_layer_above::<()>(
+                18.0,
+                80.0,
+                6.0,
+                Vector2::new(90.0, 24.0),
+                ui::text("Above").id(71),
+            ),
+            ui::floating_layer_below::<()>(
+                18.0,
+                80.0,
+                20.0,
+                6.0,
+                Vector2::new(90.0, 24.0),
+                ui::text("Below").id(72),
+            ),
+        ])
+        .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 140.0)),
+        &Default::default(),
+    );
+
+    let text_rect = |widget_id| {
+        frame
+            .paint_plan
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) if text.widget_id == widget_id => Some(text.rect),
+                _ => None,
+            })
+            .expect("anchored floating-layer text should paint")
+    };
+
+    assert_eq!(text_rect(71).min, Point::new(18.0, 50.0));
+    assert_eq!(text_rect(72).min, Point::new(18.0, 106.0));
+}
+
+#[test]
+fn floating_layer_anchor_parts_support_named_interactive_construction() {
+    use radiant::prelude as ui;
+
+    let parts: ui::FloatingLayerAnchorParts<()> = ui::FloatingLayerAnchorParts::new(
+        ui::text("Popup"),
+        Vector2::new(160.0, 80.0),
+        12.0,
+        42.0,
+        20.0,
+        4.0,
+        ui::FloatingLayerPlacement::Below,
+    )
+    .interactive(true);
+
+    assert_eq!(parts.x, 12.0);
+    assert_eq!(parts.trigger_y, 42.0);
+    assert_eq!(parts.trigger_height, 20.0);
+    assert_eq!(parts.gap, 4.0);
+    assert_eq!(parts.size, Vector2::new(160.0, 80.0));
+    assert_eq!(parts.placement, ui::FloatingLayerPlacement::Below);
+    assert!(parts.interactive);
+}

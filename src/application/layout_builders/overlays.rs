@@ -46,6 +46,15 @@ pub enum LayerVerticalAnchor {
     End,
 }
 
+/// Placement policy for a floating layer anchored to a trigger rectangle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FloatingLayerPlacement {
+    /// Place the floating layer above the trigger.
+    Above,
+    /// Place the floating layer below the trigger.
+    Below,
+}
+
 /// Named construction fields for an anchored fixed-size child layer.
 pub struct AnchoredLayerParts<Message> {
     /// Child view to place inside the layer.
@@ -91,6 +100,56 @@ impl<Message> AnchoredLayerParts<Message> {
     pub fn inset(mut self, x: f32, y: f32) -> Self {
         self.inset_x = x.max(0.0);
         self.inset_y = y.max(0.0);
+        self
+    }
+}
+
+/// Named construction fields for a floating layer anchored to a trigger.
+pub struct FloatingLayerAnchorParts<Message> {
+    /// Child view to place in the floating layer.
+    pub child: ViewNode<Message>,
+    /// Fixed floating-layer size.
+    pub size: Vector2,
+    /// Trigger left edge in the owning stack layer.
+    pub x: f32,
+    /// Trigger top edge in the owning stack layer.
+    pub trigger_y: f32,
+    /// Trigger height.
+    pub trigger_height: f32,
+    /// Gap between the trigger and floating layer.
+    pub gap: f32,
+    /// Whether to place the layer above or below the trigger.
+    pub placement: FloatingLayerPlacement,
+    /// Whether child widgets receive input traversal.
+    pub interactive: bool,
+}
+
+impl<Message> FloatingLayerAnchorParts<Message> {
+    /// Build floating-layer anchor parts.
+    pub fn new(
+        child: ViewNode<Message>,
+        size: Vector2,
+        x: f32,
+        trigger_y: f32,
+        trigger_height: f32,
+        gap: f32,
+        placement: FloatingLayerPlacement,
+    ) -> Self {
+        Self {
+            child,
+            size,
+            x,
+            trigger_y,
+            trigger_height,
+            gap,
+            placement,
+            interactive: false,
+        }
+    }
+
+    /// Enable or disable input traversal through the floating content.
+    pub fn interactive(mut self, interactive: bool) -> Self {
+        self.interactive = interactive;
         self
     }
 }
@@ -222,6 +281,83 @@ pub fn floating_layer_with_input<Message>(
         interactive,
     })
     .with_reserved_descendant_identity(has_reserved_descendant_identity)
+}
+
+/// Build a floating child tree above a trigger rectangle.
+///
+/// This is useful for autocompletion, tooltips, and compact editor popups that
+/// should stay in the same stack layer as their trigger without app-local
+/// offset arithmetic.
+pub fn floating_layer_above<Message>(
+    x: f32,
+    trigger_y: f32,
+    gap: f32,
+    size: Vector2,
+    child: ViewNode<Message>,
+) -> ViewNode<Message> {
+    floating_layer_around_from_parts(FloatingLayerAnchorParts::new(
+        child,
+        size,
+        x,
+        trigger_y,
+        0.0,
+        gap,
+        FloatingLayerPlacement::Above,
+    ))
+}
+
+/// Build a floating child tree below a trigger rectangle.
+pub fn floating_layer_below<Message>(
+    x: f32,
+    trigger_y: f32,
+    trigger_height: f32,
+    gap: f32,
+    size: Vector2,
+    child: ViewNode<Message>,
+) -> ViewNode<Message> {
+    floating_layer_around_from_parts(FloatingLayerAnchorParts::new(
+        child,
+        size,
+        x,
+        trigger_y,
+        trigger_height,
+        gap,
+        FloatingLayerPlacement::Below,
+    ))
+}
+
+/// Build a floating child tree around a trigger from named parts.
+pub fn floating_layer_around_from_parts<Message>(
+    parts: FloatingLayerAnchorParts<Message>,
+) -> ViewNode<Message> {
+    let size = Vector2::new(parts.size.x.max(1.0), parts.size.y.max(1.0));
+    let offset = floating_layer_anchor_offset(
+        parts.x,
+        parts.trigger_y,
+        parts.trigger_height,
+        parts.gap,
+        size,
+        parts.placement,
+    );
+    floating_layer_with_input(offset, size, parts.child, parts.interactive)
+}
+
+fn floating_layer_anchor_offset(
+    x: f32,
+    trigger_y: f32,
+    trigger_height: f32,
+    gap: f32,
+    size: Vector2,
+    placement: FloatingLayerPlacement,
+) -> Point {
+    let x = x.max(0.0);
+    let trigger_y = trigger_y.max(0.0);
+    let gap = gap.max(0.0);
+    let y = match placement {
+        FloatingLayerPlacement::Above => (trigger_y - gap - size.y).max(0.0),
+        FloatingLayerPlacement::Below => trigger_y + trigger_height.max(0.0) + gap,
+    };
+    Point::new(x, y)
 }
 
 /// Build a floating drop marker in surface coordinates.
@@ -422,5 +558,74 @@ mod tests {
 
         assert!((text_rect.min.x - 60.0).abs() < 0.01, "{text_rect:?}");
         assert!((text_rect.min.y - 40.0).abs() < 0.01, "{text_rect:?}");
+    }
+
+    #[test]
+    fn floating_layer_above_positions_child_before_trigger_gap() {
+        let frame = UiSurface::new(
+            stack([
+                text("").size(200.0, 100.0),
+                floating_layer_above::<()>(
+                    12.0,
+                    60.0,
+                    4.0,
+                    Vector2::new(80.0, 20.0),
+                    text("popup").id(92),
+                ),
+            ])
+            .into_node(),
+        )
+        .frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 100.0)),
+            &Default::default(),
+        );
+
+        let text_rect = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) if text.widget_id == 92 => Some(text.rect),
+                _ => None,
+            })
+            .expect("floating layer child should paint");
+
+        assert!((text_rect.min.x - 12.0).abs() < 0.01, "{text_rect:?}");
+        assert!((text_rect.min.y - 36.0).abs() < 0.01, "{text_rect:?}");
+    }
+
+    #[test]
+    fn floating_layer_below_positions_child_after_trigger_gap() {
+        let frame = UiSurface::new(
+            stack([
+                text("").size(200.0, 100.0),
+                floating_layer_below::<()>(
+                    12.0,
+                    20.0,
+                    18.0,
+                    4.0,
+                    Vector2::new(80.0, 20.0),
+                    text("popup").id(93),
+                ),
+            ])
+            .into_node(),
+        )
+        .frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 100.0)),
+            &Default::default(),
+        );
+
+        let text_rect = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) if text.widget_id == 93 => Some(text.rect),
+                _ => None,
+            })
+            .expect("floating layer child should paint");
+
+        assert!((text_rect.min.x - 12.0).abs() < 0.01, "{text_rect:?}");
+        assert!((text_rect.min.y - 42.0).abs() < 0.01, "{text_rect:?}");
     }
 }

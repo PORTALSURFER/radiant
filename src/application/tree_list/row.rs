@@ -1,6 +1,7 @@
 use crate::{
     application::{
-        StateDragCallback, StateStringCallback, StateView, button, drag_handle, row, text,
+        StateDragCallback, StateStringCallback, StateView, button, disclosure_button, drag_handle,
+        row, spacer, text,
     },
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
@@ -19,7 +20,6 @@ pub(super) fn tree_list_row<State: 'static>(
     let toggle_id = item.id.clone();
     let drag_id = item.id.clone();
     let key = item.id.clone();
-    let expander = if item.expanded { "[-]" } else { "[+]" };
 
     let mut label = if let Some(on_context) = on_context {
         button(item.label).on_click_or_secondary(
@@ -59,15 +59,15 @@ pub(super) fn tree_list_row<State: 'static>(
                 .size(22.0, 22.0)
         },
         if item.has_children {
-            button(expander)
+            disclosure_button(item.expanded)
                 .on_click(move |state: &mut State| on_toggle(state, toggle_id.clone()))
                 .key(format!("tree-list-toggle-{}", item.id))
-                .size(32.0, 22.0)
+                .size(26.0, 22.0)
                 .subtle()
         } else {
-            text("")
+            spacer()
                 .key(format!("tree-list-spacer-{}", item.id))
-                .size(32.0, 22.0)
+                .size(26.0, 22.0)
         },
         label,
     ])

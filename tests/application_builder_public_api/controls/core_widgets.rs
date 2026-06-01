@@ -1,9 +1,9 @@
 use super::super::*;
 use radiant::widgets::{
     BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerWidget, DragHandleMessage,
-    FeedbackOverlayWidget, FocusBehavior, MarkerRunWidget, PaintBounds, SliderMessage,
-    SliderWidget, TextInputWidget, TextWidget, ToggleWidget, WidgetOutput, WidgetProminence,
-    WidgetStyle, WidgetTone,
+    FeedbackOverlayWidget, FocusBehavior, IconButtonWidget, MarkerRunWidget, PaintBounds,
+    SliderMessage, SliderWidget, TextInputWidget, TextWidget, ToggleWidget, WidgetOutput,
+    WidgetProminence, WidgetStyle, WidgetTone,
 };
 
 #[test]
@@ -181,6 +181,28 @@ fn button_builder_can_filter_secondary_activation_and_map_drag() {
         ),
         Some("drag-move")
     );
+}
+
+#[test]
+fn icon_button_builder_supports_message_and_state_callback_apps() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let message_surface: UiSurface<DemoMessage> = ui::disclosure_button(true)
+        .message(DemoMessage::Increment)
+        .id(31)
+        .into_surface();
+    assert!(
+        !widget_ref::<IconButtonWidget, _>(&message_surface, 31, "icon button")
+            .common
+            .state
+            .active
+    );
+
+    let state_surface: UiSurface<ui::StateAction<DemoState>> = ui::close_button()
+        .on_click(|state: &mut DemoState| state.count += 1)
+        .id(32)
+        .into_surface();
+    assert!(state_surface.find_widget(32).is_some());
 }
 
 #[test]

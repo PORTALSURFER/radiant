@@ -29,7 +29,6 @@ impl BrowserState {
         }
     }
 
-    #[cfg(test)]
     pub(crate) fn toggle_folder(&mut self, id: impl Into<String>) {
         let id = id.into();
         if self.folder_has_children(&id) && !self.tree.expanded_folders.remove(&id) {

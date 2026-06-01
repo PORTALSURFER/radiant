@@ -25,7 +25,6 @@ fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::StateView<Brow
     let key = folder.id.clone();
     let drag_id = folder.id.clone();
     let editing = state.rename.folder.as_deref() == Some(folder.id.as_str());
-    let expander = if folder.expanded { "[-]" } else { "[+]" };
     let label = if editing {
         ui::row([
             ui::text_input(state.rename.folder_draft.clone())
@@ -42,7 +41,7 @@ fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::StateView<Brow
                 .on_click(BrowserState::commit_rename)
                 .key(format!("folder-rename-ok-{key}"))
                 .size(36.0, 22.0),
-            ui::button("X")
+            ui::close_button()
                 .subtle()
                 .on_click(BrowserState::cancel_folder_rename)
                 .key(format!("folder-rename-cancel-{key}"))
@@ -55,13 +54,8 @@ fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::StateView<Brow
         let select_id = id.clone();
         let context_id = id.clone();
         let drag_id = drag_id.clone();
-        let label_text = if folder.has_children {
-            format!("{expander} {}", folder.name)
-        } else {
-            format!("    {}", folder.name)
-        };
         let mut label = if folder.draggable {
-            ui::button(label_text).on_click_secondary_at_or_drag(
+            ui::button(folder.name.clone()).on_click_secondary_at_or_drag(
                 move |state: &mut BrowserState| state.activate_folder(select_id.clone()),
                 move |state: &mut BrowserState, position| {
                     state.open_context_menu_at(context_id.clone(), position);
@@ -71,7 +65,7 @@ fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::StateView<Brow
                 },
             )
         } else {
-            ui::button(label_text).on_click_or_secondary_at(
+            ui::button(folder.name.clone()).on_click_or_secondary_at(
                 move |state: &mut BrowserState| state.activate_folder(select_id.clone()),
                 move |state: &mut BrowserState, position| {
                     state.open_context_menu_at(context_id.clone(), position);
@@ -89,21 +83,37 @@ fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::StateView<Brow
         }
         label
     };
+    let toggle_id = folder.id.clone();
+    let branch_control = if folder.has_children {
+        ui::disclosure_button(folder.expanded)
+            .subtle()
+            .on_click(move |state: &mut BrowserState| state.toggle_folder(toggle_id.clone()))
+            .key(format!("folder-toggle-{id}"))
+            .size(24.0, 22.0)
+    } else {
+        ui::spacer()
+            .key(format!("folder-toggle-spacer-{id}"))
+            .size(24.0, 22.0)
+    };
 
-    ui::row([ui::text("").size((folder.depth as f32) * 4.0, 22.0), label])
-        .key(format!("folder-row-{id}"))
-        .style(if folder.drop_target {
-            ui::WidgetStyle {
-                tone: ui::WidgetTone::Accent,
-                prominence: ui::WidgetProminence::Subtle,
-            }
-        } else {
-            ui::WidgetStyle::default()
-        })
-        .fill_width()
-        .height(TREE_ROW_HEIGHT)
-        .spacing(1.0)
-        .hoverable()
+    ui::row([
+        ui::spacer().size((folder.depth as f32) * 4.0, 22.0),
+        branch_control,
+        label,
+    ])
+    .key(format!("folder-row-{id}"))
+    .style(if folder.drop_target {
+        ui::WidgetStyle {
+            tone: ui::WidgetTone::Accent,
+            prominence: ui::WidgetProminence::Subtle,
+        }
+    } else {
+        ui::WidgetStyle::default()
+    })
+    .fill_width()
+    .height(TREE_ROW_HEIGHT)
+    .spacing(1.0)
+    .hoverable()
 }
 
 pub(super) fn splitter() -> ui::StateView<BrowserState> {

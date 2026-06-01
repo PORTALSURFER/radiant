@@ -1,4 +1,7 @@
-use super::{PaintPrimitive, PaintTextInput, PaintTextRun, SurfacePaintPlan};
+use super::{
+    PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintSvg, PaintTextInput, PaintTextRun,
+    SurfacePaintPlan,
+};
 use crate::{gui::types::Rect, widgets::WidgetId};
 
 #[cfg(test)]
@@ -27,6 +30,29 @@ impl SurfacePaintPlan {
         self.primitives
             .iter()
             .filter_map(PaintPrimitive::text_input)
+    }
+
+    /// Iterate over single filled-rectangle primitives in paint order.
+    ///
+    /// Batched rectangle primitives remain available through `primitives` when
+    /// callers need to inspect every rectangle inside a batch.
+    pub fn fill_rects(&self) -> impl Iterator<Item = &PaintFillRect> {
+        self.primitives.iter().filter_map(PaintPrimitive::fill_rect)
+    }
+
+    /// Iterate over single stroked-rectangle primitives in paint order.
+    ///
+    /// Batched rectangle primitives remain available through `primitives` when
+    /// callers need to inspect every rectangle inside a batch.
+    pub fn stroke_rects(&self) -> impl Iterator<Item = &PaintStrokeRect> {
+        self.primitives
+            .iter()
+            .filter_map(PaintPrimitive::stroke_rect)
+    }
+
+    /// Iterate over retained SVG primitives in paint order.
+    pub fn svgs(&self) -> impl Iterator<Item = &PaintSvg> {
+        self.primitives.iter().filter_map(PaintPrimitive::svg)
     }
 
     /// Return the first rectangular paint region emitted by `widget_id`.
@@ -59,6 +85,30 @@ impl PaintPrimitive {
     pub fn text_input(&self) -> Option<&PaintTextInput> {
         match self {
             Self::TextInput(input) => Some(input),
+            _ => None,
+        }
+    }
+
+    /// Return the filled rectangle carried by this primitive, if any.
+    pub fn fill_rect(&self) -> Option<&PaintFillRect> {
+        match self {
+            Self::FillRect(fill) => Some(fill),
+            _ => None,
+        }
+    }
+
+    /// Return the stroked rectangle carried by this primitive, if any.
+    pub fn stroke_rect(&self) -> Option<&PaintStrokeRect> {
+        match self {
+            Self::StrokeRect(stroke) => Some(stroke),
+            _ => None,
+        }
+    }
+
+    /// Return the retained SVG payload carried by this primitive, if any.
+    pub fn svg(&self) -> Option<&PaintSvg> {
+        match self {
+            Self::Svg(svg) => Some(svg),
             _ => None,
         }
     }

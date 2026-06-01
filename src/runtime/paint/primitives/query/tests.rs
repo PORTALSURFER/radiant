@@ -3,7 +3,8 @@ use crate::{
     gui::types::{Point, Vector2},
     runtime::{
         GpuSurfaceCapabilities, GpuSurfaceContent, PaintFillRect, PaintFillRectBatch,
-        PaintGpuSurface, PaintStrokeRectBatch, PaintTextAlign, PaintTextRun,
+        PaintGpuSurface, PaintStrokeRectBatch, PaintSvg, PaintSvgDocument, PaintTextAlign,
+        PaintTextRun,
     },
     theme::ThemeTokens,
 };
@@ -94,6 +95,72 @@ fn text_queries_return_runs_and_inputs_in_paint_order() {
         plan.primitives[1].text_input().map(|input| input.widget_id),
         Some(12)
     );
+}
+
+#[test]
+fn shape_and_svg_queries_return_matching_primitives_in_paint_order() {
+    let theme = ThemeTokens::default();
+    let mut plan = SurfacePaintPlan::empty(&theme);
+    let first_fill = Rect::from_min_size(Point::new(1.0, 2.0), Vector2::new(10.0, 11.0));
+    let stroke = Rect::from_min_size(Point::new(3.0, 4.0), Vector2::new(12.0, 13.0));
+    let second_fill = Rect::from_min_size(Point::new(5.0, 6.0), Vector2::new(14.0, 15.0));
+    let svg_rect = Rect::from_min_size(Point::new(7.0, 8.0), Vector2::new(16.0, 17.0));
+    let svg = PaintSvgDocument::from_svg(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><path d="M0 0h1v1H0z"/></svg>"#,
+    )
+    .expect("valid test svg");
+
+    plan.primitives
+        .push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: 21,
+            rect: first_fill,
+            color: theme.accent_mint,
+        }));
+    plan.primitives.push(PaintPrimitive::StrokeRect(
+        crate::runtime::PaintStrokeRect {
+            widget_id: 22,
+            rect: stroke,
+            color: theme.text_primary,
+            width: 1.0,
+        },
+    ));
+    plan.primitives
+        .push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: 23,
+            rect: second_fill,
+            color: theme.accent_danger,
+        }));
+    plan.primitives.push(PaintPrimitive::Svg(PaintSvg {
+        widget_id: 24,
+        document: svg,
+        rect: svg_rect,
+    }));
+
+    assert_eq!(
+        plan.fill_rects()
+            .map(|fill| fill.widget_id)
+            .collect::<Vec<_>>(),
+        vec![21, 23]
+    );
+    assert_eq!(
+        plan.stroke_rects()
+            .map(|stroke| stroke.widget_id)
+            .collect::<Vec<_>>(),
+        vec![22]
+    );
+    assert_eq!(
+        plan.svgs().map(|svg| svg.widget_id).collect::<Vec<_>>(),
+        vec![24]
+    );
+    assert_eq!(
+        plan.primitives[0].fill_rect().map(|fill| fill.rect),
+        Some(first_fill)
+    );
+    assert_eq!(
+        plan.primitives[1].stroke_rect().map(|stroke| stroke.rect),
+        Some(stroke)
+    );
+    assert_eq!(plan.primitives[3].svg().map(|svg| svg.rect), Some(svg_rect));
 }
 
 #[test]

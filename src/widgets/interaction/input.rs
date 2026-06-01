@@ -1,4 +1,7 @@
-use crate::gui::{input::KeyCode, types::Point};
+use crate::gui::{
+    input::KeyCode,
+    types::{Point, Rect},
+};
 
 /// Pointer button routed into a widget.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -187,4 +190,49 @@ pub enum WidgetInput {
     Character(char),
     /// One higher-level text editing command should be routed to a text field.
     TextEdit(TextEditCommand),
+}
+
+impl WidgetInput {
+    /// Return the pointer position carried by this input, when it has one.
+    pub fn pointer_position(&self) -> Option<Point> {
+        match self {
+            Self::PointerMove { position }
+            | Self::PointerPress { position, .. }
+            | Self::PointerDoubleClick { position, .. }
+            | Self::PointerRelease { position, .. }
+            | Self::PointerDrop { position, .. }
+            | Self::Wheel { position, .. } => Some(*position),
+            Self::PointerModifiersChanged { .. }
+            | Self::FocusChanged(_)
+            | Self::KeyPress(_)
+            | Self::Character(_)
+            | Self::TextEdit(_) => None,
+        }
+    }
+
+    /// Return the pointer position for inputs that begin an uncaptured pointer interaction.
+    ///
+    /// Custom canvas and editor widgets can use this to ignore press,
+    /// double-click, or wheel starts outside their bounds while still allowing
+    /// captured movement and release events to finish an active interaction.
+    pub fn pointer_start_position(&self) -> Option<Point> {
+        match self {
+            Self::PointerPress { position, .. }
+            | Self::PointerDoubleClick { position, .. }
+            | Self::Wheel { position, .. } => Some(*position),
+            _ => None,
+        }
+    }
+
+    /// Return whether this input begins a pointer interaction outside `bounds`.
+    pub fn pointer_start_outside(&self, bounds: Rect) -> bool {
+        self.pointer_start_position()
+            .is_some_and(|position| !bounds.contains(position))
+    }
+
+    /// Return whether this input begins a pointer interaction inside `bounds`.
+    pub fn pointer_start_inside(&self, bounds: Rect) -> bool {
+        self.pointer_start_position()
+            .is_some_and(|position| bounds.contains(position))
+    }
 }

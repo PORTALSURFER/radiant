@@ -191,6 +191,44 @@ fn drag_handle_message_helpers_project_phase_and_position() {
 }
 
 #[test]
+fn widget_input_helpers_project_pointer_positions_and_start_bounds() {
+    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(100.0, 40.0));
+    let inside = Point::new(20.0, 30.0);
+    let outside = Point::new(4.0, 30.0);
+
+    let press = WidgetInput::PointerPress {
+        position: inside,
+        button: PointerButton::Primary,
+        modifiers: Default::default(),
+    };
+    assert_eq!(press.pointer_position(), Some(inside));
+    assert_eq!(press.pointer_start_position(), Some(inside));
+    assert!(press.pointer_start_inside(bounds));
+    assert!(!press.pointer_start_outside(bounds));
+
+    let wheel = WidgetInput::Wheel {
+        position: outside,
+        delta: Vector2::new(0.0, 1.0),
+        modifiers: Default::default(),
+    };
+    assert_eq!(wheel.pointer_position(), Some(outside));
+    assert_eq!(wheel.pointer_start_position(), Some(outside));
+    assert!(wheel.pointer_start_outside(bounds));
+    assert!(!wheel.pointer_start_inside(bounds));
+
+    let release = WidgetInput::PointerRelease {
+        position: outside,
+        button: PointerButton::Primary,
+        modifiers: Default::default(),
+    };
+    assert_eq!(release.pointer_position(), Some(outside));
+    assert_eq!(release.pointer_start_position(), None);
+    assert!(!release.pointer_start_outside(bounds));
+
+    assert_eq!(WidgetInput::FocusChanged(true).pointer_position(), None);
+}
+
+#[test]
 fn interactive_row_clears_stale_hover_when_requested() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
     let mut previous =

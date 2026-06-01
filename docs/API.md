@@ -234,6 +234,10 @@ double-click, drop, wheel, and focus-change events. This keeps waveform,
 timeline, node-editor, and other direct-manipulation widgets on a shared
 backend-neutral interaction contract while the application still owns domain
 actions such as range selection or marker editing.
+Custom widgets that handle `WidgetInput` directly can use
+`pointer_position()`, `pointer_start_position()`, `pointer_start_inside(...)`,
+and `pointer_start_outside(...)` to share Radiant's backend-neutral pointer
+classification without repeating local press/double-click/wheel bounds checks.
 Custom clickable widgets that need their own paint code can use
 `handle_activation_input` with `ActivationInputPolicy::pointer_only()` or
 `ActivationInputPolicy::focusable()` to share Radiant's hover, pressed, focus,

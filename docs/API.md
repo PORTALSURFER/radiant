@@ -237,7 +237,8 @@ and custom paint. Use
 host-specific row messages without repeating exhaustive event-shape matches.
 Use the single-activation helpers when double-click has a separate host action
 such as rename, drill-in, or open-in-place behavior. Drag-capable controls can use
-`DragHandleMessage::phase()`, `position()`, `is_started()`, `is_moved()`, and
+`DragHandleMessage::phase()`, `position()`, `started_position()`,
+`moved_position()`, `ended_position()`, `is_started()`, `is_moved()`, and
 `is_ended()` when reducers need generic drag lifecycle information without
 duplicating the `Started` / `Moved` / `Ended` variant shape. Reducers that
 resolve or cancel a drag gesture with both an in-window preview and an armed

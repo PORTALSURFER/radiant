@@ -335,6 +335,30 @@ impl DragHandleMessage {
         }
     }
 
+    /// Return the pointer position when this message starts an interaction.
+    pub fn started_position(self) -> Option<Point> {
+        match self {
+            Self::Started { position } => Some(position),
+            _ => None,
+        }
+    }
+
+    /// Return the pointer position when this message is active drag motion.
+    pub fn moved_position(self) -> Option<Point> {
+        match self {
+            Self::Moved { position } => Some(position),
+            _ => None,
+        }
+    }
+
+    /// Return the pointer position when this message ends an interaction.
+    pub fn ended_position(self) -> Option<Point> {
+        match self {
+            Self::Ended { position } => Some(position),
+            _ => None,
+        }
+    }
+
     /// Return whether this drag message starts an interaction.
     pub fn is_started(self) -> bool {
         matches!(self.phase(), DragHandlePhase::Started)

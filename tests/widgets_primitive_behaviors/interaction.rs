@@ -200,6 +200,16 @@ fn drag_handle_message_helpers_project_phase_and_position() {
     assert_eq!(moved.position(), Point::new(12.0, 8.0));
     assert_eq!(ended.position(), Point::new(14.0, 9.0));
 
+    assert_eq!(start.started_position(), Some(Point::new(10.0, 4.0)));
+    assert_eq!(start.moved_position(), None);
+    assert_eq!(start.ended_position(), None);
+    assert_eq!(moved.started_position(), None);
+    assert_eq!(moved.moved_position(), Some(Point::new(12.0, 8.0)));
+    assert_eq!(moved.ended_position(), None);
+    assert_eq!(ended.started_position(), None);
+    assert_eq!(ended.moved_position(), None);
+    assert_eq!(ended.ended_position(), Some(Point::new(14.0, 9.0)));
+
     assert!(start.is_started());
     assert!(!start.is_moved());
     assert!(!start.is_ended());

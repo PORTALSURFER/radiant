@@ -169,10 +169,11 @@ Higher-level application helpers follow the same logical-coordinate sizing
 model as view modifiers: fixed details-list columns use `f32` logical widths
 through `DetailsColumn::fixed(...)`, matching `.size(...)`, `.fixed(...)`, and
 other layout builders instead of introducing a separate integer sizing model.
-Custom details-list headers can use `compact_details_header_row(...)` and
-`details_sort_label(...)` to share Radiant's compact header chrome and sort
-marker copy while still composing app-specific header controls such as
-resizers, drag handles, or custom menus.
+Custom details-list headers can use `compact_details_header_row(...)`,
+`compact_resizable_details_header_cell(...)`, and `details_sort_label(...)` to
+share Radiant's compact header chrome, sortable click-or-drag behavior, resize
+handles, and sort marker copy while still composing app-specific menus or
+column policies.
 Resizable and reorderable details headers can keep interaction state in
 `DetailsColumnResizeDrag` and `DetailsColumnReorderDrag`, using
 `details_column_drag_content_left(...)`, `details_column_reorder_index(...)`,

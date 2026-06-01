@@ -50,8 +50,9 @@ pub use details_list::{
     DetailsColumn, DetailsColumnParts, DetailsColumnPlacement, DetailsColumnReorderDrag,
     DetailsColumnResizeDrag, DetailsRow, DetailsRowParts, DetailsSort, DetailsSortParts,
     SortDirection, compact_details_header_row, compact_details_row,
-    details_column_drag_content_left, details_column_reorder_index, details_sort_label,
-    reorder_details_columns_by_id, selectable_sortable_details_list, sortable_details_list,
+    compact_resizable_details_header_cell, details_column_drag_content_left,
+    details_column_reorder_index, details_sort_label, reorder_details_columns_by_id,
+    selectable_sortable_details_list, sortable_details_list,
 };
 mod property_panel;
 pub use property_panel::{

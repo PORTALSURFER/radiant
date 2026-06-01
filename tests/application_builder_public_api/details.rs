@@ -138,3 +138,48 @@ fn compact_details_header_row_exposes_details_list_header_chrome() {
     assert_eq!(layout.rects[&10].min.y, 2.0);
     assert_eq!(layout.rects[&11].min.x, layout.rects[&10].max.x + 10.0);
 }
+
+#[test]
+fn compact_resizable_details_header_cell_builds_standard_interactive_cell() {
+    use super::*;
+    use radiant::{prelude as ui, prelude::IntoView, runtime::PaintPrimitive};
+
+    #[derive(Clone)]
+    enum HeaderMessage {
+        Sort,
+        Drag,
+        Resize,
+    }
+
+    let surface: UiSurface<HeaderMessage> = ui::row([
+        ui::compact_resizable_details_header_cell(
+            "name-header",
+            "Name v",
+            120.0,
+            HeaderMessage::Sort,
+            |_| HeaderMessage::Drag,
+            |_| HeaderMessage::Resize,
+        )
+        .id(1),
+        ui::text("Tail").id(2).fixed(20.0, 20.0),
+    ])
+    .spacing(0.0)
+    .height(20.0)
+    .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 40.0)),
+    );
+    let frame = radiant::runtime::UiSurface::new(surface.root().clone()).frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 40.0)),
+        &Default::default(),
+    );
+
+    assert_eq!(layout.rects[&1].width(), 120.0);
+    assert_eq!(layout.rects[&2].min.x, 120.0);
+    assert!(
+        frame.paint_plan.primitives.iter().any(
+            |primitive| matches!(primitive, PaintPrimitive::Text(text) if text.text == "Name v")
+        )
+    );
+}

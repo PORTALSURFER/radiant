@@ -1,7 +1,10 @@
 use super::model::{DetailsColumn, DetailsRow, DetailsSort};
 use crate::{
-    application::{StateStringCallback, StateView, View, button, column, row, scroll, text},
-    widgets::{WidgetProminence, WidgetStyle, WidgetTone},
+    application::{
+        StateStringCallback, StateView, View, button, column, drag_handle, input_overlay, row,
+        scroll, text,
+    },
+    widgets::{DragHandleMessage, WidgetProminence, WidgetStyle, WidgetTone},
 };
 use std::sync::Arc;
 
@@ -153,4 +156,49 @@ pub fn compact_details_header_row<Message>(
         .padding_x(8.0)
         .padding_y(2.0)
         .spacing(10.0)
+}
+
+/// Build a compact sortable, reorderable, and resizable details-list header cell.
+///
+/// This provides the standard composition used by dense details-list headers:
+/// visible truncated label text, a transparent click-or-drag input layer for
+/// sort and column reorder gestures, and a trailing resize handle.
+pub fn compact_resizable_details_header_cell<Message>(
+    key: impl Into<String>,
+    label: impl Into<String>,
+    width: f32,
+    sort_message: Message,
+    drag_message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+    resize_message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+) -> View<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    let key = key.into();
+    let label = label.into();
+    row([
+        input_overlay(
+            text(label.clone())
+                .key(format!("{key}-label"))
+                .align_text(crate::widgets::TextAlign::Left)
+                .fill_width()
+                .height(20.0)
+                .truncate(),
+            button(label)
+                .click_or_drag(sort_message, drag_message)
+                .key(format!("{key}-sort-drag"))
+                .fill_width()
+                .height(20.0),
+        )
+        .fill_width()
+        .height(20.0),
+        drag_handle()
+            .mapped(resize_message)
+            .key(format!("{key}-resize"))
+            .size(4.0, 20.0),
+    ])
+    .key(key)
+    .width(width)
+    .height(20.0)
+    .spacing(1.0)
 }

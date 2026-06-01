@@ -8,6 +8,6 @@ pub use model::{
     details_sort_label, reorder_details_columns_by_id,
 };
 pub use view::{
-    compact_details_header_row, compact_details_row, selectable_sortable_details_list,
-    sortable_details_list,
+    compact_details_header_row, compact_details_row, compact_resizable_details_header_cell,
+    selectable_sortable_details_list, sortable_details_list,
 };

@@ -61,7 +61,10 @@ pub use property_panel::{
 mod panel_section;
 pub use panel_section::{PanelSectionParts, panel_section, panel_section_from_parts};
 mod labeled_control;
-pub use labeled_control::{LabeledControlParts, labeled_control, labeled_control_from_parts};
+pub use labeled_control::{
+    LabeledControlParts, labeled_control, labeled_control_control_offset,
+    labeled_control_control_offset_for, labeled_control_from_parts,
+};
 mod menu;
 pub use menu::{
     ContextMenuOverlayParts, DismissibleContextMenuParts, MenuCommand, MenuCommandParts, MenuItem,

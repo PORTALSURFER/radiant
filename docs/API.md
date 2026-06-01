@@ -1323,8 +1323,9 @@ stateful examples. Compact titled panels with optional header actions can use
 `PanelSectionParts`, `panel_section(...)`, and `panel_section_from_parts(...)`
 instead of rebuilding title rows, padding, spacing, and neutral panel chrome in
 application code. Compact control panels can use `LabeledControlParts`,
-`labeled_control(...)`, and `labeled_control_from_parts(...)` for label-over-
-control groups without repeating label text styling and stacked spacing.
+`labeled_control(...)`, `labeled_control_from_parts(...)`, and
+`labeled_control_control_offset(...)` for label-over-control groups and overlay
+anchors without repeating label text styling and stacked spacing.
 Centered fixed-size foreground surfaces can use `CenteredLayerParts`,
 `centered_layer(...)`, and `centered_layer_from_parts(...)` instead of
 rebuilding spacer rows and columns in application code.

@@ -90,3 +90,44 @@ pub fn labeled_control_from_parts<Message: 'static>(
     }
     view
 }
+
+/// Return the vertical offset from the top of a labeled control to its content.
+///
+/// Use this when stack-level overlays need to anchor to the contained control
+/// while the visible control is composed with [`labeled_control`].
+pub fn labeled_control_control_offset() -> f32 {
+    labeled_control_control_offset_for(
+        DEFAULT_LABELED_CONTROL_LABEL_HEIGHT,
+        DEFAULT_LABELED_CONTROL_SPACING,
+    )
+}
+
+/// Return the vertical offset from the top of a labeled control to its content
+/// for custom label metrics.
+pub fn labeled_control_control_offset_for(label_height: f32, spacing: f32) -> f32 {
+    finite_nonnegative(label_height) + finite_nonnegative(spacing)
+}
+
+fn finite_nonnegative(value: f32) -> f32 {
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{labeled_control_control_offset, labeled_control_control_offset_for};
+
+    #[test]
+    fn labeled_control_default_control_offset_matches_compact_metrics() {
+        assert_eq!(labeled_control_control_offset(), 21.0);
+    }
+
+    #[test]
+    fn labeled_control_control_offset_sanitizes_custom_metrics() {
+        assert_eq!(labeled_control_control_offset_for(12.0, 4.0), 16.0);
+        assert_eq!(labeled_control_control_offset_for(-12.0, f32::NAN), 0.0);
+    }
+}

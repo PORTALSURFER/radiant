@@ -8,7 +8,7 @@ mod scroll;
 
 pub use containers::{
     DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING, column, column_key, grid,
-    grid_with_gaps, row, row_key, stack, wrap,
+    grid_with_gaps, row, row_key, stack, stack_layers, wrap,
 };
 pub use lists::{
     BoundedScrollColumnParts, bounded_scroll_column, bounded_scroll_column_from_parts, list,

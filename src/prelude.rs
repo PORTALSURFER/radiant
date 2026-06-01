@@ -48,7 +48,7 @@ pub use crate::application::{
     progress_bar_for_snapshot, property_panel, reorder_details_columns_by_id, retained_canvas,
     retained_canvas_with, row, row_key, scroll, scroll_column, scrollbar, selectable,
     selectable_mapped, selectable_property_panel, selectable_sortable_details_list, slider,
-    slider_mapped, sortable_details_list, spacer, stack, state_dropdown, status_bar,
+    slider_mapped, sortable_details_list, spacer, stack, stack_layers, state_dropdown, status_bar,
     status_bar_from_parts, text, text_input, text_input_mapped, toggle, toggle_mapped, toolbar,
     toolbar_from_parts, tree_list, tree_list_with_drag, update_details_column_reorder_drag,
     update_details_column_resize_drag, virtual_list, virtual_list_window, virtual_scroll, widget,

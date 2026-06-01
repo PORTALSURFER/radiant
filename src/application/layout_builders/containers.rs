@@ -1,7 +1,7 @@
 //! Row, column, grid, and stack layout builders.
 
 use super::collection::collect_children;
-use crate::application::{ViewNode, ViewNodeKind};
+use crate::application::{ViewNode, ViewNodeKind, empty};
 
 /// Default main-axis gap for Radiant application row containers.
 pub const DEFAULT_ROW_SPACING: f32 = 4.0;
@@ -93,4 +93,64 @@ pub fn stack<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> 
     let (children, has_reserved_descendant_identity) = collect_children(children);
     ViewNode::new(ViewNodeKind::Stack { children })
         .with_reserved_descendant_identity(has_reserved_descendant_identity)
+}
+
+/// Build an overlay stack only when multiple layers are present.
+///
+/// This is useful for base content with optional overlays: zero layers lower to
+/// [`empty`], one layer is returned unchanged, and multiple layers lower to a
+/// normal [`stack`].
+pub fn stack_layers<Message: 'static>(
+    children: impl IntoIterator<Item = ViewNode<Message>>,
+) -> ViewNode<Message> {
+    let (mut children, has_reserved_descendant_identity) = collect_children(children);
+    match children.len() {
+        0 => empty(),
+        1 => children.remove(0),
+        _ => ViewNode::new(ViewNodeKind::Stack { children })
+            .with_reserved_descendant_identity(has_reserved_descendant_identity),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        application::{IntoView, stack_layers, text},
+        layout::{ContainerKind, LayoutNode, Vector2},
+    };
+
+    #[test]
+    fn stack_layers_without_children_lowers_to_empty_widget() {
+        let layout = stack_layers::<()>([]).into_surface().layout_node();
+
+        let LayoutNode::Widget(widget) = layout else {
+            panic!("empty layer stack should lower to a widget leaf");
+        };
+        assert_eq!(widget.intrinsic, Vector2::new(0.0, 0.0));
+    }
+
+    #[test]
+    fn stack_layers_with_one_child_returns_child_without_stack_container() {
+        let layout = stack_layers([text::<()>("Only")])
+            .into_surface()
+            .layout_node();
+
+        assert!(
+            matches!(layout, LayoutNode::Widget(_)),
+            "single layer should not allocate a stack container"
+        );
+    }
+
+    #[test]
+    fn stack_layers_with_multiple_children_lowers_to_stack_container() {
+        let layout = stack_layers([text::<()>("Base"), text::<()>("Overlay")])
+            .into_surface()
+            .layout_node();
+
+        let LayoutNode::Container(container) = layout else {
+            panic!("multiple layers should lower to a container");
+        };
+        assert_eq!(container.policy.kind, ContainerKind::Stack);
+        assert_eq!(container.children.len(), 2);
+    }
 }

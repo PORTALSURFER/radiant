@@ -315,6 +315,10 @@ When the caller has separate base content and foreground overlay content,
 `dismissible_overlay(base, overlay, message)` composes the standard
 base/dismiss/foreground stack so apps do not repeat the ordering required for
 outside-click dismissal.
+Base content with optional overlays can use `stack_layers(...)` to avoid
+application-local `if len > 1 { stack(...) } else { base }` branching. It
+returns `empty()` for zero layers, returns the only layer unchanged for one
+layer, and builds a normal `stack(...)` for multiple layers.
 Dropdown menus rendered as stack-level overlays can use
 `dropdown_menu_overlay_below_trigger(...)` when the menu is anchored below
 Radiant's standard dropdown trigger, avoiding app-local calls to

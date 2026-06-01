@@ -1,7 +1,8 @@
 use super::super::{
     DenseRowMarkerEdge, DenseRowMarkerParts, DenseRowPalette, DenseRowVisualState,
-    dense_row_fill_color, dense_row_inset_rect, dense_row_vertical_marker_rect,
-    push_dense_row_fill, push_dense_row_inset_stroke, push_dense_row_vertical_marker,
+    dense_row_fill_color, dense_row_inset_rect, dense_row_label_font_size,
+    dense_row_vertical_marker_rect, push_dense_row_fill, push_dense_row_inset_stroke,
+    push_dense_row_vertical_marker,
 };
 use crate::gui::types::{Point, Rect, Rgba8, Vector2};
 use crate::runtime::{PaintPrimitive, PaintStrokeRect};
@@ -103,6 +104,13 @@ fn dense_row_fill_color_uses_selection_as_base_state() {
         dense_row_fill_color(DenseRowVisualState::default(), palette()),
         None
     );
+}
+
+#[test]
+fn dense_row_label_font_size_tracks_compact_row_height() {
+    assert_eq!(dense_row_label_font_size(22.0), 13.0);
+    assert_eq!(dense_row_label_font_size(28.0), 14.0);
+    assert_eq!(dense_row_label_font_size(38.0), 18.0);
 }
 
 #[test]

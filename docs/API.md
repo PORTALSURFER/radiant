@@ -199,7 +199,9 @@ duplicating the `Started` / `Moved` / `Ended` variant shape.
 Dense custom row painters can use `push_dense_row_fill`,
 `push_dense_row_vertical_marker`, and `push_dense_row_inset_stroke` to append
 state-prioritized fills, edge markers, and outlines from Radiant's generic
-dense-row geometry helpers without repeating paint-plan guard code.
+dense-row geometry helpers without repeating paint-plan guard code. Use
+`dense_row_label_font_size(...)` with text-line helpers when custom dense rows
+need row-height-aware label sizing.
 Rows that need active drag-source motion after a retained refresh can opt into
 `with_drag_source_motion(...)`; rows that should accept drops without producing
 drop-hover messages can use `with_drop_only(...)`. Application-builder rows

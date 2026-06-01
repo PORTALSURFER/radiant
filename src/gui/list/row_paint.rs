@@ -102,6 +102,21 @@ pub struct DenseRowMarkerParts {
     pub min_height: f32,
 }
 
+/// Return a readable label font size for a dense row height.
+///
+/// Custom tree and list row painters can use this with Radiant text-line
+/// helpers to keep label sizing consistent across compact, medium, and taller
+/// dense rows.
+pub fn dense_row_label_font_size(row_height: f32) -> f32 {
+    if row_height >= 38.0 {
+        18.0
+    } else if row_height >= 28.0 {
+        14.0
+    } else {
+        13.0
+    }
+}
+
 /// Return the highest-priority fill color for a dense row state.
 pub fn dense_row_fill_color(state: DenseRowVisualState, palette: DenseRowPalette) -> Option<Rgba8> {
     if state.active_target {

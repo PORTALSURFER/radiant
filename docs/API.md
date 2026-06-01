@@ -222,6 +222,8 @@ Controllers can be configured per projection pass with `configure(...)`, follow
 optional app-owned focus using `focus_optional(...)`, and consume native
 pixel-scroll offsets with `set_scroll_offset(...)` while preserving the same
 clamping and virtual-window contract.
+Use `configure_and_focus_optional(...)` when a projection pass should update
+item count, viewport policy, and optional host selection in one controller call.
 Overlay and retained-geometry code that needs to mirror compact stack spacing
 can use `StackedLayoutCursor` to accumulate item extents and gaps without
 app-local offset arithmetic. Use the chainable `advanced(...)` and

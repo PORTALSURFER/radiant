@@ -21,6 +21,23 @@ fn virtual_list_controller_preserves_focus_until_guard_band_requires_scroll() {
 }
 
 #[test]
+fn virtual_list_controller_configures_and_focuses_in_one_projection_step() {
+    let mut controller = VirtualListController::new();
+    controller.set_viewport_start(90);
+
+    let window = controller.configure_and_focus_optional(100, 10, 2, 2, Some(4));
+
+    assert_eq!(window.viewport_start, 0);
+    assert_eq!(window.window_start, 0);
+    assert_eq!(window.window_end, 12);
+    assert_eq!(controller.total_items(), 100);
+    assert_eq!(controller.viewport_len(), 10);
+    assert_eq!(controller.overscan(), 2);
+    assert_eq!(controller.guard_band(), 2);
+    assert_eq!(controller.focused_index(), Some(4));
+}
+
+#[test]
 fn virtual_list_controller_scrolls_units_and_clamps_after_count_changes() {
     let mut controller = VirtualListController::with_items(30, 8);
 

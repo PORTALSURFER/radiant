@@ -128,6 +128,22 @@ impl VirtualListController {
         self.clamp_viewport_start();
     }
 
+    /// Configure the stable geometry inputs and resolve around optional focus.
+    ///
+    /// Use this during a projection pass when host-owned selection should keep
+    /// a virtualized list scrolled near the selected item.
+    pub fn configure_and_focus_optional(
+        &mut self,
+        total_items: usize,
+        viewport_len: usize,
+        overscan: usize,
+        guard_band: usize,
+        focused_index: Option<usize>,
+    ) -> VirtualListWindow {
+        self.configure(total_items, viewport_len, overscan, guard_band);
+        self.focus_optional(focused_index)
+    }
+
     /// Clear focused-index anchoring.
     pub fn clear_focus(&mut self) {
         self.focused_index = None;

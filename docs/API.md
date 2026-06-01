@@ -107,6 +107,14 @@ fn main() -> radiant::Result {
 }
 ```
 
+Tests, automation, and embedded previews that only need to inspect one view can
+prepare layout and paint frames directly from any `IntoView` value with
+`view_layout(...)`, `view_layout_at_size(...)`, `view_frame(...)`,
+`view_frame_at_size(...)`, `view_frame_with_default_theme(...)`, or
+`view_frame_at_size_with_default_theme(...)`.
+This keeps simple app-facing checks on the declarative view path without
+manually wrapping views in `UiSurface`.
+
 Small stateful apps can mutate state directly from widget callbacks while still
 lowering into the same message/command runtime:
 

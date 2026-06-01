@@ -14,6 +14,32 @@ fn prelude_supports_hello_world_imports() {
 }
 
 #[test]
+fn prelude_views_can_prepare_test_frames_directly() {
+    use radiant::prelude::*;
+
+    fn ready_view() -> impl IntoView<()> {
+        text("Ready")
+    }
+
+    let frame = ready_view().view_frame_at_size_with_default_theme(Vector2::new(120.0, 40.0));
+
+    assert!(frame.paint_plan.contains_text("Ready"));
+}
+
+#[test]
+fn prelude_views_can_resolve_layout_directly() {
+    use radiant::prelude::*;
+
+    fn ready_view() -> impl IntoView<()> {
+        text("Ready")
+    }
+
+    let layout = ready_view().view_layout_at_size(Vector2::new(120.0, 40.0));
+
+    assert!(layout.rects.contains_key(&1));
+}
+
+#[test]
 fn prelude_exports_application_chrome_models() {
     let status = ui::StatusSegments::from_parts(ui::StatusSegmentsParts {
         left: "Ready".to_owned(),

@@ -1,5 +1,7 @@
 use crate::{
-    application::{StateCallback, StateStringCallback, StateView, button, column, row, text},
+    application::{
+        StateCallback, StateStringCallback, StateView, ViewNode, button, column, row, text,
+    },
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 use std::sync::Arc;
@@ -56,11 +58,20 @@ impl PropertyRow {
 }
 
 /// Build a read-only inspector/property panel.
-pub fn property_panel<State: 'static>(
+pub fn property_panel<Message: 'static>(
     title: impl Into<String>,
     rows: impl IntoIterator<Item = PropertyRow>,
-) -> StateView<State> {
-    selectable_property_panel(title, rows, None::<fn(&mut State, String)>)
+) -> ViewNode<Message> {
+    column([
+        text(title.into()).height(20.0).fill_width(),
+        column(rows.into_iter().map(read_only_property_row))
+            .fill_width()
+            .spacing(1.0),
+    ])
+    .style(WidgetStyle::default())
+    .fill_width()
+    .padding(6.0)
+    .spacing(4.0)
 }
 
 /// Build an inspector/property panel with selectable rows.
@@ -84,6 +95,38 @@ pub fn selectable_property_panel<State: 'static>(
     .fill_width()
     .padding(6.0)
     .spacing(4.0)
+}
+
+fn read_only_property_row<Message: 'static>(row_data: PropertyRow) -> ViewNode<Message> {
+    let selected = row_data.selected;
+    let mut view = row([
+        text(row_data.label)
+            .key(format!("property-{}-label", row_data.id))
+            .size(112.0, 20.0),
+        text(row_data.value)
+            .key(format!("property-{}-value", row_data.id))
+            .fill_width()
+            .height(20.0),
+    ])
+    .key(format!("property-row-{}", row_data.id))
+    .fill_width()
+    .height(24.0)
+    .padding_x(6.0)
+    .padding_y(1.0)
+    .spacing(6.0)
+    .style(if selected {
+        WidgetStyle {
+            tone: WidgetTone::Accent,
+            prominence: WidgetProminence::Subtle,
+        }
+    } else {
+        WidgetStyle::default()
+    })
+    .hoverable();
+    if selected {
+        view = view.primary();
+    }
+    view
 }
 
 fn property_row<State: 'static>(

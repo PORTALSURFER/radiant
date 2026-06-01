@@ -45,7 +45,7 @@ fn application_builder_property_panel_routes_row_selection() {
 fn application_builder_property_panel_read_only_rows_do_not_join_focus_order() {
     use radiant::prelude::{self as ui, IntoView};
 
-    let surface: UiSurface<ui::StateAction<DemoState>> = ui::property_panel(
+    let surface: UiSurface<DemoMessage> = ui::property_panel(
         "Inspector",
         [
             ui::PropertyRow::new("name", "Name", "Layer 12"),

@@ -1329,7 +1329,9 @@ acceptable.
 Run `cargo run --example inspector_panel` for a compact inspector/property
 panel sandbox that uses `PropertyRow`, `property_panel(...)`, and
 `selectable_property_panel(...)` on the same application-builder path as other
-stateful examples. Compact titled panels with optional header actions can use
+stateful examples. `property_panel(...)` is read-only and can be used with any
+host message type; use `selectable_property_panel(...)` when property rows
+should emit state callbacks. Compact titled panels with optional header actions can use
 `PanelSectionParts`, `panel_section(...)`, and `panel_section_from_parts(...)`
 instead of rebuilding title rows, padding, spacing, and neutral panel chrome in
 application code. Compact control panels can use `LabeledControlParts`,

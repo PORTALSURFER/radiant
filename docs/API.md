@@ -1104,6 +1104,12 @@ Native renderers that receive very high frequency pointer updates can use
 reduce emitted widget messages immediately while deferring surface projection,
 layout, and scene rebuild until the next redraw. This keeps drag reducers
 current without forcing one declarative refresh per OS cursor event.
+Custom widget tests, automation, and embedded hosts can use
+`WidgetInput::pointer_move(...)`, `pointer_press(...)`, `primary_press(...)`,
+`pointer_double_click(...)`, `primary_double_click(...)`,
+`pointer_release(...)`, `primary_release(...)`, `pointer_drop(...)`,
+`primary_drop(...)`, `wheel(...)`, and `plain_wheel(...)` to build
+backend-neutral widget inputs without repeating pointer-event struct literals.
 Application builders can register host-owned shortcut catalogs with
 `.shortcuts(...)`. The runtime supplies pending chord state, normalized
 `KeyPress`, and `FocusSurface`; returning `ShortcutResolution::action(message)`

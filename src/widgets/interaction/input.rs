@@ -193,6 +193,117 @@ pub enum WidgetInput {
 }
 
 impl WidgetInput {
+    /// Build a pointer-move input at `position`.
+    pub fn pointer_move(position: Point) -> Self {
+        Self::PointerMove { position }
+    }
+
+    /// Build a pointer-press input with explicit button and modifiers.
+    pub fn pointer_press(
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+    ) -> Self {
+        Self::PointerPress {
+            position,
+            button,
+            modifiers,
+        }
+    }
+
+    /// Build a primary-button pointer press with no keyboard modifiers.
+    pub fn primary_press(position: Point) -> Self {
+        Self::pointer_press(
+            position,
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        )
+    }
+
+    /// Build a pointer double-click input with explicit button and modifiers.
+    pub fn pointer_double_click(
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+    ) -> Self {
+        Self::PointerDoubleClick {
+            position,
+            button,
+            modifiers,
+        }
+    }
+
+    /// Build a primary-button pointer double-click with no keyboard modifiers.
+    pub fn primary_double_click(position: Point) -> Self {
+        Self::pointer_double_click(
+            position,
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        )
+    }
+
+    /// Build a pointer-release input with explicit button and modifiers.
+    pub fn pointer_release(
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+    ) -> Self {
+        Self::PointerRelease {
+            position,
+            button,
+            modifiers,
+        }
+    }
+
+    /// Build a primary-button pointer release with no keyboard modifiers.
+    pub fn primary_release(position: Point) -> Self {
+        Self::pointer_release(
+            position,
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        )
+    }
+
+    /// Build a captured pointer-drop input with explicit button and modifiers.
+    pub fn pointer_drop(
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+    ) -> Self {
+        Self::PointerDrop {
+            position,
+            button,
+            modifiers,
+        }
+    }
+
+    /// Build a primary-button pointer drop with no keyboard modifiers.
+    pub fn primary_drop(position: Point) -> Self {
+        Self::pointer_drop(
+            position,
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        )
+    }
+
+    /// Build a wheel or trackpad-scroll input with explicit modifiers.
+    pub fn wheel(
+        position: Point,
+        delta: crate::gui::types::Vector2,
+        modifiers: PointerModifiers,
+    ) -> Self {
+        Self::Wheel {
+            position,
+            delta,
+            modifiers,
+        }
+    }
+
+    /// Build a wheel or trackpad-scroll input with no keyboard modifiers.
+    pub fn plain_wheel(position: Point, delta: crate::gui::types::Vector2) -> Self {
+        Self::wheel(position, delta, PointerModifiers::default())
+    }
+
     /// Return the pointer position carried by this input, when it has one.
     pub fn pointer_position(&self) -> Option<Point> {
         match self {
@@ -234,5 +345,58 @@ impl WidgetInput {
     pub fn pointer_start_inside(&self, bounds: Rect) -> bool {
         self.pointer_start_position()
             .is_some_and(|position| bounds.contains(position))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui::types::Vector2;
+
+    #[test]
+    fn widget_input_constructors_preserve_pointer_payloads() {
+        let point = Point::new(12.0, 34.0);
+        let modifiers = PointerModifiers {
+            command: true,
+            shift: true,
+            alt: false,
+        };
+
+        assert_eq!(
+            WidgetInput::pointer_move(point),
+            WidgetInput::PointerMove { position: point }
+        );
+        assert_eq!(
+            WidgetInput::pointer_press(point, PointerButton::Secondary, modifiers),
+            WidgetInput::PointerPress {
+                position: point,
+                button: PointerButton::Secondary,
+                modifiers,
+            }
+        );
+        assert_eq!(
+            WidgetInput::primary_release(point),
+            WidgetInput::PointerRelease {
+                position: point,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            }
+        );
+        assert_eq!(
+            WidgetInput::primary_double_click(point),
+            WidgetInput::PointerDoubleClick {
+                position: point,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            }
+        );
+        assert_eq!(
+            WidgetInput::plain_wheel(point, Vector2::new(0.0, -120.0)),
+            WidgetInput::Wheel {
+                position: point,
+                delta: Vector2::new(0.0, -120.0),
+                modifiers: PointerModifiers::default(),
+            }
+        );
     }
 }

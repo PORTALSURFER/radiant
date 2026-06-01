@@ -1,8 +1,5 @@
 use super::*;
-use crate::{
-    gui::types::{Point, Rect, Vector2},
-    widgets::interaction::PointerModifiers,
-};
+use crate::gui::types::{Point, Rect, Vector2};
 
 fn bounds() -> Rect {
     Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(80.0, 24.0))
@@ -16,9 +13,7 @@ fn pointer_activation_tracks_hover_press_and_release() {
     handle_activation_input(
         &mut state,
         bounds,
-        &WidgetInput::PointerMove {
-            position: Point::new(12.0, 22.0),
-        },
+        &WidgetInput::pointer_move(Point::new(12.0, 22.0)),
         ActivationInputPolicy::pointer_only(),
     );
     assert!(state.hovered);
@@ -26,11 +21,7 @@ fn pointer_activation_tracks_hover_press_and_release() {
     handle_activation_input(
         &mut state,
         bounds,
-        &WidgetInput::PointerPress {
-            position: Point::new(12.0, 22.0),
-            button: PointerButton::Primary,
-            modifiers: PointerModifiers::default(),
-        },
+        &WidgetInput::primary_press(Point::new(12.0, 22.0)),
         ActivationInputPolicy::pointer_only(),
     );
     assert!(state.pressed);
@@ -39,11 +30,7 @@ fn pointer_activation_tracks_hover_press_and_release() {
     let result = handle_activation_input(
         &mut state,
         bounds,
-        &WidgetInput::PointerRelease {
-            position: Point::new(12.0, 22.0),
-            button: PointerButton::Primary,
-            modifiers: PointerModifiers::default(),
-        },
+        &WidgetInput::primary_release(Point::new(12.0, 22.0)),
         ActivationInputPolicy::pointer_only(),
     );
     assert!(result.activated());
@@ -59,11 +46,7 @@ fn focusable_activation_focuses_on_press_and_uses_keyboard() {
     handle_activation_input(
         &mut state,
         bounds,
-        &WidgetInput::PointerPress {
-            position: Point::new(12.0, 22.0),
-            button: PointerButton::Primary,
-            modifiers: PointerModifiers::default(),
-        },
+        &WidgetInput::primary_press(Point::new(12.0, 22.0)),
         ActivationInputPolicy::focusable(),
     );
     assert!(state.focused);

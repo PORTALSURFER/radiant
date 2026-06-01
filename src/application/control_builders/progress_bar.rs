@@ -1,5 +1,6 @@
 use crate::{
     application::{MappedWidget, ViewNode, view_node_from_widget},
+    gui::feedback::ProgressSnapshot,
     gui::types::Rgba8,
     runtime::WidgetMessageMapper,
     widgets::{
@@ -90,4 +91,39 @@ pub fn determinate_progress_bar(fraction: f32) -> ProgressBarBuilder {
 /// Build an indeterminate activity progress bar.
 pub fn indeterminate_progress_bar(position_fraction: f32) -> ProgressBarBuilder {
     progress_bar(ProgressBarMode::Indeterminate(position_fraction))
+}
+
+/// Build a progress bar from domain-neutral progress counters.
+///
+/// When the snapshot has a known total, this returns a determinate progress
+/// bar. When the total is unknown, this returns an indeterminate activity bar
+/// using `indeterminate_position_fraction` as the moving segment position.
+pub fn progress_bar_for_snapshot(
+    snapshot: ProgressSnapshot,
+    indeterminate_position_fraction: f32,
+) -> ProgressBarBuilder {
+    if let Some(fraction) = snapshot.fraction() {
+        determinate_progress_bar(fraction)
+    } else {
+        indeterminate_progress_bar(indeterminate_position_fraction)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn progress_bar_for_snapshot_uses_determinate_mode_when_total_is_known() {
+        let builder = progress_bar_for_snapshot(ProgressSnapshot::new(3, 12), 0.75);
+
+        assert_eq!(builder.mode, ProgressBarMode::Determinate(0.25));
+    }
+
+    #[test]
+    fn progress_bar_for_snapshot_uses_indeterminate_mode_when_total_is_unknown() {
+        let builder = progress_bar_for_snapshot(ProgressSnapshot::new(3, 0), 0.75);
+
+        assert_eq!(builder.mode, ProgressBarMode::Indeterminate(0.75));
+    }
 }

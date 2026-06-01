@@ -40,6 +40,7 @@ pub use pointer_shield::{
 };
 pub use progress_bar::{
     ProgressBarBuilder, determinate_progress_bar, indeterminate_progress_bar, progress_bar,
+    progress_bar_for_snapshot,
 };
 pub use scrollbar::{ScrollbarBuilder, scrollbar};
 pub use selectable::{SelectableBuilder, selectable, selectable_mapped};

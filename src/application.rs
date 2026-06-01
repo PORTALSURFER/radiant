@@ -96,8 +96,8 @@ pub use control_builders::{
     dropdown_menu_overlay_below_from_parts, dropdown_option, dropdown_trigger,
     dropdown_trigger_from_parts, feedback_overlay, icon_button, indeterminate_progress_bar,
     interactive_row, marker_run, pointer_drop_shield, pointer_move_shield, pointer_shield,
-    progress_bar, scrollbar, selectable, selectable_mapped, slider, slider_mapped, state_dropdown,
-    text_input, text_input_mapped, toggle, toggle_mapped,
+    progress_bar, progress_bar_for_snapshot, scrollbar, selectable, selectable_mapped, slider,
+    slider_mapped, state_dropdown, text_input, text_input_mapped, toggle, toggle_mapped,
 };
 mod layout_builders;
 pub use layout_builders::{

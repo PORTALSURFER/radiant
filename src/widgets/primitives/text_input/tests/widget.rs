@@ -220,3 +220,28 @@ fn underline_text_input_paints_baseline_without_box_chrome() {
             .any(|primitive| matches!(primitive, PaintPrimitive::TextInput(_)))
     );
 }
+
+#[test]
+fn text_input_paint_carries_inline_completion_suffix() {
+    let mut input = TextInputWidget::new(
+        7,
+        "ki",
+        WidgetSizing::new(Vector2::new(100.0, 18.0), Vector2::new(160.0, 18.0)),
+    );
+    input.props.completion_suffix = Some("ck".into());
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 18.0));
+    let mut primitives = Vec::new();
+
+    input.append_paint(
+        &mut primitives,
+        bounds,
+        &crate::layout::LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+
+    assert!(primitives.iter().any(|primitive| matches!(
+        primitive,
+        PaintPrimitive::TextInput(text_input)
+            if text_input.completion_suffix.as_deref() == Some("ck")
+    )));
+}

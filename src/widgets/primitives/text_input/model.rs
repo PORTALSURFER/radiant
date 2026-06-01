@@ -10,6 +10,8 @@ mod word_boundary;
 pub struct TextInputProps {
     /// Optional placeholder shown when the current value is empty.
     pub placeholder: Option<PaintText>,
+    /// Optional inline completion text painted after the current value.
+    pub completion_suffix: Option<PaintText>,
     /// Whether Enter should emit a submit message instead of inserting text.
     pub submit_on_enter: bool,
     /// Optional maximum number of Unicode scalar values accepted by the field.

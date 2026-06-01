@@ -59,6 +59,12 @@ pub(super) fn encode_text_input(
             layout.visible_text(text),
             input.color,
         );
+        draw_completion_suffix(
+            scene,
+            text_renderer,
+            input,
+            layout.local_x_for_byte(text.len()),
+        );
     } else {
         draw_text_input_text(
             scene,
@@ -73,6 +79,13 @@ pub(super) fn encode_text_input(
         );
         if input.focused {
             encode_block_caret(scene, input, text_rect.min.x, animation_time);
+        }
+        if !is_placeholder {
+            let suffix_x = text_renderer
+                .layout_text(display_text, input.font_size)
+                .map(|layout| layout.width)
+                .unwrap_or(0.0);
+            draw_completion_suffix(scene, text_renderer, input, suffix_x);
         }
     }
 }
@@ -99,6 +112,45 @@ fn draw_text_input_text(
             font_size: input.font_size,
             color,
             max_width: Some(input.rect.width().max(0.0)),
+            align: TextAlign::Left,
+        }],
+    );
+}
+
+fn draw_completion_suffix(
+    scene: &mut Scene,
+    text_renderer: &mut NativeTextRenderer,
+    input: &PaintTextInput,
+    x: f32,
+) {
+    let Some(suffix) = input
+        .completion_suffix
+        .as_ref()
+        .filter(|suffix| !suffix.is_empty())
+    else {
+        return;
+    };
+    if input.state.value.is_empty() || !x.is_finite() {
+        return;
+    }
+    let gap = (input.font_size * 0.14).clamp(1.0, 3.0);
+    let suffix_x = input.rect.min.x + x + gap;
+    let max_width = input.rect.max.x - suffix_x;
+    if max_width <= 0.0 {
+        return;
+    }
+    let baseline_offset = input.baseline.unwrap_or(input.font_size);
+    text_renderer.draw_scene_text_runs(
+        scene,
+        [SceneTextRun {
+            text: suffix.clone(),
+            position: Point::new(
+                suffix_x,
+                input.rect.min.y + baseline_offset - input.font_size,
+            ),
+            font_size: input.font_size,
+            color: input.completion_color,
+            max_width: Some(max_width),
             align: TextAlign::Left,
         }],
     );

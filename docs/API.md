@@ -154,7 +154,10 @@ previews, folder scans, or document-local workers.
 Text inputs can use `.message(...)` for value-only routing or
 `.message_event(...)` when the host needs to distinguish edits from submissions.
 Inline edit flows can seed caret and selection state with `.selection(...)` or
-`.select_all()` while staying on the application-builder path.
+`.select_all()` while staying on the application-builder path. Autocomplete and
+inline suggestion flows can use `.completion_suffix(...)` to paint a suffix
+after the current value without app-local floating text overlays or text-offset
+math.
 Applications with several mutually exclusive transient surfaces, such as
 dropdowns, popovers, or inspector subpanels, can use `ExclusiveOpen<T>` to keep
 one typed item open at a time and centralize toggle/close behavior.

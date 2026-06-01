@@ -52,6 +52,7 @@ impl TextInputWidget {
             common,
             props: TextInputProps {
                 placeholder: None,
+                completion_suffix: None,
                 submit_on_enter: true,
                 character_limit: None,
                 chrome: TextInputChrome::Full,

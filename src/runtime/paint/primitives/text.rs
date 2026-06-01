@@ -144,6 +144,8 @@ pub struct PaintTextInput {
     pub rect: Rect,
     /// Optional placeholder shown when the value is empty.
     pub placeholder: Option<PaintText>,
+    /// Optional inline completion text painted after the current value.
+    pub completion_suffix: Option<PaintText>,
     /// Current text input state.
     pub state: TextInputState,
     /// Font size in logical pixels per em.
@@ -154,6 +156,8 @@ pub struct PaintTextInput {
     pub color: Rgba8,
     /// Placeholder text color.
     pub placeholder_color: Rgba8,
+    /// Inline completion text color.
+    pub completion_color: Rgba8,
     /// Selection fill color.
     pub selection_color: Rgba8,
     /// Block caret fill color.

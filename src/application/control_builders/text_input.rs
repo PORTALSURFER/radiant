@@ -11,6 +11,7 @@ use std::sync::Arc;
 pub struct TextInputBuilder {
     value: String,
     placeholder: Option<String>,
+    completion_suffix: Option<String>,
     style: Option<WidgetStyle>,
     selection: Option<(usize, usize)>,
     chrome: TextInputChrome,
@@ -20,6 +21,15 @@ impl TextInputBuilder {
     /// Show placeholder text when the input value is empty.
     pub fn placeholder(mut self, placeholder: impl Into<String>) -> Self {
         self.placeholder = Some(placeholder.into());
+        self
+    }
+
+    /// Show inline completion text after the current value.
+    pub fn completion_suffix(mut self, suffix: impl Into<String>) -> Self {
+        let suffix = suffix.into();
+        if !suffix.is_empty() {
+            self.completion_suffix = Some(suffix);
+        }
         self
     }
 
@@ -138,12 +148,14 @@ impl TextInputBuilder {
         let Self {
             value,
             placeholder,
+            completion_suffix,
             style,
             selection,
             chrome,
         } = self;
         let mut input = TextInputWidget::new(0, value, default_text_input_sizing());
         input.props.placeholder = placeholder.map(Into::into);
+        input.props.completion_suffix = completion_suffix.map(Into::into);
         input.props.chrome = chrome;
         if let Some((anchor, caret)) = selection {
             input.state.selection_anchor = anchor;
@@ -158,6 +170,7 @@ pub fn text_input(value: impl Into<String>) -> TextInputBuilder {
     TextInputBuilder {
         value: value.into(),
         placeholder: None,
+        completion_suffix: None,
         style: None,
         selection: None,
         chrome: TextInputChrome::Full,

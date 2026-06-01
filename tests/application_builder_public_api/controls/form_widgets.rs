@@ -198,6 +198,7 @@ fn text_input_builder_can_seed_selection_and_route_full_input_events() {
 
     let surface: UiSurface<TextInputMessage> = ui::text_input("Rename me")
         .select_all()
+        .completion_suffix(".wav")
         .message_event(|message| message)
         .id(10)
         .into_surface();
@@ -205,6 +206,7 @@ fn text_input_builder_can_seed_selection_and_route_full_input_events() {
     let input = widget_ref::<TextInputWidget, _>(&surface, 10, "text input");
     assert_eq!(input.state.selection_anchor, 0);
     assert_eq!(input.state.caret, "Rename me".chars().count());
+    assert_eq!(input.props.completion_suffix.as_deref(), Some(".wav"));
     assert_eq!(
         surface.dispatch_widget_output(
             10,

@@ -2,7 +2,7 @@
 
 use super::containers::{column, row, row_key};
 use super::scroll::{scroll, virtual_scroll};
-use crate::application::{ViewNode, spacer};
+use crate::application::{ViewNode, empty, spacer};
 use crate::gui::list::{VirtualListWindow, bounded_list_height};
 use crate::widgets::WidgetStyle;
 
@@ -97,7 +97,7 @@ pub fn bounded_scroll_column_from_parts<Message: 'static>(
         parts.vertical_chrome,
     );
     if height <= 0.0 {
-        return spacer().height(0.0).fill_width();
+        return empty().fill_width();
     }
     scroll(column(parts.rows).spacing(0.0).fill_width())
         .style(parts.style)

@@ -34,7 +34,7 @@ and explicit runtime objects are part of the same API surface:
 Radiant's application API is designed to be easy to read without hiding the
 runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `app`, `text`, `button`, `row`, `column`, `scroll`, `scroll_column`, `list`,
-`list_row`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget`, `IntoView`, `View`,
+`list_row`, `empty`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget`, `IntoView`, `View`,
 `StateView`, `Command`, `EmbeddedFont`, `StatusSegments`, `StatusLineLog`,
 `StatusLineEntry`, `ContentViewChrome`, common custom-widget authoring contracts such as
 `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`,
@@ -138,6 +138,9 @@ Application builders generate deterministic structural IDs during projection and
 provide default widget sizing. Production apps and tests can opt back into
 explicit control with `.id(...)`, `.sizing(...)`, `.size(...)`, `.fixed(...)`,
 `.min_size(...)`, `.preferred_size(...)`, `.baseline(...)`, and `.spacing(...)`.
+Use `empty()` for optional branches that must return a view without
+contributing visible layout size; use `spacer()` when the view should reserve a
+visible fixed or flexible gap.
 Rows, columns, and fixed-column grids use intrinsic main-axis child sizing by
 default, so list rows and grid tiles do not stretch just because there are only
 a few items. Apps can request

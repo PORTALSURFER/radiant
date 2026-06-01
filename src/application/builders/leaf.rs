@@ -184,6 +184,15 @@ where
     ))
 }
 
+/// Build a passive view with no visible extent.
+///
+/// Use this for optional branches that need to return a view but should not
+/// contribute layout size. Use [`spacer`] when the layout needs a visible
+/// flexible or fixed gap.
+pub fn empty<Message: 'static>() -> ViewNode<Message> {
+    canvas().size(0.0, 0.0)
+}
+
 /// Build a minimal passive spacer view.
 pub fn spacer<Message: 'static>() -> ViewNode<Message> {
     canvas().size(1.0, 1.0)
@@ -213,4 +222,32 @@ where
     Message: 'static,
 {
     view_node_from_widget(MappedWidget::new(widget, WidgetMessageMapper::typed(map)))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        application::{IntoView, empty, spacer},
+        layout::{LayoutNode, Vector2},
+    };
+
+    #[test]
+    fn empty_lowers_to_zero_extent_widget() {
+        let layout = empty::<()>().into_surface().layout_node();
+
+        let LayoutNode::Widget(widget) = layout else {
+            panic!("empty should lower to a widget leaf");
+        };
+        assert_eq!(widget.intrinsic, Vector2::new(0.0, 0.0));
+    }
+
+    #[test]
+    fn spacer_keeps_minimal_extent() {
+        let layout = spacer::<()>().into_surface().layout_node();
+
+        let LayoutNode::Widget(widget) = layout else {
+            panic!("spacer should lower to a widget leaf");
+        };
+        assert_eq!(widget.intrinsic, Vector2::new(1.0, 1.0));
+    }
 }

@@ -95,3 +95,29 @@ fn surface_runtime_skips_duplicate_viewport_resize_work() {
         "duplicate logical resize should not replace the current layout evaluation"
     );
 }
+
+#[test]
+fn surface_runtime_routes_pointer_click_convenience_through_press_and_release_events() {
+    let bridge = declarative_runtime_bridge(
+        DemoState::default(),
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::CanvasInput(_) => {}
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+
+    let outcome = runtime.dispatch_primary_click(Point::new(150.0, 10.0));
+
+    assert_eq!(outcome.press_target, Some(11));
+    assert_eq!(outcome.release_target, Some(11));
+    assert_eq!(outcome.completed_widget(), Some(11));
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.bridge().state().count, 1);
+    assert_eq!(
+        widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,
+        "Untitled (1)"
+    );
+}

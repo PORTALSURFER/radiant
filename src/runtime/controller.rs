@@ -21,7 +21,7 @@ mod work;
 
 pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};
-pub use events::{Event, PointerMoveOutcome};
+pub use events::{Event, PointerClickOutcome, PointerMoveOutcome};
 pub use scroll::ScrollUpdate;
 
 use super::{

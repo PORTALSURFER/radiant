@@ -1087,6 +1087,11 @@ focus order repeatedly without reallocating.
 Pointer dispatch through `dispatch_input_at` can assign focus from hit testing;
 keyboard dispatch through `dispatch_focused_input` routes input to the focused
 widget by stable `WidgetId`.
+Tests, automation, and embedded hosts that need ordinary pointer activation can
+use `SurfaceRuntime::dispatch_pointer_click(...)` or
+`dispatch_primary_click(...)`; the returned `PointerClickOutcome` reports the
+press target, release target, and completed widget while still routing through
+the same backend-neutral press/release event path as native adapters.
 Backend adapters that need redraw policy can route pointer motion through
 `SurfaceRuntime::dispatch_pointer_move_with_outcome(...)`. Its
 `PointerMoveOutcome` reports the target widget, hover changes, pointer capture,

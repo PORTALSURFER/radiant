@@ -30,6 +30,31 @@ pub struct PointerMoveOutcome {
     pub exit_requested: bool,
 }
 
+/// Routing summary for a synthetic pointer click dispatched through the normal
+/// backend-neutral event path.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PointerClickOutcome {
+    /// Widget targeted by the press event, when one was hit.
+    pub press_target: Option<WidgetId>,
+    /// Widget targeted by the matching release event, when one was hit.
+    pub release_target: Option<WidgetId>,
+}
+
+impl PointerClickOutcome {
+    /// Return whether the press and release both routed to the same widget.
+    pub fn completed_on_same_widget(self) -> bool {
+        self.press_target.is_some() && self.press_target == self.release_target
+    }
+
+    /// Return the widget that received both press and release, when the click
+    /// completed on one widget.
+    pub fn completed_widget(self) -> Option<WidgetId> {
+        self.completed_on_same_widget()
+            .then_some(self.press_target)
+            .flatten()
+    }
+}
+
 impl PointerMoveOutcome {
     /// Return whether a projected widget received the pointer move.
     pub fn routed(self) -> bool {
@@ -157,5 +182,41 @@ where
                 None
             }
         }
+    }
+
+    /// Route a pointer press followed by a matching release at the same point.
+    ///
+    /// This is a convenience for tests, embedded hosts, and automation paths
+    /// that need to exercise the same click routing as native backends without
+    /// repeating the press/release event boilerplate.
+    pub fn dispatch_pointer_click(
+        &mut self,
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+    ) -> PointerClickOutcome {
+        let press_target = self.dispatch_event(Event::PointerPress {
+            position,
+            button,
+            modifiers,
+        });
+        let release_target = self.dispatch_event(Event::PointerRelease {
+            position,
+            button,
+            modifiers,
+        });
+        PointerClickOutcome {
+            press_target,
+            release_target,
+        }
+    }
+
+    /// Route a primary-button click with no keyboard modifiers.
+    pub fn dispatch_primary_click(&mut self, position: Point) -> PointerClickOutcome {
+        self.dispatch_pointer_click(
+            position,
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        )
     }
 }

@@ -502,6 +502,10 @@ services, runtime-owned queues, animation policy, retained/transient rendering,
 diagnostics, and lifecycle. Most applications should reach those responsibilities
 through `radiant::app(...)`; custom bridges should override only the groups they
 own instead of using the trait as a second application framework.
+Stateful embedding tests and custom hosts that do need a `SurfaceRuntime` can
+skip the intermediate bridge variable with `SurfaceRuntime::new_declarative(...)`
+or `SurfaceRuntime::new_declarative_owned(...)`, depending on whether the view
+projector returns a shared `Arc<UiSurface<_>>` or a fresh owned `UiSurface<_>`.
 
 ## View, Element, And Widget
 

@@ -5,8 +5,12 @@ use super::super::{
 use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState},
-    runtime::{CommandOutcome, RuntimeBridge, SurfaceRuntimeProjection},
+    runtime::{
+        CommandOutcome, DeclarativeOwnedRuntimeBridge, DeclarativeRuntimeBridge, RuntimeBridge,
+        SurfaceRuntimeProjection, UiSurface,
+    },
 };
+use std::sync::Arc;
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
@@ -144,6 +148,52 @@ where
         {
             self.interaction.hover.container = None;
         }
+    }
+}
+
+impl<State, Message, Project, Reduce>
+    SurfaceRuntime<DeclarativeRuntimeBridge<State, Message, Project, Reduce>, Message>
+where
+    Project: FnMut(&mut State) -> Arc<UiSurface<Message>>,
+    Reduce: FnMut(&mut State, Message),
+{
+    /// Build a runtime controller from state, a shared-surface projector, and a reducer.
+    ///
+    /// This is the direct runtime counterpart to [`DeclarativeRuntimeBridge::new`]
+    /// for hosts and tests that do not need to name the intermediate bridge.
+    pub fn new_declarative(
+        state: State,
+        viewport: Vector2,
+        project: Project,
+        reduce: Reduce,
+    ) -> Self {
+        Self::new(
+            DeclarativeRuntimeBridge::new(state, project, reduce),
+            viewport,
+        )
+    }
+}
+
+impl<State, Message, Project, Reduce>
+    SurfaceRuntime<DeclarativeOwnedRuntimeBridge<State, Message, Project, Reduce>, Message>
+where
+    Project: FnMut(&mut State) -> UiSurface<Message>,
+    Reduce: FnMut(&mut State, Message),
+{
+    /// Build a runtime controller from state, an owned-surface projector, and a reducer.
+    ///
+    /// This is the allocation-lean counterpart to [`Self::new_declarative`] for
+    /// hosts and tests whose projector naturally builds a fresh [`UiSurface`].
+    pub fn new_declarative_owned(
+        state: State,
+        viewport: Vector2,
+        project: Project,
+        reduce: Reduce,
+    ) -> Self {
+        Self::new(
+            DeclarativeOwnedRuntimeBridge::new(state, project, reduce),
+            viewport,
+        )
     }
 }
 

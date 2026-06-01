@@ -5,8 +5,8 @@ use radiant::{
     runtime::{
         App, DeclarativeOwnedRuntimeBridge, DeclarativeOwnedRuntimeBridgeParts,
         DeclarativeRuntimeBridge, DeclarativeRuntimeBridgeParts, RuntimeBridge, SurfaceChild,
-        SurfaceNode, UiSurface, WidgetMessageMapper, declarative_owned_runtime_bridge,
-        declarative_runtime_bridge,
+        SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
+        declarative_owned_runtime_bridge, declarative_runtime_bridge,
     },
     widgets::{
         ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, Widget,
@@ -123,4 +123,43 @@ fn declarative_runtime_bridges_support_named_parts_construction() {
     owned_bridge.reduce_message(DemoMessage::Rename(String::from("Owned")));
     assert_eq!(owned_bridge.state().name, "Owned");
     assert!(owned_bridge.pull_surface().find_widget(12).is_some());
+}
+
+#[test]
+fn surface_runtime_can_build_declarative_bridges_directly() {
+    let mut runtime = SurfaceRuntime::new_declarative(
+        DemoState::default(),
+        Vector2::new(320.0, 120.0),
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+        },
+    );
+    runtime.dispatch_message(DemoMessage::Increment);
+    assert_eq!(runtime.bridge().state().count, 1);
+    assert!(
+        runtime
+            .frame_with_default_theme()
+            .paint_plan
+            .contains_text("Untitled (1)")
+    );
+
+    let mut owned_runtime = SurfaceRuntime::new_declarative_owned(
+        DemoState::default(),
+        Vector2::new(320.0, 120.0),
+        project_owned_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+        },
+    );
+    owned_runtime.dispatch_message(DemoMessage::Rename(String::from("Owned")));
+    assert_eq!(owned_runtime.bridge().state().name, "Owned");
+    assert!(
+        owned_runtime
+            .frame_with_default_theme()
+            .paint_plan
+            .contains_text("Owned (0)")
+    );
 }

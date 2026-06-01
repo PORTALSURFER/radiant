@@ -14,6 +14,7 @@ mod tests;
 pub use menu::{
     DropdownMenuOverlayBelowParts, dropdown_menu, dropdown_menu_height, dropdown_menu_overlay,
     dropdown_menu_overlay_below, dropdown_menu_overlay_below_from_parts,
+    dropdown_menu_overlay_below_trigger, dropdown_trigger_height,
 };
 pub use model::{
     DropdownOption, DropdownOptionParts, DropdownOptionSelection, DropdownParts,
@@ -235,7 +236,7 @@ where
 
 /// Return the normal-flow height for a dropdown toggle.
 pub fn dropdown_height(_open: bool, _option_count: usize) -> f32 {
-    24.0
+    dropdown_trigger_height()
 }
 
 /// Build a state-mutating dropdown option.

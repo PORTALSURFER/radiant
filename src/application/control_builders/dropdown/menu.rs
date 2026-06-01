@@ -6,6 +6,7 @@ use crate::{
 use super::DropdownOption;
 
 const DROPDOWN_MENU_PADDING: f32 = 4.0;
+const DROPDOWN_TRIGGER_HEIGHT: f32 = 24.0;
 
 /// Named construction fields for a dropdown menu overlay anchored below a trigger.
 pub struct DropdownMenuOverlayBelowParts<Message> {
@@ -101,6 +102,20 @@ where
     })
 }
 
+/// Build a dropdown menu overlay below Radiant's standard dropdown trigger.
+pub fn dropdown_menu_overlay_below_trigger<Message>(
+    x: f32,
+    trigger_y: f32,
+    gap: f32,
+    width: Option<f32>,
+    options: Vec<DropdownOption<Message>>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    dropdown_menu_overlay_below(x, trigger_y, dropdown_trigger_height(), gap, width, options)
+}
+
 /// Build a dropdown menu overlay below a trigger from named parts.
 pub fn dropdown_menu_overlay_below_from_parts<Message>(
     parts: DropdownMenuOverlayBelowParts<Message>,
@@ -150,6 +165,11 @@ where
 
 fn dropdown_overlay_gap<Message: 'static>() -> ViewNode<Message> {
     text("")
+}
+
+/// Return the normal-flow height for a standard dropdown trigger.
+pub fn dropdown_trigger_height() -> f32 {
+    DROPDOWN_TRIGGER_HEIGHT
 }
 
 fn dropdown_option_button<Message>(

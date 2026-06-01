@@ -28,8 +28,9 @@ pub use dropdown::{
     DropdownOptionParts, DropdownOptionSelection, DropdownParts, DropdownTriggerBuilder,
     DropdownTriggerBuilderNeedsToggle, DropdownTriggerParts, dropdown, dropdown_from_parts,
     dropdown_height, dropdown_menu, dropdown_menu_height, dropdown_menu_overlay,
-    dropdown_menu_overlay_below, dropdown_menu_overlay_below_from_parts, dropdown_option,
-    dropdown_trigger, dropdown_trigger_from_parts, state_dropdown,
+    dropdown_menu_overlay_below, dropdown_menu_overlay_below_from_parts,
+    dropdown_menu_overlay_below_trigger, dropdown_option, dropdown_trigger,
+    dropdown_trigger_from_parts, dropdown_trigger_height, state_dropdown,
 };
 pub use feedback_overlay::{FeedbackOverlayBuilder, feedback_overlay};
 pub use icon_button::{IconButtonBuilder, icon_button};

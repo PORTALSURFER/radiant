@@ -36,6 +36,17 @@ fn application_builder_dropdown_overlay_routes_above_dismiss_layer() {
                         message: OverlayMessage::Pick,
                     })],
                 ),
+                ui::dropdown_menu_overlay_below_trigger(
+                    20.0,
+                    48.0,
+                    3.0,
+                    Some(100.0),
+                    vec![ui::DropdownOption::from_parts(ui::DropdownOptionParts {
+                        label: "CoreAudio".into(),
+                        selection: ui::DropdownOptionSelection::Unselected,
+                        message: OverlayMessage::Pick,
+                    })],
+                ),
             ])
             .fill()
         })

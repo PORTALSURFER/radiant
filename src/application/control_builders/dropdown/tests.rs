@@ -111,3 +111,20 @@ fn dropdown_menu_overlay_below_positions_menu_after_trigger_gap() {
     assert_eq!(parts.gap, 3.0);
     assert_eq!(parts.width, Some(120.0));
 }
+
+#[test]
+fn dropdown_menu_overlay_below_trigger_uses_standard_trigger_height() {
+    assert_eq!(dropdown_trigger_height(), dropdown_height(false, 99));
+
+    let _view = dropdown_menu_overlay_below_trigger(
+        12.0,
+        20.0,
+        3.0,
+        Some(120.0),
+        vec![DropdownOption::new(
+            "WASAPI",
+            true,
+            Message::Select("wasapi"),
+        )],
+    );
+}

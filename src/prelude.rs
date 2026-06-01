@@ -36,7 +36,7 @@ pub use crate::application::{
     floating_layer_above, floating_layer_around_from_parts, floating_layer_below,
     floating_layer_with_input, gpu_surface, gpu_surface_from_parts, gpu_surface_input,
     gpu_surface_input_from_parts, grid, grid_with_gaps, icon_button, image,
-    indeterminate_progress_bar, input_overlay, interactive_row, labeled_control,
+    indeterminate_progress_bar, input_overlay, input_underlay, interactive_row, labeled_control,
     labeled_control_control_offset, labeled_control_control_offset_for, labeled_control_from_parts,
     list, list_row, list_row_id, menu, menu_from_parts, menu_height, message_menu,
     message_menu_from_parts, message_menu_height, overlay_panel, panel_section,

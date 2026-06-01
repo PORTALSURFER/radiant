@@ -251,6 +251,17 @@ pub fn input_overlay<Message: 'static>(
     stack([content, input.input_only()])
 }
 
+/// Layer visible content over an input or feedback surface in one stacked view.
+///
+/// This is useful for composite rows where the input surface should still paint
+/// hover, selection, drag, or drop-target feedback behind custom row content.
+pub fn input_underlay<Message: 'static>(
+    content: ViewNode<Message>,
+    input: ViewNode<Message>,
+) -> ViewNode<Message> {
+    stack([input, content])
+}
+
 /// Build a non-interactive floating child tree positioned relative to its parent.
 ///
 /// The layer paints regular view content without contributing intrinsic size and
@@ -498,6 +509,53 @@ mod tests {
             runtime
                 .surface()
                 .find_widget(90)
+                .and_then(|widget| widget.widget_object().as_any().downcast_ref::<TextWidget>())
+                .map(|widget| widget.text.as_str()),
+            Some("activated")
+        );
+    }
+
+    #[test]
+    fn input_underlay_routes_input_below_visible_content() {
+        let bridge = app(DemoState::default())
+            .view(|state| {
+                input_underlay(
+                    text(if state.activated { "activated" } else { "idle" })
+                        .id(91)
+                        .fill_width()
+                        .height(22.0),
+                    button("").message(DemoMessage::Activate).fill(),
+                )
+                .fill()
+            })
+            .update(|state, message| match message {
+                DemoMessage::Activate => state.activated = true,
+            })
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 22.0));
+        let position = Point::new(8.0, 8.0);
+
+        runtime.dispatch_input_at(
+            position,
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            },
+        );
+        runtime.dispatch_input_at(
+            position,
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            },
+        );
+
+        assert_eq!(
+            runtime
+                .surface()
+                .find_widget(91)
                 .and_then(|widget| widget.widget_object().as_any().downcast_ref::<TextWidget>())
                 .map(|widget| widget.text.as_str()),
             Some("activated")

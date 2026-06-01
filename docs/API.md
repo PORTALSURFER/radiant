@@ -272,7 +272,9 @@ Radiant's standard dropdown trigger, avoiding app-local calls to
 `dropdown_height(...)` just to recover the trigger height.
 Composite controls can use `input_overlay(content, input)` when visible content
 and a transparent input surface should share bounds without repeating a local
-two-child stack.
+two-child stack. Use `input_underlay(content, input)` when the input surface
+should stay below visible content so it can paint hover, selection, drag, or
+drop-target feedback behind custom row contents.
 Passive visual feedback layers can use `FeedbackOverlayWidget` for background
 tints, determinate progress fills, and edge-band accents without app-local
 paint-only custom widgets.

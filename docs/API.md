@@ -1089,9 +1089,16 @@ keyboard dispatch through `dispatch_focused_input` routes input to the focused
 widget by stable `WidgetId`.
 Tests, automation, and embedded hosts that need ordinary pointer activation can
 use `SurfaceRuntime::dispatch_pointer_click(...)` or
-`dispatch_primary_click(...)`; the returned `PointerClickOutcome` reports the
-press target, release target, and completed widget while still routing through
-the same backend-neutral press/release event path as native adapters.
+`dispatch_primary_click(...)` / `dispatch_secondary_click(...)`; the returned
+`PointerClickOutcome` reports the press target, release target, and completed
+widget while still routing through the same backend-neutral press/release event
+path as native adapters.
+Runtime event tests, automation, and embedded hosts can use `Event::resize(...)`,
+`pointer_move(...)`, `pointer_press(...)`, `primary_press(...)`,
+`secondary_press(...)`, `pointer_double_click(...)`, `primary_double_click(...)`,
+`pointer_release(...)`, `primary_release(...)`, `secondary_release(...)`,
+`key_press(...)`, `character(...)`, `traverse_focus(...)`, `clear_focus(...)`,
+and `scroll(...)` instead of repeating backend-neutral event struct literals.
 Backend adapters that need redraw policy can route pointer motion through
 `SurfaceRuntime::dispatch_pointer_move_with_outcome(...)`. Its
 `PointerMoveOutcome` reports the target widget, hover changes, pointer capture,

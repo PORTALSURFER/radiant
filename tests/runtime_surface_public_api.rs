@@ -19,10 +19,10 @@ use radiant::{
     theme::ThemeTokens,
     widgets::{
         ButtonWidget, CanvasMessage, DragHandleMessage, DragHandleWidget, GpuSurfaceParts,
-        GpuSurfaceWidget, PointerButton, RetainedSurfaceDescriptor, TextEditCommand,
-        TextInputWidget, TextWidget, Widget, WidgetCommon, WidgetCursor, WidgetInput, WidgetKey,
-        WidgetOutput, WidgetProminence, WidgetSizing, WidgetState, WidgetStyle, WidgetTone,
-        resolve_widget_visual_tokens,
+        GpuSurfaceWidget, PointerButton, PointerModifiers, RetainedSurfaceDescriptor,
+        TextEditCommand, TextInputWidget, TextWidget, Widget, WidgetCommon, WidgetCursor,
+        WidgetInput, WidgetKey, WidgetOutput, WidgetProminence, WidgetSizing, WidgetState,
+        WidgetStyle, WidgetTone, resolve_widget_visual_tokens,
     },
 };
 use std::sync::Arc;

@@ -134,6 +134,132 @@ pub enum Event {
     },
 }
 
+impl Event {
+    /// Build a viewport resize event.
+    pub fn resize(viewport: Vector2) -> Self {
+        Self::Resize { viewport }
+    }
+
+    /// Build a pointer-move event at `position`.
+    pub fn pointer_move(position: Point) -> Self {
+        Self::PointerMove { position }
+    }
+
+    /// Build a pointer-modifier state change event.
+    pub fn pointer_modifiers_changed(modifiers: PointerModifiers) -> Self {
+        Self::PointerModifiersChanged { modifiers }
+    }
+
+    /// Build a pointer-press event with explicit button and modifiers.
+    pub fn pointer_press(
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+    ) -> Self {
+        Self::PointerPress {
+            position,
+            button,
+            modifiers,
+        }
+    }
+
+    /// Build a primary-button pointer press with no keyboard modifiers.
+    pub fn primary_press(position: Point) -> Self {
+        Self::pointer_press(
+            position,
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        )
+    }
+
+    /// Build a secondary-button pointer press with no keyboard modifiers.
+    pub fn secondary_press(position: Point) -> Self {
+        Self::pointer_press(
+            position,
+            PointerButton::Secondary,
+            PointerModifiers::default(),
+        )
+    }
+
+    /// Build a pointer double-click event with explicit button and modifiers.
+    pub fn pointer_double_click(
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+    ) -> Self {
+        Self::PointerDoubleClick {
+            position,
+            button,
+            modifiers,
+        }
+    }
+
+    /// Build a primary-button pointer double-click with no keyboard modifiers.
+    pub fn primary_double_click(position: Point) -> Self {
+        Self::pointer_double_click(
+            position,
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        )
+    }
+
+    /// Build a pointer-release event with explicit button and modifiers.
+    pub fn pointer_release(
+        position: Point,
+        button: PointerButton,
+        modifiers: PointerModifiers,
+    ) -> Self {
+        Self::PointerRelease {
+            position,
+            button,
+            modifiers,
+        }
+    }
+
+    /// Build a primary-button pointer release with no keyboard modifiers.
+    pub fn primary_release(position: Point) -> Self {
+        Self::pointer_release(
+            position,
+            PointerButton::Primary,
+            PointerModifiers::default(),
+        )
+    }
+
+    /// Build a secondary-button pointer release with no keyboard modifiers.
+    pub fn secondary_release(position: Point) -> Self {
+        Self::pointer_release(
+            position,
+            PointerButton::Secondary,
+            PointerModifiers::default(),
+        )
+    }
+
+    /// Build a focused key-press event.
+    pub fn key_press(key: WidgetKey) -> Self {
+        Self::KeyPress(key)
+    }
+
+    /// Build a focused character-input event.
+    pub fn character(character: char) -> Self {
+        Self::Character(character)
+    }
+
+    /// Build a focus-traversal event.
+    pub fn traverse_focus(direction: FocusTraversal) -> Self {
+        Self::TraverseFocus(direction)
+    }
+
+    /// Build a focus-clear event.
+    pub fn clear_focus() -> Self {
+        Self::ClearFocus
+    }
+
+    /// Build a pointer-positioned scroll event.
+    pub fn scroll(position: Point, delta: Vector2) -> Self {
+        Self::Scroll { position, delta }
+    }
+}
+
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
@@ -216,6 +342,15 @@ where
         self.dispatch_pointer_click(
             position,
             PointerButton::Primary,
+            PointerModifiers::default(),
+        )
+    }
+
+    /// Route a secondary-button click with no keyboard modifiers.
+    pub fn dispatch_secondary_click(&mut self, position: Point) -> PointerClickOutcome {
+        self.dispatch_pointer_click(
+            position,
+            PointerButton::Secondary,
             PointerModifiers::default(),
         )
     }

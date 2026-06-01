@@ -31,6 +31,17 @@ fn stacked_layout_cursor_can_continue_from_existing_offset() {
 }
 
 #[test]
+fn stacked_layout_cursor_reports_offsets_within_current_item() {
+    let cursor = StackedLayoutCursor::new().advanced(20.0, 7.0);
+
+    assert_eq!(cursor.offset(), 27.0);
+    assert_eq!(cursor.offset_within_item(12.0), 39.0);
+    assert_eq!(cursor.offset(), 27.0);
+    assert_eq!(cursor.offset_within_item(-12.0), 27.0);
+    assert_eq!(cursor.offset_within_item(f32::NAN), 27.0);
+}
+
+#[test]
 fn stacked_layout_cursor_supports_chainable_optional_rows() {
     let cursor = StackedLayoutCursor::new()
         .advanced(20.0, 7.0)

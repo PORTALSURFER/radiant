@@ -228,7 +228,10 @@ Overlay and retained-geometry code that needs to mirror compact stack spacing
 can use `StackedLayoutCursor` to accumulate item extents and gaps without
 app-local offset arithmetic. Use the chainable `advanced(...)` and
 `advanced_if(...)` forms when optional rows should affect overlay anchors
-without introducing mutable cursor plumbing at the call site.
+without introducing mutable cursor plumbing at the call site. Use
+`offset_within_item(...)` when an overlay or retained marker should anchor to a
+nested control inside the current stacked item rather than the item's start
+edge.
 Timeline and waveform-style surfaces can use `IndexViewport` for generic
 integer range navigation. It owns clamping, visible fraction, scrollbar offset,
 anchor-preserving zoom, visible-span pan, and visible-to-absolute ratio

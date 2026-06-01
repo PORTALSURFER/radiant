@@ -30,6 +30,15 @@ impl StackedLayoutCursor {
         self.offset
     }
 
+    /// Return an offset inside the current item without advancing the cursor.
+    ///
+    /// Use this for overlay anchors or retained geometry that targets a nested
+    /// control within the current stacked item, such as a label-over-control
+    /// group whose popup should align with the control rather than the label.
+    pub fn offset_within_item(self, item_offset: f32) -> f32 {
+        self.offset + finite_nonnegative(item_offset)
+    }
+
     /// Advance past one item and the following gap.
     pub fn advance(&mut self, item_extent: f32, gap_after: f32) {
         self.offset += finite_nonnegative(item_extent) + finite_nonnegative(gap_after);

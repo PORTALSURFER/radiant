@@ -151,8 +151,10 @@ fn interactive_row_message_helpers_project_common_custom_row_intents() {
     );
     assert!(InteractiveRowMessage::Activate.is_activation());
     assert!(InteractiveRowMessage::Activate.is_single_activation());
+    assert!(!InteractiveRowMessage::Activate.is_double_activation());
     assert!(InteractiveRowMessage::DoubleActivate.is_activation());
     assert!(!InteractiveRowMessage::DoubleActivate.is_single_activation());
+    assert!(InteractiveRowMessage::DoubleActivate.is_double_activation());
     assert_eq!(
         InteractiveRowMessage::SecondaryActivate {
             position: Point::new(12.0, 4.0)

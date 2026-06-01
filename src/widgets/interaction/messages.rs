@@ -95,6 +95,11 @@ impl InteractiveRowMessage {
         self.single_activation_modifiers().is_some()
     }
 
+    /// Return whether this message is a primary double activation.
+    pub fn is_double_activation(self) -> bool {
+        matches!(self, Self::DoubleActivate)
+    }
+
     /// Return the secondary/right-click activation position, when present.
     pub fn secondary_position(self) -> Option<Point> {
         match self {

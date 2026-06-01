@@ -215,6 +215,7 @@ interactive row for generic input behavior but exposes host-specific messages
 and custom paint. Use
 `InteractiveRowMessage::activation_modifiers()`,
 `single_activation_modifiers()`, `is_single_activation()`,
+`is_double_activation()`,
 `secondary_position()`, `drag_message()`, `hover_drop_position()`, and
 `is_drop()` when custom row widgets need to map Radiant row interactions into
 host-specific row messages without repeating exhaustive event-shape matches.

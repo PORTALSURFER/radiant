@@ -6,8 +6,11 @@ use radiant::widgets::PointerModifiers;
 impl MixerPanelWidget {
     pub(crate) fn apply_selection(&mut self, channel: usize, modifiers: PointerModifiers) {
         self.selected_channel = channel;
-        self.selection
-            .select(channel, CHANNEL_COUNT, list_selection_modifiers(modifiers));
+        self.selection.select(
+            channel,
+            CHANNEL_COUNT,
+            ListSelectionModifiers::from_extend_toggle(modifiers.shift, modifiers.command),
+        );
     }
 
     pub(crate) fn drag_message(
@@ -71,17 +74,10 @@ pub(super) fn button_or_select_message(
     } else {
         MixerPanelMessage::Select {
             channel,
-            modifiers: list_selection_modifiers(modifiers),
+            modifiers: ListSelectionModifiers::from_extend_toggle(
+                modifiers.shift,
+                modifiers.command,
+            ),
         }
-    }
-}
-
-pub(super) fn list_selection_modifiers(modifiers: PointerModifiers) -> ListSelectionModifiers {
-    if modifiers.shift {
-        ListSelectionModifiers::extend()
-    } else if modifiers.command {
-        ListSelectionModifiers::toggle()
-    } else {
-        ListSelectionModifiers::new()
     }
 }

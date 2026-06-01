@@ -20,7 +20,8 @@ pub use row_paint::{
     push_dense_row_fill, push_dense_row_inset_stroke, push_dense_row_vertical_marker,
 };
 pub use selection::{
-    KeyedListSelection, ListSelectionController, ListSelectionModifiers, list_index_after_delta,
+    KeyedListSelection, ListSelectionController, ListSelectionIntent, ListSelectionModifiers,
+    list_index_after_delta,
 };
 pub use virtual_list::{
     MaterializedVirtualListItem, VirtualListController, VirtualListInvalidation,

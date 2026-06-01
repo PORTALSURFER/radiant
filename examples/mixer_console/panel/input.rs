@@ -1,6 +1,5 @@
 use super::super::MixerPanelMessage;
 use super::super::paint::push_stroke;
-use super::interaction::list_selection_modifiers;
 use super::{MixerDragTarget, MixerPanelWidget};
 use radiant::prelude::*;
 use radiant::widgets::PointerModifiers;
@@ -129,7 +128,10 @@ impl MixerPanelWidget {
             || modifiers.shift
             || modifiers.command
             || self.selection.selected_indices().len() <= 1)
-            .then_some(list_selection_modifiers(modifiers));
+            .then_some(ListSelectionModifiers::from_extend_toggle(
+                modifiers.shift,
+                modifiers.command,
+            ));
         if selection_update.is_some() {
             self.apply_selection(channel, modifiers);
         }

@@ -25,6 +25,9 @@ fn canvas_gesture_state_projects_local_and_normalized_positions() {
     };
     assert_eq!(pointer.local, Point::new(25.0, 25.0));
     assert_eq!(pointer.normalized, Vector2::new(0.25, 0.5));
+    assert!(pointer.is_inside(bounds()));
+    assert_eq!(pointer.normalized_x(), 0.25);
+    assert_eq!(pointer.normalized_y(), 0.5);
 }
 
 #[test]

@@ -251,6 +251,9 @@ double-click, drop, wheel, and focus-change events. This keeps waveform,
 timeline, node-editor, and other direct-manipulation widgets on a shared
 backend-neutral interaction contract while the application still owns domain
 actions such as range selection or marker editing.
+Use `CanvasPointer::is_inside(...)`, `normalized_x()`, and `normalized_y()` to
+classify projected pointer events and read normalized axes without repeating
+host-coordinate bounds checks or raw vector-field access in app widgets.
 Custom widgets that handle `WidgetInput` directly can use
 `pointer_position()`, `pointer_start_position()`, `pointer_start_inside(...)`,
 and `pointer_start_outside(...)` to share Radiant's backend-neutral pointer

@@ -11,6 +11,23 @@ pub struct CanvasPointer {
     pub normalized: Vector2,
 }
 
+impl CanvasPointer {
+    /// Return whether the pointer's host-coordinate position is inside `bounds`.
+    pub fn is_inside(self, bounds: Rect) -> bool {
+        bounds.contains(self.position)
+    }
+
+    /// Return the normalized horizontal position inside the canvas rectangle.
+    pub fn normalized_x(self) -> f32 {
+        self.normalized.x
+    }
+
+    /// Return the normalized vertical position inside the canvas rectangle.
+    pub fn normalized_y(self) -> f32 {
+        self.normalized.y
+    }
+}
+
 pub(super) fn canvas_pointer(bounds: Rect, position: Point) -> Option<CanvasPointer> {
     let width = bounds.width();
     let height = bounds.height();

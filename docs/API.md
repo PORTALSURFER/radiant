@@ -75,6 +75,11 @@ area. Timeline, waveform, progress, and scrubber-style custom widgets can use
 `push_horizontal_value_range_edge_fills`, and
 `push_horizontal_value_cursor_fill` to append guarded normalized range, range
 edge, and cursor fills without repeating local geometry-to-paint boilerplate.
+Tests, automation, and embedded hosts that inspect paint plans can use
+`SurfacePaintPlan::text_runs()`, `first_text_run(...)`, `contains_text(...)`,
+and `text_inputs()`, plus `PaintPrimitive::text_run()` and `text_input()`, to
+query text and text-input primitives without app-local exhaustive primitive
+matches.
 
 No-state apps can launch without naming `NativeRunOptions`, `RuntimeBridge`,
 `UiSurface`, `SurfaceNode`, `SurfaceChild`, or `WidgetSizing`:

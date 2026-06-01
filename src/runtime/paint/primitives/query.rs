@@ -1,4 +1,4 @@
-use super::{PaintPrimitive, SurfacePaintPlan};
+use super::{PaintPrimitive, PaintTextInput, PaintTextRun, SurfacePaintPlan};
 use crate::{gui::types::Rect, widgets::WidgetId};
 
 #[cfg(test)]
@@ -6,6 +6,29 @@ use crate::{gui::types::Rect, widgets::WidgetId};
 mod tests;
 
 impl SurfacePaintPlan {
+    /// Iterate over text runs emitted by this paint plan in paint order.
+    pub fn text_runs(&self) -> impl Iterator<Item = &PaintTextRun> {
+        self.primitives.iter().filter_map(PaintPrimitive::text_run)
+    }
+
+    /// Return the first text run with exactly matching visible text.
+    pub fn first_text_run(&self, text: &str) -> Option<&PaintTextRun> {
+        self.text_runs().find(|run| run.text.as_str() == text)
+    }
+
+    /// Return whether this paint plan contains a text run with exactly matching
+    /// visible text.
+    pub fn contains_text(&self, text: &str) -> bool {
+        self.first_text_run(text).is_some()
+    }
+
+    /// Iterate over native text-input paint primitives in paint order.
+    pub fn text_inputs(&self) -> impl Iterator<Item = &PaintTextInput> {
+        self.primitives
+            .iter()
+            .filter_map(PaintPrimitive::text_input)
+    }
+
     /// Return the first rectangular paint region emitted by `widget_id`.
     ///
     /// Transient overlays can use this to anchor lightweight frame-time paint
@@ -24,6 +47,22 @@ impl SurfacePaintPlan {
 }
 
 impl PaintPrimitive {
+    /// Return the text run carried by this primitive, if it is text.
+    pub fn text_run(&self) -> Option<&PaintTextRun> {
+        match self {
+            Self::Text(text) => Some(text),
+            _ => None,
+        }
+    }
+
+    /// Return the text-input paint payload carried by this primitive, if any.
+    pub fn text_input(&self) -> Option<&PaintTextInput> {
+        match self {
+            Self::TextInput(input) => Some(input),
+            _ => None,
+        }
+    }
+
     /// Return the widget that emitted this primitive when the primitive belongs
     /// to a widget rather than a container clip.
     pub fn widget_id(&self) -> Option<WidgetId> {

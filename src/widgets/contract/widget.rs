@@ -172,6 +172,31 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
         theme: &ThemeTokens,
     );
 
+    /// Return this widget's paint primitives for the given bounds.
+    ///
+    /// This is a convenience for tests, automation, previews, and embedded
+    /// hosts that need to inspect one widget's paint output without manually
+    /// allocating a primitive buffer. Use [`Self::append_paint`] when callers
+    /// already own the paint buffer or need tight allocation control.
+    fn paint_primitives(
+        &self,
+        bounds: Rect,
+        layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) -> Vec<PaintPrimitive> {
+        let mut primitives = Vec::new();
+        self.append_paint(&mut primitives, bounds, layout, theme);
+        primitives
+    }
+
+    /// Return this widget's paint primitives with default layout and theme.
+    ///
+    /// Use this for focused widget tests and small previews where custom layout
+    /// metadata or theme tokens are not part of the behavior being checked.
+    fn paint_primitives_with_defaults(&self, bounds: Rect) -> Vec<PaintPrimitive> {
+        self.paint_primitives(bounds, &LayoutOutput::default(), &ThemeTokens::default())
+    }
+
     /// Append small runtime-owned overlay primitives for the current widget state.
     ///
     /// Native backends draw these over the cached scene on paint-only pointer

@@ -295,7 +295,10 @@ Custom clickable widgets that need their own paint code can use
 `handle_activation_input` with `ActivationInputPolicy::pointer_only()` or
 `ActivationInputPolicy::focusable()` to share Radiant's hover, pressed, focus,
 pointer activation, and keyboard activation transitions without reimplementing
-that state machine.
+that state machine. Focused widget tests, automation, previews, and embedded
+hosts can use `Widget::paint_primitives(...)` or
+`paint_primitives_with_defaults(...)` when they need one widget's paint output
+as a vector without repeating primitive-buffer, layout, and default-theme setup.
 Text-like widgets support semantic foreground roles such as
 `TextColorRole::Muted`, so applications can express low-emphasis labels without
 app-local paint-only text widgets or hard-coded theme colors.

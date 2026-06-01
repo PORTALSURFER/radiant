@@ -33,3 +33,24 @@ where
     let output = output.expect("widget should emit output");
     assert_eq!(output.typed_ref::<T>(), Some(&expected));
 }
+
+#[test]
+fn widget_paint_primitives_helper_captures_builtin_widget_paint() {
+    let widget = ButtonWidget::new(42, "Paint", WidgetSizing::fixed(Vector2::new(96.0, 28.0)));
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(96.0, 28.0));
+
+    let primitives = widget.paint_primitives_with_defaults(bounds);
+
+    assert!(
+        primitives
+            .iter()
+            .any(|primitive| primitive.fill_polygon().is_some()),
+        "button chrome should be captured without app-local paint buffer setup"
+    );
+    assert!(
+        primitives
+            .iter()
+            .any(|primitive| primitive.text_run().is_some()),
+        "button label should be captured without app-local paint buffer setup"
+    );
+}

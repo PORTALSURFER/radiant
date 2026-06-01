@@ -747,7 +747,12 @@ rules into app code. Application-builder surfaces can use
 `BoundedScrollColumnParts`, `bounded_scroll_column(...)`, and
 `bounded_scroll_column_from_parts(...)` when the host owns row projection but
 Radiant should own the capped scroll viewport, empty-list behavior, chrome
-padding, and viewport styling.
+padding, and viewport styling. Use `CompactOptionListItem`,
+`CompactOptionListParts`, `compact_option_list(...)`, and
+`compact_option_list_from_parts(...)` for selected primary/secondary option
+rows in autocomplete popups, command palettes, compact pickers, and similar
+transient result lists while the host keeps ownership of option values and
+messages.
 Compact toolbars and action strips can use
 `layout::fixed_width_row_rects_start`, `layout::fixed_width_row_rects_end`, and
 `layout::visible_suffix_widths` to place fixed-width controls through the

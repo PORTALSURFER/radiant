@@ -3,6 +3,7 @@ use crate::{
     layout::{LayoutOutput, Vector2},
     runtime::{SurfaceFrame, SurfaceNode, UiSurface},
     theme::ThemeTokens,
+    widgets::{WidgetId, WidgetInput, WidgetOutput},
 };
 
 /// Converts application view values into the existing runtime surface.
@@ -70,6 +71,33 @@ pub trait IntoView<Message> {
     {
         let surface = self.into_surface();
         UiSurface::frame_at_size_with_default_theme(&surface, size)
+    }
+
+    /// Map one synthetic widget output from this view back into a host message.
+    fn view_dispatch_widget_output(
+        self,
+        widget_id: WidgetId,
+        output: WidgetOutput,
+    ) -> Option<Message>
+    where
+        Self: Sized,
+    {
+        let surface = self.into_surface();
+        UiSurface::dispatch_widget_output(&surface, widget_id, output)
+    }
+
+    /// Route one synthetic widget input into this view.
+    fn view_dispatch_widget_input(
+        self,
+        widget_id: WidgetId,
+        bounds: Rect,
+        input: WidgetInput,
+    ) -> Option<WidgetOutput>
+    where
+        Self: Sized,
+    {
+        let mut surface = self.into_surface();
+        UiSurface::dispatch_widget_input(&mut surface, widget_id, bounds, input)
     }
 }
 

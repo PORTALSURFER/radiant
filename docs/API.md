@@ -114,6 +114,10 @@ prepare layout and paint frames directly from any `IntoView` value with
 `view_frame_at_size_with_default_theme(...)`.
 This keeps simple app-facing checks on the declarative view path without
 manually wrapping views in `UiSurface`.
+Focused widget and mapper tests can also call
+`view_dispatch_widget_output(...)` and `view_dispatch_widget_input(...)`
+directly on an `IntoView` value when the test only needs to verify one projected
+view's widget-message mapping or input behavior.
 
 Small stateful apps can mutate state directly from widget callbacks while still
 lowering into the same message/command runtime:

@@ -40,6 +40,106 @@ fn prelude_views_can_resolve_layout_directly() {
 }
 
 #[test]
+fn prelude_views_can_dispatch_widget_outputs_directly() {
+    use radiant::prelude::*;
+
+    #[derive(Clone)]
+    struct OutputProbe {
+        common: WidgetCommon,
+    }
+
+    impl Widget for OutputProbe {
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+            None
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<PaintPrimitive>,
+            _bounds: Rect,
+            _layout: &LayoutOutput,
+            _theme: &ThemeTokens,
+        ) {
+        }
+    }
+
+    fn action_view() -> impl IntoView<&'static str> {
+        widget(DynamicWidget::new(
+            OutputProbe {
+                common: WidgetCommon::new(7, WidgetSizing::fixed(Vector2::new(80.0, 24.0))),
+            },
+            |output| output.typed_copied::<u8>().map(|_| "run"),
+        ))
+        .id(7)
+    }
+
+    let message = action_view().view_dispatch_widget_output(7, WidgetOutput::typed(1_u8));
+
+    assert_eq!(message, Some("run"));
+}
+
+#[test]
+fn prelude_views_can_dispatch_widget_inputs_directly() {
+    use radiant::prelude::*;
+
+    #[derive(Clone)]
+    struct InputProbe {
+        common: WidgetCommon,
+    }
+
+    impl Widget for InputProbe {
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+            matches!(input, WidgetInput::KeyPress(WidgetKey::Enter))
+                .then(|| WidgetOutput::typed("enter"))
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<PaintPrimitive>,
+            _bounds: Rect,
+            _layout: &LayoutOutput,
+            _theme: &ThemeTokens,
+        ) {
+        }
+    }
+
+    fn action_view() -> impl IntoView<()> {
+        widget(InputProbe {
+            common: WidgetCommon::new(7, WidgetSizing::fixed(Vector2::new(80.0, 24.0))),
+        })
+        .id(7)
+    }
+
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 24.0));
+    let output = action_view().view_dispatch_widget_input(
+        7,
+        bounds,
+        WidgetInput::KeyPress(WidgetKey::Enter),
+    );
+
+    assert_eq!(
+        output.and_then(|output| output.typed_copied::<&'static str>()),
+        Some("enter")
+    );
+}
+
+#[test]
 fn prelude_exports_application_chrome_models() {
     let status = ui::StatusSegments::from_parts(ui::StatusSegmentsParts {
         left: "Ready".to_owned(),

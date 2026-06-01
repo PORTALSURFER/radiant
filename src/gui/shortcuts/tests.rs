@@ -67,6 +67,20 @@ fn shortcut_layer_resolves_actions_and_modal_misses() {
 }
 
 #[test]
+fn shortcut_layer_modal_escape_dispatches_escape_and_consumes_misses() {
+    let layer = ShortcutLayer::modal_escape(5);
+
+    assert_eq!(
+        layer.resolve(KeyPress::new(KeyCode::Escape)),
+        ShortcutResolution::action(5)
+    );
+    assert_eq!(
+        layer.resolve(KeyPress::new(KeyCode::N)),
+        ShortcutResolution::handled()
+    );
+}
+
+#[test]
 fn shortcut_stack_resolves_layers_by_priority_and_uses_fallback_on_miss() {
     let stack = ShortcutStack::new()
         .push_when(

@@ -1,5 +1,5 @@
 use super::{ShortcutGesture, ShortcutResolution};
-use crate::gui::input::KeyPress;
+use crate::gui::input::{KeyCode, KeyPress};
 
 /// One resolved shortcut binding.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -38,6 +38,11 @@ impl<Action> ShortcutLayer<Action> {
             bindings: Vec::new(),
             modal: true,
         }
+    }
+
+    /// Build a modal layer that dispatches `action` for Escape and consumes other keys.
+    pub fn modal_escape(action: Action) -> Self {
+        Self::modal().bind(KeyPress::new(KeyCode::Escape), action)
     }
 
     /// Add one binding to this layer.

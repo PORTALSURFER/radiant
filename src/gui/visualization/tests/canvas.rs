@@ -1,7 +1,9 @@
 use super::super::{
-    CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts, DragHandle,
-    DragHandleRole, canvas_layer_at_point, canvas_selection_edge_handles,
-    canvas_selection_edge_visual_rect, canvas_selection_rect, drag_handle_at_point,
+    CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts,
+    CanvasSelectionBodyHandleParts, DragHandle, DragHandleRole, canvas_layer_at_point,
+    canvas_selection_body_handle_rect, canvas_selection_edge_handles,
+    canvas_selection_edge_visual_rect, canvas_selection_rect,
+    canvas_selection_trailing_control_rect, drag_handle_at_point,
     horizontal_resize_edge_bracket_rects, horizontal_resize_edge_handles,
     horizontal_resize_edge_visual_rect, horizontal_resize_handles,
 };
@@ -251,6 +253,65 @@ fn canvas_selection_edge_visual_rect_projects_inset_handle() {
     );
     assert_eq!(
         canvas_selection_edge_visual_rect(bounds, 0.25, 8.0, 60.0),
+        None
+    );
+}
+
+#[test]
+fn canvas_selection_body_handle_rect_projects_inset_top_strip() {
+    let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 120.0));
+
+    assert_eq!(
+        canvas_selection_body_handle_rect(CanvasSelectionBodyHandleParts {
+            bounds,
+            start_fraction: 0.2,
+            end_fraction: 0.6,
+            height: 7.0,
+            end_inset: 9.0,
+            max_end_inset_fraction: 0.28,
+            min_width_after_inset: 1.0,
+        }),
+        Some(Rect::from_min_max(
+            Point::new(59.0, 20.0),
+            Point::new(121.0, 27.0)
+        ))
+    );
+}
+
+#[test]
+fn canvas_selection_body_handle_rect_keeps_narrow_selection_movable() {
+    let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 120.0));
+
+    assert_eq!(
+        canvas_selection_body_handle_rect(CanvasSelectionBodyHandleParts {
+            bounds,
+            start_fraction: 0.2,
+            end_fraction: 0.205,
+            height: 200.0,
+            end_inset: 9.0,
+            max_end_inset_fraction: 0.28,
+            min_width_after_inset: 1.0,
+        }),
+        Some(Rect::from_min_max(
+            Point::new(50.0, 20.0),
+            Point::new(51.0, 120.0)
+        ))
+    );
+}
+
+#[test]
+fn canvas_selection_trailing_control_rect_projects_bottom_square() {
+    let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 120.0));
+
+    assert_eq!(
+        canvas_selection_trailing_control_rect(bounds, 0.2, 0.6, 16.0, 0.0),
+        Some(Rect::from_min_max(
+            Point::new(114.0, 104.0),
+            Point::new(130.0, 120.0)
+        ))
+    );
+    assert_eq!(
+        canvas_selection_trailing_control_rect(bounds, 0.2, 0.6, 0.0, 0.0),
         None
     );
 }

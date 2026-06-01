@@ -886,6 +886,11 @@ direct embedded-host path when the application or plugin framework owns the
 window, native surface, or render pass; `UiSurface::frame_with_layout_options(...)`
 keeps layout state, debug primitives, and diagnostics available for hosts that
 need scroll offsets, virtualization state, or layout debugging.
+`UiSurface::layout_at_size(...)`, `frame_at_size(...)`,
+`frame_with_default_theme(...)`, and `frame_at_size_with_default_theme(...)`
+cover common smoke-test, automation, plugin preview, and embedded-host cases
+where the viewport starts at the origin or custom theme tokens are not part of
+the behavior under test.
 `SurfaceRuntime::borrowed_frame(...)` is the preferred immediate-render path for
 custom host loops because it borrows the runtime's current layout instead of
 cloning the resolved layout maps every frame. Hosts that render synchronously

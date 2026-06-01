@@ -1543,6 +1543,10 @@ these reusable panel structures.
 caller-owned buffers. Hosts can use these to render dense badge clusters for
 metadata, filters, status chips, or other product-specific labels without
 embedding domain terms in Radiant.
+Wrapped chip, token, recipient, or pill editors can use
+`FlowTrailingItemParts` and `pack_flow_rows_with_trailing_item` when a trailing
+input/control should stay on the current row only if enough editing room
+remains.
 
 `radiant::gui::form` contains reusable form and picker models such as
 `DecimalTextInputPolicy`, `SummaryField`, `OptionItem`, `OptionSelectionState`,

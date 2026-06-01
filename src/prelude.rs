@@ -78,8 +78,9 @@ pub use crate::gui::{
         vertical_value_line_rect,
     },
     flow::{
-        FlowItem, FlowItemWidth, FlowLayoutMetrics, FlowLayoutMetricsParts, flow_row_width,
-        flow_rows_height, flow_trailing_item_starts_new_row, pack_flow_rows, push_flow_row_item,
+        FlowItem, FlowItemWidth, FlowLayoutMetrics, FlowLayoutMetricsParts, FlowTrailingItemParts,
+        flow_row_width, flow_rows_height, flow_trailing_item_starts_new_row, pack_flow_rows,
+        pack_flow_rows_with_trailing_item, push_flow_row_item,
     },
     focus::FocusSurface,
     frame::{FrameCadenceConfig, FrameCadenceKind, FrameCadenceMonitor, FrameCadenceReport},

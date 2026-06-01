@@ -154,7 +154,12 @@ or `.update_command(...)` on the app when reducers need to return
 `Command<Message>` values directly. Reducers that need the full app runtime can
 use `.update_with(...)` and an `UpdateContext<Message>` to emit messages,
 request repaint, move focus, start background work, schedule delayed messages,
-or request runtime exit. Use `LatestTask` with `UpdateContext::spawn_latest(...)`
+or request runtime exit. `PlatformResponse` exposes helpers such as
+`path()`, `into_path()`, `into_path_or_canceled()`, `is_canceled()`,
+`is_completed()`, `into_completed()`, `confirmation()`, and
+`into_confirmation()` so reducers can interpret common platform-service
+outcomes without repeating raw enum-shape matches. Use `LatestTask` with
+`UpdateContext::spawn_latest(...)`
 for one-resource background loads where a newer selection should invalidate an
 older completion. The resulting message receives a `TaskCompletion<Output>`;
 call `LatestTask::finish(completion.ticket)` before applying the output so stale

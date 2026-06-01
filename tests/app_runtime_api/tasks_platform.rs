@@ -70,6 +70,40 @@ fn update_context_exposes_platform_service_helpers() {
 }
 
 #[test]
+fn platform_response_helpers_cover_common_request_outcomes() {
+    let path = std::path::PathBuf::from(r"C:\samples\kick.wav");
+    let response = radiant::prelude::PlatformResponse::Path(path.clone());
+
+    assert_eq!(response.path(), Some(path.as_path()));
+    assert_eq!(response.clone().into_path(), Some(path.clone()));
+    assert_eq!(response.into_path_or_canceled(), Ok(Some(path)));
+
+    assert_eq!(
+        radiant::prelude::PlatformResponse::Canceled.into_path_or_canceled(),
+        Ok(None)
+    );
+    assert!(radiant::prelude::PlatformResponse::Canceled.is_canceled());
+
+    assert!(radiant::prelude::PlatformResponse::Completed.is_completed());
+    assert_eq!(
+        radiant::prelude::PlatformResponse::Completed.into_completed(),
+        Ok(())
+    );
+
+    let confirmation = radiant::prelude::PlatformResponse::Confirmation(
+        radiant::prelude::ConfirmationResponse::Accepted,
+    );
+    assert_eq!(
+        confirmation.confirmation(),
+        Some(radiant::prelude::ConfirmationResponse::Accepted)
+    );
+    assert_eq!(
+        confirmation.into_confirmation(),
+        Some(radiant::prelude::ConfirmationResponse::Accepted)
+    );
+}
+
+#[test]
 fn update_context_exposes_drag_session_cleanup_helper() {
     let mut context: radiant::prelude::UpdateContext<DemoMessage> =
         radiant::prelude::UpdateContext::default();

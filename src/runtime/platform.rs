@@ -34,6 +34,73 @@ pub enum PlatformResponse {
     Confirmation(ConfirmationResponse),
 }
 
+impl PlatformResponse {
+    /// Return `true` when the platform request completed without additional data.
+    pub const fn is_completed(&self) -> bool {
+        matches!(self, Self::Completed)
+    }
+
+    /// Return `true` when the user canceled a picker-style platform request.
+    pub const fn is_canceled(&self) -> bool {
+        matches!(self, Self::Canceled)
+    }
+
+    /// Borrow the path returned by a picker-style platform request.
+    pub fn path(&self) -> Option<&std::path::Path> {
+        match self {
+            Self::Path(path) => Some(path.as_path()),
+            _ => None,
+        }
+    }
+
+    /// Consume and return the path from a picker-style platform request.
+    pub fn into_path(self) -> Option<PathBuf> {
+        match self {
+            Self::Path(path) => Some(path),
+            _ => None,
+        }
+    }
+
+    /// Consume a picker-style response, accepting a chosen path or cancellation.
+    ///
+    /// Returns the original response as `Err` when the response came from a
+    /// different platform request kind.
+    pub fn into_path_or_canceled(self) -> Result<Option<PathBuf>, Self> {
+        match self {
+            Self::Path(path) => Ok(Some(path)),
+            Self::Canceled => Ok(None),
+            other => Err(other),
+        }
+    }
+
+    /// Consume a completion-style response.
+    ///
+    /// Returns the original response as `Err` when the response came from a
+    /// request kind that returns data.
+    pub fn into_completed(self) -> Result<(), Self> {
+        match self {
+            Self::Completed => Ok(()),
+            other => Err(other),
+        }
+    }
+
+    /// Borrow the confirmation response returned by a confirmation dialog.
+    pub const fn confirmation(&self) -> Option<ConfirmationResponse> {
+        match self {
+            Self::Confirmation(response) => Some(*response),
+            _ => None,
+        }
+    }
+
+    /// Consume and return the confirmation response from a confirmation dialog.
+    pub fn into_confirmation(self) -> Option<ConfirmationResponse> {
+        match self {
+            Self::Confirmation(response) => Some(response),
+            _ => None,
+        }
+    }
+}
+
 /// Request metadata for a file or folder dialog.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FileDialogRequest {

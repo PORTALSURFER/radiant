@@ -202,6 +202,41 @@ pub enum TextInputMessage {
     },
 }
 
+impl TextInputMessage {
+    /// Return the text value carried by this input event.
+    pub fn value(&self) -> &str {
+        match self {
+            Self::Changed { value }
+            | Self::Submitted { value }
+            | Self::CompletionRequested { value } => value.as_str(),
+        }
+    }
+
+    /// Consume this input event and return its text value.
+    pub fn into_value(self) -> String {
+        match self {
+            Self::Changed { value }
+            | Self::Submitted { value }
+            | Self::CompletionRequested { value } => value,
+        }
+    }
+
+    /// Return whether this event is an immediate edit.
+    pub fn is_changed(&self) -> bool {
+        matches!(self, Self::Changed { .. })
+    }
+
+    /// Return whether this event is a submit/commit intent.
+    pub fn is_submitted(&self) -> bool {
+        matches!(self, Self::Submitted { .. })
+    }
+
+    /// Return whether this event requests host-defined completion.
+    pub fn is_completion_requested(&self) -> bool {
+        matches!(self, Self::CompletionRequested { .. })
+    }
+}
+
 /// Message emitted by a reusable scrollbar primitive.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ScrollbarMessage {

@@ -21,11 +21,7 @@ impl<Message> SurfaceNode<Message> {
         sizing: WidgetSizing,
         map: impl Fn(String) -> Message + Send + Sync + 'static,
     ) -> Self {
-        Self::text_input_mapped(id, value, sizing, move |message| match message {
-            TextInputMessage::Changed { value }
-            | TextInputMessage::Submitted { value }
-            | TextInputMessage::CompletionRequested { value } => map(value),
-        })
+        Self::text_input_mapped(id, value, sizing, move |message| map(message.into_value()))
     }
 
     /// Build a single-line text input with a custom widget-to-host message mapper.

@@ -206,6 +206,30 @@ fn drag_handle_message_helpers_project_phase_and_position() {
 }
 
 #[test]
+fn text_input_message_helpers_project_value_and_event_kind() {
+    let changed = TextInputMessage::Changed {
+        value: String::from("draft"),
+    };
+    let submitted = TextInputMessage::Submitted {
+        value: String::from("commit"),
+    };
+    let completion = TextInputMessage::CompletionRequested {
+        value: String::from("pre"),
+    };
+
+    assert_eq!(changed.value(), "draft");
+    assert_eq!(submitted.value(), "commit");
+    assert_eq!(completion.value(), "pre");
+
+    assert!(changed.is_changed());
+    assert!(!changed.is_submitted());
+    assert!(!changed.is_completion_requested());
+    assert!(submitted.is_submitted());
+    assert!(completion.is_completion_requested());
+    assert_eq!(submitted.into_value(), "commit");
+}
+
+#[test]
 fn widget_input_helpers_project_pointer_positions_and_start_bounds() {
     let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(100.0, 40.0));
     let inside = Point::new(20.0, 30.0);

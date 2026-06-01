@@ -71,11 +71,7 @@ impl TextInputBuilder {
         self,
         map: impl Fn(String) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
-        self.message_event(move |message| match message {
-            TextInputMessage::Changed { value }
-            | TextInputMessage::Submitted { value }
-            | TextInputMessage::CompletionRequested { value } => map(value),
-        })
+        self.message_event(move |message| map(message.into_value()))
     }
 
     /// Emit a host message mapped from the full text-input event.
@@ -126,16 +122,11 @@ impl TextInputBuilder {
             WidgetMessageMapper::text_input(move |message| {
                 let field = Arc::clone(&field);
                 let submit = Arc::clone(&submit);
-                StateAction::new(move |state| match &message {
-                    TextInputMessage::Changed { value } => {
-                        *field(state) = value.clone();
-                    }
-                    TextInputMessage::Submitted { value } => {
-                        *field(state) = value.clone();
+                StateAction::new(move |state| {
+                    let submitted = message.is_submitted();
+                    *field(state) = message.value().to_owned();
+                    if submitted {
                         submit(state);
-                    }
-                    TextInputMessage::CompletionRequested { value } => {
-                        *field(state) = value.clone();
                     }
                 })
             }),

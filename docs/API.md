@@ -71,9 +71,10 @@ reusable primitive construction path used by complex examples and custom
 widgets. Dense custom widgets can use `push_visible_fill_rect` when derived or
 clipped geometry should only enter the paint plan if it has finite positive
 area. Timeline, waveform, progress, and scrubber-style custom widgets can use
-`push_horizontal_value_range_fill` and `push_horizontal_value_cursor_fill` to
-append guarded normalized range and cursor fills without repeating local
-geometry-to-paint boilerplate.
+`push_horizontal_value_range_fill`,
+`push_horizontal_value_range_edge_fills`, and
+`push_horizontal_value_cursor_fill` to append guarded normalized range, range
+edge, and cursor fills without repeating local geometry-to-paint boilerplate.
 
 No-state apps can launch without naming `NativeRunOptions`, `RuntimeBridge`,
 `UiSurface`, `SurfaceNode`, `SurfaceChild`, or `WidgetSizing`:
@@ -767,8 +768,9 @@ progress-track fill geometry, `horizontal_progress_activity_rect` for
 indeterminate progress segments, `horizontal_progress_track_rect` for switching
 between determinate and indeterminate progress tracks, `horizontal_meter_fill_rect` and
 `horizontal_discrete_meter_fill_rect` for reusable meter geometry,
-`horizontal_value_range_rect` and `horizontal_wrapped_value_range_rects` for
-normalized horizontal track ticks and wrapped phase/activity segments,
+`horizontal_value_range_rect`, `horizontal_value_range_edge_rects`, and
+`horizontal_wrapped_value_range_rects` for normalized horizontal track ticks,
+top/bottom range rails, and wrapped phase/activity segments,
 `horizontal_value_cursor_rect` for pixel-stable full-height cursors on
 timeline, waveform, scrubber, and progress-like tracks,
 `vertical_bipolar_value_at_point` and `vertical_bipolar_fill_rect` for centered

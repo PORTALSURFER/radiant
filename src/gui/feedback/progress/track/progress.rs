@@ -132,6 +132,53 @@ pub fn push_horizontal_value_range_fill(
     push_visible_fill_rect(primitives, widget_id, rect, color)
 }
 
+/// Return top and bottom edge strips for a normalized horizontal range.
+///
+/// This is useful for timeline, waveform, and scrubber widgets that need to
+/// outline a selected or annotated range without drawing a full rectangle
+/// stroke. `edge_height` is clamped to the track height and never less than one
+/// logical pixel when the range is visible.
+pub fn horizontal_value_range_edge_rects(
+    track: Rect,
+    start_fraction: f32,
+    end_fraction: f32,
+    edge_height: f32,
+) -> [Option<Rect>; 2] {
+    let Some(range) = horizontal_value_range_rect(track, start_fraction, end_fraction, 1.0) else {
+        return [None, None];
+    };
+    let height = finite_nonnegative(edge_height)
+        .clamp(1.0, range.height().max(1.0))
+        .min(range.height());
+    if height <= 0.0 {
+        return [None, None];
+    }
+    [
+        Some(range.top_edge_strip(height)),
+        Some(range.bottom_edge_strip(height)),
+    ]
+}
+
+/// Push top and bottom edge strips for a normalized horizontal range.
+///
+/// Returns the number of edge fill primitives appended. Degenerate or invalid
+/// ranges append no primitives.
+pub fn push_horizontal_value_range_edge_fills(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    track: Rect,
+    start_fraction: f32,
+    end_fraction: f32,
+    edge_height: f32,
+    color: Rgba8,
+) -> usize {
+    horizontal_value_range_edge_rects(track, start_fraction, end_fraction, edge_height)
+        .into_iter()
+        .flatten()
+        .filter(|rect| push_visible_fill_rect(primitives, widget_id, *rect, color))
+        .count()
+}
+
 /// Return a full-height cursor strip centered on a normalized horizontal value.
 ///
 /// The cursor center is snapped to the nearest logical pixel to keep narrow

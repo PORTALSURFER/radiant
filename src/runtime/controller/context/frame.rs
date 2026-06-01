@@ -121,6 +121,14 @@ where
         }
     }
 
+    /// Package the current runtime frame with Radiant's default theme.
+    ///
+    /// This is intended for tests, automation, examples, and embedded previews
+    /// where custom theme tokens are not part of the behavior under test.
+    pub fn frame_with_default_theme(&self) -> SurfaceFrame {
+        self.frame(&ThemeTokens::default())
+    }
+
     /// Package the current runtime viewport, borrowed layout, and paint plan.
     ///
     /// This is the lower-allocation counterpart to [`Self::frame`] for hosts
@@ -217,6 +225,32 @@ where
                 tone: crate::widgets::WidgetTone::Accent,
                 prominence: crate::widgets::WidgetProminence::Strong,
             },
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        layout::Vector2,
+        prelude::{IntoView, text},
+        runtime::{DeclarativeOwnedRuntimeBridge, SurfaceRuntime},
+    };
+
+    #[test]
+    fn runtime_frame_with_default_theme_projects_paint_plan() {
+        let bridge = DeclarativeOwnedRuntimeBridge::new(
+            (),
+            |_| crate::runtime::UiSurface::new(text("Ready").into_node()),
+            |_, _: ()| {},
+        );
+        let runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 40.0));
+
+        assert!(
+            runtime
+                .frame_with_default_theme()
+                .paint_plan
+                .contains_text("Ready")
         );
     }
 }

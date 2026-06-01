@@ -900,6 +900,9 @@ and keep a frame scratch buffer can call `SurfaceRuntime::borrowed_frame_into(..
 to reuse `SurfacePaintPlan` primitive storage as well. `SurfaceRuntime::frame(...)`
 packages the same event-driven runtime state into an owned `SurfaceFrame` for
 hosts that need to retain the frame after borrowing the runtime.
+`SurfaceRuntime::frame_with_default_theme(...)` covers smoke-test, automation,
+example, and embedded-preview cases where custom theme tokens are not part of
+the behavior under test.
 `SurfacePaintPlan::stats()` returns `SurfacePaintStats` primitive counts for
 diagnostics, benchmarks, and host renderers that need to inspect Vello-friendly,
 custom retained, and GPU-surface frame shape without duplicating primitive

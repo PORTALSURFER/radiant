@@ -157,15 +157,43 @@ fn shape_and_svg_queries_return_matching_primitives_in_paint_order() {
         vec![21, 23]
     );
     assert_eq!(
+        plan.fill_rects_for_widget(21)
+            .map(|fill| fill.rect)
+            .collect::<Vec<_>>(),
+        vec![first_fill]
+    );
+    assert_eq!(
+        plan.visible_fill_rects_for_widget(21)
+            .map(|fill| fill.rect)
+            .collect::<Vec<_>>(),
+        vec![first_fill]
+    );
+    assert!(plan.contains_visible_fill_rect_for_widget(21));
+    assert!(!plan.contains_visible_fill_rect_for_widget(404));
+    assert_eq!(
         plan.stroke_rects()
             .map(|stroke| stroke.widget_id)
             .collect::<Vec<_>>(),
         vec![22]
     );
     assert_eq!(
+        plan.stroke_rects_for_widget(22)
+            .map(|stroke| stroke.rect)
+            .collect::<Vec<_>>(),
+        vec![stroke]
+    );
+    assert_eq!(
         plan.svgs().map(|svg| svg.widget_id).collect::<Vec<_>>(),
         vec![24]
     );
+    assert_eq!(
+        plan.svgs_for_widget(24)
+            .map(|svg| svg.rect)
+            .collect::<Vec<_>>(),
+        vec![svg_rect]
+    );
+    assert_eq!(plan.first_svg_rect_for_widget(24), Some(svg_rect));
+    assert_eq!(plan.first_svg_rect_for_widget(404), None);
     assert_eq!(
         plan.primitives[0].fill_rect().map(|fill| fill.rect),
         Some(first_fill)
@@ -175,6 +203,41 @@ fn shape_and_svg_queries_return_matching_primitives_in_paint_order() {
         Some(stroke)
     );
     assert_eq!(plan.primitives[3].svg().map(|svg| svg.rect), Some(svg_rect));
+}
+
+#[test]
+fn visible_fill_queries_ignore_transparent_or_empty_fills() {
+    let theme = ThemeTokens::default();
+    let mut plan = SurfacePaintPlan::empty(&theme);
+    plan.primitives
+        .push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: 91,
+            rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(10.0, 10.0)),
+            color: theme.accent_mint.with_alpha(0),
+        }));
+    plan.primitives
+        .push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: 91,
+            rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(0.0, 10.0)),
+            color: theme.accent_mint,
+        }));
+    plan.primitives
+        .push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: 91,
+            rect: Rect::from_min_size(Point::new(1.0, 1.0), Vector2::new(3.0, 4.0)),
+            color: theme.accent_mint,
+        }));
+
+    assert_eq!(plan.fill_rects_for_widget(91).count(), 3);
+    assert_eq!(
+        plan.visible_fill_rects_for_widget(91)
+            .map(|fill| fill.rect)
+            .collect::<Vec<_>>(),
+        vec![Rect::from_min_size(
+            Point::new(1.0, 1.0),
+            Vector2::new(3.0, 4.0)
+        )]
+    );
 }
 
 #[test]
@@ -234,6 +297,20 @@ fn clip_polygon_polyline_and_gpu_queries_return_matching_primitives_in_paint_ord
             .collect::<Vec<_>>(),
         vec![31]
     );
+    assert_eq!(
+        plan.fill_polygons_for_widget(31)
+            .map(|fill| fill.widget_id)
+            .collect::<Vec<_>>(),
+        vec![31]
+    );
+    assert_eq!(
+        plan.visible_fill_polygons_for_widget(31)
+            .map(|fill| fill.widget_id)
+            .collect::<Vec<_>>(),
+        vec![31]
+    );
+    assert!(plan.contains_visible_fill_polygon_for_widget(31));
+    assert!(!plan.contains_visible_fill_polygon_for_widget(404));
     assert_eq!(
         plan.stroke_polylines()
             .map(|stroke| stroke.widget_id)

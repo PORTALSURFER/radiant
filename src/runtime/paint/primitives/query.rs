@@ -86,6 +86,35 @@ impl SurfacePaintPlan {
         self.primitives.iter().filter_map(PaintPrimitive::fill_rect)
     }
 
+    /// Iterate over single filled-rectangle primitives emitted by `widget_id`
+    /// in paint order.
+    pub fn fill_rects_for_widget(
+        &self,
+        widget_id: WidgetId,
+    ) -> impl Iterator<Item = &PaintFillRect> {
+        self.fill_rects()
+            .filter(move |fill| fill.widget_id == widget_id)
+    }
+
+    /// Iterate over visible single filled-rectangle primitives emitted by
+    /// `widget_id` in paint order.
+    ///
+    /// A visible fill has non-zero alpha and a finite positive rectangle.
+    pub fn visible_fill_rects_for_widget(
+        &self,
+        widget_id: WidgetId,
+    ) -> impl Iterator<Item = &PaintFillRect> {
+        self.fill_rects_for_widget(widget_id)
+            .filter(|fill| fill.color.a > 0 && rect_has_positive_area(fill.rect))
+    }
+
+    /// Return whether `widget_id` emitted a visible single filled rectangle.
+    pub fn contains_visible_fill_rect_for_widget(&self, widget_id: WidgetId) -> bool {
+        self.visible_fill_rects_for_widget(widget_id)
+            .next()
+            .is_some()
+    }
+
     /// Iterate over single stroked-rectangle primitives in paint order.
     ///
     /// Batched rectangle primitives remain available through `primitives` when
@@ -96,11 +125,48 @@ impl SurfacePaintPlan {
             .filter_map(PaintPrimitive::stroke_rect)
     }
 
+    /// Iterate over single stroked-rectangle primitives emitted by `widget_id`
+    /// in paint order.
+    pub fn stroke_rects_for_widget(
+        &self,
+        widget_id: WidgetId,
+    ) -> impl Iterator<Item = &PaintStrokeRect> {
+        self.stroke_rects()
+            .filter(move |stroke| stroke.widget_id == widget_id)
+    }
+
     /// Iterate over filled-polygon primitives in paint order.
     pub fn fill_polygons(&self) -> impl Iterator<Item = &PaintFillPolygon> {
         self.primitives
             .iter()
             .filter_map(PaintPrimitive::fill_polygon)
+    }
+
+    /// Iterate over filled-polygon primitives emitted by `widget_id` in paint
+    /// order.
+    pub fn fill_polygons_for_widget(
+        &self,
+        widget_id: WidgetId,
+    ) -> impl Iterator<Item = &PaintFillPolygon> {
+        self.fill_polygons()
+            .filter(move |fill| fill.widget_id == widget_id)
+    }
+
+    /// Iterate over visible filled-polygon primitives emitted by `widget_id` in
+    /// paint order.
+    pub fn visible_fill_polygons_for_widget(
+        &self,
+        widget_id: WidgetId,
+    ) -> impl Iterator<Item = &PaintFillPolygon> {
+        self.fill_polygons_for_widget(widget_id)
+            .filter(|fill| fill.color.a > 0)
+    }
+
+    /// Return whether `widget_id` emitted a visible filled polygon.
+    pub fn contains_visible_fill_polygon_for_widget(&self, widget_id: WidgetId) -> bool {
+        self.visible_fill_polygons_for_widget(widget_id)
+            .next()
+            .is_some()
     }
 
     /// Iterate over stroked-polyline primitives in paint order.
@@ -113,6 +179,17 @@ impl SurfacePaintPlan {
     /// Iterate over retained SVG primitives in paint order.
     pub fn svgs(&self) -> impl Iterator<Item = &PaintSvg> {
         self.primitives.iter().filter_map(PaintPrimitive::svg)
+    }
+
+    /// Iterate over retained SVG primitives emitted by `widget_id` in paint
+    /// order.
+    pub fn svgs_for_widget(&self, widget_id: WidgetId) -> impl Iterator<Item = &PaintSvg> {
+        self.svgs().filter(move |svg| svg.widget_id == widget_id)
+    }
+
+    /// Return the rectangle for the first retained SVG emitted by `widget_id`.
+    pub fn first_svg_rect_for_widget(&self, widget_id: WidgetId) -> Option<Rect> {
+        self.svgs_for_widget(widget_id).map(|svg| svg.rect).next()
     }
 
     /// Iterate over retained GPU surface primitives in paint order.
@@ -137,6 +214,13 @@ impl SurfacePaintPlan {
                 .flatten()
         })
     }
+}
+
+fn rect_has_positive_area(rect: Rect) -> bool {
+    rect.width().is_finite()
+        && rect.height().is_finite()
+        && rect.width() > 0.0
+        && rect.height() > 0.0
 }
 
 impl PaintPrimitive {

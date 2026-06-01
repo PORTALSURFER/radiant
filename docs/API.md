@@ -81,7 +81,14 @@ Tests, automation, and embedded hosts that inspect paint plans can use
 `first_text_rect(...)`, `first_text_color(...)`, `text_inputs()`,
 `first_text_input()`, `contains_text_input()`,
 `clip_starts()`, `fill_rects()`, `stroke_rects()`, `fill_polygons()`,
-`stroke_polylines()`, `svgs()`, and `gpu_surfaces()`, plus
+`stroke_polylines()`, `svgs()`, and `gpu_surfaces()`. Widget-specific query
+helpers such as `fill_rects_for_widget(...)`,
+`visible_fill_rects_for_widget(...)`,
+`contains_visible_fill_rect_for_widget(...)`,
+`fill_polygons_for_widget(...)`, `visible_fill_polygons_for_widget(...)`,
+`contains_visible_fill_polygon_for_widget(...)`, `svgs_for_widget(...)`, and
+`first_svg_rect_for_widget(...)` cover common automation assertions without
+app-local primitive filtering. Use
 `PaintPrimitive::text_run()`, `text_input()`, `clip_start()`, `fill_rect()`,
 `stroke_rect()`, `fill_polygon()`, `stroke_polyline()`, `svg()`, and
 `gpu_surface()`, to query common paint primitives without app-local exhaustive

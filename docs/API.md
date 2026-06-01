@@ -181,6 +181,10 @@ hover synchronization behavior while keeping domain-specific row visuals in the
 host widget. Use `InteractiveRowWidget::dense_visual_state(...)` with
 `InteractiveRowVisualStateParts` when custom row paint needs the generic dense
 row state model without reading widget internals. Use
+`InteractiveRowWidget::handle_input_mapped(...)` and
+`synchronize_from_previous_embedded(...)` when a custom row widget embeds an
+interactive row for generic input behavior but exposes host-specific messages
+and custom paint. Use
 `InteractiveRowMessage::activation_modifiers()`, `secondary_position()`,
 `drag_message()`, `hover_drop_position()`, and `is_drop()` when custom row
 widgets need to map Radiant row interactions into host-specific row messages

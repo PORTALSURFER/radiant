@@ -1,5 +1,11 @@
 use super::*;
-use crate::gui::types::Vector2;
+use crate::{
+    gui::types::{Point, Vector2},
+    layout::LayoutOutput,
+    runtime::PaintPrimitive,
+    theme::ThemeTokens,
+    widgets::{PointerButton, PointerModifiers, WidgetInput, WidgetOutput},
+};
 
 #[test]
 fn dense_visual_state_merges_host_and_interaction_state() {
@@ -53,4 +59,87 @@ fn drop_target_mode_configures_hover_and_drop_only_states() {
     assert!(drop_only.props.droppable);
     assert!(drop_only.props.drag_active);
     assert!(!drop_only.props.drop_hover);
+}
+
+#[test]
+fn handle_input_mapped_routes_custom_row_output() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let mut row = InteractiveRowWidget::new(10, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
+    let pointer = Point::new(4.0, 4.0);
+
+    let press = row.handle_input_mapped(
+        bounds,
+        WidgetInput::PointerPress {
+            position: pointer,
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+        },
+        |_| Some("activated"),
+    );
+    assert!(press.is_none());
+
+    let release = row
+        .handle_input_mapped(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: pointer,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            },
+            |message| message.is_activation().then_some("activated"),
+        )
+        .expect("release maps to typed widget output");
+    assert_eq!(release.typed_ref::<&'static str>(), Some(&"activated"));
+}
+
+#[derive(Clone, Debug)]
+struct RowHost {
+    row: InteractiveRowWidget,
+}
+
+impl Widget for RowHost {
+    fn common(&self) -> &WidgetCommon {
+        &self.row.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.row.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        self.row
+            .handle_input(bounds, input)
+            .map(WidgetOutput::typed)
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+#[test]
+fn synchronize_from_previous_embedded_preserves_custom_row_state() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let pointer = Point::new(4.0, 4.0);
+    let mut previous = RowHost {
+        row: InteractiveRowWidget::new(11, WidgetSizing::fixed(Vector2::new(120.0, 22.0))),
+    };
+    let _ = previous
+        .row
+        .handle_input(bounds, WidgetInput::PointerMove { position: pointer });
+
+    let mut next = RowHost {
+        row: InteractiveRowWidget::new(11, WidgetSizing::fixed(Vector2::new(120.0, 22.0))),
+    };
+
+    assert!(
+        next.row
+            .synchronize_from_previous_embedded::<RowHost>(&previous, |previous| &previous.row)
+    );
+    assert!(next.row.common.state.hovered);
 }

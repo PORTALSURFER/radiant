@@ -5,7 +5,7 @@ use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
-use crate::widgets::interaction::{WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{InteractiveRowMessage, WidgetInput, WidgetOutput};
 use crate::widgets::primitives::support::{WidgetCommon, push_control_chrome};
 
 mod builders;
@@ -191,6 +191,39 @@ impl InteractiveRowWidget {
             active_target: parts.active_target,
             candidate: parts.candidate,
         }
+    }
+
+    /// Route input through this row and map the row message into a typed widget output.
+    ///
+    /// Custom-painted row widgets can use this when they compose an
+    /// `InteractiveRowWidget` for generic row behavior but expose a
+    /// host-specific message type from their own [`Widget`] implementation.
+    pub fn handle_input_mapped<Message: Send + Sync + 'static>(
+        &mut self,
+        bounds: Rect,
+        input: WidgetInput,
+        map: impl FnOnce(InteractiveRowMessage) -> Option<Message>,
+    ) -> Option<WidgetOutput> {
+        self.handle_input(bounds, input)
+            .and_then(map)
+            .map(WidgetOutput::typed)
+    }
+
+    /// Synchronize this embedded row from a previous custom widget instance.
+    ///
+    /// Returns `true` when `previous` had the expected concrete type and the
+    /// embedded row state was synchronized. Returns `false` when the previous
+    /// retained widget had another type.
+    pub fn synchronize_from_previous_embedded<Host: 'static>(
+        &mut self,
+        previous: &dyn Widget,
+        previous_row: impl FnOnce(&Host) -> &InteractiveRowWidget,
+    ) -> bool {
+        let Some(previous) = previous.as_any().downcast_ref::<Host>() else {
+            return false;
+        };
+        self.synchronize_from_previous(previous_row(previous));
+        true
     }
 }
 

@@ -109,6 +109,44 @@ fn dismissible_context_menu_backing_emits_dismiss_message() {
 }
 
 #[test]
+fn dismissible_context_menu_with_width_uses_standard_menu_height() {
+    let frame = UiSurface::new(
+        dismissible_context_menu_with_width(
+            Point::new(80.0, 90.0),
+            200.0,
+            "Actions",
+            [
+                MenuCommand::new("Open", MenuMessage::Open),
+                MenuCommand::new("Delete", MenuMessage::Delete).danger(),
+            ],
+            MenuMessage::Close,
+        )
+        .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 360.0)),
+        &Default::default(),
+    );
+
+    let menu_rects = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill) => Some(fill.rect),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        menu_rects.iter().any(|rect| {
+            rect.min.x >= 80.0 && (rect.height() - message_menu_height(2)).abs() < 0.01
+        }),
+        "standard-width menu should paint at standard compact height: {menu_rects:?}"
+    );
+}
+
+#[test]
 fn menu_command_style_helpers_are_generic() {
     let command = MenuCommand::new("Open", MenuMessage::Open).primary();
     assert_eq!(command.style.tone, WidgetTone::Accent);

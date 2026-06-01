@@ -1342,6 +1342,9 @@ Dropdown overlays anchored to a trigger can use
 trigger rectangle and gap rather than hand-adding trigger height to menu
 coordinates. Use `dropdown_trigger(...)` when the toggle should stay in normal
 layout while the menu is projected as a separate stack-level overlay.
+Dismissible context menus can use `dismissible_context_menu_with_width(...)`
+when they should use Radiant's standard compact menu height for the supplied
+commands instead of computing `message_menu_height(...)` in application code.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
 that composes `MenuItem`, `menu(...)`, and `context_menu_overlay(...)` with
 normal state callbacks.

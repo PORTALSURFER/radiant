@@ -181,6 +181,25 @@ where
     })
 }
 
+/// Build a full-surface context-menu layer with standard compact menu height.
+///
+/// Use this when the menu should use Radiant's standard compact menu row
+/// heights and the caller only needs to choose the overlay width.
+pub fn dismissible_context_menu_with_width<Message>(
+    anchor: Point,
+    width: f32,
+    title: impl Into<String>,
+    commands: impl IntoIterator<Item = MenuCommand<Message>>,
+    dismiss_message: Message,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    let commands = commands.into_iter().collect::<Vec<_>>();
+    let size = Vector2::new(width, message_menu_height(commands.len()));
+    dismissible_context_menu(anchor, size, title, commands, dismiss_message)
+}
+
 /// Build a dismissible context-menu layer from named parts.
 pub fn dismissible_context_menu_from_parts<Message>(
     parts: DismissibleContextMenuParts<Message>,

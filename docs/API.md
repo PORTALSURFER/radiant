@@ -194,7 +194,10 @@ state-prioritized fills, edge markers, and outlines from Radiant's generic
 dense-row geometry helpers without repeating paint-plan guard code.
 Rows that need active drag-source motion after a retained refresh can opt into
 `with_drag_source_motion(...)`; rows that should accept drops without producing
-drop-hover messages can use `with_drop_only(...)`.
+drop-hover messages can use `with_drop_only(...)`. Application-builder rows
+can use `drop_target_mode(drag_active, hover_messages)` when the current row
+should become either a normal drop target or a drop-only target from
+host-owned drag state without app-local `droppable` / `drop_only` branches.
 Rows emit `DoubleActivate` for primary-button double-click flows such as
 opening an item, entering rename mode, or drilling into a details row.
 Large list and tree-style surfaces can use `VirtualListController` when they

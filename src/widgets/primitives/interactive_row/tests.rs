@@ -32,3 +32,25 @@ fn dense_visual_state_preserves_default_host_state() {
         DenseRowVisualState::default()
     );
 }
+
+#[test]
+fn drop_target_mode_configures_hover_and_drop_only_states() {
+    let inactive = InteractiveRowWidget::new(7, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_drop_target(true)
+        .with_drop_target_mode(false, true);
+    assert!(!inactive.props.droppable);
+    assert!(!inactive.props.drag_active);
+    assert!(!inactive.props.drop_hover);
+
+    let hover = InteractiveRowWidget::new(8, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_drop_target_mode(true, true);
+    assert!(hover.props.droppable);
+    assert!(hover.props.drag_active);
+    assert!(hover.props.drop_hover);
+
+    let drop_only = InteractiveRowWidget::new(9, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_drop_target_mode(true, false);
+    assert!(drop_only.props.droppable);
+    assert!(drop_only.props.drag_active);
+    assert!(!drop_only.props.drop_hover);
+}

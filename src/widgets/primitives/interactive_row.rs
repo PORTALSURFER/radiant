@@ -122,6 +122,18 @@ impl InteractiveRowWidget {
         self
     }
 
+    /// Configure drop handling and whether hover-drop notifications are emitted.
+    ///
+    /// When `drag_active` is false, this leaves the row out of the drop-target
+    /// path. When it is true, `hover_messages` controls whether pointer motion
+    /// over the row emits hover-drop messages or only accepts the eventual drop.
+    pub fn with_drop_target_mode(mut self, drag_active: bool, hover_messages: bool) -> Self {
+        self.props.droppable = drag_active;
+        self.props.drop_hover = drag_active && hover_messages;
+        self.props.drag_active = drag_active;
+        self
+    }
+
     /// Mark whether a related row drag is currently active in the same container.
     pub fn with_drag_active(mut self, drag_active: bool) -> Self {
         self.props.drag_active = drag_active;

@@ -109,6 +109,15 @@ impl InteractiveRowBuilder {
         self
     }
 
+    /// Configure whether this row is a drop target and whether hover-drop
+    /// messages should be emitted.
+    pub fn drop_target_mode(mut self, drag_active: bool, hover_messages: bool) -> Self {
+        self.droppable = drag_active;
+        self.drop_hover = drag_active && hover_messages;
+        self.drag_active = drag_active;
+        self
+    }
+
     /// Mark whether a related row drag is active in this row's container.
     pub fn drag_active(mut self, active: bool) -> Self {
         self.drag_active = active;
@@ -197,11 +206,7 @@ impl InteractiveRowBuilder {
             row = row.clear_hover_on_sync();
         }
         if self.droppable {
-            row = if self.drop_hover {
-                row.with_drop_target(self.drag_active)
-            } else {
-                row.with_drop_only(self.drag_active)
-            };
+            row = row.with_drop_target_mode(self.drag_active, self.drop_hover);
         }
         if self.activation_modifiers {
             row = row.with_activation_modifiers();

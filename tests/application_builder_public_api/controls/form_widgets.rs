@@ -15,7 +15,7 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
     let surface: UiSurface<&'static str> = ui::column([
         ui::interactive_row()
             .draggable()
-            .droppable(true)
+            .drop_target_mode(true, true)
             .pointer_motion_during_interaction()
             .pointer_motion_active(true)
             .mapped(|message| match message {
@@ -29,7 +29,7 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
             })
             .id(20),
         ui::interactive_row()
-            .drop_only(true)
+            .drop_target_mode(true, false)
             .mapped(|message| match message {
                 ui::InteractiveRowMessage::Drop => "drop-only",
                 _ => "drop-only-other",

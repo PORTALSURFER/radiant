@@ -75,6 +75,15 @@ fn text_queries_return_runs_and_inputs_in_paint_order() {
     assert_eq!(run.rect.min, Point::new(4.0, 5.0));
     assert!(plan.contains_text("Status"));
     assert!(!plan.contains_text("Missing"));
+    assert_eq!(plan.first_text_rect("Status"), Some(run.rect));
+    assert_eq!(plan.first_text_color("Status"), Some(theme.text_primary));
+    assert!(plan.contains_text_after_x("Status", 3.0));
+    assert!(!plan.contains_text_after_x("Status", 5.0));
+    assert_eq!(
+        plan.first_text_run_after_x("Status", 3.0)
+            .map(|run| run.widget_id),
+        Some(11)
+    );
     assert_eq!(
         plan.text_runs()
             .map(|run| run.text.as_str())

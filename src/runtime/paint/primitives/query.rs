@@ -2,7 +2,10 @@ use super::{
     PaintClipStart, PaintFillPolygon, PaintFillRect, PaintGpuSurface, PaintPrimitive,
     PaintStrokePolyline, PaintStrokeRect, PaintSvg, PaintTextInput, PaintTextRun, SurfacePaintPlan,
 };
-use crate::{gui::types::Rect, widgets::WidgetId};
+use crate::{
+    gui::types::{Rect, Rgba8},
+    widgets::WidgetId,
+};
 
 #[cfg(test)]
 #[path = "query/tests.rs"]
@@ -19,10 +22,35 @@ impl SurfacePaintPlan {
         self.text_runs().find(|run| run.text.as_str() == text)
     }
 
+    /// Return the first text run with exactly matching visible text whose
+    /// rectangle begins at or after `min_x`.
+    pub fn first_text_run_after_x(&self, text: &str, min_x: f32) -> Option<&PaintTextRun> {
+        self.text_runs()
+            .find(|run| run.text.as_str() == text && run.rect.min.x >= min_x)
+    }
+
     /// Return whether this paint plan contains a text run with exactly matching
     /// visible text.
     pub fn contains_text(&self, text: &str) -> bool {
         self.first_text_run(text).is_some()
+    }
+
+    /// Return whether this paint plan contains exactly matching visible text
+    /// whose rectangle begins at or after `min_x`.
+    pub fn contains_text_after_x(&self, text: &str, min_x: f32) -> bool {
+        self.first_text_run_after_x(text, min_x).is_some()
+    }
+
+    /// Return the rectangle for the first text run with exactly matching
+    /// visible text.
+    pub fn first_text_rect(&self, text: &str) -> Option<Rect> {
+        self.first_text_run(text).map(|run| run.rect)
+    }
+
+    /// Return the color for the first text run with exactly matching visible
+    /// text.
+    pub fn first_text_color(&self, text: &str) -> Option<Rgba8> {
+        self.first_text_run(text).map(|run| run.color)
     }
 
     /// Iterate over native text-input paint primitives in paint order.

@@ -77,7 +77,9 @@ area. Timeline, waveform, progress, and scrubber-style custom widgets can use
 edge, and cursor fills without repeating local geometry-to-paint boilerplate.
 Tests, automation, and embedded hosts that inspect paint plans can use
 `SurfacePaintPlan::text_runs()`, `first_text_run(...)`, `contains_text(...)`,
-`text_inputs()`, `first_text_input()`, `contains_text_input()`,
+`first_text_run_after_x(...)`, `contains_text_after_x(...)`,
+`first_text_rect(...)`, `first_text_color(...)`, `text_inputs()`,
+`first_text_input()`, `contains_text_input()`,
 `clip_starts()`, `fill_rects()`, `stroke_rects()`, `fill_polygons()`,
 `stroke_polylines()`, `svgs()`, and `gpu_surfaces()`, plus
 `PaintPrimitive::text_run()`, `text_input()`, `clip_start()`, `fill_rect()`,

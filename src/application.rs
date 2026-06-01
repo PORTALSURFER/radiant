@@ -61,6 +61,8 @@ pub use property_panel::{
 };
 mod status_bar;
 pub use status_bar::{StatusBarParts, status_bar, status_bar_from_parts};
+mod toolbar;
+pub use toolbar::{ToolbarAlignment, ToolbarParts, toolbar, toolbar_from_parts};
 mod panel_section;
 pub use panel_section::{PanelSectionParts, panel_section, panel_section_from_parts};
 mod labeled_control;

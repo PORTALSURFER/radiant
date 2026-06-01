@@ -184,7 +184,10 @@ row state model without reading widget internals. Use
 `InteractiveRowMessage::activation_modifiers()`, `secondary_position()`,
 `drag_message()`, `hover_drop_position()`, and `is_drop()` when custom row
 widgets need to map Radiant row interactions into host-specific row messages
-without repeating exhaustive event-shape matches.
+without repeating exhaustive event-shape matches. Drag-capable controls can use
+`DragHandleMessage::phase()`, `position()`, `is_started()`, `is_moved()`, and
+`is_ended()` when reducers need generic drag lifecycle information without
+duplicating the `Started` / `Moved` / `Ended` variant shape.
 Dense custom row painters can use `push_dense_row_fill`,
 `push_dense_row_vertical_marker`, and `push_dense_row_inset_stroke` to append
 state-prioritized fills, edge markers, and outlines from Radiant's generic

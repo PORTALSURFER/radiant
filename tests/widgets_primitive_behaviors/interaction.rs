@@ -164,6 +164,33 @@ fn interactive_row_message_helpers_project_common_custom_row_intents() {
 }
 
 #[test]
+fn drag_handle_message_helpers_project_phase_and_position() {
+    let start = DragHandleMessage::Started {
+        position: Point::new(10.0, 4.0),
+    };
+    let moved = DragHandleMessage::Moved {
+        position: Point::new(12.0, 8.0),
+    };
+    let ended = DragHandleMessage::Ended {
+        position: Point::new(14.0, 9.0),
+    };
+
+    assert_eq!(start.phase(), DragHandlePhase::Started);
+    assert_eq!(moved.phase(), DragHandlePhase::Moved);
+    assert_eq!(ended.phase(), DragHandlePhase::Ended);
+
+    assert_eq!(start.position(), Point::new(10.0, 4.0));
+    assert_eq!(moved.position(), Point::new(12.0, 8.0));
+    assert_eq!(ended.position(), Point::new(14.0, 9.0));
+
+    assert!(start.is_started());
+    assert!(!start.is_moved());
+    assert!(!start.is_ended());
+    assert!(moved.is_moved());
+    assert!(ended.is_ended());
+}
+
+#[test]
 fn interactive_row_clears_stale_hover_when_requested() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
     let mut previous =

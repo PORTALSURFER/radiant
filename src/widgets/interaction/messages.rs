@@ -224,6 +224,52 @@ pub enum DragHandleMessage {
     },
 }
 
+/// Lifecycle phase for a reusable drag-handle interaction.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DragHandlePhase {
+    /// Primary pointer drag started.
+    Started,
+    /// Captured pointer moved while the drag is active.
+    Moved,
+    /// Primary pointer drag ended or was released.
+    Ended,
+}
+
+impl DragHandleMessage {
+    /// Return this drag message's lifecycle phase.
+    pub fn phase(self) -> DragHandlePhase {
+        match self {
+            Self::Started { .. } => DragHandlePhase::Started,
+            Self::Moved { .. } => DragHandlePhase::Moved,
+            Self::Ended { .. } => DragHandlePhase::Ended,
+        }
+    }
+
+    /// Return this drag message's pointer position.
+    pub fn position(self) -> Point {
+        match self {
+            Self::Started { position } | Self::Moved { position } | Self::Ended { position } => {
+                position
+            }
+        }
+    }
+
+    /// Return whether this drag message starts an interaction.
+    pub fn is_started(self) -> bool {
+        matches!(self.phase(), DragHandlePhase::Started)
+    }
+
+    /// Return whether this drag message is active drag motion.
+    pub fn is_moved(self) -> bool {
+        matches!(self.phase(), DragHandlePhase::Moved)
+    }
+
+    /// Return whether this drag message ends an interaction.
+    pub fn is_ended(self) -> bool {
+        matches!(self.phase(), DragHandlePhase::Ended)
+    }
+}
+
 /// Message emitted by a reusable canvas/custom-paint primitive.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CanvasMessage {

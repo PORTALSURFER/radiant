@@ -12,8 +12,8 @@ pub use canvas_gesture::{CanvasGestureEvent, CanvasGestureState, CanvasPointer};
 pub use cursor::WidgetCursor;
 pub use input::{PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey};
 pub use messages::{
-    BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, GpuSurfaceMessage,
-    InteractiveRowMessage, ListItemMessage, PointerShieldMessage, ScrollbarMessage,
-    SelectableMessage, SliderMessage, TextInputMessage, ToggleMessage,
+    BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, DragHandlePhase,
+    GpuSurfaceMessage, InteractiveRowMessage, ListItemMessage, PointerShieldMessage,
+    ScrollbarMessage, SelectableMessage, SliderMessage, TextInputMessage, ToggleMessage,
 };
 pub use output::{CustomWidgetOutput, WidgetOutput};

@@ -58,6 +58,55 @@ pub enum InteractiveRowMessage {
     },
 }
 
+impl InteractiveRowMessage {
+    /// Return modifier state when this message is an activation.
+    ///
+    /// Plain activation and double activation use default modifiers. This is
+    /// useful for custom-painted row widgets that map Radiant's generic row
+    /// interaction model into host-specific row actions.
+    pub fn activation_modifiers(self) -> Option<PointerModifiers> {
+        match self {
+            Self::Activate | Self::DoubleActivate => Some(PointerModifiers::default()),
+            Self::ActivateWithModifiers { modifiers } => Some(modifiers),
+            _ => None,
+        }
+    }
+
+    /// Return whether this message is any primary activation.
+    pub fn is_activation(self) -> bool {
+        self.activation_modifiers().is_some()
+    }
+
+    /// Return the secondary/right-click activation position, when present.
+    pub fn secondary_position(self) -> Option<Point> {
+        match self {
+            Self::SecondaryActivate { position } => Some(position),
+            _ => None,
+        }
+    }
+
+    /// Return the drag lifecycle message, when present.
+    pub fn drag_message(self) -> Option<DragHandleMessage> {
+        match self {
+            Self::Drag(message) => Some(message),
+            _ => None,
+        }
+    }
+
+    /// Return the drop-hover position, when present.
+    pub fn hover_drop_position(self) -> Option<Point> {
+        match self {
+            Self::HoverDropTarget { position } => Some(position),
+            _ => None,
+        }
+    }
+
+    /// Return whether this message is a completed drop.
+    pub fn is_drop(self) -> bool {
+        matches!(self, Self::Drop)
+    }
+}
+
 /// Message emitted by a transparent pointer interception primitive.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PointerShieldMessage {

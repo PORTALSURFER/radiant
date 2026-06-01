@@ -116,6 +116,54 @@ fn interactive_row_can_emit_modifier_aware_pointer_activation() {
 }
 
 #[test]
+fn interactive_row_message_helpers_project_common_custom_row_intents() {
+    let modifiers = PointerModifiers {
+        shift: true,
+        ..PointerModifiers::default()
+    };
+    let drag = DragHandleMessage::Moved {
+        position: Point::new(18.0, 9.0),
+    };
+
+    assert_eq!(
+        InteractiveRowMessage::Activate.activation_modifiers(),
+        Some(PointerModifiers::default())
+    );
+    assert_eq!(
+        InteractiveRowMessage::DoubleActivate.activation_modifiers(),
+        Some(PointerModifiers::default())
+    );
+    assert_eq!(
+        InteractiveRowMessage::ActivateWithModifiers { modifiers }.activation_modifiers(),
+        Some(modifiers)
+    );
+    assert!(InteractiveRowMessage::Activate.is_activation());
+    assert_eq!(
+        InteractiveRowMessage::SecondaryActivate {
+            position: Point::new(12.0, 4.0)
+        }
+        .secondary_position(),
+        Some(Point::new(12.0, 4.0))
+    );
+    assert_eq!(InteractiveRowMessage::Drag(drag).drag_message(), Some(drag));
+    assert_eq!(
+        InteractiveRowMessage::HoverDropTarget {
+            position: Point::new(20.0, 10.0)
+        }
+        .hover_drop_position(),
+        Some(Point::new(20.0, 10.0))
+    );
+    assert!(InteractiveRowMessage::Drop.is_drop());
+    assert_eq!(
+        InteractiveRowMessage::SecondaryActivate {
+            position: Point::new(12.0, 4.0)
+        }
+        .activation_modifiers(),
+        None
+    );
+}
+
+#[test]
 fn interactive_row_clears_stale_hover_when_requested() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
     let mut previous =

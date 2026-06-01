@@ -1,7 +1,9 @@
 #[path = "model/column_drag.rs"]
 mod column_drag;
 pub use column_drag::{
-    DetailsColumnReorderDrag, DetailsColumnResizeDrag, details_column_drag_content_left,
+    DetailsColumnReorderDrag, DetailsColumnResizeDrag, DetailsColumnWidthUpdate,
+    details_column_drag_content_left, update_details_column_reorder_drag,
+    update_details_column_resize_drag,
 };
 
 /// Sort direction displayed by a sortable details-list column.

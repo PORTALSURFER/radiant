@@ -176,9 +176,11 @@ handles, and sort marker copy while still composing app-specific menus or
 column policies.
 Resizable and reorderable details headers can keep interaction state in
 `DetailsColumnResizeDrag` and `DetailsColumnReorderDrag`, using
+`update_details_column_resize_drag(...)`,
+`update_details_column_reorder_drag(...)`,
 `details_column_drag_content_left(...)`, `details_column_reorder_index(...)`,
 and `reorder_details_columns_by_id(...)` for stable framework-owned column
-geometry behavior.
+geometry and drag-lifecycle behavior.
 Custom row painters can compose `InteractiveRowWidget` directly for shared
 dense-row hover, activation, drag-source, drag-active, drop-target, and retained
 hover synchronization behavior while keeping domain-specific row visuals in the

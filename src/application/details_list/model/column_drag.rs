@@ -1,4 +1,6 @@
-use super::{DetailsColumnPlacement, details_column_reorder_index};
+use crate::widgets::DragHandleMessage;
+
+use super::{DetailsColumnPlacement, details_column_reorder_index, reorder_details_columns_by_id};
 
 #[cfg(test)]
 #[path = "column_drag/tests.rs"]
@@ -13,6 +15,15 @@ pub struct DetailsColumnResizeDrag {
     pub start_x: f32,
     /// Column width when the resize started.
     pub start_width: f32,
+}
+
+/// Width update produced by details-column resize drag state.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DetailsColumnWidthUpdate {
+    /// Stable caller-owned column id being resized.
+    pub column_id: String,
+    /// Clamped column width at the current pointer position.
+    pub width: f32,
 }
 
 impl DetailsColumnResizeDrag {
@@ -30,6 +41,44 @@ impl DetailsColumnResizeDrag {
         let min_width = min_width.max(0.0);
         let max_width = max_width.max(min_width);
         (self.start_width + pointer_x - self.start_x).clamp(min_width, max_width)
+    }
+}
+
+/// Apply one drag-handle message to details-column resize state.
+///
+/// Hosts keep the durable column collection and optional active drag state.
+/// This helper centralizes the generic resize lifecycle while leaving column
+/// lookup and min/max policy in the caller. Pass `Some(current_width)` when
+/// the start message references a known column; pass `None` to ignore invalid
+/// starts.
+pub fn update_details_column_resize_drag(
+    active_drag: &mut Option<DetailsColumnResizeDrag>,
+    column_id: impl ToString,
+    message: DragHandleMessage,
+    current_width: Option<f32>,
+    min_width: f32,
+    max_width: f32,
+) -> Option<DetailsColumnWidthUpdate> {
+    match message {
+        DragHandleMessage::Started { position } => {
+            let current_width = current_width?;
+            *active_drag = Some(DetailsColumnResizeDrag::new(
+                column_id,
+                position.x,
+                current_width,
+            ));
+            None
+        }
+        DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
+            let update = active_drag.as_ref().map(|drag| DetailsColumnWidthUpdate {
+                column_id: drag.column_id.clone(),
+                width: drag.width_at(position.x, min_width, max_width),
+            });
+            if message.is_ended() {
+                *active_drag = None;
+            }
+            update
+        }
     }
 }
 
@@ -89,4 +138,44 @@ pub fn details_column_drag_content_left(
         .sum::<f32>();
     let width = placements.get(index)?.width;
     Some(start_x - prior_width - width * 0.5)
+}
+
+/// Apply one drag-handle message to details-column reorder state.
+///
+/// Hosts pass current placements and the mutable column collection. Radiant
+/// owns the generic reorder threshold math and active-drag lifecycle, while
+/// the caller decides how app column records expose stable ids.
+pub fn update_details_column_reorder_drag<T>(
+    active_drag: &mut Option<DetailsColumnReorderDrag>,
+    columns: &mut Vec<T>,
+    column_id: impl ToString,
+    message: DragHandleMessage,
+    placements: &[DetailsColumnPlacement],
+    column_gap: f32,
+    id: impl Fn(&T) -> &str,
+) -> bool {
+    match message {
+        DragHandleMessage::Started { position } => {
+            let column_id = column_id.to_string();
+            let Some(content_left) =
+                details_column_drag_content_left(placements, &column_id, position.x, column_gap)
+            else {
+                return false;
+            };
+            *active_drag = Some(DetailsColumnReorderDrag::new(column_id, content_left));
+            false
+        }
+        DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
+            let changed = active_drag.as_ref().is_some_and(|drag| {
+                drag.target_index(placements, position.x, column_gap)
+                    .is_some_and(|target_index| {
+                        reorder_details_columns_by_id(columns, &drag.column_id, target_index, id)
+                    })
+            });
+            if message.is_ended() {
+                *active_drag = None;
+            }
+            changed
+        }
+    }
 }

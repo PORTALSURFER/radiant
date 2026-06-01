@@ -70,6 +70,13 @@ fn update_context_exposes_platform_service_helpers() {
 }
 
 #[test]
+fn update_context_exposes_drag_session_cleanup_helper() {
+    let mut context: radiant::prelude::UpdateContext<DemoMessage> =
+        radiant::prelude::UpdateContext::default();
+    context.end_drag_session();
+}
+
+#[test]
 fn confirm_dialog_supports_named_parts_construction() {
     let request =
         radiant::prelude::ConfirmDialogRequest::from_parts(radiant::prelude::ConfirmDialogParts {

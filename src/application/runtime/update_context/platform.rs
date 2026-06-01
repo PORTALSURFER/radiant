@@ -28,6 +28,15 @@ impl<Message> UpdateContext<Message> {
         self.command(Command::end_external_drag());
     }
 
+    /// End the active pointer drag preview and any armed native external drag.
+    ///
+    /// Use this when a drag gesture is fully resolved or cancelled and the
+    /// host does not need to preserve either runtime drag surface.
+    pub fn end_drag_session(&mut self) {
+        self.end_drag();
+        self.end_external_drag();
+    }
+
     /// Begin a runtime-owned pointer drag preview session.
     pub fn begin_drag(&mut self, request: DragRequest) {
         self.command(Command::begin_drag(request));

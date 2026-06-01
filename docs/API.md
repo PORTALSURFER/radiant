@@ -223,7 +223,10 @@ Use the single-activation helpers when double-click has a separate host action
 such as rename, drill-in, or open-in-place behavior. Drag-capable controls can use
 `DragHandleMessage::phase()`, `position()`, `is_started()`, `is_moved()`, and
 `is_ended()` when reducers need generic drag lifecycle information without
-duplicating the `Started` / `Moved` / `Ended` variant shape.
+duplicating the `Started` / `Moved` / `Ended` variant shape. Reducers that
+resolve or cancel a drag gesture with both an in-window preview and an armed
+native external-drag payload can call `UpdateContext::end_drag_session()` instead
+of ending those runtime surfaces separately.
 Dense custom row painters can use `push_dense_row_fill`,
 `push_dense_row_vertical_marker`, and `push_dense_row_inset_stroke` to append
 state-prioritized fills, edge markers, and outlines from Radiant's generic

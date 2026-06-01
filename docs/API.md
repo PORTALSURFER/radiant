@@ -345,7 +345,9 @@ additive navigation, and select-all behavior over stable row keys while the
 application passes the current ordered visible keys into operations that depend
 on list order. Use it for lists whose durable selection identity is a path,
 database id, document id, or other stable app key rather than a transient
-visible index.
+visible index. Use `list_index_after_delta(...)` for clamped keyboard
+navigation and `cyclic_list_index_after_delta(...)` for wrapped menu,
+autocomplete, command-palette, and dropdown-style option navigation.
 `CancellationToken` and `UpdateContext::spawn_cancellable(...)` provide a
 small cooperative-cancellation contract for long host-owned jobs. Radiant still
 does not force-stop work; applications keep a token clone and workers check it

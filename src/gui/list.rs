@@ -22,7 +22,7 @@ pub use row_paint::{
 };
 pub use selection::{
     KeyedListSelection, ListSelectionController, ListSelectionIntent, ListSelectionModifiers,
-    list_index_after_delta,
+    cyclic_list_index_after_delta, list_index_after_delta,
 };
 pub use virtual_list::{
     MaterializedVirtualListItem, VirtualListController, VirtualListInvalidation,

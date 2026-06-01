@@ -1,6 +1,6 @@
 use super::super::{
     KeyedListSelection, ListSelectionController, ListSelectionIntent, ListSelectionModifiers,
-    list_index_after_delta,
+    cyclic_list_index_after_delta, list_index_after_delta,
 };
 
 #[test]
@@ -10,6 +10,16 @@ fn list_index_after_delta_clamps_signed_navigation() {
     assert_eq!(list_index_after_delta(2, 20, 5), Some(4));
     assert_eq!(list_index_after_delta(2, -20, 5), Some(0));
     assert_eq!(list_index_after_delta(0, 1, 0), None);
+}
+
+#[test]
+fn cyclic_list_index_after_delta_wraps_signed_navigation() {
+    assert_eq!(cyclic_list_index_after_delta(2, 1, 5), Some(3));
+    assert_eq!(cyclic_list_index_after_delta(2, -1, 5), Some(1));
+    assert_eq!(cyclic_list_index_after_delta(4, 1, 5), Some(0));
+    assert_eq!(cyclic_list_index_after_delta(0, -1, 5), Some(4));
+    assert_eq!(cyclic_list_index_after_delta(12, 1, 5), Some(3));
+    assert_eq!(cyclic_list_index_after_delta(0, 1, 0), None);
 }
 
 #[test]

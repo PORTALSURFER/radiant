@@ -117,6 +117,23 @@ pub fn list_index_after_delta(current: usize, delta: isize, total_items: usize) 
     }
 }
 
+/// Move an item index by a signed delta, wrapping around current list bounds.
+///
+/// This helper fits menus, autocomplete popups, command palettes, and other
+/// cyclic selection surfaces where pressing past either edge should continue
+/// from the opposite edge.
+pub fn cyclic_list_index_after_delta(
+    current: usize,
+    delta: isize,
+    total_items: usize,
+) -> Option<usize> {
+    if total_items == 0 {
+        return None;
+    }
+    let current = current % total_items;
+    Some((current as isize + delta).rem_euclid(total_items as isize) as usize)
+}
+
 /// Reusable index-based focus, anchor, and multi-selection state for dense lists.
 ///
 /// Hosts keep ownership of durable row identity. This type tracks logical row

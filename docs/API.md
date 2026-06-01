@@ -247,6 +247,10 @@ drop-hover messages can use `with_drop_only(...)`. Application-builder rows
 can use `drop_target_mode(drag_active, hover_messages)` when the current row
 should become either a normal drop target or a drop-only target from
 host-owned drag state without app-local `droppable` / `drop_only` branches.
+Use `InteractiveRowBuilder::filter_mapped(...)` when only selected row events
+should emit host messages, such as activation and drop while drag-hover or
+secondary-click events are ignored. This avoids routing ignored row interactions
+through app-level no-op messages.
 Rows emit `DoubleActivate` for primary-button double-click flows such as
 opening an item, entering rename mode, or drilling into a details row.
 Large list and tree-style surfaces can use `VirtualListController` when they

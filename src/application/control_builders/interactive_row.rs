@@ -171,12 +171,24 @@ impl InteractiveRowBuilder {
         self,
         map: impl Fn(InteractiveRowMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
+        self.with_message_mapper(WidgetMessageMapper::interactive_row(map))
+    }
+
+    /// Emit host messages for selected row interactions.
+    pub fn filter_mapped<Message: 'static>(
+        self,
+        map: impl Fn(InteractiveRowMessage) -> Option<Message> + Send + Sync + 'static,
+    ) -> ViewNode<Message> {
+        self.with_message_mapper(WidgetMessageMapper::interactive_row_filtered(map))
+    }
+
+    fn with_message_mapper<Message: 'static>(
+        self,
+        messages: WidgetMessageMapper<Message>,
+    ) -> ViewNode<Message> {
         let style = self.style;
         let row = self.widget();
-        let mut node = view_node_from_widget(MappedWidget::new(
-            row,
-            WidgetMessageMapper::interactive_row(map),
-        ));
+        let mut node = view_node_from_widget(MappedWidget::new(row, messages));
         node.style = style;
         node
     }

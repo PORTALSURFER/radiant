@@ -35,6 +35,13 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
                 _ => "drop-only-other",
             })
             .id(24),
+        ui::interactive_row()
+            .filter_mapped(|message| {
+                message
+                    .is_single_activation()
+                    .then_some("filtered-row-activate")
+            })
+            .id(30),
         ui::scrollbar(ui::ScrollbarAxis::Horizontal)
             .viewport_fraction(0.25)
             .offset_fraction(0.5)
@@ -91,6 +98,20 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
             radiant::widgets::WidgetOutput::typed(ui::InteractiveRowMessage::Drop),
         ),
         Some("drop-only")
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            30,
+            radiant::widgets::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
+        ),
+        Some("filtered-row-activate")
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            30,
+            radiant::widgets::WidgetOutput::typed(ui::InteractiveRowMessage::Drop),
+        ),
+        None
     );
 
     let scrollbar = widget_ref::<radiant::widgets::ScrollbarWidget, _>(&surface, 21, "scrollbar");

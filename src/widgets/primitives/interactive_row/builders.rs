@@ -10,4 +10,15 @@ impl<Message> WidgetMessageMapper<Message> {
     ) -> Self {
         Self::typed(map)
     }
+
+    /// Build an interactive-row message mapper that can ignore selected row events.
+    pub fn interactive_row_filtered(
+        map: impl Fn(InteractiveRowMessage) -> Option<Message> + Send + Sync + 'static,
+    ) -> Self {
+        Self::dynamic(move |output| {
+            output
+                .typed_copied::<InteractiveRowMessage>()
+                .and_then(&map)
+        })
+    }
 }

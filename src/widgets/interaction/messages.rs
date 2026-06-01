@@ -16,6 +16,29 @@ pub enum ButtonMessage {
     Drag(DragHandleMessage),
 }
 
+impl ButtonMessage {
+    /// Return whether this message is a primary button activation.
+    pub fn is_activate(self) -> bool {
+        matches!(self, Self::Activate)
+    }
+
+    /// Return the secondary/right-click activation position, when present.
+    pub fn secondary_position(self) -> Option<Point> {
+        match self {
+            Self::SecondaryActivate { position } => Some(position),
+            _ => None,
+        }
+    }
+
+    /// Return the drag lifecycle message, when present.
+    pub fn drag_message(self) -> Option<DragHandleMessage> {
+        match self {
+            Self::Drag(message) => Some(message),
+            _ => None,
+        }
+    }
+}
+
 /// Message emitted by a reusable badge or pill primitive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BadgeMessage {

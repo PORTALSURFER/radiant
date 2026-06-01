@@ -119,6 +119,31 @@ fn draggable_button_emits_drag_lifecycle_instead_of_click_when_moved() {
 }
 
 #[test]
+fn button_message_helpers_classify_common_outputs() {
+    let secondary_position = Point::new(10.0, 12.0);
+    let drag_position = Point::new(18.0, 20.0);
+    let drag = DragHandleMessage::Moved {
+        position: drag_position,
+    };
+
+    assert!(ButtonMessage::Activate.is_activate());
+    assert_eq!(ButtonMessage::Activate.secondary_position(), None);
+    assert_eq!(ButtonMessage::Activate.drag_message(), None);
+
+    let secondary = ButtonMessage::SecondaryActivate {
+        position: secondary_position,
+    };
+    assert!(!secondary.is_activate());
+    assert_eq!(secondary.secondary_position(), Some(secondary_position));
+    assert_eq!(secondary.drag_message(), None);
+
+    let drag_message = ButtonMessage::Drag(drag);
+    assert!(!drag_message.is_activate());
+    assert_eq!(drag_message.secondary_position(), None);
+    assert_eq!(drag_message.drag_message(), Some(drag));
+}
+
+#[test]
 fn button_chrome_shares_fill_and_stroke_point_storage() {
     let button = ButtonWidget::new(10, "Play", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0));

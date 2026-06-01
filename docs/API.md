@@ -1517,7 +1517,10 @@ the standard `icon_button(...)` builder. For common compact controls, use
 `close_button()` and `disclosure_button(expanded)` so apps do not repeat literal
 text labels or parse their own standard close/disclosure icons. Icon-button
 builders support both message-style `.message(...)` routing and direct
-state-callback `.on_click(...)` routing.
+state-callback `.on_click(...)` routing. Button reducers can use
+`ButtonMessage::is_activate()`, `secondary_position()`, and `drag_message()` to
+route primary activation, context-menu clicks, or drag lifecycle events without
+repeating the raw button enum shape.
 Run `cargo run --example status_bar` for a bottom status-bar sandbox that shows
 button actions, toggle state, animation updates, and background worker progress
 flowing into a one-line log and retained-canvas progress strip. Compact status

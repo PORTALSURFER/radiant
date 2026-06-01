@@ -93,3 +93,27 @@ fn application_builder_dropdown_exports_and_routes_messages() {
     assert_eq!(ui::dropdown_height(true, 2), 24.0);
     assert_eq!(ui::dropdown_menu_height(2), 55.0);
 }
+
+#[test]
+fn application_builder_dropdown_trigger_exports_and_routes_message() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<GalleryMessage> = ui::dropdown_trigger("WASAPI", true)
+        .toggle_message(GalleryMessage::ToggleDropdown)
+        .build()
+        .id(1)
+        .into_surface();
+
+    assert_eq!(
+        surface.dispatch_widget_output(
+            1,
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+        ),
+        Some(GalleryMessage::ToggleDropdown)
+    );
+    let _parts = ui::DropdownTriggerParts {
+        selected_label: String::from("WASAPI"),
+        open: true,
+        toggle_message: GalleryMessage::ToggleDropdown,
+    };
+}

@@ -130,8 +130,10 @@ fn application_dropdown_builder_keeps_menu_overlay_and_tests_focused() {
             && root.contains("DropdownOptionSelection")
             && root.contains("#[path = \"dropdown/tests.rs\"]")
             && root.contains("pub struct DropdownBuilder<Message>")
+            && root.contains("pub struct DropdownTriggerBuilder<Message>")
             && root.contains("pub fn option_from_parts")
             && root.contains("pub fn dropdown_from_parts")
+            && root.contains("pub fn dropdown_trigger_from_parts")
             && !root.contains("pub struct DropdownOptionParts<Message>")
             && !root.contains("fn dropdown_option_button")
             && !root.contains("fn dropdown_builder_accepts_toggle_and_options"),
@@ -142,6 +144,7 @@ fn application_dropdown_builder_keeps_menu_overlay_and_tests_focused() {
             && model.contains("pub struct DropdownOptionParts<Message>")
             && model.contains("pub enum DropdownOptionSelection")
             && model.contains("pub struct DropdownParts<Message>")
+            && model.contains("pub struct DropdownTriggerParts<Message>")
             && model.contains("pub fn from_parts(parts: DropdownOptionParts<Message>) -> Self"),
         "dropdown public DTOs should live in the focused model module"
     );
@@ -154,6 +157,7 @@ fn application_dropdown_builder_keeps_menu_overlay_and_tests_focused() {
     assert!(
         tests.contains("fn dropdown_height_tracks_expanded_options")
             && tests.contains("fn dropdown_builder_accepts_toggle_and_options")
+            && tests.contains("fn dropdown_trigger_builds_external_overlay_toggle")
             && tests
                 .contains("fn dropdown_option_compatibility_constructor_delegates_to_named_parts"),
         "dropdown builder and named-option behavior tests should live in dropdown/tests.rs"

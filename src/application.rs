@@ -86,16 +86,18 @@ pub use control_builders::{
     ActionRowBuilder, BadgeBuilder, ButtonBuilder, ColorMarkerBuilder, DEFAULT_ACTION_ROW_HEIGHT,
     DragHandleBuilder, DropdownBuilder, DropdownBuilderNeedsToggle, DropdownMenuOverlayBelowParts,
     DropdownOption, DropdownOptionParts, DropdownOptionSelection, DropdownParts,
+    DropdownTriggerBuilder, DropdownTriggerBuilderNeedsToggle, DropdownTriggerParts,
     FeedbackOverlayBuilder, IconButtonBuilder, InteractiveRowBuilder, MarkerRunBuilder,
     PointerShieldBuilder, ProgressBarBuilder, ScrollbarBuilder, SelectableBuilder, SliderBuilder,
     TextInputBuilder, ToggleBuilder, action_row, badge, badge_mapped, badge_message, button,
     button_mapped, button_message, checkbox, color_marker, determinate_progress_bar, drag_handle,
     drag_handle_mapped, dropdown, dropdown_from_parts, dropdown_height, dropdown_menu,
     dropdown_menu_height, dropdown_menu_overlay, dropdown_menu_overlay_below,
-    dropdown_menu_overlay_below_from_parts, dropdown_option, feedback_overlay, icon_button,
-    indeterminate_progress_bar, interactive_row, marker_run, pointer_drop_shield,
-    pointer_move_shield, pointer_shield, progress_bar, scrollbar, selectable, selectable_mapped,
-    slider, slider_mapped, state_dropdown, text_input, text_input_mapped, toggle, toggle_mapped,
+    dropdown_menu_overlay_below_from_parts, dropdown_option, dropdown_trigger,
+    dropdown_trigger_from_parts, feedback_overlay, icon_button, indeterminate_progress_bar,
+    interactive_row, marker_run, pointer_drop_shield, pointer_move_shield, pointer_shield,
+    progress_bar, scrollbar, selectable, selectable_mapped, slider, slider_mapped, state_dropdown,
+    text_input, text_input_mapped, toggle, toggle_mapped,
 };
 mod layout_builders;
 pub use layout_builders::{

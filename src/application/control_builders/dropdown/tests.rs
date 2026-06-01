@@ -48,6 +48,21 @@ fn dropdown_builder_accepts_options_before_required_toggle() {
 }
 
 #[test]
+fn dropdown_trigger_builds_external_overlay_toggle() {
+    let _view = dropdown_trigger("WASAPI", true)
+        .toggle_message(Message::Toggle)
+        .build();
+    let parts = DropdownTriggerParts {
+        selected_label: "WASAPI".into(),
+        open: true,
+        toggle_message: Message::Toggle,
+    };
+
+    assert_eq!(parts.selected_label, "WASAPI");
+    assert!(parts.open);
+}
+
+#[test]
 fn dropdown_option_compatibility_constructor_delegates_to_named_parts() {
     let from_parts = DropdownOption::from_parts(DropdownOptionParts {
         label: "WASAPI".into(),

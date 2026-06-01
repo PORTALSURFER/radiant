@@ -1,4 +1,7 @@
-use crate::application::{StateAction, ViewNode, button, stack};
+use crate::{
+    application::{StateAction, ViewNode, button, stack},
+    widgets::{WidgetProminence, WidgetStyle, WidgetTone},
+};
 use std::sync::Arc;
 
 mod menu;
@@ -12,7 +15,10 @@ pub use menu::{
     DropdownMenuOverlayBelowParts, dropdown_menu, dropdown_menu_height, dropdown_menu_overlay,
     dropdown_menu_overlay_below, dropdown_menu_overlay_below_from_parts,
 };
-pub use model::{DropdownOption, DropdownOptionParts, DropdownOptionSelection, DropdownParts};
+pub use model::{
+    DropdownOption, DropdownOptionParts, DropdownOptionSelection, DropdownParts,
+    DropdownTriggerParts,
+};
 
 /// Builder for generic dropdown controls.
 pub struct DropdownBuilderNeedsToggle<Message> {
@@ -28,6 +34,19 @@ struct DropdownBuilderState<Message> {
 /// Builder for generic dropdown controls after the required toggle message is set.
 pub struct DropdownBuilder<Message> {
     state: DropdownBuilderState<Message>,
+    toggle_message: Message,
+}
+
+/// Builder for a dropdown trigger whose menu is projected elsewhere.
+pub struct DropdownTriggerBuilderNeedsToggle {
+    selected_label: String,
+    open: bool,
+}
+
+/// Builder for a dropdown trigger after the required toggle message is set.
+pub struct DropdownTriggerBuilder<Message> {
+    selected_label: String,
+    open: bool,
     toggle_message: Message,
 }
 
@@ -122,6 +141,31 @@ impl<Message> DropdownBuilder<Message> {
     }
 }
 
+impl DropdownTriggerBuilderNeedsToggle {
+    /// Emit the supplied host message when the trigger is activated.
+    pub fn toggle_message<Message>(self, message: Message) -> DropdownTriggerBuilder<Message> {
+        DropdownTriggerBuilder {
+            selected_label: self.selected_label,
+            open: self.open,
+            toggle_message: message,
+        }
+    }
+}
+
+impl<Message> DropdownTriggerBuilder<Message> {
+    /// Build this standalone dropdown trigger.
+    pub fn build(self) -> ViewNode<Message>
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        dropdown_trigger_from_parts(DropdownTriggerParts {
+            selected_label: self.selected_label,
+            open: self.open,
+            toggle_message: self.toggle_message,
+        })
+    }
+}
+
 /// Build a generic dropdown.
 pub fn dropdown<Message>(
     selected_label: impl Into<String>,
@@ -132,16 +176,29 @@ pub fn dropdown<Message>(
     }
 }
 
+/// Build only the trigger for a dropdown whose menu is rendered by the host as
+/// an external overlay.
+pub fn dropdown_trigger(
+    selected_label: impl Into<String>,
+    open: bool,
+) -> DropdownTriggerBuilderNeedsToggle {
+    DropdownTriggerBuilderNeedsToggle {
+        selected_label: selected_label.into(),
+        open,
+    }
+}
+
 /// Build a generic dropdown from named parts.
 pub fn dropdown_from_parts<Message>(parts: DropdownParts<Message>) -> ViewNode<Message>
 where
     Message: Clone + Send + Sync + 'static,
 {
-    let toggle = button(format!("{}  v", parts.selected_label))
-        .message(parts.toggle_message)
-        .key("dropdown-toggle")
-        .fill_width()
-        .height(24.0);
+    let toggle = dropdown_trigger_from_parts(DropdownTriggerParts {
+        selected_label: parts.selected_label,
+        open: parts.open,
+        toggle_message: parts.toggle_message,
+    })
+    .key("dropdown-toggle");
     if parts.open {
         stack([
             toggle,
@@ -153,6 +210,27 @@ where
     } else {
         toggle.key("dropdown")
     }
+}
+
+/// Build only a dropdown trigger from named parts.
+pub fn dropdown_trigger_from_parts<Message>(
+    parts: DropdownTriggerParts<Message>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    let mut trigger = button(format!("{}  v", parts.selected_label));
+    if parts.open {
+        trigger = trigger.style(WidgetStyle::new(
+            WidgetTone::Accent,
+            WidgetProminence::Subtle,
+        ));
+    }
+    trigger
+        .message(parts.toggle_message)
+        .key("dropdown-trigger")
+        .fill_width()
+        .height(24.0)
 }
 
 /// Return the normal-flow height for a dropdown toggle.

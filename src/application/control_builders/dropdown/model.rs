@@ -76,3 +76,15 @@ pub struct DropdownParts<Message> {
     /// Ordered selectable options.
     pub options: Vec<DropdownOption<Message>>,
 }
+
+/// Named construction fields for a dropdown trigger whose menu is rendered
+/// elsewhere, such as in a stack-level overlay.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DropdownTriggerParts<Message> {
+    /// Visible label for the currently selected value.
+    pub selected_label: String,
+    /// Whether the menu owned by the host is currently open.
+    pub open: bool,
+    /// Host message emitted when the collapsed control is activated.
+    pub toggle_message: Message,
+}

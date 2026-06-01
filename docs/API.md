@@ -34,7 +34,7 @@ and explicit runtime objects are part of the same API surface:
 Radiant's application API is designed to be easy to read without hiding the
 runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `app`, `text`, `button`, `row`, `column`, `scroll`, `scroll_column`, `list`,
-`list_row`, `toggle`, `text_input`, `custom_widget`, `IntoView`, `View`,
+`list_row`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget`, `IntoView`, `View`,
 `StateView`, `Command`, `EmbeddedFont`, `StatusSegments`, `StatusLineLog`,
 `StatusLineEntry`, `ContentViewChrome`, common custom-widget authoring contracts such as
 `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`,
@@ -1322,7 +1322,8 @@ Dropdown overlays anchored to a trigger can use
 `DropdownMenuOverlayBelowParts`, `dropdown_menu_overlay_below(...)`, and
 `dropdown_menu_overlay_below_from_parts(...)` so application code supplies the
 trigger rectangle and gap rather than hand-adding trigger height to menu
-coordinates.
+coordinates. Use `dropdown_trigger(...)` when the toggle should stay in normal
+layout while the menu is projected as a separate stack-level overlay.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
 that composes `MenuItem`, `menu(...)`, and `context_menu_overlay(...)` with
 normal state callbacks.

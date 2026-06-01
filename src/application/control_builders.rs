@@ -33,7 +33,7 @@ pub use dropdown::{
     dropdown_trigger_from_parts, dropdown_trigger_height, state_dropdown,
 };
 pub use feedback_overlay::{FeedbackOverlayBuilder, feedback_overlay};
-pub use icon_button::{IconButtonBuilder, icon_button};
+pub use icon_button::{IconButtonBuilder, close_button, disclosure_button, icon_button};
 pub use interactive_row::{InteractiveRowBuilder, interactive_row};
 pub use marker_run::{MarkerRunBuilder, marker_run};
 pub use pointer_shield::{

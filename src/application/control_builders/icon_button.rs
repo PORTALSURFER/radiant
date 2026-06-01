@@ -1,9 +1,23 @@
+use std::sync::OnceLock;
+
 use crate::{
     application::{MappedWidget, ViewNode, primary_style, view_node_from_widget},
     gui::svg::SvgIcon,
     runtime::WidgetMessageMapper,
     widgets::{ButtonMessage, IconButtonWidget, WidgetProminence, WidgetSizing, WidgetStyle},
 };
+
+const CLOSE_ICON_SVG: &str = r##"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path fill="#eeeeee" d="M4.2 3.1 8 6.9l3.8-3.8 1.1 1.1L9.1 8l3.8 3.8-1.1 1.1L8 9.1l-3.8 3.8-1.1-1.1L6.9 8 3.1 4.2z"/>
+</svg>"##;
+
+const DISCLOSURE_OPEN_ICON_SVG: &str = r##"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path fill="#eeeeee" d="M3.5 5.6 8 10.1l4.5-4.5 1.1 1.1L8 12.3 2.4 6.7z"/>
+</svg>"##;
+
+const DISCLOSURE_CLOSED_ICON_SVG: &str = r##"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path fill="#eeeeee" d="M5.6 2.4 11.2 8l-5.6 5.6-1.1-1.1L9 8 4.5 3.5z"/>
+</svg>"##;
 
 /// Builder for compact SVG icon buttons.
 pub struct IconButtonBuilder {
@@ -81,5 +95,110 @@ pub fn icon_button(icon: SvgIcon) -> IconButtonBuilder {
         style: None,
         enabled: true,
         active: false,
+    }
+}
+
+/// Build a standard compact close button.
+pub fn close_button() -> IconButtonBuilder {
+    icon_button(cached_icon(&CLOSE_ICON, CLOSE_ICON_SVG, "close"))
+}
+
+/// Build a standard compact disclosure button.
+///
+/// Pass `true` when the controlled section is expanded and `false` when it is
+/// collapsed.
+pub fn disclosure_button(expanded: bool) -> IconButtonBuilder {
+    let (cache, svg, name) = if expanded {
+        (
+            &DISCLOSURE_OPEN_ICON,
+            DISCLOSURE_OPEN_ICON_SVG,
+            "open disclosure",
+        )
+    } else {
+        (
+            &DISCLOSURE_CLOSED_ICON,
+            DISCLOSURE_CLOSED_ICON_SVG,
+            "closed disclosure",
+        )
+    };
+    icon_button(cached_icon(cache, svg, name))
+}
+
+static CLOSE_ICON: OnceLock<SvgIcon> = OnceLock::new();
+static DISCLOSURE_OPEN_ICON: OnceLock<SvgIcon> = OnceLock::new();
+static DISCLOSURE_CLOSED_ICON: OnceLock<SvgIcon> = OnceLock::new();
+
+fn cached_icon(cache: &'static OnceLock<SvgIcon>, svg: &'static str, name: &str) -> SvgIcon {
+    cache
+        .get_or_init(|| {
+            SvgIcon::from_svg(svg)
+                .unwrap_or_else(|| panic!("Radiant built-in {name} icon SVG should parse"))
+        })
+        .clone()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        gui::types::{Point, Rect},
+        layout::{LayoutOutput, Vector2},
+        runtime::PaintPrimitive,
+        widgets::{PointerButton, Widget, WidgetInput},
+    };
+
+    #[test]
+    fn standard_icon_buttons_parse_and_paint_retained_svg() {
+        for builder in [
+            close_button(),
+            disclosure_button(false),
+            disclosure_button(true),
+        ] {
+            let widget = IconButtonWidget::new(
+                101,
+                builder.icon,
+                WidgetSizing::fixed(Vector2::new(24.0, 20.0)),
+            );
+            let mut primitives = Vec::new();
+            widget.append_paint(
+                &mut primitives,
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(24.0, 20.0)),
+                &LayoutOutput::default(),
+                &Default::default(),
+            );
+            assert!(
+                primitives
+                    .iter()
+                    .any(|primitive| matches!(primitive, PaintPrimitive::Svg(_))),
+                "standard icon button should paint a retained SVG icon"
+            );
+        }
+    }
+
+    #[test]
+    fn standard_icon_buttons_route_activation_messages() {
+        let mut widget = IconButtonWidget::new(
+            101,
+            close_button().icon,
+            WidgetSizing::fixed(Vector2::new(24.0, 20.0)),
+        );
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(24.0, 20.0));
+        widget.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(12.0, 10.0),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        );
+        let output = widget.handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(12.0, 10.0),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        );
+        assert!(output.is_some());
     }
 }

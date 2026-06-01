@@ -1430,7 +1430,9 @@ owns the controls and Radiant should own alignment, row height, spacing, and
 padding.
 Run `cargo run --example svg` for a focused SVG icon sandbox that parses
 inline vector assets through `SvgIcon::from_svg(...)` and paints them through
-the standard `icon_button(...)` builder.
+the standard `icon_button(...)` builder. For common compact controls, use
+`close_button()` and `disclosure_button(expanded)` so apps do not repeat literal
+text labels or parse their own standard close/disclosure icons.
 Run `cargo run --example status_bar` for a bottom status-bar sandbox that shows
 button actions, toggle state, animation updates, and background worker progress
 flowing into a one-line log and retained-canvas progress strip. Compact status

@@ -108,9 +108,10 @@ pub use control_builders::{
 };
 mod layout_builders;
 pub use layout_builders::{
-    AnchoredLayerParts, CenteredLayerParts, DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP,
-    DEFAULT_ROW_SPACING, FloatingLayerAnchorParts, FloatingLayerPlacement, LayerHorizontalAnchor,
-    LayerVerticalAnchor, anchored_layer, anchored_layer_from_parts, centered_layer,
+    AnchoredLayerParts, BoundedScrollColumnParts, CenteredLayerParts, DEFAULT_COLUMN_SPACING,
+    DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING, FloatingLayerAnchorParts, FloatingLayerPlacement,
+    LayerHorizontalAnchor, LayerVerticalAnchor, anchored_layer, anchored_layer_from_parts,
+    bounded_scroll_column, bounded_scroll_column_from_parts, centered_layer,
     centered_layer_from_parts, column, column_key, dismiss_layer, dismissible_overlay,
     drag_preview, drag_preview_sized, drop_marker, floating_layer, floating_layer_above,
     floating_layer_around_from_parts, floating_layer_below, floating_layer_with_input, grid,

@@ -10,7 +10,10 @@ pub use containers::{
     DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING, column, column_key, grid,
     grid_with_gaps, row, row_key, stack, wrap,
 };
-pub use lists::{list, list_row, list_row_id, scroll_column, virtual_list, virtual_list_window};
+pub use lists::{
+    BoundedScrollColumnParts, bounded_scroll_column, bounded_scroll_column_from_parts, list,
+    list_row, list_row_id, scroll_column, virtual_list, virtual_list_window,
+};
 pub use overlays::{
     AnchoredLayerParts, CenteredLayerParts, FloatingLayerAnchorParts, FloatingLayerPlacement,
     LayerHorizontalAnchor, LayerVerticalAnchor, anchored_layer, anchored_layer_from_parts,

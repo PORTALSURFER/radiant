@@ -741,7 +741,11 @@ Transient fixed-row list surfaces such as autocomplete popups, command
 palettes, and compact inspectors can use `bounded_list_visible_rows` and
 `bounded_list_height` to share the generic "hide when empty, cap visible rows,
 then scroll overflow" sizing contract without baking product-specific popup
-rules into app code.
+rules into app code. Application-builder surfaces can use
+`BoundedScrollColumnParts`, `bounded_scroll_column(...)`, and
+`bounded_scroll_column_from_parts(...)` when the host owns row projection but
+Radiant should own the capped scroll viewport, empty-list behavior, chrome
+padding, and viewport styling.
 Compact toolbars and action strips can use
 `layout::fixed_width_row_rects_start`, `layout::fixed_width_row_rects_end`, and
 `layout::visible_suffix_widths` to place fixed-width controls through the
@@ -1353,6 +1357,10 @@ inside a caller-owned stack layer can use `FloatingLayerAnchorParts`,
 `floating_layer_below(...)`, and `floating_layer_around_from_parts(...)`
 instead of hand-computing popup, autocomplete, tooltip, or compact editor
 offsets in application code.
+Fixed-row transient lists can use `BoundedScrollColumnParts`,
+`bounded_scroll_column(...)`, and `bounded_scroll_column_from_parts(...)` so
+application code projects domain-specific rows while Radiant owns capped
+height, empty-list elision, scroll wrapping, padding, and viewport styling.
 Dropdown overlays anchored to a trigger can use
 `DropdownMenuOverlayBelowParts`, `dropdown_menu_overlay_below(...)`, and
 `dropdown_menu_overlay_below_from_parts(...)` so application code supplies the

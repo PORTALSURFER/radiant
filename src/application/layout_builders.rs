@@ -14,8 +14,9 @@ pub use lists::{list, list_row, list_row_id, scroll_column, virtual_list, virtua
 pub use overlays::{
     AnchoredLayerParts, CenteredLayerParts, FloatingLayerAnchorParts, FloatingLayerPlacement,
     LayerHorizontalAnchor, LayerVerticalAnchor, anchored_layer, anchored_layer_from_parts,
-    centered_layer, centered_layer_from_parts, dismiss_layer, drag_preview, drag_preview_sized,
-    drop_marker, floating_layer, floating_layer_above, floating_layer_around_from_parts,
-    floating_layer_below, floating_layer_with_input, input_overlay, input_underlay, overlay_panel,
+    centered_layer, centered_layer_from_parts, dismiss_layer, dismissible_overlay, drag_preview,
+    drag_preview_sized, drop_marker, floating_layer, floating_layer_above,
+    floating_layer_around_from_parts, floating_layer_below, floating_layer_with_input,
+    input_overlay, input_underlay, overlay_panel,
 };
 pub use scroll::{scroll, virtual_scroll};

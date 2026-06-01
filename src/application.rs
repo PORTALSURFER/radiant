@@ -111,11 +111,11 @@ pub use layout_builders::{
     AnchoredLayerParts, CenteredLayerParts, DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP,
     DEFAULT_ROW_SPACING, FloatingLayerAnchorParts, FloatingLayerPlacement, LayerHorizontalAnchor,
     LayerVerticalAnchor, anchored_layer, anchored_layer_from_parts, centered_layer,
-    centered_layer_from_parts, column, column_key, dismiss_layer, drag_preview, drag_preview_sized,
-    drop_marker, floating_layer, floating_layer_above, floating_layer_around_from_parts,
-    floating_layer_below, floating_layer_with_input, grid, grid_with_gaps, input_overlay,
-    input_underlay, list, list_row, list_row_id, overlay_panel, row, row_key, scroll,
-    scroll_column, stack, virtual_list, virtual_list_window, virtual_scroll, wrap,
+    centered_layer_from_parts, column, column_key, dismiss_layer, dismissible_overlay,
+    drag_preview, drag_preview_sized, drop_marker, floating_layer, floating_layer_above,
+    floating_layer_around_from_parts, floating_layer_below, floating_layer_with_input, grid,
+    grid_with_gaps, input_overlay, input_underlay, list, list_row, list_row_id, overlay_panel, row,
+    row_key, scroll, scroll_column, stack, virtual_list, virtual_list_window, virtual_scroll, wrap,
 };
 mod ids;
 pub(in crate::application) use ids::{IdGenerator, scoped_key_id};

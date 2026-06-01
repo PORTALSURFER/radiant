@@ -238,6 +238,23 @@ where
         .fill()
 }
 
+/// Stack base content with a transparent dismiss layer and foreground overlay.
+///
+/// Use this for transient menus, dropdowns, popovers, and inspectors where the
+/// overlay should stay above an outside-click dismissal surface. The base
+/// content remains visible underneath, while pointer activation outside the
+/// foreground overlay emits `dismiss_message`.
+pub fn dismissible_overlay<Message>(
+    base: ViewNode<Message>,
+    overlay: ViewNode<Message>,
+    dismiss_message: Message,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    stack([base, dismiss_layer(dismiss_message), overlay]).fill()
+}
+
 /// Layer transparent input over visible content in one stacked view.
 ///
 /// This is useful for composite controls where the application owns the visual
@@ -454,18 +471,20 @@ mod tests {
         application::{IntoView, app, text},
         gui::types::Rect,
         layout::Vector2,
-        runtime::{PaintPrimitive, SurfaceRuntime, UiSurface},
+        runtime::{Event, PaintPrimitive, SurfaceRuntime, UiSurface},
         widgets::{PointerButton, PointerModifiers, TextWidget, WidgetInput},
     };
 
     #[derive(Clone, Debug, PartialEq)]
     enum DemoMessage {
         Activate,
+        Dismiss,
     }
 
     #[derive(Default)]
     struct DemoState {
         activated: bool,
+        dismissed: bool,
     }
 
     #[test]
@@ -483,6 +502,7 @@ mod tests {
             })
             .update(|state, message| match message {
                 DemoMessage::Activate => state.activated = true,
+                DemoMessage::Dismiss => state.dismissed = true,
             })
             .into_bridge();
         let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 22.0));
@@ -530,6 +550,7 @@ mod tests {
             })
             .update(|state, message| match message {
                 DemoMessage::Activate => state.activated = true,
+                DemoMessage::Dismiss => state.dismissed = true,
             })
             .into_bridge();
         let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 22.0));
@@ -559,6 +580,57 @@ mod tests {
                 .and_then(|widget| widget.widget_object().as_any().downcast_ref::<TextWidget>())
                 .map(|widget| widget.text.as_str()),
             Some("activated")
+        );
+    }
+
+    #[test]
+    fn dismissible_overlay_routes_outside_activation_to_dismiss_layer() {
+        let bridge = app(DemoState::default())
+            .view(|state| {
+                let status = if state.dismissed {
+                    "dismissed"
+                } else if state.activated {
+                    "activated"
+                } else {
+                    "open"
+                };
+                dismissible_overlay(
+                    text(status).id(92).fill(),
+                    floating_layer_with_input(
+                        Point::new(0.0, 0.0),
+                        Vector2::new(60.0, 24.0),
+                        button("menu").message(DemoMessage::Activate).fill(),
+                        true,
+                    ),
+                    DemoMessage::Dismiss,
+                )
+            })
+            .update(|state, message| match message {
+                DemoMessage::Activate => state.activated = true,
+                DemoMessage::Dismiss => state.dismissed = true,
+            })
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(140.0, 80.0));
+        let outside_overlay = Point::new(90.0, 8.0);
+
+        runtime.dispatch_event(Event::PointerPress {
+            position: outside_overlay,
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+        });
+        runtime.dispatch_event(Event::PointerRelease {
+            position: outside_overlay,
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+        });
+
+        assert_eq!(
+            runtime
+                .surface()
+                .find_widget(92)
+                .and_then(|widget| widget.widget_object().as_any().downcast_ref::<TextWidget>())
+                .map(|widget| widget.text.as_str()),
+            Some("dismissed")
         );
     }
 

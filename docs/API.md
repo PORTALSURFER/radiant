@@ -267,6 +267,10 @@ Convenience constructors such as `.pointer_move_only(...)` and
 Popover and menu stacks can use `dismiss_layer(message)` as a transparent
 full-surface activation layer behind foreground content, avoiding app-local
 empty input-only buttons for outside-click dismissal.
+When the caller has separate base content and foreground overlay content,
+`dismissible_overlay(base, overlay, message)` composes the standard
+base/dismiss/foreground stack so apps do not repeat the ordering required for
+outside-click dismissal.
 Dropdown menus rendered as stack-level overlays can use
 `dropdown_menu_overlay_below_trigger(...)` when the menu is anchored below
 Radiant's standard dropdown trigger, avoiding app-local calls to
@@ -1351,6 +1355,9 @@ Dropdown overlays anchored to a trigger can use
 trigger rectangle and gap rather than hand-adding trigger height to menu
 coordinates. Use `dropdown_trigger(...)` when the toggle should stay in normal
 layout while the menu is projected as a separate stack-level overlay.
+Transient dropdowns, menus, and popovers can use `dismissible_overlay(...)`
+when foreground overlay content should sit above a transparent outside-click
+dismiss layer while preserving the base content underneath.
 Dismissible context menus can use `dismissible_context_menu_with_width(...)`
 when they should use Radiant's standard compact menu height for the supplied
 commands instead of computing `message_menu_height(...)` in application code.

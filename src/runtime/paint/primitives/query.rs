@@ -1,6 +1,6 @@
 use super::{
-    PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintSvg, PaintTextInput, PaintTextRun,
-    SurfacePaintPlan,
+    PaintClipStart, PaintFillPolygon, PaintFillRect, PaintGpuSurface, PaintPrimitive,
+    PaintStrokePolyline, PaintStrokeRect, PaintSvg, PaintTextInput, PaintTextRun, SurfacePaintPlan,
 };
 use crate::{gui::types::Rect, widgets::WidgetId};
 
@@ -32,6 +32,24 @@ impl SurfacePaintPlan {
             .filter_map(PaintPrimitive::text_input)
     }
 
+    /// Return the first native text-input paint primitive in paint order.
+    pub fn first_text_input(&self) -> Option<&PaintTextInput> {
+        self.text_inputs().next()
+    }
+
+    /// Return whether this paint plan contains any native text-input paint
+    /// primitive.
+    pub fn contains_text_input(&self) -> bool {
+        self.first_text_input().is_some()
+    }
+
+    /// Iterate over rectangular clip-start primitives in paint order.
+    pub fn clip_starts(&self) -> impl Iterator<Item = &PaintClipStart> {
+        self.primitives
+            .iter()
+            .filter_map(PaintPrimitive::clip_start)
+    }
+
     /// Iterate over single filled-rectangle primitives in paint order.
     ///
     /// Batched rectangle primitives remain available through `primitives` when
@@ -50,9 +68,30 @@ impl SurfacePaintPlan {
             .filter_map(PaintPrimitive::stroke_rect)
     }
 
+    /// Iterate over filled-polygon primitives in paint order.
+    pub fn fill_polygons(&self) -> impl Iterator<Item = &PaintFillPolygon> {
+        self.primitives
+            .iter()
+            .filter_map(PaintPrimitive::fill_polygon)
+    }
+
+    /// Iterate over stroked-polyline primitives in paint order.
+    pub fn stroke_polylines(&self) -> impl Iterator<Item = &PaintStrokePolyline> {
+        self.primitives
+            .iter()
+            .filter_map(PaintPrimitive::stroke_polyline)
+    }
+
     /// Iterate over retained SVG primitives in paint order.
     pub fn svgs(&self) -> impl Iterator<Item = &PaintSvg> {
         self.primitives.iter().filter_map(PaintPrimitive::svg)
+    }
+
+    /// Iterate over retained GPU surface primitives in paint order.
+    pub fn gpu_surfaces(&self) -> impl Iterator<Item = &PaintGpuSurface> {
+        self.primitives
+            .iter()
+            .filter_map(PaintPrimitive::gpu_surface)
     }
 
     /// Return the first rectangular paint region emitted by `widget_id`.
@@ -89,6 +128,14 @@ impl PaintPrimitive {
         }
     }
 
+    /// Return the clip-start payload carried by this primitive, if any.
+    pub fn clip_start(&self) -> Option<&PaintClipStart> {
+        match self {
+            Self::ClipStart(clip) => Some(clip),
+            _ => None,
+        }
+    }
+
     /// Return the filled rectangle carried by this primitive, if any.
     pub fn fill_rect(&self) -> Option<&PaintFillRect> {
         match self {
@@ -105,10 +152,35 @@ impl PaintPrimitive {
         }
     }
 
+    /// Return the filled polygon carried by this primitive, if any.
+    pub fn fill_polygon(&self) -> Option<&PaintFillPolygon> {
+        match self {
+            Self::FillPolygon(fill) => Some(fill),
+            _ => None,
+        }
+    }
+
+    /// Return the stroked polyline carried by this primitive, if any.
+    pub fn stroke_polyline(&self) -> Option<&PaintStrokePolyline> {
+        match self {
+            Self::StrokePolyline(stroke) => Some(stroke),
+            _ => None,
+        }
+    }
+
     /// Return the retained SVG payload carried by this primitive, if any.
     pub fn svg(&self) -> Option<&PaintSvg> {
         match self {
             Self::Svg(svg) => Some(svg),
+            _ => None,
+        }
+    }
+
+    /// Return the retained GPU surface payload carried by this primitive, if
+    /// any.
+    pub fn gpu_surface(&self) -> Option<&PaintGpuSurface> {
+        match self {
+            Self::GpuSurface(surface) => Some(surface),
             _ => None,
         }
     }

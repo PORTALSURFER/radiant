@@ -2,9 +2,9 @@ use super::*;
 use crate::{
     gui::types::{Point, Vector2},
     runtime::{
-        GpuSurfaceCapabilities, GpuSurfaceContent, PaintFillRect, PaintFillRectBatch,
-        PaintGpuSurface, PaintStrokeRectBatch, PaintSvg, PaintSvgDocument, PaintTextAlign,
-        PaintTextRun,
+        GpuSurfaceCapabilities, GpuSurfaceContent, PaintClipStart, PaintFillPolygon, PaintFillRect,
+        PaintFillRectBatch, PaintGpuSurface, PaintStrokePolyline, PaintStrokeRectBatch, PaintSvg,
+        PaintSvgDocument, PaintTextAlign, PaintTextRun,
     },
     theme::ThemeTokens,
 };
@@ -88,6 +88,11 @@ fn text_queries_return_runs_and_inputs_in_paint_order() {
         vec![12]
     );
     assert_eq!(
+        plan.first_text_input().map(|input| input.widget_id),
+        Some(12)
+    );
+    assert!(plan.contains_text_input());
+    assert_eq!(
         plan.primitives[0].text_run().map(|run| run.widget_id),
         Some(11)
     );
@@ -161,6 +166,95 @@ fn shape_and_svg_queries_return_matching_primitives_in_paint_order() {
         Some(stroke)
     );
     assert_eq!(plan.primitives[3].svg().map(|svg| svg.rect), Some(svg_rect));
+}
+
+#[test]
+fn clip_polygon_polyline_and_gpu_queries_return_matching_primitives_in_paint_order() {
+    let theme = ThemeTokens::default();
+    let mut plan = SurfacePaintPlan::empty(&theme);
+    let clip_rect = Rect::from_min_size(Point::new(1.0, 2.0), Vector2::new(10.0, 11.0));
+    let polygon_points = Arc::from([
+        Point::new(0.0, 0.0),
+        Point::new(8.0, 0.0),
+        Point::new(4.0, 8.0),
+    ]);
+    let polyline_points = Arc::from([Point::new(0.0, 2.0), Point::new(8.0, 2.0)]);
+    let gpu_rect = Rect::from_min_size(Point::new(4.0, 5.0), Vector2::new(32.0, 16.0));
+    let atlas = crate::gui::types::ImageRgba::new(1, 1, vec![255, 255, 255, 255])
+        .expect("valid test atlas");
+
+    plan.primitives
+        .push(PaintPrimitive::ClipStart(PaintClipStart {
+            node_id: 7,
+            rect: clip_rect,
+        }));
+    plan.primitives
+        .push(PaintPrimitive::FillPolygon(PaintFillPolygon {
+            widget_id: 31,
+            points: polygon_points,
+            color: theme.accent_mint,
+        }));
+    plan.primitives
+        .push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
+            widget_id: 32,
+            points: polyline_points,
+            color: theme.text_primary,
+            width: 1.0,
+        }));
+    plan.primitives
+        .push(PaintPrimitive::GpuSurface(PaintGpuSurface {
+            widget_id: 33,
+            key: 1,
+            revision: 2,
+            rect: gpu_rect,
+            content: GpuSurfaceContent::RgbaAtlas {
+                atlas: Arc::new(atlas),
+                source_rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1.0, 1.0)),
+            },
+            capabilities: GpuSurfaceCapabilities::default(),
+            overlays: Vec::new(),
+        }));
+
+    assert_eq!(
+        plan.clip_starts().map(|clip| clip.rect).collect::<Vec<_>>(),
+        vec![clip_rect]
+    );
+    assert_eq!(
+        plan.fill_polygons()
+            .map(|fill| fill.widget_id)
+            .collect::<Vec<_>>(),
+        vec![31]
+    );
+    assert_eq!(
+        plan.stroke_polylines()
+            .map(|stroke| stroke.widget_id)
+            .collect::<Vec<_>>(),
+        vec![32]
+    );
+    assert_eq!(
+        plan.gpu_surfaces()
+            .map(|surface| surface.widget_id)
+            .collect::<Vec<_>>(),
+        vec![33]
+    );
+    assert_eq!(
+        plan.primitives[0].clip_start().map(|clip| clip.rect),
+        Some(clip_rect)
+    );
+    assert_eq!(
+        plan.primitives[1].fill_polygon().map(|fill| fill.widget_id),
+        Some(31)
+    );
+    assert_eq!(
+        plan.primitives[2]
+            .stroke_polyline()
+            .map(|stroke| stroke.widget_id),
+        Some(32)
+    );
+    assert_eq!(
+        plan.primitives[3].gpu_surface().map(|surface| surface.rect),
+        Some(gpu_rect)
+    );
 }
 
 #[test]

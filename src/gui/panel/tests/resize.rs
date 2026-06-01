@@ -1,4 +1,7 @@
-use crate::gui::{panel::*, types::Point};
+use crate::{
+    gui::{panel::*, types::Point},
+    widgets::DragHandleMessage,
+};
 
 #[test]
 fn panel_resize_drag_grows_from_trailing_edges() {
@@ -30,4 +33,73 @@ fn panel_resize_drag_clamps_size() {
 
     assert_eq!(drag.size_at(Point::new(-300.0, 0.0), 48.0, 420.0), 48.0);
     assert_eq!(drag.size_at(Point::new(500.0, 0.0), 48.0, 420.0), 420.0);
+}
+
+#[test]
+fn update_panel_resize_drag_manages_drag_lifecycle() {
+    let mut drag = None;
+
+    assert_eq!(
+        update_panel_resize_drag(
+            &mut drag,
+            DragHandleMessage::Started {
+                position: Point::new(100.0, 0.0)
+            },
+            PanelResizeEdge::Right,
+            240.0,
+            48.0,
+            420.0,
+        ),
+        None
+    );
+    assert!(drag.is_some());
+
+    assert_eq!(
+        update_panel_resize_drag(
+            &mut drag,
+            DragHandleMessage::Moved {
+                position: Point::new(140.0, 0.0)
+            },
+            PanelResizeEdge::Right,
+            240.0,
+            48.0,
+            420.0,
+        ),
+        Some(280.0)
+    );
+    assert!(drag.is_some());
+
+    assert_eq!(
+        update_panel_resize_drag(
+            &mut drag,
+            DragHandleMessage::Ended {
+                position: Point::new(200.0, 0.0)
+            },
+            PanelResizeEdge::Right,
+            240.0,
+            48.0,
+            420.0,
+        ),
+        Some(340.0)
+    );
+    assert_eq!(drag, None);
+}
+
+#[test]
+fn update_panel_resize_drag_ignores_orphaned_motion() {
+    let mut drag = None;
+
+    assert_eq!(
+        update_panel_resize_drag(
+            &mut drag,
+            DragHandleMessage::Moved {
+                position: Point::new(140.0, 0.0)
+            },
+            PanelResizeEdge::Right,
+            240.0,
+            48.0,
+            420.0,
+        ),
+        None
+    );
 }

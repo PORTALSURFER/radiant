@@ -1,4 +1,4 @@
-use crate::gui::types::Point;
+use crate::{gui::types::Point, widgets::DragHandleMessage};
 
 /// Panel edge that is being resized by a drag handle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,6 +46,36 @@ impl PanelResizeDrag {
         let max_size = finite_or(max_size, min_size).max(min_size);
         finite_or(self.start_size + finite_or(delta, 0.0), self.start_size)
             .clamp(min_size, max_size)
+    }
+}
+
+/// Apply one drag-handle message to panel resize state.
+///
+/// Hosts keep the durable size and optional active drag state. This helper
+/// centralizes the generic resize lifecycle: start captures the current size,
+/// move/end emits a clamped size when an active drag exists, and end clears the
+/// active drag. It returns `None` for a start message and for orphaned move/end
+/// messages that have no active resize.
+pub fn update_panel_resize_drag(
+    active_drag: &mut Option<PanelResizeDrag>,
+    message: DragHandleMessage,
+    edge: PanelResizeEdge,
+    current_size: f32,
+    min_size: f32,
+    max_size: f32,
+) -> Option<f32> {
+    match message {
+        DragHandleMessage::Started { position } => {
+            *active_drag = Some(PanelResizeDrag::new(edge, position, current_size));
+            None
+        }
+        DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
+            let size = active_drag.map(|drag| drag.size_at(position, min_size, max_size));
+            if message.is_ended() {
+                *active_drag = None;
+            }
+            size
+        }
     }
 }
 

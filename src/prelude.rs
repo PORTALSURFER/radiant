@@ -98,7 +98,7 @@ pub use crate::gui::{
         virtual_list_view_start_for_scroll_offset,
     },
     paint::{horizontal_line_rect, vertical_line_rect},
-    panel::{PanelResizeDrag, PanelResizeEdge},
+    panel::{PanelResizeDrag, PanelResizeEdge, update_panel_resize_drag},
     range::{
         IndexViewport, NormalizedRange, normalized_fraction_to_micros,
         normalized_fraction_to_milli, normalized_fraction_to_nanos,

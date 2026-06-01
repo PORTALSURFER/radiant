@@ -77,6 +77,24 @@ impl InteractiveRowMessage {
         self.activation_modifiers().is_some()
     }
 
+    /// Return modifier state when this message is a single primary activation.
+    ///
+    /// This excludes double activation so applications can route ordinary row
+    /// invocation separately from double-click actions such as rename, drill-in,
+    /// or open-in-place flows.
+    pub fn single_activation_modifiers(self) -> Option<PointerModifiers> {
+        match self {
+            Self::Activate => Some(PointerModifiers::default()),
+            Self::ActivateWithModifiers { modifiers } => Some(modifiers),
+            _ => None,
+        }
+    }
+
+    /// Return whether this message is a single primary activation.
+    pub fn is_single_activation(self) -> bool {
+        self.single_activation_modifiers().is_some()
+    }
+
     /// Return the secondary/right-click activation position, when present.
     pub fn secondary_position(self) -> Option<Point> {
         match self {

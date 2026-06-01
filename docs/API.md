@@ -192,10 +192,13 @@ row state model without reading widget internals. Use
 `synchronize_from_previous_embedded(...)` when a custom row widget embeds an
 interactive row for generic input behavior but exposes host-specific messages
 and custom paint. Use
-`InteractiveRowMessage::activation_modifiers()`, `secondary_position()`,
-`drag_message()`, `hover_drop_position()`, and `is_drop()` when custom row
-widgets need to map Radiant row interactions into host-specific row messages
-without repeating exhaustive event-shape matches. Drag-capable controls can use
+`InteractiveRowMessage::activation_modifiers()`,
+`single_activation_modifiers()`, `is_single_activation()`,
+`secondary_position()`, `drag_message()`, `hover_drop_position()`, and
+`is_drop()` when custom row widgets need to map Radiant row interactions into
+host-specific row messages without repeating exhaustive event-shape matches.
+Use the single-activation helpers when double-click has a separate host action
+such as rename, drill-in, or open-in-place behavior. Drag-capable controls can use
 `DragHandleMessage::phase()`, `position()`, `is_started()`, `is_moved()`, and
 `is_ended()` when reducers need generic drag lifecycle information without
 duplicating the `Started` / `Moved` / `Ended` variant shape.

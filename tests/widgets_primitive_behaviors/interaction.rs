@@ -130,14 +130,29 @@ fn interactive_row_message_helpers_project_common_custom_row_intents() {
         Some(PointerModifiers::default())
     );
     assert_eq!(
+        InteractiveRowMessage::Activate.single_activation_modifiers(),
+        Some(PointerModifiers::default())
+    );
+    assert_eq!(
         InteractiveRowMessage::DoubleActivate.activation_modifiers(),
         Some(PointerModifiers::default())
+    );
+    assert_eq!(
+        InteractiveRowMessage::DoubleActivate.single_activation_modifiers(),
+        None
     );
     assert_eq!(
         InteractiveRowMessage::ActivateWithModifiers { modifiers }.activation_modifiers(),
         Some(modifiers)
     );
+    assert_eq!(
+        InteractiveRowMessage::ActivateWithModifiers { modifiers }.single_activation_modifiers(),
+        Some(modifiers)
+    );
     assert!(InteractiveRowMessage::Activate.is_activation());
+    assert!(InteractiveRowMessage::Activate.is_single_activation());
+    assert!(InteractiveRowMessage::DoubleActivate.is_activation());
+    assert!(!InteractiveRowMessage::DoubleActivate.is_single_activation());
     assert_eq!(
         InteractiveRowMessage::SecondaryActivate {
             position: Point::new(12.0, 4.0)

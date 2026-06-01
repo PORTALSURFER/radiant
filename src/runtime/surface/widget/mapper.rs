@@ -31,7 +31,7 @@ impl<Message> WidgetMessageMapper<Message> {
     where
         Output: Clone + Send + Sync + 'static,
     {
-        Self::dynamic(move |output| output.typed_ref::<Output>().cloned().map(&map))
+        Self::dynamic(move |output| output.typed_cloned::<Output>().map(&map))
     }
 
     /// Build a dynamic output mapper for custom widgets.

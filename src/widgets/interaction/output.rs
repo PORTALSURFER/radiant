@@ -62,6 +62,22 @@ impl WidgetOutput {
         self.payload.downcast_ref()
     }
 
+    /// Downcast and clone this widget output payload.
+    pub fn typed_cloned<T>(&self) -> Option<T>
+    where
+        T: Clone + 'static,
+    {
+        self.typed_ref::<T>().cloned()
+    }
+
+    /// Downcast and copy this widget output payload.
+    pub fn typed_copied<T>(&self) -> Option<T>
+    where
+        T: Copy + 'static,
+    {
+        self.typed_ref::<T>().copied()
+    }
+
     /// Build a user-defined widget output payload.
     pub fn custom<T>(payload: T) -> Self
     where
@@ -73,6 +89,22 @@ impl WidgetOutput {
     /// Downcast this widget output to the requested custom payload type.
     pub fn custom_ref<T: 'static>(&self) -> Option<&T> {
         self.typed_ref()
+    }
+
+    /// Downcast and clone this user-defined widget output payload.
+    pub fn custom_cloned<T>(&self) -> Option<T>
+    where
+        T: Clone + 'static,
+    {
+        self.typed_cloned()
+    }
+
+    /// Downcast and copy this user-defined widget output payload.
+    pub fn custom_copied<T>(&self) -> Option<T>
+    where
+        T: Copy + 'static,
+    {
+        self.typed_copied()
     }
 }
 

@@ -28,10 +28,33 @@ mod dispatch;
 
 fn assert_typed_widget_output<T>(output: Option<WidgetOutput>, expected: T)
 where
-    T: Debug + PartialEq + 'static,
+    T: Clone + Debug + PartialEq + 'static,
 {
     let output = output.expect("widget should emit output");
     assert_eq!(output.typed_ref::<T>(), Some(&expected));
+    assert_eq!(output.typed_cloned::<T>(), Some(expected));
+}
+
+#[test]
+fn widget_output_exposes_typed_and_custom_value_helpers() {
+    let copied = WidgetOutput::typed(42_u8);
+    assert_eq!(copied.typed_ref::<u8>(), Some(&42));
+    assert_eq!(copied.typed_copied::<u8>(), Some(42));
+    assert_eq!(copied.custom_copied::<u8>(), Some(42));
+
+    let cloned = WidgetOutput::custom(String::from("activated"));
+    assert_eq!(
+        cloned.custom_ref::<String>().map(String::as_str),
+        Some("activated")
+    );
+    assert_eq!(
+        cloned.typed_cloned::<String>(),
+        Some(String::from("activated"))
+    );
+    assert_eq!(
+        cloned.custom_cloned::<String>(),
+        Some(String::from("activated"))
+    );
 }
 
 #[test]

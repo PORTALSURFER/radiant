@@ -714,9 +714,12 @@ provide typed convenience mappers such as `WidgetMessageMapper::button`, but
 those mappers are also owned by the primitive module rather than the runtime
 surface core.
 `WidgetOutput::custom(...)` remains an alias for user-defined widget payloads,
-and `WidgetMessageMapper::dynamic(...)` is available when a host needs manual
-downcast or filtering behavior. Adding a widget should not require adding a
-central output enum variant.
+and `WidgetOutput::typed_cloned::<T>()`, `typed_copied::<T>()`,
+`custom_cloned::<T>()`, and `custom_copied::<T>()` provide owned payload
+extraction for tests, automation, and custom-widget adapters without repeating
+manual downcast chains. `WidgetMessageMapper::dynamic(...)` is available when a
+host needs manual downcast or filtering behavior. Adding a widget should not
+require adding a central output enum variant.
 
 Asynchronous side effects remain host-owned, but normal apps use Radiant's app
 runtime to wire them into the UI. `Command::perform(...)`, `Command::after(...)`,

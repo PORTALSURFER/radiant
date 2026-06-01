@@ -19,7 +19,9 @@ pub use row_paint::{
     dense_row_fill_color, dense_row_inset_rect, dense_row_vertical_marker_rect,
     push_dense_row_fill, push_dense_row_inset_stroke, push_dense_row_vertical_marker,
 };
-pub use selection::{ListSelectionController, ListSelectionModifiers, list_index_after_delta};
+pub use selection::{
+    KeyedListSelection, ListSelectionController, ListSelectionModifiers, list_index_after_delta,
+};
 pub use virtual_list::{
     MaterializedVirtualListItem, VirtualListController, VirtualListInvalidation,
     VirtualListItemKey, VirtualListItemOverlay, VirtualListItemState, VirtualListScrollbar,

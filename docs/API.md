@@ -296,9 +296,13 @@ depending on installed font files.
 `ImageRgbaError`; `ImageRgba::new(...)` remains the `Option`-returning
 convenience wrapper for compact tests and examples.
 `ListSelectionController` provides reusable index-based focus, anchor, toggle,
-range, select-all, and revision tracking for dense virtual lists. Applications
-keep durable row identity in their own model and map Radiant's selected indices
-back to paths, database ids, or other domain keys after filtering and sorting.
+range, additive range, select-all, and revision tracking for dense virtual
+lists. `KeyedListSelection<K>` provides the same focus, anchor, range, toggle,
+additive range, navigation, additive navigation, and select-all behavior over
+stable row keys while the application passes the current ordered visible keys
+into operations that depend on list order. Use it for lists whose durable
+selection identity is a path, database id, document id, or other stable app key
+rather than a transient visible index.
 `CancellationToken` and `UpdateContext::spawn_cancellable(...)` provide a
 small cooperative-cancellation contract for long host-owned jobs. Radiant still
 does not force-stop work; applications keep a token clone and workers check it

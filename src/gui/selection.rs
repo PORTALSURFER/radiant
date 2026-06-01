@@ -85,6 +85,54 @@ where
         Self { items }
     }
 
+    /// Replace the set with normalized `items`.
+    pub fn replace_items(&mut self, items: impl IntoIterator<Item = T>) -> bool {
+        let mut items = items.into_iter().collect::<Vec<_>>();
+        Self::normalize_vec(&mut items);
+        if self.items == items {
+            return false;
+        }
+        self.items = items;
+        true
+    }
+
+    /// Insert one item and return whether membership changed.
+    pub fn insert(&mut self, item: T) -> bool {
+        match self.items.binary_search(&item) {
+            Ok(_) => false,
+            Err(position) => {
+                self.items.insert(position, item);
+                true
+            }
+        }
+    }
+
+    /// Remove one item and return whether membership changed.
+    pub fn remove(&mut self, item: &T) -> bool {
+        match self.items.binary_search(item) {
+            Ok(position) => {
+                self.items.remove(position);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Clear the set and return whether membership changed.
+    pub fn clear(&mut self) -> bool {
+        let changed = !self.items.is_empty();
+        self.items.clear();
+        changed
+    }
+
+    /// Extend the set with normalized `items`.
+    pub fn extend_items(&mut self, items: impl IntoIterator<Item = T>) -> bool {
+        let previous_len = self.items.len();
+        self.items.extend(items);
+        Self::normalize_vec(&mut self.items);
+        self.items.len() != previous_len
+    }
+
     /// Return whether the set contains `item`.
     pub fn contains(&self, item: &T) -> bool {
         Self::slice_contains(&self.items, item)

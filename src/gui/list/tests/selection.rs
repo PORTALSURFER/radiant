@@ -1,4 +1,6 @@
-use super::super::{ListSelectionController, ListSelectionModifiers, list_index_after_delta};
+use super::super::{
+    KeyedListSelection, ListSelectionController, ListSelectionModifiers, list_index_after_delta,
+};
 
 #[test]
 fn list_index_after_delta_clamps_signed_navigation() {
@@ -46,4 +48,93 @@ fn list_selection_controller_clamps_membership_to_current_item_count() {
     assert_eq!(selection.anchor_index(), Some(0));
     assert_eq!(selection.selected_indices(), &[0, 1, 2]);
     assert!(selection.revision() > all_revision);
+}
+
+#[test]
+fn list_selection_controller_can_preserve_existing_range_membership() {
+    let mut selection = ListSelectionController::new();
+    selection.select(0, 8, ListSelectionModifiers::new());
+    selection.select(3, 8, ListSelectionModifiers::toggle());
+
+    selection.extend_preserving_existing(6, 8);
+
+    assert_eq!(selection.focused_index(), Some(6));
+    assert_eq!(selection.anchor_index(), Some(3));
+    assert_eq!(selection.selected_indices(), &[0, 3, 4, 5, 6]);
+}
+
+#[test]
+fn keyed_list_selection_tracks_stable_keys_through_range_toggle_and_navigation() {
+    let keys = ["hat", "kick", "snare", "tom"]
+        .into_iter()
+        .map(String::from)
+        .collect::<Vec<_>>();
+    let mut selection = KeyedListSelection::new();
+
+    assert!(selection.select(String::from("kick"), &keys, ListSelectionModifiers::new()));
+    assert_eq!(selection.focused_key().map(String::as_str), Some("kick"));
+    assert_eq!(selection.anchor_key().map(String::as_str), Some("kick"));
+    assert_eq!(selection.selected_keys(), &[String::from("kick")]);
+
+    assert_eq!(
+        selection.navigate(1, &keys, true),
+        Some(String::from("snare"))
+    );
+    assert_eq!(selection.focused_key().map(String::as_str), Some("snare"));
+    assert_eq!(selection.anchor_key().map(String::as_str), Some("kick"));
+    assert_eq!(
+        selection.selected_keys(),
+        &[String::from("kick"), String::from("snare")]
+    );
+    assert_eq!(
+        selection.navigate_preserving_existing(1, &keys),
+        Some(String::from("tom"))
+    );
+    assert_eq!(
+        selection.selected_keys(),
+        &[
+            String::from("kick"),
+            String::from("snare"),
+            String::from("tom")
+        ]
+    );
+
+    assert!(selection.select(String::from("hat"), &keys, ListSelectionModifiers::toggle()));
+    assert_eq!(
+        selection.selected_keys(),
+        &[
+            String::from("hat"),
+            String::from("kick"),
+            String::from("snare"),
+            String::from("tom")
+        ]
+    );
+
+    selection.retain_visible(&[String::from("snare"), String::from("tom")]);
+    assert_eq!(
+        selection.selected_keys(),
+        &[String::from("snare"), String::from("tom")]
+    );
+}
+
+#[test]
+fn keyed_list_selection_supports_additive_range_selection() {
+    let keys = ["a", "b", "c", "d", "e"]
+        .into_iter()
+        .map(String::from)
+        .collect::<Vec<_>>();
+    let mut selection = KeyedListSelection::new();
+    selection.select(String::from("a"), &keys, ListSelectionModifiers::new());
+    selection.select(String::from("e"), &keys, ListSelectionModifiers::toggle());
+    selection.extend_preserving_existing(String::from("c"), &keys);
+
+    assert_eq!(
+        selection.selected_keys(),
+        &[
+            String::from("a"),
+            String::from("c"),
+            String::from("d"),
+            String::from("e")
+        ]
+    );
 }

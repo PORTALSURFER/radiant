@@ -2,7 +2,7 @@ use super::{SelectionSet, TriState, TriageTarget};
 
 #[test]
 fn selection_set_normalizes_and_supports_sorted_membership() {
-    let set = SelectionSet::from_items([4, 2, 4, 1]);
+    let mut set = SelectionSet::from_items([4, 2, 4, 1]);
 
     assert_eq!(set.as_slice(), &[1, 2, 4]);
     assert!(set.contains(&2));
@@ -13,6 +13,19 @@ fn selection_set_normalizes_and_supports_sorted_membership() {
         &[(1, "a"), (3, "b")],
         |(id, _)| *id
     ));
+
+    assert!(set.insert(3));
+    assert!(!set.insert(3));
+    assert_eq!(set.as_slice(), &[1, 2, 3, 4]);
+    assert!(set.remove(&2));
+    assert!(!set.remove(&9));
+    assert_eq!(set.as_slice(), &[1, 3, 4]);
+    assert!(set.replace_items([8, 7, 8]));
+    assert_eq!(set.as_slice(), &[7, 8]);
+    assert!(set.extend_items([6, 8]));
+    assert_eq!(set.as_slice(), &[6, 7, 8]);
+    assert!(set.clear());
+    assert!(!set.clear());
 }
 
 #[test]

@@ -1042,6 +1042,10 @@ after application-owned interaction state changes.
 `StatusSegments::new(...)`, `StatusSegments::primary(...)`, and the
 `with_left(...)` / `with_center(...)` / `with_right(...)` builders provide a
 structured left/center/right status-bar model for application chrome.
+Application-builder views can use `StatusBarParts`, `status_bar(...)`, and
+`status_bar_from_parts(...)` to render those segments with standard compact
+status-bar sizing, padding, spacing, truncation, and optional trailing content
+such as a progress bar.
 `SurfaceRuntime::focus_widget`, `SurfaceRuntime::clear_focus`,
 `SurfaceRuntime::focused_widget`, `SurfaceRuntime::traverse_focus`, and
 `FocusTraversal` expose deterministic keyboard focus ownership and traversal.
@@ -1422,7 +1426,11 @@ inline vector assets through `SvgIcon::from_svg(...)` and paints them through
 the standard `icon_button(...)` builder.
 Run `cargo run --example status_bar` for a bottom status-bar sandbox that shows
 button actions, toggle state, animation updates, and background worker progress
-flowing into a one-line log and retained-canvas progress strip.
+flowing into a one-line log and retained-canvas progress strip. Compact status
+strips can use `StatusBarParts`, `status_bar(...)`, and
+`status_bar_from_parts(...)` with generic `StatusSegments` when the app owns the
+labels and optional trailing progress/action content but should not rebuild the
+status-row chrome locally.
 Run `cargo run --example layout_rows_columns` for a compact row/column layout
 sandbox with padding and fill sizing.
 Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that

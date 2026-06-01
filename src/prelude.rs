@@ -93,7 +93,10 @@ pub use crate::gui::{
     },
     paint::{horizontal_line_rect, vertical_line_rect},
     panel::{PanelResizeDrag, PanelResizeEdge},
-    range::IndexViewport,
+    range::{
+        IndexViewport, NormalizedRange, normalized_fraction_to_micros,
+        normalized_fraction_to_milli, normalized_fraction_to_nanos,
+    },
     selection::SelectionSet,
     shortcuts::{
         ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution, ShortcutStack,

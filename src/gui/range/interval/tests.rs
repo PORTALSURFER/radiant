@@ -36,3 +36,26 @@ fn normalized_range_supports_named_parts_construction() {
     assert_eq!(range.start_micros, 250_000);
     assert_eq!(range.end_micros, 1_000_000);
 }
+
+#[test]
+fn normalized_range_from_fractions_orders_clamps_and_preserves_units() {
+    let range = NormalizedRange::from_fractions(0.7564, -0.25);
+
+    assert_eq!(range.start_nanos, 0);
+    assert_eq!(range.end_nanos, 756_400_000);
+    assert_eq!(range.start_micros, 0);
+    assert_eq!(range.end_micros, 756_400);
+    assert_eq!(range.start_milli, 0);
+    assert_eq!(range.end_milli, 756);
+    assert_eq!(range.start_fraction(), 0.0);
+    assert!((range.end_fraction() - 0.7564).abs() <= f32::EPSILON);
+    assert!((range.width_fraction() - 0.7564).abs() <= f32::EPSILON);
+}
+
+#[test]
+fn normalized_range_from_fractions_treats_non_finite_as_zero() {
+    let range = NormalizedRange::from_fractions(f32::NAN, f32::INFINITY);
+
+    assert_eq!(range.start_nanos, 0);
+    assert_eq!(range.end_nanos, 0);
+}

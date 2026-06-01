@@ -49,6 +49,19 @@ impl NormalizedRange {
         )
     }
 
+    /// Build a normalized range from floating point fractions.
+    ///
+    /// Inputs are clamped to `0.0..=1.0`, non-finite values become `0.0`, and
+    /// bounds are ordered in the returned range. The stored milli, micro, and
+    /// nano projections are derived from the same clamped values so callers do
+    /// not need local conversion helpers before using timeline or canvas APIs.
+    pub fn from_fractions(start_fraction: f32, end_fraction: f32) -> Self {
+        Self::from_nanos(
+            normalized_fraction_to_nanos(start_fraction),
+            normalized_fraction_to_nanos(end_fraction),
+        )
+    }
+
     /// Build a normalized range from nano precision while preserving ordered mirrors.
     pub fn from_nanos(start_nanos: u32, end_nanos: u32) -> Self {
         let start = start_nanos.min(1_000_000_000);
@@ -63,6 +76,44 @@ impl NormalizedRange {
             start_nanos: ordered_start,
             end_nanos: ordered_end,
         }
+    }
+
+    /// Return the start as a floating point fraction.
+    pub fn start_fraction(self) -> f32 {
+        self.start_nanos as f32 / 1_000_000_000.0
+    }
+
+    /// Return the end as a floating point fraction.
+    pub fn end_fraction(self) -> f32 {
+        self.end_nanos as f32 / 1_000_000_000.0
+    }
+
+    /// Return the range width as a floating point fraction.
+    pub fn width_fraction(self) -> f32 {
+        (self.end_nanos - self.start_nanos) as f32 / 1_000_000_000.0
+    }
+}
+
+/// Convert a floating point fraction into normalized milli-units.
+pub fn normalized_fraction_to_milli(value: f32) -> u16 {
+    ((normalized_fraction(value) * 1000.0).round() as u16).min(1000)
+}
+
+/// Convert a floating point fraction into normalized micro-units.
+pub fn normalized_fraction_to_micros(value: f32) -> u32 {
+    ((normalized_fraction(value) * 1_000_000.0).round() as u32).min(1_000_000)
+}
+
+/// Convert a floating point fraction into normalized nano-units.
+pub fn normalized_fraction_to_nanos(value: f32) -> u32 {
+    ((normalized_fraction(value) * 1_000_000_000.0).round() as u32).min(1_000_000_000)
+}
+
+fn normalized_fraction(value: f32) -> f32 {
+    if value.is_finite() {
+        value.clamp(0.0, 1.0)
+    } else {
+        0.0
     }
 }
 

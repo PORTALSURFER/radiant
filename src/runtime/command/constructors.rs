@@ -1,7 +1,7 @@
 use super::{Command, TaskPriority};
 use crate::{
     runtime::{
-        DragRequest, ExternalDragOutcome, ExternalDragRequest, PlatformRequest, PlatformResponse,
+        DragRequest, ExternalDragOutcome, ExternalDragRequest, PlatformRequest, PlatformResult,
         RepaintScope,
     },
     theme::DpiScale,
@@ -178,7 +178,7 @@ impl<Message> Command<Message> {
     /// Build a command that requests a platform service.
     pub fn platform_request(
         request: PlatformRequest,
-        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
     ) -> Self {
         Self::PlatformRequest {
             request,

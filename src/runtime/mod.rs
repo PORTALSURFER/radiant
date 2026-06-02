@@ -100,7 +100,7 @@ pub(crate) use paint::{
 pub use platform::{
     ConfirmDialogParts, ConfirmDialogRequest, ConfirmationButtons, ConfirmationLevel,
     ConfirmationResponse, FileDialogFilter, FileDialogRequest, PlatformCompletion, PlatformRequest,
-    PlatformResponse, PlatformServiceFallback,
+    PlatformResponse, PlatformResult, PlatformResultExt, PlatformServiceFallback,
 };
 pub use resource::{
     ResourceCompletion, ResourceCompletionParts, ResourceKey, ResourceLoad, ResourceLoadState,

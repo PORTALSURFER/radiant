@@ -189,8 +189,10 @@ request repaint, move focus, start background work, schedule delayed messages,
 or request runtime exit. `PlatformResponse` exposes helpers such as
 `path()`, `into_path()`, `into_path_or_canceled()`, `is_canceled()`,
 `is_completed()`, `into_completed()`, `confirmation()`, and
-`into_confirmation()` so reducers can interpret common platform-service
-outcomes without repeating raw enum-shape matches. Use `LatestTask` with
+`into_confirmation()`, while the `PlatformResultExt` prelude trait provides the
+same common decoders directly on platform-service callback results so reducers
+can propagate platform errors and reject wrong response shapes without local
+adapter code. Use `LatestTask` with
 `UpdateContext::spawn_latest(...)`
 for one-resource background loads where a newer selection should invalidate an
 older completion. The resulting message receives a `TaskCompletion<Output>`;

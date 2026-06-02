@@ -101,6 +101,44 @@ impl PlatformResponse {
     }
 }
 
+/// Result returned to platform-service completion callbacks.
+pub type PlatformResult = Result<PlatformResponse, String>;
+
+/// Ergonomic decoders for platform-service callback results.
+pub trait PlatformResultExt {
+    /// Consume a completion-style response, propagating platform errors.
+    fn into_completed(self) -> Result<(), String>;
+
+    /// Consume a picker-style response, accepting a chosen path or cancellation.
+    fn into_path_or_canceled(self) -> Result<Option<PathBuf>, String>;
+
+    /// Consume and return the confirmation response from a confirmation dialog.
+    fn into_confirmation(self) -> Result<ConfirmationResponse, String>;
+}
+
+impl PlatformResultExt for PlatformResult {
+    fn into_completed(self) -> Result<(), String> {
+        self?.into_completed().map_err(unexpected_platform_response)
+    }
+
+    fn into_path_or_canceled(self) -> Result<Option<PathBuf>, String> {
+        self?
+            .into_path_or_canceled()
+            .map_err(unexpected_platform_response)
+    }
+
+    fn into_confirmation(self) -> Result<ConfirmationResponse, String> {
+        match self? {
+            PlatformResponse::Confirmation(response) => Ok(response),
+            other => Err(unexpected_platform_response(other)),
+        }
+    }
+}
+
+fn unexpected_platform_response(response: PlatformResponse) -> String {
+    format!("unexpected platform response: {response:?}")
+}
+
 /// Request metadata for a file or folder dialog.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FileDialogRequest {
@@ -253,8 +291,59 @@ pub enum ConfirmationResponse {
 }
 
 /// Callback mapped into a host message when a platform service completes.
-pub type PlatformCompletion<Message> =
-    Box<dyn FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static>;
+pub type PlatformCompletion<Message> = Box<dyn FnOnce(PlatformResult) -> Message + Send + 'static>;
 
 /// Boxed fallback returned when a bridge declines a platform service request.
 pub type PlatformServiceFallback<Message> = Box<(PlatformRequest, PlatformCompletion<Message>)>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn platform_result_ext_decodes_picker_results() {
+        let path = PathBuf::from("/samples");
+
+        assert_eq!(
+            PlatformResultExt::into_path_or_canceled(Ok(PlatformResponse::Path(path.clone()))),
+            Ok(Some(path))
+        );
+        assert_eq!(
+            PlatformResultExt::into_path_or_canceled(Ok(PlatformResponse::Canceled)),
+            Ok(None)
+        );
+        assert_eq!(
+            PlatformResultExt::into_path_or_canceled(Err(String::from("dialog unavailable"))),
+            Err(String::from("dialog unavailable"))
+        );
+    }
+
+    #[test]
+    fn platform_result_ext_rejects_wrong_response_shapes() {
+        let error = PlatformResultExt::into_completed(Ok(PlatformResponse::Path(PathBuf::from(
+            "/samples",
+        ))))
+        .expect_err("completion decoder should reject path responses");
+
+        assert!(error.contains("unexpected platform response"));
+
+        let error = PlatformResultExt::into_path_or_canceled(Ok(PlatformResponse::Completed))
+            .expect_err("picker decoder should reject completion responses");
+
+        assert!(error.contains("unexpected platform response"));
+    }
+
+    #[test]
+    fn platform_result_ext_decodes_completion_and_confirmation_results() {
+        assert_eq!(
+            PlatformResultExt::into_completed(Ok(PlatformResponse::Completed)),
+            Ok(())
+        );
+        assert_eq!(
+            PlatformResultExt::into_confirmation(Ok(PlatformResponse::Confirmation(
+                ConfirmationResponse::Accepted,
+            ))),
+            Ok(ConfirmationResponse::Accepted)
+        );
+    }
+}

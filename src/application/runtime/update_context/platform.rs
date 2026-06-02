@@ -1,6 +1,6 @@
 use crate::runtime::{
     Command, ConfirmDialogRequest, DragRequest, ExternalDragOutcome, ExternalDragRequest,
-    FileDialogRequest, PlatformRequest, PlatformResponse,
+    FileDialogRequest, PlatformRequest, PlatformResult,
 };
 
 use super::UpdateContext;
@@ -82,7 +82,7 @@ impl<Message> UpdateContext<Message> {
     pub fn platform_request(
         &mut self,
         request: PlatformRequest,
-        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
     ) {
         self.command(Command::platform_request(request, on_completed));
     }
@@ -91,7 +91,7 @@ impl<Message> UpdateContext<Message> {
     pub fn pick_folder(
         &mut self,
         request: FileDialogRequest,
-        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
     ) {
         self.platform_request(PlatformRequest::PickFolder(request), on_completed);
     }
@@ -100,7 +100,7 @@ impl<Message> UpdateContext<Message> {
     pub fn pick_file(
         &mut self,
         request: FileDialogRequest,
-        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
     ) {
         self.platform_request(PlatformRequest::PickFile(request), on_completed);
     }
@@ -109,7 +109,7 @@ impl<Message> UpdateContext<Message> {
     pub fn save_file(
         &mut self,
         request: FileDialogRequest,
-        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
     ) {
         self.platform_request(PlatformRequest::SaveFile(request), on_completed);
     }
@@ -118,7 +118,7 @@ impl<Message> UpdateContext<Message> {
     pub fn open_path(
         &mut self,
         path: impl Into<std::path::PathBuf>,
-        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
     ) {
         self.platform_request(PlatformRequest::OpenPath(path.into()), on_completed);
     }
@@ -127,7 +127,7 @@ impl<Message> UpdateContext<Message> {
     pub fn reveal_path(
         &mut self,
         path: impl Into<std::path::PathBuf>,
-        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
     ) {
         self.platform_request(PlatformRequest::RevealPath(path.into()), on_completed);
     }
@@ -136,7 +136,7 @@ impl<Message> UpdateContext<Message> {
     pub fn open_url(
         &mut self,
         url: impl Into<String>,
-        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
     ) {
         self.platform_request(PlatformRequest::OpenUrl(url.into()), on_completed);
     }
@@ -145,7 +145,7 @@ impl<Message> UpdateContext<Message> {
     pub fn copy_text(
         &mut self,
         text: impl Into<String>,
-        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
     ) {
         self.platform_request(PlatformRequest::CopyText(text.into()), on_completed);
     }
@@ -154,7 +154,7 @@ impl<Message> UpdateContext<Message> {
     pub fn confirm(
         &mut self,
         request: ConfirmDialogRequest,
-        on_completed: impl FnOnce(Result<PlatformResponse, String>) -> Message + Send + 'static,
+        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
     ) {
         self.platform_request(PlatformRequest::Confirm(request), on_completed);
     }

@@ -3,8 +3,8 @@ use crate::{
     application::{IntoView, UpdateContext},
     runtime::{
         ConfirmationButtons, ConfirmationLevel, ConfirmationResponse, FileDialogRequest,
-        PlatformCompletion, PlatformRequest, PlatformResponse, PlatformServiceFallback,
-        TaskPriority,
+        PlatformCompletion, PlatformRequest, PlatformResponse, PlatformResult,
+        PlatformServiceFallback, TaskPriority,
     },
 };
 
@@ -38,7 +38,7 @@ where
     }
 }
 
-fn perform_platform_request(request: PlatformRequest) -> Result<PlatformResponse, String> {
+fn perform_platform_request(request: PlatformRequest) -> PlatformResult {
     match request {
         PlatformRequest::PickFolder(request) => pick_folder(request),
         PlatformRequest::PickFile(request) => pick_file(request),
@@ -51,7 +51,7 @@ fn perform_platform_request(request: PlatformRequest) -> Result<PlatformResponse
     }
 }
 
-fn pick_folder(request: FileDialogRequest) -> Result<PlatformResponse, String> {
+fn pick_folder(request: FileDialogRequest) -> PlatformResult {
     let Some(path) = apply_file_dialog_request(rfd::FileDialog::new(), request).pick_folder()
     else {
         return Ok(PlatformResponse::Canceled);
@@ -59,14 +59,14 @@ fn pick_folder(request: FileDialogRequest) -> Result<PlatformResponse, String> {
     Ok(PlatformResponse::Path(path))
 }
 
-fn pick_file(request: FileDialogRequest) -> Result<PlatformResponse, String> {
+fn pick_file(request: FileDialogRequest) -> PlatformResult {
     let Some(path) = apply_file_dialog_request(rfd::FileDialog::new(), request).pick_file() else {
         return Ok(PlatformResponse::Canceled);
     };
     Ok(PlatformResponse::Path(path))
 }
 
-fn save_file(request: FileDialogRequest) -> Result<PlatformResponse, String> {
+fn save_file(request: FileDialogRequest) -> PlatformResult {
     let Some(path) = apply_file_dialog_request(rfd::FileDialog::new(), request).save_file() else {
         return Ok(PlatformResponse::Canceled);
     };
@@ -97,12 +97,12 @@ fn apply_file_dialog_request(
     dialog
 }
 
-fn open_path(path: std::path::PathBuf) -> Result<PlatformResponse, String> {
+fn open_path(path: std::path::PathBuf) -> PlatformResult {
     open::that(path).map_err(|err| err.to_string())?;
     Ok(PlatformResponse::Completed)
 }
 
-fn reveal_path(path: std::path::PathBuf) -> Result<PlatformResponse, String> {
+fn reveal_path(path: std::path::PathBuf) -> PlatformResult {
     if !path.exists() {
         return Err(format!("Path not found: {}", path.display()));
     }
@@ -151,12 +151,12 @@ fn reveal_path(path: std::path::PathBuf) -> Result<PlatformResponse, String> {
     }
 }
 
-fn open_url(url: String) -> Result<PlatformResponse, String> {
+fn open_url(url: String) -> PlatformResult {
     open::that(url).map_err(|err| err.to_string())?;
     Ok(PlatformResponse::Completed)
 }
 
-fn copy_text(text: String) -> Result<PlatformResponse, String> {
+fn copy_text(text: String) -> PlatformResult {
     let mut clipboard =
         arboard::Clipboard::new().map_err(|err| format!("Failed to open clipboard: {err}"))?;
     clipboard
@@ -165,7 +165,7 @@ fn copy_text(text: String) -> Result<PlatformResponse, String> {
     Ok(PlatformResponse::Completed)
 }
 
-fn confirm(request: crate::runtime::ConfirmDialogRequest) -> Result<PlatformResponse, String> {
+fn confirm(request: crate::runtime::ConfirmDialogRequest) -> PlatformResult {
     let level = match request.level {
         ConfirmationLevel::Info => rfd::MessageLevel::Info,
         ConfirmationLevel::Warning => rfd::MessageLevel::Warning,

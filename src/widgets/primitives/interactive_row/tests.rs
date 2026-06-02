@@ -40,6 +40,17 @@ fn dense_visual_state_preserves_default_host_state() {
 }
 
 #[test]
+fn accessors_expose_identity_and_common_contract_for_custom_row_wrappers() {
+    let mut row = InteractiveRowWidget::new(13, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
+
+    assert_eq!(row.id(), 13);
+    assert_eq!(row.common().id, 13);
+
+    row.common_mut().state.hovered = true;
+    assert!(row.common().state.hovered);
+}
+
+#[test]
 fn drop_target_mode_configures_hover_and_drop_only_states() {
     let inactive = InteractiveRowWidget::new(7, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
         .with_drop_target(true)
@@ -99,11 +110,11 @@ struct RowHost {
 
 impl Widget for RowHost {
     fn common(&self) -> &WidgetCommon {
-        &self.row.common
+        self.row.common()
     }
 
     fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.row.common
+        self.row.common_mut()
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {

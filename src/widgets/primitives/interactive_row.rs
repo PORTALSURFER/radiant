@@ -100,6 +100,21 @@ impl InteractiveRowWidget {
         Self::from_parts(InteractiveRowWidgetParts { id, sizing })
     }
 
+    /// Stable widget identity used by layout, input, retained state, and paint.
+    pub fn id(&self) -> WidgetId {
+        self.common.id
+    }
+
+    /// Shared widget contract for custom row wrappers.
+    pub fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    /// Mutable shared widget contract for custom row wrappers.
+    pub fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
     /// Enable drag lifecycle messages.
     pub fn with_drag(mut self) -> Self {
         self.props.draggable = true;

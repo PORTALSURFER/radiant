@@ -232,7 +232,9 @@ row state model without reading widget internals. Use
 `InteractiveRowWidget::handle_input_mapped(...)` and
 `synchronize_from_previous_embedded(...)` when a custom row widget embeds an
 interactive row for generic input behavior but exposes host-specific messages
-and custom paint. Use
+and custom paint. Use `InteractiveRowWidget::id()`, `common()`, and
+`common_mut()` when custom row wrappers need paint identity or widget-contract
+delegation without reading the embedded row field layout. Use
 `InteractiveRowMessage::activation_modifiers()`,
 `single_activation_modifiers()`, `is_single_activation()`,
 `is_double_activation()`,

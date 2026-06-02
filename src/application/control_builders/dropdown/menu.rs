@@ -1,5 +1,5 @@
 use crate::{
-    application::{ViewNode, button, column, row, text},
+    application::{ViewNode, button, column, labeled_control_control_offset, row, text},
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 
@@ -114,6 +114,29 @@ where
     Message: Clone + Send + Sync + 'static,
 {
     dropdown_menu_overlay_below(x, trigger_y, dropdown_trigger_height(), gap, width, options)
+}
+
+/// Build a dropdown menu overlay below a standard trigger inside a labeled control.
+///
+/// `labeled_control_y` is the top edge of the [`crate::application::labeled_control`]
+/// row in the caller-owned stack layer.
+pub fn dropdown_menu_overlay_below_labeled_control<Message>(
+    x: f32,
+    labeled_control_y: f32,
+    gap: f32,
+    width: Option<f32>,
+    options: Vec<DropdownOption<Message>>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    dropdown_menu_overlay_below_trigger(
+        x,
+        labeled_control_y + labeled_control_control_offset(),
+        gap,
+        width,
+        options,
+    )
 }
 
 /// Build a dropdown menu overlay below a trigger from named parts.

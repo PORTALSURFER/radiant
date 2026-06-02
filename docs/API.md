@@ -1481,8 +1481,11 @@ Dropdown overlays anchored to a trigger can use
 `DropdownMenuOverlayBelowParts`, `dropdown_menu_overlay_below(...)`, and
 `dropdown_menu_overlay_below_from_parts(...)` so application code supplies the
 trigger rectangle and gap rather than hand-adding trigger height to menu
-coordinates. Use `dropdown_trigger(...)` when the toggle should stay in normal
-layout while the menu is projected as a separate stack-level overlay.
+coordinates. Use `dropdown_menu_overlay_below_labeled_control(...)` when a
+standard dropdown trigger is nested inside Radiant's compact `labeled_control`
+row and the overlay should be anchored from the row top. Use
+`dropdown_trigger(...)` when the toggle should stay in normal layout while the
+menu is projected as a separate stack-level overlay.
 Transient dropdowns, menus, and popovers can use `dismissible_overlay(...)`
 when foreground overlay content should sit above a transparent outside-click
 dismiss layer while preserving the base content underneath.

@@ -109,12 +109,12 @@ pub use control_builders::{
     disclosure_button, drag_handle, drag_handle_mapped, dropdown, dropdown_from_parts,
     dropdown_height, dropdown_menu, dropdown_menu_height, dropdown_menu_overlay,
     dropdown_menu_overlay_below, dropdown_menu_overlay_below_from_parts,
-    dropdown_menu_overlay_below_trigger, dropdown_option, dropdown_trigger,
-    dropdown_trigger_from_parts, dropdown_trigger_height, feedback_overlay, icon_button,
-    indeterminate_progress_bar, interactive_row, marker_run, pointer_drop_shield,
-    pointer_move_shield, pointer_shield, progress_bar, progress_bar_for_snapshot, scrollbar,
-    selectable, selectable_mapped, slider, slider_mapped, state_dropdown, text_input,
-    text_input_mapped, toggle, toggle_mapped,
+    dropdown_menu_overlay_below_labeled_control, dropdown_menu_overlay_below_trigger,
+    dropdown_option, dropdown_trigger, dropdown_trigger_from_parts, dropdown_trigger_height,
+    feedback_overlay, icon_button, indeterminate_progress_bar, interactive_row, marker_run,
+    pointer_drop_shield, pointer_move_shield, pointer_shield, progress_bar,
+    progress_bar_for_snapshot, scrollbar, selectable, selectable_mapped, slider, slider_mapped,
+    state_dropdown, text_input, text_input_mapped, toggle, toggle_mapped,
 };
 mod layout_builders;
 pub use layout_builders::{

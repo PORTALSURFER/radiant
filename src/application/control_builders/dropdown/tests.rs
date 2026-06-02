@@ -1,4 +1,5 @@
 use super::*;
+use crate::application::{IntoView, labeled_control_control_offset};
 
 #[derive(Clone, Debug, PartialEq)]
 enum Message {
@@ -127,4 +128,27 @@ fn dropdown_menu_overlay_below_trigger_uses_standard_trigger_height() {
             Message::Select("wasapi"),
         )],
     );
+}
+
+#[test]
+fn dropdown_menu_overlay_below_labeled_control_uses_standard_control_offset() {
+    let frame = dropdown_menu_overlay_below_labeled_control(
+        12.0,
+        20.0,
+        3.0,
+        Some(120.0),
+        vec![DropdownOption::new(
+            "WASAPI",
+            true,
+            Message::Select("wasapi"),
+        )],
+    )
+    .view_frame_at_size_with_default_theme(crate::gui::types::Vector2::new(240.0, 160.0));
+
+    let menu_text = frame
+        .paint_plan
+        .first_text_run("WASAPI")
+        .expect("dropdown option should be painted");
+
+    assert!(menu_text.rect.min.y >= 20.0 + labeled_control_control_offset());
 }

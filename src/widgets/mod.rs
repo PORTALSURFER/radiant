@@ -70,8 +70,8 @@ pub use interaction::{
     CanvasGestureState, CanvasMessage, CanvasPointer, CustomWidgetOutput, DragHandleMessage,
     DragHandlePhase, GpuSurfaceMessage, InteractiveRowMessage, ListItemMessage, PointerButton,
     PointerModifiers, PointerShieldMessage, ScrollbarMessage, SelectableMessage, SliderMessage,
-    TextEditCommand, TextInputMessage, ToggleMessage, WidgetCursor, WidgetInput, WidgetKey,
-    WidgetOutput, handle_activation_input,
+    TextEditCommand, TextInputMessage, TextInputMessageKind, TextInputMessageParts, ToggleMessage,
+    WidgetCursor, WidgetInput, WidgetKey, WidgetOutput, handle_activation_input,
 };
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, BadgeWidgetParts, ButtonProps, ButtonState, ButtonWidget,

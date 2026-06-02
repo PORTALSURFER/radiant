@@ -205,9 +205,11 @@ Inline edit flows can seed caret and selection state with `.selection(...)` or
 inline suggestion flows can use `.completion_suffix(...)` to paint a suffix
 after the current value without app-local floating text overlays or text-offset
 math. Reducers that receive full `TextInputMessage` values can use `value()`,
-`into_value()`, `is_changed()`, `is_submitted()`, and
+`into_value()`, `kind()`, `parts()`, `is_changed()`, `is_submitted()`, and
 `is_completion_requested()` instead of repeating exhaustive variant matches
-when they only need the event kind or carried text value.
+when they only need the event kind or carried text value. Use `parts()` when a
+reducer needs both `TextInputMessageKind` and the borrowed value without
+cloning or consuming the message.
 Applications with several mutually exclusive transient surfaces, such as
 dropdowns, popovers, or inspector subpanels, can use `ExclusiveOpen<T>` to keep
 one typed item open at a time and centralize toggle/close behavior.

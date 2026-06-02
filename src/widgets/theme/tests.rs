@@ -133,3 +133,19 @@ fn subtle_controls_use_recessed_fill_and_toned_controls_lift() {
     assert_ne!(danger.fill, theme.surface_base);
     assert_eq!(danger.foreground, theme.accent_danger);
 }
+
+#[test]
+fn widget_style_named_prominence_constructors_match_explicit_styles() {
+    assert_eq!(
+        WidgetStyle::subtle(WidgetTone::Accent),
+        WidgetStyle::new(WidgetTone::Accent, WidgetProminence::Subtle)
+    );
+    assert_eq!(
+        WidgetStyle::normal(WidgetTone::Warning),
+        WidgetStyle::new(WidgetTone::Warning, WidgetProminence::Normal)
+    );
+    assert_eq!(
+        WidgetStyle::strong(WidgetTone::Danger),
+        WidgetStyle::new(WidgetTone::Danger, WidgetProminence::Strong)
+    );
+}

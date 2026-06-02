@@ -103,10 +103,7 @@ fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::StateView<Brow
     ])
     .key(format!("folder-row-{id}"))
     .style(if folder.drop_target {
-        ui::WidgetStyle {
-            tone: ui::WidgetTone::Accent,
-            prominence: ui::WidgetProminence::Subtle,
-        }
+        ui::WidgetStyle::subtle(ui::WidgetTone::Accent)
     } else {
         ui::WidgetStyle::default()
     })
@@ -125,10 +122,7 @@ pub(super) fn splitter() -> ui::StateView<BrowserState> {
             .size(5.0, 28.0),
         ui::text("").fill_width().fill_height(),
     ])
-    .style(ui::WidgetStyle {
-        tone: ui::WidgetTone::Accent,
-        prominence: ui::WidgetProminence::Subtle,
-    })
+    .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
     .width(11.0)
     .fill_height()
     .padding(2.0)

@@ -1017,7 +1017,9 @@ states. `ViewportScaleTier`, `clamp_ui_scale`, and `effective_ui_scale` provide
 generic density policy for hosts that choose layout scale from available
 viewport width or user preferences. Product visual identity should be supplied
 by the host or translated through generic tokens instead of baked into Radiant
-primitives.
+primitives. Use `WidgetStyle::subtle(...)`, `WidgetStyle::normal(...)`, and
+`WidgetStyle::strong(...)` for common tone-plus-prominence combinations without
+repeating the explicit `WidgetProminence` at call sites.
 
 ## Renderer
 

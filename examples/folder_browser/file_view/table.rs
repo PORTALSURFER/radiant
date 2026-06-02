@@ -76,10 +76,7 @@ pub(super) fn file_details_row(
     ui::compact_details_row(cells)
         .key(format!("file-row-{}", file.id))
         .style(if selected {
-            ui::WidgetStyle {
-                tone: ui::WidgetTone::Accent,
-                prominence: ui::WidgetProminence::Subtle,
-            }
+            ui::WidgetStyle::subtle(ui::WidgetTone::Accent)
         } else {
             ui::WidgetStyle::default()
         })

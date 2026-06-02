@@ -41,6 +41,21 @@ impl WidgetStyle {
         Self { tone, prominence }
     }
 
+    /// Construct a low-chrome style for the supplied semantic tone.
+    pub const fn subtle(tone: WidgetTone) -> Self {
+        Self::new(tone, WidgetProminence::Subtle)
+    }
+
+    /// Construct a standard-control style for the supplied semantic tone.
+    pub const fn normal(tone: WidgetTone) -> Self {
+        Self::new(tone, WidgetProminence::Normal)
+    }
+
+    /// Construct a high-emphasis style for the supplied semantic tone.
+    pub const fn strong(tone: WidgetTone) -> Self {
+        Self::new(tone, WidgetProminence::Strong)
+    }
+
     /// Return this style with a different semantic tone.
     pub const fn with_tone(mut self, tone: WidgetTone) -> Self {
         self.tone = tone;

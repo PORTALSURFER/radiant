@@ -18,6 +18,7 @@ mod viewport;
 pub use axis::{TimelineAxis, TimelineAxisParts};
 pub use edit::{
     TimelineEditHandle, TimelineEditHandleGeometry, TimelineEditPreview, TimelineEditPreviewParts,
+    TimelineEditRegion, TimelineEditRegionGeometry,
 };
 pub use feedback::{TimelineFeedbackEvents, TimelineFeedbackParts};
 pub use item::{TimelineItemLayout, TimelineItemLayoutParts};

@@ -3,7 +3,8 @@ use crate::gui::{
     types::{Point, Rect, Vector2},
     visualization::{
         TimelineCoordinateMapper, TimelineEditHandle, TimelineEditHandleGeometry,
-        TimelineEditPreview, TimelineEditPreviewParts, TimelineViewport,
+        TimelineEditPreview, TimelineEditPreviewParts, TimelineEditRegion,
+        TimelineEditRegionGeometry, TimelineViewport,
     },
 };
 
@@ -38,6 +39,16 @@ fn geometry() -> TimelineEditHandleGeometry {
             .selection_rect(mapper)
             .expect("visible selection rect"),
         handle_size: 10.0,
+    }
+}
+
+fn region_geometry() -> TimelineEditRegionGeometry {
+    let mapper = mapper();
+    TimelineEditRegionGeometry {
+        bounds: mapper.rect,
+        selection_rect: preview()
+            .selection_rect(mapper)
+            .expect("visible selection rect"),
     }
 }
 
@@ -79,6 +90,30 @@ fn timeline_edit_preview_projects_standard_handle_rects() {
     assert_rect_near(
         preview.handle_rect(mapper, geometry, TimelineEditHandle::TrailingOuterEnd),
         Rect::from_min_max(Point::new(135.0, 35.0), Point::new(145.0, 45.0)),
+    );
+}
+
+#[test]
+fn timeline_edit_preview_projects_standard_region_rects() {
+    let preview = preview();
+    let mapper = mapper();
+    let geometry = region_geometry();
+
+    assert_rect_near(
+        preview.region_rect(mapper, geometry, TimelineEditRegion::LeadingInner),
+        Rect::from_min_max(Point::new(40.0, 0.0), Point::new(60.0, 80.0)),
+    );
+    assert_rect_near(
+        preview.region_rect(mapper, geometry, TimelineEditRegion::TrailingInner),
+        Rect::from_min_max(Point::new(100.0, 0.0), Point::new(120.0, 80.0)),
+    );
+    assert_rect_near(
+        preview.region_rect(mapper, geometry, TimelineEditRegion::LeadingOuter),
+        Rect::from_min_max(Point::new(20.0, 0.0), Point::new(40.0, 80.0)),
+    );
+    assert_rect_near(
+        preview.region_rect(mapper, geometry, TimelineEditRegion::TrailingOuter),
+        Rect::from_min_max(Point::new(120.0, 0.0), Point::new(140.0, 80.0)),
     );
 }
 

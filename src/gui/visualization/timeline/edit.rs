@@ -53,6 +53,19 @@ pub enum TimelineEditHandle {
     TrailingOuterEnd,
 }
 
+/// Standard editable regions around a selected timeline interval.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TimelineEditRegion {
+    /// Leading region inside the selected interval.
+    LeadingInner,
+    /// Leading region before the selected interval.
+    LeadingOuter,
+    /// Trailing region inside the selected interval.
+    TrailingInner,
+    /// Trailing region after the selected interval.
+    TrailingOuter,
+}
+
 /// Geometry policy for projecting edit-preview handles.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TimelineEditHandleGeometry {
@@ -62,6 +75,15 @@ pub struct TimelineEditHandleGeometry {
     pub selection_rect: Rect,
     /// Logical handle size in pixels.
     pub handle_size: f32,
+}
+
+/// Geometry policy for projecting edit-preview regions.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TimelineEditRegionGeometry {
+    /// Horizontal and vertical bounds of the timeline or signal surface.
+    pub bounds: Rect,
+    /// Visible rectangle for the edited selection.
+    pub selection_rect: Rect,
 }
 
 /// Named edit-preview parts for timeline handle projection.
@@ -178,6 +200,70 @@ impl TimelineEditPreview {
         horizontal.intersection(vertical)
     }
 
+    /// Project a standard edit-preview region into a paint rectangle.
+    pub fn region_rect(
+        self,
+        mapper: TimelineCoordinateMapper,
+        geometry: TimelineEditRegionGeometry,
+        region: TimelineEditRegion,
+    ) -> Option<Rect> {
+        let selection = self.selection?;
+        match region {
+            TimelineEditRegion::LeadingInner => {
+                let end = self.leading_end_micros.unwrap_or(selection.start_micros);
+                if end <= selection.start_micros {
+                    return None;
+                }
+                let x = visible_x_for_micros(mapper, end)?;
+                let right_x = x.clamp(geometry.selection_rect.min.x, geometry.selection_rect.max.x);
+                Some(
+                    geometry
+                        .selection_rect
+                        .left_edge_strip(right_x - geometry.selection_rect.min.x),
+                )
+            }
+            TimelineEditRegion::TrailingInner => {
+                let start = self.trailing_start_micros.unwrap_or(selection.end_micros);
+                if start >= selection.end_micros {
+                    return None;
+                }
+                let x = visible_x_for_micros(mapper, start)?;
+                let left_x = x.clamp(geometry.selection_rect.min.x, geometry.selection_rect.max.x);
+                Some(
+                    geometry
+                        .selection_rect
+                        .right_edge_strip(geometry.selection_rect.max.x - left_x),
+                )
+            }
+            TimelineEditRegion::LeadingOuter => {
+                let start = self.leading_inner_start_micros?;
+                if start >= selection.start_micros {
+                    return None;
+                }
+                let x = visible_x_for_micros(mapper, start)?;
+                let left_x = x.clamp(geometry.bounds.min.x, geometry.selection_rect.min.x);
+                let outer_bounds = Rect::from_min_max(
+                    Point::new(geometry.bounds.min.x, geometry.selection_rect.min.y),
+                    Point::new(geometry.selection_rect.min.x, geometry.selection_rect.max.y),
+                );
+                Some(outer_bounds.right_edge_strip(geometry.selection_rect.min.x - left_x))
+            }
+            TimelineEditRegion::TrailingOuter => {
+                let end = self.trailing_inner_end_micros?;
+                if end <= selection.end_micros {
+                    return None;
+                }
+                let x = visible_x_for_micros(mapper, end)?;
+                let right_x = x.clamp(geometry.selection_rect.max.x, geometry.bounds.max.x);
+                let outer_bounds = Rect::from_min_max(
+                    Point::new(geometry.selection_rect.max.x, geometry.selection_rect.min.y),
+                    Point::new(geometry.bounds.max.x, geometry.selection_rect.max.y),
+                );
+                Some(outer_bounds.left_edge_strip(right_x - geometry.selection_rect.max.x))
+            }
+        }
+    }
+
     /// Return the first standard edit handle whose rectangle contains `position`.
     pub fn handle_at(
         self,
@@ -191,6 +277,13 @@ impl TimelineEditPreview {
                 .is_some_and(|rect| rect.contains(position))
         })
     }
+}
+
+fn visible_x_for_micros(mapper: TimelineCoordinateMapper, micros: u32) -> Option<f32> {
+    if micros < mapper.viewport.start_micros || micros > mapper.viewport.end_micros {
+        return None;
+    }
+    Some(mapper.x_for_micros(micros))
 }
 
 fn normalized_handle_size(bounds: Rect, handle_size: f32) -> f32 {

@@ -927,7 +927,8 @@ integer `IndexViewport` ranges,
 `TimelineEditPreview` and `TimelineEditPreviewParts` for editable range and
 fade/curve handles, plus `TimelineEditHandle` and
 `TimelineEditHandleGeometry` for standard edit-handle projection and hit
-testing,
+testing, and `TimelineEditRegion` plus `TimelineEditRegionGeometry` for
+leading/trailing edit-region projection,
 `TimelineFeedbackEvents` for transient operation feedback tokens,
 `TimelinePresentationState` for guide spacing, repeat state, and compact labels,
 `TimelineMarkerPreview` for retained marker overlays, and
@@ -1770,7 +1771,10 @@ timeline values, lanes, normalized selections, or spatial surfaces into these
 reusable visualization slots while keeping domain workflow state outside
 Radiant. Use `CanvasSelectionGeometry` when one projected normalized selection
 needs several generic affordances such as a body move handle, resize edge
-visuals, or a trailing control.
+visuals, or a trailing control. Use `TimelineEditPreview` with
+`TimelineEditHandleGeometry` and `TimelineEditRegionGeometry` when timeline
+editors need standard handle hit rectangles and leading/trailing region paint
+rectangles without duplicating viewport projection math.
 
 ## Invalidation And Lifecycle
 

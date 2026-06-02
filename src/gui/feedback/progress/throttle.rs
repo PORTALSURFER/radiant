@@ -14,6 +14,13 @@ pub struct ProgressUpdateGate {
     last_fraction: f32,
 }
 
+/// Runs accepted progress updates through a caller-provided reporting callback.
+#[derive(Clone, Debug)]
+pub struct ThrottledProgressReporter<Report> {
+    gate: ProgressUpdateGate,
+    report: Report,
+}
+
 impl ProgressUpdateGate {
     /// Create a gate that accepts the first update, then requires both elapsed
     /// time and fractional progress before accepting another non-terminal update.
@@ -61,5 +68,36 @@ impl ProgressUpdateGate {
         }
         now.duration_since(last_sent_at) >= self.min_interval
             && fraction - self.last_fraction >= self.min_delta
+    }
+}
+
+impl<Report> ThrottledProgressReporter<Report>
+where
+    Report: FnMut(f32),
+{
+    /// Create a reporter from an explicit progress gate and callback.
+    pub fn new(gate: ProgressUpdateGate, report: Report) -> Self {
+        Self { gate, report }
+    }
+
+    /// Report progress using the current time.
+    pub fn report(&mut self, fraction: f32) {
+        self.report_at(fraction, Instant::now());
+    }
+
+    /// Report progress using a supplied timestamp.
+    ///
+    /// This is primarily useful for deterministic tests and manually driven
+    /// worker loops.
+    pub fn report_at(&mut self, fraction: f32, now: Instant) {
+        let Some(fraction) = self.gate.accept_at(fraction, now) else {
+            return;
+        };
+        (self.report)(fraction);
+    }
+
+    /// Return the underlying gate and callback.
+    pub fn into_parts(self) -> (ProgressUpdateGate, Report) {
+        (self.gate, self.report)
     }
 }

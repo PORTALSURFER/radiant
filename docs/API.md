@@ -306,6 +306,10 @@ Use `tracked_drop_target(drag_active, active_target)` when the host tracks the
 current hover/drop target: candidate rows emit hover-drop messages, while the
 already-active target keeps accepting the eventual drop without repeatedly
 requesting the same hover-target update.
+Use `tracked_drop_candidate(drag_active, current_target, candidate,
+active_target)` when host-owned validation decides whether this row is a valid
+drop target and non-candidate rows must still report hover once to clear a
+previously active target.
 Use `InteractiveRowBuilder::filter_mapped(...)` when only selected row events
 should emit host messages, such as activation and drop while drag-hover or
 secondary-click events are ignored. This avoids routing ignored row interactions

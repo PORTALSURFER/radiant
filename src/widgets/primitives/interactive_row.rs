@@ -152,6 +152,27 @@ impl InteractiveRowWidget {
         self
     }
 
+    /// Configure host-tracked conditional drop behavior.
+    ///
+    /// `candidate` is host-owned validation for this row. `active_target`
+    /// keeps pointer motion routed while the host has a committed target, so a
+    /// non-candidate row can clear that target. `current_target` suppresses
+    /// duplicate hover-drop messages while still allowing the final drop.
+    pub fn with_tracked_drop_candidate(
+        mut self,
+        drag_active: bool,
+        current_target: bool,
+        candidate: bool,
+        active_target: bool,
+    ) -> Self {
+        self.props.droppable = drag_active;
+        self.props.drop_hover = drag_active && !current_target && (candidate || active_target);
+        self.props.drag_active = drag_active;
+        self.props.pointer_motion = InteractiveRowPointerMotion::DuringInteraction;
+        self.props.pointer_motion_active = active_target;
+        self
+    }
+
     /// Mark whether a related row drag is currently active in the same container.
     pub fn with_drag_active(mut self, drag_active: bool) -> Self {
         self.props.drag_active = drag_active;

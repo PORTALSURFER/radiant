@@ -132,6 +132,27 @@ impl InteractiveRowBuilder {
         self
     }
 
+    /// Configure a host-tracked conditional drop target.
+    ///
+    /// This variant is useful when the host owns candidate validation and also
+    /// needs pointer motion on non-candidates to clear a previously active drop
+    /// target. Current targets still accept the final drop while suppressing
+    /// duplicate hover-drop messages.
+    pub fn tracked_drop_candidate(
+        mut self,
+        drag_active: bool,
+        current_target: bool,
+        candidate: bool,
+        active_target: bool,
+    ) -> Self {
+        self.pointer_motion_during_interaction = true;
+        self.pointer_motion_active = active_target;
+        self.droppable = drag_active;
+        self.drop_hover = drag_active && !current_target && (candidate || active_target);
+        self.drag_active = drag_active;
+        self
+    }
+
     /// Mark whether a related row drag is active in this row's container.
     pub fn drag_active(mut self, active: bool) -> Self {
         self.drag_active = active;
@@ -433,6 +454,46 @@ mod tests {
             view.props.pointer_motion,
             crate::widgets::InteractiveRowPointerMotion::DuringInteraction
         );
+    }
+
+    #[test]
+    fn tracked_drop_candidate_suppresses_hover_for_current_target() {
+        let view = interactive_row()
+            .tracked_drop_candidate(true, true, true, true)
+            .widget();
+
+        assert!(view.props.droppable);
+        assert!(view.props.drag_active);
+        assert!(!view.props.drop_hover);
+        assert!(view.props.pointer_motion_active);
+        assert_eq!(
+            view.props.pointer_motion,
+            crate::widgets::InteractiveRowPointerMotion::DuringInteraction
+        );
+    }
+
+    #[test]
+    fn tracked_drop_candidate_reports_hover_for_new_candidate() {
+        let view = interactive_row()
+            .tracked_drop_candidate(true, false, true, false)
+            .widget();
+
+        assert!(view.props.droppable);
+        assert!(view.props.drag_active);
+        assert!(view.props.drop_hover);
+        assert!(!view.props.pointer_motion_active);
+    }
+
+    #[test]
+    fn tracked_drop_candidate_reports_hover_to_clear_active_target() {
+        let view = interactive_row()
+            .tracked_drop_candidate(true, false, false, true)
+            .widget();
+
+        assert!(view.props.droppable);
+        assert!(view.props.drag_active);
+        assert!(view.props.drop_hover);
+        assert!(view.props.pointer_motion_active);
     }
 
     #[test]

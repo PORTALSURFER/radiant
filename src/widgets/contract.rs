@@ -12,7 +12,7 @@ mod state;
 mod style;
 mod widget;
 
-pub use identity::stable_widget_id;
+pub use identity::{stable_widget_id, stable_widget_id_u64};
 pub use paint::{PaintBounds, PaintContract};
 pub use sizing::{WidgetId, WidgetSizing, WidgetSizingParts};
 pub use state::{FocusBehavior, WidgetState};

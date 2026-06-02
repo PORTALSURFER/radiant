@@ -62,7 +62,10 @@ Custom canvas, image, GPU surface, and overlay widgets can use
 focus, hit testing, and style contracts but draw their own focus and state
 affordances. Dynamic custom widgets and row input layers can use
 `stable_widget_id(...)` to derive deterministic widget IDs from host-owned
-scopes and durable app keys instead of duplicating local hashing helpers.
+scopes and durable text app keys instead of duplicating local hashing helpers.
+Use `stable_widget_id_u64(...)` when dynamic rows or controls are keyed by
+durable numeric app IDs or enum indexes and projection should avoid allocating
+temporary strings.
 Custom matrix or heatmap widgets can use `DenseGridLayout` and `DenseGridCell`
 for reusable row/column cell projection and hit testing.
 For paint-plan emission,

@@ -201,5 +201,5 @@ pub use crate::widgets::{
     TextInputState, TextInputWidgetParts, TextWidgetParts, TextWrap, ToggleWidgetParts, Widget,
     WidgetCommon, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput, WidgetProminence,
     WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone, WidgetVisualTokens,
-    handle_activation_input, resolve_widget_visual_tokens, stable_widget_id,
+    handle_activation_input, resolve_widget_visual_tokens, stable_widget_id, stable_widget_id_u64,
 };

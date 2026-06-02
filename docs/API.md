@@ -1551,7 +1551,10 @@ the standard `icon_button(...)` builder. For common compact controls, use
 `close_button()` and `disclosure_button(expanded)` so apps do not repeat literal
 text labels or parse their own standard close/disclosure icons. Icon-button
 builders support both message-style `.message(...)` routing and direct
-state-callback `.on_click(...)` routing. Button reducers can use
+state-callback `.on_click(...)` routing. Use `icon_button(...).passive()`,
+`close_button().passive()`, or `disclosure_button(expanded).passive()` when a
+standard icon should paint as decorative chrome while another parent surface
+owns interaction routing. Button reducers can use
 `ButtonMessage::is_activate()`, `secondary_position()`, and `drag_message()` to
 route primary activation, context-menu clicks, or drag lifecycle events without
 repeating the raw button enum shape.

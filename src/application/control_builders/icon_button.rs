@@ -59,6 +59,14 @@ impl IconButtonBuilder {
         self
     }
 
+    /// Build a passive icon button view without host messages.
+    pub fn passive<Message: 'static>(self) -> ViewNode<Message> {
+        let (widget, style) = self.into_widget_and_style();
+        let mut node = view_node_from_widget(widget);
+        node.style = style;
+        node
+    }
+
     /// Emit one cloned host message when activated.
     pub fn message<Message>(self, message: Message) -> ViewNode<Message>
     where
@@ -72,18 +80,12 @@ impl IconButtonBuilder {
         self,
         map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
-        let mut widget = IconButtonWidget::new(
-            0,
-            self.icon,
-            WidgetSizing::fixed(crate::layout::Vector2::new(28.0, 24.0)),
-        );
-        widget.common.state.disabled = !self.enabled;
-        widget.common.state.active = self.active;
+        let (widget, style) = self.into_widget_and_style();
         let mut node = view_node_from_widget(MappedWidget::new(
             widget,
             WidgetMessageMapper::icon_button(map),
         ));
-        node.style = self.style;
+        node.style = style;
         node
     }
 
@@ -93,6 +95,17 @@ impl IconButtonBuilder {
         apply: impl Fn(&mut State) + Send + Sync + 'static,
     ) -> ViewNode<StateAction<State>> {
         self.message(StateAction::new(apply))
+    }
+
+    fn into_widget_and_style(self) -> (IconButtonWidget, Option<WidgetStyle>) {
+        let mut widget = IconButtonWidget::new(
+            0,
+            self.icon,
+            WidgetSizing::fixed(crate::layout::Vector2::new(28.0, 24.0)),
+        );
+        widget.common.state.disabled = !self.enabled;
+        widget.common.state.active = self.active;
+        (widget, self.style)
     }
 }
 
@@ -149,9 +162,10 @@ fn cached_icon(cache: &'static OnceLock<SvgIcon>, svg: &'static str, name: &str)
 mod tests {
     use super::*;
     use crate::{
+        application::IntoView,
         gui::types::{Point, Rect},
         layout::{LayoutOutput, Vector2},
-        runtime::PaintPrimitive,
+        runtime::{PaintPrimitive, UiSurface},
         widgets::{PointerButton, Widget, WidgetInput},
     };
 
@@ -208,5 +222,29 @@ mod tests {
             },
         );
         assert!(output.is_some());
+    }
+
+    #[test]
+    fn icon_button_builder_passive_paints_without_host_message() {
+        let frame = UiSurface::new(
+            disclosure_button(false)
+                .subtle()
+                .passive::<()>()
+                .size(24.0, 20.0)
+                .into_node(),
+        )
+        .frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(24.0, 20.0)),
+            &Default::default(),
+        );
+
+        assert!(
+            frame
+                .paint_plan
+                .primitives
+                .iter()
+                .any(|primitive| matches!(primitive, PaintPrimitive::Svg(_))),
+            "passive icon button should paint a retained SVG icon"
+        );
     }
 }

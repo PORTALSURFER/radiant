@@ -420,6 +420,8 @@ use `ProgressUpdateGate` to coalesce updates by time and delta before sending
 messages back into the UI, while still accepting terminal updates immediately.
 Use `ThrottledProgressReporter` when the worker should run accepted fractions
 through a callback instead of manually checking the gate before every send.
+Use `ProgressPhase` when a multi-stage worker needs to map completed/total
+step counters into one normalized progress subrange such as `0.25..0.75`.
 Retained custom surfaces can use `RetainedSegmentPlan` with
 `RetainedSegmentRevisions` to name static and overlay paint segments, derive
 stable invalidation masks, and bump only the revisions affected by a change.

@@ -1,8 +1,10 @@
 mod overlay;
+mod phase;
 mod throttle;
 mod track;
 
 pub use overlay::{ProgressOverlay, ProgressSnapshot};
+pub use phase::ProgressPhase;
 pub use throttle::{ProgressUpdateGate, ThrottledProgressReporter};
 pub use track::{
     horizontal_discrete_meter_fill_rect, horizontal_meter_fill_rect,

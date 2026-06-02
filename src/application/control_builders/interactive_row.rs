@@ -7,15 +7,19 @@ use crate::{
         WidgetId, WidgetProminence, WidgetSizing, WidgetStyle,
     },
 };
+use std::sync::Arc;
 
 /// Host callbacks for common interactive-row message routing.
+#[derive(Clone)]
 pub struct InteractiveRowActions<Message> {
-    activate: Option<Box<dyn Fn() -> Message + Send + Sync + 'static>>,
-    double_activate: Option<Box<dyn Fn() -> Message + Send + Sync + 'static>>,
-    secondary: Option<Box<dyn Fn(Point) -> Message + Send + Sync + 'static>>,
-    drag: Option<Box<dyn Fn(DragHandleMessage) -> Message + Send + Sync + 'static>>,
-    drop: Option<Box<dyn Fn() -> Message + Send + Sync + 'static>>,
-    hover_drop: Option<Box<dyn Fn(Point) -> Message + Send + Sync + 'static>>,
+    activate: Option<Arc<dyn Fn() -> Message + Send + Sync + 'static>>,
+    activate_with_modifiers:
+        Option<Arc<dyn Fn(crate::widgets::PointerModifiers) -> Message + Send + Sync + 'static>>,
+    double_activate: Option<Arc<dyn Fn() -> Message + Send + Sync + 'static>>,
+    secondary: Option<Arc<dyn Fn(Point) -> Message + Send + Sync + 'static>>,
+    drag: Option<Arc<dyn Fn(DragHandleMessage) -> Message + Send + Sync + 'static>>,
+    drop: Option<Arc<dyn Fn() -> Message + Send + Sync + 'static>>,
+    hover_drop: Option<Arc<dyn Fn(Point) -> Message + Send + Sync + 'static>>,
 }
 
 impl<Message> InteractiveRowActions<Message> {
@@ -23,6 +27,7 @@ impl<Message> InteractiveRowActions<Message> {
     pub fn new() -> Self {
         Self {
             activate: None,
+            activate_with_modifiers: None,
             double_activate: None,
             secondary: None,
             drag: None,
@@ -33,7 +38,16 @@ impl<Message> InteractiveRowActions<Message> {
 
     /// Emit a host message for single primary activation.
     pub fn activate(mut self, message: impl Fn() -> Message + Send + Sync + 'static) -> Self {
-        self.activate = Some(Box::new(message));
+        self.activate = Some(Arc::new(message));
+        self
+    }
+
+    /// Emit a host message for single primary activation with modifier state.
+    pub fn activate_with_modifiers(
+        mut self,
+        message: impl Fn(crate::widgets::PointerModifiers) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        self.activate_with_modifiers = Some(Arc::new(message));
         self
     }
 
@@ -42,13 +56,13 @@ impl<Message> InteractiveRowActions<Message> {
         mut self,
         message: impl Fn() -> Message + Send + Sync + 'static,
     ) -> Self {
-        self.double_activate = Some(Box::new(message));
+        self.double_activate = Some(Arc::new(message));
         self
     }
 
     /// Emit a host message for secondary activation.
     pub fn secondary(mut self, message: impl Fn(Point) -> Message + Send + Sync + 'static) -> Self {
-        self.secondary = Some(Box::new(message));
+        self.secondary = Some(Arc::new(message));
         self
     }
 
@@ -57,13 +71,13 @@ impl<Message> InteractiveRowActions<Message> {
         mut self,
         message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
-        self.drag = Some(Box::new(message));
+        self.drag = Some(Arc::new(message));
         self
     }
 
     /// Emit a host message when a drop lands on the row.
     pub fn drop(mut self, message: impl Fn() -> Message + Send + Sync + 'static) -> Self {
-        self.drop = Some(Box::new(message));
+        self.drop = Some(Arc::new(message));
         self
     }
 
@@ -72,11 +86,12 @@ impl<Message> InteractiveRowActions<Message> {
         mut self,
         message: impl Fn(Point) -> Message + Send + Sync + 'static,
     ) -> Self {
-        self.hover_drop = Some(Box::new(message));
+        self.hover_drop = Some(Arc::new(message));
         self
     }
 
-    fn map(&self, message: InteractiveRowMessage) -> Option<Message> {
+    /// Route a generic row interaction into the configured host action.
+    pub fn route(&self, message: InteractiveRowMessage) -> Option<Message> {
         if let Some(position) = message.secondary_position() {
             return self.secondary.as_ref().map(|callback| callback(position));
         }
@@ -92,7 +107,10 @@ impl<Message> InteractiveRowActions<Message> {
         if message.is_double_activation() {
             return self.double_activate.as_ref().map(|callback| callback());
         }
-        if message.is_single_activation() {
+        if let Some(modifiers) = message.single_activation_modifiers() {
+            if let Some(callback) = &self.activate_with_modifiers {
+                return Some(callback(modifiers));
+            }
             return self.activate.as_ref().map(|callback| callback());
         }
         None
@@ -102,6 +120,14 @@ impl<Message> InteractiveRowActions<Message> {
 impl<Message> Default for InteractiveRowActions<Message> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<Message> std::fmt::Debug for InteractiveRowActions<Message> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("InteractiveRowActions")
+            .finish_non_exhaustive()
     }
 }
 
@@ -320,7 +346,7 @@ impl InteractiveRowBuilder {
         self,
         actions: InteractiveRowActions<Message>,
     ) -> ViewNode<Message> {
-        self.filter_mapped(move |message| actions.map(message))
+        self.filter_mapped(move |message| actions.route(message))
     }
 
     fn with_message_mapper<Message: 'static>(
@@ -523,6 +549,7 @@ mod tests {
     #[derive(Clone, Debug, PartialEq)]
     enum DemoMessage {
         Activate,
+        ActivateWithModifiers(crate::widgets::PointerModifiers),
         DoubleActivate,
         Drop,
         HoverDrop(Point),
@@ -595,6 +622,29 @@ mod tests {
                 WidgetOutput::typed(InteractiveRowMessage::DoubleActivate),
             ),
             Some(DemoMessage::DoubleActivate)
+        );
+    }
+
+    #[test]
+    fn interactive_row_actions_route_modifier_activation_for_embedded_rows() {
+        let modifiers = crate::widgets::PointerModifiers {
+            shift: true,
+            command: true,
+            ..crate::widgets::PointerModifiers::default()
+        };
+        let actions = InteractiveRowActions::new()
+            .activate(|| DemoMessage::Activate)
+            .activate_with_modifiers(DemoMessage::ActivateWithModifiers);
+
+        assert_eq!(
+            actions.route(InteractiveRowMessage::Activate),
+            Some(DemoMessage::ActivateWithModifiers(
+                crate::widgets::PointerModifiers::default()
+            ))
+        );
+        assert_eq!(
+            actions.route(InteractiveRowMessage::ActivateWithModifiers { modifiers }),
+            Some(DemoMessage::ActivateWithModifiers(modifiers))
         );
     }
 

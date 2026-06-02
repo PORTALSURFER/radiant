@@ -264,7 +264,7 @@ host widget. Implement `EmbeddedInteractiveRowWidget` when the custom widget is
 primarily an app-painted wrapper around an embedded `InteractiveRowWidget`; the
 trait supplies the standard `Widget` implementation for common contract
 delegation, input routing, pointer-motion policy, and retained state
-synchronization while the host provides message mapping and paint. Use
+synchronization while the host instance provides message mapping and paint. Use
 `InteractiveRowWidget::dense_visual_state(...)` with
 `InteractiveRowVisualStateParts` when custom row paint needs the generic dense
 row state model without reading widget internals. Use
@@ -283,6 +283,10 @@ state to append standard dense-row feedback. Use
 `secondary_position()`, `drag_message()`, `hover_drop_position()`, and
 `is_drop()` when custom row widgets need to map Radiant row interactions into
 host-specific row messages without repeating exhaustive event-shape matches.
+Use `InteractiveRowActions::route(...)` when custom row wrappers need the same
+activation, modifier-aware activation, secondary-click, drag, drop, and
+hover-drop routing table that `interactive_row().actions(...)` and
+`interactive_row_underlay(...).actions(...)` use.
 Use the single-activation helpers when double-click has a separate host action
 such as rename, drill-in, or open-in-place behavior. Drag-capable controls can use
 `DragHandleMessage::phase()`, `position()`, `started_position()`,

@@ -161,7 +161,7 @@ impl EmbeddedInteractiveRowWidget for RowHost {
         &mut self.row
     }
 
-    fn map_interactive_row_message(message: InteractiveRowMessage) -> Option<Self::Message> {
+    fn map_interactive_row_message(&self, message: InteractiveRowMessage) -> Option<Self::Message> {
         Some(message)
     }
 

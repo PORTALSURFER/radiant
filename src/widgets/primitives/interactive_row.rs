@@ -305,7 +305,7 @@ pub trait EmbeddedInteractiveRowWidget: Clone + Send + Sync + 'static {
     fn interactive_row_mut(&mut self) -> &mut InteractiveRowWidget;
 
     /// Map a generic row interaction into this custom row's message type.
-    fn map_interactive_row_message(message: InteractiveRowMessage) -> Option<Self::Message>;
+    fn map_interactive_row_message(&self, message: InteractiveRowMessage) -> Option<Self::Message>;
 
     /// Append host-specific paint for this custom row.
     fn append_interactive_row_paint(
@@ -330,11 +330,9 @@ where
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        self.interactive_row_mut().handle_input_mapped(
-            bounds,
-            input,
-            T::map_interactive_row_message,
-        )
+        let message = self.interactive_row_mut().handle_input(bounds, input)?;
+        self.map_interactive_row_message(message)
+            .map(WidgetOutput::typed)
     }
 
     fn accepts_pointer_move(&self) -> bool {

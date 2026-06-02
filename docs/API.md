@@ -248,13 +248,18 @@ geometry and drag-lifecycle behavior.
 Custom row painters can compose `InteractiveRowWidget` directly for shared
 dense-row hover, activation, drag-source, drag-active, drop-target, and retained
 hover synchronization behavior while keeping domain-specific row visuals in the
-host widget. Use `InteractiveRowWidget::dense_visual_state(...)` with
+host widget. Implement `EmbeddedInteractiveRowWidget` when the custom widget is
+primarily an app-painted wrapper around an embedded `InteractiveRowWidget`; the
+trait supplies the standard `Widget` implementation for common contract
+delegation, input routing, pointer-motion policy, and retained state
+synchronization while the host provides message mapping and paint. Use
+`InteractiveRowWidget::dense_visual_state(...)` with
 `InteractiveRowVisualStateParts` when custom row paint needs the generic dense
 row state model without reading widget internals. Use
 `InteractiveRowWidget::handle_input_mapped(...)` and
 `synchronize_from_previous_embedded(...)` when a custom row widget embeds an
 interactive row for generic input behavior but exposes host-specific messages
-and custom paint. Use `InteractiveRowWidget::id()`, `common()`, and
+and custom paint outside the trait shape. Use `InteractiveRowWidget::id()`, `common()`, and
 `common_mut()` when custom row wrappers need paint identity or widget-contract
 delegation without reading the embedded row field layout. Use
 `InteractiveRowWidget::push_dense_fill(...)` when a custom row painter should

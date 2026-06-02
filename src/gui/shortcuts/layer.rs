@@ -54,6 +54,25 @@ impl<Action> ShortcutLayer<Action> {
         self
     }
 
+    /// Add several bindings that dispatch the same action.
+    ///
+    /// Use this for equivalent shortcuts such as Delete and Backspace without
+    /// repeating the host action at every call site.
+    pub fn bind_all<Gesture>(
+        mut self,
+        gestures: impl IntoIterator<Item = Gesture>,
+        action: Action,
+    ) -> Self
+    where
+        Gesture: Into<ShortcutGesture>,
+        Action: Clone,
+    {
+        for gesture in gestures {
+            self = self.bind(gesture, action.clone());
+        }
+        self
+    }
+
     /// Return whether this layer consumes unmatched keypresses.
     pub const fn is_modal(&self) -> bool {
         self.modal

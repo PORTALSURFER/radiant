@@ -67,6 +67,30 @@ fn shortcut_layer_resolves_actions_and_modal_misses() {
 }
 
 #[test]
+fn shortcut_layer_bind_all_routes_equivalent_gestures_to_one_action() {
+    let layer = ShortcutLayer::new().bind_all(
+        [
+            KeyPress::new(KeyCode::Delete),
+            KeyPress::new(KeyCode::Backspace),
+        ],
+        7,
+    );
+
+    assert_eq!(
+        layer.resolve(KeyPress::new(KeyCode::Delete)),
+        ShortcutResolution::action(7)
+    );
+    assert_eq!(
+        layer.resolve(KeyPress::new(KeyCode::Backspace)),
+        ShortcutResolution::action(7)
+    );
+    assert_eq!(
+        layer.resolve(KeyPress::new(KeyCode::N)),
+        ShortcutResolution::unhandled()
+    );
+}
+
+#[test]
 fn shortcut_layer_modal_escape_dispatches_escape_and_consumes_misses() {
     let layer = ShortcutLayer::modal_escape(5);
 

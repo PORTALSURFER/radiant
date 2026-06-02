@@ -1230,11 +1230,13 @@ dispatches a normal app message before focused-widget key routing, while
 to an application command model. `ShortcutLayer` maps normalized
 `ShortcutGesture` values to host actions, supports modal layers that consume
 unmatched keys, and offers `resolve_or_else(...)` for dynamic fallbacks such as
-shifted navigation. Use `ShortcutLayer::modal_escape(...)` for modal surfaces
-whose Escape key dismisses the surface while other keys should remain shielded
-from lower-priority shortcuts. This keeps modal shortcut shielding and simple global
-accelerators declarative while still leaving command catalogs and focus policy
-in the host application.
+shifted navigation. Use `ShortcutLayer::bind_all(...)` when several equivalent
+gestures should dispatch the same host action. Use
+`ShortcutLayer::modal_escape(...)` for modal surfaces whose Escape key dismisses
+the surface while other keys should remain shielded from lower-priority
+shortcuts. This keeps modal shortcut shielding and simple global accelerators
+declarative while still leaving command catalogs and focus policy in the host
+application.
 
 ## Performance Harness
 

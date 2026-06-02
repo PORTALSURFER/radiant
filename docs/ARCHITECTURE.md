@@ -31,8 +31,12 @@ surface without the native window runner.
 ### Prelude Export Hygiene
 
 `src/prelude.rs` is only the small facade for common application imports. It
-must not accumulate direct subsystem export lists. Add new prelude exports to
-the owning grouped file under `src/prelude/`:
+must not accumulate direct subsystem export lists. The first-level prelude
+modules are facades too: if a grouped file grows into a broad import block, split
+it into smaller owning modules under a directory with the same name, as
+`src/prelude/application/**`, `src/prelude/gui/**`, and
+`src/prelude/runtime/**` do today. Add new prelude exports to the smallest
+owning grouped file:
 
 - `application.rs` for app builders, view builders, control builders, menu
   builders, panel builders, task/update types, and stateful app helpers.
@@ -46,6 +50,14 @@ the owning grouped file under `src/prelude/`:
 - `theme.rs` for theme-token exports.
 - `widgets.rs` for widget contracts, primitive widget parts, input/output
   messages, interaction helpers, and widget visual tokens.
+
+Prelude export files should stay cohesive enough to scan without horizontal
+ownership hunting. As a rule of thumb, split a file before it mixes unrelated
+areas such as controls plus menus plus tasks, or before it needs a very large
+`pub use crate::<subsystem>::{...}` block just to remain formatted. A facade may
+`pub use` its focused child modules, but the child modules should encode the API
+area being exported: controls, details lists, overlays, resources, paint,
+visualization, and so on.
 
 Keep exports explicit inside those grouped files. Do not replace them with
 wildcard re-exports from owning subsystems, because that would let unrelated

@@ -8,22 +8,42 @@ fn public_prelude_source(manifest_dir: &std::path::Path) -> String {
     let root = manifest_dir.join("src/prelude.rs");
     let mut source = fs::read_to_string(&root).expect("public prelude module should be readable");
     let prelude_dir = manifest_dir.join("src/prelude");
-    for group in [
-        "application.rs",
-        "gui.rs",
-        "layout.rs",
-        "runtime.rs",
-        "theme.rs",
-        "widgets.rs",
-    ] {
-        source.push('\n');
-        source.push_str(
-            &fs::read_to_string(prelude_dir.join(group)).unwrap_or_else(|err| {
-                panic!("prelude export group {group} should be readable: {err}")
-            }),
-        );
-    }
+    append_prelude_source(&mut source, &prelude_dir);
     source
+}
+
+fn append_prelude_source(source: &mut String, dir: &std::path::Path) {
+    let mut entries = fs::read_dir(dir)
+        .unwrap_or_else(|err| {
+            panic!(
+                "prelude directory {} should be readable: {err}",
+                dir.display()
+            )
+        })
+        .map(|entry| {
+            entry
+                .expect("prelude directory entry should be readable")
+                .path()
+        })
+        .collect::<Vec<_>>();
+    entries.sort();
+
+    for path in entries {
+        if path.is_dir() {
+            append_prelude_source(source, &path);
+            continue;
+        }
+        if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+            continue;
+        }
+        source.push('\n');
+        source.push_str(&fs::read_to_string(&path).unwrap_or_else(|err| {
+            panic!(
+                "prelude export group {} should be readable: {err}",
+                path.display()
+            )
+        }));
+    }
 }
 
 #[test]

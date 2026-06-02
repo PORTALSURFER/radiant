@@ -1,59 +1,22 @@
 //! Application-builder, view, and control-builder prelude exports.
+//!
+//! Keep this module as a subsystem facade. Add new exports to the smallest
+//! owning sibling module instead of growing a broad `crate::application` list.
 
-pub use crate::Result;
-pub use crate::application::{
-    ActionRowBuilder, AnchoredLayerParts, BadgeBuilder, BoundedScrollColumnParts, ButtonBuilder,
-    CancellationToken, CenteredLayerParts, ColorMarkerBuilder, CompactOptionListFloatingAboveParts,
-    CompactOptionListItem, CompactOptionListParts, ContextMenuOverlayParts,
-    DEFAULT_ACTION_ROW_HEIGHT, DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING,
-    DEFAULT_STYLED_CONTAINER_PADDING, DetailsColumn, DetailsColumnParts, DetailsColumnPlacement,
-    DetailsColumnReorderDrag, DetailsColumnResizeDrag, DetailsColumnWidthUpdate, DetailsRow,
-    DetailsRowParts, DetailsSort, DetailsSortParts, DismissibleContextMenuParts, DragHandleBuilder,
-    DropdownBuilder, DropdownBuilderNeedsToggle, DropdownMenuOverlayBelowParts, DropdownOption,
-    DropdownOptionParts, DropdownOptionSelection, DropdownParts, DropdownTriggerBuilder,
-    DropdownTriggerBuilderNeedsToggle, DropdownTriggerParts, DynamicWidget, DynamicWidgetParts,
-    FeedbackOverlayBuilder, FloatingLayerAnchorParts, FloatingLayerPlacement, GpuSurfaceInputParts,
-    IconButtonBuilder, InteractiveBadgeBuilder, InteractiveRowBuilder,
-    InteractiveRowUnderlayBuilder, IntoView, KeyedLatestTasks, KeyedTaskCompletion,
-    LabeledControlParts, LatestTask, LayerHorizontalAnchor, LayerVerticalAnchor, MappedWidget,
-    MappedWidgetParts, MarkerRunBuilder, MenuCommand, MenuCommandParts, MenuItem, MenuItemParts,
-    MenuParts, MessageMenuParts, PanelSectionParts, PointerShieldBuilder, ProgressBarBuilder,
-    PropertyRow, PropertyRowParts, RetainedCanvasBuilder, RunnableStatefulApp, ScrollbarBuilder,
-    SelectableBuilder, SliderBuilder, SortDirection, StateAction, StateView, StatefulAppBuilder,
-    StatefulAppWithView, StatusBarParts, Subscription, TaskCompletion, TaskTicket,
-    TextInputBuilder, ToggleBuilder, ToolbarAlignment, ToolbarParts, TreeListItem,
-    TreeListItemParts, UpdateContext, View, ViewNode, WidgetView, WidgetViewContext, WindowBuilder,
-    action_row, anchored_layer, anchored_layer_from_parts, app, badge, badge_mapped, badge_message,
-    bounded_scroll_column, bounded_scroll_column_from_parts, button, button_mapped, button_message,
-    canvas, card, centered_layer, centered_layer_from_parts, checkbox, close_button,
-    closeable_panel_section_from_parts, color_marker, column, column_key, compact_details_cell,
-    compact_details_header_row, compact_details_row, compact_option_list,
-    compact_option_list_floating_above, compact_option_list_from_parts,
-    compact_resizable_details_header_cell, context_menu_overlay, context_menu_overlay_from_parts,
-    custom_widget, custom_widget_mapped, details_column_drag_content_left,
-    details_column_reorder_index, details_sort_label, determinate_progress_bar, disclosure_button,
-    dismiss_layer, dismissible_context_menu, dismissible_context_menu_from_parts,
-    dismissible_context_menu_with_width, dismissible_overlay, drag_handle, drag_handle_mapped,
-    drag_preview, drag_preview_sized, drop_marker, dropdown, dropdown_from_parts, dropdown_height,
-    dropdown_menu, dropdown_menu_height, dropdown_menu_overlay, dropdown_menu_overlay_below,
-    dropdown_menu_overlay_below_from_parts, dropdown_menu_overlay_below_labeled_control,
-    dropdown_menu_overlay_below_stacked_labeled_control, dropdown_menu_overlay_below_trigger,
-    dropdown_option, dropdown_trigger, dropdown_trigger_from_parts, dropdown_trigger_height, empty,
-    feedback_overlay, floating_layer, floating_layer_above, floating_layer_around_from_parts,
-    floating_layer_below, floating_layer_with_input, gpu_surface, gpu_surface_from_parts,
-    gpu_surface_input, gpu_surface_input_from_parts, grid, grid_with_gaps, icon_button, image,
-    indeterminate_progress_bar, input_overlay, input_underlay, interactive_badge, interactive_row,
-    interactive_row_underlay, labeled_control, labeled_control_control_offset,
-    labeled_control_control_offset_for, labeled_control_from_parts, list, list_row, list_row_id,
-    marker_run, menu, menu_from_parts, menu_height, message_menu, message_menu_from_parts,
-    message_menu_height, overlay_panel, panel_section, panel_section_from_parts, passive_badge,
-    passive_button, passive_text_input, passive_toggle, pointer_drop_shield, pointer_move_shield,
-    pointer_shield, progress_bar, progress_bar_for_snapshot, property_panel,
-    reorder_details_columns_by_id, retained_canvas, retained_canvas_with, row, row_key, scroll,
-    scroll_column, scrollbar, selectable, selectable_mapped, selectable_property_panel,
-    selectable_sortable_details_list, slider, slider_mapped, sortable_details_list, spacer, stack,
-    stack_layers, state_dropdown, status_bar, status_bar_from_parts, text, text_input,
-    text_input_mapped, toggle, toggle_mapped, toolbar, toolbar_from_parts, tree_list,
-    tree_list_with_drag, update_details_column_reorder_drag, update_details_column_resize_drag,
-    virtual_list, virtual_list_window, virtual_scroll, widget, window, wrap,
-};
+mod controls;
+mod details;
+mod layout;
+mod menus;
+mod overlays;
+mod runtime;
+mod surfaces;
+mod view;
+
+pub use controls::*;
+pub use details::*;
+pub use layout::*;
+pub use menus::*;
+pub use overlays::*;
+pub use runtime::*;
+pub use surfaces::*;
+pub use view::*;

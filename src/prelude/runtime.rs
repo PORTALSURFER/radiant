@@ -1,36 +1,22 @@
 //! Runtime, command, paint, resource, and native host prelude exports.
+//!
+//! Keep this module as a subsystem facade. Add new exports to the smallest
+//! owning sibling module instead of growing a broad `crate::runtime` list.
 
-pub use crate::runtime::TaskPriority;
-pub use crate::runtime::{
-    AuxiliaryWindow, Command, ConfirmDialogParts, ConfirmDialogRequest, ConfirmationButtons,
-    ConfirmationLevel, ConfirmationResponse, DragPreview, DragPreviewTextSizing, DragRequest,
-    EmbeddedFont, ExternalDragEffect, ExternalDragOutcome, ExternalDragPayload,
-    ExternalDragPreview, ExternalDragRequest, FileDialogFilter, FileDialogRequest,
-    GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview,
-    GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,
-    GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceContentError, GpuSurfaceLineStyle,
-    GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, NativeCompositedBaseTiming,
-    NativeFrameDiagnostics, NativeFrameOptions, NativeFrameTimingDiagnostics,
-    NativeFrameWorkTimings, NativeGenericRunError, NativeGenericRunReport,
-    NativeGpuSurfaceAtlasDiagnostics, NativeGpuSurfaceCompositeDiagnostics,
-    NativeGpuSurfaceCustomShaderDiagnostics, NativeGpuSurfaceCustomShaderFailureDiagnostics,
-    NativeGpuSurfaceDiagnostics, NativeGpuSurfaceSignalDiagnostics,
-    NativeGpuSurfaceUnsupportedCustomShaderDiagnostics, NativeGpuTimingStatus, NativePopupOptions,
-    NativeRetainedSurfaceDiagnostics, NativeRunOptions, NativeRunOptionsError,
-    NativeSceneDiagnostics, NativeSceneMediaDiagnostics, NativeSceneSurfaceDiagnostics,
-    NativeSceneTextDiagnostics, NativeSceneTraversalDiagnostics, NativeTextCacheCounters,
-    NativeTextCacheDiagnostics, NativeTextDiagnostics, NativeTextQualityDiagnostics,
-    NativeTransientOverlayTiming, NativeWindowBehavior, NativeWindowGeometry, NativeWindowMode,
-    NativeWindowOptions, PaintClipEnd, PaintClipStart, PaintFillPath, PaintFillRect,
-    PaintFillRectBatch, PaintFillRule, PaintImage, PaintPath, PaintPathCommand, PaintPrimitive,
-    PaintRectList, PaintStrokeRect, PaintStrokeRectBatch, PaintSvg, PaintSvgDocument,
-    PaintTextAlign, PaintTextMetrics, PaintTextRun, PaintTransform, PlatformCompletion,
-    PlatformRequest, PlatformResponse, PlatformServiceFallback, RepaintScope, ResourceCompletion,
-    ResourceCompletionParts, ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest,
-    ResourceSlot, RetainedSurfaceCachePolicy, RuntimeRunReport, ScrollFixedRowIntoViewParts,
-    ScrollIntoViewParts, ScrollUpdate, SurfaceFrame, SurfacePaintPlan, SvgParseError,
-    TransientOverlayContext, UiSurface, WindowManifest, WindowManifestError, WindowSpec,
-    WindowSpecError, WindowSpecParts, push_fill_polygon, push_fill_rect, push_fill_rect_batch,
-    push_stroke_polyline, push_stroke_rect, push_stroke_rect_batch, push_text,
-    push_text_run_with_metrics, push_visible_fill_rect,
-};
+mod commands;
+mod gpu;
+mod native;
+mod paint;
+mod platform;
+mod resources;
+mod surface;
+mod windowing;
+
+pub use commands::*;
+pub use gpu::*;
+pub use native::*;
+pub use paint::*;
+pub use platform::*;
+pub use resources::*;
+pub use surface::*;
+pub use windowing::*;

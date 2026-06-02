@@ -18,6 +18,23 @@ impl<Message> UpdateContext<Message> {
         self.command(Command::begin_external_drag(request, on_completed));
     }
 
+    /// Begin an in-window drag preview and arm a matching native external drag.
+    ///
+    /// Native backends still launch the external session only when the active
+    /// pointer drag leaves the application window.
+    pub fn begin_drag_with_external(
+        &mut self,
+        drag: DragRequest,
+        external: ExternalDragRequest,
+        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static,
+    ) {
+        self.command(Command::begin_drag_with_external(
+            drag,
+            external,
+            on_completed,
+        ));
+    }
+
     /// Arm a native external drag session without completion notification.
     pub fn begin_external_drag_without_completion(&mut self, request: ExternalDragRequest) {
         self.command(Command::begin_external_drag_without_completion(request));

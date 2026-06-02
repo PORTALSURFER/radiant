@@ -124,6 +124,19 @@ impl<Message> Command<Message> {
         }
     }
 
+    /// Build a command that begins an in-window drag preview and arms a native
+    /// external drag payload as one drag session.
+    pub fn begin_drag_with_external(
+        drag: DragRequest,
+        external: ExternalDragRequest,
+        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static,
+    ) -> Self {
+        Self::batch([
+            Self::begin_drag(drag),
+            Self::begin_external_drag(external, on_completed),
+        ])
+    }
+
     /// Build a command that arms a native external drag session without completion notification.
     pub fn begin_external_drag_without_completion(request: ExternalDragRequest) -> Self {
         Self::BeginExternalDrag {

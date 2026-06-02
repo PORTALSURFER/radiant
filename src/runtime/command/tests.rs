@@ -154,3 +154,32 @@ fn window_size_commands_request_surface_repaint_without_flattening_messages() {
     assert!(command.requests_repaint());
     assert_eq!(command.into_messages(), Vec::<&str>::new());
 }
+
+#[test]
+fn drag_with_external_batches_preview_before_external_payload() {
+    let command = Command::begin_drag_with_external(
+        crate::runtime::DragRequest::new(
+            crate::runtime::DragPreview::sized("Sample", crate::layout::Vector2::new(120.0, 24.0)),
+            crate::layout::Point::new(12.0, 16.0),
+        ),
+        crate::runtime::ExternalDragRequest::files(
+            [std::path::PathBuf::from(r"C:\samples\kick.wav")],
+            "Sample",
+        ),
+        |_| "done",
+    );
+
+    let Command::Batch(commands) = command else {
+        panic!("combined drag command should batch preview and external payload");
+    };
+
+    assert_eq!(commands.len(), 2);
+    assert!(matches!(commands[0], Command::BeginDrag { .. }));
+    assert!(matches!(
+        commands[1],
+        Command::BeginExternalDrag {
+            on_completed: Some(_),
+            ..
+        }
+    ));
+}

@@ -152,6 +152,33 @@ fn dense_row_vertical_marker_projects_centered_edge_rects() {
 }
 
 #[test]
+fn dense_row_marker_parts_build_common_edge_markers() {
+    assert_eq!(
+        DenseRowMarkerParts::leading(3.0)
+            .edge_inset(2.0)
+            .vertical_inset(4.0)
+            .min_height(9.0),
+        DenseRowMarkerParts {
+            edge: DenseRowMarkerEdge::Leading,
+            width: 3.0,
+            edge_inset: 2.0,
+            vertical_inset: 4.0,
+            min_height: 9.0,
+        }
+    );
+    assert_eq!(
+        DenseRowMarkerParts::trailing(2.0),
+        DenseRowMarkerParts {
+            edge: DenseRowMarkerEdge::Trailing,
+            width: 2.0,
+            edge_inset: 1.0,
+            vertical_inset: 3.0,
+            min_height: 8.0,
+        }
+    );
+}
+
+#[test]
 fn dense_row_inset_rect_rejects_collapsed_geometry() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(10.0, 6.0));
 

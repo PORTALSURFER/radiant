@@ -256,7 +256,10 @@ Dense custom row painters can use `push_dense_row_fill`,
 labels, edge markers, and outlines from Radiant's generic dense-row geometry
 helpers without repeating paint-plan guard code. Use `DenseRowLabelParts` when
 custom dense rows need row-height-aware label sizing, text insets, alignment,
-and wrapping without constructing `PaintTextRun` manually.
+and wrapping without constructing `PaintTextRun` manually. Use
+`DenseRowMarkerParts::leading(width)` and `trailing(width)` for common
+selection, status, and activity edge markers instead of repeating raw marker
+geometry fields.
 Rows that need active drag-source motion after a retained refresh can opt into
 `with_drag_source_motion(...)`; rows that should accept drops without producing
 drop-hover messages can use `with_drop_only(...)`. Application-builder rows

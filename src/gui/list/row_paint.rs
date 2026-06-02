@@ -105,6 +105,47 @@ pub struct DenseRowMarkerParts {
     pub min_height: f32,
 }
 
+impl DenseRowMarkerParts {
+    /// Build marker parts for a leading-edge marker.
+    pub const fn leading(width: f32) -> Self {
+        Self::new(DenseRowMarkerEdge::Leading, width)
+    }
+
+    /// Build marker parts for a trailing-edge marker.
+    pub const fn trailing(width: f32) -> Self {
+        Self::new(DenseRowMarkerEdge::Trailing, width)
+    }
+
+    /// Build marker parts for the supplied edge.
+    pub const fn new(edge: DenseRowMarkerEdge, width: f32) -> Self {
+        Self {
+            edge,
+            width,
+            edge_inset: 1.0,
+            vertical_inset: 3.0,
+            min_height: 8.0,
+        }
+    }
+
+    /// Set inset from the owning horizontal edge.
+    pub const fn edge_inset(mut self, inset: f32) -> Self {
+        self.edge_inset = inset;
+        self
+    }
+
+    /// Set top and bottom inset before centering the marker.
+    pub const fn vertical_inset(mut self, inset: f32) -> Self {
+        self.vertical_inset = inset;
+        self
+    }
+
+    /// Set the minimum marker height.
+    pub const fn min_height(mut self, height: f32) -> Self {
+        self.min_height = height;
+        self
+    }
+}
+
 /// Named fields for painting a dense-row label.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DenseRowLabelParts {

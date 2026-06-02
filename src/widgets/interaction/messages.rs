@@ -338,6 +338,18 @@ mod text_input_message_tests {
     }
 }
 
+#[cfg(test)]
+mod drag_handle_phase_tests {
+    use super::DragHandlePhase;
+
+    #[test]
+    fn drag_handle_phase_exposes_stable_diagnostic_labels() {
+        assert_eq!(DragHandlePhase::Started.as_str(), "started");
+        assert_eq!(DragHandlePhase::Moved.as_str(), "moved");
+        assert_eq!(DragHandlePhase::Ended.as_str(), "ended");
+    }
+}
+
 /// Message emitted by a reusable scrollbar primitive.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ScrollbarMessage {
@@ -387,6 +399,17 @@ pub enum DragHandlePhase {
     Moved,
     /// Primary pointer drag ended or was released.
     Ended,
+}
+
+impl DragHandlePhase {
+    /// Return a stable lowercase diagnostic label for this drag phase.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Started => "started",
+            Self::Moved => "moved",
+            Self::Ended => "ended",
+        }
+    }
 }
 
 impl DragHandleMessage {

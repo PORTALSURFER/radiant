@@ -262,7 +262,8 @@ such as rename, drill-in, or open-in-place behavior. Drag-capable controls can u
 `DragHandleMessage::phase()`, `position()`, `started_position()`,
 `moved_position()`, `ended_position()`, `is_started()`, `is_moved()`, and
 `is_ended()` when reducers need generic drag lifecycle information without
-duplicating the `Started` / `Moved` / `Ended` variant shape. Reducers that
+duplicating the `Started` / `Moved` / `Ended` variant shape. Use
+`DragHandlePhase::as_str()` for stable lowercase diagnostic labels. Reducers that
 resolve or cancel a drag gesture with both an in-window preview and an armed
 native external-drag payload can call `UpdateContext::end_drag_session()` instead
 of ending those runtime surfaces separately. Use

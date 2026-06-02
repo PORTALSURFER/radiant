@@ -22,6 +22,91 @@ pub struct FlowLayoutMetrics {
     pub item_height: f32,
 }
 
+/// Geometry policy for a bounded wrapped inline field.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FlowFieldMetricsParts {
+    /// Row-packing metrics for the wrapped inline items.
+    pub flow: FlowLayoutMetrics,
+    /// Width reserved by field chrome outside the packed content area.
+    pub horizontal_chrome: f32,
+    /// Height reserved by field chrome outside the packed content area.
+    pub vertical_chrome: f32,
+    /// Minimum usable content width after chrome is removed.
+    pub min_content_width: f32,
+    /// Maximum number of rows shown before the host should use scrolling.
+    pub max_visible_rows: usize,
+}
+
+/// Geometry policy for a bounded wrapped inline field.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FlowFieldMetrics {
+    /// Row-packing metrics for the wrapped inline items.
+    pub flow: FlowLayoutMetrics,
+    /// Width reserved by field chrome outside the packed content area.
+    pub horizontal_chrome: f32,
+    /// Height reserved by field chrome outside the packed content area.
+    pub vertical_chrome: f32,
+    /// Minimum usable content width after chrome is removed.
+    pub min_content_width: f32,
+    /// Maximum number of rows shown before the host should use scrolling.
+    pub max_visible_rows: usize,
+}
+
+impl FlowFieldMetrics {
+    /// Construct field metrics from named already-resolved logical-pixel values.
+    pub const fn from_parts(parts: FlowFieldMetricsParts) -> Self {
+        Self {
+            flow: parts.flow,
+            horizontal_chrome: parts.horizontal_chrome,
+            vertical_chrome: parts.vertical_chrome,
+            min_content_width: parts.min_content_width,
+            max_visible_rows: parts.max_visible_rows,
+        }
+    }
+
+    /// Construct field metrics from resolved logical-pixel values.
+    pub const fn new(
+        flow: FlowLayoutMetrics,
+        horizontal_chrome: f32,
+        vertical_chrome: f32,
+        min_content_width: f32,
+        max_visible_rows: usize,
+    ) -> Self {
+        Self::from_parts(FlowFieldMetricsParts {
+            flow,
+            horizontal_chrome,
+            vertical_chrome,
+            min_content_width,
+            max_visible_rows,
+        })
+    }
+
+    /// Return the available row-packing width inside a containing field.
+    pub fn content_width(self, container_width: f32) -> f32 {
+        (container_width - self.horizontal_chrome.max(0.0)).max(self.min_content_width.max(0.0))
+    }
+
+    /// Return the row count visible before the field should scroll.
+    pub fn visible_row_count(self, row_count: usize) -> usize {
+        row_count.clamp(1, self.max_visible_rows.max(1))
+    }
+
+    /// Return the visible content height for the supplied packed row count.
+    pub fn visible_rows_height(self, row_count: usize) -> f32 {
+        flow_rows_height(self.visible_row_count(row_count), self.flow)
+    }
+
+    /// Return the full field height for the supplied packed row count.
+    pub fn visible_field_height(self, row_count: usize) -> f32 {
+        self.visible_rows_height(row_count) + self.vertical_chrome.max(0.0)
+    }
+
+    /// Return whether the supplied packed row count exceeds the visible limit.
+    pub fn requires_scroll(self, row_count: usize) -> bool {
+        row_count > self.max_visible_rows.max(1)
+    }
+}
+
 impl FlowLayoutMetrics {
     /// Construct metrics from named already-resolved logical-pixel values.
     pub const fn from_parts(parts: FlowLayoutMetricsParts) -> Self {
@@ -354,6 +439,21 @@ mod tests {
         assert_eq!(flow_rows_height(0, metrics()), 0.0);
         assert_eq!(flow_rows_height(1, metrics()), 18.0);
         assert_eq!(flow_rows_height(3, metrics()), 64.0);
+    }
+
+    #[test]
+    fn flow_field_metrics_clamps_content_width_and_visible_rows() {
+        let field = FlowFieldMetrics::new(metrics(), 26.0, 6.0, 120.0, 3);
+
+        assert_eq!(field.content_width(400.0), 374.0);
+        assert_eq!(field.content_width(80.0), 120.0);
+        assert_eq!(field.visible_row_count(0), 1);
+        assert_eq!(field.visible_row_count(2), 2);
+        assert_eq!(field.visible_row_count(8), 3);
+        assert_eq!(field.visible_rows_height(8), 64.0);
+        assert_eq!(field.visible_field_height(8), 70.0);
+        assert!(field.requires_scroll(4));
+        assert!(!field.requires_scroll(3));
     }
 
     #[test]

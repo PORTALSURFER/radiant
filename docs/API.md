@@ -1819,6 +1819,9 @@ remains. Use `push_flow_row_group` when several flow items, such as a prefix
 token plus its editor, should wrap atomically instead of splitting across rows.
 Use `capped_flow_rows_height(...)` when the editor should grow to a maximum
 visible row count before switching to a scrollable content area.
+Use `FlowFieldMetrics` when a bounded inline editor needs shared content-width,
+visible-height, and scroll-threshold calculations around the packed rows while
+the host still owns domain-specific labels, ordering, messages, and styling.
 
 `radiant::gui::form` contains reusable form and picker models such as
 `DecimalTextInputPolicy`, `SummaryField`, `OptionItem`, `OptionSelectionState`,

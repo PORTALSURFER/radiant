@@ -341,7 +341,8 @@ a nested control inside the current stacked item rather than the item's start
 edge.
 Timeline and waveform-style surfaces can use `IndexViewport` for generic
 integer range navigation. It owns clamping, visible fraction, scrollbar offset,
-anchor-preserving zoom, visible-span pan, and visible-to-absolute ratio
+anchor-preserving zoom, visible-span pan, `pan_by_visible_ratio_drag(...)` for
+drag gestures expressed as local ratios, and visible-to-absolute ratio
 projection, plus absolute-to-visible point and clipped range projection, so
 apps do not need to keep small-but-risky viewport math beside every custom
 canvas. `NormalizedRange::from_fractions(...)`,

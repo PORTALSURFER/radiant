@@ -169,6 +169,35 @@ impl IndexViewport {
         .clamp(total_items, min_visible_items)
     }
 
+    /// Return a viewport panned by the drag delta between two local ratios.
+    ///
+    /// This is useful for timeline, waveform, canvas, and similar surfaces
+    /// where a pointer drag should keep the original anchor item under the
+    /// pointer while the current pointer ratio moves inside the visible span.
+    pub fn pan_by_visible_ratio_drag(
+        self,
+        total_items: usize,
+        min_visible_items: usize,
+        anchor_ratio: f32,
+        current_ratio: f32,
+    ) -> Self {
+        let total_items = total_items.max(1);
+        let viewport = self.clamp(total_items, min_visible_items);
+        let visible = viewport.visible_items();
+        if visible >= total_items {
+            return viewport;
+        }
+        let anchor_ratio = finite_unit_or(anchor_ratio, 0.0);
+        let current_ratio = finite_unit_or(current_ratio, anchor_ratio);
+        let delta = ((current_ratio - anchor_ratio) * visible as f32).round() as isize;
+        let start = viewport.start.saturating_add_signed(-delta);
+        Self {
+            start,
+            end: start + visible,
+        }
+        .clamp(total_items, min_visible_items)
+    }
+
     /// Return a viewport moved to an offset fraction while preserving visible size.
     pub fn with_offset_fraction(
         self,

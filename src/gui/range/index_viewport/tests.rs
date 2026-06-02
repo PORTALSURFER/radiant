@@ -64,6 +64,29 @@ fn index_viewport_zooms_and_pans_around_visible_anchor() {
 }
 
 #[test]
+fn index_viewport_pans_by_visible_ratio_drag() {
+    let viewport = IndexViewport {
+        start: 12_000,
+        end: 36_000,
+    };
+
+    assert_eq!(
+        viewport.pan_by_visible_ratio_drag(96_000, 256, 0.5, 0.25),
+        IndexViewport {
+            start: 18_000,
+            end: 42_000,
+        }
+    );
+    assert_eq!(
+        viewport.pan_by_visible_ratio_drag(96_000, 256_000, 0.5, 0.75),
+        IndexViewport {
+            start: 0,
+            end: 96_000,
+        }
+    );
+}
+
+#[test]
 fn index_viewport_sets_offset_and_projects_visible_ratio() {
     let viewport = IndexViewport { start: 0, end: 250 }.with_offset_fraction(1_000, 100, 0.5);
 

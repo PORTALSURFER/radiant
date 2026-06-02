@@ -28,6 +28,32 @@ competing framework. They exist for custom hosts, tests, advanced widgets,
 diagnostics, and embedded integration where the application needs to drive a
 surface without the native window runner.
 
+### Prelude Export Hygiene
+
+`src/prelude.rs` is only the small facade for common application imports. It
+must not accumulate direct subsystem export lists. Add new prelude exports to
+the owning grouped file under `src/prelude/`:
+
+- `application.rs` for app builders, view builders, control builders, menu
+  builders, panel builders, task/update types, and stateful app helpers.
+- `gui.rs` for backend-neutral GUI models, layout helpers, selection,
+  shortcuts, visualization, text-layout, paint geometry, and form/panel state
+  helpers.
+- `layout.rs` for direct layout result/types that are part of common app-facing
+  signatures.
+- `runtime.rs` for commands, runtime services, paint primitives, native run
+  options, resources, drag/drop, windows, diagnostics, and retained surfaces.
+- `theme.rs` for theme-token exports.
+- `widgets.rs` for widget contracts, primitive widget parts, input/output
+  messages, interaction helpers, and widget visual tokens.
+
+Keep exports explicit inside those grouped files. Do not replace them with
+wildcard re-exports from owning subsystems, because that would let unrelated
+future public items leak into `radiant::prelude::*` without an API decision.
+When an item is useful but not common enough for normal app code, leave it on
+its owning explicit module such as `radiant::runtime`, `radiant::widgets`,
+`radiant::layout`, `radiant::theme`, or `radiant::gui`.
+
 ## Core Subsystems
 
 - `src/application` owns the application-builder runtime: state projection,

@@ -95,7 +95,6 @@ fn gui_svg_keeps_icon_parser_model_and_hit_testing_in_focused_modules() {
         "mod model;",
         "mod parser;",
         "pub use hit_test::point_in_svg_shapes;",
-        "pub use icon::SvgIcon;",
         "pub use model::{SvgDocument, SvgShape};",
         "pub use parser::parse_svg_document;",
     ] {
@@ -104,6 +103,13 @@ fn gui_svg_keeps_icon_parser_model_and_hit_testing_in_focused_modules() {
             "generic SVG root should keep public API re-exports while delegating `{required}`"
         );
     }
+    assert!(
+        root.contains("pub use icon::")
+            && root.contains("SvgIcon")
+            && root.contains("SvgIconTintCache")
+            && root.contains("svg_with_current_color"),
+        "generic SVG root should expose icon facade items from the icon module"
+    );
     assert!(
         root.contains("#[path = \"svg/tests.rs\"]")
             && !root.contains("fn svg_icon_appends_retained_svg_primitive")

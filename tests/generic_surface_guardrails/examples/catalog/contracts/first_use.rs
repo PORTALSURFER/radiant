@@ -40,7 +40,7 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         "toolbar_icons",
         &[
             "use radiant::prelude::*;",
-            "SvgIcon::from_svg(",
+            "SvgIconTintCache::new(",
             "PaintPrimitive::Svg(",
             "custom_widget_mapped(",
             "IconToggleButton::new(",

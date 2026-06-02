@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    gui::types::{Point, Vector2},
+    gui::types::{Point, Rgba8, Vector2},
     layout::LayoutOutput,
     runtime::PaintPrimitive,
     theme::ThemeTokens,
@@ -37,6 +37,35 @@ fn dense_visual_state_preserves_default_host_state() {
         row.dense_visual_state(InteractiveRowVisualStateParts::default()),
         DenseRowVisualState::default()
     );
+}
+
+#[test]
+fn push_dense_fill_uses_row_state_and_identity() {
+    let mut row = InteractiveRowWidget::new(7, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
+    row.common.state.hovered = true;
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let color = Rgba8::new(8, 9, 10, 180);
+    let mut primitives = Vec::new();
+
+    assert!(
+        row.push_dense_fill(
+            &mut primitives,
+            bounds,
+            InteractiveRowVisualStateParts {
+                selected: true,
+                ..InteractiveRowVisualStateParts::default()
+            },
+            DenseRowPalette::new()
+                .selected(Rgba8::new(1, 2, 3, 120))
+                .hovered(color),
+        )
+    );
+
+    assert!(matches!(
+        primitives.as_slice(),
+        [PaintPrimitive::FillRect(fill)]
+            if fill.widget_id == row.id() && fill.rect == bounds && fill.color == color
+    ));
 }
 
 #[test]

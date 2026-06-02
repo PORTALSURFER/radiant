@@ -1,6 +1,9 @@
 //! Reusable dense-list/tree row interaction primitive.
 
-use crate::gui::{list::DenseRowVisualState, types::Rect};
+use crate::gui::{
+    list::{DenseRowPalette, DenseRowVisualState, push_dense_row_fill},
+    types::Rect,
+};
 use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
@@ -206,6 +209,27 @@ impl InteractiveRowWidget {
             active_target: parts.active_target,
             candidate: parts.candidate,
         }
+    }
+
+    /// Push this row's highest-priority dense feedback fill into a custom paint plan.
+    ///
+    /// Custom row wrappers can use this when they compose an
+    /// `InteractiveRowWidget` for retained hover, pressed, drag, and drop state
+    /// but paint their own row content.
+    pub fn push_dense_fill(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        parts: InteractiveRowVisualStateParts,
+        palette: DenseRowPalette,
+    ) -> bool {
+        push_dense_row_fill(
+            primitives,
+            self.id(),
+            bounds,
+            self.dense_visual_state(parts),
+            palette,
+        )
     }
 
     /// Route input through this row and map the row message into a typed widget output.

@@ -235,6 +235,9 @@ interactive row for generic input behavior but exposes host-specific messages
 and custom paint. Use `InteractiveRowWidget::id()`, `common()`, and
 `common_mut()` when custom row wrappers need paint identity or widget-contract
 delegation without reading the embedded row field layout. Use
+`InteractiveRowWidget::push_dense_fill(...)` when a custom row painter should
+use the row's retained hover/pressed state plus host-owned selection or target
+state to append standard dense-row feedback. Use
 `InteractiveRowMessage::activation_modifiers()`,
 `single_activation_modifiers()`, `is_single_activation()`,
 `is_double_activation()`,

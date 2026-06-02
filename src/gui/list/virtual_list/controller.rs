@@ -188,6 +188,21 @@ impl VirtualListController {
         self.resolve()
     }
 
+    /// Update the item count and viewport from a logical scroll offset.
+    ///
+    /// Use this when a native scroll container reports a pixel offset while the
+    /// host application also owns filters, searches, or selections that can
+    /// change the total logical item count between scroll events.
+    pub fn set_scroll_offset_for_items(
+        &mut self,
+        total_items: usize,
+        offset: f32,
+        row_extent: f32,
+    ) -> VirtualListWindow {
+        self.set_total_items(total_items);
+        self.set_scroll_offset(offset, row_extent)
+    }
+
     /// Scroll the viewport by signed logical rows.
     pub fn scroll_rows(&mut self, rows: isize) -> Option<VirtualListWindow> {
         let next = virtual_list_view_start_after_scroll_delta(
@@ -319,5 +334,19 @@ mod tests {
         assert_eq!(window.total_items, 24);
         assert_eq!(window.viewport_len(), 0);
         assert_eq!(controller.viewport_start(), 23);
+    }
+
+    #[test]
+    fn set_scroll_offset_for_items_updates_count_before_clamping_scroll() {
+        let mut controller = VirtualListController::with_items(100, 10);
+        controller.focus(70);
+
+        let window = controller.set_scroll_offset_for_items(18, 99.0 * 22.0, 22.0);
+
+        assert_eq!(window.total_items, 18);
+        assert_eq!(window.viewport_start, 8);
+        assert_eq!(controller.total_items(), 18);
+        assert_eq!(controller.viewport_start(), 8);
+        assert_eq!(controller.focused_index(), None);
     }
 }

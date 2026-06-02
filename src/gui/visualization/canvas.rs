@@ -298,6 +298,123 @@ pub fn canvas_selection_rect(bounds: Rect, start_fraction: f32, end_fraction: f3
     ))
 }
 
+/// Explicit parts for building reusable normalized canvas selection geometry.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CanvasSelectionGeometryParts {
+    /// Canvas bounds containing the normalized selection.
+    pub bounds: Rect,
+    /// Normalized selection start.
+    pub start_fraction: f32,
+    /// Normalized selection end.
+    pub end_fraction: f32,
+}
+
+/// Projected geometry for one horizontal normalized canvas selection.
+///
+/// The geometry is domain-neutral: hosts decide whether the range represents
+/// audio, time, data, or graphics, then map the returned generic affordances to
+/// their own actions.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CanvasSelectionGeometry {
+    /// Canvas bounds containing the normalized selection.
+    pub bounds: Rect,
+    /// Normalized selection start.
+    pub start_fraction: f32,
+    /// Normalized selection end.
+    pub end_fraction: f32,
+    /// Projected selection rectangle.
+    pub rect: Rect,
+}
+
+impl CanvasSelectionGeometry {
+    /// Build projected selection geometry from named parts.
+    pub fn from_parts(parts: CanvasSelectionGeometryParts) -> Option<Self> {
+        let start_fraction = normalized_fraction(parts.start_fraction);
+        let end_fraction = normalized_fraction(parts.end_fraction);
+        let rect = canvas_selection_rect(parts.bounds, start_fraction, end_fraction)?;
+        Some(Self {
+            bounds: parts.bounds,
+            start_fraction,
+            end_fraction,
+            rect,
+        })
+    }
+
+    /// Build projected selection geometry.
+    pub fn new(bounds: Rect, start_fraction: f32, end_fraction: f32) -> Option<Self> {
+        Self::from_parts(CanvasSelectionGeometryParts {
+            bounds,
+            start_fraction,
+            end_fraction,
+        })
+    }
+
+    /// Return the top body-handle rectangle for moving this selection.
+    pub fn body_handle_rect(
+        self,
+        height: f32,
+        end_inset: f32,
+        max_end_inset_fraction: f32,
+        min_width_after_inset: f32,
+    ) -> Option<Rect> {
+        canvas_selection_body_handle_rect(CanvasSelectionBodyHandleParts {
+            bounds: self.bounds,
+            start_fraction: self.start_fraction,
+            end_fraction: self.end_fraction,
+            height,
+            end_inset,
+            max_end_inset_fraction,
+            min_width_after_inset,
+        })
+    }
+
+    /// Return a bottom-trailing control square for this selection.
+    pub fn trailing_control_rect(self, side: f32, inset: f32) -> Option<Rect> {
+        canvas_selection_trailing_control_rect(
+            self.bounds,
+            self.start_fraction,
+            self.end_fraction,
+            side,
+            inset,
+        )
+    }
+
+    /// Return the visible edge handle for this selection in `bounds`.
+    ///
+    /// `bounds` may be the full canvas or a vertical strip reserved for edge
+    /// affordances.
+    pub fn edge_visual_rect(
+        self,
+        bounds: Rect,
+        role: DragHandleRole,
+        width: f32,
+        vertical_inset: f32,
+    ) -> Option<Rect> {
+        let fraction = match role {
+            DragHandleRole::Start => self.start_fraction,
+            DragHandleRole::End => self.end_fraction,
+            _ => return None,
+        };
+        canvas_selection_edge_visual_rect(bounds, fraction, width, vertical_inset)
+    }
+
+    /// Return the first resize edge role containing `point`.
+    pub fn edge_at_point(
+        self,
+        bounds: Rect,
+        point: Point,
+        width: f32,
+        vertical_inset: f32,
+    ) -> Option<DragHandleRole> {
+        [DragHandleRole::Start, DragHandleRole::End]
+            .into_iter()
+            .find(|role| {
+                self.edge_visual_rect(bounds, *role, width, vertical_inset)
+                    .is_some_and(|rect| rect.contains(point))
+            })
+    }
+}
+
 /// Parameters for projecting an interior selection move/body handle.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CanvasSelectionBodyHandleParts {

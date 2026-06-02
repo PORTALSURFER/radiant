@@ -1,7 +1,7 @@
 use super::super::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts,
-    CanvasSelectionBodyHandleParts, DragHandle, DragHandleRole, canvas_layer_at_point,
-    canvas_selection_body_handle_rect, canvas_selection_edge_handles,
+    CanvasSelectionBodyHandleParts, CanvasSelectionGeometry, DragHandle, DragHandleRole,
+    canvas_layer_at_point, canvas_selection_body_handle_rect, canvas_selection_edge_handles,
     canvas_selection_edge_visual_rect, canvas_selection_rect,
     canvas_selection_trailing_control_rect, drag_handle_at_point,
     horizontal_resize_edge_bracket_rects, horizontal_resize_edge_handles,
@@ -215,6 +215,47 @@ fn canvas_selection_rect_projects_normalized_range() {
             Point::new(10.0, 20.0),
             Point::new(110.0, 120.0)
         ))
+    );
+}
+
+#[test]
+fn canvas_selection_geometry_projects_common_affordances() {
+    let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 120.0));
+    let geometry = CanvasSelectionGeometry::new(bounds, 0.2, 0.6).expect("geometry");
+
+    assert_eq!(
+        geometry.rect,
+        Rect::from_min_max(Point::new(50.0, 20.0), Point::new(130.0, 120.0))
+    );
+    assert_eq!(
+        geometry.body_handle_rect(7.0, 9.0, 0.28, 1.0),
+        Some(Rect::from_min_max(
+            Point::new(59.0, 20.0),
+            Point::new(121.0, 27.0)
+        ))
+    );
+    assert_eq!(
+        geometry.trailing_control_rect(16.0, 0.0),
+        Some(Rect::from_min_max(
+            Point::new(114.0, 104.0),
+            Point::new(130.0, 120.0)
+        ))
+    );
+    assert_eq!(
+        geometry.edge_visual_rect(bounds.top_edge_strip(22.0), DragHandleRole::End, 7.0, 0.0),
+        Some(Rect::from_min_max(
+            Point::new(126.5, 20.0),
+            Point::new(133.5, 42.0)
+        ))
+    );
+    assert_eq!(
+        geometry.edge_at_point(
+            bounds.top_edge_strip(22.0),
+            Point::new(130.0, 24.0),
+            7.0,
+            0.0
+        ),
+        Some(DragHandleRole::End)
     );
 }
 

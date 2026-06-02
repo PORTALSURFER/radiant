@@ -1745,10 +1745,13 @@ synchronization while avoiding host-domain text semantics.
 `TimelineAxis`, `TimelineLaneLayout`, `TimelineViewport`,
 `TimelineTransportState`, `TimelineEditPreview`, `TimelineFeedbackEvents`,
 `TimelinePresentationState`, `SignalRasterPreview`, `TimelineSurfaceParts`,
-`TimelineSurfaceState`, `TimelineMotionState`, and
+`TimelineSurfaceState`, `TimelineMotionState`, `CanvasSelectionGeometry`, and
 `normalized_milli_point_in_rect`. Hosts can map product-specific media,
-timeline values, lanes, or spatial surfaces into these reusable visualization
-slots while keeping domain workflow state outside Radiant.
+timeline values, lanes, normalized selections, or spatial surfaces into these
+reusable visualization slots while keeping domain workflow state outside
+Radiant. Use `CanvasSelectionGeometry` when one projected normalized selection
+needs several generic affordances such as a body move handle, resize edge
+visuals, or a trailing control.
 
 ## Invalidation And Lifecycle
 

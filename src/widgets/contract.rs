@@ -5,12 +5,14 @@
 //! responsibilities and vocabulary rather than locking `radiant` into one
 //! retained-tree implementation.
 
+mod identity;
 mod paint;
 mod sizing;
 mod state;
 mod style;
 mod widget;
 
+pub use identity::stable_widget_id;
 pub use paint::{PaintBounds, PaintContract};
 pub use sizing::{WidgetId, WidgetSizing, WidgetSizingParts};
 pub use state::{FocusBehavior, WidgetState};

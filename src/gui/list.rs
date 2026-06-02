@@ -15,10 +15,10 @@ pub use editable::{
 pub use geometry::{bounded_list_height, bounded_list_visible_rows};
 pub use grid::{VirtualGridWindow, VirtualGridWindowRequest, resolve_virtual_grid_window};
 pub use row_paint::{
-    DenseRowMarkerEdge, DenseRowMarkerParts, DenseRowPalette, DenseRowVisualState,
-    dense_row_fill_color, dense_row_inset_rect, dense_row_label_font_size,
+    DenseRowLabelParts, DenseRowMarkerEdge, DenseRowMarkerParts, DenseRowPalette,
+    DenseRowVisualState, dense_row_fill_color, dense_row_inset_rect, dense_row_label_font_size,
     dense_row_vertical_marker_rect, push_dense_row_fill, push_dense_row_inset_stroke,
-    push_dense_row_vertical_marker,
+    push_dense_row_label, push_dense_row_vertical_marker,
 };
 pub use selection::{
     KeyedListSelection, ListSelectionController, ListSelectionIntent, ListSelectionModifiers,

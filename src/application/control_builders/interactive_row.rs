@@ -1,9 +1,9 @@
 use crate::{
-    application::{MappedWidget, ViewNode, view_node_from_widget},
+    application::{MappedWidget, ViewNode, input_underlay, view_node_from_widget},
     runtime::WidgetMessageMapper,
     widgets::{
-        FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds, WidgetProminence,
-        WidgetSizing, WidgetStyle,
+        FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds, WidgetId,
+        WidgetProminence, WidgetSizing, WidgetStyle,
     },
 };
 
@@ -245,6 +245,80 @@ impl InteractiveRowBuilder {
     }
 }
 
+/// Builder for arbitrary row content backed by a generic interactive row.
+pub struct InteractiveRowUnderlayBuilder<Message> {
+    content: ViewNode<Message>,
+    row: InteractiveRowBuilder,
+    input_id: Option<WidgetId>,
+    style: Option<WidgetStyle>,
+}
+
+impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
+    /// Configure the backing interactive row before binding messages.
+    pub fn row(
+        mut self,
+        configure: impl FnOnce(InteractiveRowBuilder) -> InteractiveRowBuilder,
+    ) -> Self {
+        self.row = configure(self.row);
+        self
+    }
+
+    /// Assign a stable widget id to the backing interactive row.
+    pub fn input_id(mut self, id: WidgetId) -> Self {
+        self.input_id = Some(id);
+        self
+    }
+
+    /// Apply an explicit style to the backing interactive row.
+    pub fn style(mut self, style: WidgetStyle) -> Self {
+        self.style = Some(style);
+        self
+    }
+
+    /// Emit mapped host messages for row interactions.
+    pub fn mapped(
+        self,
+        map: impl Fn(InteractiveRowMessage) -> Message + Send + Sync + 'static,
+    ) -> ViewNode<Message> {
+        let Self {
+            content,
+            row,
+            input_id,
+            style,
+        } = self;
+        Self::finish_parts(content, row.mapped(map), input_id, style)
+    }
+
+    /// Emit host messages for selected row interactions.
+    pub fn filter_mapped(
+        self,
+        map: impl Fn(InteractiveRowMessage) -> Option<Message> + Send + Sync + 'static,
+    ) -> ViewNode<Message> {
+        let Self {
+            content,
+            row,
+            input_id,
+            style,
+        } = self;
+        Self::finish_parts(content, row.filter_mapped(map), input_id, style)
+    }
+
+    fn finish_parts(
+        content: ViewNode<Message>,
+        mut input: ViewNode<Message>,
+        input_id: Option<WidgetId>,
+        style: Option<WidgetStyle>,
+    ) -> ViewNode<Message> {
+        if let Some(id) = input_id {
+            input = input.id(id);
+        }
+        if let Some(style) = style {
+            input = input.style(style);
+        }
+        input_underlay(content, input)
+    }
+}
+
 /// Build an interactive dense row hit surface.
 pub fn interactive_row() -> InteractiveRowBuilder {
     InteractiveRowBuilder {
@@ -265,5 +339,80 @@ pub fn interactive_row() -> InteractiveRowBuilder {
         activation_modifiers: false,
         pointer_motion_during_interaction: false,
         pointer_motion_active: false,
+    }
+}
+
+/// Build arbitrary visible content backed by an interactive row underlay.
+///
+/// The content remains visible above the row, while the backing row owns
+/// activation, secondary activation, drag, drop, focus, and row feedback paint.
+pub fn interactive_row_underlay<Message: 'static>(
+    content: ViewNode<Message>,
+) -> InteractiveRowUnderlayBuilder<Message> {
+    InteractiveRowUnderlayBuilder {
+        content,
+        row: interactive_row(),
+        input_id: None,
+        style: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        application::{IntoView, text},
+        gui::types::{Point, Rect},
+        layout::Vector2,
+        runtime::{PaintPrimitive, UiSurface},
+        widgets::WidgetOutput,
+    };
+
+    #[derive(Clone, Debug, PartialEq)]
+    enum DemoMessage {
+        Activate,
+    }
+
+    #[test]
+    fn interactive_row_underlay_preserves_input_widget_identity() {
+        let view = interactive_row_underlay(text("Collection"))
+            .input_id(770)
+            .filter_mapped(|message| {
+                message
+                    .is_single_activation()
+                    .then_some(DemoMessage::Activate)
+            })
+            .size(140.0, 22.0);
+
+        assert_eq!(
+            view.view_dispatch_widget_output(
+                770,
+                WidgetOutput::typed(InteractiveRowMessage::Activate),
+            ),
+            Some(DemoMessage::Activate)
+        );
+    }
+
+    #[test]
+    fn interactive_row_underlay_paints_visible_content() {
+        let frame = UiSurface::new(
+            interactive_row_underlay(text("Collection"))
+                .mapped(|_| ())
+                .size(140.0, 22.0)
+                .into_node(),
+        )
+        .frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+            &Default::default(),
+        );
+
+        let paints_label = frame.paint_plan.primitives.iter().any(
+            |primitive| matches!(primitive, PaintPrimitive::Text(text) if text.text == "Collection"),
+        );
+
+        assert!(
+            paints_label,
+            "interactive row underlay should paint visible content"
+        );
     }
 }

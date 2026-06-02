@@ -1566,7 +1566,11 @@ sandbox with padding and fill sizing.
 Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that
 uses `grid_with_gaps(...)` with normal nested views and styling.
 Run `cargo run --example tree_and_details` for tree-list and sortable details
-list composition with drag-aware row controls.
+list composition with drag-aware row controls. Use
+`interactive_row_underlay(content)` when arbitrary visible row content should
+stay above a generic interactive row that owns activation, secondary
+activation, drag, drop, focus, and row feedback paint while preserving a stable
+input widget id for dispatch and tests.
 Run `cargo run --example theme_playground` for a theme-token sandbox that
 compares density scale, tone, prominence, and interactive state through normal
 application views. It is intended to make theme policy visually inspectable, not

@@ -4,9 +4,10 @@ use radiant::{
     layout::Vector2,
     runtime::{
         App, DeclarativeOwnedRuntimeBridge, DeclarativeOwnedRuntimeBridgeParts,
-        DeclarativeRuntimeBridge, DeclarativeRuntimeBridgeParts, RuntimeBridge, SurfaceChild,
-        SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
-        declarative_owned_runtime_bridge, declarative_runtime_bridge,
+        DeclarativeOwnedSurfaceRuntime, DeclarativeRuntimeBridge, DeclarativeRuntimeBridgeParts,
+        DeclarativeSurfaceRuntime, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime,
+        UiSurface, WidgetMessageMapper, declarative_owned_runtime_bridge,
+        declarative_runtime_bridge,
     },
     widgets::{
         ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, Widget,
@@ -97,6 +98,20 @@ fn display_name(state: &DemoState) -> &str {
     }
 }
 
+type SharedDemoRuntime = DeclarativeSurfaceRuntime<
+    DemoState,
+    DemoMessage,
+    fn(&mut DemoState) -> Arc<UiSurface<DemoMessage>>,
+    fn(&mut DemoState, DemoMessage),
+>;
+
+type OwnedDemoRuntime = DeclarativeOwnedSurfaceRuntime<
+    DemoState,
+    DemoMessage,
+    fn(&mut DemoState) -> UiSurface<DemoMessage>,
+    fn(&mut DemoState, DemoMessage),
+>;
+
 #[test]
 fn declarative_runtime_bridges_support_named_parts_construction() {
     let mut bridge = DeclarativeRuntimeBridge::from_parts(DeclarativeRuntimeBridgeParts {
@@ -162,4 +177,31 @@ fn surface_runtime_can_build_declarative_bridges_directly() {
             .paint_plan
             .contains_text("Owned (0)")
     );
+}
+
+#[test]
+fn declarative_surface_runtime_aliases_name_common_host_shapes() {
+    let mut shared: SharedDemoRuntime = SurfaceRuntime::new_declarative(
+        DemoState::default(),
+        Vector2::new(320.0, 120.0),
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+        },
+    );
+    shared.dispatch_message(DemoMessage::Increment);
+    assert_eq!(shared.bridge().state().count, 1);
+
+    let mut owned: OwnedDemoRuntime = SurfaceRuntime::new_declarative_owned(
+        DemoState::default(),
+        Vector2::new(320.0, 120.0),
+        project_owned_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+        },
+    );
+    owned.dispatch_message(DemoMessage::Rename(String::from("Alias")));
+    assert_eq!(owned.bridge().state().name, "Alias");
 }

@@ -77,6 +77,21 @@ where
     runtime_work: RuntimeWorkQueues<Message>,
 }
 
+/// Runtime controller for shared-surface declarative hosts.
+///
+/// This alias keeps app tests and lightweight hosts from spelling the full
+/// `SurfaceRuntime<DeclarativeRuntimeBridge<...>, Message>` stack when they do
+/// not need to name the bridge type separately.
+pub type DeclarativeSurfaceRuntime<State, Message, Project, Reduce> =
+    SurfaceRuntime<super::DeclarativeRuntimeBridge<State, Message, Project, Reduce>, Message>;
+
+/// Runtime controller for owned-surface declarative hosts.
+///
+/// Use this when a host projects a fresh [`UiSurface`] on each refresh and only
+/// needs to name the runtime controller type, not the intermediate owned bridge.
+pub type DeclarativeOwnedSurfaceRuntime<State, Message, Project, Reduce> =
+    SurfaceRuntime<super::DeclarativeOwnedRuntimeBridge<State, Message, Project, Reduce>, Message>;
+
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,

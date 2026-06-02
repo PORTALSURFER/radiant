@@ -612,6 +612,10 @@ Stateful embedding tests and custom hosts that do need a `SurfaceRuntime` can
 skip the intermediate bridge variable with `SurfaceRuntime::new_declarative(...)`
 or `SurfaceRuntime::new_declarative_owned(...)`, depending on whether the view
 projector returns a shared `Arc<UiSurface<_>>` or a fresh owned `UiSurface<_>`.
+Use `DeclarativeSurfaceRuntime<State, Message, Project, Reduce>` or
+`DeclarativeOwnedSurfaceRuntime<State, Message, Project, Reduce>` when a test
+fixture, helper, or host adapter needs to name one of those common runtime
+controller shapes without spelling the full bridge stack.
 
 ## View, Element, And Widget
 

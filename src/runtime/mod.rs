@@ -52,8 +52,9 @@ pub use command::{
     Command, RepaintScope, ScrollFixedRowIntoViewParts, ScrollIntoViewParts, TaskPriority,
 };
 pub use controller::{
-    CommandOutcome, Event, FocusTraversal, PointerClickOutcome, PointerMoveOutcome, RuntimeContext,
-    RuntimeSurfaceFrame, RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceRuntime,
+    CommandOutcome, DeclarativeOwnedSurfaceRuntime, DeclarativeSurfaceRuntime, Event,
+    FocusTraversal, PointerClickOutcome, PointerMoveOutcome, RuntimeContext, RuntimeSurfaceFrame,
+    RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceRuntime,
 };
 pub use diagnostics::{
     NativeCompositedBaseTiming, NativeFrameDiagnostics, NativeFrameTimingDiagnostics,

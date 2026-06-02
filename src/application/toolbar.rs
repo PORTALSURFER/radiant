@@ -15,9 +15,14 @@ pub enum ToolbarAlignment {
 
 /// Named construction fields for a compact toolbar or action strip.
 pub struct ToolbarParts<Message> {
-    /// Ordered controls shown in the toolbar.
+    /// Ordered controls shown in the leading toolbar group.
     pub controls: Vec<ViewNode<Message>>,
+    /// Ordered controls shown against the trailing edge.
+    pub trailing_controls: Vec<ViewNode<Message>>,
     /// Horizontal control alignment inside the available width.
+    ///
+    /// When trailing controls are present, the leading group remains at the
+    /// start and trailing controls are placed after a flexible spacer.
     pub alignment: ToolbarAlignment,
     /// Total toolbar height.
     pub height: f32,
@@ -38,6 +43,7 @@ impl<Message> ToolbarParts<Message> {
     pub fn new(controls: impl IntoIterator<Item = ViewNode<Message>>) -> Self {
         Self {
             controls: controls.into_iter().collect(),
+            trailing_controls: Vec::new(),
             alignment: ToolbarAlignment::Start,
             height: 34.0,
             spacing: 4.0,
@@ -51,6 +57,21 @@ impl<Message> ToolbarParts<Message> {
     /// Align controls to the trailing edge.
     pub fn align_end(mut self) -> Self {
         self.alignment = ToolbarAlignment::End;
+        self
+    }
+
+    /// Add one control against the trailing edge.
+    pub fn trailing(mut self, control: ViewNode<Message>) -> Self {
+        self.trailing_controls.push(control);
+        self
+    }
+
+    /// Add controls against the trailing edge.
+    pub fn trailing_controls(
+        mut self,
+        controls: impl IntoIterator<Item = ViewNode<Message>>,
+    ) -> Self {
+        self.trailing_controls.extend(controls);
         self
     }
 
@@ -95,11 +116,16 @@ pub fn toolbar<Message: 'static>(
 
 /// Build a compact toolbar or action strip from named parts.
 pub fn toolbar_from_parts<Message: 'static>(parts: ToolbarParts<Message>) -> ViewNode<Message> {
-    let mut children = Vec::with_capacity(parts.controls.len() + 1);
-    if parts.alignment == ToolbarAlignment::End {
+    let has_trailing_controls = !parts.trailing_controls.is_empty();
+    let mut children = Vec::with_capacity(parts.controls.len() + parts.trailing_controls.len() + 1);
+    if parts.alignment == ToolbarAlignment::End && !has_trailing_controls {
         children.push(spacer().height(parts.spacer_height).fill_width());
     }
     children.extend(parts.controls);
+    if has_trailing_controls {
+        children.push(spacer().height(parts.spacer_height).fill_width());
+        children.extend(parts.trailing_controls);
+    }
     row(children)
         .padding_x(parts.padding_x)
         .padding_y(parts.padding_y)
@@ -139,6 +165,32 @@ mod tests {
         assert!(matches!(
             row.children[1].slot.size_main,
             SizeModeMain::Fixed(width) if (width - 28.0).abs() < 0.01
+        ));
+    }
+
+    #[test]
+    fn toolbar_places_trailing_controls_after_flexible_spacer() {
+        let view = toolbar_from_parts(
+            ToolbarParts::new([button("A").message(()).width(28.0).height(24.0)])
+                .trailing(button("B").message(()).width(40.0).height(24.0)),
+        );
+
+        let layout = view.into_surface().layout_node();
+        let LayoutNode::Container(row) = layout else {
+            panic!("toolbar should lower to a row");
+        };
+        assert_eq!(row.children.len(), 3);
+        assert!(matches!(
+            row.children[0].slot.size_main,
+            SizeModeMain::Fixed(width) if (width - 28.0).abs() < 0.01
+        ));
+        assert!(matches!(
+            row.children[1].slot.size_main,
+            SizeModeMain::Fill(_)
+        ));
+        assert!(matches!(
+            row.children[2].slot.size_main,
+            SizeModeMain::Fixed(width) if (width - 40.0).abs() < 0.01
         ));
     }
 }

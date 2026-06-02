@@ -873,7 +873,8 @@ the largest fixed item extent that fits a compact row after caller-reserved gaps
 Application-builder toolbars can use `ToolbarParts`, `ToolbarAlignment`,
 `toolbar(...)`, and `toolbar_from_parts(...)` when the app owns the ordered
 controls but Radiant should own the compact row chrome, spacing, padding,
-height, and leading/trailing alignment.
+height, start/end alignment, and two-ended strips with
+`ToolbarParts::trailing(...)` or `ToolbarParts::trailing_controls(...)`.
 Declarative views can use `SurfaceNode::scroll_area` and
 `SurfaceNode::virtual_scroll_area` for the scroll viewport itself, then project
 generic rows, cards, images, badges, selectables, or host-defined canvas cells as
@@ -1587,8 +1588,8 @@ Run `cargo run --example toolbar_icons` for a horizontal SVG-icon toolbar
 sandbox that uses custom toggle buttons, state-driven active highlights, and
 muted inactive vector icons. Compact action strips can use `ToolbarParts`,
 `ToolbarAlignment`, `toolbar(...)`, and `toolbar_from_parts(...)` when host code
-owns the controls and Radiant should own alignment, row height, spacing, and
-padding.
+owns the controls and Radiant should own alignment, row height, spacing,
+padding, and optional trailing controls.
 Run `cargo run --example svg` for a focused SVG icon sandbox that parses
 inline vector assets through `SvgIcon::from_svg(...)` and paints them through
 the standard `icon_button(...)` builder. For common compact controls, use

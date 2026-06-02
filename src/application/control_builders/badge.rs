@@ -60,6 +60,11 @@ impl BadgeBuilder {
         }
     }
 
+    /// Build a passive badge view without host messages.
+    pub fn passive<Message: 'static>(self) -> ViewNode<Message> {
+        self.passive_view()
+    }
+
     /// Emit one cloned host message when activated.
     pub fn message<Message>(self, message: Message) -> ViewNode<Message>
     where
@@ -390,5 +395,26 @@ mod tests {
             paints_label,
             "interactive badge should paint its badge label"
         );
+    }
+
+    #[test]
+    fn badge_builder_passive_paints_without_host_message() {
+        let frame = UiSurface::new(
+            badge("Passive")
+                .subtle()
+                .passive::<()>()
+                .size(100.0, 22.0)
+                .into_node(),
+        )
+        .frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 22.0)),
+            &Default::default(),
+        );
+
+        let paints_label = frame.paint_plan.primitives.iter().any(
+            |primitive| matches!(primitive, PaintPrimitive::Text(text) if text.text == "Passive"),
+        );
+
+        assert!(paints_label, "passive badge should paint its label");
     }
 }

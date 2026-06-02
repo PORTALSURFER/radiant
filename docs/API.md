@@ -1524,12 +1524,13 @@ wrapping, truncation, fixed text heights, fill sizing, and explicit baselines
 through the application-builder API.
 Run `cargo run --example widget_gallery` for a reusable-widget gallery that
 shows `badge(...)`, `selectable(...)`, and passive `card()` composition through
-the prelude builders. Use `interactive_badge(...)` when a badge or pill should
-keep standard badge chrome while emitting generic dense-row interactions such
-as primary activation, secondary activation, drag, drop, or drop-hover. This is
-useful for labels, chips, tags, tokens, and compact filter pills that need
-richer interaction than a simple badge click without hand-building transparent
-input overlays in application code.
+the prelude builders. Use `badge(...).passive()` when a styled or active badge
+should paint without emitting host messages. Use `interactive_badge(...)` when
+a badge or pill should keep standard badge chrome while emitting generic
+dense-row interactions such as primary activation, secondary activation, drag,
+drop, or drop-hover. This is useful for labels, chips, tags, tokens, and
+compact filter pills that need richer interaction than a simple badge click
+without hand-building transparent input overlays in application code.
 Run `cargo run --example custom_widget` for a custom widget authoring sandbox
 that implements paint and input dispatch through the public widget trait.
 Run `cargo run --example volume_slider` for a focused parameter-control sandbox

@@ -19,7 +19,9 @@ mod text_input;
 mod toggle;
 
 pub use action_row::{ActionRowBuilder, DEFAULT_ACTION_ROW_HEIGHT, action_row};
-pub use badge::{BadgeBuilder, badge, badge_mapped, badge_message};
+pub use badge::{
+    BadgeBuilder, InteractiveBadgeBuilder, badge, badge_mapped, badge_message, interactive_badge,
+};
 pub use button::{ButtonBuilder, button, button_mapped, button_message};
 pub use color_marker::{ColorMarkerBuilder, color_marker};
 pub use drag_handle::{DragHandleBuilder, drag_handle, drag_handle_mapped};

@@ -6,6 +6,8 @@ use crate::gui::layout_core::StackedLayoutCursor;
 enum Message {
     Toggle,
     Select(&'static str),
+    SelectString(String),
+    SelectOptionalString(Option<String>),
 }
 
 #[test]
@@ -94,6 +96,55 @@ fn dropdown_option_named_selection_constructors_make_state_explicit() {
     assert!(!unselected.selected);
     assert_eq!(from_selection.label, "Device default");
     assert!(!from_selection.selected);
+}
+
+#[test]
+fn dropdown_option_value_constructor_selects_matching_value() {
+    let selected = String::from("wasapi");
+    let option = DropdownOption::for_value(
+        "WASAPI",
+        String::from("wasapi"),
+        &selected,
+        Message::SelectString,
+    );
+    let unselected = DropdownOption::for_value(
+        "ASIO",
+        String::from("asio"),
+        &selected,
+        Message::SelectString,
+    );
+
+    assert!(option.selected);
+    assert_eq!(
+        option.message,
+        Message::SelectString(String::from("wasapi"))
+    );
+    assert!(!unselected.selected);
+}
+
+#[test]
+fn dropdown_option_optional_value_constructor_selects_none_and_some() {
+    let none_option = DropdownOption::for_optional_value(
+        "System default",
+        None::<String>,
+        None,
+        Message::SelectOptionalString,
+    );
+    let selected = String::from("Scarlett");
+    let device_option = DropdownOption::for_optional_value(
+        "Scarlett",
+        Some(String::from("Scarlett")),
+        Some(&selected),
+        Message::SelectOptionalString,
+    );
+
+    assert!(none_option.selected);
+    assert_eq!(none_option.message, Message::SelectOptionalString(None));
+    assert!(device_option.selected);
+    assert_eq!(
+        device_option.message,
+        Message::SelectOptionalString(Some(String::from("Scarlett")))
+    );
 }
 
 #[test]

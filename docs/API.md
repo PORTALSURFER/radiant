@@ -672,10 +672,14 @@ can distinguish current-value state from the host message routed on activation.
 Use `DropdownOption::from_selection(...)` when constructing options from
 computed state, and `DropdownOption::selected(...)` or
 `DropdownOption::unselected(...)` when the option state is static at the call
-site. The older `DropdownOption::new(label, selected, message)` constructor
+site. Use `DropdownOption::for_value(...)` or
+`DropdownOption::for_optional_value(...)` when a dynamic option list is built
+from concrete values and the host message should carry the selected value; the
+helpers compare against the current selection before mapping the value into a
+message. The older `DropdownOption::new(label, selected, message)` constructor
 remains available for compatibility, but new code should prefer the named
-selection constructors when readability would otherwise depend on a positional
-boolean.
+selection or value constructors when readability would otherwise depend on a
+positional boolean.
 
 Single-line text editing is split between reusable state and widget routing:
 `TextInputState` owns the portable value, caret, and selection model, while

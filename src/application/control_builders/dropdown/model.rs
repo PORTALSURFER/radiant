@@ -77,6 +77,38 @@ impl<Message> DropdownOption<Message> {
         Self::from_selection(label, DropdownOptionSelection::Unselected, message)
     }
 
+    /// Build one dropdown option from a concrete value and current selection.
+    pub fn for_value<Value>(
+        label: impl Into<String>,
+        value: Value,
+        selected: &Value,
+        message: impl FnOnce(Value) -> Message,
+    ) -> Self
+    where
+        Value: PartialEq,
+    {
+        let selection = DropdownOptionSelection::from_selected(value == *selected);
+        Self::from_selection(label, selection, message(value))
+    }
+
+    /// Build one dropdown option from an optional value and current optional selection.
+    pub fn for_optional_value<Value>(
+        label: impl Into<String>,
+        value: Option<Value>,
+        selected: Option<&Value>,
+        message: impl FnOnce(Option<Value>) -> Message,
+    ) -> Self
+    where
+        Value: PartialEq,
+    {
+        let selection = DropdownOptionSelection::from_selected(match (value.as_ref(), selected) {
+            (Some(value), Some(selected)) => value == selected,
+            (None, None) => true,
+            _ => false,
+        });
+        Self::from_selection(label, selection, message(value))
+    }
+
     /// Build one dropdown option.
     pub fn new(label: impl Into<String>, selected: bool, message: Message) -> Self {
         Self::from_selection(

@@ -940,7 +940,9 @@ integer `IndexViewport` ranges,
 `TimelineTransportState` for cursor/playhead/selection positions,
 `TimelineEditPreview` and `TimelineEditPreviewParts` for editable range and
 fade/curve handles, plus `TimelineEditHandle` and
-`TimelineEditHandleGeometry` for standard edit-handle projection and hit
+`TimelineEditHandleGeometry` for standard edit-handle projection,
+`TimelineEditHandle::standard_order()` for default edit-handle priority, and
+`TimelineEditPreview::standard_handle_at(...)` for standard edit-handle hit
 testing, and `TimelineEditRegion` plus `TimelineEditRegionGeometry` for
 leading/trailing edit-region projection,
 `TimelineFeedbackEvents` for transient operation feedback tokens,

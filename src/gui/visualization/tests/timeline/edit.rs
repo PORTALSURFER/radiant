@@ -135,6 +135,43 @@ fn timeline_edit_preview_hit_tests_outer_handles_outside_selection_rect() {
 }
 
 #[test]
+fn timeline_edit_handle_standard_order_prioritizes_inner_handles() {
+    assert_eq!(
+        TimelineEditHandle::standard_order(),
+        [
+            TimelineEditHandle::LeadingEnd,
+            TimelineEditHandle::TrailingStart,
+            TimelineEditHandle::LeadingStart,
+            TimelineEditHandle::TrailingEnd,
+            TimelineEditHandle::LeadingOuterStart,
+            TimelineEditHandle::TrailingOuterEnd,
+        ]
+    );
+}
+
+#[test]
+fn timeline_edit_preview_standard_handle_at_uses_standard_priority() {
+    let preview = TimelineEditPreview::from_parts(TimelineEditPreviewParts {
+        selection: Some(NormalizedRange::from_micros(200_000, 600_000)),
+        leading_end_micros: Some(200_000),
+        ..TimelineEditPreviewParts::default()
+    });
+    let mapper = mapper();
+    let geometry = TimelineEditHandleGeometry {
+        bounds: mapper.rect,
+        selection_rect: preview
+            .selection_rect(mapper)
+            .expect("visible selection rect"),
+        handle_size: 10.0,
+    };
+
+    assert_eq!(
+        preview.standard_handle_at(mapper, geometry, Point::new(40.0, 5.0)),
+        Some(TimelineEditHandle::LeadingEnd)
+    );
+}
+
+#[test]
 fn timeline_edit_preview_omits_handles_outside_viewport() {
     let mapper = TimelineCoordinateMapper::new(
         TimelineViewport::new(0, 650, 0, 650_000, 0, 650_000_000),

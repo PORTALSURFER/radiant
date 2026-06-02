@@ -53,6 +53,25 @@ pub enum TimelineEditHandle {
     TrailingOuterEnd,
 }
 
+impl TimelineEditHandle {
+    /// Return the standard hit-test and paint order for timeline edit handles.
+    ///
+    /// Inner ramp handles are checked before selection-edge handles, and outer
+    /// handles are checked last. This matches the default visual priority for
+    /// compact timeline and signal editors while still letting hosts supply a
+    /// custom order to [`TimelineEditPreview::handle_at`] when needed.
+    pub const fn standard_order() -> [Self; 6] {
+        [
+            Self::LeadingEnd,
+            Self::TrailingStart,
+            Self::LeadingStart,
+            Self::TrailingEnd,
+            Self::LeadingOuterStart,
+            Self::TrailingOuterEnd,
+        ]
+    }
+}
+
 /// Standard editable regions around a selected timeline interval.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TimelineEditRegion {
@@ -276,6 +295,21 @@ impl TimelineEditPreview {
             self.handle_rect(mapper, geometry, *handle)
                 .is_some_and(|rect| rect.contains(position))
         })
+    }
+
+    /// Return the first standard edit handle whose rectangle contains `position`.
+    pub fn standard_handle_at(
+        self,
+        mapper: TimelineCoordinateMapper,
+        geometry: TimelineEditHandleGeometry,
+        position: Point,
+    ) -> Option<TimelineEditHandle> {
+        self.handle_at(
+            mapper,
+            geometry,
+            TimelineEditHandle::standard_order(),
+            position,
+        )
     }
 }
 

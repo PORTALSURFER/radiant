@@ -1,4 +1,9 @@
-use super::{BoundedScrollColumnParts, ViewNode, bounded_scroll_column_from_parts, row, text};
+use super::{
+    BoundedScrollColumnParts, ViewNode, bounded_scroll_column_from_parts, empty,
+    floating_layer_above, row, text,
+};
+use crate::gui::list::bounded_list_height;
+use crate::layout::Vector2;
 use crate::widgets::{WidgetProminence, WidgetStyle, WidgetTone};
 
 const DEFAULT_COMPACT_OPTION_LIST_MAX_VISIBLE_ROWS: usize = 6;
@@ -118,6 +123,50 @@ impl CompactOptionListParts {
         self.padding = padding;
         self
     }
+
+    /// Return the fixed viewport height implied by these option-list parts.
+    pub fn height(&self) -> f32 {
+        bounded_list_height(
+            self.items.len(),
+            self.max_visible_rows,
+            self.row_height,
+            self.vertical_chrome,
+        )
+    }
+}
+
+/// Named construction fields for a compact option list floating above a trigger.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CompactOptionListFloatingAboveParts {
+    /// Option-list content and row metrics.
+    pub list: CompactOptionListParts,
+    /// Layer x offset inside the parent stack.
+    pub x: f32,
+    /// Trigger top y offset inside the parent stack.
+    pub trigger_y: f32,
+    /// Gap between the trigger and floating option list.
+    pub gap: f32,
+    /// Floating option-list width.
+    pub width: f32,
+}
+
+impl CompactOptionListFloatingAboveParts {
+    /// Build named parts for a compact option list floating above a trigger.
+    pub const fn new(
+        list: CompactOptionListParts,
+        x: f32,
+        trigger_y: f32,
+        gap: f32,
+        width: f32,
+    ) -> Self {
+        Self {
+            list,
+            x,
+            trigger_y,
+            gap,
+            width,
+        }
+    }
 }
 
 /// Build a compact selected option list from ordered items.
@@ -154,6 +203,31 @@ pub fn compact_option_list_from_parts<Message: 'static>(
     )
 }
 
+/// Build a compact option list in a floating layer above a trigger rectangle.
+///
+/// This is useful for autocomplete popups and compact editor pickers that should
+/// stay in the same stack layer as their trigger while sharing Radiant's capped
+/// option-list height and empty-list behavior.
+pub fn compact_option_list_floating_above<Message: 'static>(
+    parts: CompactOptionListFloatingAboveParts,
+) -> ViewNode<Message> {
+    let height = parts.list.height();
+    if height <= 0.0 {
+        return empty().fill_width();
+    }
+    let width = parts.width.max(1.0);
+    let child = compact_option_list_from_parts(parts.list)
+        .fill_width()
+        .height(height);
+    floating_layer_above(
+        parts.x,
+        parts.trigger_y,
+        parts.gap,
+        Vector2::new(width, height),
+        child,
+    )
+}
+
 fn compact_option_list_row<Message: 'static>(
     index: usize,
     item: CompactOptionListItem,
@@ -186,21 +260,19 @@ fn compact_option_list_row<Message: 'static>(
 mod tests {
     use super::*;
     use crate::{
-        application::{IntoView, column},
-        layout::{LayoutNode, SizeModeMain},
+        application::{IntoView, column, stack},
+        gui::types::{Point, Rect},
+        layout::{LayoutNode, SizeModeMain, Vector2},
+        runtime::{PaintPrimitive, UiSurface},
     };
 
     #[test]
     fn compact_option_list_caps_height_and_keeps_empty_lists_hidden() {
-        let empty = compact_option_list::<()>(Vec::new(), 80.0);
-        let layout = column([empty]).into_surface().layout_node();
-        let LayoutNode::Container(parent_column) = layout else {
-            panic!("parent should lower to a column container");
-        };
-        assert!(matches!(
-            parent_column.children[0].slot.size_main,
-            SizeModeMain::Fixed(height) if height == 0.0
-        ));
+        let empty_parts = CompactOptionListParts::new(Vec::new(), 80.0);
+        assert_eq!(empty_parts.height(), 0.0);
+        let empty_frame = compact_option_list::<()>(Vec::new(), 80.0)
+            .view_frame_at_size_with_default_theme(Vector2::new(120.0, 80.0));
+        assert!(empty_frame.paint_plan.text_runs().next().is_none());
 
         let items = (0..12)
             .map(|index| {
@@ -218,5 +290,47 @@ mod tests {
             parent_column.children[0].slot.size_main,
             SizeModeMain::Fixed(height) if (height - 114.0).abs() < 0.01
         ));
+    }
+
+    #[test]
+    fn compact_option_list_parts_exposes_capped_height() {
+        let items = (0..12)
+            .map(|index| CompactOptionListItem::new(format!("Item {index}")))
+            .collect::<Vec<_>>();
+        let parts = CompactOptionListParts::new(items, 80.0)
+            .max_visible_rows(4)
+            .row_height(20.0)
+            .vertical_chrome(8.0);
+
+        assert_eq!(parts.height(), 88.0);
+    }
+
+    #[test]
+    fn compact_option_list_floating_above_positions_popup_before_trigger() {
+        let items = vec![CompactOptionListItem::new("Kick").secondary_label("Drum")];
+        let list = CompactOptionListParts::new(items, 80.0)
+            .row_height(18.0)
+            .vertical_chrome(6.0);
+        let popup = compact_option_list_floating_above::<()>(
+            CompactOptionListFloatingAboveParts::new(list, 10.0, 64.0, 4.0, 160.0),
+        );
+
+        let frame = UiSurface::new(stack([text("").size(220.0, 120.0), popup]).into_node()).frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(220.0, 120.0)),
+            &Default::default(),
+        );
+
+        let text_rect = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) if text.text.as_str() == "Kick" => Some(text.rect),
+                _ => None,
+            })
+            .expect("floating option list should paint item text");
+
+        assert!((text_rect.min.x - 17.0).abs() < 0.01, "{text_rect:?}");
+        assert!((text_rect.min.y - 43.0).abs() < 0.01, "{text_rect:?}");
     }
 }

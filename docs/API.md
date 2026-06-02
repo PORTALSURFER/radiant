@@ -837,7 +837,10 @@ padding, and viewport styling. Use `CompactOptionListItem`,
 `compact_option_list_from_parts(...)` for selected primary/secondary option
 rows in autocomplete popups, command palettes, compact pickers, and similar
 transient result lists while the host keeps ownership of option values and
-messages.
+messages. Use `CompactOptionListFloatingAboveParts` and
+`compact_option_list_floating_above(...)` when such a result list should be
+anchored above an editor or trigger inside the same stack layer without
+app-local height and floating-offset arithmetic.
 Compact toolbars and action strips can use
 `layout::fixed_width_row_rects_start`, `layout::fixed_width_row_rects_end`, and
 `layout::visible_suffix_widths` to place fixed-width controls through the

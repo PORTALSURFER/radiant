@@ -63,8 +63,8 @@ mod status_bar;
 pub use status_bar::{StatusBarParts, status_bar, status_bar_from_parts};
 mod option_list;
 pub use option_list::{
-    CompactOptionListItem, CompactOptionListParts, compact_option_list,
-    compact_option_list_from_parts,
+    CompactOptionListFloatingAboveParts, CompactOptionListItem, CompactOptionListParts,
+    compact_option_list, compact_option_list_floating_above, compact_option_list_from_parts,
 };
 mod toolbar;
 pub use toolbar::{ToolbarAlignment, ToolbarParts, toolbar, toolbar_from_parts};

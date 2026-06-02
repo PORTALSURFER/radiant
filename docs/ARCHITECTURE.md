@@ -66,6 +66,14 @@ When an item is useful but not common enough for normal app code, leave it on
 its owning explicit module such as `radiant::runtime`, `radiant::widgets`,
 `radiant::layout`, `radiant::theme`, or `radiant::gui`.
 
+Import and export size is treated as design feedback, not as a formatting
+problem. A prelude export leaf should stay below the source-quality guardrail of
+32 lines. When a leaf approaches that limit, first decide whether the API area is
+too broad, whether a new focused prelude child should own part of the surface, or
+whether the item should stay on its explicit subsystem module instead of entering
+the common prelude. Do not add catch-all prelude modules, wildcard subsystem
+exports, or local application preludes to make a large list disappear.
+
 New prelude exports should follow this checklist:
 
 - Add the item to the smallest existing prelude leaf module that matches the
@@ -78,6 +86,10 @@ New prelude exports should follow this checklist:
 - Treat a large import or export block as a module-boundary smell. First decide
   whether the code is mixing ownership areas or whether a reusable GUI primitive
   belongs in Radiant, then add the import only after the boundary is clear.
+- If an application needs many low-level widget, paint, layout, and runtime
+  types together, prefer introducing a generic Radiant primitive or splitting the
+  app-side custom widget into smaller paint/input/state modules over expanding
+  `radiant::prelude`.
 
 The source-quality guardrails assert that the root prelude and split first-level
 prelude groups remain facades. If those tests fail, the fix should normally be a

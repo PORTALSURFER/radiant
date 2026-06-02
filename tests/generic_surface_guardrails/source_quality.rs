@@ -4,6 +4,8 @@ use std::{fs, path::PathBuf};
 
 use super::{relative_path, rust_sources_under};
 
+const MAX_PRELUDE_EXPORT_GROUP_LINES: usize = 32;
+
 fn public_prelude_source(manifest_dir: &std::path::Path) -> String {
     let root = manifest_dir.join("src/prelude.rs");
     let mut source = fs::read_to_string(&root).expect("public prelude module should be readable");
@@ -106,6 +108,38 @@ fn public_prelude_first_level_groups_stay_as_facades_when_split() {
             "split prelude group {module} should not rebuild a broad crate export list; add exports to focused child modules under src/prelude/{module}/"
         );
     }
+}
+
+#[test]
+fn public_prelude_export_groups_stay_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let prelude_dir = manifest_dir.join("src/prelude");
+
+    let oversized = rust_sources_under(&prelude_dir)
+        .into_iter()
+        .filter(|path| path != &manifest_dir.join("src/prelude.rs"))
+        .filter_map(|path| {
+            let source = fs::read_to_string(&path).unwrap_or_else(|err| {
+                panic!(
+                    "prelude export group {} should be readable: {err}",
+                    path.display()
+                )
+            });
+            let line_count = source.lines().count();
+            (line_count > MAX_PRELUDE_EXPORT_GROUP_LINES).then(|| {
+                format!(
+                    "{} ({line_count} lines)",
+                    relative_path(&manifest_dir, &path)
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        oversized.is_empty(),
+        "prelude export groups should stay small enough to scan; split broad groups before they rebuild the old giant import list:\n{}",
+        oversized.join("\n")
+    );
 }
 
 #[path = "source_quality/api_models.rs"]

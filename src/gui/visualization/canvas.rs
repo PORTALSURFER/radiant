@@ -372,6 +372,24 @@ impl CanvasSelectionGeometry {
         })
     }
 
+    /// Return whether `point` is inside the top body-handle rectangle.
+    pub fn body_handle_at_point(
+        self,
+        height: f32,
+        end_inset: f32,
+        max_end_inset_fraction: f32,
+        min_width_after_inset: f32,
+        point: Point,
+    ) -> bool {
+        self.body_handle_rect(
+            height,
+            end_inset,
+            max_end_inset_fraction,
+            min_width_after_inset,
+        )
+        .is_some_and(|rect| rect.contains(point))
+    }
+
     /// Append the top body-handle fill for moving this selection.
     ///
     /// Returns `true` when a visible fill primitive was appended.
@@ -401,6 +419,12 @@ impl CanvasSelectionGeometry {
             side,
             inset,
         )
+    }
+
+    /// Return whether `point` is inside the bottom-trailing control rectangle.
+    pub fn trailing_control_at_point(self, side: f32, inset: f32, point: Point) -> bool {
+        self.trailing_control_rect(side, inset)
+            .is_some_and(|rect| rect.contains(point))
     }
 
     /// Append the bottom-trailing control fill for this selection.

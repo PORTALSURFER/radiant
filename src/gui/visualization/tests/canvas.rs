@@ -246,6 +246,10 @@ fn canvas_selection_geometry_projects_common_affordances() {
             Point::new(130.0, 120.0)
         ))
     );
+    assert!(geometry.body_handle_at_point(7.0, 9.0, 0.28, 1.0, Point::new(60.0, 24.0)));
+    assert!(!geometry.body_handle_at_point(7.0, 9.0, 0.28, 1.0, Point::new(60.0, 40.0)));
+    assert!(geometry.trailing_control_at_point(16.0, 0.0, Point::new(120.0, 110.0)));
+    assert!(!geometry.trailing_control_at_point(16.0, 0.0, Point::new(120.0, 90.0)));
     assert_eq!(
         geometry.edge_visual_rect(bounds.top_edge_strip(22.0), DragHandleRole::End, 7.0, 0.0),
         Some(Rect::from_min_max(

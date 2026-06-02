@@ -9,6 +9,6 @@ pub use model::{
     update_details_column_reorder_drag, update_details_column_resize_drag,
 };
 pub use view::{
-    compact_details_header_row, compact_details_row, compact_resizable_details_header_cell,
-    selectable_sortable_details_list, sortable_details_list,
+    compact_details_cell, compact_details_header_row, compact_details_row,
+    compact_resizable_details_header_cell, selectable_sortable_details_list, sortable_details_list,
 };

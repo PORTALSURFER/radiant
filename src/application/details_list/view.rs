@@ -113,10 +113,7 @@ fn details_row<State: 'static>(
 }
 
 fn sized_cell<State: 'static>(column: &DetailsColumn, cell: StateView<State>) -> StateView<State> {
-    match column.width {
-        Some(width) => cell.size(width, 20.0),
-        None => cell.fill_width().height(20.0),
-    }
+    compact_details_cell(cell, column.width)
 }
 
 /// Build a compact horizontal details-row layout.
@@ -134,6 +131,19 @@ pub fn compact_details_row<Message>(
         .padding_x(8.0)
         .padding_y(1.0)
         .spacing(10.0)
+}
+
+/// Size one compact details-list cell.
+///
+/// This matches the cell sizing used by Radiant's built-in details lists:
+/// fixed-width columns get a 20px-tall fixed cell, while flexible columns fill
+/// the remaining row width at the same height. Host apps can use it for custom
+/// cell content without repeating details-list sizing policy.
+pub fn compact_details_cell<Message>(cell: View<Message>, width: Option<f32>) -> View<Message> {
+    match width {
+        Some(width) => cell.size(width, 20.0),
+        None => cell.fill_width().height(20.0),
+    }
 }
 
 /// Build a compact details-list header row.

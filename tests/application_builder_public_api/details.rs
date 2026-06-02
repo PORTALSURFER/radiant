@@ -116,6 +116,29 @@ fn compact_details_row_exposes_details_list_density() {
 }
 
 #[test]
+fn compact_details_cell_exposes_details_list_cell_sizing() {
+    use super::*;
+    use radiant::prelude as ui;
+    use radiant::prelude::IntoView;
+
+    let surface: UiSurface<ui::StateAction<DemoState>> = ui::column([ui::compact_details_row([
+        ui::compact_details_cell(ui::text("Name").id(10), Some(64.0)),
+        ui::compact_details_cell(ui::text("Kind").id(11), None),
+    ])
+    .id(1)])
+    .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 40.0)),
+    );
+
+    assert_eq!(layout.rects[&10].width(), 64.0);
+    assert_eq!(layout.rects[&10].height(), 20.0);
+    assert_eq!(layout.rects[&11].height(), 20.0);
+    assert!(layout.rects[&11].width() > 64.0);
+}
+
+#[test]
 fn compact_details_header_row_exposes_details_list_header_chrome() {
     use super::*;
     use radiant::prelude as ui;

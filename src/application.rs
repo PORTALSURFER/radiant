@@ -49,8 +49,8 @@ mod details_list;
 pub use details_list::{
     DetailsColumn, DetailsColumnParts, DetailsColumnPlacement, DetailsColumnReorderDrag,
     DetailsColumnResizeDrag, DetailsColumnWidthUpdate, DetailsRow, DetailsRowParts, DetailsSort,
-    DetailsSortParts, SortDirection, compact_details_header_row, compact_details_row,
-    compact_resizable_details_header_cell, details_column_drag_content_left,
+    DetailsSortParts, SortDirection, compact_details_cell, compact_details_header_row,
+    compact_details_row, compact_resizable_details_header_cell, details_column_drag_content_left,
     details_column_reorder_index, details_sort_label, reorder_details_columns_by_id,
     selectable_sortable_details_list, sortable_details_list, update_details_column_reorder_drag,
     update_details_column_resize_drag,

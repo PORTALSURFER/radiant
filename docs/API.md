@@ -62,7 +62,10 @@ normalized heatmap and intensity palettes without local interpolation helpers.
 Custom canvas, image, GPU surface, and overlay widgets can use
 `WidgetCommon::without_default_chrome()` when they still need Radiant's sizing,
 focus, hit testing, and style contracts but draw their own focus and state
-affordances. Dynamic custom widgets and row input layers can use
+affordances. Use `Widget::paint_plan(...)` or
+`paint_plan_with_defaults(...)` when focused custom-widget tests or previews
+need the same `SurfacePaintPlan` query helpers available from full view
+frames. Dynamic custom widgets and row input layers can use
 `stable_widget_id(...)` to derive deterministic widget IDs from host-owned
 scopes and durable text app keys instead of duplicating local hashing helpers.
 Use `stable_widget_id_u64(...)` when dynamic rows or controls are keyed by

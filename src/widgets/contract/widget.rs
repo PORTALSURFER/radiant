@@ -3,7 +3,7 @@
 use crate::{
     gui::types::{Point, Rect},
     layout::{LayoutOutput, Vector2},
-    runtime::PaintPrimitive,
+    runtime::{PaintPrimitive, SurfacePaintPlan},
     theme::ThemeTokens,
     widgets::{
         interaction::{WidgetCursor, WidgetInput, WidgetOutput},
@@ -189,12 +189,37 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
         primitives
     }
 
+    /// Return this widget's paint output as a queryable paint plan for the given bounds.
+    ///
+    /// This is useful for tests, automation, previews, and embedded hosts that
+    /// want [`SurfacePaintPlan`] query helpers for one widget without wrapping
+    /// it in a temporary `UiSurface`.
+    fn paint_plan(
+        &self,
+        bounds: Rect,
+        layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) -> SurfacePaintPlan {
+        let mut plan = SurfacePaintPlan::empty(theme);
+        self.append_paint(&mut plan.primitives, bounds, layout, theme);
+        plan
+    }
+
     /// Return this widget's paint primitives with default layout and theme.
     ///
     /// Use this for focused widget tests and small previews where custom layout
     /// metadata or theme tokens are not part of the behavior being checked.
     fn paint_primitives_with_defaults(&self, bounds: Rect) -> Vec<PaintPrimitive> {
         self.paint_primitives(bounds, &LayoutOutput::default(), &ThemeTokens::default())
+    }
+
+    /// Return this widget's paint output as a queryable paint plan with default
+    /// layout and theme.
+    ///
+    /// Use this for focused widget tests and small previews where the caller
+    /// wants paint-plan query helpers and default layout/theme are sufficient.
+    fn paint_plan_with_defaults(&self, bounds: Rect) -> SurfacePaintPlan {
+        self.paint_plan(bounds, &LayoutOutput::default(), &ThemeTokens::default())
     }
 
     /// Append small runtime-owned overlay primitives for the current widget state.

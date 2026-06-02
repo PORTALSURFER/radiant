@@ -69,6 +69,19 @@ fn push_dense_fill_uses_row_state_and_identity() {
 }
 
 #[test]
+fn paint_plan_with_defaults_exposes_query_helpers_for_one_widget() {
+    let mut row = InteractiveRowWidget::new(7, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
+    row.common.state.hovered = true;
+
+    let plan = row.paint_plan_with_defaults(Rect::from_size(120.0, 22.0));
+
+    assert_eq!(
+        plan.fill_rects().next().map(|fill| fill.widget_id),
+        Some(row.id())
+    );
+}
+
+#[test]
 fn accessors_expose_identity_and_common_contract_for_custom_row_wrappers() {
     let mut row = InteractiveRowWidget::new(13, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
 

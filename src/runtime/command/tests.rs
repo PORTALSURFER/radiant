@@ -183,3 +183,34 @@ fn drag_with_external_batches_preview_before_external_payload() {
         }
     ));
 }
+
+#[test]
+fn drag_session_command_uses_available_drag_surfaces() {
+    let drag = crate::runtime::DragRequest::new(
+        crate::runtime::DragPreview::sized("Sample", crate::layout::Vector2::new(120.0, 24.0)),
+        crate::layout::Point::new(12.0, 16.0),
+    );
+    let external = crate::runtime::ExternalDragRequest::files(
+        [std::path::PathBuf::from(r"C:\samples\kick.wav")],
+        "Sample",
+    );
+
+    let command =
+        Command::begin_drag_session(Some(drag.clone()), Some(external.clone()), |_| "done");
+    let Command::Batch(commands) = command else {
+        panic!("combined drag session should batch preview and external payload");
+    };
+    assert_eq!(commands.len(), 2);
+    assert!(matches!(commands[0], Command::BeginDrag { .. }));
+    assert!(matches!(commands[1], Command::BeginExternalDrag { .. }));
+
+    assert!(matches!(
+        Command::<&str>::begin_drag_session(Some(drag), None, |_| "done"),
+        Command::BeginDrag { .. }
+    ));
+    assert!(matches!(
+        Command::begin_drag_session(None, Some(external), |_| "done"),
+        Command::BeginExternalDrag { .. }
+    ));
+    assert!(Command::<&str>::begin_drag_session(None, None, |_| "done").is_empty());
+}

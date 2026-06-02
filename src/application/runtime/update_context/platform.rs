@@ -35,6 +35,20 @@ impl<Message> UpdateContext<Message> {
         ));
     }
 
+    /// Begin any available drag-session surfaces for the active gesture.
+    ///
+    /// Use this when a host gesture may provide an in-window preview, a native
+    /// external-drag payload, both, or neither. The context queues no command
+    /// when both requests are `None`.
+    pub fn begin_drag_session(
+        &mut self,
+        drag: Option<DragRequest>,
+        external: Option<ExternalDragRequest>,
+        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static,
+    ) {
+        self.command(Command::begin_drag_session(drag, external, on_completed));
+    }
+
     /// Arm a native external drag session without completion notification.
     pub fn begin_external_drag_without_completion(&mut self, request: ExternalDragRequest) {
         self.command(Command::begin_external_drag_without_completion(request));

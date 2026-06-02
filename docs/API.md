@@ -266,9 +266,11 @@ duplicating the `Started` / `Moved` / `Ended` variant shape. Reducers that
 resolve or cancel a drag gesture with both an in-window preview and an armed
 native external-drag payload can call `UpdateContext::end_drag_session()` instead
 of ending those runtime surfaces separately. Use
-`UpdateContext::begin_drag_with_external(...)` or
-`Command::begin_drag_with_external(...)` when one gesture should start a
-runtime-owned preview and arm a matching native external-drag payload together.
+`UpdateContext::begin_drag_session(...)` or `Command::begin_drag_session(...)`
+when one gesture may have an in-window preview, a native external-drag payload,
+both, or neither. Use `UpdateContext::begin_drag_with_external(...)` or
+`Command::begin_drag_with_external(...)` when both requests are already known to
+exist and should be started together.
 Dense custom row painters can use `push_dense_row_fill`,
 `push_dense_row_label`, `push_dense_row_vertical_marker`, and
 `push_dense_row_inset_stroke` to append state-prioritized fills, centered

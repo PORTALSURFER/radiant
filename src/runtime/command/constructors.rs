@@ -137,6 +137,26 @@ impl<Message> Command<Message> {
         ])
     }
 
+    /// Build the commands needed to begin any available drag-session surfaces.
+    ///
+    /// This is useful when a host gesture may have an in-window preview, a
+    /// native external-drag payload, both, or neither. The returned command is
+    /// empty when both requests are `None`.
+    pub fn begin_drag_session(
+        drag: Option<DragRequest>,
+        external: Option<ExternalDragRequest>,
+        on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static,
+    ) -> Self {
+        match (drag, external) {
+            (Some(drag), Some(external)) => {
+                Self::begin_drag_with_external(drag, external, on_completed)
+            }
+            (Some(drag), None) => Self::begin_drag(drag),
+            (None, Some(external)) => Self::begin_external_drag(external, on_completed),
+            (None, None) => Self::none(),
+        }
+    }
+
     /// Build a command that arms a native external drag session without completion notification.
     pub fn begin_external_drag_without_completion(request: ExternalDragRequest) -> Self {
         Self::BeginExternalDrag {

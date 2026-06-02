@@ -31,6 +31,16 @@ impl ScrollbarBuilder {
         self
     }
 
+    /// Emit a host message mapped from the normalized scrollbar offset.
+    pub fn message<Message: 'static>(
+        self,
+        map: impl Fn(f32) -> Message + Send + Sync + 'static,
+    ) -> ViewNode<Message> {
+        self.mapped(move |message| match message {
+            ScrollbarMessage::OffsetChanged { offset_fraction } => map(offset_fraction),
+        })
+    }
+
     /// Emit a host message mapped from scrollbar messages.
     pub fn mapped<Message: 'static>(
         self,
@@ -59,5 +69,33 @@ pub fn scrollbar(axis: ScrollbarAxis) -> ScrollbarBuilder {
         viewport_fraction: 1.0,
         offset_fraction: 0.0,
         style: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{application::IntoView, widgets::WidgetOutput};
+
+    #[derive(Clone, Debug, PartialEq)]
+    enum Message {
+        Scrolled(f32),
+    }
+
+    #[test]
+    fn scrollbar_message_maps_offset_changes_to_host_message() {
+        let view = scrollbar(ScrollbarAxis::Horizontal)
+            .message(Message::Scrolled)
+            .id(42);
+
+        assert_eq!(
+            view.view_dispatch_widget_output(
+                42,
+                WidgetOutput::typed(ScrollbarMessage::OffsetChanged {
+                    offset_fraction: 0.25,
+                }),
+            ),
+            Some(Message::Scrolled(0.25))
+        );
     }
 }

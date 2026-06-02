@@ -329,6 +329,9 @@ canvas. `NormalizedRange::from_fractions(...)`,
 convert floating point interaction ratios into the stable normalized units used
 by timeline, canvas, and retained visualization APIs while keeping common
 range creation, edge dragging, and clamped movement behavior out of host code.
+Application scrollbars can use `ScrollbarBuilder::message(...)` when reducers
+only need the normalized offset, or `mapped(...)` when they need the raw
+`ScrollbarMessage`.
 Custom canvas widgets can use `CanvasGestureState` to turn raw `WidgetInput`
 pointer events into local and normalized hover, press, drag, release,
 double-click, drop, wheel, and focus-change events. This keeps waveform,

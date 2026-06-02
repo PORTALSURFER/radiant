@@ -258,6 +258,24 @@ pub fn flow_rows_height(row_count: usize, metrics: FlowLayoutMetrics) -> f32 {
         + row_count.saturating_sub(1) as f32 * metrics.line_gap.max(0.0)
 }
 
+/// Return the visible height for a capped wrapped flow plus surrounding chrome.
+///
+/// This is useful for chip, pill, tag, recipient, and token editors that grow
+/// with wrapped rows until a maximum visible row count, then switch the content
+/// area to scrolling. `min_visible_rows` keeps empty editors tall enough for
+/// their trailing input or placeholder row.
+pub fn capped_flow_rows_height(
+    row_count: usize,
+    min_visible_rows: usize,
+    max_visible_rows: usize,
+    chrome_height: f32,
+    metrics: FlowLayoutMetrics,
+) -> f32 {
+    let min_visible_rows = min_visible_rows.min(max_visible_rows);
+    let visible_rows = row_count.clamp(min_visible_rows, max_visible_rows);
+    flow_rows_height(visible_rows, metrics) + chrome_height.max(0.0)
+}
+
 /// Return whether a trailing item should start on a new row.
 ///
 /// This is useful for editable pill/tag fields where the text input should move
@@ -336,6 +354,14 @@ mod tests {
         assert_eq!(flow_rows_height(0, metrics()), 0.0);
         assert_eq!(flow_rows_height(1, metrics()), 18.0);
         assert_eq!(flow_rows_height(3, metrics()), 64.0);
+    }
+
+    #[test]
+    fn capped_flow_rows_height_clamps_rows_and_adds_chrome() {
+        assert_eq!(capped_flow_rows_height(0, 1, 6, 6.0, metrics()), 24.0);
+        assert_eq!(capped_flow_rows_height(3, 1, 6, 6.0, metrics()), 70.0);
+        assert_eq!(capped_flow_rows_height(9, 1, 6, 6.0, metrics()), 139.0);
+        assert_eq!(capped_flow_rows_height(2, 4, 3, -12.0, metrics()), 64.0);
     }
 
     #[test]

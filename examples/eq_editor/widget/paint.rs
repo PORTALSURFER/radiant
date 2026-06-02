@@ -7,7 +7,7 @@ mod primitives;
 
 use grid::append_grid;
 pub(super) use primitives::push_rect;
-use primitives::{push_fill_polygon, push_stroke, push_stroke_polyline, push_text};
+use primitives::{push_fill_polygon, push_stroke, push_text};
 
 pub(super) fn append_eq_paint(
     widget: &EqEditorWidget,
@@ -64,15 +64,17 @@ fn append_curve(
     theme: &ThemeTokens,
 ) {
     let axis = HorizontalValueAxis::normalized(plot);
-    let points = (0..160).map(|index| {
-        let ratio = index as f32 / 159.0;
-        let freq = geometry::freq_for_ratio(ratio);
-        Point::new(
-            axis.x_for_value(ratio),
-            y_for_gain(plot, response_gain_db(&widget.bands, freq)),
-        )
-    });
-    push_stroke_polyline(primitives, widget.common.id, points, theme.accent_mint, 3.0);
+    push_sampled_curve_stroke(
+        primitives,
+        SampledCurveStrokeParts::new(widget.common.id, plot, 159, theme.accent_mint, 3.0),
+        |ratio| {
+            let freq = geometry::freq_for_ratio(ratio);
+            Some(Point::new(
+                axis.x_for_value(ratio),
+                y_for_gain(plot, response_gain_db(&widget.bands, freq)),
+            ))
+        },
+    );
 }
 
 fn append_band_handles(

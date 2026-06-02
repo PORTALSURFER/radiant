@@ -3,6 +3,7 @@
 mod canvas;
 mod color_ramp;
 mod grid;
+mod sampled_curve;
 mod signal;
 mod spatial;
 mod strip_layout;
@@ -24,6 +25,7 @@ pub use grid::{
     DenseGridCell, DenseGridLabelLayout, DenseGridLabelLayoutParts, DenseGridLayout,
     DenseGridLayoutParts, DenseGridRasterLayout, DenseGridRasterLayoutParts, DenseGridRowOrigin,
 };
+pub use sampled_curve::{SampledCurveStrokeParts, push_sampled_curve_stroke, sampled_curve_points};
 pub use signal::{
     ChannelViewMode, SignalChromeParts, SignalChromeState, SignalRasterPreview,
     SignalRasterPreviewParts, SignalToolFlags, SignalToolState,

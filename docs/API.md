@@ -75,6 +75,12 @@ area. Timeline, waveform, progress, and scrubber-style custom widgets can use
 `push_horizontal_value_range_edge_fills`, and
 `push_horizontal_value_cursor_fill` to append guarded normalized range, range
 edge, and cursor fills without repeating local geometry-to-paint boilerplate.
+Editor-style widgets that draw sampled curves such as EQ responses,
+automation curves, fade curves, and analysis overlays can use
+`SampledCurveStrokeParts`, `sampled_curve_points`, and
+`push_sampled_curve_stroke` to keep finite-point filtering, bounds clamping,
+point-buffer allocation, and stroke emission on Radiant's generic paint path
+while the host owns the curve math.
 Tests, automation, and embedded hosts that inspect paint plans can use
 `SurfacePaintPlan::text_runs()`, `first_text_run(...)`, `contains_text(...)`,
 `first_text_run_after_x(...)`, `contains_text_after_x(...)`,

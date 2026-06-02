@@ -1139,7 +1139,8 @@ SVG document that emits a backend-neutral `PaintSvg` primitive.
 `SvgIcon::try_from_svg(...)` and `PaintSvgDocument::try_from_svg(...)` return a
 typed `SvgParseError` when hosts need parser diagnostics. The native Vello
 backend appends retained SVG documents through `vello_svg` during scene
-encoding.
+encoding. `SvgIcon::empty()` creates a no-paint icon for defensive fallbacks or
+temporarily unavailable vector assets.
 `Rect::stroke_aligned_rect` provides stroke-grid snapping for retained border
 geometry.
 `Rect::top_left_square`, `Rect::top_right_square`,
@@ -1745,7 +1746,8 @@ embedding domain terms in Radiant.
 Wrapped chip, token, recipient, or pill editors can use
 `FlowTrailingItemParts` and `pack_flow_rows_with_trailing_item` when a trailing
 input/control should stay on the current row only if enough editing room
-remains.
+remains. Use `push_flow_row_group` when several flow items, such as a prefix
+token plus its editor, should wrap atomically instead of splitting across rows.
 
 `radiant::gui::form` contains reusable form and picker models such as
 `DecimalTextInputPolicy`, `SummaryField`, `OptionItem`, `OptionSelectionState`,

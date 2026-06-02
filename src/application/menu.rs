@@ -8,10 +8,8 @@ use std::sync::Arc;
 
 mod model;
 
-pub use model::{
-    ContextMenuOverlayParts, DismissibleContextMenuParts, MenuCommand, MenuCommandParts, MenuItem,
-    MenuItemParts, MenuParts, MessageMenuParts,
-};
+pub use model::{ContextMenuOverlayParts, MenuItem, MenuItemParts, MenuParts};
+pub use model::{DismissibleContextMenuParts, MenuCommand, MenuCommandParts, MessageMenuParts};
 
 /// Height of the title line in compact Radiant menus.
 pub const MENU_TITLE_HEIGHT: f32 = 22.0;

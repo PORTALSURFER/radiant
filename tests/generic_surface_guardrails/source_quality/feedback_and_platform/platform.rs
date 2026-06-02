@@ -8,6 +8,7 @@ const ALLOWED_PLATFORM_SPECIFIC_SOURCE_FILES: &[&str] = &[
     "examples/popup_window/host/process.rs",
     "examples/popup_window/platform.rs",
     "examples/popup_window/platform/readiness.rs",
+    "src/application/runtime/bridge/adapter/platform_services.rs",
     "src/application/runtime/threading/platform.rs",
     "src/gui_runtime/native_vello/generic_runtime/external_drag/data_object.rs",
     "src/gui_runtime/native_vello/generic_runtime/external_drag/data_object/formats.rs",

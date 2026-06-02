@@ -5,10 +5,15 @@ use crate::widgets::WidgetId;
 /// Retained SVG icon parsed once for backend rendering.
 #[derive(Clone, Debug)]
 pub struct SvgIcon {
-    document: PaintSvgDocument,
+    document: Option<PaintSvgDocument>,
 }
 
 impl SvgIcon {
+    /// Construct an icon that emits no SVG paint primitives.
+    pub fn empty() -> Self {
+        Self { document: None }
+    }
+
     /// Parse an SVG icon from embedded source text.
     pub fn from_svg(svg: &str) -> Option<Self> {
         Self::try_from_svg(svg).ok()
@@ -17,7 +22,7 @@ impl SvgIcon {
     /// Parse an SVG icon from embedded source text with diagnostics.
     pub fn try_from_svg(svg: &str) -> Result<Self, SvgParseError> {
         Ok(Self {
-            document: PaintSvgDocument::try_from_svg(svg)?,
+            document: Some(PaintSvgDocument::try_from_svg(svg)?),
         })
     }
 
@@ -28,9 +33,12 @@ impl SvgIcon {
         widget_id: WidgetId,
         rect: Rect,
     ) {
+        let Some(document) = self.document.clone() else {
+            return;
+        };
         primitives.push(PaintPrimitive::Svg(PaintSvg {
             widget_id,
-            document: self.document.clone(),
+            document,
             rect,
         }));
     }

@@ -120,7 +120,9 @@ pub fn pack_flow_rows<T>(
         if rows.is_empty() {
             rows.push(Vec::new());
         }
-        rows.last_mut().expect("row exists").push(item.value);
+        if let Some(row) = rows.last_mut() {
+            row.push(item.value);
+        }
     }
 
     rows
@@ -187,12 +189,56 @@ pub fn push_flow_row_item<T>(
     }
 
     let item_gap = metrics.item_gap.max(0.0);
-    let current_width = flow_row_width(rows.last().expect("row exists"), item_gap);
+    let current_width = rows
+        .last()
+        .map(|row| flow_row_width(row, item_gap))
+        .unwrap_or(0.0);
     let proposed = proposed_row_width(current_width, width.max(0.0), item_gap);
     if proposed > content_width.max(0.0) && current_width > 0.0 {
         rows.push(Vec::new());
     }
-    rows.last_mut().expect("row exists").push(item);
+    if let Some(row) = rows.last_mut() {
+        row.push(item);
+    }
+}
+
+/// Push a group of variable-width items that should stay on the same row.
+///
+/// This is useful for inline token editors where a prefix token and an editor,
+/// or a label and action, should wrap as one unit instead of leaving the prefix
+/// stranded at the end of the previous row. If the group is wider than the
+/// content width it is still placed on one row so callers can apply their own
+/// overflow policy at the view layer.
+pub fn push_flow_row_group<T>(
+    rows: &mut Vec<Vec<T>>,
+    items: impl IntoIterator<Item = FlowItem<T>>,
+    content_width: f32,
+    metrics: FlowLayoutMetrics,
+) where
+    T: FlowItemWidth,
+{
+    let items = items.into_iter().collect::<Vec<_>>();
+    if items.is_empty() {
+        return;
+    }
+    if rows.is_empty() {
+        rows.push(Vec::new());
+    }
+
+    let item_gap = metrics.item_gap.max(0.0);
+    let current_width = rows
+        .last()
+        .map(|row| flow_row_width(row, item_gap))
+        .unwrap_or(0.0);
+    let group_width = flow_widths_total(items.iter().map(|item| item.width), item_gap);
+    let proposed = proposed_row_width(current_width, group_width, item_gap);
+    if proposed > content_width.max(0.0) && current_width > 0.0 {
+        rows.push(Vec::new());
+    }
+
+    if let Some(row) = rows.last_mut() {
+        row.extend(items.into_iter().map(|item| item.value));
+    }
 }
 
 /// Return the packed width of a row of flow items.
@@ -385,6 +431,41 @@ mod tests {
         );
 
         assert_eq!(rows, vec![vec![SizedItem("input", 180.0)]]);
+    }
+
+    #[test]
+    fn push_flow_row_group_keeps_items_together_when_wrapping() {
+        #[derive(Clone, Debug, PartialEq)]
+        struct SizedItem(&'static str, f32);
+
+        impl FlowItemWidth for SizedItem {
+            fn flow_width(&self) -> f32 {
+                self.1
+            }
+        }
+
+        let mut rows = pack_flow_rows(
+            [FlowItem::new(SizedItem("pill", 86.0), 86.0)],
+            150.0,
+            metrics(),
+        );
+        push_flow_row_group(
+            &mut rows,
+            [
+                FlowItem::new(SizedItem("prefix", 50.0), 50.0),
+                FlowItem::new(SizedItem("input", 70.0), 70.0),
+            ],
+            150.0,
+            metrics(),
+        );
+
+        assert_eq!(
+            rows,
+            vec![
+                vec![SizedItem("pill", 86.0)],
+                vec![SizedItem("prefix", 50.0), SizedItem("input", 70.0)]
+            ]
+        );
     }
 
     #[test]

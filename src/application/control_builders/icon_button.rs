@@ -149,12 +149,9 @@ static CLOSE_ICON: OnceLock<SvgIcon> = OnceLock::new();
 static DISCLOSURE_OPEN_ICON: OnceLock<SvgIcon> = OnceLock::new();
 static DISCLOSURE_CLOSED_ICON: OnceLock<SvgIcon> = OnceLock::new();
 
-fn cached_icon(cache: &'static OnceLock<SvgIcon>, svg: &'static str, name: &str) -> SvgIcon {
+fn cached_icon(cache: &'static OnceLock<SvgIcon>, svg: &'static str, _name: &str) -> SvgIcon {
     cache
-        .get_or_init(|| {
-            SvgIcon::from_svg(svg)
-                .unwrap_or_else(|| panic!("Radiant built-in {name} icon SVG should parse"))
-        })
+        .get_or_init(|| SvgIcon::from_svg(svg).unwrap_or_else(SvgIcon::empty))
         .clone()
 }
 

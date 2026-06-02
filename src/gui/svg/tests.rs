@@ -35,6 +35,20 @@ fn svg_icon_try_from_svg_reports_parse_errors() {
 }
 
 #[test]
+fn empty_svg_icon_emits_no_paint() {
+    let icon = SvgIcon::empty();
+    let mut primitives = Vec::new();
+
+    icon.append_paint(
+        &mut primitives,
+        7,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(16.0, 16.0)),
+    );
+
+    assert!(primitives.is_empty());
+}
+
+#[test]
 fn svg_subset_parser_supports_evenodd_cutouts() {
     let svg = r#"
         <svg viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg">

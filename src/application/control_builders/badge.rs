@@ -200,6 +200,16 @@ impl InteractiveBadgeBuilder {
         self
     }
 
+    /// Configure a host-tracked badge drop target.
+    ///
+    /// While `active_target` is true, the badge still accepts the eventual drop
+    /// but suppresses duplicate hover-drop messages and keeps pointer-motion
+    /// routing active through the host-owned interaction state.
+    pub fn tracked_drop_target(mut self, drag_active: bool, active_target: bool) -> Self {
+        self.row = self.row.tracked_drop_target(drag_active, active_target);
+        self
+    }
+
     /// Mark whether a related row drag is active in this badge's container.
     pub fn drag_active(mut self, active: bool) -> Self {
         self.row = self.row.drag_active(active);

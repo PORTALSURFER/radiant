@@ -118,6 +118,20 @@ impl InteractiveRowBuilder {
         self
     }
 
+    /// Configure a host-tracked drop target.
+    ///
+    /// While `active_target` is true, the row still accepts the eventual drop
+    /// but suppresses duplicate hover-drop messages and keeps pointer-motion
+    /// routing active through the host-owned interaction state.
+    pub fn tracked_drop_target(mut self, drag_active: bool, active_target: bool) -> Self {
+        self.pointer_motion_during_interaction = true;
+        self.pointer_motion_active = active_target;
+        self.droppable = drag_active;
+        self.drop_hover = drag_active && !active_target;
+        self.drag_active = drag_active;
+        self
+    }
+
     /// Mark whether a related row drag is active in this row's container.
     pub fn drag_active(mut self, active: bool) -> Self {
         self.drag_active = active;
@@ -390,6 +404,34 @@ mod tests {
                 WidgetOutput::typed(InteractiveRowMessage::Activate),
             ),
             Some(DemoMessage::Activate)
+        );
+    }
+
+    #[test]
+    fn tracked_drop_target_accepts_drop_without_repeating_hover_for_active_target() {
+        let view = interactive_row().tracked_drop_target(true, true).widget();
+
+        assert!(view.props.droppable);
+        assert!(view.props.drag_active);
+        assert!(!view.props.drop_hover);
+        assert!(view.props.pointer_motion_active);
+        assert_eq!(
+            view.props.pointer_motion,
+            crate::widgets::InteractiveRowPointerMotion::DuringInteraction
+        );
+    }
+
+    #[test]
+    fn tracked_drop_target_emits_hover_for_candidate_target() {
+        let view = interactive_row().tracked_drop_target(true, false).widget();
+
+        assert!(view.props.droppable);
+        assert!(view.props.drag_active);
+        assert!(view.props.drop_hover);
+        assert!(!view.props.pointer_motion_active);
+        assert_eq!(
+            view.props.pointer_motion,
+            crate::widgets::InteractiveRowPointerMotion::DuringInteraction
         );
     }
 

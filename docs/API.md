@@ -297,6 +297,10 @@ drop-hover messages can use `with_drop_only(...)`. Application-builder rows
 can use `drop_target_mode(drag_active, hover_messages)` when the current row
 should become either a normal drop target or a drop-only target from
 host-owned drag state without app-local `droppable` / `drop_only` branches.
+Use `tracked_drop_target(drag_active, active_target)` when the host tracks the
+current hover/drop target: candidate rows emit hover-drop messages, while the
+already-active target keeps accepting the eventual drop without repeatedly
+requesting the same hover-target update.
 Use `InteractiveRowBuilder::filter_mapped(...)` when only selected row events
 should emit host messages, such as activation and drop while drag-hover or
 secondary-click events are ignored. This avoids routing ignored row interactions

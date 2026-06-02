@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 #[path = "model/column_drag.rs"]
 mod column_drag;
 pub use column_drag::{
@@ -29,6 +31,14 @@ impl SortDirection {
         match self {
             Self::Ascending => Self::Descending,
             Self::Descending => Self::Ascending,
+        }
+    }
+
+    /// Apply this direction to an already-computed ascending ordering.
+    pub fn apply_ordering(self, ordering: Ordering) -> Ordering {
+        match self {
+            Self::Ascending => ordering,
+            Self::Descending => ordering.reverse(),
         }
     }
 }
@@ -310,5 +320,21 @@ mod tests {
         assert_eq!(details_sort_label("Size", "size", Some(&sort)), "Size");
         assert_eq!(details_sort_label("Name", "name", None), "Name");
         assert_eq!(SortDirection::Ascending.marker(), " ^");
+    }
+
+    #[test]
+    fn sort_direction_applies_to_ascending_ordering() {
+        assert_eq!(
+            SortDirection::Ascending.apply_ordering(std::cmp::Ordering::Less),
+            std::cmp::Ordering::Less
+        );
+        assert_eq!(
+            SortDirection::Descending.apply_ordering(std::cmp::Ordering::Less),
+            std::cmp::Ordering::Greater
+        );
+        assert_eq!(
+            SortDirection::Descending.apply_ordering(std::cmp::Ordering::Equal),
+            std::cmp::Ordering::Equal
+        );
     }
 }

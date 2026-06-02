@@ -79,10 +79,7 @@ impl ExampleState {
                 _ => 0,
             };
             let ordering = a.cells[index].cmp(&b.cells[index]);
-            match self.sort.direction {
-                SortDirection::Ascending => ordering,
-                SortDirection::Descending => ordering.reverse(),
-            }
+            self.sort.direction.apply_ordering(ordering)
         });
         rows.into_iter()
             .map(|row| {

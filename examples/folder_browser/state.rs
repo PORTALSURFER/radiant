@@ -150,10 +150,7 @@ impl BrowserState {
                 "path" => a.id.cmp(&b.id),
                 _ => natural_name_cmp(&a.name, &b.name),
             };
-            match self.columns.sort.direction {
-                ui::SortDirection::Ascending => ordering,
-                ui::SortDirection::Descending => ordering.reverse(),
-            }
+            self.columns.sort.direction.apply_ordering(ordering)
         });
         files
     }

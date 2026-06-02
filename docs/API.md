@@ -230,6 +230,9 @@ Higher-level application helpers follow the same logical-coordinate sizing
 model as view modifiers: fixed details-list columns use `f32` logical widths
 through `DetailsColumn::fixed(...)`, matching `.size(...)`, `.fixed(...)`, and
 other layout builders instead of introducing a separate integer sizing model.
+Sortable details lists can use `SortDirection::apply_ordering(...)` after
+computing an ascending domain ordering, so hosts keep column-specific sort keys
+while Radiant owns the common ascending/descending direction policy.
 Custom details-list rows can use `compact_details_row(...)` and
 `compact_details_cell(...)` to share Radiant's compact row chrome, 20px cell
 height, fixed-width cell sizing, and flexible fill-cell sizing while still

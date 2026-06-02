@@ -52,6 +52,11 @@ pub fn text<Message: 'static>(value: impl Into<String>) -> ViewNode<Message> {
     ))
 }
 
+/// Build a fixed-height single-line text view that fills available width.
+pub fn text_line<Message: 'static>(value: impl Into<String>, height: f32) -> ViewNode<Message> {
+    text(value).fill_width().height(height).truncate()
+}
+
 /// Build a passive button view for retained surfaces that need button chrome
 /// without host messages.
 pub fn passive_button<Message: 'static>(label: impl Into<String>) -> ViewNode<Message> {

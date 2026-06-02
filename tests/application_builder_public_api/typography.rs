@@ -155,6 +155,24 @@ fn application_builder_typography_helpers_lower_text_policies_and_baselines() {
 }
 
 #[test]
+fn application_builder_text_line_builds_truncating_fixed_height_text() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<()> = ui::column([ui::text_line("Ready", 20.0).id(41)])
+        .id(40)
+        .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 48.0)),
+    );
+    let text = widget_ref::<TextWidget, _>(&surface, 41, "text line");
+
+    assert_eq!(text.wrap, TextWrap::None);
+    assert_eq!(layout.rects[&41].height(), 20.0);
+    assert_eq!(layout.rects[&41].width(), 160.0);
+}
+
+#[test]
 fn application_builder_text_policy_modifiers_use_widget_contract() {
     use radiant::prelude::{self as ui, IntoView};
 

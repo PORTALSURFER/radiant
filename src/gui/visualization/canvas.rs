@@ -2,7 +2,11 @@
 
 use std::sync::Arc;
 
-use crate::gui::types::{Point, Rect, Vector2};
+use crate::{
+    gui::types::{Point, Rect, Rgba8, Vector2},
+    runtime::{PaintPrimitive, push_visible_fill_rect},
+    widgets::WidgetId,
+};
 
 /// Paint and input order for a generic layered canvas.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -368,6 +372,26 @@ impl CanvasSelectionGeometry {
         })
     }
 
+    /// Append the top body-handle fill for moving this selection.
+    ///
+    /// Returns `true` when a visible fill primitive was appended.
+    pub fn push_body_handle_fill(
+        self,
+        primitives: &mut Vec<PaintPrimitive>,
+        widget_id: WidgetId,
+        parts: CanvasSelectionBodyHandlePaintParts,
+    ) -> bool {
+        let Some(rect) = self.body_handle_rect(
+            parts.height,
+            parts.end_inset,
+            parts.max_end_inset_fraction,
+            parts.min_width_after_inset,
+        ) else {
+            return false;
+        };
+        push_visible_fill_rect(primitives, widget_id, rect, parts.color)
+    }
+
     /// Return a bottom-trailing control square for this selection.
     pub fn trailing_control_rect(self, side: f32, inset: f32) -> Option<Rect> {
         canvas_selection_trailing_control_rect(
@@ -377,6 +401,21 @@ impl CanvasSelectionGeometry {
             side,
             inset,
         )
+    }
+
+    /// Append the bottom-trailing control fill for this selection.
+    ///
+    /// Returns `true` when a visible fill primitive was appended.
+    pub fn push_trailing_control_fill(
+        self,
+        primitives: &mut Vec<PaintPrimitive>,
+        widget_id: WidgetId,
+        parts: CanvasSelectionTrailingControlPaintParts,
+    ) -> bool {
+        let Some(rect) = self.trailing_control_rect(parts.side, parts.inset) else {
+            return false;
+        };
+        push_visible_fill_rect(primitives, widget_id, rect, parts.color)
     }
 
     /// Return the visible edge handle for this selection in `bounds`.
@@ -398,6 +437,23 @@ impl CanvasSelectionGeometry {
         canvas_selection_edge_visual_rect(bounds, fraction, width, vertical_inset)
     }
 
+    /// Append one visible edge-handle fill for this selection.
+    ///
+    /// Returns `true` when a visible fill primitive was appended.
+    pub fn push_edge_visual_fill(
+        self,
+        primitives: &mut Vec<PaintPrimitive>,
+        widget_id: WidgetId,
+        parts: CanvasSelectionEdgeVisualPaintParts,
+    ) -> bool {
+        let Some(rect) =
+            self.edge_visual_rect(parts.bounds, parts.role, parts.width, parts.vertical_inset)
+        else {
+            return false;
+        };
+        push_visible_fill_rect(primitives, widget_id, rect, parts.color)
+    }
+
     /// Return the first resize edge role containing `point`.
     pub fn edge_at_point(
         self,
@@ -412,6 +468,92 @@ impl CanvasSelectionGeometry {
                 self.edge_visual_rect(bounds, *role, width, vertical_inset)
                     .is_some_and(|rect| rect.contains(point))
             })
+    }
+}
+
+/// Paint policy for a normalized selection body/move handle.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CanvasSelectionBodyHandlePaintParts {
+    /// Requested handle height from the selection's top edge.
+    pub height: f32,
+    /// Preferred inset from both horizontal selection edges.
+    pub end_inset: f32,
+    /// Maximum inset as a fraction of the projected selection width.
+    pub max_end_inset_fraction: f32,
+    /// Minimum width required after applying the horizontal inset.
+    pub min_width_after_inset: f32,
+    /// Fill color.
+    pub color: Rgba8,
+}
+
+impl CanvasSelectionBodyHandlePaintParts {
+    /// Build selection body-handle paint parts.
+    pub const fn new(
+        height: f32,
+        end_inset: f32,
+        max_end_inset_fraction: f32,
+        min_width_after_inset: f32,
+        color: Rgba8,
+    ) -> Self {
+        Self {
+            height,
+            end_inset,
+            max_end_inset_fraction,
+            min_width_after_inset,
+            color,
+        }
+    }
+}
+
+/// Paint policy for a normalized selection trailing control.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CanvasSelectionTrailingControlPaintParts {
+    /// Requested square side length.
+    pub side: f32,
+    /// Inset from the selection's bottom-right corner.
+    pub inset: f32,
+    /// Fill color.
+    pub color: Rgba8,
+}
+
+impl CanvasSelectionTrailingControlPaintParts {
+    /// Build selection trailing-control paint parts.
+    pub const fn new(side: f32, inset: f32, color: Rgba8) -> Self {
+        Self { side, inset, color }
+    }
+}
+
+/// Paint policy for a normalized selection edge visual.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CanvasSelectionEdgeVisualPaintParts {
+    /// Bounds containing the edge visual.
+    pub bounds: Rect,
+    /// Edge role to paint.
+    pub role: DragHandleRole,
+    /// Requested visual width.
+    pub width: f32,
+    /// Vertical inset from the supplied bounds.
+    pub vertical_inset: f32,
+    /// Fill color.
+    pub color: Rgba8,
+}
+
+impl CanvasSelectionEdgeVisualPaintParts {
+    /// Build selection edge-visual paint parts.
+    pub const fn new(
+        bounds: Rect,
+        role: DragHandleRole,
+        width: f32,
+        vertical_inset: f32,
+        color: Rgba8,
+    ) -> Self {
+        Self {
+            bounds,
+            role,
+            width,
+            vertical_inset,
+            color,
+        }
     }
 }
 

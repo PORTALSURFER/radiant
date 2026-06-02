@@ -969,11 +969,13 @@ inside dense strips,
 `vertical_value_marker` and `VerticalValueMarker` for bottom-anchored value stems
 and interactive handles,
 `CanvasLayer`, `DragHandle`, `canvas_selection_rect`,
-`CanvasSelectionBodyHandleParts`, `canvas_selection_body_handle_rect`,
+`CanvasSelectionBodyHandleParts`, `CanvasSelectionBodyHandlePaintParts`,
+`CanvasSelectionEdgeVisualPaintParts`, `CanvasSelectionTrailingControlPaintParts`,
+`canvas_selection_body_handle_rect`,
 `canvas_selection_trailing_control_rect`, `canvas_selection_edge_handles`,
 `canvas_selection_edge_visual_rect`, and `horizontal_resize_edge_bracket_rects`
-for generic retained-canvas layering, selection, control, and resize handle
-geometry,
+for generic retained-canvas layering, selection, control, resize handle geometry,
+and guarded selection-affordance paint emission,
 `TimelineViewport` for normalized viewport bounds, including construction from
 integer `IndexViewport` ranges,
 `TimelineTransportState` for cursor/playhead/selection positions,
@@ -1837,7 +1839,9 @@ timeline values, lanes, normalized selections, or spatial surfaces into these
 reusable visualization slots while keeping domain workflow state outside
 Radiant. Use `CanvasSelectionGeometry` when one projected normalized selection
 needs several generic affordances such as a body move handle, resize edge
-visuals, or a trailing control. Use `TimelineEditPreview` with
+visuals, or a trailing control; its paint helpers append guarded fill
+primitives for those affordances while hosts keep product-specific colors and
+messages. Use `TimelineEditPreview` with
 `TimelineEditHandleGeometry` and `TimelineEditRegionGeometry` when timeline
 editors need standard handle hit rectangles and leading/trailing region paint
 rectangles without duplicating viewport projection math.

@@ -4,7 +4,7 @@ pub use crate::application::{
     ActionRowBuilder, BadgeBuilder, ButtonBuilder, ColorMarkerBuilder, DropdownBuilder,
     DropdownBuilderNeedsToggle, DropdownOption, DropdownOptionParts, DropdownOptionSelection,
     DropdownParts, DropdownTriggerBuilder, DropdownTriggerBuilderNeedsToggle, DropdownTriggerParts,
-    IconButtonBuilder, InteractiveBadgeBuilder, InteractiveRowBuilder,
+    IconButtonBuilder, InteractiveBadgeBuilder, InteractiveRowActions, InteractiveRowBuilder,
     InteractiveRowUnderlayBuilder, LabeledControlParts, ProgressBarBuilder, SelectableBuilder,
     SliderBuilder, TextInputBuilder, ToggleBuilder, action_row, badge, badge_mapped, badge_message,
     button, button_mapped, button_message, checkbox, close_button, color_marker,

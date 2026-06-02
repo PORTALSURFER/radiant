@@ -1,11 +1,109 @@
 use crate::{
     application::{MappedWidget, ViewNode, input_underlay, view_node_from_widget},
+    gui::types::Point,
     runtime::WidgetMessageMapper,
     widgets::{
-        FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds, WidgetId,
-        WidgetProminence, WidgetSizing, WidgetStyle,
+        DragHandleMessage, FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds,
+        WidgetId, WidgetProminence, WidgetSizing, WidgetStyle,
     },
 };
+
+/// Host callbacks for common interactive-row message routing.
+pub struct InteractiveRowActions<Message> {
+    activate: Option<Box<dyn Fn() -> Message + Send + Sync + 'static>>,
+    double_activate: Option<Box<dyn Fn() -> Message + Send + Sync + 'static>>,
+    secondary: Option<Box<dyn Fn(Point) -> Message + Send + Sync + 'static>>,
+    drag: Option<Box<dyn Fn(DragHandleMessage) -> Message + Send + Sync + 'static>>,
+    drop: Option<Box<dyn Fn() -> Message + Send + Sync + 'static>>,
+    hover_drop: Option<Box<dyn Fn(Point) -> Message + Send + Sync + 'static>>,
+}
+
+impl<Message> InteractiveRowActions<Message> {
+    /// Build an empty row-action router.
+    pub fn new() -> Self {
+        Self {
+            activate: None,
+            double_activate: None,
+            secondary: None,
+            drag: None,
+            drop: None,
+            hover_drop: None,
+        }
+    }
+
+    /// Emit a host message for single primary activation.
+    pub fn activate(mut self, message: impl Fn() -> Message + Send + Sync + 'static) -> Self {
+        self.activate = Some(Box::new(message));
+        self
+    }
+
+    /// Emit a host message for double primary activation.
+    pub fn double_activate(
+        mut self,
+        message: impl Fn() -> Message + Send + Sync + 'static,
+    ) -> Self {
+        self.double_activate = Some(Box::new(message));
+        self
+    }
+
+    /// Emit a host message for secondary activation.
+    pub fn secondary(mut self, message: impl Fn(Point) -> Message + Send + Sync + 'static) -> Self {
+        self.secondary = Some(Box::new(message));
+        self
+    }
+
+    /// Emit a host message for drag lifecycle updates.
+    pub fn drag(
+        mut self,
+        message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        self.drag = Some(Box::new(message));
+        self
+    }
+
+    /// Emit a host message when a drop lands on the row.
+    pub fn drop(mut self, message: impl Fn() -> Message + Send + Sync + 'static) -> Self {
+        self.drop = Some(Box::new(message));
+        self
+    }
+
+    /// Emit a host message when another row drag hovers this drop target.
+    pub fn hover_drop(
+        mut self,
+        message: impl Fn(Point) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        self.hover_drop = Some(Box::new(message));
+        self
+    }
+
+    fn map(&self, message: InteractiveRowMessage) -> Option<Message> {
+        if let Some(position) = message.secondary_position() {
+            return self.secondary.as_ref().map(|callback| callback(position));
+        }
+        if let Some(drag) = message.drag_message() {
+            return self.drag.as_ref().map(|callback| callback(drag));
+        }
+        if message.is_drop() {
+            return self.drop.as_ref().map(|callback| callback());
+        }
+        if let Some(position) = message.hover_drop_position() {
+            return self.hover_drop.as_ref().map(|callback| callback(position));
+        }
+        if message.is_double_activation() {
+            return self.double_activate.as_ref().map(|callback| callback());
+        }
+        if message.is_single_activation() {
+            return self.activate.as_ref().map(|callback| callback());
+        }
+        None
+    }
+}
+
+impl<Message> Default for InteractiveRowActions<Message> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Builder for selectable, draggable, droppable dense rows.
 pub struct InteractiveRowBuilder {
@@ -217,6 +315,14 @@ impl InteractiveRowBuilder {
         self.with_message_mapper(WidgetMessageMapper::interactive_row_filtered(map))
     }
 
+    /// Emit host messages for common row actions.
+    pub fn actions<Message: 'static>(
+        self,
+        actions: InteractiveRowActions<Message>,
+    ) -> ViewNode<Message> {
+        self.filter_mapped(move |message| actions.map(message))
+    }
+
     fn with_message_mapper<Message: 'static>(
         self,
         messages: WidgetMessageMapper<Message>,
@@ -338,6 +444,17 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
         Self::finish_parts(content, row.filter_mapped(map), input_id, style)
     }
 
+    /// Emit host messages for common row actions.
+    pub fn actions(self, actions: InteractiveRowActions<Message>) -> ViewNode<Message> {
+        let Self {
+            content,
+            row,
+            input_id,
+            style,
+        } = self;
+        Self::finish_parts(content, row.actions(actions), input_id, style)
+    }
+
     fn finish_parts(
         content: ViewNode<Message>,
         mut input: ViewNode<Message>,
@@ -406,6 +523,10 @@ mod tests {
     #[derive(Clone, Debug, PartialEq)]
     enum DemoMessage {
         Activate,
+        DoubleActivate,
+        Drop,
+        HoverDrop(Point),
+        Secondary(Point),
     }
 
     #[test]
@@ -425,6 +546,55 @@ mod tests {
                 WidgetOutput::typed(InteractiveRowMessage::Activate),
             ),
             Some(DemoMessage::Activate)
+        );
+    }
+
+    #[test]
+    fn interactive_row_actions_route_common_row_messages() {
+        fn action_row() -> ViewNode<DemoMessage> {
+            interactive_row_underlay(text("Collection"))
+                .input_id(771)
+                .actions(
+                    InteractiveRowActions::new()
+                        .activate(|| DemoMessage::Activate)
+                        .double_activate(|| DemoMessage::DoubleActivate)
+                        .drop(|| DemoMessage::Drop)
+                        .hover_drop(DemoMessage::HoverDrop)
+                        .secondary(DemoMessage::Secondary),
+                )
+                .size(140.0, 22.0)
+        }
+
+        let hover = Point::new(4.0, 9.0);
+        let secondary = Point::new(10.0, 12.0);
+
+        assert_eq!(
+            action_row()
+                .view_dispatch_widget_output(771, WidgetOutput::typed(InteractiveRowMessage::Drop)),
+            Some(DemoMessage::Drop)
+        );
+        assert_eq!(
+            action_row().view_dispatch_widget_output(
+                771,
+                WidgetOutput::typed(InteractiveRowMessage::HoverDropTarget { position: hover }),
+            ),
+            Some(DemoMessage::HoverDrop(hover))
+        );
+        assert_eq!(
+            action_row().view_dispatch_widget_output(
+                771,
+                WidgetOutput::typed(InteractiveRowMessage::SecondaryActivate {
+                    position: secondary,
+                }),
+            ),
+            Some(DemoMessage::Secondary(secondary))
+        );
+        assert_eq!(
+            action_row().view_dispatch_widget_output(
+                771,
+                WidgetOutput::typed(InteractiveRowMessage::DoubleActivate),
+            ),
+            Some(DemoMessage::DoubleActivate)
         );
     }
 

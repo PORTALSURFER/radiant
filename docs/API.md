@@ -185,7 +185,10 @@ input state must survive list edits. The launch builders expose `.options(...)`
 for callers that need the full `NativeRunOptions` surface. Apps that prefer
 explicit message routing can use `.message(...)` on widgets plus `.update(...)`
 or `.update_command(...)` on the app when reducers need to return
-`Command<Message>` values directly. Reducers that need the full app runtime can
+`Command<Message>` values directly. Interactive row and badge builders can use
+`InteractiveRowActions` when they only need common activation, secondary-click,
+drag, drop, or hover-drop routing without hand-written enum filtering.
+Reducers that need the full app runtime can
 use `.update_with(...)` and an `UpdateContext<Message>` to emit messages,
 request repaint, move focus, start background work, schedule delayed messages,
 or request runtime exit. `PlatformResponse` exposes helpers such as

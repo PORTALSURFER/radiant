@@ -10,6 +10,8 @@ use crate::{
     },
 };
 
+use super::interactive_row::InteractiveRowActions;
+
 /// Builder for badges that can emit messages or mutate state directly.
 pub struct BadgeBuilder {
     label: PaintText,
@@ -275,6 +277,15 @@ impl InteractiveBadgeBuilder {
         let Self { badge, row } = self;
         input_overlay(badge.passive_view(), row.filter_mapped(map))
     }
+
+    /// Emit host messages for common badge row actions.
+    pub fn actions<Message: 'static>(
+        self,
+        actions: InteractiveRowActions<Message>,
+    ) -> ViewNode<Message> {
+        let Self { badge, row } = self;
+        input_overlay(badge.passive_view(), row.actions(actions))
+    }
 }
 
 /// Build a badge or pill.
@@ -379,6 +390,59 @@ mod tests {
                     .downcast_ref::<crate::widgets::TextWidget>())
                 .map(|widget| widget.text.as_str()),
             Some("secondary")
+        );
+    }
+
+    #[test]
+    fn interactive_badge_routes_common_row_actions() {
+        let bridge = app(DemoState::default())
+            .view(|state| {
+                column([
+                    interactive_badge("Tag")
+                        .actions(InteractiveRowActions::new().activate(|| DemoMessage::Activate))
+                        .width(80.0)
+                        .height(22.0),
+                    text(state.status).id(331).height(22.0),
+                ])
+                .spacing(0.0)
+            })
+            .update(|state, message| {
+                state.status = match message {
+                    DemoMessage::Activate => "activated",
+                    DemoMessage::Secondary => "secondary",
+                };
+            })
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 44.0));
+        let position = Point::new(8.0, 8.0);
+
+        runtime.dispatch_input_at(
+            position,
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            },
+        );
+        runtime.dispatch_input_at(
+            position,
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            },
+        );
+
+        assert_eq!(
+            runtime
+                .surface()
+                .find_widget(331)
+                .and_then(|widget| widget
+                    .widget_object()
+                    .as_any()
+                    .downcast_ref::<crate::widgets::TextWidget>())
+                .map(|widget| widget.text.as_str()),
+            Some("activated")
         );
     }
 

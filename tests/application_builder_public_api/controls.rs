@@ -6,5 +6,7 @@ mod dropdown;
 mod dropdown_overlay;
 #[path = "controls/form_widgets.rs"]
 mod form_widgets;
+#[path = "controls/interactive_row.rs"]
+mod interactive_row;
 #[path = "controls/option_list.rs"]
 mod option_list;

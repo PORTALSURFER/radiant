@@ -81,6 +81,39 @@ fn dropdown_option_compatibility_constructor_delegates_to_named_parts() {
 }
 
 #[test]
+fn dropdown_option_named_selection_constructors_make_state_explicit() {
+    let selected = DropdownOption::selected("WASAPI", Message::Select("wasapi"));
+    let unselected = DropdownOption::unselected("System default", Message::Select("default"));
+    let from_selection = DropdownOption::from_selection(
+        "Device default",
+        DropdownOptionSelection::Unselected,
+        Message::Select("device-default"),
+    );
+
+    assert!(selected.selected);
+    assert!(!unselected.selected);
+    assert_eq!(from_selection.label, "Device default");
+    assert!(!from_selection.selected);
+}
+
+#[test]
+fn dropdown_builder_accepts_explicit_option_selection() {
+    let _view = dropdown("WASAPI", true)
+        .option_with_selection(
+            "System default",
+            DropdownOptionSelection::Unselected,
+            Message::Select("default"),
+        )
+        .toggle_message(Message::Toggle)
+        .option_with_selection(
+            "WASAPI",
+            DropdownOptionSelection::Selected,
+            Message::Select("wasapi"),
+        )
+        .build();
+}
+
+#[test]
 fn dropdown_menu_overlay_below_positions_menu_after_trigger_gap() {
     let _view = dropdown_menu_overlay_below(
         12.0,

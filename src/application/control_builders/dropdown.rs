@@ -91,11 +91,23 @@ impl<Message> DropdownBuilderNeedsToggle<Message> {
 
     /// Add one selectable option before assigning the required toggle message.
     pub fn option(mut self, label: impl Into<String>, selected: bool, message: Message) -> Self {
-        self.state.add_option_from_parts(DropdownOptionParts {
-            label: label.into(),
-            selection: DropdownOptionSelection::from_selected(selected),
-            message,
-        });
+        self.state
+            .options
+            .push(DropdownOption::new(label, selected, message));
+        self
+    }
+
+    /// Add one selectable option with an explicit selection state before
+    /// assigning the required toggle message.
+    pub fn option_with_selection(
+        mut self,
+        label: impl Into<String>,
+        selection: DropdownOptionSelection,
+        message: Message,
+    ) -> Self {
+        self.state
+            .options
+            .push(DropdownOption::from_selection(label, selection, message));
         self
     }
 
@@ -115,11 +127,22 @@ impl<Message> DropdownBuilderNeedsToggle<Message> {
 impl<Message> DropdownBuilder<Message> {
     /// Add one selectable option.
     pub fn option(mut self, label: impl Into<String>, selected: bool, message: Message) -> Self {
-        self.state.add_option_from_parts(DropdownOptionParts {
-            label: label.into(),
-            selection: DropdownOptionSelection::from_selected(selected),
-            message,
-        });
+        self.state
+            .options
+            .push(DropdownOption::new(label, selected, message));
+        self
+    }
+
+    /// Add one selectable option with an explicit selection state.
+    pub fn option_with_selection(
+        mut self,
+        label: impl Into<String>,
+        selection: DropdownOptionSelection,
+        message: Message,
+    ) -> Self {
+        self.state
+            .options
+            .push(DropdownOption::from_selection(label, selection, message));
         self
     }
 

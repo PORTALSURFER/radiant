@@ -631,6 +631,13 @@ order.
 Application-level compound controls follow the same rule: dropdown option parts
 use `DropdownOptionSelection` instead of a raw selected flag, so public examples
 can distinguish current-value state from the host message routed on activation.
+Use `DropdownOption::from_selection(...)` when constructing options from
+computed state, and `DropdownOption::selected(...)` or
+`DropdownOption::unselected(...)` when the option state is static at the call
+site. The older `DropdownOption::new(label, selected, message)` constructor
+remains available for compatibility, but new code should prefer the named
+selection constructors when readability would otherwise depend on a positional
+boolean.
 
 Single-line text editing is split between reusable state and widget routing:
 `TextInputState` owns the portable value, caret, and selection model, while

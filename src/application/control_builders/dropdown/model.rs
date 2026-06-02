@@ -54,13 +54,36 @@ impl<Message> DropdownOption<Message> {
         }
     }
 
-    /// Build one dropdown option.
-    pub fn new(label: impl Into<String>, selected: bool, message: Message) -> Self {
+    /// Build one dropdown option from an explicit selection state.
+    pub fn from_selection(
+        label: impl Into<String>,
+        selection: DropdownOptionSelection,
+        message: Message,
+    ) -> Self {
         Self::from_parts(DropdownOptionParts {
             label: label.into(),
-            selection: DropdownOptionSelection::from_selected(selected),
+            selection,
             message,
         })
+    }
+
+    /// Build one dropdown option that represents the current value.
+    pub fn selected(label: impl Into<String>, message: Message) -> Self {
+        Self::from_selection(label, DropdownOptionSelection::Selected, message)
+    }
+
+    /// Build one dropdown option that does not represent the current value.
+    pub fn unselected(label: impl Into<String>, message: Message) -> Self {
+        Self::from_selection(label, DropdownOptionSelection::Unselected, message)
+    }
+
+    /// Build one dropdown option.
+    pub fn new(label: impl Into<String>, selected: bool, message: Message) -> Self {
+        Self::from_selection(
+            label,
+            DropdownOptionSelection::from_selected(selected),
+            message,
+        )
     }
 }
 

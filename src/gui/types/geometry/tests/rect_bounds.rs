@@ -20,6 +20,14 @@ fn rect_from_points_normalizes_opposite_corners() {
 }
 
 #[test]
+fn rect_from_size_uses_the_logical_origin() {
+    assert_eq!(
+        Rect::from_size(80.0, 24.0),
+        Rect::from_min_max(Point::new(0.0, 0.0), Point::new(80.0, 24.0))
+    );
+}
+
+#[test]
 fn rect_clamp_to_returns_empty_bounds_origin_for_disjoint_rect() {
     let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 120.0));
     let rect = Rect::from_min_max(Point::new(200.0, 40.0), Point::new(250.0, 80.0));

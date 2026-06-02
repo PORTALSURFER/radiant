@@ -36,6 +36,11 @@ impl Rect {
         }
     }
 
+    /// Construct a rectangle at the logical origin with the given size.
+    pub fn from_size(width: f32, height: f32) -> Self {
+        Self::from_min_size(Point::default(), Vector2::new(width, height))
+    }
+
     /// Rectangle width in logical coordinates.
     pub fn width(self) -> f32 {
         self.max.x - self.min.x

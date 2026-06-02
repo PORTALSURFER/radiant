@@ -43,7 +43,7 @@ fn dense_visual_state_preserves_default_host_state() {
 fn push_dense_fill_uses_row_state_and_identity() {
     let mut row = InteractiveRowWidget::new(7, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
     row.common.state.hovered = true;
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let bounds = Rect::from_size(120.0, 22.0);
     let color = Rgba8::new(8, 9, 10, 180);
     let mut primitives = Vec::new();
 
@@ -103,7 +103,7 @@ fn drop_target_mode_configures_hover_and_drop_only_states() {
 
 #[test]
 fn handle_input_mapped_routes_custom_row_output() {
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let bounds = Rect::from_size(120.0, 22.0);
     let mut row = InteractiveRowWidget::new(10, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
     let pointer = Point::new(4.0, 4.0);
 
@@ -164,7 +164,7 @@ impl Widget for RowHost {
 
 #[test]
 fn synchronize_from_previous_embedded_preserves_custom_row_state() {
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let bounds = Rect::from_size(120.0, 22.0);
     let pointer = Point::new(4.0, 4.0);
     let mut previous = RowHost {
         row: InteractiveRowWidget::new(11, WidgetSizing::fixed(Vector2::new(120.0, 22.0))),

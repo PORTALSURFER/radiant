@@ -55,7 +55,9 @@ runtime modules.
 
 Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`,
 `Rgba8::blend_toward`, and `Rgba8::blend_opaque_toward` for common color
-manipulation. Dense visualizations can use `ColorRamp` and `ColorRampStop` for
+manipulation. Use `Rect::from_size(width, height)` for origin-based widget,
+viewport, and test bounds instead of repeating `Point::new(0.0, 0.0)` plus a
+size vector. Dense visualizations can use `ColorRamp` and `ColorRampStop` for
 normalized heatmap and intensity palettes without local interpolation helpers.
 Custom canvas, image, GPU surface, and overlay widgets can use
 `WidgetCommon::without_default_chrome()` when they still need Radiant's sizing,

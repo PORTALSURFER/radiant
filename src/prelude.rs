@@ -111,8 +111,8 @@ pub use crate::gui::{
     paint::{horizontal_line_rect, vertical_line_rect},
     panel::{PanelResizeDrag, PanelResizeEdge, update_panel_resize_drag},
     range::{
-        IndexViewport, NormalizedRange, normalized_fraction_to_micros,
-        normalized_fraction_to_milli, normalized_fraction_to_nanos,
+        IndexViewport, NormalizedRange, NormalizedRangeDrag, NormalizedRangeEdge,
+        normalized_fraction_to_micros, normalized_fraction_to_milli, normalized_fraction_to_nanos,
     },
     selection::SelectionSet,
     shortcuts::{

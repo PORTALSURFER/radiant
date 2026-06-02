@@ -309,10 +309,13 @@ anchor-preserving zoom, visible-span pan, and visible-to-absolute ratio
 projection, plus absolute-to-visible point and clipped range projection, so
 apps do not need to keep small-but-risky viewport math beside every custom
 canvas. `NormalizedRange::from_fractions(...)`,
-`normalized_fraction_to_milli(...)`, `normalized_fraction_to_micros(...)`, and
-`normalized_fraction_to_nanos(...)` convert floating point interaction ratios
-into the stable normalized units used by timeline, canvas, and retained
-visualization APIs.
+`NormalizedRange::with_edge_fraction(...)`,
+`NormalizedRange::shifted_by_fraction(...)`, `NormalizedRangeDrag`,
+`NormalizedRangeEdge`, `normalized_fraction_to_milli(...)`,
+`normalized_fraction_to_micros(...)`, and `normalized_fraction_to_nanos(...)`
+convert floating point interaction ratios into the stable normalized units used
+by timeline, canvas, and retained visualization APIs while keeping common
+range creation, edge dragging, and clamped movement behavior out of host code.
 Custom canvas widgets can use `CanvasGestureState` to turn raw `WidgetInput`
 pointer events into local and normalized hover, press, drag, release,
 double-click, drop, wheel, and focus-change events. This keeps waveform,

@@ -1,4 +1,4 @@
-use super::{NormalizedRange, NormalizedRangeParts};
+use super::{NormalizedRange, NormalizedRangeDrag, NormalizedRangeEdge, NormalizedRangeParts};
 
 #[test]
 fn normalized_range_orders_and_clamps_nano_bounds() {
@@ -58,4 +58,37 @@ fn normalized_range_from_fractions_treats_non_finite_as_zero() {
 
     assert_eq!(range.start_nanos, 0);
     assert_eq!(range.end_nanos, 0);
+}
+
+#[test]
+fn normalized_range_moves_one_edge_and_orders_result() {
+    let range = NormalizedRange::from_fractions(0.25, 0.75);
+
+    let resized = range.with_edge_fraction(NormalizedRangeEdge::Start, 0.90);
+
+    assert!((resized.start_fraction() - 0.75).abs() <= f32::EPSILON);
+    assert!((resized.end_fraction() - 0.90).abs() <= f32::EPSILON);
+}
+
+#[test]
+fn normalized_range_shift_preserves_width_and_clamps_to_bounds() {
+    let range = NormalizedRange::from_fractions(0.30, 0.55);
+
+    let shifted_left = range.shifted_by_fraction(-0.50);
+    let shifted_right = range.shifted_by_fraction(0.70);
+
+    assert_eq!(shifted_left, NormalizedRange::from_fractions(0.0, 0.25));
+    assert_eq!(shifted_right, NormalizedRange::from_fractions(0.75, 1.0));
+    assert_eq!(range.shifted_by_fraction(f32::NAN), range);
+}
+
+#[test]
+fn normalized_range_drag_tracks_thresholded_movement() {
+    let mut drag = NormalizedRangeDrag::new(0.4);
+
+    drag.update(0.405, 0.01);
+    assert!(!drag.moved);
+    drag.update(0.2, 0.01);
+    assert!(drag.moved);
+    assert_eq!(drag.range(), NormalizedRange::from_fractions(0.4, 0.2));
 }

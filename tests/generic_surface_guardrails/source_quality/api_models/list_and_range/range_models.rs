@@ -13,7 +13,10 @@ fn normalized_ranges_use_named_parts_for_milli_bounds() {
 
     assert!(
         root.contains("mod interval;")
-            && root.contains("pub use interval::{NormalizedRange, NormalizedRangeParts};")
+            && root.contains("NormalizedRange")
+            && root.contains("NormalizedRangeDrag")
+            && root.contains("NormalizedRangeEdge")
+            && root.contains("NormalizedRangeParts")
             && !root.contains("pub struct NormalizedRange"),
         "range root should re-export the normalized interval model without owning its implementation"
     );

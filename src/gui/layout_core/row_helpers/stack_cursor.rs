@@ -44,12 +44,24 @@ impl StackedLayoutCursor {
         self.offset += finite_nonnegative(item_extent) + finite_nonnegative(gap_after);
     }
 
+    /// Advance past several identical items and their following gaps.
+    pub fn advance_many(&mut self, count: usize, item_extent: f32, gap_after: f32) {
+        let step = finite_nonnegative(item_extent) + finite_nonnegative(gap_after);
+        self.offset += step * count as f32;
+    }
+
     /// Return a cursor advanced past one item and the following gap.
     ///
     /// This is the chainable form of [`Self::advance`] for compact overlay
     /// anchor calculations.
     pub fn advanced(mut self, item_extent: f32, gap_after: f32) -> Self {
         self.advance(item_extent, gap_after);
+        self
+    }
+
+    /// Return a cursor advanced past several identical items and their gaps.
+    pub fn advanced_many(mut self, count: usize, item_extent: f32, gap_after: f32) -> Self {
+        self.advance_many(count, item_extent, gap_after);
         self
     }
 

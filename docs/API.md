@@ -310,10 +310,11 @@ item count, viewport policy, and optional host selection in one controller call.
 Overlay and retained-geometry code that needs to mirror compact stack spacing
 can use `StackedLayoutCursor` to accumulate item extents and gaps without
 app-local offset arithmetic. Use the chainable `advanced(...)` and
-`advanced_if(...)` forms when optional rows should affect overlay anchors
-without introducing mutable cursor plumbing at the call site. Use
-`offset_within_item(...)` when an overlay or retained marker should anchor to a
-nested control inside the current stacked item rather than the item's start
+`advanced_many(...)` forms when repeated rows precede an overlay target, and
+`advanced_if(...)` when optional rows should affect overlay anchors without
+introducing mutable cursor plumbing at the call site. Use
+`offset_within_item(...)` when an overlay or retained marker should anchor to
+a nested control inside the current stacked item rather than the item's start
 edge.
 Timeline and waveform-style surfaces can use `IndexViewport` for generic
 integer range navigation. It owns clamping, visible fraction, scrollbar offset,

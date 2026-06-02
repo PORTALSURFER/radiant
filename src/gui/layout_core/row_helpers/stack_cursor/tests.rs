@@ -31,6 +31,27 @@ fn stacked_layout_cursor_can_continue_from_existing_offset() {
 }
 
 #[test]
+fn stacked_layout_cursor_advances_past_repeated_items() {
+    let mut cursor = StackedLayoutCursor::new();
+
+    cursor.advance_many(3, 20.0, 7.0);
+
+    assert_eq!(cursor.offset(), 81.0);
+    assert_eq!(
+        StackedLayoutCursor::new()
+            .advanced_many(2, 20.0, 7.0)
+            .offset(),
+        54.0
+    );
+    assert_eq!(
+        StackedLayoutCursor::new()
+            .advanced_many(3, -20.0, f32::NAN)
+            .offset(),
+        0.0
+    );
+}
+
+#[test]
 fn stacked_layout_cursor_reports_offsets_within_current_item() {
     let cursor = StackedLayoutCursor::new().advanced(20.0, 7.0);
 

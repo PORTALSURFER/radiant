@@ -1493,6 +1493,10 @@ menu is projected as a separate stack-level overlay.
 Transient dropdowns, menus, and popovers can use `dismissible_overlay(...)`
 when foreground overlay content should sit above a transparent outside-click
 dismiss layer while preserving the base content underneath.
+Use `dropdown_menu_overlay_below_stacked_labeled_control(...)` when a dropdown
+trigger lives inside a compact stacked labeled-control panel and the menu should
+anchor below the current `StackedLayoutCursor` item without repeating label
+offset arithmetic in the host.
 Dismissible context menus can use `dismissible_context_menu_with_width(...)`
 when they should use Radiant's standard compact menu height for the supplied
 commands instead of computing `message_menu_height(...)` in application code.

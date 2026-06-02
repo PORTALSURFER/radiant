@@ -31,7 +31,8 @@ pub use dropdown::{
     DropdownTriggerBuilderNeedsToggle, DropdownTriggerParts, dropdown, dropdown_from_parts,
     dropdown_height, dropdown_menu, dropdown_menu_height, dropdown_menu_overlay,
     dropdown_menu_overlay_below, dropdown_menu_overlay_below_from_parts,
-    dropdown_menu_overlay_below_labeled_control, dropdown_menu_overlay_below_trigger,
+    dropdown_menu_overlay_below_labeled_control,
+    dropdown_menu_overlay_below_stacked_labeled_control, dropdown_menu_overlay_below_trigger,
     dropdown_option, dropdown_trigger, dropdown_trigger_from_parts, dropdown_trigger_height,
     state_dropdown,
 };

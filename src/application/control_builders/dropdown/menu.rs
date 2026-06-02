@@ -1,5 +1,6 @@
 use crate::{
     application::{ViewNode, button, column, labeled_control_control_offset, row, text},
+    gui::layout_core::StackedLayoutCursor,
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 
@@ -137,6 +138,26 @@ where
         width,
         options,
     )
+}
+
+/// Build a dropdown menu overlay below a standard trigger inside the current
+/// item of a compact stacked labeled-control layout.
+///
+/// `stack_y` is the top edge of the stack layer containing the labeled-control
+/// rows. `cursor` should point at the labeled-control item that owns the
+/// trigger, before advancing past that item.
+pub fn dropdown_menu_overlay_below_stacked_labeled_control<Message>(
+    x: f32,
+    stack_y: f32,
+    cursor: StackedLayoutCursor,
+    gap: f32,
+    width: Option<f32>,
+    options: Vec<DropdownOption<Message>>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    dropdown_menu_overlay_below_labeled_control(x, stack_y + cursor.offset(), gap, width, options)
 }
 
 /// Build a dropdown menu overlay below a trigger from named parts.

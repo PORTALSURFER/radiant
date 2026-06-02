@@ -1,5 +1,6 @@
 use super::*;
 use crate::application::{IntoView, labeled_control_control_offset};
+use crate::gui::layout_core::StackedLayoutCursor;
 
 #[derive(Clone, Debug, PartialEq)]
 enum Message {
@@ -151,4 +152,31 @@ fn dropdown_menu_overlay_below_labeled_control_uses_standard_control_offset() {
         .expect("dropdown option should be painted");
 
     assert!(menu_text.rect.min.y >= 20.0 + labeled_control_control_offset());
+}
+
+#[test]
+fn dropdown_menu_overlay_below_stacked_labeled_control_uses_stack_cursor_offset() {
+    let cursor = StackedLayoutCursor::new()
+        .advanced(20.0, 7.0)
+        .advanced_if(true, 18.0, 3.0);
+    let frame = dropdown_menu_overlay_below_stacked_labeled_control(
+        12.0,
+        8.0,
+        cursor,
+        3.0,
+        Some(120.0),
+        vec![DropdownOption::new(
+            "WASAPI",
+            true,
+            Message::Select("wasapi"),
+        )],
+    )
+    .view_frame_at_size_with_default_theme(crate::gui::types::Vector2::new(240.0, 220.0));
+
+    let menu_text = frame
+        .paint_plan
+        .first_text_run("WASAPI")
+        .expect("dropdown option should be painted");
+
+    assert!(menu_text.rect.min.y >= 8.0 + cursor.offset() + labeled_control_control_offset());
 }

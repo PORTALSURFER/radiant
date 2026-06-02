@@ -97,6 +97,38 @@ impl<Message> UpdateContext<Message> {
         );
     }
 
+    /// Start the latest task for one host-owned resource and run cancellable
+    /// work on a runtime-managed business thread.
+    ///
+    /// The returned token should be stored by the host when it needs to request
+    /// cooperative cancellation before the task completes.
+    pub fn spawn_cancellable_latest_with_priority<Output>(
+        &mut self,
+        latest: &mut LatestTask,
+        name: &'static str,
+        priority: TaskPriority,
+        work: impl FnOnce(TaskTicket, CancellationToken) -> Output + Send + 'static,
+        map: impl FnOnce(TaskCompletion<Output>) -> Message + Send + 'static,
+    ) -> CancellationToken
+    where
+        Output: Send + 'static,
+    {
+        let ticket = latest.begin();
+        let token = CancellationToken::new();
+        let worker_token = token.clone();
+        self.spawn_cancellable_with_priority(
+            name,
+            priority,
+            worker_token,
+            move |token| TaskCompletion {
+                ticket,
+                output: work(ticket, token),
+            },
+            map,
+        );
+        token
+    }
+
     /// Schedule a delayed message for the latest request for one host-owned
     /// resource.
     ///

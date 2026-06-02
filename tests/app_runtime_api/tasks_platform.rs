@@ -148,6 +148,30 @@ fn update_context_can_spawn_cancellable_work() {
 }
 
 #[test]
+fn update_context_can_spawn_cancellable_latest_work() {
+    let mut latest = radiant::prelude::LatestTask::new();
+    let mut context = radiant::prelude::UpdateContext::default();
+    let token = context.spawn_cancellable_latest_with_priority(
+        &mut latest,
+        "latest-cancel-test",
+        radiant::prelude::TaskPriority::Idle,
+        |ticket, token| {
+            assert_eq!(ticket.id(), 1);
+            token.is_cancelled()
+        },
+        |completion| {
+            assert_eq!(completion.task_id(), 1);
+            DemoMessage::Increment
+        },
+    );
+
+    assert_eq!(latest.active().map(|ticket| ticket.id()), Some(1));
+    assert!(!token.is_cancelled());
+    token.cancel();
+    assert!(token.is_cancelled());
+}
+
+#[test]
 fn update_context_accepts_task_priority_hints() {
     let token = radiant::prelude::CancellationToken::new();
     let mut context = radiant::prelude::UpdateContext::default();

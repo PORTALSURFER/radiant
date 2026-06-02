@@ -203,6 +203,8 @@ for one-resource background loads where a newer selection should invalidate an
 older completion. The resulting message receives a `TaskCompletion<Output>`;
 call `LatestTask::finish(completion.ticket)` before applying the output so stale
 work is rejected consistently without host-specific task-id plumbing. Use
+`UpdateContext::spawn_cancellable_latest_with_priority(...)` when replace-latest
+work also needs cooperative cancellation and a scheduling priority. Use
 `UpdateContext::after_latest(...)` for debounced one-resource work when a
 selection, search query, or inspector target should only start after it remains
 current for a short delay; the delayed message carries the same ticket type and

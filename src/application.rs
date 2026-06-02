@@ -69,7 +69,9 @@ pub use option_list::{
 mod toolbar;
 pub use toolbar::{ToolbarAlignment, ToolbarParts, toolbar, toolbar_from_parts};
 mod panel_section;
-pub use panel_section::{PanelSectionParts, panel_section, panel_section_from_parts};
+pub use panel_section::{
+    PanelSectionParts, closeable_panel_section_from_parts, panel_section, panel_section_from_parts,
+};
 mod labeled_control;
 pub use labeled_control::{
     LabeledControlParts, labeled_control, labeled_control_control_offset,

@@ -1522,9 +1522,10 @@ panel sandbox that uses `PropertyRow`, `property_panel(...)`, and
 stateful examples. `property_panel(...)` is read-only and can be used with any
 host message type; use `selectable_property_panel(...)` when property rows
 should emit state callbacks. Compact titled panels with optional header actions can use
-`PanelSectionParts`, `panel_section(...)`, and `panel_section_from_parts(...)`
-instead of rebuilding title rows, padding, spacing, and neutral panel chrome in
-application code. Compact control panels can use `LabeledControlParts`,
+`PanelSectionParts`, `panel_section(...)`, `panel_section_from_parts(...)`, and
+`closeable_panel_section_from_parts(...)` instead of rebuilding title rows,
+close buttons, padding, spacing, and neutral panel chrome in application code.
+Compact control panels can use `LabeledControlParts`,
 `labeled_control(...)`, `labeled_control_from_parts(...)`, and
 `labeled_control_control_offset(...)` for label-over-control groups and overlay
 anchors without repeating label text styling and stacked spacing.

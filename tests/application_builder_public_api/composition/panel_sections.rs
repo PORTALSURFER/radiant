@@ -43,6 +43,28 @@ fn application_builder_panel_section_supports_convenience_constructor() {
 }
 
 #[test]
+fn closeable_panel_section_routes_standard_close_button_message() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::closeable_panel_section_from_parts(
+        ui::PanelSectionParts::new("Job Details", ui::text("Ready")).height(80.0),
+        DemoMessage::Increment,
+    )
+    .id(1)
+    .into_surface();
+    let focus_order = surface.keyboard_focus_order();
+
+    assert_eq!(focus_order.len(), 1);
+    assert_eq!(
+        surface.dispatch_widget_output(
+            focus_order[0],
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+        ),
+        Some(DemoMessage::Increment)
+    );
+}
+
+#[test]
 fn panel_section_parts_support_named_overrides() {
     use radiant::prelude as ui;
 

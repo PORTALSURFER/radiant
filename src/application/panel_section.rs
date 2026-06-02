@@ -1,5 +1,5 @@
 use crate::{
-    application::{ViewNode, column, row, text},
+    application::{ViewNode, close_button, column, row, text},
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 
@@ -120,6 +120,25 @@ pub fn panel_section_from_parts<Message: 'static>(
         section = section.height(height);
     }
     section
+}
+
+/// Build a closeable compact titled panel section from named parts.
+pub fn closeable_panel_section_from_parts<Message>(
+    parts: PanelSectionParts<Message>,
+    close_message: Message,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    panel_section_from_parts(
+        parts.trailing(
+            close_button()
+                .subtle()
+                .message(close_message)
+                .width(24.0)
+                .height(20.0),
+        ),
+    )
 }
 
 fn panel_section_header<Message: 'static>(

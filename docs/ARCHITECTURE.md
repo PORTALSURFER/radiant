@@ -66,6 +66,23 @@ When an item is useful but not common enough for normal app code, leave it on
 its owning explicit module such as `radiant::runtime`, `radiant::widgets`,
 `radiant::layout`, `radiant::theme`, or `radiant::gui`.
 
+New prelude exports should follow this checklist:
+
+- Add the item to the smallest existing prelude leaf module that matches the
+  owning API area.
+- If no focused leaf exists, add one under the matching first-level prelude
+  directory instead of lengthening a facade.
+- Keep first-level split groups such as `application`, `gui`, and `runtime` as
+  child-module facades. They should not contain direct `pub use crate::...`
+  lists once they have been split.
+- Treat a large import or export block as a module-boundary smell. First decide
+  whether the code is mixing ownership areas or whether a reusable GUI primitive
+  belongs in Radiant, then add the import only after the boundary is clear.
+
+The source-quality guardrails assert that the root prelude and split first-level
+prelude groups remain facades. If those tests fail, the fix should normally be a
+new focused export leaf or a module split, not a formatting workaround.
+
 ## Core Subsystems
 
 - `src/application` owns the application-builder runtime: state projection,

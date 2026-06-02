@@ -82,6 +82,32 @@ fn public_prelude_stays_grouped_by_subsystem() {
     );
 }
 
+#[test]
+fn public_prelude_first_level_groups_stay_as_facades_when_split() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+    for module in ["application", "gui", "runtime"] {
+        let source_path = manifest_dir
+            .join("src/prelude")
+            .join(format!("{module}.rs"));
+        let source = fs::read_to_string(&source_path).unwrap_or_else(|err| {
+            panic!(
+                "prelude facade {} should be readable: {err}",
+                source_path.display()
+            )
+        });
+
+        assert!(
+            source.contains("mod ") && source.contains("pub use "),
+            "split prelude group {module} should stay a facade over focused child export modules"
+        );
+        assert!(
+            !source.contains("pub use crate::"),
+            "split prelude group {module} should not rebuild a broad crate export list; add exports to focused child modules under src/prelude/{module}/"
+        );
+    }
+}
+
 #[path = "source_quality/api_models.rs"]
 mod api_models;
 #[path = "source_quality/error_handling.rs"]

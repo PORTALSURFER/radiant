@@ -28,6 +28,14 @@ fn rect_from_size_uses_the_logical_origin() {
 }
 
 #[test]
+fn rect_from_xy_size_uses_positioned_logical_bounds() {
+    assert_eq!(
+        Rect::from_xy_size(12.0, 8.0, 80.0, 24.0),
+        Rect::from_min_max(Point::new(12.0, 8.0), Point::new(92.0, 32.0))
+    );
+}
+
+#[test]
 fn rect_clamp_to_returns_empty_bounds_origin_for_disjoint_rect() {
     let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 120.0));
     let rect = Rect::from_min_max(Point::new(200.0, 40.0), Point::new(250.0, 80.0));

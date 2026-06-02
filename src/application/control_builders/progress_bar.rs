@@ -45,6 +45,14 @@ impl ProgressBarBuilder {
         self
     }
 
+    /// Emit one cloned host message when activated.
+    pub fn message<Message>(self, message: Message) -> ViewNode<Message>
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        self.mapped(move |_| message.clone())
+    }
+
     /// Emit a mapped host message when this progress bar emits output.
     pub fn mapped<Message: 'static>(
         self,
@@ -112,6 +120,7 @@ pub fn progress_bar_for_snapshot(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::application::IntoView;
 
     #[test]
     fn progress_bar_for_snapshot_uses_determinate_mode_when_total_is_known() {
@@ -125,5 +134,21 @@ mod tests {
         let builder = progress_bar_for_snapshot(ProgressSnapshot::new(3, 0), 0.75);
 
         assert_eq!(builder.mode, ProgressBarMode::Indeterminate(0.75));
+    }
+
+    #[test]
+    fn progress_bar_message_maps_activation_to_cloned_host_message() {
+        let view = progress_bar(ProgressBarMode::Determinate(0.5))
+            .activatable()
+            .message("toggle")
+            .id(42);
+
+        assert_eq!(
+            view.view_dispatch_widget_output(
+                42,
+                crate::widgets::WidgetOutput::typed(ProgressBarMessage::Activate,)
+            ),
+            Some("toggle")
+        );
     }
 }

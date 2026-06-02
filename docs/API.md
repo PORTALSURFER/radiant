@@ -386,9 +386,12 @@ tints, determinate progress fills, and edge-band accents without app-local
 paint-only custom widgets.
 Status surfaces and background-job indicators can use `ProgressBarWidget` for
 theme-backed determinate or indeterminate horizontal progress, with optional
-pointer activation when the bar should open details. Applications that already
-track work with `ProgressSnapshot` can use `progress_bar_for_snapshot(...)` to
-choose determinate or indeterminate progress without app-local branching.
+pointer activation when the bar should open details. Use
+`ProgressBarBuilder::message(...)` for simple activation actions, or
+`mapped(...)` when reducers need to inspect `ProgressBarMessage` directly.
+Applications that already track work with `ProgressSnapshot` can use
+`progress_bar_for_snapshot(...)` to choose determinate or indeterminate
+progress without app-local branching.
 Long-running work that reports fractional progress from tight worker loops can
 use `ProgressUpdateGate` to coalesce updates by time and delta before sending
 messages back into the UI, while still accepting terminal updates immediately.

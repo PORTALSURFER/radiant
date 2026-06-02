@@ -1,7 +1,6 @@
 //! Horizontal SVG-icon toolbar with state-driven toggle buttons.
 
 use radiant::prelude::*;
-use std::sync::Arc;
 
 #[path = "toolbar_icons/icon_button.rs"]
 mod icon_button;

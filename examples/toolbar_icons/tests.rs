@@ -9,19 +9,35 @@ use radiant::runtime::SurfaceRuntime;
 fn svg_toolbar_icons_parse_active_and_inactive_vector_icons() {
     let theme = ThemeTokens::default();
     let icons = ToolbarIcons::new(&theme);
+    let rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(16.0, 16.0));
+    let mut first_active = Vec::new();
+    let mut second_active = Vec::new();
+    let mut inactive = Vec::new();
 
-    assert!(Arc::ptr_eq(
-        &icons.select.active_glyph,
-        &icons.select.active_glyph
-    ));
-    assert!(!Arc::ptr_eq(
-        &icons.select.active_glyph,
-        &icons.select.inactive_glyph
-    ));
-    assert!(!Arc::ptr_eq(
-        &icons.brush.active_glyph,
-        &icons.brush.inactive_glyph
-    ));
+    icons
+        .select
+        .glyph(true)
+        .append_paint(&mut first_active, 1, rect);
+    icons
+        .select
+        .glyph(true)
+        .append_paint(&mut second_active, 1, rect);
+    icons
+        .select
+        .glyph(false)
+        .append_paint(&mut inactive, 1, rect);
+
+    let PaintPrimitive::Svg(first_active) = &first_active[0] else {
+        panic!("active toolbar icon should paint svg");
+    };
+    let PaintPrimitive::Svg(second_active) = &second_active[0] else {
+        panic!("cached active toolbar icon should paint svg");
+    };
+    let PaintPrimitive::Svg(inactive) = &inactive[0] else {
+        panic!("inactive toolbar icon should paint svg");
+    };
+    assert_eq!(first_active.document, second_active.document);
+    assert_ne!(first_active.document, inactive.document);
 }
 
 #[test]

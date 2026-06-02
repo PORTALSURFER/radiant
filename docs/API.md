@@ -46,8 +46,8 @@ runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 also includes the geometry, layout, image, color, and theme
 types needed in widget method signatures, including `Rect`, `Point`, `Vector2`,
 `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, and `ThemeTokens`, plus
-app-facing asset helpers such as `SvgIcon`, common feedback geometry helpers
-such as `horizontal_progress_fill_rect`, paint geometry helpers such as
+app-facing asset helpers such as `SvgIcon` and `SvgIconTintCache`, common
+feedback geometry helpers such as `horizontal_progress_fill_rect`, paint geometry helpers such as
 `horizontal_line_rect` and `vertical_line_rect`, plus the builder types needed by method chains. These
 builders lower into the same `UiSurface`, `SurfaceNode`, `SurfaceChild`,
 `WidgetSizing`, and `RuntimeBridge` contracts available through the explicit
@@ -1140,10 +1140,16 @@ pixel-snapped icon-box geometry for reusable controls.
 The prelude `SvgIcon::from_svg(...)` parses embedded SVG source into a retained
 SVG document that emits a backend-neutral `PaintSvg` primitive.
 `SvgIcon::try_from_svg(...)` and `PaintSvgDocument::try_from_svg(...)` return a
-typed `SvgParseError` when hosts need parser diagnostics. The native Vello
-backend appends retained SVG documents through `vello_svg` during scene
-encoding. `SvgIcon::empty()` creates a no-paint icon for defensive fallbacks or
-temporarily unavailable vector assets.
+typed `SvgParseError` when hosts need parser diagnostics. Single-color static
+icons whose tint follows theme or interaction state can use
+`SvgIcon::from_svg_with_current_color(...)`,
+`SvgIcon::try_from_svg_with_current_color(...)`, or a static
+`SvgIconTintCache` so repeated projections clone retained tinted documents
+instead of reparsing formatted SVG strings. `svg_with_current_color(...)`
+provides the same root-attribute injection for one-off asset preparation. The
+native Vello backend appends retained SVG documents through `vello_svg` during
+scene encoding. `SvgIcon::empty()` creates a no-paint icon for defensive
+fallbacks or temporarily unavailable vector assets.
 `Rect::stroke_aligned_rect` provides stroke-grid snapping for retained border
 geometry.
 `Rect::top_left_square`, `Rect::top_right_square`,

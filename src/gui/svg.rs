@@ -14,7 +14,7 @@ mod parser;
 mod tests;
 
 pub use hit_test::point_in_svg_shapes;
-pub use icon::SvgIcon;
+pub use icon::{SvgIcon, SvgIconTintCache, svg_with_current_color};
 pub use model::{SvgDocument, SvgShape};
 pub use parser::parse_svg_document;
 

@@ -118,7 +118,7 @@ pub use crate::gui::{
     shortcuts::{
         ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution, ShortcutStack,
     },
-    svg::SvgIcon,
+    svg::{SvgIcon, SvgIconTintCache, svg_with_current_color},
     text_layout::{
         TextLineInsets, TextWidthEstimate, centered_text_baseline, centered_text_line,
         estimated_text_width, estimated_text_width_for_char_count,

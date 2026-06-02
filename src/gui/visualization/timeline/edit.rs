@@ -96,6 +96,22 @@ pub struct TimelineEditHandleGeometry {
     pub handle_size: f32,
 }
 
+impl TimelineEditHandleGeometry {
+    /// Build handle projection geometry for a visible edit selection.
+    pub const fn new(bounds: Rect, selection_rect: Rect, handle_size: f32) -> Self {
+        Self {
+            bounds,
+            selection_rect,
+            handle_size,
+        }
+    }
+
+    /// Return the effective handle size after clamping to the surface bounds.
+    pub fn clamped_handle_size(self) -> f32 {
+        normalized_handle_size(self.bounds, self.handle_size)
+    }
+}
+
 /// Geometry policy for projecting edit-preview regions.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TimelineEditRegionGeometry {
@@ -103,6 +119,16 @@ pub struct TimelineEditRegionGeometry {
     pub bounds: Rect,
     /// Visible rectangle for the edited selection.
     pub selection_rect: Rect,
+}
+
+impl TimelineEditRegionGeometry {
+    /// Build region projection geometry for a visible edit selection.
+    pub const fn new(bounds: Rect, selection_rect: Rect) -> Self {
+        Self {
+            bounds,
+            selection_rect,
+        }
+    }
 }
 
 /// Named edit-preview parts for timeline handle projection.
@@ -200,6 +226,29 @@ impl TimelineEditPreview {
         ))
     }
 
+    /// Build standard handle geometry for the visible edit selection.
+    pub fn handle_geometry(
+        self,
+        mapper: TimelineCoordinateMapper,
+        handle_size: f32,
+    ) -> Option<TimelineEditHandleGeometry> {
+        let selection_rect = self.selection_rect(mapper)?;
+        Some(TimelineEditHandleGeometry::new(
+            mapper.rect,
+            selection_rect,
+            handle_size,
+        ))
+    }
+
+    /// Build standard region geometry for the visible edit selection.
+    pub fn region_geometry(
+        self,
+        mapper: TimelineCoordinateMapper,
+    ) -> Option<TimelineEditRegionGeometry> {
+        let selection_rect = self.selection_rect(mapper)?;
+        Some(TimelineEditRegionGeometry::new(mapper.rect, selection_rect))
+    }
+
     /// Project a standard edit handle into a hit-test or paint rectangle.
     pub fn handle_rect(
         self,
@@ -211,7 +260,7 @@ impl TimelineEditPreview {
         if micros < mapper.viewport.start_micros || micros > mapper.viewport.end_micros {
             return None;
         }
-        let size = normalized_handle_size(geometry.bounds, geometry.handle_size);
+        let size = geometry.clamped_handle_size();
         let x = mapper.x_for_micros(micros);
         let horizontal = geometry.bounds.vertical_strip_around_x(x, size);
         let vertical =

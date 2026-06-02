@@ -33,23 +33,16 @@ fn preview() -> TimelineEditPreview {
 
 fn geometry() -> TimelineEditHandleGeometry {
     let mapper = mapper();
-    TimelineEditHandleGeometry {
-        bounds: mapper.rect,
-        selection_rect: preview()
-            .selection_rect(mapper)
-            .expect("visible selection rect"),
-        handle_size: 10.0,
-    }
+    preview()
+        .handle_geometry(mapper, 10.0)
+        .expect("visible handle geometry")
 }
 
 fn region_geometry() -> TimelineEditRegionGeometry {
     let mapper = mapper();
-    TimelineEditRegionGeometry {
-        bounds: mapper.rect,
-        selection_rect: preview()
-            .selection_rect(mapper)
-            .expect("visible selection rect"),
-    }
+    preview()
+        .region_geometry(mapper)
+        .expect("visible region geometry")
 }
 
 fn assert_rect_near(actual: Option<Rect>, expected: Rect) {
@@ -157,13 +150,9 @@ fn timeline_edit_preview_standard_handle_at_uses_standard_priority() {
         ..TimelineEditPreviewParts::default()
     });
     let mapper = mapper();
-    let geometry = TimelineEditHandleGeometry {
-        bounds: mapper.rect,
-        selection_rect: preview
-            .selection_rect(mapper)
-            .expect("visible selection rect"),
-        handle_size: 10.0,
-    };
+    let geometry = preview
+        .handle_geometry(mapper, 10.0)
+        .expect("visible handle geometry");
 
     assert_eq!(
         preview.standard_handle_at(mapper, geometry, Point::new(40.0, 5.0)),
@@ -178,16 +167,39 @@ fn timeline_edit_preview_omits_handles_outside_viewport() {
         bounds(),
         NormalizedPixelSnap::None,
     );
-    let geometry = TimelineEditHandleGeometry {
-        bounds: mapper.rect,
-        selection_rect: preview()
-            .selection_rect(mapper)
-            .expect("visible selection rect"),
-        handle_size: 10.0,
-    };
+    let geometry = preview()
+        .handle_geometry(mapper, 10.0)
+        .expect("visible handle geometry");
 
     assert_eq!(
         preview().handle_rect(mapper, geometry, TimelineEditHandle::TrailingOuterEnd),
         None
     );
+}
+
+#[test]
+fn timeline_edit_preview_builds_standard_geometry_from_visible_selection() {
+    let mapper = mapper();
+    let handle_geometry = preview()
+        .handle_geometry(mapper, 10.0)
+        .expect("visible handle geometry");
+    let region_geometry = preview()
+        .region_geometry(mapper)
+        .expect("visible region geometry");
+
+    assert_eq!(handle_geometry.bounds, mapper.rect);
+    assert_eq!(
+        handle_geometry.selection_rect,
+        region_geometry.selection_rect
+    );
+    assert_eq!(handle_geometry.handle_size, 10.0);
+    assert_eq!(handle_geometry.clamped_handle_size(), 10.0);
+}
+
+#[test]
+fn timeline_edit_handle_geometry_clamps_size_to_bounds() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(6.0, 4.0));
+    let geometry = TimelineEditHandleGeometry::new(bounds, bounds, 10.0);
+
+    assert_eq!(geometry.clamped_handle_size(), 4.0);
 }

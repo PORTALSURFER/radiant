@@ -1,6 +1,6 @@
 use super::super::{
-    KeyedListSelection, ListSelectionController, ListSelectionIntent, ListSelectionModifiers,
-    cyclic_list_index_after_delta, list_index_after_delta,
+    CyclicListSelectionCycle, KeyedListSelection, ListSelectionController, ListSelectionIntent,
+    ListSelectionModifiers, cyclic_list_index_after_delta, list_index_after_delta,
 };
 
 #[test]
@@ -20,6 +20,50 @@ fn cyclic_list_index_after_delta_wraps_signed_navigation() {
     assert_eq!(cyclic_list_index_after_delta(0, -1, 5), Some(4));
     assert_eq!(cyclic_list_index_after_delta(12, 1, 5), Some(3));
     assert_eq!(cyclic_list_index_after_delta(0, 1, 0), None);
+}
+
+#[test]
+fn cyclic_list_selection_cycle_tracks_query_key_and_wraps_selection() {
+    let mut cycle = CyclicListSelectionCycle::new();
+
+    assert_eq!(cycle.selected_index("ki", 4), Some(0));
+    assert_eq!(cycle.move_selection("ki", 1, 4), Some(1));
+    assert_eq!(cycle.query_key(), Some("ki"));
+    assert_eq!(cycle.stored_index(), 1);
+    assert_eq!(cycle.selected_index("ki", 4), Some(1));
+    assert_eq!(cycle.move_selection("ki", -2, 4), Some(3));
+}
+
+#[test]
+fn cyclic_list_selection_cycle_resets_display_selection_for_new_query() {
+    let mut cycle = CyclicListSelectionCycle::new();
+    assert_eq!(cycle.move_selection("kick", 2, 5), Some(2));
+
+    assert_eq!(cycle.selected_index("snare", 5), Some(0));
+    assert_eq!(cycle.move_selection("snare", 1, 5), Some(1));
+    assert_eq!(cycle.query_key(), Some("snare"));
+    assert_eq!(cycle.stored_index(), 1);
+}
+
+#[test]
+fn cyclic_list_selection_cycle_clears_on_empty_lists() {
+    let mut cycle = CyclicListSelectionCycle::new();
+    assert_eq!(cycle.move_selection("kick", 1, 3), Some(1));
+
+    assert_eq!(cycle.selected_index("kick", 0), None);
+    assert_eq!(cycle.move_selection("kick", 1, 0), None);
+    assert_eq!(cycle.query_key(), None);
+    assert_eq!(cycle.stored_index(), 0);
+}
+
+#[test]
+fn cyclic_list_selection_cycle_selects_explicit_index() {
+    let mut cycle = CyclicListSelectionCycle::new();
+
+    assert_eq!(cycle.select("filter", 7, 4), Some(3));
+    assert_eq!(cycle.selected_index("filter", 4), Some(3));
+    cycle.reset();
+    assert_eq!(cycle.selected_index("filter", 4), Some(0));
 }
 
 #[test]

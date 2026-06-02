@@ -179,14 +179,17 @@ fn prelude_exports_list_selection_controller() {
         max_viewport_len: Some(6),
     });
     let mut selection = ui::ListSelectionController::new();
+    let mut cycle = ui::CyclicListSelectionCycle::new();
 
     selection.select(1, 4, ui::ListSelectionModifiers::new());
     selection.select(3, 4, ui::ListSelectionModifiers::extend());
+    cycle.move_selection("search", 1, 4);
 
     assert_eq!(column.title, "Inbox");
     assert_eq!(column.item_count, 42);
     assert_eq!(metrics.stride(), 28.0);
     assert_eq!(ui::list_index_after_delta(1, 1, 4), Some(2));
+    assert_eq!(cycle.selected_index("search", 4), Some(1));
     assert_eq!(
         ui::virtual_list_view_start_for_scroll_offset(48.0, 24.0, 4),
         2

@@ -21,8 +21,8 @@ pub use row_paint::{
     push_dense_row_label, push_dense_row_vertical_marker,
 };
 pub use selection::{
-    KeyedListSelection, ListSelectionController, ListSelectionIntent, ListSelectionModifiers,
-    cyclic_list_index_after_delta, list_index_after_delta,
+    CyclicListSelectionCycle, KeyedListSelection, ListSelectionController, ListSelectionIntent,
+    ListSelectionModifiers, cyclic_list_index_after_delta, list_index_after_delta,
 };
 pub use virtual_list::{
     MaterializedVirtualListItem, VirtualListController, VirtualListInvalidation,

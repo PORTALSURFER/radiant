@@ -97,9 +97,9 @@ pub use crate::gui::{
     },
     layout_core::StackedLayoutCursor,
     list::{
-        ColumnSummary, ColumnSummaryParts, DenseRowLabelParts, DenseRowMarkerEdge,
-        DenseRowMarkerParts, DenseRowPalette, DenseRowVisualState, KeyedListSelection,
-        ListSelectionController, ListSelectionIntent, ListSelectionModifiers,
+        ColumnSummary, ColumnSummaryParts, CyclicListSelectionCycle, DenseRowLabelParts,
+        DenseRowMarkerEdge, DenseRowMarkerParts, DenseRowPalette, DenseRowVisualState,
+        KeyedListSelection, ListSelectionController, ListSelectionIntent, ListSelectionModifiers,
         VirtualListController, VirtualListStackMetrics, VirtualListStackMetricsParts,
         VirtualListWindow, VirtualListWindowRequest, bounded_list_height,
         bounded_list_visible_rows, cyclic_list_index_after_delta, dense_row_fill_color,

@@ -5,6 +5,7 @@ mod derived;
 use super::model::{ContainerPolicy, SlotParams};
 use crate::gui::types::Vector2;
 use derived::container_derived_state;
+use std::hash::{Hash, Hasher};
 
 /// Stable node identifier for layout cache keys and output maps.
 pub type NodeId = u64;
@@ -123,10 +124,11 @@ pub struct WidgetNodeParts {
 impl WidgetNode {
     /// Construct a widget node from named parts.
     pub fn from_parts(parts: WidgetNodeParts) -> Self {
+        let state_version = widget_state_version(parts.intrinsic);
         Self {
             id: parts.id,
             intrinsic: parts.intrinsic,
-            state_version: 0,
+            state_version,
         }
     }
 
@@ -134,6 +136,13 @@ impl WidgetNode {
     pub fn new(id: NodeId, intrinsic: Vector2) -> Self {
         Self::from_parts(WidgetNodeParts { id, intrinsic })
     }
+}
+
+fn widget_state_version(intrinsic: Vector2) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    intrinsic.x.to_bits().hash(&mut hasher);
+    intrinsic.y.to_bits().hash(&mut hasher);
+    hasher.finish()
 }
 
 /// A layout node in the strict slot-based tree.

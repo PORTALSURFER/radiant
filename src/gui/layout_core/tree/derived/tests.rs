@@ -123,3 +123,11 @@ fn container_does_not_mark_margin_rows_as_uniform() {
         Some(24.0 * 4.0 + 2.0 * 3.0)
     );
 }
+
+#[test]
+fn widget_state_version_tracks_intrinsic_size() {
+    let compact = crate::gui::layout_core::tree::LayoutNode::widget(10, Vector2::new(80.0, 20.0));
+    let wide = crate::gui::layout_core::tree::LayoutNode::widget(10, Vector2::new(160.0, 20.0));
+
+    assert_ne!(compact.state_version(), wide.state_version());
+}

@@ -157,7 +157,7 @@ pub fn compact_details_row<Message>(
 /// cell content without repeating details-list sizing policy.
 pub fn compact_details_cell<Message>(cell: View<Message>, width: Option<f32>) -> View<Message> {
     match width {
-        Some(width) => cell.size(width, 20.0),
+        Some(width) => cell.width(width).height(20.0),
         None => cell.fill_width().height(20.0),
     }
 }

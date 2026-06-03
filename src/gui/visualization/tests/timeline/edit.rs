@@ -111,6 +111,39 @@ fn timeline_edit_preview_projects_standard_region_rects() {
 }
 
 #[test]
+fn timeline_edit_preview_iterates_standard_region_rects() {
+    let rects = preview()
+        .standard_region_rects(mapper(), region_geometry())
+        .collect::<Vec<_>>();
+
+    let expected = [
+        (
+            TimelineEditRegion::LeadingInner,
+            Rect::from_min_max(Point::new(40.0, 0.0), Point::new(60.0, 80.0)),
+        ),
+        (
+            TimelineEditRegion::TrailingInner,
+            Rect::from_min_max(Point::new(100.0, 0.0), Point::new(120.0, 80.0)),
+        ),
+        (
+            TimelineEditRegion::LeadingOuter,
+            Rect::from_min_max(Point::new(20.0, 0.0), Point::new(40.0, 80.0)),
+        ),
+        (
+            TimelineEditRegion::TrailingOuter,
+            Rect::from_min_max(Point::new(120.0, 0.0), Point::new(140.0, 80.0)),
+        ),
+    ];
+    assert_eq!(rects.len(), expected.len());
+    for ((actual_region, actual_rect), (expected_region, expected_rect)) in
+        rects.into_iter().zip(expected)
+    {
+        assert_eq!(actual_region, expected_region);
+        assert_rect_near(Some(actual_rect), expected_rect);
+    }
+}
+
+#[test]
 fn timeline_edit_preview_hit_tests_outer_handles_outside_selection_rect() {
     let preview = preview();
     let mapper = mapper();
@@ -125,6 +158,47 @@ fn timeline_edit_preview_hit_tests_outer_handles_outside_selection_rect() {
         ),
         Some(TimelineEditHandle::TrailingOuterEnd)
     );
+}
+
+#[test]
+fn timeline_edit_preview_iterates_standard_handle_rects() {
+    let rects = preview()
+        .standard_handle_rects(mapper(), geometry())
+        .collect::<Vec<_>>();
+
+    let expected = [
+        (
+            TimelineEditHandle::LeadingEnd,
+            Rect::from_min_max(Point::new(55.0, 0.0), Point::new(65.0, 10.0)),
+        ),
+        (
+            TimelineEditHandle::TrailingStart,
+            Rect::from_min_max(Point::new(95.0, 0.0), Point::new(105.0, 10.0)),
+        ),
+        (
+            TimelineEditHandle::LeadingStart,
+            Rect::from_min_max(Point::new(40.0, 70.0), Point::new(45.0, 80.0)),
+        ),
+        (
+            TimelineEditHandle::TrailingEnd,
+            Rect::from_min_max(Point::new(115.0, 70.0), Point::new(120.0, 80.0)),
+        ),
+        (
+            TimelineEditHandle::LeadingOuterStart,
+            Rect::from_min_max(Point::new(15.0, 35.0), Point::new(25.0, 45.0)),
+        ),
+        (
+            TimelineEditHandle::TrailingOuterEnd,
+            Rect::from_min_max(Point::new(135.0, 35.0), Point::new(145.0, 45.0)),
+        ),
+    ];
+    assert_eq!(rects.len(), expected.len());
+    for ((actual_handle, actual_rect), (expected_handle, expected_rect)) in
+        rects.into_iter().zip(expected)
+    {
+        assert_eq!(actual_handle, expected_handle);
+        assert_rect_near(Some(actual_rect), expected_rect);
+    }
 }
 
 #[test]

@@ -1021,7 +1021,9 @@ visible-selection geometry construction,
 `TimelineEditHandle::standard_order()` for default edit-handle priority, and
 `TimelineEditPreview::standard_handle_at(...)` for standard edit-handle hit
 testing, and `TimelineEditRegion` plus `TimelineEditRegionGeometry` for
-leading/trailing edit-region projection,
+leading/trailing edit-region projection. Use `standard_handle_rects(...)` and
+`standard_region_rects(...)` when custom widgets need to paint or inspect all
+standard edit affordances while keeping host-specific colors and commands,
 `TimelineFeedbackEvents` for transient operation feedback tokens,
 `TimelinePresentationState` for guide spacing, repeat state, and compact labels,
 `TimelineMarkerPreview` for retained marker overlays, and

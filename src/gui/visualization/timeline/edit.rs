@@ -85,6 +85,18 @@ pub enum TimelineEditRegion {
     TrailingOuter,
 }
 
+impl TimelineEditRegion {
+    /// Return the standard paint order for timeline edit regions.
+    pub const fn standard_order() -> [Self; 4] {
+        [
+            Self::LeadingInner,
+            Self::TrailingInner,
+            Self::LeadingOuter,
+            Self::TrailingOuter,
+        ]
+    }
+}
+
 /// Geometry policy for projecting edit-preview handles.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TimelineEditHandleGeometry {
@@ -330,6 +342,34 @@ impl TimelineEditPreview {
                 Some(outer_bounds.left_edge_strip(right_x - geometry.selection_rect.max.x))
             }
         }
+    }
+
+    /// Return visible rectangles for the standard edit-preview regions.
+    pub fn standard_region_rects(
+        self,
+        mapper: TimelineCoordinateMapper,
+        geometry: TimelineEditRegionGeometry,
+    ) -> impl Iterator<Item = (TimelineEditRegion, Rect)> {
+        TimelineEditRegion::standard_order()
+            .into_iter()
+            .filter_map(move |region| {
+                self.region_rect(mapper, geometry, region)
+                    .map(|rect| (region, rect))
+            })
+    }
+
+    /// Return visible rectangles for the standard edit-preview handles.
+    pub fn standard_handle_rects(
+        self,
+        mapper: TimelineCoordinateMapper,
+        geometry: TimelineEditHandleGeometry,
+    ) -> impl Iterator<Item = (TimelineEditHandle, Rect)> {
+        TimelineEditHandle::standard_order()
+            .into_iter()
+            .filter_map(move |handle| {
+                self.handle_rect(mapper, geometry, handle)
+                    .map(|rect| (handle, rect))
+            })
     }
 
     /// Return the first standard edit handle whose rectangle contains `position`.

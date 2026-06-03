@@ -74,6 +74,7 @@ fn details_sort_supports_named_parts_construction() {
 #[test]
 fn details_column_drag_helpers_cover_resize_and_reorder_state() {
     use radiant::prelude as ui;
+    use radiant::prelude::Point;
 
     let resize = ui::DetailsColumnResizeDrag::new("name", 100.0, 240.0);
     assert_eq!(resize.width_at(130.0, 48.0, 420.0), 270.0);
@@ -87,9 +88,17 @@ fn details_column_drag_helpers_cover_resize_and_reorder_state() {
     let content_left = ui::details_column_drag_content_left(&placements, "rating", 300.0, 10.0)
         .expect("rating column should exist");
     let reorder = ui::DetailsColumnReorderDrag::new("rating", content_left);
+    let reorder_with_pointer =
+        ui::DetailsColumnReorderDrag::from_start("rating", content_left, Point::new(300.0, 0.0));
 
     assert_eq!(content_left, 16.0);
     assert_eq!(reorder.target_index(&placements, 410.0, 10.0), Some(2));
+    assert_eq!(reorder.pointer, Point::new(0.0, 0.0));
+    assert_eq!(reorder_with_pointer.pointer, Point::new(300.0, 0.0));
+    assert_eq!(
+        reorder_with_pointer.current_target_index(&placements, 10.0),
+        Some(1)
+    );
 }
 
 #[test]

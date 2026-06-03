@@ -23,6 +23,7 @@ fn details_column_reorder_drag_uses_estimated_content_left() {
     let drag = DetailsColumnReorderDrag::new("rating", content_left);
 
     assert_eq!(content_left, 16.0);
+    assert_eq!(drag.pointer, crate::gui::types::Point::new(0.0, 0.0));
     assert_eq!(drag.target_index(&placements, 410.0, 10.0), Some(2));
 }
 
@@ -144,7 +145,10 @@ fn update_details_column_reorder_drag_reorders_and_clears_on_end() {
         10.0,
         String::as_str,
     ));
-    assert!(drag.is_some());
+    assert_eq!(
+        drag.as_ref().map(|drag| drag.pointer),
+        Some(crate::gui::types::Point::new(300.0, 0.0))
+    );
 
     assert!(update_details_column_reorder_drag(
         &mut drag,
@@ -158,7 +162,10 @@ fn update_details_column_reorder_drag_reorders_and_clears_on_end() {
         String::as_str,
     ));
     assert_eq!(columns, ["name", "extension", "rating", "size"]);
-    assert!(drag.is_some());
+    assert_eq!(
+        drag.as_ref().map(|drag| drag.pointer),
+        Some(crate::gui::types::Point::new(410.0, 0.0))
+    );
 
     assert!(update_details_column_reorder_drag(
         &mut drag,

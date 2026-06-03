@@ -1,3 +1,4 @@
+use crate::gui::types::Point;
 use crate::widgets::DragHandleMessage;
 
 use super::{DetailsColumnPlacement, details_column_reorder_index, reorder_details_columns_by_id};
@@ -90,6 +91,8 @@ pub struct DetailsColumnReorderDrag {
     pub column_id: String,
     /// X-coordinate where the first column starts for reorder threshold math.
     pub content_left: f32,
+    /// Current pointer position for host-rendered drag feedback.
+    pub pointer: Point,
 }
 
 impl DetailsColumnReorderDrag {
@@ -98,6 +101,16 @@ impl DetailsColumnReorderDrag {
         Self {
             column_id: column_id.to_string(),
             content_left,
+            pointer: Point::new(0.0, 0.0),
+        }
+    }
+
+    /// Start a details-column reorder drag with the current pointer position.
+    pub fn from_start(column_id: impl ToString, content_left: f32, pointer: Point) -> Self {
+        Self {
+            column_id: column_id.to_string(),
+            content_left,
+            pointer,
         }
     }
 
@@ -115,6 +128,15 @@ impl DetailsColumnReorderDrag {
             self.content_left,
             column_gap,
         )
+    }
+
+    /// Resolve the insertion index for the retained current pointer position.
+    pub fn current_target_index(
+        &self,
+        placements: &[DetailsColumnPlacement],
+        column_gap: f32,
+    ) -> Option<usize> {
+        self.target_index(placements, self.pointer.x, column_gap)
     }
 }
 
@@ -163,12 +185,17 @@ pub fn update_details_column_reorder_drag<T>(
             else {
                 return false;
             };
-            *active_drag = Some(DetailsColumnReorderDrag::new(column_id, content_left));
+            *active_drag = Some(DetailsColumnReorderDrag::from_start(
+                column_id,
+                content_left,
+                position,
+            ));
             false
         }
         DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
-            let changed = active_drag.as_ref().is_some_and(|drag| {
-                drag.target_index(placements, position.x, column_gap)
+            let changed = active_drag.as_mut().is_some_and(|drag| {
+                drag.pointer = position;
+                drag.current_target_index(placements, column_gap)
                     .is_some_and(|target_index| {
                         reorder_details_columns_by_id(columns, &drag.column_id, target_index, id)
                     })

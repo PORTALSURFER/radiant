@@ -143,3 +143,32 @@ fn application_builder_drag_preview_paints_as_non_widget_overlay() {
         radiant::runtime::PaintPrimitive::Text(text) if text.widget_id == 20 && text.text == "kicks"
     )));
 }
+
+#[test]
+fn application_builder_local_drop_marker_paints_at_local_offset() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let marker_color = ui::Rgba8::new(255, 160, 82, 230);
+    let surface: UiSurface<()> = ui::stack([
+        ui::text("Content").id(10).size(160.0, 24.0),
+        ui::local_drop_marker(36.0, marker_color, 2.0, 18.0)
+            .id(21)
+            .fill_width()
+            .height(24.0)
+            .padding_y(3.0),
+    ])
+    .into_surface();
+    let output = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 24.0)),
+    );
+    let plan = surface.paint_plan(&output, &radiant::theme::ThemeTokens::default());
+
+    let marker = plan
+        .fill_rects()
+        .find(|fill| fill.color == marker_color)
+        .expect("local drop marker should paint");
+    assert!((marker.rect.min.x - 36.0).abs() < 0.01, "{:?}", marker.rect);
+    assert!((marker.rect.min.y - 3.0).abs() < 0.01, "{:?}", marker.rect);
+    assert!(surface.find_widget(21).is_none());
+}

@@ -1,7 +1,9 @@
 //! Floating overlay layout builders.
 
-use crate::application::{ViewNode, ViewNodeKind, button, primary_style, stack};
-use crate::gui::types::Point;
+use crate::application::{
+    ViewNode, ViewNodeKind, button, feedback_overlay, primary_style, row, spacer, stack,
+};
+use crate::gui::types::{Point, Rgba8};
 use crate::layout::Vector2;
 
 const DRAG_PREVIEW_OFFSET_X: f32 = 14.0;
@@ -400,6 +402,29 @@ pub fn drop_marker<Message>(x: f32, y: f32, width: f32, height: f32) -> ViewNode
     .style(primary_style())
 }
 
+/// Build a non-interactive insertion marker positioned in local layout coordinates.
+///
+/// This is useful inside stack layers where the marker should align to sibling
+/// content such as list rows, table headers, or local drop targets rather than
+/// using surface coordinates.
+pub fn local_drop_marker<Message: 'static>(
+    x: f32,
+    color: Rgba8,
+    width: f32,
+    height: f32,
+) -> ViewNode<Message> {
+    row([
+        spacer().width(x.max(0.0)),
+        feedback_overlay()
+            .background(color)
+            .view()
+            .width(width.max(1.0))
+            .height(height.max(1.0)),
+        spacer().fill_width(),
+    ])
+    .spacing(0.0)
+}
+
 /// Build a non-interactive drag preview that follows the pointer.
 ///
 /// The preview is offset from the pointer so it reads like a carried item
@@ -757,5 +782,43 @@ mod tests {
 
         assert!((text_rect.min.x - 12.0).abs() < 0.01, "{text_rect:?}");
         assert!((text_rect.min.y - 42.0).abs() < 0.01, "{text_rect:?}");
+    }
+
+    #[test]
+    fn local_drop_marker_paints_at_local_x() {
+        let marker_color = Rgba8::new(255, 160, 82, 230);
+        let frame = UiSurface::new(
+            stack([
+                text("").size(200.0, 24.0),
+                local_drop_marker::<()>(42.0, marker_color, 2.0, 20.0)
+                    .fill_width()
+                    .height(24.0)
+                    .padding_y(2.0),
+            ])
+            .into_node(),
+        )
+        .frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 24.0)),
+            &Default::default(),
+        );
+
+        let marker = frame
+            .paint_plan
+            .fill_rects()
+            .find(|fill| fill.color == marker_color)
+            .expect("local drop marker should paint");
+
+        assert!((marker.rect.min.x - 42.0).abs() < 0.01, "{:?}", marker.rect);
+        assert!((marker.rect.min.y - 2.0).abs() < 0.01, "{:?}", marker.rect);
+        assert!(
+            (marker.rect.width() - 2.0).abs() < 0.01,
+            "{:?}",
+            marker.rect
+        );
+        assert!(
+            (marker.rect.height() - 20.0).abs() < 0.01,
+            "{:?}",
+            marker.rect
+        );
     }
 }

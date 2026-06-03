@@ -369,6 +369,10 @@ introducing mutable cursor plumbing at the call site. Use
 `offset_within_item(...)` when an overlay or retained marker should anchor to
 a nested control inside the current stacked item rather than the item's start
 edge.
+Use `local_drop_marker(...)` for non-interactive insertion markers that should
+be positioned in a local stack or row layer, such as details-header reorder
+targets or list drop indicators, without rebuilding spacer and feedback-overlay
+composition in application code.
 Timeline and waveform-style surfaces can use `IndexViewport` for generic
 integer range navigation. It owns clamping, visible fraction, scrollbar offset,
 anchor-preserving zoom, visible-span pan, `pan_by_visible_ratio_drag(...)` for

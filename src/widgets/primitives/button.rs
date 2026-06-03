@@ -51,6 +51,7 @@ impl ButtonWidget {
                 text_align: TextAlign::Center,
                 secondary_click: false,
                 drag: false,
+                hover_chrome_only: false,
             },
             state: ButtonState::default(),
         }
@@ -74,6 +75,12 @@ impl ButtonWidget {
     /// Enable primary-pointer drag lifecycle messages from the button surface.
     pub fn with_drag(mut self) -> Self {
         self.props.drag = true;
+        self
+    }
+
+    /// Paint button chrome only while hovered, pressed, or focused.
+    pub fn with_hover_chrome_only(mut self) -> Self {
+        self.props.hover_chrome_only = true;
         self
     }
 

@@ -24,6 +24,7 @@ pub struct ButtonBuilder {
     style: Option<WidgetStyle>,
     secondary_click: bool,
     drag: bool,
+    hover_chrome_only: bool,
 }
 
 impl ButtonBuilder {
@@ -60,6 +61,12 @@ impl ButtonBuilder {
     /// Emit drag lifecycle messages from the button surface.
     pub fn draggable(mut self) -> Self {
         self.drag = true;
+        self
+    }
+
+    /// Paint button chrome only while the control is hovered, pressed, or focused.
+    pub fn hover_chrome_only(mut self) -> Self {
+        self.hover_chrome_only = true;
         self
     }
 
@@ -117,6 +124,9 @@ impl ButtonBuilder {
         }
         if self.drag {
             button = button.with_drag();
+        }
+        if self.hover_chrome_only {
+            button = button.with_hover_chrome_only();
         }
         let mut node = view_node_from_widget(MappedWidget::new(button, messages));
         node.style = self.style;
@@ -207,6 +217,7 @@ pub fn button(label: impl Into<String>) -> ButtonBuilder {
         style: None,
         secondary_click: false,
         drag: false,
+        hover_chrome_only: false,
     }
 }
 

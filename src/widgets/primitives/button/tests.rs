@@ -189,6 +189,36 @@ fn input_only_button_does_not_paint_chrome_or_text() {
 }
 
 #[test]
+fn hover_chrome_only_button_paints_only_when_hovered() {
+    let mut button = ButtonWidget::new(13, "", WidgetSizing::fixed(Vector2::new(80.0, 28.0)))
+        .with_hover_chrome_only();
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0));
+    let mut primitives = Vec::new();
+
+    button.append_paint(
+        &mut primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    assert!(primitives.is_empty());
+
+    let _ = button.handle_input(bounds, WidgetInput::pointer_move(Point::new(10.0, 10.0)));
+    button.append_paint(
+        &mut primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+
+    assert!(
+        primitives
+            .iter()
+            .any(|primitive| matches!(primitive, PaintPrimitive::FillPolygon(_)))
+    );
+}
+
+#[test]
 fn button_text_alignment_can_be_overridden() {
     let mut button =
         ButtonWidget::new(11, "Folder", WidgetSizing::fixed(Vector2::new(120.0, 24.0)));

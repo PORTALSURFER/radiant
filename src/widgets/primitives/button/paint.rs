@@ -21,6 +21,13 @@ pub(super) fn push_button_widget_paint(
     if !button.common.paint.paints_state_layers {
         return;
     }
+    if button.props.hover_chrome_only
+        && !button.common.state.hovered
+        && !button.common.state.pressed
+        && !button.common.state.focused
+    {
+        return;
+    }
     push_button_chrome(primitives, &button.common, bounds, theme);
     let font_size = button_font_size(bounds);
     let rect = inset_rect(bounds, 8.0, 4.0);

@@ -1,7 +1,7 @@
 use super::model::{DetailsColumn, DetailsRow, DetailsSort};
 use crate::{
     application::{
-        StateStringCallback, StateView, View, button, column, drag_handle, input_overlay, row,
+        StateStringCallback, StateView, View, button, column, drag_handle, input_underlay, row,
         scroll, text,
     },
     widgets::{DragHandleMessage, WidgetProminence, WidgetStyle, WidgetTone},
@@ -187,14 +187,15 @@ where
     let key = key.into();
     let label = label.into();
     row([
-        input_overlay(
+        input_underlay(
             text(label.clone())
                 .key(format!("{key}-label"))
                 .align_text(crate::widgets::TextAlign::Left)
                 .fill_width()
                 .height(20.0)
                 .truncate(),
-            button(label)
+            button("")
+                .hover_chrome_only()
                 .click_or_drag(sort_message, drag_message)
                 .key(format!("{key}-sort-drag"))
                 .fill_width()

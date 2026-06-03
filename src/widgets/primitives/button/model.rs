@@ -13,6 +13,8 @@ pub struct ButtonProps {
     pub secondary_click: bool,
     /// Whether primary pointer drags should emit drag lifecycle messages.
     pub drag: bool,
+    /// Whether button chrome should paint only during active pointer/focus states.
+    pub hover_chrome_only: bool,
 }
 
 /// Mutable interaction state for a reusable button widget.

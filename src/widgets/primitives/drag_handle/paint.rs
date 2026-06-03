@@ -14,6 +14,13 @@ pub(super) fn push_drag_handle_widget_paint(
     if !handle.common.paint.paints_state_layers {
         return;
     }
+    if handle.hover_chrome_only
+        && !handle.common.state.hovered
+        && !handle.common.state.pressed
+        && !handle.common.state.focused
+    {
+        return;
+    }
     let tokens = crate::widgets::resolve_widget_visual_tokens(
         theme,
         handle.common.style,

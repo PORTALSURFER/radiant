@@ -1693,6 +1693,9 @@ owns interaction routing. Button reducers can use
 route primary activation, context-menu clicks, or drag lifecycle events without
 repeating the raw button enum shape. Button-backed drags emit `Cancelled` when
 focus loss aborts an active drag before release.
+Use `drag_handle().hover_chrome_only()` for subtle splitters or reorder handles
+that need a persistent hit target but should hide idle chrome until hover,
+press, or focus.
 Run `cargo run --example status_bar` for a bottom status-bar sandbox that shows
 button actions, toggle state, animation updates, and background worker progress
 flowing into a one-line log and retained-canvas progress strip. Compact status

@@ -117,22 +117,79 @@ pub fn toolbar<Message: 'static>(
 /// Build a compact toolbar or action strip from named parts.
 pub fn toolbar_from_parts<Message: 'static>(parts: ToolbarParts<Message>) -> ViewNode<Message> {
     let has_trailing_controls = !parts.trailing_controls.is_empty();
-    let mut children = Vec::with_capacity(parts.controls.len() + parts.trailing_controls.len() + 1);
+    let has_generated_spacer = parts.alignment == ToolbarAlignment::End || has_trailing_controls;
+    if !has_generated_spacer {
+        return toolbar_row(
+            parts.controls,
+            parts.spacing,
+            parts.padding_x,
+            parts.padding_y,
+            parts.height,
+            parts.style,
+        );
+    }
+
+    let mut children = Vec::with_capacity(3);
     if parts.alignment == ToolbarAlignment::End && !has_trailing_controls {
         children.push(spacer().height(parts.spacer_height).fill_width());
-    }
-    children.extend(parts.controls);
-    if has_trailing_controls {
+        children.push(toolbar_group(
+            parts.controls,
+            parts.spacing,
+            parts.spacer_height,
+            parts.style,
+        ));
+    } else {
+        children.push(toolbar_group(
+            parts.controls,
+            parts.spacing,
+            parts.spacer_height,
+            parts.style,
+        ));
         children.push(spacer().height(parts.spacer_height).fill_width());
-        children.extend(parts.trailing_controls);
+        children.push(toolbar_group(
+            parts.trailing_controls,
+            parts.spacing,
+            parts.spacer_height,
+            parts.style,
+        ));
     }
+
     row(children)
         .padding_x(parts.padding_x)
         .padding_y(parts.padding_y)
-        .style(parts.style)
         .spacing(parts.spacing)
         .fill_width()
         .height(parts.height)
+}
+
+fn toolbar_row<Message: 'static>(
+    children: Vec<ViewNode<Message>>,
+    spacing: f32,
+    padding_x: f32,
+    padding_y: f32,
+    height: f32,
+    style: WidgetStyle,
+) -> ViewNode<Message> {
+    row(children)
+        .padding_x(padding_x)
+        .padding_y(padding_y)
+        .style(style)
+        .spacing(spacing)
+        .fill_width()
+        .height(height)
+}
+
+fn toolbar_group<Message: 'static>(
+    children: Vec<ViewNode<Message>>,
+    spacing: f32,
+    height: f32,
+    style: WidgetStyle,
+) -> ViewNode<Message> {
+    row(children)
+        .padding(0.0)
+        .style(style)
+        .spacing(spacing)
+        .height(height)
 }
 
 #[cfg(test)]
@@ -140,7 +197,9 @@ mod tests {
     use super::*;
     use crate::{
         application::{IntoView, button},
+        gui::types::{Point, Rect, Vector2},
         layout::{LayoutNode, SizeModeMain},
+        runtime::{PaintPrimitive, UiSurface},
     };
 
     #[test]
@@ -157,13 +216,18 @@ mod tests {
         let LayoutNode::Container(row) = layout else {
             panic!("toolbar should lower to a row");
         };
-        assert_eq!(row.children.len(), 3);
+        assert_eq!(row.children.len(), 2);
         assert!(matches!(
             row.children[0].slot.size_main,
             SizeModeMain::Fill(_)
         ));
+
+        let LayoutNode::Container(group) = &row.children[1].child else {
+            panic!("toolbar controls should lower into a styled group");
+        };
+        assert_eq!(group.children.len(), 2);
         assert!(matches!(
-            row.children[1].slot.size_main,
+            group.children[0].slot.size_main,
             SizeModeMain::Fixed(width) if (width - 28.0).abs() < 0.01
         ));
     }
@@ -180,17 +244,45 @@ mod tests {
             panic!("toolbar should lower to a row");
         };
         assert_eq!(row.children.len(), 3);
+
+        let LayoutNode::Container(leading) = &row.children[0].child else {
+            panic!("leading controls should lower into a styled group");
+        };
         assert!(matches!(
-            row.children[0].slot.size_main,
+            leading.children[0].slot.size_main,
             SizeModeMain::Fixed(width) if (width - 28.0).abs() < 0.01
         ));
         assert!(matches!(
             row.children[1].slot.size_main,
             SizeModeMain::Fill(_)
         ));
+
+        let LayoutNode::Container(trailing) = &row.children[2].child else {
+            panic!("trailing controls should lower into a styled group");
+        };
         assert!(matches!(
-            row.children[2].slot.size_main,
+            trailing.children[0].slot.size_main,
             SizeModeMain::Fixed(width) if (width - 40.0).abs() < 0.01
         ));
+    }
+
+    #[test]
+    fn toolbar_generated_spacer_does_not_paint_full_width_border() {
+        let view = toolbar_from_parts(
+            ToolbarParts::new([button("A").message(()).width(28.0).height(24.0)]).align_end(),
+        )
+        .id(900);
+        let frame = UiSurface::new(view.into_node()).frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 34.0)),
+            &Default::default(),
+        );
+
+        assert!(!frame.paint_plan.primitives.iter().any(|primitive| {
+            matches!(
+                primitive,
+                PaintPrimitive::StrokeRect(stroke)
+                    if stroke.widget_id == 900 && (stroke.rect.width() - 200.0).abs() < 0.01
+            )
+        }));
     }
 }

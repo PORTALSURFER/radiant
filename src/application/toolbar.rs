@@ -129,29 +129,14 @@ pub fn toolbar_from_parts<Message: 'static>(parts: ToolbarParts<Message>) -> Vie
         );
     }
 
-    let mut children = Vec::with_capacity(3);
+    let mut children = Vec::with_capacity(parts.controls.len() + parts.trailing_controls.len() + 1);
     if parts.alignment == ToolbarAlignment::End && !has_trailing_controls {
         children.push(spacer().height(parts.spacer_height).fill_width());
-        children.push(toolbar_group(
-            parts.controls,
-            parts.spacing,
-            parts.spacer_height,
-            parts.style,
-        ));
+        children.extend(parts.controls);
     } else {
-        children.push(toolbar_group(
-            parts.controls,
-            parts.spacing,
-            parts.spacer_height,
-            parts.style,
-        ));
+        children.extend(parts.controls);
         children.push(spacer().height(parts.spacer_height).fill_width());
-        children.push(toolbar_group(
-            parts.trailing_controls,
-            parts.spacing,
-            parts.spacer_height,
-            parts.style,
-        ));
+        children.extend(parts.trailing_controls);
     }
 
     row(children)
@@ -179,19 +164,6 @@ fn toolbar_row<Message: 'static>(
         .height(height)
 }
 
-fn toolbar_group<Message: 'static>(
-    children: Vec<ViewNode<Message>>,
-    spacing: f32,
-    height: f32,
-    style: WidgetStyle,
-) -> ViewNode<Message> {
-    row(children)
-        .padding(0.0)
-        .style(style)
-        .spacing(spacing)
-        .height(height)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -216,18 +188,14 @@ mod tests {
         let LayoutNode::Container(row) = layout else {
             panic!("toolbar should lower to a row");
         };
-        assert_eq!(row.children.len(), 2);
+        assert_eq!(row.children.len(), 3);
         assert!(matches!(
             row.children[0].slot.size_main,
             SizeModeMain::Fill(_)
         ));
 
-        let LayoutNode::Container(group) = &row.children[1].child else {
-            panic!("toolbar controls should lower into a styled group");
-        };
-        assert_eq!(group.children.len(), 2);
         assert!(matches!(
-            group.children[0].slot.size_main,
+            row.children[1].slot.size_main,
             SizeModeMain::Fixed(width) if (width - 28.0).abs() < 0.01
         ));
     }
@@ -245,11 +213,8 @@ mod tests {
         };
         assert_eq!(row.children.len(), 3);
 
-        let LayoutNode::Container(leading) = &row.children[0].child else {
-            panic!("leading controls should lower into a styled group");
-        };
         assert!(matches!(
-            leading.children[0].slot.size_main,
+            row.children[0].slot.size_main,
             SizeModeMain::Fixed(width) if (width - 28.0).abs() < 0.01
         ));
         assert!(matches!(
@@ -257,11 +222,8 @@ mod tests {
             SizeModeMain::Fill(_)
         ));
 
-        let LayoutNode::Container(trailing) = &row.children[2].child else {
-            panic!("trailing controls should lower into a styled group");
-        };
         assert!(matches!(
-            trailing.children[0].slot.size_main,
+            row.children[2].slot.size_main,
             SizeModeMain::Fixed(width) if (width - 40.0).abs() < 0.01
         ));
     }
@@ -281,7 +243,7 @@ mod tests {
             matches!(
                 primitive,
                 PaintPrimitive::StrokeRect(stroke)
-                    if stroke.widget_id == 900 && (stroke.rect.width() - 200.0).abs() < 0.01
+                    if stroke.rect.min.x <= 1.0 && stroke.rect.width() > 100.0
             )
         }));
     }

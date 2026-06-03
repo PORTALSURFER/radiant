@@ -118,6 +118,10 @@ impl Widget for ButtonWidget {
         false
     }
 
+    fn needs_state_synchronization(&self) -> bool {
+        true
+    }
+
     fn set_text_align(&mut self, align: TextAlign) -> bool {
         self.props.text_align = align;
         true

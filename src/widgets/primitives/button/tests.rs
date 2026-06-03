@@ -100,7 +100,7 @@ fn draggable_button_emits_drag_lifecycle_instead_of_click_when_moved() {
             },
         ),
         Some(ButtonMessage::Drag(DragHandleMessage::Started {
-            position: Point::new(12.0, 14.0)
+            position: Point::new(10.0, 10.0)
         }))
     );
     assert_eq!(
@@ -116,6 +116,40 @@ fn draggable_button_emits_drag_lifecycle_instead_of_click_when_moved() {
             position: Point::new(20.0, 22.0)
         }))
     );
+}
+
+#[test]
+fn draggable_button_release_after_capture_state_restore_ends_drag() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0));
+    let mut button =
+        ButtonWidget::new(15, "Folder", WidgetSizing::fixed(Vector2::new(80.0, 28.0))).with_drag();
+    let press_point = Point::new(10.0, 10.0);
+    let move_point = Point::new(100.0, 10.0);
+    let release_point = Point::new(140.0, 10.0);
+
+    assert_eq!(
+        button.handle_input(bounds, WidgetInput::primary_press(press_point)),
+        None
+    );
+    assert_eq!(
+        button.handle_input(bounds, WidgetInput::pointer_move(move_point)),
+        Some(ButtonMessage::Drag(DragHandleMessage::Started {
+            position: press_point
+        }))
+    );
+
+    let restored_common_state = button.common.state;
+    let mut refreshed =
+        ButtonWidget::new(15, "Folder", WidgetSizing::fixed(Vector2::new(80.0, 28.0))).with_drag();
+    refreshed.common.state = restored_common_state;
+
+    assert_eq!(
+        refreshed.handle_input(bounds, WidgetInput::primary_release(release_point)),
+        Some(ButtonMessage::Drag(DragHandleMessage::Ended {
+            position: release_point
+        }))
+    );
+    assert!(!refreshed.common.state.active);
 }
 
 #[test]
@@ -216,6 +250,13 @@ fn hover_chrome_only_button_paints_only_when_hovered() {
             .iter()
             .any(|primitive| matches!(primitive, PaintPrimitive::FillPolygon(_)))
     );
+}
+
+#[test]
+fn button_opts_into_state_synchronization() {
+    let button = ButtonWidget::new(14, "Drag", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
+
+    assert!(button.needs_state_synchronization());
 }
 
 #[test]

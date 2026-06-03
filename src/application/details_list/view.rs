@@ -184,8 +184,51 @@ pub fn compact_resizable_details_header_cell<Message>(
 where
     Message: Clone + Send + Sync + 'static,
 {
+    compact_resizable_details_header_cell_with_ids(
+        key,
+        label,
+        width,
+        None,
+        None,
+        sort_message,
+        drag_message,
+        resize_message,
+    )
+}
+
+/// Build a compact sortable, reorderable, and resizable details-list header
+/// cell with explicit stable widget ids for the interactive surfaces.
+pub fn compact_resizable_details_header_cell_with_ids<Message>(
+    key: impl Into<String>,
+    label: impl Into<String>,
+    width: f32,
+    sort_drag_id: Option<crate::widgets::WidgetId>,
+    resize_id: Option<crate::widgets::WidgetId>,
+    sort_message: Message,
+    drag_message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+    resize_message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+) -> View<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
     let key = key.into();
     let label = label.into();
+    let mut sort_drag = button("")
+        .hover_chrome_only()
+        .click_or_drag(sort_message, drag_message)
+        .key(format!("{key}-sort-drag"))
+        .fill_width()
+        .height(20.0);
+    if let Some(id) = sort_drag_id {
+        sort_drag = sort_drag.id(id);
+    }
+    let mut resize = drag_handle()
+        .mapped(resize_message)
+        .key(format!("{key}-resize"))
+        .size(4.0, 20.0);
+    if let Some(id) = resize_id {
+        resize = resize.id(id);
+    }
     row([
         input_underlay(
             text(label.clone())
@@ -194,19 +237,11 @@ where
                 .fill_width()
                 .height(20.0)
                 .truncate(),
-            button("")
-                .hover_chrome_only()
-                .click_or_drag(sort_message, drag_message)
-                .key(format!("{key}-sort-drag"))
-                .fill_width()
-                .height(20.0),
+            sort_drag,
         )
         .fill_width()
         .height(20.0),
-        drag_handle()
-            .mapped(resize_message)
-            .key(format!("{key}-resize"))
-            .size(4.0, 20.0),
+        resize,
     ])
     .key(key)
     .width(width)

@@ -1,6 +1,6 @@
 //! Button data model types.
 
-use crate::{runtime::PaintText, widgets::TextAlign};
+use crate::{gui::types::Point, runtime::PaintText, widgets::TextAlign};
 
 /// Immutable public properties for a reusable button widget.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -18,10 +18,12 @@ pub struct ButtonProps {
 }
 
 /// Mutable interaction state for a reusable button widget.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ButtonState {
     /// Whether a primary press started inside the button and is still armed.
     pub armed: bool,
     /// Whether the current primary press has become a drag.
     pub dragged: bool,
+    /// Pointer position where the active primary press started.
+    pub press_position: Option<Point>,
 }

@@ -138,6 +138,39 @@ impl DetailsColumnReorderDrag {
     ) -> Option<usize> {
         self.target_index(placements, self.pointer.x, column_gap)
     }
+
+    /// Resolve the insertion marker x-coordinate for the current pointer target.
+    pub fn current_marker_x(
+        &self,
+        placements: &[DetailsColumnPlacement],
+        column_gap: f32,
+    ) -> Option<f32> {
+        let target_index = self.current_target_index(placements, column_gap)?;
+        Some(details_column_reorder_marker_x(
+            placements,
+            &self.column_id,
+            target_index,
+            self.content_left,
+            column_gap,
+        ))
+    }
+}
+
+/// Resolve the marker x-coordinate for a details-column insertion target.
+pub fn details_column_reorder_marker_x(
+    placements: &[DetailsColumnPlacement],
+    dragged_id: &str,
+    target_index: usize,
+    content_left: f32,
+    column_gap: f32,
+) -> f32 {
+    content_left
+        + placements
+            .iter()
+            .filter(|placement| placement.id != dragged_id)
+            .take(target_index)
+            .map(|placement| placement.width + column_gap.max(0.0))
+            .sum::<f32>()
 }
 
 /// Estimate the content-left x-coordinate for a details-column drag start.
@@ -192,7 +225,11 @@ pub fn update_details_column_reorder_drag<T>(
             ));
             false
         }
-        DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
+        DragHandleMessage::Moved { position } => active_drag.as_mut().is_some_and(|drag| {
+            drag.pointer = position;
+            false
+        }),
+        DragHandleMessage::Ended { position } => {
             let changed = active_drag.as_mut().is_some_and(|drag| {
                 drag.pointer = position;
                 drag.current_target_index(placements, column_gap)
@@ -200,9 +237,7 @@ pub fn update_details_column_reorder_drag<T>(
                         reorder_details_columns_by_id(columns, &drag.column_id, target_index, id)
                     })
             });
-            if message.is_ended() {
-                *active_drag = None;
-            }
+            *active_drag = None;
             changed
         }
         DragHandleMessage::DoubleActivate { .. } => false,

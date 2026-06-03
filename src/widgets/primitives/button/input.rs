@@ -13,7 +13,9 @@ pub(super) fn handle_button_input(
 ) -> Option<ButtonMessage> {
     if button.common.state.disabled {
         button.common.state.pressed = false;
+        button.common.state.active = false;
         button.state.armed = false;
+        button.state.press_position = None;
         return None;
     }
     match input {
@@ -26,7 +28,10 @@ pub(super) fn handle_button_input(
                         DragHandleMessage::Moved { position }
                     } else {
                         button.state.dragged = true;
-                        DragHandleMessage::Started { position }
+                        button.common.state.active = true;
+                        DragHandleMessage::Started {
+                            position: button.state.press_position.unwrap_or(position),
+                        }
                     };
                     return Some(ButtonMessage::Drag(message));
                 }
@@ -41,8 +46,10 @@ pub(super) fn handle_button_input(
             button.common.state.focused = true;
             button.common.state.hovered = true;
             button.common.state.pressed = true;
+            button.common.state.active = false;
             button.state.armed = true;
             button.state.dragged = false;
+            button.state.press_position = Some(position);
             None
         }
         WidgetInput::PointerPress {
@@ -58,27 +65,33 @@ pub(super) fn handle_button_input(
             button: PointerButton::Primary,
             ..
         } => {
-            if button.state.dragged {
+            if button.state.dragged || (button.props.drag && button.common.state.active) {
                 button.common.state.pressed = false;
+                button.common.state.active = false;
                 button.common.state.hovered = bounds.contains(position);
                 button.state.armed = false;
                 button.state.dragged = false;
+                button.state.press_position = None;
                 return Some(ButtonMessage::Drag(DragHandleMessage::Ended { position }));
             }
             let activated =
                 button.common.state.pressed && button.state.armed && bounds.contains(position);
             button.common.state.pressed = false;
+            button.common.state.active = false;
             button.common.state.hovered = bounds.contains(position);
             button.state.armed = false;
             button.state.dragged = false;
+            button.state.press_position = None;
             activated.then_some(ButtonMessage::Activate)
         }
         WidgetInput::FocusChanged(focused) => {
             button.common.state.focused = focused;
             if !focused {
                 button.common.state.pressed = false;
+                button.common.state.active = false;
                 button.state.armed = false;
                 button.state.dragged = false;
+                button.state.press_position = None;
             }
             None
         }

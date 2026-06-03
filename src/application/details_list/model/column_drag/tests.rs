@@ -25,6 +25,17 @@ fn details_column_reorder_drag_uses_estimated_content_left() {
     assert_eq!(content_left, 16.0);
     assert_eq!(drag.pointer, crate::gui::types::Point::new(0.0, 0.0));
     assert_eq!(drag.target_index(&placements, 410.0, 10.0), Some(2));
+    assert_eq!(
+        drag.target_index(&placements, 560.0, 10.0)
+            .map(|target| details_column_reorder_marker_x(
+                &placements,
+                "rating",
+                target,
+                content_left,
+                10.0
+            )),
+        Some(418.0)
+    );
 }
 
 #[test]
@@ -150,7 +161,7 @@ fn update_details_column_reorder_drag_reorders_and_clears_on_end() {
         Some(crate::gui::types::Point::new(300.0, 0.0))
     );
 
-    assert!(update_details_column_reorder_drag(
+    assert!(!update_details_column_reorder_drag(
         &mut drag,
         &mut columns,
         "ignored",
@@ -161,10 +172,15 @@ fn update_details_column_reorder_drag_reorders_and_clears_on_end() {
         10.0,
         String::as_str,
     ));
-    assert_eq!(columns, ["name", "extension", "rating", "size"]);
+    assert_eq!(columns, ["name", "rating", "extension", "size"]);
     assert_eq!(
         drag.as_ref().map(|drag| drag.pointer),
         Some(crate::gui::types::Point::new(410.0, 0.0))
+    );
+    assert_eq!(
+        drag.as_ref()
+            .and_then(|drag| drag.current_marker_x(&placements(), 10.0)),
+        Some(330.0)
     );
 
     assert!(update_details_column_reorder_drag(

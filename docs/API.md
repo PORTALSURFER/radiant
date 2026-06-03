@@ -295,9 +295,9 @@ hover-drop routing table that `interactive_row().actions(...)` and
 Use the single-activation helpers when double-click has a separate host action
 such as rename, drill-in, or open-in-place behavior. Drag-capable controls can use
 `DragHandleMessage::phase()`, `position()`, `started_position()`,
-`moved_position()`, `ended_position()`, `is_started()`, `is_moved()`,
-`is_ended()`, and `is_cancelled()` when reducers need generic drag lifecycle
-information or cancellation cleanup without duplicating the
+`moved_position()`, `ended_position()`, `finished_position()`, `is_started()`,
+`is_moved()`, `is_ended()`, `is_finished()`, and `is_cancelled()` when reducers
+need generic drag lifecycle information or cancellation cleanup without duplicating the
 `Started` / `Moved` / `Ended` / `Cancelled` variant shape. Use
 `DragHandlePhase::as_str()` for stable lowercase diagnostic labels. Reducers that
 resolve or cancel a drag gesture with both an in-window preview and an armed

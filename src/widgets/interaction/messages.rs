@@ -340,7 +340,9 @@ mod text_input_message_tests {
 
 #[cfg(test)]
 mod drag_handle_phase_tests {
-    use super::DragHandlePhase;
+    use crate::gui::types::Point;
+
+    use super::{DragHandleMessage, DragHandlePhase};
 
     #[test]
     fn drag_handle_phase_exposes_stable_diagnostic_labels() {
@@ -349,6 +351,26 @@ mod drag_handle_phase_tests {
         assert_eq!(DragHandlePhase::Ended.as_str(), "ended");
         assert_eq!(DragHandlePhase::DoubleActivate.as_str(), "double_activate");
         assert_eq!(DragHandlePhase::Cancelled.as_str(), "cancelled");
+    }
+
+    #[test]
+    fn drag_handle_message_classifies_terminal_drag_phases() {
+        let ended = DragHandleMessage::Ended {
+            position: Point::new(10.0, 20.0),
+        };
+        let cancelled = DragHandleMessage::Cancelled {
+            position: Point::new(30.0, 40.0),
+        };
+        let moved = DragHandleMessage::Moved {
+            position: Point::new(50.0, 60.0),
+        };
+
+        assert!(ended.is_finished());
+        assert!(cancelled.is_finished());
+        assert!(!moved.is_finished());
+        assert_eq!(ended.finished_position(), Some(Point::new(10.0, 20.0)));
+        assert_eq!(cancelled.finished_position(), Some(Point::new(30.0, 40.0)));
+        assert_eq!(moved.finished_position(), None);
     }
 }
 
@@ -477,6 +499,14 @@ impl DragHandleMessage {
         }
     }
 
+    /// Return the pointer position when this message ends or cancels an interaction.
+    pub fn finished_position(self) -> Option<Point> {
+        match self {
+            Self::Ended { position } | Self::Cancelled { position } => Some(position),
+            _ => None,
+        }
+    }
+
     /// Return whether this drag message starts an interaction.
     pub fn is_started(self) -> bool {
         matches!(self.phase(), DragHandlePhase::Started)
@@ -490,6 +520,14 @@ impl DragHandleMessage {
     /// Return whether this drag message ends an interaction.
     pub fn is_ended(self) -> bool {
         matches!(self.phase(), DragHandlePhase::Ended)
+    }
+
+    /// Return whether this drag message ends or cancels an interaction.
+    pub fn is_finished(self) -> bool {
+        matches!(
+            self.phase(),
+            DragHandlePhase::Ended | DragHandlePhase::Cancelled
+        )
     }
 
     /// Return whether this drag handle received a primary double activation.

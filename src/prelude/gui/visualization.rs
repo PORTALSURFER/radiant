@@ -2,8 +2,10 @@
 
 pub use crate::gui::visualization::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts,
+    CanvasSelectionAffordanceHitTestParts, CanvasSelectionBodyHandleHitTestParts,
     CanvasSelectionBodyHandlePaintParts, CanvasSelectionBodyHandleParts,
-    CanvasSelectionEdgeVisualPaintParts, CanvasSelectionGeometry, CanvasSelectionGeometryParts,
+    CanvasSelectionEdgeHitTestParts, CanvasSelectionEdgeVisualPaintParts, CanvasSelectionGeometry,
+    CanvasSelectionGeometryParts, CanvasSelectionTrailingControlHitTestParts,
     CanvasSelectionTrailingControlPaintParts, ColorRamp, ColorRampStop, DenseGridCell,
     DenseGridLabelLayout, DenseGridLabelLayoutParts, DenseGridLayout, DenseGridLayoutParts,
     DenseGridRasterLayout, DenseGridRasterLayoutParts, DenseGridRowOrigin, DragHandle,

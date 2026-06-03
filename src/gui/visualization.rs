@@ -13,8 +13,10 @@ mod value_marker;
 
 pub use canvas::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts,
+    CanvasSelectionAffordanceHitTestParts, CanvasSelectionBodyHandleHitTestParts,
     CanvasSelectionBodyHandlePaintParts, CanvasSelectionBodyHandleParts,
-    CanvasSelectionEdgeVisualPaintParts, CanvasSelectionGeometry, CanvasSelectionGeometryParts,
+    CanvasSelectionEdgeHitTestParts, CanvasSelectionEdgeVisualPaintParts, CanvasSelectionGeometry,
+    CanvasSelectionGeometryParts, CanvasSelectionTrailingControlHitTestParts,
     CanvasSelectionTrailingControlPaintParts, DragHandle, DragHandleRole, canvas_layer_at_point,
     canvas_selection_body_handle_rect, canvas_selection_edge_handles,
     canvas_selection_edge_visual_rect, canvas_selection_rect,

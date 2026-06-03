@@ -390,6 +390,17 @@ impl CanvasSelectionGeometry {
         .is_some_and(|rect| rect.contains(point))
     }
 
+    /// Return whether `point` is inside the configured body/move handle.
+    pub fn body_affordance_at_point(self, parts: CanvasSelectionBodyHandleHitTestParts) -> bool {
+        self.body_handle_at_point(
+            parts.height,
+            parts.end_inset,
+            parts.max_end_inset_fraction,
+            parts.min_width_after_inset,
+            parts.point,
+        )
+    }
+
     /// Append the top body-handle fill for moving this selection.
     ///
     /// Returns `true` when a visible fill primitive was appended.
@@ -425,6 +436,14 @@ impl CanvasSelectionGeometry {
     pub fn trailing_control_at_point(self, side: f32, inset: f32, point: Point) -> bool {
         self.trailing_control_rect(side, inset)
             .is_some_and(|rect| rect.contains(point))
+    }
+
+    /// Return whether `point` is inside the configured trailing control.
+    pub fn trailing_control_affordance_at_point(
+        self,
+        parts: CanvasSelectionTrailingControlHitTestParts,
+    ) -> bool {
+        self.trailing_control_at_point(parts.side, parts.inset, parts.point)
     }
 
     /// Append the bottom-trailing control fill for this selection.
@@ -492,6 +511,157 @@ impl CanvasSelectionGeometry {
                 self.edge_visual_rect(bounds, *role, width, vertical_inset)
                     .is_some_and(|rect| rect.contains(point))
             })
+    }
+
+    /// Return the first configured selection affordance containing `point`.
+    ///
+    /// Priority matches common editor interaction paint order: trailing
+    /// controls first, then resize edges, then the body/move handle. Callers
+    /// can omit any affordance group when host-specific controls need to be
+    /// checked between these generic layers.
+    pub fn affordance_at_point(
+        self,
+        parts: CanvasSelectionAffordanceHitTestParts,
+    ) -> Option<DragHandleRole> {
+        if parts
+            .trailing_control
+            .is_some_and(|trailing| self.trailing_control_affordance_at_point(trailing))
+        {
+            return Some(DragHandleRole::TrailingControl);
+        }
+        if let Some(edge) = parts.edge
+            && let Some(role) =
+                self.edge_at_point(edge.bounds, edge.point, edge.width, edge.vertical_inset)
+        {
+            return Some(role);
+        }
+        if parts
+            .body
+            .is_some_and(|body| self.body_affordance_at_point(body))
+        {
+            return Some(DragHandleRole::Body);
+        }
+        None
+    }
+}
+
+/// Hit-test policy for one normalized canvas selection affordance group.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct CanvasSelectionAffordanceHitTestParts {
+    /// Optional body/move handle hit-test policy.
+    pub body: Option<CanvasSelectionBodyHandleHitTestParts>,
+    /// Optional resize-edge hit-test policy.
+    pub edge: Option<CanvasSelectionEdgeHitTestParts>,
+    /// Optional trailing-control hit-test policy.
+    pub trailing_control: Option<CanvasSelectionTrailingControlHitTestParts>,
+}
+
+impl CanvasSelectionAffordanceHitTestParts {
+    /// Build empty selection-affordance hit-test parts.
+    pub const fn new() -> Self {
+        Self {
+            body: None,
+            edge: None,
+            trailing_control: None,
+        }
+    }
+
+    /// Include the body/move handle in hit testing.
+    pub const fn with_body(mut self, body: CanvasSelectionBodyHandleHitTestParts) -> Self {
+        self.body = Some(body);
+        self
+    }
+
+    /// Include resize edges in hit testing.
+    pub const fn with_edge(mut self, edge: CanvasSelectionEdgeHitTestParts) -> Self {
+        self.edge = Some(edge);
+        self
+    }
+
+    /// Include the trailing control in hit testing.
+    pub const fn with_trailing_control(
+        mut self,
+        trailing_control: CanvasSelectionTrailingControlHitTestParts,
+    ) -> Self {
+        self.trailing_control = Some(trailing_control);
+        self
+    }
+}
+
+/// Hit-test policy for a normalized selection body/move handle.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CanvasSelectionBodyHandleHitTestParts {
+    /// Pointer position in canvas coordinates.
+    pub point: Point,
+    /// Requested handle height from the selection's top edge.
+    pub height: f32,
+    /// Preferred inset from both horizontal selection edges.
+    pub end_inset: f32,
+    /// Maximum inset as a fraction of the projected selection width.
+    pub max_end_inset_fraction: f32,
+    /// Minimum width required after applying the horizontal inset.
+    pub min_width_after_inset: f32,
+}
+
+impl CanvasSelectionBodyHandleHitTestParts {
+    /// Build body/move handle hit-test parts.
+    pub const fn new(
+        point: Point,
+        height: f32,
+        end_inset: f32,
+        max_end_inset_fraction: f32,
+        min_width_after_inset: f32,
+    ) -> Self {
+        Self {
+            point,
+            height,
+            end_inset,
+            max_end_inset_fraction,
+            min_width_after_inset,
+        }
+    }
+}
+
+/// Hit-test policy for normalized selection resize edges.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CanvasSelectionEdgeHitTestParts {
+    /// Bounds containing the edge visuals.
+    pub bounds: Rect,
+    /// Pointer position in canvas coordinates.
+    pub point: Point,
+    /// Requested edge width.
+    pub width: f32,
+    /// Vertical inset from `bounds`.
+    pub vertical_inset: f32,
+}
+
+impl CanvasSelectionEdgeHitTestParts {
+    /// Build resize-edge hit-test parts.
+    pub const fn new(bounds: Rect, point: Point, width: f32, vertical_inset: f32) -> Self {
+        Self {
+            bounds,
+            point,
+            width,
+            vertical_inset,
+        }
+    }
+}
+
+/// Hit-test policy for a normalized selection trailing control.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CanvasSelectionTrailingControlHitTestParts {
+    /// Pointer position in canvas coordinates.
+    pub point: Point,
+    /// Requested square side length.
+    pub side: f32,
+    /// Inset from the selection's bottom-right corner.
+    pub inset: f32,
+}
+
+impl CanvasSelectionTrailingControlHitTestParts {
+    /// Build trailing-control hit-test parts.
+    pub const fn new(point: Point, side: f32, inset: f32) -> Self {
+        Self { point, side, inset }
     }
 }
 

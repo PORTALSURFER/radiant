@@ -164,13 +164,26 @@ pub fn details_column_reorder_marker_x(
     content_left: f32,
     column_gap: f32,
 ) -> f32 {
-    content_left
-        + placements
-            .iter()
-            .filter(|placement| placement.id != dragged_id)
-            .take(target_index)
-            .map(|placement| placement.width + column_gap.max(0.0))
-            .sum::<f32>()
+    let column_gap = column_gap.max(0.0);
+    let target_index = target_index.min(placements.len().saturating_sub(1));
+    let mut x = content_left;
+    let mut non_dragged_index = 0usize;
+    let mut last_column_end = content_left;
+
+    for placement in placements {
+        let column_start = x;
+        let column_end = column_start + placement.width;
+        last_column_end = column_end;
+        if placement.id != dragged_id {
+            if non_dragged_index == target_index {
+                return column_start;
+            }
+            non_dragged_index += 1;
+        }
+        x = column_end + column_gap;
+    }
+
+    last_column_end
 }
 
 /// Estimate the content-left x-coordinate for a details-column drag start.

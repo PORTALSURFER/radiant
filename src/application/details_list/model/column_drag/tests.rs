@@ -34,7 +34,38 @@ fn details_column_reorder_drag_uses_estimated_content_left() {
                 content_left,
                 10.0
             )),
-        Some(418.0)
+        Some(398.0)
+    );
+}
+
+#[test]
+fn details_column_reorder_marker_tracks_hovered_column_edge() {
+    let placements = vec![
+        DetailsColumnPlacement::new("name", 240.0),
+        DetailsColumnPlacement::new("rating", 68.0),
+        DetailsColumnPlacement::new("collection", 68.0),
+        DetailsColumnPlacement::new("extension", 54.0),
+        DetailsColumnPlacement::new("size", 78.0),
+        DetailsColumnPlacement::new("modified", 110.0),
+    ];
+    let drag = DetailsColumnReorderDrag::new("rating", 0.0);
+
+    let left_side_target = drag
+        .target_index(&placements, 560.0, 10.0)
+        .expect("drag target on left side of modified");
+    assert_eq!(left_side_target, 4);
+    assert_eq!(
+        details_column_reorder_marker_x(&placements, "rating", left_side_target, 0.0, 10.0),
+        558.0
+    );
+
+    let right_side_target = drag
+        .target_index(&placements, 620.0, 10.0)
+        .expect("drag target on right side of modified");
+    assert_eq!(right_side_target, 5);
+    assert_eq!(
+        details_column_reorder_marker_x(&placements, "rating", right_side_target, 0.0, 10.0),
+        668.0
     );
 }
 
@@ -180,7 +211,7 @@ fn update_details_column_reorder_drag_reorders_and_clears_on_end() {
     assert_eq!(
         drag.as_ref()
             .and_then(|drag| drag.current_marker_x(&placements(), 10.0)),
-        Some(330.0)
+        Some(408.0)
     );
 
     assert!(update_details_column_reorder_drag(

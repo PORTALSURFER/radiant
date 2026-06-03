@@ -200,7 +200,11 @@ pub fn empty<Message: 'static>() -> ViewNode<Message> {
 
 /// Build a minimal passive spacer view.
 pub fn spacer<Message: 'static>() -> ViewNode<Message> {
-    canvas().size(1.0, 1.0)
+    ViewNode::new(ViewNodeKind::Row {
+        spacing: 0.0,
+        children: Vec::new(),
+    })
+    .size(1.0, 1.0)
 }
 
 /// Build a custom widget view with generated identity and an output mapper.
@@ -233,7 +237,9 @@ where
 mod tests {
     use crate::{
         application::{IntoView, empty, spacer},
+        gui::types::{Point, Rect},
         layout::{LayoutNode, Vector2},
+        runtime::UiSurface,
     };
 
     #[test]
@@ -247,12 +253,23 @@ mod tests {
     }
 
     #[test]
-    fn spacer_keeps_minimal_extent() {
+    fn spacer_lowers_to_non_painting_container() {
         let layout = spacer::<()>().into_surface().layout_node();
 
-        let LayoutNode::Widget(widget) = layout else {
-            panic!("spacer should lower to a widget leaf");
+        let LayoutNode::Container(container) = layout else {
+            panic!("spacer should lower to a non-painting layout container");
         };
-        assert_eq!(widget.intrinsic, Vector2::new(1.0, 1.0));
+        assert!(container.children.is_empty());
+    }
+
+    #[test]
+    fn spacer_reserves_space_without_painting() {
+        let view = spacer::<()>().fill_width().height(20.0);
+        let frame = UiSurface::new(view.into_node()).frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 20.0)),
+            &Default::default(),
+        );
+
+        assert!(frame.paint_plan.primitives.is_empty());
     }
 }

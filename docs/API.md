@@ -169,7 +169,7 @@ explicit control with `.id(...)`, `.sizing(...)`, `.size(...)`, `.fixed(...)`,
 `.min_size(...)`, `.preferred_size(...)`, `.baseline(...)`, and `.spacing(...)`.
 Use `empty()` for optional branches that must return a view without
 contributing visible layout size; use `spacer()` when the view should reserve a
-visible fixed or flexible gap. Use `text_line(label, height)` for fixed-height
+non-painting fixed or flexible gap. Use `text_line(label, height)` for fixed-height
 single-line labels that should fill their parent width and truncate rather than
 wrap.
 Rows, columns, and fixed-column grids use intrinsic main-axis child sizing by

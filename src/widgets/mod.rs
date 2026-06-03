@@ -77,8 +77,9 @@ pub use interaction::{
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, BadgeWidgetParts, ButtonProps, ButtonState, ButtonWidget,
     ButtonWidgetParts, CanvasWidget, CanvasWidgetParts, CardWidget, CardWidgetParts,
-    ColorMarkerAlign, ColorMarkerProps, ColorMarkerWidget, ColorMarkerWidgetParts,
-    DragHandleWidget, DragHandleWidgetParts, EmbeddedInteractiveRowWidget, FeedbackOverlayEdge,
+    ColorMarkerAlign, ColorMarkerProps, ColorMarkerRunProps, ColorMarkerRunWidget,
+    ColorMarkerRunWidgetParts, ColorMarkerWidget, ColorMarkerWidgetParts, DragHandleWidget,
+    DragHandleWidgetParts, EmbeddedInteractiveRowWidget, FeedbackOverlayEdge,
     FeedbackOverlayProgress, FeedbackOverlayProps, FeedbackOverlayWidget,
     FeedbackOverlayWidgetParts, GpuSurfaceParts, GpuSurfaceWidget, IconButtonWidget,
     IconButtonWidgetParts, ImageProps, ImageWidget, ImageWidgetParts, InteractiveRowPointerMotion,

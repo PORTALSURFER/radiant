@@ -42,7 +42,7 @@ pub use interactive_row::{
     InteractiveRowActions, InteractiveRowBuilder, InteractiveRowUnderlayBuilder, interactive_row,
     interactive_row_underlay,
 };
-pub use marker_run::{MarkerRunBuilder, marker_run};
+pub use marker_run::{ColorMarkerRunBuilder, MarkerRunBuilder, marker_run, marker_run_colors};
 pub use pointer_shield::{
     PointerShieldBuilder, pointer_drop_shield, pointer_move_shield, pointer_shield,
 };

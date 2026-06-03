@@ -101,10 +101,10 @@ pub(in crate::application) use builders::{
 };
 mod control_builders;
 pub use control_builders::{
-    ActionRowBuilder, BadgeBuilder, ButtonBuilder, ColorMarkerBuilder, DEFAULT_ACTION_ROW_HEIGHT,
-    DragHandleBuilder, DropdownBuilder, DropdownBuilderNeedsToggle, DropdownMenuOverlayBelowParts,
-    DropdownOption, DropdownOptionParts, DropdownOptionSelection, DropdownParts,
-    DropdownTriggerBuilder, DropdownTriggerBuilderNeedsToggle, DropdownTriggerParts,
+    ActionRowBuilder, BadgeBuilder, ButtonBuilder, ColorMarkerBuilder, ColorMarkerRunBuilder,
+    DEFAULT_ACTION_ROW_HEIGHT, DragHandleBuilder, DropdownBuilder, DropdownBuilderNeedsToggle,
+    DropdownMenuOverlayBelowParts, DropdownOption, DropdownOptionParts, DropdownOptionSelection,
+    DropdownParts, DropdownTriggerBuilder, DropdownTriggerBuilderNeedsToggle, DropdownTriggerParts,
     FeedbackOverlayBuilder, IconButtonBuilder, InteractiveBadgeBuilder, InteractiveRowActions,
     InteractiveRowBuilder, InteractiveRowUnderlayBuilder, MarkerRunBuilder, PointerShieldBuilder,
     ProgressBarBuilder, ScrollbarBuilder, SelectableBuilder, SliderBuilder, TextInputBuilder,
@@ -117,9 +117,10 @@ pub use control_builders::{
     dropdown_menu_overlay_below_stacked_labeled_control, dropdown_menu_overlay_below_trigger,
     dropdown_option, dropdown_trigger, dropdown_trigger_from_parts, dropdown_trigger_height,
     feedback_overlay, icon_button, indeterminate_progress_bar, interactive_badge, interactive_row,
-    interactive_row_underlay, marker_run, pointer_drop_shield, pointer_move_shield, pointer_shield,
-    progress_bar, progress_bar_for_snapshot, scrollbar, selectable, selectable_mapped, slider,
-    slider_mapped, state_dropdown, text_input, text_input_mapped, toggle, toggle_mapped,
+    interactive_row_underlay, marker_run, marker_run_colors, pointer_drop_shield,
+    pointer_move_shield, pointer_shield, progress_bar, progress_bar_for_snapshot, scrollbar,
+    selectable, selectable_mapped, slider, slider_mapped, state_dropdown, text_input,
+    text_input_mapped, toggle, toggle_mapped,
 };
 mod layout_builders;
 pub use layout_builders::{

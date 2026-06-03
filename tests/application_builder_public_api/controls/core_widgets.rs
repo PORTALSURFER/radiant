@@ -1,9 +1,9 @@
 use super::super::*;
 use radiant::widgets::{
-    BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerWidget, DragHandleMessage,
-    FeedbackOverlayWidget, FocusBehavior, IconButtonWidget, MarkerRunWidget, PaintBounds,
-    SliderMessage, SliderWidget, TextInputWidget, TextWidget, ToggleWidget, WidgetOutput,
-    WidgetProminence, WidgetStyle, WidgetTone,
+    BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerRunWidget,
+    ColorMarkerWidget, DragHandleMessage, FeedbackOverlayWidget, FocusBehavior, IconButtonWidget,
+    MarkerRunWidget, PaintBounds, SliderMessage, SliderWidget, TextInputWidget, TextWidget,
+    ToggleWidget, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
 };
 
 #[test]
@@ -252,6 +252,31 @@ fn marker_run_is_prelude_accessible_and_passive() {
     assert_eq!(markers.props.inset, 2);
     assert_eq!(
         surface.dispatch_widget_output(24, WidgetOutput::typed(())),
+        None
+    );
+}
+
+#[test]
+fn marker_run_colors_is_prelude_accessible_and_passive() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let first = ui::Rgba8::new(80, 180, 90, 255);
+    let second = ui::Rgba8::new(180, 90, 80, 255);
+    let surface: UiSurface<()> = ui::marker_run_colors([first, second])
+        .side(5)
+        .gap(4)
+        .inset(2)
+        .view()
+        .id(25)
+        .into_surface();
+
+    let markers = widget_ref::<ColorMarkerRunWidget, _>(&surface, 25, "marker run colors");
+    assert_eq!(markers.props.colors, vec![first, second]);
+    assert_eq!(markers.props.side, 5);
+    assert_eq!(markers.props.gap, 4);
+    assert_eq!(markers.props.inset, 2);
+    assert_eq!(
+        surface.dispatch_widget_output(25, WidgetOutput::typed(())),
         None
     );
 }

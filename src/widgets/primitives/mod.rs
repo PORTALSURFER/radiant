@@ -43,7 +43,10 @@ pub use interactive_row::{
     InteractiveRowVisualStateParts, InteractiveRowWidget, InteractiveRowWidgetParts,
 };
 pub use list_item::{ListItemWidget, ListItemWidgetParts};
-pub use marker_run::{MarkerRunAlign, MarkerRunProps, MarkerRunWidget, MarkerRunWidgetParts};
+pub use marker_run::{
+    ColorMarkerRunProps, ColorMarkerRunWidget, ColorMarkerRunWidgetParts, MarkerRunAlign,
+    MarkerRunProps, MarkerRunWidget, MarkerRunWidgetParts,
+};
 pub use pointer_shield::{PointerShieldProps, PointerShieldWidget, PointerShieldWidgetParts};
 pub use progress_bar::{
     ProgressBarMessage, ProgressBarMode, ProgressBarProps, ProgressBarWidget,

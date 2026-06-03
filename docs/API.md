@@ -412,6 +412,8 @@ Text-like widgets support semantic foreground roles such as
 app-local paint-only text widgets or hard-coded theme colors.
 Passive cell, legend, and swatch indicators can use `ColorMarkerWidget` to draw
 small aligned color markers without application-owned paint-only widgets.
+`marker_run(color, count)` covers repeated same-color compact indicators, while
+`marker_run_colors(colors)` paints one compact marker per supplied color.
 Transparent overlay layers that need to consume or observe pointer traffic
 without painting can use `PointerShieldWidget`. It emits generic
 `PointerShieldMessage` values for configured pointer moves, presses, releases,

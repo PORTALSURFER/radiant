@@ -17,6 +17,74 @@ pub struct VirtualListController {
     focused_index: Option<usize>,
 }
 
+/// App-owned focus key memory for virtual lists that should follow selection
+/// only when the selected item changes.
+///
+/// Pair this with [`VirtualListController::configure_and_focus_changed_optional`]
+/// when manual scroll should remain authoritative until the app selection moves
+/// to a different key.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VirtualListFollowState<Key> {
+    focus_key: Option<Key>,
+}
+
+/// App-owned focus key and current item index for a virtualized list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VirtualListFocusTarget<Key> {
+    /// Stable app-owned key for the focused item.
+    pub key: Option<Key>,
+    /// Current visible item index for the same key.
+    pub index: Option<usize>,
+}
+
+impl<Key> VirtualListFocusTarget<Key> {
+    /// Build a focus target from an app-owned key and current item index.
+    pub const fn new(key: Option<Key>, index: Option<usize>) -> Self {
+        Self { key, index }
+    }
+
+    /// Build an empty focus target.
+    pub const fn none() -> Self {
+        Self {
+            key: None,
+            index: None,
+        }
+    }
+}
+
+impl<Key> Default for VirtualListFollowState<Key> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<Key> VirtualListFollowState<Key> {
+    /// Build an empty follow state.
+    pub const fn new() -> Self {
+        Self { focus_key: None }
+    }
+
+    /// Return the last followed focus key.
+    pub const fn focus_key(&self) -> Option<&Key> {
+        self.focus_key.as_ref()
+    }
+
+    /// Clear the last followed focus key.
+    pub fn clear(&mut self) {
+        self.focus_key = None;
+    }
+}
+
+impl<Key: PartialEq> VirtualListFollowState<Key> {
+    fn update_focus_key(&mut self, focus_key: Option<Key>) -> bool {
+        if self.focus_key == focus_key {
+            return false;
+        }
+        self.focus_key = focus_key;
+        true
+    }
+}
+
 impl Default for VirtualListController {
     fn default() -> Self {
         Self::new()
@@ -144,6 +212,35 @@ impl VirtualListController {
         self.focus_optional(focused_index)
     }
 
+    /// Configure stable geometry inputs and follow optional focus only when an
+    /// app-owned focus key changes.
+    ///
+    /// This preserves manual scroll as authoritative while the same item remains
+    /// selected, but still scrolls the newly selected item into view when host
+    /// selection moves to another key.
+    pub fn configure_and_focus_changed_optional<Key: PartialEq>(
+        &mut self,
+        follow_state: &mut VirtualListFollowState<Key>,
+        total_items: usize,
+        viewport_len: usize,
+        overscan: usize,
+        guard_band: usize,
+        focus: VirtualListFocusTarget<Key>,
+    ) -> VirtualListWindow {
+        self.configure(total_items, viewport_len, overscan, guard_band);
+        if follow_state.update_focus_key(focus.key) {
+            return match focus.index {
+                Some(index) => self.focus(index),
+                None => {
+                    self.clear_focus();
+                    self.resolve()
+                }
+            };
+        }
+        self.clear_focus();
+        self.resolve()
+    }
+
     /// Configure stable geometry inputs and follow focus with one adjacent
     /// context row before the guard band triggers scrolling.
     ///
@@ -164,6 +261,27 @@ impl VirtualListController {
             overscan,
             guard_band.saturating_add(1),
             focused_index,
+        )
+    }
+
+    /// Configure stable geometry inputs and follow changed focus with one
+    /// adjacent context row before guard-band scrolling.
+    pub fn configure_and_focus_changed_optional_with_context_row<Key: PartialEq>(
+        &mut self,
+        follow_state: &mut VirtualListFollowState<Key>,
+        total_items: usize,
+        viewport_len: usize,
+        overscan: usize,
+        guard_band: usize,
+        focus: VirtualListFocusTarget<Key>,
+    ) -> VirtualListWindow {
+        self.configure_and_focus_changed_optional(
+            follow_state,
+            total_items,
+            viewport_len,
+            overscan,
+            guard_band.saturating_add(1),
+            focus,
         )
     }
 

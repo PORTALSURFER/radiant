@@ -7,7 +7,7 @@ mod item;
 mod scrollbar;
 mod window;
 
-pub use controller::VirtualListController;
+pub use controller::{VirtualListController, VirtualListFocusTarget, VirtualListFollowState};
 pub use geometry::{
     VirtualListStackMetrics, VirtualListStackMetricsParts, virtual_list_stacked_item_at_point,
     virtual_list_viewport_len_for_extent,

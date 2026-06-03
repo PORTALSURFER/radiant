@@ -4,9 +4,25 @@ use crate::{
         StateStringCallback, StateView, View, button, column, drag_handle, input_underlay, row,
         scroll, text,
     },
-    widgets::{DragHandleMessage, WidgetProminence, WidgetStyle, WidgetTone},
+    widgets::{DragHandleMessage, WidgetId, WidgetProminence, WidgetStyle, WidgetTone},
 };
 use std::sync::Arc;
+
+/// Stable widget ids for a compact resizable details header cell.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct CompactDetailsHeaderCellIds {
+    /// Widget id for the sort/reorder input surface.
+    pub sort_drag: Option<WidgetId>,
+    /// Widget id for the trailing resize handle.
+    pub resize: Option<WidgetId>,
+}
+
+impl CompactDetailsHeaderCellIds {
+    /// Build explicit ids for the sort/reorder and resize surfaces.
+    pub const fn new(sort_drag: Option<WidgetId>, resize: Option<WidgetId>) -> Self {
+        Self { sort_drag, resize }
+    }
+}
 
 /// Build a compact details list with clickable sort columns.
 pub fn sortable_details_list<State: 'static>(
@@ -188,8 +204,7 @@ where
         key,
         label,
         width,
-        None,
-        None,
+        CompactDetailsHeaderCellIds::default(),
         sort_message,
         drag_message,
         resize_message,
@@ -202,8 +217,7 @@ pub fn compact_resizable_details_header_cell_with_ids<Message>(
     key: impl Into<String>,
     label: impl Into<String>,
     width: f32,
-    sort_drag_id: Option<crate::widgets::WidgetId>,
-    resize_id: Option<crate::widgets::WidgetId>,
+    ids: CompactDetailsHeaderCellIds,
     sort_message: Message,
     drag_message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
     resize_message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
@@ -219,14 +233,14 @@ where
         .key(format!("{key}-sort-drag"))
         .fill_width()
         .height(20.0);
-    if let Some(id) = sort_drag_id {
+    if let Some(id) = ids.sort_drag {
         sort_drag = sort_drag.id(id);
     }
     let mut resize = drag_handle()
         .mapped(resize_message)
         .key(format!("{key}-resize"))
         .size(4.0, 20.0);
-    if let Some(id) = resize_id {
+    if let Some(id) = ids.resize {
         resize = resize.id(id);
     }
     row([

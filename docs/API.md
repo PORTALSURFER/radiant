@@ -246,10 +246,13 @@ Custom details-list rows can use `compact_details_row(...)` and
 `compact_details_cell(...)` to share Radiant's compact row chrome, 20px cell
 height, fixed-width cell sizing, and flexible fill-cell sizing while still
 composing app-specific cell contents. Custom details-list headers can use
-`compact_details_header_row(...)`, `compact_resizable_details_header_cell(...)`,
-and `details_sort_label(...)` to share Radiant's compact header chrome,
-sortable click-or-drag behavior, resize handles, and sort marker copy while
-still composing app-specific menus or column policies.
+  `compact_details_header_row(...)`, `compact_resizable_details_header_cell(...)`,
+  and `details_sort_label(...)` to share Radiant's compact header chrome,
+  sortable click-or-drag behavior, resize handles, and sort marker copy while
+  still composing app-specific menus or column policies. Use
+  `compact_resizable_details_header_cell_with_ids(...)` with
+  `CompactDetailsHeaderCellIds` when dynamic header cells need stable explicit
+  widget ids for retained focus, drag, or resize state.
 Resizable and reorderable details headers can keep interaction state in
 `DetailsColumnResizeDrag` and `DetailsColumnReorderDrag`, using
 `update_details_column_resize_drag(...)`,
@@ -349,10 +352,15 @@ through a list whose item count may also have changed because of filtering,
 search, or app-owned selection.
 Use `configure_and_focus_optional(...)` when a projection pass should update
 item count, viewport policy, and optional host selection in one controller call.
-Use `configure_and_focus_optional_with_context_row(...)` for browser, outline,
-table, or picker lists that should keep one adjacent context row around the
-focused item before guard-band scrolling moves the viewport.
-Overlay and retained-geometry code that needs to mirror compact stack spacing
+  Use `configure_and_focus_optional_with_context_row(...)` for browser, outline,
+  table, or picker lists that should keep one adjacent context row around the
+  focused item before guard-band scrolling moves the viewport.
+  Use `VirtualListFollowState` and `VirtualListFocusTarget` with
+  `configure_and_focus_changed_optional(...)` or
+  `configure_and_focus_changed_optional_with_context_row(...)` when a list should
+  scroll newly selected items into view without overriding manual scroll while
+  the same app-owned item key remains selected.
+  Overlay and retained-geometry code that needs to mirror compact stack spacing
 can use `StackedLayoutCursor` to accumulate item extents and gaps without
 app-local offset arithmetic. Use the chainable `advanced(...)` and
 `advanced_many(...)` forms when repeated rows precede an overlay target, and

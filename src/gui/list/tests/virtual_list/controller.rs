@@ -1,4 +1,4 @@
-use super::super::super::VirtualListController;
+use super::super::super::{VirtualListController, VirtualListFocusTarget, VirtualListFollowState};
 use crate::gui::types::{Point, Rect};
 
 #[test]
@@ -35,6 +35,76 @@ fn virtual_list_controller_configures_and_focuses_in_one_projection_step() {
     assert_eq!(controller.overscan(), 2);
     assert_eq!(controller.guard_band(), 2);
     assert_eq!(controller.focused_index(), Some(4));
+}
+
+#[test]
+fn virtual_list_controller_follows_changed_focus_without_overriding_manual_scroll() {
+    let mut controller = VirtualListController::new();
+    let mut follow = VirtualListFollowState::new();
+
+    let first = controller.configure_and_focus_changed_optional_with_context_row(
+        &mut follow,
+        100,
+        10,
+        2,
+        2,
+        VirtualListFocusTarget::new(Some("sample-40"), Some(40)),
+    );
+    assert_eq!(first.viewport_start, 34);
+    assert_eq!(follow.focus_key(), Some(&"sample-40"));
+
+    controller.set_scroll_offset(80.0 * 22.0, 22.0);
+    let stable = controller.configure_and_focus_changed_optional_with_context_row(
+        &mut follow,
+        100,
+        10,
+        2,
+        2,
+        VirtualListFocusTarget::new(Some("sample-40"), Some(40)),
+    );
+
+    assert_eq!(stable.viewport_start, 80);
+    assert_eq!(controller.focused_index(), None);
+
+    let changed = controller.configure_and_focus_changed_optional_with_context_row(
+        &mut follow,
+        100,
+        10,
+        2,
+        2,
+        VirtualListFocusTarget::new(Some("sample-05"), Some(5)),
+    );
+
+    assert_eq!(changed.viewport_start, 2);
+    assert_eq!(follow.focus_key(), Some(&"sample-05"));
+}
+
+#[test]
+fn virtual_list_controller_clears_focus_when_changed_key_has_no_index() {
+    let mut controller = VirtualListController::new();
+    let mut follow = VirtualListFollowState::new();
+
+    controller.configure_and_focus_changed_optional(
+        &mut follow,
+        20,
+        6,
+        1,
+        1,
+        VirtualListFocusTarget::new(Some("folder-10"), Some(10)),
+    );
+
+    let cleared = controller.configure_and_focus_changed_optional(
+        &mut follow,
+        20,
+        6,
+        1,
+        1,
+        VirtualListFocusTarget::none(),
+    );
+
+    assert_eq!(cleared.viewport_start, 6);
+    assert_eq!(controller.focused_index(), None);
+    assert_eq!(follow.focus_key(), None);
 }
 
 #[test]

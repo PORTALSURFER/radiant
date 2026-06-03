@@ -144,6 +144,29 @@ impl VirtualListController {
         self.focus_optional(focused_index)
     }
 
+    /// Configure stable geometry inputs and follow focus with one adjacent
+    /// context row before the guard band triggers scrolling.
+    ///
+    /// This is useful for dense browser, outline, table, and picker lists where
+    /// selection-follow should preserve a small amount of context around the
+    /// focused item instead of pinning it directly to a viewport edge.
+    pub fn configure_and_focus_optional_with_context_row(
+        &mut self,
+        total_items: usize,
+        viewport_len: usize,
+        overscan: usize,
+        guard_band: usize,
+        focused_index: Option<usize>,
+    ) -> VirtualListWindow {
+        self.configure_and_focus_optional(
+            total_items,
+            viewport_len,
+            overscan,
+            guard_band.saturating_add(1),
+            focused_index,
+        )
+    }
+
     /// Clear focused-index anchoring.
     pub fn clear_focus(&mut self) {
         self.focused_index = None;
@@ -311,6 +334,19 @@ mod tests {
         assert_eq!(window.viewport_start, 1);
         assert_eq!(controller.viewport_start(), 1);
         assert_eq!(controller.focused_index(), Some(4));
+    }
+
+    #[test]
+    fn focus_optional_with_context_row_expands_guard_band() {
+        let mut controller = VirtualListController::with_items(20, 6);
+        controller.set_viewport_start(0);
+
+        let window = controller.configure_and_focus_optional_with_context_row(20, 6, 1, 1, Some(5));
+
+        assert_eq!(window.viewport_start, 2);
+        assert_eq!(controller.viewport_start(), 2);
+        assert_eq!(controller.guard_band(), 2);
+        assert_eq!(controller.focused_index(), Some(5));
     }
 
     #[test]

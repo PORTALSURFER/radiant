@@ -349,6 +349,9 @@ through a list whose item count may also have changed because of filtering,
 search, or app-owned selection.
 Use `configure_and_focus_optional(...)` when a projection pass should update
 item count, viewport policy, and optional host selection in one controller call.
+Use `configure_and_focus_optional_with_context_row(...)` for browser, outline,
+table, or picker lists that should keep one adjacent context row around the
+focused item before guard-band scrolling moves the viewport.
 Overlay and retained-geometry code that needs to mirror compact stack spacing
 can use `StackedLayoutCursor` to accumulate item extents and gaps without
 app-local offset arithmetic. Use the chainable `advanced(...)` and

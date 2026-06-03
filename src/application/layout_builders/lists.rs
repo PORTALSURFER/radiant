@@ -97,7 +97,7 @@ pub fn bounded_scroll_column_from_parts<Message: 'static>(
         parts.vertical_chrome,
     );
     if height <= 0.0 {
-        return empty().fill_width();
+        return empty().fill_width().height(0.0);
     }
     scroll(column(parts.rows).spacing(0.0).fill_width())
         .style(parts.style)

@@ -1840,6 +1840,8 @@ Wrapped chip, token, recipient, or pill editors can use
 input/control should stay on the current row only if enough editing room
 remains. Use `push_flow_row_group` when several flow items, such as a prefix
 token plus its editor, should wrap atomically instead of splitting across rows.
+Use `pack_flow_rows_with_trailing_group` when callers need the common form of
+packing existing items and appending one such atomic trailing group.
 Use `capped_flow_rows_height(...)` when the editor should grow to a maximum
 visible row count before switching to a scrollable content area.
 Use `FlowFieldMetrics` when a bounded inline editor needs shared content-width,

@@ -259,6 +259,25 @@ where
     rows
 }
 
+/// Pack variable-width items and append an atomically-wrapped trailing group.
+///
+/// This is useful for chip, pill, tag, recipient, and token editors where a
+/// trailing prefix plus editor/control must stay together instead of leaving
+/// the prefix stranded at the end of the previous row.
+pub fn pack_flow_rows_with_trailing_group<T>(
+    items: impl IntoIterator<Item = FlowItem<T>>,
+    trailing: impl IntoIterator<Item = FlowItem<T>>,
+    content_width: f32,
+    metrics: FlowLayoutMetrics,
+) -> Vec<Vec<T>>
+where
+    T: FlowItemWidth,
+{
+    let mut rows = pack_flow_rows(items, content_width, metrics);
+    push_flow_row_group(&mut rows, trailing, content_width, metrics);
+    rows
+}
+
 /// Push one variable-width item onto existing flow rows.
 pub fn push_flow_row_item<T>(
     rows: &mut Vec<Vec<T>>,
@@ -577,6 +596,36 @@ mod tests {
         );
         push_flow_row_group(
             &mut rows,
+            [
+                FlowItem::new(SizedItem("prefix", 50.0), 50.0),
+                FlowItem::new(SizedItem("input", 70.0), 70.0),
+            ],
+            150.0,
+            metrics(),
+        );
+
+        assert_eq!(
+            rows,
+            vec![
+                vec![SizedItem("pill", 86.0)],
+                vec![SizedItem("prefix", 50.0), SizedItem("input", 70.0)]
+            ]
+        );
+    }
+
+    #[test]
+    fn pack_flow_rows_with_trailing_group_wraps_group_atomically() {
+        #[derive(Clone, Debug, PartialEq)]
+        struct SizedItem(&'static str, f32);
+
+        impl FlowItemWidth for SizedItem {
+            fn flow_width(&self) -> f32 {
+                self.1
+            }
+        }
+
+        let rows = pack_flow_rows_with_trailing_group(
+            [FlowItem::new(SizedItem("pill", 86.0), 86.0)],
             [
                 FlowItem::new(SizedItem("prefix", 50.0), 50.0),
                 FlowItem::new(SizedItem("input", 70.0), 70.0),

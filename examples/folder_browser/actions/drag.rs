@@ -35,6 +35,7 @@ impl BrowserState {
                     self.move_folder(source_id, target_id);
                 }
             }
+            ui::DragHandleMessage::DoubleActivate { .. } => {}
         }
     }
 

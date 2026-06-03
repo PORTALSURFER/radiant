@@ -347,6 +347,7 @@ mod drag_handle_phase_tests {
         assert_eq!(DragHandlePhase::Started.as_str(), "started");
         assert_eq!(DragHandlePhase::Moved.as_str(), "moved");
         assert_eq!(DragHandlePhase::Ended.as_str(), "ended");
+        assert_eq!(DragHandlePhase::DoubleActivate.as_str(), "double_activate");
     }
 }
 
@@ -388,6 +389,11 @@ pub enum DragHandleMessage {
         /// Pointer position in the widget host's logical coordinate space.
         position: Point,
     },
+    /// Primary pointer double-clicked the drag handle.
+    DoubleActivate {
+        /// Pointer position in the widget host's logical coordinate space.
+        position: Point,
+    },
 }
 
 /// Lifecycle phase for a reusable drag-handle interaction.
@@ -399,6 +405,8 @@ pub enum DragHandlePhase {
     Moved,
     /// Primary pointer drag ended or was released.
     Ended,
+    /// Primary pointer double-clicked the drag handle.
+    DoubleActivate,
 }
 
 impl DragHandlePhase {
@@ -408,6 +416,7 @@ impl DragHandlePhase {
             Self::Started => "started",
             Self::Moved => "moved",
             Self::Ended => "ended",
+            Self::DoubleActivate => "double_activate",
         }
     }
 }
@@ -419,15 +428,17 @@ impl DragHandleMessage {
             Self::Started { .. } => DragHandlePhase::Started,
             Self::Moved { .. } => DragHandlePhase::Moved,
             Self::Ended { .. } => DragHandlePhase::Ended,
+            Self::DoubleActivate { .. } => DragHandlePhase::DoubleActivate,
         }
     }
 
     /// Return this drag message's pointer position.
     pub fn position(self) -> Point {
         match self {
-            Self::Started { position } | Self::Moved { position } | Self::Ended { position } => {
-                position
-            }
+            Self::Started { position }
+            | Self::Moved { position }
+            | Self::Ended { position }
+            | Self::DoubleActivate { position } => position,
         }
     }
 
@@ -468,6 +479,11 @@ impl DragHandleMessage {
     /// Return whether this drag message ends an interaction.
     pub fn is_ended(self) -> bool {
         matches!(self.phase(), DragHandlePhase::Ended)
+    }
+
+    /// Return whether this drag handle received a primary double activation.
+    pub fn is_double_activate(self) -> bool {
+        matches!(self.phase(), DragHandlePhase::DoubleActivate)
     }
 }
 

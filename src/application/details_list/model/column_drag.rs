@@ -79,6 +79,7 @@ pub fn update_details_column_resize_drag(
             }
             update
         }
+        DragHandleMessage::DoubleActivate { .. } => None,
     }
 }
 
@@ -177,5 +178,6 @@ pub fn update_details_column_reorder_drag<T>(
             }
             changed
         }
+        DragHandleMessage::DoubleActivate { .. } => false,
     }
 }

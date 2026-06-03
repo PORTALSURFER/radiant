@@ -228,3 +228,55 @@ fn update_details_column_reorder_drag_reorders_and_clears_on_end() {
     assert_eq!(columns, ["name", "extension", "size", "rating"]);
     assert_eq!(drag, None);
 }
+
+#[test]
+fn update_details_column_reorder_drag_cancel_clears_without_reorder() {
+    let mut drag = None;
+    let mut columns = vec![
+        String::from("name"),
+        String::from("rating"),
+        String::from("extension"),
+    ];
+    let placements = vec![
+        DetailsColumnPlacement::new("name", 240.0),
+        DetailsColumnPlacement::new("rating", 68.0),
+        DetailsColumnPlacement::new("extension", 54.0),
+    ];
+
+    assert!(!update_details_column_reorder_drag(
+        &mut drag,
+        &mut columns,
+        "rating",
+        DragHandleMessage::Started {
+            position: crate::gui::types::Point::new(300.0, 0.0)
+        },
+        &placements,
+        10.0,
+        String::as_str,
+    ));
+    assert!(!update_details_column_reorder_drag(
+        &mut drag,
+        &mut columns,
+        "ignored",
+        DragHandleMessage::Moved {
+            position: crate::gui::types::Point::new(410.0, 0.0)
+        },
+        &placements,
+        10.0,
+        String::as_str,
+    ));
+    assert!(!update_details_column_reorder_drag(
+        &mut drag,
+        &mut columns,
+        "ignored",
+        DragHandleMessage::Cancelled {
+            position: crate::gui::types::Point::new(410.0, 0.0)
+        },
+        &placements,
+        10.0,
+        String::as_str,
+    ));
+
+    assert_eq!(columns, ["name", "rating", "extension"]);
+    assert_eq!(drag, None);
+}

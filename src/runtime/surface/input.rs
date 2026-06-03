@@ -54,18 +54,6 @@ impl<Message> SurfaceNode<Message> {
             .and_then(|widget| widget.handle_input(widget_id, bounds, input))
     }
 
-    pub(super) fn handle_input_at_path(
-        &mut self,
-        widget_id: WidgetId,
-        child_path: &[usize],
-        bounds: Rect,
-        input: WidgetInput,
-    ) -> Option<WidgetOutput> {
-        self.find_widget_mut_at_path(child_path)
-            .filter(|widget| widget.id() == widget_id)
-            .and_then(|widget| widget.handle_input(widget_id, bounds, input))
-    }
-
     pub(super) fn dispatch_input_at_path(
         &mut self,
         widget_id: WidgetId,

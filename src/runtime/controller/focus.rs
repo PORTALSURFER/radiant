@@ -115,11 +115,7 @@ where
     }
 
     pub(super) fn route_focus_changed(&mut self, widget_id: WidgetId, focused: bool) {
-        let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
-            return;
-        };
-        let _ =
-            self.dispatch_raw_surface_input(widget_id, bounds, WidgetInput::FocusChanged(focused));
+        let _ = self.dispatch_input_output(widget_id, WidgetInput::FocusChanged(focused));
     }
 }
 

@@ -27,6 +27,10 @@ pub(crate) fn move_node_from_drag(
             state.revision += 1;
             state.status = format!("{node_id} {phase} slot {}", target_index + 1);
         }
+        DragHandleMessage::Cancelled { .. } => {
+            state.selected_node = node_id;
+            state.status = format!("{node_id} drag cancelled");
+        }
         DragHandleMessage::DoubleActivate { .. } => {}
     }
 }
@@ -37,6 +41,7 @@ fn drag_phase(message: DragHandleMessage) -> &'static str {
         DragHandleMessage::Moved { .. } => "drag moved",
         DragHandleMessage::Ended { .. } => "drag ended",
         DragHandleMessage::DoubleActivate { .. } => "double activated",
+        DragHandleMessage::Cancelled { .. } => "drag cancelled",
     }
 }
 

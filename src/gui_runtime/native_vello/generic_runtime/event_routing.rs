@@ -162,6 +162,12 @@ where
         self.route_outcome(routed)
     }
 
+    pub(in crate::gui_runtime::native_vello) fn route_focus_lost(&mut self) -> GenericRouteOutcome {
+        self.runtime.clear_focus();
+        self.runtime.cancel_pointer_capture();
+        self.route_outcome(true)
+    }
+
     pub(in crate::gui_runtime::native_vello) fn route_widget_key(
         &mut self,
         key: WidgetKey,

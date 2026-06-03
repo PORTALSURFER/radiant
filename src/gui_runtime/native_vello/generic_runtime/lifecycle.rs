@@ -60,6 +60,11 @@ where
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.update_native_dpi_scale(scale_factor);
             }
+            WindowEvent::Focused(false) => {
+                let routed = self.core.route_focus_lost();
+                self.handle_route_outcome(event_loop, routed);
+            }
+            WindowEvent::Focused(true) => {}
             WindowEvent::CursorMoved { position, .. } => {
                 self.handle_cursor_moved(position);
             }

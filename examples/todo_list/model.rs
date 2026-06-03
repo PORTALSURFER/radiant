@@ -125,6 +125,9 @@ impl TodoState {
                 self.update_drag(position.x, position.y);
                 self.commit_drag();
             }
+            ui::DragHandleMessage::Cancelled { .. } => {
+                self.drag = None;
+            }
             ui::DragHandleMessage::DoubleActivate { .. } => {}
         }
     }

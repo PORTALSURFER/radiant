@@ -21,17 +21,6 @@ impl<Message> UiSurface<Message> {
         self.root.handle_input(widget_id, bounds, input)
     }
 
-    pub(in crate::runtime) fn dispatch_widget_input_at_path(
-        &mut self,
-        widget_id: WidgetId,
-        child_path: &WidgetPath,
-        bounds: crate::gui::types::Rect,
-        input: WidgetInput,
-    ) -> Option<WidgetOutput> {
-        self.root
-            .handle_input_at_path(widget_id, child_path.as_slice(), bounds, input)
-    }
-
     pub(in crate::runtime) fn dispatch_widget_input_message(
         &mut self,
         widget_id: WidgetId,

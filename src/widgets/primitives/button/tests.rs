@@ -153,6 +153,34 @@ fn draggable_button_release_after_capture_state_restore_ends_drag() {
 }
 
 #[test]
+fn draggable_button_focus_loss_cancels_drag() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0));
+    let mut button =
+        ButtonWidget::new(16, "Folder", WidgetSizing::fixed(Vector2::new(80.0, 28.0))).with_drag();
+    let press_point = Point::new(10.0, 10.0);
+
+    assert_eq!(
+        button.handle_input(bounds, WidgetInput::primary_press(press_point)),
+        None
+    );
+    assert_eq!(
+        button.handle_input(bounds, WidgetInput::pointer_move(Point::new(30.0, 10.0))),
+        Some(ButtonMessage::Drag(DragHandleMessage::Started {
+            position: press_point
+        }))
+    );
+    assert_eq!(
+        button.handle_input(bounds, WidgetInput::FocusChanged(false)),
+        Some(ButtonMessage::Drag(DragHandleMessage::Cancelled {
+            position: press_point
+        }))
+    );
+    assert!(!button.common.state.pressed);
+    assert!(!button.common.state.active);
+    assert!(!button.state.dragged);
+}
+
+#[test]
 fn button_message_helpers_classify_common_outputs() {
     let secondary_position = Point::new(10.0, 12.0);
     let drag_position = Point::new(18.0, 20.0);

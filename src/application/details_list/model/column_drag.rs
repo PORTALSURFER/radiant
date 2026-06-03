@@ -80,6 +80,10 @@ pub fn update_details_column_resize_drag(
             }
             update
         }
+        DragHandleMessage::Cancelled { .. } => {
+            *active_drag = None;
+            None
+        }
         DragHandleMessage::DoubleActivate { .. } => None,
     }
 }
@@ -252,6 +256,10 @@ pub fn update_details_column_reorder_drag<T>(
             });
             *active_drag = None;
             changed
+        }
+        DragHandleMessage::Cancelled { .. } => {
+            *active_drag = None;
+            false
         }
         DragHandleMessage::DoubleActivate { .. } => false,
     }

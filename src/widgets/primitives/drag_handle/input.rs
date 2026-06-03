@@ -51,7 +51,15 @@ pub(super) fn handle_drag_handle_input(
             Some(DragHandleMessage::Ended { position })
         }
         WidgetInput::FocusChanged(focused) => {
+            let cancel_drag = !focused && handle.common.state.active;
             handle.common.state.focused = focused;
+            if cancel_drag {
+                handle.common.state.pressed = false;
+                handle.common.state.active = false;
+                return Some(DragHandleMessage::Cancelled {
+                    position: bounds.center(),
+                });
+            }
             None
         }
         _ => None,
@@ -81,6 +89,31 @@ mod tests {
         assert_eq!(
             message,
             Some(DragHandleMessage::DoubleActivate { position })
+        );
+        assert!(!handle.common.state.pressed);
+        assert!(!handle.common.state.active);
+    }
+
+    #[test]
+    fn drag_handle_focus_loss_cancels_active_drag() {
+        let mut handle = DragHandleWidget::new(8, WidgetSizing::fixed(Vector2::new(24.0, 16.0)));
+        let bounds = Rect::from_size(24.0, 16.0);
+
+        assert_eq!(
+            handle_drag_handle_input(
+                &mut handle,
+                bounds,
+                WidgetInput::primary_press(Point::new(8.0, 6.0)),
+            ),
+            Some(DragHandleMessage::Started {
+                position: Point::new(8.0, 6.0)
+            })
+        );
+        assert_eq!(
+            handle_drag_handle_input(&mut handle, bounds, WidgetInput::FocusChanged(false)),
+            Some(DragHandleMessage::Cancelled {
+                position: bounds.center()
+            })
         );
         assert!(!handle.common.state.pressed);
         assert!(!handle.common.state.active);

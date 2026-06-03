@@ -156,6 +156,7 @@ fn button_builder_can_filter_secondary_activation_and_map_drag() {
             DragHandleMessage::Moved { .. } => "drag-move",
             DragHandleMessage::Ended { .. } => "drag-end",
             DragHandleMessage::DoubleActivate { .. } => "drag-double",
+            DragHandleMessage::Cancelled { .. } => "drag-cancel",
         })
         .id(27)
         .into_surface();

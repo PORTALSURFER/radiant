@@ -80,6 +80,9 @@ impl BrowserState {
                     self.columns.resize = None;
                 }
             }
+            ui::DragHandleMessage::Cancelled { .. } => {
+                self.columns.resize = None;
+            }
             ui::DragHandleMessage::DoubleActivate { .. } => {}
         }
     }
@@ -92,6 +95,7 @@ impl BrowserState {
                 self.tree.tree_width =
                     (position.x - SPLITTER_OFFSET).clamp(MIN_TREE_WIDTH, MAX_TREE_WIDTH);
             }
+            ui::DragHandleMessage::Cancelled { .. } => {}
             ui::DragHandleMessage::DoubleActivate { .. } => {}
         }
     }

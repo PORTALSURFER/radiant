@@ -85,13 +85,23 @@ pub(super) fn handle_button_input(
             activated.then_some(ButtonMessage::Activate)
         }
         WidgetInput::FocusChanged(focused) => {
+            let cancel_drag = !focused
+                && button.props.drag
+                && (button.state.dragged || button.common.state.active)
+                && button.state.press_position.is_some();
             button.common.state.focused = focused;
             if !focused {
+                let position = button.state.press_position.unwrap_or_default();
                 button.common.state.pressed = false;
                 button.common.state.active = false;
                 button.state.armed = false;
                 button.state.dragged = false;
                 button.state.press_position = None;
+                if cancel_drag {
+                    return Some(ButtonMessage::Drag(DragHandleMessage::Cancelled {
+                        position,
+                    }));
+                }
             }
             None
         }

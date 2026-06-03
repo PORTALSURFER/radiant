@@ -53,6 +53,7 @@ impl ExampleState {
             DragHandleMessage::Moved { .. } => "moved",
             DragHandleMessage::Ended { .. } => "ended",
             DragHandleMessage::DoubleActivate { .. } => "double",
+            DragHandleMessage::Cancelled { .. } => "cancelled",
         };
         self.drag_status = format!("Drag {phase}: {id}");
     }

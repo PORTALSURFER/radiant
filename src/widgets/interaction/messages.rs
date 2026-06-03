@@ -348,6 +348,7 @@ mod drag_handle_phase_tests {
         assert_eq!(DragHandlePhase::Moved.as_str(), "moved");
         assert_eq!(DragHandlePhase::Ended.as_str(), "ended");
         assert_eq!(DragHandlePhase::DoubleActivate.as_str(), "double_activate");
+        assert_eq!(DragHandlePhase::Cancelled.as_str(), "cancelled");
     }
 }
 
@@ -394,6 +395,11 @@ pub enum DragHandleMessage {
         /// Pointer position in the widget host's logical coordinate space.
         position: Point,
     },
+    /// Active drag was cancelled before a normal release.
+    Cancelled {
+        /// Last known pointer position in the widget host's logical coordinate space.
+        position: Point,
+    },
 }
 
 /// Lifecycle phase for a reusable drag-handle interaction.
@@ -407,6 +413,8 @@ pub enum DragHandlePhase {
     Ended,
     /// Primary pointer double-clicked the drag handle.
     DoubleActivate,
+    /// Active drag was cancelled before a normal release.
+    Cancelled,
 }
 
 impl DragHandlePhase {
@@ -417,6 +425,7 @@ impl DragHandlePhase {
             Self::Moved => "moved",
             Self::Ended => "ended",
             Self::DoubleActivate => "double_activate",
+            Self::Cancelled => "cancelled",
         }
     }
 }
@@ -429,6 +438,7 @@ impl DragHandleMessage {
             Self::Moved { .. } => DragHandlePhase::Moved,
             Self::Ended { .. } => DragHandlePhase::Ended,
             Self::DoubleActivate { .. } => DragHandlePhase::DoubleActivate,
+            Self::Cancelled { .. } => DragHandlePhase::Cancelled,
         }
     }
 
@@ -438,7 +448,8 @@ impl DragHandleMessage {
             Self::Started { position }
             | Self::Moved { position }
             | Self::Ended { position }
-            | Self::DoubleActivate { position } => position,
+            | Self::DoubleActivate { position }
+            | Self::Cancelled { position } => position,
         }
     }
 
@@ -484,6 +495,11 @@ impl DragHandleMessage {
     /// Return whether this drag handle received a primary double activation.
     pub fn is_double_activate(self) -> bool {
         matches!(self.phase(), DragHandlePhase::DoubleActivate)
+    }
+
+    /// Return whether this drag was cancelled before release.
+    pub fn is_cancelled(self) -> bool {
+        matches!(self.phase(), DragHandlePhase::Cancelled)
     }
 }
 

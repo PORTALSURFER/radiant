@@ -76,6 +76,10 @@ pub fn update_panel_resize_drag(
             }
             size
         }
+        DragHandleMessage::Cancelled { .. } => {
+            *active_drag = None;
+            None
+        }
         DragHandleMessage::DoubleActivate { .. } => None,
     }
 }

@@ -292,9 +292,10 @@ hover-drop routing table that `interactive_row().actions(...)` and
 Use the single-activation helpers when double-click has a separate host action
 such as rename, drill-in, or open-in-place behavior. Drag-capable controls can use
 `DragHandleMessage::phase()`, `position()`, `started_position()`,
-`moved_position()`, `ended_position()`, `is_started()`, `is_moved()`, and
-`is_ended()` when reducers need generic drag lifecycle information without
-duplicating the `Started` / `Moved` / `Ended` variant shape. Use
+`moved_position()`, `ended_position()`, `is_started()`, `is_moved()`,
+`is_ended()`, and `is_cancelled()` when reducers need generic drag lifecycle
+information or cancellation cleanup without duplicating the
+`Started` / `Moved` / `Ended` / `Cancelled` variant shape. Use
 `DragHandlePhase::as_str()` for stable lowercase diagnostic labels. Reducers that
 resolve or cancel a drag gesture with both an in-window preview and an armed
 native external-drag payload can call `UpdateContext::end_drag_session()` instead
@@ -1690,7 +1691,8 @@ standard icon should paint as decorative chrome while another parent surface
 owns interaction routing. Button reducers can use
 `ButtonMessage::is_activate()`, `secondary_position()`, and `drag_message()` to
 route primary activation, context-menu clicks, or drag lifecycle events without
-repeating the raw button enum shape.
+repeating the raw button enum shape. Button-backed drags emit `Cancelled` when
+focus loss aborts an active drag before release.
 Run `cargo run --example status_bar` for a bottom status-bar sandbox that shows
 button actions, toggle state, animation updates, and background worker progress
 flowing into a one-line log and retained-canvas progress strip. Compact status

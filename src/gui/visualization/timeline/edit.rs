@@ -3,6 +3,7 @@ use crate::{
     gui::{
         range::{NormalizedRange, normalized_fraction_to_micros, normalized_fraction_to_milli},
         types::{Point, Rect, Rgba8},
+        visualization::{SampledCurveStrokeParts, push_sampled_curve_stroke},
     },
     runtime::{PaintPrimitive, push_visible_fill_rect},
     widgets::WidgetId,
@@ -89,6 +90,15 @@ pub enum TimelineEditRegion {
     TrailingOuter,
 }
 
+/// Standard editable ramp side for a normalized timeline interval.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TimelineEditRampSide {
+    /// Leading ramp before or at the selected interval start.
+    Leading,
+    /// Trailing ramp at or after the selected interval end.
+    Trailing,
+}
+
 impl TimelineEditRegion {
     /// Return the standard paint order for timeline edit regions.
     pub const fn standard_order() -> [Self; 4] {
@@ -98,6 +108,58 @@ impl TimelineEditRegion {
             Self::LeadingOuter,
             Self::TrailingOuter,
         ]
+    }
+}
+
+/// Paint policy for standard timeline edit ramp curve strokes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TimelineEditCurveStrokeParts {
+    /// Widget that owns the generated stroke primitive.
+    pub widget_id: WidgetId,
+    /// Timeline-to-pixel mapper for the edited surface.
+    pub mapper: TimelineCoordinateMapper,
+    /// Stroke color used for all emitted ramp curves.
+    pub color: Rgba8,
+    /// Stroke width in logical pixels.
+    pub stroke_width: f32,
+    /// Desired logical pixels between samples before min/max clamping.
+    pub pixels_per_step: f32,
+    /// Minimum number of intervals used for each visible ramp curve.
+    pub min_steps: usize,
+    /// Maximum number of intervals used for each visible ramp curve.
+    pub max_steps: usize,
+}
+
+impl TimelineEditCurveStrokeParts {
+    /// Build standard timeline edit curve stroke parts.
+    pub const fn new(
+        widget_id: WidgetId,
+        mapper: TimelineCoordinateMapper,
+        color: Rgba8,
+        stroke_width: f32,
+    ) -> Self {
+        Self {
+            widget_id,
+            mapper,
+            color,
+            stroke_width,
+            pixels_per_step: 4.0,
+            min_steps: 10,
+            max_steps: 96,
+        }
+    }
+
+    /// Override the desired logical pixels between sampled curve points.
+    pub const fn pixels_per_step(mut self, pixels_per_step: f32) -> Self {
+        self.pixels_per_step = pixels_per_step;
+        self
+    }
+
+    /// Override the step-count clamp used after pixel-width projection.
+    pub const fn step_bounds(mut self, min_steps: usize, max_steps: usize) -> Self {
+        self.min_steps = min_steps;
+        self.max_steps = max_steps;
+        self
     }
 }
 
@@ -485,6 +547,63 @@ impl TimelineEditPreview {
         }
     }
 
+    /// Append sampled curve strokes for the standard leading and trailing ramps.
+    ///
+    /// Radiant owns edit-ramp projection, visibility guards, sample-density
+    /// selection, and paint emission. The host owns the domain-specific value
+    /// curve and returns a normalized vertical value for each sampled timeline
+    /// position. Values outside `0.0..=1.0` are clamped before painting.
+    pub fn push_standard_ramp_curve_strokes(
+        self,
+        primitives: &mut Vec<PaintPrimitive>,
+        parts: TimelineEditCurveStrokeParts,
+        mut value_at: impl FnMut(TimelineEditRampSide, f32) -> Option<f32>,
+    ) -> bool {
+        let Some(selection_rect) = self.selection_rect(parts.mapper) else {
+            return false;
+        };
+        let curve_bounds = Rect::from_min_max(
+            Point::new(parts.mapper.rect.min.x, selection_rect.min.y),
+            Point::new(parts.mapper.rect.max.x, selection_rect.max.y),
+        );
+        let mut appended = false;
+        for (side, start_micros, end_micros) in self.standard_ramp_curve_spans() {
+            let pixel_width = (parts.mapper.x_for_micros(end_micros)
+                - parts.mapper.x_for_micros(start_micros))
+            .abs();
+            let steps = curve_stroke_steps(
+                pixel_width,
+                parts.pixels_per_step,
+                parts.min_steps,
+                parts.max_steps,
+            );
+            appended |= push_sampled_curve_stroke(
+                primitives,
+                SampledCurveStrokeParts::new(
+                    parts.widget_id,
+                    curve_bounds,
+                    steps,
+                    parts.color,
+                    parts.stroke_width,
+                ),
+                |t| {
+                    let micros = interpolate_micros(start_micros, end_micros, t);
+                    if micros < parts.mapper.viewport.start_micros
+                        || micros > parts.mapper.viewport.end_micros
+                    {
+                        return None;
+                    }
+                    let value = value_at(side, normalized_micros_to_fraction(micros))?;
+                    Some(Point::new(
+                        parts.mapper.x_for_micros(micros),
+                        curve_bounds.max.y - curve_bounds.height() * value.clamp(0.0, 1.0),
+                    ))
+                },
+            );
+        }
+        appended
+    }
+
     /// Return the first standard edit handle whose rectangle contains `position`.
     pub fn handle_at(
         self,
@@ -513,6 +632,31 @@ impl TimelineEditPreview {
             position,
         )
     }
+
+    fn standard_ramp_curve_spans(self) -> impl Iterator<Item = (TimelineEditRampSide, u32, u32)> {
+        let leading = self.leading_end_micros.map(|end| {
+            (
+                TimelineEditRampSide::Leading,
+                self.leading_inner_start_micros
+                    .or(self.selection.map(|selection| selection.start_micros))
+                    .unwrap_or(end),
+                end,
+            )
+        });
+        let trailing = self.trailing_start_micros.map(|start| {
+            (
+                TimelineEditRampSide::Trailing,
+                start,
+                self.trailing_inner_end_micros
+                    .or(self.selection.map(|selection| selection.end_micros))
+                    .unwrap_or(start),
+            )
+        });
+        [leading, trailing]
+            .into_iter()
+            .flatten()
+            .filter(|(_, start, end)| end > start)
+    }
 }
 
 fn visible_x_for_micros(mapper: TimelineCoordinateMapper, micros: u32) -> Option<f32> {
@@ -527,6 +671,38 @@ fn normalized_handle_size(bounds: Rect, handle_size: f32) -> f32 {
         .max(0.0)
         .min(bounds.width().max(1.0))
         .min(bounds.height().max(1.0))
+}
+
+fn curve_stroke_steps(
+    pixel_width: f32,
+    pixels_per_step: f32,
+    min_steps: usize,
+    max_steps: usize,
+) -> usize {
+    let max_steps = max_steps.max(1);
+    let min_steps = min_steps.min(max_steps);
+    if !pixel_width.is_finite() || pixel_width <= 0.0 {
+        return min_steps;
+    }
+    let pixels_per_step = if pixels_per_step.is_finite() && pixels_per_step > 0.0 {
+        pixels_per_step
+    } else {
+        4.0
+    };
+    ((pixel_width / pixels_per_step).round() as usize).clamp(min_steps, max_steps)
+}
+
+fn interpolate_micros(start: u32, end: u32, t: f32) -> u32 {
+    let t = if t.is_finite() {
+        t.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    (start as f32 + (end.saturating_sub(start) as f32 * t)).round() as u32
+}
+
+fn normalized_micros_to_fraction(micros: u32) -> f32 {
+    micros.min(1_000_000) as f32 / 1_000_000.0
 }
 
 fn edit_handle_vertical_band(

@@ -10,7 +10,8 @@ pub use crate::gui::{
     focus::FocusSurface,
     frame::{FrameCadenceConfig, FrameCadenceKind, FrameCadenceMonitor, FrameCadenceReport},
     panel::{
-        PanelResizeDrag, PanelResizeEdge, update_collapsible_panel_resize_drag,
+        CollapsiblePanelResizeConstraints, PanelResizeConstraints, PanelResizeDrag,
+        PanelResizeEdge, PanelResizeState, update_collapsible_panel_resize_drag,
         update_panel_resize_drag,
     },
 };

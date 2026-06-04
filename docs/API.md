@@ -1876,12 +1876,15 @@ slots; Radiant defaults stay product-neutral.
 `radiant::gui::panel` contains generic split-pane and sidebar models such as
 `SplitPaneSlot`, `SplitPaneAssignmentState`, `SplitPaneAssignedRow`,
 `SplitPaneTreePanel`, and `SplitPaneSidebarState`, plus `anchored_panel_rect`
-for clamped popup/panel placement and `PanelResizeDrag` / `PanelResizeEdge` /
-`update_panel_resize_drag` for splitter-driven pane resizing. Use
-`update_collapsible_panel_resize_drag` when a resize handle should also collapse
-the panel to a host-chosen size on double activation. Host applications map
-product-specific navigation, workspace, project, or asset concepts onto these
-reusable panel structures.
+for clamped popup/panel placement and `PanelResizeState` with
+`PanelResizeConstraints` or `CollapsiblePanelResizeConstraints` for
+splitter-driven pane resizing. Use `PanelResizeState::resize_collapsible(...)`
+when a resize handle should also collapse the panel to a host-chosen size on
+double activation. Use the lower-level `PanelResizeDrag`,
+`update_panel_resize_drag`, and `update_collapsible_panel_resize_drag` helpers
+only when the host deliberately stores durable size separately from transient
+drag state. Host applications map product-specific navigation, workspace,
+project, or asset concepts onto these reusable panel structures.
 
 `radiant::gui::badge` contains compact label and pill primitives such as
 `SelectablePill`, `PillEditorPanel`, `InlineBadgeMetrics`,

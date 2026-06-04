@@ -1906,8 +1906,9 @@ slots; Radiant defaults stay product-neutral.
 for clamped popup/panel placement and `PanelResizeState` with
 `PanelResizeConstraints` or `CollapsiblePanelResizeConstraints` for
 splitter-driven pane resizing. Use `PanelResizeState::resize_collapsible(...)`
-when a resize handle should also collapse the panel to a host-chosen size on
-double activation. Use the lower-level `PanelResizeDrag`,
+when a resize handle should collapse the panel to a host-chosen size on double
+activation, then restore the last expanded size on the next double activation.
+Use the lower-level `PanelResizeDrag`,
 `update_panel_resize_drag`, and `update_collapsible_panel_resize_drag` helpers
 only when the host deliberately stores durable size separately from transient
 drag state. Host applications map product-specific navigation, workspace,

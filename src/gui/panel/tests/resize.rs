@@ -208,7 +208,7 @@ fn panel_resize_state_updates_durable_size_and_drag_lifecycle() {
 }
 
 #[test]
-fn panel_resize_state_collapses_on_double_activate() {
+fn panel_resize_state_toggles_collapsible_size_on_double_activate() {
     let mut state = PanelResizeState::new(180.0);
     let constraints =
         CollapsiblePanelResizeConstraints::new(PanelResizeEdge::Top, 72.0, 240.0, 48.0);
@@ -224,4 +224,74 @@ fn panel_resize_state_collapses_on_double_activate() {
     );
     assert_eq!(state.size(), 72.0);
     assert!(!state.is_resizing());
+
+    assert_eq!(
+        state.resize_collapsible(
+            DragHandleMessage::DoubleActivate {
+                position: Point::new(0.0, 120.0)
+            },
+            constraints,
+        ),
+        Some(180.0)
+    );
+    assert_eq!(state.size(), 180.0);
+    assert!(!state.is_resizing());
+}
+
+#[test]
+fn panel_resize_state_restores_last_dragged_collapsible_size() {
+    let mut state = PanelResizeState::new(180.0);
+    let constraints =
+        CollapsiblePanelResizeConstraints::new(PanelResizeEdge::Top, 72.0, 240.0, 48.0);
+
+    state.resize_collapsible(
+        DragHandleMessage::Started {
+            position: Point::new(0.0, 120.0),
+        },
+        constraints,
+    );
+    state.resize_collapsible(
+        DragHandleMessage::Ended {
+            position: Point::new(0.0, 80.0),
+        },
+        constraints,
+    );
+    assert_eq!(state.size(), 220.0);
+
+    state.resize_collapsible(
+        DragHandleMessage::DoubleActivate {
+            position: Point::new(0.0, 120.0),
+        },
+        constraints,
+    );
+    assert_eq!(state.size(), 72.0);
+
+    assert_eq!(
+        state.resize_collapsible(
+            DragHandleMessage::DoubleActivate {
+                position: Point::new(0.0, 120.0)
+            },
+            constraints,
+        ),
+        Some(220.0)
+    );
+    assert_eq!(state.size(), 220.0);
+}
+
+#[test]
+fn panel_resize_state_expands_to_max_when_no_expanded_size_is_known() {
+    let mut state = PanelResizeState::new(72.0);
+    let constraints =
+        CollapsiblePanelResizeConstraints::new(PanelResizeEdge::Top, 72.0, 240.0, 72.0);
+
+    assert_eq!(
+        state.resize_collapsible(
+            DragHandleMessage::DoubleActivate {
+                position: Point::new(0.0, 120.0)
+            },
+            constraints,
+        ),
+        Some(240.0)
+    );
+    assert_eq!(state.size(), 240.0);
 }

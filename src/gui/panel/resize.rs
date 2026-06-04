@@ -86,14 +86,17 @@ impl CollapsiblePanelResizeConstraints {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PanelResizeState {
     size: f32,
+    last_expanded_size: Option<f32>,
     active_drag: Option<PanelResizeDrag>,
 }
 
 impl PanelResizeState {
     /// Build panel resize state with the provided durable size.
     pub fn new(size: f32) -> Self {
+        let size = finite_or(size, 0.0).max(0.0);
         Self {
-            size: finite_or(size, 0.0).max(0.0),
+            size,
+            last_expanded_size: Some(size),
             active_drag: None,
         }
     }
@@ -117,6 +120,7 @@ impl PanelResizeState {
     pub fn set_size(&mut self, size: f32, constraints: PanelResizeConstraints) {
         let constraints = constraints.normalized();
         self.size = clamped_panel_size(size, constraints.min_size, constraints.max_size);
+        self.remember_expanded_size_above(self.size, constraints.min_size);
     }
 
     /// Apply one drag-handle message to this panel's resize state.
@@ -152,6 +156,11 @@ impl PanelResizeState {
             .resize
             .normalized()
             .collapsible(constraints.collapsed_size);
+        if message.is_double_activate() {
+            self.active_drag = None;
+            self.size = self.double_activate_collapsible_size(constraints);
+            return Some(self.size);
+        }
         let size = update_collapsible_panel_resize_drag(
             &mut self.active_drag,
             message,
@@ -162,7 +171,37 @@ impl PanelResizeState {
             constraints.collapsed_size,
         )?;
         self.size = size;
+        self.remember_expanded_size_above(size, constraints.collapsed_size);
         Some(size)
+    }
+
+    fn double_activate_collapsible_size(
+        &mut self,
+        constraints: CollapsiblePanelResizeConstraints,
+    ) -> f32 {
+        let collapsed_size = constraints.collapsed_size;
+        if self.size <= collapsed_size {
+            return self
+                .last_expanded_size
+                .map(|size| {
+                    clamped_panel_size(
+                        size,
+                        constraints.resize.min_size,
+                        constraints.resize.max_size,
+                    )
+                })
+                .filter(|size| *size > collapsed_size)
+                .unwrap_or(constraints.resize.max_size);
+        }
+
+        self.remember_expanded_size_above(self.size, collapsed_size);
+        collapsed_size
+    }
+
+    fn remember_expanded_size_above(&mut self, size: f32, collapsed_size: f32) {
+        if size > collapsed_size {
+            self.last_expanded_size = Some(size);
+        }
     }
 }
 

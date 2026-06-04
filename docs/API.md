@@ -105,7 +105,9 @@ helpers such as `fill_rects_for_widget(...)`,
 `fill_polygons_for_widget(...)`, `visible_fill_polygons_for_widget(...)`,
 `contains_visible_fill_polygon_for_widget(...)`, `svgs_for_widget(...)`, and
 `first_svg_rect_for_widget(...)` cover common automation assertions without
-app-local primitive filtering. Use
+app-local primitive filtering. Transient overlays can use `first_widget_rect(...)`
+or `first_widget_rect_by_priority(...)` to anchor frame-time paint to a cached
+paint plan. Use
 `PaintPrimitive::text_run()`, `text_input()`, `clip_start()`, `fill_rect()`,
 `stroke_rect()`, `fill_polygon()`, `stroke_polyline()`, `svg()`, and
 `gpu_surface()`, to query common paint primitives without app-local exhaustive

@@ -227,6 +227,21 @@ impl SurfacePaintPlan {
                 .flatten()
         })
     }
+
+    /// Return the first rectangular paint region for the first widget ID in
+    /// caller-provided priority order that has a rectangular primitive.
+    ///
+    /// Transient overlays can use this when a visual should prefer a primary
+    /// surface but fall back to another equivalent anchor without repeating
+    /// `or_else(...)` chains in the per-frame path.
+    pub fn first_widget_rect_by_priority(
+        &self,
+        widget_ids: impl IntoIterator<Item = WidgetId>,
+    ) -> Option<Rect> {
+        widget_ids
+            .into_iter()
+            .find_map(|widget_id| self.first_widget_rect(widget_id))
+    }
 }
 
 fn rect_has_positive_area(rect: Rect) -> bool {

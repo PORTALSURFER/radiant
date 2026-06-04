@@ -40,6 +40,36 @@ fn first_widget_rect_returns_first_rectangle_anchor_in_paint_order() {
 }
 
 #[test]
+fn first_widget_rect_by_priority_uses_caller_order_for_fallback_anchors() {
+    let theme = ThemeTokens::default();
+    let mut plan = SurfacePaintPlan::empty(&theme);
+    let fallback = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(8.0, 9.0));
+    let preferred = Rect::from_min_size(Point::new(12.0, 0.0), Vector2::new(10.0, 11.0));
+    plan.primitives
+        .push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: 7,
+            rect: fallback,
+            color: theme.accent_mint,
+        }));
+    plan.primitives
+        .push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: 9,
+            rect: preferred,
+            color: theme.accent_danger,
+        }));
+
+    assert_eq!(
+        plan.first_widget_rect_by_priority([404, 9, 7]),
+        Some(preferred)
+    );
+    assert_eq!(
+        plan.first_widget_rect_by_priority([404, 7, 9]),
+        Some(fallback)
+    );
+    assert_eq!(plan.first_widget_rect_by_priority([404, 405]), None);
+}
+
+#[test]
 fn text_queries_return_runs_and_inputs_in_paint_order() {
     let theme = ThemeTokens::default();
     let mut plan = SurfacePaintPlan::empty(&theme);

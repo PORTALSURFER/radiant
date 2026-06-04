@@ -1029,8 +1029,10 @@ and interactive handles,
 `CanvasLayer`, `DragHandle`, `canvas_selection_rect`,
 `CanvasSelectionAffordanceHitTestParts`, `CanvasSelectionBodyHandleHitTestParts`,
 `CanvasSelectionBodyHandleParts`, `CanvasSelectionBodyHandlePaintParts`,
-`CanvasSelectionEdgeHitTestParts`, `CanvasSelectionEdgeVisualPaintParts`,
+`CanvasSelectionBodyHandleStyle`, `CanvasSelectionEdgeHitTestParts`,
+`CanvasSelectionEdgeVisualPaintParts`, `CanvasSelectionEdgeVisualStyle`,
 `CanvasSelectionTrailingControlHitTestParts`, `CanvasSelectionTrailingControlPaintParts`,
+`CanvasSelectionTrailingControlStyle`,
 `canvas_selection_body_handle_rect`,
 `canvas_selection_trailing_control_rect`, `canvas_selection_edge_handles`,
 `canvas_selection_edge_visual_rect`, and `horizontal_resize_edge_bracket_rects`
@@ -1928,7 +1930,11 @@ visuals, or a trailing control; its paint helpers append guarded fill
 primitives for those affordances while hosts keep product-specific colors and
 messages. Its `affordance_at_point(...)` helper can resolve optional body,
 edge, and trailing-control hit targets while host applications keep their own
-command mapping and domain-specific priority. Use `TimelineEditPreview` with
+command mapping and domain-specific priority. Use
+`CanvasSelectionBodyHandleStyle`, `CanvasSelectionEdgeVisualStyle`, and
+`CanvasSelectionTrailingControlStyle` when hit testing and painting the same
+canvas affordance should share one reusable dimension policy without duplicating
+constants across input and paint code. Use `TimelineEditPreview` with
 `TimelineEditHandleGeometry` and `TimelineEditRegionGeometry` when timeline
 editors need standard handle hit rectangles and leading/trailing region paint
 rectangles without duplicating viewport projection math.

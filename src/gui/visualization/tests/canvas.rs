@@ -2,10 +2,12 @@ use super::super::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts,
     CanvasSelectionAffordanceHitTestParts, CanvasSelectionBodyHandleHitTestParts,
     CanvasSelectionBodyHandlePaintParts, CanvasSelectionBodyHandleParts,
-    CanvasSelectionEdgeHitTestParts, CanvasSelectionEdgeVisualPaintParts, CanvasSelectionGeometry,
+    CanvasSelectionBodyHandleStyle, CanvasSelectionEdgeHitTestParts,
+    CanvasSelectionEdgeVisualPaintParts, CanvasSelectionEdgeVisualStyle, CanvasSelectionGeometry,
     CanvasSelectionTrailingControlHitTestParts, CanvasSelectionTrailingControlPaintParts,
-    DragHandle, DragHandleRole, canvas_layer_at_point, canvas_selection_body_handle_rect,
-    canvas_selection_edge_handles, canvas_selection_edge_visual_rect, canvas_selection_rect,
+    CanvasSelectionTrailingControlStyle, DragHandle, DragHandleRole, canvas_layer_at_point,
+    canvas_selection_body_handle_rect, canvas_selection_edge_handles,
+    canvas_selection_edge_visual_rect, canvas_selection_rect,
     canvas_selection_trailing_control_rect, drag_handle_at_point,
     horizontal_resize_edge_bracket_rects, horizontal_resize_edge_handles,
     horizontal_resize_edge_visual_rect, horizontal_resize_handles,
@@ -409,6 +411,49 @@ fn canvas_selection_geometry_pushes_common_affordance_fills() {
     assert_eq!(
         fills[2].rect,
         Rect::from_min_max(Point::new(126.5, 20.0), Point::new(133.5, 42.0))
+    );
+}
+
+#[test]
+fn canvas_selection_affordance_styles_build_matching_hit_test_and_paint_parts() {
+    let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 120.0));
+    let point = Point::new(60.0, 24.0);
+    let color = Rgba8::new(1, 2, 3, 4);
+
+    let body = CanvasSelectionBodyHandleStyle::new(7.0, 9.0, 0.28, 1.0);
+    assert_eq!(
+        body.hit_test_parts(point),
+        CanvasSelectionBodyHandleHitTestParts::new(point, 7.0, 9.0, 0.28, 1.0)
+    );
+    assert_eq!(
+        body.paint_parts(color),
+        CanvasSelectionBodyHandlePaintParts::new(7.0, 9.0, 0.28, 1.0, color)
+    );
+
+    let edge = CanvasSelectionEdgeVisualStyle::new(7.0, 0.0);
+    assert_eq!(
+        edge.hit_test_parts(bounds.top_edge_strip(22.0), point),
+        CanvasSelectionEdgeHitTestParts::new(bounds.top_edge_strip(22.0), point, 7.0, 0.0)
+    );
+    assert_eq!(
+        edge.paint_parts(bounds.top_edge_strip(22.0), DragHandleRole::End, color),
+        CanvasSelectionEdgeVisualPaintParts::new(
+            bounds.top_edge_strip(22.0),
+            DragHandleRole::End,
+            7.0,
+            0.0,
+            color,
+        )
+    );
+
+    let trailing = CanvasSelectionTrailingControlStyle::new(16.0, 0.0);
+    assert_eq!(
+        trailing.hit_test_parts(point),
+        CanvasSelectionTrailingControlHitTestParts::new(point, 16.0, 0.0)
+    );
+    assert_eq!(
+        trailing.paint_parts(color),
+        CanvasSelectionTrailingControlPaintParts::new(16.0, 0.0, color)
     );
 }
 

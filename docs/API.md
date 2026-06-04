@@ -93,9 +93,9 @@ automation curves, fade curves, and analysis overlays can use
 point-buffer allocation, and stroke emission on Radiant's generic paint path
 while the host owns the curve math.
 Tests, automation, and embedded hosts that inspect paint plans can use
-`SurfacePaintPlan::text_runs()`, `first_text_run(...)`, `contains_text(...)`,
-`first_text_run_after_x(...)`, `contains_text_after_x(...)`,
-`first_text_rect(...)`, `first_text_color(...)`, `text_inputs()`,
+`SurfacePaintPlan::text_runs()`, `text_labels()`, `text_label_strings()`,
+`first_text_run(...)`, `contains_text(...)`, `first_text_run_after_x(...)`,
+`contains_text_after_x(...)`, `first_text_rect(...)`, `first_text_color(...)`, `text_inputs()`,
 `first_text_input()`, `contains_text_input()`,
 `clip_starts()`, `fill_rects()`, `stroke_rects()`, `fill_polygons()`,
 `stroke_polylines()`, `svgs()`, and `gpu_surfaces()`. Widget-specific query

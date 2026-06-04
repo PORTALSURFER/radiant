@@ -17,6 +17,19 @@ impl SurfacePaintPlan {
         self.primitives.iter().filter_map(PaintPrimitive::text_run)
     }
 
+    /// Iterate over visible text labels emitted by this paint plan in paint order.
+    pub fn text_labels(&self) -> impl Iterator<Item = &str> {
+        self.text_runs().map(|run| run.text.as_str())
+    }
+
+    /// Collect visible text labels emitted by this paint plan in paint order.
+    ///
+    /// Use this in tests, automation snapshots, or diagnostics that need owned
+    /// labels for failure output without repeating text-run mapping boilerplate.
+    pub fn text_label_strings(&self) -> Vec<String> {
+        self.text_labels().map(str::to_string).collect()
+    }
+
     /// Return the first text run with exactly matching visible text.
     pub fn first_text_run(&self, text: &str) -> Option<&PaintTextRun> {
         self.text_runs().find(|run| run.text.as_str() == text)

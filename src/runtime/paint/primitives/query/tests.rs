@@ -90,6 +90,8 @@ fn text_queries_return_runs_and_inputs_in_paint_order() {
             .collect::<Vec<_>>(),
         vec!["Status"]
     );
+    assert_eq!(plan.text_labels().collect::<Vec<_>>(), vec!["Status"]);
+    assert_eq!(plan.text_label_strings(), vec![String::from("Status")]);
     assert_eq!(
         plan.text_inputs()
             .map(|input| input.widget_id)

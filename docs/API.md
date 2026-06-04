@@ -320,16 +320,19 @@ when one gesture may have an in-window preview, a native external-drag payload,
 both, or neither. Use `UpdateContext::begin_drag_with_external(...)` or
 `Command::begin_drag_with_external(...)` when both requests are already known to
 exist and should be started together.
-Dense custom row painters can use `push_dense_row_fill`,
+Dense custom row painters can use `push_dense_row_chrome(...)` with
+`DenseRowChromeParts`, `DenseRowMarkerStyle`, and `DenseRowOutlineStyle` when
+one row needs standard fill, leading/trailing markers, and optional outline
+composition from one app-neutral paint descriptor. Use `push_dense_row_fill`,
 `push_dense_row_label`, `push_dense_row_vertical_marker`, and
-`push_dense_row_inset_stroke` to append state-prioritized fills, centered
-labels, edge markers, and outlines from Radiant's generic dense-row geometry
-helpers without repeating paint-plan guard code. Use `DenseRowLabelParts` when
-custom dense rows need row-height-aware label sizing, text insets, alignment,
-and wrapping without constructing `PaintTextRun` manually. Use
-`DenseRowMarkerParts::leading(width)` and `trailing(width)` for common
-selection, status, and activity edge markers instead of repeating raw marker
-geometry fields.
+`push_dense_row_inset_stroke` when a row needs individual state-prioritized
+fills, centered labels, edge markers, or outlines from Radiant's generic
+dense-row geometry helpers without repeating paint-plan guard code. Use
+`DenseRowLabelParts` when custom dense rows need row-height-aware label sizing,
+text insets, alignment, and wrapping without constructing `PaintTextRun`
+manually. Use `DenseRowMarkerParts::leading(width)` and `trailing(width)` for
+common selection, status, and activity edge markers instead of repeating raw
+marker geometry fields.
 Rows that need active drag-source motion after a retained refresh can opt into
 `with_drag_source_motion(...)`; rows that should accept drops without producing
 drop-hover messages can use `with_drop_only(...)`. Application-builder rows

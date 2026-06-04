@@ -1,8 +1,9 @@
 use super::super::{
-    DenseRowLabelParts, DenseRowMarkerEdge, DenseRowMarkerParts, DenseRowPalette,
-    DenseRowVisualState, dense_row_fill_color, dense_row_inset_rect, dense_row_label_font_size,
-    dense_row_vertical_marker_rect, push_dense_row_fill, push_dense_row_inset_stroke,
-    push_dense_row_label, push_dense_row_vertical_marker,
+    DenseRowChromeParts, DenseRowLabelParts, DenseRowMarkerEdge, DenseRowMarkerParts,
+    DenseRowMarkerStyle, DenseRowOutlineStyle, DenseRowPalette, DenseRowVisualState,
+    dense_row_fill_color, dense_row_inset_rect, dense_row_label_font_size,
+    dense_row_vertical_marker_rect, push_dense_row_chrome, push_dense_row_fill,
+    push_dense_row_inset_stroke, push_dense_row_label, push_dense_row_vertical_marker,
 };
 use crate::gui::types::{Point, Rect, Rgba8, Vector2};
 use crate::runtime::{PaintPrimitive, PaintStrokeRect};
@@ -308,6 +309,74 @@ fn push_dense_row_marker_and_stroke_append_projected_shapes() {
     }
     assert_eq!(
         primitives[1],
+        PaintPrimitive::StrokeRect(PaintStrokeRect {
+            widget_id: 8,
+            rect: Rect::from_min_max(Point::new(10.5, 20.5), Point::new(129.5, 41.5)),
+            color: ACTIVE,
+            width: 1.0,
+        })
+    );
+}
+
+#[test]
+fn push_dense_row_chrome_composes_fill_markers_and_outline() {
+    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(120.0, 22.0));
+    let mut primitives = Vec::new();
+
+    let count = push_dense_row_chrome(
+        &mut primitives,
+        8,
+        bounds,
+        DenseRowChromeParts::new(
+            DenseRowVisualState {
+                selected: true,
+                hovered: true,
+                ..DenseRowVisualState::default()
+            },
+            palette(),
+        )
+        .leading_marker(DenseRowMarkerStyle::new(
+            DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
+            SELECTED,
+        ))
+        .trailing_marker(DenseRowMarkerStyle::new(
+            DenseRowMarkerParts::trailing(2.0),
+            CANDIDATE,
+        ))
+        .outline(DenseRowOutlineStyle::new(0.5, ACTIVE, 1.0)),
+    );
+
+    assert_eq!(count, 4);
+    assert_eq!(primitives.len(), 4);
+    match &primitives[0] {
+        PaintPrimitive::FillRect(fill) => {
+            assert_eq!(fill.rect, bounds);
+            assert_eq!(fill.color, HOVERED);
+        }
+        primitive => panic!("expected row fill rect, got {primitive:?}"),
+    }
+    match &primitives[1] {
+        PaintPrimitive::FillRect(fill) => {
+            assert_eq!(
+                fill.rect,
+                Rect::from_min_size(Point::new(11.0, 24.0), Vector2::new(3.0, 14.0))
+            );
+            assert_eq!(fill.color, SELECTED);
+        }
+        primitive => panic!("expected leading marker fill rect, got {primitive:?}"),
+    }
+    match &primitives[2] {
+        PaintPrimitive::FillRect(fill) => {
+            assert_eq!(
+                fill.rect,
+                Rect::from_min_size(Point::new(127.0, 23.0), Vector2::new(2.0, 16.0))
+            );
+            assert_eq!(fill.color, CANDIDATE);
+        }
+        primitive => panic!("expected trailing marker fill rect, got {primitive:?}"),
+    }
+    assert_eq!(
+        primitives[3],
         PaintPrimitive::StrokeRect(PaintStrokeRect {
             widget_id: 8,
             rect: Rect::from_min_max(Point::new(10.5, 20.5), Point::new(129.5, 41.5)),

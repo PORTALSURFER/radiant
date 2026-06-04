@@ -105,6 +105,90 @@ pub struct DenseRowMarkerParts {
     pub min_height: f32,
 }
 
+/// Marker paint for a dense-row edge.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DenseRowMarkerStyle {
+    /// Marker geometry.
+    pub parts: DenseRowMarkerParts,
+    /// Marker fill color.
+    pub color: Rgba8,
+}
+
+impl DenseRowMarkerStyle {
+    /// Build marker paint from geometry and color.
+    pub const fn new(parts: DenseRowMarkerParts, color: Rgba8) -> Self {
+        Self { parts, color }
+    }
+}
+
+/// Optional inset outline for dense-row chrome.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DenseRowOutlineStyle {
+    /// Inset from row bounds before stroking.
+    pub inset: f32,
+    /// Stroke color.
+    pub color: Rgba8,
+    /// Stroke width.
+    pub width: f32,
+}
+
+impl DenseRowOutlineStyle {
+    /// Build outline paint from inset, color, and stroke width.
+    pub const fn new(inset: f32, color: Rgba8, width: f32) -> Self {
+        Self {
+            inset,
+            color,
+            width,
+        }
+    }
+}
+
+/// Named dense-row chrome paint fields.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DenseRowChromeParts {
+    /// Visual state used to resolve the row fill.
+    pub state: DenseRowVisualState,
+    /// Fill palette for the supplied state.
+    pub palette: DenseRowPalette,
+    /// Optional leading-edge marker.
+    pub leading_marker: Option<DenseRowMarkerStyle>,
+    /// Optional trailing-edge marker.
+    pub trailing_marker: Option<DenseRowMarkerStyle>,
+    /// Optional inset outline.
+    pub outline: Option<DenseRowOutlineStyle>,
+}
+
+impl DenseRowChromeParts {
+    /// Build dense-row chrome paint fields from state and palette.
+    pub const fn new(state: DenseRowVisualState, palette: DenseRowPalette) -> Self {
+        Self {
+            state,
+            palette,
+            leading_marker: None,
+            trailing_marker: None,
+            outline: None,
+        }
+    }
+
+    /// Add a leading-edge marker.
+    pub const fn leading_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.leading_marker = Some(marker);
+        self
+    }
+
+    /// Add a trailing-edge marker.
+    pub const fn trailing_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.trailing_marker = Some(marker);
+        self
+    }
+
+    /// Add an inset outline.
+    pub const fn outline(mut self, outline: DenseRowOutlineStyle) -> Self {
+        self.outline = Some(outline);
+        self
+    }
+}
+
 impl DenseRowMarkerParts {
     /// Build marker parts for a leading-edge marker.
     pub const fn leading(width: f32) -> Self {
@@ -253,6 +337,39 @@ pub fn push_dense_row_fill(
     }
     push_fill_rect(primitives, widget_id, bounds, color);
     true
+}
+
+/// Push standard dense-row chrome in paint priority order.
+///
+/// This helper is intended for custom list and tree rows that own their label
+/// or content paint but want Radiant to keep fill, marker, and outline
+/// composition consistent without allocating temporary paint descriptions.
+/// Returns the number of primitives appended.
+pub fn push_dense_row_chrome(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    bounds: Rect,
+    parts: DenseRowChromeParts,
+) -> usize {
+    let initial_len = primitives.len();
+    push_dense_row_fill(primitives, widget_id, bounds, parts.state, parts.palette);
+    if let Some(marker) = parts.leading_marker {
+        push_dense_row_vertical_marker(primitives, widget_id, bounds, marker.parts, marker.color);
+    }
+    if let Some(marker) = parts.trailing_marker {
+        push_dense_row_vertical_marker(primitives, widget_id, bounds, marker.parts, marker.color);
+    }
+    if let Some(outline) = parts.outline {
+        push_dense_row_inset_stroke(
+            primitives,
+            widget_id,
+            bounds,
+            outline.inset,
+            outline.color,
+            outline.width,
+        );
+    }
+    primitives.len() - initial_len
 }
 
 /// Push a vertically centered dense-row label.

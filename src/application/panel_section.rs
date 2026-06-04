@@ -1,16 +1,18 @@
 use crate::{
     application::{
         AnchoredLayerParts, LayerHorizontalAnchor, LayerVerticalAnchor, ViewNode,
-        anchored_layer_from_parts, close_button, column, row, text,
+        anchored_layer_from_parts, close_button, column, drag_handle_mapped, row, text,
     },
     layout::Vector2,
-    widgets::{WidgetProminence, WidgetStyle, WidgetTone},
+    widgets::{DragHandleMessage, WidgetProminence, WidgetStyle, WidgetTone},
 };
 
 const DEFAULT_PANEL_SECTION_PADDING: f32 = 6.0;
 const DEFAULT_PANEL_SECTION_SPACING: f32 = 4.0;
 const DEFAULT_PANEL_SECTION_HEADER_SPACING: f32 = 4.0;
 const DEFAULT_PANEL_SECTION_TITLE_HEIGHT: f32 = 20.0;
+const DEFAULT_PANEL_SECTION_RESIZE_HANDLE_WIDTH: f32 = 26.0;
+const DEFAULT_PANEL_SECTION_RESIZE_HANDLE_HEIGHT: f32 = 18.0;
 
 /// Named construction fields for a compact titled panel section.
 pub struct PanelSectionParts<Message> {
@@ -79,6 +81,22 @@ impl<Message> PanelSectionParts<Message> {
     pub fn trailing(mut self, trailing: ViewNode<Message>) -> Self {
         self.trailing = Some(trailing);
         self
+    }
+
+    /// Add Radiant's compact trailing resize handle to the section header.
+    ///
+    /// The host still owns durable panel size, resize constraints, and the
+    /// reducer message. This helper only centralizes the common header control
+    /// used by resizable panel sections.
+    pub fn trailing_resize_handle<Map>(self, key: impl ToString, map: Map) -> Self
+    where
+        Message: 'static,
+        Map: Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+    {
+        self.trailing(drag_handle_mapped(map).key(key).size(
+            DEFAULT_PANEL_SECTION_RESIZE_HANDLE_WIDTH,
+            DEFAULT_PANEL_SECTION_RESIZE_HANDLE_HEIGHT,
+        ))
     }
 
     /// Override section container style.
@@ -263,5 +281,24 @@ fn panel_section_header<Message: 'static>(
             .fill_width()
             .height(height),
         None => title.fill_width().height(height),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{application::IntoView, layout::Vector2};
+
+    #[test]
+    fn panel_section_parts_adds_trailing_resize_handle() {
+        let parts = PanelSectionParts::new("Inspector", text("Body"))
+            .trailing_resize_handle("inspector-resize", |_| "resize")
+            .height(80.0);
+
+        assert!(parts.trailing.is_some());
+
+        let frame = panel_section_from_parts(parts)
+            .view_frame_at_size_with_default_theme(Vector2::new(240.0, 120.0));
+        assert!(frame.paint_plan.contains_text("Inspector"));
     }
 }

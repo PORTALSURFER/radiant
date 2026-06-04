@@ -1650,6 +1650,9 @@ should emit state callbacks. Compact titled panels with optional header actions 
 `PanelSectionParts`, `panel_section(...)`, `panel_section_from_parts(...)`, and
 `closeable_panel_section_from_parts(...)` instead of rebuilding title rows,
 close buttons, padding, spacing, and neutral panel chrome in application code.
+Use `PanelSectionParts::trailing_resize_handle(...)` when a resizable titled
+panel should use Radiant's standard compact drag handle while the host reducer
+keeps owning durable size, constraints, and resize messages.
 Compact control panels can use `LabeledControlParts`,
 `labeled_control(...)`, `labeled_control_from_parts(...)`, and
 `labeled_control_control_offset(...)` for label-over-control groups and overlay

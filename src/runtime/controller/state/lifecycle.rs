@@ -91,7 +91,7 @@ where
         self.relayout_with_traversal(traversal);
         self.clear_stale_interaction_state();
         if let Some(widget_id) = self.interaction.focus.focused_widget {
-            self.route_focus_changed(widget_id, true);
+            self.restore_focused_widget_state(widget_id);
         }
     }
 

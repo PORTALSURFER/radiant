@@ -201,9 +201,57 @@ fn generic_core_routes_second_nearby_press_as_double_click() {
     assert_eq!(core.runtime.bridge().text, "double");
 }
 
+#[test]
+fn refresh_restores_focused_canvas_without_emitting_host_focus_message() {
+    let bridge = FocusRefreshCanvasBridge::default();
+    let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));
+    let canvas_point = core
+        .runtime
+        .layout()
+        .rects
+        .get(&22)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("canvas should be laid out");
+
+    assert!(
+        core.route_pointer_press(canvas_point, PointerButton::Primary)
+            .routed
+    );
+    assert_eq!(core.runtime.bridge().text, "focus;");
+    core.runtime.bridge_mut().text.clear();
+
+    core.runtime.refresh();
+
+    assert_eq!(core.runtime.bridge().text, "");
+}
+
 #[derive(Default)]
 struct ShortcutDemoBridge {
     state: DemoState,
+}
+
+#[derive(Default)]
+struct FocusRefreshCanvasBridge {
+    text: String,
+}
+
+impl RuntimeBridge<String> for FocusRefreshCanvasBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<String>> {
+        Arc::new(UiSurface::new(SurfaceNode::canvas_mapped(
+            22,
+            WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+            |message| match message {
+                CanvasMessage::Input {
+                    input: WidgetInput::FocusChanged(true),
+                } => String::from("focus;"),
+                _ => String::new(),
+            },
+        )))
+    }
+
+    fn reduce_message(&mut self, message: String) {
+        self.text.push_str(&message);
+    }
 }
 
 impl RuntimeBridge<DemoMessage> for ShortcutDemoBridge {

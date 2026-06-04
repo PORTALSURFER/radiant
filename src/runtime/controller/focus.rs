@@ -117,6 +117,13 @@ where
     pub(super) fn route_focus_changed(&mut self, widget_id: WidgetId, focused: bool) {
         let _ = self.dispatch_input_output(widget_id, WidgetInput::FocusChanged(focused));
     }
+
+    pub(super) fn restore_focused_widget_state(&mut self, widget_id: WidgetId) {
+        let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
+            return;
+        };
+        let _ = self.dispatch_surface_input(widget_id, bounds, WidgetInput::FocusChanged(true));
+    }
 }
 
 fn next_focus_target(

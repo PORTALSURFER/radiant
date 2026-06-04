@@ -12,7 +12,10 @@ pub use editable::{
     EditableTreeDraftInputParts, EditableTreeInputFocus, EditableTreeRow, EditableTreeRowFlags,
     EditableTreeRowInput, EditableTreeRowParts,
 };
-pub use geometry::{bounded_list_height, bounded_list_visible_rows};
+pub use geometry::{
+    bounded_list_height, bounded_list_height_with_gap, bounded_list_visible_rows,
+    fixed_row_stack_height,
+};
 pub use grid::{VirtualGridWindow, VirtualGridWindowRequest, resolve_virtual_grid_window};
 pub use row_paint::{
     DenseRowLabelParts, DenseRowMarkerEdge, DenseRowMarkerParts, DenseRowPalette,

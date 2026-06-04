@@ -938,10 +938,12 @@ runtime adapter.
 into bounded row deltas for wheel, touchpad, keyboard, or host-defined scroll
 inputs.
 Transient fixed-row list surfaces such as autocomplete popups, command
-palettes, and compact inspectors can use `bounded_list_visible_rows` and
-`bounded_list_height` to share the generic "hide when empty, cap visible rows,
-then scroll overflow" sizing contract without baking product-specific popup
-rules into app code. Application-builder surfaces can use
+palettes, compact inspectors, and resizable panels can use
+`bounded_list_visible_rows`, `fixed_row_stack_height`,
+`bounded_list_height`, and `bounded_list_height_with_gap` to share the generic
+"hide when empty, account for inter-row gaps, cap visible rows, then scroll
+overflow" sizing contract without baking product-specific popup rules into app
+code. Application-builder surfaces can use
 `BoundedScrollColumnParts`, `bounded_scroll_column(...)`, and
 `bounded_scroll_column_from_parts(...)` when the host owns row projection but
 Radiant should own the capped scroll viewport, empty-list behavior, chrome

@@ -1,9 +1,10 @@
 use super::model::{DetailsColumn, DetailsRow, DetailsSort};
 use crate::{
     application::{
-        StateStringCallback, StateView, View, button, column, drag_handle, input_underlay, row,
-        scroll, text,
+        LayerHorizontalAnchor, LayerVerticalAnchor, StateStringCallback, StateView, View,
+        anchored_layer, button, column, drag_handle, input_underlay, row, scroll, text,
     },
+    layout::Vector2,
     widgets::{DragHandleMessage, WidgetId, WidgetProminence, WidgetStyle, WidgetTone},
 };
 use std::sync::Arc;
@@ -15,6 +16,57 @@ pub struct CompactDetailsHeaderCellIds {
     pub sort_drag: Option<WidgetId>,
     /// Widget id for the trailing resize handle.
     pub resize: Option<WidgetId>,
+}
+
+/// Named inputs for a compact details-list cell with a fixed-size anchored child.
+pub struct CompactDetailsAnchoredCellParts<Message> {
+    child: View<Message>,
+    width: Option<f32>,
+    size: Vector2,
+    horizontal: LayerHorizontalAnchor,
+    vertical: LayerVerticalAnchor,
+    inset_x: f32,
+    inset_y: f32,
+}
+
+impl<Message> CompactDetailsAnchoredCellParts<Message> {
+    /// Create compact anchored-cell inputs with centered placement and no inset.
+    pub fn new(child: View<Message>, size: Vector2) -> Self {
+        Self {
+            child,
+            width: None,
+            size,
+            horizontal: LayerHorizontalAnchor::Center,
+            vertical: LayerVerticalAnchor::Center,
+            inset_x: 0.0,
+            inset_y: 0.0,
+        }
+    }
+
+    /// Use a fixed width, or fill the remaining details-row width when `None`.
+    pub fn width(mut self, width: Option<f32>) -> Self {
+        self.width = width;
+        self
+    }
+
+    /// Place the fixed-size child along the compact cell's horizontal axis.
+    pub fn horizontal(mut self, horizontal: LayerHorizontalAnchor) -> Self {
+        self.horizontal = horizontal;
+        self
+    }
+
+    /// Place the fixed-size child along the compact cell's vertical axis.
+    pub fn vertical(mut self, vertical: LayerVerticalAnchor) -> Self {
+        self.vertical = vertical;
+        self
+    }
+
+    /// Offset the child from its anchor by the given x/y inset.
+    pub fn inset(mut self, x: f32, y: f32) -> Self {
+        self.inset_x = x;
+        self.inset_y = y;
+        self
+    }
 }
 
 impl CompactDetailsHeaderCellIds {
@@ -162,6 +214,33 @@ pub fn compact_details_cell<Message>(cell: View<Message>, width: Option<f32>) ->
     }
 }
 
+/// Build a compact details-list cell with a fixed-size anchored child.
+///
+/// This preserves the standard compact cell sizing policy while letting hosts
+/// place badges, status markers, compact actions, or other fixed-size content
+/// inside the cell without rebuilding the full-size anchored layer and then
+/// applying details-cell sizing separately.
+pub fn compact_details_anchored_cell_from_parts<Message>(
+    parts: CompactDetailsAnchoredCellParts<Message>,
+) -> View<Message>
+where
+    Message: 'static,
+{
+    let CompactDetailsAnchoredCellParts {
+        child,
+        width,
+        size,
+        horizontal,
+        vertical,
+        inset_x,
+        inset_y,
+    } = parts;
+    compact_details_cell(
+        anchored_layer(child, size, horizontal, vertical, inset_x, inset_y),
+        width,
+    )
+}
+
 /// Build a compact details-list header row.
 ///
 /// This matches Radiant's dense details-list header chrome: fixed 24px height,
@@ -265,4 +344,36 @@ where
     .width(width)
     .height(20.0)
     .spacing(1.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::application::IntoView;
+
+    #[test]
+    fn compact_details_anchored_cell_preserves_cell_size_and_places_child() {
+        let frame = compact_details_anchored_cell_from_parts::<()>(
+            CompactDetailsAnchoredCellParts::new(
+                text("K").style(WidgetStyle::subtle(WidgetTone::Warning)),
+                Vector2::new(24.0, 14.0),
+            )
+            .width(Some(64.0))
+            .horizontal(LayerHorizontalAnchor::End)
+            .vertical(LayerVerticalAnchor::Start)
+            .inset(2.0, 3.0),
+        )
+        .view_frame_at_size_with_default_theme(Vector2::new(64.0, 20.0));
+
+        let text_rect = frame
+            .paint_plan
+            .first_text_run("K")
+            .expect("anchored child text should paint")
+            .rect;
+
+        assert!(text_rect.min.x >= 38.0, "{text_rect:?}");
+        assert!(text_rect.min.y >= 3.0, "{text_rect:?}");
+        assert!(text_rect.max.x <= 64.0, "{text_rect:?}");
+        assert!(text_rect.max.y <= 20.0, "{text_rect:?}");
+    }
 }

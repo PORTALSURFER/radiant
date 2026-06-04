@@ -1044,7 +1044,8 @@ inside dense strips,
 `vertical_value_marker` and `VerticalValueMarker` for bottom-anchored value stems
 and interactive handles,
 `CanvasLayer`, `DragHandle`, `canvas_selection_rect`,
-`CanvasSelectionAffordanceHitTestParts`, `CanvasSelectionBodyHandleHitTestParts`,
+`CanvasSelectionAffordanceHitTestParts`, `CanvasSelectionAffordanceStyle`,
+`CanvasSelectionBodyHandleHitTestParts`,
 `CanvasSelectionBodyHandleParts`, `CanvasSelectionBodyHandlePaintParts`,
 `CanvasSelectionBodyHandleStyle`, `CanvasSelectionEdgeHitTestParts`,
 `CanvasSelectionEdgeVisualPaintParts`, `CanvasSelectionEdgeVisualStyle`,
@@ -1956,6 +1957,9 @@ primitives for those affordances while hosts keep product-specific colors and
 messages. Its `affordance_at_point(...)` helper can resolve optional body,
 edge, and trailing-control hit targets while host applications keep their own
 command mapping and domain-specific priority. Use
+`CanvasSelectionAffordanceStyle` when the same selection should expose a reusable
+set of optional body, edge, and trailing-control affordances from one grouped
+style instead of rebuilding low-level hit-test parts in app code. Use
 `CanvasSelectionBodyHandleStyle`, `CanvasSelectionEdgeVisualStyle`, and
 `CanvasSelectionTrailingControlStyle` when hit testing and painting the same
 canvas affordance should share one reusable dimension policy without duplicating

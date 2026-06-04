@@ -588,6 +588,89 @@ impl CanvasSelectionAffordanceHitTestParts {
     }
 }
 
+/// Reusable dimension policy for a normalized canvas selection affordance group.
+///
+/// Use this when one selection exposes a consistent set of editor affordances
+/// such as a body/move handle, resize edges, and a trailing control. The style
+/// owns reusable dimensions; callers still provide current edge hit-test bounds
+/// and pointer positions because those are canvas-layout dependent.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct CanvasSelectionAffordanceStyle {
+    /// Optional body/move handle style.
+    pub body: Option<CanvasSelectionBodyHandleStyle>,
+    /// Optional resize-edge style.
+    pub edge: Option<CanvasSelectionEdgeVisualStyle>,
+    /// Optional trailing-control style.
+    pub trailing_control: Option<CanvasSelectionTrailingControlStyle>,
+}
+
+impl CanvasSelectionAffordanceStyle {
+    /// Build an empty selection-affordance style.
+    pub const fn new() -> Self {
+        Self {
+            body: None,
+            edge: None,
+            trailing_control: None,
+        }
+    }
+
+    /// Include a body/move handle.
+    pub const fn with_body(mut self, body: CanvasSelectionBodyHandleStyle) -> Self {
+        self.body = Some(body);
+        self
+    }
+
+    /// Include resize edges.
+    pub const fn with_edge(mut self, edge: CanvasSelectionEdgeVisualStyle) -> Self {
+        self.edge = Some(edge);
+        self
+    }
+
+    /// Include a trailing control.
+    pub const fn with_trailing_control(
+        mut self,
+        trailing_control: CanvasSelectionTrailingControlStyle,
+    ) -> Self {
+        self.trailing_control = Some(trailing_control);
+        self
+    }
+
+    /// Build matching hit-test parts for the supplied pointer position.
+    ///
+    /// `edge_bounds` may be the full canvas or a narrower strip reserved for
+    /// edge hit targets.
+    pub const fn hit_test_parts(
+        self,
+        edge_bounds: Rect,
+        point: Point,
+    ) -> CanvasSelectionAffordanceHitTestParts {
+        let mut parts = CanvasSelectionAffordanceHitTestParts::new();
+        if let Some(body) = self.body {
+            parts = parts.with_body(body.hit_test_parts(point));
+        }
+        if let Some(edge) = self.edge {
+            parts = parts.with_edge(edge.hit_test_parts(edge_bounds, point));
+        }
+        if let Some(trailing_control) = self.trailing_control {
+            parts = parts.with_trailing_control(trailing_control.hit_test_parts(point));
+        }
+        parts
+    }
+
+    /// Return the first styled affordance containing `point`.
+    ///
+    /// Priority is inherited from [`CanvasSelectionGeometry::affordance_at_point`]:
+    /// trailing controls first, then resize edges, then body/move handles.
+    pub fn affordance_at_point(
+        self,
+        geometry: CanvasSelectionGeometry,
+        edge_bounds: Rect,
+        point: Point,
+    ) -> Option<DragHandleRole> {
+        geometry.affordance_at_point(self.hit_test_parts(edge_bounds, point))
+    }
+}
+
 /// Hit-test policy for a normalized selection body/move handle.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CanvasSelectionBodyHandleHitTestParts {

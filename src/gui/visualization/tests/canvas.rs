@@ -1,9 +1,10 @@
 use super::super::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts,
-    CanvasSelectionAffordanceHitTestParts, CanvasSelectionBodyHandleHitTestParts,
-    CanvasSelectionBodyHandlePaintParts, CanvasSelectionBodyHandleParts,
-    CanvasSelectionBodyHandleStyle, CanvasSelectionEdgeHitTestParts,
-    CanvasSelectionEdgeVisualPaintParts, CanvasSelectionEdgeVisualStyle, CanvasSelectionGeometry,
+    CanvasSelectionAffordanceHitTestParts, CanvasSelectionAffordanceStyle,
+    CanvasSelectionBodyHandleHitTestParts, CanvasSelectionBodyHandlePaintParts,
+    CanvasSelectionBodyHandleParts, CanvasSelectionBodyHandleStyle,
+    CanvasSelectionEdgeHitTestParts, CanvasSelectionEdgeVisualPaintParts,
+    CanvasSelectionEdgeVisualStyle, CanvasSelectionGeometry,
     CanvasSelectionTrailingControlHitTestParts, CanvasSelectionTrailingControlPaintParts,
     CanvasSelectionTrailingControlStyle, DragHandle, DragHandleRole, canvas_layer_at_point,
     canvas_selection_body_handle_rect, canvas_selection_edge_handles,
@@ -454,6 +455,40 @@ fn canvas_selection_affordance_styles_build_matching_hit_test_and_paint_parts() 
     assert_eq!(
         trailing.paint_parts(color),
         CanvasSelectionTrailingControlPaintParts::new(16.0, 0.0, color)
+    );
+}
+
+#[test]
+fn canvas_selection_affordance_style_builds_group_hit_tests() {
+    let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 120.0));
+    let point = Point::new(130.0, 24.0);
+
+    let style = CanvasSelectionAffordanceStyle::new()
+        .with_body(CanvasSelectionBodyHandleStyle::new(7.0, 9.0, 0.28, 1.0))
+        .with_edge(CanvasSelectionEdgeVisualStyle::new(7.0, 0.0))
+        .with_trailing_control(CanvasSelectionTrailingControlStyle::new(16.0, 0.0));
+
+    assert_eq!(
+        style.hit_test_parts(bounds.top_edge_strip(22.0), point),
+        CanvasSelectionAffordanceHitTestParts::new()
+            .with_body(CanvasSelectionBodyHandleHitTestParts::new(
+                point, 7.0, 9.0, 0.28, 1.0
+            ))
+            .with_edge(CanvasSelectionEdgeHitTestParts::new(
+                bounds.top_edge_strip(22.0),
+                point,
+                7.0,
+                0.0,
+            ))
+            .with_trailing_control(CanvasSelectionTrailingControlHitTestParts::new(
+                point, 16.0, 0.0,
+            ))
+    );
+
+    let geometry = CanvasSelectionGeometry::new(bounds, 0.2, 0.6).expect("geometry");
+    assert_eq!(
+        style.affordance_at_point(geometry, bounds.top_edge_strip(22.0), point),
+        Some(DragHandleRole::End)
     );
 }
 

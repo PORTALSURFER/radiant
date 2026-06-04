@@ -1,4 +1,4 @@
-use super::StackedLayoutCursor;
+use super::{StackedLayoutCursor, StackedLayoutItem};
 
 #[test]
 fn stacked_layout_cursor_accumulates_extents_and_gaps() {
@@ -70,4 +70,35 @@ fn stacked_layout_cursor_supports_chainable_optional_rows() {
         .advanced_if(true, 18.0, 3.0);
 
     assert_eq!(cursor.offset(), 48.0);
+}
+
+#[test]
+fn stacked_layout_cursor_can_advance_from_named_items() {
+    let items = [
+        StackedLayoutItem::new(20.0, 7.0),
+        StackedLayoutItem::new(18.0, 3.0),
+    ];
+
+    let mut cursor = StackedLayoutCursor::new();
+    cursor.advance_item(items[0]);
+    cursor.advance_items([items[1]]);
+
+    assert_eq!(cursor.offset(), 48.0);
+    assert_eq!(StackedLayoutCursor::from_items(items).offset(), 48.0);
+    assert_eq!(
+        StackedLayoutCursor::new()
+            .advanced_item(items[0])
+            .advanced_items([items[1]])
+            .offset(),
+        48.0
+    );
+}
+
+#[test]
+fn stacked_layout_item_sanitizes_invalid_segments() {
+    let item = StackedLayoutItem::new(f32::NAN, -7.0);
+
+    assert_eq!(item.extent(), 0.0);
+    assert_eq!(item.gap_after(), 0.0);
+    assert_eq!(StackedLayoutCursor::from_items([item]).offset(), 0.0);
 }

@@ -366,14 +366,16 @@ item count, viewport policy, and optional host selection in one controller call.
   scroll newly selected items into view without overriding manual scroll while
   the same app-owned item key remains selected.
   Overlay and retained-geometry code that needs to mirror compact stack spacing
-can use `StackedLayoutCursor` to accumulate item extents and gaps without
-app-local offset arithmetic. Use the chainable `advanced(...)` and
-`advanced_many(...)` forms when repeated rows precede an overlay target, and
-`advanced_if(...)` when optional rows should affect overlay anchors without
-introducing mutable cursor plumbing at the call site. Use
-`offset_within_item(...)` when an overlay or retained marker should anchor to
-a nested control inside the current stacked item rather than the item's start
-edge.
+  can use `StackedLayoutCursor` to accumulate item extents and gaps without
+  app-local offset arithmetic. Use the chainable `advanced(...)` and
+  `advanced_many(...)` forms when repeated rows precede an overlay target, and
+  `advanced_if(...)` when optional rows should affect overlay anchors without
+  introducing mutable cursor plumbing at the call site. Use `StackedLayoutItem`
+  with `StackedLayoutCursor::from_items(...)` when the stack prefix is easier to
+  describe as data, such as mixed fixed rows, optional rows, and repeated
+  labeled-control rows before an overlay target. Use `offset_within_item(...)`
+  when an overlay or retained marker should anchor to a nested control inside
+  the current stacked item rather than the item's start edge.
 Use `local_drop_marker(...)` for non-interactive insertion markers that should
 be positioned in a local stack or row layer, such as details-header reorder
 targets or list drop indicators, without rebuilding spacer and feedback-overlay

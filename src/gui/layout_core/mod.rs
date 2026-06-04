@@ -87,7 +87,7 @@ pub use model::{
     VirtualizationPolicy, WrapPolicy,
 };
 pub use row_helpers::{
-    StackedLayoutCursor, StackedRowRectsParts, fixed_width_group_width,
+    StackedLayoutCursor, StackedLayoutItem, StackedRowRectsParts, fixed_width_group_width,
     fixed_width_item_extent_for_available_width, fixed_width_row_rects_end,
     fixed_width_row_rects_end_into, fixed_width_row_rects_start, fixed_width_row_rects_start_into,
     grouped_fixed_width_row_width, stacked_row_rects, stacked_row_rects_from_parts,

@@ -13,7 +13,7 @@ pub use rects::{
     fixed_width_row_rects_start, fixed_width_row_rects_start_into, stacked_row_rects,
     stacked_row_rects_from_parts, stacked_row_rects_into, stacked_row_rects_into_from_parts,
 };
-pub use stack_cursor::StackedLayoutCursor;
+pub use stack_cursor::{StackedLayoutCursor, StackedLayoutItem};
 pub use widths::{fixed_width_group_width, grouped_fixed_width_row_width};
 
 #[cfg(test)]

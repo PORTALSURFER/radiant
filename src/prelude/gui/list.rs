@@ -1,7 +1,7 @@
 //! Dense-list and virtualization prelude exports.
 
 pub use crate::gui::{
-    layout_core::StackedLayoutCursor,
+    layout_core::{StackedLayoutCursor, StackedLayoutItem},
     list::{
         ColumnSummary, ColumnSummaryParts, CyclicListSelectionCycle, DenseRowLabelParts,
         DenseRowMarkerEdge, DenseRowMarkerParts, DenseRowPalette, DenseRowVisualState,

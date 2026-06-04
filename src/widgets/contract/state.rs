@@ -29,3 +29,40 @@ pub struct WidgetState {
     /// Widget is read-only but remains visible/focusable.
     pub read_only: bool,
 }
+
+impl WidgetState {
+    /// Return whether the pointer is currently hovering the widget.
+    pub const fn is_hovered(self) -> bool {
+        self.hovered
+    }
+
+    /// Return whether the primary action is currently pressed or armed.
+    pub const fn is_pressed(self) -> bool {
+        self.pressed
+    }
+
+    /// Return whether the widget currently owns keyboard focus.
+    pub const fn is_focused(self) -> bool {
+        self.focused
+    }
+
+    /// Return whether the widget is semantically selected.
+    pub const fn is_selected(self) -> bool {
+        self.selected
+    }
+
+    /// Return whether the widget is semantically active or on.
+    pub const fn is_active(self) -> bool {
+        self.active
+    }
+
+    /// Return whether the widget rejects interaction while still painting.
+    pub const fn is_disabled(self) -> bool {
+        self.disabled
+    }
+
+    /// Return whether the widget is read-only but remains visible or focusable.
+    pub const fn is_read_only(self) -> bool {
+        self.read_only
+    }
+}

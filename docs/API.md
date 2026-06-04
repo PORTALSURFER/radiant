@@ -63,7 +63,11 @@ normalized heatmap and intensity palettes without local interpolation helpers.
 Custom canvas, image, GPU surface, and overlay widgets can use
 `WidgetCommon::without_default_chrome()` when they still need Radiant's sizing,
 focus, hit testing, and style contracts but draw their own focus and state
-affordances. Use `Widget::paint_plan(...)` or
+affordances. Use `WidgetCommon::is_hovered()`, `is_pressed()`, `is_focused()`,
+`is_selected()`, `is_active()`, `is_disabled()`, and `is_read_only()`, or the
+matching `WidgetState` helpers, when tests, custom widgets, or automation need
+to query shared interaction state without reading the raw state fields. Use
+`Widget::paint_plan(...)` or
 `paint_plan_with_defaults(...)` when focused custom-widget tests or previews
 need the same `SurfacePaintPlan` query helpers available from full view
 frames. Dynamic custom widgets and row input layers can use

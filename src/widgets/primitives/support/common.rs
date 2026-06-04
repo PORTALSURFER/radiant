@@ -79,6 +79,41 @@ impl WidgetCommon {
         self
     }
 
+    /// Return whether the pointer is currently hovering this widget.
+    pub const fn is_hovered(&self) -> bool {
+        self.state.is_hovered()
+    }
+
+    /// Return whether this widget's primary action is currently pressed or armed.
+    pub const fn is_pressed(&self) -> bool {
+        self.state.is_pressed()
+    }
+
+    /// Return whether this widget currently owns keyboard focus.
+    pub const fn is_focused(&self) -> bool {
+        self.state.is_focused()
+    }
+
+    /// Return whether this widget is semantically selected.
+    pub const fn is_selected(&self) -> bool {
+        self.state.is_selected()
+    }
+
+    /// Return whether this widget is semantically active or on.
+    pub const fn is_active(&self) -> bool {
+        self.state.is_active()
+    }
+
+    /// Return whether this widget rejects interaction while still painting.
+    pub const fn is_disabled(&self) -> bool {
+        self.state.is_disabled()
+    }
+
+    /// Return whether this widget is read-only but remains visible or focusable.
+    pub const fn is_read_only(&self) -> bool {
+        self.state.is_read_only()
+    }
+
     /// Project this widget into the current public layout leaf representation.
     pub fn layout_node(&self) -> LayoutNode {
         self.sizing.layout_node(self.id)

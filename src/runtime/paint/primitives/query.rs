@@ -84,6 +84,21 @@ impl SurfacePaintPlan {
         self.first_text_input().is_some()
     }
 
+    /// Iterate over non-clip paint primitives in paint order.
+    ///
+    /// Use this when tests, automation, or diagnostics need to ask whether a
+    /// plan painted visible content without counting clip bookkeeping as paint.
+    pub fn paint_primitives(&self) -> impl Iterator<Item = &PaintPrimitive> {
+        self.primitives
+            .iter()
+            .filter(|primitive| primitive.is_paint())
+    }
+
+    /// Return whether this plan contains any non-clip paint primitive.
+    pub fn contains_paint_primitives(&self) -> bool {
+        self.paint_primitives().next().is_some()
+    }
+
     /// Iterate over rectangular clip-start primitives in paint order.
     pub fn clip_starts(&self) -> impl Iterator<Item = &PaintClipStart> {
         self.primitives
@@ -212,6 +227,30 @@ impl SurfacePaintPlan {
             .filter_map(PaintPrimitive::gpu_surface)
     }
 
+    /// Iterate over rectangular regions directly carried by primitives in paint order.
+    ///
+    /// This mirrors [`PaintPrimitive::rect`] at the plan level for tests,
+    /// automation, diagnostics, and overlay placement code that only needs
+    /// rectangle-bearing primitives.
+    pub fn rects(&self) -> impl Iterator<Item = Rect> + '_ {
+        self.primitives.iter().filter_map(PaintPrimitive::rect)
+    }
+
+    /// Return whether any rectangle-bearing primitive matches `predicate`.
+    pub fn contains_rect_matching(&self, predicate: impl FnMut(Rect) -> bool) -> bool {
+        self.rects().any(predicate)
+    }
+
+    /// Iterate over rectangular regions carried by non-clip paint primitives.
+    pub fn paint_rects(&self) -> impl Iterator<Item = Rect> + '_ {
+        self.paint_primitives().filter_map(PaintPrimitive::rect)
+    }
+
+    /// Return whether any non-clip paint rectangle matches `predicate`.
+    pub fn contains_paint_rect_matching(&self, predicate: impl FnMut(Rect) -> bool) -> bool {
+        self.paint_rects().any(predicate)
+    }
+
     /// Return the first rectangular paint region emitted by `widget_id`.
     ///
     /// Transient overlays can use this to anchor lightweight frame-time paint
@@ -323,6 +362,11 @@ impl PaintPrimitive {
             Self::GpuSurface(surface) => Some(surface),
             _ => None,
         }
+    }
+
+    /// Return whether this primitive represents paint rather than clip bookkeeping.
+    pub const fn is_paint(&self) -> bool {
+        !matches!(self, Self::ClipStart(_) | Self::ClipEnd(_))
     }
 
     /// Return the widget that emitted this primitive when the primitive belongs

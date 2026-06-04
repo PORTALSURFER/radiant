@@ -104,7 +104,9 @@ Tests, automation, and embedded hosts that inspect paint plans can use
 `first_text_run(...)`, `contains_text(...)`, `first_text_run_after_x(...)`,
 `contains_text_after_x(...)`, `first_text_rect(...)`, `first_text_color(...)`, `text_inputs()`,
 `first_text_input()`, `contains_text_input()`,
-`clip_starts()`, `fill_rects()`, `stroke_rects()`, `fill_polygons()`,
+`paint_primitives()`, `contains_paint_primitives()`, `clip_starts()`,
+`rects()`, `contains_rect_matching(...)`, `paint_rects()`,
+`contains_paint_rect_matching(...)`, `fill_rects()`, `stroke_rects()`, `fill_polygons()`,
 `stroke_polylines()`, `svgs()`, and `gpu_surfaces()`. Widget-specific query
 helpers such as `fill_rects_for_widget(...)`,
 `visible_fill_rects_for_widget(...)`,

@@ -2,9 +2,9 @@ use super::*;
 use crate::{
     gui::types::{Point, Vector2},
     runtime::{
-        GpuSurfaceCapabilities, GpuSurfaceContent, PaintClipStart, PaintFillPolygon, PaintFillRect,
-        PaintFillRectBatch, PaintGpuSurface, PaintStrokePolyline, PaintStrokeRectBatch, PaintSvg,
-        PaintSvgDocument, PaintTextAlign, PaintTextRun,
+        GpuSurfaceCapabilities, GpuSurfaceContent, PaintClipEnd, PaintClipStart, PaintFillPolygon,
+        PaintFillRect, PaintFillRectBatch, PaintGpuSurface, PaintStrokePolyline,
+        PaintStrokeRectBatch, PaintSvg, PaintSvgDocument, PaintTextAlign, PaintTextRun,
     },
     theme::ThemeTokens,
 };
@@ -141,6 +141,49 @@ fn text_queries_return_runs_and_inputs_in_paint_order() {
         plan.primitives[1].text_input().map(|input| input.widget_id),
         Some(12)
     );
+}
+
+#[test]
+fn plan_level_paint_queries_ignore_clip_bookkeeping() {
+    let theme = ThemeTokens::default();
+    let mut plan = SurfacePaintPlan::empty(&theme);
+    let clip_rect = Rect::from_min_size(Point::new(1.0, 2.0), Vector2::new(10.0, 11.0));
+
+    plan.primitives
+        .push(PaintPrimitive::ClipStart(PaintClipStart {
+            node_id: 7,
+            rect: clip_rect,
+        }));
+    plan.primitives
+        .push(PaintPrimitive::ClipEnd(PaintClipEnd { node_id: 7 }));
+
+    assert!(!plan.contains_paint_primitives());
+    assert_eq!(plan.paint_primitives().count(), 0);
+    assert!(
+        plan.primitives
+            .iter()
+            .all(|primitive| !primitive.is_paint())
+    );
+    assert_eq!(plan.rects().collect::<Vec<_>>(), vec![clip_rect]);
+    assert!(plan.contains_rect_matching(|rect| rect == clip_rect));
+    assert!(!plan.contains_rect_matching(|rect| rect.width() > 20.0));
+    assert_eq!(plan.paint_rects().collect::<Vec<_>>(), Vec::<Rect>::new());
+    assert!(!plan.contains_paint_rect_matching(|rect| rect == clip_rect));
+
+    let fill_rect = Rect::from_min_size(Point::new(3.0, 4.0), Vector2::new(12.0, 13.0));
+    plan.primitives
+        .push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: 21,
+            rect: fill_rect,
+            color: theme.accent_mint,
+        }));
+
+    assert!(plan.contains_paint_primitives());
+    assert_eq!(plan.paint_primitives().count(), 1);
+    assert!(plan.primitives[2].is_paint());
+    assert!(plan.contains_rect_matching(|rect| rect == fill_rect));
+    assert_eq!(plan.paint_rects().collect::<Vec<_>>(), vec![fill_rect]);
+    assert!(plan.contains_paint_rect_matching(|rect| rect == fill_rect));
 }
 
 #[test]

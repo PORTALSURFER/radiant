@@ -537,7 +537,10 @@ autocomplete, command-palette, and dropdown-style option navigation. When that
 wrapped option navigation is bound to a transient query or prefix, use
 `CyclicListSelectionCycle` to keep the selected index for the current query,
 reset display selection for new queries, and clear state when the visible
-option list is empty.
+option list is empty. Use `active_selected_index(...)` when a fresh query
+should show options without selecting one yet, and
+`move_selection_from_edge(...)` when first ArrowDown/ArrowUp-style movement
+should select the first or last option before subsequent movement wraps.
 `CancellationToken` and `UpdateContext::spawn_cancellable(...)` provide a
 small cooperative-cancellation contract for long host-owned jobs. Radiant still
 does not force-stop work; applications keep a token clone and workers check it

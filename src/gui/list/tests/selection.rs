@@ -40,6 +40,7 @@ fn cyclic_list_selection_cycle_resets_display_selection_for_new_query() {
     assert_eq!(cycle.move_selection("kick", 2, 5), Some(2));
 
     assert_eq!(cycle.selected_index("snare", 5), Some(0));
+    assert_eq!(cycle.active_selected_index("snare", 5), None);
     assert_eq!(cycle.move_selection("snare", 1, 5), Some(1));
     assert_eq!(cycle.query_key(), Some("snare"));
     assert_eq!(cycle.stored_index(), 1);
@@ -64,6 +65,29 @@ fn cyclic_list_selection_cycle_selects_explicit_index() {
     assert_eq!(cycle.selected_index("filter", 4), Some(3));
     cycle.reset();
     assert_eq!(cycle.selected_index("filter", 4), Some(0));
+}
+
+#[test]
+fn cyclic_list_selection_cycle_can_start_navigation_from_query_edges() {
+    let mut cycle = CyclicListSelectionCycle::new();
+
+    assert_eq!(cycle.move_selection_from_edge("kick", 1, 4), Some(0));
+    assert_eq!(cycle.query_key(), Some("kick"));
+    assert_eq!(cycle.move_selection_from_edge("kick", 1, 4), Some(1));
+
+    assert_eq!(cycle.move_selection_from_edge("snare", -1, 4), Some(3));
+    assert_eq!(cycle.query_key(), Some("snare"));
+    assert_eq!(cycle.move_selection_from_edge("snare", -1, 4), Some(2));
+}
+
+#[test]
+fn cyclic_list_selection_cycle_edge_navigation_clears_empty_lists() {
+    let mut cycle = CyclicListSelectionCycle::new();
+    assert_eq!(cycle.move_selection_from_edge("kick", 1, 3), Some(0));
+
+    assert_eq!(cycle.move_selection_from_edge("kick", 1, 0), None);
+    assert_eq!(cycle.query_key(), None);
+    assert_eq!(cycle.stored_index(), 0);
 }
 
 #[test]

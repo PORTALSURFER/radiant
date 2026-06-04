@@ -181,6 +181,18 @@ impl CyclicListSelectionCycle {
         }
     }
 
+    /// Return the selected index only when `query_key` is already active.
+    ///
+    /// This is useful for autocomplete surfaces that should display suggestions
+    /// for a fresh query without preselecting the first option.
+    pub fn active_selected_index(&self, query_key: &str, total_items: usize) -> Option<usize> {
+        if self.query_key.as_deref() == Some(query_key) {
+            self.selected_index(query_key, total_items)
+        } else {
+            None
+        }
+    }
+
     /// Move the selected index by `delta`, wrapping inside the current query.
     ///
     /// When `query_key` differs from the tracked query, movement starts from the
@@ -198,6 +210,35 @@ impl CyclicListSelectionCycle {
         let query_key = query_key.into();
         let current = self.selected_index(query_key.as_str(), total_items)?;
         let selected = cyclic_list_index_after_delta(current, delta, total_items)?;
+        self.query_key = Some(query_key);
+        self.selected_index = selected;
+        Some(selected)
+    }
+
+    /// Move within the current query or select an edge item for a new query.
+    ///
+    /// A fresh positive or zero movement selects the first item; a fresh
+    /// negative movement selects the last item. Once the query is active,
+    /// movement wraps from the current selection like [`Self::move_selection`].
+    pub fn move_selection_from_edge(
+        &mut self,
+        query_key: impl Into<String>,
+        delta: isize,
+        total_items: usize,
+    ) -> Option<usize> {
+        if total_items == 0 {
+            self.reset();
+            return None;
+        }
+        let query_key = query_key.into();
+        if self.query_key.as_deref() == Some(query_key.as_str()) {
+            return self.move_selection(query_key, delta, total_items);
+        }
+        let selected = if delta < 0 {
+            total_items.saturating_sub(1)
+        } else {
+            0
+        };
         self.query_key = Some(query_key);
         self.selected_index = selected;
         Some(selected)

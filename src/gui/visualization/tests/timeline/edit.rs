@@ -3,7 +3,7 @@ use crate::gui::{
     types::{Point, Rect, Vector2},
     visualization::{
         TimelineCoordinateMapper, TimelineEditHandle, TimelineEditHandleGeometry,
-        TimelineEditPreview, TimelineEditPreviewParts, TimelineEditRegion,
+        TimelineEditPreview, TimelineEditPreviewParts, TimelineEditRamp, TimelineEditRegion,
         TimelineEditRegionGeometry, TimelineViewport,
     },
 };
@@ -268,6 +268,40 @@ fn timeline_edit_preview_builds_standard_geometry_from_visible_selection() {
     );
     assert_eq!(handle_geometry.handle_size, 10.0);
     assert_eq!(handle_geometry.clamped_handle_size(), 10.0);
+}
+
+#[test]
+fn timeline_edit_preview_builds_from_normalized_ramps() {
+    let preview = TimelineEditPreview::from_normalized_ramps(
+        NormalizedRange::from_micros(200_000, 600_000),
+        Some(TimelineEditRamp::new(0.25, 0.5, Some(0.35))),
+        Some(TimelineEditRamp::new(0.5, 0.25, Some(0.65))),
+    );
+
+    assert_eq!(
+        preview.selection,
+        Some(NormalizedRange::from_micros(200_000, 600_000))
+    );
+    assert_eq!(preview.leading_end_micros, Some(300_000));
+    assert_eq!(preview.leading_inner_start_micros, Some(0));
+    assert_eq!(preview.leading_curve_milli, Some(350));
+    assert_eq!(preview.trailing_start_micros, Some(400_000));
+    assert_eq!(preview.trailing_inner_end_micros, Some(700_000));
+    assert_eq!(preview.trailing_curve_milli, Some(650));
+}
+
+#[test]
+fn timeline_edit_ramp_from_length_has_no_outer_extension() {
+    let preview = TimelineEditPreview::from_normalized_ramps(
+        NormalizedRange::from_micros(200_000, 600_000),
+        Some(TimelineEditRamp::from_length(0.25, None)),
+        None,
+    );
+
+    assert_eq!(preview.leading_end_micros, Some(300_000));
+    assert_eq!(preview.leading_inner_start_micros, Some(200_000));
+    assert_eq!(preview.leading_curve_milli, None);
+    assert_eq!(preview.trailing_start_micros, None);
 }
 
 #[test]

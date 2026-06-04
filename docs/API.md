@@ -1058,7 +1058,10 @@ selection affordance hit testing, and guarded selection-affordance paint emissio
 integer `IndexViewport` ranges,
 `TimelineTransportState` for cursor/playhead/selection positions,
 `TimelineEditPreview` and `TimelineEditPreviewParts` for editable range and
-fade/curve handles, plus `TimelineEditHandle` and
+fade/curve handles, `TimelineEditRamp` plus
+`TimelineEditPreview::from_normalized_ramps(...)` for projecting host-neutral
+leading/trailing ramp lengths, outer extensions, and curve controls into a
+standard edit preview, plus `TimelineEditHandle` and
 `TimelineEditHandleGeometry` for standard edit-handle projection and
 visible-selection geometry construction,
 `TimelineEditHandle::standard_order()` for default edit-handle priority, and
@@ -1956,7 +1959,10 @@ canvas affordance should share one reusable dimension policy without duplicating
 constants across input and paint code. Use `TimelineEditPreview` with
 `TimelineEditHandleGeometry` and `TimelineEditRegionGeometry` when timeline
 editors need standard handle hit rectangles and leading/trailing region paint
-rectangles without duplicating viewport projection math.
+rectangles without duplicating viewport projection math. Use `TimelineEditRamp`
+and `TimelineEditPreview::from_normalized_ramps(...)` when a host already has a
+normalized selected range plus leading/trailing ramp lengths, outer extensions,
+and optional curve values.
 
 ## Invalidation And Lifecycle
 

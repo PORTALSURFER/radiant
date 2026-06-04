@@ -1,6 +1,6 @@
 use super::TimelineCoordinateMapper;
 use crate::gui::{
-    range::NormalizedRange,
+    range::{NormalizedRange, normalized_fraction_to_micros, normalized_fraction_to_milli},
     types::{Point, Rect},
 };
 
@@ -173,6 +173,42 @@ pub struct TimelineEditPreviewParts {
     pub trailing_curve_milli: Option<u16>,
 }
 
+/// Optional ramp projection for a normalized timeline edit preview.
+///
+/// A ramp is deliberately domain-neutral: it may represent an audio fade, an
+/// animation easing segment, an opacity transition, a trim preview, or any
+/// other leading/trailing edit affordance attached to a selected interval.
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
+pub struct TimelineEditRamp {
+    /// Ramp length as a fraction of the selected interval width.
+    pub length_fraction: f32,
+    /// Optional extension outside the selected interval as a fraction of the
+    /// selected interval width.
+    pub outer_fraction: f32,
+    /// Optional curve/control value in normalized `0.0..=1.0` space.
+    pub curve_fraction: Option<f32>,
+}
+
+impl TimelineEditRamp {
+    /// Build a ramp from normalized length, outer extension, and optional curve.
+    pub const fn new(
+        length_fraction: f32,
+        outer_fraction: f32,
+        curve_fraction: Option<f32>,
+    ) -> Self {
+        Self {
+            length_fraction,
+            outer_fraction,
+            curve_fraction,
+        }
+    }
+
+    /// Build a ramp with no outer extension.
+    pub const fn from_length(length_fraction: f32, curve_fraction: Option<f32>) -> Self {
+        Self::new(length_fraction, 0.0, curve_fraction)
+    }
+}
+
 impl TimelineEditPreview {
     /// Build an edit preview from named handle parts.
     pub fn from_parts(parts: TimelineEditPreviewParts) -> Self {
@@ -189,6 +225,45 @@ impl TimelineEditPreview {
             trailing_inner_end_micros: parts.trailing_inner_end_micros,
             trailing_curve_milli: parts.trailing_curve_milli,
         }
+    }
+
+    /// Build an edit preview from a selected range and optional normalized ramps.
+    ///
+    /// The selected range supplies the durable timeline interval. Ramp lengths
+    /// and outer extensions are fractions of that interval width, so hosts can
+    /// project domain data into standard leading/trailing edit handles without
+    /// duplicating milli/micro conversion and endpoint math.
+    pub fn from_normalized_ramps(
+        selection: NormalizedRange,
+        leading: Option<TimelineEditRamp>,
+        trailing: Option<TimelineEditRamp>,
+    ) -> Self {
+        let start = selection.start_fraction();
+        let end = selection.end_fraction();
+        let width = selection.width_fraction();
+        Self::from_parts(TimelineEditPreviewParts {
+            selection: Some(selection),
+            leading_end_milli: leading
+                .map(|ramp| normalized_fraction_to_milli(start + width * ramp.length_fraction)),
+            leading_end_micros: leading
+                .map(|ramp| normalized_fraction_to_micros(start + width * ramp.length_fraction)),
+            leading_inner_start_milli: leading
+                .map(|ramp| normalized_fraction_to_milli(start - width * ramp.outer_fraction)),
+            leading_inner_start_micros: leading
+                .map(|ramp| normalized_fraction_to_micros(start - width * ramp.outer_fraction)),
+            leading_curve_milli: leading
+                .and_then(|ramp| ramp.curve_fraction.map(normalized_fraction_to_milli)),
+            trailing_start_milli: trailing
+                .map(|ramp| normalized_fraction_to_milli(end - width * ramp.length_fraction)),
+            trailing_start_micros: trailing
+                .map(|ramp| normalized_fraction_to_micros(end - width * ramp.length_fraction)),
+            trailing_inner_end_milli: trailing
+                .map(|ramp| normalized_fraction_to_milli(end + width * ramp.outer_fraction)),
+            trailing_inner_end_micros: trailing
+                .map(|ramp| normalized_fraction_to_micros(end + width * ramp.outer_fraction)),
+            trailing_curve_milli: trailing
+                .and_then(|ramp| ramp.curve_fraction.map(normalized_fraction_to_milli)),
+        })
     }
 
     /// Return the normalized micro-position for a standard edit handle.

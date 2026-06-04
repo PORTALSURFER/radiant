@@ -8,8 +8,11 @@ use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
-use crate::widgets::interaction::{InteractiveRowMessage, WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{
+    DragHandleMessage, InteractiveRowMessage, PointerModifiers, WidgetInput, WidgetOutput,
+};
 use crate::widgets::primitives::support::{WidgetCommon, push_control_chrome};
+use std::sync::Arc;
 
 mod builders;
 mod input;
@@ -52,6 +55,135 @@ pub struct InteractiveRowProps {
     pub pointer_motion: InteractiveRowPointerMotion,
     /// Extra app-owned activity that should keep pointer motion routed.
     pub pointer_motion_active: bool,
+}
+
+/// Host callbacks for common interactive-row message routing.
+///
+/// Use this router when a row host only needs the standard activation,
+/// secondary-click, drag, drop, and hover-drop interaction shapes translated
+/// into its own message type.
+#[derive(Clone)]
+pub struct InteractiveRowActions<Message> {
+    activate: Option<Arc<dyn Fn() -> Message + Send + Sync + 'static>>,
+    activate_with_modifiers:
+        Option<Arc<dyn Fn(PointerModifiers) -> Message + Send + Sync + 'static>>,
+    double_activate: Option<Arc<dyn Fn() -> Message + Send + Sync + 'static>>,
+    secondary: Option<Arc<dyn Fn(crate::gui::types::Point) -> Message + Send + Sync + 'static>>,
+    drag: Option<Arc<dyn Fn(DragHandleMessage) -> Message + Send + Sync + 'static>>,
+    drop: Option<Arc<dyn Fn() -> Message + Send + Sync + 'static>>,
+    hover_drop: Option<Arc<dyn Fn(crate::gui::types::Point) -> Message + Send + Sync + 'static>>,
+}
+
+impl<Message> InteractiveRowActions<Message> {
+    /// Build an empty row-action router.
+    pub fn new() -> Self {
+        Self {
+            activate: None,
+            activate_with_modifiers: None,
+            double_activate: None,
+            secondary: None,
+            drag: None,
+            drop: None,
+            hover_drop: None,
+        }
+    }
+
+    /// Emit a host message for single primary activation.
+    pub fn activate(mut self, message: impl Fn() -> Message + Send + Sync + 'static) -> Self {
+        self.activate = Some(Arc::new(message));
+        self
+    }
+
+    /// Emit a host message for single primary activation with modifier state.
+    pub fn activate_with_modifiers(
+        mut self,
+        message: impl Fn(PointerModifiers) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        self.activate_with_modifiers = Some(Arc::new(message));
+        self
+    }
+
+    /// Emit a host message for double primary activation.
+    pub fn double_activate(
+        mut self,
+        message: impl Fn() -> Message + Send + Sync + 'static,
+    ) -> Self {
+        self.double_activate = Some(Arc::new(message));
+        self
+    }
+
+    /// Emit a host message for secondary activation.
+    pub fn secondary(
+        mut self,
+        message: impl Fn(crate::gui::types::Point) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        self.secondary = Some(Arc::new(message));
+        self
+    }
+
+    /// Emit a host message for drag lifecycle updates.
+    pub fn drag(
+        mut self,
+        message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        self.drag = Some(Arc::new(message));
+        self
+    }
+
+    /// Emit a host message when a drop lands on the row.
+    pub fn drop(mut self, message: impl Fn() -> Message + Send + Sync + 'static) -> Self {
+        self.drop = Some(Arc::new(message));
+        self
+    }
+
+    /// Emit a host message when another row drag hovers this drop target.
+    pub fn hover_drop(
+        mut self,
+        message: impl Fn(crate::gui::types::Point) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        self.hover_drop = Some(Arc::new(message));
+        self
+    }
+
+    /// Route a generic row interaction into the configured host action.
+    pub fn route(&self, message: InteractiveRowMessage) -> Option<Message> {
+        if let Some(position) = message.secondary_position() {
+            return self.secondary.as_ref().map(|callback| callback(position));
+        }
+        if let Some(drag) = message.drag_message() {
+            return self.drag.as_ref().map(|callback| callback(drag));
+        }
+        if message.is_drop() {
+            return self.drop.as_ref().map(|callback| callback());
+        }
+        if let Some(position) = message.hover_drop_position() {
+            return self.hover_drop.as_ref().map(|callback| callback(position));
+        }
+        if message.is_double_activation() {
+            return self.double_activate.as_ref().map(|callback| callback());
+        }
+        if let Some(modifiers) = message.single_activation_modifiers() {
+            if let Some(callback) = &self.activate_with_modifiers {
+                return Some(callback(modifiers));
+            }
+            return self.activate.as_ref().map(|callback| callback());
+        }
+        None
+    }
+}
+
+impl<Message> Default for InteractiveRowActions<Message> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<Message> std::fmt::Debug for InteractiveRowActions<Message> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("InteractiveRowActions")
+            .finish_non_exhaustive()
+    }
 }
 
 /// Host-owned dense-row state that can be merged with interactive row state.
@@ -293,7 +425,7 @@ impl InteractiveRowWidget {
 /// input, pointer-motion policy, retained state synchronization, and widget
 /// contract delegation, but the host still owns the row's visual content and
 /// message type. The blanket [`Widget`] implementation keeps application row
-/// wrappers focused on domain message mapping and paint.
+/// wrappers focused on domain action routing and paint.
 pub trait EmbeddedInteractiveRowWidget: Clone + Send + Sync + 'static {
     /// Host-specific message emitted by the custom row.
     type Message: Send + Sync + 'static;
@@ -304,8 +436,15 @@ pub trait EmbeddedInteractiveRowWidget: Clone + Send + Sync + 'static {
     /// Return the embedded generic interactive row mutably.
     fn interactive_row_mut(&mut self) -> &mut InteractiveRowWidget;
 
+    /// Return common action routing for this embedded row, when applicable.
+    fn interactive_row_actions(&self) -> Option<&InteractiveRowActions<Self::Message>> {
+        None
+    }
+
     /// Map a generic row interaction into this custom row's message type.
-    fn map_interactive_row_message(&self, message: InteractiveRowMessage) -> Option<Self::Message>;
+    fn map_interactive_row_message(&self, message: InteractiveRowMessage) -> Option<Self::Message> {
+        self.interactive_row_actions()?.route(message)
+    }
 
     /// Append host-specific paint for this custom row.
     fn append_interactive_row_paint(

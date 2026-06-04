@@ -175,6 +175,37 @@ impl EmbeddedInteractiveRowWidget for RowHost {
     }
 }
 
+#[derive(Clone, Debug)]
+struct ActionRowHost {
+    row: InteractiveRowWidget,
+    actions: InteractiveRowActions<&'static str>,
+}
+
+impl EmbeddedInteractiveRowWidget for ActionRowHost {
+    type Message = &'static str;
+
+    fn interactive_row(&self) -> &InteractiveRowWidget {
+        &self.row
+    }
+
+    fn interactive_row_mut(&mut self) -> &mut InteractiveRowWidget {
+        &mut self.row
+    }
+
+    fn interactive_row_actions(&self) -> Option<&InteractiveRowActions<Self::Message>> {
+        Some(&self.actions)
+    }
+
+    fn append_interactive_row_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
 #[test]
 fn synchronize_from_previous_embedded_preserves_custom_row_state() {
     let bounds = Rect::from_size(120.0, 22.0);
@@ -213,4 +244,21 @@ fn embedded_interactive_row_widget_routes_widget_contract() {
         .handle_input(bounds, WidgetInput::primary_release(pointer))
         .expect("embedded row host should emit mapped row output");
     assert!(output.typed_ref::<InteractiveRowMessage>().is_some());
+}
+
+#[test]
+fn embedded_interactive_row_widget_routes_configured_actions_by_default() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let pointer = Point::new(4.0, 4.0);
+    let mut host = ActionRowHost {
+        row: InteractiveRowWidget::new(12, WidgetSizing::fixed(Vector2::new(120.0, 22.0))),
+        actions: InteractiveRowActions::new().activate(|| "activated"),
+    };
+
+    let _ = host.handle_input(bounds, WidgetInput::primary_press(pointer));
+    let output = host
+        .handle_input(bounds, WidgetInput::primary_release(pointer))
+        .expect("embedded row host should emit configured action output");
+
+    assert_eq!(output.typed_ref::<&'static str>(), Some(&"activated"));
 }

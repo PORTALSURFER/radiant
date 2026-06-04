@@ -50,8 +50,9 @@ fn index_viewport_model_keeps_behavior_tests_focused() {
         .expect("index viewport behavior tests should be readable");
 
     assert!(
-        range.contains("pub use index_viewport::IndexViewport;")
+        range.contains("pub use index_viewport::{IndexViewport, IndexViewportScope};")
             && model.contains("pub struct IndexViewport")
+            && model.contains("pub struct IndexViewportScope")
             && model.contains("#[path = \"index_viewport/tests.rs\"]")
             && !model.contains("fn index_viewport_clamps_visible_span_and_offset_fraction"),
         "index viewport should stay exported through the range facade while keeping behavior tests out of the model root"

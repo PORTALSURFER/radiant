@@ -379,7 +379,9 @@ anchor-preserving zoom, visible-span pan, `pan_by_visible_ratio_drag(...)` for
 drag gestures expressed as local ratios, and visible-to-absolute ratio
 projection, plus absolute-to-visible point and clipped range projection, so
 apps do not need to keep small-but-risky viewport math beside every custom
-canvas. `NormalizedRange::from_fractions(...)`,
+canvas. Use `IndexViewportScope` when one surface repeatedly applies those
+operations against the same total item count and minimum visible span.
+`NormalizedRange::from_fractions(...)`,
 `NormalizedRange::with_edge_fraction(...)`,
 `NormalizedRange::shifted_by_fraction(...)`, `NormalizedRangeDrag`,
 `NormalizedRangeEdge`, `normalized_fraction_to_milli(...)`,

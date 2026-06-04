@@ -1,4 +1,4 @@
-use super::IndexViewport;
+use super::{IndexViewport, IndexViewportScope};
 
 fn assert_ratio_near(actual: Option<f32>, expected: f32) {
     let actual = actual.expect("visible ratio");
@@ -135,4 +135,71 @@ fn index_viewport_projects_and_clips_absolute_ranges() {
     );
     assert_eq!(viewport.visible_range_from_absolute(1_000, 0.7, 0.8), None);
     assert_eq!(viewport.visible_range_from_absolute(1_000, 0.3, 0.3), None);
+}
+
+#[test]
+fn index_viewport_scope_binds_total_and_min_visible_items() {
+    let scope = IndexViewportScope::new(
+        IndexViewport {
+            start: 990,
+            end: 1_020,
+        },
+        1_000,
+        128,
+    );
+
+    assert_eq!(
+        scope.viewport(),
+        IndexViewport {
+            start: 872,
+            end: 1_000
+        }
+    );
+    assert_eq!(scope.total_items(), 1_000);
+    assert_eq!(scope.min_visible_items(), 128);
+    assert_eq!(scope.visible_items(), 128);
+    assert_eq!(scope.visible_fraction(), 0.128);
+    assert_eq!(scope.offset_fraction(), 1.0);
+    assert!(scope.is_zoomed_in());
+    assert_eq!(
+        scope.with_offset_fraction(0.0),
+        IndexViewport { start: 0, end: 128 }
+    );
+}
+
+#[test]
+fn index_viewport_scope_projects_and_updates_without_repeated_domain_args() {
+    let scope = IndexViewportScope::new(
+        IndexViewport {
+            start: 200,
+            end: 600,
+        },
+        1_000,
+        100,
+    );
+
+    assert_eq!(scope.absolute_ratio_from_visible(0.5), 0.4);
+    assert_ratio_near(scope.visible_ratio_from_absolute(0.4), 0.5);
+    assert_range_near(scope.visible_range_from_absolute(0.25, 0.5), (0.125, 0.75));
+    assert_eq!(
+        scope.zoom_around_anchor(0.5, 0.25),
+        IndexViewport {
+            start: 250,
+            end: 450
+        }
+    );
+    assert_eq!(
+        scope.pan_by_visible_fraction(0.5),
+        IndexViewport {
+            start: 400,
+            end: 800
+        }
+    );
+    assert_eq!(
+        scope.pan_by_visible_ratio_drag(0.5, 0.25),
+        IndexViewport {
+            start: 300,
+            end: 700
+        }
+    );
 }

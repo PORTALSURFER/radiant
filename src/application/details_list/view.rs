@@ -213,6 +213,10 @@ where
 
 /// Build a compact sortable, reorderable, and resizable details-list header
 /// cell with explicit stable widget ids for the interactive surfaces.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "compatibility API with two optional stable widget ids"
+)]
 pub fn compact_resizable_details_header_cell_with_ids<Message>(
     key: impl Into<String>,
     label: impl Into<String>,

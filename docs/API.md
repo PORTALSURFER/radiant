@@ -75,17 +75,20 @@ temporary strings.
 Custom matrix or heatmap widgets can use `DenseGridLayout` and `DenseGridCell`
 for reusable row/column cell projection and hit testing.
 For paint-plan emission,
-`push_fill_rect`, `push_fill_rect_batch`, `push_stroke_rect`,
+`WidgetPaint`, `push_fill_rect`, `push_fill_rect_batch`, `push_stroke_rect`,
 `push_stroke_rect_batch`, `push_fill_polygon`, `push_stroke_polyline`,
 `push_text`, `PaintTextMetrics`, and `push_text_run_with_metrics` provide the
 reusable primitive construction path used by complex examples and custom
 widgets. Dense custom widgets can use `push_visible_fill_rect` when derived or
-clipped geometry should only enter the paint plan if it has finite positive
-area. Timeline, waveform, progress, and scrubber-style custom widgets can use
-`push_horizontal_value_range_fill`,
+clipped geometry should only enter the paint plan if it has finite positive area.
+Use `WidgetPaint::new(...)` when several primitives are emitted for the same
+custom widget and local code would otherwise thread the same primitive buffer and
+widget id through every helper call. Timeline, waveform, progress, and
+scrubber-style custom widgets can use `push_horizontal_value_range_fill`,
 `push_horizontal_value_range_edge_fills`, and
-`push_horizontal_value_cursor_fill` to append guarded normalized range, range
-edge, and cursor fills without repeating local geometry-to-paint boilerplate.
+`push_horizontal_value_cursor_fill`, or the matching `WidgetPaint` methods, to
+append guarded normalized range, range edge, and cursor fills without repeating
+local geometry-to-paint boilerplate.
 Editor-style widgets that draw sampled curves such as EQ responses,
 automation curves, fade curves, and analysis overlays can use
 `SampledCurveStrokeParts`, `sampled_curve_points`, and

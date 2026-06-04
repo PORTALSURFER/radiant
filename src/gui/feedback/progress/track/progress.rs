@@ -1,7 +1,7 @@
 use super::sanitize::{finite_nonnegative, normalized_fraction};
 use crate::{
     gui::types::{Point, Rect, Rgba8},
-    runtime::{PaintPrimitive, push_visible_fill_rect},
+    runtime::{PaintPrimitive, WidgetPaint, push_visible_fill_rect},
     widgets::WidgetId,
 };
 
@@ -132,6 +132,32 @@ pub fn push_horizontal_value_range_fill(
     push_visible_fill_rect(primitives, widget_id, rect, color)
 }
 
+impl WidgetPaint<'_> {
+    /// Push a normalized horizontal range segment for this widget.
+    ///
+    /// This is the [`WidgetPaint`] counterpart to
+    /// [`push_horizontal_value_range_fill`].
+    pub fn push_horizontal_value_range_fill(
+        &mut self,
+        track: Rect,
+        start_fraction: f32,
+        end_fraction: f32,
+        height_fraction: f32,
+        color: Rgba8,
+    ) -> bool {
+        let widget_id = self.widget_id();
+        push_horizontal_value_range_fill(
+            self.primitives_mut(),
+            widget_id,
+            track,
+            start_fraction,
+            end_fraction,
+            height_fraction,
+            color,
+        )
+    }
+}
+
 /// Return top and bottom edge strips for a normalized horizontal range.
 ///
 /// This is useful for timeline, waveform, and scrubber widgets that need to
@@ -177,6 +203,32 @@ pub fn push_horizontal_value_range_edge_fills(
         .flatten()
         .filter(|rect| push_visible_fill_rect(primitives, widget_id, *rect, color))
         .count()
+}
+
+impl WidgetPaint<'_> {
+    /// Push top and bottom edge strips for a normalized horizontal range.
+    ///
+    /// This is the [`WidgetPaint`] counterpart to
+    /// [`push_horizontal_value_range_edge_fills`].
+    pub fn push_horizontal_value_range_edge_fills(
+        &mut self,
+        track: Rect,
+        start_fraction: f32,
+        end_fraction: f32,
+        edge_height: f32,
+        color: Rgba8,
+    ) -> usize {
+        let widget_id = self.widget_id();
+        push_horizontal_value_range_edge_fills(
+            self.primitives_mut(),
+            widget_id,
+            track,
+            start_fraction,
+            end_fraction,
+            edge_height,
+            color,
+        )
+    }
 }
 
 /// Return a full-height cursor strip centered on a normalized horizontal value.
@@ -230,6 +282,30 @@ pub fn push_horizontal_value_cursor_fill(
         return false;
     };
     push_visible_fill_rect(primitives, widget_id, rect, color)
+}
+
+impl WidgetPaint<'_> {
+    /// Push a full-height cursor strip centered on a normalized horizontal value.
+    ///
+    /// This is the [`WidgetPaint`] counterpart to
+    /// [`push_horizontal_value_cursor_fill`].
+    pub fn push_horizontal_value_cursor_fill(
+        &mut self,
+        track: Rect,
+        value_fraction: f32,
+        cursor_width: f32,
+        color: Rgba8,
+    ) -> bool {
+        let widget_id = self.widget_id();
+        push_horizontal_value_cursor_fill(
+            self.primitives_mut(),
+            widget_id,
+            track,
+            value_fraction,
+            cursor_width,
+            color,
+        )
+    }
 }
 
 /// Return up to two normalized horizontal segments centered on `center_fraction`.

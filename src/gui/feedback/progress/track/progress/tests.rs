@@ -6,7 +6,10 @@ use super::{
     push_horizontal_value_range_edge_fills, push_horizontal_value_range_fill,
 };
 use crate::gui::types::{Point, Rect};
-use crate::{gui::types::Rgba8, runtime::PaintPrimitive};
+use crate::{
+    gui::types::Rgba8,
+    runtime::{PaintPrimitive, WidgetPaint},
+};
 
 #[test]
 fn horizontal_progress_fill_rect_clamps_to_track() {
@@ -161,6 +164,26 @@ fn push_horizontal_value_range_fill_appends_visible_segment() {
 }
 
 #[test]
+fn widget_paint_pushes_horizontal_value_range_fill() {
+    let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
+    let color = Rgba8::new(1, 2, 3, 4);
+    let mut primitives = Vec::new();
+    let mut paint = WidgetPaint::new(&mut primitives, 45);
+
+    assert!(paint.push_horizontal_value_range_fill(track, 0.25, 0.75, 0.5, color));
+
+    let [PaintPrimitive::FillRect(fill)] = primitives.as_slice() else {
+        panic!("expected one fill rect");
+    };
+    assert_eq!(fill.widget_id, 45);
+    assert_eq!(
+        fill.rect,
+        Rect::from_min_max(Point::new(35.0, 30.0), Point::new(85.0, 50.0))
+    );
+    assert_eq!(fill.color, color);
+}
+
+#[test]
 fn push_horizontal_value_range_fill_skips_empty_segment() {
     let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
     let mut primitives = Vec::new();
@@ -255,6 +278,31 @@ fn push_horizontal_value_range_edge_fills_appends_edge_strips() {
 }
 
 #[test]
+fn widget_paint_pushes_horizontal_value_range_edge_fills() {
+    let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
+    let color = Rgba8::new(9, 10, 11, 12);
+    let mut primitives = Vec::new();
+    let mut paint = WidgetPaint::new(&mut primitives, 46);
+
+    assert_eq!(
+        paint.push_horizontal_value_range_edge_fills(track, 0.25, 0.75, 3.0, color),
+        2
+    );
+
+    let [
+        PaintPrimitive::FillRect(top),
+        PaintPrimitive::FillRect(bottom),
+    ] = primitives.as_slice()
+    else {
+        panic!("expected two fill rects");
+    };
+    assert_eq!(top.widget_id, 46);
+    assert_eq!(bottom.widget_id, 46);
+    assert_eq!(top.color, color);
+    assert_eq!(bottom.color, color);
+}
+
+#[test]
 fn horizontal_value_cursor_rect_centers_pixel_stable_full_height_strip() {
     let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
 
@@ -308,6 +356,26 @@ fn push_horizontal_value_cursor_fill_appends_visible_cursor() {
         }
         primitive => panic!("expected fill rect, got {primitive:?}"),
     }
+}
+
+#[test]
+fn widget_paint_pushes_horizontal_value_cursor_fill() {
+    let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
+    let color = Rgba8::new(5, 6, 7, 8);
+    let mut primitives = Vec::new();
+    let mut paint = WidgetPaint::new(&mut primitives, 47);
+
+    assert!(paint.push_horizontal_value_cursor_fill(track, 0.333, 2.0, color));
+
+    let [PaintPrimitive::FillRect(fill)] = primitives.as_slice() else {
+        panic!("expected one fill rect");
+    };
+    assert_eq!(fill.widget_id, 47);
+    assert_eq!(
+        fill.rect,
+        Rect::from_min_max(Point::new(42.0, 20.0), Point::new(44.0, 60.0))
+    );
+    assert_eq!(fill.color, color);
 }
 
 #[test]

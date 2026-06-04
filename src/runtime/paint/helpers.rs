@@ -8,6 +8,61 @@ use crate::{
 };
 use std::sync::Arc;
 
+/// Paint primitive sink bound to one widget id.
+///
+/// Custom widgets can use this to append several primitives without passing the
+/// same `Vec<PaintPrimitive>` and `WidgetId` through every helper call.
+pub struct WidgetPaint<'a> {
+    primitives: &'a mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+}
+
+impl<'a> WidgetPaint<'a> {
+    /// Create a paint sink for primitives emitted by `widget_id`.
+    pub fn new(primitives: &'a mut Vec<PaintPrimitive>, widget_id: WidgetId) -> Self {
+        Self {
+            primitives,
+            widget_id,
+        }
+    }
+
+    /// Return the widget id attached to primitives emitted by this sink.
+    pub const fn widget_id(&self) -> WidgetId {
+        self.widget_id
+    }
+
+    /// Return the underlying primitive buffer for specialized helpers.
+    pub fn primitives_mut(&mut self) -> &mut Vec<PaintPrimitive> {
+        self.primitives
+    }
+
+    /// Push a filled rectangle into this widget's paint primitive buffer.
+    pub fn push_fill_rect(&mut self, rect: Rect, color: Rgba8) {
+        push_fill_rect(self.primitives, self.widget_id, rect, color);
+    }
+
+    /// Push a filled rectangle when it has finite positive area.
+    pub fn push_visible_fill_rect(&mut self, rect: Rect, color: Rgba8) -> bool {
+        push_visible_fill_rect(self.primitives, self.widget_id, rect, color)
+    }
+
+    /// Push a stroked rectangle into this widget's paint primitive buffer.
+    pub fn push_stroke_rect(&mut self, rect: Rect, color: Rgba8, width: f32) {
+        push_stroke_rect(self.primitives, self.widget_id, rect, color, width);
+    }
+
+    /// Push a compact default single-line text run for this widget.
+    pub fn push_text(
+        &mut self,
+        text: impl Into<String>,
+        rect: Rect,
+        color: Rgba8,
+        align: PaintTextAlign,
+    ) {
+        push_text(self.primitives, self.widget_id, text, rect, color, align);
+    }
+}
+
 /// Text metrics used by paint-helper text runs.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PaintTextMetrics {
@@ -245,6 +300,30 @@ mod tests {
             &primitives[0],
             PaintPrimitive::FillRect(fill)
                 if fill.widget_id == 7 && fill.rect == rect && fill.color == color
+        ));
+    }
+
+    #[test]
+    fn widget_paint_binds_primitives_to_one_widget_id() {
+        let mut primitives = Vec::new();
+        let color = Rgba8::new(1, 2, 3, 4);
+        let rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(12.0, 8.0));
+
+        let mut paint = WidgetPaint::new(&mut primitives, 11);
+        assert_eq!(paint.widget_id(), 11);
+        assert!(paint.push_visible_fill_rect(rect, color));
+        paint.push_stroke_rect(rect, color, 2.0);
+
+        assert_eq!(primitives.len(), 2);
+        assert!(matches!(
+            &primitives[0],
+            PaintPrimitive::FillRect(fill)
+                if fill.widget_id == 11 && fill.rect == rect && fill.color == color
+        ));
+        assert!(matches!(
+            &primitives[1],
+            PaintPrimitive::StrokeRect(stroke)
+                if stroke.widget_id == 11 && stroke.rect == rect && stroke.color == color
         ));
     }
 

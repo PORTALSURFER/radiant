@@ -358,6 +358,12 @@ text insets, alignment, and wrapping without constructing `PaintTextRun`
 manually. Use `DenseRowMarkerParts::leading(width)` and `trailing(width)` for
 common selection, status, and activity edge markers instead of repeating raw
 marker geometry fields.
+Tree and outline rows that need continuous descendant guide lines can use
+`TreeGuideRow`, `TreeGuideStyle`, `tree_guide_segments(...)`,
+`tree_guide_overlay(...)`, and `tree_guide_indent(...)`. Applications should
+map their domain rows into depth plus `starts_descendant_group` metadata while
+Radiant owns segment projection, paint clipping for materialized virtual-list
+windows, and passive indent sizing.
 Rows that need active drag-source motion after a retained refresh can opt into
 `with_drag_source_motion(...)`; rows that should accept drops without producing
 drop-hover messages can use `with_drop_only(...)`. Application-builder rows

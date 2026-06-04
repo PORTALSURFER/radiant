@@ -5,6 +5,7 @@ mod geometry;
 mod grid;
 mod row_paint;
 mod selection;
+mod tree_guides;
 mod virtual_list;
 
 pub use editable::{
@@ -27,6 +28,10 @@ pub use row_paint::{
 pub use selection::{
     CyclicListSelectionCycle, KeyedListSelection, ListSelectionController, ListSelectionIntent,
     ListSelectionModifiers, cyclic_list_index_after_delta, list_index_after_delta,
+};
+pub use tree_guides::{
+    TreeGuideOverlay, TreeGuideRow, TreeGuideSegment, TreeGuideStyle, tree_guide_indent,
+    tree_guide_overlay, tree_guide_segments,
 };
 pub use virtual_list::{
     MaterializedVirtualListItem, VirtualListController, VirtualListFocusTarget,

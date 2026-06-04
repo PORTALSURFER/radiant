@@ -72,7 +72,9 @@ mod toolbar;
 pub use toolbar::{ToolbarAlignment, ToolbarParts, toolbar, toolbar_from_parts};
 mod panel_section;
 pub use panel_section::{
-    PanelSectionParts, closeable_panel_section_from_parts, panel_section, panel_section_from_parts,
+    PanelSectionLayerParts, PanelSectionParts, closeable_panel_section_from_parts,
+    closeable_panel_section_layer_from_parts, panel_section, panel_section_from_parts,
+    panel_section_layer_from_parts,
 };
 mod labeled_control;
 pub use labeled_control::{

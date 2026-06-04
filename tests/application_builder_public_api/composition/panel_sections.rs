@@ -65,6 +65,59 @@ fn closeable_panel_section_routes_standard_close_button_message() {
 }
 
 #[test]
+fn panel_section_layer_exports_anchored_panel_geometry() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::panel_section_layer_from_parts(
+        ui::PanelSectionLayerParts::new(
+            ui::PanelSectionParts::new("Inspector", ui::text("Ready").id(90)),
+            ui::Vector2::new(160.0, 90.0),
+        )
+        .horizontal(ui::LayerHorizontalAnchor::End)
+        .vertical(ui::LayerVerticalAnchor::End)
+        .inset(12.0, 10.0),
+    )
+    .into_surface();
+    let frame = surface.frame_at_size(ui::Vector2::new(220.0, 140.0), &Default::default());
+    let text_rect = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            radiant::runtime::PaintPrimitive::Text(text) if text.widget_id == 90 => Some(text.rect),
+            _ => None,
+        })
+        .expect("anchored panel content should paint");
+
+    assert!((text_rect.min.x - 54.0).abs() < 0.01, "{text_rect:?}");
+    assert!((text_rect.min.y - 70.0).abs() < 0.01, "{text_rect:?}");
+}
+
+#[test]
+fn closeable_panel_section_layer_routes_standard_close_button_message() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::closeable_panel_section_layer_from_parts(
+        ui::PanelSectionLayerParts::new(
+            ui::PanelSectionParts::new("Inspector", ui::text("Ready")),
+            ui::Vector2::new(160.0, 90.0),
+        ),
+        DemoMessage::Increment,
+    )
+    .into_surface();
+    let focus_order = surface.keyboard_focus_order();
+
+    assert_eq!(focus_order.len(), 1);
+    assert_eq!(
+        surface.dispatch_widget_output(
+            focus_order[0],
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+        ),
+        Some(DemoMessage::Increment)
+    );
+}
+
+#[test]
 fn panel_section_parts_support_named_overrides() {
     use radiant::prelude as ui;
 

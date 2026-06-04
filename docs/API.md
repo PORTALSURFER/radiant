@@ -1640,7 +1640,11 @@ row and the overlay should be anchored from the row top. Use
 menu is projected as a separate stack-level overlay.
 Transient dropdowns, menus, and popovers can use `dismissible_overlay(...)`
 when foreground overlay content should sit above a transparent outside-click
-dismiss layer while preserving the base content underneath.
+dismiss layer while preserving the base content underneath. Fixed-size titled
+popovers and inspector panels can use `PanelSectionLayerParts`,
+`panel_section_layer_from_parts(...)`, or
+`closeable_panel_section_layer_from_parts(...)` to keep panel sizing and
+full-surface anchored placement in one generic contract.
 Use `dropdown_menu_overlay_below_stacked_labeled_control(...)` when a dropdown
 trigger lives inside a compact stacked labeled-control panel and the menu should
 anchor below the current `StackedLayoutCursor` item without repeating label

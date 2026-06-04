@@ -17,6 +17,20 @@ pub struct VirtualListController {
     focused_index: Option<usize>,
 }
 
+/// Stable geometry inputs for one virtual-list projection pass.
+///
+/// Use this when the host already knows the logical item count, projected
+/// viewport length, materialization overscan, and focus-follow guard band. The
+/// named fields keep large-list projection call sites readable when several
+/// virtualized panes share the same controller workflow.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VirtualListProjection {
+    total_items: usize,
+    viewport_len: usize,
+    overscan: usize,
+    guard_band: usize,
+}
+
 /// App-owned focus key memory for virtual lists that should follow selection
 /// only when the selected item changes.
 ///
@@ -49,6 +63,60 @@ impl<Key> VirtualListFocusTarget<Key> {
             key: None,
             index: None,
         }
+    }
+}
+
+impl VirtualListProjection {
+    /// Build virtual-list projection inputs.
+    pub const fn new(
+        total_items: usize,
+        viewport_len: usize,
+        overscan: usize,
+        guard_band: usize,
+    ) -> Self {
+        Self {
+            total_items,
+            viewport_len,
+            overscan,
+            guard_band,
+        }
+    }
+
+    /// Add context rows to the focus-follow guard band.
+    ///
+    /// Browser, outline, table, and picker lists often want one or more rows of
+    /// nearby context around a selected item before follow scrolling moves the
+    /// viewport. This keeps that policy explicit at the projection call site.
+    pub const fn with_context_rows(self, context_rows: usize) -> Self {
+        Self {
+            guard_band: self.guard_band.saturating_add(context_rows),
+            ..self
+        }
+    }
+
+    /// Add one context row to the focus-follow guard band.
+    pub const fn with_context_row(self) -> Self {
+        self.with_context_rows(1)
+    }
+
+    /// Return the total logical item count.
+    pub const fn total_items(&self) -> usize {
+        self.total_items
+    }
+
+    /// Return the visible logical item count.
+    pub const fn viewport_len(&self) -> usize {
+        self.viewport_len
+    }
+
+    /// Return the materialization overscan.
+    pub const fn overscan(&self) -> usize {
+        self.overscan
+    }
+
+    /// Return the focus-follow guard band.
+    pub const fn guard_band(&self) -> usize {
+        self.guard_band
     }
 }
 
@@ -196,6 +264,16 @@ impl VirtualListController {
         self.clamp_viewport_start();
     }
 
+    /// Configure the stable geometry inputs from a named projection value.
+    pub fn configure_projection(&mut self, projection: VirtualListProjection) {
+        self.configure(
+            projection.total_items,
+            projection.viewport_len,
+            projection.overscan,
+            projection.guard_band,
+        );
+    }
+
     /// Configure the stable geometry inputs and resolve around optional focus.
     ///
     /// Use this during a projection pass when host-owned selection should keep
@@ -208,7 +286,19 @@ impl VirtualListController {
         guard_band: usize,
         focused_index: Option<usize>,
     ) -> VirtualListWindow {
-        self.configure(total_items, viewport_len, overscan, guard_band);
+        self.configure_projection_and_focus_optional(
+            VirtualListProjection::new(total_items, viewport_len, overscan, guard_band),
+            focused_index,
+        )
+    }
+
+    /// Configure named projection inputs and resolve around optional focus.
+    pub fn configure_projection_and_focus_optional(
+        &mut self,
+        projection: VirtualListProjection,
+        focused_index: Option<usize>,
+    ) -> VirtualListWindow {
+        self.configure_projection(projection);
         self.focus_optional(focused_index)
     }
 
@@ -227,7 +317,22 @@ impl VirtualListController {
         guard_band: usize,
         focus: VirtualListFocusTarget<Key>,
     ) -> VirtualListWindow {
-        self.configure(total_items, viewport_len, overscan, guard_band);
+        self.configure_projection_and_focus_changed_optional(
+            follow_state,
+            VirtualListProjection::new(total_items, viewport_len, overscan, guard_band),
+            focus,
+        )
+    }
+
+    /// Configure named projection inputs and follow optional focus only when an
+    /// app-owned focus key changes.
+    pub fn configure_projection_and_focus_changed_optional<Key: PartialEq>(
+        &mut self,
+        follow_state: &mut VirtualListFollowState<Key>,
+        projection: VirtualListProjection,
+        focus: VirtualListFocusTarget<Key>,
+    ) -> VirtualListWindow {
+        self.configure_projection(projection);
         if follow_state.update_focus_key(focus.key) {
             return match focus.index {
                 Some(index) => self.focus(index),
@@ -255,11 +360,9 @@ impl VirtualListController {
         guard_band: usize,
         focused_index: Option<usize>,
     ) -> VirtualListWindow {
-        self.configure_and_focus_optional(
-            total_items,
-            viewport_len,
-            overscan,
-            guard_band.saturating_add(1),
+        self.configure_projection_and_focus_optional(
+            VirtualListProjection::new(total_items, viewport_len, overscan, guard_band)
+                .with_context_row(),
             focused_index,
         )
     }
@@ -275,12 +378,10 @@ impl VirtualListController {
         guard_band: usize,
         focus: VirtualListFocusTarget<Key>,
     ) -> VirtualListWindow {
-        self.configure_and_focus_changed_optional(
+        self.configure_projection_and_focus_changed_optional(
             follow_state,
-            total_items,
-            viewport_len,
-            overscan,
-            guard_band.saturating_add(1),
+            VirtualListProjection::new(total_items, viewport_len, overscan, guard_band)
+                .with_context_row(),
             focus,
         )
     }

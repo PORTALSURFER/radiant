@@ -30,7 +30,7 @@ pub use selection::{
 pub use virtual_list::{
     MaterializedVirtualListItem, VirtualListController, VirtualListFocusTarget,
     VirtualListFollowState, VirtualListInvalidation, VirtualListItemKey, VirtualListItemOverlay,
-    VirtualListItemState, VirtualListScrollbar, VirtualListScrollbarRequest,
+    VirtualListItemState, VirtualListProjection, VirtualListScrollbar, VirtualListScrollbarRequest,
     VirtualListStackMetrics, VirtualListStackMetricsParts, VirtualListWindow,
     VirtualListWindowRequest, resolve_virtual_list_scrollbar, resolve_virtual_list_window,
     virtual_list_scroll_delta_from_units, virtual_list_scrollbar_thumb_offset_at_point,

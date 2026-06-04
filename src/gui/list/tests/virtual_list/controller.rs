@@ -1,4 +1,6 @@
-use super::super::super::{VirtualListController, VirtualListFocusTarget, VirtualListFollowState};
+use super::super::super::{
+    VirtualListController, VirtualListFocusTarget, VirtualListFollowState, VirtualListProjection,
+};
 use crate::gui::types::{Point, Rect};
 
 #[test]
@@ -35,6 +37,25 @@ fn virtual_list_controller_configures_and_focuses_in_one_projection_step() {
     assert_eq!(controller.overscan(), 2);
     assert_eq!(controller.guard_band(), 2);
     assert_eq!(controller.focused_index(), Some(4));
+}
+
+#[test]
+fn virtual_list_projection_names_projection_inputs() {
+    let mut controller = VirtualListController::new();
+    let projection = VirtualListProjection::new(100, 10, 2, 2).with_context_row();
+
+    let window = controller.configure_projection_and_focus_optional(projection, Some(8));
+
+    assert_eq!(projection.total_items(), 100);
+    assert_eq!(projection.viewport_len(), 10);
+    assert_eq!(projection.overscan(), 2);
+    assert_eq!(projection.guard_band(), 3);
+    assert_eq!(window.viewport_start, 2);
+    assert_eq!(controller.total_items(), 100);
+    assert_eq!(controller.viewport_len(), 10);
+    assert_eq!(controller.overscan(), 2);
+    assert_eq!(controller.guard_band(), 3);
+    assert_eq!(controller.focused_index(), Some(8));
 }
 
 #[test]
@@ -77,6 +98,35 @@ fn virtual_list_controller_follows_changed_focus_without_overriding_manual_scrol
 
     assert_eq!(changed.viewport_start, 2);
     assert_eq!(follow.focus_key(), Some(&"sample-05"));
+}
+
+#[test]
+fn virtual_list_projection_follows_changed_focus() {
+    let mut controller = VirtualListController::new();
+    let mut follow = VirtualListFollowState::new();
+    let projection = VirtualListProjection::new(80, 8, 2, 1).with_context_rows(2);
+
+    let first = controller.configure_projection_and_focus_changed_optional(
+        &mut follow,
+        projection,
+        VirtualListFocusTarget::new(Some("row-30"), Some(30)),
+    );
+    assert_eq!(first.viewport_start, 26);
+
+    controller.set_scroll_offset(50.0 * 22.0, 22.0);
+    let stable = controller.configure_projection_and_focus_changed_optional(
+        &mut follow,
+        projection,
+        VirtualListFocusTarget::new(Some("row-30"), Some(30)),
+    );
+    assert_eq!(stable.viewport_start, 50);
+
+    let changed = controller.configure_projection_and_focus_changed_optional(
+        &mut follow,
+        projection,
+        VirtualListFocusTarget::new(Some("row-4"), Some(4)),
+    );
+    assert_eq!(changed.viewport_start, 1);
 }
 
 #[test]

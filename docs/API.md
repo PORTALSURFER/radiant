@@ -359,11 +359,21 @@ Controllers can be configured per projection pass with `configure(...)`, follow
 optional app-owned focus using `focus_optional(...)`, and consume native
 pixel-scroll offsets with `set_scroll_offset(...)` while preserving the same
 clamping and virtual-window contract.
+Use `VirtualListProjection::new(total_items, viewport_len, overscan,
+guard_band)` when list geometry should be passed as one named projection value
+instead of repeated positional arguments. Add `with_context_row()` or
+`with_context_rows(...)` for browser, outline, table, or picker lists that
+should preserve adjacent context around focused items before guard-band
+scrolling moves the viewport.
 Use `set_scroll_offset_for_items(...)` when a native scroll update arrives
 through a list whose item count may also have changed because of filtering,
 search, or app-owned selection.
 Use `configure_and_focus_optional(...)` when a projection pass should update
 item count, viewport policy, and optional host selection in one controller call.
+  Use `configure_projection_and_focus_optional(...)` or
+  `configure_projection_and_focus_changed_optional(...)` when the same projection
+  inputs are reused across a virtualized pane or should stay readable beside
+  host-owned focus-key logic.
   Use `configure_and_focus_optional_with_context_row(...)` for browser, outline,
   table, or picker lists that should keep one adjacent context row around the
   focused item before guard-band scrolling moves the viewport.

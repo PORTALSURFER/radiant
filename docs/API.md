@@ -241,7 +241,10 @@ reducer needs both `TextInputMessageKind` and the borrowed value without
 cloning or consuming the message.
 Applications with several mutually exclusive transient surfaces, such as
 dropdowns, popovers, or inspector subpanels, can use `ExclusiveOpen<T>` to keep
-one typed item open at a time and centralize toggle/close behavior.
+one typed item open at a time and centralize toggle/close behavior. Use
+`open_changed(...)`, `close_changed()`, and `toggle_changed(...)` when retained
+rows, overlays, or drag/drop targets need to request invalidation only when the
+exclusive item actually changed.
 Stateful apps can project secondary top-level windows with
 `.auxiliary_windows(...)` and `AuxiliaryWindow::new(...)`. Use
 `.on_close(message)` to route native close requests back into the host reducer.

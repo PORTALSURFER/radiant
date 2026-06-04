@@ -39,6 +39,11 @@ impl<T> ExclusiveOpen<T> {
         self.current = None;
     }
 
+    /// Close the current item and report whether anything changed.
+    pub fn close_changed(&mut self) -> bool {
+        self.current.take().is_some()
+    }
+
     /// Consume the state and return the current item key.
     pub fn into_option(self) -> Option<T> {
         self.current
@@ -61,5 +66,20 @@ where
         } else {
             self.open(item);
         }
+    }
+
+    /// Open one item and report whether it replaced a different current item.
+    pub fn open_changed(&mut self, item: T) -> bool {
+        if self.is_open(&item) {
+            return false;
+        }
+        self.open(item);
+        true
+    }
+
+    /// Toggle one item and report whether the open state changed.
+    pub fn toggle_changed(&mut self, item: T) -> bool {
+        self.toggle(item);
+        true
     }
 }

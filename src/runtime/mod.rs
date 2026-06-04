@@ -41,10 +41,11 @@ pub use crate::gui_runtime::{
     run_native_vello_runtime_with_artifacts,
 };
 pub use bridge::{
-    App, AuxiliaryWindow, DeclarativeCommandRuntimeBridge, DeclarativeCommandRuntimeBridgeParts,
-    DeclarativeOwnedCommandRuntimeBridge, DeclarativeOwnedCommandRuntimeBridgeParts,
-    DeclarativeOwnedRuntimeBridge, DeclarativeOwnedRuntimeBridgeParts, DeclarativeRuntimeBridge,
-    DeclarativeRuntimeBridgeParts, RuntimeAnimationActivity, RuntimeAnimationDemand, RuntimeBridge,
+    App, AuxiliaryWindow, AuxiliaryWindowClosePolicy, DeclarativeCommandRuntimeBridge,
+    DeclarativeCommandRuntimeBridgeParts, DeclarativeOwnedCommandRuntimeBridge,
+    DeclarativeOwnedCommandRuntimeBridgeParts, DeclarativeOwnedRuntimeBridge,
+    DeclarativeOwnedRuntimeBridgeParts, DeclarativeRuntimeBridge, DeclarativeRuntimeBridgeParts,
+    RuntimeAnimationActivity, RuntimeAnimationDemand, RuntimeBridge,
     declarative_command_runtime_bridge, declarative_owned_command_runtime_bridge,
     declarative_owned_runtime_bridge, declarative_runtime_bridge,
 };

@@ -17,6 +17,7 @@ mod placement;
 pub(super) struct AuxiliaryNativeWindow<Message> {
     key: String,
     close_message: Option<Message>,
+    cache_on_close: bool,
     runner: GenericNativeVelloRunner<AuxiliarySurfaceBridge<Message>, Message>,
     active: bool,
 }
@@ -27,6 +28,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         parent_options: &NativeRunOptions,
     ) -> Self {
         let viewport = initial_viewport(&projection.options);
+        let cache_on_close = projection.caches_on_close();
         let mut options = projection.options;
         options.frame.debug_layout |= parent_options.frame.debug_layout;
         if options.text.embedded_fonts.is_empty() && options.text.font_paths.is_empty() {
@@ -36,6 +38,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         Self {
             key: projection.key,
             close_message: projection.close_message,
+            cache_on_close,
             runner: GenericNativeVelloRunner::new(options, bridge, viewport),
             active: true,
         }
@@ -50,6 +53,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     }
 
     pub(super) fn update_projection(&mut self, projection: AuxiliaryWindow<Message>) {
+        self.cache_on_close = projection.caches_on_close();
         self.close_message = projection.close_message;
         self.runner.core.runtime.bridge_mut().surface = projection.surface;
         self.runner.core.refresh_surface();
@@ -103,6 +107,13 @@ impl<Message> AuxiliaryNativeWindow<Message> {
     ) -> AuxiliaryWindowEventResult<Message> {
         match event {
             WindowEvent::CloseRequested => {
+                if self.cache_on_close {
+                    self.hide();
+                    return AuxiliaryWindowEventResult {
+                        closed: false,
+                        messages: self.close_message.take().into_iter().collect(),
+                    };
+                }
                 return AuxiliaryWindowEventResult {
                     closed: true,
                     messages: self.close_message.take().into_iter().collect(),

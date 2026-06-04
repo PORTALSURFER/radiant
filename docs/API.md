@@ -242,6 +242,13 @@ cloning or consuming the message.
 Applications with several mutually exclusive transient surfaces, such as
 dropdowns, popovers, or inspector subpanels, can use `ExclusiveOpen<T>` to keep
 one typed item open at a time and centralize toggle/close behavior.
+Stateful apps can project secondary top-level windows with
+`.auxiliary_windows(...)` and `AuxiliaryWindow::new(...)`. Use
+`.on_close(message)` to route native close requests back into the host reducer.
+Frequently reopened utility windows such as settings panels and inspectors can
+also call `.cache_on_close()` so native close hides and retains the prepared
+window; a later projection with the same key updates and shows the cached
+window instead of recreating the native window and renderer state.
 Applications that need lightweight UI-cadence diagnostics can use
 `FrameCadenceMonitor` with `FrameCadenceConfig` to classify first-frame,
 warning-spike, error-spike, periodic, and normal frame deltas while keeping

@@ -426,13 +426,18 @@ mod tests {
     #[derive(Clone, Debug, PartialEq)]
     enum DemoMessage {
         Activate,
+        ActivateKey(String),
         ActivateWithModifiers(crate::widgets::PointerModifiers),
+        ActivateWithModifiersKey(String, crate::widgets::PointerModifiers),
         DoubleActivate,
+        DoubleActivateKey(String),
+        DragKey(String, crate::widgets::DragHandleMessage),
         Drop,
         DropKey(String),
         HoverDrop(Point),
         HoverDropKey(String, Point),
         Secondary(Point),
+        SecondaryKey(String, Point),
     }
 
     #[test]
@@ -524,6 +529,60 @@ mod tests {
         assert_eq!(
             actions.route(InteractiveRowMessage::ActivateWithModifiers { modifiers }),
             Some(DemoMessage::ActivateWithModifiers(modifiers))
+        );
+    }
+
+    #[test]
+    fn interactive_row_actions_route_keyed_activation_and_secondary_actions() {
+        let actions = InteractiveRowActions::new()
+            .activate_key(String::from("target-a"), DemoMessage::ActivateKey)
+            .double_activate_key(String::from("target-b"), DemoMessage::DoubleActivateKey)
+            .secondary_key(String::from("target-c"), DemoMessage::SecondaryKey);
+        let secondary = Point::new(8.0, 14.0);
+
+        assert_eq!(
+            actions.route(InteractiveRowMessage::Activate),
+            Some(DemoMessage::ActivateKey(String::from("target-a")))
+        );
+        assert_eq!(
+            actions.route(InteractiveRowMessage::DoubleActivate),
+            Some(DemoMessage::DoubleActivateKey(String::from("target-b")))
+        );
+        assert_eq!(
+            actions.route(InteractiveRowMessage::SecondaryActivate {
+                position: secondary
+            }),
+            Some(DemoMessage::SecondaryKey(
+                String::from("target-c"),
+                secondary
+            ))
+        );
+    }
+
+    #[test]
+    fn interactive_row_actions_route_keyed_modifier_activation_and_drag() {
+        let modifiers = crate::widgets::PointerModifiers {
+            alt: true,
+            ..crate::widgets::PointerModifiers::default()
+        };
+        let drag = crate::widgets::DragHandleMessage::moved(Point::new(4.0, 6.0));
+        let actions = InteractiveRowActions::new()
+            .activate_with_modifiers_key(
+                String::from("target-a"),
+                DemoMessage::ActivateWithModifiersKey,
+            )
+            .drag_key(String::from("target-b"), DemoMessage::DragKey);
+
+        assert_eq!(
+            actions.route(InteractiveRowMessage::ActivateWithModifiers { modifiers }),
+            Some(DemoMessage::ActivateWithModifiersKey(
+                String::from("target-a"),
+                modifiers
+            ))
+        );
+        assert_eq!(
+            actions.route(InteractiveRowMessage::Drag(drag)),
+            Some(DemoMessage::DragKey(String::from("target-b"), drag))
         );
     }
 

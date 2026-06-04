@@ -94,12 +94,39 @@ impl<Message> InteractiveRowActions<Message> {
         self
     }
 
+    /// Emit a single-activation message for one host-owned row key.
+    pub fn activate_key<Key>(
+        mut self,
+        key: Key,
+        message: impl Fn(Key) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+    {
+        self.activate = Some(Arc::new(move || message(key.clone())));
+        self
+    }
+
     /// Emit a host message for single primary activation with modifier state.
     pub fn activate_with_modifiers(
         mut self,
         message: impl Fn(PointerModifiers) -> Message + Send + Sync + 'static,
     ) -> Self {
         self.activate_with_modifiers = Some(Arc::new(message));
+        self
+    }
+
+    /// Emit a modifier-aware activation message for one host-owned row key.
+    pub fn activate_with_modifiers_key<Key>(
+        mut self,
+        key: Key,
+        message: impl Fn(Key, PointerModifiers) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+    {
+        self.activate_with_modifiers =
+            Some(Arc::new(move |modifiers| message(key.clone(), modifiers)));
         self
     }
 
@@ -112,6 +139,19 @@ impl<Message> InteractiveRowActions<Message> {
         self
     }
 
+    /// Emit a double-activation message for one host-owned row key.
+    pub fn double_activate_key<Key>(
+        mut self,
+        key: Key,
+        message: impl Fn(Key) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+    {
+        self.double_activate = Some(Arc::new(move || message(key.clone())));
+        self
+    }
+
     /// Emit a host message for secondary activation.
     pub fn secondary(
         mut self,
@@ -121,12 +161,38 @@ impl<Message> InteractiveRowActions<Message> {
         self
     }
 
+    /// Emit a secondary-activation message for one host-owned row key.
+    pub fn secondary_key<Key>(
+        mut self,
+        key: Key,
+        message: impl Fn(Key, crate::gui::types::Point) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+    {
+        self.secondary = Some(Arc::new(move |position| message(key.clone(), position)));
+        self
+    }
+
     /// Emit a host message for drag lifecycle updates.
     pub fn drag(
         mut self,
         message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
         self.drag = Some(Arc::new(message));
+        self
+    }
+
+    /// Emit drag lifecycle messages for one host-owned row key.
+    pub fn drag_key<Key>(
+        mut self,
+        key: Key,
+        message: impl Fn(Key, DragHandleMessage) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+    {
+        self.drag = Some(Arc::new(move |drag| message(key.clone(), drag)));
         self
     }
 

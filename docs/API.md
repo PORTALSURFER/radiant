@@ -1645,11 +1645,14 @@ lists so projection stays bounded to a `VirtualListWindow`; reserve
 `virtual_list(...)` for smaller lists where eagerly building every row remains
 acceptable.
 Run `cargo run --example inspector_panel` for a compact inspector/property
-panel sandbox that uses `PropertyRow`, `property_panel(...)`, and
-`selectable_property_panel(...)` on the same application-builder path as other
-stateful examples. `property_panel(...)` is read-only and can be used with any
-host message type; use `selectable_property_panel(...)` when property rows
-should emit state callbacks. Compact titled panels with optional header actions can use
+panel sandbox that uses `PropertyRow`, `property_rows(...)`,
+`property_panel(...)`, and `selectable_property_panel(...)` on the same
+application-builder path as other stateful examples. `property_rows(...)`
+builds read-only property rows without adding a titled panel shell, so host
+applications can embed standard inspector rows inside app-owned panel sections.
+`property_panel(...)` is read-only and can be used with any host message type;
+use `selectable_property_panel(...)` when property rows should emit state
+callbacks. Compact titled panels with optional header actions can use
 `PanelSectionParts`, `panel_section(...)`, `panel_section_from_parts(...)`, and
 `closeable_panel_section_from_parts(...)` instead of rebuilding title rows,
 close buttons, padding, spacing, and neutral panel chrome in application code.

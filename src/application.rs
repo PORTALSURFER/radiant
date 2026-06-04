@@ -59,7 +59,7 @@ pub use details_list::{
 };
 mod property_panel;
 pub use property_panel::{
-    PropertyRow, PropertyRowParts, property_panel, selectable_property_panel,
+    PropertyRow, PropertyRowParts, property_panel, property_rows, selectable_property_panel,
 };
 mod status_bar;
 pub use status_bar::{StatusBarParts, status_bar, status_bar_from_parts};

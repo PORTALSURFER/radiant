@@ -65,6 +65,27 @@ fn application_builder_property_panel_read_only_rows_do_not_join_focus_order() {
 }
 
 #[test]
+fn application_builder_property_rows_can_compose_without_panel_shell() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::property_rows([
+        ui::PropertyRow::new("name", "Name", "Layer 12"),
+        ui::PropertyRow::new("kind", "Kind", "Signal track"),
+    ])
+    .id(1)
+    .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(280.0, 80.0)),
+    );
+
+    assert!(surface.keyboard_focus_order().is_empty());
+    assert_eq!(layout.rects[&1].min.x, 0.0);
+    assert_eq!(layout.rects[&1].width(), 280.0);
+    assert!(layout.rects[&1].height() <= 80.0);
+}
+
+#[test]
 fn property_rows_support_named_parts_construction() {
     use radiant::prelude as ui;
 

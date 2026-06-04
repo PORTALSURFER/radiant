@@ -64,14 +64,21 @@ pub fn property_panel<Message: 'static>(
 ) -> ViewNode<Message> {
     column([
         text(title.into()).height(20.0).fill_width(),
-        column(rows.into_iter().map(read_only_property_row))
-            .fill_width()
-            .spacing(1.0),
+        property_rows(rows),
     ])
     .style(WidgetStyle::default())
     .fill_width()
     .padding(6.0)
     .spacing(4.0)
+}
+
+/// Build read-only inspector/property rows without adding a titled panel shell.
+pub fn property_rows<Message: 'static>(
+    rows: impl IntoIterator<Item = PropertyRow>,
+) -> ViewNode<Message> {
+    column(rows.into_iter().map(read_only_property_row))
+        .fill_width()
+        .spacing(1.0)
 }
 
 /// Build an inspector/property panel with selectable rows.

@@ -312,6 +312,10 @@ delegation without reading the embedded row field layout. Use
 `InteractiveRowWidget::push_dense_fill(...)` when a custom row painter should
 use the row's retained hover/pressed state plus host-owned selection or target
 state to append standard dense-row feedback. Use
+`InteractiveRowWidget::dense_chrome_parts(...)` and
+`push_dense_chrome(...)` when the custom row needs standard dense-row fill,
+markers, or outlines while keeping row identity and retained input-state
+projection inside Radiant. Use
 `InteractiveRowMessage::activation_modifiers()`,
 `single_activation_modifiers()`, `is_single_activation()`,
 `is_double_activation()`,

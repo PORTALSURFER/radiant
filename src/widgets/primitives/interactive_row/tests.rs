@@ -1,5 +1,6 @@
 use super::*;
 use crate::{
+    gui::list::{DenseRowMarkerParts, DenseRowMarkerStyle},
     gui::types::{Point, Rgba8, Vector2},
     layout::LayoutOutput,
     runtime::PaintPrimitive,
@@ -65,6 +66,39 @@ fn push_dense_fill_uses_row_state_and_identity() {
         primitives.as_slice(),
         [PaintPrimitive::FillRect(fill)]
             if fill.widget_id == row.id() && fill.rect == bounds && fill.color == color
+    ));
+}
+
+#[test]
+fn push_dense_chrome_uses_row_state_and_identity() {
+    let mut row = InteractiveRowWidget::new(7, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
+    row.common.state.hovered = true;
+    let bounds = Rect::from_size(120.0, 22.0);
+    let hover = Rgba8::new(8, 9, 10, 180);
+    let marker = Rgba8::new(220, 120, 60, 255);
+    let mut primitives = Vec::new();
+    let parts = row
+        .dense_chrome_parts(
+            InteractiveRowVisualStateParts {
+                selected: true,
+                ..InteractiveRowVisualStateParts::default()
+            },
+            DenseRowPalette::new().hovered(hover),
+        )
+        .leading_marker(DenseRowMarkerStyle::new(
+            DenseRowMarkerParts::leading(2.0),
+            marker,
+        ));
+
+    assert_eq!(row.push_dense_chrome(&mut primitives, bounds, parts), 2);
+    assert!(matches!(
+        primitives.as_slice(),
+        [PaintPrimitive::FillRect(fill), PaintPrimitive::FillRect(marker_fill)]
+            if fill.widget_id == row.id()
+                && fill.rect == bounds
+                && fill.color == hover
+                && marker_fill.widget_id == row.id()
+                && marker_fill.color == marker
     ));
 }
 

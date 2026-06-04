@@ -1,7 +1,10 @@
 //! Reusable dense-list/tree row interaction primitive.
 
 use crate::gui::{
-    list::{DenseRowPalette, DenseRowVisualState, push_dense_row_fill},
+    list::{
+        DenseRowChromeParts, DenseRowPalette, DenseRowVisualState, push_dense_row_chrome,
+        push_dense_row_fill,
+    },
     types::Rect,
 };
 use crate::layout::LayoutOutput;
@@ -453,6 +456,20 @@ impl InteractiveRowWidget {
         }
     }
 
+    /// Project this row's retained input state and host-owned visual state into
+    /// dense-row chrome parts.
+    ///
+    /// Custom row wrappers can add markers, outlines, or other chrome to the
+    /// returned parts before painting while keeping the generic hover, press,
+    /// selection, active-target, and candidate state merge in Radiant.
+    pub fn dense_chrome_parts(
+        &self,
+        parts: InteractiveRowVisualStateParts,
+        palette: DenseRowPalette,
+    ) -> DenseRowChromeParts {
+        DenseRowChromeParts::new(self.dense_visual_state(parts), palette)
+    }
+
     /// Push this row's highest-priority dense feedback fill into a custom paint plan.
     ///
     /// Custom row wrappers can use this when they compose an
@@ -472,6 +489,20 @@ impl InteractiveRowWidget {
             self.dense_visual_state(parts),
             palette,
         )
+    }
+
+    /// Push this row's standard dense chrome into a custom paint plan.
+    ///
+    /// Custom row wrappers can build parts with [`Self::dense_chrome_parts`],
+    /// add host-specific markers or outlines, and then use this method so
+    /// Radiant supplies the row widget identity and paint-plan guard behavior.
+    pub fn push_dense_chrome(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        parts: DenseRowChromeParts,
+    ) -> usize {
+        push_dense_row_chrome(primitives, self.id(), bounds, parts)
     }
 
     /// Route input through this row and map the row message into a typed widget output.

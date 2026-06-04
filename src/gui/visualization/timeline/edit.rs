@@ -1,7 +1,11 @@
 use super::TimelineCoordinateMapper;
-use crate::gui::{
-    range::{NormalizedRange, normalized_fraction_to_micros, normalized_fraction_to_milli},
-    types::{Point, Rect},
+use crate::{
+    gui::{
+        range::{NormalizedRange, normalized_fraction_to_micros, normalized_fraction_to_milli},
+        types::{Point, Rect, Rgba8},
+    },
+    runtime::{PaintPrimitive, push_visible_fill_rect},
+    widgets::WidgetId,
 };
 
 /// Editable range and fade handles for a normalized timeline or signal view.
@@ -445,6 +449,40 @@ impl TimelineEditPreview {
                 self.handle_rect(mapper, geometry, handle)
                     .map(|rect| (handle, rect))
             })
+    }
+
+    /// Append guarded filled rectangles for the standard edit-preview regions.
+    ///
+    /// The caller owns region colors while Radiant owns projection, standard
+    /// region order, and finite/visible paint emission.
+    pub fn push_standard_region_fills(
+        self,
+        primitives: &mut Vec<PaintPrimitive>,
+        widget_id: WidgetId,
+        mapper: TimelineCoordinateMapper,
+        geometry: TimelineEditRegionGeometry,
+        mut color_for_region: impl FnMut(TimelineEditRegion) -> Rgba8,
+    ) {
+        for (region, rect) in self.standard_region_rects(mapper, geometry) {
+            push_visible_fill_rect(primitives, widget_id, rect, color_for_region(region));
+        }
+    }
+
+    /// Append guarded filled rectangles for the standard edit-preview handles.
+    ///
+    /// The caller owns handle colors while Radiant owns projection, standard
+    /// handle order, and finite/visible paint emission.
+    pub fn push_standard_handle_fills(
+        self,
+        primitives: &mut Vec<PaintPrimitive>,
+        widget_id: WidgetId,
+        mapper: TimelineCoordinateMapper,
+        geometry: TimelineEditHandleGeometry,
+        mut color_for_handle: impl FnMut(TimelineEditHandle) -> Rgba8,
+    ) {
+        for (handle, rect) in self.standard_handle_rects(mapper, geometry) {
+            push_visible_fill_rect(primitives, widget_id, rect, color_for_handle(handle));
+        }
     }
 
     /// Return the first standard edit handle whose rectangle contains `position`.

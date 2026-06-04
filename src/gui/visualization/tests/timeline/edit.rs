@@ -1,6 +1,6 @@
 use crate::gui::{
     range::{NormalizedPixelSnap, NormalizedRange},
-    types::{Point, Rect, Vector2},
+    types::{Point, Rect, Rgba8, Vector2},
     visualization::{
         TimelineCoordinateMapper, TimelineEditHandle, TimelineEditHandleGeometry,
         TimelineEditPreview, TimelineEditPreviewParts, TimelineEditRamp, TimelineEditRegion,
@@ -64,6 +64,14 @@ fn assert_rect_near(actual: Option<Rect>, expected: Rect) {
         (actual.max.y - expected.max.y).abs() <= epsilon,
         "{actual:?}"
     );
+}
+
+fn fill_rects(primitives: &[crate::runtime::PaintPrimitive]) -> Vec<(u64, Rect, Rgba8)> {
+    primitives
+        .iter()
+        .filter_map(|primitive| primitive.fill_rect())
+        .map(|fill| (fill.widget_id, fill.rect, fill.color))
+        .collect()
 }
 
 #[test]
@@ -144,6 +152,41 @@ fn timeline_edit_preview_iterates_standard_region_rects() {
 }
 
 #[test]
+fn timeline_edit_preview_pushes_standard_region_fills() {
+    let mut primitives = Vec::new();
+    let region_color = |region| match region {
+        TimelineEditRegion::LeadingInner | TimelineEditRegion::TrailingInner => {
+            Rgba8::new(20, 40, 60, 180)
+        }
+        TimelineEditRegion::LeadingOuter | TimelineEditRegion::TrailingOuter => {
+            Rgba8::new(20, 40, 60, 96)
+        }
+    };
+
+    preview().push_standard_region_fills(
+        &mut primitives,
+        7,
+        mapper(),
+        region_geometry(),
+        region_color,
+    );
+
+    let fills = fill_rects(&primitives);
+    assert_eq!(fills.len(), 4);
+    assert_eq!(fills[0].0, 7);
+    assert_rect_near(
+        Some(fills[0].1),
+        Rect::from_min_max(Point::new(40.0, 0.0), Point::new(60.0, 80.0)),
+    );
+    assert_eq!(fills[0].2, Rgba8::new(20, 40, 60, 180));
+    assert_rect_near(
+        Some(fills[2].1),
+        Rect::from_min_max(Point::new(20.0, 0.0), Point::new(40.0, 80.0)),
+    );
+    assert_eq!(fills[2].2, Rgba8::new(20, 40, 60, 96));
+}
+
+#[test]
 fn timeline_edit_preview_hit_tests_outer_handles_outside_selection_rect() {
     let preview = preview();
     let mapper = mapper();
@@ -199,6 +242,33 @@ fn timeline_edit_preview_iterates_standard_handle_rects() {
         assert_eq!(actual_handle, expected_handle);
         assert_rect_near(Some(actual_rect), expected_rect);
     }
+}
+
+#[test]
+fn timeline_edit_preview_pushes_standard_handle_fills() {
+    let mut primitives = Vec::new();
+    let handle_color = |handle| match handle {
+        TimelineEditHandle::LeadingEnd | TimelineEditHandle::TrailingStart => {
+            Rgba8::new(90, 120, 240, 220)
+        }
+        _ => Rgba8::new(90, 120, 240, 160),
+    };
+
+    preview().push_standard_handle_fills(&mut primitives, 9, mapper(), geometry(), handle_color);
+
+    let fills = fill_rects(&primitives);
+    assert_eq!(fills.len(), 6);
+    assert_eq!(fills[0].0, 9);
+    assert_rect_near(
+        Some(fills[0].1),
+        Rect::from_min_max(Point::new(55.0, 0.0), Point::new(65.0, 10.0)),
+    );
+    assert_eq!(fills[0].2, Rgba8::new(90, 120, 240, 220));
+    assert_rect_near(
+        Some(fills[4].1),
+        Rect::from_min_max(Point::new(15.0, 35.0), Point::new(25.0, 45.0)),
+    );
+    assert_eq!(fills[4].2, Rgba8::new(90, 120, 240, 160));
 }
 
 #[test]

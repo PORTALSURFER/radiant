@@ -1091,7 +1091,10 @@ visible-selection geometry construction,
 testing, and `TimelineEditRegion` plus `TimelineEditRegionGeometry` for
 leading/trailing edit-region projection. Use `standard_handle_rects(...)` and
 `standard_region_rects(...)` when custom widgets need to paint or inspect all
-standard edit affordances while keeping host-specific colors and commands,
+standard edit affordances while keeping host-specific colors and commands, or
+`push_standard_handle_fills(...)` and `push_standard_region_fills(...)` when the
+standard affordances should be emitted as guarded filled rectangles with
+host-supplied colors,
 `TimelineFeedbackEvents` for transient operation feedback tokens,
 `TimelinePresentationState` for guide spacing, repeat state, and compact labels,
 `TimelineMarkerPreview` for retained marker overlays, and
@@ -2001,7 +2004,10 @@ editors need standard handle hit rectangles and leading/trailing region paint
 rectangles without duplicating viewport projection math. Use `TimelineEditRamp`
 and `TimelineEditPreview::from_normalized_ramps(...)` when a host already has a
 normalized selected range plus leading/trailing ramp lengths, outer extensions,
-and optional curve values.
+and optional curve values. Use
+`TimelineEditPreview::push_standard_region_fills(...)` and
+`push_standard_handle_fills(...)` when Radiant should own standard edit-preview
+paint emission while the host owns colors and domain commands.
 
 ## Invalidation And Lifecycle
 

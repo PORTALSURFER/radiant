@@ -89,6 +89,57 @@ fn canvas_gesture_state_tracks_press_drag_and_release() {
 }
 
 #[test]
+fn canvas_gesture_event_exposes_shared_pointer_metadata() {
+    let mut state = CanvasGestureState::new();
+    let modifiers = PointerModifiers {
+        command: true,
+        ..PointerModifiers::default()
+    };
+
+    state.handle_input(
+        bounds(),
+        &WidgetInput::PointerPress {
+            position: Point::new(20.0, 30.0),
+            button: PointerButton::Secondary,
+            modifiers,
+        },
+    );
+    let event = state
+        .handle_input(
+            bounds(),
+            &WidgetInput::PointerMove {
+                position: Point::new(35.0, 40.0),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(
+        event.pointer().map(|pointer| pointer.position),
+        Some(Point::new(35.0, 40.0))
+    );
+    assert_eq!(
+        event.origin().map(|pointer| pointer.position),
+        Some(Point::new(20.0, 30.0))
+    );
+    assert_eq!(event.button(), Some(PointerButton::Secondary));
+    assert_eq!(event.modifiers(), Some(modifiers));
+    assert_eq!(event.delta(), Some(Vector2::new(15.0, 10.0)));
+    assert!(event.pointer_is_inside(bounds()));
+}
+
+#[test]
+fn canvas_gesture_event_accessors_handle_non_pointer_events() {
+    let event = CanvasGestureEvent::FocusChanged(false);
+
+    assert_eq!(event.pointer(), None);
+    assert_eq!(event.origin(), None);
+    assert_eq!(event.button(), None);
+    assert_eq!(event.modifiers(), None);
+    assert_eq!(event.delta(), None);
+    assert!(!event.pointer_is_inside(bounds()));
+}
+
+#[test]
 fn canvas_gesture_state_clears_drag_on_focus_loss() {
     let mut state = CanvasGestureState::new();
     state.handle_input(

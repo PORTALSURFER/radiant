@@ -1,6 +1,6 @@
 use super::pointer::CanvasPointer;
 use crate::{
-    gui::types::Vector2,
+    gui::types::{Rect, Vector2},
     widgets::interaction::{PointerButton, PointerModifiers},
 };
 
@@ -73,4 +73,77 @@ pub enum CanvasGestureEvent {
     },
     /// Keyboard focus changed.
     FocusChanged(bool),
+}
+
+impl CanvasGestureEvent {
+    /// Return the current pointer carried by pointer-like gesture events.
+    pub fn pointer(&self) -> Option<CanvasPointer> {
+        match self {
+            Self::Hover(pointer)
+            | Self::Press { pointer, .. }
+            | Self::Drag { pointer, .. }
+            | Self::Release { pointer, .. }
+            | Self::DoubleClick { pointer, .. }
+            | Self::Wheel { pointer, .. }
+            | Self::Drop { pointer, .. } => Some(*pointer),
+            Self::FocusChanged(_) => None,
+        }
+    }
+
+    /// Return the captured gesture origin when the event has one.
+    pub fn origin(&self) -> Option<CanvasPointer> {
+        match self {
+            Self::Drag { origin, .. } | Self::Release { origin, .. } => Some(*origin),
+            Self::Drop { origin, .. } => *origin,
+            Self::Hover(_)
+            | Self::Press { .. }
+            | Self::DoubleClick { .. }
+            | Self::Wheel { .. }
+            | Self::FocusChanged(_) => None,
+        }
+    }
+
+    /// Return the button associated with pointer-button gesture events.
+    pub fn button(&self) -> Option<PointerButton> {
+        match self {
+            Self::Press { button, .. }
+            | Self::Drag { button, .. }
+            | Self::Release { button, .. }
+            | Self::DoubleClick { button, .. }
+            | Self::Drop { button, .. } => Some(*button),
+            Self::Hover(_) | Self::Wheel { .. } | Self::FocusChanged(_) => None,
+        }
+    }
+
+    /// Return the pointer modifiers associated with button gesture events.
+    pub fn modifiers(&self) -> Option<PointerModifiers> {
+        match self {
+            Self::Press { modifiers, .. }
+            | Self::Drag { modifiers, .. }
+            | Self::Release { modifiers, .. }
+            | Self::DoubleClick { modifiers, .. }
+            | Self::Drop { modifiers, .. } => Some(*modifiers),
+            Self::Hover(_) | Self::Wheel { .. } | Self::FocusChanged(_) => None,
+        }
+    }
+
+    /// Return the logical movement delta associated with drag-like gesture events.
+    pub fn delta(&self) -> Option<Vector2> {
+        match self {
+            Self::Drag { delta, .. } | Self::Release { delta, .. } | Self::Wheel { delta, .. } => {
+                Some(*delta)
+            }
+            Self::Hover(_)
+            | Self::Press { .. }
+            | Self::DoubleClick { .. }
+            | Self::Drop { .. }
+            | Self::FocusChanged(_) => None,
+        }
+    }
+
+    /// Return whether the event's current pointer is inside `bounds`.
+    pub fn pointer_is_inside(&self, bounds: Rect) -> bool {
+        self.pointer()
+            .is_some_and(|pointer| pointer.is_inside(bounds))
+    }
 }

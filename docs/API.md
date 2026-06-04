@@ -415,6 +415,10 @@ actions such as range selection or marker editing.
 Use `CanvasPointer::is_inside(...)`, `normalized_x()`, and `normalized_y()` to
 classify projected pointer events and read normalized axes without repeating
 host-coordinate bounds checks or raw vector-field access in app widgets.
+Use `CanvasGestureEvent::pointer()`, `origin()`, `button()`, `modifiers()`,
+`delta()`, and `pointer_is_inside(...)` when a custom canvas needs shared
+gesture metadata without matching every hover, press, drag, release,
+double-click, wheel, and drop variant separately.
 Custom widgets that handle `WidgetInput` directly can use
 `pointer_position()`, `pointer_start_position()`, `pointer_start_inside(...)`,
 and `pointer_start_outside(...)` to share Radiant's backend-neutral pointer

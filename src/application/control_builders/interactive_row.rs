@@ -429,7 +429,9 @@ mod tests {
         ActivateWithModifiers(crate::widgets::PointerModifiers),
         DoubleActivate,
         Drop,
+        DropKey(String),
         HoverDrop(Point),
+        HoverDropKey(String, Point),
         Secondary(Point),
     }
 
@@ -522,6 +524,25 @@ mod tests {
         assert_eq!(
             actions.route(InteractiveRowMessage::ActivateWithModifiers { modifiers }),
             Some(DemoMessage::ActivateWithModifiers(modifiers))
+        );
+    }
+
+    #[test]
+    fn interactive_row_actions_route_keyed_drop_targets() {
+        let actions = InteractiveRowActions::new().drop_target_key(
+            String::from("target-a"),
+            DemoMessage::DropKey,
+            DemoMessage::HoverDropKey,
+        );
+        let hover = Point::new(6.0, 12.0);
+
+        assert_eq!(
+            actions.route(InteractiveRowMessage::Drop),
+            Some(DemoMessage::DropKey(String::from("target-a")))
+        );
+        assert_eq!(
+            actions.route(InteractiveRowMessage::HoverDropTarget { position: hover }),
+            Some(DemoMessage::HoverDropKey(String::from("target-a"), hover))
         );
     }
 

@@ -145,6 +145,29 @@ impl<Message> InteractiveRowActions<Message> {
         self
     }
 
+    /// Emit drop and hover-drop messages for one host-owned target key.
+    ///
+    /// Use this when several row-like surfaces map drop and hover-drop to the
+    /// same durable application key, such as a folder, category, layer, lane, or
+    /// collection. The key stays host-owned; Radiant only centralizes the common
+    /// row-action routing shape.
+    pub fn drop_target_key<Key>(
+        mut self,
+        key: Key,
+        drop_message: impl Fn(Key) -> Message + Send + Sync + 'static,
+        hover_drop_message: impl Fn(Key, crate::gui::types::Point) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+    {
+        let hover_key = key.clone();
+        self.drop = Some(Arc::new(move || drop_message(key.clone())));
+        self.hover_drop = Some(Arc::new(move |position| {
+            hover_drop_message(hover_key.clone(), position)
+        }));
+        self
+    }
+
     /// Route a generic row interaction into the configured host action.
     pub fn route(&self, message: InteractiveRowMessage) -> Option<Message> {
         if let Some(position) = message.secondary_position() {

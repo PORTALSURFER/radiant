@@ -322,7 +322,10 @@ host-specific row messages without repeating exhaustive event-shape matches.
 `InteractiveRowActions::route(...)` when custom row wrappers need the same
 activation, modifier-aware activation, secondary-click, drag, drop, and
 hover-drop routing table that `interactive_row().actions(...)` and
-`interactive_row_underlay(...).actions(...)` use.
+`interactive_row_underlay(...).actions(...)` use. Use
+`InteractiveRowActions::drop_target_key(...)` when drop and hover-drop should
+both route through the same host-owned target key without duplicating capture
+closures at each row, chip, or tree item.
 Use the single-activation helpers when double-click has a separate host action
 such as rename, drill-in, or open-in-place behavior. Drag-capable controls can use
 `DragHandleMessage::phase()`, `position()`, `started_position()`,

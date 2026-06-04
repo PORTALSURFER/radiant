@@ -103,3 +103,64 @@ fn update_panel_resize_drag_ignores_orphaned_motion() {
         None
     );
 }
+
+#[test]
+fn update_collapsible_panel_resize_drag_collapses_on_double_activate() {
+    let mut drag = Some(PanelResizeDrag::new(
+        PanelResizeEdge::Top,
+        Point::new(0.0, 120.0),
+        180.0,
+    ));
+
+    assert_eq!(
+        update_collapsible_panel_resize_drag(
+            &mut drag,
+            DragHandleMessage::DoubleActivate {
+                position: Point::new(0.0, 120.0)
+            },
+            PanelResizeEdge::Top,
+            180.0,
+            72.0,
+            240.0,
+            48.0,
+        ),
+        Some(72.0)
+    );
+    assert_eq!(drag, None);
+}
+
+#[test]
+fn update_collapsible_panel_resize_drag_preserves_normal_resize_lifecycle() {
+    let mut drag = None;
+
+    assert_eq!(
+        update_collapsible_panel_resize_drag(
+            &mut drag,
+            DragHandleMessage::Started {
+                position: Point::new(0.0, 120.0)
+            },
+            PanelResizeEdge::Top,
+            148.0,
+            72.0,
+            240.0,
+            72.0,
+        ),
+        None
+    );
+    assert!(drag.is_some());
+    assert_eq!(
+        update_collapsible_panel_resize_drag(
+            &mut drag,
+            DragHandleMessage::Moved {
+                position: Point::new(0.0, 80.0)
+            },
+            PanelResizeEdge::Top,
+            148.0,
+            72.0,
+            240.0,
+            72.0,
+        ),
+        Some(188.0)
+    );
+    assert!(drag.is_some());
+}

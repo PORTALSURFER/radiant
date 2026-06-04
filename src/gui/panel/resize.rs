@@ -84,6 +84,33 @@ pub fn update_panel_resize_drag(
     }
 }
 
+/// Apply one drag-handle message to collapsible panel resize state.
+///
+/// This extends [`update_panel_resize_drag`] with a double-activation collapse
+/// target while preserving the same drag lifecycle. Hosts still own durable
+/// panel size, active drag state, and their chosen min/max/collapsed sizes.
+pub fn update_collapsible_panel_resize_drag(
+    active_drag: &mut Option<PanelResizeDrag>,
+    message: DragHandleMessage,
+    edge: PanelResizeEdge,
+    current_size: f32,
+    min_size: f32,
+    max_size: f32,
+    collapsed_size: f32,
+) -> Option<f32> {
+    if message.is_double_activate() {
+        *active_drag = None;
+        return Some(clamped_panel_size(collapsed_size, min_size, max_size));
+    }
+    update_panel_resize_drag(active_drag, message, edge, current_size, min_size, max_size)
+}
+
+fn clamped_panel_size(size: f32, min_size: f32, max_size: f32) -> f32 {
+    let min_size = finite_or(min_size, 0.0).max(0.0);
+    let max_size = finite_or(max_size, min_size).max(min_size);
+    finite_or(size, min_size).clamp(min_size, max_size)
+}
+
 fn finite_or(value: f32, fallback: f32) -> f32 {
     if value.is_finite() { value } else { fallback }
 }

@@ -953,7 +953,10 @@ transient result lists while the host keeps ownership of option values and
 messages. Use `CompactOptionListFloatingAboveParts` and
 `compact_option_list_floating_above(...)` when such a result list should be
 anchored above an editor or trigger inside the same stack layer without
-app-local height and floating-offset arithmetic.
+app-local height and floating-offset arithmetic. Use
+`CompactOptionListAnchoredParts` and `compact_option_list_anchored(...)` when
+the same list should be projected in a parent-anchored overlay layer, such as a
+full-surface autocomplete layer above a bottom panel.
 Compact toolbars and action strips can use
 `layout::fixed_width_row_rects_start`, `layout::fixed_width_row_rects_end`, and
 `layout::visible_suffix_widths` to place fixed-width controls through the

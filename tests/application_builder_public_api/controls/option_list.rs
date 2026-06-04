@@ -22,3 +22,18 @@ fn compact_option_list_exports_selected_primary_secondary_rows() {
     )
     .into_surface();
 }
+
+#[test]
+fn compact_option_list_exports_anchored_overlay_parts() {
+    let items = vec![ui::CompactOptionListItem::new("Kick").secondary_label("Drums")];
+    let parts = ui::CompactOptionListAnchoredParts::new(
+        ui::CompactOptionListParts::new(items, 96.0),
+        180.0,
+        ui::LayerHorizontalAnchor::Start,
+        ui::LayerVerticalAnchor::End,
+        12.0,
+        24.0,
+    );
+
+    let _surface = ui::compact_option_list_anchored::<()>(parts).into_surface();
+}

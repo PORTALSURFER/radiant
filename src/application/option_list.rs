@@ -1,6 +1,6 @@
 use super::{
-    BoundedScrollColumnParts, ViewNode, bounded_scroll_column_from_parts, empty,
-    floating_layer_above, row, text,
+    BoundedScrollColumnParts, LayerHorizontalAnchor, LayerVerticalAnchor, ViewNode, anchored_layer,
+    bounded_scroll_column_from_parts, empty, floating_layer_above, row, text,
 };
 use crate::gui::list::bounded_list_height;
 use crate::layout::Vector2;
@@ -150,6 +150,23 @@ pub struct CompactOptionListFloatingAboveParts {
     pub width: f32,
 }
 
+/// Named construction fields for a compact option list in an anchored layer.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CompactOptionListAnchoredParts {
+    /// Option-list content and row metrics.
+    pub list: CompactOptionListParts,
+    /// Floating option-list width.
+    pub width: f32,
+    /// Horizontal anchor inside the parent layer.
+    pub horizontal_anchor: LayerHorizontalAnchor,
+    /// Vertical anchor inside the parent layer.
+    pub vertical_anchor: LayerVerticalAnchor,
+    /// Horizontal inset from the selected horizontal anchor.
+    pub inset_x: f32,
+    /// Vertical inset from the selected vertical anchor.
+    pub inset_y: f32,
+}
+
 impl CompactOptionListFloatingAboveParts {
     /// Build named parts for a compact option list floating above a trigger.
     pub const fn new(
@@ -165,6 +182,27 @@ impl CompactOptionListFloatingAboveParts {
             trigger_y,
             gap,
             width,
+        }
+    }
+}
+
+impl CompactOptionListAnchoredParts {
+    /// Build named parts for a compact option list in an anchored layer.
+    pub const fn new(
+        list: CompactOptionListParts,
+        width: f32,
+        horizontal_anchor: LayerHorizontalAnchor,
+        vertical_anchor: LayerVerticalAnchor,
+        inset_x: f32,
+        inset_y: f32,
+    ) -> Self {
+        Self {
+            list,
+            width,
+            horizontal_anchor,
+            vertical_anchor,
+            inset_x,
+            inset_y,
         }
     }
 }
@@ -225,6 +263,32 @@ pub fn compact_option_list_floating_above<Message: 'static>(
         parts.gap,
         Vector2::new(width, height),
         child,
+    )
+}
+
+/// Build a compact option list in a parent-anchored layer.
+///
+/// This is useful for autocomplete popups and compact editor pickers that are
+/// projected in a full-surface overlay layer instead of beside their trigger in
+/// the local stack.
+pub fn compact_option_list_anchored<Message: 'static>(
+    parts: CompactOptionListAnchoredParts,
+) -> ViewNode<Message> {
+    let height = parts.list.height();
+    if height <= 0.0 {
+        return empty().fill_width();
+    }
+    let width = parts.width.max(1.0);
+    let child = compact_option_list_from_parts(parts.list)
+        .fill_width()
+        .height(height);
+    anchored_layer(
+        child,
+        Vector2::new(width, height),
+        parts.horizontal_anchor,
+        parts.vertical_anchor,
+        parts.inset_x,
+        parts.inset_y,
     )
 }
 
@@ -332,5 +396,39 @@ mod tests {
 
         assert!((text_rect.min.x - 17.0).abs() < 0.01, "{text_rect:?}");
         assert!((text_rect.min.y - 43.0).abs() < 0.01, "{text_rect:?}");
+    }
+
+    #[test]
+    fn compact_option_list_anchored_positions_popup_from_parent_edges() {
+        let items = vec![CompactOptionListItem::new("Kick").secondary_label("Drum")];
+        let list = CompactOptionListParts::new(items, 80.0)
+            .row_height(18.0)
+            .vertical_chrome(6.0);
+        let popup = compact_option_list_anchored::<()>(CompactOptionListAnchoredParts::new(
+            list,
+            160.0,
+            LayerHorizontalAnchor::Start,
+            LayerVerticalAnchor::End,
+            12.0,
+            24.0,
+        ));
+
+        let frame = UiSurface::new(stack([text("").size(220.0, 120.0), popup]).into_node()).frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(220.0, 120.0)),
+            &Default::default(),
+        );
+
+        let text_rect = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) if text.text.as_str() == "Kick" => Some(text.rect),
+                _ => None,
+            })
+            .expect("anchored option list should paint item text");
+
+        assert!((text_rect.min.x - 19.0).abs() < 0.01, "{text_rect:?}");
+        assert!((text_rect.min.y - 79.0).abs() < 0.01, "{text_rect:?}");
     }
 }

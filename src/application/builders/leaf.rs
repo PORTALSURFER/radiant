@@ -7,7 +7,10 @@ use crate::{
     application::{DynamicWidget, MappedWidget, ViewNode, ViewNodeKind, WidgetView},
     gui::types::ImageRgba,
     layout::Vector2,
-    runtime::{GpuSurfaceContent, PaintText, WidgetMessageMapper},
+    runtime::{
+        GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay, PaintText,
+        WidgetMessageMapper,
+    },
     widgets::{
         BadgeWidget, ButtonWidget, CanvasWidget, CardWidget, GpuSurfaceMessage, GpuSurfaceParts,
         GpuSurfaceWidget, ImageWidget, TextInputWidget, TextWidget, ToggleWidget, Widget,
@@ -30,6 +33,50 @@ pub struct GpuSurfaceInputParts<Map> {
     pub content: GpuSurfaceContent,
     /// Mapper from routed widget input to the host application's message type.
     pub map: Map,
+}
+
+/// Named construction inputs for a configured retained GPU surface view.
+///
+/// This keeps retained resource identity, content generation, runtime
+/// capabilities, and backend-composited overlays explicit without requiring a
+/// host to write a custom widget whose only job is GPU-surface paint.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GpuSurfaceConfiguredParts {
+    /// Stable surface key used by native backends for retained GPU resources.
+    pub key: u64,
+    /// Monotonic content revision for retained GPU resources.
+    pub revision: u64,
+    /// Backend-neutral retained GPU content.
+    pub content: GpuSurfaceContent,
+    /// Runtime interaction capabilities requested by this GPU surface.
+    pub capabilities: GpuSurfaceCapabilities,
+    /// Optional lightweight overlays composited by the native GPU backend.
+    pub overlays: Vec<GpuSurfaceOverlay>,
+}
+
+impl GpuSurfaceConfiguredParts {
+    /// Build configured GPU surface parts from the required retained payload.
+    pub fn new(key: u64, revision: u64, content: GpuSurfaceContent) -> Self {
+        Self {
+            key,
+            revision,
+            content,
+            capabilities: GpuSurfaceCapabilities::default(),
+            overlays: Vec::new(),
+        }
+    }
+
+    /// Replace runtime interaction capabilities.
+    pub fn capabilities(mut self, capabilities: GpuSurfaceCapabilities) -> Self {
+        self.capabilities = capabilities;
+        self
+    }
+
+    /// Replace lightweight backend-composited overlays.
+    pub fn overlays(mut self, overlays: Vec<GpuSurfaceOverlay>) -> Self {
+        self.overlays = overlays;
+        self
+    }
 }
 
 pub(in crate::application) fn view_node_from_widget<Message>(
@@ -146,6 +193,28 @@ pub fn gpu_surface<Message: 'static>(
 /// retained resource identity and revision are easier to review as named fields.
 pub fn gpu_surface_from_parts<Message: 'static>(parts: GpuSurfaceParts) -> ViewNode<Message> {
     view_node_from_widget(GpuSurfaceWidget::from_parts(parts))
+}
+
+/// Build a configured retained GPU surface view from named construction inputs.
+///
+/// Use this when a host needs generic runtime capabilities such as fast pointer
+/// motion, coalesced wheel routing, runtime overlays, or lightweight
+/// backend-composited overlays while keeping the surface on the normal
+/// declarative application path.
+pub fn gpu_surface_configured_from_parts<Message: 'static>(
+    parts: GpuSurfaceConfiguredParts,
+) -> ViewNode<Message> {
+    view_node_from_widget(
+        GpuSurfaceWidget::from_parts(GpuSurfaceParts {
+            id: 0,
+            sizing: default_gpu_surface_sizing(),
+            key: parts.key,
+            revision: parts.revision,
+            content: parts.content,
+        })
+        .with_capabilities(parts.capabilities)
+        .with_overlays(parts.overlays),
+    )
 }
 
 /// Build an input-emitting retained GPU surface view with generated identity.

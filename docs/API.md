@@ -320,6 +320,9 @@ such as rename, drill-in, or open-in-place behavior. Drag-capable controls can u
 `is_moved()`, `is_ended()`, `is_finished()`, and `is_cancelled()` when reducers
 need generic drag lifecycle information or cancellation cleanup without duplicating the
 `Started` / `Moved` / `Ended` / `Cancelled` variant shape. Use
+`DragHandleMessage::started(...)`, `moved(...)`, `ended(...)`,
+`double_activate(...)`, and `cancelled(...)` when tests, reducers, or custom
+widgets need to construct drag lifecycle messages directly. Use
 `DragHandlePhase::as_str()` for stable lowercase diagnostic labels. Reducers that
 resolve or cancel a drag gesture with both an in-window preview and an armed
 native external-drag payload can call `UpdateContext::end_drag_session()` instead

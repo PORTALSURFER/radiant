@@ -372,6 +372,41 @@ mod drag_handle_phase_tests {
         assert_eq!(cancelled.finished_position(), Some(Point::new(30.0, 40.0)));
         assert_eq!(moved.finished_position(), None);
     }
+
+    #[test]
+    fn drag_handle_message_constructors_preserve_variant_semantics() {
+        let start = Point::new(1.0, 2.0);
+        let move_to = Point::new(3.0, 4.0);
+        let end = Point::new(5.0, 6.0);
+        let double = Point::new(7.0, 8.0);
+        let cancel = Point::new(9.0, 10.0);
+
+        assert_eq!(
+            DragHandleMessage::started(start),
+            DragHandleMessage::Started { position: start }
+        );
+        assert_eq!(
+            DragHandleMessage::moved(move_to),
+            DragHandleMessage::Moved { position: move_to }
+        );
+        assert_eq!(
+            DragHandleMessage::ended(end),
+            DragHandleMessage::Ended { position: end }
+        );
+        assert_eq!(
+            DragHandleMessage::double_activate(double),
+            DragHandleMessage::DoubleActivate { position: double }
+        );
+        assert_eq!(
+            DragHandleMessage::cancelled(cancel),
+            DragHandleMessage::Cancelled { position: cancel }
+        );
+        assert!(DragHandleMessage::started(start).is_started());
+        assert!(DragHandleMessage::moved(move_to).is_moved());
+        assert!(DragHandleMessage::ended(end).is_ended());
+        assert!(DragHandleMessage::double_activate(double).is_double_activate());
+        assert!(DragHandleMessage::cancelled(cancel).is_cancelled());
+    }
 }
 
 /// Message emitted by a reusable scrollbar primitive.
@@ -453,6 +488,31 @@ impl DragHandlePhase {
 }
 
 impl DragHandleMessage {
+    /// Build a drag-start message at `position`.
+    pub const fn started(position: Point) -> Self {
+        Self::Started { position }
+    }
+
+    /// Build an active drag-motion message at `position`.
+    pub const fn moved(position: Point) -> Self {
+        Self::Moved { position }
+    }
+
+    /// Build a drag-ended message at `position`.
+    pub const fn ended(position: Point) -> Self {
+        Self::Ended { position }
+    }
+
+    /// Build a double-activation message at `position`.
+    pub const fn double_activate(position: Point) -> Self {
+        Self::DoubleActivate { position }
+    }
+
+    /// Build a drag-cancelled message at `position`.
+    pub const fn cancelled(position: Point) -> Self {
+        Self::Cancelled { position }
+    }
+
     /// Return this drag message's lifecycle phase.
     pub fn phase(self) -> DragHandlePhase {
         match self {

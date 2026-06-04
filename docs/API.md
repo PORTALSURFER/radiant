@@ -1962,12 +1962,17 @@ baseline helpers are also available through `radiant::prelude` for custom
 widget painters. The module also exposes deterministic approximate width helpers
 such as `TextWidthEstimate`, `estimated_text_width_in_range`, and
 `estimated_text_width_for_char_count_in_range` for layout decisions that must be
-made before renderer shaping metrics are available. The plain placement and
-width helpers are deterministic and side-effect free; renderer adapters that
-need retention can pass an owned cache and font-family cache key to
-`centered_text_line_with_cache` or `top_text_line_with_cache`. That keeps
-hot-path text geometry reuse explicit, backend-owned, and free of hidden global
-synchronization while avoiding host-domain text semantics.
+made before renderer shaping metrics are available. Use
+`estimated_text_width_for_segments` or
+`estimated_text_width_for_segments_in_range` when the displayed label is
+assembled from stable pieces such as an inline completion suffix, prefix, or
+adornment and the host should not allocate a temporary joined string just to size
+the control. The plain placement and width helpers are deterministic and
+side-effect free; renderer adapters that need retention can pass an owned cache
+and font-family cache key to `centered_text_line_with_cache` or
+`top_text_line_with_cache`. That keeps hot-path text geometry reuse explicit,
+backend-owned, and free of hidden global synchronization while avoiding
+host-domain text semantics.
 
 `radiant::gui::visualization` contains generic visualization models such as
 `TimelineAxis`, `TimelineLaneLayout`, `TimelineViewport`,

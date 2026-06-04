@@ -16,7 +16,8 @@ pub use insets::TextLineInsets;
 pub use placement::snap_text_baseline_to_pixel;
 pub use width::{
     TextWidthEstimate, estimated_text_width, estimated_text_width_for_char_count,
-    estimated_text_width_for_char_count_in_range, estimated_text_width_in_range,
+    estimated_text_width_for_char_count_in_range, estimated_text_width_for_segments,
+    estimated_text_width_for_segments_in_range, estimated_text_width_in_range,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

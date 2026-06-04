@@ -176,6 +176,25 @@ fn estimated_text_width_uses_character_count_and_padding() {
 }
 
 #[test]
+fn estimated_text_width_for_segments_matches_joined_text_without_allocation() {
+    let metrics = TextWidthEstimate::new(7.0, 12.0);
+
+    assert_eq!(
+        estimated_text_width_for_segments(["ki", "ck"], metrics),
+        estimated_text_width("kick", metrics)
+    );
+    assert_eq!(
+        estimated_text_width_for_segments_in_range(
+            ["long ", "sample", " label"],
+            metrics,
+            30.0,
+            80.0
+        ),
+        80.0
+    );
+}
+
+#[test]
 fn estimated_text_width_in_range_normalizes_invalid_bounds() {
     let metrics = TextWidthEstimate::new(7.0, 12.0);
 

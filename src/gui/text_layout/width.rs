@@ -32,6 +32,15 @@ pub fn estimated_text_width(text: &str, metrics: TextWidthEstimate) -> f32 {
     estimated_text_width_for_char_count(text.chars().count(), metrics)
 }
 
+/// Approximate text width for several displayed text segments plus configured
+/// padding, without requiring callers to allocate a joined string.
+pub fn estimated_text_width_for_segments<'a>(
+    segments: impl IntoIterator<Item = &'a str>,
+    metrics: TextWidthEstimate,
+) -> f32 {
+    estimated_text_width_for_char_count(text_segments_char_count(segments), metrics)
+}
+
 /// Approximate text width for a known displayed character count plus padding.
 pub fn estimated_text_width_for_char_count(char_count: usize, metrics: TextWidthEstimate) -> f32 {
     let advance = finite_nonnegative_width(metrics.character_advance);
@@ -54,6 +63,22 @@ pub fn estimated_text_width_in_range(
     )
 }
 
+/// Approximate text width for several displayed text segments, clamped to a
+/// caller-defined logical-width range.
+pub fn estimated_text_width_for_segments_in_range<'a>(
+    segments: impl IntoIterator<Item = &'a str>,
+    metrics: TextWidthEstimate,
+    min_width: f32,
+    max_width: f32,
+) -> f32 {
+    estimated_text_width_for_char_count_in_range(
+        text_segments_char_count(segments),
+        metrics,
+        min_width,
+        max_width,
+    )
+}
+
 /// Approximate text width for a known character count, clamped to a range.
 pub fn estimated_text_width_for_char_count_in_range(
     char_count: usize,
@@ -64,6 +89,13 @@ pub fn estimated_text_width_for_char_count_in_range(
     let min_width = finite_nonnegative_width(min_width);
     let max_width = finite_nonnegative_width(max_width).max(min_width);
     estimated_text_width_for_char_count(char_count, metrics).clamp(min_width, max_width)
+}
+
+fn text_segments_char_count<'a>(segments: impl IntoIterator<Item = &'a str>) -> usize {
+    segments
+        .into_iter()
+        .map(|segment| segment.chars().count())
+        .sum()
 }
 
 pub(in crate::gui) fn finite_nonnegative_width(value: f32) -> f32 {

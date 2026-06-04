@@ -1876,9 +1876,12 @@ Use `pack_flow_rows_with_trailing_group` when callers need the common form of
 packing existing items and appending one such atomic trailing group.
 Use `capped_flow_rows_height(...)` when the editor should grow to a maximum
 visible row count before switching to a scrollable content area.
-Use `FlowFieldMetrics` when a bounded inline editor needs shared content-width,
-visible-height, and scroll-threshold calculations around the packed rows while
-the host still owns domain-specific labels, ordering, messages, and styling.
+Use `FlowFieldMetrics` and `FlowFieldLayout` when a bounded inline editor needs
+shared content-width, visible-height, and scroll-threshold calculations around
+the packed rows while the host still owns domain-specific labels, ordering,
+messages, and styling. Call `layout(...)` when the container width is available,
+or `layout_for_content_width(...)` after using the resolved content width to
+pack rows.
 
 `radiant::gui::form` contains reusable form and picker models such as
 `DecimalTextInputPolicy`, `SummaryField`, `OptionItem`, `OptionSelectionState`,

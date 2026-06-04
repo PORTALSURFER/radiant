@@ -52,6 +52,23 @@ pub struct FlowFieldMetrics {
     pub max_visible_rows: usize,
 }
 
+/// Resolved geometry summary for a bounded wrapped inline field.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FlowFieldLayout {
+    /// Usable row-packing width inside the field chrome.
+    pub content_width: f32,
+    /// Number of rows produced by caller-owned flow packing.
+    pub row_count: usize,
+    /// Number of rows visible before scrolling is needed.
+    pub visible_row_count: usize,
+    /// Visible content height before adding field chrome.
+    pub content_height: f32,
+    /// Visible field height including field chrome.
+    pub field_height: f32,
+    /// Whether the packed rows exceed the visible row limit.
+    pub requires_scroll: bool,
+}
+
 impl FlowFieldMetrics {
     /// Construct field metrics from named already-resolved logical-pixel values.
     pub const fn from_parts(parts: FlowFieldMetricsParts) -> Self {
@@ -84,6 +101,25 @@ impl FlowFieldMetrics {
     /// Return the available row-packing width inside a containing field.
     pub fn content_width(self, container_width: f32) -> f32 {
         (container_width - self.horizontal_chrome.max(0.0)).max(self.min_content_width.max(0.0))
+    }
+
+    /// Return the resolved field layout for a containing width and row count.
+    pub fn layout(self, container_width: f32, row_count: usize) -> FlowFieldLayout {
+        self.layout_for_content_width(self.content_width(container_width), row_count)
+    }
+
+    /// Return the resolved field layout for an already-computed content width.
+    pub fn layout_for_content_width(self, content_width: f32, row_count: usize) -> FlowFieldLayout {
+        let visible_row_count = self.visible_row_count(row_count);
+        let content_height = flow_rows_height(visible_row_count, self.flow);
+        FlowFieldLayout {
+            content_width: content_width.max(self.min_content_width.max(0.0)),
+            row_count,
+            visible_row_count,
+            content_height,
+            field_height: content_height + self.vertical_chrome.max(0.0),
+            requires_scroll: self.requires_scroll(row_count),
+        }
     }
 
     /// Return the row count visible before the field should scroll.
@@ -473,6 +509,25 @@ mod tests {
         assert_eq!(field.visible_field_height(8), 70.0);
         assert!(field.requires_scroll(4));
         assert!(!field.requires_scroll(3));
+    }
+
+    #[test]
+    fn flow_field_layout_resolves_content_height_and_scroll_policy() {
+        let field = FlowFieldMetrics::new(metrics(), 26.0, 6.0, 120.0, 3);
+
+        assert_eq!(
+            field.layout(400.0, 8),
+            FlowFieldLayout {
+                content_width: 374.0,
+                row_count: 8,
+                visible_row_count: 3,
+                content_height: 64.0,
+                field_height: 70.0,
+                requires_scroll: true,
+            }
+        );
+        assert_eq!(field.layout(80.0, 0).content_width, 120.0);
+        assert_eq!(field.layout_for_content_width(80.0, 0).content_width, 120.0);
     }
 
     #[test]

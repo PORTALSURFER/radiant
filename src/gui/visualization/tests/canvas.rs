@@ -5,10 +5,10 @@ use super::super::{
     CanvasSelectionBodyHandlePaintParts, CanvasSelectionBodyHandleParts,
     CanvasSelectionBodyHandleStyle, CanvasSelectionEdgeHitTestParts,
     CanvasSelectionEdgeVisualPaintParts, CanvasSelectionEdgeVisualStyle, CanvasSelectionGeometry,
-    CanvasSelectionTrailingControlHitTestParts, CanvasSelectionTrailingControlPaintParts,
-    CanvasSelectionTrailingControlStyle, DragHandle, DragHandleRole, canvas_layer_at_point,
-    canvas_selection_body_handle_rect, canvas_selection_edge_handles,
-    canvas_selection_edge_visual_rect, canvas_selection_rect,
+    CanvasSelectionPaintStyle, CanvasSelectionTrailingControlHitTestParts,
+    CanvasSelectionTrailingControlPaintParts, CanvasSelectionTrailingControlStyle, DragHandle,
+    DragHandleRole, canvas_layer_at_point, canvas_selection_body_handle_rect,
+    canvas_selection_edge_handles, canvas_selection_edge_visual_rect, canvas_selection_rect,
     canvas_selection_trailing_control_rect, drag_handle_at_point,
     horizontal_resize_edge_bracket_rects, horizontal_resize_edge_handles,
     horizontal_resize_edge_visual_rect, horizontal_resize_handles,
@@ -541,6 +541,41 @@ fn canvas_selection_affordance_style_pushes_group_fills() {
     assert_eq!(
         fills[3].rect,
         Rect::from_min_max(Point::new(114.0, 104.0), Point::new(130.0, 120.0))
+    );
+}
+
+#[test]
+fn canvas_selection_paint_style_derives_standard_colors() {
+    let style = CanvasSelectionPaintStyle::new(Rgba8::new(20, 40, 60, 255))
+        .fill_alpha(72)
+        .cursor_alpha(210)
+        .body_alpha(180)
+        .edge_alpha(220)
+        .trailing_control_alpha(230);
+
+    assert_eq!(style.fill_color(), Rgba8::new(20, 40, 60, 72));
+    assert_eq!(style.cursor_color(), Rgba8::new(20, 40, 60, 210));
+    assert_eq!(style.body_color(), Rgba8::new(20, 40, 60, 180));
+    assert_eq!(style.edge_color(), Rgba8::new(20, 40, 60, 220));
+    assert_eq!(style.trailing_control_color(), Rgba8::new(20, 40, 60, 230));
+}
+
+#[test]
+fn canvas_selection_paint_style_builds_affordance_paint_parts() {
+    let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 120.0));
+    let edge_bounds = bounds.top_edge_strip(22.0);
+    let parts = CanvasSelectionPaintStyle::new(Rgba8::new(90, 120, 240, 255))
+        .body_alpha(180)
+        .edge_alpha(220)
+        .trailing_control_alpha(235)
+        .affordance_paint_parts(edge_bounds);
+
+    assert_eq!(parts.edge_bounds, edge_bounds);
+    assert_eq!(parts.body_color, Some(Rgba8::new(90, 120, 240, 180)));
+    assert_eq!(parts.edge_color, Some(Rgba8::new(90, 120, 240, 220)));
+    assert_eq!(
+        parts.trailing_control_color,
+        Some(Rgba8::new(90, 120, 240, 235))
     );
 }
 

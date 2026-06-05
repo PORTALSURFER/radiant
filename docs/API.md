@@ -1177,13 +1177,15 @@ and interactive handles,
 `CanvasSelectionBodyHandleParts`, `CanvasSelectionBodyHandlePaintParts`,
 `CanvasSelectionBodyHandleStyle`, `CanvasSelectionEdgeHitTestParts`,
 `CanvasSelectionEdgeVisualPaintParts`, `CanvasSelectionEdgeVisualStyle`,
+`CanvasSelectionPaintStyle`,
 `CanvasSelectionTrailingControlHitTestParts`, `CanvasSelectionTrailingControlPaintParts`,
 `CanvasSelectionTrailingControlStyle`,
 `canvas_selection_body_handle_rect`,
 `canvas_selection_trailing_control_rect`, `canvas_selection_edge_handles`,
 `canvas_selection_edge_visual_rect`, and `horizontal_resize_edge_bracket_rects`
 for generic retained-canvas layering, selection, control, resize handle geometry,
-selection affordance hit testing, and guarded selection-affordance paint emission,
+selection affordance hit testing, guarded selection-affordance paint emission,
+and standard selection chrome color derivation from a host-supplied base color,
 `TimelineViewport` for normalized viewport bounds, including construction from
 integer `IndexViewport` ranges,
 `TimelineTransportState` for cursor/playhead/selection positions,
@@ -2154,7 +2156,10 @@ style instead of rebuilding low-level hit-test parts in app code. Use
 `CanvasSelectionBodyHandleStyle`, `CanvasSelectionEdgeVisualStyle`, and
 `CanvasSelectionTrailingControlStyle` when hit testing and painting the same
 canvas affordance should share one reusable dimension policy without duplicating
-constants across input and paint code. Use `TimelineEditPreview` with
+constants across input and paint code. Use `CanvasSelectionPaintStyle` when a
+canvas widget should derive selection fill, boundary cursor, body-handle,
+resize-edge, and trailing-control colors from a host-supplied base color while
+still allowing state-specific alpha overrides. Use `TimelineEditPreview` with
 `TimelineEditHandleGeometry` and `TimelineEditRegionGeometry` when timeline
 editors need standard handle hit rectangles and leading/trailing region paint
 rectangles without duplicating viewport projection math. Use `TimelineEditRamp`

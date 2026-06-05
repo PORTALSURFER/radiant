@@ -188,15 +188,43 @@ impl DenseRowChromeParts {
         self
     }
 
+    /// Add a leading-edge marker when `condition` is true.
+    pub const fn leading_marker_if(mut self, condition: bool, marker: DenseRowMarkerStyle) -> Self {
+        if condition {
+            self.leading_marker = Some(marker);
+        }
+        self
+    }
+
     /// Add a trailing-edge marker.
     pub const fn trailing_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
         self.trailing_marker = Some(marker);
         self
     }
 
+    /// Add a trailing-edge marker when `condition` is true.
+    pub const fn trailing_marker_if(
+        mut self,
+        condition: bool,
+        marker: DenseRowMarkerStyle,
+    ) -> Self {
+        if condition {
+            self.trailing_marker = Some(marker);
+        }
+        self
+    }
+
     /// Add an inset outline.
     pub const fn outline(mut self, outline: DenseRowOutlineStyle) -> Self {
         self.outline = Some(outline);
+        self
+    }
+
+    /// Add an inset outline when `condition` is true.
+    pub const fn outline_if(mut self, condition: bool, outline: DenseRowOutlineStyle) -> Self {
+        if condition {
+            self.outline = Some(outline);
+        }
         self
     }
 }

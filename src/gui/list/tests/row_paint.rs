@@ -353,6 +353,28 @@ fn push_dense_row_marker_and_stroke_append_projected_shapes() {
 }
 
 #[test]
+fn dense_row_chrome_parts_conditionally_adds_markers_and_outline() {
+    let marker = DenseRowMarkerStyle::new(DenseRowMarkerParts::leading(2.0), SELECTED);
+    let outline = DenseRowOutlineStyle::new(0.5, ACTIVE, 1.0);
+
+    let enabled = DenseRowChromeParts::new(DenseRowVisualState::default(), palette())
+        .leading_marker_if(true, marker)
+        .trailing_marker_if(true, marker)
+        .outline_if(true, outline);
+    assert_eq!(enabled.leading_marker, Some(marker));
+    assert_eq!(enabled.trailing_marker, Some(marker));
+    assert_eq!(enabled.outline, Some(outline));
+
+    let disabled = DenseRowChromeParts::new(DenseRowVisualState::default(), palette())
+        .leading_marker_if(false, marker)
+        .trailing_marker_if(false, marker)
+        .outline_if(false, outline);
+    assert_eq!(disabled.leading_marker, None);
+    assert_eq!(disabled.trailing_marker, None);
+    assert_eq!(disabled.outline, None);
+}
+
+#[test]
 fn push_dense_row_chrome_composes_fill_markers_and_outline() {
     let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(120.0, 22.0));
     let mut primitives = Vec::new();

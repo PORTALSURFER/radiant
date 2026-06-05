@@ -398,7 +398,10 @@ dense-row geometry helpers without repeating paint-plan guard code. Use
 text insets, alignment, and wrapping without constructing `PaintTextRun`
 manually. Use `DenseRowMarkerParts::leading(width)` and `trailing(width)` for
 common selection, status, and activity edge markers instead of repeating raw
-marker geometry fields.
+marker geometry fields. Use `DenseRowChromeParts::leading_marker_if(...)`,
+`trailing_marker_if(...)`, and `outline_if(...)` when custom rows should add
+optional markers or outlines from host-owned state without app-local mutation
+branches.
 Tree and outline rows that need continuous descendant guide lines can use
 `TreeGuideRow`, `TreeGuideStyle`, `tree_guide_segments(...)`,
 `tree_guide_overlay(...)`, `tree_guide_indent(...)`, and

@@ -1,10 +1,10 @@
 use super::super::{
     CanvasInvalidation, CanvasLayer, CanvasLayerOrder, CanvasLayerParts,
-    CanvasSelectionAffordanceHitTestParts, CanvasSelectionAffordanceStyle,
-    CanvasSelectionBodyHandleHitTestParts, CanvasSelectionBodyHandlePaintParts,
-    CanvasSelectionBodyHandleParts, CanvasSelectionBodyHandleStyle,
-    CanvasSelectionEdgeHitTestParts, CanvasSelectionEdgeVisualPaintParts,
-    CanvasSelectionEdgeVisualStyle, CanvasSelectionGeometry,
+    CanvasSelectionAffordanceHitTestParts, CanvasSelectionAffordancePaintParts,
+    CanvasSelectionAffordanceStyle, CanvasSelectionBodyHandleHitTestParts,
+    CanvasSelectionBodyHandlePaintParts, CanvasSelectionBodyHandleParts,
+    CanvasSelectionBodyHandleStyle, CanvasSelectionEdgeHitTestParts,
+    CanvasSelectionEdgeVisualPaintParts, CanvasSelectionEdgeVisualStyle, CanvasSelectionGeometry,
     CanvasSelectionTrailingControlHitTestParts, CanvasSelectionTrailingControlPaintParts,
     CanvasSelectionTrailingControlStyle, DragHandle, DragHandleRole, canvas_layer_at_point,
     canvas_selection_body_handle_rect, canvas_selection_edge_handles,
@@ -489,6 +489,58 @@ fn canvas_selection_affordance_style_builds_group_hit_tests() {
     assert_eq!(
         style.affordance_at_point(geometry, bounds.top_edge_strip(22.0), point),
         Some(DragHandleRole::End)
+    );
+}
+
+#[test]
+fn canvas_selection_affordance_style_pushes_group_fills() {
+    let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 120.0));
+    let edge_bounds = bounds.top_edge_strip(22.0);
+    let geometry = CanvasSelectionGeometry::new(bounds, 0.2, 0.6).expect("geometry");
+    let body_color = Rgba8::new(1, 2, 3, 4);
+    let edge_color = Rgba8::new(5, 6, 7, 8);
+    let trailing_color = Rgba8::new(9, 10, 11, 12);
+    let style = CanvasSelectionAffordanceStyle::new()
+        .with_body(CanvasSelectionBodyHandleStyle::new(7.0, 9.0, 0.28, 1.0))
+        .with_edge(CanvasSelectionEdgeVisualStyle::new(7.0, 0.0))
+        .with_trailing_control(CanvasSelectionTrailingControlStyle::new(16.0, 0.0));
+    let mut primitives = Vec::new();
+
+    assert_eq!(
+        style.push_fills(
+            &mut primitives,
+            42,
+            geometry,
+            CanvasSelectionAffordancePaintParts::new(edge_bounds)
+                .body_color(body_color)
+                .edge_color(edge_color)
+                .trailing_control_color(trailing_color),
+        ),
+        4
+    );
+
+    let fills = primitives
+        .iter()
+        .map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill) => fill,
+            primitive => panic!("expected fill rect, got {primitive:?}"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(fills.len(), 4);
+    assert_eq!(fills[0].widget_id, 42);
+    assert_eq!(fills[0].color, edge_color);
+    assert_eq!(fills[0].rect.min.x, 46.5);
+    assert_eq!(fills[1].color, edge_color);
+    assert_eq!(fills[1].rect.min.x, 126.5);
+    assert_eq!(fills[2].color, body_color);
+    assert_eq!(
+        fills[2].rect,
+        Rect::from_min_max(Point::new(59.0, 20.0), Point::new(121.0, 27.0))
+    );
+    assert_eq!(fills[3].color, trailing_color);
+    assert_eq!(
+        fills[3].rect,
+        Rect::from_min_max(Point::new(114.0, 104.0), Point::new(130.0, 120.0))
     );
 }
 

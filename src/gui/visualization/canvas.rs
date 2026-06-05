@@ -604,6 +604,53 @@ pub struct CanvasSelectionAffordanceStyle {
     pub trailing_control: Option<CanvasSelectionTrailingControlStyle>,
 }
 
+/// Paint colors and edge bounds for a normalized canvas selection affordance group.
+///
+/// Use this with [`CanvasSelectionAffordanceStyle::push_fills`] when a custom
+/// canvas selection paints several standard affordances with one dimension
+/// style while the host still owns the active colors.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CanvasSelectionAffordancePaintParts {
+    /// Bounds containing resize-edge visuals.
+    pub edge_bounds: Rect,
+    /// Fill color for the optional body/move handle.
+    pub body_color: Option<Rgba8>,
+    /// Fill color for the optional resize edges.
+    pub edge_color: Option<Rgba8>,
+    /// Fill color for the optional trailing control.
+    pub trailing_control_color: Option<Rgba8>,
+}
+
+impl CanvasSelectionAffordancePaintParts {
+    /// Build empty affordance paint parts with edge visual bounds.
+    pub const fn new(edge_bounds: Rect) -> Self {
+        Self {
+            edge_bounds,
+            body_color: None,
+            edge_color: None,
+            trailing_control_color: None,
+        }
+    }
+
+    /// Set the body/move-handle fill color.
+    pub const fn body_color(mut self, color: Rgba8) -> Self {
+        self.body_color = Some(color);
+        self
+    }
+
+    /// Set the resize-edge fill color.
+    pub const fn edge_color(mut self, color: Rgba8) -> Self {
+        self.edge_color = Some(color);
+        self
+    }
+
+    /// Set the trailing-control fill color.
+    pub const fn trailing_control_color(mut self, color: Rgba8) -> Self {
+        self.trailing_control_color = Some(color);
+        self
+    }
+}
+
 impl CanvasSelectionAffordanceStyle {
     /// Build an empty selection-affordance style.
     pub const fn new() -> Self {
@@ -668,6 +715,48 @@ impl CanvasSelectionAffordanceStyle {
         point: Point,
     ) -> Option<DragHandleRole> {
         geometry.affordance_at_point(self.hit_test_parts(edge_bounds, point))
+    }
+
+    /// Push fills for each configured affordance with a matching paint color.
+    ///
+    /// Returns the number of fill primitives appended. Missing styles or colors
+    /// skip that affordance, so callers can keep one style for hit testing and
+    /// paint only the affordances that are active in the current view state.
+    pub fn push_fills(
+        self,
+        primitives: &mut Vec<PaintPrimitive>,
+        widget_id: WidgetId,
+        geometry: CanvasSelectionGeometry,
+        parts: CanvasSelectionAffordancePaintParts,
+    ) -> usize {
+        let mut appended = 0;
+        if let (Some(edge), Some(color)) = (self.edge, parts.edge_color) {
+            for role in [DragHandleRole::Start, DragHandleRole::End] {
+                if geometry.push_edge_visual_fill(
+                    primitives,
+                    widget_id,
+                    edge.paint_parts(parts.edge_bounds, role, color),
+                ) {
+                    appended += 1;
+                }
+            }
+        }
+        if let (Some(body), Some(color)) = (self.body, parts.body_color)
+            && geometry.push_body_handle_fill(primitives, widget_id, body.paint_parts(color))
+        {
+            appended += 1;
+        }
+        if let (Some(trailing_control), Some(color)) =
+            (self.trailing_control, parts.trailing_control_color)
+            && geometry.push_trailing_control_fill(
+                primitives,
+                widget_id,
+                trailing_control.paint_parts(color),
+            )
+        {
+            appended += 1;
+        }
+        appended
     }
 }
 

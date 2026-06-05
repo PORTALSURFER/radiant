@@ -2136,9 +2136,12 @@ Radiant. Use `CanvasSelectionGeometry` when one projected normalized selection
 needs several generic affordances such as a body move handle, resize edge
 visuals, or a trailing control; its paint helpers append guarded fill
 primitives for those affordances while hosts keep product-specific colors and
-messages. Its `affordance_at_point(...)` helper can resolve optional body,
-edge, and trailing-control hit targets while host applications keep their own
-command mapping and domain-specific priority. Use
+messages. Use `CanvasSelectionAffordanceStyle::push_fills(...)` with
+`CanvasSelectionAffordancePaintParts` when one selection should paint a grouped
+set of optional body, edge, and trailing-control affordances from one dimension
+style. Its `affordance_at_point(...)` helper can resolve optional body, edge,
+and trailing-control hit targets while host applications keep their own command
+mapping and domain-specific priority. Use
 `CanvasSelectionAffordanceStyle` when the same selection should expose a reusable
 set of optional body, edge, and trailing-control affordances from one grouped
 style instead of rebuilding low-level hit-test parts in app code. Use

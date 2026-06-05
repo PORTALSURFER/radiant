@@ -333,3 +333,32 @@ fn embedded_interactive_row_widget_routes_configured_actions_by_default() {
 
     assert_eq!(output.typed_ref::<&'static str>(), Some(&"activated"));
 }
+
+#[test]
+fn interactive_row_actions_routes_single_or_double_activation_to_same_action() {
+    let actions = InteractiveRowActions::new().activate_or_double(|| "activate");
+
+    assert_eq!(
+        actions.route(InteractiveRowMessage::Activate),
+        Some("activate")
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::DoubleActivate),
+        Some("activate")
+    );
+}
+
+#[test]
+fn interactive_row_actions_routes_single_or_double_activation_with_key() {
+    let actions =
+        InteractiveRowActions::new().activate_or_double_key("folder", |key| (key, "activate"));
+
+    assert_eq!(
+        actions.route(InteractiveRowMessage::Activate),
+        Some(("folder", "activate"))
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::DoubleActivate),
+        Some(("folder", "activate"))
+    );
+}

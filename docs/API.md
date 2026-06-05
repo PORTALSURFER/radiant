@@ -339,11 +339,13 @@ host-specific row messages without repeating exhaustive event-shape matches.
 activation, modifier-aware activation, secondary-click, drag, drop, and
 hover-drop routing table that `interactive_row().actions(...)` and
 `interactive_row_underlay(...).actions(...)` use. Use the keyed variants
-(`activate_key(...)`, `activate_with_modifiers_key(...)`,
-`double_activate_key(...)`, `secondary_key(...)`, `drag_key(...)`, and
-`drop_target_key(...)`) when row interactions should route through the same
-host-owned item key without duplicating capture closures at each row, chip, or
-tree item.
+(`activate_key(...)`, `activate_or_double_key(...)`,
+`activate_with_modifiers_key(...)`, `double_activate_key(...)`,
+`secondary_key(...)`, `drag_key(...)`, and `drop_target_key(...)`) when row
+interactions should route through the same host-owned item key without
+duplicating capture closures at each row, chip, or tree item. Use
+`activate_or_double(...)` or `activate_or_double_key(...)` when primary release
+and double-click should route to the same host action.
 Use the single-activation helpers when double-click has a separate host action
 such as rename, drill-in, or open-in-place behavior. Drag-capable controls can use
 `DragHandleMessage::phase()`, `position()`, `started_position()`,

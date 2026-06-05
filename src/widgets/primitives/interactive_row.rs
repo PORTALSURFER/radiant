@@ -97,6 +97,20 @@ impl<Message> InteractiveRowActions<Message> {
         self
     }
 
+    /// Emit the same host message for single and double primary activation.
+    ///
+    /// Use this when double-click should behave as the same row activation
+    /// rather than a separate open, rename, or edit action.
+    pub fn activate_or_double(
+        mut self,
+        message: impl Fn() -> Message + Send + Sync + 'static,
+    ) -> Self {
+        let message: Arc<dyn Fn() -> Message + Send + Sync + 'static> = Arc::new(message);
+        self.activate = Some(message.clone());
+        self.double_activate = Some(message);
+        self
+    }
+
     /// Emit a single-activation message for one host-owned row key.
     pub fn activate_key<Key>(
         mut self,
@@ -107,6 +121,30 @@ impl<Message> InteractiveRowActions<Message> {
         Key: Clone + Send + Sync + 'static,
     {
         self.activate = Some(Arc::new(move || message(key.clone())));
+        self
+    }
+
+    /// Emit the same single-or-double activation message for one host-owned row key.
+    ///
+    /// Use this when both primary release and double-click select or activate
+    /// the same durable row, while rows with distinct double-click behavior
+    /// should keep using [`Self::activate_key`] and [`Self::double_activate_key`].
+    pub fn activate_or_double_key<Key>(
+        mut self,
+        key: Key,
+        message: impl Fn(Key) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+        Message: 'static,
+    {
+        let message: Arc<dyn Fn(Key) -> Message + Send + Sync + 'static> = Arc::new(message);
+        let double_key = key.clone();
+        self.activate = Some(Arc::new({
+            let message = message.clone();
+            move || message(key.clone())
+        }));
+        self.double_activate = Some(Arc::new(move || message(double_key.clone())));
         self
     }
 

@@ -1,7 +1,10 @@
 use super::*;
 use crate::{
     gui::types::Point,
-    widgets::interaction::{PointerButton, PointerModifiers},
+    widgets::{
+        CanvasPointer,
+        interaction::{PointerButton, PointerModifiers},
+    },
 };
 
 fn bounds() -> Rect {
@@ -165,6 +168,12 @@ fn canvas_gesture_event_extracts_common_event_shapes() {
             .map(|pointer| pointer.position),
         Some(Point::new(20.0, 30.0))
     );
+    assert_eq!(
+        press
+            .press_pointer_inside(bounds(), PointerButton::Primary)
+            .map(|pointer| pointer.position),
+        Some(Point::new(20.0, 30.0))
+    );
     assert_eq!(press.press_pointer(PointerButton::Secondary), None);
 
     let release = state
@@ -180,6 +189,12 @@ fn canvas_gesture_event_extracts_common_event_shapes() {
     assert_eq!(
         release
             .release_pointer(PointerButton::Primary)
+            .map(|pointer| pointer.position),
+        Some(Point::new(30.0, 35.0))
+    );
+    assert_eq!(
+        release
+            .release_pointer_inside(bounds(), PointerButton::Primary)
             .map(|pointer| pointer.position),
         Some(Point::new(30.0, 35.0))
     );
@@ -200,6 +215,12 @@ fn canvas_gesture_event_extracts_common_event_shapes() {
             .map(|pointer| pointer.position),
         Some(Point::new(40.0, 45.0))
     );
+    assert_eq!(
+        double_click
+            .double_click_pointer_inside(bounds(), PointerButton::Primary)
+            .map(|pointer| pointer.position),
+        Some(Point::new(40.0, 45.0))
+    );
 
     let wheel = state
         .handle_input(
@@ -212,6 +233,31 @@ fn canvas_gesture_event_extracts_common_event_shapes() {
             .wheel_pointer_delta()
             .map(|(pointer, delta)| (pointer.position, delta)),
         Some((Point::new(50.0, 55.0), Vector2::new(0.0, -120.0)))
+    );
+    assert_eq!(
+        wheel
+            .wheel_pointer_delta_inside(bounds())
+            .map(|(pointer, delta)| (pointer.position, delta)),
+        Some((Point::new(50.0, 55.0), Vector2::new(0.0, -120.0)))
+    );
+
+    let outside_press = CanvasGestureEvent::Press {
+        pointer: CanvasPointer {
+            position: Point::new(500.0, 500.0),
+            local: Point::new(490.0, 480.0),
+            normalized: Vector2::new(1.0, 1.0),
+        },
+        button: PointerButton::Primary,
+        modifiers,
+    };
+    assert!(
+        outside_press
+            .press_pointer(PointerButton::Primary)
+            .is_some()
+    );
+    assert_eq!(
+        outside_press.press_pointer_inside(bounds(), PointerButton::Primary),
+        None
     );
 }
 
@@ -226,9 +272,22 @@ fn canvas_gesture_event_accessors_handle_non_pointer_events() {
     assert_eq!(event.delta(), None);
     assert_eq!(event.hover_pointer(), None);
     assert_eq!(event.press_pointer(PointerButton::Primary), None);
+    assert_eq!(
+        event.press_pointer_inside(bounds(), PointerButton::Primary),
+        None
+    );
     assert_eq!(event.double_click_pointer(PointerButton::Primary), None);
+    assert_eq!(
+        event.double_click_pointer_inside(bounds(), PointerButton::Primary),
+        None
+    );
     assert_eq!(event.release_pointer(PointerButton::Primary), None);
+    assert_eq!(
+        event.release_pointer_inside(bounds(), PointerButton::Primary),
+        None
+    );
     assert_eq!(event.wheel_pointer_delta(), None);
+    assert_eq!(event.wheel_pointer_delta_inside(bounds()), None);
     assert!(!event.pointer_is_inside(bounds()));
 }
 

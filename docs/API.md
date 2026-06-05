@@ -527,7 +527,10 @@ gesture metadata without matching every hover, press, drag, release,
 double-click, wheel, and drop variant separately. Use `hover_pointer()`,
 `press_pointer(...)`, `release_pointer(...)`, `double_click_pointer(...)`, and
 `wheel_pointer_delta()` when common routed event shapes should stay declarative
-while app code owns the resulting domain messages.
+while app code owns the resulting domain messages. Use
+`press_pointer_inside(...)`, `release_pointer_inside(...)`,
+`double_click_pointer_inside(...)`, and `wheel_pointer_delta_inside(...)` when
+the routed event should also be filtered to a widget or sub-surface bounds.
 Custom widgets that handle `WidgetInput` directly can use
 `pointer_position()`, `pointer_start_position()`, `pointer_start_inside(...)`,
 and `pointer_start_outside(...)` to share Radiant's backend-neutral pointer

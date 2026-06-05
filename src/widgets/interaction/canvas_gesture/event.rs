@@ -96,6 +96,16 @@ impl CanvasGestureEvent {
         }
     }
 
+    /// Return the pointer for a press with `button` when it is inside `bounds`.
+    pub fn press_pointer_inside(
+        &self,
+        bounds: Rect,
+        button: PointerButton,
+    ) -> Option<CanvasPointer> {
+        self.press_pointer(button)
+            .filter(|pointer| pointer.is_inside(bounds))
+    }
+
     /// Return the pointer for a double-click with `button`.
     pub fn double_click_pointer(&self, button: PointerButton) -> Option<CanvasPointer> {
         match self {
@@ -106,6 +116,16 @@ impl CanvasGestureEvent {
             } if *clicked == button => Some(*pointer),
             _ => None,
         }
+    }
+
+    /// Return the pointer for a double-click with `button` when it is inside `bounds`.
+    pub fn double_click_pointer_inside(
+        &self,
+        bounds: Rect,
+        button: PointerButton,
+    ) -> Option<CanvasPointer> {
+        self.double_click_pointer(button)
+            .filter(|pointer| pointer.is_inside(bounds))
     }
 
     /// Return the pointer for a release with `button`.
@@ -120,12 +140,28 @@ impl CanvasGestureEvent {
         }
     }
 
+    /// Return the pointer for a release with `button` when it is inside `bounds`.
+    pub fn release_pointer_inside(
+        &self,
+        bounds: Rect,
+        button: PointerButton,
+    ) -> Option<CanvasPointer> {
+        self.release_pointer(button)
+            .filter(|pointer| pointer.is_inside(bounds))
+    }
+
     /// Return the pointer and delta for a wheel event.
     pub fn wheel_pointer_delta(&self) -> Option<(CanvasPointer, Vector2)> {
         match self {
             Self::Wheel { pointer, delta } => Some((*pointer, *delta)),
             _ => None,
         }
+    }
+
+    /// Return the pointer and delta for a wheel event when the pointer is inside `bounds`.
+    pub fn wheel_pointer_delta_inside(&self, bounds: Rect) -> Option<(CanvasPointer, Vector2)> {
+        self.wheel_pointer_delta()
+            .filter(|(pointer, _)| pointer.is_inside(bounds))
     }
 
     /// Return the current pointer carried by pointer-like gesture events.

@@ -3,9 +3,9 @@ use crate::gui::{
     types::{Point, Rect, Rgba8, Vector2},
     visualization::{
         TimelineCoordinateMapper, TimelineEditCurveStrokeParts, TimelineEditHandle,
-        TimelineEditHandleGeometry, TimelineEditPreview, TimelineEditPreviewParts,
-        TimelineEditRamp, TimelineEditRampSide, TimelineEditRegion, TimelineEditRegionGeometry,
-        TimelineViewport,
+        TimelineEditHandleGeometry, TimelineEditPaintStyle, TimelineEditPreview,
+        TimelineEditPreviewParts, TimelineEditRamp, TimelineEditRampSide, TimelineEditRegion,
+        TimelineEditRegionGeometry, TimelineViewport,
     },
 };
 
@@ -193,6 +193,52 @@ fn timeline_edit_preview_pushes_standard_region_fills() {
         Rect::from_min_max(Point::new(20.0, 0.0), Point::new(40.0, 80.0)),
     );
     assert_eq!(fills[2].2, Rgba8::new(20, 40, 60, 96));
+}
+
+#[test]
+fn timeline_edit_paint_style_derives_standard_colors() {
+    let style = TimelineEditPaintStyle::new(Rgba8::new(20, 40, 60, 255))
+        .region_alphas(120, 64)
+        .handle_alpha(210)
+        .curve_alpha(230);
+
+    assert_eq!(
+        style.region_color(TimelineEditRegion::LeadingInner),
+        Rgba8::new(20, 40, 60, 120)
+    );
+    assert_eq!(
+        style.region_color(TimelineEditRegion::TrailingOuter),
+        Rgba8::new(20, 40, 60, 64)
+    );
+    assert_eq!(
+        style.handle_color(TimelineEditHandle::LeadingEnd),
+        Rgba8::new(20, 40, 60, 210)
+    );
+    assert_eq!(style.curve_color(), Rgba8::new(20, 40, 60, 230));
+}
+
+#[test]
+fn timeline_edit_preview_pushes_standard_styled_fills() {
+    let style = TimelineEditPaintStyle::new(Rgba8::new(90, 120, 240, 255))
+        .region_alphas(180, 96)
+        .handle_alpha(220);
+    let mut primitives = Vec::new();
+
+    preview().push_standard_styled_region_fills(
+        &mut primitives,
+        7,
+        mapper(),
+        region_geometry(),
+        style,
+    );
+    preview().push_standard_styled_handle_fills(&mut primitives, 9, mapper(), geometry(), style);
+
+    let fills = fill_rects(&primitives);
+    assert_eq!(fills.len(), 10);
+    assert_eq!(fills[0].2, Rgba8::new(90, 120, 240, 180));
+    assert_eq!(fills[2].2, Rgba8::new(90, 120, 240, 96));
+    assert_eq!(fills[4].0, 9);
+    assert_eq!(fills[4].2, Rgba8::new(90, 120, 240, 220));
 }
 
 #[test]

@@ -1202,7 +1202,12 @@ leading/trailing edit-region projection. Use `standard_handle_rects(...)` and
 standard edit affordances while keeping host-specific colors and commands, or
 `push_standard_handle_fills(...)` and `push_standard_region_fills(...)` when the
 standard affordances should be emitted as guarded filled rectangles with
-host-supplied colors. Use `TimelineEditCurveStrokeParts`,
+host-supplied colors. Use `TimelineEditPaintStyle`,
+`push_standard_styled_region_fills(...)`,
+`push_standard_styled_handle_fills(...)`, and
+`TimelineEditPaintStyle::curve_stroke_parts(...)` when Radiant should also own
+the standard inner/outer region alpha split plus handle and curve color
+derivation from a host-supplied base color. Use `TimelineEditCurveStrokeParts`,
 `TimelineEditRampSide`, and
 `TimelineEditPreview::push_standard_ramp_curve_strokes(...)` when leading and
 trailing edit ramps need sampled curve strokes with Radiant-owned projection,
@@ -2159,6 +2164,12 @@ and optional curve values. Use
 `TimelineEditPreview::push_standard_region_fills(...)` and
 `push_standard_handle_fills(...)` when Radiant should own standard edit-preview
 paint emission while the host owns colors and domain commands. Use
+`TimelineEditPaintStyle` plus
+`push_standard_styled_region_fills(...)`,
+`push_standard_styled_handle_fills(...)`, and
+`TimelineEditPaintStyle::curve_stroke_parts(...)` when the host only needs to
+provide a base color and Radiant should derive standard region, handle, and
+curve colors. Use
 `TimelineEditPreview::push_standard_ramp_curve_strokes(...)` when Radiant
 should also own standard leading/trailing ramp curve projection and guarded
 stroke emission while the host owns the ramp value function.

@@ -130,6 +130,89 @@ pub struct TimelineEditCurveStrokeParts {
     pub max_steps: usize,
 }
 
+/// Paint colors for standard timeline edit-preview affordances.
+///
+/// Hosts supply the base color that matches their domain or theme. Radiant owns
+/// the standard inner/outer region split and the derived handle and curve
+/// colors so app widgets do not need to duplicate edit-preview taxonomy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TimelineEditPaintStyle {
+    /// Base color used for derived edit-preview affordances.
+    pub base_color: Rgba8,
+    /// Alpha for regions inside the selected interval.
+    pub inner_region_alpha: u8,
+    /// Alpha for regions outside the selected interval.
+    pub outer_region_alpha: u8,
+    /// Alpha for standard edit-preview handles.
+    pub handle_alpha: u8,
+    /// Alpha for standard edit-preview ramp curves.
+    pub curve_alpha: u8,
+}
+
+impl TimelineEditPaintStyle {
+    /// Build a standard edit-preview style from a host-supplied base color.
+    pub const fn new(base_color: Rgba8) -> Self {
+        Self {
+            base_color,
+            inner_region_alpha: 52,
+            outer_region_alpha: 38,
+            handle_alpha: 205,
+            curve_alpha: 225,
+        }
+    }
+
+    /// Override the inner and outer region alphas.
+    pub const fn region_alphas(mut self, inner_region_alpha: u8, outer_region_alpha: u8) -> Self {
+        self.inner_region_alpha = inner_region_alpha;
+        self.outer_region_alpha = outer_region_alpha;
+        self
+    }
+
+    /// Override the standard edit-preview handle alpha.
+    pub const fn handle_alpha(mut self, handle_alpha: u8) -> Self {
+        self.handle_alpha = handle_alpha;
+        self
+    }
+
+    /// Override the standard edit-preview curve alpha.
+    pub const fn curve_alpha(mut self, curve_alpha: u8) -> Self {
+        self.curve_alpha = curve_alpha;
+        self
+    }
+
+    /// Return the color for a standard edit-preview region.
+    pub const fn region_color(self, region: TimelineEditRegion) -> Rgba8 {
+        match region {
+            TimelineEditRegion::LeadingInner | TimelineEditRegion::TrailingInner => {
+                self.base_color.with_alpha(self.inner_region_alpha)
+            }
+            TimelineEditRegion::LeadingOuter | TimelineEditRegion::TrailingOuter => {
+                self.base_color.with_alpha(self.outer_region_alpha)
+            }
+        }
+    }
+
+    /// Return the color for a standard edit-preview handle.
+    pub const fn handle_color(self, _handle: TimelineEditHandle) -> Rgba8 {
+        self.base_color.with_alpha(self.handle_alpha)
+    }
+
+    /// Return the color for a standard edit-preview ramp curve.
+    pub const fn curve_color(self) -> Rgba8 {
+        self.base_color.with_alpha(self.curve_alpha)
+    }
+
+    /// Build curve stroke parts with this style's standard curve color.
+    pub const fn curve_stroke_parts(
+        self,
+        widget_id: WidgetId,
+        mapper: TimelineCoordinateMapper,
+        stroke_width: f32,
+    ) -> TimelineEditCurveStrokeParts {
+        TimelineEditCurveStrokeParts::new(widget_id, mapper, self.curve_color(), stroke_width)
+    }
+}
+
 impl TimelineEditCurveStrokeParts {
     /// Build standard timeline edit curve stroke parts.
     pub const fn new(
@@ -545,6 +628,36 @@ impl TimelineEditPreview {
         for (handle, rect) in self.standard_handle_rects(mapper, geometry) {
             push_visible_fill_rect(primitives, widget_id, rect, color_for_handle(handle));
         }
+    }
+
+    /// Append guarded filled rectangles for the standard edit-preview regions
+    /// using a reusable Radiant paint style.
+    pub fn push_standard_styled_region_fills(
+        self,
+        primitives: &mut Vec<PaintPrimitive>,
+        widget_id: WidgetId,
+        mapper: TimelineCoordinateMapper,
+        geometry: TimelineEditRegionGeometry,
+        style: TimelineEditPaintStyle,
+    ) {
+        self.push_standard_region_fills(primitives, widget_id, mapper, geometry, |region| {
+            style.region_color(region)
+        });
+    }
+
+    /// Append guarded filled rectangles for the standard edit-preview handles
+    /// using a reusable Radiant paint style.
+    pub fn push_standard_styled_handle_fills(
+        self,
+        primitives: &mut Vec<PaintPrimitive>,
+        widget_id: WidgetId,
+        mapper: TimelineCoordinateMapper,
+        geometry: TimelineEditHandleGeometry,
+        style: TimelineEditPaintStyle,
+    ) {
+        self.push_standard_handle_fills(primitives, widget_id, mapper, geometry, |handle| {
+            style.handle_color(handle)
+        });
     }
 
     /// Append sampled curve strokes for the standard leading and trailing ramps.

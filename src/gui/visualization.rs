@@ -46,11 +46,11 @@ pub use strip_layout::{
 };
 pub use timeline::{
     TimelineAxis, TimelineAxisParts, TimelineCoordinateMapper, TimelineEditCurveStrokeParts,
-    TimelineEditHandle, TimelineEditHandleGeometry, TimelineEditPreview, TimelineEditPreviewParts,
-    TimelineEditRamp, TimelineEditRampSide, TimelineEditRegion, TimelineEditRegionGeometry,
-    TimelineFeedbackEvents, TimelineFeedbackParts, TimelineItemLayout, TimelineItemLayoutParts,
-    TimelineLaneLayout, TimelineLaneLayoutParts, TimelineMarkerPreview, TimelineMotionState,
-    TimelinePanelLayout, TimelinePanelLayoutParts, TimelinePitchItemLayout,
+    TimelineEditHandle, TimelineEditHandleGeometry, TimelineEditPaintStyle, TimelineEditPreview,
+    TimelineEditPreviewParts, TimelineEditRamp, TimelineEditRampSide, TimelineEditRegion,
+    TimelineEditRegionGeometry, TimelineFeedbackEvents, TimelineFeedbackParts, TimelineItemLayout,
+    TimelineItemLayoutParts, TimelineLaneLayout, TimelineLaneLayoutParts, TimelineMarkerPreview,
+    TimelineMotionState, TimelinePanelLayout, TimelinePanelLayoutParts, TimelinePitchItemLayout,
     TimelinePitchItemLayoutParts, TimelinePitchLayout, TimelinePitchLayoutParts,
     TimelinePresentationParts, TimelinePresentationState, TimelineSurfaceParts,
     TimelineSurfaceState, TimelineTransportParts, TimelineTransportState,

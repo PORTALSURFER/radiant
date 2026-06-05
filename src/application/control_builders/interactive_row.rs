@@ -322,6 +322,15 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
         self
     }
 
+    /// Configure the backing row as a host-tracked drop target.
+    ///
+    /// Use this when arbitrary visible row content should keep its own paint
+    /// tree while the underlay owns generic drop and hover-drop routing.
+    pub fn tracked_drop_target(mut self, drag_active: bool, active_target: bool) -> Self {
+        self.row = self.row.tracked_drop_target(drag_active, active_target);
+        self
+    }
+
     /// Assign a stable widget id to the backing interactive row.
     pub fn input_id(mut self, id: WidgetId) -> Self {
         self.input_id = Some(id);
@@ -473,6 +482,35 @@ mod tests {
             ),
             Some(DemoMessage::Activate)
         );
+    }
+
+    #[test]
+    fn interactive_row_underlay_configures_tracked_drop_target() {
+        let surface = interactive_row_underlay(text("Collection"))
+            .tracked_drop_target(true, true)
+            .input_id(772)
+            .mapped(|_| ())
+            .size(140.0, 22.0)
+            .into_surface();
+        let _ = surface.frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+            &Default::default(),
+        );
+
+        let row = surface
+            .find_widget(772)
+            .and_then(|widget| {
+                widget
+                    .widget()
+                    .as_any()
+                    .downcast_ref::<crate::widgets::InteractiveRowWidget>()
+            })
+            .expect("underlay should preserve the configured input row");
+
+        assert!(row.props.droppable);
+        assert!(row.props.drag_active);
+        assert!(!row.props.drop_hover);
+        assert!(row.props.pointer_motion_active);
     }
 
     #[test]

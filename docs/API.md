@@ -201,7 +201,10 @@ or `.update_command(...)` on the app when reducers need to return
 drag, drop, or hover-drop routing without hand-written enum filtering. Use
 `InteractiveRowBuilder::tracked_drag_source(...)` when host-owned row drag
 state should configure the common draggable, drag-active, drag-source, and
-pointer-motion policy together.
+pointer-motion policy together. Use
+`InteractiveRowUnderlayBuilder::tracked_drop_target(...)` when arbitrary
+visible row content should keep its own paint tree while the transparent
+interactive-row underlay owns standard tracked drop-target behavior.
 Reducers that need the full app runtime can
 use `.update_with(...)` and an `UpdateContext<Message>` to emit messages,
 request repaint, move focus, start background work, schedule delayed messages,

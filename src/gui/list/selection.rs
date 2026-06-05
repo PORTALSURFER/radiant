@@ -117,6 +117,26 @@ pub fn list_index_after_delta(current: usize, delta: isize, total_items: usize) 
     }
 }
 
+/// Map a normalized unit interval coordinate to a bounded list index.
+///
+/// This fits hit testing, randomized picks, scrub positions, and other
+/// continuous inputs where the host owns item identity but the framework can
+/// provide the shared edge behavior. Empty lists return `None`; finite values
+/// outside `0.0..=1.0` clamp to the nearest edge; `NaN` maps to the first item.
+pub fn unit_interval_index(unit: f32, total_items: usize) -> Option<usize> {
+    if total_items == 0 {
+        return None;
+    }
+
+    let normalized = if unit.is_nan() {
+        0.0
+    } else {
+        unit.clamp(0.0, 1.0)
+    };
+    let index = (normalized * total_items as f32).floor() as usize;
+    Some(index.min(total_items.saturating_sub(1)))
+}
+
 /// Move an item index by a signed delta, wrapping around current list bounds.
 ///
 /// This helper fits menus, autocomplete popups, command palettes, and other

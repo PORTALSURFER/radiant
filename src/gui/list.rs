@@ -28,6 +28,7 @@ pub use row_paint::{
 pub use selection::{
     CyclicListSelectionCycle, KeyedListSelection, ListSelectionController, ListSelectionIntent,
     ListSelectionModifiers, cyclic_list_index_after_delta, list_index_after_delta,
+    unit_interval_index,
 };
 pub use tree_guides::{
     TreeGuideOverlay, TreeGuideRow, TreeGuideSegment, TreeGuideStyle, tree_guide_indent,

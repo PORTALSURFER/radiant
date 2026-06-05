@@ -1,6 +1,7 @@
 use super::super::{
     CyclicListSelectionCycle, KeyedListSelection, ListSelectionController, ListSelectionIntent,
     ListSelectionModifiers, cyclic_list_index_after_delta, list_index_after_delta,
+    unit_interval_index,
 };
 
 #[test]
@@ -10,6 +11,25 @@ fn list_index_after_delta_clamps_signed_navigation() {
     assert_eq!(list_index_after_delta(2, 20, 5), Some(4));
     assert_eq!(list_index_after_delta(2, -20, 5), Some(0));
     assert_eq!(list_index_after_delta(0, 1, 0), None);
+}
+
+#[test]
+fn unit_interval_index_maps_unit_coordinates_to_bounded_indices() {
+    assert_eq!(unit_interval_index(0.0, 4), Some(0));
+    assert_eq!(unit_interval_index(0.24, 4), Some(0));
+    assert_eq!(unit_interval_index(0.25, 4), Some(1));
+    assert_eq!(unit_interval_index(0.999, 4), Some(3));
+    assert_eq!(unit_interval_index(1.0, 4), Some(3));
+}
+
+#[test]
+fn unit_interval_index_clamps_edges_and_handles_empty_lists() {
+    assert_eq!(unit_interval_index(-1.0, 4), Some(0));
+    assert_eq!(unit_interval_index(2.0, 4), Some(3));
+    assert_eq!(unit_interval_index(f32::NEG_INFINITY, 4), Some(0));
+    assert_eq!(unit_interval_index(f32::INFINITY, 4), Some(3));
+    assert_eq!(unit_interval_index(f32::NAN, 4), Some(0));
+    assert_eq!(unit_interval_index(0.5, 0), None);
 }
 
 #[test]

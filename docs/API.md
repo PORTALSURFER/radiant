@@ -610,7 +610,10 @@ on list order. Use it for lists whose durable selection identity is a path,
 database id, document id, or other stable app key rather than a transient
 visible index. Use `list_index_after_delta(...)` for clamped keyboard
 navigation and `cyclic_list_index_after_delta(...)` for wrapped menu,
-autocomplete, command-palette, and dropdown-style option navigation. When that
+autocomplete, command-palette, and dropdown-style option navigation. Use
+`unit_interval_index(...)` when a normalized hit, scrub, random, or continuous
+input coordinate should resolve to one bounded row index without application
+edge-case math. When that
 wrapped option navigation is bound to a transient query or prefix, use
 `CyclicListSelectionCycle` to keep the selected index for the current query,
 reset display selection for new queries, and clear state when the visible

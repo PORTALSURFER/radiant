@@ -109,6 +109,17 @@ impl InteractiveRowBuilder {
         self
     }
 
+    /// Configure this row as a host-tracked drag source that emits retained
+    /// source move messages.
+    ///
+    /// Use this when the active source may be rebuilt from host state during a
+    /// drag and should continue reporting pointer movement after projection.
+    pub fn tracked_drag_source_with_motion(mut self, drag_active: bool, drag_source: bool) -> Self {
+        self = self.tracked_drag_source(drag_active, drag_source);
+        self.drag_source_motion = true;
+        self
+    }
+
     /// Emit drop and hover-drop-target messages.
     pub fn droppable(mut self, drag_active: bool) -> Self {
         self.droppable = true;
@@ -733,6 +744,22 @@ mod tests {
         assert!(view.props.draggable);
         assert!(view.props.drag_active);
         assert!(view.props.drag_source);
+        assert_eq!(
+            view.props.pointer_motion,
+            crate::widgets::InteractiveRowPointerMotion::DuringInteraction
+        );
+    }
+
+    #[test]
+    fn tracked_drag_source_with_motion_emits_retained_source_motion() {
+        let view = interactive_row()
+            .tracked_drag_source_with_motion(true, true)
+            .widget();
+
+        assert!(view.props.draggable);
+        assert!(view.props.drag_active);
+        assert!(view.props.drag_source);
+        assert!(view.props.drag_source_motion);
         assert_eq!(
             view.props.pointer_motion,
             crate::widgets::InteractiveRowPointerMotion::DuringInteraction

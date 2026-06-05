@@ -202,6 +202,9 @@ drag, drop, or hover-drop routing without hand-written enum filtering. Use
 `InteractiveRowBuilder::tracked_drag_source(...)` when host-owned row drag
 state should configure the common draggable, drag-active, drag-source, and
 pointer-motion policy together. Use
+`InteractiveRowBuilder::tracked_drag_source_with_motion(...)` when the active
+source is retained from host state and should keep emitting pointer movement
+after projection. Use
 `InteractiveRowUnderlayBuilder::tracked_drop_target(...)` when arbitrary
 visible row content should keep its own paint tree while the transparent
 interactive-row underlay owns standard tracked drop-target behavior.
@@ -1809,7 +1812,9 @@ compact filter pills that need richer interaction than a simple badge click
 without hand-building transparent input overlays in application code. Use
 `InteractiveBadgeBuilder::tracked_drag_source(drag_active, drag_source)` when
 host-owned badge drag state should configure draggable, drag-active,
-drag-source, and pointer-motion policy together.
+drag-source, and pointer-motion policy together; use
+`tracked_drag_source_with_motion(...)` when the retained active badge source
+should keep emitting pointer movement after projection.
 Run `cargo run --example custom_widget` for a custom widget authoring sandbox
 that implements paint and input dispatch through the public widget trait.
 Run `cargo run --example volume_slider` for a focused parameter-control sandbox

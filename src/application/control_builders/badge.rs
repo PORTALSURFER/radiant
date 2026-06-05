@@ -195,6 +195,18 @@ impl InteractiveBadgeBuilder {
         self
     }
 
+    /// Configure this badge as a host-tracked drag source that emits retained
+    /// source move messages.
+    ///
+    /// Use this when the active source may be rebuilt from host state during a
+    /// drag and should continue reporting pointer movement after projection.
+    pub fn tracked_drag_source_with_motion(mut self, drag_active: bool, drag_source: bool) -> Self {
+        self.row = self
+            .row
+            .tracked_drag_source_with_motion(drag_active, drag_source);
+        self
+    }
+
     /// Emit drop and hover-drop-target messages.
     pub fn droppable(mut self, drag_active: bool) -> Self {
         self.row = self.row.droppable(drag_active);
@@ -343,6 +355,7 @@ mod tests {
     #[derive(Clone, Debug, PartialEq)]
     enum DemoMessage {
         Activate,
+        Drag,
         Secondary,
     }
 
@@ -375,6 +388,7 @@ mod tests {
             .update(|state, message| {
                 state.status = match message {
                     DemoMessage::Activate => "activated",
+                    DemoMessage::Drag => "dragged",
                     DemoMessage::Secondary => "secondary",
                 };
             })
@@ -420,6 +434,7 @@ mod tests {
             .update(|state, message| {
                 state.status = match message {
                     DemoMessage::Activate => "activated",
+                    DemoMessage::Drag => "dragged",
                     DemoMessage::Secondary => "secondary",
                 };
             })
@@ -454,6 +469,50 @@ mod tests {
                     .downcast_ref::<crate::widgets::TextWidget>())
                 .map(|widget| widget.text.as_str()),
             Some("activated")
+        );
+    }
+
+    #[test]
+    fn interactive_badge_tracked_drag_source_with_motion_routes_source_moves() {
+        let bridge = app(DemoState::default())
+            .view(|state| {
+                column([
+                    interactive_badge("Tag")
+                        .tracked_drag_source_with_motion(true, true)
+                        .actions(
+                            InteractiveRowActions::new()
+                                .drag(|_| DemoMessage::Drag)
+                                .activate(|| DemoMessage::Activate),
+                        )
+                        .width(80.0)
+                        .height(22.0),
+                    text(state.status).id(332).height(22.0),
+                ])
+                .spacing(0.0)
+            })
+            .update(|state, message| {
+                state.status = match message {
+                    DemoMessage::Activate => "activated",
+                    DemoMessage::Drag => "dragged",
+                    DemoMessage::Secondary => "secondary",
+                };
+            })
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 44.0));
+        let position = Point::new(8.0, 8.0);
+
+        runtime.dispatch_input_at(position, WidgetInput::PointerMove { position });
+
+        assert_eq!(
+            runtime
+                .surface()
+                .find_widget(332)
+                .and_then(|widget| widget
+                    .widget_object()
+                    .as_any()
+                    .downcast_ref::<crate::widgets::TextWidget>())
+                .map(|widget| widget.text.as_str()),
+            Some("dragged")
         );
     }
 

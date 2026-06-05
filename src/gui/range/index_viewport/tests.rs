@@ -1,4 +1,5 @@
 use super::{IndexViewport, IndexViewportScope};
+use crate::gui::range::NormalizedRange;
 
 fn assert_ratio_near(actual: Option<f32>, expected: f32) {
     let actual = actual.expect("visible ratio");
@@ -16,6 +17,18 @@ fn assert_range_near(actual: Option<(f32, f32)>, expected: (f32, f32)) {
     );
     assert!(
         (actual.1 - expected.1).abs() <= 0.000_001,
+        "actual={actual:?} expected={expected:?}"
+    );
+}
+
+fn assert_normalized_range_near(actual: Option<NormalizedRange>, expected: (f32, f32)) {
+    let actual = actual.expect("visible normalized range");
+    assert!(
+        (actual.start_fraction() - expected.0).abs() <= 0.000_001,
+        "actual={actual:?} expected={expected:?}"
+    );
+    assert!(
+        (actual.end_fraction() - expected.1).abs() <= 0.000_001,
         "actual={actual:?} expected={expected:?}"
     );
 }
@@ -138,6 +151,31 @@ fn index_viewport_projects_and_clips_absolute_ranges() {
 }
 
 #[test]
+fn index_viewport_projects_and_clips_normalized_ranges() {
+    let viewport = IndexViewport {
+        start: 200,
+        end: 600,
+    };
+
+    assert_normalized_range_near(
+        viewport.visible_normalized_range(1_000, NormalizedRange::from_fractions(0.25, 0.5)),
+        (0.125, 0.75),
+    );
+    assert_normalized_range_near(
+        viewport.visible_normalized_range(1_000, NormalizedRange::from_fractions(0.5, 0.7)),
+        (0.75, 1.0),
+    );
+    assert_eq!(
+        viewport.visible_normalized_range(1_000, NormalizedRange::from_fractions(0.7, 0.8)),
+        None
+    );
+    assert_eq!(
+        viewport.visible_normalized_range(1_000, NormalizedRange::from_fractions(0.3, 0.3)),
+        None
+    );
+}
+
+#[test]
 fn index_viewport_scope_binds_total_and_min_visible_items() {
     let scope = IndexViewportScope::new(
         IndexViewport {
@@ -181,6 +219,10 @@ fn index_viewport_scope_projects_and_updates_without_repeated_domain_args() {
     assert_eq!(scope.absolute_ratio_from_visible(0.5), 0.4);
     assert_ratio_near(scope.visible_ratio_from_absolute(0.4), 0.5);
     assert_range_near(scope.visible_range_from_absolute(0.25, 0.5), (0.125, 0.75));
+    assert_normalized_range_near(
+        scope.visible_normalized_range(NormalizedRange::from_fractions(0.25, 0.5)),
+        (0.125, 0.75),
+    );
     assert_eq!(
         scope.zoom_around_anchor(0.5, 0.25),
         IndexViewport {

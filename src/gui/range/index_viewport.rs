@@ -1,3 +1,5 @@
+use super::NormalizedRange;
+
 /// Integer item viewport for timeline, waveform, list, and canvas ranges.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct IndexViewport {
@@ -95,6 +97,15 @@ impl IndexViewportScope {
     ) -> Option<(f32, f32)> {
         self.viewport
             .visible_range_from_absolute(self.total_items, start_ratio, end_ratio)
+    }
+
+    /// Project and clip an absolute normalized range into this viewport.
+    ///
+    /// Returns an ordered local normalized range, or `None` when the source
+    /// range does not intersect the viewport.
+    pub fn visible_normalized_range(self, range: NormalizedRange) -> Option<NormalizedRange> {
+        self.viewport
+            .visible_normalized_range(self.total_items, range)
     }
 
     /// Return a viewport zoomed by `factor` around a local anchor ratio.
@@ -242,6 +253,19 @@ impl IndexViewport {
             ((left - visible_start) / visible_width.max(1.0)).clamp(0.0, 1.0) as f32,
             ((right - visible_start) / visible_width.max(1.0)).clamp(0.0, 1.0) as f32,
         ))
+    }
+
+    /// Project and clip an absolute normalized range into this viewport.
+    ///
+    /// Returns an ordered local normalized range, or `None` when the source
+    /// range does not intersect the viewport.
+    pub fn visible_normalized_range(
+        self,
+        total_items: usize,
+        range: NormalizedRange,
+    ) -> Option<NormalizedRange> {
+        self.visible_range_from_absolute(total_items, range.start_fraction(), range.end_fraction())
+            .map(|(start, end)| NormalizedRange::from_fractions(start, end))
     }
 
     /// Return a viewport zoomed by `factor` around a local anchor ratio.

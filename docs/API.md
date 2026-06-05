@@ -446,7 +446,10 @@ drag gestures expressed as local ratios, and visible-to-absolute ratio
 projection, plus absolute-to-visible point and clipped range projection, so
 apps do not need to keep small-but-risky viewport math beside every custom
 canvas. Use `IndexViewportScope` when one surface repeatedly applies those
-operations against the same total item count and minimum visible span.
+operations against the same total item count and minimum visible span. Use
+`visible_normalized_range(...)` when a clipped absolute `NormalizedRange`
+should stay typed for downstream canvas or timeline paint helpers instead of
+being unpacked into local start/end floats in application code.
 `NormalizedRange::from_fractions(...)`,
 `NormalizedRange::with_edge_fraction(...)`,
 `NormalizedRange::shifted_by_fraction(...)`, `NormalizedRangeDrag`,

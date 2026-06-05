@@ -423,7 +423,10 @@ item count, viewport policy, and optional host selection in one controller call.
   `configure_and_focus_changed_optional(...)` or
   `configure_and_focus_changed_optional_with_context_row(...)` when a list should
   scroll newly selected items into view without overriding manual scroll while
-  the same app-owned item key remains selected.
+  the same app-owned item key remains selected. Use
+  `VirtualListFocusTarget::from_slice_by(...)` when the focused item key must be
+  resolved against the current filtered or sorted item projection before
+  following selection.
   Overlay and retained-geometry code that needs to mirror compact stack spacing
   can use `StackedLayoutCursor` to accumulate item extents and gaps without
   app-local offset arithmetic. Use the chainable `advanced(...)` and

@@ -59,6 +59,30 @@ fn virtual_list_projection_names_projection_inputs() {
 }
 
 #[test]
+fn virtual_list_focus_target_resolves_key_in_projected_slice() {
+    #[derive(Clone)]
+    struct Row {
+        id: &'static str,
+    }
+
+    let rows = [Row { id: "one" }, Row { id: "two" }, Row { id: "three" }];
+
+    let found =
+        VirtualListFocusTarget::from_slice_by(&rows, Some(String::from("two")), |row, key| {
+            row.id == key.as_str()
+        });
+    assert_eq!(found.key.as_deref(), Some("two"));
+    assert_eq!(found.index, Some(1));
+
+    let missing =
+        VirtualListFocusTarget::from_slice_by(&rows, Some(String::from("four")), |row, key| {
+            row.id == key.as_str()
+        });
+    assert_eq!(missing.key, None);
+    assert_eq!(missing.index, None);
+}
+
+#[test]
 fn virtual_list_controller_follows_changed_focus_without_overriding_manual_scroll() {
     let mut controller = VirtualListController::new();
     let mut follow = VirtualListFollowState::new();

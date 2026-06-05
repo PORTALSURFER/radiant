@@ -66,6 +66,30 @@ impl<Key> VirtualListFocusTarget<Key> {
     }
 }
 
+impl<Key: Clone> VirtualListFocusTarget<Key> {
+    /// Build a focus target by locating a stable key inside a projected item slice.
+    ///
+    /// This keeps app code focused on its domain item projection while Radiant
+    /// owns the common "key plus current index" shape used by virtual-list
+    /// selection-follow. If the key is missing from the current slice, the
+    /// returned target is empty so follow state clears instead of anchoring to a
+    /// stale item.
+    pub fn from_slice_by<Item>(
+        items: &[Item],
+        key: Option<Key>,
+        mut matches_key: impl FnMut(&Item, &Key) -> bool,
+    ) -> Self {
+        let Some(key) = key else {
+            return Self::none();
+        };
+        let index = items.iter().position(|item| matches_key(item, &key));
+        match index {
+            Some(index) => Self::new(Some(key), Some(index)),
+            None => Self::none(),
+        }
+    }
+}
+
 impl VirtualListProjection {
     /// Build virtual-list projection inputs.
     pub const fn new(

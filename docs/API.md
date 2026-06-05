@@ -1759,6 +1759,9 @@ callbacks. Compact titled panels with optional header actions can use
 `PanelSectionParts`, `panel_section(...)`, `panel_section_from_parts(...)`, and
 `closeable_panel_section_from_parts(...)` instead of rebuilding title rows,
 close buttons, padding, spacing, and neutral panel chrome in application code.
+Use `PanelSectionGeometry` when app-owned resize constraints or fixed-content
+panels need the same panel padding, title-height, and spacing calculations
+without constructing view parts.
 Use `PanelSectionParts::trailing_resize_handle(...)` when a resizable titled
 panel should use Radiant's standard compact drag handle while the host reducer
 keeps owning durable size, constraints, and resize messages.
@@ -2073,8 +2076,10 @@ state, and an auxiliary label without owning product-specific preference names.
 Titled panel code that needs to anchor popovers, completion lists, or other
 foreground chrome to the panel content area can use
 `PanelSectionParts::content_top_offset()`,
-`content_top_inset_from_bottom(...)`, and `content_bottom_inset()` so the host
-does not duplicate Radiant's panel padding, title-height, and spacing geometry.
+`content_top_inset_from_bottom(...)`, `content_bottom_inset()`,
+`section_height_for_content_height(...)`, and
+`content_height_for_section_height(...)` so the host does not duplicate
+Radiant's panel padding, title-height, and spacing geometry.
 
 `radiant::gui::text_layout` contains retained text-line placement helpers such
 as `TextLineInsets`, `centered_text_line`, `top_text_line`,

@@ -16,9 +16,23 @@ pub(in crate::runtime) fn widget_clip_capacity(stats: SurfaceTraversalStats) -> 
     }
 }
 
+fn additional_reserve_for_capacity(
+    current_len: usize,
+    current_capacity: usize,
+    desired_capacity: usize,
+) -> usize {
+    if desired_capacity > current_capacity {
+        desired_capacity.saturating_sub(current_len)
+    } else {
+        0
+    }
+}
+
 pub(in crate::runtime) fn reserve_vec_capacity<T>(values: &mut Vec<T>, desired_capacity: usize) {
-    if desired_capacity > values.capacity() {
-        values.reserve(desired_capacity);
+    let additional =
+        additional_reserve_for_capacity(values.len(), values.capacity(), desired_capacity);
+    if additional > 0 {
+        values.reserve(additional);
     }
 }
 
@@ -28,8 +42,10 @@ pub(in crate::runtime) fn reserve_map_capacity<K, V>(
 ) where
     K: Eq + Hash,
 {
-    if desired_capacity > values.capacity() {
-        values.reserve(desired_capacity);
+    let additional =
+        additional_reserve_for_capacity(values.len(), values.capacity(), desired_capacity);
+    if additional > 0 {
+        values.reserve(additional);
     }
 }
 
@@ -37,7 +53,9 @@ pub(in crate::runtime) fn reserve_set_capacity<T>(values: &mut HashSet<T>, desir
 where
     T: Eq + Hash,
 {
-    if desired_capacity > values.capacity() {
-        values.reserve(desired_capacity);
+    let additional =
+        additional_reserve_for_capacity(values.len(), values.capacity(), desired_capacity);
+    if additional > 0 {
+        values.reserve(additional);
     }
 }

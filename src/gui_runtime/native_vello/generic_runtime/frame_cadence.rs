@@ -7,6 +7,10 @@ const TEXT_INPUT_CARET_TARGET_FPS: u32 = 30;
 
 pub(super) fn animation_frame_interval(target_fps: u32) -> Duration {
     let fps = crate::gui_runtime::options::normalize_native_target_fps(target_fps);
+    animation_frame_interval_for_normalized_fps(fps)
+}
+
+pub(super) fn animation_frame_interval_for_normalized_fps(fps: u32) -> Duration {
     Duration::from_secs_f64(1.0 / f64::from(fps))
 }
 
@@ -94,6 +98,14 @@ mod tests {
             TimedFrameCadence::DrainNow {
                 next_wake: now + interval
             }
+        );
+    }
+
+    #[test]
+    fn normalized_animation_frame_interval_uses_preclamped_fps() {
+        assert_eq!(
+            animation_frame_interval_for_normalized_fps(120),
+            Duration::from_secs_f64(1.0 / 120.0)
         );
     }
 

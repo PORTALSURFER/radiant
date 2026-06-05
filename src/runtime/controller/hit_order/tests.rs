@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use super::{
-    HitOrderIndex, collect_hit_rank, collect_visible_hit_order, hit_rank, visible_hit_order,
+    HitOrderIndex, additional_reserve_for_target_capacity, collect_hit_rank,
+    collect_visible_hit_order, hit_rank, visible_hit_order,
 };
 use crate::{
     gui::types::{Point, Rect, Vector2},
@@ -83,6 +84,76 @@ fn visible_hit_order_grows_reused_output_buffer_to_visible_capacity() {
 }
 
 #[test]
+fn hit_order_index_reuses_ranked_visible_scratch_for_sparse_layouts() {
+    let mut layout = LayoutOutput::default();
+    for node_id in 0..64 {
+        layout.rects.insert(
+            node_id,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(10.0, 10.0)),
+        );
+    }
+    let mut index = HitOrderIndex::default();
+    index.set_order((0..512).collect::<Vec<_>>());
+
+    index.refresh_visible(&layout);
+
+    assert_eq!(index.visible().len(), 64);
+    assert_eq!(index.visible_ranks.len(), 64);
+    assert_eq!(index.ranked_visible.len(), 64);
+    let visible_rank_capacity = index.visible_ranks.capacity();
+    let scratch_capacity = index.ranked_visible.capacity();
+
+    layout.rects.clear();
+    for node_id in 32..48 {
+        layout.rects.insert(
+            node_id,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(10.0, 10.0)),
+        );
+    }
+    index.refresh_visible(&layout);
+
+    assert_eq!(index.visible(), &(32..48).collect::<Vec<_>>());
+    assert_eq!(index.visible_ranks, (32..48).collect::<Vec<_>>());
+    assert_eq!(index.ranked_visible.len(), 16);
+    assert_eq!(index.visible_ranks.capacity(), visible_rank_capacity);
+    assert_eq!(index.ranked_visible.capacity(), scratch_capacity);
+}
+
+#[test]
+fn hit_order_index_reuses_visible_rank_buffer_for_dense_layouts() {
+    let mut layout = LayoutOutput::default();
+    for node_id in [2, 4, 8] {
+        layout.rects.insert(
+            node_id,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(10.0, 10.0)),
+        );
+    }
+    let mut index = HitOrderIndex::default();
+    index.set_order((0..10).collect::<Vec<_>>());
+
+    index.refresh_visible(&layout);
+
+    assert_eq!(index.visible(), &[2, 4, 8]);
+    assert_eq!(index.visible_ranks, vec![2, 4, 8]);
+    let visible_rank_capacity = index.visible_ranks.capacity();
+
+    layout.rects.remove(&4);
+    index.refresh_visible(&layout);
+
+    assert_eq!(index.visible(), &[2, 8]);
+    assert_eq!(index.visible_ranks, vec![2, 8]);
+    assert_eq!(index.visible_ranks.capacity(), visible_rank_capacity);
+}
+
+#[test]
+fn hit_order_reserve_helper_treats_requested_capacity_as_target() {
+    assert_eq!(additional_reserve_for_target_capacity(0, 8, 12), 12);
+    assert_eq!(additional_reserve_for_target_capacity(3, 8, 12), 9);
+    assert_eq!(additional_reserve_for_target_capacity(0, 12, 8), 0);
+    assert_eq!(additional_reserve_for_target_capacity(0, 12, 12), 0);
+}
+
+#[test]
 fn hit_rank_reuses_output_map() {
     let mut rank = HashMap::with_capacity(8);
     rank.insert(999, 999);
@@ -126,6 +197,7 @@ fn hit_order_index_replaces_order_and_clears_visible_cache() {
     index.set_order(vec![4, 5]);
 
     assert!(index.visible().is_empty());
+    assert!(index.visible_ranks.is_empty());
     assert!(!index.contains(3));
     assert!(index.contains(4));
     assert_eq!(index.order(), &[4, 5]);

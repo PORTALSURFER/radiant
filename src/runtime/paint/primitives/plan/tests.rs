@@ -37,3 +37,11 @@ fn clear_for_theme_with_capacity_grows_to_requested_capacity() {
 
     assert!(plan.primitives.capacity() >= 96);
 }
+
+#[test]
+fn additional_reserve_for_capacity_treats_desired_capacity_as_target() {
+    assert_eq!(additional_reserve_for_capacity(0, 32, 96), 96);
+    assert_eq!(additional_reserve_for_capacity(8, 32, 96), 88);
+    assert_eq!(additional_reserve_for_capacity(0, 96, 32), 0);
+    assert_eq!(additional_reserve_for_capacity(0, 96, 96), 0);
+}

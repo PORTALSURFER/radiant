@@ -4,11 +4,12 @@ use crate::runtime::PaintPrimitive;
 
 const OPAQUE_SUFFIX_OCCLUSION_ALPHA: u8 = 240;
 
-pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn gpu_surface_opaque_suffix_regions(
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn gpu_surface_opaque_suffix_regions_into(
     surface_rect: UiRect,
     suffix: &[PaintPrimitive],
-) -> Vec<UiRect> {
-    let mut regions = Vec::new();
+    regions: &mut Vec<UiRect>,
+) {
+    regions.clear();
     for primitive in suffix {
         match primitive {
             PaintPrimitive::FillRect(fill) if fill.color.a >= OPAQUE_SUFFIX_OCCLUSION_ALPHA => {
@@ -28,7 +29,6 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn gpu_su
             _ => {}
         }
     }
-    regions
 }
 
 #[cfg(test)]
@@ -62,12 +62,37 @@ mod tests {
             }),
         ];
 
-        let regions = gpu_surface_opaque_suffix_regions(surface, &suffix);
+        let mut regions = Vec::new();
+        gpu_surface_opaque_suffix_regions_into(surface, &suffix, &mut regions);
 
         assert_eq!(regions.len(), 1);
         assert_eq!(
             regions[0],
             UiRect::from_min_size(Point::new(30.0, 10.0), Vector2::new(20.0, 20.0))
         );
+    }
+
+    #[test]
+    fn gpu_surface_opaque_suffix_regions_into_reuses_existing_storage() {
+        let surface = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0));
+        let suffix = [PaintPrimitive::FillRect(crate::runtime::PaintFillRect {
+            widget_id: 7,
+            rect: UiRect::from_min_size(Point::new(10.0, 10.0), Vector2::new(20.0, 20.0)),
+            color: Rgba8 {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+        })];
+        let mut regions = Vec::with_capacity(8);
+
+        gpu_surface_opaque_suffix_regions_into(surface, &suffix, &mut regions);
+        let capacity = regions.capacity();
+        gpu_surface_opaque_suffix_regions_into(surface, &[], &mut regions);
+
+        assert_eq!(capacity, 8);
+        assert_eq!(regions.capacity(), capacity);
+        assert!(regions.is_empty());
     }
 }

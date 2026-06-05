@@ -101,10 +101,10 @@ fn draw_text_input_text(
         return;
     }
     let baseline_offset = input.baseline.unwrap_or(input.font_size);
-    text_renderer.draw_scene_text_runs(
+    text_renderer.draw_text_run(
         scene,
-        [SceneTextRun {
-            text: text.into(),
+        text,
+        TextRunParts {
             position: Point::new(
                 input.rect.min.x,
                 input.rect.min.y + baseline_offset - input.font_size,
@@ -113,7 +113,7 @@ fn draw_text_input_text(
             color,
             max_width: Some(input.rect.width().max(0.0)),
             align: TextAlign::Left,
-        }],
+        },
     );
 }
 
@@ -140,10 +140,10 @@ fn draw_completion_suffix(
         return;
     }
     let baseline_offset = input.baseline.unwrap_or(input.font_size);
-    text_renderer.draw_scene_text_runs(
+    text_renderer.draw_text_run(
         scene,
-        [SceneTextRun {
-            text: suffix.clone(),
+        suffix.as_ref(),
+        TextRunParts {
             position: Point::new(
                 suffix_x,
                 input.rect.min.y + baseline_offset - input.font_size,
@@ -152,7 +152,7 @@ fn draw_completion_suffix(
             color: input.completion_color,
             max_width: Some(max_width),
             align: TextAlign::Left,
-        }],
+        },
     );
 }
 

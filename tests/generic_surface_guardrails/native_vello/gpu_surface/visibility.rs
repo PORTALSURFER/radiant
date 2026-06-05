@@ -16,7 +16,8 @@ fn native_gpu_surface_visibility_occlusion_stays_focused() {
     assert!(
         visibility.contains("mod occlusion;")
             && visibility.contains("visible_rects_after_occlusion")
-            && visibility.contains("gpu_surface_opaque_suffix_regions(surface.rect, suffix)")
+            && visibility.contains("gpu_surface_opaque_suffix_regions_into(")
+            && visibility.contains("&mut scratch.occlusion_regions")
             && !visibility.contains("const OPAQUE_SUFFIX_OCCLUSION_ALPHA")
             && !visibility.contains("PaintPrimitive::FillRect(fill)"),
         "GPU surface visibility should delegate opaque suffix collection"

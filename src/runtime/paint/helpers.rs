@@ -182,15 +182,13 @@ pub fn push_fill_polygon(
     points: impl IntoIterator<Item = Point>,
     color: Rgba8,
 ) {
-    let points = points.into_iter().collect::<Vec<_>>();
-    if points.len() < 3 {
-        return;
+    if let Some(points) = collect_points_for_primitive(points, 3) {
+        primitives.push(PaintPrimitive::FillPolygon(PaintFillPolygon {
+            widget_id,
+            points: Arc::from(points),
+            color,
+        }));
     }
-    primitives.push(PaintPrimitive::FillPolygon(PaintFillPolygon {
-        widget_id,
-        points: Arc::from(points),
-        color,
-    }));
 }
 
 /// Push an open stroked polyline from generated or caller-owned points.
@@ -201,16 +199,28 @@ pub fn push_stroke_polyline(
     color: Rgba8,
     width: f32,
 ) {
-    let points = points.into_iter().collect::<Vec<_>>();
-    if points.len() < 2 {
-        return;
+    if let Some(points) = collect_points_for_primitive(points, 2) {
+        primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
+            widget_id,
+            points: Arc::from(points),
+            color,
+            width,
+        }));
     }
-    primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
-        widget_id,
-        points: Arc::from(points),
-        color,
-        width,
-    }));
+}
+
+fn collect_points_for_primitive(
+    points: impl IntoIterator<Item = Point>,
+    minimum_points: usize,
+) -> Option<Vec<Point>> {
+    let iter = points.into_iter();
+    let (lower_bound, upper_bound) = iter.size_hint();
+    if upper_bound.is_some_and(|upper_bound| upper_bound < minimum_points) {
+        return None;
+    }
+    let mut points = Vec::with_capacity(lower_bound.max(minimum_points));
+    points.extend(iter);
+    (points.len() >= minimum_points).then_some(points)
 }
 
 /// Push a single-line text run with explicit metrics into a runtime paint primitive buffer.
@@ -259,6 +269,22 @@ pub fn push_text(
 mod tests {
     use super::*;
     use crate::gui::types::{Point, Vector2};
+
+    struct TooShortPointIterator {
+        upper_bound: usize,
+    }
+
+    impl Iterator for TooShortPointIterator {
+        type Item = Point;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            panic!("iterator should not be polled when upper bound is below primitive minimum");
+        }
+
+        fn size_hint(&self) -> (usize, Option<usize>) {
+            (0, Some(self.upper_bound))
+        }
+    }
 
     #[test]
     fn empty_rect_batches_do_not_emit_primitives() {
@@ -346,6 +372,39 @@ mod tests {
         );
 
         assert!(primitives.is_empty());
+    }
+
+    #[test]
+    fn polygon_and_polyline_helpers_skip_known_short_iterators_without_polling() {
+        let mut primitives = Vec::new();
+
+        push_fill_polygon(
+            &mut primitives,
+            7,
+            TooShortPointIterator { upper_bound: 2 },
+            Rgba8::new(1, 2, 3, 4),
+        );
+        push_stroke_polyline(
+            &mut primitives,
+            7,
+            TooShortPointIterator { upper_bound: 1 },
+            Rgba8::new(1, 2, 3, 4),
+            1.0,
+        );
+
+        assert!(primitives.is_empty());
+    }
+
+    #[test]
+    fn point_collection_presizes_from_iterator_lower_bound() {
+        let points = collect_points_for_primitive(
+            (0..128).map(|index| Point::new(index as f32, index as f32 * 0.5)),
+            2,
+        )
+        .expect("valid point list");
+
+        assert_eq!(points.len(), 128);
+        assert!(points.capacity() >= 128);
     }
 
     #[test]

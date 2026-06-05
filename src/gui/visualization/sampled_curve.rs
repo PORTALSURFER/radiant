@@ -1,8 +1,9 @@
 use crate::{
     gui::types::{Point, Rect, Rgba8},
-    runtime::{PaintPrimitive, push_stroke_polyline},
+    runtime::{PaintPrimitive, PaintStrokePolyline},
     widgets::WidgetId,
 };
+use std::sync::Arc;
 
 /// Named fields for appending a sampled visual curve to a paint plan.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -90,13 +91,12 @@ pub fn push_sampled_curve_stroke(
     if points.len() < 2 {
         return false;
     }
-    push_stroke_polyline(
-        primitives,
-        parts.widget_id,
-        points,
-        parts.color,
-        parts.stroke_width,
-    );
+    primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
+        widget_id: parts.widget_id,
+        points: Arc::from(points),
+        color: parts.color,
+        width: parts.stroke_width,
+    }));
     true
 }
 
@@ -142,6 +142,14 @@ mod tests {
         let stroke = primitives[0].stroke_polyline().expect("stroke polyline");
         assert_eq!(stroke.widget_id, 42);
         assert_eq!(stroke.points.len(), 3);
+        assert_eq!(
+            stroke.points.as_ref(),
+            [
+                Point::new(10.0, 60.0),
+                Point::new(60.0, 40.0),
+                Point::new(110.0, 20.0)
+            ]
+        );
     }
 
     #[test]

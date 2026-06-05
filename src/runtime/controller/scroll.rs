@@ -37,13 +37,14 @@ where
             return false;
         };
         let current = self.layout_state.scroll_offset(node_id);
-        self.layout_state.scroll_offsets.insert(
-            node_id,
-            Vector2::new(
-                (current.x + delta.x).max(0.0),
-                (current.y + delta.y).max(0.0),
-            ),
+        let requested = Vector2::new(
+            (current.x + delta.x).max(0.0),
+            (current.y + delta.y).max(0.0),
         );
+        if current == Vector2::default() && requested == current {
+            return true;
+        }
+        self.layout_state.scroll_offsets.insert(node_id, requested);
         self.relayout_current_surface();
         let offset = self.layout_state.scroll_offset(node_id);
         if offset == current {

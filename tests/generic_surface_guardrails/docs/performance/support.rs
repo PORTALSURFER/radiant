@@ -32,6 +32,7 @@ pub(super) const PERF_SCENARIOS: &[&str] = &[
     "text_word_deletion_1k",
     "gpu_signal_summary",
     "gpu_surface_projection",
+    "gpu_surface_stack_projection_128",
     "gpu_custom_shader_projection",
 ];
 

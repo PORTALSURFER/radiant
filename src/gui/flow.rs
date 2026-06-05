@@ -215,6 +215,109 @@ impl<T> FlowItemWidth for FlowItem<T> {
     }
 }
 
+/// Stateful row packer for incrementally building wrapped inline flows.
+///
+/// This keeps the current row width as items are appended, avoiding repeated
+/// scans of the last row when a caller builds a token, chip, pill, or recipient
+/// editor one item at a time. Use [`pack_flow_rows`] for one-shot packing.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FlowRowPacker<T> {
+    rows: Vec<Vec<T>>,
+    content_width: f32,
+    item_gap: f32,
+    current_width: f32,
+}
+
+impl<T> FlowRowPacker<T> {
+    /// Create an empty incremental flow-row packer.
+    pub fn new(content_width: f32, metrics: FlowLayoutMetrics) -> Self {
+        Self {
+            rows: Vec::new(),
+            content_width: content_width.max(0.0),
+            item_gap: metrics.item_gap.max(0.0),
+            current_width: 0.0,
+        }
+    }
+
+    /// Borrow the packed rows.
+    pub fn rows(&self) -> &[Vec<T>] {
+        &self.rows
+    }
+
+    /// Return the width of the current trailing row.
+    pub fn current_row_width(&self) -> f32 {
+        self.current_width
+    }
+
+    /// Consume the packer and return its packed rows.
+    pub fn into_rows(self) -> Vec<Vec<T>> {
+        self.rows
+    }
+
+    /// Push one variable-width item onto the packed rows.
+    pub fn push_item(&mut self, item: T, width: f32) {
+        let width = width.max(0.0);
+        let proposed = proposed_row_width(self.current_width, width, self.item_gap);
+        if proposed > self.content_width && self.current_width > 0.0 {
+            self.rows.push(Vec::new());
+            self.current_width = 0.0;
+        }
+        self.current_width = proposed_row_width(self.current_width, width, self.item_gap);
+        self.push_value(item);
+    }
+
+    /// Push a group of items that should stay on the same row.
+    pub fn push_group(&mut self, items: impl IntoIterator<Item = FlowItem<T>>) {
+        let (values, group_width) = collect_flow_group(items, self.item_gap);
+        if values.is_empty() {
+            return;
+        }
+        let proposed = proposed_row_width(self.current_width, group_width, self.item_gap);
+        if proposed > self.content_width && self.current_width > 0.0 {
+            self.rows.push(Vec::new());
+            self.current_width = 0.0;
+        }
+        self.current_width = proposed_row_width(self.current_width, group_width, self.item_gap);
+        self.ensure_current_row();
+        if let Some(row) = self.rows.last_mut() {
+            row.extend(values);
+        }
+    }
+
+    fn push_value(&mut self, item: T) {
+        self.ensure_current_row();
+        if let Some(row) = self.rows.last_mut() {
+            row.push(item);
+        }
+    }
+
+    fn ensure_current_row(&mut self) {
+        if self.rows.is_empty() {
+            self.rows.push(Vec::new());
+        }
+    }
+}
+
+impl<T> FlowRowPacker<T>
+where
+    T: FlowItemWidth,
+{
+    /// Create a packer from already-built rows, computing the current row width once.
+    pub fn from_rows(rows: Vec<Vec<T>>, content_width: f32, metrics: FlowLayoutMetrics) -> Self {
+        let item_gap = metrics.item_gap.max(0.0);
+        let current_width = rows
+            .last()
+            .map(|row| flow_row_width(row, item_gap))
+            .unwrap_or(0.0);
+        Self {
+            rows,
+            content_width: content_width.max(0.0),
+            item_gap,
+            current_width,
+        }
+    }
+}
+
 /// Pack variable-width items into rows for a wrapping inline flow.
 ///
 /// This mirrors Radiant's wrap-layout row break policy for data-driven widgets
@@ -224,29 +327,11 @@ pub fn pack_flow_rows<T>(
     content_width: f32,
     metrics: FlowLayoutMetrics,
 ) -> Vec<Vec<T>> {
-    let mut rows = Vec::new();
-    let mut current_width = 0.0;
-    let content_width = content_width.max(0.0);
-    let item_gap = metrics.item_gap.max(0.0);
-
+    let mut packer = FlowRowPacker::new(content_width, metrics);
     for item in items {
-        let width = item.width.max(0.0);
-        let proposed = proposed_row_width(current_width, width, item_gap);
-        if proposed > content_width && current_width > 0.0 {
-            rows.push(Vec::new());
-            current_width = 0.0;
-        }
-
-        current_width = proposed_row_width(current_width, width, item_gap);
-        if rows.is_empty() {
-            rows.push(Vec::new());
-        }
-        if let Some(row) = rows.last_mut() {
-            row.push(item.value);
-        }
+        packer.push_item(item.value, item.width);
     }
-
-    rows
+    packer.into_rows()
 }
 
 /// Pack variable-width items and append one trailing editor/control item.
@@ -267,15 +352,18 @@ where
     T: FlowItemWidth,
     Create: FnOnce(f32) -> T,
 {
-    let items = items.into_iter().collect::<Vec<_>>();
-    let trailing_starts_new_row = flow_trailing_item_starts_new_row(
-        items.iter().map(|item| item.width),
+    let mut packer = FlowRowPacker::new(content_width, metrics);
+    for item in items {
+        packer.push_item(item.value, item.width);
+    }
+    let trailing_starts_new_row = trailing_item_starts_new_row_after_width(
+        packer.current_row_width(),
         trailing.width,
         trailing.min_remaining_width,
         content_width,
-        metrics,
+        metrics.item_gap,
     );
-    let mut rows = pack_flow_rows(items, content_width, metrics);
+    let mut rows = packer.into_rows();
     if trailing_starts_new_row || rows.is_empty() {
         rows.push(Vec::new());
     }
@@ -285,14 +373,9 @@ where
     } else {
         trailing.width
     };
-    push_flow_row_item(
-        &mut rows,
-        (trailing.create)(width),
-        width,
-        content_width,
-        metrics,
-    );
-    rows
+    let mut packer = FlowRowPacker::from_rows(rows, content_width, metrics);
+    packer.push_item((trailing.create)(width), width);
+    packer.into_rows()
 }
 
 /// Pack variable-width items and append an atomically-wrapped trailing group.
@@ -324,22 +407,9 @@ pub fn push_flow_row_item<T>(
 ) where
     T: FlowItemWidth,
 {
-    if rows.is_empty() {
-        rows.push(Vec::new());
-    }
-
-    let item_gap = metrics.item_gap.max(0.0);
-    let current_width = rows
-        .last()
-        .map(|row| flow_row_width(row, item_gap))
-        .unwrap_or(0.0);
-    let proposed = proposed_row_width(current_width, width.max(0.0), item_gap);
-    if proposed > content_width.max(0.0) && current_width > 0.0 {
-        rows.push(Vec::new());
-    }
-    if let Some(row) = rows.last_mut() {
-        row.push(item);
-    }
+    let mut packer = FlowRowPacker::from_rows(std::mem::take(rows), content_width, metrics);
+    packer.push_item(item, width);
+    *rows = packer.into_rows();
 }
 
 /// Push a group of variable-width items that should stay on the same row.
@@ -357,28 +427,9 @@ pub fn push_flow_row_group<T>(
 ) where
     T: FlowItemWidth,
 {
-    let items = items.into_iter().collect::<Vec<_>>();
-    if items.is_empty() {
-        return;
-    }
-    if rows.is_empty() {
-        rows.push(Vec::new());
-    }
-
-    let item_gap = metrics.item_gap.max(0.0);
-    let current_width = rows
-        .last()
-        .map(|row| flow_row_width(row, item_gap))
-        .unwrap_or(0.0);
-    let group_width = flow_widths_total(items.iter().map(|item| item.width), item_gap);
-    let proposed = proposed_row_width(current_width, group_width, item_gap);
-    if proposed > content_width.max(0.0) && current_width > 0.0 {
-        rows.push(Vec::new());
-    }
-
-    if let Some(row) = rows.last_mut() {
-        row.extend(items.into_iter().map(|item| item.value));
-    }
+    let mut packer = FlowRowPacker::from_rows(std::mem::take(rows), content_width, metrics);
+    packer.push_group(items);
+    *rows = packer.into_rows();
 }
 
 /// Return the packed width of a row of flow items.
@@ -440,8 +491,13 @@ pub fn flow_trailing_item_starts_new_row(
         }
     }
 
-    row_width > 0.0
-        && content_width - row_width - item_gap < trailing_width.max(min_remaining_width).max(0.0)
+    trailing_item_starts_new_row_after_width(
+        row_width,
+        trailing_width,
+        min_remaining_width,
+        content_width,
+        item_gap,
+    )
 }
 
 fn proposed_row_width(current_width: f32, item_width: f32, item_gap: f32) -> f32 {
@@ -452,12 +508,43 @@ fn proposed_row_width(current_width: f32, item_width: f32, item_gap: f32) -> f32
     }
 }
 
+fn trailing_item_starts_new_row_after_width(
+    row_width: f32,
+    trailing_width: f32,
+    min_remaining_width: f32,
+    content_width: f32,
+    item_gap: f32,
+) -> bool {
+    row_width > 0.0
+        && content_width.max(0.0) - row_width - item_gap.max(0.0)
+            < trailing_width.max(min_remaining_width).max(0.0)
+}
+
 fn flow_widths_total(widths: impl IntoIterator<Item = f32>, item_gap: f32) -> f32 {
     widths
         .into_iter()
         .map(|width| width.max(0.0))
         .reduce(|total, width| total + item_gap.max(0.0) + width)
         .unwrap_or(0.0)
+}
+
+fn collect_flow_group<T>(
+    items: impl IntoIterator<Item = FlowItem<T>>,
+    item_gap: f32,
+) -> (Vec<T>, f32) {
+    let items = items.into_iter();
+    let (lower, upper) = items.size_hint();
+    let mut values = Vec::with_capacity(upper.unwrap_or(lower));
+    let mut total_width = 0.0;
+    let item_gap = item_gap.max(0.0);
+
+    for item in items {
+        let width = item.width.max(0.0);
+        total_width = proposed_row_width(total_width, width, item_gap);
+        values.push(item.value);
+    }
+
+    (values, total_width)
 }
 
 /// Trait for row payloads that expose a desired flow width.
@@ -562,6 +649,65 @@ mod tests {
             rows[1].iter().map(|item| item.0).collect::<Vec<_>>(),
             ["three"]
         );
+    }
+
+    #[test]
+    fn flow_row_packer_tracks_width_without_rescanning_rows() {
+        #[derive(Clone, Debug, PartialEq)]
+        struct SizedItem(&'static str, f32);
+
+        let mut packer = FlowRowPacker::new(90.0, metrics());
+        packer.push_item(SizedItem("one", 40.0), 40.0);
+        assert_eq!(packer.current_row_width(), 40.0);
+        packer.push_item(SizedItem("two", 40.0), 40.0);
+        assert_eq!(packer.current_row_width(), 83.0);
+        packer.push_item(SizedItem("three", 40.0), 40.0);
+
+        assert_eq!(packer.current_row_width(), 40.0);
+        assert_eq!(
+            packer.into_rows(),
+            vec![
+                vec![SizedItem("one", 40.0), SizedItem("two", 40.0)],
+                vec![SizedItem("three", 40.0)]
+            ]
+        );
+    }
+
+    #[test]
+    fn flow_row_packer_keeps_group_items_atomic() {
+        #[derive(Clone, Debug, PartialEq)]
+        struct SizedItem(&'static str, f32);
+
+        let mut packer = FlowRowPacker::new(150.0, metrics());
+        packer.push_item(SizedItem("pill", 86.0), 86.0);
+        packer.push_group([
+            FlowItem::new(SizedItem("prefix", 50.0), 50.0),
+            FlowItem::new(SizedItem("input", 70.0), 70.0),
+        ]);
+
+        assert_eq!(packer.current_row_width(), 123.0);
+        assert_eq!(
+            packer.rows(),
+            &[
+                vec![SizedItem("pill", 86.0)],
+                vec![SizedItem("prefix", 50.0), SizedItem("input", 70.0)]
+            ]
+        );
+    }
+
+    #[test]
+    fn flow_group_collection_computes_width_while_extracting_payloads() {
+        let (values, width) = collect_flow_group(
+            [
+                FlowItem::new("prefix", 50.0),
+                FlowItem::new("input", 70.0),
+                FlowItem::new("negative", -10.0),
+            ],
+            metrics().item_gap,
+        );
+
+        assert_eq!(values, ["prefix", "input", "negative"]);
+        assert_eq!(width, 126.0);
     }
 
     #[test]

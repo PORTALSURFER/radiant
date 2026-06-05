@@ -187,6 +187,55 @@ fn plan_level_paint_queries_ignore_clip_bookkeeping() {
 }
 
 #[test]
+fn plan_level_rect_queries_flatten_batched_rectangles() {
+    let theme = ThemeTokens::default();
+    let mut plan = SurfacePaintPlan::empty(&theme);
+    let clip_rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(30.0, 30.0));
+    let fill_first = Rect::from_min_size(Point::new(1.0, 2.0), Vector2::new(3.0, 4.0));
+    let fill_second = Rect::from_min_size(Point::new(5.0, 6.0), Vector2::new(7.0, 8.0));
+    let stroke_first = Rect::from_min_size(Point::new(9.0, 10.0), Vector2::new(11.0, 12.0));
+    let stroke_second = Rect::from_min_size(Point::new(13.0, 14.0), Vector2::new(15.0, 16.0));
+
+    plan.primitives
+        .push(PaintPrimitive::ClipStart(PaintClipStart {
+            node_id: 7,
+            rect: clip_rect,
+        }));
+    plan.primitives
+        .push(PaintPrimitive::FillRectBatch(PaintFillRectBatch {
+            widget_id: 21,
+            rects: Arc::from([fill_first, fill_second]),
+            color: theme.accent_mint,
+        }));
+    plan.primitives
+        .push(PaintPrimitive::StrokeRectBatch(PaintStrokeRectBatch {
+            widget_id: 22,
+            rects: Arc::from([stroke_first, stroke_second]),
+            color: theme.text_primary,
+            width: 1.0,
+        }));
+
+    assert_eq!(
+        plan.rects().collect::<Vec<_>>(),
+        vec![
+            clip_rect,
+            fill_first,
+            fill_second,
+            stroke_first,
+            stroke_second
+        ]
+    );
+    assert_eq!(
+        plan.paint_rects().collect::<Vec<_>>(),
+        vec![fill_first, fill_second, stroke_first, stroke_second]
+    );
+    assert!(plan.contains_rect_matching(|rect| rect == clip_rect));
+    assert!(plan.contains_paint_rect_matching(|rect| rect == fill_second));
+    assert!(plan.contains_paint_rect_matching(|rect| rect == stroke_second));
+    assert!(!plan.contains_paint_rect_matching(|rect| rect == clip_rect));
+}
+
+#[test]
 fn shape_and_svg_queries_return_matching_primitives_in_paint_order() {
     let theme = ThemeTokens::default();
     let mut plan = SurfacePaintPlan::empty(&theme);
@@ -299,11 +348,17 @@ fn visible_fill_queries_ignore_transparent_or_empty_fills() {
     plan.primitives
         .push(PaintPrimitive::FillRect(PaintFillRect {
             widget_id: 91,
+            rect: Rect::from_min_size(Point::new(f32::NAN, 0.0), Vector2::new(10.0, 10.0)),
+            color: theme.accent_mint,
+        }));
+    plan.primitives
+        .push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: 91,
             rect: Rect::from_min_size(Point::new(1.0, 1.0), Vector2::new(3.0, 4.0)),
             color: theme.accent_mint,
         }));
 
-    assert_eq!(plan.fill_rects_for_widget(91).count(), 3);
+    assert_eq!(plan.fill_rects_for_widget(91).count(), 4);
     assert_eq!(
         plan.visible_fill_rects_for_widget(91)
             .map(|fill| fill.rect)
@@ -313,6 +368,47 @@ fn visible_fill_queries_ignore_transparent_or_empty_fills() {
             Vector2::new(3.0, 4.0)
         )]
     );
+    assert!(plan.contains_visible_fill_rect_for_widget(91));
+    assert!(!plan.contains_visible_fill_rect_for_widget(404));
+}
+
+#[test]
+fn visible_fill_presence_includes_batched_rectangles() {
+    let theme = ThemeTokens::default();
+    let mut plan = SurfacePaintPlan::empty(&theme);
+    plan.primitives
+        .push(PaintPrimitive::FillRectBatch(PaintFillRectBatch {
+            widget_id: 91,
+            rects: Arc::from([Rect::from_min_size(
+                Point::new(1.0, 1.0),
+                Vector2::new(3.0, 4.0),
+            )]),
+            color: theme.accent_mint.with_alpha(0),
+        }));
+    plan.primitives
+        .push(PaintPrimitive::FillRectBatch(PaintFillRectBatch {
+            widget_id: 91,
+            rects: Arc::from([Rect::from_min_size(
+                Point::new(1.0, 1.0),
+                Vector2::new(0.0, 4.0),
+            )]),
+            color: theme.accent_mint,
+        }));
+
+    assert!(!plan.contains_visible_fill_rect_for_widget(91));
+
+    plan.primitives
+        .push(PaintPrimitive::FillRectBatch(PaintFillRectBatch {
+            widget_id: 91,
+            rects: Arc::from([Rect::from_min_size(
+                Point::new(2.0, 3.0),
+                Vector2::new(5.0, 6.0),
+            )]),
+            color: theme.accent_mint,
+        }));
+
+    assert!(plan.contains_visible_fill_rect_for_widget(91));
+    assert!(!plan.contains_visible_fill_rect_for_widget(404));
 }
 
 #[test]

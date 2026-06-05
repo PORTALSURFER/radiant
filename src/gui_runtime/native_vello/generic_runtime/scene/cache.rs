@@ -8,7 +8,7 @@ use crate::{
 };
 use std::collections::VecDeque;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub(in crate::gui_runtime::native_vello) struct RetainedSurfaceFrameCache {
     entries: VecDeque<RetainedSurfaceFrameCacheEntry>,
     policy: RetainedSurfaceCachePolicy,
@@ -79,7 +79,7 @@ impl RetainedSurfaceFrameCache {
         policy: RetainedSurfaceCachePolicy,
     ) -> Self {
         Self {
-            entries: VecDeque::new(),
+            entries: VecDeque::with_capacity(policy.max_frames),
             policy,
         }
     }
@@ -102,10 +102,23 @@ impl RetainedSurfaceFrameCache {
             self.invalidate_descriptor_key(descriptor.key);
             return None;
         }
-        self.entries
+        if self
+            .entries
+            .back()
+            .is_some_and(|entry| entry.matches(descriptor, rect, viewport))
+        {
+            return self.entries.back().map(|entry| &entry.frame);
+        }
+        let index = self
+            .entries
             .iter()
-            .find(|entry| entry.matches(descriptor, rect, viewport))
-            .map(|entry| &entry.frame)
+            .rposition(|entry| entry.matches(descriptor, rect, viewport))?;
+        if index + 1 == self.entries.len() {
+            return self.entries.get(index).map(|entry| &entry.frame);
+        }
+        let entry = self.entries.remove(index)?;
+        self.entries.push_back(entry);
+        self.entries.back().map(|entry| &entry.frame)
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn store(
@@ -123,6 +136,18 @@ impl RetainedSurfaceFrameCache {
             self.invalidate_descriptor_key(descriptor.key);
             return;
         }
+        if self
+            .entries
+            .back()
+            .is_some_and(|entry| entry.same_surface_geometry(descriptor, rect, viewport))
+        {
+            let Some(entry) = self.entries.back_mut() else {
+                return;
+            };
+            entry.descriptor = descriptor;
+            entry.frame = frame;
+            return;
+        }
         self.entries
             .retain(|entry| !entry.same_surface_geometry(descriptor, rect, viewport));
         self.entries.push_back(RetainedSurfaceFrameCacheEntry {
@@ -138,6 +163,12 @@ impl RetainedSurfaceFrameCache {
 
     fn invalidate_descriptor_key(&mut self, key: u64) {
         self.entries.retain(|entry| entry.descriptor.key != key);
+    }
+}
+
+impl Default for RetainedSurfaceFrameCache {
+    fn default() -> Self {
+        Self::with_policy(RetainedSurfaceCachePolicy::default())
     }
 }
 

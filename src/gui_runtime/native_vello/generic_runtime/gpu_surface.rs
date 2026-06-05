@@ -1,7 +1,7 @@
 //! Native GPU renderer for retained generic GPU-surface paint primitives.
 
 use super::device::{wgpu_device_id, wgpu_target_matches};
-use crate::gui::types::Vector2;
+use crate::gui::types::{Rect as UiRect, Vector2};
 use crate::runtime::{GpuSurfaceContent, PaintPrimitive};
 use vello::wgpu;
 
@@ -24,8 +24,10 @@ use resources::GpuSurfaceResourceCache;
 #[cfg(test)]
 pub(super) use signal_pipeline::GPU_SIGNAL_SHADER;
 pub(super) use stats::GpuSurfaceRenderStats;
-use visibility::gpu_surface_opaque_suffix_regions;
-pub(super) use visibility::gpu_surface_visible_suffix_regions_into;
+use visibility::gpu_surface_opaque_suffix_regions_into;
+pub(super) use visibility::{
+    GpuSurfaceVisibleSuffixScratch, gpu_surface_visible_suffix_regions_into_with_scratch,
+};
 
 #[derive(Default)]
 pub(super) struct GpuSurfaceRenderer {
@@ -35,6 +37,7 @@ pub(super) struct GpuSurfaceRenderer {
     signal_pipeline_generation: u64,
     resources: GpuSurfaceResourceCache,
     active_keys: ActiveGpuSurfaceKeys,
+    occlusion_regions: Vec<UiRect>,
 }
 
 pub(super) struct GpuSurfaceRenderTarget<'a> {
@@ -54,6 +57,7 @@ impl GpuSurfaceRenderer {
         primitives: &[PaintPrimitive],
     ) -> GpuSurfaceRenderStats {
         let mut stats = GpuSurfaceRenderStats::default();
+        let mut occlusion_regions = std::mem::take(&mut self.occlusion_regions);
         self.active_keys.begin_frame();
         for (index, primitive) in primitives.iter().enumerate() {
             let PaintPrimitive::GpuSurface(surface) = primitive else {
@@ -65,9 +69,10 @@ impl GpuSurfaceRenderer {
             if !surface.content.is_renderable() {
                 continue;
             }
-            let occlusion_regions = gpu_surface_opaque_suffix_regions(
+            gpu_surface_opaque_suffix_regions_into(
                 surface.rect,
                 primitives.get(index + 1..).unwrap_or_default(),
+                &mut occlusion_regions,
             );
             match &surface.content {
                 GpuSurfaceContent::RgbaAtlas { source_rect, .. } => {
@@ -96,6 +101,7 @@ impl GpuSurfaceRenderer {
         } else {
             self.clear_resources();
         }
+        self.occlusion_regions = occlusion_regions;
         stats
     }
 
@@ -106,11 +112,22 @@ impl GpuSurfaceRenderer {
     fn clear_resources(&mut self) {
         self.resources.clear();
     }
+
+    #[cfg(test)]
+    fn collect_occlusion_regions_for_test(
+        &mut self,
+        surface_rect: UiRect,
+        suffix: &[PaintPrimitive],
+    ) -> &[UiRect] {
+        gpu_surface_opaque_suffix_regions_into(surface_rect, suffix, &mut self.occlusion_regions);
+        &self.occlusion_regions
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gui::types::{Point, Rgba8};
     use std::sync::Arc;
 
     #[test]
@@ -144,5 +161,39 @@ mod tests {
         assert!(renderer.resources.signal_bodies.is_empty());
         assert!(renderer.resources.signals.is_empty());
         assert!(renderer.resources.signal_summaries.is_empty());
+    }
+
+    #[test]
+    fn gpu_surface_renderer_reuses_occlusion_scratch_storage() {
+        let mut renderer = GpuSurfaceRenderer {
+            occlusion_regions: Vec::with_capacity(8),
+            ..GpuSurfaceRenderer::default()
+        };
+        let capacity = renderer.occlusion_regions.capacity();
+        let surface_rect = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0));
+        let suffix = [PaintPrimitive::FillRect(crate::runtime::PaintFillRect {
+            widget_id: 7,
+            rect: UiRect::from_min_size(Point::new(20.0, 15.0), Vector2::new(50.0, 30.0)),
+            color: Rgba8 {
+                r: 47,
+                g: 47,
+                b: 47,
+                a: 255,
+            },
+        })];
+
+        assert_eq!(
+            renderer
+                .collect_occlusion_regions_for_test(surface_rect, &suffix)
+                .len(),
+            1
+        );
+        assert!(
+            renderer
+                .collect_occlusion_regions_for_test(surface_rect, &[])
+                .is_empty()
+        );
+
+        assert_eq!(renderer.occlusion_regions.capacity(), capacity);
     }
 }

@@ -1,4 +1,4 @@
-use super::{Command, RepaintScope};
+use super::{Command, RepaintScope, flatten::additional_reserve_for_target_capacity};
 
 #[test]
 fn batch_drops_empty_commands_and_preserves_message_order() {
@@ -95,10 +95,36 @@ fn message_flattening_into_reuses_output_storage() {
 }
 
 #[test]
+fn message_flattening_reserve_helper_treats_hint_as_target_capacity() {
+    assert_eq!(additional_reserve_for_target_capacity(0, 8, 12), 12);
+    assert_eq!(additional_reserve_for_target_capacity(3, 8, 12), 9);
+    assert_eq!(additional_reserve_for_target_capacity(0, 12, 8), 0);
+    assert_eq!(additional_reserve_for_target_capacity(0, 12, 12), 0);
+}
+
+#[test]
 fn batch_collapses_single_command_groups() {
     let command = Command::batch([Command::none(), Command::batch([Command::message("only")])]);
 
     assert!(matches!(command, Command::Message("only")));
+}
+
+#[test]
+fn batch_flattens_exact_single_nested_command_group() {
+    let command = Command::batch([Command::batch([
+        Command::none(),
+        Command::message("first"),
+        Command::batch([Command::message("second")]),
+    ])]);
+
+    let Command::Batch(commands) = &command else {
+        panic!("single nested batch with multiple commands should flatten");
+    };
+
+    assert_eq!(commands.len(), 2);
+    assert!(matches!(commands[0], Command::Message("first")));
+    assert!(matches!(commands[1], Command::Message("second")));
+    assert_eq!(command.into_messages(), vec!["first", "second"]);
 }
 
 #[test]

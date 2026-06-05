@@ -24,7 +24,18 @@ impl<Message> Command<Message> {
 
     /// Build a command that dispatches multiple commands in order.
     pub fn batch(command_iter: impl IntoIterator<Item = Command<Message>>) -> Self {
-        let command_iter = command_iter.into_iter();
+        let mut command_iter = command_iter.into_iter();
+        match command_iter.size_hint() {
+            (_, Some(0)) => return Self::None,
+            (1, Some(1)) => {
+                let Some(command) = command_iter.next() else {
+                    return Self::None;
+                };
+                debug_assert!(command_iter.next().is_none());
+                return command.collapse_for_batch();
+            }
+            _ => {}
+        }
         let mut commands = Vec::with_capacity(command_iter.size_hint().0);
         for command in command_iter {
             command.append_to_batch(&mut commands);
@@ -206,6 +217,14 @@ impl<Message> Command<Message> {
                 }
             }
             command => commands.push(command),
+        }
+    }
+
+    fn collapse_for_batch(self) -> Self {
+        match self {
+            Self::None => Self::None,
+            Self::Batch(commands) => Self::batch(commands),
+            command => command,
         }
     }
 }

@@ -1,4 +1,7 @@
 use crate::gui::selection::SelectionSet;
+use std::collections::BTreeSet;
+
+const KEY_MEMBERSHIP_LINEAR_SCAN_LIMIT: usize = 64;
 
 /// Modifier state for an index-list selection request.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -344,7 +347,7 @@ impl ListSelectionController {
     pub fn clear(&mut self) {
         self.focused_index = None;
         self.anchor_index = None;
-        self.replace_selection(Vec::new());
+        self.replace_empty_selection();
     }
 
     /// Clamp focus, anchor, and selected membership to the current item count.
@@ -392,7 +395,7 @@ impl ListSelectionController {
             self.toggle_index(index);
         } else {
             self.anchor_index = Some(index);
-            self.replace_selection(vec![index]);
+            self.replace_single_selection(index);
         }
         true
     }
@@ -426,23 +429,20 @@ impl ListSelectionController {
 
     /// Select every row in the current item range.
     pub fn select_all(&mut self, total_items: usize) {
-        let selected = (0..total_items).collect::<Vec<_>>();
         if self.focused_index.is_none() && total_items > 0 {
             self.focused_index = Some(0);
         }
         self.anchor_index = self.focused_index;
-        self.replace_selection(selected);
+        self.replace_selection_range(0, total_items);
     }
 
     fn select_range(&mut self, anchor: usize, index: usize, preserve_existing: bool) {
         let start = anchor.min(index);
         let end = anchor.max(index);
         if preserve_existing {
-            let mut selected = self.selected_indices.clone();
-            selected.extend(start..=end);
-            self.replace_selection(selected);
+            self.extend_selection_range(start, end.saturating_add(1));
         } else {
-            self.replace_selection((start..=end).collect());
+            self.replace_selection_range(start, end.saturating_add(1));
         }
     }
 
@@ -459,13 +459,58 @@ impl ListSelectionController {
         }
     }
 
-    fn replace_selection(&mut self, mut selected: Vec<usize>) {
-        selected.sort_unstable();
-        selected.dedup();
-        if self.selected_indices != selected {
-            self.selected_indices = selected;
+    fn replace_empty_selection(&mut self) {
+        if !self.selected_indices.is_empty() {
+            self.selected_indices.clear();
             self.bump_revision();
         }
+    }
+
+    fn replace_single_selection(&mut self, index: usize) {
+        if self.selected_indices.len() == 1 && self.selected_indices[0] == index {
+            return;
+        }
+        self.selected_indices.clear();
+        self.selected_indices.push(index);
+        self.bump_revision();
+    }
+
+    fn replace_selection_range(&mut self, start: usize, end_exclusive: usize) {
+        if self
+            .selected_indices
+            .iter()
+            .copied()
+            .eq(start..end_exclusive)
+        {
+            return;
+        }
+        self.selected_indices.clear();
+        self.selected_indices.extend(start..end_exclusive);
+        self.bump_revision();
+    }
+
+    fn extend_selection_range(&mut self, start: usize, end_exclusive: usize) {
+        if start >= end_exclusive {
+            return;
+        }
+
+        let replace_start = self
+            .selected_indices
+            .partition_point(|index| *index < start);
+        let replace_end = self
+            .selected_indices
+            .partition_point(|index| *index < end_exclusive);
+        if self.selected_indices[replace_start..replace_end]
+            .iter()
+            .copied()
+            .eq(start..end_exclusive)
+        {
+            return;
+        }
+
+        self.selected_indices
+            .splice(replace_start..replace_end, start..end_exclusive);
+        self.bump_revision();
     }
 
     fn bump_revision(&mut self) {
@@ -567,27 +612,25 @@ where
 
     /// Remove selected keys that are not present in `ordered_keys`.
     pub fn retain_visible(&mut self, ordered_keys: &[K]) {
-        let selected = self
+        let membership =
+            OrderedKeyMembership::new(ordered_keys, self.selected_keys.len().saturating_add(2));
+        if self
             .selected_keys
-            .as_slice()
-            .iter()
-            .filter(|key| ordered_keys.contains(key))
-            .cloned()
-            .collect::<Vec<_>>();
-        if self.selected_keys.replace_items(selected) {
+            .retain_items(|key| membership.contains(key))
+        {
             self.bump_revision();
         }
         if self
             .focused_key
             .as_ref()
-            .is_some_and(|key| !ordered_keys.contains(key))
+            .is_some_and(|key| !membership.contains(key))
         {
             self.focused_key = None;
         }
         if self
             .anchor_key
             .as_ref()
-            .is_some_and(|key| !ordered_keys.contains(key))
+            .is_some_and(|key| !membership.contains(key))
         {
             self.anchor_key = self.focused_key.clone();
         }
@@ -595,7 +638,7 @@ where
 
     /// Move focus without changing selection membership.
     pub fn focus(&mut self, key: K, ordered_keys: &[K]) -> bool {
-        if !ordered_keys.contains(&key) {
+        if ordered_key_index(&key, ordered_keys).is_none() {
             return false;
         }
         self.focused_key = Some(key.clone());
@@ -621,7 +664,7 @@ where
         preserve_existing: bool,
     ) -> Option<K> {
         let current = self.focused_key.as_ref()?;
-        let current_index = ordered_keys.iter().position(|key| key == current)?;
+        let current_index = ordered_key_index(current, ordered_keys)?;
         let target_index = list_index_after_delta(current_index, delta, ordered_keys.len())?;
         if target_index == current_index {
             return None;
@@ -633,9 +676,9 @@ where
             ListSelectionModifiers::new()
         };
         if preserve_existing {
-            self.extend_preserving_existing(target.clone(), ordered_keys);
+            self.extend_preserving_existing_at_index(target.clone(), target_index, ordered_keys);
         } else {
-            self.select(target.clone(), ordered_keys, modifiers);
+            self.select_at_index(target.clone(), target_index, ordered_keys, modifiers);
         }
         Some(target)
     }
@@ -647,19 +690,29 @@ where
         ordered_keys: &[K],
         modifiers: ListSelectionModifiers,
     ) -> bool {
-        if !ordered_keys.contains(&key) {
+        let Some(key_index) = ordered_key_index(&key, ordered_keys) else {
             return false;
-        }
+        };
+        self.select_at_index(key, key_index, ordered_keys, modifiers);
+        true
+    }
+
+    fn select_at_index(
+        &mut self,
+        key: K,
+        key_index: usize,
+        ordered_keys: &[K],
+        modifiers: ListSelectionModifiers,
+    ) {
         self.focused_key = Some(key.clone());
         if modifiers.extend {
-            let anchor = self
+            let anchor_index = self
                 .anchor_key
                 .as_ref()
-                .filter(|anchor| ordered_keys.contains(anchor))
-                .cloned()
-                .unwrap_or_else(|| key.clone());
-            self.anchor_key = Some(anchor.clone());
-            self.select_range(&anchor, &key, ordered_keys, false);
+                .and_then(|anchor| ordered_key_index(anchor, ordered_keys))
+                .unwrap_or(key_index);
+            self.anchor_key = Some(ordered_keys[anchor_index].clone());
+            self.select_range_indices(anchor_index, key_index, ordered_keys, false);
         } else if modifiers.toggle {
             self.anchor_key = Some(key.clone());
             self.toggle_key(key);
@@ -667,7 +720,6 @@ where
             self.anchor_key = Some(key.clone());
             self.replace_selection([key]);
         }
-        true
     }
 
     /// Apply a high-level pointer or keyboard selection intent for one keyed row.
@@ -687,19 +739,27 @@ where
 
     /// Extend selection from the current anchor while preserving existing membership.
     pub fn extend_preserving_existing(&mut self, key: K, ordered_keys: &[K]) -> bool {
-        if !ordered_keys.contains(&key) {
+        let Some(key_index) = ordered_key_index(&key, ordered_keys) else {
             return false;
-        }
+        };
+        self.extend_preserving_existing_at_index(key, key_index, ordered_keys);
+        true
+    }
+
+    fn extend_preserving_existing_at_index(
+        &mut self,
+        key: K,
+        key_index: usize,
+        ordered_keys: &[K],
+    ) {
         self.focused_key = Some(key.clone());
-        let anchor = self
+        let anchor_index = self
             .anchor_key
             .as_ref()
-            .filter(|anchor| ordered_keys.contains(anchor))
-            .cloned()
-            .unwrap_or_else(|| key.clone());
-        self.anchor_key = Some(anchor.clone());
-        self.select_range(&anchor, &key, ordered_keys, true);
-        true
+            .and_then(|anchor| ordered_key_index(anchor, ordered_keys))
+            .unwrap_or(key_index);
+        self.anchor_key = Some(ordered_keys[anchor_index].clone());
+        self.select_range_indices(anchor_index, key_index, ordered_keys, true);
     }
 
     /// Select every key in the current ordered list.
@@ -713,19 +773,16 @@ where
         self.replace_selection(ordered_keys.iter().cloned());
     }
 
-    fn select_range(&mut self, anchor: &K, key: &K, ordered_keys: &[K], preserve_existing: bool) {
-        let Some(anchor_index) = ordered_keys
-            .iter()
-            .position(|candidate| candidate == anchor)
-        else {
-            return;
-        };
-        let Some(key_index) = ordered_keys.iter().position(|candidate| candidate == key) else {
-            return;
-        };
+    fn select_range_indices(
+        &mut self,
+        anchor_index: usize,
+        key_index: usize,
+        ordered_keys: &[K],
+        preserve_existing: bool,
+    ) {
         let start = anchor_index.min(key_index);
         let end = anchor_index.max(key_index);
-        let range = ordered_keys[start..=end].to_vec();
+        let range = ordered_keys[start..=end].iter().cloned();
         if preserve_existing {
             if self.selected_keys.extend_items(range) {
                 self.bump_revision();
@@ -754,5 +811,36 @@ where
 
     fn bump_revision(&mut self) {
         self.revision = self.revision.wrapping_add(1);
+    }
+}
+
+fn ordered_key_index<K: PartialEq>(key: &K, ordered_keys: &[K]) -> Option<usize> {
+    ordered_keys.iter().position(|candidate| candidate == key)
+}
+
+struct OrderedKeyMembership<'a, K> {
+    ordered_keys: &'a [K],
+    indexed_keys: Option<BTreeSet<&'a K>>,
+}
+
+impl<'a, K> OrderedKeyMembership<'a, K>
+where
+    K: Ord,
+{
+    fn new(ordered_keys: &'a [K], expected_lookups: usize) -> Self {
+        let indexed_keys = (ordered_keys.len().saturating_mul(expected_lookups)
+            > KEY_MEMBERSHIP_LINEAR_SCAN_LIMIT)
+            .then(|| ordered_keys.iter().collect());
+        Self {
+            ordered_keys,
+            indexed_keys,
+        }
+    }
+
+    fn contains(&self, key: &K) -> bool {
+        self.indexed_keys.as_ref().map_or_else(
+            || self.ordered_keys.contains(key),
+            |keys| keys.contains(key),
+        )
     }
 }

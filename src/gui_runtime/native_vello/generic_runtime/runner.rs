@@ -4,7 +4,8 @@ use super::{
     AuxiliaryNativeWindow, GenericNativeRuntimeCore, GenericRouteOutcome, NativeRunnerInputState,
     NativeRunnerTimingState, NativeRunnerWindowState, NativeVelloFrameState, RuntimeWakeup,
     SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
-    encode_surface_paint_plan_to_scene, timed_frame_cadence, timed_frame_target_fps,
+    animation_frame_interval_for_normalized_fps, encode_surface_paint_plan_to_scene,
+    timed_frame_cadence, timed_frame_target_fps,
 };
 use crate::{
     gui::types::Vector2,
@@ -71,7 +72,8 @@ where
 
     pub(super) fn merge_due_timed_frame_for_route(&mut self, outcome: &mut GenericRouteOutcome) {
         let now = Instant::now();
-        let native_frame_interval = animation_frame_interval(self.options.normalized_target_fps());
+        let native_target_fps = self.options.normalized_target_fps();
+        let native_frame_interval = animation_frame_interval_for_normalized_fps(native_target_fps);
         if now.duration_since(self.timing.last_timed_frame_drain) < native_frame_interval {
             return;
         }
@@ -81,7 +83,7 @@ where
             return;
         }
         let frame_target_fps = timed_frame_target_fps(
-            self.options.normalized_target_fps(),
+            native_target_fps,
             animation_activity,
             needs_text_caret_animation,
         );

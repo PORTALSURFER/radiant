@@ -151,11 +151,17 @@ impl LayoutEngine {
     }
 
     fn prune_stale_measure_cache(&mut self) {
+        if self.measure_cache.len() == self.scratch.measured.len() {
+            return;
+        }
         self.measure_cache
             .retain(|key, _| self.scratch.measured.contains_key(key));
     }
 
     fn prune_stale_virtual_cache(&mut self) {
+        if self.virtual_cache.len() == self.scratch.virtual_touched.len() {
+            return;
+        }
         self.virtual_cache
             .retain(|key, _| self.scratch.virtual_touched.contains(key));
     }

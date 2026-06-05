@@ -1,8 +1,6 @@
 //! Per-frame model refresh and transient overlay preparation.
 
-use super::{
-    GenericNativeVelloRunner, RenderFrameProfile, collect_gpu_surface_interaction_regions,
-};
+use super::{GenericNativeVelloRunner, RenderFrameProfile};
 use crate::runtime::RuntimeBridge;
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -24,10 +22,7 @@ where
         profile.paint_plan = elapsed;
 
         self.frame.mark_scene_texture_dirty();
-        collect_gpu_surface_interaction_regions(
-            &self.frame.last_paint_plan.primitives,
-            &mut self.frame.gpu_surface_interaction_regions,
-        );
+        self.frame.refresh_gpu_surface_interaction_regions();
         self.frame.refresh_post_gpu_overlay_cache();
         self.timing
             .startup_timing

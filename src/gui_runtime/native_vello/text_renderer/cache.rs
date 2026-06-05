@@ -4,7 +4,7 @@ mod atom;
 
 use super::{TextLayout, TextLayoutKey, layout::compute_layout};
 use atom::TextAtomCache;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque, hash_map::Entry};
 use std::mem;
 use std::sync::Arc;
 use vello::peniko::FontData;
@@ -72,22 +72,36 @@ impl TextLayoutCache {
             font_size_bits: font_size.to_bits(),
         };
 
-        if self.layout_cache.contains_key(&key) {
-            return self.record_layout_cache_hit(&key);
+        self.compact_layout_cache_order_if_needed();
+        if self.layout_cache.len() >= TEXT_LAYOUT_CACHE_CAPACITY {
+            self.evict_stale_layouts();
         }
-
-        self.layout_profile.misses = self.layout_profile.misses.saturating_add(1);
-
-        self.evict_stale_layouts();
-
-        let layout = compute_layout(font, text, font_size)?;
-        self.quality_profile.record_layout(&layout);
-        let stamp = self.record_layout_cache_access(key.clone());
-        let entry = self
-            .layout_cache
-            .entry(key)
-            .or_insert(CachedTextLayout { layout, stamp });
-        Some(&entry.layout)
+        match self.layout_cache.entry(key) {
+            Entry::Occupied(occupied) => {
+                let stamp = record_layout_cache_access(
+                    &mut self.layout_cache_clock,
+                    &mut self.layout_cache_order,
+                    occupied.key(),
+                );
+                let cached_layout = occupied.into_mut();
+                cached_layout.stamp = stamp;
+                self.layout_profile.hits = self.layout_profile.hits.saturating_add(1);
+                self.quality_profile.record_layout(&cached_layout.layout);
+                Some(&cached_layout.layout)
+            }
+            Entry::Vacant(vacant) => {
+                self.layout_profile.misses = self.layout_profile.misses.saturating_add(1);
+                let layout = compute_layout(font, text, font_size)?;
+                self.quality_profile.record_layout(&layout);
+                let stamp = record_layout_cache_access(
+                    &mut self.layout_cache_clock,
+                    &mut self.layout_cache_order,
+                    vacant.key(),
+                );
+                let entry = vacant.insert(CachedTextLayout { layout, stamp });
+                Some(&entry.layout)
+            }
+        }
     }
 
     pub(super) fn take_profile_counters(&mut self) -> TextLayoutProfileCounters {
@@ -102,10 +116,14 @@ impl TextLayoutCache {
         self.atom_cache.intern_text(text)
     }
 
+    #[cfg(test)]
     fn record_layout_cache_hit<'a>(&'a mut self, key: &TextLayoutKey) -> Option<&'a TextLayout> {
-        let stamp = self.next_layout_cache_stamp();
         self.compact_layout_cache_order_if_needed();
-        self.layout_cache_order.push_back((key.clone(), stamp));
+        let stamp = record_layout_cache_access(
+            &mut self.layout_cache_clock,
+            &mut self.layout_cache_order,
+            key,
+        );
         let cached_layout = self.layout_cache.get_mut(key)?;
         cached_layout.stamp = stamp;
         self.layout_profile.hits = self.layout_profile.hits.saturating_add(1);
@@ -122,16 +140,15 @@ impl TextLayoutCache {
         }
     }
 
+    #[cfg(test)]
     fn record_layout_cache_access(&mut self, key: TextLayoutKey) -> u64 {
-        let stamp = self.next_layout_cache_stamp();
-        self.layout_cache_order.push_back((key, stamp));
+        let stamp = record_layout_cache_access(
+            &mut self.layout_cache_clock,
+            &mut self.layout_cache_order,
+            &key,
+        );
         self.compact_layout_cache_order_if_needed();
         stamp
-    }
-
-    fn next_layout_cache_stamp(&mut self) -> u64 {
-        self.layout_cache_clock = self.layout_cache_clock.saturating_add(1);
-        self.layout_cache_clock
     }
 
     /// Compact queued layout-order metadata after repeated cache hits append stale stamps.
@@ -169,6 +186,23 @@ impl TextLayoutCache {
             }
         }
     }
+}
+
+fn record_layout_cache_access(
+    clock: &mut u64,
+    order: &mut VecDeque<(TextLayoutKey, u64)>,
+    key: &TextLayoutKey,
+) -> u64 {
+    *clock = clock.saturating_add(1);
+    let stamp = *clock;
+    if let Some((queued_key, queued_stamp)) = order.back_mut()
+        && queued_key == key
+    {
+        *queued_stamp = stamp;
+        return stamp;
+    }
+    order.push_back((key.clone(), stamp));
+    stamp
 }
 
 impl TextQualityProfileCounters {

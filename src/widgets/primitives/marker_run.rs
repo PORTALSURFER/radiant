@@ -2,7 +2,7 @@
 
 use crate::gui::types::{Point, Rect, Rgba8};
 use crate::layout::{LayoutOutput, Vector2};
-use crate::runtime::{PaintFillRect, PaintPrimitive};
+use crate::runtime::{PaintFillRect, PaintFillRectBatch, PaintPrimitive};
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
@@ -232,23 +232,32 @@ impl Widget for MarkerRunWidget {
         let Some(color) = self.props.color else {
             return;
         };
-        for_each_marker_rect(
-            bounds,
-            self.props.count as usize,
-            marker_geometry(
-                self.props.side,
-                self.props.gap,
-                self.props.inset,
-                self.props.align,
-            ),
-            |_, rect| {
+        let count = self.props.count as usize;
+        let geometry = marker_geometry(
+            self.props.side,
+            self.props.gap,
+            self.props.inset,
+            self.props.align,
+        );
+        if count == 1 {
+            for_each_marker_rect(bounds, count, geometry, |_, rect| {
                 primitives.push(PaintPrimitive::FillRect(PaintFillRect {
                     widget_id: self.common.id,
                     rect,
                     color,
                 }));
-            },
-        );
+            });
+            return;
+        }
+        let mut rects = Vec::with_capacity(count);
+        collect_marker_rects(bounds, count, geometry, &mut rects);
+        if !rects.is_empty() {
+            primitives.push(PaintPrimitive::FillRectBatch(PaintFillRectBatch {
+                widget_id: self.common.id,
+                rects: rects.into(),
+                color,
+            }));
+        }
     }
 }
 
@@ -354,6 +363,16 @@ fn for_each_marker_rect(
     }
 }
 
+fn collect_marker_rects(
+    bounds: Rect,
+    count: usize,
+    geometry: MarkerRunGeometry,
+    output: &mut Vec<Rect>,
+) {
+    output.clear();
+    for_each_marker_rect(bounds, count, geometry, |_, rect| output.push(rect));
+}
+
 fn marker_start_x(bounds: Rect, align: MarkerRunAlign, total_width: f32, inset: f32) -> f32 {
     match align {
         MarkerRunAlign::Left => (bounds.min.x + inset).min(bounds.max.x - total_width),
@@ -425,6 +444,51 @@ mod tests {
             &ThemeTokens::default(),
         );
         assert!(primitives.is_empty());
+    }
+
+    #[test]
+    fn same_color_marker_run_batches_multiple_rects() {
+        let widget = MarkerRunWidget::new(Some(WHITE), 3)
+            .with_side(5)
+            .with_gap(4)
+            .with_inset(4);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            bounds(),
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        let [PaintPrimitive::FillRectBatch(batch)] = primitives.as_slice() else {
+            panic!("expected one batched fill primitive");
+        };
+        assert_eq!(batch.widget_id, widget.common.id);
+        assert_eq!(batch.color, WHITE);
+        assert_eq!(batch.rects.len(), 3);
+    }
+
+    #[test]
+    fn single_marker_run_stays_as_single_fill_rect() {
+        let widget = MarkerRunWidget::new(Some(WHITE), 1)
+            .with_side(5)
+            .with_gap(4)
+            .with_inset(4);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            bounds(),
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        let [PaintPrimitive::FillRect(fill)] = primitives.as_slice() else {
+            panic!("expected one fill primitive");
+        };
+        assert_eq!(fill.widget_id, widget.common.id);
+        assert_eq!(fill.color, WHITE);
     }
 
     #[test]

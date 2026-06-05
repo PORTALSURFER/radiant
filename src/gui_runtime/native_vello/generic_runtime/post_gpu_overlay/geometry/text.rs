@@ -63,7 +63,7 @@ impl BitmapTextLayout {
         if max_chars == 0 {
             return None;
         }
-        let text_width = text.text.chars().take(max_chars).count() as f32 * advance;
+        let text_width = visible_text_char_count(text.text.as_ref(), max_chars) as f32 * advance;
         Some(Self {
             start_x: aligned_start_x(text, rect, text_width),
             y: rect.min.y + ((rect.height() - GLYPH_HEIGHT * scale) * 0.5).max(0.0),
@@ -71,6 +71,14 @@ impl BitmapTextLayout {
             scale,
             max_chars,
         })
+    }
+}
+
+fn visible_text_char_count(text: &str, max_chars: usize) -> usize {
+    if text.is_ascii() {
+        text.len().min(max_chars)
+    } else {
+        text.chars().take(max_chars).count()
     }
 }
 
@@ -124,4 +132,17 @@ fn glyph_pixel(origin: Point, row_index: usize, col: usize, scale: f32) -> UiRec
         ),
         Vector2::new(scale, scale),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn visible_text_char_count_uses_ascii_width_without_unicode_byte_counting() {
+        assert_eq!(visible_text_char_count("tempo", 12), 5);
+        assert_eq!(visible_text_char_count("tempo", 3), 3);
+        assert_eq!(visible_text_char_count("øß猫", 12), 3);
+        assert_eq!("øß猫".len(), 7);
+    }
 }

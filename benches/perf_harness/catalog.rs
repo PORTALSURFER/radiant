@@ -2,7 +2,8 @@
 
 use crate::{
     app_projection, bench_gpu_custom_shader_projection, bench_gpu_signal_summary,
-    bench_gpu_surface_projection, command_drain, layout_scenarios, resource_scenarios,
+    bench_gpu_surface_projection, bench_gpu_surface_stack_projection_128, command_drain,
+    layout_scenarios, resource_scenarios,
     runner::{ScenarioRunner, ScenarioSpec},
     runtime_scenarios, text_scenarios,
 };
@@ -48,6 +49,7 @@ macro_rules! perf_scenario_catalog {
             ("text_word_deletion_1k", "text", RUNTIME_ITERATIONS, text_scenarios::text_word_deletion_1k),
             ("gpu_signal_summary", "gpu_data", GPU_ITERATIONS, || bench_gpu_signal_summary),
             ("gpu_surface_projection", "gpu_surface", GPU_ITERATIONS, || bench_gpu_surface_projection),
+            ("gpu_surface_stack_projection_128", "gpu_surface", GPU_ITERATIONS, || bench_gpu_surface_stack_projection_128),
             ("gpu_custom_shader_projection", "gpu_surface", GPU_ITERATIONS, || bench_gpu_custom_shader_projection),
             ]
         }

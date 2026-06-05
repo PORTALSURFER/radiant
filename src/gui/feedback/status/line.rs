@@ -73,9 +73,22 @@ impl StatusLineLog {
 
     /// Return recent lines newest-first.
     pub fn recent_lines(&self) -> Vec<String> {
-        self.recent_entries()
-            .map(|entry| entry.line().to_string())
-            .collect()
+        let mut lines = Vec::new();
+        self.recent_lines_into(&mut lines);
+        lines
+    }
+
+    /// Write recent lines newest-first into caller-owned storage.
+    ///
+    /// The output is cleared before use and retains its allocation for repeated
+    /// status-bar projection without changing the convenience
+    /// [`Self::recent_lines`] API.
+    pub fn recent_lines_into(&self, lines: &mut Vec<String>) {
+        lines.clear();
+        if self.entries.len() > lines.capacity() {
+            lines.reserve(self.entries.len());
+        }
+        lines.extend(self.recent_entries().map(|entry| entry.line().to_string()));
     }
 
     /// Return the number of retained entries.

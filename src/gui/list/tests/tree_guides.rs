@@ -72,6 +72,46 @@ fn expanded_row_guides_leave_gaps_between_direct_child_siblings() {
 }
 
 #[test]
+fn expanded_row_without_descendants_does_not_emit_segment() {
+    let rows = vec![row(0, false), row(1, true), row(1, false)];
+
+    assert!(tree_guide_segments(&rows).is_empty());
+}
+
+#[test]
+fn nested_guides_preserve_start_order_in_one_pass() {
+    let rows = vec![
+        row(0, false),
+        row(1, true),
+        row(2, true),
+        row(3, true),
+        row(4, false),
+        row(1, false),
+    ];
+
+    assert_eq!(
+        tree_guide_segments(&rows),
+        vec![
+            TreeGuideSegment {
+                level: 0,
+                start_row: 1,
+                end_row_exclusive: 5,
+            },
+            TreeGuideSegment {
+                level: 1,
+                start_row: 2,
+                end_row_exclusive: 5,
+            },
+            TreeGuideSegment {
+                level: 2,
+                start_row: 3,
+                end_row_exclusive: 5,
+            },
+        ]
+    );
+}
+
+#[test]
 fn overlay_paints_one_continuous_rect_for_visible_segment() {
     let overlay = TreeGuideOverlay::new(
         2,

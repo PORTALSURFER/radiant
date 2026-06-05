@@ -34,7 +34,7 @@ impl TextAtomCache {
             if let Some(last_seen) = self.cache.get_mut(text) {
                 *last_seen = stamp;
             }
-            self.order.push_back((Arc::clone(&atom), stamp));
+            record_atom_cache_access(&mut self.order, Arc::clone(&atom), stamp);
             self.compact_order_if_needed();
             self.profile.hits = self.profile.hits.saturating_add(1);
             return atom;
@@ -43,7 +43,7 @@ impl TextAtomCache {
         self.profile.misses = self.profile.misses.saturating_add(1);
         let atom: Arc<str> = Arc::from(text);
         self.cache.insert(Arc::clone(&atom), stamp);
-        self.order.push_back((Arc::clone(&atom), stamp));
+        record_atom_cache_access(&mut self.order, Arc::clone(&atom), stamp);
         self.evict_stale_atoms();
         atom
     }
@@ -99,6 +99,16 @@ impl TextAtomCache {
     }
 }
 
+fn record_atom_cache_access(order: &mut VecDeque<(Arc<str>, u64)>, atom: Arc<str>, stamp: u64) {
+    if let Some((queued_atom, queued_stamp)) = order.back_mut()
+        && queued_atom.as_ref() == atom.as_ref()
+    {
+        *queued_stamp = stamp;
+        return;
+    }
+    order.push_back((atom, stamp));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,5 +154,20 @@ mod tests {
 
         assert_eq!(cache.len(), 1);
         assert!(cache.order_len() <= TEXT_ATOM_CACHE_CAPACITY);
+    }
+
+    #[test]
+    fn consecutive_atom_cache_hits_coalesce_recency_queue_entry() {
+        let mut cache = TextAtomCache::new();
+
+        let first = cache.intern_text("content row");
+        let second = cache.intern_text("content row");
+        let third = cache.intern_text("content row");
+
+        assert!(Arc::ptr_eq(&first, &second));
+        assert!(Arc::ptr_eq(&second, &third));
+        assert_eq!(cache.order_len(), 1);
+        assert_eq!(cache.order[0].0.as_ref(), "content row");
+        assert_eq!(cache.order[0].1, 3);
     }
 }

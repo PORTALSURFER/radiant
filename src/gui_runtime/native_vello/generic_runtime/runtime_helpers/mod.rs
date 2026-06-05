@@ -6,8 +6,11 @@ mod profile;
 mod rect_occlusion;
 
 pub(super) use gpu_surface_regions::{
-    GpuSurfaceInteractionRegion, collect_gpu_surface_interaction_regions,
+    GpuSurfaceInteractionRegion, GpuSurfaceInteractionScratch,
+    collect_gpu_surface_interaction_regions_with_scratch,
 };
 pub(super) use input::scroll_delta_to_logical;
 pub(super) use profile::{maybe_log_route_profile, render_profile_enabled};
-pub(super) use rect_occlusion::{intersect_rect, visible_rects_after_occlusion};
+pub(super) use rect_occlusion::{
+    intersect_rect, visible_rects_after_occlusion, visible_rects_after_occlusion_into,
+};

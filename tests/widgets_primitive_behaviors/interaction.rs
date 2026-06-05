@@ -570,11 +570,20 @@ fn feedback_overlay_paints_background_progress_and_edge_bands() {
             _ => None,
         })
         .collect();
-    assert_eq!(fills.len(), 4);
+    let fill_batches: Vec<_> = primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            radiant::runtime::PaintPrimitive::FillRectBatch(batch) => Some(batch),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(fills.len(), 2);
     assert_eq!(fills[0].rect, bounds);
     assert_eq!(fills[1].rect.width(), 25.0);
-    assert_eq!(fills[2].rect, bounds.top_edge_strip(3.0));
-    assert_eq!(fills[3].rect, bounds.bottom_edge_strip(3.0));
+    assert_eq!(fill_batches.len(), 1);
+    assert_eq!(fill_batches[0].rects.as_ref().len(), 2);
+    assert_eq!(fill_batches[0].rects[0], bounds.top_edge_strip(3.0));
+    assert_eq!(fill_batches[0].rects[1], bounds.bottom_edge_strip(3.0));
 }
 
 #[test]

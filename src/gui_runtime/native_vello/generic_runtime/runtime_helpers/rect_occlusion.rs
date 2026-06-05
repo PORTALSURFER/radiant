@@ -4,19 +4,31 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) fn visible_rects_after
     rect: Rect,
     occlusions: impl IntoIterator<Item = Rect>,
 ) -> Vec<Rect> {
-    let mut visible = vec![rect];
-    let mut next = Vec::new();
+    let mut visible = Vec::new();
+    let mut scratch = Vec::new();
+    visible_rects_after_occlusion_into(rect, occlusions, &mut visible, &mut scratch);
+    visible
+}
+
+pub(in crate::gui_runtime::native_vello::generic_runtime) fn visible_rects_after_occlusion_into(
+    rect: Rect,
+    occlusions: impl IntoIterator<Item = Rect>,
+    visible: &mut Vec<Rect>,
+    scratch: &mut Vec<Rect>,
+) {
+    visible.clear();
+    scratch.clear();
+    visible.push(rect);
     for occlusion in occlusions {
-        next.clear();
+        scratch.clear();
         for rect in visible.drain(..) {
-            subtract_rect(rect, occlusion, &mut next);
+            subtract_rect(rect, occlusion, scratch);
         }
-        std::mem::swap(&mut visible, &mut next);
+        std::mem::swap(visible, scratch);
         if visible.is_empty() {
             break;
         }
     }
-    visible
 }
 
 fn subtract_rect(rect: Rect, occlusion: Rect, output: &mut Vec<Rect>) {
@@ -88,5 +100,21 @@ mod tests {
         let touching = Rect::from_min_size(Point::new(10.0, 0.0), Vector2::new(10.0, 10.0));
 
         assert_eq!(intersect_rect(left, touching), None);
+    }
+
+    #[test]
+    fn visible_rects_after_occlusion_into_reuses_output_storage() {
+        let rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0));
+        let occlusion = Rect::from_min_size(Point::new(20.0, 15.0), Vector2::new(50.0, 30.0));
+        let mut visible = Vec::with_capacity(8);
+        let mut scratch = Vec::with_capacity(8);
+        let visible_capacity = visible.capacity();
+        let scratch_capacity = scratch.capacity();
+
+        visible_rects_after_occlusion_into(rect, [occlusion], &mut visible, &mut scratch);
+
+        assert_eq!(visible.len(), 4);
+        assert_eq!(visible.capacity(), visible_capacity);
+        assert_eq!(scratch.capacity(), scratch_capacity);
     }
 }

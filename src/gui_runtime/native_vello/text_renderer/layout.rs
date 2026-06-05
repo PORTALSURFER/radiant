@@ -13,13 +13,12 @@ pub(super) fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Opt
     let metrics = font_ref.glyph_metrics(FontSize::new(font_size), LocationRef::default());
     let fallback_glyph = charmap.map('?');
 
-    let rendered_len = rendered_line_capacity_hint(text);
-    let requires_shaping = rendered_line_requires_shaping(text);
+    let rendered_metrics = rendered_line_metrics(text);
     let mut x = 0.0_f32;
     let mut fallback_glyphs = 0_u64;
     let mut missing_glyphs = 0_u64;
-    let mut glyphs = Vec::with_capacity(rendered_len);
-    let mut cursor_stops = Vec::with_capacity(rendered_len.saturating_add(1));
+    let mut glyphs = Vec::with_capacity(rendered_metrics.capacity_hint);
+    let mut cursor_stops = Vec::with_capacity(rendered_metrics.capacity_hint.saturating_add(1));
     cursor_stops.push(TextCursorStop {
         byte_index: 0,
         x: 0.0,
@@ -89,9 +88,9 @@ pub(super) fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Opt
         width: x,
         glyphs,
         cursor_stops,
-        unsupported_shaping_runs: u64::from(requires_shaping),
-        unsupported_shaping_scalars: if requires_shaping {
-            rendered_len as u64
+        unsupported_shaping_runs: u64::from(rendered_metrics.requires_shaping),
+        unsupported_shaping_scalars: if rendered_metrics.requires_shaping {
+            rendered_metrics.capacity_hint as u64
         } else {
             0
         },
@@ -100,24 +99,51 @@ pub(super) fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Opt
     })
 }
 
-fn rendered_line_capacity_hint(text: &str) -> usize {
-    rendered_line(text).map_or(0, |rendered| {
-        if rendered.is_ascii() {
-            rendered.len()
-        } else {
-            rendered.chars().count()
-        }
-    })
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct RenderedLineMetrics {
+    capacity_hint: usize,
+    requires_shaping: bool,
 }
 
+#[cfg(test)]
+fn rendered_line_capacity_hint(text: &str) -> usize {
+    rendered_line_metrics(text).capacity_hint
+}
+
+#[cfg(test)]
 fn rendered_line_requires_shaping(text: &str) -> bool {
-    rendered_line(text).is_some_and(|line| line.chars().any(char_requires_shaping))
+    rendered_line_metrics(text).requires_shaping
 }
 
 fn rendered_line(text: &str) -> Option<&str> {
     let rendered_byte_len = text.find(['\n', '\r']).unwrap_or(text.len());
     let rendered = &text[..rendered_byte_len];
     (!rendered.is_empty()).then_some(rendered)
+}
+
+fn rendered_line_metrics(text: &str) -> RenderedLineMetrics {
+    let Some(rendered) = rendered_line(text) else {
+        return RenderedLineMetrics {
+            capacity_hint: 0,
+            requires_shaping: false,
+        };
+    };
+    if rendered.is_ascii() {
+        return RenderedLineMetrics {
+            capacity_hint: rendered.len(),
+            requires_shaping: false,
+        };
+    }
+    let mut scalar_count = 0;
+    let mut requires_shaping = false;
+    for ch in rendered.chars() {
+        scalar_count += 1;
+        requires_shaping |= char_requires_shaping(ch);
+    }
+    RenderedLineMetrics {
+        capacity_hint: scalar_count,
+        requires_shaping,
+    }
 }
 
 fn char_requires_shaping(ch: char) -> bool {
@@ -166,5 +192,41 @@ mod tests {
     fn rendered_line_requires_shaping_stops_at_line_breaks() {
         assert!(!rendered_line_requires_shaping("plain\nمرحبا"));
         assert!(rendered_line_requires_shaping("مرحبا\nplain"));
+    }
+
+    #[test]
+    fn rendered_line_metrics_combines_capacity_and_shaping_scan() {
+        assert_eq!(
+            rendered_line_metrics("plain\nمرحبا"),
+            RenderedLineMetrics {
+                capacity_hint: 5,
+                requires_shaping: false,
+            }
+        );
+        assert_eq!(
+            rendered_line_metrics("øß猫"),
+            RenderedLineMetrics {
+                capacity_hint: 3,
+                requires_shaping: false,
+            }
+        );
+        assert_eq!(
+            rendered_line_metrics("cafe\u{0301}"),
+            RenderedLineMetrics {
+                capacity_hint: 5,
+                requires_shaping: true,
+            }
+        );
+    }
+
+    #[test]
+    fn rendered_line_metrics_uses_byte_capacity_for_ascii_prefix() {
+        assert_eq!(
+            rendered_line_metrics("ASCII label\t42\rignored"),
+            RenderedLineMetrics {
+                capacity_hint: 14,
+                requires_shaping: false,
+            }
+        );
     }
 }

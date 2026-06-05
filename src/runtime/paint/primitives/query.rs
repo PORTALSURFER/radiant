@@ -6,6 +6,7 @@ use crate::{
     gui::types::{Rect, Rgba8},
     widgets::WidgetId,
 };
+use std::{iter, slice};
 
 #[cfg(test)]
 #[path = "query/tests.rs"]
@@ -133,14 +134,14 @@ impl SurfacePaintPlan {
         widget_id: WidgetId,
     ) -> impl Iterator<Item = &PaintFillRect> {
         self.fill_rects_for_widget(widget_id)
-            .filter(|fill| fill.color.a > 0 && rect_has_positive_area(fill.rect))
+            .filter(|fill| fill.color.a > 0 && fill.rect.has_finite_positive_area())
     }
 
-    /// Return whether `widget_id` emitted a visible single filled rectangle.
+    /// Return whether `widget_id` emitted a visible filled rectangle.
     pub fn contains_visible_fill_rect_for_widget(&self, widget_id: WidgetId) -> bool {
-        self.visible_fill_rects_for_widget(widget_id)
-            .next()
-            .is_some()
+        self.primitives
+            .iter()
+            .any(|primitive| primitive.contains_visible_fill_rect_for_widget(widget_id))
     }
 
     /// Iterate over single stroked-rectangle primitives in paint order.
@@ -229,11 +230,11 @@ impl SurfacePaintPlan {
 
     /// Iterate over rectangular regions directly carried by primitives in paint order.
     ///
-    /// This mirrors [`PaintPrimitive::rect`] at the plan level for tests,
-    /// automation, diagnostics, and overlay placement code that only needs
-    /// rectangle-bearing primitives.
+    /// Batched rectangle primitives contribute every carried rectangle, while
+    /// [`PaintPrimitive::rect`] remains the first-rectangle anchor helper for
+    /// overlay placement code.
     pub fn rects(&self) -> impl Iterator<Item = Rect> + '_ {
-        self.primitives.iter().filter_map(PaintPrimitive::rect)
+        self.primitives.iter().flat_map(PaintPrimitive::rects)
     }
 
     /// Return whether any rectangle-bearing primitive matches `predicate`.
@@ -243,7 +244,7 @@ impl SurfacePaintPlan {
 
     /// Iterate over rectangular regions carried by non-clip paint primitives.
     pub fn paint_rects(&self) -> impl Iterator<Item = Rect> + '_ {
-        self.paint_primitives().filter_map(PaintPrimitive::rect)
+        self.paint_primitives().flat_map(PaintPrimitive::rects)
     }
 
     /// Return whether any non-clip paint rectangle matches `predicate`.
@@ -281,13 +282,6 @@ impl SurfacePaintPlan {
             .into_iter()
             .find_map(|widget_id| self.first_widget_rect(widget_id))
     }
-}
-
-fn rect_has_positive_area(rect: Rect) -> bool {
-    rect.width().is_finite()
-        && rect.height().is_finite()
-        && rect.width() > 0.0
-        && rect.height() > 0.0
 }
 
 impl PaintPrimitive {
@@ -416,4 +410,94 @@ impl PaintPrimitive {
             Self::CustomSurface(surface) => Some(surface.rect),
         }
     }
+
+    fn contains_visible_fill_rect_for_widget(&self, widget_id: WidgetId) -> bool {
+        match self {
+            Self::FillRect(fill) => {
+                fill.widget_id == widget_id
+                    && fill.color.a > 0
+                    && fill.rect.has_finite_positive_area()
+            }
+            Self::FillRectBatch(fill) => {
+                fill.widget_id == widget_id
+                    && fill.color.a > 0
+                    && fill
+                        .rects
+                        .iter()
+                        .copied()
+                        .any(Rect::has_finite_positive_area)
+            }
+            _ => false,
+        }
+    }
+
+    /// Iterate over every rectangular region directly carried by this primitive.
+    ///
+    /// This is allocation-free and differs from [`Self::rect`] only for
+    /// batched rectangle primitives, where it yields every rectangle in local
+    /// paint order instead of only the first anchor rectangle.
+    pub fn rects(&self) -> PrimitiveRects<'_> {
+        match self {
+            Self::ClipStart(clip) => PrimitiveRects::one(clip.rect),
+            Self::ClipEnd(_) => PrimitiveRects::empty(),
+            Self::FillRect(fill) => PrimitiveRects::one(fill.rect),
+            Self::FillRectBatch(fill) => PrimitiveRects::slice(fill.rects.iter()),
+            Self::FillPath(_) => PrimitiveRects::empty(),
+            Self::Svg(svg) => PrimitiveRects::one(svg.rect),
+            Self::StrokeRect(stroke) => PrimitiveRects::one(stroke.rect),
+            Self::StrokeRectBatch(stroke) => PrimitiveRects::slice(stroke.rects.iter()),
+            Self::FillPolygon(_) | Self::StrokePolygon(_) | Self::StrokePolyline(_) => {
+                PrimitiveRects::empty()
+            }
+            Self::Text(text) => PrimitiveRects::one(text.rect),
+            Self::OverlayPanel(panel) => PrimitiveRects::one(panel.rect),
+            Self::TextInput(input) => PrimitiveRects::one(input.rect),
+            Self::Image(image) => PrimitiveRects::one(image.rect),
+            Self::GpuSurface(surface) => PrimitiveRects::one(surface.rect),
+            Self::CustomSurface(surface) => PrimitiveRects::one(surface.rect),
+        }
+    }
 }
+
+/// Allocation-free iterator over the rectangles directly carried by one paint primitive.
+pub enum PrimitiveRects<'a> {
+    Empty(iter::Empty<Rect>),
+    One(iter::Once<Rect>),
+    Slice(iter::Copied<slice::Iter<'a, Rect>>),
+}
+
+impl<'a> PrimitiveRects<'a> {
+    fn empty() -> Self {
+        Self::Empty(iter::empty())
+    }
+
+    fn one(rect: Rect) -> Self {
+        Self::One(iter::once(rect))
+    }
+
+    fn slice(rects: slice::Iter<'a, Rect>) -> Self {
+        Self::Slice(rects.copied())
+    }
+}
+
+impl Iterator for PrimitiveRects<'_> {
+    type Item = Rect;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Empty(rects) => rects.next(),
+            Self::One(rects) => rects.next(),
+            Self::Slice(rects) => rects.next(),
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self {
+            Self::Empty(rects) => rects.size_hint(),
+            Self::One(rects) => rects.size_hint(),
+            Self::Slice(rects) => rects.size_hint(),
+        }
+    }
+}
+
+impl ExactSizeIterator for PrimitiveRects<'_> {}

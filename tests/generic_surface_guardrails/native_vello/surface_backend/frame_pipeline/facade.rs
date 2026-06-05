@@ -145,18 +145,17 @@ fn native_frame_preparation_stays_out_of_present_driver() {
             && !present.contains("paint_transient_overlay(")
             && frame_prepare.contains("fn refresh_deferred_surface_if_needed")
             && frame_prepare.contains("fn paint_transient_overlays")
-            && frame_prepare.contains("collect_gpu_surface_interaction_regions"),
-        "deferred model refresh, paint-plan refresh, and transient overlay painting should stay in frame_prepare"
+            && frame_prepare.contains("refresh_gpu_surface_interaction_regions"),
+        "deferred model refresh, paint-plan refresh, GPU-region cache refresh, and transient overlay painting should stay in frame_prepare"
     );
     assert!(
         frame_prepare.contains("use super::{")
             && frame_prepare.contains("GenericNativeVelloRunner")
             && frame_prepare.contains("RenderFrameProfile")
-            && frame_prepare.contains("collect_gpu_surface_interaction_regions")
             && frame_prepare.contains("use crate::runtime::RuntimeBridge;")
             && frame_prepare.contains("profile.measure(||")
             && !frame_prepare.starts_with("use super::*;"),
-        "frame preparation should name runner, render profile, GPU-region collection, bridge, and profiled timing dependencies"
+        "frame preparation should name runner, render profile, bridge, and profiled timing dependencies"
     );
 }
 

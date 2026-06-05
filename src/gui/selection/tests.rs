@@ -24,6 +24,10 @@ fn selection_set_normalizes_and_supports_sorted_membership() {
     assert_eq!(set.as_slice(), &[7, 8]);
     assert!(set.extend_items([6, 8]));
     assert_eq!(set.as_slice(), &[6, 7, 8]);
+    assert!(set.retain_items(|item| *item >= 7));
+    assert_eq!(set.as_slice(), &[7, 8]);
+    assert!(!set.retain_items(|_| true));
+    assert_eq!(set.as_slice(), &[7, 8]);
     assert!(set.clear());
     assert!(!set.clear());
 }

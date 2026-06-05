@@ -75,6 +75,23 @@ fn layout_cache_hit_queue_compacts_after_repeated_reuse() {
 }
 
 #[test]
+fn consecutive_layout_cache_touches_coalesce_recency_queue_entry() {
+    let mut cache = TextLayoutCache::new();
+    let key = layout_key("same label");
+    cache
+        .layout_cache
+        .insert(key.clone(), cached_layout(key.text.as_ref(), 0));
+
+    cache.touch_layout_cache_key(&key);
+    cache.touch_layout_cache_key(&key);
+    cache.touch_layout_cache_key(&key);
+
+    assert_eq!(cache.layout_cache_order.len(), 1);
+    assert_eq!(cache.layout_cache_order[0].0, key);
+    assert_eq!(cache.layout_cache_order[0].1, 3);
+}
+
+#[test]
 fn cached_layout_hits_report_glyph_diagnostics_for_current_frame() {
     let mut cache = TextLayoutCache::new();
     let key = layout_key("fallback row");

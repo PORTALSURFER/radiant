@@ -4,7 +4,7 @@ use crate::gui::feedback::horizontal_progress_fill_rect;
 use crate::gui::paint::BorderSides;
 use crate::gui::types::{Rect, Rgba8};
 use crate::layout::{LayoutOutput, Vector2};
-use crate::runtime::{PaintFillRect, PaintPrimitive};
+use crate::runtime::{PaintFillRect, PaintFillRectBatch, PaintPrimitive};
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
@@ -160,6 +160,37 @@ fn push_edge(
         return;
     }
     let thickness = edge.thickness.min(bounds.height()).min(bounds.width());
+    let edge_count = selected_edge_count(edge.sides);
+    if edge_count == 0 {
+        return;
+    }
+    if edge_count == 1 {
+        push_single_edge(primitives, widget_id, bounds, thickness, edge);
+        return;
+    }
+    let mut rects = Vec::with_capacity(edge_count);
+    push_edge_rects(&mut rects, bounds, thickness, edge.sides);
+    primitives.push(PaintPrimitive::FillRectBatch(PaintFillRectBatch {
+        widget_id,
+        rects: rects.into(),
+        color: edge.color,
+    }));
+}
+
+fn selected_edge_count(sides: BorderSides) -> usize {
+    usize::from(sides.top)
+        + usize::from(sides.bottom)
+        + usize::from(sides.left)
+        + usize::from(sides.right)
+}
+
+fn push_single_edge(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    bounds: Rect,
+    thickness: f32,
+    edge: FeedbackOverlayEdge,
+) {
     if edge.sides.top {
         push_fill(
             primitives,
@@ -167,30 +198,42 @@ fn push_edge(
             bounds.top_edge_strip(thickness),
             edge.color,
         );
-    }
-    if edge.sides.bottom {
+    } else if edge.sides.bottom {
         push_fill(
             primitives,
             widget_id,
             bounds.bottom_edge_strip(thickness),
             edge.color,
         );
-    }
-    if edge.sides.left {
+    } else if edge.sides.left {
         push_fill(
             primitives,
             widget_id,
             bounds.left_edge_strip(thickness),
             edge.color,
         );
-    }
-    if edge.sides.right {
+    } else {
         push_fill(
             primitives,
             widget_id,
             bounds.right_edge_strip(thickness),
             edge.color,
         );
+    }
+}
+
+fn push_edge_rects(rects: &mut Vec<Rect>, bounds: Rect, thickness: f32, sides: BorderSides) {
+    if sides.top {
+        rects.push(bounds.top_edge_strip(thickness));
+    }
+    if sides.bottom {
+        rects.push(bounds.bottom_edge_strip(thickness));
+    }
+    if sides.left {
+        rects.push(bounds.left_edge_strip(thickness));
+    }
+    if sides.right {
+        rects.push(bounds.right_edge_strip(thickness));
     }
 }
 

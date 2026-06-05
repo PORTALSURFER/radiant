@@ -8,7 +8,8 @@ mod declarative;
 
 pub use animation::{RuntimeAnimationActivity, RuntimeAnimationDemand};
 pub use app::App;
-pub use auxiliary::{AuxiliaryWindow, AuxiliaryWindowClosePolicy};
+pub use auxiliary::AuxiliaryWindow;
+pub use auxiliary::AuxiliaryWindowClosePolicy;
 pub use contract::RuntimeBridge;
 pub use declarative::{
     DeclarativeCommandRuntimeBridge, DeclarativeCommandRuntimeBridgeParts,

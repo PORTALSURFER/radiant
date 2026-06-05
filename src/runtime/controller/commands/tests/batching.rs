@@ -8,10 +8,12 @@ use crate::runtime::controller::commands::batching::{
 fn runtime_command_batch_preserves_order_and_keeps_remainder() {
     let mut commands = (0..70).map(Command::message).collect::<Vec<_>>();
     let mut batch = Vec::with_capacity(8);
+    let mut pending = Vec::new();
 
     take_runtime_command_batch_into(
         &mut commands,
         &mut batch,
+        &mut pending,
         DEFAULT_RUNTIME_COMMANDS_PER_DRAIN,
     );
 
@@ -27,6 +29,7 @@ fn runtime_command_batch_preserves_order_and_keeps_remainder() {
     assert!(commands.iter().enumerate().all(
         |(offset, command)| matches!(command, Command::Message(message) if *message == offset + 64)
     ));
+    assert!(pending.is_empty());
     assert!(batch.capacity() >= 64);
 }
 
@@ -38,11 +41,13 @@ fn runtime_command_batch_reuses_output_storage_for_small_drains() {
         Command::message(3),
     ];
     let mut batch = Vec::with_capacity(64);
+    let mut pending = Vec::new();
     let capacity = batch.capacity();
 
     take_runtime_command_batch_into(
         &mut commands,
         &mut batch,
+        &mut pending,
         DEFAULT_RUNTIME_COMMANDS_PER_DRAIN,
     );
 
@@ -52,6 +57,7 @@ fn runtime_command_batch_reuses_output_storage_for_small_drains() {
     assert!(matches!(batch.pop(), Some(Command::Message(2))));
     assert!(matches!(batch.pop(), Some(Command::Message(3))));
     assert!(batch.pop().is_none());
+    assert!(pending.is_empty());
 }
 
 #[test]
@@ -60,15 +66,76 @@ fn runtime_batched_command_remainders_reuse_command_storage() {
     commands.push(Command::batch((0..70).map(Command::message)));
     let retained_capacity = commands.capacity();
     let mut batch = Vec::with_capacity(64);
+    let mut pending = Vec::with_capacity(128);
+    let pending_capacity = pending.capacity();
 
     take_runtime_command_batch_into(
         &mut commands,
         &mut batch,
+        &mut pending,
         DEFAULT_RUNTIME_COMMANDS_PER_DRAIN,
     );
 
     assert_eq!(commands.capacity(), retained_capacity);
+    assert_eq!(pending.capacity(), pending_capacity);
+    assert!(pending.is_empty());
     assert_eq!(commands.len(), 6);
+}
+
+#[test]
+fn runtime_batched_command_drains_reuse_pending_scratch_storage() {
+    let mut commands = vec![Command::batch((0..70).map(Command::message))];
+    let mut batch = Vec::with_capacity(64);
+    let mut pending = Vec::with_capacity(128);
+    let pending_capacity = pending.capacity();
+
+    take_runtime_command_batch_into(
+        &mut commands,
+        &mut batch,
+        &mut pending,
+        DEFAULT_RUNTIME_COMMANDS_PER_DRAIN,
+    );
+    batch.clear();
+    commands.clear();
+    commands.push(Command::batch((0..2).map(Command::message)));
+    take_runtime_command_batch_into(
+        &mut commands,
+        &mut batch,
+        &mut pending,
+        DEFAULT_RUNTIME_COMMANDS_PER_DRAIN,
+    );
+
+    assert_eq!(pending.capacity(), pending_capacity);
+    assert!(pending.is_empty());
+    assert_eq!(commands.len(), 0);
+    assert_eq!(batch.len(), 2);
+}
+
+#[test]
+fn runtime_command_batch_defers_flattening_batches_beyond_drain_budget() {
+    let mut commands = (0..64).map(Command::message).collect::<Vec<_>>();
+    commands.push(Command::batch([Command::message(64), Command::message(65)]));
+    let mut batch = Vec::with_capacity(8);
+    let mut pending = Vec::new();
+
+    take_runtime_command_batch_into(
+        &mut commands,
+        &mut batch,
+        &mut pending,
+        DEFAULT_RUNTIME_COMMANDS_PER_DRAIN,
+    );
+
+    let mut drained = Vec::new();
+    while let Some(command) = batch.pop() {
+        let Command::Message(message) = command else {
+            panic!("test command should be a message");
+        };
+        drained.push(message);
+    }
+    assert_eq!(drained, (0..64).collect::<Vec<_>>());
+    assert_eq!(commands.len(), 1);
+    assert!(matches!(commands.first(), Some(Command::Batch(_))));
+    assert!(pending.is_empty());
 }
 
 #[test]

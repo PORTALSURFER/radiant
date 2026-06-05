@@ -1,7 +1,8 @@
 use super::{
     GenericNativeVelloRunner, GenericRouteOutcome, key_code_from_winit, keypress_from_input,
 };
-use crate::{gui::input::KeyCode, runtime::RuntimeBridge, widgets::WidgetKey};
+use crate::gui::input::KeyCode;
+use crate::{runtime::RuntimeBridge, widgets::WidgetKey};
 use std::time::Instant;
 use winit::{
     event::{ElementState, KeyEvent},

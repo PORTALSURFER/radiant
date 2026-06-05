@@ -1,24 +1,19 @@
 use crate::gui_runtime::native_vello::TextCursorStop;
 
 pub(super) fn cursor_stop_x(stops: &[TextCursorStop], byte_index: usize) -> f32 {
-    if let Some(stop) = stops.iter().find(|stop| stop.byte_index == byte_index)
-        && let Some(x) = finite_stop_x(stop)
-    {
-        return x;
+    let end = stops.partition_point(|stop| stop.byte_index <= byte_index);
+    for stop in stops[..end].iter().rev() {
+        if let Some(x) = finite_stop_x(stop) {
+            return x;
+        }
     }
-    stops
-        .iter()
-        .rev()
-        .find(|stop| stop.byte_index <= byte_index && finite_stop_x(stop).is_some())
-        .and_then(finite_stop_x)
-        .unwrap_or(0.0)
+    0.0
 }
 
 pub(super) fn stop_index_for_byte(stops: &[TextCursorStop], byte_index: usize) -> usize {
     stops
-        .iter()
-        .position(|stop| stop.byte_index == byte_index)
-        .unwrap_or_else(|| stops.len().saturating_sub(1))
+        .binary_search_by_key(&byte_index, |stop| stop.byte_index)
+        .unwrap_or_else(|_| stops.len().saturating_sub(1))
 }
 
 pub(super) fn last_stop_at_or_before_x(stops: &[TextCursorStop], x: f32) -> usize {
@@ -92,7 +87,7 @@ fn stop_local_x(stop: &TextCursorStop, scroll_start_x: f32) -> Option<f32> {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_visible_cursor_stops, cursor_stop_x};
+    use super::{build_visible_cursor_stops, cursor_stop_x, stop_index_for_byte};
     use crate::gui_runtime::native_vello::TextCursorStop;
 
     #[test]
@@ -114,6 +109,27 @@ mod tests {
 
         assert_eq!(cursor_stop_x(&stops, 2), 0.0);
         assert_eq!(cursor_stop_x(&stops, 4), 12.0);
+    }
+
+    #[test]
+    fn cursor_stop_lookup_uses_last_stop_before_missing_byte() {
+        let stops = [
+            TextCursorStop {
+                byte_index: 0,
+                x: 0.0,
+            },
+            TextCursorStop {
+                byte_index: 4,
+                x: 18.0,
+            },
+            TextCursorStop {
+                byte_index: 8,
+                x: 35.0,
+            },
+        ];
+
+        assert_eq!(cursor_stop_x(&stops, 6), 18.0);
+        assert_eq!(stop_index_for_byte(&stops, 6), stops.len() - 1);
     }
 
     #[test]

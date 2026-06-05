@@ -17,6 +17,7 @@ use super::{LayoutDebugOptions, LayoutOutput, LayoutState};
 use crate::gui::layout_core::tree::NodeId;
 use crate::gui::types::Vector2;
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 
 /// Reusable scratch maps cleared at the start of each layout evaluation.
 #[derive(Default)]
@@ -67,8 +68,13 @@ impl<'a> LayoutContext<'a> {
     /// Build a fresh layout-engine scratchpad for one evaluation pass.
     pub(super) fn new(parts: LayoutContextParts<'a>) -> Self {
         parts.scratch.measured.clear();
+        reserve_map_capacity(&mut parts.scratch.measured, parts.cache.len());
         parts.scratch.measured_by_node.clear();
         parts.scratch.virtual_touched.clear();
+        reserve_set_capacity(
+            &mut parts.scratch.virtual_touched,
+            parts.virtual_cache.len(),
+        );
         parts.scratch.linear_windows.clear();
         parts.scratch.linear_sizes.clear();
         parts.scratch.linear_unresolved.clear();
@@ -88,5 +94,23 @@ impl<'a> LayoutContext<'a> {
             debug_node_filter: parts.debug_node_filter,
             output: parts.output,
         }
+    }
+}
+
+fn reserve_map_capacity<K, V>(map: &mut HashMap<K, V>, target_capacity: usize)
+where
+    K: Eq + Hash,
+{
+    if target_capacity > map.capacity() {
+        map.reserve(target_capacity);
+    }
+}
+
+fn reserve_set_capacity<T>(set: &mut HashSet<T>, target_capacity: usize)
+where
+    T: Eq + Hash,
+{
+    if target_capacity > set.capacity() {
+        set.reserve(target_capacity);
     }
 }

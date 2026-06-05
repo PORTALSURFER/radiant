@@ -156,12 +156,24 @@ pub(in crate::gui::layout_core::engine) fn invalidate_virtual_cache_for_any(
 }
 
 impl CachedVirtualMetrics {
+    pub(super) fn new(metrics: Arc<LinearVirtualMetrics>, mut dependencies: Vec<NodeId>) -> Self {
+        dependencies.sort_unstable();
+        dependencies.dedup();
+        Self {
+            metrics,
+            dependencies,
+        }
+    }
+
     fn depends_on(&self, node_id: NodeId) -> bool {
-        self.dependencies.contains(&node_id)
+        self.dependencies.binary_search(&node_id).is_ok()
     }
 
     fn depends_on_any(&self, node_ids: &HashSet<NodeId>) -> bool {
-        self.dependencies.iter().any(|id| node_ids.contains(id))
+        if self.dependencies.len() <= node_ids.len() {
+            return self.dependencies.iter().any(|id| node_ids.contains(id));
+        }
+        node_ids.iter().any(|id| self.depends_on(*id))
     }
 }
 
@@ -182,10 +194,7 @@ mod tests {
         );
         cache.insert(
             key,
-            CachedVirtualMetrics {
-                metrics: Arc::new(LinearVirtualMetrics::default()),
-                dependencies: vec![10, 20, 30],
-            },
+            CachedVirtualMetrics::new(Arc::new(LinearVirtualMetrics::default()), vec![10, 20, 30]),
         );
 
         let unrelated = HashSet::from([40, 50, 60]);
@@ -195,5 +204,19 @@ mod tests {
         let dirty = HashSet::from([20, 40, 60]);
         invalidate_virtual_cache_for_any(&mut cache, &dirty);
         assert!(!cache.contains_key(&key));
+    }
+
+    #[test]
+    fn cached_virtual_metrics_canonicalize_dependencies_for_fast_lookup() {
+        let cached = CachedVirtualMetrics::new(
+            Arc::new(LinearVirtualMetrics::default()),
+            vec![30, 10, 20, 10, 30],
+        );
+
+        assert_eq!(cached.dependencies, vec![10, 20, 30]);
+        assert!(cached.depends_on(20));
+        assert!(!cached.depends_on(40));
+        assert!(cached.depends_on_any(&HashSet::from([5, 20])));
+        assert!(!cached.depends_on_any(&HashSet::from([5, 40])));
     }
 }

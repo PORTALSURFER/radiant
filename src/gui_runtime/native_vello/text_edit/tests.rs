@@ -55,6 +55,23 @@ fn text_field_layout_resolves_caret_offsets_without_second_layout_pass() {
 }
 
 #[test]
+fn text_field_layout_resolves_local_x_for_exact_bytes_and_fallbacks() {
+    let mut renderer = NativeTextRenderer::new();
+    let text = "abcdef";
+    let mut editor = SingleLineTextEditorState::collapsed_at_end(text);
+
+    let layout = build_text_field_layout(&mut renderer, &mut editor, text, 14.0, 256.0);
+    let start = layout.local_x_for_byte(0);
+    let middle = layout.local_x_for_byte(3);
+    let end = layout.local_x_for_byte(text.len());
+
+    assert_eq!(start, 0.0);
+    assert!(middle > start);
+    assert!(end >= middle);
+    assert_eq!(layout.local_x_for_byte(usize::MAX), end);
+}
+
+#[test]
 fn text_field_layout_rejects_invalid_font_size_before_cache_work() {
     let mut renderer = NativeTextRenderer::new();
     let text = "item alpha beta";

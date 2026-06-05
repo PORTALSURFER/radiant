@@ -233,9 +233,12 @@ where
     pub(super) fn sync_auxiliary_windows(&mut self, event_loop: &ActiveEventLoop) {
         self.timing.deferred_auxiliary_window_sync = false;
         let projections = self.core.runtime.bridge_mut().project_auxiliary_windows();
-        let mut projected_keys = Vec::with_capacity(projections.len());
+        for window in &mut self.auxiliary_windows {
+            if !auxiliary_projection_contains_key(&projections, window.key()) {
+                window.hide();
+            }
+        }
         for projection in projections {
-            projected_keys.push(projection.key.clone());
             if let Some(window) = self
                 .auxiliary_windows
                 .iter_mut()
@@ -247,11 +250,6 @@ where
                 let mut window = AuxiliaryNativeWindow::new(projection, &self.options);
                 window.initialize_runtime(event_loop, parent_window);
                 self.auxiliary_windows.push(window);
-            }
-        }
-        for window in &mut self.auxiliary_windows {
-            if !projected_keys.iter().any(|key| key == window.key()) {
-                window.hide();
             }
         }
     }
@@ -267,5 +265,42 @@ where
         if self.timing.deferred_auxiliary_window_sync {
             self.sync_auxiliary_windows(event_loop);
         }
+    }
+}
+
+fn auxiliary_projection_contains_key<Message>(
+    projections: &[AuxiliaryWindow<Message>],
+    key: &str,
+) -> bool {
+    projections
+        .iter()
+        .any(|projection| projection.key.as_str() == key)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::auxiliary_projection_contains_key;
+    use crate::{application::empty, prelude::IntoView, runtime::AuxiliaryWindow};
+    use std::sync::Arc;
+
+    #[test]
+    fn auxiliary_projection_key_lookup_uses_projected_windows_without_key_clones() {
+        let surface = Arc::new(empty::<()>().into_surface());
+        let projections = vec![
+            AuxiliaryWindow::new(
+                "settings",
+                crate::gui_runtime::NativeRunOptions::default(),
+                Arc::clone(&surface),
+            ),
+            AuxiliaryWindow::new(
+                "inspector",
+                crate::gui_runtime::NativeRunOptions::default(),
+                surface,
+            ),
+        ];
+
+        assert!(auxiliary_projection_contains_key(&projections, "settings"));
+        assert!(auxiliary_projection_contains_key(&projections, "inspector"));
+        assert!(!auxiliary_projection_contains_key(&projections, "mixer"));
     }
 }

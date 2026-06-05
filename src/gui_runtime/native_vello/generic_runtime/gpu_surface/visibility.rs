@@ -1,14 +1,33 @@
 use crate::gui::types::Rect as UiRect;
-use crate::gui_runtime::native_vello::generic_runtime::runtime_helpers::visible_rects_after_occlusion;
+use crate::gui_runtime::native_vello::generic_runtime::runtime_helpers::{
+    visible_rects_after_occlusion, visible_rects_after_occlusion_into,
+};
 use crate::runtime::PaintPrimitive;
 
 mod occlusion;
 
-pub(super) use occlusion::gpu_surface_opaque_suffix_regions;
+pub(super) use occlusion::gpu_surface_opaque_suffix_regions_into;
 
+#[cfg(test)]
 pub(crate) fn gpu_surface_visible_suffix_regions_into(
     primitives: &[PaintPrimitive],
     regions: &mut Vec<UiRect>,
+) {
+    let mut scratch = GpuSurfaceVisibleSuffixScratch::default();
+    gpu_surface_visible_suffix_regions_into_with_scratch(primitives, regions, &mut scratch);
+}
+
+#[derive(Default)]
+pub(in crate::gui_runtime::native_vello::generic_runtime) struct GpuSurfaceVisibleSuffixScratch {
+    occlusion_regions: Vec<UiRect>,
+    visible_regions: Vec<UiRect>,
+    occlusion_scratch: Vec<UiRect>,
+}
+
+pub(in crate::gui_runtime::native_vello::generic_runtime) fn gpu_surface_visible_suffix_regions_into_with_scratch(
+    primitives: &[PaintPrimitive],
+    regions: &mut Vec<UiRect>,
+    scratch: &mut GpuSurfaceVisibleSuffixScratch,
 ) {
     regions.clear();
     for (index, primitive) in primitives.iter().enumerate() {
@@ -22,8 +41,22 @@ pub(crate) fn gpu_surface_visible_suffix_regions_into(
             continue;
         }
         let suffix = primitives.get(index + 1..).unwrap_or_default();
-        let occlusion_regions = gpu_surface_opaque_suffix_regions(surface.rect, suffix);
-        regions.extend(visible_surface_regions(surface.rect, &occlusion_regions));
+        gpu_surface_opaque_suffix_regions_into(
+            surface.rect,
+            suffix,
+            &mut scratch.occlusion_regions,
+        );
+        if scratch.occlusion_regions.is_empty() {
+            regions.push(surface.rect);
+            continue;
+        }
+        visible_rects_after_occlusion_into(
+            surface.rect,
+            scratch.occlusion_regions.iter().copied(),
+            &mut scratch.visible_regions,
+            &mut scratch.occlusion_scratch,
+        );
+        regions.extend(scratch.visible_regions.iter().copied());
     }
 }
 
@@ -67,6 +100,66 @@ mod tests {
         assert_eq!(capacity, 8);
         assert_eq!(regions.capacity(), capacity);
         assert_eq!(regions.len(), 1);
+    }
+
+    #[test]
+    fn gpu_surface_visible_suffix_regions_reuse_scratch_storage() {
+        let primitives = [
+            gpu_surface(1),
+            PaintPrimitive::FillRect(crate::runtime::PaintFillRect {
+                widget_id: 2,
+                rect: UiRect::from_min_size(Point::new(20.0, 15.0), Vector2::new(50.0, 30.0)),
+                color: Rgba8 {
+                    r: 47,
+                    g: 47,
+                    b: 47,
+                    a: 255,
+                },
+            }),
+        ];
+        let mut regions = Vec::new();
+        let mut scratch = GpuSurfaceVisibleSuffixScratch {
+            occlusion_regions: Vec::with_capacity(8),
+            visible_regions: Vec::with_capacity(8),
+            occlusion_scratch: Vec::with_capacity(8),
+        };
+        let occlusion_capacity = scratch.occlusion_regions.capacity();
+        let visible_capacity = scratch.visible_regions.capacity();
+        let occlusion_scratch_capacity = scratch.occlusion_scratch.capacity();
+
+        gpu_surface_visible_suffix_regions_into_with_scratch(
+            &primitives,
+            &mut regions,
+            &mut scratch,
+        );
+        gpu_surface_visible_suffix_regions_into_with_scratch(
+            &[gpu_surface(3)],
+            &mut regions,
+            &mut scratch,
+        );
+
+        assert_eq!(scratch.occlusion_regions.capacity(), occlusion_capacity);
+        assert_eq!(scratch.visible_regions.capacity(), visible_capacity);
+        assert_eq!(
+            scratch.occlusion_scratch.capacity(),
+            occlusion_scratch_capacity
+        );
+    }
+
+    #[test]
+    fn gpu_surface_visible_suffix_regions_keep_full_rect_without_occluders() {
+        let primitives = [gpu_surface(1), translucent_fill(2)];
+        let mut regions = Vec::new();
+
+        gpu_surface_visible_suffix_regions_into(&primitives, &mut regions);
+
+        assert_eq!(
+            regions,
+            [UiRect::from_min_size(
+                Point::new(0.0, 0.0),
+                Vector2::new(100.0, 80.0)
+            )]
+        );
     }
 
     #[test]

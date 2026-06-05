@@ -3,7 +3,13 @@
 use super::{
     CompositedBaseFrame, GpuSurfaceInteractionRegion, GpuSurfaceRenderer, PostGpuOverlayRenderer,
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneTextRunBuffer,
-    gpu_surface::gpu_surface_visible_suffix_regions_into, post_gpu_overlay,
+    gpu_surface::{
+        GpuSurfaceVisibleSuffixScratch, gpu_surface_visible_suffix_regions_into_with_scratch,
+    },
+    post_gpu_overlay,
+    runtime_helpers::{
+        GpuSurfaceInteractionScratch, collect_gpu_surface_interaction_regions_with_scratch,
+    },
 };
 use crate::theme::DpiScale;
 use crate::{
@@ -31,7 +37,9 @@ pub(super) struct NativeVelloFrameState {
     pub(super) last_scene_stats: RetainedSurfaceEncodeStats,
     pub(super) scene_text_runs: SceneTextRunBuffer,
     pub(super) gpu_surface_interaction_regions: Vec<GpuSurfaceInteractionRegion>,
+    gpu_surface_interaction_scratch: GpuSurfaceInteractionScratch,
     pub(super) post_gpu_overlay_gpu_regions: Vec<UiRect>,
+    post_gpu_overlay_gpu_regions_scratch: GpuSurfaceVisibleSuffixScratch,
     pub(super) post_gpu_overlay_suffix_start: Option<usize>,
     pub(super) post_gpu_overlay_has_replayable_suffix: bool,
     pub(super) scene_texture_dirty: bool,
@@ -58,7 +66,9 @@ impl NativeVelloFrameState {
             last_scene_stats: RetainedSurfaceEncodeStats::default(),
             scene_text_runs: SceneTextRunBuffer::new(),
             gpu_surface_interaction_regions: Vec::new(),
+            gpu_surface_interaction_scratch: GpuSurfaceInteractionScratch::default(),
             post_gpu_overlay_gpu_regions: Vec::new(),
+            post_gpu_overlay_gpu_regions_scratch: GpuSurfaceVisibleSuffixScratch::default(),
             post_gpu_overlay_suffix_start: None,
             post_gpu_overlay_has_replayable_suffix: false,
             scene_texture_dirty: true,
@@ -93,6 +103,14 @@ impl NativeVelloFrameState {
         &self.scaled_scene
     }
 
+    pub(super) fn refresh_gpu_surface_interaction_regions(&mut self) {
+        collect_gpu_surface_interaction_regions_with_scratch(
+            &self.last_paint_plan.primitives,
+            &mut self.gpu_surface_interaction_regions,
+            &mut self.gpu_surface_interaction_scratch,
+        );
+    }
+
     pub(super) fn refresh_post_gpu_overlay_cache(&mut self) {
         self.post_gpu_overlay_suffix_start = self
             .last_paint_plan
@@ -108,9 +126,10 @@ impl NativeVelloFrameState {
                     .iter()
                     .any(post_gpu_overlay::geometry::primitive_is_replayable)
             });
-        gpu_surface_visible_suffix_regions_into(
+        gpu_surface_visible_suffix_regions_into_with_scratch(
             &self.last_paint_plan.primitives,
             &mut self.post_gpu_overlay_gpu_regions,
+            &mut self.post_gpu_overlay_gpu_regions_scratch,
         );
     }
 

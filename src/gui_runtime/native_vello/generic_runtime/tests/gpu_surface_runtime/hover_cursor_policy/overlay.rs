@@ -103,3 +103,50 @@ fn native_hover_cursor_updates_topmost_surface_and_clears_stale_cursors() {
         [GpuSurfaceOverlay::RuntimeVerticalLine { ratio, .. }] if *ratio == 0.75
     ));
 }
+
+#[test]
+fn native_hover_cursor_updates_single_runtime_overlay_in_place() {
+    let mut surface = PaintGpuSurface {
+        widget_id: 1,
+        key: 1,
+        revision: 1,
+        rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 20.0)),
+        content: rgba_content(Vector2::new(1.0, 1.0)),
+        capabilities: white_hover_capabilities(),
+        overlays: vec![
+            GpuSurfaceOverlay::HorizontalRange {
+                start: 0.25,
+                end: 0.75,
+                color: Rgba8 {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    a: 80,
+                },
+            },
+            GpuSurfaceOverlay::RuntimeVerticalLine {
+                ratio: 0.1,
+                color: Rgba8 {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    a: 255,
+                },
+                width: 1.0,
+            },
+        ],
+    };
+
+    assert!(update_surface_cursor_overlay(
+        &mut surface,
+        Point::new(30.0, 10.0)
+    ));
+
+    assert!(matches!(
+        surface.overlays.as_slice(),
+        [
+            GpuSurfaceOverlay::HorizontalRange { start, end, .. },
+            GpuSurfaceOverlay::RuntimeVerticalLine { ratio, .. },
+        ] if *start == 0.25 && *end == 0.75 && *ratio == 0.75
+    ));
+}

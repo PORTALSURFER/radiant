@@ -30,6 +30,32 @@ fn frame(red: u8) -> PaintFrame {
 }
 
 #[test]
+fn retained_frame_cache_presizes_storage_from_policy() {
+    let cache =
+        RetainedSurfaceFrameCache::with_policy(RetainedSurfaceCachePolicy { max_frames: 16 });
+
+    assert_eq!(cache.entry_count(), 0);
+    assert!(cache.entries.capacity() >= 16);
+}
+
+#[test]
+fn retained_frame_cache_default_presizes_standard_storage() {
+    let cache = RetainedSurfaceFrameCache::default();
+
+    assert_eq!(cache.entry_count(), 0);
+    assert!(cache.entries.capacity() >= cache.policy().max_frames);
+}
+
+#[test]
+fn retained_frame_cache_disabled_policy_does_not_allocate_storage() {
+    let cache =
+        RetainedSurfaceFrameCache::with_policy(RetainedSurfaceCachePolicy { max_frames: 0 });
+
+    assert_eq!(cache.entry_count(), 0);
+    assert_eq!(cache.entries.capacity(), 0);
+}
+
+#[test]
 fn retained_frame_cache_evicts_oldest_entry_without_shifting_storage() {
     let rect = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(20.0, 20.0));
     let viewport = Vector2::new(100.0, 100.0);
@@ -53,6 +79,136 @@ fn retained_frame_cache_evicts_oldest_entry_without_shifting_storage() {
             .cached_frame(descriptor(64), rect, viewport)
             .map(|frame| frame.clear_color.r),
         Some(64)
+    );
+}
+
+#[test]
+fn retained_frame_cache_hit_refreshes_eviction_recency() {
+    let rect = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(20.0, 20.0));
+    let viewport = Vector2::new(100.0, 100.0);
+    let mut cache =
+        RetainedSurfaceFrameCache::with_policy(RetainedSurfaceCachePolicy { max_frames: 4 });
+
+    for key in 0..4 {
+        cache.store(descriptor(key), rect, viewport, frame(key as u8));
+    }
+
+    assert_eq!(
+        cache
+            .cached_frame(descriptor(0), rect, viewport)
+            .map(|frame| frame.clear_color.r),
+        Some(0)
+    );
+    cache.store(descriptor(4), rect, viewport, frame(4));
+
+    assert_eq!(cache.entry_count(), 4);
+    assert_eq!(
+        cache
+            .cached_frame(descriptor(0), rect, viewport)
+            .map(|frame| frame.clear_color.r),
+        Some(0)
+    );
+    assert!(cache.cached_frame(descriptor(1), rect, viewport).is_none());
+    assert_eq!(
+        cache
+            .cached_frame(descriptor(4), rect, viewport)
+            .map(|frame| frame.clear_color.r),
+        Some(4)
+    );
+}
+
+#[test]
+fn retained_frame_cache_most_recent_hit_keeps_entry_order() {
+    let rect = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(20.0, 20.0));
+    let viewport = Vector2::new(100.0, 100.0);
+    let mut cache =
+        RetainedSurfaceFrameCache::with_policy(RetainedSurfaceCachePolicy { max_frames: 4 });
+
+    cache.store(descriptor(1), rect, viewport, frame(1));
+    cache.store(descriptor(2), rect, viewport, frame(2));
+
+    assert_eq!(
+        cache
+            .cached_frame(descriptor(2), rect, viewport)
+            .map(|frame| frame.clear_color.r),
+        Some(2)
+    );
+    assert_eq!(
+        cache
+            .entries
+            .iter()
+            .map(|entry| entry.descriptor.key)
+            .collect::<Vec<_>>(),
+        vec![1, 2]
+    );
+}
+
+#[test]
+fn retained_frame_cache_recent_non_tail_hit_moves_to_back() {
+    let rect = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(20.0, 20.0));
+    let viewport = Vector2::new(100.0, 100.0);
+    let mut cache =
+        RetainedSurfaceFrameCache::with_policy(RetainedSurfaceCachePolicy { max_frames: 4 });
+
+    cache.store(descriptor(1), rect, viewport, frame(1));
+    cache.store(descriptor(2), rect, viewport, frame(2));
+    cache.store(descriptor(3), rect, viewport, frame(3));
+
+    assert_eq!(
+        cache
+            .cached_frame(descriptor(2), rect, viewport)
+            .map(|frame| frame.clear_color.r),
+        Some(2)
+    );
+    assert_eq!(
+        cache
+            .entries
+            .iter()
+            .map(|entry| entry.descriptor.key)
+            .collect::<Vec<_>>(),
+        vec![1, 3, 2]
+    );
+}
+
+#[test]
+fn retained_frame_cache_replaces_most_recent_matching_geometry_in_place() {
+    let rect = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(20.0, 20.0));
+    let viewport = Vector2::new(100.0, 100.0);
+    let mut cache =
+        RetainedSurfaceFrameCache::with_policy(RetainedSurfaceCachePolicy { max_frames: 4 });
+
+    cache.store(descriptor(1), rect, viewport, frame(1));
+    cache.store(
+        RetainedSurfaceDescriptor {
+            revision: 2,
+            ..descriptor(1)
+        },
+        rect,
+        viewport,
+        frame(9),
+    );
+
+    assert_eq!(cache.entry_count(), 1);
+    assert_eq!(
+        cache
+            .entries
+            .iter()
+            .map(|entry| (entry.descriptor.key, entry.descriptor.revision))
+            .collect::<Vec<_>>(),
+        vec![(1, 2)]
+    );
+    assert_eq!(
+        cache
+            .cached_frame(
+                RetainedSurfaceDescriptor {
+                    revision: 2,
+                    ..descriptor(1)
+                },
+                rect,
+                viewport,
+            )
+            .map(|frame| frame.clear_color.r),
+        Some(9)
     );
 }
 

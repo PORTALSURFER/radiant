@@ -19,10 +19,13 @@ mod text_scenarios;
 
 use radiant::{
     gui::types::ImageRgba,
-    layout::{Point, Rect, Vector2, layout_tree},
+    layout::{
+        Constraints, ContainerKind, ContainerPolicy, Point, Rect, SizeModeCross, SizeModeMain,
+        SlotParams, Vector2, layout_tree,
+    },
     runtime::{
         GpuShaderSurfaceDescriptor, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent,
-        GpuSurfaceRuntimeOverlays, PaintPrimitive, SurfaceNode, UiSurface,
+        GpuSurfaceRuntimeOverlays, PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface,
     },
     theme::ThemeTokens,
     widgets::{GpuSurfaceWidget, WidgetSizing},
@@ -97,6 +100,60 @@ fn bench_gpu_surface_projection() {
             .iter()
             .any(|primitive| matches!(primitive, PaintPrimitive::GpuSurface(_)))
     );
+    black_box(plan);
+}
+
+fn bench_gpu_surface_stack_projection_128() {
+    let image = Arc::new(ImageRgba::new(640, 24, vec![96; 640 * 24 * 4]).expect("valid image"));
+    let rows = (0..128)
+        .map(|index| {
+            let content = GpuSurfaceContent::RgbaAtlas {
+                source_rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 24.0)),
+                atlas: Arc::clone(&image),
+            };
+            SurfaceChild::new(
+                SlotParams {
+                    size_main: SizeModeMain::Fixed(24.0),
+                    size_cross: SizeModeCross::Fill,
+                    constraints: Constraints::unconstrained(),
+                    margin: Default::default(),
+                    align_cross_override: None,
+                    allow_fixed_compress: false,
+                },
+                SurfaceNode::static_widget(
+                    GpuSurfaceWidget::new(
+                        10_000 + index,
+                        WidgetSizing::fixed(Vector2::new(640.0, 24.0)),
+                        20_000 + index,
+                        index,
+                        content,
+                    )
+                    .with_capabilities(GpuSurfaceCapabilities {
+                        fast_pointer_move: index % 2 == 0,
+                        coalesce_vertical_wheel: true,
+                        runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
+                    }),
+                ),
+            )
+        })
+        .collect();
+    let surface = UiSurface::<()>::new(SurfaceNode::container(
+        9_000,
+        ContainerPolicy {
+            kind: ContainerKind::Column,
+            spacing: 0.0,
+            ..ContainerPolicy::default()
+        },
+        rows,
+    ));
+    let output = layout_tree(&surface.layout_node(), viewport(640.0, 720.0));
+    let plan = surface.paint_plan(&output, &ThemeTokens::default());
+    let gpu_surface_count = plan
+        .primitives
+        .iter()
+        .filter(|primitive| matches!(primitive, PaintPrimitive::GpuSurface(_)))
+        .count();
+    assert_eq!(gpu_surface_count, 128);
     black_box(plan);
 }
 

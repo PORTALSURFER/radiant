@@ -134,6 +134,29 @@ fn list_selection_controller_tracks_single_toggle_and_range_selection() {
 }
 
 #[test]
+fn list_selection_controller_reuses_normalized_single_and_range_replacements() {
+    let mut selection = ListSelectionController::new();
+
+    assert!(selection.select(2, 8, ListSelectionModifiers::new()));
+    let single_revision = selection.revision();
+    assert!(selection.select(2, 8, ListSelectionModifiers::new()));
+    assert_eq!(selection.selected_indices(), &[2]);
+    assert_eq!(selection.revision(), single_revision);
+
+    assert!(selection.select(5, 8, ListSelectionModifiers::extend()));
+    let range_revision = selection.revision();
+    assert!(selection.select(5, 8, ListSelectionModifiers::extend()));
+    assert_eq!(selection.selected_indices(), &[2, 3, 4, 5]);
+    assert_eq!(selection.revision(), range_revision);
+
+    selection.select_all(8);
+    let all_revision = selection.revision();
+    selection.select_all(8);
+    assert_eq!(selection.selected_indices(), &[0, 1, 2, 3, 4, 5, 6, 7]);
+    assert_eq!(selection.revision(), all_revision);
+}
+
+#[test]
 fn list_selection_controller_clamps_membership_to_current_item_count() {
     let mut selection = ListSelectionController::new();
     selection.select_all(5);
@@ -160,6 +183,25 @@ fn list_selection_controller_can_preserve_existing_range_membership() {
     assert_eq!(selection.focused_index(), Some(6));
     assert_eq!(selection.anchor_index(), Some(3));
     assert_eq!(selection.selected_indices(), &[0, 3, 4, 5, 6]);
+}
+
+#[test]
+fn list_selection_controller_merges_additive_ranges_without_renormalizing() {
+    let mut selection = ListSelectionController::new();
+    selection.select(0, 12, ListSelectionModifiers::new());
+    selection.select(8, 12, ListSelectionModifiers::toggle());
+    selection.select(5, 12, ListSelectionModifiers::toggle());
+
+    selection.extend_preserving_existing(10, 12);
+
+    assert_eq!(selection.anchor_index(), Some(5));
+    assert_eq!(selection.selected_indices(), &[0, 5, 6, 7, 8, 9, 10]);
+    let range_revision = selection.revision();
+
+    selection.extend_preserving_existing(10, 12);
+
+    assert_eq!(selection.selected_indices(), &[0, 5, 6, 7, 8, 9, 10]);
+    assert_eq!(selection.revision(), range_revision);
 }
 
 #[test]
@@ -258,6 +300,36 @@ fn keyed_list_selection_tracks_stable_keys_through_range_toggle_and_navigation()
 }
 
 #[test]
+fn keyed_list_selection_retain_visible_handles_large_visible_sets() {
+    let keys = (0..128)
+        .map(|index| format!("item-{index:03}"))
+        .collect::<Vec<_>>();
+    let visible = keys[32..96].to_vec();
+    let mut selection = KeyedListSelection::from_parts(
+        Some(keys[48].clone()),
+        Some(keys[12].clone()),
+        [
+            keys[4].clone(),
+            keys[48].clone(),
+            keys[95].clone(),
+            keys[120].clone(),
+        ],
+    );
+
+    selection.retain_visible(&visible);
+
+    assert_eq!(
+        selection.focused_key().map(String::as_str),
+        Some("item-048")
+    );
+    assert_eq!(selection.anchor_key().map(String::as_str), Some("item-048"));
+    assert_eq!(
+        selection.selected_keys(),
+        &[String::from("item-048"), String::from("item-095")]
+    );
+}
+
+#[test]
 fn keyed_list_selection_supports_additive_range_selection() {
     let keys = ["a", "b", "c", "d", "e"]
         .into_iter()
@@ -277,6 +349,29 @@ fn keyed_list_selection_supports_additive_range_selection() {
             String::from("e")
         ]
     );
+}
+
+#[test]
+fn keyed_list_selection_range_recovers_when_anchor_is_not_visible() {
+    let initial = ["a", "b", "c"]
+        .into_iter()
+        .map(String::from)
+        .collect::<Vec<_>>();
+    let visible = ["d", "e", "f"]
+        .into_iter()
+        .map(String::from)
+        .collect::<Vec<_>>();
+    let mut selection = KeyedListSelection::new();
+    selection.select(String::from("b"), &initial, ListSelectionModifiers::new());
+
+    assert!(selection.select(
+        String::from("e"),
+        &visible,
+        ListSelectionModifiers::extend()
+    ));
+
+    assert_eq!(selection.anchor_key().map(String::as_str), Some("e"));
+    assert_eq!(selection.selected_keys(), &[String::from("e")]);
 }
 
 #[test]

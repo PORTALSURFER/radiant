@@ -202,28 +202,49 @@ pub fn tree_guide_indent<Message: 'static>(depth: usize, style: TreeGuideStyle) 
 
 /// Project continuous vertical guide segments from tree row metadata.
 pub fn tree_guide_segments(rows: &[TreeGuideRow]) -> Vec<TreeGuideSegment> {
-    rows.iter()
-        .enumerate()
-        .filter(|(_, row)| row.starts_descendant_group)
-        .filter_map(|(index, row)| {
-            let group_end = descendant_group_end(rows, index + 1, row.depth);
-            if group_end <= index + 1 {
-                return None;
-            }
-            Some(TreeGuideSegment {
+    let mut segments = Vec::new();
+    let mut open_groups = Vec::new();
+
+    for (index, row) in rows.iter().enumerate() {
+        close_finished_tree_guide_groups(index, row.depth, &mut open_groups, &mut segments);
+        if row.starts_descendant_group {
+            open_groups.push(OpenTreeGuideGroup {
+                parent_depth: row.depth,
+                segment_index: segments.len(),
+            });
+            segments.push(TreeGuideSegment {
                 level: row.depth.saturating_sub(1),
                 start_row: index,
-                end_row_exclusive: group_end,
-            })
-        })
-        .collect()
+                end_row_exclusive: rows.len(),
+            });
+        }
+    }
+
+    segments.retain(|segment| segment.end_row_exclusive > segment.start_row.saturating_add(1));
+    segments
 }
 
-fn descendant_group_end(rows: &[TreeGuideRow], start: usize, parent_depth: usize) -> usize {
-    rows[start..]
-        .iter()
-        .position(|row| row.depth <= parent_depth)
-        .map_or(rows.len(), |offset| start + offset)
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct OpenTreeGuideGroup {
+    parent_depth: usize,
+    segment_index: usize,
+}
+
+fn close_finished_tree_guide_groups(
+    end_row: usize,
+    row_depth: usize,
+    open_groups: &mut Vec<OpenTreeGuideGroup>,
+    segments: &mut [TreeGuideSegment],
+) {
+    while open_groups
+        .last()
+        .is_some_and(|group| row_depth <= group.parent_depth)
+    {
+        let Some(group) = open_groups.pop() else {
+            break;
+        };
+        segments[group.segment_index].end_row_exclusive = end_row;
+    }
 }
 
 fn tree_guide_x(bounds: Rect, level: usize, style: TreeGuideStyle) -> f32 {

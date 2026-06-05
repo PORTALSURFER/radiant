@@ -65,6 +65,17 @@ impl<T> SelectionSet<T> {
         self.items.is_empty()
     }
 
+    /// Retain selected items matching `keep` and return whether membership changed.
+    ///
+    /// Retaining in place preserves the set's existing sorted unique order, so
+    /// callers can prune visibility or availability without allocating and
+    /// re-normalizing another vector.
+    pub fn retain_items(&mut self, mut keep: impl FnMut(&T) -> bool) -> bool {
+        let previous_len = self.items.len();
+        self.items.retain(|item| keep(item));
+        self.items.len() != previous_len
+    }
+
     /// Return whether `items` are strictly sorted and unique by a projected key.
     pub fn slice_is_sorted_unique_by_key<K>(items: &[T], mut key: impl FnMut(&T) -> K) -> bool
     where

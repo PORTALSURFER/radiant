@@ -8,6 +8,7 @@ use crate::runtime::controller::commands::batching::{
 pub(super) struct RuntimeWorkQueues<Message> {
     commands: Vec<Command<Message>>,
     command_batch: Vec<Command<Message>>,
+    command_pending: Vec<Command<Message>>,
     messages: Vec<Message>,
     message_batch: Vec<Message>,
 }
@@ -18,7 +19,12 @@ impl<Message> RuntimeWorkQueues<Message> {
         Bridge: RuntimeBridge<Message>,
     {
         bridge.drain_runtime_commands_into(&mut self.commands);
-        take_runtime_command_batch_into(&mut self.commands, &mut self.command_batch, budget);
+        take_runtime_command_batch_into(
+            &mut self.commands,
+            &mut self.command_batch,
+            &mut self.command_pending,
+            budget,
+        );
     }
 
     pub(super) fn drain_bridge_messages<Bridge>(&mut self, bridge: &mut Bridge, budget: usize)
@@ -55,6 +61,7 @@ impl<Message> Default for RuntimeWorkQueues<Message> {
         Self {
             commands: Vec::new(),
             command_batch: Vec::new(),
+            command_pending: Vec::new(),
             messages: Vec::new(),
             message_batch: Vec::new(),
         }

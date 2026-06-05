@@ -55,13 +55,8 @@ impl<'a> LayoutContext<'a> {
         dependencies: Vec<NodeId>,
     ) {
         self.virtual_touched.insert(key);
-        self.virtual_cache.insert(
-            key,
-            CachedVirtualMetrics {
-                metrics,
-                dependencies,
-            },
-        );
+        self.virtual_cache
+            .insert(key, CachedVirtualMetrics::new(metrics, dependencies));
     }
 
     pub(crate) fn record_measured_size(&mut self, node_id: NodeId, value: Vector2) {

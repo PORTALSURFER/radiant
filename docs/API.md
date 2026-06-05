@@ -1623,8 +1623,8 @@ It currently covers:
 - Resource lifecycle scenarios: `resource_slot_stale_completions_1k`
 - Text scenarios: `text_line_cache_1k`, `text_word_selection_1k`, and
   `text_word_deletion_1k`
-- GPU data and surface scenarios: `gpu_signal_summary`, `gpu_surface_projection`, and
-  `gpu_custom_shader_projection`
+- GPU data and surface scenarios: `gpu_signal_summary`, `gpu_surface_projection`,
+  `gpu_surface_stack_projection_128`, and `gpu_custom_shader_projection`
 
 Pass a scenario substring to run one focused slice, for example:
 
@@ -2089,6 +2089,8 @@ remains. Use `push_flow_row_group` when several flow items, such as a prefix
 token plus its editor, should wrap atomically instead of splitting across rows.
 Use `pack_flow_rows_with_trailing_group` when callers need the common form of
 packing existing items and appending one such atomic trailing group.
+Use `FlowRowPacker` when rows are built incrementally and repeated appends
+should retain the current row width instead of rescanning the trailing row.
 Use `capped_flow_rows_height(...)` when the editor should grow to a maximum
 visible row count before switching to a scrollable content area.
 Use `FlowFieldMetrics` and `FlowFieldLayout` when a bounded inline editor needs

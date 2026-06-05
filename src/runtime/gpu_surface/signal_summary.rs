@@ -67,18 +67,24 @@ impl GpuSignalSummary {
     /// Return the preferred level for the provided frames-per-pixel ratio.
     pub fn level_for_frames_per_pixel(&self, frames_per_pixel: f32) -> usize {
         let target = frames_per_pixel.max(1.0);
-        self.levels
-            .iter()
-            .enumerate()
-            .min_by(|(_, left), (_, right)| {
-                let left_delta = (left.bucket_frames as f32 - target).abs();
-                let right_delta = (right.bucket_frames as f32 - target).abs();
-                left_delta
-                    .partial_cmp(&right_delta)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
-            .map(|(index, _)| index)
-            .unwrap_or_default()
+        let upper = self
+            .levels
+            .partition_point(|level| (level.bucket_frames as f32) <= target);
+        if upper == 0 {
+            return 0;
+        }
+        if upper >= self.levels.len() {
+            return self.levels.len().saturating_sub(1);
+        }
+
+        let lower = upper - 1;
+        let lower_delta = (self.levels[lower].bucket_frames as f32 - target).abs();
+        let upper_delta = (self.levels[upper].bucket_frames as f32 - target).abs();
+        if lower_delta <= upper_delta {
+            lower
+        } else {
+            upper
+        }
     }
 }
 
@@ -122,14 +128,15 @@ fn merge_signal_summary_level(
     for bucket in 0..bucket_count {
         let first = bucket.saturating_mul(2);
         let second = first + 1;
+        let first_offset = first.saturating_mul(band_count);
+        let second_offset = first_offset.saturating_add(band_count);
         for band in 0..band_count {
             let mut summary = previous
-                .get(first.saturating_mul(band_count).saturating_add(band))
+                .get(first_offset + band)
                 .copied()
                 .unwrap_or_default();
             if second < previous_bucket_count
-                && let Some(next) =
-                    previous.get(second.saturating_mul(band_count).saturating_add(band))
+                && let Some(next) = previous.get(second_offset + band)
             {
                 summary.min = summary.min.min(next.min);
                 summary.max = summary.max.max(next.max);

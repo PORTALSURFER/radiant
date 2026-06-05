@@ -10,11 +10,14 @@ pub(super) const INTERACTIVE_RUNTIME_COMMANDS_PER_DRAIN: usize = 8;
 pub(in crate::runtime::controller) fn take_runtime_command_batch_into<Message>(
     commands: &mut Vec<Command<Message>>,
     batch: &mut Vec<Command<Message>>,
+    pending: &mut Vec<Command<Message>>,
     max_commands: usize,
 ) {
     debug_assert!(batch.is_empty());
+    debug_assert!(pending.is_empty());
     let max_commands = max_commands.max(1);
-    if !commands.iter().any(command_contains_runtime_batch) {
+    let first_batch = commands.iter().position(command_contains_runtime_batch);
+    if first_batch.is_none() || first_batch.is_some_and(|index| index >= max_commands) {
         if commands.len() <= max_commands {
             batch.extend(commands.drain(..).rev());
             return;
@@ -24,8 +27,7 @@ pub(in crate::runtime::controller) fn take_runtime_command_batch_into<Message>(
         return;
     }
 
-    let retained_capacity = commands.capacity();
-    let mut pending = std::mem::replace(commands, Vec::with_capacity(retained_capacity));
+    pending.append(commands);
 
     for command in pending.drain(..) {
         let budget = max_commands.saturating_sub(batch.len());

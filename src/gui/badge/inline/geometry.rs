@@ -104,11 +104,55 @@ pub fn inline_badge_rects_for_labels_into(
         return;
     }
     let mut x = start_x;
-    if labels.len() > rects.capacity() {
-        rects.reserve(labels.len());
-    }
+    reserve_for_label_count(rects, labels.len());
     rects.extend(labels.iter().map(|label| {
         let width = inline_badge_width(label, metrics);
+        let rect = Rect::from_min_max(
+            Point::new(x, min_y),
+            Point::new((x + width).min(right_edge), max_y),
+        );
+        x = (rect.max.x + metrics.badge_gap).min(right_edge);
+        rect
+    }));
+}
+
+/// Compute badge rects for pre-split labels into caller-owned storage while
+/// reusing a caller-owned badge-width buffer.
+pub fn inline_badge_rects_for_labels_with_widths_into(
+    item_label: Rect,
+    labels: &[String],
+    trailing_reserved_width: f32,
+    metrics: InlineBadgeMetrics,
+    widths: &mut Vec<f32>,
+    rects: &mut Vec<Rect>,
+) {
+    rects.clear();
+    widths.clear();
+    if labels.is_empty() || item_label.width() <= 0.0 || item_label.height() <= 0.0 {
+        return;
+    }
+    reserve_for_label_count(widths, labels.len());
+    reserve_for_label_count(rects, labels.len());
+    widths.extend(
+        labels
+            .iter()
+            .map(|label| inline_badge_width(label, metrics)),
+    );
+    let total_width = widths.iter().copied().sum::<f32>()
+        + (labels.len().saturating_sub(1) as f32 * metrics.badge_gap);
+    let right_edge = (item_label.max.x - trailing_reserved_width).max(item_label.min.x);
+    let start_x = (right_edge - total_width).max(item_label.min.x);
+    let badge_height = inline_badge_height(item_label, metrics);
+    if badge_height <= 0.0 || right_edge <= start_x {
+        return;
+    }
+    let min_y = item_label.min.y + ((item_label.height() - badge_height) * 0.5).floor();
+    let max_y = (min_y + badge_height).min(item_label.max.y);
+    if max_y <= min_y {
+        return;
+    }
+    let mut x = start_x;
+    rects.extend(widths.iter().copied().map(|width| {
         let rect = Rect::from_min_max(
             Point::new(x, min_y),
             Point::new((x + width).min(right_edge), max_y),
@@ -174,4 +218,10 @@ fn badge_text_width_estimate(metrics: InlineBadgeMetrics) -> TextWidthEstimate {
 
 fn badge_width_estimate(metrics: InlineBadgeMetrics) -> TextWidthEstimate {
     TextWidthEstimate::from_font_size(metrics.font_size, 0.56, metrics.padding_x * 2.0)
+}
+
+fn reserve_for_label_count<T>(values: &mut Vec<T>, label_count: usize) {
+    if label_count > values.capacity() {
+        values.reserve(label_count.saturating_sub(values.len()));
+    }
 }

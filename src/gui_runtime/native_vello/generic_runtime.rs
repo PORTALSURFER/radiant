@@ -60,7 +60,8 @@ use auxiliary::{AuxiliaryNativeWindow, AuxiliaryWindowEventResult};
 use composited_base::CompositedBaseFrame;
 pub(in crate::gui_runtime::native_vello) use core::{GenericNativeRuntimeCore, PointerPressStamp};
 use frame_cadence::{
-    TimedFrameCadence, animation_frame_interval, timed_frame_cadence, timed_frame_target_fps,
+    TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
+    timed_frame_cadence, timed_frame_target_fps,
 };
 use frame_state::NativeVelloFrameState;
 use gpu_surface::GpuSurfaceRenderer;
@@ -80,8 +81,8 @@ pub use run_report::{
 use runner::GenericNativeVelloRunner;
 use runner_state::{NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState};
 use runtime_helpers::{
-    GpuSurfaceInteractionRegion, collect_gpu_surface_interaction_regions, maybe_log_route_profile,
-    render_profile_enabled, scroll_delta_to_logical,
+    GpuSurfaceInteractionRegion, maybe_log_route_profile, render_profile_enabled,
+    scroll_delta_to_logical,
 };
 use runtime_wakeup::RuntimeWakeup;
 pub(in crate::gui_runtime::native_vello) use scene::{

@@ -24,8 +24,9 @@ pub(super) fn update_surface_cursor_overlay(
         return clear_surface_cursor_overlay(surface);
     };
     let mut cursor_count = 0;
+    let mut cursor_index = None;
     let mut cursor_is_current = false;
-    for overlay in &surface.overlays {
+    for (index, overlay) in surface.overlays.iter().enumerate() {
         let GpuSurfaceOverlay::RuntimeVerticalLine {
             ratio: current_ratio,
             color,
@@ -35,11 +36,22 @@ pub(super) fn update_surface_cursor_overlay(
             continue;
         };
         cursor_count += 1;
+        cursor_index = Some(index);
         cursor_is_current |=
             *current_ratio == ratio && *color == cursor.color && *width == cursor.width;
     }
     if cursor_count == 1 && cursor_is_current {
         return false;
+    }
+    if cursor_count == 1
+        && let Some(overlay) = cursor_index.and_then(|index| surface.overlays.get_mut(index))
+    {
+        *overlay = GpuSurfaceOverlay::RuntimeVerticalLine {
+            ratio,
+            color: cursor.color,
+            width: cursor.width,
+        };
+        return true;
     }
     clear_surface_cursor_overlay(surface);
     surface

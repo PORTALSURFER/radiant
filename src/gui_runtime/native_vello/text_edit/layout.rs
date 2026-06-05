@@ -29,17 +29,17 @@ impl TextFieldLayoutState {
 
     pub(in crate::gui_runtime::native_vello) fn local_x_for_byte(&self, byte_index: usize) -> f32 {
         let local_byte = byte_index.saturating_sub(self.visible_start_byte);
-        self.visible_stops
-            .iter()
-            .find(|stop| stop.byte_index == local_byte)
-            .map(|stop| stop.x)
-            .unwrap_or_else(|| {
-                if byte_index <= self.visible_start_byte {
-                    0.0
-                } else {
-                    self.visible_stops.last().map(|stop| stop.x).unwrap_or(0.0)
-                }
-            })
+        if let Ok(index) = self
+            .visible_stops
+            .binary_search_by_key(&local_byte, |stop| stop.byte_index)
+        {
+            return self.visible_stops[index].x;
+        }
+        if byte_index <= self.visible_start_byte {
+            0.0
+        } else {
+            self.visible_stops.last().map(|stop| stop.x).unwrap_or(0.0)
+        }
     }
 
     fn visible_text_range(&self) -> Range<usize> {

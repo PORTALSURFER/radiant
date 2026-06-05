@@ -2,8 +2,9 @@ use super::{
     InlineBadgeMetrics, InlineBadgeMetricsParts, PillEditorPanel, SelectablePill,
     inline_badge_cluster_reserved_width, inline_badge_height, inline_badge_labels_owned,
     inline_badge_labels_owned_into, inline_badge_rects, inline_badge_rects_for_labels,
-    inline_badge_rects_for_labels_into, inline_badge_rects_into, inline_badge_text_origin,
-    inline_badge_width, inline_badge_width_in_range,
+    inline_badge_rects_for_labels_into, inline_badge_rects_for_labels_with_widths_into,
+    inline_badge_rects_into, inline_badge_text_origin, inline_badge_width,
+    inline_badge_width_in_range,
 };
 use crate::gui::selection::TriState;
 use crate::gui::types::{Point, Rect};
@@ -143,6 +144,37 @@ fn inline_badge_rects_into_reuses_label_and_rect_storage() {
     assert_eq!(owned_labels.capacity(), label_capacity);
     assert_eq!(rects.len(), 2);
     assert_eq!(rects.capacity(), rect_capacity);
+}
+
+#[test]
+fn inline_badge_rects_with_widths_reuses_width_and_rect_storage() {
+    let metrics = badge_metrics();
+    let item = Rect::from_min_max(Point::new(0.0, 4.0), Point::new(100.0, 18.0));
+    let labels = vec![String::from("One"), String::from("Two")];
+    let mut widths = Vec::with_capacity(8);
+    widths.push(99.0);
+    let width_capacity = widths.capacity();
+    let mut rects = Vec::with_capacity(8);
+    rects.push(Rect::from_min_max(
+        Point::new(0.0, 0.0),
+        Point::new(1.0, 1.0),
+    ));
+    let rect_capacity = rects.capacity();
+
+    inline_badge_rects_for_labels_with_widths_into(
+        item,
+        &labels,
+        5.0,
+        metrics,
+        &mut widths,
+        &mut rects,
+    );
+
+    assert_eq!(widths, [23.0, 23.0]);
+    assert_eq!(widths.capacity(), width_capacity);
+    assert_eq!(rects.len(), 2);
+    assert_eq!(rects.capacity(), rect_capacity);
+    assert_eq!(rects[1].max.x, 95.0);
 }
 
 #[test]

@@ -59,6 +59,29 @@ fn status_line_log_exposes_borrowed_entries_in_both_orders() {
 }
 
 #[test]
+fn status_line_log_writes_recent_lines_into_reused_storage() {
+    let mut log = StatusLineLog::new(3);
+    log.publish("button", "pressed");
+    log.publish("worker", "started");
+
+    let mut lines = Vec::with_capacity(4);
+    lines.push(String::from("stale"));
+    let capacity = lines.capacity();
+
+    log.recent_lines_into(&mut lines);
+
+    assert_eq!(lines.capacity(), capacity);
+    assert_eq!(
+        lines,
+        vec![
+            String::from("worker: started"),
+            String::from("button: pressed"),
+            String::from("system: Ready"),
+        ]
+    );
+}
+
+#[test]
 fn status_line_entry_exposes_source_message_and_line() {
     let entry = StatusLineEntry::new("worker", "finished");
 

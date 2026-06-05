@@ -15,6 +15,18 @@ use std::time::Duration;
 #[path = "plan/tests.rs"]
 mod tests;
 
+fn additional_reserve_for_capacity(
+    current_len: usize,
+    current_capacity: usize,
+    desired_capacity: usize,
+) -> usize {
+    if desired_capacity > current_capacity {
+        desired_capacity.saturating_sub(current_len)
+    } else {
+        0
+    }
+}
+
 /// One backend-neutral primitive emitted by a generic surface projection.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PaintPrimitive {
@@ -128,8 +140,13 @@ impl SurfacePaintPlan {
     ) {
         self.clear_color = theme.clear_color;
         self.primitives.clear();
-        if primitive_capacity > self.primitives.capacity() {
-            self.primitives.reserve(primitive_capacity);
+        let additional = additional_reserve_for_capacity(
+            self.primitives.len(),
+            self.primitives.capacity(),
+            primitive_capacity,
+        );
+        if additional > 0 {
+            self.primitives.reserve(additional);
         }
     }
 }

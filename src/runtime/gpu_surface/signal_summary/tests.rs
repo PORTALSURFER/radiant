@@ -68,3 +68,29 @@ fn signal_summary_presizes_level_vector_for_empty_input() {
     assert_eq!(summary.levels.len(), 1);
     assert!(summary.levels.capacity() >= 1);
 }
+
+#[test]
+fn signal_summary_level_lookup_uses_nearest_bucket_size() {
+    let samples = (0..64).map(|index| index as f32).collect::<Vec<_>>();
+    let summary = GpuSignalSummary::from_interleaved_samples(&samples, 64, 1);
+
+    assert_eq!(summary.level_for_frames_per_pixel(0.5), 0);
+    assert_eq!(summary.level_for_frames_per_pixel(1.49), 0);
+    assert_eq!(summary.level_for_frames_per_pixel(1.5), 0);
+    assert_eq!(summary.level_for_frames_per_pixel(1.51), 1);
+    assert_eq!(
+        summary.level_for_frames_per_pixel(f32::INFINITY),
+        summary.levels.len() - 1
+    );
+}
+
+#[test]
+fn empty_signal_summary_level_lookup_defaults_to_zero() {
+    let summary = GpuSignalSummary {
+        frames: 0,
+        band_count: 1,
+        levels: Vec::new(),
+    };
+
+    assert_eq!(summary.level_for_frames_per_pixel(4.0), 0);
+}

@@ -20,8 +20,10 @@ impl<Message> Command<Message> {
     pub fn into_messages_into(self, messages: &mut Vec<Message>) {
         messages.clear();
         let hint = self.message_collection_hint();
-        if hint > messages.capacity() {
-            messages.reserve(hint);
+        let additional =
+            additional_reserve_for_target_capacity(messages.len(), messages.capacity(), hint);
+        if additional > 0 {
+            messages.reserve(additional);
         }
         self.collect_messages_into(messages);
     }
@@ -76,5 +78,17 @@ impl<Message> Command<Message> {
             | Self::EndDrag
             | Self::Exit => {}
         }
+    }
+}
+
+pub(super) fn additional_reserve_for_target_capacity(
+    current_len: usize,
+    current_capacity: usize,
+    target_capacity: usize,
+) -> usize {
+    if target_capacity > current_capacity {
+        target_capacity.saturating_sub(current_len)
+    } else {
+        0
     }
 }

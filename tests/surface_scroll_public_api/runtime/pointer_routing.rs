@@ -35,6 +35,11 @@ fn surface_runtime_skips_scroll_update_when_clamped_offset_is_unchanged() {
         !runtime.take_repaint_requested(),
         "unchanged scroll offsets should not notify the host or request repaint"
     );
+
+    assert!(runtime.scroll_at(Point::new(20.0, 20.0), Vector2::new(0.0, -48.0)));
+
+    assert_eq!(runtime.bridge().updates, 0);
+    assert!(!runtime.take_repaint_requested());
 }
 
 #[test]

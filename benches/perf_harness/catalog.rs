@@ -22,6 +22,7 @@ macro_rules! perf_scenario_catalog {
             ("layout_virtualized_fixed_10k", "layout", LAYOUT_ITERATIONS, layout_scenarios::virtualized_fixed_10k),
             ("layout_virtualized_fixed_scroll_10k", "layout", LAYOUT_ITERATIONS, layout_scenarios::virtualized_fixed_scroll_10k),
             ("layout_mark_dirty_subtree_10k", "layout", LAYOUT_ITERATIONS, layout_scenarios::mark_dirty_subtree_10k),
+            ("layout_dirty_virtual_cache_10k", "layout", LAYOUT_ITERATIONS, layout_scenarios::dirty_virtual_cache_10k),
             ("app_virtual_list_projection_10k", "application_projection", RUNTIME_ITERATIONS, app_projection::virtual_list_projection_10k),
             ("app_virtual_list_projection_generated_child_ids_10k", "application_projection", RUNTIME_ITERATIONS, app_projection::virtual_list_projection_generated_child_ids_10k),
             ("app_virtual_selectable_list_projection_10k", "application_projection", RUNTIME_ITERATIONS, app_projection::virtual_selectable_list_projection_10k),

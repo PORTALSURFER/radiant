@@ -94,11 +94,7 @@ fn main() -> radiant::Result {
         .title("Radiant Custom Widget")
         .size(320, 120)
         .view(|state| {
-            column([
-                custom_widget_mapped(StatusChip::new(state.active), |message: ChipOutput| message)
-                    .id(10),
-            ])
-            .padding(24.0)
+            column([custom_widget_direct(StatusChip::new(state.active)).id(10)]).padding(24.0)
         })
         .update(|state, message| match message {
             ChipOutput::Toggle => state.active = !state.active,
@@ -114,13 +110,7 @@ mod tests {
     #[test]
     fn custom_widget_routes_typed_output_through_application_runtime() {
         let bridge = radiant::app(DemoState::default())
-            .view(|state| {
-                column([custom_widget_mapped(
-                    StatusChip::new(state.active),
-                    |message: ChipOutput| message,
-                )
-                .id(10)])
-            })
+            .view(|state| column([custom_widget_direct(StatusChip::new(state.active)).id(10)]))
             .update(|state, message| match message {
                 ChipOutput::Toggle => state.active = !state.active,
             })

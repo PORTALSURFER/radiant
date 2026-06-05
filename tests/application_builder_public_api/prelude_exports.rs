@@ -87,6 +87,47 @@ fn prelude_views_can_dispatch_widget_outputs_directly() {
 }
 
 #[test]
+fn prelude_exports_direct_custom_widget_builder() {
+    use radiant::prelude::*;
+
+    #[derive(Clone)]
+    struct DirectProbe {
+        common: WidgetCommon,
+    }
+
+    impl Widget for DirectProbe {
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+
+        fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+            None
+        }
+
+        fn append_paint(
+            &self,
+            _primitives: &mut Vec<PaintPrimitive>,
+            _bounds: Rect,
+            _layout: &LayoutOutput,
+            _theme: &ThemeTokens,
+        ) {
+        }
+    }
+
+    let message = custom_widget_direct(DirectProbe {
+        common: WidgetCommon::new(9, WidgetSizing::fixed(Vector2::new(80.0, 24.0))),
+    })
+    .id(9)
+    .view_dispatch_widget_output(9, WidgetOutput::typed("ready"));
+
+    assert_eq!(message, Some("ready"));
+}
+
+#[test]
 fn prelude_views_can_dispatch_widget_inputs_directly() {
     use radiant::prelude::*;
 

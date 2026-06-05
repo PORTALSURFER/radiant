@@ -152,11 +152,48 @@ pub(in crate::gui::layout_core::engine) fn invalidate_virtual_cache_for_any(
     if node_ids.is_empty() {
         return;
     }
-    virtual_cache.retain(|_, entry| node_ids.iter().all(|id| !entry.depends_on(*id)));
+    virtual_cache.retain(|_, entry| !entry.depends_on_any(node_ids));
 }
 
 impl CachedVirtualMetrics {
     fn depends_on(&self, node_id: NodeId) -> bool {
         self.dependencies.contains(&node_id)
+    }
+
+    fn depends_on_any(&self, node_ids: &HashSet<NodeId>) -> bool {
+        self.dependencies.iter().any(|id| node_ids.contains(id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui::layout_core::constraints::Constraints;
+
+    #[test]
+    fn virtual_cache_invalidation_checks_entry_dependencies_against_dirty_set() {
+        let mut cache = HashMap::new();
+        let key = VirtualizationCacheKey::new(
+            1,
+            Constraints::unconstrained(),
+            VirtualizationAxis::Vertical,
+            3,
+            0,
+        );
+        cache.insert(
+            key,
+            CachedVirtualMetrics {
+                metrics: Arc::new(LinearVirtualMetrics::default()),
+                dependencies: vec![10, 20, 30],
+            },
+        );
+
+        let unrelated = HashSet::from([40, 50, 60]);
+        invalidate_virtual_cache_for_any(&mut cache, &unrelated);
+        assert!(cache.contains_key(&key));
+
+        let dirty = HashSet::from([20, 40, 60]);
+        invalidate_virtual_cache_for_any(&mut cache, &dirty);
+        assert!(!cache.contains_key(&key));
     }
 }

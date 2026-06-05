@@ -302,6 +302,21 @@ where
     view_node_from_widget(MappedWidget::new(widget, WidgetMessageMapper::typed(map)))
 }
 
+/// Build a custom widget view whose typed output is already the host message.
+///
+/// Use this when a custom widget emits [`WidgetOutput::typed`] payloads with
+/// the same concrete type as the surrounding application message, avoiding an
+/// identity mapper at every call site.
+pub fn custom_widget_direct<Message>(widget: impl Widget + Clone + 'static) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    view_node_from_widget(MappedWidget::new(
+        widget,
+        WidgetMessageMapper::typed(|message: Message| message),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{

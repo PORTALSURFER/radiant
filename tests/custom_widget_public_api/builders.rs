@@ -118,3 +118,57 @@ fn application_builder_routes_typed_custom_widget_output() {
     assert!(handled);
     assert_eq!(text, Some("Activated"));
 }
+
+#[test]
+fn application_builder_routes_direct_custom_widget_messages() {
+    use radiant::prelude as ui;
+
+    let message = ui::custom_widget_direct(DirectDemoWidget::new())
+        .id(30)
+        .view_dispatch_widget_output(30, WidgetOutput::typed(DemoMessage::SetActive(true)));
+
+    assert_eq!(message, Some(DemoMessage::SetActive(true)));
+}
+
+#[derive(Clone)]
+struct DirectDemoWidget {
+    common: radiant::widgets::WidgetCommon,
+}
+
+impl DirectDemoWidget {
+    fn new() -> Self {
+        Self {
+            common: radiant::widgets::WidgetCommon::new(
+                30,
+                radiant::widgets::WidgetSizing::fixed(Vector2::new(80.0, 20.0)),
+            ),
+        }
+    }
+}
+
+impl radiant::widgets::Widget for DirectDemoWidget {
+    fn common(&self) -> &radiant::widgets::WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut radiant::widgets::WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(
+        &mut self,
+        _bounds: radiant::prelude::Rect,
+        _input: WidgetInput,
+    ) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<radiant::prelude::PaintPrimitive>,
+        _bounds: radiant::prelude::Rect,
+        _layout: &radiant::prelude::LayoutOutput,
+        _theme: &radiant::prelude::ThemeTokens,
+    ) {
+    }
+}

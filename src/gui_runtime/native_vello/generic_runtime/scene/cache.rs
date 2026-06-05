@@ -60,20 +60,17 @@ impl RetainedSurfaceEncodeStats {
             .retained_frame_text_run_count
             .saturating_add(frame.text_runs.len());
         self.text_run_count = self.text_run_count.saturating_add(frame.text_runs.len());
-        self.image_count = self.image_count.saturating_add(
-            frame
-                .primitives
-                .iter()
-                .filter(|primitive| matches!(primitive, Primitive::Image(_)))
-                .count(),
-        );
-        self.svg_document_count = self.svg_document_count.saturating_add(
-            frame
-                .primitives
-                .iter()
-                .filter(|primitive| matches!(primitive, Primitive::Svg(_)))
-                .count(),
-        );
+        let mut image_count = 0;
+        let mut svg_document_count = 0;
+        for primitive in &frame.primitives {
+            match primitive {
+                Primitive::Image(_) => image_count += 1,
+                Primitive::Svg(_) => svg_document_count += 1,
+                _ => {}
+            }
+        }
+        self.image_count = self.image_count.saturating_add(image_count);
+        self.svg_document_count = self.svg_document_count.saturating_add(svg_document_count);
     }
 }
 

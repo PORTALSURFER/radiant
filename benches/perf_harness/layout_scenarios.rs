@@ -35,6 +35,11 @@ pub(super) fn mark_dirty_subtree_10k() -> impl FnMut() {
     move || dirty_subtree.step()
 }
 
+pub(super) fn dirty_virtual_cache_10k() -> impl FnMut() {
+    let mut dirty_cache = StatefulDirtyVirtualCacheBench::new();
+    move || dirty_cache.step()
+}
+
 fn bench_deep_nesting() {
     let node = trees::deep_nesting_tree();
     let output = layout_tree(&node, viewport(640.0, 360.0));
@@ -154,6 +159,49 @@ impl StatefulDirtySubtreeBench {
         self.engine.mark_measure_dirty_subtree(&self.root, 2);
         self.engine.clear_dirty();
         black_box(&self.engine);
+    }
+}
+
+struct StatefulDirtyVirtualCacheBench {
+    root: LayoutNode,
+    engine: LayoutEngine,
+    state: LayoutState,
+}
+
+impl StatefulDirtyVirtualCacheBench {
+    fn new() -> Self {
+        let root = trees::virtualized_scroll_tree(10_000, SizeModeMain::Fixed(28.0));
+        let mut engine = LayoutEngine::default();
+        let state = LayoutState::default();
+        let output = engine.layout_with_state(
+            &root,
+            viewport(300.0, 140.0),
+            &state,
+            LayoutDebugOptions::default(),
+        );
+        assert!(output.virtual_windows.contains_key(&1));
+        Self {
+            root,
+            engine,
+            state,
+        }
+    }
+
+    fn step(&mut self) {
+        self.engine.mark_measure_dirty_subtree(&self.root, 2);
+        let output = self.engine.layout_with_state(
+            &self.root,
+            viewport(300.0, 140.0),
+            &self.state,
+            LayoutDebugOptions::default(),
+        );
+        let window = output
+            .virtual_windows
+            .get(&1)
+            .expect("virtual window metadata");
+        assert_eq!(window.total_children, 10_000);
+        assert!(output.stats.materialized_nodes < 256);
+        black_box(output);
     }
 }
 

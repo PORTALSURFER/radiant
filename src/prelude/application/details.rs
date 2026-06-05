@@ -14,5 +14,5 @@ pub use crate::application::{
     details_sort_label, list, list_row, list_row_id, reorder_details_columns_by_id,
     selectable_property_panel, selectable_sortable_details_list, sortable_details_list, tree_list,
     tree_list_with_drag, update_details_column_reorder_drag, update_details_column_resize_drag,
-    virtual_list, virtual_list_window, virtual_scroll,
+    virtual_list, virtual_list_window, virtual_list_window_body, virtual_scroll,
 };

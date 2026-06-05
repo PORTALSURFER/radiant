@@ -1007,6 +1007,10 @@ sites instead of being encoded as positional boolean lists.
 Application-builder code that owns a resolved logical window can use
 `virtual_list_window(...)` for fixed-height rows; it preserves full scroll
 extent with spacer rows while only projecting the materialized item range.
+Use `virtual_list_window_body(...)` when the materialized range needs to be
+composed as one body, such as row groups, table overlays, guide overlays, or
+other decoration spanning several fixed-height rows, while Radiant still owns
+the full-scroll spacer geometry.
 Apps that drive a host-owned logical window from native scrolling can observe
 runtime-owned scroll containers with `.on_scroll(...)` or, for custom bridges,
 `RuntimeBridge::scroll_updated(ScrollUpdate)`.
@@ -1694,7 +1698,9 @@ that collects `LayoutDiagnostic` entries and debug primitives from
 Run `cargo run --example virtualized_list` for a large application-builder list
 sandbox that keeps 10k selectable rows responsive through
 `virtual_list_window(...)`. Use the windowed helper for large fixed-height
-lists so projection stays bounded to a `VirtualListWindow`; reserve
+lists so projection stays bounded to a `VirtualListWindow`; use
+`virtual_list_window_body(...)` when the materialized window needs a shared
+overlay or grouped row body; reserve
 `virtual_list(...)` for smaller lists where eagerly building every row remains
 acceptable.
 Run `cargo run --example inspector_panel` for a compact inspector/property

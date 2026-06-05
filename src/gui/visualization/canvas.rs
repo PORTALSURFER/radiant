@@ -3,7 +3,10 @@
 use std::sync::Arc;
 
 use crate::{
-    gui::types::{Point, Rect, Rgba8, Vector2},
+    gui::{
+        range::{IndexViewportScope, NormalizedRange},
+        types::{Point, Rect, Rgba8, Vector2},
+    },
     runtime::{PaintPrimitive, push_visible_fill_rect},
     widgets::WidgetId,
 };
@@ -351,6 +354,21 @@ impl CanvasSelectionGeometry {
             start_fraction,
             end_fraction,
         })
+    }
+
+    /// Project an absolute normalized range through an index viewport into
+    /// visible canvas selection geometry.
+    ///
+    /// Returns `None` when the source range is outside the viewport or collapses
+    /// after clipping. This is useful for timeline, waveform, strip, and
+    /// document-like canvases backed by integer item ranges.
+    pub fn from_viewport_range(
+        bounds: Rect,
+        viewport: IndexViewportScope,
+        range: NormalizedRange,
+    ) -> Option<Self> {
+        let range = viewport.visible_normalized_range(range)?;
+        Self::new(bounds, range.start_fraction(), range.end_fraction())
     }
 
     /// Return the top body-handle rectangle for moving this selection.

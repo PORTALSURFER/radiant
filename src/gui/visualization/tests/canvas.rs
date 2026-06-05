@@ -14,7 +14,10 @@ use super::super::{
     horizontal_resize_edge_visual_rect, horizontal_resize_handles,
 };
 use crate::{
-    gui::types::{Point, Rect, Rgba8},
+    gui::{
+        range::{IndexViewport, IndexViewportScope, NormalizedRange},
+        types::{Point, Rect, Rgba8},
+    },
     runtime::PaintPrimitive,
 };
 
@@ -269,6 +272,40 @@ fn canvas_selection_geometry_projects_common_affordances() {
             0.0
         ),
         Some(DragHandleRole::End)
+    );
+}
+
+#[test]
+fn canvas_selection_geometry_projects_viewport_clipped_range() {
+    let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 120.0));
+    let viewport = IndexViewportScope::new(
+        IndexViewport {
+            start: 200,
+            end: 600,
+        },
+        1_000,
+        10,
+    );
+    let geometry = CanvasSelectionGeometry::from_viewport_range(
+        bounds,
+        viewport,
+        NormalizedRange::from_fractions(0.3, 0.7),
+    )
+    .expect("visible geometry");
+
+    assert!((geometry.start_fraction - 0.25).abs() <= f32::EPSILON);
+    assert!((geometry.end_fraction - 1.0).abs() <= f32::EPSILON);
+    assert!((geometry.rect.min.x - 60.0).abs() <= 0.001);
+    assert_eq!(geometry.rect.min.y, 20.0);
+    assert_eq!(geometry.rect.max.x, 210.0);
+    assert_eq!(geometry.rect.max.y, 120.0);
+    assert_eq!(
+        CanvasSelectionGeometry::from_viewport_range(
+            bounds,
+            viewport,
+            NormalizedRange::from_fractions(0.7, 0.8),
+        ),
+        None
     );
 }
 

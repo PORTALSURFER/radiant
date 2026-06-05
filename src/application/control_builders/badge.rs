@@ -184,6 +184,17 @@ impl InteractiveBadgeBuilder {
         self
     }
 
+    /// Configure this badge as a host-tracked drag source.
+    ///
+    /// This preset keeps pointer-motion routing active while a badge
+    /// interaction is in progress, marks whether a related badge or row drag is
+    /// active in the host container, and records whether this badge is the
+    /// active drag source.
+    pub fn tracked_drag_source(mut self, drag_active: bool, drag_source: bool) -> Self {
+        self.row = self.row.tracked_drag_source(drag_active, drag_source);
+        self
+    }
+
     /// Emit drop and hover-drop-target messages.
     pub fn droppable(mut self, drag_active: bool) -> Self {
         self.row = self.row.droppable(drag_active);

@@ -1803,7 +1803,10 @@ a badge or pill should keep standard badge chrome while emitting generic
 dense-row interactions such as primary activation, secondary activation, drag,
 drop, or drop-hover. This is useful for labels, chips, tags, tokens, and
 compact filter pills that need richer interaction than a simple badge click
-without hand-building transparent input overlays in application code.
+without hand-building transparent input overlays in application code. Use
+`InteractiveBadgeBuilder::tracked_drag_source(drag_active, drag_source)` when
+host-owned badge drag state should configure draggable, drag-active,
+drag-source, and pointer-motion policy together.
 Run `cargo run --example custom_widget` for a custom widget authoring sandbox
 that implements paint and input dispatch through the public widget trait.
 Run `cargo run --example volume_slider` for a focused parameter-control sandbox

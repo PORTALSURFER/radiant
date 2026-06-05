@@ -1,10 +1,17 @@
 use crate::{
     application::StateCallback,
+    gui::text_layout::{TextWidthEstimate, estimated_text_width_for_char_count_in_range},
     gui::types::{Point, Rect},
     layout::Vector2,
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 use std::sync::Arc;
+
+const COMPACT_MENU_AVERAGE_ADVANCE_FACTOR: f32 = 0.56;
+const COMPACT_MENU_FONT_SIZE: f32 = 13.0;
+const COMPACT_MENU_HORIZONTAL_TEXT_PADDING: f32 = 48.0;
+const COMPACT_MENU_MIN_WIDTH: f32 = 210.0;
+const COMPACT_MENU_MAX_WIDTH: f32 = 320.0;
 
 /// One clickable item in a generic menu or context menu.
 pub struct MenuItem<State> {
@@ -149,6 +156,66 @@ pub struct MessageMenuParts<Message> {
     pub style: WidgetStyle,
     /// Ordered clickable menu commands.
     pub commands: Vec<MenuCommand<Message>>,
+}
+
+/// Deterministic width policy for message-emitting menus.
+///
+/// This is intended for menu and context-menu layout decisions that must be
+/// made before renderer text shaping metrics are available. It sizes from the
+/// longest visible title or command label, then clamps to a caller-defined
+/// logical-width range.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MessageMenuWidthPolicy {
+    /// Approximate text-width inputs used before renderer shaping metrics exist.
+    pub metrics: TextWidthEstimate,
+    /// Minimum logical width reserved for the menu.
+    pub min_width: f32,
+    /// Maximum logical width reserved for the menu.
+    pub max_width: f32,
+}
+
+impl MessageMenuWidthPolicy {
+    /// Construct a menu width policy from explicit metrics and width bounds.
+    pub fn new(metrics: TextWidthEstimate, min_width: f32, max_width: f32) -> Self {
+        Self {
+            metrics,
+            min_width,
+            max_width,
+        }
+    }
+
+    /// Return Radiant's default compact-menu width policy.
+    pub fn compact() -> Self {
+        Self::new(
+            TextWidthEstimate::from_font_size(
+                COMPACT_MENU_FONT_SIZE,
+                COMPACT_MENU_AVERAGE_ADVANCE_FACTOR,
+                COMPACT_MENU_HORIZONTAL_TEXT_PADDING,
+            ),
+            COMPACT_MENU_MIN_WIDTH,
+            COMPACT_MENU_MAX_WIDTH,
+        )
+    }
+
+    /// Approximate menu width for a title and ordered command list.
+    pub fn width_for_title_and_commands<Message>(
+        self,
+        title: &str,
+        commands: &[MenuCommand<Message>],
+    ) -> f32 {
+        let title_chars = title.chars().count();
+        let command_chars = commands
+            .iter()
+            .map(|command| command.label.chars().count())
+            .max()
+            .unwrap_or(0);
+        estimated_text_width_for_char_count_in_range(
+            title_chars.max(command_chars),
+            self.metrics,
+            self.min_width,
+            self.max_width,
+        )
+    }
 }
 
 /// Named construction fields for an anchored context-menu overlay.

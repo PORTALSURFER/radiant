@@ -9,7 +9,10 @@ use std::sync::Arc;
 mod model;
 
 pub use model::{ContextMenuOverlayParts, MenuItem, MenuItemParts, MenuParts};
-pub use model::{DismissibleContextMenuParts, MenuCommand, MenuCommandParts, MessageMenuParts};
+pub use model::{
+    DismissibleContextMenuParts, MenuCommand, MenuCommandParts, MessageMenuParts,
+    MessageMenuWidthPolicy,
+};
 
 /// Height of the title line in compact Radiant menus.
 pub const MENU_TITLE_HEIGHT: f32 = 22.0;
@@ -147,7 +150,8 @@ pub fn context_menu_overlay_from_parts<State: 'static>(
                 title: parts.title,
                 items: parts.items,
             })
-            .size(parts.size.x, parts.size.y),
+            .width(parts.size.x)
+            .height(parts.size.y),
             text("").fill_width().height(1.0),
         ])
         .fill_width()
@@ -198,6 +202,47 @@ where
     dismissible_context_menu(anchor, size, title, commands, dismiss_message)
 }
 
+/// Build a full-surface context-menu layer with Radiant's default compact menu
+/// width and height policy.
+pub fn dismissible_context_menu_auto_width<Message>(
+    anchor: Point,
+    title: impl Into<String>,
+    commands: impl IntoIterator<Item = MenuCommand<Message>>,
+    dismiss_message: Message,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    dismissible_context_menu_with_width_policy(
+        anchor,
+        MessageMenuWidthPolicy::compact(),
+        title,
+        commands,
+        dismiss_message,
+    )
+}
+
+/// Build a full-surface context-menu layer with a deterministic menu width
+/// derived from the title and command labels.
+pub fn dismissible_context_menu_with_width_policy<Message>(
+    anchor: Point,
+    width_policy: MessageMenuWidthPolicy,
+    title: impl Into<String>,
+    commands: impl IntoIterator<Item = MenuCommand<Message>>,
+    dismiss_message: Message,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    let title = title.into();
+    let commands = commands.into_iter().collect::<Vec<_>>();
+    let size = Vector2::new(
+        width_policy.width_for_title_and_commands(&title, &commands),
+        message_menu_height(commands.len()),
+    );
+    dismissible_context_menu(anchor, size, title, commands, dismiss_message)
+}
+
 /// Build a dismissible context-menu layer from named parts.
 pub fn dismissible_context_menu_from_parts<Message>(
     parts: DismissibleContextMenuParts<Message>,
@@ -218,7 +263,8 @@ where
                     style: parts.style,
                     commands: parts.commands,
                 })
-                .size(parts.size.x, parts.size.y),
+                .width(parts.size.x)
+                .height(parts.size.y),
                 text("").fill_width().height(1.0),
             ])
             .fill_width()

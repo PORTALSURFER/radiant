@@ -1803,9 +1803,14 @@ Use `dropdown_menu_overlay_below_stacked_labeled_control(...)` when a dropdown
 trigger lives inside a compact stacked labeled-control panel and the menu should
 anchor below the current `StackedLayoutCursor` item without repeating label
 offset arithmetic in the host.
-Dismissible context menus can use `dismissible_context_menu_with_width(...)`
-when they should use Radiant's standard compact menu height for the supplied
-commands instead of computing `message_menu_height(...)` in application code.
+Dismissible context menus can use `dismissible_context_menu_auto_width(...)`
+when Radiant should derive compact menu width from the title and command labels
+while also using the standard compact menu height. Use
+`dismissible_context_menu_with_width_policy(...)` with
+`MessageMenuWidthPolicy` when an app needs custom min/max menu width bounds, or
+`dismissible_context_menu_with_width(...)` when the width is deliberately fixed.
+These helpers avoid app-local `message_menu_height(...)` sizing and hard-coded
+context-menu width constants.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
 that composes `MenuItem`, `menu(...)`, and `context_menu_overlay(...)` with
 normal state callbacks.

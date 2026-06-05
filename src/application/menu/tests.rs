@@ -147,6 +147,70 @@ fn dismissible_context_menu_with_width_uses_standard_menu_height() {
 }
 
 #[test]
+fn dismissible_context_menu_with_width_policy_sizes_from_longest_label() {
+    let policy = MessageMenuWidthPolicy::new(
+        crate::gui::text_layout::TextWidthEstimate::new(8.0, 24.0),
+        100.0,
+        240.0,
+    );
+    let commands = [
+        MenuCommand::new("Open", MenuMessage::Open),
+        MenuCommand::new("Remove from collection", MenuMessage::Delete).danger(),
+    ];
+    let expected_width = policy.width_for_title_and_commands("Actions", &commands);
+    let frame = UiSurface::new(
+        dismissible_context_menu_with_width_policy(
+            Point::new(80.0, 90.0),
+            policy,
+            "Actions",
+            commands,
+            MenuMessage::Close,
+        )
+        .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 360.0)),
+        &Default::default(),
+    );
+
+    let menu_rects = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill) => Some(fill.rect),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        menu_rects
+            .iter()
+            .any(|rect| (rect.width() - expected_width).abs() < 0.01),
+        "context menu should paint at policy-derived width {expected_width}: {menu_rects:?}"
+    );
+}
+
+#[test]
+fn compact_message_menu_width_policy_clamps_to_default_range() {
+    let policy = MessageMenuWidthPolicy::compact();
+    let short_commands = [MenuCommand::new("Go", MenuMessage::Open)];
+    let long_commands = [MenuCommand::new(
+        "A very long command label that should clamp",
+        MenuMessage::Open,
+    )];
+
+    assert_eq!(
+        policy.width_for_title_and_commands("A", &short_commands),
+        policy.min_width
+    );
+    assert_eq!(
+        policy.width_for_title_and_commands("Actions", &long_commands),
+        policy.max_width
+    );
+}
+
+#[test]
 fn menu_command_style_helpers_are_generic() {
     let command = MenuCommand::new("Open", MenuMessage::Open).primary();
     assert_eq!(command.style.tone, WidgetTone::Accent);

@@ -294,6 +294,48 @@ impl<Message> InteractiveRowActions<Message> {
         self
     }
 
+    /// Emit activation, secondary, drag, drop, and hover-drop messages for one
+    /// host-owned row key.
+    ///
+    /// Use this for tree, outline, layer, folder, or lane rows where the same
+    /// durable key owns normal activation, context-menu activation, drag
+    /// lifecycle, committed drop, and hover-drop target updates.
+    pub fn activate_or_double_secondary_drag_drop_target_key<Key>(
+        mut self,
+        key: Key,
+        activate_message: impl Fn(Key) -> Message + Send + Sync + 'static,
+        secondary_message: impl Fn(Key, crate::gui::types::Point) -> Message + Send + Sync + 'static,
+        drag_message: impl Fn(Key, DragHandleMessage) -> Message + Send + Sync + 'static,
+        drop_message: impl Fn(Key) -> Message + Send + Sync + 'static,
+        hover_drop_message: impl Fn(Key, crate::gui::types::Point) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+        Message: 'static,
+    {
+        let activate_message: Arc<dyn Fn(Key) -> Message + Send + Sync + 'static> =
+            Arc::new(activate_message);
+        let double_key = key.clone();
+        let secondary_key = key.clone();
+        let drag_key = key.clone();
+        let drop_key = key.clone();
+        let hover_key = key.clone();
+        self.activate = Some(Arc::new({
+            let activate_message = activate_message.clone();
+            move || activate_message(key.clone())
+        }));
+        self.double_activate = Some(Arc::new(move || activate_message(double_key.clone())));
+        self.secondary = Some(Arc::new(move |position| {
+            secondary_message(secondary_key.clone(), position)
+        }));
+        self.drag = Some(Arc::new(move |drag| drag_message(drag_key.clone(), drag)));
+        self.drop = Some(Arc::new(move || drop_message(drop_key.clone())));
+        self.hover_drop = Some(Arc::new(move |position| {
+            hover_drop_message(hover_key.clone(), position)
+        }));
+        self
+    }
+
     /// Emit a host message for drag lifecycle updates.
     pub fn drag(
         mut self,

@@ -442,3 +442,43 @@ fn interactive_row_actions_routes_activation_and_secondary_with_one_key() {
         Some(("source", "secondary", position))
     );
 }
+
+#[test]
+fn interactive_row_actions_routes_keyed_tree_drop_row_actions() {
+    let actions = InteractiveRowActions::new().activate_or_double_secondary_drag_drop_target_key(
+        "folder",
+        |key| (key, "activate", Point::new(0.0, 0.0)),
+        |key, position| (key, "secondary", position),
+        |key, drag| (key, "drag", drag.position()),
+        |key| (key, "drop", Point::new(0.0, 0.0)),
+        |key, position| (key, "hover_drop", position),
+    );
+    let position = Point::new(12.0, 24.0);
+
+    assert_eq!(
+        actions.route(InteractiveRowMessage::Activate),
+        Some(("folder", "activate", Point::new(0.0, 0.0)))
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::DoubleActivate),
+        Some(("folder", "activate", Point::new(0.0, 0.0)))
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::SecondaryActivate { position }),
+        Some(("folder", "secondary", position))
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::Drag(DragHandleMessage::started(
+            position
+        ))),
+        Some(("folder", "drag", position))
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::Drop),
+        Some(("folder", "drop", Point::new(0.0, 0.0)))
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::HoverDropTarget { position }),
+        Some(("folder", "hover_drop", position))
+    );
+}

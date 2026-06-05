@@ -354,7 +354,11 @@ host-owned key. Use
 `activate_or_double_with_modifiers_secondary_drag_key(...)` for selectable
 dense rows where primary release preserves modifiers and activation,
 double-click, secondary context-menu activation, and drag lifecycle events all
-belong to one durable row key.
+belong to one durable row key. Use
+`activate_or_double_secondary_drag_drop_target_key(...)` for tree, outline,
+layer, folder, or lane rows where activation, secondary context-menu
+activation, drag lifecycle, committed drop, and hover-drop updates all share one
+durable row key.
 Use the single-activation helpers when double-click has a separate host action
 such as rename, drill-in, or open-in-place behavior. Drag-capable controls can use
 `DragHandleMessage::phase()`, `position()`, `started_position()`,

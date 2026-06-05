@@ -377,10 +377,11 @@ common selection, status, and activity edge markers instead of repeating raw
 marker geometry fields.
 Tree and outline rows that need continuous descendant guide lines can use
 `TreeGuideRow`, `TreeGuideStyle`, `tree_guide_segments(...)`,
-`tree_guide_overlay(...)`, and `tree_guide_indent(...)`. Applications should
-map their domain rows into depth plus `starts_descendant_group` metadata while
-Radiant owns segment projection, paint clipping for materialized virtual-list
-windows, and passive indent sizing.
+`tree_guide_overlay(...)`, `tree_guide_indent(...)`, and
+`virtual_tree_list_window(...)`. Applications should map their domain rows into
+depth plus `starts_descendant_group` metadata while Radiant owns segment
+projection, paint clipping for materialized virtual-list windows, passive
+indent sizing, and the standard fixed-row virtual tree body composition.
 Rows that need active drag-source motion after a retained refresh can opt into
 `with_drag_source_motion(...)`; rows that should accept drops without producing
 drop-hover messages can use `with_drop_only(...)`. Application-builder rows
@@ -1028,6 +1029,8 @@ sites instead of being encoded as positional boolean lists.
 Application-builder code that owns a resolved logical window can use
 `virtual_list_window(...)` for fixed-height rows; it preserves full scroll
 extent with spacer rows while only projecting the materialized item range.
+Use `virtual_tree_list_window(...)` for fixed-height tree or outline rows when
+the same materialized range should include a standard tree-guide overlay.
 Use `virtual_list_window_body(...)` when the materialized range needs to be
 composed as one body, such as row groups, table overlays, guide overlays, or
 other decoration spanning several fixed-height rows, while Radiant still owns
@@ -1720,8 +1723,10 @@ Run `cargo run --example virtualized_list` for a large application-builder list
 sandbox that keeps 10k selectable rows responsive through
 `virtual_list_window(...)`. Use the windowed helper for large fixed-height
 lists so projection stays bounded to a `VirtualListWindow`; use
+`virtual_tree_list_window(...)` when a fixed-height tree or outline should
+compose materialized rows with standard guide overlays; use
 `virtual_list_window_body(...)` when the materialized window needs a shared
-overlay or grouped row body; reserve
+overlay or grouped row body outside the standard tree-guide case; reserve
 `virtual_list(...)` for smaller lists where eagerly building every row remains
 acceptable.
 Run `cargo run --example inspector_panel` for a compact inspector/property

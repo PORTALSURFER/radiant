@@ -13,7 +13,7 @@ pub use containers::{
 pub use lists::{
     BoundedScrollColumnParts, bounded_scroll_column, bounded_scroll_column_from_parts, list,
     list_row, list_row_id, scroll_column, virtual_list, virtual_list_window,
-    virtual_list_window_body,
+    virtual_list_window_body, virtual_tree_list_window,
 };
 pub use overlays::{
     AnchoredLayerParts, CenteredLayerParts, FloatingLayerAnchorParts, FloatingLayerPlacement,

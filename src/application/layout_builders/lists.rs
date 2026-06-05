@@ -1,9 +1,11 @@
 //! List-oriented layout builders.
 
-use super::containers::{column, row, row_key};
+use super::containers::{column, row, row_key, stack};
 use super::scroll::{scroll, virtual_scroll};
 use crate::application::{ViewNode, empty, spacer};
-use crate::gui::list::{VirtualListWindow, bounded_list_height};
+use crate::gui::list::{
+    TreeGuideRow, TreeGuideStyle, VirtualListWindow, bounded_list_height, tree_guide_overlay,
+};
 use crate::widgets::WidgetStyle;
 
 #[cfg(test)]
@@ -202,6 +204,44 @@ pub fn virtual_list_window_body<Message: 'static>(
     virtual_scroll(column(children).spacing(0.0), overscan_px)
         .style(WidgetStyle::default())
         .fill_height()
+}
+
+/// Build a vertically virtualized fixed-row tree list with guide overlays.
+///
+/// This composes [`virtual_list_window_body`] with Radiant's generic tree-guide
+/// overlay so host applications can keep tree projection, row identity, and
+/// domain actions in the app while Radiant owns the fixed-row virtual scroll and
+/// guide-layer composition.
+pub fn virtual_tree_list_window<Message: 'static>(
+    window: VirtualListWindow,
+    row_height: f32,
+    guide_rows: &[TreeGuideRow],
+    guide_style: TreeGuideStyle,
+    mut project: impl FnMut(usize) -> ViewNode<Message>,
+    overscan_px: f32,
+) -> ViewNode<Message> {
+    virtual_list_window_body(
+        window,
+        row_height,
+        |window| {
+            let rows = column(
+                (window.window_start..window.window_end)
+                    .map(|index| project(index).height(row_height).fill_width()),
+            )
+            .spacing(0.0)
+            .fill_width();
+            stack([
+                rows,
+                tree_guide_overlay(
+                    guide_rows,
+                    window.window_start,
+                    window.window_end,
+                    guide_style,
+                ),
+            ])
+        },
+        overscan_px,
+    )
 }
 
 /// Build a keyed list row with full-width, fixed-height defaults.

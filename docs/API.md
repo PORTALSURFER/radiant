@@ -67,6 +67,9 @@ affordances. Use `WidgetCommon::is_hovered()`, `is_pressed()`, `is_focused()`,
 `is_selected()`, `is_active()`, `is_disabled()`, and `is_read_only()`, or the
 matching `WidgetState` helpers, when tests, custom widgets, or automation need
 to query shared interaction state without reading the raw state fields. Use
+`InteractiveRowWidget::paints_interaction_fill()` when custom dense-row
+painters need hover/pressed fills to follow Radiant's hover suppression and
+active-drag policy. Use
 `Widget::paint_plan(...)` or
 `paint_plan_with_defaults(...)` when focused custom-widget tests or previews
 need the same `SurfacePaintPlan` query helpers available from full view

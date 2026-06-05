@@ -615,6 +615,16 @@ impl InteractiveRowWidget {
         }
     }
 
+    /// Return whether hover/pressed interaction fills should be projected.
+    ///
+    /// Custom-painted row wrappers can use this before attaching hover or
+    /// pressed colors to a dense-row palette so their paint follows the same
+    /// hover-suppression and active-drag policy as the row input state.
+    pub fn paints_interaction_fill(&self) -> bool {
+        !self.props.suppress_hover
+            && (!self.props.drag_active || self.props.drag_source || self.props.droppable)
+    }
+
     /// Project this row's retained input state and host-owned visual state into
     /// dense-row chrome parts.
     ///

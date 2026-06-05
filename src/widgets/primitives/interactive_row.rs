@@ -234,6 +234,28 @@ impl<Message> InteractiveRowActions<Message> {
         self
     }
 
+    /// Emit primary activation and secondary activation messages for one host-owned row key.
+    ///
+    /// Use this when a row, chip, or tree item has the common pairing of
+    /// primary activate/select and secondary context-menu behavior tied to the
+    /// same durable key.
+    pub fn activate_secondary_key<Key>(
+        mut self,
+        key: Key,
+        activate_message: impl Fn(Key) -> Message + Send + Sync + 'static,
+        secondary_message: impl Fn(Key, crate::gui::types::Point) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+    {
+        let secondary_key = key.clone();
+        self.activate = Some(Arc::new(move || activate_message(key.clone())));
+        self.secondary = Some(Arc::new(move |position| {
+            secondary_message(secondary_key.clone(), position)
+        }));
+        self
+    }
+
     /// Emit a host message for drag lifecycle updates.
     pub fn drag(
         mut self,

@@ -382,3 +382,22 @@ fn interactive_row_actions_routes_single_modifiers_or_double_to_same_action() {
         Some(PointerModifiers::default())
     );
 }
+
+#[test]
+fn interactive_row_actions_routes_activation_and_secondary_with_one_key() {
+    let actions = InteractiveRowActions::new().activate_secondary_key(
+        "source",
+        |key| (key, "activate", Point::new(0.0, 0.0)),
+        |key, position| (key, "secondary", position),
+    );
+    let position = Point::new(12.0, 24.0);
+
+    assert_eq!(
+        actions.route(InteractiveRowMessage::Activate),
+        Some(("source", "activate", Point::new(0.0, 0.0)))
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::SecondaryActivate { position }),
+        Some(("source", "secondary", position))
+    );
+}

@@ -95,9 +95,10 @@ custom widget and local code would otherwise thread the same primitive buffer an
 widget id through every helper call. Timeline, waveform, progress, and
 scrubber-style custom widgets can use `push_horizontal_value_range_fill`,
 `push_horizontal_value_range_edge_fills`, and
-`push_horizontal_value_cursor_fill`, or the matching `WidgetPaint` methods, to
-append guarded normalized range, range edge, and cursor fills without repeating
-local geometry-to-paint boilerplate.
+`push_horizontal_value_cursor_fill`, `push_horizontal_value_cursor_fills`, or
+the matching `WidgetPaint` methods, to append guarded normalized range, range
+edge, and single or repeated cursor fills without repeating local
+geometry-to-paint boilerplate.
 Editor-style widgets that draw sampled curves such as EQ responses,
 automation curves, fade curves, and analysis overlays can use
 `SampledCurveStrokeParts`, `sampled_curve_points`, and
@@ -1139,7 +1140,8 @@ between determinate and indeterminate progress tracks, `horizontal_meter_fill_re
 `horizontal_value_range_rect`, `horizontal_value_range_edge_rects`, and
 `horizontal_wrapped_value_range_rects` for normalized horizontal track ticks,
 top/bottom range rails, and wrapped phase/activity segments,
-`horizontal_value_cursor_rect` for pixel-stable full-height cursors on
+`horizontal_value_cursor_rect`, `push_horizontal_value_cursor_fill`, and
+`push_horizontal_value_cursor_fills` for pixel-stable full-height cursors on
 timeline, waveform, scrubber, and progress-like tracks,
 `vertical_bipolar_value_at_point` and `vertical_bipolar_fill_rect` for centered
 signed vertical controls, `vertical_value_at_point`,

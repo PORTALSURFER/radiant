@@ -284,6 +284,34 @@ pub fn push_horizontal_value_cursor_fill(
     push_visible_fill_rect(primitives, widget_id, rect, color)
 }
 
+/// Push full-height cursor strips centered on normalized horizontal values.
+///
+/// Returns the number of fill primitives appended. Invalid values and empty
+/// tracks are skipped using the same geometry and paint guard as
+/// [`push_horizontal_value_cursor_fill`].
+pub fn push_horizontal_value_cursor_fills(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    track: Rect,
+    value_fractions: impl IntoIterator<Item = f32>,
+    cursor_width: f32,
+    color: Rgba8,
+) -> usize {
+    value_fractions
+        .into_iter()
+        .filter(|value_fraction| {
+            push_horizontal_value_cursor_fill(
+                primitives,
+                widget_id,
+                track,
+                *value_fraction,
+                cursor_width,
+                color,
+            )
+        })
+        .count()
+}
+
 impl WidgetPaint<'_> {
     /// Push a full-height cursor strip centered on a normalized horizontal value.
     ///
@@ -302,6 +330,28 @@ impl WidgetPaint<'_> {
             widget_id,
             track,
             value_fraction,
+            cursor_width,
+            color,
+        )
+    }
+
+    /// Push full-height cursor strips centered on normalized horizontal values.
+    ///
+    /// This is the [`WidgetPaint`] counterpart to
+    /// [`push_horizontal_value_cursor_fills`].
+    pub fn push_horizontal_value_cursor_fills(
+        &mut self,
+        track: Rect,
+        value_fractions: impl IntoIterator<Item = f32>,
+        cursor_width: f32,
+        color: Rgba8,
+    ) -> usize {
+        let widget_id = self.widget_id();
+        push_horizontal_value_cursor_fills(
+            self.primitives_mut(),
+            widget_id,
+            track,
+            value_fractions,
             cursor_width,
             color,
         )

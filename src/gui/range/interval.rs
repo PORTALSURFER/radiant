@@ -82,6 +82,23 @@ impl NormalizedRange {
         )
     }
 
+    /// Build a normalized range from a moved edge and its fixed opposite edge.
+    ///
+    /// `edge_fraction` is the new position for `edge`; `fixed_fraction` is the
+    /// unchanged opposite edge. Inputs use the same clamping and ordering rules
+    /// as [`Self::from_fractions`], so dragging across the fixed edge remains a
+    /// valid ordered range.
+    pub fn from_edge_fraction(
+        edge: NormalizedRangeEdge,
+        fixed_fraction: f32,
+        edge_fraction: f32,
+    ) -> Self {
+        match edge {
+            NormalizedRangeEdge::Start => Self::from_fractions(edge_fraction, fixed_fraction),
+            NormalizedRangeEdge::End => Self::from_fractions(fixed_fraction, edge_fraction),
+        }
+    }
+
     /// Build a normalized range from nano precision while preserving ordered mirrors.
     pub fn from_nanos(start_nanos: u32, end_nanos: u32) -> Self {
         let start = start_nanos.min(1_000_000_000);

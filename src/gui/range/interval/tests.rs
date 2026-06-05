@@ -61,6 +61,17 @@ fn normalized_range_from_fractions_treats_non_finite_as_zero() {
 }
 
 #[test]
+fn normalized_range_builds_from_moved_edge_and_fixed_opposite_edge() {
+    let resized_start = NormalizedRange::from_edge_fraction(NormalizedRangeEdge::Start, 0.60, 0.20);
+    let resized_end = NormalizedRange::from_edge_fraction(NormalizedRangeEdge::End, 0.20, 0.75);
+    let crossed_start = NormalizedRange::from_edge_fraction(NormalizedRangeEdge::Start, 0.40, 0.80);
+
+    assert_eq!(resized_start, NormalizedRange::from_fractions(0.20, 0.60));
+    assert_eq!(resized_end, NormalizedRange::from_fractions(0.20, 0.75));
+    assert_eq!(crossed_start, NormalizedRange::from_fractions(0.40, 0.80));
+}
+
+#[test]
 fn normalized_range_moves_one_edge_and_orders_result() {
     let range = NormalizedRange::from_fractions(0.25, 0.75);
 

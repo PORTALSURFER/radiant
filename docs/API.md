@@ -502,13 +502,15 @@ operations against the same total item count and minimum visible span. Use
 should stay typed for downstream canvas or timeline paint helpers instead of
 being unpacked into local start/end floats in application code.
 `NormalizedRange::from_fractions(...)`,
+`NormalizedRange::from_edge_fraction(...)`,
 `NormalizedRange::with_edge_fraction(...)`,
 `NormalizedRange::shifted_by_fraction(...)`, `NormalizedRangeDrag`,
 `NormalizedRangeEdge`, `normalized_fraction_to_milli(...)`,
 `normalized_fraction_to_micros(...)`, and `normalized_fraction_to_nanos(...)`
 convert floating point interaction ratios into the stable normalized units used
 by timeline, canvas, and retained visualization APIs while keeping common
-range creation, edge dragging, and clamped movement behavior out of host code.
+range creation, fixed-edge resizing, edge dragging, and clamped movement
+behavior out of host code.
 Application scrollbars can use `ScrollbarBuilder::message(...)` when reducers
 only need the normalized offset, or `mapped(...)` when they need the raw
 `ScrollbarMessage`.

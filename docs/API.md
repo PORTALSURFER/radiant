@@ -319,6 +319,9 @@ nonstandard event mapping. Use
 `InteractiveRowWidget::dense_visual_state(...)` with
 `InteractiveRowVisualStateParts` when custom row paint needs the generic dense
 row state model without reading widget internals. Use
+`DenseRowVisualState::emphasizes_label()` when custom row labels should switch
+to a higher-contrast color for selected rows, committed operation targets, or
+hovered operation candidates without repeating dense-row state predicates. Use
 `InteractiveRowWidget::handle_input_mapped(...)` and
 `synchronize_from_previous_embedded(...)` when a custom row widget embeds an
 interactive row for generic input behavior but exposes host-specific messages

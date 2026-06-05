@@ -22,6 +22,18 @@ pub struct DenseRowVisualState {
     pub candidate: bool,
 }
 
+impl DenseRowVisualState {
+    /// Return whether this dense row is in a state that should emphasize its label.
+    ///
+    /// Use this for custom row painters whose foreground text should become
+    /// higher-contrast for selected rows, committed operation targets, or
+    /// hovered operation candidates while following Radiant's dense-row state
+    /// priority.
+    pub const fn emphasizes_label(self) -> bool {
+        self.active_target || (self.hovered && self.candidate) || self.selected
+    }
+}
+
 /// Fill colors for generic dense-row state projection.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DenseRowPalette {

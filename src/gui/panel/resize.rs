@@ -46,6 +46,26 @@ impl PanelResizeConstraints {
         .normalized()
     }
 
+    /// Build resize constraints for a left-edge handle.
+    pub fn left(min_size: f32, max_size: f32) -> Self {
+        Self::new(PanelResizeEdge::Left, min_size, max_size)
+    }
+
+    /// Build resize constraints for a right-edge handle.
+    pub fn right(min_size: f32, max_size: f32) -> Self {
+        Self::new(PanelResizeEdge::Right, min_size, max_size)
+    }
+
+    /// Build resize constraints for a top-edge handle.
+    pub fn top(min_size: f32, max_size: f32) -> Self {
+        Self::new(PanelResizeEdge::Top, min_size, max_size)
+    }
+
+    /// Build resize constraints for a bottom-edge handle.
+    pub fn bottom(min_size: f32, max_size: f32) -> Self {
+        Self::new(PanelResizeEdge::Bottom, min_size, max_size)
+    }
+
     /// Add a double-activation collapse target to these resize constraints.
     pub fn collapsible(self, collapsed_size: f32) -> CollapsiblePanelResizeConstraints {
         let resize = self.normalized();
@@ -79,6 +99,26 @@ impl CollapsiblePanelResizeConstraints {
     /// Build collapsible resize constraints for a panel edge.
     pub fn new(edge: PanelResizeEdge, min_size: f32, max_size: f32, collapsed_size: f32) -> Self {
         PanelResizeConstraints::new(edge, min_size, max_size).collapsible(collapsed_size)
+    }
+
+    /// Build collapsible resize constraints for a left-edge handle.
+    pub fn left(min_size: f32, max_size: f32, collapsed_size: f32) -> Self {
+        PanelResizeConstraints::left(min_size, max_size).collapsible(collapsed_size)
+    }
+
+    /// Build collapsible resize constraints for a right-edge handle.
+    pub fn right(min_size: f32, max_size: f32, collapsed_size: f32) -> Self {
+        PanelResizeConstraints::right(min_size, max_size).collapsible(collapsed_size)
+    }
+
+    /// Build collapsible resize constraints for a top-edge handle.
+    pub fn top(min_size: f32, max_size: f32, collapsed_size: f32) -> Self {
+        PanelResizeConstraints::top(min_size, max_size).collapsible(collapsed_size)
+    }
+
+    /// Build collapsible resize constraints for a bottom-edge handle.
+    pub fn bottom(min_size: f32, max_size: f32, collapsed_size: f32) -> Self {
+        PanelResizeConstraints::bottom(min_size, max_size).collapsible(collapsed_size)
     }
 }
 

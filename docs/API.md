@@ -54,8 +54,9 @@ builders lower into the same `UiSurface`, `SurfaceNode`, `SurfaceChild`,
 runtime modules.
 
 Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`,
-`Rgba8::blend_toward`, and `Rgba8::blend_opaque_toward` for common color
-manipulation. Use `Rect::from_size(width, height)` for origin-based widget,
+`Rgba8::with_alpha_if`, `Rgba8::blend_toward`, and
+`Rgba8::blend_opaque_toward` for common color manipulation. Use
+`Rect::from_size(width, height)` for origin-based widget,
 viewport, and test bounds, or `Rect::from_xy_size(x, y, width, height)` for
 positioned widget bounds, instead of repeating `Point` plus `Vector2`
 construction. Dense visualizations can use `ColorRamp` and `ColorRampStop` for

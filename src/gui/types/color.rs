@@ -24,6 +24,11 @@ impl Rgba8 {
         Self { a: alpha, ..self }
     }
 
+    /// Return this color with one of two alpha channels based on `condition`.
+    pub const fn with_alpha_if(self, condition: bool, true_alpha: u8, false_alpha: u8) -> Self {
+        self.with_alpha(if condition { true_alpha } else { false_alpha })
+    }
+
     /// Linearly blend this color toward another color.
     pub fn blend_toward(self, other: Self, amount: f32) -> Self {
         let amount = amount.clamp(0.0, 1.0);
@@ -59,6 +64,20 @@ mod tests {
         assert_eq!(
             from.blend_opaque_toward(to, 0.5),
             Rgba8::new(60, 120, 80, 255)
+        );
+    }
+
+    #[test]
+    fn with_alpha_if_selects_alpha_from_condition() {
+        let color = Rgba8::new(10, 20, 30, 40);
+
+        assert_eq!(
+            color.with_alpha_if(true, 200, 80),
+            Rgba8::new(10, 20, 30, 200)
+        );
+        assert_eq!(
+            color.with_alpha_if(false, 200, 80),
+            Rgba8::new(10, 20, 30, 80)
         );
     }
 }

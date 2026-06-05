@@ -190,6 +190,44 @@ impl<Message> InteractiveRowActions<Message> {
         self
     }
 
+    /// Emit modifier-aware activation, secondary activation, and drag messages
+    /// for one host-owned row key.
+    ///
+    /// Use this for dense selectable rows where primary release preserves
+    /// modifiers, double-click behaves like normal activation, secondary
+    /// activation opens a context surface, and drag lifecycle events all belong
+    /// to the same durable row key.
+    pub fn activate_or_double_with_modifiers_secondary_drag_key<Key>(
+        mut self,
+        key: Key,
+        activate_message: impl Fn(Key, PointerModifiers) -> Message + Send + Sync + 'static,
+        secondary_message: impl Fn(Key, crate::gui::types::Point) -> Message + Send + Sync + 'static,
+        drag_message: impl Fn(Key, DragHandleMessage) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+        Message: 'static,
+    {
+        let activate_message: Arc<
+            dyn Fn(Key, PointerModifiers) -> Message + Send + Sync + 'static,
+        > = Arc::new(activate_message);
+        let double_key = key.clone();
+        let secondary_key = key.clone();
+        let drag_key = key.clone();
+        self.activate_with_modifiers = Some(Arc::new({
+            let activate_message = activate_message.clone();
+            move |modifiers| activate_message(key.clone(), modifiers)
+        }));
+        self.double_activate = Some(Arc::new(move || {
+            activate_message(double_key.clone(), PointerModifiers::default())
+        }));
+        self.secondary = Some(Arc::new(move |position| {
+            secondary_message(secondary_key.clone(), position)
+        }));
+        self.drag = Some(Arc::new(move |drag| drag_message(drag_key.clone(), drag)));
+        self
+    }
+
     /// Emit a host message for double primary activation.
     pub fn double_activate(
         mut self,

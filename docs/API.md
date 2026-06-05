@@ -350,7 +350,11 @@ and double-click should route to the same host action. Use
 modifier state but double-click still maps to the same action with default
 modifiers. Use `activate_secondary_key(...)` when a row or chip should route
 primary activation and secondary context-menu activation through the same
-host-owned key.
+host-owned key. Use
+`activate_or_double_with_modifiers_secondary_drag_key(...)` for selectable
+dense rows where primary release preserves modifiers and activation,
+double-click, secondary context-menu activation, and drag lifecycle events all
+belong to one durable row key.
 Use the single-activation helpers when double-click has a separate host action
 such as rename, drill-in, or open-in-place behavior. Drag-capable controls can use
 `DragHandleMessage::phase()`, `position()`, `started_position()`,

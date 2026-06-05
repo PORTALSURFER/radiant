@@ -384,6 +384,47 @@ fn interactive_row_actions_routes_single_modifiers_or_double_to_same_action() {
 }
 
 #[test]
+fn interactive_row_actions_routes_keyed_modifier_activation_secondary_and_drag() {
+    let actions = InteractiveRowActions::new()
+        .activate_or_double_with_modifiers_secondary_drag_key(
+            "file",
+            |key, modifiers| (key, "activate", modifiers, Point::new(0.0, 0.0)),
+            |key, position| (key, "secondary", PointerModifiers::default(), position),
+            |key, drag| (key, "drag", PointerModifiers::default(), drag.position()),
+        );
+    let modifiers = PointerModifiers {
+        shift: true,
+        command: true,
+        ..PointerModifiers::default()
+    };
+    let position = Point::new(12.0, 24.0);
+
+    assert_eq!(
+        actions.route(InteractiveRowMessage::ActivateWithModifiers { modifiers }),
+        Some(("file", "activate", modifiers, Point::new(0.0, 0.0)))
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::DoubleActivate),
+        Some((
+            "file",
+            "activate",
+            PointerModifiers::default(),
+            Point::new(0.0, 0.0)
+        ))
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::SecondaryActivate { position }),
+        Some(("file", "secondary", PointerModifiers::default(), position))
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::Drag(DragHandleMessage::started(
+            position
+        ))),
+        Some(("file", "drag", PointerModifiers::default(), position))
+    );
+}
+
+#[test]
 fn interactive_row_actions_routes_activation_and_secondary_with_one_key() {
     let actions = InteractiveRowActions::new().activate_secondary_key(
         "source",

@@ -1,7 +1,7 @@
 use super::{
     GenericNativeVelloRunner, GenericRouteOutcome, key_code_from_winit, keypress_from_input,
 };
-use crate::{runtime::RuntimeBridge, widgets::WidgetKey};
+use crate::{gui::input::KeyCode, runtime::RuntimeBridge, widgets::WidgetKey};
 use std::time::Instant;
 use winit::{
     event::{ElementState, KeyEvent},
@@ -28,9 +28,14 @@ where
         if let PhysicalKey::Code(code) = event.physical_key
             && let Some(key) = key_code_from_winit(code)
         {
+            let allow_text_deletion_repeat = repeat
+                && self.core.has_focused_text_input()
+                && !self.input.modifiers.alt_key()
+                && matches!(key, KeyCode::Backspace | KeyCode::Delete);
             if !should_route_keypress(
                 key,
                 repeat,
+                allow_text_deletion_repeat,
                 &mut self.input.last_navigation_key_repeat,
                 Instant::now(),
             ) {

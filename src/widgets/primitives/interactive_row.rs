@@ -157,6 +157,25 @@ impl<Message> InteractiveRowActions<Message> {
         self
     }
 
+    /// Emit the same host action for modifier-aware single activation and double activation.
+    ///
+    /// Single primary activation receives the release modifiers. Double
+    /// activation uses default modifiers because the current row event does not
+    /// carry modifier state for double-clicks.
+    pub fn activate_or_double_with_modifiers(
+        mut self,
+        message: impl Fn(PointerModifiers) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        let message: Arc<dyn Fn(PointerModifiers) -> Message + Send + Sync + 'static> =
+            Arc::new(message);
+        self.activate_with_modifiers = Some(message.clone());
+        self.double_activate = Some(Arc::new(move || message(PointerModifiers::default())));
+        self
+    }
+
     /// Emit a modifier-aware activation message for one host-owned row key.
     pub fn activate_with_modifiers_key<Key>(
         mut self,

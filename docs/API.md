@@ -345,7 +345,10 @@ hover-drop routing table that `interactive_row().actions(...)` and
 interactions should route through the same host-owned item key without
 duplicating capture closures at each row, chip, or tree item. Use
 `activate_or_double(...)` or `activate_or_double_key(...)` when primary release
-and double-click should route to the same host action.
+and double-click should route to the same host action. Use
+`activate_or_double_with_modifiers(...)` when primary release should preserve
+modifier state but double-click still maps to the same action with default
+modifiers.
 Use the single-activation helpers when double-click has a separate host action
 such as rename, drill-in, or open-in-place behavior. Drag-capable controls can use
 `DragHandleMessage::phase()`, `position()`, `started_position()`,

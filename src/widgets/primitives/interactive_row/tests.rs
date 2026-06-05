@@ -362,3 +362,23 @@ fn interactive_row_actions_routes_single_or_double_activation_with_key() {
         Some(("folder", "activate"))
     );
 }
+
+#[test]
+fn interactive_row_actions_routes_single_modifiers_or_double_to_same_action() {
+    let actions =
+        InteractiveRowActions::new().activate_or_double_with_modifiers(|modifiers| modifiers);
+    let modifiers = PointerModifiers {
+        shift: true,
+        command: true,
+        ..PointerModifiers::default()
+    };
+
+    assert_eq!(
+        actions.route(InteractiveRowMessage::ActivateWithModifiers { modifiers }),
+        Some(modifiers)
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::DoubleActivate),
+        Some(PointerModifiers::default())
+    );
+}

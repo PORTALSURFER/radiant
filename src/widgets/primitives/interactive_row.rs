@@ -2,8 +2,8 @@
 
 use crate::gui::{
     list::{
-        DenseRowChromeParts, DenseRowPalette, DenseRowVisualState, push_dense_row_chrome,
-        push_dense_row_fill,
+        DenseRowChromeParts, DenseRowLabelParts, DenseRowPalette, DenseRowVisualState,
+        push_dense_row_chrome, push_dense_row_fill, push_dense_row_labeled_chrome,
     },
     types::Rect,
 };
@@ -503,6 +503,20 @@ impl InteractiveRowWidget {
         parts: DenseRowChromeParts,
     ) -> usize {
         push_dense_row_chrome(primitives, self.id(), bounds, parts)
+    }
+
+    /// Push this row's standard dense chrome followed by a centered label.
+    ///
+    /// Custom row wrappers can use this when their visible content is a single
+    /// label over Radiant's standard dense-row feedback, markers, and outline.
+    pub fn push_dense_labeled_chrome(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        chrome: DenseRowChromeParts,
+        label: DenseRowLabelParts,
+    ) -> usize {
+        push_dense_row_labeled_chrome(primitives, self.id(), bounds, chrome, label)
     }
 
     /// Route input through this row and map the row message into a typed widget output.

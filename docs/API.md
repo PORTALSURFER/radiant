@@ -326,7 +326,8 @@ state to append standard dense-row feedback. Use
 `InteractiveRowWidget::dense_chrome_parts(...)` and
 `push_dense_chrome(...)` when the custom row needs standard dense-row fill,
 markers, or outlines while keeping row identity and retained input-state
-projection inside Radiant. Use
+projection inside Radiant. Use `push_dense_labeled_chrome(...)` when the custom
+row needs that standard chrome followed by one centered dense-row label. Use
 `InteractiveRowMessage::activation_modifiers()`,
 `single_activation_modifiers()`, `is_single_activation()`,
 `is_double_activation()`,

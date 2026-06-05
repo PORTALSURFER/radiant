@@ -3,7 +3,8 @@ use super::super::{
     DenseRowMarkerStyle, DenseRowOutlineStyle, DenseRowPalette, DenseRowVisualState,
     dense_row_fill_color, dense_row_inset_rect, dense_row_label_font_size,
     dense_row_vertical_marker_rect, push_dense_row_chrome, push_dense_row_fill,
-    push_dense_row_inset_stroke, push_dense_row_label, push_dense_row_vertical_marker,
+    push_dense_row_inset_stroke, push_dense_row_label, push_dense_row_labeled_chrome,
+    push_dense_row_vertical_marker,
 };
 use crate::gui::types::{Point, Rect, Rgba8, Vector2};
 use crate::runtime::{PaintPrimitive, PaintStrokeRect};
@@ -430,4 +431,46 @@ fn push_dense_row_label_skips_empty_or_collapsed_rows() {
         DenseRowLabelParts::new("Folder", SELECTED),
     ));
     assert!(primitives.is_empty());
+}
+
+#[test]
+fn push_dense_row_labeled_chrome_appends_chrome_before_label() {
+    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(120.0, 22.0));
+    let mut primitives = Vec::new();
+    let chrome = DenseRowChromeParts::new(
+        DenseRowVisualState {
+            hovered: true,
+            ..DenseRowVisualState::default()
+        },
+        DenseRowPalette::new().hovered(HOVERED),
+    )
+    .leading_marker(DenseRowMarkerStyle::new(
+        DenseRowMarkerParts::leading(2.0),
+        SELECTED,
+    ));
+
+    let count = push_dense_row_labeled_chrome(
+        &mut primitives,
+        11,
+        bounds,
+        chrome,
+        DenseRowLabelParts::new("Folder", PRESSED),
+    );
+
+    assert_eq!(count, 3);
+    assert_eq!(primitives.len(), 3);
+    assert!(matches!(
+        &primitives[0],
+        PaintPrimitive::FillRect(fill)
+            if fill.widget_id == 11 && fill.rect == bounds && fill.color == HOVERED
+    ));
+    assert!(matches!(
+        &primitives[1],
+        PaintPrimitive::FillRect(fill) if fill.widget_id == 11 && fill.color == SELECTED
+    ));
+    assert!(matches!(
+        &primitives[2],
+        PaintPrimitive::Text(text)
+            if text.widget_id == 11 && text.text == "Folder" && text.color == PRESSED
+    ));
 }

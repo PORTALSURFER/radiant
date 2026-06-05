@@ -404,6 +404,26 @@ pub fn push_dense_row_label(
     true
 }
 
+/// Push standard dense-row chrome followed by a centered dense-row label.
+///
+/// This is useful for custom-painted list and tree rows whose visible content is
+/// a single label over standard dense-row feedback. The helper preserves
+/// Radiant's chrome-before-text paint order and avoids repeating the same widget
+/// identity and bounds plumbing at each host row painter.
+/// Returns the number of primitives appended.
+pub fn push_dense_row_labeled_chrome(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    bounds: Rect,
+    chrome: DenseRowChromeParts,
+    label: DenseRowLabelParts,
+) -> usize {
+    let initial_len = primitives.len();
+    push_dense_row_chrome(primitives, widget_id, bounds, chrome);
+    push_dense_row_label(primitives, widget_id, bounds, label);
+    primitives.len() - initial_len
+}
+
 /// Project an inset rectangle, returning `None` when the inset collapses it.
 pub fn dense_row_inset_rect(bounds: Rect, inset: f32) -> Option<Rect> {
     if !inset.is_finite() || inset < 0.0 {

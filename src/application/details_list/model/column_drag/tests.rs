@@ -70,6 +70,63 @@ fn details_column_reorder_marker_tracks_hovered_column_edge() {
 }
 
 #[test]
+fn details_column_drag_feedback_projects_marker_relative_to_content() {
+    let placements = vec![
+        DetailsColumnPlacement::new("name", 240.0),
+        DetailsColumnPlacement::new("rating", 68.0),
+        DetailsColumnPlacement::new("extension", 54.0),
+        DetailsColumnPlacement::new("size", 78.0),
+    ];
+    let drag = DetailsColumnReorderDrag::from_start(
+        "rating",
+        16.0,
+        crate::gui::types::Point::new(410.0, 18.0),
+    );
+
+    let feedback =
+        details_column_drag_feedback(&drag, &placements, 10.0, 12.0).expect("drag feedback");
+
+    assert_eq!(
+        feedback,
+        DetailsColumnDragFeedback {
+            column_id: String::from("rating"),
+            pointer: crate::gui::types::Point::new(410.0, 18.0),
+            width: 68.0,
+            marker_x: 380.0,
+        }
+    );
+    assert_eq!(
+        drag.current_feedback(&placements, 10.0, 12.0),
+        Some(feedback)
+    );
+}
+
+#[test]
+fn details_column_drag_feedback_sanitizes_marker_offset_and_missing_columns() {
+    let placements = vec![
+        DetailsColumnPlacement::new("name", 240.0),
+        DetailsColumnPlacement::new("rating", 68.0),
+        DetailsColumnPlacement::new("extension", 54.0),
+    ];
+    let drag = DetailsColumnReorderDrag::from_start(
+        "rating",
+        16.0,
+        crate::gui::types::Point::new(410.0, 18.0),
+    );
+    let missing = DetailsColumnReorderDrag::new("missing", 16.0);
+
+    assert_eq!(
+        details_column_drag_feedback(&drag, &placements, 10.0, f32::NAN)
+            .map(|feedback| feedback.marker_x),
+        Some(382.0)
+    );
+    assert_eq!(
+        details_column_drag_feedback(&missing, &placements, 10.0, 12.0),
+        None
+    );
+}
+
+#[test]
 fn update_details_column_resize_drag_manages_drag_lifecycle() {
     let mut drag = None;
 

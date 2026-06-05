@@ -284,10 +284,12 @@ Resizable and reorderable details headers can keep interaction state in
 `update_details_column_resize_drag(...)`,
 `update_details_column_reorder_drag(...)`,
 `details_column_drag_content_left(...)`, `details_column_reorder_index(...)`,
-and `reorder_details_columns_by_id(...)` for stable framework-owned column
-geometry and drag-lifecycle behavior. `DetailsColumnReorderDrag` retains the
-current pointer position so host applications can render drag previews and
-insertion markers without duplicating the generic drag lifecycle.
+`details_column_drag_feedback(...)`, and `reorder_details_columns_by_id(...)`
+for stable framework-owned column geometry and drag-lifecycle behavior.
+`DetailsColumnReorderDrag` retains the current pointer position and exposes
+`current_feedback(...)` so host applications can render drag previews and local
+insertion markers without duplicating the generic drag lifecycle or marker
+projection math.
 Custom row painters can compose `InteractiveRowWidget` directly for shared
 dense-row hover, activation, drag-source, drag-active, drop-target, and retained
 hover synchronization behavior while keeping domain-specific row visuals in the

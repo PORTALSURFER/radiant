@@ -88,6 +88,19 @@ pub fn update_details_column_resize_drag(
     }
 }
 
+/// Host-renderable details-column reorder feedback.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DetailsColumnDragFeedback {
+    /// Stable caller-owned column id being reordered.
+    pub column_id: String,
+    /// Current pointer position for a drag preview.
+    pub pointer: Point,
+    /// Current rendered width of the dragged column.
+    pub width: f32,
+    /// Local insertion-marker x-coordinate relative to the details content.
+    pub marker_x: f32,
+}
+
 /// Active pointer-driven details-column reorder state.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DetailsColumnReorderDrag {
@@ -158,6 +171,42 @@ impl DetailsColumnReorderDrag {
             column_gap,
         ))
     }
+
+    /// Resolve host-renderable drag feedback for the current pointer target.
+    ///
+    /// `marker_handle_offset` lets callers align a local drop marker with their
+    /// header chrome, such as resize handles or gap decoration, while Radiant
+    /// owns the shared reorder geometry.
+    pub fn current_feedback(
+        &self,
+        placements: &[DetailsColumnPlacement],
+        column_gap: f32,
+        marker_handle_offset: f32,
+    ) -> Option<DetailsColumnDragFeedback> {
+        details_column_drag_feedback(self, placements, column_gap, marker_handle_offset)
+    }
+}
+
+/// Resolve host-renderable feedback for an active details-column reorder drag.
+pub fn details_column_drag_feedback(
+    drag: &DetailsColumnReorderDrag,
+    placements: &[DetailsColumnPlacement],
+    column_gap: f32,
+    marker_handle_offset: f32,
+) -> Option<DetailsColumnDragFeedback> {
+    let placement = placements
+        .iter()
+        .find(|placement| placement.id == drag.column_id)?;
+    let marker_x = (drag.current_marker_x(placements, column_gap)?
+        - drag.content_left
+        - finite_nonnegative(marker_handle_offset))
+    .max(0.0);
+    Some(DetailsColumnDragFeedback {
+        column_id: drag.column_id.clone(),
+        pointer: drag.pointer,
+        width: placement.width,
+        marker_x,
+    })
 }
 
 /// Resolve the marker x-coordinate for a details-column insertion target.
@@ -211,6 +260,14 @@ pub fn details_column_drag_content_left(
         .sum::<f32>();
     let width = placements.get(index)?.width;
     Some(start_x - prior_width - width * 0.5)
+}
+
+fn finite_nonnegative(value: f32) -> f32 {
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
+    }
 }
 
 /// Apply one drag-handle message to details-column reorder state.

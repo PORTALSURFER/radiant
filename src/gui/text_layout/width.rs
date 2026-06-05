@@ -27,6 +27,83 @@ impl TextWidthEstimate {
     }
 }
 
+/// Deterministic width policy for inline single-line text inputs.
+///
+/// Token, recipient, filter, and chip editors often size an input from the
+/// draft value plus optional inline completion text while still reserving room
+/// for a placeholder or minimum visible character count. This policy keeps that
+/// sizing logic reusable without requiring hosts to allocate temporary joined
+/// strings before renderer text metrics are available.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TextInputWidthPolicy {
+    /// Approximate text-width inputs used before renderer shaping metrics exist.
+    pub metrics: TextWidthEstimate,
+    /// Minimum logical width reserved for the input.
+    pub min_width: f32,
+    /// Maximum logical width reserved for the input.
+    pub max_width: f32,
+    /// Minimum visible character count reserved before clamping to the width range.
+    pub min_visible_chars: usize,
+}
+
+impl TextInputWidthPolicy {
+    /// Construct a text-input width policy with no additional minimum visible
+    /// character count beyond `min_width`.
+    pub fn new(metrics: TextWidthEstimate, min_width: f32, max_width: f32) -> Self {
+        Self {
+            metrics,
+            min_width,
+            max_width,
+            min_visible_chars: 0,
+        }
+    }
+
+    /// Reserve space for at least `min_visible_chars` before clamping to the
+    /// configured width range.
+    pub fn with_min_visible_chars(mut self, min_visible_chars: usize) -> Self {
+        self.min_visible_chars = min_visible_chars;
+        self
+    }
+
+    /// Approximate input width for a known visible character count.
+    pub fn width_for_char_count(self, char_count: usize) -> f32 {
+        estimated_text_width_for_char_count_in_range(
+            char_count.max(self.min_visible_chars),
+            self.metrics,
+            self.min_width,
+            self.max_width,
+        )
+    }
+
+    /// Approximate input width for a draft value.
+    pub fn width_for_value(self, value: &str) -> f32 {
+        self.width_for_char_count(value.chars().count())
+    }
+
+    /// Approximate input width for a draft value plus an optional inline
+    /// completion suffix. Empty suffixes are ignored.
+    pub fn width_for_value_and_completion_suffix(
+        self,
+        value: &str,
+        completion_suffix: Option<&str>,
+    ) -> f32 {
+        self.width_for_char_count(value_completion_char_count(value, completion_suffix))
+    }
+
+    /// Approximate input width for a draft value plus an optional inline
+    /// completion suffix, reserving at least enough room for `placeholder`.
+    pub fn width_for_value_completion_or_placeholder(
+        self,
+        value: &str,
+        completion_suffix: Option<&str>,
+        placeholder: &str,
+    ) -> f32 {
+        self.width_for_char_count(
+            value_completion_char_count(value, completion_suffix).max(placeholder.chars().count()),
+        )
+    }
+}
+
 /// Approximate text width for a displayed string plus configured padding.
 pub fn estimated_text_width(text: &str, metrics: TextWidthEstimate) -> f32 {
     estimated_text_width_for_char_count(text.chars().count(), metrics)
@@ -96,6 +173,15 @@ fn text_segments_char_count<'a>(segments: impl IntoIterator<Item = &'a str>) -> 
         .into_iter()
         .map(|segment| segment.chars().count())
         .sum()
+}
+
+fn value_completion_char_count(value: &str, completion_suffix: Option<&str>) -> usize {
+    value.chars().count()
+        + completion_suffix
+            .filter(|suffix| !suffix.is_empty())
+            .map(str::chars)
+            .map(Iterator::count)
+            .unwrap_or(0)
 }
 
 pub(in crate::gui) fn finite_nonnegative_width(value: f32) -> f32 {

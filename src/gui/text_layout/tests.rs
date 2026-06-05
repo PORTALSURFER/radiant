@@ -216,3 +216,39 @@ fn estimated_text_width_in_range_normalizes_invalid_bounds() {
         0.0
     );
 }
+
+#[test]
+fn text_input_width_policy_sizes_value_completion_and_placeholder() {
+    let policy = TextInputWidthPolicy::new(TextWidthEstimate::new(7.0, 12.0), 30.0, 120.0)
+        .with_min_visible_chars(7);
+
+    assert_eq!(policy.width_for_value(""), 61.0);
+    assert_eq!(policy.width_for_value("kick"), 61.0);
+    assert_eq!(
+        policy.width_for_value_and_completion_suffix("kick", Some("-loop")),
+        75.0
+    );
+    assert_eq!(
+        policy.width_for_value_completion_or_placeholder("ki", Some(""), "sample-name"),
+        89.0
+    );
+    assert_eq!(
+        policy.width_for_value_completion_or_placeholder("long-sample-name", Some("-extended"), ""),
+        120.0
+    );
+}
+
+#[test]
+fn text_input_width_policy_uses_existing_width_normalization() {
+    let policy = TextInputWidthPolicy::new(
+        TextWidthEstimate::new(f32::NAN, f32::INFINITY),
+        f32::NAN,
+        f32::INFINITY,
+    )
+    .with_min_visible_chars(4);
+
+    assert_eq!(policy.width_for_value("anything"), 0.0);
+
+    let reversed = TextInputWidthPolicy::new(TextWidthEstimate::new(7.0, 12.0), 80.0, 20.0);
+    assert_eq!(reversed.width_for_value("x"), 80.0);
+}

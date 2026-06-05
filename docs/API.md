@@ -2078,7 +2078,10 @@ made before renderer shaping metrics are available. Use
 `estimated_text_width_for_segments_in_range` when the displayed label is
 assembled from stable pieces such as an inline completion suffix, prefix, or
 adornment and the host should not allocate a temporary joined string just to size
-the control. The plain placement and width helpers are deterministic and
+the control. Inline token, recipient, and chip editors can use
+`TextInputWidthPolicy` to share draft-value, completion-suffix, placeholder,
+minimum-visible-character, and min/max width sizing without local helper logic.
+The plain placement and width helpers are deterministic and
 side-effect free; renderer adapters that need retention can pass an owned cache
 and font-family cache key to `centered_text_line_with_cache` or
 `top_text_line_with_cache`. That keeps hot-path text geometry reuse explicit,

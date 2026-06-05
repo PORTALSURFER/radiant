@@ -2065,6 +2065,11 @@ active picker identity, and option lists while leaving the meaning of those
 options to the host. `PreferencePanelState` models generic settings-panel
 visibility through a named state, a primary text value, fixed-size toggle
 state, and an auxiliary label without owning product-specific preference names.
+Titled panel code that needs to anchor popovers, completion lists, or other
+foreground chrome to the panel content area can use
+`PanelSectionParts::content_top_offset()`,
+`content_top_inset_from_bottom(...)`, and `content_bottom_inset()` so the host
+does not duplicate Radiant's panel padding, title-height, and spacing geometry.
 
 `radiant::gui::text_layout` contains retained text-line placement helpers such
 as `TextLineInsets`, `centered_text_line`, `top_text_line`,

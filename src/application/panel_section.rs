@@ -128,6 +128,23 @@ impl<Message> PanelSectionParts<Message> {
         self.title_height = height;
         self
     }
+
+    /// Return the vertical offset from the panel's top edge to the content area.
+    pub fn content_top_offset(&self) -> f32 {
+        sanitized_panel_metric(self.padding)
+            + sanitized_panel_metric(self.title_height)
+            + sanitized_panel_metric(self.spacing)
+    }
+
+    /// Return the vertical inset from the panel's bottom edge to the content top.
+    pub fn content_top_inset_from_bottom(&self, panel_height: f32) -> f32 {
+        (sanitized_panel_metric(panel_height) - self.content_top_offset()).max(0.0)
+    }
+
+    /// Return the vertical inset from the panel's bottom edge to the content bottom.
+    pub fn content_bottom_inset(&self) -> f32 {
+        sanitized_panel_metric(self.padding)
+    }
 }
 
 impl<Message> PanelSectionLayerParts<Message> {
@@ -284,6 +301,14 @@ fn panel_section_header<Message: 'static>(
     }
 }
 
+fn sanitized_panel_metric(value: f32) -> f32 {
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -300,5 +325,29 @@ mod tests {
         let frame = panel_section_from_parts(parts)
             .view_frame_at_size_with_default_theme(Vector2::new(240.0, 120.0));
         assert!(frame.paint_plan.contains_text("Inspector"));
+    }
+
+    #[test]
+    fn panel_section_parts_exposes_content_offsets() {
+        let parts: PanelSectionParts<()> = PanelSectionParts::new("Inspector", text("Body"))
+            .padding(8.0)
+            .title_height(22.0)
+            .spacing(5.0);
+
+        assert_eq!(parts.content_top_offset(), 35.0);
+        assert_eq!(parts.content_top_inset_from_bottom(120.0), 85.0);
+        assert_eq!(parts.content_bottom_inset(), 8.0);
+    }
+
+    #[test]
+    fn panel_section_content_offsets_sanitize_invalid_inputs() {
+        let parts: PanelSectionParts<()> = PanelSectionParts::new("Inspector", text("Body"))
+            .padding(f32::NAN)
+            .title_height(f32::INFINITY)
+            .spacing(-4.0);
+
+        assert_eq!(parts.content_top_offset(), 0.0);
+        assert_eq!(parts.content_top_inset_from_bottom(f32::NAN), 0.0);
+        assert_eq!(parts.content_bottom_inset(), 0.0);
     }
 }

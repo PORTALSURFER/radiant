@@ -4,7 +4,7 @@ use crate::{
     runtime::WidgetMessageMapper,
     widgets::{
         FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds, WidgetId,
-        WidgetProminence, WidgetSizing, WidgetStyle,
+        WidgetProminence, WidgetSizing, WidgetStyle, stable_widget_id, stable_widget_id_u64,
     },
 };
 
@@ -348,6 +348,24 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
         self
     }
 
+    /// Derive and assign a stable input widget id from a caller-owned text key.
+    ///
+    /// Use this for dynamic rows whose focus, hover, drag, or drop identity
+    /// should survive projection changes without app-local input-id helpers.
+    pub fn stable_input_id(mut self, scope: u64, key: impl AsRef<str>) -> Self {
+        self.input_id = Some(stable_widget_id(scope, key));
+        self
+    }
+
+    /// Derive and assign a stable input widget id from a caller-owned numeric key.
+    ///
+    /// Use this for dynamic rows keyed by durable numeric IDs or enum indexes
+    /// without allocating temporary strings.
+    pub fn stable_u64_input_id(mut self, scope: u64, key: u64) -> Self {
+        self.input_id = Some(stable_widget_id_u64(scope, key));
+        self
+    }
+
     /// Apply an explicit style to the backing interactive row.
     pub fn style(mut self, style: WidgetStyle) -> Self {
         self.style = Some(style);
@@ -522,6 +540,40 @@ mod tests {
         assert!(row.props.drag_active);
         assert!(!row.props.drop_hover);
         assert!(row.props.pointer_motion_active);
+    }
+
+    #[test]
+    fn interactive_row_underlay_derives_stable_text_input_id() {
+        let view = interactive_row_underlay(text("Source"))
+            .stable_input_id(42, "source-a")
+            .mapped(|_| DemoMessage::Activate)
+            .size(140.0, 22.0);
+        let input_id = crate::widgets::stable_widget_id(42, "source-a");
+
+        assert_eq!(
+            view.view_dispatch_widget_output(
+                input_id,
+                WidgetOutput::typed(InteractiveRowMessage::Activate),
+            ),
+            Some(DemoMessage::Activate)
+        );
+    }
+
+    #[test]
+    fn interactive_row_underlay_derives_stable_numeric_input_id() {
+        let view = interactive_row_underlay(text("Collection"))
+            .stable_u64_input_id(43, 7)
+            .mapped(|_| DemoMessage::Activate)
+            .size(140.0, 22.0);
+        let input_id = crate::widgets::stable_widget_id_u64(43, 7);
+
+        assert_eq!(
+            view.view_dispatch_widget_output(
+                input_id,
+                WidgetOutput::typed(InteractiveRowMessage::Activate),
+            ),
+            Some(DemoMessage::Activate)
+        );
     }
 
     #[test]

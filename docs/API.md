@@ -75,7 +75,9 @@ frames. Dynamic custom widgets and row input layers can use
 scopes and durable text app keys instead of duplicating local hashing helpers.
 Use `stable_widget_id_u64(...)` when dynamic rows or controls are keyed by
 durable numeric app IDs or enum indexes and projection should avoid allocating
-temporary strings.
+temporary strings. `interactive_row_underlay(content)` can use
+`.stable_input_id(scope, key)` or `.stable_u64_input_id(scope, key)` to bind
+those stable IDs directly to the backing interactive row.
 Custom matrix or heatmap widgets can use `DenseGridLayout` and `DenseGridCell`
 for reusable row/column cell projection and hit testing.
 For paint-plan emission,
@@ -1908,7 +1910,9 @@ list composition with drag-aware row controls. Use
 `interactive_row_underlay(content)` when arbitrary visible row content should
 stay above a generic interactive row that owns activation, secondary
 activation, drag, drop, focus, and row feedback paint while preserving a stable
-input widget id for dispatch and tests.
+input widget id for dispatch and tests. Use `.stable_input_id(...)` or
+`.stable_u64_input_id(...)` on dynamic underlay rows instead of creating
+app-local row input-id helper functions.
 Run `cargo run --example theme_playground` for a theme-token sandbox that
 compares density scale, tone, prominence, and interactive state through normal
 application views. It is intended to make theme policy visually inspectable, not

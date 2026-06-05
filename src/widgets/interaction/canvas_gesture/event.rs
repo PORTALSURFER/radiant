@@ -76,6 +76,58 @@ pub enum CanvasGestureEvent {
 }
 
 impl CanvasGestureEvent {
+    /// Return the pointer for a hover event.
+    pub fn hover_pointer(&self) -> Option<CanvasPointer> {
+        match self {
+            Self::Hover(pointer) => Some(*pointer),
+            _ => None,
+        }
+    }
+
+    /// Return the pointer for a press with `button`.
+    pub fn press_pointer(&self, button: PointerButton) -> Option<CanvasPointer> {
+        match self {
+            Self::Press {
+                pointer,
+                button: pressed,
+                ..
+            } if *pressed == button => Some(*pointer),
+            _ => None,
+        }
+    }
+
+    /// Return the pointer for a double-click with `button`.
+    pub fn double_click_pointer(&self, button: PointerButton) -> Option<CanvasPointer> {
+        match self {
+            Self::DoubleClick {
+                pointer,
+                button: clicked,
+                ..
+            } if *clicked == button => Some(*pointer),
+            _ => None,
+        }
+    }
+
+    /// Return the pointer for a release with `button`.
+    pub fn release_pointer(&self, button: PointerButton) -> Option<CanvasPointer> {
+        match self {
+            Self::Release {
+                pointer,
+                button: released,
+                ..
+            } if *released == button => Some(*pointer),
+            _ => None,
+        }
+    }
+
+    /// Return the pointer and delta for a wheel event.
+    pub fn wheel_pointer_delta(&self) -> Option<(CanvasPointer, Vector2)> {
+        match self {
+            Self::Wheel { pointer, delta } => Some((*pointer, *delta)),
+            _ => None,
+        }
+    }
+
     /// Return the current pointer carried by pointer-like gesture events.
     pub fn pointer(&self) -> Option<CanvasPointer> {
         match self {

@@ -128,6 +128,94 @@ fn canvas_gesture_event_exposes_shared_pointer_metadata() {
 }
 
 #[test]
+fn canvas_gesture_event_extracts_common_event_shapes() {
+    let mut state = CanvasGestureState::new();
+    let modifiers = PointerModifiers {
+        shift: true,
+        ..PointerModifiers::default()
+    };
+
+    let hover = state
+        .handle_input(
+            bounds(),
+            &WidgetInput::PointerMove {
+                position: Point::new(15.0, 25.0),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        hover.hover_pointer().map(|pointer| pointer.position),
+        Some(Point::new(15.0, 25.0))
+    );
+    assert_eq!(hover.press_pointer(PointerButton::Primary), None);
+
+    let press = state
+        .handle_input(
+            bounds(),
+            &WidgetInput::PointerPress {
+                position: Point::new(20.0, 30.0),
+                button: PointerButton::Primary,
+                modifiers,
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        press
+            .press_pointer(PointerButton::Primary)
+            .map(|pointer| pointer.position),
+        Some(Point::new(20.0, 30.0))
+    );
+    assert_eq!(press.press_pointer(PointerButton::Secondary), None);
+
+    let release = state
+        .handle_input(
+            bounds(),
+            &WidgetInput::PointerRelease {
+                position: Point::new(30.0, 35.0),
+                button: PointerButton::Primary,
+                modifiers,
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        release
+            .release_pointer(PointerButton::Primary)
+            .map(|pointer| pointer.position),
+        Some(Point::new(30.0, 35.0))
+    );
+
+    let double_click = state
+        .handle_input(
+            bounds(),
+            &WidgetInput::PointerDoubleClick {
+                position: Point::new(40.0, 45.0),
+                button: PointerButton::Primary,
+                modifiers,
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        double_click
+            .double_click_pointer(PointerButton::Primary)
+            .map(|pointer| pointer.position),
+        Some(Point::new(40.0, 45.0))
+    );
+
+    let wheel = state
+        .handle_input(
+            bounds(),
+            &WidgetInput::plain_wheel(Point::new(50.0, 55.0), Vector2::new(0.0, -120.0)),
+        )
+        .unwrap();
+    assert_eq!(
+        wheel
+            .wheel_pointer_delta()
+            .map(|(pointer, delta)| (pointer.position, delta)),
+        Some((Point::new(50.0, 55.0), Vector2::new(0.0, -120.0)))
+    );
+}
+
+#[test]
 fn canvas_gesture_event_accessors_handle_non_pointer_events() {
     let event = CanvasGestureEvent::FocusChanged(false);
 
@@ -136,6 +224,11 @@ fn canvas_gesture_event_accessors_handle_non_pointer_events() {
     assert_eq!(event.button(), None);
     assert_eq!(event.modifiers(), None);
     assert_eq!(event.delta(), None);
+    assert_eq!(event.hover_pointer(), None);
+    assert_eq!(event.press_pointer(PointerButton::Primary), None);
+    assert_eq!(event.double_click_pointer(PointerButton::Primary), None);
+    assert_eq!(event.release_pointer(PointerButton::Primary), None);
+    assert_eq!(event.wheel_pointer_delta(), None);
     assert!(!event.pointer_is_inside(bounds()));
 }
 

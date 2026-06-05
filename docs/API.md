@@ -491,7 +491,10 @@ host-coordinate bounds checks or raw vector-field access in app widgets.
 Use `CanvasGestureEvent::pointer()`, `origin()`, `button()`, `modifiers()`,
 `delta()`, and `pointer_is_inside(...)` when a custom canvas needs shared
 gesture metadata without matching every hover, press, drag, release,
-double-click, wheel, and drop variant separately.
+double-click, wheel, and drop variant separately. Use `hover_pointer()`,
+`press_pointer(...)`, `release_pointer(...)`, `double_click_pointer(...)`, and
+`wheel_pointer_delta()` when common routed event shapes should stay declarative
+while app code owns the resulting domain messages.
 Custom widgets that handle `WidgetInput` directly can use
 `pointer_position()`, `pointer_start_position()`, `pointer_start_inside(...)`,
 and `pointer_start_outside(...)` to share Radiant's backend-neutral pointer

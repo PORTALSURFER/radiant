@@ -1769,6 +1769,9 @@ Compact control panels can use `LabeledControlParts`,
 `labeled_control(...)`, `labeled_control_from_parts(...)`, and
 `labeled_control_control_offset(...)` for label-over-control groups and overlay
 anchors without repeating label text styling and stacked spacing.
+Use `FormRowParts`, `form_row(...)`, or `form_row_from_parts(...)` when a
+panel needs compact horizontal label/control rows with Radiant-owned label
+width, row padding, spacing, hover behavior, and optional row styling.
 Centered fixed-size foreground surfaces can use `CenteredLayerParts`,
 `centered_layer(...)`, and `centered_layer_from_parts(...)` instead of
 rebuilding spacer rows and columns in application code.

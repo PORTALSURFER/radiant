@@ -62,6 +62,8 @@ mod property_panel;
 pub use property_panel::{
     PropertyRow, PropertyRowParts, property_panel, property_rows, selectable_property_panel,
 };
+mod form_row;
+pub use form_row::{FormRowParts, form_row, form_row_from_parts};
 mod status_bar;
 pub use status_bar::{StatusBarParts, status_bar, status_bar_from_parts};
 mod option_list;

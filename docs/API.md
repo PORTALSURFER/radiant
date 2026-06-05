@@ -198,7 +198,10 @@ explicit message routing can use `.message(...)` on widgets plus `.update(...)`
 or `.update_command(...)` on the app when reducers need to return
 `Command<Message>` values directly. Interactive row and badge builders can use
 `InteractiveRowActions` when they only need common activation, secondary-click,
-drag, drop, or hover-drop routing without hand-written enum filtering.
+drag, drop, or hover-drop routing without hand-written enum filtering. Use
+`InteractiveRowBuilder::tracked_drag_source(...)` when host-owned row drag
+state should configure the common draggable, drag-active, drag-source, and
+pointer-motion policy together.
 Reducers that need the full app runtime can
 use `.update_with(...)` and an `UpdateContext<Message>` to emit messages,
 request repaint, move focus, start background work, schedule delayed messages,

@@ -94,6 +94,21 @@ impl InteractiveRowBuilder {
         self
     }
 
+    /// Configure this row as a host-tracked drag source.
+    ///
+    /// This preset keeps pointer-motion routing active while a row interaction
+    /// is in progress, marks whether a related row drag is active in the host
+    /// container, and records whether this row is the active drag source. Call
+    /// [`Self::drag_source_motion`] as needed when the active source should
+    /// continue emitting move messages after a projected row refresh.
+    pub fn tracked_drag_source(mut self, drag_active: bool, drag_source: bool) -> Self {
+        self.draggable = true;
+        self.drag_active = drag_active;
+        self.drag_source = drag_source;
+        self.pointer_motion_during_interaction = true;
+        self
+    }
+
     /// Emit drop and hover-drop-target messages.
     pub fn droppable(mut self, drag_active: bool) -> Self {
         self.droppable = true;
@@ -671,6 +686,19 @@ mod tests {
         assert!(view.props.drag_active);
         assert!(view.props.drop_hover);
         assert!(view.props.pointer_motion_active);
+    }
+
+    #[test]
+    fn tracked_drag_source_sets_drag_and_motion_policy() {
+        let view = interactive_row().tracked_drag_source(true, true).widget();
+
+        assert!(view.props.draggable);
+        assert!(view.props.drag_active);
+        assert!(view.props.drag_source);
+        assert_eq!(
+            view.props.pointer_motion,
+            crate::widgets::InteractiveRowPointerMotion::DuringInteraction
+        );
     }
 
     #[test]

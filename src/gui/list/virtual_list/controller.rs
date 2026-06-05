@@ -51,6 +51,16 @@ pub struct VirtualListFocusTarget<Key> {
     pub index: Option<usize>,
 }
 
+/// Projection inputs and key-resolved focus for a current item slice.
+///
+/// Build this before mutably borrowing a [`VirtualListController`] when the
+/// current projection slice borrows from the same host state as the controller.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VirtualListSliceFocus<Key> {
+    projection: VirtualListProjection,
+    focus: VirtualListFocusTarget<Key>,
+}
+
 impl<Key> VirtualListFocusTarget<Key> {
     /// Build a focus target from an app-owned key and current item index.
     pub const fn new(key: Option<Key>, index: Option<usize>) -> Self {
@@ -90,6 +100,57 @@ impl<Key: Clone> VirtualListFocusTarget<Key> {
     }
 }
 
+impl<Key> VirtualListSliceFocus<Key> {
+    /// Build slice-focus inputs from named projection inputs and a focus target.
+    pub const fn new(
+        projection: VirtualListProjection,
+        focus: VirtualListFocusTarget<Key>,
+    ) -> Self {
+        Self { projection, focus }
+    }
+
+    /// Return the projection inputs.
+    pub const fn projection(&self) -> VirtualListProjection {
+        self.projection
+    }
+
+    /// Return the key-resolved focus target.
+    pub const fn focus(&self) -> &VirtualListFocusTarget<Key> {
+        &self.focus
+    }
+
+    /// Add context rows to the focus-follow guard band.
+    pub fn with_context_rows(self, context_rows: usize) -> Self {
+        Self {
+            projection: self.projection.with_context_rows(context_rows),
+            ..self
+        }
+    }
+
+    /// Add one context row to the focus-follow guard band.
+    pub fn with_context_row(self) -> Self {
+        self.with_context_rows(1)
+    }
+}
+
+impl<Key: Clone> VirtualListSliceFocus<Key> {
+    /// Build slice-focus inputs by locating a stable key inside the current item
+    /// slice and deriving projection item count from that same slice.
+    pub fn from_slice_by<Item>(
+        items: &[Item],
+        viewport_len: usize,
+        overscan: usize,
+        guard_band: usize,
+        key: Option<Key>,
+        matches_key: impl FnMut(&Item, &Key) -> bool,
+    ) -> Self {
+        Self::new(
+            VirtualListProjection::for_slice(items, viewport_len, overscan, guard_band),
+            VirtualListFocusTarget::from_slice_by(items, key, matches_key),
+        )
+    }
+}
+
 impl VirtualListProjection {
     /// Build virtual-list projection inputs.
     pub const fn new(
@@ -104,6 +165,16 @@ impl VirtualListProjection {
             overscan,
             guard_band,
         }
+    }
+
+    /// Build virtual-list projection inputs from the current item slice.
+    pub const fn for_slice<Item>(
+        items: &[Item],
+        viewport_len: usize,
+        overscan: usize,
+        guard_band: usize,
+    ) -> Self {
+        Self::new(items.len(), viewport_len, overscan, guard_band)
     }
 
     /// Add context rows to the focus-follow guard band.
@@ -407,6 +478,20 @@ impl VirtualListController {
             VirtualListProjection::new(total_items, viewport_len, overscan, guard_band)
                 .with_context_row(),
             focus,
+        )
+    }
+
+    /// Configure named projection inputs and follow a key resolved from a slice
+    /// only when an app-owned focus key changes.
+    pub fn configure_slice_focus_changed_optional<Key: PartialEq>(
+        &mut self,
+        follow_state: &mut VirtualListFollowState<Key>,
+        slice_focus: VirtualListSliceFocus<Key>,
+    ) -> VirtualListWindow {
+        self.configure_projection_and_focus_changed_optional(
+            follow_state,
+            slice_focus.projection,
+            slice_focus.focus,
         )
     }
 

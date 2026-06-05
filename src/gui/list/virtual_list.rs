@@ -9,6 +9,7 @@ mod window;
 
 pub use controller::{
     VirtualListController, VirtualListFocusTarget, VirtualListFollowState, VirtualListProjection,
+    VirtualListSliceFocus,
 };
 pub use geometry::{
     VirtualListStackMetrics, VirtualListStackMetricsParts, virtual_list_stacked_item_at_point,

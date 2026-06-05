@@ -1,5 +1,6 @@
 use super::super::super::{
     VirtualListController, VirtualListFocusTarget, VirtualListFollowState, VirtualListProjection,
+    VirtualListSliceFocus,
 };
 use crate::gui::types::{Point, Rect};
 
@@ -122,6 +123,85 @@ fn virtual_list_controller_follows_changed_focus_without_overriding_manual_scrol
 
     assert_eq!(changed.viewport_start, 2);
     assert_eq!(follow.focus_key(), Some(&"sample-05"));
+}
+
+#[test]
+fn virtual_list_controller_follows_changed_focus_from_slice() {
+    #[derive(Clone)]
+    struct Row {
+        id: &'static str,
+    }
+
+    let rows: Vec<Row> = (0..60)
+        .map(|index| Row {
+            id: match index {
+                6 => "row-06",
+                40 => "row-40",
+                _ => "other",
+            },
+        })
+        .collect();
+    let mut controller = VirtualListController::new();
+    let mut follow = VirtualListFollowState::<String>::new();
+
+    let first = controller.configure_slice_focus_changed_optional(
+        &mut follow,
+        VirtualListSliceFocus::from_slice_by(
+            &rows,
+            10,
+            2,
+            2,
+            Some(String::from("row-40")),
+            |row, key| row.id == key.as_str(),
+        )
+        .with_context_row(),
+    );
+    assert_eq!(first.viewport_start, 34);
+    assert_eq!(follow.focus_key().map(String::as_str), Some("row-40"));
+
+    controller.set_scroll_offset(50.0 * 22.0, 22.0);
+    let stable = controller.configure_slice_focus_changed_optional(
+        &mut follow,
+        VirtualListSliceFocus::from_slice_by(
+            &rows,
+            10,
+            2,
+            2,
+            Some(String::from("row-40")),
+            |row, key| row.id == key.as_str(),
+        )
+        .with_context_row(),
+    );
+    assert_eq!(stable.viewport_start, 50);
+
+    let changed = controller.configure_slice_focus_changed_optional(
+        &mut follow,
+        VirtualListSliceFocus::from_slice_by(
+            &rows,
+            10,
+            2,
+            2,
+            Some(String::from("row-06")),
+            |row, key| row.id == key.as_str(),
+        ),
+    );
+    assert_eq!(changed.viewport_start, 4);
+    assert_eq!(follow.focus_key().map(String::as_str), Some("row-06"));
+
+    let missing = controller.configure_slice_focus_changed_optional(
+        &mut follow,
+        VirtualListSliceFocus::from_slice_by(
+            &rows,
+            10,
+            2,
+            2,
+            Some(String::from("missing")),
+            |row, key| row.id == key.as_str(),
+        ),
+    );
+    assert_eq!(missing.viewport_start, 4);
+    assert_eq!(follow.focus_key(), None);
+    assert_eq!(controller.focused_index(), None);
 }
 
 #[test]

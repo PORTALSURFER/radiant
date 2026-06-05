@@ -433,6 +433,12 @@ item count, viewport policy, and optional host selection in one controller call.
   `configure_and_focus_changed_optional_with_context_row(...)` when a list should
   scroll newly selected items into view without overriding manual scroll while
   the same app-owned item key remains selected. Use
+  `VirtualListSliceFocus::from_slice_by(...)` with
+  `configure_slice_focus_changed_optional(...)` when the host owns a filtered or
+  sorted item slice and stable focus key while Radiant should derive the item
+  count, resolve the selected key in that slice, and update changed-key follow
+  state in one pass without keeping the item slice borrowed during the mutable
+  controller call. Use
   `VirtualListFocusTarget::from_slice_by(...)` when the focused item key must be
   resolved against the current filtered or sorted item projection before
   following selection.

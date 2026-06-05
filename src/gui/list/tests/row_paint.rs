@@ -50,6 +50,28 @@ fn palette() -> DenseRowPalette {
 }
 
 #[test]
+fn dense_row_palette_sets_interaction_fills_together() {
+    let palette = DenseRowPalette::new().interaction_fills(HOVERED, PRESSED);
+
+    assert_eq!(palette.hovered, Some(HOVERED));
+    assert_eq!(palette.pressed, Some(PRESSED));
+    assert_eq!(palette.selected, None);
+    assert_eq!(palette.active_target, None);
+    assert_eq!(palette.candidate_hovered, None);
+}
+
+#[test]
+fn dense_row_palette_conditionally_sets_interaction_fills() {
+    let enabled = DenseRowPalette::new().interaction_fills_if(true, HOVERED, PRESSED);
+    let disabled = DenseRowPalette::new().interaction_fills_if(false, HOVERED, PRESSED);
+
+    assert_eq!(enabled.hovered, Some(HOVERED));
+    assert_eq!(enabled.pressed, Some(PRESSED));
+    assert_eq!(disabled.hovered, None);
+    assert_eq!(disabled.pressed, None);
+}
+
+#[test]
 fn dense_row_fill_color_prioritizes_active_interaction_states() {
     assert_eq!(
         dense_row_fill_color(

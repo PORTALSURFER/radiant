@@ -79,6 +79,27 @@ impl DenseRowPalette {
         self
     }
 
+    /// Set the hovered and pressed fill colors together.
+    pub const fn interaction_fills(mut self, hovered: Rgba8, pressed: Rgba8) -> Self {
+        self.hovered = Some(hovered);
+        self.pressed = Some(pressed);
+        self
+    }
+
+    /// Set the hovered and pressed fill colors together when `condition` is true.
+    pub const fn interaction_fills_if(
+        mut self,
+        condition: bool,
+        hovered: Rgba8,
+        pressed: Rgba8,
+    ) -> Self {
+        if condition {
+            self.hovered = Some(hovered);
+            self.pressed = Some(pressed);
+        }
+        self
+    }
+
     /// Set the committed operation-target fill color.
     pub const fn active_target(mut self, color: Rgba8) -> Self {
         self.active_target = Some(color);

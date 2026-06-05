@@ -394,14 +394,17 @@ composition from one app-neutral paint descriptor. Use `push_dense_row_fill`,
 `push_dense_row_inset_stroke` when a row needs individual state-prioritized
 fills, centered labels, edge markers, or outlines from Radiant's generic
 dense-row geometry helpers without repeating paint-plan guard code. Use
-`DenseRowLabelParts` when custom dense rows need row-height-aware label sizing,
-text insets, alignment, and wrapping without constructing `PaintTextRun`
-manually. Use `DenseRowMarkerParts::leading(width)` and `trailing(width)` for
-common selection, status, and activity edge markers instead of repeating raw
-marker geometry fields. Use `DenseRowChromeParts::leading_marker_if(...)`,
-`trailing_marker_if(...)`, and `outline_if(...)` when custom rows should add
-optional markers or outlines from host-owned state without app-local mutation
-branches.
+`DenseRowPalette::interaction_fills(...)` and `interaction_fills_if(...)` when
+hovered and pressed fills should be supplied together, especially when
+interaction paint follows `InteractiveRowWidget::paints_interaction_fill()`.
+Use `DenseRowLabelParts` when custom dense rows need row-height-aware label
+sizing, text insets, alignment, and wrapping without constructing
+`PaintTextRun` manually. Use `DenseRowMarkerParts::leading(width)` and
+`trailing(width)` for common selection, status, and activity edge markers
+instead of repeating raw marker geometry fields. Use
+`DenseRowChromeParts::leading_marker_if(...)`, `trailing_marker_if(...)`, and
+`outline_if(...)` when custom rows should add optional markers or outlines from
+host-owned state without app-local mutation branches.
 Tree and outline rows that need continuous descendant guide lines can use
 `TreeGuideRow`, `TreeGuideStyle`, `tree_guide_segments(...)`,
 `tree_guide_overlay(...)`, `tree_guide_indent(...)`, and

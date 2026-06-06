@@ -123,7 +123,7 @@ impl InteractiveRowWidget {
             }
             WidgetInput::FocusChanged(focused) => {
                 self.common.state.focused = focused;
-                if !focused {
+                if !focused && !self.dragged && !self.props.drag_source {
                     self.common.state.pressed = false;
                     self.dragged = false;
                 }

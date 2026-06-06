@@ -61,6 +61,10 @@ where
                 self.update_native_dpi_scale(scale_factor);
             }
             WindowEvent::Focused(false) => {
+                if self.core.runtime.external_drag_armed() {
+                    let routed = self.launch_external_drag_if_armed();
+                    self.handle_route_outcome(event_loop, routed);
+                }
                 let routed = self.core.route_focus_lost();
                 self.handle_route_outcome(event_loop, routed);
             }

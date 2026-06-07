@@ -32,6 +32,9 @@ impl<Message> SurfaceNode<Message> {
                     .base
                     .collect_runtime_traversal_stats(depth + 1, scroll_depth, stats);
                 for layer in scene.ordered_layers() {
+                    if let Some(input) = &layer.input {
+                        input.collect_runtime_traversal_stats(depth + 1, scroll_depth, stats);
+                    }
                     layer
                         .node
                         .collect_runtime_traversal_stats(depth + 1, scroll_depth, stats);

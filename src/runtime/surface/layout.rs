@@ -55,9 +55,12 @@ impl<Message> SurfaceNode<Message> {
                 if !scene.has_layers() {
                     return scene.base.layout_node();
                 }
-                let mut children = Vec::with_capacity(1 + scene.ordered_layer_count());
+                let mut children = Vec::with_capacity(1 + scene.ordered_layer_child_count());
                 children.push(SlotChild::new(SlotParams::fill(), scene.base.layout_node()));
                 for layer in scene.ordered_layers() {
+                    if let Some(input) = &layer.input {
+                        children.push(SlotChild::new(SlotParams::fill(), input.layout_node()));
+                    }
                     children.push(SlotChild::new(SlotParams::fill(), layer.node.layout_node()));
                 }
                 LayoutNode::container(
@@ -101,7 +104,7 @@ impl<Message> SurfaceNode<Message> {
                         .base
                         .project_runtime(scroll_stack, child_path, traversal);
                 }
-                let mut children = Vec::with_capacity(1 + scene.ordered_layer_count());
+                let mut children = Vec::with_capacity(1 + scene.ordered_layer_child_count());
                 child_path.push(0);
                 children.push(SlotChild::new(
                     SlotParams::fill(),
@@ -111,8 +114,19 @@ impl<Message> SurfaceNode<Message> {
                 ));
                 child_path.pop();
 
-                for (layer_index, layer) in scene.ordered_layers().enumerate() {
-                    child_path.push(layer_index + 1);
+                let mut scene_child_index = 1;
+                for layer in scene.ordered_layers() {
+                    if let Some(input) = &layer.input {
+                        child_path.push(scene_child_index);
+                        children.push(SlotChild::new(
+                            SlotParams::fill(),
+                            input.project_runtime(scroll_stack, child_path, traversal),
+                        ));
+                        child_path.pop();
+                        scene_child_index += 1;
+                    }
+
+                    child_path.push(scene_child_index);
                     children.push(SlotChild::new(
                         SlotParams::fill(),
                         layer
@@ -120,6 +134,7 @@ impl<Message> SurfaceNode<Message> {
                             .project_runtime(scroll_stack, child_path, traversal),
                     ));
                     child_path.pop();
+                    scene_child_index += 1;
                 }
 
                 LayoutNode::container(
@@ -209,12 +224,21 @@ impl<Message> SurfaceNode<Message> {
                     .collect_runtime_index(scroll_stack, child_path, traversal);
                 child_path.pop();
 
-                for (layer_index, layer) in scene.ordered_layers().enumerate() {
-                    child_path.push(layer_index + 1);
+                let mut scene_child_index = 1;
+                for layer in scene.ordered_layers() {
+                    if let Some(input) = &layer.input {
+                        child_path.push(scene_child_index);
+                        input.collect_runtime_index(scroll_stack, child_path, traversal);
+                        child_path.pop();
+                        scene_child_index += 1;
+                    }
+
+                    child_path.push(scene_child_index);
                     layer
                         .node
                         .collect_runtime_index(scroll_stack, child_path, traversal);
                     child_path.pop();
+                    scene_child_index += 1;
                 }
             }
             Self::Container(container) => {

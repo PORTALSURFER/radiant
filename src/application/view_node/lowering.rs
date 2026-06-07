@@ -63,7 +63,9 @@ impl<'a> ViewLowering<'a> {
                 let layers = layers
                     .into_iter()
                     .map(|layer| {
-                        SurfaceLayer::new(layer.kind, self.lower_node(layer.view, child_scope))
+                        let input = layer.input.map(|input| self.lower_node(input, child_scope));
+                        let foreground = self.lower_node(layer.view, child_scope);
+                        SurfaceLayer::with_input(layer.kind, input, foreground)
                     })
                     .collect();
                 SurfaceNode::scene(id, base, layers)

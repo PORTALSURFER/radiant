@@ -1,4 +1,4 @@
-use crate::gui::types::Point;
+use crate::{gui::types::Point, layout::Vector2};
 
 use super::{PointerButton, PointerModifiers, WidgetInput};
 
@@ -186,6 +186,15 @@ pub enum PointerShieldMessage {
         /// Button that ended the captured press.
         button: PointerButton,
         /// Modifier state at release time.
+        modifiers: PointerModifiers,
+    },
+    /// Wheel input landed inside the shield.
+    Wheel {
+        /// Pointer position in the widget host's logical coordinate space.
+        position: Point,
+        /// Wheel delta in logical units.
+        delta: Vector2,
+        /// Modifier state at wheel time.
         modifiers: PointerModifiers,
     },
 }

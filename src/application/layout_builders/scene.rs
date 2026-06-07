@@ -1,8 +1,9 @@
 //! Declarative root scene builder for base content plus transient layers.
 
 use crate::{
-    application::{Layer, ViewNode, ViewNodeKind},
+    application::{Layer, LayerInputPolicy, ViewNode, ViewNodeKind, pointer_shield},
     runtime::LayerKind,
+    widgets::PointerShieldMessage,
 };
 
 /// Declarative root scene builder.
@@ -46,10 +47,13 @@ impl<Message: 'static> Scene<Message> {
     /// Lower this scene into a Radiant view node.
     pub fn into_view(self) -> ViewNode<Message> {
         let has_reserved_descendant_identity = self.base.has_reserved_identity_in_subtree()
-            || self
-                .layers
-                .iter()
-                .any(|layer| layer.view.has_reserved_identity_in_subtree());
+            || self.layers.iter().any(|layer| {
+                layer.view.has_reserved_identity_in_subtree()
+                    || layer
+                        .input
+                        .as_ref()
+                        .is_some_and(ViewNode::has_reserved_identity_in_subtree)
+            });
         ViewNode::new(ViewNodeKind::Scene {
             base: Box::new(self.base),
             layers: self.layers,
@@ -88,12 +92,53 @@ impl<Message> Layer<Message> {
     pub fn drag_preview(view: ViewNode<Message>) -> Self {
         Self::new(LayerKind::DragPreview, view)
     }
+
+    /// Keep this layer from adding any synthesized scene input surface.
+    pub fn pass_through(mut self) -> Self {
+        self.input_policy = LayerInputPolicy::PassThrough;
+        self.input = None;
+        self
+    }
+
+    /// Consume pointer and wheel input over the full scene behind this layer.
+    pub fn block_input(mut self) -> Self
+    where
+        Message: 'static,
+    {
+        self.input_policy = LayerInputPolicy::BlockInput;
+        self.input = Some(pointer_shield(true).consume());
+        self
+    }
+
+    /// Emit a message on outside pointer activation and block wheel input
+    /// behind this layer.
+    pub fn dismiss_on_outside_click(mut self, message: Message) -> Self
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        self.input_policy = LayerInputPolicy::DismissOnOutsideClick;
+        self.input = Some(pointer_shield(true).filter_map(
+            move |shield_message| match shield_message {
+                PointerShieldMessage::PointerPress { .. }
+                | PointerShieldMessage::PointerDrop { .. } => Some(message.clone()),
+                PointerShieldMessage::PointerMove { .. }
+                | PointerShieldMessage::PointerRelease { .. }
+                | PointerShieldMessage::Wheel { .. } => None,
+            },
+        ));
+        self
+    }
+
+    /// Return this layer's declared input behavior.
+    pub const fn input_policy(&self) -> LayerInputPolicy {
+        self.input_policy
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        application::{IntoView, Layer, scene, text},
+        application::{IntoView, Layer, LayerInputPolicy, scene, text},
         layout::{LayoutNode, Vector2},
         runtime::LayerKind,
     };
@@ -194,7 +239,54 @@ mod tests {
     }
 
     #[test]
+    fn scene_layer_input_policy_preserves_layer_kind_z_order() {
+        let labels = scene(text::<()>("Base"))
+            .layer(Layer::tooltip(text("Tooltip")).pass_through())
+            .layer(Layer::modal(text("Modal")).block_input())
+            .layer(Layer::floating(text("Floating")).pass_through())
+            .layer(Layer::context_menu(text("Context menu")).dismiss_on_outside_click(()))
+            .into_view()
+            .view_frame_at_size_with_default_theme(Vector2::new(240.0, 160.0))
+            .paint_plan
+            .text_label_strings();
+
+        assert_eq!(
+            labels,
+            ["Base", "Floating", "Modal", "Context menu", "Tooltip"]
+        );
+    }
+
+    #[test]
     fn layer_kind_order_is_stable() {
         assert_eq!(LayerKind::ORDER.map(LayerKind::z_order), [0, 1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn layer_input_policy_defaults_to_pass_through() {
+        let layer = Layer::modal(text::<()>("Modal"));
+
+        assert_eq!(layer.input_policy(), LayerInputPolicy::PassThrough);
+    }
+
+    #[test]
+    fn layer_policy_methods_report_policy() {
+        assert_eq!(
+            Layer::tooltip(text::<()>("Tooltip"))
+                .pass_through()
+                .input_policy(),
+            LayerInputPolicy::PassThrough
+        );
+        assert_eq!(
+            Layer::modal(text::<()>("Modal"))
+                .block_input()
+                .input_policy(),
+            LayerInputPolicy::BlockInput
+        );
+        assert_eq!(
+            Layer::context_menu(text("Menu"))
+                .dismiss_on_outside_click(())
+                .input_policy(),
+            LayerInputPolicy::DismissOnOutsideClick
+        );
     }
 }

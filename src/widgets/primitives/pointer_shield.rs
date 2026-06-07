@@ -30,6 +30,8 @@ pub struct PointerShieldProps {
     pub pointer_release: bool,
     /// Emit messages for captured pointer drops.
     pub pointer_drop: bool,
+    /// Emit messages for wheel input.
+    pub wheel: bool,
 }
 
 impl Default for PointerShieldProps {
@@ -40,6 +42,7 @@ impl Default for PointerShieldProps {
             pointer_press: true,
             pointer_release: true,
             pointer_drop: true,
+            wheel: true,
         }
     }
 }
@@ -90,6 +93,7 @@ impl PointerShieldWidget {
             .with_pointer_press(false)
             .with_pointer_release(false)
             .with_pointer_drop(false)
+            .with_wheel(false)
     }
 
     /// Build a shield that only reports captured pointer drops.
@@ -98,6 +102,7 @@ impl PointerShieldWidget {
             .with_pointer_move(false)
             .with_pointer_press(false)
             .with_pointer_release(false)
+            .with_wheel(false)
     }
 
     /// Set whether the shield intercepts pointer input.
@@ -128,6 +133,12 @@ impl PointerShieldWidget {
     /// Set whether captured pointer drops are intercepted.
     pub fn with_pointer_drop(mut self, enabled: bool) -> Self {
         self.props.pointer_drop = enabled;
+        self
+    }
+
+    /// Set whether wheel input is intercepted.
+    pub fn with_wheel(mut self, enabled: bool) -> Self {
+        self.props.wheel = enabled;
         self
     }
 
@@ -175,6 +186,17 @@ impl PointerShieldWidget {
                     modifiers,
                 })
             }
+            WidgetInput::Wheel {
+                position,
+                delta,
+                modifiers,
+            } if self.props.wheel && bounds.contains(position) => {
+                Some(PointerShieldMessage::Wheel {
+                    position,
+                    delta,
+                    modifiers,
+                })
+            }
             _ => None,
         }
     }
@@ -195,6 +217,10 @@ impl Widget for PointerShieldWidget {
 
     fn accepts_pointer_move(&self) -> bool {
         self.props.active && self.props.pointer_move
+    }
+
+    fn accepts_wheel_input(&self) -> bool {
+        self.props.active && self.props.wheel
     }
 
     fn needs_state_synchronization(&self) -> bool {

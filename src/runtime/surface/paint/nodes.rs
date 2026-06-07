@@ -80,6 +80,11 @@ impl<Message> SurfaceNode<Message> {
                     scene.base.append_paint_with_context(context, plan);
                 }
                 for layer in scene.ordered_layers() {
+                    if let Some(input) = &layer.input {
+                        if context.should_paint_node(input.id()) {
+                            input.append_paint_with_context(context, plan);
+                        }
+                    }
                     if context.should_paint_node(layer.node.id()) {
                         layer.node.append_paint_with_context(context, plan);
                     }

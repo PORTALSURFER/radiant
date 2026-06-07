@@ -555,8 +555,11 @@ small aligned color markers without application-owned paint-only widgets.
 Transparent overlay layers that need to consume or observe pointer traffic
 without painting can use `PointerShieldWidget`. It emits generic
 `PointerShieldMessage` values for configured pointer moves, presses, releases,
-and drops, so applications can block interaction during modal/loading states or
-clear stale drag-hover state without app-local invisible hit-test widgets.
+drop, and wheel input, so applications can block interaction during
+modal/loading states or clear stale drag-hover state without app-local invisible
+hit-test widgets. `PointerShieldProps::wheel` and
+`PointerShieldBuilder::wheel(...)` control wheel interception; existing
+move-only and drop-only convenience constructors leave wheel disabled.
 Convenience constructors such as `.pointer_move_only(...)` and
 `.pointer_drop_only(...)` cover common transparent overlay policies.
 Popover and menu stacks can use `dismiss_layer(message)` as a transparent
@@ -573,6 +576,14 @@ projection and layer z-order. Add transient UI with `Layer::floating(...)`,
 `Layer::popover(...)`, `Layer::modal(...)`, `Layer::context_menu(...)`,
 `Layer::tooltip(...)`, and `Layer::drag_preview(...)`, then attach those layers
 with `Scene::layer(...)`, `Scene::layer_opt(...)`, or `Scene::layers(...)`.
+Layer input policy is explicit and Radiant-owned. `Layer::pass_through()` is
+the default and adds no synthesized input surface. `Layer::block_input()` adds a
+transparent full-scene input surface below that layer's foreground content,
+consuming pointer and wheel input behind modals or other blocking surfaces.
+`Layer::dismiss_on_outside_click(message)` emits the supplied message for
+outside pointer press/drop and blocks wheel input behind the layer, while
+foreground content still routes above the dismiss surface.
+`Layer::input_policy()` returns the declared `LayerInputPolicy`.
 `Scene::into_view()` projects a runtime scene that paints layers in this fixed
 order: base layout, generic floating layers, popovers, modals, context menus,
 tooltips, and drag previews. Lower-level callers can still use
@@ -1854,6 +1865,11 @@ while also using the standard compact menu height. Use
 `dismissible_context_menu_with_width_policy(...)` with
 `MessageMenuWidthPolicy` when an app needs custom min/max menu width bounds, or
 `dismissible_context_menu_with_width(...)` when the width is deliberately fixed.
+When a context menu is declared as a `Scene` layer and should use
+`Layer::dismiss_on_outside_click(...)`, use
+`message_context_menu_overlay_auto_width(...)` or its explicit-width variants
+for the foreground-only menu content so dismissal stays owned by the scene
+layer policy.
 These helpers avoid app-local `message_menu_height(...)` sizing and hard-coded
 context-menu width constants.
 Run `cargo run --example scene` for a root-scene sandbox that composes

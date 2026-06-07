@@ -29,6 +29,9 @@ impl<Message> SurfaceNode<Message> {
             Self::Scene(scene) => {
                 scene.base.append_keyboard_focus_order(order);
                 for layer in scene.ordered_layers() {
+                    if let Some(input) = &layer.input {
+                        input.append_keyboard_focus_order(order);
+                    }
                     layer.node.append_keyboard_focus_order(order);
                 }
             }

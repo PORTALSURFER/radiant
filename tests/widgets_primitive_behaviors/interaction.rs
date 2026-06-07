@@ -511,6 +511,49 @@ fn pointer_shield_drop_only_reports_only_captured_drops() {
 }
 
 #[test]
+fn pointer_shield_consumes_wheel_when_enabled() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
+    let shield = PointerShieldWidget::fill(true);
+    let delta = Vector2::new(0.0, -18.0);
+
+    assert!(shield.accepts_wheel_input());
+    assert_eq!(
+        shield.handle_input(
+            bounds,
+            WidgetInput::Wheel {
+                position: Point::new(16.0, 8.0),
+                delta,
+                modifiers: Default::default(),
+            },
+        ),
+        Some(PointerShieldMessage::Wheel {
+            position: Point::new(16.0, 8.0),
+            delta,
+            modifiers: Default::default(),
+        })
+    );
+}
+
+#[test]
+fn pointer_shield_ignores_wheel_when_disabled() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
+    let shield = PointerShieldWidget::fill(true).with_wheel(false);
+
+    assert!(!shield.accepts_wheel_input());
+    assert_eq!(
+        shield.handle_input(
+            bounds,
+            WidgetInput::Wheel {
+                position: Point::new(16.0, 8.0),
+                delta: Vector2::new(0.0, -18.0),
+                modifiers: Default::default(),
+            },
+        ),
+        None
+    );
+}
+
+#[test]
 fn pointer_shield_stays_quiet_when_inactive_or_outside_bounds() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 18.0));
     let inactive = PointerShieldWidget::fill(false);

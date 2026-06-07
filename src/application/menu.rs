@@ -10,8 +10,8 @@ mod model;
 
 pub use model::{ContextMenuOverlayParts, MenuItem, MenuItemParts, MenuParts};
 pub use model::{
-    DismissibleContextMenuParts, MenuCommand, MenuCommandParts, MessageMenuParts,
-    MessageMenuWidthPolicy,
+    DismissibleContextMenuParts, MenuCommand, MenuCommandParts, MessageContextMenuOverlayParts,
+    MessageMenuParts, MessageMenuWidthPolicy,
 };
 
 /// Height of the title line in compact Radiant menus.
@@ -243,6 +243,108 @@ where
     dismissible_context_menu(anchor, size, title, commands, dismiss_message)
 }
 
+/// Build a foreground-only message context-menu layer.
+pub fn message_context_menu_overlay<Message>(
+    anchor: Point,
+    size: Vector2,
+    title: impl Into<String>,
+    commands: impl IntoIterator<Item = MenuCommand<Message>>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    message_context_menu_overlay_from_parts(MessageContextMenuOverlayParts {
+        anchor,
+        size,
+        title: title.into(),
+        style: WidgetStyle::new(WidgetTone::Neutral, WidgetProminence::Strong),
+        commands: commands.into_iter().collect(),
+    })
+}
+
+/// Build a foreground-only message context-menu layer with standard compact
+/// menu height.
+pub fn message_context_menu_overlay_with_width<Message>(
+    anchor: Point,
+    width: f32,
+    title: impl Into<String>,
+    commands: impl IntoIterator<Item = MenuCommand<Message>>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    let commands = commands.into_iter().collect::<Vec<_>>();
+    let size = Vector2::new(width, message_menu_height(commands.len()));
+    message_context_menu_overlay(anchor, size, title, commands)
+}
+
+/// Build a foreground-only message context-menu layer using Radiant's default
+/// compact width and height policy.
+pub fn message_context_menu_overlay_auto_width<Message>(
+    anchor: Point,
+    title: impl Into<String>,
+    commands: impl IntoIterator<Item = MenuCommand<Message>>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    message_context_menu_overlay_with_width_policy(
+        anchor,
+        MessageMenuWidthPolicy::compact(),
+        title,
+        commands,
+    )
+}
+
+/// Build a foreground-only message context-menu layer with a deterministic menu
+/// width derived from the title and command labels.
+pub fn message_context_menu_overlay_with_width_policy<Message>(
+    anchor: Point,
+    width_policy: MessageMenuWidthPolicy,
+    title: impl Into<String>,
+    commands: impl IntoIterator<Item = MenuCommand<Message>>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    let title = title.into();
+    let commands = commands.into_iter().collect::<Vec<_>>();
+    let size = Vector2::new(
+        width_policy.width_for_title_and_commands(&title, &commands),
+        message_menu_height(commands.len()),
+    );
+    message_context_menu_overlay(anchor, size, title, commands)
+}
+
+/// Build a foreground-only message context-menu layer from named parts.
+pub fn message_context_menu_overlay_from_parts<Message>(
+    parts: MessageContextMenuOverlayParts<Message>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    let top = parts.anchor.y.max(0.0);
+    let left = parts.anchor.x.max(0.0);
+    column([
+        text("").fill_width().height(top),
+        row([
+            text("").size(left, 1.0),
+            message_menu_from_parts(MessageMenuParts {
+                title: parts.title,
+                style: parts.style,
+                commands: parts.commands,
+            })
+            .width(parts.size.x)
+            .height(parts.size.y),
+            text("").fill_width().height(1.0),
+        ])
+        .fill_width()
+        .height(parts.size.y),
+        text("").fill_width().fill_height(),
+    ])
+    .fill()
+}
+
 /// Build a dismissible context-menu layer from named parts.
 pub fn dismissible_context_menu_from_parts<Message>(
     parts: DismissibleContextMenuParts<Message>,
@@ -250,28 +352,15 @@ pub fn dismissible_context_menu_from_parts<Message>(
 where
     Message: Clone + Send + Sync + 'static,
 {
-    let top = parts.anchor.y.max(0.0);
-    let left = parts.anchor.x.max(0.0);
     stack([
         dismiss_layer(parts.dismiss_message).key("context-menu-dismiss"),
-        column([
-            text("").fill_width().height(top),
-            row([
-                text("").size(left, 1.0),
-                message_menu_from_parts(MessageMenuParts {
-                    title: parts.title,
-                    style: parts.style,
-                    commands: parts.commands,
-                })
-                .width(parts.size.x)
-                .height(parts.size.y),
-                text("").fill_width().height(1.0),
-            ])
-            .fill_width()
-            .height(parts.size.y),
-            text("").fill_width().fill_height(),
-        ])
-        .fill(),
+        message_context_menu_overlay_from_parts(MessageContextMenuOverlayParts {
+            anchor: parts.anchor,
+            size: parts.size,
+            title: parts.title,
+            style: parts.style,
+            commands: parts.commands,
+        }),
     ])
     .fill()
 }

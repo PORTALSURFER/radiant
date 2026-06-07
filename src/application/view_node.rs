@@ -21,13 +21,35 @@ use crate::{
 /// A typed transient scene layer.
 pub struct Layer<Message> {
     pub(in crate::application) kind: LayerKind,
+    pub(in crate::application) input_policy: LayerInputPolicy,
+    pub(in crate::application) input: Option<ViewNode<Message>>,
     pub(in crate::application) view: ViewNode<Message>,
 }
 
 impl<Message> Layer<Message> {
     pub(in crate::application) fn new(kind: LayerKind, view: ViewNode<Message>) -> Self {
-        Self { kind, view }
+        Self {
+            kind,
+            input_policy: LayerInputPolicy::PassThrough,
+            input: None,
+            view,
+        }
     }
+}
+
+/// Declarative input behavior for one transient scene layer.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LayerInputPolicy {
+    /// Do not add any synthesized input surface. Input outside foreground
+    /// content continues to route to lower scene content.
+    #[default]
+    PassThrough,
+    /// Add a full-scene transparent input surface that consumes pointer and
+    /// wheel input without emitting host messages.
+    BlockInput,
+    /// Add a full-scene transparent input surface that emits a host message for
+    /// outside pointer activation and blocks wheel input behind the layer.
+    DismissOnOutsideClick,
 }
 
 /// Application view node with generated identity and default sizing.

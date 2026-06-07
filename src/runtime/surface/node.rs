@@ -197,6 +197,8 @@ impl LayerKind {
 pub struct SurfaceLayer<Message> {
     /// Layer category used for scene z-ordering.
     pub kind: LayerKind,
+    /// Optional synthesized input surface for the layer.
+    pub input: Option<SurfaceNode<Message>>,
     /// Layer content node.
     pub node: SurfaceNode<Message>,
 }
@@ -204,7 +206,20 @@ pub struct SurfaceLayer<Message> {
 impl<Message> SurfaceLayer<Message> {
     /// Build a typed scene layer.
     pub fn new(kind: LayerKind, node: SurfaceNode<Message>) -> Self {
-        Self { kind, node }
+        Self::with_input(kind, None, node)
+    }
+
+    /// Build a typed scene layer with an optional input surface below content.
+    pub fn with_input(
+        kind: LayerKind,
+        input: Option<SurfaceNode<Message>>,
+        node: SurfaceNode<Message>,
+    ) -> Self {
+        Self { kind, input, node }
+    }
+
+    pub(in crate::runtime) fn child_count(&self) -> usize {
+        usize::from(self.input.is_some()) + 1
     }
 }
 
@@ -212,9 +227,16 @@ impl<Message> Clone for SurfaceLayer<Message> {
     fn clone(&self) -> Self {
         Self {
             kind: self.kind,
+            input: self.input.clone(),
             node: self.node.clone(),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::runtime) enum SurfaceLayerChildKind {
+    Input,
+    Foreground,
 }
 
 /// A root scene with base content plus typed transient layers.
@@ -254,15 +276,29 @@ impl<Message> SurfaceScene<Message> {
         })
     }
 
-    pub(in crate::runtime) fn ordered_layer_index_for_child(
+    pub(in crate::runtime) fn ordered_layer_child_for_child(
         &self,
         child_index: usize,
-    ) -> Option<usize> {
-        self.ordered_layer_indices().nth(child_index)
+    ) -> Option<(usize, SurfaceLayerChildKind)> {
+        let mut remaining = child_index;
+        for layer_index in self.ordered_layer_indices() {
+            let layer = &self.layers[layer_index];
+            if layer.input.is_some() {
+                if remaining == 0 {
+                    return Some((layer_index, SurfaceLayerChildKind::Input));
+                }
+                remaining -= 1;
+            }
+            if remaining == 0 {
+                return Some((layer_index, SurfaceLayerChildKind::Foreground));
+            }
+            remaining -= 1;
+        }
+        None
     }
 
-    pub(in crate::runtime) fn ordered_layer_count(&self) -> usize {
-        self.layers.len()
+    pub(in crate::runtime) fn ordered_layer_child_count(&self) -> usize {
+        self.layers.iter().map(SurfaceLayer::child_count).sum()
     }
 }
 

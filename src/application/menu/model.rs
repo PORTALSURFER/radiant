@@ -247,3 +247,17 @@ pub struct DismissibleContextMenuParts<Message> {
     /// Message emitted when the user activates the backing dismiss layer.
     pub dismiss_message: Message,
 }
+
+/// Named construction fields for a foreground-only message context-menu layer.
+pub struct MessageContextMenuOverlayParts<Message> {
+    /// Requested anchor point in surface coordinates.
+    pub anchor: Point,
+    /// Desired menu size.
+    pub size: Vector2,
+    /// Menu title shown above the action list.
+    pub title: String,
+    /// Visual styling applied to the menu surface.
+    pub style: WidgetStyle,
+    /// Ordered clickable menu commands.
+    pub commands: Vec<MenuCommand<Message>>,
+}

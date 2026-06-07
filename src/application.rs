@@ -14,7 +14,7 @@ pub type Result<T = ()> = std::result::Result<T, String>;
 
 mod view_node;
 pub(in crate::application) use view_node::ViewNodeKind;
-pub use view_node::{Layer, ViewNode};
+pub use view_node::{Layer, LayerInputPolicy, ViewNode};
 
 /// Application view node type used by builder functions.
 pub type View<Message = ()> = ViewNode<Message>;
@@ -88,11 +88,15 @@ pub use labeled_control::{
 mod menu;
 pub use menu::{
     ContextMenuOverlayParts, DismissibleContextMenuParts, MenuCommand, MenuCommandParts, MenuItem,
-    MenuItemParts, MenuParts, MessageMenuParts, MessageMenuWidthPolicy, context_menu_overlay,
-    context_menu_overlay_from_parts, dismissible_context_menu, dismissible_context_menu_auto_width,
+    MenuItemParts, MenuParts, MessageContextMenuOverlayParts, MessageMenuParts,
+    MessageMenuWidthPolicy, context_menu_overlay, context_menu_overlay_from_parts,
+    dismissible_context_menu, dismissible_context_menu_auto_width,
     dismissible_context_menu_from_parts, dismissible_context_menu_with_width,
-    dismissible_context_menu_with_width_policy, menu, menu_from_parts, menu_height, message_menu,
-    message_menu_from_parts, message_menu_height,
+    dismissible_context_menu_with_width_policy, menu, menu_from_parts, menu_height,
+    message_context_menu_overlay, message_context_menu_overlay_auto_width,
+    message_context_menu_overlay_from_parts, message_context_menu_overlay_with_width,
+    message_context_menu_overlay_with_width_policy, message_menu, message_menu_from_parts,
+    message_menu_height,
 };
 mod retained_canvas;
 pub use retained_canvas::{RetainedCanvasBuilder, retained_canvas, retained_canvas_with};

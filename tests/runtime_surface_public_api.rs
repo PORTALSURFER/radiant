@@ -1,5 +1,6 @@
 //! Public API coverage for the generic `radiant::runtime` surface.
 
+use radiant::prelude as ui;
 use radiant::prelude::IntoView;
 use radiant::{
     gui::{
@@ -46,6 +47,8 @@ enum ScenePointerMessage {
     Press,
     Move,
     Release,
+    Wheel,
+    Dismiss,
 }
 
 #[derive(Clone, Default)]
@@ -79,17 +82,31 @@ impl RuntimeBridge<ScenePointerMessage> for SceneBridge {
 
 struct SceneSurfaceBridge {
     root: SurfaceNode<ScenePointerMessage>,
+    events: Arc<Mutex<Vec<ScenePointerMessage>>>,
 }
 
 impl SceneSurfaceBridge {
     fn new(root: SurfaceNode<ScenePointerMessage>) -> Self {
-        Self { root }
+        Self {
+            root,
+            events: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    fn with_events(mut self, events: Arc<Mutex<Vec<ScenePointerMessage>>>) -> Self {
+        self.events = events;
+        self
     }
 }
 
 impl RuntimeBridge<ScenePointerMessage> for SceneSurfaceBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<ScenePointerMessage>> {
         Arc::new(UiSurface::new(self.root.clone()))
+    }
+
+    fn update(&mut self, message: ScenePointerMessage) -> Command<ScenePointerMessage> {
+        self.events.lock().expect("scene event log").push(message);
+        Command::none()
     }
 }
 
@@ -126,8 +143,13 @@ impl Widget for ScenePointerWidget {
             WidgetInput::PointerRelease { .. } => {
                 Some(WidgetOutput::typed(ScenePointerMessage::Release))
             }
+            WidgetInput::Wheel { .. } => Some(WidgetOutput::typed(ScenePointerMessage::Wheel)),
             _ => None,
         }
+    }
+
+    fn accepts_wheel_input(&self) -> bool {
+        true
     }
 
     fn append_paint(
@@ -338,6 +360,174 @@ fn scene_interactive_layer_widgets_route_above_base_without_hiding_base_elsewher
 
     assert_eq!(runtime.widget_at(Point::new(8.0, 8.0)), Some(30));
     assert_eq!(runtime.widget_at(Point::new(80.0, 40.0)), Some(10));
+}
+
+#[test]
+fn scene_layer_pass_through_preserves_base_hit_target() {
+    let root = ui::scene(
+        SurfaceNode::custom_widget(
+            ScenePointerWidget::new(10),
+            WidgetMessageMapper::typed(|message: ScenePointerMessage| message),
+        )
+        .into(),
+    )
+    .layer(ui::Layer::floating(
+        SurfaceNode::static_widget(TextWidget::new(
+            20,
+            "Passive",
+            WidgetSizing::fixed(Vector2::new(24.0, 16.0)),
+        ))
+        .into(),
+    ))
+    .into_view()
+    .into_surface();
+    let bridge = SceneBridge::default();
+    let mut runtime = SurfaceRuntime::new(
+        SceneSurfaceBridge::new(root.into_root()).with_events(Arc::clone(&bridge.events)),
+        Vector2::new(140.0, 60.0),
+    );
+
+    let target = runtime.dispatch_event(Event::PointerPress {
+        position: Point::new(16.0, 16.0),
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+
+    assert_eq!(target, Some(10));
+    assert_eq!(bridge.events(), vec![ScenePointerMessage::Press]);
+}
+
+#[test]
+fn scene_layer_block_input_blocks_base_pointer_and_wheel() {
+    let root = ui::scene(
+        SurfaceNode::custom_widget(
+            ScenePointerWidget::new(10),
+            WidgetMessageMapper::typed(|message: ScenePointerMessage| message),
+        )
+        .into(),
+    )
+    .layer(
+        ui::Layer::modal(
+            SurfaceNode::static_widget(TextWidget::new(
+                20,
+                "Modal",
+                WidgetSizing::fixed(Vector2::new(48.0, 24.0)),
+            ))
+            .into(),
+        )
+        .block_input(),
+    )
+    .into_view()
+    .into_surface();
+    let bridge = SceneBridge::default();
+    let mut runtime = SurfaceRuntime::new(
+        SceneSurfaceBridge::new(root.into_root()).with_events(Arc::clone(&bridge.events)),
+        Vector2::new(140.0, 60.0),
+    );
+
+    let press_target = runtime.dispatch_event(Event::PointerPress {
+        position: Point::new(80.0, 40.0),
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    runtime.dispatch_event(Event::Scroll {
+        position: Point::new(80.0, 40.0),
+        delta: Vector2::new(0.0, -20.0),
+    });
+
+    assert_ne!(press_target, Some(10));
+    assert!(bridge.events().is_empty());
+}
+
+#[test]
+fn scene_layer_dismiss_on_outside_click_emits_message() {
+    let root = ui::scene(
+        SurfaceNode::custom_widget(
+            ScenePointerWidget::new(10),
+            WidgetMessageMapper::typed(|message: ScenePointerMessage| message),
+        )
+        .into(),
+    )
+    .layer(
+        ui::Layer::context_menu(
+            SurfaceNode::floating_layer(
+                20,
+                Point::new(0.0, 0.0),
+                Vector2::new(32.0, 24.0),
+                SurfaceNode::button(
+                    30,
+                    "Layer",
+                    WidgetSizing::fixed(Vector2::new(32.0, 24.0)),
+                    ScenePointerMessage::Release,
+                ),
+                true,
+            )
+            .into(),
+        )
+        .dismiss_on_outside_click(ScenePointerMessage::Dismiss),
+    )
+    .into_view()
+    .into_surface();
+    let bridge = SceneBridge::default();
+    let mut runtime = SurfaceRuntime::new(
+        SceneSurfaceBridge::new(root.into_root()).with_events(Arc::clone(&bridge.events)),
+        Vector2::new(140.0, 60.0),
+    );
+
+    let target = runtime.dispatch_event(Event::PointerPress {
+        position: Point::new(80.0, 40.0),
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+
+    assert_ne!(target, Some(10));
+    assert_eq!(bridge.events(), vec![ScenePointerMessage::Dismiss]);
+}
+
+#[test]
+fn scene_layer_dismiss_surface_routes_below_foreground_content() {
+    let root = ui::scene(
+        SurfaceNode::custom_widget(
+            ScenePointerWidget::new(10),
+            WidgetMessageMapper::typed(|message: ScenePointerMessage| message),
+        )
+        .into(),
+    )
+    .layer(
+        ui::Layer::context_menu(
+            SurfaceNode::floating_layer(
+                20,
+                Point::new(0.0, 0.0),
+                Vector2::new(32.0, 24.0),
+                SurfaceNode::button(
+                    30,
+                    "Layer",
+                    WidgetSizing::fixed(Vector2::new(32.0, 24.0)),
+                    ScenePointerMessage::Release,
+                ),
+                true,
+            )
+            .into(),
+        )
+        .dismiss_on_outside_click(ScenePointerMessage::Dismiss),
+    )
+    .into_view()
+    .into_surface();
+    let bridge = SceneBridge::default();
+    let mut runtime = SurfaceRuntime::new(
+        SceneSurfaceBridge::new(root.into_root()).with_events(Arc::clone(&bridge.events)),
+        Vector2::new(140.0, 60.0),
+    );
+
+    let target = runtime.dispatch_pointer_click(
+        Point::new(8.0, 8.0),
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    );
+
+    assert_eq!(target.press_target, Some(30));
+    assert_eq!(target.release_target, Some(30));
+    assert_eq!(bridge.events(), vec![ScenePointerMessage::Release]);
 }
 
 #[test]

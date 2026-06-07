@@ -41,6 +41,12 @@ impl PointerShieldBuilder {
         self
     }
 
+    /// Configure whether wheel input is intercepted.
+    pub fn wheel(mut self, enabled: bool) -> Self {
+        self.widget = self.widget.with_wheel(enabled);
+        self
+    }
+
     /// Emit a mapped host message when the pointer shield emits output.
     pub fn mapped<Message: 'static>(
         self,
@@ -50,6 +56,26 @@ impl PointerShieldBuilder {
             self.widget,
             WidgetMessageMapper::typed(map),
         ))
+    }
+
+    /// Emit host messages for selected pointer shield outputs.
+    pub fn filter_map<Message: 'static>(
+        self,
+        map: impl Fn(PointerShieldMessage) -> Option<Message> + Send + Sync + 'static,
+    ) -> ViewNode<Message> {
+        view_node_from_widget(MappedWidget::new(
+            self.widget,
+            WidgetMessageMapper::dynamic(move |output| {
+                output
+                    .typed_ref::<PointerShieldMessage>()
+                    .and_then(|message| map(*message))
+            }),
+        ))
+    }
+
+    /// Consume selected pointer and wheel input without emitting host messages.
+    pub fn consume<Message: 'static>(self) -> ViewNode<Message> {
+        self.filter_map(|_| None)
     }
 
     /// Build this shield as a passive input layer that emits no host messages.

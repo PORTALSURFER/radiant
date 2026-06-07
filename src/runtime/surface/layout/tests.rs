@@ -9,6 +9,75 @@ use crate::{
 };
 
 #[test]
+fn scene_with_only_base_preserves_base_runtime_projection() {
+    let base: SurfaceNode<()> = SurfaceNode::widget(
+        ButtonWidget::new(10, "Base", WidgetSizing::fixed(Vector2::new(96.0, 28.0))),
+        WidgetMessageMapper::none(),
+    );
+    let base_surface = UiSurface::new(base.clone());
+    let scene_surface = UiSurface::new(SurfaceNode::scene(1, base, Vec::new()));
+
+    let base_projection = base_surface.runtime_projection();
+    let scene_projection = scene_surface.runtime_projection();
+
+    assert_eq!(scene_projection.layout_root, base_projection.layout_root);
+    assert_eq!(
+        scene_projection.traversal.pointer_hit_order,
+        base_projection.traversal.pointer_hit_order
+    );
+    assert_eq!(
+        scene_projection.traversal.widget_paths,
+        base_projection.traversal.widget_paths
+    );
+    assert_eq!(
+        scene_projection.traversal.stateful_widget_order,
+        base_projection.traversal.stateful_widget_order
+    );
+}
+
+#[test]
+fn scene_with_only_base_preserves_virtual_scroll_projection() {
+    let base: SurfaceNode<()> = SurfaceNode::virtual_scroll_area(
+        1,
+        SurfaceNode::column(
+            2,
+            0.0,
+            vec![SurfaceChild::new(
+                SlotParams {
+                    size_main: SizeModeMain::Fixed(28.0),
+                    size_cross: SizeModeCross::Fill,
+                    constraints: Constraints::unconstrained(),
+                    margin: Default::default(),
+                    align_cross_override: None,
+                    allow_fixed_compress: false,
+                },
+                SurfaceNode::widget(
+                    ButtonWidget::new(10, "Row", WidgetSizing::fixed(Vector2::new(96.0, 28.0))),
+                    WidgetMessageMapper::none(),
+                ),
+            )],
+        ),
+        VirtualizationAxis::Vertical,
+        16.0,
+    );
+    let base_surface = UiSurface::new(base.clone());
+    let scene_surface = UiSurface::new(SurfaceNode::scene(100, base, Vec::new()));
+
+    let base_projection = base_surface.runtime_projection();
+    let scene_projection = scene_surface.runtime_projection();
+
+    assert_eq!(scene_projection.layout_root, base_projection.layout_root);
+    assert_eq!(
+        scene_projection.traversal.scroll_content_by_container,
+        base_projection.traversal.scroll_content_by_container
+    );
+    assert_eq!(
+        scene_projection.traversal.widget_paths,
+        base_projection.traversal.widget_paths
+    );
+}
+
+#[test]
 fn runtime_projection_matches_separate_layout_and_traversal_passes() {
     let surface: UiSurface<()> = UiSurface::new(SurfaceNode::virtual_scroll_area(
         1,

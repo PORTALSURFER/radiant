@@ -2,9 +2,8 @@ use super::{
     SurfaceContainer, SurfaceContainerTraversalRecord, SurfaceNode, SurfaceTraversalIndex,
     SurfaceTraversalStats, SurfaceWidget, SurfaceWidgetTraversalRecord, UiSurface,
 };
-use crate::layout::{
-    ContainerKind, ContainerPolicy, LayoutNode, NodeId, SlotChild, SlotParams, Vector2,
-};
+use crate::layout::{ContainerKind, LayoutNode, NodeId, SlotChild, Vector2};
+use crate::layout::{ContainerPolicy, SlotParams};
 
 pub(in crate::runtime) struct SurfaceRuntimeProjection {
     pub(in crate::runtime) layout_root: LayoutNode,
@@ -53,6 +52,9 @@ impl<Message> SurfaceNode<Message> {
     pub(super) fn layout_node(&self) -> LayoutNode {
         match self {
             Self::Scene(scene) => {
+                if !scene.has_layers() {
+                    return scene.base.layout_node();
+                }
                 let mut children = Vec::with_capacity(1 + scene.ordered_layer_count());
                 children.push(SlotChild::new(SlotParams::fill(), scene.base.layout_node()));
                 for layer in scene.ordered_layers() {
@@ -94,6 +96,11 @@ impl<Message> SurfaceNode<Message> {
     ) -> LayoutNode {
         match self {
             Self::Scene(scene) => {
+                if !scene.has_layers() {
+                    return scene
+                        .base
+                        .project_runtime(scroll_stack, child_path, traversal);
+                }
                 let mut children = Vec::with_capacity(1 + scene.ordered_layer_count());
                 child_path.push(0);
                 children.push(SlotChild::new(
@@ -190,6 +197,12 @@ impl<Message> SurfaceNode<Message> {
     ) {
         match self {
             Self::Scene(scene) => {
+                if !scene.has_layers() {
+                    scene
+                        .base
+                        .collect_runtime_index(scroll_stack, child_path, traversal);
+                    return;
+                }
                 child_path.push(0);
                 scene
                     .base

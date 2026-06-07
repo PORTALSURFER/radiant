@@ -1,14 +1,44 @@
+use crate::runtime::{LayerKind, SurfaceLayer};
+use crate::runtime::{SurfaceChild, SurfaceNode, WidgetMessageMapper};
 use crate::{
     gui::types::{Point, Rect, Vector2},
-    runtime::{
-        LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode, WidgetMessageMapper,
-        surface::{WidgetDispatchResult, WidgetPath},
-    },
+    runtime::surface::{WidgetDispatchResult, WidgetPath},
     widgets::{
         ButtonWidget, PointerButton, ScrollbarAxis, ScrollbarWidget, WidgetInput, WidgetSizing,
     },
 };
 use std::collections::HashMap;
+
+#[test]
+fn scene_without_layers_routes_base_widget_at_transparent_path() {
+    let mut root: SurfaceNode<()> = SurfaceNode::scene(
+        1,
+        SurfaceNode::widget(
+            ButtonWidget::new(10, "Base", WidgetSizing::fixed(Vector2::new(80.0, 28.0))),
+            WidgetMessageMapper::none(),
+        ),
+        Vec::new(),
+    );
+
+    let result = root.dispatch_input_at_path(
+        10,
+        &[],
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0)),
+        WidgetInput::PointerMove {
+            position: Point::new(8.0, 8.0),
+        },
+    );
+
+    assert!(matches!(result, Some(WidgetDispatchResult::NoOutput)));
+    assert!(
+        root.find_widget_at_path(&[])
+            .expect("base widget exists at transparent path")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+}
 
 #[test]
 fn dispatch_input_at_child_path_routes_without_tree_search() {

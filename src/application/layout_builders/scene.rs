@@ -94,22 +94,21 @@ impl<Message> Layer<Message> {
 mod tests {
     use crate::{
         application::{IntoView, Layer, scene, text},
-        layout::{ContainerKind, LayoutNode, Vector2},
+        layout::{LayoutNode, Vector2},
         runtime::LayerKind,
     };
 
     #[test]
-    fn scene_with_only_base_projects_scene_root() {
+    fn scene_with_only_base_returns_base_layout() {
         let layout = scene(text::<()>("Base"))
             .into_view()
             .into_surface()
             .layout_node();
 
-        let LayoutNode::Container(container) = layout else {
-            panic!("scene should project to a root stack container");
-        };
-        assert_eq!(container.policy.kind, ContainerKind::Stack);
-        assert_eq!(container.children.len(), 1);
+        assert!(
+            matches!(layout, LayoutNode::Widget(_)),
+            "single base scene should not allocate a stack container"
+        );
     }
 
     #[test]
@@ -120,10 +119,10 @@ mod tests {
             .into_surface()
             .layout_node();
 
-        let LayoutNode::Container(container) = layout else {
-            panic!("scene should project to a root stack container");
-        };
-        assert_eq!(container.children.len(), 1);
+        assert!(
+            matches!(layout, LayoutNode::Widget(_)),
+            "None layers should not allocate a stack container"
+        );
     }
 
     #[test]

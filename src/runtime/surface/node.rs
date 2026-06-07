@@ -241,6 +241,10 @@ impl<Message> SurfaceScene<Message> {
             .map(|layer_index| &self.layers[layer_index])
     }
 
+    pub(in crate::runtime) fn has_layers(&self) -> bool {
+        !self.layers.is_empty()
+    }
+
     pub(in crate::runtime) fn ordered_layer_indices(&self) -> impl Iterator<Item = usize> + '_ {
         LayerKind::ORDER.into_iter().flat_map(|kind| {
             self.layers
@@ -248,6 +252,13 @@ impl<Message> SurfaceScene<Message> {
                 .enumerate()
                 .filter_map(move |(index, layer)| (layer.kind == kind).then_some(index))
         })
+    }
+
+    pub(in crate::runtime) fn ordered_layer_index_for_child(
+        &self,
+        child_index: usize,
+    ) -> Option<usize> {
+        self.ordered_layer_indices().nth(child_index)
     }
 
     pub(in crate::runtime) fn ordered_layer_count(&self) -> usize {

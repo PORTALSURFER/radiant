@@ -123,11 +123,17 @@ impl<Message> SurfaceNode<Message> {
     ) -> Option<&SurfaceWidget<Message>> {
         match (self, child_path.split_first()) {
             (Self::Widget(widget), None) => Some(widget),
-            (Self::Scene(scene), Some((child_index, remaining_path))) => {
+            (Self::Scene(scene), path) => {
+                if !scene.has_layers() {
+                    return scene.base.find_widget_at_path(child_path);
+                }
+
+                let (child_index, remaining_path) = path?;
                 if *child_index == 0 {
                     return scene.base.find_widget_at_path(remaining_path);
                 }
-                let layer_index = scene.ordered_layer_indices().nth(*child_index - 1)?;
+
+                let layer_index = scene.ordered_layer_index_for_child(*child_index - 1)?;
                 scene.layers[layer_index]
                     .node
                     .find_widget_at_path(remaining_path)
@@ -186,11 +192,17 @@ impl<Message> SurfaceNode<Message> {
     ) -> Option<&mut SurfaceWidget<Message>> {
         match (self, child_path.split_first()) {
             (Self::Widget(widget), None) => Some(widget),
-            (Self::Scene(scene), Some((child_index, remaining_path))) => {
+            (Self::Scene(scene), path) => {
+                if !scene.has_layers() {
+                    return scene.base.find_widget_mut_at_path(child_path);
+                }
+
+                let (child_index, remaining_path) = path?;
                 if *child_index == 0 {
                     return scene.base.find_widget_mut_at_path(remaining_path);
                 }
-                let layer_index = scene.ordered_layer_indices().nth(*child_index - 1)?;
+
+                let layer_index = scene.ordered_layer_index_for_child(*child_index - 1)?;
                 scene.layers[layer_index]
                     .node
                     .find_widget_mut_at_path(remaining_path)

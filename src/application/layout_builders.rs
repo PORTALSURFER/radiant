@@ -2,6 +2,7 @@
 
 mod collection;
 mod containers;
+mod layer_host;
 mod lists;
 mod overlays;
 mod scroll;
@@ -10,6 +11,7 @@ pub use containers::{
     DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING, column, column_key, grid,
     grid_with_gaps, row, row_key, stack, stack_layers, wrap,
 };
+pub use layer_host::{LayerHost, layer_host};
 pub use lists::{
     BoundedScrollColumnParts, bounded_scroll_column, bounded_scroll_column_from_parts, list,
     list_row, list_row_id, scroll_column, virtual_list, virtual_list_window,

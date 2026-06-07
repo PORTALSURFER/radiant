@@ -133,6 +133,8 @@ fn focus_loss_cleans_native_pointer_state_before_external_drag_launch() {
         PointerModifiers::default(),
     );
     runner.input.last_cursor = Some(Point::new(60.0, 20.0));
+    runner.input.modifiers = winit::keyboard::ModifiersState::ALT;
+    runner.input.last_navigation_key_repeat = Some(std::time::Instant::now());
     assert!(runner.update_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
 
     let outcome = runner.handle_focus_lost_before_external_drag();
@@ -141,6 +143,8 @@ fn focus_loss_cleans_native_pointer_state_before_external_drag_launch() {
     assert!(runner.core.runtime.external_drag_armed());
     assert!(runner.core.runtime.pointer_capture().is_none());
     assert_eq!(runner.input.last_cursor, None);
+    assert!(runner.input.modifiers.is_empty());
+    assert_eq!(runner.input.last_navigation_key_repeat, None);
     let session = runner
         .core
         .runtime
@@ -162,6 +166,23 @@ fn focus_loss_cleans_native_pointer_state_before_external_drag_launch() {
             .overlays
             .iter()
             .any(|overlay| matches!(overlay, GpuSurfaceOverlay::RuntimeVerticalLine { .. }))
+    );
+}
+
+#[test]
+fn focus_regain_after_external_drag_reissues_coalesced_redraw() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.timing.redraw_requested = true;
+
+    runner.handle_focus_regained_after_native_modal_loop();
+
+    assert!(
+        !runner.timing.redraw_requested,
+        "focus regain must not leave a stale coalesced redraw flag suppressing future redraws"
     );
 }
 

@@ -6,7 +6,7 @@ use super::{
 };
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
-use winit::{dpi::PhysicalPosition, event_loop::ActiveEventLoop};
+use winit::{dpi::PhysicalPosition, event_loop::ActiveEventLoop, keyboard::ModifiersState};
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
@@ -64,8 +64,14 @@ where
 
     pub(super) fn handle_focus_lost_before_external_drag(&mut self) -> GenericRouteOutcome {
         let mut outcome = self.clear_native_pointer_presence();
+        outcome.merge(self.clear_native_modifier_state());
         outcome.merge(self.core.route_focus_lost());
         outcome
+    }
+
+    pub(super) fn handle_focus_regained_after_native_modal_loop(&mut self) {
+        self.timing.redraw_requested = false;
+        self.request_redraw_if_needed();
     }
 
     fn clear_native_pointer_presence(&mut self) -> GenericRouteOutcome {
@@ -78,5 +84,16 @@ where
         self.input.last_cursor = None;
         self.set_native_cursor(crate::widgets::WidgetCursor::Default);
         outcome
+    }
+
+    fn clear_native_modifier_state(&mut self) -> GenericRouteOutcome {
+        self.input.last_navigation_key_repeat = None;
+        self.input.pending_gpu_surface_wheel = None;
+        if self.input.modifiers.is_empty() {
+            return GenericRouteOutcome::default();
+        }
+        self.input.modifiers = ModifiersState::default();
+        self.core
+            .route_pointer_modifiers_changed(crate::widgets::PointerModifiers::default())
     }
 }

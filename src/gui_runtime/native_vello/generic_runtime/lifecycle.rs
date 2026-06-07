@@ -67,7 +67,7 @@ where
                 }
                 self.handle_route_outcome(event_loop, routed);
             }
-            WindowEvent::Focused(true) => {}
+            WindowEvent::Focused(true) => self.handle_focus_regained_after_native_modal_loop(),
             WindowEvent::CursorMoved { position, .. } => {
                 self.handle_cursor_moved(position);
             }

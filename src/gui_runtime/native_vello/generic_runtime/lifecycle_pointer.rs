@@ -1,6 +1,9 @@
 //! Pointer lifecycle helpers for the generic native Vello runner.
 
-use super::{GenericNativeVelloRunner, logical_point_from_winit, maybe_log_route_profile};
+use super::{
+    GenericNativeVelloRunner, GenericRouteOutcome, logical_point_from_winit,
+    maybe_log_route_profile,
+};
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
 use winit::{dpi::PhysicalPosition, event_loop::ActiveEventLoop};
@@ -40,13 +43,10 @@ where
     }
 
     pub(super) fn handle_cursor_left(&mut self, event_loop: &ActiveEventLoop) {
-        if let Some(previous) = self.input.last_cursor
-            && self.clear_gpu_surface_cursor_overlay(previous)
-        {
+        let pointer_cleared = self.clear_native_pointer_presence();
+        if pointer_cleared.repaint_requested {
             self.request_redraw_if_needed();
         }
-        self.input.last_cursor = None;
-        self.set_native_cursor(crate::widgets::WidgetCursor::Default);
         let preview_hidden = self.core.runtime.hide_drag_preview_for_cursor_left();
         if preview_hidden {
             if self.core.runtime.external_drag_armed() {
@@ -60,5 +60,23 @@ where
         }
         let outcome = self.launch_external_drag_if_armed();
         self.handle_route_outcome(event_loop, outcome);
+    }
+
+    pub(super) fn handle_focus_lost_before_external_drag(&mut self) -> GenericRouteOutcome {
+        let mut outcome = self.clear_native_pointer_presence();
+        outcome.merge(self.core.route_focus_lost());
+        outcome
+    }
+
+    fn clear_native_pointer_presence(&mut self) -> GenericRouteOutcome {
+        let mut outcome = GenericRouteOutcome::default();
+        if let Some(previous) = self.input.last_cursor
+            && self.clear_gpu_surface_cursor_overlay(previous)
+        {
+            outcome.repaint_requested = true;
+        }
+        self.input.last_cursor = None;
+        self.set_native_cursor(crate::widgets::WidgetCursor::Default);
+        outcome
     }
 }

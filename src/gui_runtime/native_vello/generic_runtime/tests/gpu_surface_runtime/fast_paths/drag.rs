@@ -103,6 +103,68 @@ fn active_runtime_drag_can_transfer_to_external_drag() {
     assert_eq!(session.request.preview.label, "kick.wav");
 }
 
+#[test]
+fn focus_loss_cleans_native_pointer_state_before_external_drag_launch() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    runner
+        .core
+        .runtime
+        .execute_command(Command::begin_external_drag_without_completion(
+            ExternalDragRequest::files(
+                [std::path::PathBuf::from(r"C:\samples\kick.wav")],
+                "kick.wav",
+            ),
+        ));
+    runner
+        .core
+        .runtime
+        .execute_command(Command::begin_drag(DragRequest::new(
+            DragPreview::sized("kick.wav", Vector2::new(150.0, 24.0)),
+            Point::new(30.0, 20.0),
+        )));
+    runner.core.route_pointer_press_with_modifiers(
+        Point::new(30.0, 20.0),
+        PointerButton::Primary,
+        PointerModifiers::default(),
+    );
+    runner.input.last_cursor = Some(Point::new(60.0, 20.0));
+    assert!(runner.update_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
+
+    let outcome = runner.handle_focus_lost_before_external_drag();
+
+    assert!(outcome.needs_redraw());
+    assert!(runner.core.runtime.external_drag_armed());
+    assert!(runner.core.runtime.pointer_capture().is_none());
+    assert_eq!(runner.input.last_cursor, None);
+    let session = runner
+        .core
+        .runtime
+        .take_external_drag_session()
+        .expect("external drag should stay armed for native launch");
+    assert_eq!(session.request.preview.label, "kick.wav");
+    let surface = runner
+        .frame
+        .last_paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::GpuSurface(surface) => Some(surface),
+            _ => None,
+        })
+        .expect("gpu surface primitive");
+    assert!(
+        !surface
+            .overlays
+            .iter()
+            .any(|overlay| matches!(overlay, GpuSurfaceOverlay::RuntimeVerticalLine { .. }))
+    );
+}
+
 fn contains_drag_label(primitives: &[PaintPrimitive], label: &str) -> bool {
     primitives.iter().any(|primitive| {
         matches!(

@@ -566,17 +566,17 @@ When the caller has separate base content and foreground overlay content,
 `dismissible_overlay(base, overlay, message)` composes the standard
 base/dismiss/foreground stack so apps do not repeat the ordering required for
 outside-click dismissal.
-Base content with optional transient UI should normally use
-`layer_host(base)`. `LayerHost` is a declarative root composition builder:
-applications decide which floating surfaces are active from state each frame,
-while Radiant owns the generic stack assembly and category z-order. The public
-slots are `floating(...)` / `floating_opt(...)`, `popover(...)` /
-`popover_opt(...)`, `modal(...)` / `modal_opt(...)`, `context_menu(...)` /
-`context_menu_opt(...)`, `tooltip(...)` / `tooltip_opt(...)`, and
-`drag_preview(...)` / `drag_preview_opt(...)`. `LayerHost::into_view()` paints
-layers in this fixed order: base layout, generic floating layers, popovers,
-modals, context menus, tooltips, and drag previews. Lower-level callers can
-still use `stack_layers(...)` directly to avoid application-local
+Base content with optional transient UI should normally use `scene(base)`.
+`Scene` is Radiant's declarative root surface model: applications decide which
+typed layers are active from state each frame, while Radiant owns generic scene
+projection and layer z-order. Add transient UI with `Layer::floating(...)`,
+`Layer::popover(...)`, `Layer::modal(...)`, `Layer::context_menu(...)`,
+`Layer::tooltip(...)`, and `Layer::drag_preview(...)`, then attach those layers
+with `Scene::layer(...)`, `Scene::layer_opt(...)`, or `Scene::layers(...)`.
+`Scene::into_view()` projects a runtime scene that paints layers in this fixed
+order: base layout, generic floating layers, popovers, modals, context menus,
+tooltips, and drag previews. Lower-level callers can still use
+`stack_layers(...)` directly to avoid application-local
 `if len > 1 { stack(...) } else { base }` branching. It returns `empty()` for
 zero layers, returns the only layer unchanged for one layer, and builds a
 normal `stack(...)` for multiple layers.
@@ -1716,7 +1716,7 @@ manual validation:
 | State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `sample_source_list`, `animation_showcase` |
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
-| Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `layer_host`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
+| Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
 | Custom widgets and retained GPU surfaces | `custom_widget`, `gpu_surface`, `custom_shader_surface`, `gpu_surface_stack_overlay`, `waveform_view` |
 | Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `inspector_panel`, `plugin_panel`, `eq_editor`, `spectrogram`, `mixer_console`, `piano_roll`, `modulation_matrix`, `arrangement_shell`, `split_workspace` |
 | Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame` |
@@ -1856,9 +1856,9 @@ while also using the standard compact menu height. Use
 `dismissible_context_menu_with_width(...)` when the width is deliberately fixed.
 These helpers avoid app-local `message_menu_height(...)` sizing and hard-coded
 context-menu width constants.
-Run `cargo run --example layer_host` for a root-layer sandbox that composes
+Run `cargo run --example scene` for a root-scene sandbox that composes
 base content with floating, popover, modal, context-menu, tooltip, and
-drag-preview slots through `LayerHost`.
+drag-preview layers through `Scene` and `Layer`.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
 that composes `MenuItem`, `menu(...)`, and `context_menu_overlay(...)` with
 normal state callbacks.

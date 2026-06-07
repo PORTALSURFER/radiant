@@ -2,7 +2,9 @@ use super::{
     SurfaceContainer, SurfaceContainerTraversalRecord, SurfaceNode, SurfaceTraversalIndex,
     SurfaceTraversalStats, SurfaceWidget, SurfaceWidgetTraversalRecord, UiSurface,
 };
-use crate::layout::{ContainerKind, LayoutNode, NodeId, SlotChild, Vector2};
+use crate::layout::{
+    ContainerKind, ContainerPolicy, LayoutNode, NodeId, SlotChild, SlotParams, Vector2,
+};
 
 pub(in crate::runtime) struct SurfaceRuntimeProjection {
     pub(in crate::runtime) layout_root: LayoutNode,
@@ -50,6 +52,21 @@ impl<Message> UiSurface<Message> {
 impl<Message> SurfaceNode<Message> {
     pub(super) fn layout_node(&self) -> LayoutNode {
         match self {
+            Self::Scene(scene) => {
+                let mut children = Vec::with_capacity(1 + scene.ordered_layer_count());
+                children.push(SlotChild::new(SlotParams::fill(), scene.base.layout_node()));
+                for layer in scene.ordered_layers() {
+                    children.push(SlotChild::new(SlotParams::fill(), layer.node.layout_node()));
+                }
+                LayoutNode::container(
+                    scene.id,
+                    ContainerPolicy {
+                        kind: ContainerKind::Stack,
+                        ..ContainerPolicy::default()
+                    },
+                    children,
+                )
+            }
             Self::Container(container) => {
                 let mut children = Vec::with_capacity(container.children.len());
                 for child in &container.children {
@@ -76,6 +93,37 @@ impl<Message> SurfaceNode<Message> {
         traversal: &mut SurfaceTraversalIndex,
     ) -> LayoutNode {
         match self {
+            Self::Scene(scene) => {
+                let mut children = Vec::with_capacity(1 + scene.ordered_layer_count());
+                child_path.push(0);
+                children.push(SlotChild::new(
+                    SlotParams::fill(),
+                    scene
+                        .base
+                        .project_runtime(scroll_stack, child_path, traversal),
+                ));
+                child_path.pop();
+
+                for (layer_index, layer) in scene.ordered_layers().enumerate() {
+                    child_path.push(layer_index + 1);
+                    children.push(SlotChild::new(
+                        SlotParams::fill(),
+                        layer
+                            .node
+                            .project_runtime(scroll_stack, child_path, traversal),
+                    ));
+                    child_path.pop();
+                }
+
+                LayoutNode::container(
+                    scene.id,
+                    ContainerPolicy {
+                        kind: ContainerKind::Stack,
+                        ..ContainerPolicy::default()
+                    },
+                    children,
+                )
+            }
             Self::Container(container) => {
                 let is_scroll = begin_container_runtime(container, scroll_stack, traversal);
                 let mut children = Vec::with_capacity(container.children.len());
@@ -141,6 +189,21 @@ impl<Message> SurfaceNode<Message> {
         traversal: &mut SurfaceTraversalIndex,
     ) {
         match self {
+            Self::Scene(scene) => {
+                child_path.push(0);
+                scene
+                    .base
+                    .collect_runtime_index(scroll_stack, child_path, traversal);
+                child_path.pop();
+
+                for (layer_index, layer) in scene.ordered_layers().enumerate() {
+                    child_path.push(layer_index + 1);
+                    layer
+                        .node
+                        .collect_runtime_index(scroll_stack, child_path, traversal);
+                    child_path.pop();
+                }
+            }
             Self::Container(container) => {
                 let is_scroll = begin_container_runtime(container, scroll_stack, traversal);
                 for (child_index, child) in container.children.iter().enumerate() {

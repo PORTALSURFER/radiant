@@ -26,6 +26,12 @@ impl<Message> UiSurface<Message> {
 impl<Message> SurfaceNode<Message> {
     fn append_keyboard_focus_order(&self, order: &mut Vec<WidgetId>) {
         match self {
+            Self::Scene(scene) => {
+                scene.base.append_keyboard_focus_order(order);
+                for layer in scene.ordered_layers() {
+                    layer.node.append_keyboard_focus_order(order);
+                }
+            }
             Self::Container(container) => {
                 for child in &container.children {
                     child.child.append_keyboard_focus_order(order);

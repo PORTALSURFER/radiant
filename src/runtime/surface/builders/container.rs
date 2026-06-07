@@ -1,4 +1,6 @@
-use super::super::{SurfaceChild, SurfaceContainer, SurfaceContainerParts, SurfaceNode};
+use super::super::{
+    SurfaceChild, SurfaceContainer, SurfaceContainerParts, SurfaceLayer, SurfaceNode, SurfaceScene,
+};
 use crate::{
     layout::{
         ContainerKind, ContainerPolicy, GridPolicy, NodeId, OverflowPolicy, VirtualizationAxis,
@@ -8,6 +10,15 @@ use crate::{
 };
 
 impl<Message> SurfaceNode<Message> {
+    /// Build a root scene node from base content plus typed layers.
+    pub fn scene(
+        id: NodeId,
+        base: SurfaceNode<Message>,
+        layers: Vec<SurfaceLayer<Message>>,
+    ) -> Self {
+        Self::Scene(SurfaceScene::new(id, base, layers))
+    }
+
     /// Build a container node.
     pub fn container(
         id: NodeId,

@@ -72,6 +72,11 @@ impl<Message> SurfaceNode<Message> {
         output: &WidgetOutput,
     ) -> Option<Message> {
         match self {
+            Self::Scene(scene) => scene.base.dispatch_output(widget_id, output).or_else(|| {
+                scene
+                    .ordered_layers()
+                    .find_map(|layer| layer.node.dispatch_output(widget_id, output))
+            }),
             Self::Container(container) => container
                 .children
                 .iter()
@@ -92,6 +97,11 @@ impl<Message> SurfaceNode<Message> {
 
     pub(super) fn find_widget(&self, widget_id: WidgetId) -> Option<&SurfaceWidget<Message>> {
         match self {
+            Self::Scene(scene) => scene.base.find_widget(widget_id).or_else(|| {
+                scene
+                    .ordered_layers()
+                    .find_map(|layer| layer.node.find_widget(widget_id))
+            }),
             Self::Container(container) => container
                 .children
                 .iter()
@@ -113,6 +123,15 @@ impl<Message> SurfaceNode<Message> {
     ) -> Option<&SurfaceWidget<Message>> {
         match (self, child_path.split_first()) {
             (Self::Widget(widget), None) => Some(widget),
+            (Self::Scene(scene), Some((child_index, remaining_path))) => {
+                if *child_index == 0 {
+                    return scene.base.find_widget_at_path(remaining_path);
+                }
+                let layer_index = scene.ordered_layer_indices().nth(*child_index - 1)?;
+                scene.layers[layer_index]
+                    .node
+                    .find_widget_at_path(remaining_path)
+            }
             (Self::Container(container), Some((child_index, remaining_path))) => container
                 .children
                 .get(*child_index)?
@@ -137,6 +156,15 @@ impl<Message> SurfaceNode<Message> {
         widget_id: WidgetId,
     ) -> Option<&mut SurfaceWidget<Message>> {
         match self {
+            Self::Scene(scene) => {
+                if let Some(widget) = scene.base.find_widget_mut(widget_id) {
+                    return Some(widget);
+                }
+                scene
+                    .layers
+                    .iter_mut()
+                    .find_map(|layer| layer.node.find_widget_mut(widget_id))
+            }
             Self::Container(container) => container
                 .children
                 .iter_mut()
@@ -158,6 +186,15 @@ impl<Message> SurfaceNode<Message> {
     ) -> Option<&mut SurfaceWidget<Message>> {
         match (self, child_path.split_first()) {
             (Self::Widget(widget), None) => Some(widget),
+            (Self::Scene(scene), Some((child_index, remaining_path))) => {
+                if *child_index == 0 {
+                    return scene.base.find_widget_mut_at_path(remaining_path);
+                }
+                let layer_index = scene.ordered_layer_indices().nth(*child_index - 1)?;
+                scene.layers[layer_index]
+                    .node
+                    .find_widget_mut_at_path(remaining_path)
+            }
             (Self::Container(container), Some((child_index, remaining_path))) => container
                 .children
                 .get_mut(*child_index)?

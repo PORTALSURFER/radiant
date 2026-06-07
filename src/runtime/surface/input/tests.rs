@@ -1,7 +1,7 @@
 use crate::{
     gui::types::{Point, Rect, Vector2},
     runtime::{
-        SurfaceChild, SurfaceNode, WidgetMessageMapper,
+        LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode, WidgetMessageMapper,
         surface::{WidgetDispatchResult, WidgetPath},
     },
     widgets::{
@@ -150,4 +150,68 @@ fn synchronize_widget_state_from_paths_preserves_state_after_reorder() {
         .downcast_ref::<ScrollbarWidget>()
         .expect("moved widget stays a scrollbar");
     assert_eq!(moved.state.drag_grip_fraction, Some(0.08));
+}
+
+#[test]
+fn scene_widget_state_sync_finds_widgets_inside_layers() {
+    let mut previous: SurfaceNode<()> = SurfaceNode::scene(
+        1,
+        SurfaceNode::widget(
+            ButtonWidget::new(10, "Base", WidgetSizing::fixed(Vector2::new(80.0, 28.0))),
+            WidgetMessageMapper::none(),
+        ),
+        vec![SurfaceLayer::new(
+            LayerKind::Modal,
+            SurfaceNode::widget(
+                ScrollbarWidget::new(
+                    20,
+                    ScrollbarAxis::Vertical,
+                    WidgetSizing::fixed(Vector2::new(16.0, 100.0)),
+                ),
+                WidgetMessageMapper::none(),
+            ),
+        )],
+    );
+    let mut current: SurfaceNode<()> = SurfaceNode::scene(
+        1,
+        SurfaceNode::widget(
+            ButtonWidget::new(10, "Base", WidgetSizing::fixed(Vector2::new(80.0, 28.0))),
+            WidgetMessageMapper::none(),
+        ),
+        vec![SurfaceLayer::new(
+            LayerKind::Modal,
+            SurfaceNode::widget(
+                ScrollbarWidget::new(
+                    20,
+                    ScrollbarAxis::Vertical,
+                    WidgetSizing::fixed(Vector2::new(16.0, 100.0)),
+                ),
+                WidgetMessageMapper::none(),
+            ),
+        )],
+    );
+
+    let _ = previous.dispatch_input_at_path(
+        20,
+        &[1],
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(16.0, 100.0)),
+        WidgetInput::PointerPress {
+            position: Point::new(8.0, 8.0),
+            button: PointerButton::Primary,
+            modifiers: Default::default(),
+        },
+    );
+
+    let previous_paths = HashMap::from([(20, WidgetPath::from_slice(&[1]))]);
+    let current_paths = HashMap::from([(20, WidgetPath::from_slice(&[1]))]);
+    current.synchronize_widget_state_from_paths(&[20], &current_paths, &previous, &previous_paths);
+
+    let synced = current
+        .find_widget_at_path(&[1])
+        .expect("layer widget exists")
+        .widget()
+        .as_any()
+        .downcast_ref::<ScrollbarWidget>()
+        .expect("layer widget stays a scrollbar");
+    assert_eq!(synced.state.drag_grip_fraction, Some(0.08));
 }

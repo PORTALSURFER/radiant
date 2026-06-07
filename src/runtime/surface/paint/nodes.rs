@@ -75,6 +75,16 @@ impl<Message> SurfaceNode<Message> {
         plan: &mut SurfacePaintPlan,
     ) {
         match self {
+            Self::Scene(scene) => {
+                if context.should_paint_node(scene.base.id()) {
+                    scene.base.append_paint_with_context(context, plan);
+                }
+                for layer in scene.ordered_layers() {
+                    if context.should_paint_node(layer.node.id()) {
+                        layer.node.append_paint_with_context(context, plan);
+                    }
+                }
+            }
             Self::Container(container) => {
                 container.append_chrome_paint(context, plan);
                 if container.is_scroll_view() {

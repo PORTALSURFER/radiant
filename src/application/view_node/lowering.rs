@@ -8,7 +8,7 @@ use crate::{
         ContainerKind, ContainerPolicy, GridPolicy, NodeId, VirtualizationAxis,
         VirtualizationPolicy, WrapPolicy,
     },
-    runtime::{SurfaceChild, SurfaceNode},
+    runtime::{SurfaceChild, SurfaceLayer, SurfaceNode},
 };
 
 #[path = "lowering/children.rs"]
@@ -58,6 +58,16 @@ impl<'a> ViewLowering<'a> {
             };
 
         match node.kind {
+            ViewNodeKind::Scene { base, layers } => {
+                let base = self.lower_node(*base, child_scope);
+                let layers = layers
+                    .into_iter()
+                    .map(|layer| {
+                        SurfaceLayer::new(layer.kind, self.lower_node(layer.view, child_scope))
+                    })
+                    .collect();
+                SurfaceNode::scene(id, base, layers)
+            }
             ViewNodeKind::Runtime(node) => node,
             ViewNodeKind::Widget(widget) => widget.into_surface_node(WidgetViewContext {
                 id,

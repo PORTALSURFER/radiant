@@ -140,6 +140,8 @@ impl<Message> SurfaceContainer<Message> {
 
 /// One node in a generic declarative [`crate::runtime::UiSurface`].
 pub enum SurfaceNode<Message> {
+    /// A root scene with base content plus typed transient layers.
+    Scene(SurfaceScene<Message>),
     /// A layout container that owns slot children.
     Container(SurfaceContainer<Message>),
     /// A widget leaf plus host-defined message mapping.
@@ -148,6 +150,119 @@ pub enum SurfaceNode<Message> {
     Overlay(SurfaceOverlay),
     /// A floating child tree that can paint out of normal layout flow.
     FloatingLayer(SurfaceFloatingLayer<Message>),
+}
+
+/// Stable category for one scene layer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LayerKind {
+    /// Generic floating content above base layout.
+    Floating,
+    /// Popover content above generic floating layers.
+    Popover,
+    /// Modal content above popovers.
+    Modal,
+    /// Context-menu content above modals.
+    ContextMenu,
+    /// Tooltip content above context menus.
+    Tooltip,
+    /// Drag-preview content above every other transient category.
+    DragPreview,
+}
+
+impl LayerKind {
+    /// Stable scene-layer z-order from back to front.
+    pub const ORDER: [Self; 6] = [
+        Self::Floating,
+        Self::Popover,
+        Self::Modal,
+        Self::ContextMenu,
+        Self::Tooltip,
+        Self::DragPreview,
+    ];
+
+    /// Return this layer kind's stable z-order bucket.
+    pub const fn z_order(self) -> usize {
+        match self {
+            Self::Floating => 0,
+            Self::Popover => 1,
+            Self::Modal => 2,
+            Self::ContextMenu => 3,
+            Self::Tooltip => 4,
+            Self::DragPreview => 5,
+        }
+    }
+}
+
+/// One typed transient layer inside a scene.
+pub struct SurfaceLayer<Message> {
+    /// Layer category used for scene z-ordering.
+    pub kind: LayerKind,
+    /// Layer content node.
+    pub node: SurfaceNode<Message>,
+}
+
+impl<Message> SurfaceLayer<Message> {
+    /// Build a typed scene layer.
+    pub fn new(kind: LayerKind, node: SurfaceNode<Message>) -> Self {
+        Self { kind, node }
+    }
+}
+
+impl<Message> Clone for SurfaceLayer<Message> {
+    fn clone(&self) -> Self {
+        Self {
+            kind: self.kind,
+            node: self.node.clone(),
+        }
+    }
+}
+
+/// A root scene with base content plus typed transient layers.
+pub struct SurfaceScene<Message> {
+    pub(super) id: NodeId,
+    pub(super) base: Box<SurfaceNode<Message>>,
+    pub(super) layers: Vec<SurfaceLayer<Message>>,
+}
+
+impl<Message> SurfaceScene<Message> {
+    /// Build a surface scene.
+    pub fn new(id: NodeId, base: SurfaceNode<Message>, layers: Vec<SurfaceLayer<Message>>) -> Self {
+        Self {
+            id,
+            base: Box::new(base),
+            layers,
+        }
+    }
+
+    pub(in crate::runtime) fn ordered_layers(
+        &self,
+    ) -> impl Iterator<Item = &SurfaceLayer<Message>> {
+        self.ordered_layer_indices()
+            .map(|layer_index| &self.layers[layer_index])
+    }
+
+    pub(in crate::runtime) fn ordered_layer_indices(&self) -> impl Iterator<Item = usize> + '_ {
+        LayerKind::ORDER.into_iter().flat_map(|kind| {
+            self.layers
+                .iter()
+                .enumerate()
+                .filter_map(move |(index, layer)| (layer.kind == kind).then_some(index))
+        })
+    }
+
+    pub(in crate::runtime) fn ordered_layer_count(&self) -> usize {
+        self.layers.len()
+    }
+}
+
+impl<Message> Clone for SurfaceScene<Message> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            base: self.base.clone(),
+            layers: self.layers.clone(),
+        }
+    }
 }
 
 /// Non-interactive floating overlay descriptor.
@@ -177,6 +292,7 @@ impl<Message> Clone for SurfaceFloatingLayer<Message> {
 impl<Message> Clone for SurfaceNode<Message> {
     fn clone(&self) -> Self {
         match self {
+            Self::Scene(scene) => Self::Scene(scene.clone()),
             Self::Container(container) => Self::Container(container.clone()),
             Self::Widget(widget) => Self::Widget(widget.clone()),
             Self::Overlay(overlay) => Self::Overlay(overlay.clone()),
@@ -189,6 +305,7 @@ impl<Message> SurfaceNode<Message> {
     /// Return the stable node id.
     pub fn id(&self) -> NodeId {
         match self {
+            Self::Scene(scene) => scene.id,
             Self::Container(container) => container.id,
             Self::Widget(widget) => widget.id(),
             Self::Overlay(overlay) => overlay.id,

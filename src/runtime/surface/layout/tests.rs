@@ -2,7 +2,7 @@ use crate::{
     gui::types::{Point, Rect},
     layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams, Vector2, VirtualizationAxis},
     runtime::{
-        SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
+        LayerKind, SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface, WidgetMessageMapper,
         surface::{SurfaceTraversalIndex, SurfaceTraversalStats, WidgetPath},
     },
     widgets::{ButtonWidget, WidgetSizing},
@@ -128,6 +128,49 @@ fn interactive_floating_layer_registers_child_hit_order() {
     let projection = surface.runtime_projection();
 
     assert_eq!(projection.traversal.pointer_hit_order, vec![10, 30]);
+}
+
+#[test]
+fn scene_runtime_traversal_includes_interactive_layer_widgets() {
+    let surface: UiSurface<()> = UiSurface::new(SurfaceNode::scene(
+        1,
+        SurfaceNode::widget(
+            ButtonWidget::new(10, "Base", WidgetSizing::fixed(Vector2::new(96.0, 28.0))),
+            WidgetMessageMapper::none(),
+        ),
+        vec![
+            SurfaceLayer::new(
+                LayerKind::DragPreview,
+                SurfaceNode::widget(
+                    ButtonWidget::new(40, "Drag", WidgetSizing::fixed(Vector2::new(96.0, 28.0))),
+                    WidgetMessageMapper::none(),
+                ),
+            ),
+            SurfaceLayer::new(
+                LayerKind::Modal,
+                SurfaceNode::widget(
+                    ButtonWidget::new(30, "Modal", WidgetSizing::fixed(Vector2::new(96.0, 28.0))),
+                    WidgetMessageMapper::none(),
+                ),
+            ),
+        ],
+    ));
+
+    let projection = surface.runtime_projection();
+
+    assert_eq!(projection.traversal.pointer_hit_order, vec![10, 30, 40]);
+    assert_eq!(
+        projection.traversal.widget_paths.get(&10),
+        Some(&WidgetPath::from_slice(&[0]))
+    );
+    assert_eq!(
+        projection.traversal.widget_paths.get(&30),
+        Some(&WidgetPath::from_slice(&[1]))
+    );
+    assert_eq!(
+        projection.traversal.widget_paths.get(&40),
+        Some(&WidgetPath::from_slice(&[2]))
+    );
 }
 
 #[test]

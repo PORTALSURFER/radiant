@@ -13,8 +13,8 @@ pub const DEFAULT_STYLED_CONTAINER_PADDING: f32 = 4.0;
 pub type Result<T = ()> = std::result::Result<T, String>;
 
 mod view_node;
-pub use view_node::ViewNode;
 pub(in crate::application) use view_node::ViewNodeKind;
+pub use view_node::{Layer, ViewNode};
 
 /// Application view node type used by builder functions.
 pub type View<Message = ()> = ViewNode<Message>;
@@ -133,18 +133,18 @@ pub use control_builders::{
     text_input_mapped, toggle, toggle_mapped,
 };
 mod layout_builders;
+pub use crate::runtime::LayerKind;
 pub use layout_builders::{
     AnchoredLayerParts, BoundedScrollColumnParts, CenteredLayerParts, DEFAULT_COLUMN_SPACING,
     DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING, FloatingLayerAnchorParts, FloatingLayerPlacement,
-    LayerHorizontalAnchor, LayerHost, LayerVerticalAnchor, anchored_layer,
-    anchored_layer_from_parts, bounded_scroll_column, bounded_scroll_column_from_parts,
-    centered_layer, centered_layer_from_parts, column, column_key, dismiss_layer,
-    dismissible_overlay, drag_preview, drag_preview_sized, drop_marker, floating_layer,
-    floating_layer_above, floating_layer_around_from_parts, floating_layer_below,
-    floating_layer_with_input, grid, grid_with_gaps, input_overlay, input_underlay, layer_host,
-    list, list_row, list_row_id, local_drop_marker, overlay_panel, row, row_key, scroll,
-    scroll_column, stack, stack_layers, virtual_list, virtual_list_window,
-    virtual_list_window_body, virtual_scroll, virtual_tree_list_window, wrap,
+    LayerHorizontalAnchor, LayerVerticalAnchor, Scene, anchored_layer, anchored_layer_from_parts,
+    bounded_scroll_column, bounded_scroll_column_from_parts, centered_layer,
+    centered_layer_from_parts, column, column_key, dismiss_layer, dismissible_overlay,
+    drag_preview, drag_preview_sized, drop_marker, floating_layer, floating_layer_above,
+    floating_layer_around_from_parts, floating_layer_below, floating_layer_with_input, grid,
+    grid_with_gaps, input_overlay, input_underlay, list, list_row, list_row_id, local_drop_marker,
+    overlay_panel, row, row_key, scene, scroll, scroll_column, stack, stack_layers, virtual_list,
+    virtual_list_window, virtual_list_window_body, virtual_scroll, virtual_tree_list_window, wrap,
 };
 mod ids;
 pub(in crate::application) use ids::{IdGenerator, scoped_key_id};

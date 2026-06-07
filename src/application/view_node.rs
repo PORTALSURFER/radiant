@@ -14,9 +14,21 @@ use slot::SlotBehavior;
 use crate::{
     application::WidgetView,
     layout::{CrossAlign, Insets, MainAlign, NodeId, Vector2},
-    runtime::SurfaceNode,
+    runtime::{LayerKind, SurfaceNode},
     widgets::{TextAlign, TextBackgroundRole, TextColorRole, TextWrap, WidgetSizing, WidgetStyle},
 };
+
+/// A typed transient scene layer.
+pub struct Layer<Message> {
+    pub(in crate::application) kind: LayerKind,
+    pub(in crate::application) view: ViewNode<Message>,
+}
+
+impl<Message> Layer<Message> {
+    pub(in crate::application) fn new(kind: LayerKind, view: ViewNode<Message>) -> Self {
+        Self { kind, view }
+    }
+}
 
 /// Application view node with generated identity and default sizing.
 pub struct ViewNode<Message> {
@@ -41,6 +53,10 @@ pub struct ViewNode<Message> {
 }
 
 pub(in crate::application) enum ViewNodeKind<Message> {
+    Scene {
+        base: Box<ViewNode<Message>>,
+        layers: Vec<Layer<Message>>,
+    },
     Runtime(SurfaceNode<Message>),
     Widget(Box<dyn WidgetView<Message>>),
     Row {

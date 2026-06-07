@@ -27,6 +27,16 @@ impl<Message> SurfaceNode<Message> {
         stats.max_depth = stats.max_depth.max(depth);
         stats.max_scroll_depth = stats.max_scroll_depth.max(scroll_depth);
         match self {
+            Self::Scene(scene) => {
+                scene
+                    .base
+                    .collect_runtime_traversal_stats(depth + 1, scroll_depth, stats);
+                for layer in scene.ordered_layers() {
+                    layer
+                        .node
+                        .collect_runtime_traversal_stats(depth + 1, scroll_depth, stats);
+                }
+            }
             Self::Container(container) => {
                 let is_scroll = container.policy.kind == ContainerKind::ScrollView;
                 if scroll_depth > 0 {

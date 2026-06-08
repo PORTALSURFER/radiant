@@ -74,14 +74,13 @@ where
             WindowEvent::DroppedFile(path) => self.handle_native_file_drop(event_loop, path),
             WindowEvent::CursorLeft { .. } => self.handle_cursor_left(event_loop),
             WindowEvent::MouseInput { button, state, .. } => {
-                let Some(route) = self.route_native_mouse_input(button, state) else {
-                    return;
-                };
+                let route = self.route_native_mouse_input(button, state);
                 if route.is_pressed()
+                    && let (Some(position), Some(button)) = (route.position, route.button)
                     && should_start_popup_window_drag(
                         &self.options,
-                        route.position,
-                        route.button,
+                        position,
+                        button,
                         route.outcome.routed,
                     )
                     && let Some(window) = self.window.window.as_ref()

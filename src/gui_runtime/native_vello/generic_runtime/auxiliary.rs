@@ -123,9 +123,8 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             WindowEvent::CursorMoved { position, .. } => self.runner.handle_cursor_moved(position),
             WindowEvent::CursorLeft { .. } => self.runner.handle_cursor_left(event_loop),
             WindowEvent::MouseInput { button, state, .. } => {
-                if let Some(route) = self.runner.route_native_mouse_input(button, state) {
-                    self.runner.handle_route_outcome(event_loop, route.outcome);
-                }
+                let route = self.runner.route_native_mouse_input(button, state);
+                self.runner.handle_route_outcome(event_loop, route.outcome);
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 let _ = self.runner.route_native_mouse_wheel(delta);

@@ -71,6 +71,10 @@ use input::{
     key_code_from_winit, keypress_from_input, logical_point_from_winit, pointer_button_from_winit,
     pointer_modifiers_from_winit,
 };
+#[cfg(test)]
+use native_pointer::{
+    NativeMouseInputRoute, NativePointerEventKind, NativePointerRouteResult, NativeWheelRoute,
+};
 use pointer_click::pointer_press_event;
 use popup_drag::should_start_popup_window_drag;
 use post_gpu_overlay::PostGpuOverlayRenderer;

@@ -37,36 +37,50 @@ where
     }
 
     pub(in super::super) fn mouse_pressed(&mut self, button: MouseButton) -> GenericRouteOutcome {
-        let Some(route) = self
+        let route = self
             .runner
-            .route_native_mouse_input(button, winit::event::ElementState::Pressed)
-        else {
-            return GenericRouteOutcome::default();
-        };
+            .route_native_mouse_input(button, winit::event::ElementState::Pressed);
         let outcome = route.outcome;
         self.apply_route_outcome(outcome);
         outcome
     }
 
     pub(in super::super) fn mouse_released(&mut self, button: MouseButton) -> GenericRouteOutcome {
-        let Some(route) = self
+        let route = self
             .runner
-            .route_native_mouse_input(button, winit::event::ElementState::Released)
-        else {
-            return GenericRouteOutcome::default();
-        };
+            .route_native_mouse_input(button, winit::event::ElementState::Released);
         let outcome = route.outcome;
         self.apply_route_outcome(outcome);
         outcome
     }
 
-    pub(in super::super) fn mouse_wheel(
+    pub(in super::super) fn mouse_pressed_route(
+        &mut self,
+        button: MouseButton,
+    ) -> NativeMouseInputRoute {
+        let route = self
+            .runner
+            .route_native_mouse_input(button, winit::event::ElementState::Pressed);
+        self.apply_route_outcome(route.outcome);
+        route
+    }
+
+    pub(in super::super) fn mouse_released_route(
+        &mut self,
+        button: MouseButton,
+    ) -> NativeMouseInputRoute {
+        let route = self
+            .runner
+            .route_native_mouse_input(button, winit::event::ElementState::Released);
+        self.apply_route_outcome(route.outcome);
+        route
+    }
+
+    pub(in super::super) fn mouse_wheel_route(
         &mut self,
         delta: winit::event::MouseScrollDelta,
-    ) -> GenericRouteOutcome {
-        self.runner
-            .route_native_mouse_wheel(delta)
-            .unwrap_or_default()
+    ) -> NativeWheelRoute {
+        self.runner.route_native_mouse_wheel(delta)
     }
 
     pub(in super::super) fn focus_regained(&mut self) {

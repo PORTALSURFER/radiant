@@ -218,9 +218,10 @@ impl<Message> Layer<Message> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        application::{IntoView, Layer, LayerInputPolicy, scene, text},
+        application::{IntoView, Layer, LayerInputPolicy, button, column, row, scene, text},
+        gui::types::Point,
         layout::{LayoutNode, Vector2},
-        runtime::LayerKind,
+        runtime::{DeclarativeOwnedRuntimeBridge, Event, LayerKind, SurfaceRuntime},
     };
 
     #[test]
@@ -316,6 +317,90 @@ mod tests {
             .text_label_strings();
 
         assert_eq!(labels, ["Base", "Floating", "Tooltip", "Drag"]);
+    }
+
+    #[test]
+    fn scene_transient_layers_project_from_base_descendants() {
+        let labels = scene::<()>(column([
+            text("Status").popover_layer(text("Job details")),
+            text("Browser").context_menu_layer(text("Context menu")),
+            text("Editor").floating_layer(text("Completion")),
+        ]))
+        .into_view()
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 180.0))
+        .paint_plan
+        .text_label_strings();
+
+        assert_eq!(
+            labels,
+            [
+                "Status",
+                "Browser",
+                "Editor",
+                "Completion",
+                "Job details",
+                "Context menu"
+            ]
+        );
+    }
+
+    #[test]
+    fn scene_transient_layers_preserve_declaration_order_within_kind() {
+        let labels = scene::<()>(row([
+            text("Left").modal_layer(text("Left modal")),
+            text("Right").modal_layer(text("Right modal")),
+        ]))
+        .into_view()
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 180.0))
+        .paint_plan
+        .text_label_strings();
+
+        assert_eq!(labels, ["Left", "Right", "Left modal", "Right modal"]);
+    }
+
+    #[test]
+    fn scene_transient_layers_compose_before_explicit_root_layers() {
+        let labels = scene::<()>(text("Base").modal_layer(text("Component modal")))
+            .layer(Layer::modal(text("Root modal")))
+            .into_view()
+            .view_frame_at_size_with_default_theme(Vector2::new(320.0, 180.0))
+            .paint_plan
+            .text_label_strings();
+
+        assert_eq!(labels, ["Base", "Component modal", "Root modal"]);
+    }
+
+    #[test]
+    fn scene_transient_dismiss_policy_routes_above_base() {
+        #[derive(Clone, Debug, PartialEq)]
+        enum Message {
+            Base,
+            Dismiss,
+        }
+
+        let bridge = DeclarativeOwnedRuntimeBridge::new(
+            Vec::<Message>::new(),
+            |_| {
+                scene::<Message>(
+                    button("Base")
+                        .message(Message::Base)
+                        .fill()
+                        .transient_layer(
+                            Layer::context_menu(text("Menu"))
+                                .dismiss_on_outside_click(Message::Dismiss),
+                        ),
+                )
+                .into_view()
+                .fill()
+                .into_surface()
+            },
+            |state, message| state.push(message),
+        );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 160.0));
+
+        runtime.dispatch_event(Event::primary_press(Point::new(220.0, 140.0)));
+
+        assert_eq!(runtime.bridge().state(), &[Message::Dismiss]);
     }
 
     #[test]

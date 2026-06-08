@@ -293,3 +293,46 @@ impl<Message> Layer<Message> {
                 .is_some_and(ViewNode::has_reserved_identity_in_subtree)
     }
 }
+
+impl<Message> ViewNode<Message> {
+    pub(in crate::application) fn drain_transient_layers_in_declaration_order(
+        &mut self,
+        layers: &mut Vec<Layer<Message>>,
+    ) {
+        match &mut self.kind {
+            ViewNodeKind::Scene {
+                base,
+                layers: scene_layers,
+                ..
+            } => {
+                base.drain_transient_layers_in_declaration_order(layers);
+                for layer in scene_layers {
+                    if let Some(input) = layer.input.as_mut() {
+                        input.drain_transient_layers_in_declaration_order(layers);
+                    }
+                    layer
+                        .view
+                        .drain_transient_layers_in_declaration_order(layers);
+                }
+            }
+            ViewNodeKind::Row { children, .. }
+            | ViewNodeKind::Column { children, .. }
+            | ViewNodeKind::Grid { children, .. }
+            | ViewNodeKind::Wrap { children, .. }
+            | ViewNodeKind::Stack { children } => {
+                for child in children {
+                    child.drain_transient_layers_in_declaration_order(layers);
+                }
+            }
+            ViewNodeKind::Scroll { child }
+            | ViewNodeKind::VirtualScroll { child, .. }
+            | ViewNodeKind::FloatingLayer { child, .. } => {
+                child.drain_transient_layers_in_declaration_order(layers);
+            }
+            ViewNodeKind::Runtime(_)
+            | ViewNodeKind::Widget(_)
+            | ViewNodeKind::OverlayPanel { .. } => {}
+        }
+        layers.append(&mut self.transient_layers);
+    }
+}

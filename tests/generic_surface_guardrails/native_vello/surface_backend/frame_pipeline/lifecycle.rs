@@ -24,6 +24,8 @@ fn native_timed_frame_drain_does_not_recompute_selected_cadence() {
 fn native_lifecycle_uses_explicit_imports() {
     let lifecycle =
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/lifecycle.rs");
+    let native_pointer =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/native_pointer.rs");
 
     assert!(
         lifecycle.contains("use super::{")
@@ -31,9 +33,6 @@ fn native_lifecycle_uses_explicit_imports() {
             && lifecycle.contains("GenericNativeVelloRunner")
             && lifecycle.contains("RuntimeUserEvent")
             && lifecycle.contains("TimedFrameCadence")
-            && lifecycle.contains("maybe_log_route_profile")
-            && lifecycle.contains("pointer_button_from_winit")
-            && lifecycle.contains("scroll_delta_to_logical")
             && lifecycle.contains("should_start_popup_window_drag")
             && lifecycle.contains("timed_frame_cadence")
             && lifecycle.contains("timed_frame_target_fps")
@@ -43,6 +42,14 @@ fn native_lifecycle_uses_explicit_imports() {
             && lifecycle.contains("use winit::{")
             && !lifecycle.starts_with("use super::*;"),
         "native lifecycle should name runner, auxiliary routing, runtime event, cadence, input conversion, popup policy, bridge, timing, logging, and Winit dependencies"
+    );
+    assert!(
+        native_pointer.contains("use super::{")
+            && native_pointer.contains("maybe_log_route_profile")
+            && native_pointer.contains("pointer_button_from_winit")
+            && native_pointer.contains("scroll_delta_to_logical")
+            && !native_pointer.starts_with("use super::*;"),
+        "native pointer routing should explicitly import route profiling and pointer/wheel conversion helpers"
     );
     assert!(
         lifecycle.contains("impl<Bridge, Message> ApplicationHandler<RuntimeUserEvent>")
@@ -120,6 +127,8 @@ fn native_auxiliary_windows_use_explicit_runtime_imports() {
     let module = read_runtime_source("src/gui_runtime/native_vello/generic_runtime.rs");
     let auxiliary =
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/auxiliary.rs");
+    let native_pointer =
+        read_runtime_source("src/gui_runtime/native_vello/generic_runtime/native_pointer.rs");
 
     assert!(
         module.contains("mod auxiliary;")
@@ -132,13 +141,16 @@ fn native_auxiliary_windows_use_explicit_runtime_imports() {
             && auxiliary.contains("GenericNativeVelloRunner")
             && auxiliary.contains("GenericRouteOutcome")
             && auxiliary.contains("owner_window_handle")
-            && auxiliary.contains("scroll_delta_to_logical")
             && auxiliary.contains(
                 "use crate::runtime::{AuxiliaryWindow, NativeRunOptions, RuntimeBridge};"
             )
             && auxiliary.contains("use winit::{")
             && !auxiliary.starts_with("use super::*;"),
         "auxiliary windows should name their runner, runtime helper, public model, and winit dependencies"
+    );
+    assert!(
+        native_pointer.contains("scroll_delta_to_logical"),
+        "auxiliary windows should reuse the shared native pointer wheel routing contract"
     );
     assert!(
         auxiliary.contains("fn dispatch_auxiliary_messages")

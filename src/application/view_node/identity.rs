@@ -43,6 +43,7 @@ impl<Message> ViewNode<Message> {
             ViewNodeKind::Row { children, .. }
             | ViewNodeKind::Column { children, .. }
             | ViewNodeKind::Grid { children, .. }
+            | ViewNodeKind::Wrap { children, .. }
             | ViewNodeKind::Stack { children } => {
                 reserve_child_identity_capacity(children, ids);
                 for child in children {

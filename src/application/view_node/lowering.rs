@@ -125,8 +125,12 @@ impl<'a> ViewLowering<'a> {
 
         let lowered = match node.kind {
             ViewNodeKind::Scene { base, layers, .. } => {
-                let base = self.lower_node(*base, child_scope);
-                let layers = layers
+                let mut base = *base;
+                let mut collected_layers = Vec::new();
+                base.drain_transient_layers_in_declaration_order(&mut collected_layers);
+                collected_layers.extend(layers);
+                let base = self.lower_node(base, child_scope);
+                let layers = collected_layers
                     .into_iter()
                     .map(|layer| {
                         let input = layer.input.map(|input| self.lower_node(input, child_scope));

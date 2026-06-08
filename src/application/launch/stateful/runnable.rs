@@ -1,7 +1,10 @@
 use crate::{
-    application::{AppBridge, AppBridgeLifecycle, Result, UpdateContext, launch::IntoView},
+    application::{
+        AppBridge, AppBridgeLifecycle, AppUpdate, RepaintPolicy, Result, UpdateContext,
+        launch::IntoView,
+    },
     gui_runtime::NativeRunOptions,
-    runtime::{RuntimeBridge, run_native_vello_runtime},
+    runtime::{Command, RuntimeBridge, run_native_vello_runtime},
 };
 use std::marker::PhantomData;
 
@@ -40,5 +43,28 @@ where
     /// Lower this app into the existing runtime bridge without opening a window.
     pub fn into_bridge(self) -> impl RuntimeBridge<Message> {
         AppBridge::new(self.state, self.project, self.update, self.lifecycle)
+    }
+
+    /// Apply an automatic repaint policy after app messages are reduced.
+    pub fn repaint_policy(
+        self,
+        policy: RepaintPolicy<Message>,
+    ) -> RunnableStatefulApp<State, Message, Project, AppUpdate<State, Message>, View> {
+        let mut update = self.update;
+        RunnableStatefulApp {
+            state: self.state,
+            options: self.options,
+            project: self.project,
+            update: Box::new(move |state, message, context| {
+                let repaint = policy.scope_for(&message);
+                update(state, message, context);
+                if let Some(repaint) = repaint {
+                    context.command(Command::repaint(repaint));
+                }
+            }),
+            lifecycle: self.lifecycle,
+            _message: PhantomData,
+            _view: PhantomData,
+        }
     }
 }

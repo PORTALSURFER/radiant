@@ -34,14 +34,14 @@ where
     where
         Update: FnMut(&mut State, Message) + 'static,
     {
-        self.update_with(Box::new(move |state, message, context| {
+        self.reducer(Box::new(move |state, message, context| {
             update(state, message);
             context.command(Command::request_repaint());
         }))
     }
 
-    /// Attach a reducer that can queue runtime-visible work through an update context.
-    pub fn update_with<Update>(
+    /// Attach an app reducer that can queue runtime-visible work through an update context.
+    pub fn reducer<Update>(
         self,
         update: Update,
     ) -> RunnableStatefulApp<State, Message, Project, Update, View>
@@ -59,6 +59,21 @@ where
         }
     }
 
+    /// Advanced compatibility alias for [`Self::reducer`].
+    ///
+    /// Prefer [`Self::reducer`] for app-facing reducers. This older name
+    /// remains public for existing code and examples that intentionally model
+    /// the lower-level update/context hook.
+    pub fn update_with<Update>(
+        self,
+        update: Update,
+    ) -> RunnableStatefulApp<State, Message, Project, Update, View>
+    where
+        Update: FnMut(&mut State, Message, &mut UpdateContext<Message>) + 'static,
+    {
+        self.reducer(update)
+    }
+
     /// Attach a reducer that returns runtime-visible commands.
     pub fn update_command<Update>(
         self,
@@ -67,7 +82,7 @@ where
     where
         Update: FnMut(&mut State, Message) -> Command<Message> + 'static,
     {
-        self.update_with(Box::new(move |state, message, context| {
+        self.reducer(Box::new(move |state, message, context| {
             context.command(update(state, message));
         }))
     }

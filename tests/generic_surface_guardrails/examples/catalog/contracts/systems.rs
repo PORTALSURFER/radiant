@@ -51,7 +51,7 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         &[
             ".shortcuts(",
             "ShortcutResolution::action",
-            ".update_with(",
+            ".reducer(",
             "context.focus(",
             "text_input(",
             ".message(",

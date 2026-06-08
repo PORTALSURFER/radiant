@@ -39,7 +39,7 @@ fn main() -> radiant::Result {
             ShortcutResolution::unhandled()
         }
     })
-    .update_with(update)
+    .reducer(update)
     .run()
 }
 
@@ -126,7 +126,7 @@ mod tests {
             status: String::from("Choose a focus target"),
         })
         .view(project_surface)
-        .update_with(update)
+        .reducer(update)
         .into_bridge();
         let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(560.0, 240.0));
 

@@ -215,10 +215,13 @@ after projection. Use
 `InteractiveRowUnderlayBuilder::tracked_drop_target(...)` when arbitrary
 visible row content should keep its own paint tree while the transparent
 interactive-row underlay owns standard tracked drop-target behavior.
-Reducers that need the full app runtime can
-use `.update_with(...)` and an `UpdateContext<Message>` to emit messages,
-request repaint, move focus, start background work, schedule delayed messages,
-or request runtime exit. `PlatformResponse` exposes helpers such as
+Reducers that need the full app runtime should use `.reducer(...)` with an
+`UpdateContext<Message>` to emit messages, request repaint, move focus, start
+background work, schedule delayed messages, or request runtime exit. Use
+`.repaint_policy(...)` with `RepaintPolicy` when ordinary app messages should
+request a repaint automatically while frame or paint-only messages opt out.
+The older `.update_with(...)` name remains public as an advanced compatibility
+alias for the same context-aware reducer hook. `PlatformResponse` exposes helpers such as
 `path()`, `into_path()`, `into_path_or_canceled()`, `is_canceled()`,
 `is_completed()`, `into_completed()`, `confirmation()`, and
 `into_confirmation()`, while the `PlatformResultExt` prelude trait provides the
@@ -805,7 +808,8 @@ radiant::app(state)
                     }),
             ),
     )
-    .update_with(update)
+    .reducer(update)
+    .repaint_policy(ui::RepaintPolicy::after_messages_except_value(GuiMessage::Frame))
     .run();
 ```
 
@@ -881,10 +885,14 @@ Radiant does not define the domain model. The public `App<Message>` contract is
 implemented by every `RuntimeBridge<Message>`: hosts can provide a custom bridge
 or use `declarative_runtime_bridge(state, project, reduce)` to project an
 immutable `UiSurface<Message>` from state and reduce messages back into state.
-Apps whose update flow returns runtime-visible follow-up work should use
-`radiant::app(...).update_command(...)` or `.update_with(...)`. The app builder
-lowers into Radiant's bridge internally while keeping side effects and domain
-state host-owned. Low-level hosts can still provide a custom bridge or use
+Apps whose update flow returns runtime-visible follow-up work can use
+`radiant::app(...).update_command(...)`; apps that need `UpdateContext` should
+use `.reducer(...)`. `RepaintPolicy` lets app-builder code declare automatic
+message repaint behavior outside the reducer instead of hand-writing repaint
+logic in launch closures. The older `.update_with(...)` hook is retained for
+compatibility and custom lower-level lifecycle code. The app builder lowers into
+Radiant's bridge internally while keeping side effects and domain state
+host-owned. Low-level hosts can still provide a custom bridge or use
 `declarative_command_runtime_bridge(state, project, update)` when embedding
 Radiant outside the application builder.
 

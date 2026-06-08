@@ -22,7 +22,7 @@ fn waveform_playback_uses_paint_only_transient_playhead() {
                 paint_playhead_overlay(state, context.plan, context.animation_time, primitives);
             },
         )
-        .update_with(|state, message, context| {
+        .reducer(|state, message, context| {
             state.apply_interaction(message);
             context.request_repaint();
         })

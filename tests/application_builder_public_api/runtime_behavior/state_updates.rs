@@ -38,3 +38,60 @@ fn stateful_app_builder_projects_updates_and_preserves_commands() {
         "Count: 1"
     );
 }
+
+#[test]
+fn reducer_exposes_update_context_with_clear_app_api_name() {
+    use radiant::prelude as ui;
+
+    let mut bridge = ui::app(DemoState::default())
+        .view(|state| ui::text(format!("Count: {}", state.count)))
+        .reducer(|state, message, context| match message {
+            DemoMessage::Increment => {
+                state.count += 1;
+                context.request_repaint();
+            }
+        })
+        .into_bridge();
+
+    let command = bridge.update(DemoMessage::Increment);
+
+    assert!(command.requests_repaint());
+    let after = bridge.project_surface();
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&after, 1, "text").text,
+        "Count: 1"
+    );
+}
+
+#[test]
+fn repaint_policy_can_skip_frame_messages() {
+    use radiant::prelude as ui;
+
+    #[derive(Clone, Debug, PartialEq)]
+    enum Message {
+        Frame,
+        User,
+    }
+
+    let mut bridge = ui::app(DemoState::default())
+        .view(|state| ui::text(format!("Count: {}", state.count)))
+        .reducer(|state, message, _context| match message {
+            Message::Frame => state.count += 1,
+            Message::User => state.count += 10,
+        })
+        .repaint_policy(ui::RepaintPolicy::after_messages_except_value(
+            Message::Frame,
+        ))
+        .into_bridge();
+
+    let frame_command = bridge.update(Message::Frame);
+    let user_command = bridge.update(Message::User);
+
+    assert!(!frame_command.requests_repaint());
+    assert!(user_command.requests_repaint());
+    let after = bridge.project_surface();
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&after, 1, "text").text,
+        "Count: 11"
+    );
+}

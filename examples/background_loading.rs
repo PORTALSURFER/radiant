@@ -52,7 +52,7 @@ fn main() -> radiant::Result {
             .padding(16.0)
             .spacing(8.0)
         })
-        .update_with(|state, message, context| match message {
+        .reducer(|state, message, context| match message {
             LoadingMessage::Start => {
                 context.spawn_resource(
                     &mut state.resource,

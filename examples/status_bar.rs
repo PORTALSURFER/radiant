@@ -33,6 +33,6 @@ fn main() -> radiant::Result {
                 Some(progress_frame(state, rect, &ThemeTokens::default()))
             },
         )
-        .update_with(update)
+        .reducer(update)
         .run()
 }

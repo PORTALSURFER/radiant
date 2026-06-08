@@ -36,6 +36,8 @@ pub use runtime::{
 };
 mod presentation;
 pub use presentation::{FrameClock, Presentation, TransientOverlay, presentation};
+mod repaint_policy;
+pub use repaint_policy::RepaintPolicy;
 mod launch;
 pub use launch::{
     IntoView, RunnableStatefulApp, StatefulAppBuilder, StatefulAppWithView, WindowBuilder, app,

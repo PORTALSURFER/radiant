@@ -1813,12 +1813,11 @@ If no folder root is supplied, `folder_browser` uses a temp-directory demo
 root. If no WAV path is supplied, `waveform_view` uses a generated synthetic
 signal while exercising the same waveform summary and GPU-surface projection
 path as real input. The waveform view keeps the dense signal body in a retained
-`GpuSurfaceContent::SignalSummaryBands` surface and uses
-`.animated_transient_overlay_at(...)` for the playback playhead, anchoring the
-moving line through `SurfacePaintPlan::first_widget_rect`. That keeps playback
-on the paint-only presentation path instead of queueing app frame messages,
-reprojecting the declarative surface, or rebuilding the waveform scene for each
-playhead tick.
+`GpuSurfaceContent::SignalSummaryBands` surface. It still demonstrates the
+advanced launch-level `.animated_transient_overlay_at(...)` hook for a playback
+playhead anchored through `SurfacePaintPlan::first_widget_rect`; new root app
+composition should prefer `Scene::overlay(...)` for paint-only transient
+presentation unless direct lifecycle wiring is specifically needed.
 Run `cargo run --example generic_native` for the compact native-runtime starter
 that demonstrates the current application-builder first-use path.
 Run `cargo run --example hello_world` for the smallest windowed app skeleton.
@@ -1938,9 +1937,10 @@ for the foreground-only menu content so dismissal stays owned by the scene
 layer policy.
 These helpers avoid app-local `message_menu_height(...)` sizing and hard-coded
 context-menu width constants.
-Run `cargo run --example scene` for a root-scene sandbox that composes
-base content with floating, popover, modal, context-menu, tooltip, and
-drag-preview layers through `Scene` and `Layer`.
+Run `cargo run --example scene` for the preferred root-scene sandbox. It
+composes base content with floating, popover, modal, context-menu, tooltip, and
+drag-preview layers through `Scene` and `Layer`, and declares a root
+`FrameClock` plus paint-only `TransientOverlay` directly on the `Scene`.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
 that composes `MenuItem`, `menu(...)`, and `context_menu_overlay(...)` with
 normal state callbacks.
@@ -1955,16 +1955,18 @@ selectables, and port rewiring through public application builders.
 Run `cargo run --example timeline_editor` for a timeline-editor-style sandbox
 that projects `TimelineSurfaceState`, `TimelineMotionState`, retained canvas
 metadata, marker selection, and transport controls through normal app views.
-Run `cargo run --example animation_showcase` for a frame-driven UI sandbox that
-uses `.animation(...)` and `.on_frame(...)` through the stateful application
-builder.
+Run `cargo run --example animation_showcase` for an advanced frame-driven UI
+sandbox that uses the lower-level `.animation(...)` and `.on_frame(...)`
+stateful application hooks. Prefer `Scene::frame_clock(...)` for new root
+surface frame-message animation.
 Run `cargo run --example gpu_surface_stack_overlay` for a retained GPU surface
 with normal widget overlays plus a transient animated blob that repaints every
-frame through `.animated_transient_overlay_at(...)` without refreshing the
-declarative surface, rebuilding the cached Vello scene, or recompositing the
-stable retained GPU surface on every overlay-only frame. The overlay caps its
-paint-only cadence to 60 FPS and anchors to the cached GPU-surface rectangle
-through `SurfacePaintPlan::first_widget_rect`.
+frame through the advanced launch-level `.animated_transient_overlay_at(...)`
+hook without refreshing the declarative surface, rebuilding the cached Vello
+scene, or recompositing the stable retained GPU surface on every overlay-only
+frame. The overlay caps its paint-only cadence to 60 FPS and anchors to the
+cached GPU-surface rectangle through `SurfacePaintPlan::first_widget_rect`.
+Prefer `Scene::overlay(...)` for normal root-scoped paint-only presentation.
 Run `cargo run --example background_loading` for a background-work sandbox that
 uses `ResourceSlot`, `ResourceCompletion`, and `UpdateContext::spawn_resource(...)`
 to route worker resource results back into the normal state update path.

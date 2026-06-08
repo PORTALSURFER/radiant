@@ -34,6 +34,9 @@ impl<Message> ViewNode<Message> {
             ViewNodeKind::Scene { base, layers, .. } => {
                 base.collect_reserved_ids(child_scope, ids);
                 for layer in layers {
+                    if let Some(input) = layer.input.as_ref() {
+                        input.collect_reserved_ids(child_scope, ids);
+                    }
                     layer.view.collect_reserved_ids(child_scope, ids);
                 }
             }
@@ -53,6 +56,12 @@ impl<Message> ViewNode<Message> {
                 child.collect_reserved_ids(child_scope, ids)
             }
             _ => {}
+        }
+        for layer in &self.transient_layers {
+            if let Some(input) = layer.input.as_ref() {
+                input.collect_reserved_ids(child_scope, ids);
+            }
+            layer.view.collect_reserved_ids(child_scope, ids);
         }
     }
 

@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    application::{ROOT_KEY_SCOPE, column, floating_layer, grid, row, row_key, text},
+    application::{Layer, ROOT_KEY_SCOPE, column, floating_layer, grid, row, row_key, text},
     gui::types::Point,
     layout::Vector2,
     runtime::{SurfaceNode, WidgetMessageMapper},
@@ -82,6 +82,39 @@ fn reserved_id_collection_includes_floating_layer_child_identities() {
 
     assert_eq!(ids.len(), 4);
     assert!(ids.contains(&12_345));
+}
+
+#[test]
+fn view_node_transient_reserved_id_collection_includes_foreground_identities() {
+    let view: ViewNode<()> = text("owner").context_menu_layer(text("menu").id(12_345));
+    let mut ids = Vec::new();
+
+    view.collect_reserved_ids(ROOT_KEY_SCOPE, &mut ids);
+
+    assert_eq!(ids, vec![12_345]);
+}
+
+#[test]
+fn view_node_transient_reserved_id_collection_includes_input_identities() {
+    let mut layer = Layer::modal(text("modal").id(12_346));
+    layer.input = Some(text("input").key("modal-input"));
+    let view: ViewNode<()> = text("owner").transient_layer(layer);
+    let mut ids = Vec::new();
+
+    view.collect_reserved_ids(ROOT_KEY_SCOPE, &mut ids);
+
+    assert_eq!(ids.len(), 2);
+    assert!(ids.contains(&12_346));
+}
+
+#[test]
+fn view_node_transient_optional_none_does_not_reserve_identity() {
+    let view: ViewNode<()> = text("owner").transient_layer_opt(None);
+    let mut ids = Vec::new();
+
+    view.collect_reserved_ids(ROOT_KEY_SCOPE, &mut ids);
+
+    assert!(ids.is_empty());
 }
 
 #[test]

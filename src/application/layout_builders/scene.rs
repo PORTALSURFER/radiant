@@ -110,13 +110,10 @@ impl<Message: 'static> Scene<Message> {
     /// Lower this scene into a Radiant view node.
     pub fn into_view(self) -> ViewNode<Message> {
         let has_reserved_descendant_identity = self.base.has_reserved_identity_in_subtree()
-            || self.layers.iter().any(|layer| {
-                layer.view.has_reserved_identity_in_subtree()
-                    || layer
-                        .input
-                        .as_ref()
-                        .is_some_and(ViewNode::has_reserved_identity_in_subtree)
-            });
+            || self
+                .layers
+                .iter()
+                .any(Layer::has_reserved_identity_in_subtree);
         ViewNode::new(ViewNodeKind::Scene {
             base: Box::new(self.base),
             layers: self.layers,

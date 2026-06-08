@@ -79,6 +79,7 @@ pub struct ViewNode<Message> {
     scroll_message: Option<ScrollMessageMapper<Message>>,
     accepts_native_file_drop: bool,
     native_file_drop: Option<NativeFileDropMessageMapper<Message>>,
+    transient_layers: Vec<Layer<Message>>,
 }
 
 pub(in crate::application) enum ViewNodeKind<Message> {
@@ -161,6 +162,7 @@ impl<Message> ViewNode<Message> {
             scroll_message: None,
             accepts_native_file_drop: false,
             native_file_drop: None,
+            transient_layers: Vec::new(),
         }
     }
 
@@ -198,5 +200,96 @@ impl<Message> ViewNode<Message> {
         self.accepts_native_file_drop = true;
         self.native_file_drop = Some(Arc::new(map));
         self
+    }
+
+    /// Declare a view-local transient scene layer owned by this view subtree.
+    ///
+    /// Root scenes collect these declarations during scene lowering so
+    /// components can keep popovers, context menus, modals, tooltips, drag
+    /// previews, and other transient UI beside the view that owns them.
+    pub fn transient_layer(mut self, layer: Layer<Message>) -> Self {
+        if layer.has_reserved_identity_in_subtree() {
+            self.has_reserved_descendant_identity = true;
+        }
+        self.transient_layers.push(layer);
+        self
+    }
+
+    /// Declare an optional view-local transient scene layer.
+    pub fn transient_layer_opt(self, layer: Option<Layer<Message>>) -> Self {
+        match layer {
+            Some(layer) => self.transient_layer(layer),
+            None => self,
+        }
+    }
+
+    /// Declare a generic floating layer owned by this view subtree.
+    pub fn floating_layer(self, view: ViewNode<Message>) -> Self {
+        self.transient_layer(Layer::floating(view))
+    }
+
+    /// Declare an optional generic floating layer owned by this view subtree.
+    pub fn floating_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
+        self.transient_layer_opt(view.map(Layer::floating))
+    }
+
+    /// Declare a popover layer owned by this view subtree.
+    pub fn popover_layer(self, view: ViewNode<Message>) -> Self {
+        self.transient_layer(Layer::popover(view))
+    }
+
+    /// Declare an optional popover layer owned by this view subtree.
+    pub fn popover_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
+        self.transient_layer_opt(view.map(Layer::popover))
+    }
+
+    /// Declare a modal layer owned by this view subtree.
+    pub fn modal_layer(self, view: ViewNode<Message>) -> Self {
+        self.transient_layer(Layer::modal(view))
+    }
+
+    /// Declare an optional modal layer owned by this view subtree.
+    pub fn modal_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
+        self.transient_layer_opt(view.map(Layer::modal))
+    }
+
+    /// Declare a context menu layer owned by this view subtree.
+    pub fn context_menu_layer(self, view: ViewNode<Message>) -> Self {
+        self.transient_layer(Layer::context_menu(view))
+    }
+
+    /// Declare an optional context menu layer owned by this view subtree.
+    pub fn context_menu_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
+        self.transient_layer_opt(view.map(Layer::context_menu))
+    }
+
+    /// Declare a tooltip layer owned by this view subtree.
+    pub fn tooltip_layer(self, view: ViewNode<Message>) -> Self {
+        self.transient_layer(Layer::tooltip(view))
+    }
+
+    /// Declare an optional tooltip layer owned by this view subtree.
+    pub fn tooltip_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
+        self.transient_layer_opt(view.map(Layer::tooltip))
+    }
+
+    /// Declare a drag-preview layer owned by this view subtree.
+    pub fn drag_preview_layer(self, view: ViewNode<Message>) -> Self {
+        self.transient_layer(Layer::drag_preview(view))
+    }
+
+    /// Declare an optional drag-preview layer owned by this view subtree.
+    pub fn drag_preview_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
+        self.transient_layer_opt(view.map(Layer::drag_preview))
+    }
+}
+
+impl<Message> Layer<Message> {
+    pub(in crate::application) fn has_reserved_identity_in_subtree(&self) -> bool {
+        self.view.has_reserved_identity_in_subtree()
+            || self
+                .input
+                .as_ref()
+                .is_some_and(ViewNode::has_reserved_identity_in_subtree)
     }
 }

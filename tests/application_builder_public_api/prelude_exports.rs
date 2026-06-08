@@ -40,6 +40,32 @@ fn prelude_views_can_resolve_layout_directly() {
 }
 
 #[test]
+fn view_node_transient_helpers_are_available_from_prelude_views() {
+    use radiant::prelude::*;
+
+    let view: View<()> = text("Owner")
+        .floating_layer(text("Floating"))
+        .popover_layer(text("Popover"))
+        .modal_layer(text("Modal"))
+        .context_menu_layer(text("Menu"))
+        .tooltip_layer(text("Tooltip"))
+        .drag_preview_layer(text("Drag"))
+        .transient_layer(Layer::modal(text("Explicit")))
+        .transient_layer_opt(None)
+        .floating_layer_opt(None)
+        .popover_layer_opt(None)
+        .modal_layer_opt(None)
+        .context_menu_layer_opt(None)
+        .tooltip_layer_opt(None)
+        .drag_preview_layer_opt(None);
+
+    let frame = view.view_frame_at_size_with_default_theme(Vector2::new(120.0, 40.0));
+
+    assert!(frame.paint_plan.contains_text("Owner"));
+    assert!(!frame.paint_plan.contains_text("Floating"));
+}
+
+#[test]
 fn prelude_views_can_dispatch_widget_outputs_directly() {
     use radiant::prelude::*;
 

@@ -6,7 +6,7 @@ use crate::{
 
 mod mapper;
 
-pub use mapper::{MessageMapper, WidgetMessageMapper};
+pub use mapper::{MessageMapper, ScrollMessageMapper, WidgetMessageMapper};
 
 /// One widget leaf inside a generic declarative [`UiSurface`](super::UiSurface).
 pub struct SurfaceWidget<Message> {

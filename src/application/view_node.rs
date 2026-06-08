@@ -14,7 +14,7 @@ use slot::SlotBehavior;
 use crate::{
     application::WidgetView,
     layout::{CrossAlign, Insets, MainAlign, NodeId, Vector2},
-    runtime::{LayerKind, SurfaceNode},
+    runtime::{LayerKind, ScrollMessageMapper, SurfaceNode},
     widgets::{TextAlign, TextBackgroundRole, TextColorRole, TextWrap, WidgetSizing, WidgetStyle},
 };
 use std::any::Any;
@@ -73,6 +73,7 @@ pub struct ViewNode<Message> {
     text_color: Option<TextColorRole>,
     text_background: Option<TextBackgroundRole>,
     text_inset: Option<Vector2>,
+    scroll_message: Option<ScrollMessageMapper<Message>>,
 }
 
 pub(in crate::application) enum ViewNodeKind<Message> {
@@ -151,6 +152,7 @@ impl<Message> ViewNode<Message> {
             text_color: None,
             text_background: None,
             text_inset: None,
+            scroll_message: None,
         }
     }
 

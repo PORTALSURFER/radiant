@@ -36,6 +36,17 @@ pub struct VirtualListWindow {
     pub window_end: usize,
 }
 
+/// Runtime-originated fixed-row virtual-list window change.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct VirtualListWindowChange {
+    /// Pixel scroll offset reported by the scroll container.
+    pub offset_y: f32,
+    /// Fixed logical row height used to map pixels to logical rows.
+    pub row_height: f32,
+    /// Resolved logical window after applying the scroll offset.
+    pub window: VirtualListWindow,
+}
+
 impl VirtualListWindow {
     /// Number of materialized items in this window.
     pub fn window_len(self) -> usize {

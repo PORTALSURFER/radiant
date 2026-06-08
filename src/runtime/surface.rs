@@ -29,7 +29,7 @@ pub(in crate::runtime) use traversal::{
     SurfaceContainerTraversalRecord, SurfaceTraversalIndex, SurfaceTraversalStats,
     SurfaceWidgetTraversalRecord,
 };
-pub use widget::{MessageMapper, SurfaceWidget, WidgetMessageMapper};
+pub use widget::{MessageMapper, ScrollMessageMapper, SurfaceWidget, WidgetMessageMapper};
 
 pub(in crate::runtime) use crate::widgets::WidgetId;
 

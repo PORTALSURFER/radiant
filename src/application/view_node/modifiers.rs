@@ -2,6 +2,8 @@
 mod container;
 #[path = "modifiers/identity.rs"]
 mod identity;
+#[path = "modifiers/scroll.rs"]
+mod scroll;
 #[path = "modifiers/sizing.rs"]
 mod sizing;
 #[path = "modifiers/slot.rs"]

@@ -69,6 +69,14 @@ where
     }
 
     pub(super) fn report_scroll_update(&mut self, update: ScrollUpdate) {
+        if let Some(message) = self.surface.root().scroll_message(update) {
+            let outcome = self.execute_command(crate::runtime::Command::Message(message));
+            if !outcome.surface_refresh_requested {
+                self.refresh();
+            }
+            self.repaint_requested = true;
+            return;
+        }
         if let Some(command) = self.bridge.scroll_updated(update) {
             let outcome = self.execute_command(command);
             if !outcome.surface_refresh_requested {

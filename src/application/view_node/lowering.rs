@@ -102,12 +102,18 @@ impl<'a> ViewLowering<'a> {
         let child_scope = id;
         let style = node.style;
         let hoverable = node.hoverable;
+        let scroll_message = node.scroll_message;
         let defaults =
             ViewNodeContainerDefaults::new(node.padding, node.align_main, node.align_cross, style);
         let base_policy = || defaults.base_policy();
         let styled_container =
             |lowering: &mut Self, policy: ContainerPolicy, children: Vec<SurfaceChild<Message>>| {
-                lowering.lower_container(id, policy, style, hoverable, children)
+                let mut container =
+                    lowering.lower_container(id, policy, style, hoverable, children);
+                if let Some(scroll_message) = scroll_message.clone() {
+                    container = container.with_scroll_message(scroll_message);
+                }
+                container
             };
 
         match node.kind {

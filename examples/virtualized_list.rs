@@ -10,9 +10,10 @@ const SCROLL_OVERSCAN_PX: f32 = ROW_HEIGHT * OVERSCAN_ROWS as f32;
 const LIST_ID: u64 = 100;
 const ROW_ID_BASE: u64 = 10_000;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 enum Message {
     Select(usize),
+    WindowChanged(VirtualListWindowChange),
 }
 
 #[derive(Default)]
@@ -27,14 +28,13 @@ fn main() -> radiant::Result {
         .size(420, 420)
         .min_size(320, 260)
         .view(project_surface)
-        .on_scroll(|state, update, _context| {
-            if update.node_id == LIST_ID {
-                state.view_start = view_start_for_offset(update.offset.y);
+        .update(|state, message| match message {
+            Message::Select(index) => {
+                state.selected = Some(index);
             }
-        })
-        .update(|state, message| {
-            let Message::Select(index) = message;
-            state.selected = Some(index);
+            Message::WindowChanged(change) => {
+                state.view_start = change.window.viewport_start;
+            }
         })
         .run()
 }
@@ -55,32 +55,27 @@ fn project_surface(state: &mut DemoState) -> View<Message> {
 
     column([
         text(selected).height(28.0).fill_width(),
-        virtual_list_window(
-            window,
-            ROW_HEIGHT,
-            |index| {
-                let label = if Some(index) == state.selected {
-                    format!("Selected row {index:05}")
-                } else {
-                    format!("Row {index:05}")
-                };
-                selectable(label, Some(index) == state.selected)
-                    .message(move |_| Message::Select(index))
-                    .id(index as u64 + ROW_ID_BASE)
-                    .fill_width()
-            },
-            SCROLL_OVERSCAN_PX,
-        )
+        virtual_list_windowed(|index| {
+            let label = if Some(index) == state.selected {
+                format!("Selected row {index:05}")
+            } else {
+                format!("Row {index:05}")
+            };
+            selectable(label, Some(index) == state.selected)
+                .message(move |_| Message::Select(index))
+                .id(index as u64 + ROW_ID_BASE)
+                .fill_width()
+        })
+        .row_height(ROW_HEIGHT)
+        .window(window)
+        .overscan_px(SCROLL_OVERSCAN_PX)
+        .on_window_changed(Message::WindowChanged)
+        .view()
         .id(LIST_ID)
         .fill_height(),
     ])
     .padding(16.0)
     .spacing(10.0)
-}
-
-fn view_start_for_offset(offset_y: f32) -> usize {
-    let max_start = ROW_COUNT.saturating_sub(VIEWPORT_ROWS.min(ROW_COUNT));
-    ((offset_y.max(0.0) / ROW_HEIGHT).floor() as usize).min(max_start)
 }
 
 #[cfg(test)]
@@ -108,11 +103,28 @@ mod tests {
     }
 
     #[test]
-    fn virtualized_list_scroll_offsets_map_to_logical_rows() {
-        assert_eq!(view_start_for_offset(0.0), 0);
-        assert_eq!(view_start_for_offset(95.0), 2);
-        assert_eq!(view_start_for_offset(128_000.0), 4_000);
-        assert_eq!(view_start_for_offset(f32::MAX), ROW_COUNT - VIEWPORT_ROWS);
+    fn virtualized_list_scroll_change_maps_to_logical_rows() {
+        let current = resolve_virtual_list_window(VirtualListWindowRequest {
+            total_items: ROW_COUNT,
+            viewport_len: VIEWPORT_ROWS,
+            overscan: OVERSCAN_ROWS,
+            ..VirtualListWindowRequest::default()
+        });
+        let change = virtual_list_window_change_for_scroll(
+            ScrollUpdate {
+                node_id: LIST_ID,
+                position: Point::default(),
+                delta: Vector2::new(0.0, 128_000.0),
+                previous_offset: Vector2::default(),
+                offset: Vector2::new(0.0, 128_000.0),
+                viewport: Vector2::new(400.0, ROW_HEIGHT * VIEWPORT_ROWS as f32),
+            },
+            ROW_HEIGHT,
+            current,
+            OVERSCAN_ROWS,
+        );
+
+        assert_eq!(change.window.viewport_start, 4_000);
     }
 
     fn node_count(node: &LayoutNode) -> usize {

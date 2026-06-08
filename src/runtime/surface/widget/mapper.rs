@@ -1,10 +1,13 @@
 //! Host-message mapping for surface widget leaves.
 
-use crate::widgets::WidgetOutput;
+use crate::{runtime::ScrollUpdate, widgets::WidgetOutput};
 use std::sync::Arc;
 
 /// Shared mapper type that turns widget-specific payloads into host-defined messages.
 pub type MessageMapper<Input, Message> = Arc<dyn Fn(Input) -> Message + Send + Sync>;
+
+/// Shared mapper type that turns scroll movement into host-defined messages.
+pub type ScrollMessageMapper<Message> = MessageMapper<ScrollUpdate, Message>;
 
 /// Message bindings that turn widget output payloads into host-defined messages.
 #[derive(Default)]

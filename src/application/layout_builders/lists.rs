@@ -4,8 +4,11 @@ use super::containers::{column, row, row_key, stack};
 use super::scroll::{scroll, virtual_scroll};
 use crate::application::{ViewNode, empty, spacer};
 use crate::gui::list::{
-    TreeGuideRow, TreeGuideStyle, VirtualListWindow, bounded_list_height, tree_guide_overlay,
+    TreeGuideRow, TreeGuideStyle, VirtualListWindow, VirtualListWindowChange,
+    VirtualListWindowRequest, bounded_list_height, resolve_virtual_list_window, tree_guide_overlay,
+    virtual_list_view_start_for_scroll_offset,
 };
+use crate::runtime::ScrollUpdate;
 use crate::widgets::WidgetStyle;
 
 #[cfg(test)]
@@ -27,6 +30,87 @@ pub struct BoundedScrollColumnParts<Message> {
     pub style: WidgetStyle,
     /// Padding applied inside the scroll viewport.
     pub padding: f32,
+}
+
+/// Builder for fixed-row virtual lists whose logical window is app-owned.
+///
+/// The builder attaches list-window change messages to the scroll container so
+/// applications can keep virtualization state in their normal reducer instead
+/// of wiring app-launch scroll lifecycle hooks.
+pub struct VirtualListBuilder<Message, Project> {
+    window: VirtualListWindow,
+    row_height: f32,
+    overscan_px: f32,
+    project: Project,
+    on_window_changed: Option<Box<dyn Fn(VirtualListWindowChange) -> Message + Send + Sync>>,
+}
+
+impl<Message, Project> VirtualListBuilder<Message, Project> {
+    /// Use the current logical list window.
+    pub fn window(mut self, window: VirtualListWindow) -> Self {
+        self.window = window;
+        self
+    }
+
+    /// Use a fixed row height for layout and scroll-to-window projection.
+    pub fn row_height(mut self, row_height: f32) -> Self {
+        self.row_height = row_height;
+        self
+    }
+
+    /// Use a pixel overscan distance for runtime virtualization.
+    pub fn overscan_px(mut self, overscan_px: f32) -> Self {
+        self.overscan_px = overscan_px;
+        self
+    }
+
+    /// Emit a message when runtime scrolling resolves a different list window.
+    pub fn on_window_changed(
+        mut self,
+        message: impl Fn(VirtualListWindowChange) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        self.on_window_changed = Some(Box::new(message));
+        self
+    }
+}
+
+impl<Message: 'static, Project> VirtualListBuilder<Message, Project>
+where
+    Project: FnMut(usize) -> ViewNode<Message>,
+{
+    /// Build the list view.
+    pub fn view(mut self) -> ViewNode<Message> {
+        let row_height = self.row_height;
+        let window = self.window;
+        let overscan_px = self.overscan_px;
+        let on_window_changed = self.on_window_changed.take();
+        let mut view = virtual_list_window_body(
+            window,
+            row_height,
+            |window| {
+                column(
+                    (window.window_start..window.window_end)
+                        .map(|index| (self.project)(index).height(row_height).fill_width()),
+                )
+                .spacing(0.0)
+                .fill_width()
+                .height(row_height.max(0.0) * window.window_len() as f32)
+            },
+            overscan_px,
+        );
+
+        if let Some(message) = on_window_changed {
+            view = view.on_scroll_update(move |update| {
+                message(resolve_virtual_list_window_change(
+                    update.offset.y,
+                    row_height,
+                    window,
+                    overscan_px,
+                ))
+            });
+        }
+        view
+    }
 }
 
 impl<Message> BoundedScrollColumnParts<Message> {
@@ -137,6 +221,23 @@ pub fn virtual_list<Message, Item>(
     .fill_height()
 }
 
+/// Build a fixed-row virtual-list builder.
+///
+/// Use this for large item-indexed lists where application state owns the
+/// current [`VirtualListWindow`] and wants scroll changes delivered as ordinary
+/// messages through [`VirtualListBuilder::on_window_changed`].
+pub fn virtual_list_windowed<Message, Project>(
+    project: Project,
+) -> VirtualListBuilder<Message, Project> {
+    VirtualListBuilder {
+        window: VirtualListWindow::default(),
+        row_height: 0.0,
+        overscan_px: 0.0,
+        project,
+        on_window_changed: None,
+    }
+}
+
 /// Build a vertically virtualized fixed-row list from a pre-resolved logical window.
 ///
 /// Unlike [`virtual_list`], this helper only calls `project` for
@@ -162,6 +263,47 @@ pub fn virtual_list_window<Message: 'static>(
             .height(row_height.max(0.0) * window.window_len() as f32)
         },
         overscan_px,
+    )
+}
+
+fn resolve_virtual_list_window_change(
+    offset_y: f32,
+    row_height: f32,
+    current: VirtualListWindow,
+    overscan_px: f32,
+) -> VirtualListWindowChange {
+    let row_height = row_height.max(1.0);
+    let requested_start =
+        virtual_list_view_start_for_scroll_offset(offset_y, row_height, current.total_items);
+    let overscan = (overscan_px.max(0.0) / row_height).ceil() as usize;
+    let window = resolve_virtual_list_window(VirtualListWindowRequest {
+        total_items: current.total_items,
+        viewport_len: current.viewport_len(),
+        requested_start,
+        overscan,
+        focused_index: None,
+        previous_start: None,
+        guard_band: 0,
+    });
+    VirtualListWindowChange {
+        offset_y,
+        row_height,
+        window,
+    }
+}
+
+/// Resolve a fixed-row virtual-list window change from a runtime scroll update.
+pub fn virtual_list_window_change_for_scroll(
+    update: ScrollUpdate,
+    row_height: f32,
+    current: VirtualListWindow,
+    overscan_rows: usize,
+) -> VirtualListWindowChange {
+    resolve_virtual_list_window_change(
+        update.offset.y,
+        row_height,
+        current,
+        row_height.max(0.0) * overscan_rows as f32,
     )
 }
 

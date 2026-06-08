@@ -2,6 +2,7 @@ use super::{DemoMessage, DemoState, intrinsic_slot, text_value};
 use radiant::{
     app,
     gui::types::{Point, Vector2},
+    prelude as ui,
     runtime::{Event, PaintPrimitive, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface},
     theme::ThemeTokens,
     widgets::{PointerButton, TextWidget, WidgetSizing},
@@ -54,6 +55,48 @@ fn app_scroll_hook_observes_runtime_scroll_offsets() {
         Some(48.0)
     );
     assert_eq!(text_value(runtime.surface(), 100), "Row 0 at 48");
+    assert!(runtime.take_repaint_requested());
+}
+
+#[test]
+fn declarative_virtual_list_window_change_routes_through_update() {
+    let bridge = app(DemoState::default())
+        .view(|state: &mut DemoState| {
+            let viewport_start = (state.last_scroll_y / 20.0).floor() as usize;
+            let window = ui::resolve_virtual_list_window(ui::VirtualListWindowRequest {
+                total_items: 20,
+                viewport_len: 4,
+                requested_start: viewport_start,
+                overscan: 1,
+                focused_index: None,
+                previous_start: None,
+                guard_band: 0,
+            });
+            ui::virtual_list_windowed(|index| {
+                ui::text_line(format!("Row {index}"), 20.0).id(100 + index as u64)
+            })
+            .row_height(20.0)
+            .window(window)
+            .overscan_px(20.0)
+            .on_window_changed(DemoMessage::VirtualListWindowChanged)
+            .view()
+            .id(20)
+            .fill()
+        })
+        .on_scroll(|state, _update, _context| {
+            state.last_scroll_y = -1.0;
+        })
+        .update_with(|state, message: DemoMessage, _context| {
+            if let DemoMessage::VirtualListWindowChanged(change) = message {
+                state.last_scroll_y = change.offset_y;
+            }
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 80.0));
+
+    assert!(runtime.scroll_at(Point::new(20.0, 56.0), Vector2::new(0.0, 60.0)));
+
+    assert_eq!(text_value(runtime.surface(), 103), "Row 3");
     assert!(runtime.take_repaint_requested());
 }
 

@@ -1,5 +1,6 @@
 use super::super::{
     SurfaceChild, SurfaceContainer, SurfaceContainerParts, SurfaceLayer, SurfaceNode, SurfaceScene,
+    widget::ScrollMessageMapper,
 };
 use crate::{
     layout::{
@@ -64,6 +65,14 @@ impl<Message> SurfaceNode<Message> {
     pub fn with_container_hoverable(mut self, hoverable: bool) -> Self {
         if let Self::Container(container) = &mut self {
             container.hoverable = hoverable;
+        }
+        self
+    }
+
+    /// Return this node with a scroll movement message mapper when it is a container.
+    pub fn with_scroll_message(mut self, message: ScrollMessageMapper<Message>) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.scroll_message = Some(message);
         }
         self
     }

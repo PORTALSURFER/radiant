@@ -38,6 +38,7 @@ mod tasks_platform;
 enum DemoMessage {
     Increment,
     GpuInput(WidgetInput),
+    VirtualListWindowChanged(radiant::prelude::VirtualListWindowChange),
 }
 
 #[derive(Default)]

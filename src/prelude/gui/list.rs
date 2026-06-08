@@ -10,7 +10,7 @@ pub use crate::gui::{
         TreeGuideRow, TreeGuideSegment, TreeGuideStyle, VirtualListController,
         VirtualListFocusTarget, VirtualListFollowState, VirtualListProjection,
         VirtualListSliceFocus, VirtualListStackMetrics, VirtualListStackMetricsParts,
-        VirtualListWindow, VirtualListWindowRequest, bounded_list_height,
+        VirtualListWindow, VirtualListWindowChange, VirtualListWindowRequest, bounded_list_height,
         bounded_list_height_with_gap, bounded_list_visible_rows, cyclic_list_index_after_delta,
         dense_row_fill_color, dense_row_inset_rect, dense_row_label_font_size,
         dense_row_vertical_marker_rect, fixed_row_stack_height, list_index_after_delta,

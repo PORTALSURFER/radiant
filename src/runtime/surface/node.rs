@@ -1,8 +1,8 @@
-use super::widget::SurfaceWidget;
+use super::widget::{ScrollMessageMapper, SurfaceWidget};
 use crate::{
     gui::types::Rect,
     layout::{ContainerPolicy, NodeId, SlotParams},
-    runtime::PaintText,
+    runtime::{PaintText, ScrollUpdate},
     widgets::WidgetStyle,
 };
 
@@ -69,6 +69,7 @@ pub struct SurfaceContainer<Message> {
     pub(super) policy: ContainerPolicy,
     pub(super) style: Option<WidgetStyle>,
     pub(super) hoverable: bool,
+    pub(super) scroll_message: Option<ScrollMessageMapper<Message>>,
     pub(super) children: Vec<SurfaceChild<Message>>,
 }
 
@@ -99,6 +100,7 @@ impl<Message> Clone for SurfaceContainer<Message> {
             policy: self.policy.clone(),
             style: self.style,
             hoverable: self.hoverable,
+            scroll_message: self.scroll_message.clone(),
             children: self.children.clone(),
         }
     }
@@ -112,6 +114,7 @@ impl<Message> SurfaceContainer<Message> {
             policy: parts.policy,
             style: None,
             hoverable: false,
+            scroll_message: None,
             children: parts.children,
         }
     }
@@ -134,6 +137,12 @@ impl<Message> SurfaceContainer<Message> {
     /// Return this container with hover chrome enabled.
     pub fn with_hoverable(mut self, hoverable: bool) -> Self {
         self.hoverable = hoverable;
+        self
+    }
+
+    /// Return this container with a scroll movement message mapper.
+    pub fn with_scroll_message(mut self, message: ScrollMessageMapper<Message>) -> Self {
+        self.scroll_message = Some(message);
         self
     }
 }
@@ -358,5 +367,41 @@ impl<Message> SurfaceNode<Message> {
             Self::Overlay(overlay) => overlay.id,
             Self::FloatingLayer(layer) => layer.container.id,
         }
+    }
+
+    pub(in crate::runtime) fn scroll_message(&self, update: ScrollUpdate) -> Option<Message> {
+        match self {
+            Self::Scene(scene) => scene.scroll_message(update),
+            Self::Container(container) => container.scroll_message(update),
+            Self::FloatingLayer(layer) => layer.container.scroll_message(update),
+            Self::Widget(_) | Self::Overlay(_) => None,
+        }
+    }
+}
+
+impl<Message> SurfaceContainer<Message> {
+    fn scroll_message(&self, update: ScrollUpdate) -> Option<Message> {
+        if self.id == update.node_id
+            && let Some(message) = &self.scroll_message
+        {
+            return Some(message(update));
+        }
+        self.children
+            .iter()
+            .find_map(|child| child.child.scroll_message(update))
+    }
+}
+
+impl<Message> SurfaceScene<Message> {
+    fn scroll_message(&self, update: ScrollUpdate) -> Option<Message> {
+        self.base.scroll_message(update).or_else(|| {
+            self.ordered_layers().find_map(|layer| {
+                layer
+                    .input
+                    .as_ref()
+                    .and_then(|input| input.scroll_message(update))
+                    .or_else(|| layer.node.scroll_message(update))
+            })
+        })
     }
 }

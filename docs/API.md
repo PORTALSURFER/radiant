@@ -739,10 +739,13 @@ surface is visible so first activation cannot delay the visual reveal. Direct
 non-positive geometry into the platform window layer.
 
 Serious apps use the same builder API. `radiant::app(...)` supports
-`.subscriptions(...)` for interval and worker-message sources, `.on_scroll(...)`
-for observing runtime-owned scroll offsets, `.on_startup(...)`,
+`.subscriptions(...)` for interval and worker-message sources, `.on_startup(...)`,
 `.on_shutdown(...)`, `.on_close_requested(...)`, `.run_with_artifacts()`, and
 retained-surface painters registered through `.retained_painter(...)`.
+Use `.on_scroll(...)` only as an advanced lifecycle hook for custom scroll
+observation; declarative fixed-row virtual lists should prefer
+`virtual_list_windowed(...).on_window_changed(...)` so scroll-window state flows
+through ordinary app messages.
 Root-scoped frame clocks and paint-only transient overlays should normally be
 declared on `ui::scene(...)`:
 
@@ -1166,15 +1169,28 @@ sites instead of being encoded as positional boolean lists.
 Application-builder code that owns a resolved logical window can use
 `virtual_list_window(...)` for fixed-height rows; it preserves full scroll
 extent with spacer rows while only projecting the materialized item range.
+Prefer `virtual_list_windowed(...)` when runtime scrolling should update the
+host-owned logical window through normal messages:
+
+```rust
+ui::virtual_list_windowed(|index| row(index))
+    .row_height(22.0)
+    .window(current_window)
+    .overscan_px(88.0)
+    .on_window_changed(Message::ListWindowChanged)
+    .view()
+```
+
 Use `virtual_tree_list_window(...)` for fixed-height tree or outline rows when
 the same materialized range should include a standard tree-guide overlay.
 Use `virtual_list_window_body(...)` when the materialized range needs to be
 composed as one body, such as row groups, table overlays, guide overlays, or
 other decoration spanning several fixed-height rows, while Radiant still owns
 the full-scroll spacer geometry.
-Apps that drive a host-owned logical window from native scrolling can observe
-runtime-owned scroll containers with `.on_scroll(...)` or, for custom bridges,
-`RuntimeBridge::scroll_updated(ScrollUpdate)`.
+Apps that need a one-off declarative scroll mapping can attach
+`ViewNode::on_scroll_update(...)`; lower-level hosts can still observe
+runtime-owned scroll containers with app-builder `.on_scroll(...)` or, for
+custom bridges, `RuntimeBridge::scroll_updated(ScrollUpdate)`.
 `virtual_list_view_start_after_scroll_delta` applies signed logical-row scroll
 deltas to virtual-list viewport starts with the same allocation-free clamping
 contract, leaving hit testing and platform input normalization to the host or

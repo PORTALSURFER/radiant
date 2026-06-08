@@ -24,7 +24,9 @@ fn app_bridge_groups_lifecycle_hooks_and_runtime_flags() {
             && bridge.contains("RetainedPainter")
             && bridge.contains("TransientOverlayPainter")
             && bridge.contains("UpdateContext")
-            && bridge.contains("use crate::{application::IntoView, runtime::Command};")
+            && bridge.contains("application::{IntoView, RepaintPolicy}")
+            && bridge.contains("gui::{input::KeyPress, shortcuts::ShortcutResolution}")
+            && bridge.contains("runtime::{Command, RepaintScope}")
             && !bridge.contains("use super::*;"),
         "app bridge should name runtime lifecycle, queue, retained painter, update context, and command dependencies explicitly"
     );

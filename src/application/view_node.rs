@@ -13,6 +13,7 @@ use slot::SlotBehavior;
 
 use crate::{
     application::WidgetView,
+    gui::{input::KeyPress, shortcuts::ShortcutResolution},
     layout::{CrossAlign, Insets, MainAlign, NodeId, Vector2},
     runtime::{
         LayerKind, NativeFileDrop, NativeFileDropMessageMapper, ScrollMessageMapper, SurfaceNode,
@@ -85,6 +86,7 @@ pub(in crate::application) enum ViewNodeKind<Message> {
         base: Box<ViewNode<Message>>,
         layers: Vec<Layer<Message>>,
         presentation: Option<Box<dyn Any>>,
+        shortcuts: Option<Box<dyn Fn(KeyPress) -> ShortcutResolution<Message>>>,
     },
     Runtime(SurfaceNode<Message>),
     Widget(Box<dyn WidgetView<Message>>),

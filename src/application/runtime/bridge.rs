@@ -7,6 +7,7 @@ use super::{
 };
 use crate::{
     application::{IntoView, RepaintPolicy},
+    gui::{input::KeyPress, shortcuts::ShortcutResolution},
     runtime::{Command, RepaintScope},
 };
 use std::{any::Any, collections::HashMap, marker::PhantomData, sync::Arc};
@@ -75,6 +76,9 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) subscriptions: Option<AppSubscriptions<State, Message>>,
     /// App-level shortcut resolver.
     pub(in crate::application) shortcuts: Option<AppShortcuts<State, Message>>,
+    /// Scene-declared shortcut catalog.
+    pub(in crate::application) scene_shortcuts:
+        Option<Box<dyn Fn(KeyPress) -> ShortcutResolution<Message>>>,
     /// Runtime scroll observer.
     pub(in crate::application) scroll: Option<AppScroll<State, Message>>,
     pub(in crate::application) native_file_drop: Option<AppNativeFileDrop<State, Message>>,
@@ -112,6 +116,7 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
             repaint_policy: None,
             subscriptions: None,
             shortcuts: None,
+            scene_shortcuts: None,
             scroll: None,
             native_file_drop: None,
             startup: None,
@@ -134,6 +139,7 @@ impl<State, Message> AppBridgeLifecycle<State, Message> {
         self.scene_frame_repaint_policy = None;
         self.scene_transient_overlay_activity = None;
         self.scene_transient_overlay = None;
+        self.scene_shortcuts = None;
     }
 }
 

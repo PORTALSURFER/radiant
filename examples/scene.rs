@@ -120,6 +120,7 @@ fn main() -> radiant::Result {
                         .drag_preview_open
                         .then(|| Layer::drag_preview(drag_preview_slot()).pass_through()),
                 )
+                .shortcuts(scene_shortcuts(state))
                 .frame_clock(
                     FrameClock::message(SceneExampleMessage::Frame)
                         .when(|state: &mut SceneExampleState| state.playback_overlay_running)
@@ -242,6 +243,29 @@ fn toggle_button(
         .message(message)
         .height(30.0)
         .width(180.0)
+}
+
+fn scene_shortcuts(state: &SceneExampleState) -> ShortcutCatalog<SceneExampleMessage> {
+    ShortcutCatalog::new()
+        .layer_when(
+            state.context_menu_open,
+            ShortcutLayer::modal_escape(SceneExampleMessage::CloseContextMenu),
+        )
+        .layer_when(
+            state.modal_open,
+            ShortcutLayer::modal_escape(SceneExampleMessage::ToggleModal),
+        )
+        .layer(ShortcutLayer::new().bind(
+            KeyPress::new(KeyCode::Space),
+            SceneExampleMessage::TogglePlaybackOverlay,
+        ))
+        .fallback(|press| {
+            if press == KeyPress::new(KeyCode::ArrowDown) {
+                ShortcutResolution::action(SceneExampleMessage::ToggleFloating)
+            } else {
+                ShortcutResolution::unhandled()
+            }
+        })
 }
 
 fn floating_layer_slot() -> ViewNode<SceneExampleMessage> {

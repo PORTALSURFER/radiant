@@ -217,13 +217,14 @@ fn native_pointer_lifecycle_uses_explicit_imports() {
     .expect("native pointer lifecycle module should be readable");
 
     assert!(
-        lifecycle_pointer.contains(
-            "use super::{GenericNativeVelloRunner, logical_point_from_winit, maybe_log_route_profile};"
-        )
+        lifecycle_pointer.contains("GenericNativeVelloRunner")
+            && lifecycle_pointer.contains("GenericRouteOutcome")
+            && lifecycle_pointer.contains("logical_point_from_winit")
+            && lifecycle_pointer.contains("maybe_log_route_profile")
             && lifecycle_pointer.contains("use crate::runtime::RuntimeBridge;")
             && lifecycle_pointer.contains("use std::time::Instant;")
             && lifecycle_pointer
-                .contains("use winit::{dpi::PhysicalPosition, event_loop::ActiveEventLoop};")
+                .contains("use winit::{dpi::PhysicalPosition, event_loop::ActiveEventLoop")
             && !lifecycle_pointer.starts_with("use super::*;"),
         "native pointer lifecycle should name runner, input conversion, profiling, bridge, timing, and winit dependencies"
     );

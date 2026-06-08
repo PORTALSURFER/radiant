@@ -25,7 +25,7 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
         pointer.contains("mod move_routing;")
             && pointer.contains("use super::{PointerMoveOutcome, SurfaceRuntime};")
             && pointer.contains("gui::types::Point")
-            && pointer.contains("runtime::RuntimeBridge")
+            && pointer.contains("runtime::{CommandOutcome, NativeFileDrop, RuntimeBridge}")
             && pointer.contains("widgets::{WidgetId, WidgetInput}")
             && !pointer.starts_with("use super::*;")
             && !pointer.contains("fn route_pointer_move_to_target")

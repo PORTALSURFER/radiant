@@ -53,6 +53,12 @@ where
         press: KeyPress,
         focus: FocusSurface,
     ) -> ShortcutResolution<Message> {
+        if let Some(scene_shortcuts) = self.lifecycle.scene_shortcuts.as_ref() {
+            let resolution = scene_shortcuts(press);
+            if resolution.handled {
+                return resolution;
+            }
+        }
         self.lifecycle
             .shortcuts
             .as_mut()

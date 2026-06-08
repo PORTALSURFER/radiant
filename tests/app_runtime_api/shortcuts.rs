@@ -62,6 +62,153 @@ fn app_shortcuts_dispatch_messages_before_focused_widget_key_routing() {
 }
 
 #[test]
+fn scene_shortcuts_dispatch_messages_before_focused_widget_key_routing() {
+    let bridge = app(DemoState::default())
+        .view(|state: &mut DemoState| {
+            radiant::prelude::scene(
+                radiant::prelude::button(format!("Count {}", state.count))
+                    .message(DemoMessage::Increment)
+                    .id(10),
+            )
+            .shortcuts(
+                ShortcutCatalog::new().layer(
+                    ShortcutLayer::new()
+                        .bind(KeyPress::with_command(KeyCode::I), DemoMessage::Increment)
+                        .bind(KeyPress::new(KeyCode::Enter), DemoMessage::Noop),
+                ),
+            )
+            .into_view()
+        })
+        .update_with(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Noop => {}
+            _ => {}
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 40.0));
+
+    assert!(runtime.dispatch_key_press(
+        KeyPress::with_command(KeyCode::I),
+        None,
+        FocusSurface::None
+    ));
+    assert_eq!(button_label(runtime.surface(), 10), "Count 1");
+
+    assert!(runtime.focus_widget(10));
+    assert!(runtime.dispatch_key_press(
+        KeyPress::new(KeyCode::Enter),
+        Some(WidgetKey::Enter),
+        FocusSurface::None
+    ));
+    assert_eq!(button_label(runtime.surface(), 10), "Count 1");
+}
+
+#[test]
+fn scene_modal_shortcut_layer_consumes_unmatched_keys() {
+    let bridge = app(DemoState::default())
+        .view(|state: &mut DemoState| {
+            radiant::prelude::scene(
+                radiant::prelude::button(format!("Count {}", state.count))
+                    .message(DemoMessage::Increment)
+                    .id(10),
+            )
+            .shortcuts(
+                ShortcutCatalog::new().layer(ShortcutLayer::modal_escape(DemoMessage::Increment)),
+            )
+            .into_view()
+        })
+        .update_with(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Noop => {}
+            _ => {}
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 40.0));
+
+    assert!(runtime.dispatch_key_press(KeyPress::new(KeyCode::Escape), None, FocusSurface::None));
+    assert_eq!(button_label(runtime.surface(), 10), "Count 1");
+
+    assert!(runtime.focus_widget(10));
+    assert!(runtime.dispatch_key_press(
+        KeyPress::new(KeyCode::Space),
+        Some(WidgetKey::Space),
+        FocusSurface::None
+    ));
+    assert_eq!(button_label(runtime.surface(), 10), "Count 1");
+}
+
+#[test]
+fn scene_shortcut_fallback_handles_dynamic_keys() {
+    let bridge = app(DemoState::default())
+        .view(|state: &mut DemoState| {
+            radiant::prelude::scene(
+                radiant::prelude::button(format!("Count {}", state.count))
+                    .message(DemoMessage::Increment)
+                    .id(10),
+            )
+            .shortcuts(ShortcutCatalog::new().fallback(|press| {
+                if press == KeyPress::new(KeyCode::ArrowDown) {
+                    ShortcutResolution::action(DemoMessage::Increment)
+                } else {
+                    ShortcutResolution::unhandled()
+                }
+            }))
+            .into_view()
+        })
+        .update_with(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Noop => {}
+            _ => {}
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 40.0));
+
+    assert!(runtime.dispatch_key_press(
+        KeyPress::new(KeyCode::ArrowDown),
+        None,
+        FocusSurface::None
+    ));
+    assert_eq!(button_label(runtime.surface(), 10), "Count 1");
+}
+
+#[test]
+fn scene_shortcuts_fall_back_to_app_builder_shortcuts_when_unhandled() {
+    let bridge = app(DemoState::default())
+        .view(|state: &mut DemoState| {
+            radiant::prelude::scene(
+                radiant::prelude::button(format!("Count {}", state.count))
+                    .message(DemoMessage::Increment)
+                    .id(10),
+            )
+            .shortcuts(ShortcutCatalog::new().layer(
+                ShortcutLayer::new().bind(KeyPress::with_command(KeyCode::I), DemoMessage::Noop),
+            ))
+            .into_view()
+        })
+        .shortcuts(|_, _, press, _| {
+            if press == KeyPress::new(KeyCode::ArrowDown) {
+                ShortcutResolution::action(DemoMessage::Increment)
+            } else {
+                ShortcutResolution::unhandled()
+            }
+        })
+        .update_with(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Noop => {}
+            _ => {}
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 40.0));
+
+    assert!(runtime.dispatch_key_press(
+        KeyPress::new(KeyCode::ArrowDown),
+        None,
+        FocusSurface::None
+    ));
+    assert_eq!(button_label(runtime.surface(), 10), "Count 1");
+}
+
+#[test]
 fn shortcut_layer_public_api_handles_modal_layers_and_dynamic_fallbacks() {
     let modal = ShortcutLayer::modal().bind(KeyPress::new(KeyCode::Escape), DemoMessage::Increment);
     assert_eq!(

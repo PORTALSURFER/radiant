@@ -51,6 +51,7 @@ fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
                 .contains("pub fn container_from_parts(parts: SurfaceContainerParts<Message>)")
             && !builders.contains("pub fn widget(")
             && !builders.contains("pub fn overlay_panel(")
+            && container_builders.contains("pub fn scene(")
             && container_builders.contains(
                 "pub fn container_from_parts(parts: SurfaceContainerParts<Message>) -> Self"
             )
@@ -62,7 +63,9 @@ fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
             && overlay_builders.contains("pub fn overlay_panel(")
             && overlay_builders.contains("pub fn overlay_marker(")
             && widget.contains("mod mapper;")
-            && widget.contains("pub use mapper::{MessageMapper, WidgetMessageMapper};")
+            && widget.contains(
+                "MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper, WidgetMessageMapper"
+            )
             && widget_mapper.contains("pub struct WidgetMessageMapper<Message>")
             && widget_mapper.contains("pub type MessageMapper<Input, Message>")
             && surface.contains("SurfaceChildParts")
@@ -112,8 +115,9 @@ fn runtime_surface_input_dispatch_keeps_dependencies_explicit() {
         .expect("runtime surface input tests should be readable");
 
     assert!(
-        input.contains("use super::{SurfaceNode, SurfaceWidget, WidgetPath};")
-            && input.contains("gui::types::Rect")
+        input.contains(
+            "use super::{SurfaceNode, SurfaceWidget, WidgetPath, node::SurfaceLayerChildKind};"
+        ) && input.contains("gui::types::Rect")
             && input.contains("widgets::{WidgetId, WidgetInput, WidgetOutput}")
             && input.contains("std::collections::HashMap")
             && !input.starts_with("use super::*;")

@@ -5,6 +5,10 @@ use crate::{
         FrameClock, Layer, LayerInputPolicy, Presentation, TransientOverlay, ViewNode,
         ViewNodeKind, pointer_shield,
     },
+    gui::{
+        input::KeyPress,
+        shortcuts::{ShortcutCatalog, ShortcutResolution},
+    },
     runtime::LayerKind,
     widgets::PointerShieldMessage,
 };
@@ -18,6 +22,7 @@ pub struct Scene<Message> {
     base: ViewNode<Message>,
     layers: Vec<Layer<Message>>,
     presentation: Option<Box<dyn Any>>,
+    shortcuts: Option<Box<dyn Fn(KeyPress) -> ShortcutResolution<Message>>>,
 }
 
 /// Build a root scene around base application content.
@@ -26,6 +31,7 @@ pub fn scene<Message>(base: ViewNode<Message>) -> Scene<Message> {
         base,
         layers: Vec::new(),
         presentation: None,
+        shortcuts: None,
     }
 }
 
@@ -48,6 +54,26 @@ impl<Message: 'static> Scene<Message> {
     pub fn layers(mut self, layers: impl IntoIterator<Item = Layer<Message>>) -> Self {
         self.layers.extend(layers);
         self
+    }
+
+    /// Declare scene-scoped shortcut layers.
+    pub fn shortcuts(mut self, catalog: ShortcutCatalog<Message>) -> Self
+    where
+        Message: Clone,
+    {
+        self.shortcuts = Some(catalog.into_resolver());
+        self
+    }
+
+    /// Declare optional scene-scoped shortcut layers.
+    pub fn shortcuts_opt(self, catalog: Option<ShortcutCatalog<Message>>) -> Self
+    where
+        Message: Clone,
+    {
+        match catalog {
+            Some(catalog) => self.shortcuts(catalog),
+            None => self,
+        }
     }
 
     /// Add one scene-scoped frame clock.
@@ -95,6 +121,7 @@ impl<Message: 'static> Scene<Message> {
             base: Box::new(self.base),
             layers: self.layers,
             presentation: self.presentation,
+            shortcuts: self.shortcuts,
         })
         .with_reserved_descendant_identity(has_reserved_descendant_identity)
     }
@@ -103,15 +130,17 @@ impl<Message: 'static> Scene<Message> {
         &mut self,
         update: impl FnOnce(Presentation<State, Message>) -> Presentation<State, Message>,
     ) {
-        let presentation = self
-            .presentation
-            .take()
-            .map(|presentation| {
-                *presentation
-                    .downcast::<Presentation<State, Message>>()
-                    .expect("scene presentation state type must be consistent")
-            })
-            .unwrap_or_default();
+        let Some(presentation) = self.presentation.take() else {
+            self.presentation = Some(Box::new(update(Presentation::default())));
+            return;
+        };
+        let presentation = match presentation.downcast::<Presentation<State, Message>>() {
+            Ok(presentation) => *presentation,
+            Err(presentation) => {
+                self.presentation = Some(presentation);
+                return;
+            }
+        };
         self.presentation = Some(Box::new(update(presentation)));
     }
 }

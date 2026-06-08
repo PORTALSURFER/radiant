@@ -8,7 +8,8 @@ pub use crate::gui::{
     },
     selection::SelectionSet,
     shortcuts::{
-        ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution, ShortcutStack,
+        ShortcutCatalog, ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution,
+        ShortcutStack,
     },
     undo::{UndoCheckpoint, UndoHistory, UndoRedoIntent, UndoTransition},
 };

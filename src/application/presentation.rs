@@ -216,9 +216,10 @@ where
     }
 
     fn resolve_after_frame(&mut self, state: &mut State, scope: Box<dyn Any>) -> bool {
-        let scope = *scope
-            .downcast::<Scope>()
-            .expect("frame repaint scope type must match the capture callback");
+        let Ok(scope) = scope.downcast::<Scope>() else {
+            return false;
+        };
+        let scope = *scope;
         (self.can_use_paint_only)(state, scope)
     }
 }

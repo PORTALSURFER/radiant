@@ -606,6 +606,11 @@ surface instead of launch wiring. Use `Scene::frame_clock(...)` or
 overlays over the cached scene. Presentation declarations do not become layout
 or input children, so they do not change base hit testing, layer ordering, or
 widget state synchronization.
+Root-scoped shortcuts should also be declared on the scene with
+`Scene::shortcuts(...)` and `ShortcutCatalog`. A catalog contains ordered
+`ShortcutLayer` values plus an optional fallback resolver for dynamic keys such
+as navigation. Scene shortcuts resolve before focused-widget key routing and
+fall back to app-builder `.shortcuts(...)` only when unhandled.
 `Scene::into_view()` projects a runtime scene that paints layers in this fixed
 order: base layout, generic floating layers, popovers, modals, context menus,
 tooltips, and drag previews. Lower-level callers can still use
@@ -853,7 +858,10 @@ When a paint-only transient overlay is present, the native Vello runtime also
 caches the composed Vello scene plus retained GPU surfaces as a base frame, so
 later overlay-only frames can present that stable composition and draw the
 moving overlay without re-encoding retained GPU surfaces until the scene, paint
-plan, or runtime GPU-surface overlays change.
+plan, or runtime GPU-surface overlays change. This supports visuals such as a
+playback playhead without refreshing the declarative surface, rebuilding the
+cached Vello scene, or recompositing. Scene overlays drive this path directly
+instead of queueing app frame messages.
 Overlay painters that attach to existing content should use `context.plan` as
 the authoritative cached geometry source. For common widget anchors, use
 `SurfacePaintPlan::first_widget_rect(widget_id)` instead of matching primitive
@@ -1640,21 +1648,19 @@ Custom widget tests, automation, and embedded hosts can use
 `pointer_release(...)`, `primary_release(...)`, `pointer_drop(...)`,
 `primary_drop(...)`, `wheel(...)`, and `plain_wheel(...)` to build
 backend-neutral widget inputs without repeating pointer-event struct literals.
-Application builders can register host-owned shortcut catalogs with
-`.shortcuts(...)`. The runtime supplies pending chord state, normalized
-`KeyPress`, and `FocusSurface`; returning `ShortcutResolution::action(message)`
-dispatches a normal app message before focused-widget key routing, while
-`ShortcutResolution::handled()` suppresses the fallback without coupling Radiant
-to an application command model. `ShortcutLayer` maps normalized
-`ShortcutGesture` values to host actions, supports modal layers that consume
-unmatched keys, and offers `resolve_or_else(...)` for dynamic fallbacks such as
-shifted navigation. Use `ShortcutLayer::bind_all(...)` when several equivalent
-gestures should dispatch the same host action. Use
-`ShortcutLayer::modal_escape(...)` for modal surfaces whose Escape key dismisses
-the surface while other keys should remain shielded from lower-priority
-shortcuts. This keeps modal shortcut shielding and simple global accelerators
-declarative while still leaving command catalogs and focus policy in the host
-application.
+Root application shortcuts should normally be declared with
+`Scene::shortcuts(ShortcutCatalog::new()...)`. `ShortcutCatalog` maps
+normalized `KeyPress` values through ordered `ShortcutLayer` values, supports
+modal layers that consume unmatched keys, and can attach a fallback resolver for
+dynamic keys such as shifted navigation. Returning
+`ShortcutResolution::action(message)` dispatches a normal app message before
+focused-widget key routing, while `ShortcutResolution::handled()` suppresses
+the fallback without coupling Radiant to an application command model. Use
+`ShortcutLayer::bind_all(...)` when several equivalent gestures should dispatch
+the same host action, and `ShortcutLayer::modal_escape(...)` for modal surfaces
+whose Escape key dismisses the surface while other keys remain shielded.
+Application-builder `.shortcuts(...)` remains available as an advanced
+compatibility hook when a host needs pending-chord or `FocusSurface` access.
 
 ## Performance Harness
 
@@ -2112,7 +2118,7 @@ Run `cargo run --example message_routing` for command-returning update flows,
 runtime messages, and repaint requests.
 Run `cargo run --example keys` for stable keys and reversed list identity.
 Run `cargo run --example focus_controls` for an input/focus sandbox that uses
-`UpdateContext::focus(...)` and app-level `.shortcuts(...)` to move keyboard
+`UpdateContext::focus(...)` and shortcuts to move keyboard
 focus from normal app messages.
 Run `cargo run --example plugin_panel` for a dense plugin-style control panel
 that stays on generic Radiant layout, style, focus, and state-callback APIs;

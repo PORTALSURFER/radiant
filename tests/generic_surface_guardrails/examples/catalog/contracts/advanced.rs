@@ -6,7 +6,7 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         &[
             "radiant::app(",
             "virtual_list_window(",
-            ".on_scroll(",
+            ".on_window_changed(",
             "selectable(",
             ".update(",
         ],

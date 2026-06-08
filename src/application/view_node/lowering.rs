@@ -45,11 +45,16 @@ impl<Message: 'static> ViewNode<Message> {
                 base,
                 layers,
                 presentation,
+                shortcuts,
             } => {
-                if let Some(presentation) = presentation.take() {
-                    let presentation = *presentation
-                        .downcast::<Presentation<State, Message>>()
-                        .expect("scene presentation state type must match app state type");
+                if lifecycle.scene_shortcuts.is_none() {
+                    lifecycle.scene_shortcuts = shortcuts.take();
+                }
+                if let Some(presentation) = presentation.take()
+                    && let Ok(presentation) =
+                        presentation.downcast::<Presentation<State, Message>>()
+                {
+                    let presentation = *presentation;
                     presentation.apply_to_scene_lifecycle(lifecycle);
                 }
                 base.drain_scene_presentation_into(lifecycle);

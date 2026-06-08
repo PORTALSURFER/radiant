@@ -6,7 +6,9 @@ use radiant::{
         focus::FocusSurface,
         input::{KeyCode, KeyPress},
         repaint::RepaintSignal,
-        shortcuts::{ShortcutGesture, ShortcutLayer, ShortcutResolution, ShortcutStack},
+        shortcuts::{
+            ShortcutCatalog, ShortcutGesture, ShortcutLayer, ShortcutResolution, ShortcutStack,
+        },
         types::{Point, Rect, Rgba8, Vector2},
     },
     layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams},
@@ -37,6 +39,7 @@ mod tasks_platform;
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
     Increment,
+    Noop,
     GpuInput(WidgetInput),
     VirtualListWindowChanged(radiant::prelude::VirtualListWindowChange),
 }

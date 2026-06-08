@@ -22,6 +22,8 @@ mod fixtures;
 #[cfg(test)]
 #[path = "tests/gpu_surface_runtime.rs"]
 mod gpu_surface_runtime;
+#[path = "tests/native_pointer.rs"]
+mod native_pointer;
 #[cfg(test)]
 #[path = "tests/pointer_motion.rs"]
 mod pointer_motion;

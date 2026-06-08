@@ -6,8 +6,11 @@ mod frame;
 mod gpu_wheel;
 #[path = "fixtures/input.rs"]
 mod input;
+#[path = "fixtures/native_pointer.rs"]
+mod native_pointer;
 
 pub(super) use demo::*;
 pub(super) use frame::*;
 pub(super) use gpu_wheel::*;
 pub(super) use input::*;
+pub(super) use native_pointer::*;

@@ -12,6 +12,8 @@ struct SceneExampleState {
     context_menu_open: bool,
     tooltip_open: bool,
     drag_preview_open: bool,
+    playback_overlay_running: bool,
+    frame: u32,
 }
 
 impl Default for SceneExampleState {
@@ -24,6 +26,8 @@ impl Default for SceneExampleState {
             context_menu_open: true,
             tooltip_open: true,
             drag_preview_open: true,
+            playback_overlay_running: true,
+            frame: 0,
         }
     }
 }
@@ -38,6 +42,8 @@ enum SceneExampleMessage {
     CloseContextMenu,
     ToggleTooltip,
     ToggleDragPreview,
+    TogglePlaybackOverlay,
+    Frame,
 }
 
 impl SceneExampleState {
@@ -71,6 +77,14 @@ impl SceneExampleState {
 
     fn toggle_drag_preview(&mut self) {
         self.drag_preview_open = !self.drag_preview_open;
+    }
+
+    fn toggle_playback_overlay(&mut self) {
+        self.playback_overlay_running = !self.playback_overlay_running;
+    }
+
+    fn advance_frame(&mut self) {
+        self.frame = self.frame.wrapping_add(1);
     }
 }
 
@@ -106,6 +120,18 @@ fn main() -> radiant::Result {
                         .drag_preview_open
                         .then(|| Layer::drag_preview(drag_preview_slot()).pass_through()),
                 )
+                .frame_clock(
+                    FrameClock::message(SceneExampleMessage::Frame)
+                        .when(|state: &mut SceneExampleState| state.playback_overlay_running)
+                        .fps(60),
+                )
+                .overlay(
+                    TransientOverlay::new(1_u64)
+                        .paint_only()
+                        .when(|state: &mut SceneExampleState| state.playback_overlay_running)
+                        .fps(60)
+                        .paint(paint_playback_cursor),
+                )
                 .into_view()
                 .fill()
         })
@@ -118,6 +144,8 @@ fn main() -> radiant::Result {
             SceneExampleMessage::CloseContextMenu => state.close_context_menu(),
             SceneExampleMessage::ToggleTooltip => state.toggle_tooltip(),
             SceneExampleMessage::ToggleDragPreview => state.toggle_drag_preview(),
+            SceneExampleMessage::TogglePlaybackOverlay => state.toggle_playback_overlay(),
+            SceneExampleMessage::Frame => state.advance_frame(),
         })
         .run()
 }
@@ -159,6 +187,11 @@ fn base_layout(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
             "Drag preview",
             state.drag_preview_open,
             SceneExampleMessage::ToggleDragPreview,
+        ),
+        toggle_button(
+            "Playback overlay",
+            state.playback_overlay_running,
+            SceneExampleMessage::TogglePlaybackOverlay,
         ),
     ])
     .padding(16.0)
@@ -265,6 +298,19 @@ fn tooltip_slot() -> ViewNode<SceneExampleMessage> {
 
 fn drag_preview_slot() -> ViewNode<SceneExampleMessage> {
     drag_preview("Drag preview", Point::new(408.0, 80.0)).key("scene-drag-preview")
+}
+
+fn paint_playback_cursor(
+    state: &mut SceneExampleState,
+    _context: TransientOverlayContext<'_>,
+    primitives: &mut Vec<PaintPrimitive>,
+) {
+    let x = 24.0 + (state.frame % 480) as f32;
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id: 0,
+        rect: Rect::from_min_size(Point::new(x, 28.0), Vector2::new(2.0, 292.0)),
+        color: Rgba8::new(255, 126, 64, 220),
+    }));
 }
 
 fn panel<Message: 'static>(title: &'static str, detail: &'static str) -> ViewNode<Message> {

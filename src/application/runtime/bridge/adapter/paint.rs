@@ -27,6 +27,7 @@ where
 
     pub(super) fn has_app_transient_overlay_painter(&self) -> bool {
         self.lifecycle.transient_overlay.is_some()
+            || self.lifecycle.scene_transient_overlay.is_some()
     }
 
     pub(super) fn paint_app_transient_overlay(
@@ -35,6 +36,9 @@ where
         primitives: &mut Vec<PaintPrimitive>,
     ) {
         if let Some(paint) = self.lifecycle.transient_overlay.as_mut() {
+            paint(&mut self.state, context, primitives);
+        }
+        if let Some(paint) = self.lifecycle.scene_transient_overlay.as_mut() {
             paint(&mut self.state, context, primitives);
         }
     }

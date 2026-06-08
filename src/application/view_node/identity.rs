@@ -31,7 +31,7 @@ impl<Message> ViewNode<Message> {
         }
         let child_scope = self.child_scope(scope);
         match &self.kind {
-            ViewNodeKind::Scene { base, layers } => {
+            ViewNodeKind::Scene { base, layers, .. } => {
                 base.collect_reserved_ids(child_scope, ids);
                 for layer in layers {
                     layer.view.collect_reserved_ids(child_scope, ids);

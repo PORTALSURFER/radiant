@@ -584,6 +584,13 @@ consuming pointer and wheel input behind modals or other blocking surfaces.
 outside pointer press/drop and blocks wheel input behind the layer, while
 foreground content still routes above the dismiss surface.
 `Layer::input_policy()` returns the declared `LayerInputPolicy`.
+Scenes can also carry presentation declarations that belong to the root
+surface instead of launch wiring. Use `Scene::frame_clock(...)` or
+`Scene::frame_clock_opt(...)` for host-state frame messages, and
+`Scene::overlay(...)` or `Scene::overlay_opt(...)` for paint-only transient
+overlays over the cached scene. Presentation declarations do not become layout
+or input children, so they do not change base hit testing, layer ordering, or
+widget state synchronization.
 `Scene::into_view()` projects a runtime scene that paints layers in this fixed
 order: base layout, generic floating layers, popovers, modals, context menus,
 tooltips, and drag previews. Lower-level callers can still use
@@ -732,33 +739,44 @@ surface is visible so first activation cannot delay the visual reveal. Direct
 non-positive geometry into the platform window layer.
 
 Serious apps use the same builder API. `radiant::app(...)` supports
-`.subscriptions(...)` for interval and worker-message sources, `.animation(...)`
-for frame-cadenced redraws, optional `.on_frame(...)` messages for animations
-that mutate application state, `.on_scroll(...)` for observing
-runtime-owned scroll offsets, `.on_startup(...)`, `.on_shutdown(...)`,
-`.on_close_requested(...)`, `.run_with_artifacts()`, and retained-surface
-painters registered through `.retained_painter(...)`. Apps with small
-frame-rate overlays can register `.transient_overlay(...)` to append
-backend-neutral paint primitives over the cached scene each present frame.
+`.subscriptions(...)` for interval and worker-message sources, `.on_scroll(...)`
+for observing runtime-owned scroll offsets, `.on_startup(...)`,
+`.on_shutdown(...)`, `.on_close_requested(...)`, `.run_with_artifacts()`, and
+retained-surface painters registered through `.retained_painter(...)`.
+Root-scoped frame clocks and paint-only transient overlays should normally be
+declared on `ui::scene(...)`:
+
+```rust
+ui::scene(layout::shell(state))
+    .frame_clock(
+        ui::FrameClock::message(GuiMessage::Frame)
+            .when(|state| state.frame_message_animation_active())
+            .fps(60)
+            .repaint_scope(
+                |state| state.frame_repaint_scope_before_update(),
+                |state, scope| state.frame_can_use_paint_only(scope),
+            ),
+    )
+    .overlay(
+        ui::TransientOverlay::new(1_u64)
+            .paint_only()
+            .when(|state| state.waveform_is_playing())
+            .fps(60)
+            .paint(|state, context, primitives| {
+                state.paint_playback_overlay(context, primitives);
+            }),
+    )
+    .into_view();
+```
+
 Radiant passes a `TransientOverlayContext` with the latest `SurfacePaintPlan`,
 viewport, and animation time. This keeps structural state, layout, and Vello
 scene refreshes out of animation paths for visuals such as playheads, drag
 previews, tooltip affordances, cursor markers, and lightweight spectrogram
-overlays. Use `.transient_overlay_animation(...)` or the combined
-`.animated_transient_overlay(...)` helper when an overlay can derive motion from
-`context.animation_time`; the native runtime then schedules paint-only frames
-over the cached surface without queuing application frame messages. Use
-`.transient_overlay_animation_at(...)` or
-`.animated_transient_overlay_at(...)` when an overlay should run below the
-window's maximum native cadence; Radiant clamps the requested rate through the
-same `NativeRunOptions` frame-rate bounds and never exceeds the window target.
-Custom runtime bridges can report the same split explicitly with
-`RuntimeAnimationActivity` and `RuntimeAnimationDemand`, distinguishing
-frame-message animation from paint-only presentation work and optionally
-carrying a per-activity target FPS.
+overlays.
 
-For app-builder code that wants those presentation concerns named directly,
-use `.presentation(...)` with typed descriptors:
+For app-builder code that needs the same descriptors outside a root scene, use
+`.presentation(...)`:
 
 ```rust
 radiant::app(state)
@@ -790,10 +808,15 @@ radiant::app(state)
 
 `FrameClock` is for host-state frame messages. `TransientOverlay` is for
 paint-only presentation work over the cached surface. These descriptors lower to
-the same runtime animation and transient-overlay hooks as the older builder
-methods; `.animation(...)`, `.on_frame(...)`, `.transient_overlay(...)`,
-`.transient_overlay_animation_at(...)`, and `.animated_transient_overlay_at(...)`
-remain public lower-level APIs.
+the same runtime animation and transient-overlay hooks whether they are attached
+to `Scene` or to the app builder. `.animation(...)`, `.on_frame(...)`,
+`.transient_overlay(...)`, `.transient_overlay_animation(...)`,
+`.animated_transient_overlay(...)`, `.transient_overlay_animation_at(...)`, and
+`.animated_transient_overlay_at(...)` remain public lower-level lifecycle APIs
+for hosts that need direct runtime control. Custom runtime bridges can report
+the same split explicitly with `RuntimeAnimationActivity` and
+`RuntimeAnimationDemand`, distinguishing frame-message animation from paint-only
+presentation work and optionally carrying a per-activity target FPS.
 When a paint-only transient overlay is present, the native Vello runtime also
 caches the composed Vello scene plus retained GPU surfaces as a base frame, so
 later overlay-only frames can present that stable composition and draw the

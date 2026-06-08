@@ -26,13 +26,30 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
 #[derive(Default)]
 pub(in crate::application) struct AppBridgeRuntimeFlags {
     /// Cached animation-frame activity from the latest animation poll.
-    pub(in crate::application) pending_animation_frame_activity: Option<bool>,
+    pub(in crate::application) pending_animation_frame_activity: Option<FrameMessageActivity>,
     /// Captured state from before the currently queued frame message.
-    pub(in crate::application) pending_frame_repaint_scope: Option<Box<dyn Any>>,
+    pub(in crate::application) pending_frame_repaint_scope: Option<PendingFrameRepaintScope>,
     /// Whether app subscriptions have been installed for this bridge.
     pub(in crate::application) subscriptions_started: bool,
     /// Whether the startup hook has already run for this bridge.
     pub(in crate::application) startup_ran: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(in crate::application) struct FrameMessageActivity {
+    pub(in crate::application) app: bool,
+    pub(in crate::application) scene: bool,
+}
+
+pub(in crate::application) struct PendingFrameRepaintScope {
+    pub(in crate::application) source: FrameRepaintSource,
+    pub(in crate::application) scope: Box<dyn Any>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::application) enum FrameRepaintSource {
+    App,
+    Scene,
 }
 
 /// Lifecycle hooks carried from application launch builders into the runtime bridge.
@@ -45,6 +62,13 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) frame_clock_activity: Option<AppFrameClockActivity<State>>,
     /// Optional frame-message repaint policy.
     pub(in crate::application) frame_repaint_policy: Option<Box<dyn AppFrameRepaintPolicy<State>>>,
+    /// Scene-declared frame-message callback.
+    pub(in crate::application) scene_frame_message: Option<AppFrameMessage<Message>>,
+    /// Scene-declared frame-clock activity callback.
+    pub(in crate::application) scene_frame_clock_activity: Option<AppFrameClockActivity<State>>,
+    /// Scene-declared frame-message repaint policy.
+    pub(in crate::application) scene_frame_repaint_policy:
+        Option<Box<dyn AppFrameRepaintPolicy<State>>>,
     /// App-level subscription factory.
     pub(in crate::application) subscriptions: Option<AppSubscriptions<State, Message>>,
     /// App-level shortcut resolver.
@@ -66,6 +90,11 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) transient_overlay_activity: Option<TransientOverlayActivity<State>>,
     /// Lightweight frame-time overlay painter.
     pub(in crate::application) transient_overlay: Option<TransientOverlayPainter<State>>,
+    /// Scene-declared transient-overlay frame activity callback.
+    pub(in crate::application) scene_transient_overlay_activity:
+        Option<TransientOverlayActivity<State>>,
+    /// Scene-declared lightweight frame-time overlay painter.
+    pub(in crate::application) scene_transient_overlay: Option<TransientOverlayPainter<State>>,
 }
 
 impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
@@ -75,6 +104,9 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
             frame_message: None,
             frame_clock_activity: None,
             frame_repaint_policy: None,
+            scene_frame_message: None,
+            scene_frame_clock_activity: None,
+            scene_frame_repaint_policy: None,
             subscriptions: None,
             shortcuts: None,
             scroll: None,
@@ -86,7 +118,19 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
             retained_painters: HashMap::new(),
             transient_overlay_activity: None,
             transient_overlay: None,
+            scene_transient_overlay_activity: None,
+            scene_transient_overlay: None,
         }
+    }
+}
+
+impl<State, Message> AppBridgeLifecycle<State, Message> {
+    pub(in crate::application) fn clear_scene_presentation(&mut self) {
+        self.scene_frame_message = None;
+        self.scene_frame_clock_activity = None;
+        self.scene_frame_repaint_policy = None;
+        self.scene_transient_overlay_activity = None;
+        self.scene_transient_overlay = None;
     }
 }
 
@@ -122,13 +166,23 @@ where
     }
 
     fn apply_frame_repaint_policy(&mut self, command: Command<Message>) -> Command<Message> {
-        let Some(scope) = self.runtime_flags.pending_frame_repaint_scope.take() else {
+        let Some(pending) = self.runtime_flags.pending_frame_repaint_scope.take() else {
             return command;
         };
-        let Some(policy) = self.lifecycle.frame_repaint_policy.as_mut() else {
-            return command;
+        let can_use_paint_only = match pending.source {
+            FrameRepaintSource::App => {
+                let Some(policy) = self.lifecycle.frame_repaint_policy.as_mut() else {
+                    return command;
+                };
+                policy.resolve_after_frame(&mut self.state, pending.scope)
+            }
+            FrameRepaintSource::Scene => {
+                let Some(policy) = self.lifecycle.scene_frame_repaint_policy.as_mut() else {
+                    return command;
+                };
+                policy.resolve_after_frame(&mut self.state, pending.scope)
+            }
         };
-        let can_use_paint_only = policy.resolve_after_frame(&mut self.state, scope);
         let repaint = if can_use_paint_only {
             RepaintScope::PaintOnly
         } else {

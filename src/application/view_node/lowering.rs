@@ -1,7 +1,7 @@
 use super::{ViewNode, ViewNodeKind};
 use crate::{
     application::{
-        IdGenerator, IntoView, ROOT_KEY_SCOPE, WidgetViewContext,
+        AppBridgeLifecycle, IdGenerator, IntoView, Presentation, ROOT_KEY_SCOPE, WidgetViewContext,
         view_node::lowering_defaults::ViewNodeContainerDefaults,
     },
     layout::{
@@ -25,6 +25,59 @@ where
         self.collect_reserved_ids(ROOT_KEY_SCOPE, &mut reserved);
         let mut ids = IdGenerator::new(reserved);
         ViewLowering::new(&mut ids).lower_node(self, ROOT_KEY_SCOPE)
+    }
+}
+
+impl<Message: 'static> ViewNode<Message> {
+    pub(in crate::application) fn apply_scene_presentation<State: 'static>(
+        &mut self,
+        lifecycle: &mut AppBridgeLifecycle<State, Message>,
+    ) {
+        self.drain_scene_presentation_into(lifecycle);
+    }
+
+    fn drain_scene_presentation_into<State: 'static>(
+        &mut self,
+        lifecycle: &mut AppBridgeLifecycle<State, Message>,
+    ) {
+        match &mut self.kind {
+            ViewNodeKind::Scene {
+                base,
+                layers,
+                presentation,
+            } => {
+                if let Some(presentation) = presentation.take() {
+                    let presentation = *presentation
+                        .downcast::<Presentation<State, Message>>()
+                        .expect("scene presentation state type must match app state type");
+                    presentation.apply_to_scene_lifecycle(lifecycle);
+                }
+                base.drain_scene_presentation_into(lifecycle);
+                for layer in layers {
+                    if let Some(input) = layer.input.as_mut() {
+                        input.drain_scene_presentation_into(lifecycle);
+                    }
+                    layer.view.drain_scene_presentation_into(lifecycle);
+                }
+            }
+            ViewNodeKind::Row { children, .. }
+            | ViewNodeKind::Column { children, .. }
+            | ViewNodeKind::Grid { children, .. }
+            | ViewNodeKind::Wrap { children, .. }
+            | ViewNodeKind::Stack { children } => {
+                for child in children {
+                    child.drain_scene_presentation_into(lifecycle);
+                }
+            }
+            ViewNodeKind::Scroll { child }
+            | ViewNodeKind::VirtualScroll { child, .. }
+            | ViewNodeKind::FloatingLayer { child, .. } => {
+                child.drain_scene_presentation_into(lifecycle);
+            }
+            ViewNodeKind::Runtime(_)
+            | ViewNodeKind::Widget(_)
+            | ViewNodeKind::OverlayPanel { .. } => {}
+        }
     }
 }
 
@@ -58,7 +111,7 @@ impl<'a> ViewLowering<'a> {
             };
 
         match node.kind {
-            ViewNodeKind::Scene { base, layers } => {
+            ViewNodeKind::Scene { base, layers, .. } => {
                 let base = self.lower_node(*base, child_scope);
                 let layers = layers
                     .into_iter()

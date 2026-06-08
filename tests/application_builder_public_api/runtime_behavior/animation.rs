@@ -331,3 +331,207 @@ fn presentation_frame_clock_repaint_scope_requests_paint_only_after_frame_update
 
     assert!(command.requests_paint_only());
 }
+
+#[test]
+fn scene_frame_clock_queues_frame_message_when_active() {
+    use radiant::prelude as ui;
+
+    let bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::scene(
+                ui::text(format!("Frame {}", state.count))
+                    .id(10)
+                    .height(24.0),
+            )
+            .frame_clock(
+                ui::FrameClock::message(DemoMessage::Increment).when(|_state: &mut DemoState| true),
+            )
+            .into_view()
+        })
+        .update_with(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
+
+    let activity = runtime.bridge_mut().animation_activity();
+    assert!(activity.needs_animation());
+    assert!(activity.needs_frame_message());
+    assert!(runtime.bridge_mut().queue_animation_frame());
+
+    let drained = runtime.drain_runtime_messages();
+
+    assert_eq!(drained.messages_dispatched, 1);
+    assert_eq!(
+        widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,
+        "Frame 1"
+    );
+}
+
+#[test]
+fn scene_frame_clock_stays_idle_when_inactive() {
+    use radiant::prelude as ui;
+
+    let bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::scene(
+                ui::text(format!("Frame {}", state.count))
+                    .id(10)
+                    .height(24.0),
+            )
+            .frame_clock(
+                ui::FrameClock::message(DemoMessage::Increment)
+                    .when(|_state: &mut DemoState| false),
+            )
+            .into_view()
+        })
+        .update_with(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
+
+    let activity = runtime.bridge_mut().animation_activity();
+
+    assert!(!activity.needs_animation());
+    assert!(!activity.needs_frame_message());
+    assert!(!runtime.bridge_mut().queue_animation_frame());
+}
+
+#[test]
+fn scene_transient_overlay_requests_paint_only_frames() {
+    use radiant::prelude as ui;
+
+    let bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::scene(
+                ui::text(format!("Frame {}", state.count))
+                    .id(10)
+                    .height(24.0),
+            )
+            .overlay(
+                ui::TransientOverlay::new(7_u64)
+                    .paint_only()
+                    .when(|_| true)
+                    .paint(|state: &mut DemoState, _context, primitives| {
+                        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+                            widget_id: 10,
+                            rect: ui::Rect::from_size(4.0, 4.0),
+                            color: ui::Rgba8::new(state.count as u8, 128, 255, 255),
+                        }));
+                    }),
+            )
+            .into_view()
+        })
+        .update(|state, message| match message {
+            DemoMessage::Increment => state.count += 1,
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
+
+    let activity = runtime.bridge_mut().animation_activity();
+
+    assert!(activity.needs_animation());
+    assert!(!activity.needs_frame_message());
+    assert_eq!(activity.target_fps(), None);
+    assert!(!runtime.bridge_mut().queue_animation_frame());
+    assert!(runtime.bridge_mut().has_transient_overlay_painter());
+}
+
+#[test]
+fn scene_transient_overlay_respects_target_fps() {
+    use radiant::prelude as ui;
+
+    let bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::scene(
+                ui::text(format!("Frame {}", state.count))
+                    .id(10)
+                    .height(24.0),
+            )
+            .overlay(
+                ui::TransientOverlay::new(7_u64)
+                    .paint_only()
+                    .when(|_| true)
+                    .fps(24)
+                    .paint(|_state: &mut DemoState, _context, _primitives| {}),
+            )
+            .into_view()
+        })
+        .update(|state, message| match message {
+            DemoMessage::Increment => state.count += 1,
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
+
+    let activity = runtime.bridge_mut().animation_activity();
+
+    assert!(activity.needs_animation());
+    assert!(!activity.needs_frame_message());
+    assert_eq!(activity.target_fps(), Some(24));
+}
+
+#[test]
+fn scene_presentation_merges_with_layer_projection_without_affecting_input() {
+    use radiant::prelude as ui;
+
+    let bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::scene(
+                ui::button(format!("Base {}", state.count))
+                    .message(DemoMessage::Increment)
+                    .id(42),
+            )
+            .frame_clock(
+                ui::FrameClock::message(DemoMessage::Increment).when(|_state: &mut DemoState| true),
+            )
+            .layer(ui::Layer::tooltip(ui::text("Tip").height(20.0)))
+            .into_view()
+        })
+        .update_with(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
+
+    assert!(
+        runtime
+            .bridge_mut()
+            .animation_activity()
+            .needs_frame_message()
+    );
+    assert_eq!(runtime.widget_at(ui::Point::new(16.0, 12.0)), Some(42));
+    assert!(runtime.bridge_mut().queue_animation_frame());
+    let drained = runtime.drain_runtime_messages();
+
+    assert_eq!(drained.messages_dispatched, 1);
+}
+
+#[test]
+fn scene_presentation_preserves_base_widget_hit_testing() {
+    use radiant::prelude as ui;
+
+    let bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::scene(
+                ui::button(format!("Base {}", state.count))
+                    .message(DemoMessage::Increment)
+                    .id(42)
+                    .height(32.0),
+            )
+            .overlay(
+                ui::TransientOverlay::new(7_u64)
+                    .paint_only()
+                    .when(|_| true)
+                    .paint(|_state: &mut DemoState, _context, _primitives| {}),
+            )
+            .into_view()
+        })
+        .update_with(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+        })
+        .into_bridge();
+    let runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
+
+    assert_eq!(runtime.widget_at(ui::Point::new(16.0, 12.0)), Some(42));
+}

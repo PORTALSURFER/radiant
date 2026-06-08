@@ -66,6 +66,30 @@ impl<State: 'static, Message> Presentation<State, Message> {
             }
         }
     }
+
+    pub(in crate::application) fn apply_to_scene_lifecycle(
+        self,
+        lifecycle: &mut AppBridgeLifecycle<State, Message>,
+    ) {
+        if let Some(frame_clock) = self.frame_clock {
+            let FrameClockParts {
+                activity,
+                message,
+                repaint_policy,
+            } = frame_clock.into_parts();
+            lifecycle.scene_frame_clock_activity = Some(activity);
+            lifecycle.scene_frame_message = Some(message);
+            lifecycle.scene_frame_repaint_policy = repaint_policy;
+        }
+
+        if let Some(overlay) = self.transient_overlay {
+            let TransientOverlayParts { activity, painter } = overlay.into_parts();
+            lifecycle.scene_transient_overlay_activity = Some(activity);
+            if let Some(painter) = painter {
+                lifecycle.scene_transient_overlay = Some(painter);
+            }
+        }
+    }
 }
 
 impl<State: 'static, Message> Default for Presentation<State, Message> {

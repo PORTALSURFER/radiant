@@ -17,6 +17,7 @@ use crate::{
     runtime::{LayerKind, SurfaceNode},
     widgets::{TextAlign, TextBackgroundRole, TextColorRole, TextWrap, WidgetSizing, WidgetStyle},
 };
+use std::any::Any;
 
 /// A typed transient scene layer.
 pub struct Layer<Message> {
@@ -78,6 +79,7 @@ pub(in crate::application) enum ViewNodeKind<Message> {
     Scene {
         base: Box<ViewNode<Message>>,
         layers: Vec<Layer<Message>>,
+        presentation: Option<Box<dyn Any>>,
     },
     Runtime(SurfaceNode<Message>),
     Widget(Box<dyn WidgetView<Message>>),

@@ -1,10 +1,14 @@
 //! Declarative root scene builder for base content plus transient layers.
 
 use crate::{
-    application::{Layer, LayerInputPolicy, ViewNode, ViewNodeKind, pointer_shield},
+    application::{
+        FrameClock, Layer, LayerInputPolicy, Presentation, TransientOverlay, ViewNode,
+        ViewNodeKind, pointer_shield,
+    },
     runtime::LayerKind,
     widgets::PointerShieldMessage,
 };
+use std::any::Any;
 
 /// Declarative root scene builder.
 ///
@@ -13,6 +17,7 @@ use crate::{
 pub struct Scene<Message> {
     base: ViewNode<Message>,
     layers: Vec<Layer<Message>>,
+    presentation: Option<Box<dyn Any>>,
 }
 
 /// Build a root scene around base application content.
@@ -20,6 +25,7 @@ pub fn scene<Message>(base: ViewNode<Message>) -> Scene<Message> {
     Scene {
         base,
         layers: Vec::new(),
+        presentation: None,
     }
 }
 
@@ -44,6 +50,37 @@ impl<Message: 'static> Scene<Message> {
         self
     }
 
+    /// Add one scene-scoped frame clock.
+    pub fn frame_clock<State: 'static>(mut self, clock: FrameClock<State, Message>) -> Self {
+        self.update_presentation(|presentation| presentation.frame_clock(clock));
+        self
+    }
+
+    /// Add one optional scene-scoped frame clock.
+    pub fn frame_clock_opt<State: 'static>(
+        self,
+        clock: Option<FrameClock<State, Message>>,
+    ) -> Self {
+        match clock {
+            Some(clock) => self.frame_clock(clock),
+            None => self,
+        }
+    }
+
+    /// Add one scene-scoped paint-only transient overlay.
+    pub fn overlay<State: 'static>(mut self, overlay: TransientOverlay<State>) -> Self {
+        self.update_presentation(|presentation| presentation.transient_overlay(overlay));
+        self
+    }
+
+    /// Add one optional scene-scoped paint-only transient overlay.
+    pub fn overlay_opt<State: 'static>(self, overlay: Option<TransientOverlay<State>>) -> Self {
+        match overlay {
+            Some(overlay) => self.overlay(overlay),
+            None => self,
+        }
+    }
+
     /// Lower this scene into a Radiant view node.
     pub fn into_view(self) -> ViewNode<Message> {
         let has_reserved_descendant_identity = self.base.has_reserved_identity_in_subtree()
@@ -57,8 +94,25 @@ impl<Message: 'static> Scene<Message> {
         ViewNode::new(ViewNodeKind::Scene {
             base: Box::new(self.base),
             layers: self.layers,
+            presentation: self.presentation,
         })
         .with_reserved_descendant_identity(has_reserved_descendant_identity)
+    }
+
+    fn update_presentation<State: 'static>(
+        &mut self,
+        update: impl FnOnce(Presentation<State, Message>) -> Presentation<State, Message>,
+    ) {
+        let presentation = self
+            .presentation
+            .take()
+            .map(|presentation| {
+                *presentation
+                    .downcast::<Presentation<State, Message>>()
+                    .expect("scene presentation state type must be consistent")
+            })
+            .unwrap_or_default();
+        self.presentation = Some(Box::new(update(presentation)));
     }
 }
 

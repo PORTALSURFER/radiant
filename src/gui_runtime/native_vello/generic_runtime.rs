@@ -39,6 +39,7 @@ mod lifecycle;
 mod lifecycle_pointer;
 mod native_cursor;
 mod native_file_drop;
+mod native_pointer;
 mod pointer_click;
 mod popup_drag;
 mod post_gpu_overlay;

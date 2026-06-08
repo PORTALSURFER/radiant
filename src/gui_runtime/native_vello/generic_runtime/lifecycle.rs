@@ -2,16 +2,14 @@
 
 use super::{
     AuxiliaryWindowEventResult, GenericNativeVelloRunner, RuntimeUserEvent, TimedFrameCadence,
-    maybe_log_route_profile, pointer_button_from_winit, pointer_modifiers_from_winit,
-    scroll_delta_to_logical, should_start_popup_window_drag, timed_frame_cadence,
-    timed_frame_target_fps,
+    should_start_popup_window_drag, timed_frame_cadence, timed_frame_target_fps,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
 use tracing::warn;
 use winit::{
     application::ApplicationHandler,
-    event::{ElementState, WindowEvent},
+    event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow},
     window::WindowId,
 };
@@ -76,68 +74,31 @@ where
             WindowEvent::DroppedFile(path) => self.handle_native_file_drop(event_loop, path),
             WindowEvent::CursorLeft { .. } => self.handle_cursor_left(event_loop),
             WindowEvent::MouseInput { button, state, .. } => {
-                let Some(position) = self.input.last_cursor else {
+                let Some(route) = self.route_native_mouse_input(button, state) else {
                     return;
                 };
-                let Some(button) = pointer_button_from_winit(button) else {
-                    return;
-                };
-                let modifiers = pointer_modifiers_from_winit(self.input.modifiers);
-                let started = Instant::now();
-                let routed = match state {
-                    ElementState::Pressed => self
-                        .core
-                        .route_pointer_press_with_modifiers(position, button, modifiers),
-                    ElementState::Released => self
-                        .core
-                        .route_pointer_release_with_modifiers(position, button, modifiers),
-                };
-                maybe_log_route_profile("pointer_button", started.elapsed(), routed);
-                if state == ElementState::Pressed
+                if route.is_pressed()
                     && should_start_popup_window_drag(
                         &self.options,
-                        position,
-                        button,
-                        routed.routed,
+                        route.position,
+                        route.button,
+                        route.outcome.routed,
                     )
                     && let Some(window) = self.window.window.as_ref()
                     && let Err(err) = window.drag_window()
                 {
                     warn!("radiant generic native vello: popup window drag failed: {err}");
                 }
-                self.handle_route_outcome(event_loop, routed);
+                self.handle_route_outcome(event_loop, route.outcome);
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                let Some(position) = self.input.last_cursor else {
-                    return;
-                };
-                let delta = scroll_delta_to_logical(delta, self.window.dpi_scale);
-                let modifiers = pointer_modifiers_from_winit(self.input.modifiers);
-                if self.can_coalesce_gpu_surface_wheel(position, delta) {
-                    self.queue_gpu_surface_wheel(position, delta, modifiers);
-                    return;
-                }
-                let started = Instant::now();
-                let routed = if self.can_fast_path_gpu_surface_route(position, delta) {
-                    self.core
-                        .route_scroll_deferred_refresh_with_modifiers(position, delta, modifiers)
-                } else {
-                    self.core
-                        .route_scroll_with_modifiers(position, delta, modifiers)
-                };
-                maybe_log_route_profile("wheel", started.elapsed(), routed);
-                self.handle_gpu_surface_route_outcome(routed, position, delta);
+                let _ = self.route_native_mouse_wheel(delta);
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 self.handle_keyboard_event(event_loop, event)
             }
             WindowEvent::ModifiersChanged(modifiers) => {
-                self.input.modifiers = modifiers.state();
-                let routed =
-                    self.core
-                        .route_pointer_modifiers_changed(pointer_modifiers_from_winit(
-                            self.input.modifiers,
-                        ));
+                let routed = self.route_native_modifiers_changed(modifiers.state());
                 self.handle_route_outcome(event_loop, routed);
             }
             WindowEvent::RedrawRequested => self.redraw(event_loop),

@@ -1,12 +1,9 @@
-use super::{
-    GenericNativeVelloRunner, GenericRouteOutcome, initial_viewport, owner_window_handle,
-    pointer_button_from_winit, pointer_modifiers_from_winit, scroll_delta_to_logical,
-};
+use super::{GenericNativeVelloRunner, GenericRouteOutcome, initial_viewport, owner_window_handle};
 use crate::runtime::{AuxiliaryWindow, NativeRunOptions, RuntimeBridge};
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;
 use winit::{
-    event::{ElementState, WindowEvent},
+    event::WindowEvent,
     event_loop::ActiveEventLoop,
     window::{Window, WindowId},
 };
@@ -126,20 +123,20 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             WindowEvent::CursorMoved { position, .. } => self.runner.handle_cursor_moved(position),
             WindowEvent::CursorLeft { .. } => self.runner.handle_cursor_left(event_loop),
             WindowEvent::MouseInput { button, state, .. } => {
-                self.route_mouse_input(event_loop, button, state);
+                if let Some(route) = self.runner.route_native_mouse_input(button, state) {
+                    self.runner.handle_route_outcome(event_loop, route.outcome);
+                }
             }
-            WindowEvent::MouseWheel { delta, .. } => self.route_mouse_wheel(delta),
+            WindowEvent::MouseWheel { delta, .. } => {
+                let _ = self.runner.route_native_mouse_wheel(delta);
+            }
             WindowEvent::KeyboardInput { event, .. } => {
                 self.runner.handle_keyboard_event(event_loop, event)
             }
             WindowEvent::ModifiersChanged(modifiers) => {
-                self.runner.input.modifiers = modifiers.state();
-                let routed =
-                    self.runner
-                        .core
-                        .route_pointer_modifiers_changed(pointer_modifiers_from_winit(
-                            self.runner.input.modifiers,
-                        ));
+                let routed = self
+                    .runner
+                    .route_native_modifiers_changed(modifiers.state());
                 self.runner.handle_route_outcome(event_loop, routed);
             }
             WindowEvent::RedrawRequested => self.runner.redraw(event_loop),
@@ -149,57 +146,6 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             closed: false,
             messages: self.take_messages(),
         }
-    }
-
-    fn route_mouse_input(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        button: winit::event::MouseButton,
-        state: ElementState,
-    ) {
-        let Some(position) = self.runner.input.last_cursor else {
-            return;
-        };
-        let Some(button) = pointer_button_from_winit(button) else {
-            return;
-        };
-        let modifiers = pointer_modifiers_from_winit(self.runner.input.modifiers);
-        let routed = match state {
-            ElementState::Pressed => self
-                .runner
-                .core
-                .route_pointer_press_with_modifiers(position, button, modifiers),
-            ElementState::Released => self
-                .runner
-                .core
-                .route_pointer_release_with_modifiers(position, button, modifiers),
-        };
-        self.runner.handle_route_outcome(event_loop, routed);
-    }
-
-    fn route_mouse_wheel(&mut self, delta: winit::event::MouseScrollDelta) {
-        let Some(position) = self.runner.input.last_cursor else {
-            return;
-        };
-        let delta = scroll_delta_to_logical(delta, self.runner.window.dpi_scale);
-        if self.runner.can_coalesce_gpu_surface_wheel(position, delta) {
-            let modifiers = pointer_modifiers_from_winit(self.runner.input.modifiers);
-            self.runner
-                .queue_gpu_surface_wheel(position, delta, modifiers);
-            return;
-        }
-        let modifiers = pointer_modifiers_from_winit(self.runner.input.modifiers);
-        let routed = if self.runner.can_fast_path_gpu_surface_route(position, delta) {
-            self.runner
-                .core
-                .route_scroll_deferred_refresh_with_modifiers(position, delta, modifiers)
-        } else {
-            self.runner
-                .core
-                .route_scroll_with_modifiers(position, delta, modifiers)
-        };
-        self.runner
-            .handle_gpu_surface_route_outcome(routed, position, delta);
     }
 
     fn take_messages(&mut self) -> Vec<Message> {

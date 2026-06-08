@@ -29,6 +29,12 @@ where
     pub(super) auxiliary_windows: Vec<AuxiliaryNativeWindow<Message>>,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct AppliedRouteOutcome {
+    pub(super) exit_requested: bool,
+    pub(super) sync_auxiliary_windows_now: bool,
+}
+
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
@@ -186,12 +192,27 @@ where
     pub(super) fn handle_route_outcome(
         &mut self,
         event_loop: &ActiveEventLoop,
-        mut outcome: GenericRouteOutcome,
+        outcome: GenericRouteOutcome,
     ) {
+        let applied = self.apply_route_outcome(outcome);
+        if applied.exit_requested {
+            event_loop.exit();
+        }
+        if applied.sync_auxiliary_windows_now {
+            self.sync_auxiliary_windows(event_loop);
+        }
+    }
+
+    pub(super) fn apply_route_outcome(
+        &mut self,
+        mut outcome: GenericRouteOutcome,
+    ) -> AppliedRouteOutcome {
         self.merge_due_timed_frame_for_route(&mut outcome);
         if outcome.exit_requested {
-            event_loop.exit();
-            return;
+            return AppliedRouteOutcome {
+                exit_requested: true,
+                sync_auxiliary_windows_now: false,
+            };
         }
         if let Some(scale) = outcome.dpi_scale_override {
             self.set_dpi_scale_override(scale);
@@ -221,12 +242,13 @@ where
         } else if outcome.deferred_surface_refresh_requested {
             self.timing.deferred_surface_refresh = true;
         }
-        if sync_auxiliary_windows_now {
-            self.sync_auxiliary_windows(event_loop);
-        }
         if outcome.needs_redraw() {
             self.request_redraw_if_needed();
         }
         self.request_runtime_wakeup_if_needed(outcome);
+        AppliedRouteOutcome {
+            exit_requested: false,
+            sync_auxiliary_windows_now,
+        }
     }
 }

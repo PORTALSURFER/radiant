@@ -26,7 +26,7 @@ where
     Message: Send + 'static,
     State: 'static,
 {
-    /// Attach a reducer that mutates app state and requests a repaint.
+    /// Attach a simple app message handler that mutates app state and requests a repaint.
     pub fn update<Update>(
         self,
         mut update: Update,
@@ -34,14 +34,14 @@ where
     where
         Update: FnMut(&mut State, Message) + 'static,
     {
-        self.reducer(Box::new(move |state, message, context| {
+        self.handle_message(Box::new(move |state, message, context| {
             update(state, message);
             context.command(Command::request_repaint());
         }))
     }
 
-    /// Attach an app reducer that can queue runtime-visible work through an update context.
-    pub fn reducer<Update>(
+    /// Attach an app message handler that can queue runtime-visible work through an update context.
+    pub fn handle_message<Update>(
         self,
         update: Update,
     ) -> RunnableStatefulApp<State, Message, Project, Update, View>
@@ -59,9 +59,24 @@ where
         }
     }
 
-    /// Advanced compatibility alias for [`Self::reducer`].
+    /// Compatibility alias for [`Self::handle_message`].
     ///
-    /// Prefer [`Self::reducer`] for app-facing reducers. This older name
+    /// Prefer [`Self::handle_message`] in app-facing code. The reducer name is
+    /// still public for existing callers and tests that intentionally use the
+    /// state-machine vocabulary.
+    pub fn reducer<Update>(
+        self,
+        update: Update,
+    ) -> RunnableStatefulApp<State, Message, Project, Update, View>
+    where
+        Update: FnMut(&mut State, Message, &mut UpdateContext<Message>) + 'static,
+    {
+        self.handle_message(update)
+    }
+
+    /// Advanced compatibility alias for [`Self::handle_message`].
+    ///
+    /// Prefer [`Self::handle_message`] for app-facing message handlers. This older name
     /// remains public for existing code and examples that intentionally model
     /// the lower-level update/context hook.
     pub fn update_with<Update>(
@@ -71,10 +86,10 @@ where
     where
         Update: FnMut(&mut State, Message, &mut UpdateContext<Message>) + 'static,
     {
-        self.reducer(update)
+        self.handle_message(update)
     }
 
-    /// Attach a reducer that returns runtime-visible commands.
+    /// Attach a simple app message handler that returns runtime-visible commands.
     pub fn update_command<Update>(
         self,
         mut update: Update,
@@ -82,7 +97,7 @@ where
     where
         Update: FnMut(&mut State, Message) -> Command<Message> + 'static,
     {
-        self.reducer(Box::new(move |state, message, context| {
+        self.handle_message(Box::new(move |state, message, context| {
             context.command(update(state, message));
         }))
     }

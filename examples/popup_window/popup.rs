@@ -26,7 +26,7 @@ pub(super) fn run_popup_window() -> radiant::Result {
     .floating_popup()
     .popup_policy(popup_policy_for_launch(launch))
     .view(popup_view)
-    .reducer(update_popup)
+    .handle_message(update_popup)
     .run()
 }
 

@@ -98,7 +98,7 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
     (
         "background_loading",
         &[
-            ".reducer(",
+            ".handle_message(",
             "context.spawn_resource(",
             "ResourceCompletion",
             "LoadingMessage::Loaded",

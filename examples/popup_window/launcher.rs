@@ -81,7 +81,7 @@ pub(super) fn run_launcher_window() -> radiant::Result {
             state.popup_hosts.shutdown();
             true
         })
-        .reducer(update_launcher)
+        .handle_message(update_launcher)
         .run()
 }
 

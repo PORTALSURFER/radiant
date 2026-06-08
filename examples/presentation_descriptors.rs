@@ -42,7 +42,7 @@ fn main() -> radiant::Result {
                         .paint(paint_playhead),
                 ),
         )
-        .reducer(update)
+        .handle_message(update)
         .run()
 }
 

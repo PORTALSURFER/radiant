@@ -1,4 +1,4 @@
-//! Explicit message routing with a reducer and command.
+//! Explicit message routing with a handler and command.
 
 use radiant::prelude::*;
 

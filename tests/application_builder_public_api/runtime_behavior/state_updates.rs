@@ -40,7 +40,31 @@ fn stateful_app_builder_projects_updates_and_preserves_commands() {
 }
 
 #[test]
-fn reducer_exposes_update_context_with_clear_app_api_name() {
+fn handle_message_exposes_update_context_with_clear_app_api_name() {
+    use radiant::prelude as ui;
+
+    let mut bridge = ui::app(DemoState::default())
+        .view(|state| ui::text(format!("Count: {}", state.count)))
+        .handle_message(|state, message, context| match message {
+            DemoMessage::Increment => {
+                state.count += 1;
+                context.request_repaint();
+            }
+        })
+        .into_bridge();
+
+    let command = bridge.update(DemoMessage::Increment);
+
+    assert!(command.requests_repaint());
+    let after = bridge.project_surface();
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&after, 1, "text").text,
+        "Count: 1"
+    );
+}
+
+#[test]
+fn reducer_remains_compatibility_alias_for_context_aware_handlers() {
     use radiant::prelude as ui;
 
     let mut bridge = ui::app(DemoState::default())
@@ -64,13 +88,13 @@ fn reducer_exposes_update_context_with_clear_app_api_name() {
 }
 
 #[test]
-fn ordinary_reducer_without_repaint_command_requests_surface_repaint_by_default() {
+fn ordinary_handler_without_repaint_command_requests_surface_repaint_by_default() {
     use radiant::prelude as ui;
     use radiant::runtime::RepaintScope;
 
     let mut bridge = ui::app(DemoState::default())
         .view(|state| ui::text(format!("Count: {}", state.count)))
-        .reducer(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
         })
         .into_bridge();
@@ -81,13 +105,13 @@ fn ordinary_reducer_without_repaint_command_requests_surface_repaint_by_default(
 }
 
 #[test]
-fn ordinary_reducer_explicit_paint_only_is_not_upgraded_to_surface_repaint() {
+fn ordinary_handler_explicit_paint_only_is_not_upgraded_to_surface_repaint() {
     use radiant::prelude as ui;
     use radiant::runtime::RepaintScope;
 
     let mut bridge = ui::app(DemoState::default())
         .view(|state| ui::text(format!("Count: {}", state.count)))
-        .reducer(|state, message, context| match message {
+        .handle_message(|state, message, context| match message {
             DemoMessage::Increment => {
                 state.count += 1;
                 context.request_paint_only();
@@ -101,13 +125,13 @@ fn ordinary_reducer_explicit_paint_only_is_not_upgraded_to_surface_repaint() {
 }
 
 #[test]
-fn ordinary_reducer_explicit_surface_repaint_is_preserved() {
+fn ordinary_handler_explicit_surface_repaint_is_preserved() {
     use radiant::prelude as ui;
     use radiant::runtime::RepaintScope;
 
     let mut bridge = ui::app(DemoState::default())
         .view(|state| ui::text(format!("Count: {}", state.count)))
-        .reducer(|state, message, context| match message {
+        .handle_message(|state, message, context| match message {
             DemoMessage::Increment => {
                 state.count += 1;
                 context.request_repaint();
@@ -126,7 +150,7 @@ fn repaint_policy_none_disables_ordinary_message_automatic_repaint() {
 
     let mut bridge = ui::app(DemoState::default())
         .view(|state| ui::text(format!("Count: {}", state.count)))
-        .reducer(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
         })
         .repaint_policy(ui::RepaintPolicy::none())
@@ -149,7 +173,7 @@ fn repaint_policy_can_skip_frame_messages() {
 
     let mut bridge = ui::app(DemoState::default())
         .view(|state| ui::text(format!("Count: {}", state.count)))
-        .reducer(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             Message::Frame => state.count += 1,
             Message::User => state.count += 10,
         })

@@ -590,10 +590,21 @@ outside-click dismissal.
 Base content with optional transient UI should normally use `scene(base)`.
 `Scene` is Radiant's declarative root surface model: applications decide which
 typed layers are active from state each frame, while Radiant owns generic scene
-projection and layer z-order. Add transient UI with `Layer::floating(...)`,
-`Layer::popover(...)`, `Layer::modal(...)`, `Layer::context_menu(...)`,
-`Layer::tooltip(...)`, and `Layer::drag_preview(...)`, then attach those layers
-with `Scene::layer(...)`, `Scene::layer_opt(...)`, or `Scene::layers(...)`.
+projection and layer z-order. The preferred pattern is to declare transient
+layers beside the component that owns them. Use view-local helpers such as
+`ViewNode::popover_layer_opt(...)`, `context_menu_layer_opt(...)`,
+`modal_layer_opt(...)`, `tooltip_layer_opt(...)`, `drag_preview_layer_opt(...)`,
+or the generic `transient_layer_opt(...)` when the layer needs an input policy.
+The root `scene(base)` collects descendant declarations during normal lowering,
+so the root view does not need a registry of every popup, modal, menu, tooltip,
+or drag preview the app might show.
+Use `Layer::floating(...)`, `Layer::popover(...)`, `Layer::modal(...)`,
+`Layer::context_menu(...)`, `Layer::tooltip(...)`, and
+`Layer::drag_preview(...)` to build typed layers. Attach them locally with
+`ViewNode::transient_layer(...)` / `transient_layer_opt(...)`, or attach them
+explicitly at the root with `Scene::layer(...)`, `Scene::layer_opt(...)`, or
+`Scene::layers(...)` when a host deliberately owns a root-level transient that
+does not belong to one component.
 Layer input policy is explicit and Radiant-owned. `Layer::pass_through()` is
 the default and adds no synthesized input surface. `Layer::block_input()` adds a
 transparent full-scene input surface below that layer's foreground content,
@@ -602,6 +613,13 @@ consuming pointer and wheel input behind modals or other blocking surfaces.
 outside pointer press/drop and blocks wheel input behind the layer, while
 foreground content still routes above the dismiss surface.
 `Layer::input_policy()` returns the declared `LayerInputPolicy`.
+View-local collection is a lowering-time move through the declarative view tree,
+not a persistent overlay registry or imperative runtime service. A scene with no
+view-local or explicit layers follows the same base layout, traversal, input,
+focus, native drop target lookup, and widget state synchronization path as the
+base view. When both view-local and explicit root layers exist, Radiant collects
+descendant layers first and then appends explicitly supplied scene layers before
+applying fixed kind z-order.
 Scenes can also carry presentation declarations that belong to the root
 surface instead of launch wiring. Use `Scene::frame_clock(...)` or
 `Scene::frame_clock_opt(...)` for host-state frame messages, and
@@ -1999,9 +2017,10 @@ layer policy.
 These helpers avoid app-local `message_menu_height(...)` sizing and hard-coded
 context-menu width constants.
 Run `cargo run --example scene` for the preferred root-scene sandbox. It
-composes base content with floating, popover, modal, context-menu, tooltip, and
-drag-preview layers through `Scene` and `Layer`, and declares a root
-`FrameClock` plus paint-only `TransientOverlay` directly on the `Scene`.
+keeps the root `Scene` focused on base layout, shortcuts, frame clocks, and
+paint-only overlays while status-bar, browser, and workspace components declare
+their own popovers, context menus, modals, tooltips, and drag previews as
+view-local transient layers.
 Run `cargo run --example native_file_drop` for a view-local native OS file-drop
 target that maps `NativeFileDrop` events into normal app messages.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox

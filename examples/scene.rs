@@ -95,31 +95,6 @@ fn main() -> radiant::Result {
         .min_size(460, 280)
         .view(|state| {
             scene(base_layout(state))
-                .layer_opt(
-                    state
-                        .floating_open
-                        .then(|| Layer::floating(floating_layer_slot())),
-                )
-                .layer_opt(state.popover_open.then(|| Layer::popover(popover_slot())))
-                .layer_opt(
-                    state
-                        .modal_open
-                        .then(|| Layer::modal(modal_slot()).block_input()),
-                )
-                .layer_opt(state.context_menu_open.then(|| {
-                    Layer::context_menu(context_menu_slot())
-                        .dismiss_on_outside_click(SceneExampleMessage::CloseContextMenu)
-                }))
-                .layer_opt(
-                    state
-                        .tooltip_open
-                        .then(|| Layer::tooltip(tooltip_slot()).pass_through()),
-                )
-                .layer_opt(
-                    state
-                        .drag_preview_open
-                        .then(|| Layer::drag_preview(drag_preview_slot()).pass_through()),
-                )
                 .shortcuts(scene_shortcuts(state))
                 .frame_clock(
                     FrameClock::message(SceneExampleMessage::Frame)
@@ -153,10 +128,9 @@ fn main() -> radiant::Result {
 
 fn base_layout(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
     column([
-        text("Scene").height(28.0).fill_width(),
-        text("Each toggle changes state; Radiant assembles the root scene order.")
-            .height(24.0)
-            .fill_width(),
+        status_bar(state),
+        browser_area(state),
+        modal_owner(state),
         local_overlay_demo(state),
         toggle_button(
             "Local overlay",
@@ -199,6 +173,55 @@ fn base_layout(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
     .spacing(8.0)
     .fill_width()
     .fill_height()
+}
+
+fn status_bar(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
+    row([
+        text("Scene").height(28.0).fill_width(),
+        toggle_button(
+            "Popover",
+            state.popover_open,
+            SceneExampleMessage::TogglePopover,
+        ),
+        toggle_button(
+            "Tooltip",
+            state.tooltip_open,
+            SceneExampleMessage::ToggleTooltip,
+        ),
+    ])
+    .spacing(8.0)
+    .fill_width()
+    .popover_layer_opt(state.popover_open.then(popover_slot))
+    .tooltip_layer_opt(state.tooltip_open.then(tooltip_slot))
+}
+
+fn browser_area(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
+    panel(
+        "Browser",
+        "Context menu and drag preview are declared by this component.",
+    )
+    .height(58.0)
+    .fill_width()
+    .floating_layer_opt(state.floating_open.then(floating_layer_slot))
+    .drag_preview_layer_opt(state.drag_preview_open.then(drag_preview_slot))
+    .transient_layer_opt(state.context_menu_open.then(|| {
+        Layer::context_menu(context_menu_slot())
+            .dismiss_on_outside_click(SceneExampleMessage::CloseContextMenu)
+    }))
+}
+
+fn modal_owner(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
+    panel(
+        "Workspace",
+        "The modal is owned by this workspace component.",
+    )
+    .height(58.0)
+    .fill_width()
+    .transient_layer_opt(
+        state
+            .modal_open
+            .then(|| Layer::modal(modal_slot()).block_input()),
+    )
 }
 
 fn local_overlay_demo(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {

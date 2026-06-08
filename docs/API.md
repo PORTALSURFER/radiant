@@ -226,8 +226,12 @@ interactive-row underlay owns standard tracked drop-target behavior.
 Reducers that need the full app runtime should use `.reducer(...)` with an
 `UpdateContext<Message>` to emit messages, request repaint, move focus, start
 background work, schedule delayed messages, or request runtime exit. Use
-`.repaint_policy(...)` with `RepaintPolicy` when ordinary app messages should
-request a repaint automatically while frame or paint-only messages opt out.
+`.repaint_policy(...)` with `RepaintPolicy` only when ordinary app messages
+need custom automatic repaint behavior. Ordinary reducer messages request a
+surface repaint by default unless the reducer explicitly requests surface or
+paint-only repaint. Frame-clock messages use their `FrameClock::repaint_scope`
+policy first, so apps do not need to exclude frame messages from
+`RepaintPolicy`.
 The older `.update_with(...)` name remains public as an advanced compatibility
 alias for the same context-aware reducer hook. `PlatformResponse` exposes helpers such as
 `path()`, `into_path()`, `into_path_or_canceled()`, `is_canceled()`,
@@ -817,14 +821,16 @@ radiant::app(state)
             ),
     )
     .reducer(update)
-    .repaint_policy(ui::RepaintPolicy::after_messages_except_value(GuiMessage::Frame))
     .run();
 ```
 
 `FrameClock` is for host-state frame messages. `TransientOverlay` is for
 paint-only presentation work over the cached surface. These descriptors lower to
 the same runtime animation and transient-overlay hooks whether they are attached
-to `Scene` or to the app builder.
+to `Scene` or to the app builder. Reducer messages request a surface repaint by
+default, while frame-clock messages with `repaint_scope(...)` can resolve to
+paint-only repaint when the frame update did not require a structural surface
+refresh.
 
 Compatibility policy: root-scoped app presentation should use
 `Scene::frame_clock(...)` and `Scene::overlay(...)`. App-builder
@@ -895,10 +901,13 @@ or use `declarative_runtime_bridge(state, project, reduce)` to project an
 immutable `UiSurface<Message>` from state and reduce messages back into state.
 Apps whose update flow returns runtime-visible follow-up work can use
 `radiant::app(...).update_command(...)`; apps that need `UpdateContext` should
-use `.reducer(...)`. `RepaintPolicy` lets app-builder code declare automatic
-message repaint behavior outside the reducer instead of hand-writing repaint
-logic in launch closures. The older `.update_with(...)` hook is retained for
-compatibility and custom lower-level lifecycle code. The app builder lowers into
+use `.reducer(...)`. Ordinary reducer messages automatically request surface
+repaint unless the reducer returns an explicit surface or paint-only repaint
+command. `RepaintPolicy` lets app-builder code override that ordinary-message
+default outside the reducer, while frame-clock messages use
+`FrameClock::repaint_scope(...)` for paint-only frame optimization. The older
+`.update_with(...)` hook is retained for compatibility and custom lower-level
+lifecycle code. The app builder lowers into
 Radiant's bridge internally while keeping side effects and domain state
 host-owned. Low-level hosts can still provide a custom bridge or use
 `declarative_command_runtime_bridge(state, project, update)` when embedding

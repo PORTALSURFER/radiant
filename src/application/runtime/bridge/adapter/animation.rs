@@ -1,7 +1,7 @@
 use super::super::AppBridge;
 use crate::{
     application::{
-        FrameMessageActivity, FrameRepaintSource, IntoView, PendingFrameRepaintScope, UpdateContext,
+        FrameMessageActivity, FrameRepaintSource, IntoView, PendingFrameRepaint, UpdateContext,
     },
     runtime::{RuntimeAnimationActivity, RuntimeAnimationDemand},
 };
@@ -82,7 +82,7 @@ where
         {
             let queued = self.runtime.enqueue_frame(frame_message());
             if queued {
-                self.capture_scene_frame_repaint_scope();
+                self.capture_scene_frame_repaint();
             }
             return queued;
         }
@@ -91,7 +91,7 @@ where
         {
             let queued = self.runtime.enqueue_frame(frame_message());
             if queued {
-                self.capture_app_frame_repaint_scope();
+                self.capture_app_frame_repaint();
             }
             return queued;
         }
@@ -122,23 +122,27 @@ where
         }
     }
 
-    fn capture_app_frame_repaint_scope(&mut self) {
-        let Some(policy) = self.lifecycle.frame_repaint_policy.as_mut() else {
-            return;
-        };
-        self.runtime_flags.pending_frame_repaint_scope = Some(PendingFrameRepaintScope {
+    fn capture_app_frame_repaint(&mut self) {
+        let scope = self
+            .lifecycle
+            .frame_repaint_policy
+            .as_mut()
+            .map(|policy| policy.capture_before_frame(&mut self.state));
+        self.runtime_flags.pending_frame_repaint = Some(PendingFrameRepaint {
             source: FrameRepaintSource::App,
-            scope: policy.capture_before_frame(&mut self.state),
+            scope,
         });
     }
 
-    fn capture_scene_frame_repaint_scope(&mut self) {
-        let Some(policy) = self.lifecycle.scene_frame_repaint_policy.as_mut() else {
-            return;
-        };
-        self.runtime_flags.pending_frame_repaint_scope = Some(PendingFrameRepaintScope {
+    fn capture_scene_frame_repaint(&mut self) {
+        let scope = self
+            .lifecycle
+            .scene_frame_repaint_policy
+            .as_mut()
+            .map(|policy| policy.capture_before_frame(&mut self.state));
+        self.runtime_flags.pending_frame_repaint = Some(PendingFrameRepaint {
             source: FrameRepaintSource::Scene,
-            scope: policy.capture_before_frame(&mut self.state),
+            scope,
         });
     }
 }

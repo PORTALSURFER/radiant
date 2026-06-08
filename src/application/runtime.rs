@@ -21,8 +21,7 @@ mod timer;
 mod update_context;
 
 pub(in crate::application) use bridge::{
-    AppBridge, AppBridgeLifecycle, FrameMessageActivity, FrameRepaintSource,
-    PendingFrameRepaintScope,
+    AppBridge, AppBridgeLifecycle, FrameMessageActivity, FrameRepaintSource, PendingFrameRepaint,
 };
 pub(in crate::application) use queue::AppRuntime;
 pub use subscription::Subscription;

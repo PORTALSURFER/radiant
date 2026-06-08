@@ -1,10 +1,9 @@
 use crate::{
     application::{
-        AppBridge, AppBridgeLifecycle, AppUpdate, RepaintPolicy, Result, UpdateContext,
-        launch::IntoView,
+        AppBridge, AppBridgeLifecycle, RepaintPolicy, Result, UpdateContext, launch::IntoView,
     },
     gui_runtime::NativeRunOptions,
-    runtime::{Command, RuntimeBridge, run_native_vello_runtime},
+    runtime::{RuntimeBridge, run_native_vello_runtime},
 };
 use std::marker::PhantomData;
 
@@ -45,26 +44,12 @@ where
         AppBridge::new(self.state, self.project, self.update, self.lifecycle)
     }
 
-    /// Apply an automatic repaint policy after app messages are reduced.
-    pub fn repaint_policy(
-        self,
-        policy: RepaintPolicy<Message>,
-    ) -> RunnableStatefulApp<State, Message, Project, AppUpdate<State, Message>, View> {
-        let mut update = self.update;
-        RunnableStatefulApp {
-            state: self.state,
-            options: self.options,
-            project: self.project,
-            update: Box::new(move |state, message, context| {
-                let repaint = policy.scope_for(&message);
-                update(state, message, context);
-                if let Some(repaint) = repaint {
-                    context.command(Command::repaint(repaint));
-                }
-            }),
-            lifecycle: self.lifecycle,
-            _message: PhantomData,
-            _view: PhantomData,
-        }
+    /// Apply an automatic repaint policy to ordinary app messages.
+    ///
+    /// Frame-clock messages use their frame-clock repaint scope first, so apps
+    /// do not need to exclude frame messages from ordinary repaint policy.
+    pub fn repaint_policy(mut self, policy: RepaintPolicy<Message>) -> Self {
+        self.lifecycle.repaint_policy = Some(policy);
+        self
     }
 }

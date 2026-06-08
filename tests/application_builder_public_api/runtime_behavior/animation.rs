@@ -333,6 +333,61 @@ fn presentation_frame_clock_repaint_scope_requests_paint_only_after_frame_update
 }
 
 #[test]
+fn presentation_frame_clock_without_repaint_scope_requests_surface_after_frame_update() {
+    use radiant::prelude as ui;
+    use radiant::runtime::RepaintScope;
+
+    let mut bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::text(format!("Frame {}", state.count))
+                .id(10)
+                .height(24.0)
+        })
+        .presentation(
+            ui::Presentation::new()
+                .frame_clock(ui::FrameClock::message(DemoMessage::Increment).when(|_| true)),
+        )
+        .reducer(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+        })
+        .into_bridge();
+
+    assert!(bridge.animation_activity().needs_frame_message());
+    assert!(bridge.queue_animation_frame());
+    let command = bridge.update(DemoMessage::Increment);
+
+    assert_eq!(command.repaint_scope(), Some(RepaintScope::Surface));
+}
+
+#[test]
+fn frame_clock_origin_takes_precedence_over_ordinary_repaint_policy() {
+    use radiant::prelude as ui;
+    use radiant::runtime::RepaintScope;
+
+    let mut bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::text(format!("Frame {}", state.count))
+                .id(10)
+                .height(24.0)
+        })
+        .presentation(
+            ui::Presentation::new()
+                .frame_clock(ui::FrameClock::message(DemoMessage::Increment).when(|_| true)),
+        )
+        .reducer(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+        })
+        .repaint_policy(ui::RepaintPolicy::none())
+        .into_bridge();
+
+    assert!(bridge.animation_activity().needs_frame_message());
+    assert!(bridge.queue_animation_frame());
+    let command = bridge.update(DemoMessage::Increment);
+
+    assert_eq!(command.repaint_scope(), Some(RepaintScope::Surface));
+}
+
+#[test]
 fn scene_frame_clock_queues_frame_message_when_active() {
     use radiant::prelude as ui;
 
@@ -366,6 +421,36 @@ fn scene_frame_clock_queues_frame_message_when_active() {
         widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,
         "Frame 1"
     );
+}
+
+#[test]
+fn scene_frame_clock_without_repaint_scope_requests_surface_after_frame_update() {
+    use radiant::prelude as ui;
+    use radiant::runtime::RepaintScope;
+
+    let mut bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::scene(
+                ui::text(format!("Frame {}", state.count))
+                    .id(10)
+                    .height(24.0),
+            )
+            .frame_clock(
+                ui::FrameClock::message(DemoMessage::Increment).when(|_state: &mut DemoState| true),
+            )
+            .into_view()
+        })
+        .reducer(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+        })
+        .into_bridge();
+    bridge.project_surface();
+
+    assert!(bridge.animation_activity().needs_frame_message());
+    assert!(bridge.queue_animation_frame());
+    let command = bridge.update(DemoMessage::Increment);
+
+    assert_eq!(command.repaint_scope(), Some(RepaintScope::Surface));
 }
 
 #[test]

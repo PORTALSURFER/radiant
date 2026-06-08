@@ -28,7 +28,7 @@ pub use state::StateAction;
 mod runtime;
 pub(in crate::application) use runtime::{
     AppBridge, AppBridgeLifecycle, AppUpdate, FrameMessageActivity, FrameRepaintSource,
-    PendingFrameRepaintScope, StateCallback, StateDragCallback, StateStringCallback,
+    PendingFrameRepaint, StateCallback, StateDragCallback, StateStringCallback,
 };
 pub use runtime::{
     CancellationToken, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, Subscription,

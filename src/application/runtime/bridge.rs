@@ -6,7 +6,7 @@ use super::{
     TransientOverlayPainter, UpdateContext,
 };
 use crate::{
-    application::IntoView,
+    application::{IntoView, RepaintPolicy},
     runtime::{Command, RepaintScope},
 };
 use std::{any::Any, collections::HashMap, marker::PhantomData, sync::Arc};
@@ -27,8 +27,8 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
 pub(in crate::application) struct AppBridgeRuntimeFlags {
     /// Cached animation-frame activity from the latest animation poll.
     pub(in crate::application) pending_animation_frame_activity: Option<FrameMessageActivity>,
-    /// Captured state from before the currently queued frame message.
-    pub(in crate::application) pending_frame_repaint_scope: Option<PendingFrameRepaintScope>,
+    /// Origin and optional captured state for the currently queued frame message.
+    pub(in crate::application) pending_frame_repaint: Option<PendingFrameRepaint>,
     /// Whether app subscriptions have been installed for this bridge.
     pub(in crate::application) subscriptions_started: bool,
     /// Whether the startup hook has already run for this bridge.
@@ -41,9 +41,9 @@ pub(in crate::application) struct FrameMessageActivity {
     pub(in crate::application) scene: bool,
 }
 
-pub(in crate::application) struct PendingFrameRepaintScope {
+pub(in crate::application) struct PendingFrameRepaint {
     pub(in crate::application) source: FrameRepaintSource,
-    pub(in crate::application) scope: Box<dyn Any>,
+    pub(in crate::application) scope: Option<Box<dyn Any>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,6 +69,8 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     /// Scene-declared frame-message repaint policy.
     pub(in crate::application) scene_frame_repaint_policy:
         Option<Box<dyn AppFrameRepaintPolicy<State>>>,
+    /// Automatic repaint behavior for ordinary app messages.
+    pub(in crate::application) repaint_policy: Option<RepaintPolicy<Message>>,
     /// App-level subscription factory.
     pub(in crate::application) subscriptions: Option<AppSubscriptions<State, Message>>,
     /// App-level shortcut resolver.
@@ -107,6 +109,7 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
             scene_frame_message: None,
             scene_frame_clock_activity: None,
             scene_frame_repaint_policy: None,
+            repaint_policy: None,
             subscriptions: None,
             shortcuts: None,
             scroll: None,
@@ -159,36 +162,76 @@ where
     }
 
     fn run_update(&mut self, message: Message) -> Command<Message> {
+        let pending_frame = self.runtime_flags.pending_frame_repaint.take();
+        let ordinary_repaint = pending_frame
+            .is_none()
+            .then(|| self.ordinary_repaint_scope_for_message(&message))
+            .flatten();
         let mut context = UpdateContext::default();
         (self.update)(&mut self.state, message, &mut context);
         let command = context.into_command();
-        self.apply_frame_repaint_policy(command)
+        self.apply_repaint_policy(pending_frame, ordinary_repaint, command)
     }
 
-    fn apply_frame_repaint_policy(&mut self, command: Command<Message>) -> Command<Message> {
-        let Some(pending) = self.runtime_flags.pending_frame_repaint_scope.take() else {
-            return command;
+    fn apply_repaint_policy(
+        &mut self,
+        pending_frame: Option<PendingFrameRepaint>,
+        ordinary_repaint: Option<RepaintScope>,
+        command: Command<Message>,
+    ) -> Command<Message> {
+        let repaint = match pending_frame {
+            Some(pending) => self.frame_repaint_scope(pending, &command),
+            None => ordinary_repaint.filter(|_| !command.requests_repaint()),
         };
+
+        match repaint {
+            Some(repaint) => Command::batch([command, Command::repaint(repaint)]),
+            None => command,
+        }
+    }
+
+    fn ordinary_repaint_scope_for_message(&self, message: &Message) -> Option<RepaintScope> {
+        self.lifecycle
+            .repaint_policy
+            .as_ref()
+            .map_or(Some(RepaintScope::Surface), |policy| {
+                policy.scope_for(message)
+            })
+    }
+
+    fn frame_repaint_scope(
+        &mut self,
+        pending: PendingFrameRepaint,
+        command: &Command<Message>,
+    ) -> Option<RepaintScope> {
+        if command.requests_repaint() {
+            return None;
+        }
+
+        let Some(scope) = pending.scope else {
+            return Some(RepaintScope::Surface);
+        };
+
         let can_use_paint_only = match pending.source {
             FrameRepaintSource::App => {
                 let Some(policy) = self.lifecycle.frame_repaint_policy.as_mut() else {
-                    return command;
+                    return Some(RepaintScope::Surface);
                 };
-                policy.resolve_after_frame(&mut self.state, pending.scope)
+                policy.resolve_after_frame(&mut self.state, scope)
             }
             FrameRepaintSource::Scene => {
                 let Some(policy) = self.lifecycle.scene_frame_repaint_policy.as_mut() else {
-                    return command;
+                    return Some(RepaintScope::Surface);
                 };
-                policy.resolve_after_frame(&mut self.state, pending.scope)
+                policy.resolve_after_frame(&mut self.state, scope)
             }
         };
-        let repaint = if can_use_paint_only {
+
+        Some(if can_use_paint_only {
             RepaintScope::PaintOnly
         } else {
             RepaintScope::Surface
-        };
-        Command::batch([command, Command::repaint(repaint)])
+        })
     }
 
     fn run_startup_once(&mut self) {

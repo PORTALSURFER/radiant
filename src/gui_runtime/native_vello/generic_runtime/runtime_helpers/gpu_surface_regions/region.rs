@@ -5,6 +5,7 @@ use crate::{
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::gui_runtime::native_vello) struct GpuSurfaceInteractionRegion {
+    pub(in crate::gui_runtime::native_vello) widget_id: crate::widgets::WidgetId,
     pub(in crate::gui_runtime::native_vello) rect: Rect,
     pub(in crate::gui_runtime::native_vello) fast_pointer_move: bool,
     pub(in crate::gui_runtime::native_vello) coalesce_vertical_wheel: bool,
@@ -29,6 +30,7 @@ impl GpuSurfaceInteractionRegion {
             return None;
         }
         Some(Self {
+            widget_id: surface.widget_id,
             rect: surface.rect,
             fast_pointer_move: surface.capabilities.fast_pointer_move,
             coalesce_vertical_wheel: surface.capabilities.coalesce_vertical_wheel,

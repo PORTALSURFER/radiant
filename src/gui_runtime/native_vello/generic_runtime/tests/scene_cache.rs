@@ -140,6 +140,7 @@ fn scene_encoding_collects_fast_pointer_gpu_surface_hit_rects() {
     assert_eq!(
         interaction_regions,
         [GpuSurfaceInteractionRegion {
+            widget_id: 42,
             rect,
             fast_pointer_move: true,
             coalesce_vertical_wheel: false,

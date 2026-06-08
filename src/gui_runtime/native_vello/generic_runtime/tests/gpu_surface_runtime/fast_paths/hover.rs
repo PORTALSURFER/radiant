@@ -42,6 +42,51 @@ fn leaving_native_gpu_hover_still_routes_next_widget_move() {
     );
 }
 
+#[test]
+fn native_gpu_hover_fast_path_respects_active_top_pointer_widget() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuHoverCoveredBridge::active_pointer_move(),
+        Vector2::new(320.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let point = Point::new(20.0, 20.0);
+
+    assert!(!runner.can_fast_path_native_hover_move(point));
+
+    runner.handle_cursor_moved(PhysicalPosition::new(20.0, 20.0));
+
+    assert_eq!(
+        runner.core.runtime.bridge().pointer_moves,
+        1,
+        "top pointer-move widget above a GPU surface must receive native hover movement"
+    );
+}
+
+#[test]
+fn native_gpu_hover_fast_path_respects_passive_top_pointer_widget() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuHoverCoveredBridge::passive_pointer_hit(),
+        Vector2::new(320.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let point = Point::new(20.0, 20.0);
+
+    assert!(!runner.can_fast_path_native_hover_move(point));
+
+    runner.handle_cursor_moved(PhysicalPosition::new(20.0, 20.0));
+    assert_eq!(runner.core.runtime.bridge().pointer_moves, 0);
+
+    let route = runner.route_native_mouse_input(
+        winit::event::MouseButton::Left,
+        winit::event::ElementState::Pressed,
+    );
+
+    assert!(route.outcome.routed);
+    assert_eq!(route.diagnostic.hit_target, Some(81));
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct GpuHoverExitMessage;
 
@@ -74,6 +119,65 @@ impl RuntimeBridge<GpuHoverExitMessage> for GpuHoverExitBridge {
                         WidgetMessageMapper::typed(|message: GpuHoverExitMessage| message),
                     ),
                 ),
+            ],
+        )))
+    }
+
+    fn reduce_message(&mut self, _message: GpuHoverExitMessage) {
+        self.pointer_moves += 1;
+    }
+}
+
+struct GpuHoverCoveredBridge {
+    pointer_moves: usize,
+    top_widget: CoveredTopWidget,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum CoveredTopWidget {
+    ActivePointerMove,
+    PassivePointerHit,
+}
+
+impl GpuHoverCoveredBridge {
+    fn active_pointer_move() -> Self {
+        Self {
+            pointer_moves: 0,
+            top_widget: CoveredTopWidget::ActivePointerMove,
+        }
+    }
+
+    fn passive_pointer_hit() -> Self {
+        Self {
+            pointer_moves: 0,
+            top_widget: CoveredTopWidget::PassivePointerHit,
+        }
+    }
+}
+
+impl RuntimeBridge<GpuHoverExitMessage> for GpuHoverCoveredBridge {
+    fn project_surface(&mut self) -> std::sync::Arc<UiSurface<GpuHoverExitMessage>> {
+        let top = match self.top_widget {
+            CoveredTopWidget::ActivePointerMove => SurfaceNode::custom_widget(
+                TestPointerMoveWidget::new(),
+                WidgetMessageMapper::typed(|message: GpuHoverExitMessage| message),
+            ),
+            CoveredTopWidget::PassivePointerHit => SurfaceNode::custom_widget(
+                TestPassivePointerHitWidget::new(),
+                WidgetMessageMapper::typed(|message: GpuHoverExitMessage| message),
+            ),
+        };
+        std::sync::Arc::new(UiSurface::new(SurfaceNode::stack(
+            1,
+            vec![
+                SurfaceChild::new(
+                    SlotParams::fill(),
+                    SurfaceNode::custom_widget(
+                        TestGpuHoverSurface::new(),
+                        WidgetMessageMapper::typed(|message: GpuHoverExitMessage| message),
+                    ),
+                ),
+                SurfaceChild::new(SlotParams::fill(), top),
             ],
         )))
     }
@@ -151,6 +255,48 @@ impl Widget for TestGpuHoverSurface {
 #[derive(Clone, Debug)]
 struct TestPointerMoveWidget {
     common: WidgetCommon,
+}
+
+#[derive(Clone, Debug)]
+struct TestPassivePointerHitWidget {
+    common: WidgetCommon,
+}
+
+impl TestPassivePointerHitWidget {
+    fn new() -> Self {
+        let mut common = WidgetCommon::new(81, WidgetSizing::fixed(Vector2::new(120.0, 40.0)));
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self { common }
+    }
+}
+
+impl Widget for TestPassivePointerHitWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        matches!(input, WidgetInput::PointerPress { .. })
+            .then_some(WidgetOutput::typed(GpuHoverExitMessage))
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &crate::layout::LayoutOutput,
+        _theme: &crate::theme::ThemeTokens,
+    ) {
+    }
 }
 
 impl TestPointerMoveWidget {

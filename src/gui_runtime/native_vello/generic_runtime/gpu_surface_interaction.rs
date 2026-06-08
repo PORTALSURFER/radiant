@@ -97,6 +97,9 @@ where
         let Some(previous) = previous else {
             return false;
         };
+        if !self.gpu_surface_fast_path_allows_top_pointer_target(position) {
+            return false;
+        }
         self.frame
             .gpu_surface_interaction_regions
             .iter()
@@ -118,6 +121,27 @@ where
         self.core.runtime.pointer_capture().is_none()
             && !self.core.runtime.drag_session_active()
             && self.runtime_pointer_line_surface_contains(position)
+            && self.gpu_surface_fast_path_allows_top_pointer_target(position)
+    }
+
+    fn gpu_surface_fast_path_allows_top_pointer_target(&self, position: Point) -> bool {
+        let Some(widget_id) = self.core.runtime.widget_at(position) else {
+            return true;
+        };
+        self.topmost_gpu_surface_interaction_region_at(position)
+            .is_some_and(|region| region.widget_id == widget_id)
+    }
+
+    fn topmost_gpu_surface_interaction_region_at(
+        &self,
+        position: Point,
+    ) -> Option<super::GpuSurfaceInteractionRegion> {
+        self.frame
+            .gpu_surface_interaction_regions
+            .iter()
+            .rev()
+            .copied()
+            .find(|region| region.contains(position))
     }
 
     pub(super) fn update_gpu_surface_cursor_overlay(&mut self, position: Point) -> bool {

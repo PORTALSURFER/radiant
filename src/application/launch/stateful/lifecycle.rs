@@ -12,21 +12,29 @@ where
     Message: Send + 'static,
     State: 'static,
 {
-    /// Declare whether this app currently needs animation-driven frames.
+    /// Advanced lifecycle hook for animation-driven native frames.
     ///
-    /// Pair this with [`Self::on_frame`] when each frame should update
-    /// application state. Pair it with [`Self::transient_overlay`] alone when
-    /// an overlay can derive motion from frame time and only needs paint-only
-    /// redraws over the cached surface.
+    /// Prefer [`crate::application::Scene::frame_clock`] or
+    /// [`Self::presentation`] with [`crate::application::FrameClock`] for
+    /// normal root-scoped presentation. Use this lower-level hook when a host
+    /// needs to wire runtime frame activity directly. Pair it with
+    /// [`Self::on_frame`] when each frame should update application state.
+    /// Pair it with [`Self::transient_overlay`] only for custom lifecycle
+    /// wiring where an overlay derives motion from frame time and needs
+    /// paint-only redraws over the cached surface.
     pub fn animation(mut self, animation: impl FnMut(&mut State) -> bool + 'static) -> Self {
         self.lifecycle.animation = Some(Box::new(animation));
         self
     }
 
-    /// Declare the message emitted for each active animation frame.
+    /// Advanced lifecycle hook for messages emitted on active animation frames.
     ///
-    /// This is optional for paint-only transient overlays. Use it only when
-    /// frame ticks need to mutate host state or produce commands.
+    /// Prefer [`crate::application::Scene::frame_clock`] or
+    /// [`Self::presentation`] with [`crate::application::FrameClock`] for
+    /// ordinary frame-message presentation. This lower-level hook remains
+    /// public for hosts that need direct runtime lifecycle control. It is
+    /// optional for paint-only transient overlays; use it only when frame ticks
+    /// need to mutate host state or produce commands.
     pub fn on_frame(mut self, message: impl FnMut() -> Message + 'static) -> Self {
         self.lifecycle.frame_message = Some(Box::new(message));
         self

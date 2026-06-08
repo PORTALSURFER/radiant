@@ -29,7 +29,12 @@ where
         self
     }
 
-    /// Register a lightweight frame-time overlay painter.
+    /// Advanced lifecycle hook for a lightweight frame-time overlay painter.
+    ///
+    /// Prefer [`crate::application::Scene::overlay`] or [`Self::presentation`]
+    /// with [`crate::application::TransientOverlay`] for normal root-scoped
+    /// presentation. Use this lower-level hook when a host needs direct runtime
+    /// overlay wiring.
     ///
     /// The painter receives the latest cached surface paint plan and appends
     /// transient primitives that native backends can draw over the cached scene
@@ -49,9 +54,12 @@ where
         self
     }
 
-    /// Declare whether the transient overlay currently needs timed frames.
+    /// Advanced lifecycle hook for transient-overlay timed frames.
     ///
-    /// This is the paint-only animation path for overlays that can derive
+    /// Prefer [`crate::application::Scene::overlay`] or [`Self::presentation`]
+    /// with [`crate::application::TransientOverlay`] for ordinary paint-only
+    /// presentation. This lower-level hook is the paint-only animation path for
+    /// overlays that can derive
     /// motion from [`crate::runtime::TransientOverlayContext::animation_time`].
     /// It keeps the native runtime on the cached-scene path instead of routing
     /// frame messages or refreshing the declarative surface while the app is
@@ -65,12 +73,14 @@ where
         self
     }
 
-    /// Declare timed overlay frames capped to a requested frame rate.
+    /// Advanced lifecycle hook for timed overlay frames capped to a requested frame rate.
     ///
-    /// This lets low-frequency overlays such as playheads or cursor affordances
-    /// redraw at their useful cadence without consuming every native animation
-    /// frame. The native runtime still clamps the request to the window-level
-    /// frame-rate policy.
+    /// Prefer [`crate::application::Scene::overlay`] or [`Self::presentation`]
+    /// with [`crate::application::TransientOverlay::fps`] for ordinary
+    /// root-scoped overlays. This lower-level hook lets low-frequency overlays
+    /// such as playheads or cursor affordances redraw at their useful cadence
+    /// without consuming every native animation frame. The native runtime still
+    /// clamps the request to the window-level frame-rate policy.
     pub fn transient_overlay_animation_at(
         mut self,
         target_fps: u32,
@@ -83,12 +93,14 @@ where
         self
     }
 
-    /// Register a transient overlay and its paint-only animation activity.
+    /// Advanced lifecycle hook for a transient overlay and its paint-only activity.
     ///
-    /// This is the most direct API for realtime overlays such as playheads,
-    /// drag previews, tooltip affordances, cursor markers, and small animated
-    /// GPU-surface overlays that should redraw continuously without rebuilding
-    /// layout or queuing application frame messages.
+    /// Prefer [`crate::application::Scene::overlay`] or [`Self::presentation`]
+    /// with [`crate::application::TransientOverlay`] for normal root-scoped
+    /// overlays. This is the most direct API for realtime overlays such as
+    /// playheads, drag previews, tooltip affordances, cursor markers, and small
+    /// animated GPU-surface overlays that should redraw continuously without
+    /// rebuilding layout or queuing application frame messages.
     pub fn animated_transient_overlay(
         mut self,
         activity: impl FnMut(&mut State) -> bool + 'static,
@@ -104,10 +116,12 @@ where
         self
     }
 
-    /// Register a transient overlay and cap its paint-only animation cadence.
+    /// Advanced lifecycle hook for a transient overlay with capped paint-only cadence.
     ///
-    /// Prefer this for continuously animated overlays that do not need to run
-    /// at the full native window target frame rate.
+    /// Prefer [`crate::application::Scene::overlay`] or [`Self::presentation`]
+    /// with [`crate::application::TransientOverlay::fps`] for normal
+    /// root-scoped overlays. Use this lower-level hook only when direct
+    /// launch-lifecycle wiring is required.
     pub fn animated_transient_overlay_at(
         mut self,
         target_fps: u32,

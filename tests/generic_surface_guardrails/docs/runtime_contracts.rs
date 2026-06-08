@@ -97,6 +97,57 @@ fn api_docs_describe_paint_only_overlay_composition_cache() {
 }
 
 #[test]
+fn api_docs_describe_scene_presentation_compatibility_policy() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("docs/API.md should be readable");
+    let lifecycle =
+        fs::read_to_string(manifest_dir.join("src/application/launch/stateful/lifecycle.rs"))
+            .expect("stateful lifecycle source should be readable");
+    let overlays =
+        fs::read_to_string(manifest_dir.join("src/application/launch/stateful/overlays.rs"))
+            .expect("stateful overlay source should be readable");
+    let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    for required in [
+        "Compatibility policy: root-scoped app presentation should use `Scene::frame_clock(...)` and `Scene::overlay(...)`.",
+        "App-builder `.presentation(...)` is the compatibility path",
+        "remain public, supported, lower-level lifecycle APIs",
+        "They are not deprecated in this phase",
+        "new root-scoped application presentation should prefer the `Scene` descriptors",
+    ] {
+        assert!(
+            normalized_docs.contains(required),
+            "API docs should describe the scene presentation compatibility policy with `{required}`"
+        );
+    }
+
+    for required in [
+        "Advanced lifecycle hook for animation-driven native frames.",
+        "Prefer [`crate::application::Scene::frame_clock`]",
+        "Advanced lifecycle hook for messages emitted on active animation frames.",
+    ] {
+        assert!(
+            lifecycle.contains(required),
+            "launch lifecycle rustdoc should mark low-level animation hooks as advanced with `{required}`"
+        );
+    }
+
+    for required in [
+        "Advanced lifecycle hook for a lightweight frame-time overlay painter.",
+        "Prefer [`crate::application::Scene::overlay`]",
+        "Advanced lifecycle hook for transient-overlay timed frames.",
+        "Advanced lifecycle hook for a transient overlay and its paint-only activity.",
+        "Advanced lifecycle hook for a transient overlay with capped paint-only cadence.",
+    ] {
+        assert!(
+            overlays.contains(required),
+            "launch overlay rustdoc should mark low-level overlay hooks as advanced with `{required}`"
+        );
+    }
+}
+
+#[test]
 fn api_docs_describe_declarative_lifecycle_identity_contract() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))

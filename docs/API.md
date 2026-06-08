@@ -809,12 +809,23 @@ radiant::app(state)
 `FrameClock` is for host-state frame messages. `TransientOverlay` is for
 paint-only presentation work over the cached surface. These descriptors lower to
 the same runtime animation and transient-overlay hooks whether they are attached
-to `Scene` or to the app builder. `.animation(...)`, `.on_frame(...)`,
-`.transient_overlay(...)`, `.transient_overlay_animation(...)`,
-`.animated_transient_overlay(...)`, `.transient_overlay_animation_at(...)`, and
-`.animated_transient_overlay_at(...)` remain public lower-level lifecycle APIs
-for hosts that need direct runtime control. Custom runtime bridges can report
-the same split explicitly with `RuntimeAnimationActivity` and
+to `Scene` or to the app builder.
+
+Compatibility policy: root-scoped app presentation should use
+`Scene::frame_clock(...)` and `Scene::overlay(...)`. App-builder
+`.presentation(...)` is the compatibility path for hosts that need descriptor
+based presentation without a root `Scene`. The older launch-level
+`.animation(...)`, `.on_frame(...)`, `.transient_overlay(...)`,
+`.transient_overlay_animation(...)`, `.animated_transient_overlay(...)`,
+`.transient_overlay_animation_at(...)`, and
+`.animated_transient_overlay_at(...)` hooks remain public, supported,
+lower-level lifecycle APIs for direct runtime control, custom hosts, examples
+that intentionally demonstrate the runtime lifecycle, and migration of existing
+callers. They are not deprecated in this phase because they still map to real
+runtime capabilities and are exercised by public API tests, but new root-scoped
+application presentation should prefer the `Scene` descriptors unless direct
+lifecycle wiring is specifically required. Custom runtime bridges can report the
+same split explicitly with `RuntimeAnimationActivity` and
 `RuntimeAnimationDemand`, distinguishing frame-message animation from paint-only
 presentation work and optionally carrying a per-activity target FPS.
 When a paint-only transient overlay is present, the native Vello runtime also

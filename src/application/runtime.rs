@@ -10,7 +10,7 @@ use crate::{
     },
     widgets::RetainedSurfaceDescriptor,
 };
-use std::sync::Arc;
+use std::{any::Any, sync::Arc};
 
 mod bridge;
 mod queue;
@@ -34,6 +34,8 @@ pub(in crate::application) type RetainedPainter<State> =
 pub(in crate::application) type TransientOverlayPainter<State> =
     Box<dyn for<'a> FnMut(&mut State, TransientOverlayContext<'a>, &mut Vec<PaintPrimitive>)>;
 pub(in crate::application) type TransientOverlayActivity<State> =
+    Box<dyn FnMut(&mut State) -> RuntimeAnimationActivity>;
+pub(in crate::application) type AppFrameClockActivity<State> =
     Box<dyn FnMut(&mut State) -> RuntimeAnimationActivity>;
 pub(in crate::application) type AppAnimation<State> = Box<dyn FnMut(&mut State) -> bool>;
 pub(in crate::application) type AppFrameMessage<Message> = Box<dyn FnMut() -> Message>;
@@ -60,3 +62,8 @@ pub(in crate::application) type StateStringCallback<State> =
 pub(in crate::application) type StateCallback<State> = Arc<dyn Fn(&mut State) + Send + Sync>;
 pub(in crate::application) type StateDragCallback<State> =
     Arc<dyn Fn(&mut State, String, crate::widgets::DragHandleMessage) + Send + Sync>;
+
+pub(in crate::application) trait AppFrameRepaintPolicy<State> {
+    fn capture_before_frame(&mut self, state: &mut State) -> Box<dyn Any>;
+    fn resolve_after_frame(&mut self, state: &mut State, scope: Box<dyn Any>) -> bool;
+}

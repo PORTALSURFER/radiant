@@ -1,6 +1,6 @@
 use super::StatefulAppWithView;
 use crate::{
-    application::{IntoView, Subscription, UpdateContext},
+    application::{IntoView, Presentation, Subscription, UpdateContext},
     gui::{focus::FocusSurface, input::KeyPress, shortcuts::ShortcutResolution},
     runtime::AuxiliaryWindow,
 };
@@ -29,6 +29,12 @@ where
     /// frame ticks need to mutate host state or produce commands.
     pub fn on_frame(mut self, message: impl FnMut() -> Message + 'static) -> Self {
         self.lifecycle.frame_message = Some(Box::new(message));
+        self
+    }
+
+    /// Declare typed presentation hooks such as frame clocks and paint-only overlays.
+    pub fn presentation(mut self, presentation: Presentation<State, Message>) -> Self {
+        presentation.apply_to_lifecycle(&mut self.lifecycle);
         self
     }
 

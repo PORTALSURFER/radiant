@@ -1,11 +1,15 @@
 use super::subscription::spawn_subscription;
 use super::{
-    AppAnimation, AppAuxiliaryWindows, AppCloseRequested, AppFrameMessage, AppNativeFileDrop,
-    AppRuntime, AppScroll, AppShortcuts, AppShutdown, AppStartup, AppSubscriptions,
-    RetainedPainter, TransientOverlayActivity, TransientOverlayPainter, UpdateContext,
+    AppAnimation, AppAuxiliaryWindows, AppCloseRequested, AppFrameClockActivity, AppFrameMessage,
+    AppFrameRepaintPolicy, AppNativeFileDrop, AppRuntime, AppScroll, AppShortcuts, AppShutdown,
+    AppStartup, AppSubscriptions, RetainedPainter, TransientOverlayActivity,
+    TransientOverlayPainter, UpdateContext,
 };
-use crate::{application::IntoView, runtime::Command};
-use std::{collections::HashMap, marker::PhantomData, sync::Arc};
+use crate::{
+    application::IntoView,
+    runtime::{Command, RepaintScope},
+};
+use std::{any::Any, collections::HashMap, marker::PhantomData, sync::Arc};
 
 mod adapter;
 
@@ -19,10 +23,12 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
     pub(in crate::application) _view: PhantomData<View>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Default)]
 pub(in crate::application) struct AppBridgeRuntimeFlags {
     /// Cached animation-frame activity from the latest animation poll.
     pub(in crate::application) pending_animation_frame_activity: Option<bool>,
+    /// Captured state from before the currently queued frame message.
+    pub(in crate::application) pending_frame_repaint_scope: Option<Box<dyn Any>>,
     /// Whether app subscriptions have been installed for this bridge.
     pub(in crate::application) subscriptions_started: bool,
     /// Whether the startup hook has already run for this bridge.
@@ -35,6 +41,10 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) animation: Option<AppAnimation<State>>,
     /// Frame-message callback.
     pub(in crate::application) frame_message: Option<AppFrameMessage<Message>>,
+    /// Typed frame-clock activity callback.
+    pub(in crate::application) frame_clock_activity: Option<AppFrameClockActivity<State>>,
+    /// Optional frame-message repaint policy.
+    pub(in crate::application) frame_repaint_policy: Option<Box<dyn AppFrameRepaintPolicy<State>>>,
     /// App-level subscription factory.
     pub(in crate::application) subscriptions: Option<AppSubscriptions<State, Message>>,
     /// App-level shortcut resolver.
@@ -63,6 +73,8 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
         Self {
             animation: None,
             frame_message: None,
+            frame_clock_activity: None,
+            frame_repaint_policy: None,
             subscriptions: None,
             shortcuts: None,
             scroll: None,
@@ -105,7 +117,24 @@ where
     fn run_update(&mut self, message: Message) -> Command<Message> {
         let mut context = UpdateContext::default();
         (self.update)(&mut self.state, message, &mut context);
-        context.into_command()
+        let command = context.into_command();
+        self.apply_frame_repaint_policy(command)
+    }
+
+    fn apply_frame_repaint_policy(&mut self, command: Command<Message>) -> Command<Message> {
+        let Some(scope) = self.runtime_flags.pending_frame_repaint_scope.take() else {
+            return command;
+        };
+        let Some(policy) = self.lifecycle.frame_repaint_policy.as_mut() else {
+            return command;
+        };
+        let can_use_paint_only = policy.resolve_after_frame(&mut self.state, scope);
+        let repaint = if can_use_paint_only {
+            RepaintScope::PaintOnly
+        } else {
+            RepaintScope::Surface
+        };
+        Command::batch([command, Command::repaint(repaint)])
     }
 
     fn run_startup_once(&mut self) {

@@ -756,6 +756,44 @@ Custom runtime bridges can report the same split explicitly with
 `RuntimeAnimationActivity` and `RuntimeAnimationDemand`, distinguishing
 frame-message animation from paint-only presentation work and optionally
 carrying a per-activity target FPS.
+
+For app-builder code that wants those presentation concerns named directly,
+use `.presentation(...)` with typed descriptors:
+
+```rust
+radiant::app(state)
+    .view(view)
+    .presentation(
+        ui::presentation()
+            .frame_clock(
+                ui::FrameClock::message(GuiMessage::Frame)
+                    .when(|state| state.frame_message_animation_active())
+                    .fps(60)
+                    .repaint_scope(
+                        |state| state.frame_repaint_scope_before_update(),
+                        |state, scope| state.frame_can_use_paint_only(scope),
+                    ),
+            )
+            .transient_overlay(
+                ui::TransientOverlay::new(1_u64)
+                    .paint_only()
+                    .when(|state| state.waveform_is_playing())
+                    .fps(60)
+                    .paint(|state, context, primitives| {
+                        state.paint_playback_overlay(context, primitives);
+                    }),
+            ),
+    )
+    .update_with(update)
+    .run();
+```
+
+`FrameClock` is for host-state frame messages. `TransientOverlay` is for
+paint-only presentation work over the cached surface. These descriptors lower to
+the same runtime animation and transient-overlay hooks as the older builder
+methods; `.animation(...)`, `.on_frame(...)`, `.transient_overlay(...)`,
+`.transient_overlay_animation_at(...)`, and `.animated_transient_overlay_at(...)`
+remain public lower-level APIs.
 When a paint-only transient overlay is present, the native Vello runtime also
 caches the composed Vello scene plus retained GPU surfaces as a base frame, so
 later overlay-only frames can present that stable composition and draw the

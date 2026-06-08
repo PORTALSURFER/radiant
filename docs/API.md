@@ -587,10 +587,15 @@ foreground content still routes above the dismiss surface.
 `Scene::into_view()` projects a runtime scene that paints layers in this fixed
 order: base layout, generic floating layers, popovers, modals, context menus,
 tooltips, and drag previews. Lower-level callers can still use
-`stack_layers(...)` directly to avoid application-local
-`if len > 1 { stack(...) } else { base }` branching. It returns `empty()` for
-zero layers, returns the only layer unchanged for one layer, and builds a
-normal `stack(...)` for multiple layers.
+`overlay_stack(base)` for bounded local overlays such as loading feedback,
+local drag/drop targets, or transparent input shields that share one content
+region's bounds. Add optional children with `OverlayStack::overlay_opt(...)`
+and `OverlayStack::input_opt(...)`, then call `OverlayStack::into_view()`.
+It delegates projection to `stack_layers(...)`, so a base-only stack returns the
+base view unchanged while multiple children become a normal `stack(...)`.
+Use `stack_layers(...)` directly only when the caller already owns an untyped
+layer list; it returns `empty()` for zero layers, returns the only layer
+unchanged for one layer, and builds a normal `stack(...)` for multiple layers.
 Dropdown menus rendered as stack-level overlays can use
 `dropdown_menu_overlay_below_trigger(...)` when the menu is anchored below
 Radiant's standard dropdown trigger, avoiding app-local calls to

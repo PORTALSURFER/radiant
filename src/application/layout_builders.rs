@@ -3,6 +3,7 @@
 mod collection;
 mod containers;
 mod lists;
+mod overlay_stack;
 mod overlays;
 mod scene;
 mod scroll;
@@ -16,6 +17,7 @@ pub use lists::{
     list_row, list_row_id, scroll_column, virtual_list, virtual_list_window,
     virtual_list_window_body, virtual_tree_list_window,
 };
+pub use overlay_stack::{OverlayStack, overlay_stack};
 pub use overlays::{
     AnchoredLayerParts, CenteredLayerParts, FloatingLayerAnchorParts, FloatingLayerPlacement,
     LayerHorizontalAnchor, LayerVerticalAnchor, anchored_layer, anchored_layer_from_parts,

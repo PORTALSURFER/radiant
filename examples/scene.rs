@@ -5,6 +5,7 @@ use radiant::prelude::*;
 
 #[derive(Clone, Debug)]
 struct SceneExampleState {
+    local_overlay_open: bool,
     floating_open: bool,
     popover_open: bool,
     modal_open: bool,
@@ -16,6 +17,7 @@ struct SceneExampleState {
 impl Default for SceneExampleState {
     fn default() -> Self {
         Self {
+            local_overlay_open: true,
             floating_open: true,
             popover_open: true,
             modal_open: true,
@@ -28,6 +30,7 @@ impl Default for SceneExampleState {
 
 #[derive(Clone, Debug)]
 enum SceneExampleMessage {
+    ToggleLocalOverlay,
     ToggleFloating,
     TogglePopover,
     ToggleModal,
@@ -38,6 +41,10 @@ enum SceneExampleMessage {
 }
 
 impl SceneExampleState {
+    fn toggle_local_overlay(&mut self) {
+        self.local_overlay_open = !self.local_overlay_open;
+    }
+
     fn toggle_floating(&mut self) {
         self.floating_open = !self.floating_open;
     }
@@ -103,6 +110,7 @@ fn main() -> radiant::Result {
                 .fill()
         })
         .update(|state, message| match message {
+            SceneExampleMessage::ToggleLocalOverlay => state.toggle_local_overlay(),
             SceneExampleMessage::ToggleFloating => state.toggle_floating(),
             SceneExampleMessage::TogglePopover => state.toggle_popover(),
             SceneExampleMessage::ToggleModal => state.toggle_modal(),
@@ -120,6 +128,12 @@ fn base_layout(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
         text("Each toggle changes state; Radiant assembles the root scene order.")
             .height(24.0)
             .fill_width(),
+        local_overlay_demo(state),
+        toggle_button(
+            "Local overlay",
+            state.local_overlay_open,
+            SceneExampleMessage::ToggleLocalOverlay,
+        ),
         toggle_button(
             "Floating",
             state.floating_open,
@@ -151,6 +165,38 @@ fn base_layout(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
     .spacing(8.0)
     .fill_width()
     .fill_height()
+}
+
+fn local_overlay_demo(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
+    overlay_stack(
+        panel(
+            "Bounded content",
+            "Local overlays share this region rather than the root scene.",
+        )
+        .height(58.0)
+        .fill_width(),
+    )
+    .overlay_opt(state.local_overlay_open.then(|| {
+        feedback_overlay()
+            .background(Rgba8::new(74, 178, 116, 48))
+            .edge(
+                Rgba8::new(74, 178, 116, 210),
+                2.0,
+                BorderSides {
+                    top: true,
+                    bottom: true,
+                    left: true,
+                    right: true,
+                },
+            )
+            .view()
+            .key("scene-local-overlay")
+            .height(58.0)
+            .fill_width()
+    }))
+    .into_view()
+    .height(58.0)
+    .fill_width()
 }
 
 fn toggle_button(

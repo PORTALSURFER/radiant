@@ -38,6 +38,9 @@ impl SurfaceTraversalIndex {
         if record.receives_wheel_input {
             self.wheel_hit_order.push(record.id);
         }
+        if record.accepts_native_file_drop {
+            self.native_file_drop_hit_order.push(record.id);
+        }
         if record.needs_state_synchronization {
             self.stateful_widget_order.push(record.id);
         }

@@ -59,8 +59,7 @@ where
         event_loop: &ActiveEventLoop,
         drop: NativeFileDrop,
     ) {
-        let command = self.core.runtime.bridge_mut().native_file_drop(drop);
-        let outcome = self.core.runtime.execute_command(command);
+        let outcome = self.core.runtime.dispatch_native_file_drop(drop);
         let routed = self.core.route_command_outcome(outcome);
         self.handle_route_outcome(event_loop, routed);
     }

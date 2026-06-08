@@ -19,6 +19,10 @@ where
             .widgets
             .pointer
             .set_order(traversal.pointer_hit_order);
+        self.traversal
+            .widgets
+            .native_file_drop
+            .set_order(traversal.native_file_drop_hit_order);
         self.traversal.widgets.paths.container_hover_suppression =
             traversal.container_hover_suppression;
         self.traversal
@@ -47,6 +51,10 @@ where
 
     pub(in crate::runtime::controller) fn refresh_visible_traversal_orders(&mut self) {
         self.traversal.widgets.pointer.refresh_visible(&self.layout);
+        self.traversal
+            .widgets
+            .native_file_drop
+            .refresh_visible(&self.layout);
         self.traversal.widgets.wheel.refresh_visible(&self.layout);
         self.traversal
             .containers
@@ -67,6 +75,7 @@ where
             focusable_widget_order: self.traversal.widgets.focusable.take_order(),
             keyboard_focus_order: self.traversal.widgets.keyboard_focus.take_order(),
             pointer_hit_order: self.traversal.widgets.pointer.take_order(),
+            native_file_drop_hit_order: self.traversal.widgets.native_file_drop.take_order(),
             wheel_hit_order: self.traversal.widgets.wheel.take_order(),
             stateful_widget_order: std::mem::take(&mut self.traversal.widgets.stateful_order),
             widget_paths: if reuse_widget_paths {

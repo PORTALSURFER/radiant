@@ -1,7 +1,7 @@
 use super::{PointerMoveOutcome, SurfaceRuntime};
 use crate::{
     gui::types::Point,
-    runtime::RuntimeBridge,
+    runtime::{CommandOutcome, NativeFileDrop, RuntimeBridge},
     widgets::{WidgetId, WidgetInput},
 };
 
@@ -98,6 +98,60 @@ where
     /// Return the widget under a native file-drop pointer position.
     pub fn native_file_drop_target(&self, position: Option<Point>) -> Option<WidgetId> {
         position.and_then(|position| self.widget_at(position))
+    }
+
+    /// Route a native file-drop event to the topmost accepting declarative target.
+    ///
+    /// If no view-tree target accepts the drop, this falls back to the app-level
+    /// native file-drop hook for compatibility with custom hosts.
+    pub fn dispatch_native_file_drop(&mut self, drop: NativeFileDrop) -> CommandOutcome {
+        if let Some(target) = self.native_file_drop_accepting_target(drop.position) {
+            let drop = drop.clone().with_target_widget(Some(target));
+            if let Some(message) = self.native_file_drop_message(target, drop.clone()) {
+                return self.dispatch_message(message);
+            }
+            let command = self.bridge_mut().native_file_drop(drop);
+            return self.execute_command(command);
+        }
+        let target = self.native_file_drop_target(drop.position);
+        let command = self
+            .bridge_mut()
+            .native_file_drop(drop.with_target_widget(target));
+        self.execute_command(command)
+    }
+
+    fn native_file_drop_accepting_target(&self, position: Option<Point>) -> Option<WidgetId> {
+        let Some(position) = position else {
+            return self.topmost_visible_native_file_drop_target();
+        };
+        self.traversal
+            .widgets
+            .native_file_drop
+            .visible()
+            .iter()
+            .rev()
+            .copied()
+            .find(|widget_id| self.widget_contains_point(*widget_id, position))
+    }
+
+    fn topmost_visible_native_file_drop_target(&self) -> Option<WidgetId> {
+        self.traversal
+            .widgets
+            .native_file_drop
+            .visible()
+            .iter()
+            .rev()
+            .copied()
+            .next()
+    }
+
+    fn native_file_drop_message(
+        &self,
+        widget_id: WidgetId,
+        drop: NativeFileDrop,
+    ) -> Option<Message> {
+        self.surface_widget(widget_id)
+            .and_then(|widget| widget.dispatch_native_file_drop(widget_id, drop))
     }
 
     /// Clear active pointer capture without routing a release event.

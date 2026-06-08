@@ -15,6 +15,7 @@ pub(super) struct RuntimeWidgetTraversal {
     pub(super) hit_order: Vec<WidgetId>,
     pub(super) focusable: HitOrderIndex,
     pub(super) pointer: HitOrderIndex,
+    pub(super) native_file_drop: HitOrderIndex,
     pub(super) keyboard_focus: HitOrderIndex,
     pub(super) wheel: HitOrderIndex,
     pub(super) stateful_order: Vec<WidgetId>,

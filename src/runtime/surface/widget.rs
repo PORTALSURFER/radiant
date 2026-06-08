@@ -6,12 +6,15 @@ use crate::{
 
 mod mapper;
 
-pub use mapper::{MessageMapper, ScrollMessageMapper, WidgetMessageMapper};
+pub use mapper::{
+    MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper, WidgetMessageMapper,
+};
 
 /// One widget leaf inside a generic declarative [`UiSurface`](super::UiSurface).
 pub struct SurfaceWidget<Message> {
     widget: Box<dyn Widget>,
     messages: WidgetMessageMapper<Message>,
+    accepts_native_file_drop: bool,
 }
 
 impl<Message> Clone for SurfaceWidget<Message> {
@@ -19,6 +22,7 @@ impl<Message> Clone for SurfaceWidget<Message> {
         Self {
             widget: self.widget.clone(),
             messages: self.messages.clone(),
+            accepts_native_file_drop: self.accepts_native_file_drop,
         }
     }
 }
@@ -32,6 +36,7 @@ impl<Message> SurfaceWidget<Message> {
         Self {
             widget: Box::new(widget),
             messages,
+            accepts_native_file_drop: false,
         }
     }
 
@@ -43,12 +48,17 @@ impl<Message> SurfaceWidget<Message> {
         Self {
             widget: Box::new(widget),
             messages,
+            accepts_native_file_drop: false,
         }
     }
 
     /// Build a custom boxed widget leaf plus host-defined message mapper.
     pub fn custom_box(widget: Box<dyn Widget>, messages: WidgetMessageMapper<Message>) -> Self {
-        Self { widget, messages }
+        Self {
+            widget,
+            messages,
+            accepts_native_file_drop: false,
+        }
     }
 
     /// Return the stable widget identifier.
@@ -94,6 +104,10 @@ impl<Message> SurfaceWidget<Message> {
             && (common.focus != FocusBehavior::None
                 || common.paint.suppresses_container_hover
                 || self.messages.maps_any_output())
+    }
+
+    pub(in crate::runtime) fn accepts_native_file_drop(&self) -> bool {
+        !self.widget.common().state.disabled && self.accepts_native_file_drop
     }
 
     pub(in crate::runtime) fn receives_wheel_input(&self) -> bool {
@@ -171,5 +185,29 @@ impl<Message> SurfaceWidget<Message> {
         (self.id() == widget_id)
             .then(|| self.messages.map_output(output))
             .flatten()
+    }
+
+    pub(in crate::runtime) fn dispatch_native_file_drop(
+        &self,
+        widget_id: WidgetId,
+        drop: crate::runtime::NativeFileDrop,
+    ) -> Option<Message> {
+        (self.id() == widget_id)
+            .then(|| self.messages.map_native_file_drop(drop))
+            .flatten()
+    }
+
+    pub(in crate::runtime) fn with_native_file_drop(
+        mut self,
+        map: impl Fn(crate::runtime::NativeFileDrop) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        self.accepts_native_file_drop = true;
+        self.messages = self.messages.with_native_file_drop(map);
+        self
+    }
+
+    pub(in crate::runtime) fn accepting_native_file_drop(mut self) -> Self {
+        self.accepts_native_file_drop = true;
+        self
     }
 }

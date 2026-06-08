@@ -61,4 +61,10 @@ impl NativeFileDrop {
             target_widget,
         }
     }
+
+    /// Return this event with a resolved target widget.
+    pub fn with_target_widget(mut self, target_widget: Option<WidgetId>) -> Self {
+        self.target_widget = target_widget;
+        self
+    }
 }

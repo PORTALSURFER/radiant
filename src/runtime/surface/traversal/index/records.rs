@@ -15,6 +15,7 @@ pub(in crate::runtime) struct SurfaceWidgetTraversalRecord<'a> {
     pub(in crate::runtime) keyboard_focusable: bool,
     pub(in crate::runtime) receives_pointer_hit_testing: bool,
     pub(in crate::runtime) receives_wheel_input: bool,
+    pub(in crate::runtime) accepts_native_file_drop: bool,
     pub(in crate::runtime) needs_state_synchronization: bool,
     pub(in crate::runtime) suppresses_container_hover: bool,
 }

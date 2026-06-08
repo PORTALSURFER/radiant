@@ -203,7 +203,15 @@ input state must survive list edits. The launch builders expose `.options(...)`
 for callers that need the full `NativeRunOptions` surface. Apps that prefer
 explicit message routing can use `.message(...)` on widgets plus `.update(...)`
 or `.update_command(...)` on the app when reducers need to return
-`Command<Message>` values directly. Interactive row and badge builders can use
+`Command<Message>` values directly. Native OS file-drop targets should be
+declared on the view subtree that owns the interaction:
+`.accepts_native_file_drop().on_native_file_drop(Message::FileDrop)`.
+Radiant routes hover, cancel, and drop events to the topmost accepting target
+using the normal surface traversal and attaches `NativeFileDrop::target_widget`
+before emitting the host message. Use `NativeFileDropPhase` to distinguish the
+event phase. The app-builder `.on_native_file_drop(...)` hook remains available
+as an advanced compatibility fallback for hosts that intentionally handle
+targeted drops outside the view tree. Interactive row and badge builders can use
 `InteractiveRowActions` when they only need common activation, secondary-click,
 drag, drop, or hover-drop routing without hand-written enum filtering. Use
 `InteractiveRowBuilder::tracked_drag_source(...)` when host-owned row drag
@@ -1976,6 +1984,8 @@ Run `cargo run --example scene` for the preferred root-scene sandbox. It
 composes base content with floating, popover, modal, context-menu, tooltip, and
 drag-preview layers through `Scene` and `Layer`, and declares a root
 `FrameClock` plus paint-only `TransientOverlay` directly on the `Scene`.
+Run `cargo run --example native_file_drop` for a view-local native OS file-drop
+target that maps `NativeFileDrop` events into normal app messages.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
 that composes `MenuItem`, `menu(...)`, and `context_menu_overlay(...)` with
 normal state callbacks.

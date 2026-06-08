@@ -316,6 +316,7 @@ fn record_widget_runtime<Message>(
         keyboard_focusable: widget.is_keyboard_focusable(),
         receives_pointer_hit_testing: widget.receives_pointer_hit_testing(),
         receives_wheel_input: widget.receives_wheel_input(),
+        accepts_native_file_drop: widget.accepts_native_file_drop(),
         needs_state_synchronization: widget.needs_state_synchronization(),
         suppresses_container_hover: widget.suppresses_container_hover(),
     });

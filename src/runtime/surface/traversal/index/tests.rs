@@ -26,6 +26,7 @@ fn traversal_records_route_to_expected_buckets() {
         keyboard_focusable: true,
         receives_pointer_hit_testing: true,
         receives_wheel_input: true,
+        accepts_native_file_drop: true,
         needs_state_synchronization: true,
         suppresses_container_hover: true,
     });
@@ -45,6 +46,7 @@ fn traversal_records_route_to_expected_buckets() {
     assert_eq!(index.keyboard_focus_order, vec![20]);
     assert_eq!(index.pointer_hit_order, vec![20]);
     assert_eq!(index.wheel_hit_order, vec![20]);
+    assert_eq!(index.native_file_drop_hit_order, vec![20]);
     assert_eq!(index.stateful_widget_order, vec![20]);
     assert!(index.container_hover_suppression.contains(&20));
     assert_eq!(

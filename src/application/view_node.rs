@@ -14,10 +14,12 @@ use slot::SlotBehavior;
 use crate::{
     application::WidgetView,
     layout::{CrossAlign, Insets, MainAlign, NodeId, Vector2},
-    runtime::{LayerKind, ScrollMessageMapper, SurfaceNode},
+    runtime::{
+        LayerKind, NativeFileDrop, NativeFileDropMessageMapper, ScrollMessageMapper, SurfaceNode,
+    },
     widgets::{TextAlign, TextBackgroundRole, TextColorRole, TextWrap, WidgetSizing, WidgetStyle},
 };
-use std::any::Any;
+use std::{any::Any, sync::Arc};
 
 /// A typed transient scene layer.
 pub struct Layer<Message> {
@@ -74,6 +76,8 @@ pub struct ViewNode<Message> {
     text_background: Option<TextBackgroundRole>,
     text_inset: Option<Vector2>,
     scroll_message: Option<ScrollMessageMapper<Message>>,
+    accepts_native_file_drop: bool,
+    native_file_drop: Option<NativeFileDropMessageMapper<Message>>,
 }
 
 pub(in crate::application) enum ViewNodeKind<Message> {
@@ -153,6 +157,8 @@ impl<Message> ViewNode<Message> {
             text_background: None,
             text_inset: None,
             scroll_message: None,
+            accepts_native_file_drop: false,
+            native_file_drop: None,
         }
     }
 
@@ -170,6 +176,25 @@ impl<Message> ViewNode<Message> {
 
     fn with_reserved_identity(mut self) -> Self {
         self.has_reserved_identity = true;
+        self
+    }
+
+    /// Mark this view subtree as accepting native file-drop events.
+    ///
+    /// This declares interest only; use [`Self::on_native_file_drop`] to map the
+    /// dropped file event into a host message.
+    pub fn accepts_native_file_drop(mut self) -> Self {
+        self.accepts_native_file_drop = true;
+        self
+    }
+
+    /// Emit a host message when a native file hover, cancel, or drop targets this view subtree.
+    pub fn on_native_file_drop(
+        mut self,
+        map: impl Fn(NativeFileDrop) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        self.accepts_native_file_drop = true;
+        self.native_file_drop = Some(Arc::new(map));
         self
     }
 }

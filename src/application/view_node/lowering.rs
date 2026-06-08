@@ -103,6 +103,8 @@ impl<'a> ViewLowering<'a> {
         let style = node.style;
         let hoverable = node.hoverable;
         let scroll_message = node.scroll_message;
+        let accepts_native_file_drop = node.accepts_native_file_drop;
+        let native_file_drop = node.native_file_drop.clone();
         let defaults =
             ViewNodeContainerDefaults::new(node.padding, node.align_main, node.align_cross, style);
         let base_policy = || defaults.base_policy();
@@ -116,7 +118,7 @@ impl<'a> ViewLowering<'a> {
                 container
             };
 
-        match node.kind {
+        let lowered = match node.kind {
             ViewNodeKind::Scene { base, layers, .. } => {
                 let base = self.lower_node(*base, child_scope);
                 let layers = layers
@@ -237,6 +239,16 @@ impl<'a> ViewLowering<'a> {
                 let child = self.lower_node(*child, child_scope);
                 SurfaceNode::floating_layer(id, offset, size, child, interactive)
             }
+        };
+        let lowered = if accepts_native_file_drop {
+            lowered.accepting_native_file_drop()
+        } else {
+            lowered
+        };
+        if let Some(mapper) = native_file_drop {
+            lowered.with_native_file_drop_mapper(mapper)
+        } else {
+            lowered
         }
     }
 }

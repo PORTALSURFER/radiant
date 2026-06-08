@@ -126,7 +126,11 @@ where
             .or(Some(hovered))
     }
 
-    fn widget_contains_point(&self, widget_id: WidgetId, point: Point) -> bool {
+    pub(in crate::runtime::controller) fn widget_contains_point(
+        &self,
+        widget_id: WidgetId,
+        point: Point,
+    ) -> bool {
         self.layout
             .rects
             .get(&widget_id)

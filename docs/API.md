@@ -1284,11 +1284,10 @@ instead of allocating geometry vectors on every layout or paint pass.
 for compact toolbars without baking product-specific toolbar concepts into the
 layout adapter. `layout::fixed_width_item_extent_for_available_width` resolves
 the largest fixed item extent that fits a compact row after caller-reserved gaps.
-Application-builder toolbars can use `ToolbarParts`, `ToolbarAlignment`,
-`toolbar(...)`, and `toolbar_from_parts(...)` when the app owns the ordered
-controls but Radiant should own the compact row chrome, spacing, padding,
-height, start/end alignment, and two-ended strips with
-`ToolbarParts::trailing(...)` or `ToolbarParts::trailing_controls(...)`.
+Compact control strips should be built directly from `row(...)`, `spacer()`,
+padding, spacing, sizing, and the app-owned controls. Radiant keeps the generic
+layout primitives small; product-specific toolbar object models should live in
+the app when a product needs one.
 Declarative views can use `SurfaceNode::scroll_area` and
 `SurfaceNode::virtual_scroll_area` for the scroll viewport itself, then project
 generic rows, cards, images, badges, selectables, or host-defined canvas cells as
@@ -2079,10 +2078,9 @@ sandbox that emulates a sample-source picker with selectable rows, stable row
 IDs, and small `+` / `-` row actions.
 Run `cargo run --example toolbar_icons` for a horizontal SVG-icon toolbar
 sandbox that uses custom toggle buttons, state-driven active highlights, and
-muted inactive vector icons. Compact action strips can use `ToolbarParts`,
-`ToolbarAlignment`, `toolbar(...)`, and `toolbar_from_parts(...)` when host code
-owns the controls and Radiant should own alignment, row height, spacing,
-padding, and optional trailing controls.
+muted inactive vector icons. Compact action strips should use direct
+`row(...)`, `spacer()`, padding, spacing, and sizing composition so the
+application owns product-specific toolbar structure.
 Run `cargo run --example svg` for a focused SVG icon sandbox that parses
 inline vector assets through `SvgIcon::from_svg(...)` and paints them through
 the standard `icon_button(...)` builder. For common compact controls, use

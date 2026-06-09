@@ -77,8 +77,6 @@ pub use option_list::{
     CompactOptionListParts, compact_option_list, compact_option_list_anchored,
     compact_option_list_floating_above, compact_option_list_from_parts,
 };
-mod toolbar;
-pub use toolbar::{ToolbarAlignment, ToolbarParts, toolbar, toolbar_from_parts};
 mod panel_section;
 pub use panel_section::{
     PanelSectionGeometry, PanelSectionLayerParts, PanelSectionParts,

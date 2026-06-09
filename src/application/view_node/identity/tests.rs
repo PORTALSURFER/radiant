@@ -109,7 +109,7 @@ fn view_node_transient_reserved_id_collection_includes_input_identities() {
 
 #[test]
 fn view_node_transient_optional_none_does_not_reserve_identity() {
-    let view: ViewNode<()> = text("owner").transient_layer_opt(None);
+    let view: ViewNode<()> = text("owner").overlays(crate::application::overlays().layer_opt(None));
     let mut ids = Vec::new();
 
     view.collect_reserved_ids(ROOT_KEY_SCOPE, &mut ids);

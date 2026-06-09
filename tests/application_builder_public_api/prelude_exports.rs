@@ -51,7 +51,7 @@ fn view_node_transient_helpers_are_available_from_prelude_views() {
         .tooltip_layer(text("Tooltip"))
         .drag_preview_layer(text("Drag"))
         .transient_layer(Layer::modal(text("Explicit")))
-        .transient_layer_opt(None)
+        .overlays(overlays().layer_opt(None))
         .floating_layer_opt(None)
         .popover_layer_opt(None)
         .modal_layer_opt(None)

@@ -204,10 +204,10 @@ fn browser_area(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
     .fill_width()
     .floating_layer_opt(state.floating_open.then(floating_layer_slot))
     .drag_preview_layer_opt(state.drag_preview_open.then(drag_preview_slot))
-    .transient_layer_opt(state.context_menu_open.then(|| {
+    .overlays(overlays().layer_opt(state.context_menu_open.then(|| {
         Layer::context_menu(context_menu_slot())
             .dismiss_on_outside_click(SceneExampleMessage::CloseContextMenu)
-    }))
+    })))
 }
 
 fn modal_owner(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
@@ -217,10 +217,12 @@ fn modal_owner(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
     )
     .height(58.0)
     .fill_width()
-    .transient_layer_opt(
-        state
-            .modal_open
-            .then(|| Layer::modal(modal_slot()).block_input()),
+    .overlays(
+        overlays().layer_opt(
+            state
+                .modal_open
+                .then(|| Layer::modal(modal_slot()).block_input()),
+        ),
     )
 }
 

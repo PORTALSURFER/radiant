@@ -215,14 +215,6 @@ impl<Message> ViewNode<Message> {
         self
     }
 
-    /// Declare an optional view-local transient scene layer.
-    pub fn transient_layer_opt(self, layer: Option<Layer<Message>>) -> Self {
-        match layer {
-            Some(layer) => self.transient_layer(layer),
-            None => self,
-        }
-    }
-
     /// Declare a collection of view-local transient scene overlays owned by this view subtree.
     pub fn overlays(mut self, overlays: Overlays<Message>) -> Self {
         for layer in overlays.into_layers() {
@@ -238,7 +230,10 @@ impl<Message> ViewNode<Message> {
 
     /// Declare an optional generic floating layer owned by this view subtree.
     pub fn floating_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
-        self.transient_layer_opt(view.map(Layer::floating))
+        match view {
+            Some(view) => self.floating_layer(view),
+            None => self,
+        }
     }
 
     /// Declare a popover layer owned by this view subtree.
@@ -248,7 +243,10 @@ impl<Message> ViewNode<Message> {
 
     /// Declare an optional popover layer owned by this view subtree.
     pub fn popover_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
-        self.transient_layer_opt(view.map(Layer::popover))
+        match view {
+            Some(view) => self.popover_layer(view),
+            None => self,
+        }
     }
 
     /// Declare a modal layer owned by this view subtree.
@@ -258,7 +256,10 @@ impl<Message> ViewNode<Message> {
 
     /// Declare an optional modal layer owned by this view subtree.
     pub fn modal_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
-        self.transient_layer_opt(view.map(Layer::modal))
+        match view {
+            Some(view) => self.modal_layer(view),
+            None => self,
+        }
     }
 
     /// Declare a context menu layer owned by this view subtree.
@@ -268,7 +269,10 @@ impl<Message> ViewNode<Message> {
 
     /// Declare an optional context menu layer owned by this view subtree.
     pub fn context_menu_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
-        self.transient_layer_opt(view.map(Layer::context_menu))
+        match view {
+            Some(view) => self.context_menu_layer(view),
+            None => self,
+        }
     }
 
     /// Declare a tooltip layer owned by this view subtree.
@@ -278,7 +282,10 @@ impl<Message> ViewNode<Message> {
 
     /// Declare an optional tooltip layer owned by this view subtree.
     pub fn tooltip_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
-        self.transient_layer_opt(view.map(Layer::tooltip))
+        match view {
+            Some(view) => self.tooltip_layer(view),
+            None => self,
+        }
     }
 
     /// Declare a drag-preview layer owned by this view subtree.
@@ -288,7 +295,10 @@ impl<Message> ViewNode<Message> {
 
     /// Declare an optional drag-preview layer owned by this view subtree.
     pub fn drag_preview_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
-        self.transient_layer_opt(view.map(Layer::drag_preview))
+        match view {
+            Some(view) => self.drag_preview_layer(view),
+            None => self,
+        }
     }
 }
 

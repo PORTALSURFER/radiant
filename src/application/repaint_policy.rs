@@ -1,12 +1,14 @@
 use crate::runtime::RepaintScope;
 
+type RepaintResolver<Message> = dyn Fn(&Message) -> Option<RepaintScope>;
+
 /// Automatic repaint behavior applied after app messages are reduced.
 ///
 /// Use this when an application reducer should stay focused on state changes
 /// and runtime commands while Radiant owns the ordinary "message implies
 /// repaint" policy at the app boundary.
 pub struct RepaintPolicy<Message> {
-    resolve: Box<dyn Fn(&Message) -> Option<RepaintScope>>,
+    resolve: Box<RepaintResolver<Message>>,
 }
 
 impl<Message> RepaintPolicy<Message> {

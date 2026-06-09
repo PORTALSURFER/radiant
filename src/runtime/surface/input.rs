@@ -182,10 +182,10 @@ impl<Message> SurfaceNode<Message> {
                     return Some(widget);
                 }
                 scene.layers.iter_mut().find_map(|layer| {
-                    if let Some(input) = &mut layer.input {
-                        if let Some(widget) = input.find_widget_mut(widget_id) {
-                            return Some(widget);
-                        }
+                    if let Some(input) = &mut layer.input
+                        && let Some(widget) = input.find_widget_mut(widget_id)
+                    {
+                        return Some(widget);
                     }
                     layer.node.find_widget_mut(widget_id)
                 })

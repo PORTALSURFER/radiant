@@ -5,6 +5,6 @@ pub use crate::application::{
     DEFAULT_ROW_SPACING, DEFAULT_STYLED_CONTAINER_PADDING, Layer, LayerInputPolicy, LayerKind,
     MarkerRunBuilder, OverlayStack, Scene, bounded_scroll_column, bounded_scroll_column_from_parts,
     card, column, column_key, empty, grid, grid_with_gaps, local_drop_marker, marker_run,
-    marker_run_colors, overlay_stack, property_panel, property_rows, row, row_key, scene, scroll,
-    scroll_column, spacer, stack, stack_layers, text, text_line, widget, wrap,
+    marker_run_colors, overlay_stack, property_panel, property_rows, resizable, row, row_key,
+    scene, scroll, scroll_column, spacer, stack, stack_layers, text, text_line, widget, wrap,
 };

@@ -5,6 +5,7 @@ mod containers;
 mod lists;
 mod overlay_stack;
 mod overlays;
+mod resizable;
 mod scene;
 mod scroll;
 
@@ -27,5 +28,6 @@ pub use overlays::{
     floating_layer_around_from_parts, floating_layer_below, floating_layer_with_input,
     input_overlay, input_underlay, local_drop_marker, overlay_panel,
 };
+pub use resizable::resizable;
 pub use scene::{Scene, scene};
 pub use scroll::{scroll, virtual_scroll};

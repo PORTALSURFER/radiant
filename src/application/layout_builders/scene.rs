@@ -25,6 +25,14 @@ pub struct Scene<Message> {
     shortcuts: Option<Box<dyn Fn(KeyPress) -> ShortcutResolution<Message>>>,
 }
 
+/// Declarative collection of view-local transient scene layers.
+///
+/// Use this when a component owns several transient overlays and wants to keep
+/// permanent layout composition separate from overlay projection.
+pub struct Overlays<Message> {
+    layers: Vec<Layer<Message>>,
+}
+
 /// Build a root scene around base application content.
 pub fn scene<Message>(base: ViewNode<Message>) -> Scene<Message> {
     Scene {
@@ -32,6 +40,37 @@ pub fn scene<Message>(base: ViewNode<Message>) -> Scene<Message> {
         layers: Vec::new(),
         presentation: None,
         shortcuts: None,
+    }
+}
+
+/// Build an empty collection of typed transient overlays.
+pub fn overlays<Message>() -> Overlays<Message> {
+    Overlays { layers: Vec::new() }
+}
+
+impl<Message> Overlays<Message> {
+    /// Add one typed transient overlay.
+    pub fn layer(mut self, layer: Layer<Message>) -> Self {
+        self.layers.push(layer);
+        self
+    }
+
+    /// Add one optional typed transient overlay.
+    pub fn layer_opt(self, layer: Option<Layer<Message>>) -> Self {
+        match layer {
+            Some(layer) => self.layer(layer),
+            None => self,
+        }
+    }
+
+    /// Add typed transient overlays in declaration order.
+    pub fn layers(mut self, layers: impl IntoIterator<Item = Layer<Message>>) -> Self {
+        self.layers.extend(layers);
+        self
+    }
+
+    pub(in crate::application) fn into_layers(self) -> Vec<Layer<Message>> {
+        self.layers
     }
 }
 
@@ -218,7 +257,9 @@ impl<Message> Layer<Message> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        application::{IntoView, Layer, LayerInputPolicy, button, column, row, scene, text},
+        application::{
+            IntoView, Layer, LayerInputPolicy, button, column, overlays, row, scene, text,
+        },
         gui::types::Point,
         layout::{LayoutNode, Vector2},
         runtime::{DeclarativeOwnedRuntimeBridge, Event, LayerKind, SurfaceRuntime},
@@ -342,6 +383,40 @@ mod tests {
                 "Context menu"
             ]
         );
+    }
+
+    #[test]
+    fn view_overlays_project_from_owner_subtree() {
+        let labels = scene::<()>(
+            text("Owner").overlays(
+                overlays()
+                    .layer(Layer::floating(text("Floating")))
+                    .layer(Layer::modal(text("Modal"))),
+            ),
+        )
+        .into_view()
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 180.0))
+        .paint_plan
+        .text_label_strings();
+
+        assert_eq!(labels, ["Owner", "Floating", "Modal"]);
+    }
+
+    #[test]
+    fn view_overlays_omit_none_layers() {
+        let labels = scene::<()>(
+            text("Owner").overlays(
+                overlays()
+                    .layer_opt(None)
+                    .layer_opt(Some(Layer::context_menu(text("Menu")))),
+            ),
+        )
+        .into_view()
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 180.0))
+        .paint_plan
+        .text_label_strings();
+
+        assert_eq!(labels, ["Owner", "Menu"]);
     }
 
     #[test]

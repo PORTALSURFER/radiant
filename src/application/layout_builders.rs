@@ -29,5 +29,5 @@ pub use overlays::{
     input_overlay, input_underlay, local_drop_marker, overlay_panel,
 };
 pub use resizable::resizable;
-pub use scene::{Scene, scene};
+pub use scene::{Overlays, Scene, overlays, scene};
 pub use scroll::{scroll, virtual_scroll};

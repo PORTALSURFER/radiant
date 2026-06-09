@@ -602,11 +602,12 @@ so the root view does not need a registry of every popup, modal, menu, tooltip,
 or drag preview the app might show.
 Use `Layer::floating(...)`, `Layer::popover(...)`, `Layer::modal(...)`,
 `Layer::context_menu(...)`, `Layer::tooltip(...)`, and
-`Layer::drag_preview(...)` to build typed layers. Attach them locally with
-`ViewNode::transient_layer(...)` / `transient_layer_opt(...)`, or attach them
-explicitly at the root with `Scene::layer(...)`, `Scene::layer_opt(...)`, or
-`Scene::layers(...)` when a host deliberately owns a root-level transient that
-does not belong to one component.
+`Layer::drag_preview(...)` to build typed layers. Attach several component-owned
+layers locally with `ViewNode::overlays(ui::overlays()...)`, attach one layer
+with `ViewNode::transient_layer(...)` / `transient_layer_opt(...)`, or attach
+layers explicitly at the root with `Scene::layer(...)`, `Scene::layer_opt(...)`,
+or `Scene::layers(...)` when a host deliberately owns a root-level transient
+that does not belong to one component.
 Layer input policy is explicit and Radiant-owned. `Layer::pass_through()` is
 the default and adds no synthesized input surface. `Layer::block_input()` adds a
 transparent full-scene input surface below that layer's foreground content,

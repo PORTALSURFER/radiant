@@ -12,7 +12,7 @@ mod slot;
 use slot::SlotBehavior;
 
 use crate::{
-    application::WidgetView,
+    application::{Overlays, WidgetView},
     gui::{input::KeyPress, shortcuts::ShortcutResolution},
     layout::{CrossAlign, Insets, MainAlign, NodeId, Vector2},
     runtime::{
@@ -221,6 +221,14 @@ impl<Message> ViewNode<Message> {
             Some(layer) => self.transient_layer(layer),
             None => self,
         }
+    }
+
+    /// Declare a collection of view-local transient scene overlays owned by this view subtree.
+    pub fn overlays(mut self, overlays: Overlays<Message>) -> Self {
+        for layer in overlays.into_layers() {
+            self = self.transient_layer(layer);
+        }
+        self
     }
 
     /// Declare a generic floating layer owned by this view subtree.

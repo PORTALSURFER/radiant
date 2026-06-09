@@ -9,6 +9,7 @@ mod resizable;
 mod scene;
 mod scroll;
 
+pub use collection::{Children, children};
 pub use containers::{
     DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING, column, column_key, grid,
     grid_with_gaps, row, row_key, stack, stack_layers, wrap,

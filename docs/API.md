@@ -190,7 +190,10 @@ Use `empty()` for optional branches that must return a view without
 contributing visible layout size; use `spacer()` when the view should reserve a
 non-painting fixed or flexible gap. Use `text_line(label, height)` for fixed-height
 single-line labels that should fill their parent width and truncate rather than
-wrap.
+wrap. Use `children().push(...).push_opt(...).push_if(...)` when a row, column,
+grid, stack, or similar container has a short declarative child list with
+optional branches. This keeps conditional children at the container composition
+site without app-local temporary vectors or optional layout widgets.
 Rows, columns, and fixed-column grids use intrinsic main-axis child sizing by
 default, so list rows and grid tiles do not stretch just because there are only
 a few items. Apps can request

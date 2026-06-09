@@ -66,6 +66,26 @@ fn view_node_transient_helpers_are_available_from_prelude_views() {
 }
 
 #[test]
+fn prelude_exports_children_builder_for_optional_container_children() {
+    use radiant::prelude::*;
+
+    let view: View<()> = row(children()
+        .push(text_line("Left", 20.0))
+        .push_opt(Some(text_line("Middle", 20.0)))
+        .push_opt(None)
+        .push_if(true, || text_line("Right", 20.0))
+        .push_if(false, || text_line("Hidden", 20.0)))
+    .fill();
+
+    let frame = view.view_frame_at_size_with_default_theme(Vector2::new(240.0, 40.0));
+
+    assert!(frame.paint_plan.contains_text("Left"));
+    assert!(frame.paint_plan.contains_text("Middle"));
+    assert!(frame.paint_plan.contains_text("Right"));
+    assert!(!frame.paint_plan.contains_text("Hidden"));
+}
+
+#[test]
 fn prelude_views_can_dispatch_widget_outputs_directly() {
     use radiant::prelude::*;
 

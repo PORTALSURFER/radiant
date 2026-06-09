@@ -11,6 +11,7 @@ mod icon_button;
 mod interactive_row;
 mod marker_run;
 mod pointer_shield;
+mod pointer_target;
 mod progress_bar;
 mod scrollbar;
 mod selectable;
@@ -45,6 +46,9 @@ pub use interactive_row::{
 pub use marker_run::{ColorMarkerRunBuilder, MarkerRunBuilder, marker_run, marker_run_colors};
 pub use pointer_shield::{
     PointerShieldBuilder, pointer_drop_shield, pointer_move_shield, pointer_shield,
+};
+pub use pointer_target::{
+    PointerTarget, PointerTargetBuilder, pointer_drop_target, pointer_move_target, pointer_target,
 };
 pub use progress_bar::{
     ProgressBarBuilder, determinate_progress_bar, indeterminate_progress_bar, progress_bar,

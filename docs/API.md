@@ -648,9 +648,13 @@ fall back to app-builder `.shortcuts(...)` only when unhandled.
 order: base layout, generic floating layers, popovers, modals, context menus,
 tooltips, and drag previews. Lower-level callers can still use
 `overlay_stack(base)` for bounded local overlays such as loading feedback,
-local drag/drop targets, or transparent input shields that share one content
-region's bounds. Add optional children with `OverlayStack::overlay_opt(...)`
-and `OverlayStack::input_opt(...)`, then call `OverlayStack::into_view()`.
+paint-only markers, or advanced transparent input shields that share one content
+region's bounds. Prefer attaching ordinary bounded pointer/drop routing to the
+owning view with `.pointer_target(...)` or `.pointer_target_opt(...)` and a
+`pointer_target(...)`, `pointer_drop_target(...)`, or `pointer_move_target(...)`
+builder. Add optional overlay-stack children with
+`OverlayStack::overlay_opt(...)` and `OverlayStack::input_opt(...)`, then call
+`OverlayStack::into_view()`.
 It delegates projection to `stack_layers(...)`, so a base-only stack returns the
 base view unchanged while multiple children become a normal `stack(...)`.
 Use `stack_layers(...)` directly only when the caller already owns an untyped

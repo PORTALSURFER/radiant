@@ -12,7 +12,7 @@ mod slot;
 use slot::SlotBehavior;
 
 use crate::{
-    application::{Overlays, WidgetView},
+    application::{Overlays, PointerTarget, WidgetView},
     gui::{input::KeyPress, shortcuts::ShortcutResolution},
     layout::{CrossAlign, Insets, MainAlign, NodeId, Vector2},
     runtime::{
@@ -221,6 +221,31 @@ impl<Message> ViewNode<Message> {
             self = self.transient_layer(layer);
         }
         self
+    }
+
+    /// Attach a transparent pointer target to this view's bounds.
+    ///
+    /// The target is routed above the owner content but remains bounded by the
+    /// owner's layout, which is useful for declaring drop or cancellation
+    /// behavior on semantic containers.
+    pub fn pointer_target(self, target: PointerTarget<Message>) -> Self
+    where
+        Message: 'static,
+    {
+        crate::application::overlay_stack(self)
+            .input(target.into_input())
+            .into_view()
+    }
+
+    /// Attach an optional transparent pointer target to this view's bounds.
+    pub fn pointer_target_opt(self, target: Option<PointerTarget<Message>>) -> Self
+    where
+        Message: 'static,
+    {
+        match target {
+            Some(target) => self.pointer_target(target),
+            None => self,
+        }
     }
 
     /// Declare a generic floating layer owned by this view subtree.

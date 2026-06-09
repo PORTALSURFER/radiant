@@ -23,15 +23,18 @@ pub(in crate::runtime) fn push_clip_end(primitives: &mut Vec<PaintPrimitive>, no
     primitives.push(PaintPrimitive::ClipEnd(PaintClipEnd { node_id }));
 }
 
-pub(in crate::runtime) fn push_layout_debug_overlay(
+pub(in crate::runtime) fn push_layout_debug_overlay_for_node(
     layout: &LayoutOutput,
     plan: &mut SurfacePaintPlan,
+    node_id: NodeId,
 ) {
     plan.primitives.extend(
         layout
             .debug_primitives
             .iter()
-            .filter(|primitive| primitive.rect.has_finite_positive_area())
+            .filter(|primitive| {
+                primitive.node_id == node_id && primitive.rect.has_finite_positive_area()
+            })
             .map(|primitive| {
                 PaintPrimitive::StrokeRect(PaintStrokeRect {
                     widget_id: primitive.node_id,

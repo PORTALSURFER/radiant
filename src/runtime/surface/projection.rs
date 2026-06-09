@@ -41,6 +41,5 @@ impl<Message> UiSurface<Message> {
             hovered_container,
             active_scroll_affordance,
         );
-        crate::runtime::paint::push_layout_debug_overlay(layout, plan);
     }
 }

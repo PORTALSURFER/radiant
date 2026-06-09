@@ -9,7 +9,7 @@ mod scroll;
 mod text;
 
 pub(super) use chrome::{push_container_chrome, push_overlay_panel};
-pub(super) use debug::{push_clip_end, push_clip_start, push_layout_debug_overlay};
+pub(super) use debug::{push_clip_end, push_clip_start, push_layout_debug_overlay_for_node};
 pub(crate) use geometry::{blend_color, diagonal_cut_rect_points, inset_rect, push_axis_stroke};
 pub use helpers::{
     PaintTextMetrics, WidgetPaint, push_fill_polygon, push_fill_rect, push_fill_rect_batch,

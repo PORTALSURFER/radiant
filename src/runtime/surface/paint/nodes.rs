@@ -2,12 +2,13 @@
 
 use super::SurfacePaintContext;
 use crate::{
-    layout::{ContainerKind, LayoutOutput, NodeId},
+    gui::types::Rect,
+    layout::{ContainerKind, LayoutOutput, NodeId, OverflowPolicy},
     runtime::{
         PaintPrimitive, SurfaceContainer, SurfaceNode, SurfaceOverlay,
         paint::{
             PaintClipEnd, PaintClipStart, SurfacePaintPlan, push_container_chrome,
-            push_overlay_panel,
+            push_layout_debug_overlay_for_node, push_overlay_panel,
         },
     },
     theme::ThemeTokens,
@@ -35,6 +36,21 @@ impl<Message> SurfaceContainer<Message> {
 
     pub(super) fn is_scroll_view(&self) -> bool {
         self.policy.kind == ContainerKind::ScrollView
+    }
+
+    pub(super) fn child_clip_rect(&self, context: &SurfacePaintContext<'_>) -> Option<Rect> {
+        if self.children.is_empty()
+            || self.is_scroll_view()
+            || self.policy.overflow != OverflowPolicy::Clip
+        {
+            return None;
+        }
+        context
+            .layout
+            .rects
+            .get(&self.id)
+            .copied()
+            .filter(|rect| rect.has_finite_positive_area())
     }
 }
 
@@ -89,6 +105,7 @@ impl<Message> SurfaceNode<Message> {
                         layer.node.append_paint_with_context(context, plan);
                     }
                 }
+                push_layout_debug_overlay_for_node(context.layout, plan, scene.id);
             }
             Self::Container(container) => {
                 container.append_chrome_paint(context, plan);
@@ -111,6 +128,28 @@ impl<Message> SurfaceNode<Message> {
                         container.end_scroll_clip(plan);
                         container.append_scroll_affordance(context, plan);
                     }
+                    push_layout_debug_overlay_for_node(context.layout, plan, container.id);
+                } else if let Some(clip_rect) = container.child_clip_rect(context) {
+                    plan.primitives
+                        .push(PaintPrimitive::ClipStart(PaintClipStart {
+                            node_id: container.id,
+                            rect: clip_rect,
+                        }));
+                    let clipped_context = context.clipped_to(clip_rect);
+                    for child in &container.children {
+                        if clipped_context.child_is_past_ordered_clip(container, child.child.id()) {
+                            break;
+                        }
+                        if clipped_context.should_paint_node(child.child.id()) {
+                            child
+                                .child
+                                .append_paint_with_context(&clipped_context, plan);
+                        }
+                    }
+                    push_layout_debug_overlay_for_node(context.layout, plan, container.id);
+                    plan.primitives.push(PaintPrimitive::ClipEnd(PaintClipEnd {
+                        node_id: container.id,
+                    }));
                 } else {
                     for child in &container.children {
                         if context.child_is_past_ordered_clip(container, child.child.id()) {
@@ -120,6 +159,7 @@ impl<Message> SurfaceNode<Message> {
                             child.child.append_paint_with_context(context, plan);
                         }
                     }
+                    push_layout_debug_overlay_for_node(context.layout, plan, container.id);
                 }
             }
             Self::Widget(widget) => {
@@ -142,13 +182,17 @@ impl<Message> SurfaceNode<Message> {
                     context.layout,
                     context.theme,
                 );
+                push_layout_debug_overlay_for_node(context.layout, plan, widget.id());
                 if widget.widget_object().common().paint.bounds == PaintBounds::ClipToRect {
                     plan.primitives.push(PaintPrimitive::ClipEnd(PaintClipEnd {
                         node_id: widget.id(),
                     }));
                 }
             }
-            Self::Overlay(overlay) => overlay.append_paint(context, plan),
+            Self::Overlay(overlay) => {
+                overlay.append_paint(context, plan);
+                push_layout_debug_overlay_for_node(context.layout, plan, overlay.id);
+            }
             Self::FloatingLayer(layer) => {
                 layer.container.append_chrome_paint(context, plan);
                 for child in &layer.container.children {
@@ -156,6 +200,7 @@ impl<Message> SurfaceNode<Message> {
                         child.child.append_paint_with_context(context, plan);
                     }
                 }
+                push_layout_debug_overlay_for_node(context.layout, plan, layer.container.id);
             }
         }
     }

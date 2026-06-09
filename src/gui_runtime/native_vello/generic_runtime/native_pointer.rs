@@ -50,26 +50,55 @@ pub(super) struct NativePointerRouteDiagnostic {
 }
 
 #[derive(Clone, Copy, Debug)]
-#[allow(dead_code)]
 pub(super) struct NativeMouseInputRoute {
     pub(super) outcome: GenericRouteOutcome,
     pub(super) position: Option<Point>,
     pub(super) button: Option<PointerButton>,
     pub(super) state: ElementState,
+    #[cfg(test)]
     pub(super) diagnostic: NativePointerRouteDiagnostic,
 }
 
 impl NativeMouseInputRoute {
+    fn new(
+        outcome: GenericRouteOutcome,
+        position: Option<Point>,
+        button: Option<PointerButton>,
+        state: ElementState,
+        _diagnostic: NativePointerRouteDiagnostic,
+    ) -> Self {
+        Self {
+            outcome,
+            position,
+            button,
+            state,
+            #[cfg(test)]
+            diagnostic: _diagnostic,
+        }
+    }
+
     pub(super) fn is_pressed(self) -> bool {
         self.state == ElementState::Pressed
     }
 }
 
 #[derive(Clone, Copy, Debug)]
-#[allow(dead_code)]
 pub(super) struct NativeWheelRoute {
+    #[cfg(test)]
     pub(super) outcome: GenericRouteOutcome,
+    #[cfg(test)]
     pub(super) diagnostic: NativePointerRouteDiagnostic,
+}
+
+impl NativeWheelRoute {
+    fn new(_outcome: GenericRouteOutcome, _diagnostic: NativePointerRouteDiagnostic) -> Self {
+        Self {
+            #[cfg(test)]
+            outcome: _outcome,
+            #[cfg(test)]
+            diagnostic: _diagnostic,
+        }
+    }
 }
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -92,24 +121,24 @@ where
         let Some(position) = position else {
             diagnostic.result = NativePointerRouteResult::NoCursor;
             self.maybe_log_native_pointer_diagnostic(diagnostic);
-            return NativeMouseInputRoute {
-                outcome: GenericRouteOutcome::default(),
-                position: None,
+            return NativeMouseInputRoute::new(
+                GenericRouteOutcome::default(),
+                None,
                 button,
                 state,
                 diagnostic,
-            };
+            );
         };
         let Some(button) = button else {
             diagnostic.result = NativePointerRouteResult::UnsupportedButton;
             self.maybe_log_native_pointer_diagnostic(diagnostic);
-            return NativeMouseInputRoute {
-                outcome: GenericRouteOutcome::default(),
-                position: Some(position),
-                button: None,
+            return NativeMouseInputRoute::new(
+                GenericRouteOutcome::default(),
+                Some(position),
+                None,
                 state,
                 diagnostic,
-            };
+            );
         };
         let modifiers = self.pointer_modifiers();
         let started = Instant::now();
@@ -124,13 +153,7 @@ where
         maybe_log_route_profile("pointer_button", started.elapsed(), outcome);
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);
         self.maybe_log_native_pointer_diagnostic(diagnostic);
-        NativeMouseInputRoute {
-            outcome,
-            position: Some(position),
-            button: Some(button),
-            state,
-            diagnostic,
-        }
+        NativeMouseInputRoute::new(outcome, Some(position), Some(button), state, diagnostic)
     }
 
     pub(super) fn route_native_mouse_wheel(&mut self, delta: MouseScrollDelta) -> NativeWheelRoute {
@@ -146,10 +169,7 @@ where
         let Some(position) = position else {
             diagnostic.result = NativePointerRouteResult::NoCursor;
             self.maybe_log_native_pointer_diagnostic(diagnostic);
-            return NativeWheelRoute {
-                outcome: GenericRouteOutcome::default(),
-                diagnostic,
-            };
+            return NativeWheelRoute::new(GenericRouteOutcome::default(), diagnostic);
         };
         if self.can_coalesce_gpu_surface_wheel(position, delta) {
             self.queue_gpu_surface_wheel(position, delta, modifiers);
@@ -162,10 +182,7 @@ where
             diagnostic.deferred_surface_refresh = self.timing.deferred_surface_refresh;
             diagnostic.deferred_scene_rebuild = self.timing.deferred_scene_rebuild;
             self.maybe_log_native_pointer_diagnostic(diagnostic);
-            return NativeWheelRoute {
-                outcome,
-                diagnostic,
-            };
+            return NativeWheelRoute::new(outcome, diagnostic);
         }
         let started = Instant::now();
         let outcome = if self.can_fast_path_gpu_surface_route(position, delta) {
@@ -179,10 +196,7 @@ where
         self.handle_gpu_surface_route_outcome(outcome, position, delta);
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);
         self.maybe_log_native_pointer_diagnostic(diagnostic);
-        NativeWheelRoute {
-            outcome,
-            diagnostic,
-        }
+        NativeWheelRoute::new(outcome, diagnostic)
     }
 
     pub(super) fn route_native_modifiers_changed(

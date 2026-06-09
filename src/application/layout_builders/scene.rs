@@ -69,6 +69,128 @@ impl<Message> Overlays<Message> {
         self
     }
 
+    /// Add one floating overlay.
+    pub fn floating(self, view: ViewNode<Message>) -> Self {
+        self.layer(Layer::floating(view))
+    }
+
+    /// Add one optional floating overlay.
+    pub fn floating_opt(self, view: Option<ViewNode<Message>>) -> Self {
+        match view {
+            Some(view) => self.floating(view),
+            None => self,
+        }
+    }
+
+    /// Add one popover overlay.
+    pub fn popover(self, view: ViewNode<Message>) -> Self {
+        self.layer(Layer::popover(view))
+    }
+
+    /// Add one optional popover overlay.
+    pub fn popover_opt(self, view: Option<ViewNode<Message>>) -> Self {
+        match view {
+            Some(view) => self.popover(view),
+            None => self,
+        }
+    }
+
+    /// Add one modal overlay.
+    pub fn modal(self, view: ViewNode<Message>) -> Self {
+        self.layer(Layer::modal(view))
+    }
+
+    /// Add one optional modal overlay.
+    pub fn modal_opt(self, view: Option<ViewNode<Message>>) -> Self {
+        match view {
+            Some(view) => self.modal(view),
+            None => self,
+        }
+    }
+
+    /// Add one modal overlay that blocks input behind it.
+    pub fn blocking_modal(self, view: ViewNode<Message>) -> Self
+    where
+        Message: 'static,
+    {
+        self.layer(Layer::modal(view).block_input())
+    }
+
+    /// Add one optional modal overlay that blocks input behind it.
+    pub fn blocking_modal_opt(self, view: Option<ViewNode<Message>>) -> Self
+    where
+        Message: 'static,
+    {
+        match view {
+            Some(view) => self.blocking_modal(view),
+            None => self,
+        }
+    }
+
+    /// Add one context-menu overlay.
+    pub fn context_menu(self, view: ViewNode<Message>) -> Self {
+        self.layer(Layer::context_menu(view))
+    }
+
+    /// Add one optional context-menu overlay.
+    pub fn context_menu_opt(self, view: Option<ViewNode<Message>>) -> Self {
+        match view {
+            Some(view) => self.context_menu(view),
+            None => self,
+        }
+    }
+
+    /// Add one context-menu overlay that emits `message` for outside pointer
+    /// activation.
+    pub fn dismissible_context_menu(self, view: ViewNode<Message>, message: Message) -> Self
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        self.layer(Layer::context_menu(view).dismiss_on_outside_click(message))
+    }
+
+    /// Add one optional context-menu overlay that emits `message` for outside
+    /// pointer activation.
+    pub fn dismissible_context_menu_opt(
+        self,
+        view: Option<ViewNode<Message>>,
+        message: Message,
+    ) -> Self
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        match view {
+            Some(view) => self.dismissible_context_menu(view, message),
+            None => self,
+        }
+    }
+
+    /// Add one tooltip overlay.
+    pub fn tooltip(self, view: ViewNode<Message>) -> Self {
+        self.layer(Layer::tooltip(view))
+    }
+
+    /// Add one optional tooltip overlay.
+    pub fn tooltip_opt(self, view: Option<ViewNode<Message>>) -> Self {
+        match view {
+            Some(view) => self.tooltip(view),
+            None => self,
+        }
+    }
+
+    /// Add one drag-preview overlay.
+    pub fn drag_preview(self, view: ViewNode<Message>) -> Self {
+        self.layer(Layer::drag_preview(view))
+    }
+
+    /// Add one optional drag-preview overlay.
+    pub fn drag_preview_opt(self, view: Option<ViewNode<Message>>) -> Self {
+        match view {
+            Some(view) => self.drag_preview(view),
+            None => self,
+        }
+    }
+
     pub(in crate::application) fn into_layers(self) -> Vec<Layer<Message>> {
         self.layers
     }
@@ -417,6 +539,84 @@ mod tests {
         .text_label_strings();
 
         assert_eq!(labels, ["Owner", "Menu"]);
+    }
+
+    #[test]
+    fn view_overlays_support_typed_optional_layer_helpers() {
+        let labels = scene::<()>(
+            text("Owner").overlays(
+                overlays()
+                    .floating_opt(Some(text("Floating")))
+                    .popover_opt(None)
+                    .modal_opt(Some(text("Modal")))
+                    .context_menu_opt(Some(text("Menu")))
+                    .tooltip_opt(None)
+                    .drag_preview_opt(Some(text("Drag"))),
+            ),
+        )
+        .into_view()
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 180.0))
+        .paint_plan
+        .text_label_strings();
+
+        assert_eq!(labels, ["Owner", "Floating", "Modal", "Menu", "Drag"]);
+    }
+
+    #[test]
+    fn view_overlays_dismissible_context_menu_routes_outside_click() {
+        #[derive(Clone, Debug, PartialEq)]
+        enum Message {
+            Base,
+            Dismiss,
+        }
+
+        let bridge =
+            DeclarativeOwnedRuntimeBridge::new(
+                Vec::<Message>::new(),
+                |_| {
+                    scene::<Message>(button("Base").message(Message::Base).fill().overlays(
+                        overlays().dismissible_context_menu(text("Menu"), Message::Dismiss),
+                    ))
+                    .into_view()
+                    .fill()
+                    .into_surface()
+                },
+                |state, message| state.push(message),
+            );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 160.0));
+
+        runtime.dispatch_event(Event::primary_press(Point::new(220.0, 140.0)));
+
+        assert_eq!(runtime.bridge().state(), &[Message::Dismiss]);
+    }
+
+    #[test]
+    fn view_overlays_blocking_modal_consumes_base_input() {
+        #[derive(Clone, Debug, PartialEq)]
+        enum Message {
+            Base,
+        }
+
+        let bridge = DeclarativeOwnedRuntimeBridge::new(
+            Vec::<Message>::new(),
+            |_| {
+                scene::<Message>(
+                    button("Base")
+                        .message(Message::Base)
+                        .fill()
+                        .overlays(overlays().blocking_modal(text("Modal"))),
+                )
+                .into_view()
+                .fill()
+                .into_surface()
+            },
+            |state, message| state.push(message),
+        );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 160.0));
+
+        runtime.dispatch_event(Event::primary_press(Point::new(220.0, 140.0)));
+
+        assert!(runtime.bridge().state().is_empty());
     }
 
     #[test]

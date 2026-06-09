@@ -600,8 +600,12 @@ layers beside the component that owns them. Use view-local helpers such as
 `ViewNode::popover_layer_opt(...)`, `context_menu_layer_opt(...)`,
 `modal_layer_opt(...)`, `tooltip_layer_opt(...)`, and
 `drag_preview_layer_opt(...)` for typed optional layers, or
-`ViewNode::overlays(ui::overlays().layer_opt(...))` when the layer needs an
-input policy.
+`ViewNode::overlays(ui::overlays().floating_opt(...).blocking_modal_opt(...))`
+when one component owns several optional transient surfaces. `Overlays` also
+provides typed helpers for `popover_opt(...)`, `modal_opt(...)`,
+`context_menu_opt(...)`, `dismissible_context_menu_opt(...)`, `tooltip_opt(...)`,
+and `drag_preview_opt(...)`. Keep `layer(...)` and `layer_opt(...)` for unusual
+custom `Layer` policy or advanced/manual composition.
 The root `scene(base)` collects descendant declarations during normal lowering,
 so the root view does not need a registry of every popup, modal, menu, tooltip,
 or drag preview the app might show.

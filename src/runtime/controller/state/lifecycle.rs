@@ -7,8 +7,9 @@ use crate::{
     layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState},
     runtime::{
         CommandOutcome, DeclarativeOwnedRuntimeBridge, DeclarativeRuntimeBridge, RuntimeBridge,
-        SurfaceRuntimeProjection, UiSurface,
+        SurfaceRuntimeProjection, UiSurface, surface::WidgetStateSyncPolicy,
     },
+    widgets::PointerCapturePolicy,
 };
 use std::sync::Arc;
 
@@ -79,11 +80,13 @@ where
             &mut self.scratch.projection_scroll_stack,
             &mut self.scratch.projection_child_path,
         );
+        let sync_policy = self.widget_state_sync_policy();
         next_surface.synchronize_widget_state_from_paths(
             &self.surface,
             &traversal.stateful_widget_order,
             &traversal.widget_paths,
             &self.traversal.widgets.paths.previous,
+            sync_policy,
         );
         self.surface = next_surface;
         self.layout_root = layout_root;
@@ -93,6 +96,17 @@ where
         if let Some(widget_id) = self.interaction.focus.focused_widget {
             self.restore_focused_widget_state(widget_id);
         }
+    }
+
+    fn widget_state_sync_policy(&self) -> WidgetStateSyncPolicy {
+        self.interaction
+            .pointer
+            .capture
+            .filter(|widget_id| {
+                self.widget_pointer_capture_policy(*widget_id) == PointerCapturePolicy::Exclusive
+            })
+            .map(WidgetStateSyncPolicy::exclusive_pointer_capture)
+            .unwrap_or_default()
     }
 
     fn clear_stale_interaction_state(&mut self) {

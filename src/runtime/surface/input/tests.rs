@@ -1,4 +1,4 @@
-use crate::runtime::{LayerKind, SurfaceLayer};
+use crate::runtime::{LayerKind, SurfaceLayer, surface::WidgetStateSyncPolicy};
 use crate::runtime::{SurfaceChild, SurfaceNode, WidgetMessageMapper};
 use crate::{
     gui::types::{Point, Rect, Vector2},
@@ -170,7 +170,13 @@ fn synchronize_widget_state_from_paths_preserves_state_after_reorder() {
         (20, WidgetPath::from_slice(&[0])),
         (10, WidgetPath::from_slice(&[1])),
     ]);
-    current.synchronize_widget_state_from_paths(&[20], &current_paths, &previous, &previous_paths);
+    current.synchronize_widget_state_from_paths(
+        &[20],
+        &current_paths,
+        &previous,
+        &previous_paths,
+        WidgetStateSyncPolicy::default(),
+    );
 
     let moved = current
         .find_widget_at_path(&[0])
@@ -234,7 +240,13 @@ fn scene_widget_state_sync_finds_widgets_inside_layers() {
 
     let previous_paths = HashMap::from([(20, WidgetPath::from_slice(&[1]))]);
     let current_paths = HashMap::from([(20, WidgetPath::from_slice(&[1]))]);
-    current.synchronize_widget_state_from_paths(&[20], &current_paths, &previous, &previous_paths);
+    current.synchronize_widget_state_from_paths(
+        &[20],
+        &current_paths,
+        &previous,
+        &previous_paths,
+        WidgetStateSyncPolicy::default(),
+    );
 
     let synced = current
         .find_widget_at_path(&[1])
@@ -244,4 +256,78 @@ fn scene_widget_state_sync_finds_widgets_inside_layers() {
         .downcast_ref::<ScrollbarWidget>()
         .expect("layer widget stays a scrollbar");
     assert_eq!(synced.state.drag_grip_fraction, Some(0.08));
+}
+
+#[test]
+fn exclusive_pointer_capture_sync_clears_non_captured_hover_state() {
+    let mut previous: SurfaceNode<()> = SurfaceNode::column(
+        1,
+        0.0,
+        vec![
+            SurfaceChild::fill(SurfaceNode::widget(
+                ButtonWidget::new(10, "Hover", WidgetSizing::fixed(Vector2::new(80.0, 28.0))),
+                WidgetMessageMapper::none(),
+            )),
+            SurfaceChild::fill(SurfaceNode::widget(
+                ButtonWidget::new(
+                    20,
+                    "Captured",
+                    WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
+                ),
+                WidgetMessageMapper::none(),
+            )),
+        ],
+    );
+    let mut current = previous.clone();
+
+    let _ = previous.dispatch_input_at_path(
+        10,
+        &[0],
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0)),
+        WidgetInput::PointerMove {
+            position: Point::new(8.0, 8.0),
+        },
+    );
+    let _ = previous.dispatch_input_at_path(
+        20,
+        &[1],
+        Rect::from_min_size(Point::new(0.0, 28.0), Vector2::new(80.0, 28.0)),
+        WidgetInput::PointerPress {
+            position: Point::new(8.0, 36.0),
+            button: PointerButton::Primary,
+            modifiers: Default::default(),
+        },
+    );
+
+    let previous_paths = HashMap::from([
+        (10, WidgetPath::from_slice(&[0])),
+        (20, WidgetPath::from_slice(&[1])),
+    ]);
+    let current_paths = previous_paths.clone();
+    current.synchronize_widget_state_from_paths(
+        &[10, 20],
+        &current_paths,
+        &previous,
+        &previous_paths,
+        WidgetStateSyncPolicy::exclusive_pointer_capture(20),
+    );
+
+    assert!(
+        !current
+            .find_widget_at_path(&[0])
+            .expect("hover widget exists")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+    assert!(
+        current
+            .find_widget_at_path(&[1])
+            .expect("captured widget exists")
+            .widget()
+            .common()
+            .state
+            .pressed
+    );
 }

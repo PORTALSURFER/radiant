@@ -17,4 +17,4 @@ pub use paint::{PaintBounds, PaintContract};
 pub use sizing::{WidgetId, WidgetSizing, WidgetSizingParts};
 pub use state::{FocusBehavior, WidgetState};
 pub use style::{WidgetProminence, WidgetStyle, WidgetTone};
-pub use widget::Widget;
+pub use widget::{PointerCapturePolicy, Widget};

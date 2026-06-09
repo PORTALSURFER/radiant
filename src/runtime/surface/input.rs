@@ -1,4 +1,6 @@
-use super::{SurfaceNode, SurfaceWidget, WidgetPath, node::SurfaceLayerChildKind};
+use super::{
+    SurfaceNode, SurfaceWidget, WidgetPath, WidgetStateSyncPolicy, node::SurfaceLayerChildKind,
+};
 use crate::{
     gui::types::Rect,
     widgets::{WidgetId, WidgetInput, WidgetOutput},
@@ -18,6 +20,7 @@ impl<Message> SurfaceNode<Message> {
         current_paths: &HashMap<WidgetId, WidgetPath>,
         previous: &Self,
         previous_paths: &HashMap<WidgetId, WidgetPath>,
+        policy: WidgetStateSyncPolicy,
     ) {
         for widget_id in stateful_widget_order {
             let Some(current_path) = current_paths.get(widget_id) else {
@@ -41,6 +44,13 @@ impl<Message> SurfaceNode<Message> {
             current_widget
                 .widget_object_mut()
                 .synchronize_from_previous(previous_widget.widget_object());
+            if policy.clears_retained_hover_for(*widget_id) {
+                current_widget
+                    .widget_object_mut()
+                    .common_mut()
+                    .state
+                    .hovered = false;
+            }
         }
     }
 

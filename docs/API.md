@@ -1099,6 +1099,17 @@ move. Captured drag motion follows the same contract: if the active widget only
 changes local preview chrome, it can repaint locally without a host message.
 Emit a `WidgetOutput` only when the host-owned model changes, such as seek,
 create, move, resize, or delete.
+Use `Widget::pointer_capture_policy()` for widgets that need to control pointer
+motion while they own capture. `PointerCapturePolicy::Exclusive` is for
+splitters, resize handles, and similar controls that should not activate hover
+or pointer-motion behavior on unrelated widgets before release. During retained
+surface refreshes, exclusive capture also clears copied hover state from
+non-captured widgets while preserving durable widget state. The default
+`PointerCapturePolicy::PassThrough` keeps drag-source behavior where widgets
+under the pointer can still receive live feedback while the source remains
+captured. Older custom widgets that only override
+`Widget::allows_captured_pointer_pass_through()` keep the same behavior through
+the default policy implementation.
 Custom widgets must still be pointer hit-test eligible before pointer hooks can
 run. Use `WidgetCommon::with_pointer_focus()` for hover, drag, tooltip, cursor,
 or paint-only overlay widgets that should skip keyboard traversal, or

@@ -62,9 +62,9 @@ mod primitives;
 mod theme;
 
 pub use contract::{
-    FocusBehavior, PaintBounds, PaintContract, Widget, WidgetId, WidgetProminence, WidgetSizing,
-    WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone, stable_widget_id,
-    stable_widget_id_u64,
+    FocusBehavior, PaintBounds, PaintContract, PointerCapturePolicy, Widget, WidgetId,
+    WidgetProminence, WidgetSizing, WidgetSizingParts, WidgetState, WidgetStyle, WidgetTone,
+    stable_widget_id, stable_widget_id_u64,
 };
 pub use interaction::{
     ActivationInputPolicy, ActivationInputResult, BadgeMessage, ButtonMessage, CanvasGestureEvent,

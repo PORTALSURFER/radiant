@@ -3,8 +3,7 @@ use crate::{
     gui::types::Point,
     layout::NodeId,
     runtime::{RuntimeBridge, SurfaceWidget},
-    widgets::WidgetCursor,
-    widgets::WidgetId,
+    widgets::{PointerCapturePolicy, WidgetCursor, WidgetId},
 };
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -101,8 +100,16 @@ where
     }
 
     pub(super) fn widget_allows_captured_pointer_pass_through(&self, widget_id: WidgetId) -> bool {
+        self.widget_pointer_capture_policy(widget_id) == PointerCapturePolicy::PassThrough
+    }
+
+    pub(super) fn widget_pointer_capture_policy(
+        &self,
+        widget_id: WidgetId,
+    ) -> PointerCapturePolicy {
         self.surface_widget(widget_id)
-            .is_some_and(SurfaceWidget::allows_captured_pointer_pass_through)
+            .map(SurfaceWidget::pointer_capture_policy)
+            .unwrap_or(PointerCapturePolicy::Exclusive)
     }
 
     pub(crate) fn widget_prefers_pointer_move_paint_only(&self, widget_id: WidgetId) -> bool {

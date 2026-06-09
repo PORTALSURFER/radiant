@@ -6,7 +6,9 @@ use crate::runtime::PaintPrimitive;
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
-use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
+use crate::widgets::contract::{
+    FocusBehavior, PointerCapturePolicy, Widget, WidgetId, WidgetSizing,
+};
 use crate::widgets::interaction::{DragHandleMessage, WidgetInput, WidgetOutput};
 
 mod builders;
@@ -78,6 +80,10 @@ impl Widget for DragHandleWidget {
 
     fn allows_captured_pointer_pass_through(&self) -> bool {
         false
+    }
+
+    fn pointer_capture_policy(&self) -> PointerCapturePolicy {
+        PointerCapturePolicy::Exclusive
     }
 
     fn append_paint(

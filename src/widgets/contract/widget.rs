@@ -12,6 +12,23 @@ use crate::{
 };
 use std::any::Any;
 
+/// Pointer routing behavior while a widget owns pointer capture.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum PointerCapturePolicy {
+    /// Pointer motion is routed only to the captured widget.
+    ///
+    /// Use this for exclusive controls such as resize handles and splitters,
+    /// where moving over unrelated widgets before release should not activate
+    /// their hover or pointer-motion behavior.
+    Exclusive,
+    /// Pointer motion may pass through to widgets under the pointer.
+    ///
+    /// Use this for drag sources that need live feedback from drop targets or
+    /// other widgets under the pointer while the source remains captured.
+    #[default]
+    PassThrough,
+}
+
 /// Clone support for boxed [`Widget`] trait objects.
 pub trait WidgetClone {
     /// Clone this widget into an owned trait object.
@@ -105,6 +122,19 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
     /// hover surfaces before release.
     fn allows_captured_pointer_pass_through(&self) -> bool {
         true
+    }
+
+    /// Return this widget's pointer routing behavior while it owns capture.
+    ///
+    /// Implement this for new widgets. The default preserves the older
+    /// [`Self::allows_captured_pointer_pass_through`] contract so existing
+    /// custom widgets keep their current behavior.
+    fn pointer_capture_policy(&self) -> PointerCapturePolicy {
+        if self.allows_captured_pointer_pass_through() {
+            PointerCapturePolicy::PassThrough
+        } else {
+            PointerCapturePolicy::Exclusive
+        }
     }
 
     /// Return the cursor this widget wants at `point` inside `bounds`.

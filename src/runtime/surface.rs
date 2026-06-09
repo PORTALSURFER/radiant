@@ -25,6 +25,7 @@ pub use node::{
 };
 pub(in crate::runtime) use paint::{clear_paint_plan_for_layout, empty_paint_plan_for_layout};
 pub(in crate::runtime) use path::{ClipAncestors, WidgetPath};
+pub(in crate::runtime) use state_sync::WidgetStateSyncPolicy;
 pub(in crate::runtime) use traversal::{
     SurfaceContainerTraversalRecord, SurfaceTraversalIndex, SurfaceTraversalStats,
     SurfaceWidgetTraversalRecord,

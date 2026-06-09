@@ -119,6 +119,39 @@ fn captured_drag_handle_does_not_route_pointer_move_to_hovered_widget() {
 }
 
 #[test]
+fn exclusive_capture_refresh_clears_retained_hover_on_other_widgets() {
+    let mut core =
+        GenericNativeRuntimeCore::new(ExclusiveCaptureHoverBridge, Vector2::new(220.0, 32.0));
+    let source_point = core
+        .runtime
+        .layout()
+        .rects
+        .get(&91)
+        .map(|rect| Point::new(rect.min.x + 4.0, rect.min.y + 4.0))
+        .expect("drag handle should be laid out");
+    let target_point = core
+        .runtime
+        .layout()
+        .rects
+        .get(&92)
+        .map(|rect| Point::new(rect.min.x + 4.0, rect.min.y + 4.0))
+        .expect("hover target should be laid out");
+
+    let _ = core.route_pointer_move(target_point);
+    assert!(hover_fill_visible(&core, 92));
+
+    assert!(
+        core.route_pointer_press(source_point, PointerButton::Primary)
+            .routed
+    );
+    let _ = core.route_pointer_move(target_point);
+    core.runtime.refresh();
+
+    assert!(!hover_fill_visible(&core, 92));
+    assert_eq!(core.runtime.pointer_capture(), Some(91));
+}
+
+#[test]
 fn captured_drag_hover_message_requests_scene_rebuild_without_hover_change() {
     let mut core = GenericNativeRuntimeCore::new(DropBridge::default(), Vector2::new(220.0, 32.0));
     let source_point = core
@@ -150,6 +183,101 @@ fn captured_drag_hover_message_requests_scene_rebuild_without_hover_change() {
     );
     assert!(!outcome.paint_only_requested);
     assert_eq!(core.runtime.bridge().hovers, 2);
+}
+
+struct ExclusiveCaptureHoverBridge;
+
+impl RuntimeBridge<()> for ExclusiveCaptureHoverBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        let source = DragHandleWidget::new(91, WidgetSizing::fixed(Vector2::new(16.0, 24.0)));
+        Arc::new(UiSurface::new(SurfaceNode::container(
+            90,
+            ContainerPolicy {
+                kind: ContainerKind::Row,
+                spacing: 8.0,
+                ..ContainerPolicy::default()
+            },
+            vec![
+                SurfaceChild::new(
+                    SlotParams::fill(),
+                    SurfaceNode::widget(source, WidgetMessageMapper::none()),
+                ),
+                SurfaceChild::new(
+                    SlotParams::fill(),
+                    SurfaceNode::custom_widget(
+                        HoverPaintWidget::new(92),
+                        WidgetMessageMapper::none(),
+                    ),
+                ),
+            ],
+        )))
+    }
+
+    fn reduce_message(&mut self, _message: ()) {}
+}
+
+#[derive(Clone, Debug)]
+struct HoverPaintWidget {
+    common: WidgetCommon,
+}
+
+impl HoverPaintWidget {
+    fn new(id: WidgetId) -> Self {
+        let mut common = WidgetCommon::new(id, WidgetSizing::fixed(Vector2::new(88.0, 24.0)));
+        common.focus = crate::widgets::FocusBehavior::Pointer;
+        Self { common }
+    }
+}
+
+impl Widget for HoverPaintWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        if let WidgetInput::PointerMove { position } = input {
+            self.common.state.hovered = bounds.contains(position);
+        }
+        None
+    }
+
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
+            self.common.state = previous.common.state;
+        }
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &crate::layout::LayoutOutput,
+        _theme: &crate::theme::ThemeTokens,
+    ) {
+        if self.common.state.hovered {
+            primitives.push(PaintPrimitive::FillRect(crate::runtime::PaintFillRect {
+                widget_id: self.common.id,
+                rect: bounds,
+                color: crate::gui::types::Rgba8::new(255, 0, 0, 255),
+            }));
+        }
+    }
+}
+
+fn hover_fill_visible(
+    core: &GenericNativeRuntimeCore<ExclusiveCaptureHoverBridge, ()>,
+    widget_id: WidgetId,
+) -> bool {
+    core.runtime
+        .frame_with_default_theme()
+        .paint_plan
+        .fill_rects_for_widget(widget_id)
+        .next()
+        .is_some()
 }
 
 #[derive(Default)]

@@ -1,7 +1,10 @@
 use crate::{
     gui::types::{Point, Rect},
     layout::LayoutNode,
-    widgets::{FocusBehavior, Widget, WidgetCursor, WidgetId, WidgetInput, WidgetOutput},
+    widgets::{
+        FocusBehavior, PointerCapturePolicy, Widget, WidgetCursor, WidgetId, WidgetInput,
+        WidgetOutput,
+    },
 };
 
 mod mapper;
@@ -122,8 +125,12 @@ impl<Message> SurfaceWidget<Message> {
         !self.widget.common().state.disabled && self.widget.prefers_pointer_move_paint_only()
     }
 
-    pub(in crate::runtime) fn allows_captured_pointer_pass_through(&self) -> bool {
-        !self.widget.common().state.disabled && self.widget.allows_captured_pointer_pass_through()
+    pub(in crate::runtime) fn pointer_capture_policy(&self) -> PointerCapturePolicy {
+        if self.widget.common().state.disabled {
+            PointerCapturePolicy::Exclusive
+        } else {
+            self.widget.pointer_capture_policy()
+        }
     }
 
     pub(in crate::runtime) fn cursor_for_point(

@@ -1,10 +1,12 @@
 use super::{
     BoundedScrollColumnParts, LayerHorizontalAnchor, LayerVerticalAnchor, ViewNode, anchored_layer,
-    bounded_scroll_column_from_parts, empty, floating_layer_above, row, text,
+    bounded_scroll_column_from_parts, empty, floating_layer_above, pointer_target, row, text,
 };
 use crate::gui::list::bounded_list_height;
 use crate::layout::Vector2;
-use crate::widgets::{WidgetProminence, WidgetStyle, WidgetTone};
+use crate::widgets::{
+    PointerButton, PointerShieldMessage, WidgetProminence, WidgetStyle, WidgetTone,
+};
 
 const DEFAULT_COMPACT_OPTION_LIST_MAX_VISIBLE_ROWS: usize = 6;
 const DEFAULT_COMPACT_OPTION_LIST_ROW_HEIGHT: f32 = 18.0;
@@ -219,6 +221,14 @@ pub fn compact_option_list<Message: 'static>(
 pub fn compact_option_list_from_parts<Message: 'static>(
     parts: CompactOptionListParts,
 ) -> ViewNode<Message> {
+    compact_option_list_from_parts_with_activation(parts, |_| None::<Message>)
+}
+
+/// Build a compact selected option list and map row activation to host messages.
+pub fn compact_option_list_from_parts_with_activation<Message: 'static>(
+    parts: CompactOptionListParts,
+    activate: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
+) -> ViewNode<Message> {
     let max_visible_rows = parts.max_visible_rows;
     let row_height = parts.row_height;
     let vertical_chrome = parts.vertical_chrome;
@@ -231,7 +241,14 @@ pub fn compact_option_list_from_parts<Message: 'static>(
         .into_iter()
         .enumerate()
         .map(|(index, item)| {
-            compact_option_list_row(index, item, row_height, primary_label_width, column_gap)
+            compact_option_list_row(
+                index,
+                item,
+                row_height,
+                primary_label_width,
+                column_gap,
+                activate.clone(),
+            )
         })
         .collect::<Vec<_>>();
     bounded_scroll_column_from_parts(
@@ -274,12 +291,20 @@ pub fn compact_option_list_floating_above<Message: 'static>(
 pub fn compact_option_list_anchored<Message: 'static>(
     parts: CompactOptionListAnchoredParts,
 ) -> ViewNode<Message> {
+    compact_option_list_anchored_with_activation(parts, |_| None::<Message>)
+}
+
+/// Build a parent-anchored compact option list and map row activation to host messages.
+pub fn compact_option_list_anchored_with_activation<Message: 'static>(
+    parts: CompactOptionListAnchoredParts,
+    activate: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
+) -> ViewNode<Message> {
     let height = parts.list.height();
     if height <= 0.0 {
         return empty().fill_width();
     }
     let width = parts.width.max(1.0);
-    let child = compact_option_list_from_parts(parts.list)
+    let child = compact_option_list_from_parts_with_activation(parts.list, activate)
         .fill_width()
         .height(height);
     anchored_layer(
@@ -298,12 +323,30 @@ fn compact_option_list_row<Message: 'static>(
     row_height: f32,
     primary_label_width: f32,
     column_gap: f32,
+    activate: impl Fn(usize) -> Option<Message> + Send + Sync + 'static,
 ) -> ViewNode<Message> {
+    let primary_label = text(item.primary_label)
+        .height(row_height)
+        .width(primary_label_width.max(0.0))
+        .truncate()
+        .pointer_target(
+            pointer_target(true)
+                .pointer_move(false)
+                .pointer_press(false)
+                .pointer_release(true)
+                .pointer_drop(false)
+                .wheel(false)
+                .filter_map(move |message| match message {
+                    PointerShieldMessage::PointerRelease {
+                        button: PointerButton::Primary,
+                        ..
+                    } => activate(index),
+                    _ => None,
+                })
+                .key(format!("compact-option-list-primary-hit-{index}")),
+        );
     row([
-        text(item.primary_label)
-            .height(row_height)
-            .width(primary_label_width.max(0.0))
-            .truncate(),
+        primary_label,
         text(item.secondary_label.unwrap_or_default())
             .height(row_height)
             .fill_width()
@@ -430,5 +473,68 @@ mod tests {
 
         assert!((text_rect.min.x - 19.0).abs() < 0.01, "{text_rect:?}");
         assert!((text_rect.min.y - 79.0).abs() < 0.01, "{text_rect:?}");
+    }
+
+    #[test]
+    fn compact_option_list_activation_maps_clicked_row_index() {
+        let bridge = crate::runtime::DeclarativeOwnedRuntimeBridge::new(
+            Vec::<usize>::new(),
+            |_| {
+                let items = vec![
+                    CompactOptionListItem::new("Kick"),
+                    CompactOptionListItem::new("Snare").selected(true),
+                ];
+                let list = CompactOptionListParts::new(items, 80.0);
+                compact_option_list_from_parts_with_activation(list, Some).into_surface()
+            },
+            |state, message| state.push(message),
+        );
+        let mut runtime = crate::runtime::SurfaceRuntime::new(bridge, Vector2::new(160.0, 80.0));
+        let click_rect = runtime
+            .frame_with_default_theme()
+            .paint_plan
+            .first_text_rect("Snare")
+            .expect("second option should paint");
+
+        runtime.dispatch_primary_click(click_rect.center());
+
+        assert_eq!(runtime.bridge().state(), &[1]);
+    }
+
+    #[test]
+    fn compact_option_list_anchored_activation_maps_clicked_row_index() {
+        let bridge = crate::runtime::DeclarativeOwnedRuntimeBridge::new(
+            Vec::<usize>::new(),
+            |_| {
+                let items = vec![
+                    CompactOptionListItem::new("Kick"),
+                    CompactOptionListItem::new("Snare").selected(true),
+                ];
+                let list = CompactOptionListParts::new(items, 80.0);
+                let popup = compact_option_list_anchored_with_activation(
+                    CompactOptionListAnchoredParts::new(
+                        list,
+                        120.0,
+                        LayerHorizontalAnchor::Start,
+                        LayerVerticalAnchor::End,
+                        8.0,
+                        8.0,
+                    ),
+                    Some,
+                );
+                stack([text("").size(160.0, 100.0), popup]).into_surface()
+            },
+            |state, message| state.push(message),
+        );
+        let mut runtime = crate::runtime::SurfaceRuntime::new(bridge, Vector2::new(160.0, 100.0));
+        let click_rect = runtime
+            .frame_with_default_theme()
+            .paint_plan
+            .first_text_rect("Snare")
+            .expect("second anchored option should paint");
+
+        runtime.dispatch_primary_click(click_rect.center());
+
+        assert_eq!(runtime.bridge().state(), &[1]);
     }
 }

@@ -1305,7 +1305,10 @@ padding, and viewport styling. Use `CompactOptionListItem`,
 `compact_option_list_from_parts(...)` for selected primary/secondary option
 rows in autocomplete popups, command palettes, compact pickers, and similar
 transient result lists while the host keeps ownership of option values and
-messages. Use `CompactOptionListFloatingAboveParts` and
+messages. Use `compact_option_list_from_parts_with_activation(...)` and
+`compact_option_list_anchored_with_activation(...)` when primary option-label
+activation should map a clicked row index into a host message without the host
+rebuilding the compact-list row chrome. Use `CompactOptionListFloatingAboveParts` and
 `compact_option_list_floating_above(...)` when such a result list should be
 anchored above an editor or trigger inside the same stack layer without
 app-local height and floating-offset arithmetic. Use

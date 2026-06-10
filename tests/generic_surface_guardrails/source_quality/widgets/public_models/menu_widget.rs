@@ -65,8 +65,11 @@ fn application_widget_views_use_named_parts_for_custom_widget_mapping() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source = fs::read_to_string(manifest_dir.join("src/application/widget_view.rs"))
         .expect("application widget view module should be readable");
-    let facade = fs::read_to_string(manifest_dir.join("src/application/facade/view.rs"))
+    let view_facade = fs::read_to_string(manifest_dir.join("src/application/facade/view.rs"))
         .expect("application view facade should be readable");
+    let surface_facade =
+        fs::read_to_string(manifest_dir.join("src/application/facade/surfaces.rs"))
+            .expect("application surface facade should be readable");
     let prelude = public_prelude_source(&manifest_dir);
 
     for (parts, from_parts, wrapper) in [
@@ -87,10 +90,10 @@ fn application_widget_views_use_named_parts_for_custom_widget_mapping() {
         );
     }
     assert!(
-        facade.contains("MappedWidgetParts")
-            && facade.contains("DynamicWidgetParts")
+        view_facade.contains("MappedWidgetParts")
+            && surface_facade.contains("DynamicWidgetParts")
             && prelude.contains("MappedWidgetParts")
             && prelude.contains("DynamicWidgetParts"),
-        "custom widget view parts should stay publicly exported through application and prelude"
+        "custom widget view parts should stay publicly exported through application facades and prelude"
     );
 }

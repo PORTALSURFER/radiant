@@ -5,8 +5,7 @@ pub use super::super::launch::{
     window,
 };
 pub use super::super::state::StateAction;
-pub use super::super::view_node::{Layer, LayerInputPolicy, ViewNode};
+pub use super::super::view_node::ViewNode;
 pub use super::super::widget_view::{
-    DynamicWidget, DynamicWidgetParts, MappedWidget, MappedWidgetParts, WidgetView,
-    WidgetViewContext,
+    MappedWidget, MappedWidgetParts, WidgetView, WidgetViewContext,
 };

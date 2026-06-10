@@ -1,4 +1,4 @@
-//! Details-list and tree-list exports.
+//! Details-list, compact-list, option-list, and tree-list exports.
 
 pub use super::super::details_list::{
     CompactDetailsAnchoredCellParts, CompactDetailsHeaderCellIds, DetailsColumn,
@@ -11,6 +11,14 @@ pub use super::super::details_list::{
     details_column_drag_feedback, details_column_reorder_index, details_sort_label,
     reorder_details_columns_by_id, selectable_sortable_details_list, sortable_details_list,
     update_details_column_reorder_drag, update_details_column_resize_drag,
+};
+pub use super::super::option_list::{
+    CompactOptionListAnchoredParts, CompactOptionListFloatingAboveParts, CompactOptionListItem,
+    CompactOptionListParts, compact_option_list, compact_option_list_anchored,
+    compact_option_list_anchored_with_activation, compact_option_list_anchored_with_interaction,
+    compact_option_list_floating_above, compact_option_list_from_parts,
+    compact_option_list_from_parts_with_activation,
+    compact_option_list_from_parts_with_interaction,
 };
 pub use super::super::tree_list::{
     TreeListItem, TreeListItemParts, tree_list, tree_list_with_drag,

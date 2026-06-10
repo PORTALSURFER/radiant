@@ -1,4 +1,4 @@
-//! Leaf view, custom widget, canvas, GPU surface, and retained-surface exports.
+//! Leaf view, custom widget, canvas, GPU surface, scrollbar, and retained-surface exports.
 
 pub use super::super::builders::{
     GpuSurfaceConfiguredParts, GpuSurfaceInputParts, canvas, card, custom_widget,
@@ -7,6 +7,8 @@ pub use super::super::builders::{
     gpu_surface_input_from_parts, image, passive_badge, passive_button, passive_text_input,
     passive_toggle, spacer, text, text_line, widget,
 };
+pub use super::super::control_builders::{ScrollbarBuilder, scrollbar};
 pub use super::super::retained_canvas::{
     RetainedCanvasBuilder, retained_canvas, retained_canvas_with,
 };
+pub use super::super::widget_view::{DynamicWidget, DynamicWidgetParts};

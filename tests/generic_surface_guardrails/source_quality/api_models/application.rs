@@ -9,6 +9,16 @@ fn application_facade_uses_explicit_public_exports() {
         .expect("application view facade should be readable");
     let layout_facade = fs::read_to_string(manifest_dir.join("src/application/facade/layout.rs"))
         .expect("application layout facade should be readable");
+    let details_facade = fs::read_to_string(manifest_dir.join("src/application/facade/details.rs"))
+        .expect("application details facade should be readable");
+    let menus_facade = fs::read_to_string(manifest_dir.join("src/application/facade/menus.rs"))
+        .expect("application menus facade should be readable");
+    let overlays_facade =
+        fs::read_to_string(manifest_dir.join("src/application/facade/overlays.rs"))
+            .expect("application overlays facade should be readable");
+    let surfaces_facade =
+        fs::read_to_string(manifest_dir.join("src/application/facade/surfaces.rs"))
+            .expect("application surfaces facade should be readable");
 
     assert!(
         source.contains("mod facade;")
@@ -30,6 +40,17 @@ fn application_facade_uses_explicit_public_exports() {
         !view_facade.contains("pub use super::super::launch::*;")
             && !layout_facade.contains("pub use super::super::layout_builders::*;"),
         "application facades should not wildcard-export public launch or layout builders"
+    );
+    assert!(
+        details_facade.contains("CompactOptionListParts")
+            && !menus_facade.contains("CompactOptionListParts")
+            && overlays_facade.contains("DropdownMenuOverlayBelowParts")
+            && overlays_facade.contains("floating_layer_below")
+            && overlays_facade.contains("PointerShieldBuilder")
+            && !layout_facade.contains("DropdownMenuOverlayBelowParts")
+            && surfaces_facade.contains("DynamicWidgetParts")
+            && !view_facade.contains("DynamicWidgetParts"),
+        "application facade groups should follow prelude API roles instead of implementation-module ownership"
     );
 }
 

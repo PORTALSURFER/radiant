@@ -75,8 +75,10 @@ mod option_list;
 pub use option_list::{
     CompactOptionListAnchoredParts, CompactOptionListFloatingAboveParts, CompactOptionListItem,
     CompactOptionListParts, compact_option_list, compact_option_list_anchored,
-    compact_option_list_anchored_with_activation, compact_option_list_floating_above,
-    compact_option_list_from_parts, compact_option_list_from_parts_with_activation,
+    compact_option_list_anchored_with_activation, compact_option_list_anchored_with_interaction,
+    compact_option_list_floating_above, compact_option_list_from_parts,
+    compact_option_list_from_parts_with_activation,
+    compact_option_list_from_parts_with_interaction,
 };
 mod panel_section;
 pub use panel_section::{

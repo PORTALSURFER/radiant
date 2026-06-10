@@ -229,6 +229,29 @@ pub fn compact_option_list_from_parts_with_activation<Message: 'static>(
     parts: CompactOptionListParts,
     activate: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
 ) -> ViewNode<Message> {
+    compact_option_list_from_parts_with_interaction_impl(
+        parts,
+        activate,
+        |_| None::<Message>,
+        false,
+    )
+}
+
+/// Build a compact selected option list and map row hover/activation to host messages.
+pub fn compact_option_list_from_parts_with_interaction<Message: 'static>(
+    parts: CompactOptionListParts,
+    activate: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
+    hover: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
+) -> ViewNode<Message> {
+    compact_option_list_from_parts_with_interaction_impl(parts, activate, hover, true)
+}
+
+fn compact_option_list_from_parts_with_interaction_impl<Message: 'static>(
+    parts: CompactOptionListParts,
+    activate: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
+    hover: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
+    pointer_move: bool,
+) -> ViewNode<Message> {
     let max_visible_rows = parts.max_visible_rows;
     let row_height = parts.row_height;
     let vertical_chrome = parts.vertical_chrome;
@@ -248,6 +271,8 @@ pub fn compact_option_list_from_parts_with_activation<Message: 'static>(
                 primary_label_width,
                 column_gap,
                 activate.clone(),
+                hover.clone(),
+                pointer_move,
             )
         })
         .collect::<Vec<_>>();
@@ -299,14 +324,37 @@ pub fn compact_option_list_anchored_with_activation<Message: 'static>(
     parts: CompactOptionListAnchoredParts,
     activate: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
 ) -> ViewNode<Message> {
+    compact_option_list_anchored_with_interaction_impl(parts, activate, |_| None::<Message>, false)
+}
+
+/// Build a parent-anchored compact option list and map row hover/activation to host messages.
+pub fn compact_option_list_anchored_with_interaction<Message: 'static>(
+    parts: CompactOptionListAnchoredParts,
+    activate: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
+    hover: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
+) -> ViewNode<Message> {
+    compact_option_list_anchored_with_interaction_impl(parts, activate, hover, true)
+}
+
+fn compact_option_list_anchored_with_interaction_impl<Message: 'static>(
+    parts: CompactOptionListAnchoredParts,
+    activate: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
+    hover: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
+    pointer_move: bool,
+) -> ViewNode<Message> {
     let height = parts.list.height();
     if height <= 0.0 {
         return empty().fill_width();
     }
     let width = parts.width.max(1.0);
-    let child = compact_option_list_from_parts_with_activation(parts.list, activate)
-        .fill_width()
-        .height(height);
+    let child = compact_option_list_from_parts_with_interaction_impl(
+        parts.list,
+        activate,
+        hover,
+        pointer_move,
+    )
+    .fill_width()
+    .height(height);
     anchored_layer(
         child,
         Vector2::new(width, height),
@@ -324,6 +372,8 @@ fn compact_option_list_row<Message: 'static>(
     primary_label_width: f32,
     column_gap: f32,
     activate: impl Fn(usize) -> Option<Message> + Send + Sync + 'static,
+    hover: impl Fn(usize) -> Option<Message> + Send + Sync + 'static,
+    pointer_move: bool,
 ) -> ViewNode<Message> {
     let primary_label = text(item.primary_label)
         .height(row_height)
@@ -331,7 +381,7 @@ fn compact_option_list_row<Message: 'static>(
         .truncate()
         .pointer_target(
             pointer_target(true)
-                .pointer_move(false)
+                .pointer_move(pointer_move)
                 .pointer_press(false)
                 .pointer_release(true)
                 .pointer_drop(false)
@@ -341,6 +391,7 @@ fn compact_option_list_row<Message: 'static>(
                         button: PointerButton::Primary,
                         ..
                     } => activate(index),
+                    PointerShieldMessage::PointerMove { .. } => hover(index),
                     _ => None,
                 })
                 .key(format!("compact-option-list-primary-hit-{index}")),
@@ -371,6 +422,7 @@ mod tests {
         gui::types::{Point, Rect},
         layout::{LayoutNode, SizeModeMain, Vector2},
         runtime::{PaintPrimitive, UiSurface},
+        widgets::WidgetInput,
     };
 
     #[test]
@@ -497,6 +549,37 @@ mod tests {
             .expect("second option should paint");
 
         runtime.dispatch_primary_click(click_rect.center());
+
+        assert_eq!(runtime.bridge().state(), &[1]);
+    }
+
+    #[test]
+    fn compact_option_list_interaction_maps_hovered_row_index() {
+        let bridge = crate::runtime::DeclarativeOwnedRuntimeBridge::new(
+            Vec::<usize>::new(),
+            |_| {
+                let items = vec![
+                    CompactOptionListItem::new("Kick"),
+                    CompactOptionListItem::new("Snare").selected(true),
+                ];
+                let list = CompactOptionListParts::new(items, 80.0);
+                compact_option_list_from_parts_with_interaction(list, |_| None, Some).into_surface()
+            },
+            |state, message| state.push(message),
+        );
+        let mut runtime = crate::runtime::SurfaceRuntime::new(bridge, Vector2::new(160.0, 80.0));
+        let hover_rect = runtime
+            .frame_with_default_theme()
+            .paint_plan
+            .first_text_rect("Snare")
+            .expect("second option should paint");
+
+        runtime.dispatch_input_at(
+            hover_rect.center(),
+            WidgetInput::PointerMove {
+                position: hover_rect.center(),
+            },
+        );
 
         assert_eq!(runtime.bridge().state(), &[1]);
     }

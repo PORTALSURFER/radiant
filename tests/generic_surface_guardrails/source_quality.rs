@@ -1,6 +1,6 @@
 //! Source-quality guardrails for focused modules and readable public models.
 
-use std::{fs, path::PathBuf};
+use std::{collections::BTreeSet, fs, path::PathBuf};
 
 use super::{relative_path, rust_sources_under};
 
@@ -140,6 +140,49 @@ fn public_prelude_export_groups_stay_focused() {
         "prelude export groups should stay small enough to scan; split broad groups before they rebuild the old giant import list:\n{}",
         oversized.join("\n")
     );
+}
+
+#[test]
+fn public_prelude_leaf_groups_do_not_wildcard_export_owning_subsystems() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let prelude_dir = manifest_dir.join("src/prelude");
+    let facade_files = BTreeSet::from([
+        manifest_dir.join("src/prelude.rs"),
+        prelude_dir.join("application.rs"),
+        prelude_dir.join("gui.rs"),
+        prelude_dir.join("runtime.rs"),
+    ]);
+
+    let offenders = rust_sources_under(&prelude_dir)
+        .into_iter()
+        .filter(|path| !facade_files.contains(path))
+        .flat_map(|path| {
+            let source = fs::read_to_string(&path).unwrap_or_else(|err| {
+                panic!(
+                    "prelude export group {} should be readable: {err}",
+                    path.display()
+                )
+            });
+            let relative = relative_path(&manifest_dir, &path);
+            source
+                .lines()
+                .filter(|line| prelude_leaf_wildcard_export(line))
+                .map(move |line| format!("{relative}: {}", line.trim()))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        offenders.is_empty(),
+        "prelude leaf modules must name exported items instead of wildcard-exporting \
+         owning subsystems; use a first-level facade for child modules only:\n{}",
+        offenders.join("\n")
+    );
+}
+
+fn prelude_leaf_wildcard_export(line: &str) -> bool {
+    let trimmed = line.trim();
+    trimmed.starts_with("pub use crate::") && trimmed.ends_with("::*;")
 }
 
 #[path = "source_quality/api_models.rs"]

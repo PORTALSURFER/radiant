@@ -185,13 +185,9 @@ where
             return NativeWheelRoute::new(outcome, diagnostic);
         }
         let started = Instant::now();
-        let outcome = if self.can_fast_path_gpu_surface_route(position, delta) {
-            self.core
-                .route_scroll_deferred_refresh_with_modifiers(position, delta, modifiers)
-        } else {
-            self.core
-                .route_scroll_with_modifiers(position, delta, modifiers)
-        };
+        let outcome = self
+            .core
+            .route_scroll_deferred_refresh_with_modifiers(position, delta, modifiers);
         maybe_log_route_profile("wheel", started.elapsed(), outcome);
         self.handle_gpu_surface_route_outcome(outcome, position, delta);
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);

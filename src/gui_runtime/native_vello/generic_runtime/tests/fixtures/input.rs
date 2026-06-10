@@ -1,4 +1,5 @@
 use super::super::*;
+use crate::layout::{SizeModeCross, SizeModeMain};
 
 #[derive(Default)]
 pub(in super::super) struct CanvasBridge {
@@ -13,6 +14,12 @@ pub(in super::super) struct ScrollbarBridge {
 #[derive(Default)]
 pub(in super::super) struct WheelRefreshBridge {
     pub(in super::super) wheel_count: usize,
+    pub(in super::super) project_count: usize,
+}
+
+#[derive(Default)]
+pub(in super::super) struct ScrollRefreshBridge {
+    pub(in super::super) scroll_count: usize,
     pub(in super::super) project_count: usize,
 }
 
@@ -82,6 +89,47 @@ impl RuntimeBridge<String> for WheelRefreshBridge {
     fn reduce_message(&mut self, message: String) {
         if message == "wheel" {
             self.wheel_count += 1;
+        }
+    }
+}
+
+impl RuntimeBridge<String> for ScrollRefreshBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<String>> {
+        self.project_count += 1;
+        Arc::new(UiSurface::new(
+            SurfaceNode::scroll_area(
+                61,
+                SurfaceNode::column(
+                    62,
+                    0.0,
+                    (0..10)
+                        .map(|index| {
+                            SurfaceChild::new(
+                                SlotParams {
+                                    size_main: SizeModeMain::Fixed(20.0),
+                                    size_cross: SizeModeCross::Fill,
+                                    constraints: crate::layout::Constraints::unconstrained(),
+                                    margin: Default::default(),
+                                    align_cross_override: None,
+                                    allow_fixed_compress: false,
+                                },
+                                SurfaceNode::text(
+                                    70 + index,
+                                    format!("Row {index}"),
+                                    WidgetSizing::fixed(Vector2::new(120.0, 20.0)),
+                                ),
+                            )
+                        })
+                        .collect(),
+                ),
+            )
+            .with_scroll_message(Arc::new(|_| String::from("scroll"))),
+        ))
+    }
+
+    fn reduce_message(&mut self, message: String) {
+        if message == "scroll" {
+            self.scroll_count += 1;
         }
     }
 }

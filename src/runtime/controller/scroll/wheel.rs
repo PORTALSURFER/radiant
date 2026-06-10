@@ -52,7 +52,7 @@ where
         if self.dispatch_wheel_at_with_refresh(point, delta, modifiers, false) {
             return true;
         }
-        self.scroll_at(point, delta)
+        self.scroll_at_deferred_refresh(point, delta)
     }
 
     fn dispatch_wheel_at(

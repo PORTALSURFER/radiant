@@ -5,6 +5,7 @@ use super::SurfaceRuntime;
 use crate::{
     gui::types::{Point, Vector2},
     layout::{NodeId, OverflowPolicy},
+    runtime::CommandOutcome,
     runtime::RuntimeBridge,
 };
 
@@ -33,6 +34,23 @@ where
     ///
     /// Returns `true` when a scroll container accepted the delta.
     pub fn scroll_at(&mut self, point: Point, delta: Vector2) -> bool {
+        self.scroll_at_with_refresh(point, delta, true)
+    }
+
+    pub(in crate::runtime::controller) fn scroll_at_deferred_refresh(
+        &mut self,
+        point: Point,
+        delta: Vector2,
+    ) -> bool {
+        self.scroll_at_with_refresh(point, delta, false)
+    }
+
+    fn scroll_at_with_refresh(
+        &mut self,
+        point: Point,
+        delta: Vector2,
+        refresh_after_message: bool,
+    ) -> bool {
         let Some(node_id) = self.scroll_container_at(point) else {
             return false;
         };
@@ -64,26 +82,51 @@ where
             offset,
             viewport,
         };
-        self.report_scroll_update(update);
+        self.report_scroll_update_with_refresh(update, refresh_after_message);
         true
     }
 
     pub(super) fn report_scroll_update(&mut self, update: ScrollUpdate) {
+        self.report_scroll_update_with_refresh(update, true);
+    }
+
+    pub(super) fn report_scroll_update_with_refresh(
+        &mut self,
+        update: ScrollUpdate,
+        refresh_after_message: bool,
+    ) {
+        let mut deferred_surface_refresh = false;
         if let Some(message) = self.surface.root().scroll_message(update) {
-            let outcome = self.execute_command(crate::runtime::Command::Message(message));
-            if !outcome.surface_refresh_requested {
-                self.refresh();
+            if refresh_after_message {
+                let outcome = self.execute_command(crate::runtime::Command::Message(message));
+                if !outcome.surface_refresh_requested {
+                    self.refresh();
+                }
+            } else {
+                let mut outcome = CommandOutcome::default();
+                self.execute_command_inner(crate::runtime::Command::Message(message), &mut outcome);
+                deferred_surface_refresh = outcome.surface_refresh_requested;
+                self.pending_input_command_outcome.merge(outcome);
             }
-            self.repaint_requested = true;
+            self.repaint_requested |= !deferred_surface_refresh;
             return;
         }
         if let Some(command) = self.bridge.scroll_updated(update) {
-            let outcome = self.execute_command(command);
-            if !outcome.surface_refresh_requested {
-                self.refresh();
+            if refresh_after_message {
+                let outcome = self.execute_command(command);
+                if !outcome.surface_refresh_requested {
+                    self.refresh();
+                }
+            } else {
+                let mut outcome = CommandOutcome::default();
+                self.execute_command_inner(command, &mut outcome);
+                deferred_surface_refresh = outcome.surface_refresh_requested;
+                self.pending_input_command_outcome.merge(outcome);
             }
-            self.repaint_requested = true;
+            self.repaint_requested |= !deferred_surface_refresh;
+            return;
         }
+        self.repaint_requested = true;
     }
 
     fn scroll_container_at(&self, point: Point) -> Option<NodeId> {

@@ -109,6 +109,30 @@ fn native_pointer_harness_routes_wheel_with_modifiers() {
 }
 
 #[test]
+fn native_pointer_harness_defers_scroll_area_wheel_surface_refresh() {
+    let mut harness =
+        NativePointerHarness::new(ScrollRefreshBridge::default(), Vector2::new(240.0, 40.0));
+    harness.cursor_moved_logical(Point::new(12.0, 12.0));
+
+    let route = harness.mouse_wheel_route(MouseScrollDelta::LineDelta(0.0, -2.0));
+
+    assert!(route.outcome.routed);
+    assert!(route.outcome.deferred_surface_refresh_requested);
+    assert!(!route.outcome.needs_scene_rebuild());
+    assert_eq!(route.diagnostic.kind, NativePointerEventKind::MouseWheel);
+    assert_eq!(route.diagnostic.result, NativePointerRouteResult::Routed);
+    assert_eq!(harness.runner.core.runtime.bridge().scroll_count, 1);
+    assert_eq!(
+        harness.runner.core.runtime.bridge().project_count,
+        1,
+        "native wheel scrolling should not refresh the projected surface immediately"
+    );
+
+    harness.runner.core.refresh_surface();
+    assert_eq!(harness.runner.core.runtime.bridge().project_count, 2);
+}
+
+#[test]
 fn native_pointer_harness_exercises_gpu_hover_fast_path_before_press() {
     let mut harness =
         NativePointerHarness::new(GpuWheelBridge::default(), Vector2::new(320.0, 80.0));

@@ -26,3 +26,33 @@ fn scrollbar_drag_state_survives_view_refresh_after_offset_message() {
         "drag should continue after the first offset message refreshes the surface"
     );
 }
+
+#[test]
+fn scroll_area_scrollbar_drag_defers_surface_refresh_until_requested() {
+    let mut core =
+        GenericNativeRuntimeCore::new(ScrollRefreshBridge::default(), Vector2::new(240.0, 40.0));
+    let scroll_rect = core
+        .runtime
+        .layout()
+        .rects
+        .get(&61)
+        .copied()
+        .expect("scroll area should be laid out");
+    let press = Point::new(scroll_rect.max.x - 2.0, scroll_rect.min.y + 8.0);
+    let drag = Point::new(press.x, press.y + 14.0);
+
+    core.route_pointer_press(press, PointerButton::Primary);
+    let outcome = core.route_pointer_move(drag);
+
+    assert!(outcome.deferred_surface_refresh_requested);
+    assert!(!outcome.needs_scene_rebuild());
+    assert_eq!(core.runtime.bridge().scroll_count, 1);
+    assert_eq!(
+        core.runtime.bridge().project_count,
+        1,
+        "scroll-area scrollbar drag should not refresh the projected surface immediately"
+    );
+
+    core.refresh_surface();
+    assert_eq!(core.runtime.bridge().project_count, 2);
+}

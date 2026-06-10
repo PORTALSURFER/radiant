@@ -26,6 +26,32 @@ fn deferred_scroll_routes_message_without_refreshing_surface_until_requested() {
 }
 
 #[test]
+fn deferred_scroll_fallback_routes_scroll_message_without_refreshing_surface_until_requested() {
+    let mut core =
+        GenericNativeRuntimeCore::new(ScrollRefreshBridge::default(), Vector2::new(240.0, 40.0));
+    let point = Point::new(12.0, 12.0);
+
+    let outcome = core.route_scroll_deferred_refresh_with_modifiers(
+        point,
+        Vector2::new(0.0, 40.0),
+        Default::default(),
+    );
+
+    assert!(outcome.routed);
+    assert!(outcome.deferred_surface_refresh_requested);
+    assert!(!outcome.needs_scene_rebuild());
+    assert_eq!(core.runtime.bridge().scroll_count, 1);
+    assert_eq!(
+        core.runtime.bridge().project_count,
+        1,
+        "deferred scroll fallback should not refresh the projected surface immediately"
+    );
+
+    core.refresh_surface();
+    assert_eq!(core.runtime.bridge().project_count, 2);
+}
+
+#[test]
 fn queued_gpu_surface_wheel_flushes_one_coalesced_update() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

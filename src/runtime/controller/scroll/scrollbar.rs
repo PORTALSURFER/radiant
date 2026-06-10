@@ -30,7 +30,11 @@ where
         true
     }
 
-    pub(in crate::runtime::controller) fn drag_scrollbar_to(&mut self, point: Point) -> bool {
+    pub(in crate::runtime::controller) fn drag_scrollbar_to(
+        &mut self,
+        point: Point,
+        refresh_after_message: bool,
+    ) -> bool {
         let Some(capture) = self.interaction.pointer.scroll_drag_capture else {
             return false;
         };
@@ -74,16 +78,19 @@ where
                 .get(&capture.node_id)
                 .map(|rect| Vector2::new(rect.width(), rect.height()))
                 .unwrap_or_default();
-            self.report_scroll_update(ScrollUpdate {
-                node_id: capture.node_id,
-                position: point,
-                delta: Vector2::new(offset.x - previous_offset.x, offset.y - previous_offset.y),
-                previous_offset,
-                offset,
-                viewport,
-            });
+            self.report_scroll_update_with_refresh(
+                ScrollUpdate {
+                    node_id: capture.node_id,
+                    position: point,
+                    delta: Vector2::new(offset.x - previous_offset.x, offset.y - previous_offset.y),
+                    previous_offset,
+                    offset,
+                    viewport,
+                },
+                refresh_after_message,
+            );
         }
-        self.repaint_requested = true;
+        self.repaint_requested |= refresh_after_message;
         true
     }
 

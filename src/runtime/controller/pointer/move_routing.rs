@@ -23,7 +23,7 @@ where
     ) -> PointerMoveDispatch {
         let mut emitted_output = false;
         self.update_drag_preview_position(position);
-        if self.drag_scrollbar_to(position) {
+        if self.drag_scrollbar_to(position, refresh_after_message) {
             return PointerMoveDispatch::default();
         }
         if let Some(captured) = self.non_passthrough_pointer_capture() {

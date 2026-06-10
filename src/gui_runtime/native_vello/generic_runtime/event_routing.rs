@@ -127,6 +127,7 @@ where
         self.route_outcome(routed)
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn route_scroll_with_modifiers(
         &mut self,
         position: Point,
@@ -148,7 +149,24 @@ where
         let routed = self
             .runtime
             .wheel_or_scroll_at_deferred_refresh_with_modifiers(position, delta, modifiers);
-        self.route_outcome(routed)
+        let pending = self.runtime.take_pending_input_command_outcome();
+        let repaint_requested = self.runtime.take_repaint_requested();
+        let exit_requested = self.runtime.take_exit_requested();
+        let deferred_surface_refresh = pending.surface_refresh_requested;
+        GenericRouteOutcome {
+            routed,
+            redraw_requested: routed && !deferred_surface_refresh,
+            repaint_requested: (repaint_requested || pending.surface_repaint_requested)
+                && !deferred_surface_refresh,
+            paint_only_requested: pending.paint_only_requested,
+            deferred_surface_refresh_requested: deferred_surface_refresh,
+            interactive_surface_refresh_requested: false,
+            interactive_scene_rebuild_requested: false,
+            exit_requested: exit_requested || pending.exit_requested,
+            runtime_work_remaining: pending.runtime_work_remaining,
+            dpi_scale_override: pending.dpi_scale_override,
+            window_logical_size: pending.window_logical_size,
+        }
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_key_press(

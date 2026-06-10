@@ -29,7 +29,7 @@ where
         }
     }
 
-    pub(super) fn execute_command_inner(
+    pub(in crate::runtime::controller) fn execute_command_inner(
         &mut self,
         command: Command<Message>,
         outcome: &mut CommandOutcome,

@@ -1,6 +1,6 @@
 use crate::{
     application::{ViewNode, drag_handle, row},
-    widgets::{DragHandleMessage, WidgetStyle},
+    widgets::{DragHandleMessage, WidgetStyle, WidgetTone},
 };
 
 const DEFAULT_RESIZE_HANDLE_HIT_WIDTH: f32 = 5.0;
@@ -72,6 +72,18 @@ impl<Message: 'static> ResizableBuilder<Message> {
 
         row([self.content, handle]).spacing(0.0).fill_height()
     }
+
+    /// Finish with Radiant's standard subtle trailing resize handle.
+    pub fn subtle_resize_handle(
+        self,
+        key: impl ToString,
+        map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+    ) -> ViewNode<Message> {
+        self.hover_chrome_only()
+            .handle_key(key)
+            .handle_style(WidgetStyle::subtle(WidgetTone::Accent))
+            .resize_handle(map)
+    }
 }
 
 /// Wrap content with a configurable trailing resize drag handle.
@@ -105,6 +117,20 @@ mod tests {
         };
         assert_eq!(container.policy.kind, ContainerKind::Row);
         assert_eq!(container.policy.spacing, 0.0);
+        assert_eq!(container.children.len(), 2);
+    }
+
+    #[test]
+    fn subtle_resize_handle_uses_standard_handle_configuration() {
+        let layout = resizable(text("Sidebar"))
+            .subtle_resize_handle("sidebar-handle", |_| ())
+            .into_surface()
+            .layout_node();
+
+        let LayoutNode::Container(container) = layout else {
+            panic!("resizable content should lower to a row container");
+        };
+        assert_eq!(container.policy.kind, ContainerKind::Row);
         assert_eq!(container.children.len(), 2);
     }
 }

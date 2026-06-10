@@ -203,7 +203,9 @@ and `.padding_y(...)`, and use `.primary()`, `.danger()`, `.subtle()`,
 `.wrap()`, `.truncate()`, or `.align_text(TextAlign::Center)` for common style
 and text policies. Use `resizable(content).resize_handle(Message::Resize)` when
 a content region should own its trailing resize drag handle instead of adding an
-adjacent `drag_handle()` sibling by hand. Stateful
+adjacent `drag_handle()` sibling by hand. Use
+`resizable(content).subtle_resize_handle("stable-key", Message::Resize)` for a
+standard subtle hover-only resize handle with stable identity. Stateful
 examples should use stable keys or explicit IDs for controls whose focus or
 input state must survive list edits. The launch builders expose `.options(...)`
 for callers that need the full `NativeRunOptions` surface. Apps that prefer

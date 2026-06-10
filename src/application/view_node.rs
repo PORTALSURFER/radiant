@@ -232,9 +232,12 @@ impl<Message> ViewNode<Message> {
     where
         Message: 'static,
     {
-        crate::application::overlay_stack(self)
+        let slot = self.slot;
+        let mut stack = crate::application::overlay_stack(self)
             .input(target.into_input())
-            .into_view()
+            .into_view();
+        stack.slot = slot;
+        stack
     }
 
     /// Attach an optional transparent pointer target to this view's bounds.

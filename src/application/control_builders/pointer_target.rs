@@ -194,4 +194,30 @@ mod tests {
 
         assert_eq!(runtime.bridge().state(), &[Message::Drop]);
     }
+
+    #[test]
+    fn view_pointer_target_preserves_owner_slot_sizing() {
+        let bridge = DeclarativeOwnedRuntimeBridge::new(
+            Vec::<Message>::new(),
+            |_| {
+                crate::application::column([
+                    text::<Message>("Top").height(10.0),
+                    text("Body").id(12_301).fill().pointer_target(drop_target()),
+                    text("Bottom").height(10.0),
+                ])
+                .spacing(0.0)
+                .fill()
+                .into_surface()
+            },
+            |state, message| state.push(message),
+        );
+        let runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 100.0));
+        let body_rect = runtime
+            .layout()
+            .rects
+            .get(&12_301)
+            .expect("body text should be laid out");
+
+        assert_eq!(body_rect.height(), 80.0);
+    }
 }

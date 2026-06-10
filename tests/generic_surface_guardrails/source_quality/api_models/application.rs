@@ -1,5 +1,12 @@
 use super::*;
 
+const MAX_APPLICATION_ROOT_FACADE_LINES: usize = 80;
+const MAX_APPLICATION_EXPORT_GROUP_LINES: usize = 32;
+
+const APPLICATION_FACADE_LEAVES: &[&str] = &[
+    "controls", "details", "layout", "menus", "overlays", "panels", "runtime", "surfaces", "view",
+];
+
 #[test]
 fn application_facade_uses_explicit_public_exports() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -52,6 +59,129 @@ fn application_facade_uses_explicit_public_exports() {
             && !view_facade.contains("DynamicWidgetParts"),
         "application facade groups should follow prelude API roles instead of implementation-module ownership"
     );
+}
+
+#[test]
+fn application_root_stays_small_and_delegates_export_ownership() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source_path = manifest_dir.join("src/application.rs");
+    let source = fs::read_to_string(&source_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let direct_public_exports = source
+        .lines()
+        .filter_map(direct_public_application_export)
+        .collect::<Vec<_>>();
+
+    assert!(
+        source.lines().count() <= MAX_APPLICATION_ROOT_FACADE_LINES,
+        "application.rs should stay a small subsystem root; move public export groups to src/application/facade/* before it becomes a registry again"
+    );
+    assert!(
+        source.contains("mod facade;") && source.contains("pub use facade::*;"),
+        "application.rs should delegate public app-facing export ownership to application/facade"
+    );
+    assert!(
+        direct_public_exports.is_empty(),
+        "application.rs should not directly reintroduce public export lists; add exports to the smallest application/facade leaf:\n{}",
+        direct_public_exports.join("\n")
+    );
+}
+
+#[test]
+fn application_facade_export_groups_stay_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let facade_dir = manifest_dir.join("src/application/facade");
+
+    let oversized = rust_sources_under(&facade_dir)
+        .into_iter()
+        .filter_map(|path| {
+            let source = fs::read_to_string(&path).unwrap_or_else(|err| {
+                panic!(
+                    "application facade group {} should be readable: {err}",
+                    path.display()
+                )
+            });
+            let line_count = source.lines().count();
+            (line_count > MAX_APPLICATION_EXPORT_GROUP_LINES).then(|| {
+                format!(
+                    "{} ({line_count} lines)",
+                    relative_path(&manifest_dir, &path)
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        oversized.is_empty(),
+        "application facade export groups should stay small enough to scan; split or regroup broad leaves before they become catch-all registries:\n{}",
+        oversized.join("\n")
+    );
+}
+
+#[test]
+fn application_facade_leaves_match_prelude_roles() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let facade_root = fs::read_to_string(manifest_dir.join("src/application/facade.rs"))
+        .expect("application facade root should be readable");
+
+    for leaf in APPLICATION_FACADE_LEAVES {
+        assert!(
+            facade_root.contains(&format!("mod {leaf};"))
+                && facade_root.contains(&format!("pub use {leaf}::*;"))
+                && manifest_dir
+                    .join("src/application/facade")
+                    .join(format!("{leaf}.rs"))
+                    .is_file(),
+            "application facade leaf `{leaf}` should be declared in the root and backed by src/application/facade/{leaf}.rs"
+        );
+    }
+
+    assert!(
+        facade_root.contains("mirror the application prelude's API roles"),
+        "application facade root should document that new app-facing exports follow the prelude-aligned ownership model"
+    );
+}
+
+#[test]
+fn application_facade_leaves_do_not_wildcard_export_implementation_modules() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let facade_dir = manifest_dir.join("src/application/facade");
+
+    let offenders = rust_sources_under(&facade_dir)
+        .into_iter()
+        .flat_map(|path| {
+            let source = fs::read_to_string(&path).unwrap_or_else(|err| {
+                panic!(
+                    "application facade group {} should be readable: {err}",
+                    path.display()
+                )
+            });
+            let relative = relative_path(&manifest_dir, &path);
+            source
+                .lines()
+                .filter(|line| application_facade_wildcard_export(line))
+                .map(move |line| format!("{relative}: {}", line.trim()))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        offenders.is_empty(),
+        "application facade leaves must name exported APIs explicitly instead of wildcard-exporting implementation modules:\n{}",
+        offenders.join("\n")
+    );
+}
+
+fn direct_public_application_export(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    (trimmed.starts_with("pub use ") && trimmed != "pub use facade::*;").then(|| trimmed.to_owned())
+}
+
+fn application_facade_wildcard_export(line: &str) -> bool {
+    let trimmed = line.trim();
+    trimmed.starts_with("pub use ")
+        && trimmed.ends_with("::*;")
+        && (trimmed.contains("super::super::") || trimmed.contains("crate::application"))
 }
 
 #[test]

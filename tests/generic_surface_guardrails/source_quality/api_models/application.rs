@@ -5,19 +5,31 @@ fn application_facade_uses_explicit_public_exports() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source = fs::read_to_string(manifest_dir.join("src/application.rs"))
         .expect("application facade should be readable");
+    let view_facade = fs::read_to_string(manifest_dir.join("src/application/facade/view.rs"))
+        .expect("application view facade should be readable");
+    let layout_facade = fs::read_to_string(manifest_dir.join("src/application/facade/layout.rs"))
+        .expect("application layout facade should be readable");
 
     assert!(
-        source.contains("pub use launch::{")
-            && source.contains("WindowBuilder")
-            && source.contains("StatefulAppBuilder")
-            && source.contains("pub use layout_builders::{")
-            && source.contains("virtual_list_window")
-            && source.contains("DEFAULT_COLUMN_SPACING"),
-        "application facade should name the launch and layout API surface explicitly"
+        source.contains("mod facade;")
+            && source.contains("pub use facade::*;")
+            && !source.contains("pub use launch::{")
+            && !source.contains("pub use layout_builders::{"),
+        "application root should delegate public export ownership to focused facades"
     );
     assert!(
-        !source.contains("pub use launch::*;") && !source.contains("pub use layout_builders::*;"),
-        "application facade should not wildcard-export public launch or layout builders"
+        view_facade.contains("pub use super::super::launch::{")
+            && view_facade.contains("WindowBuilder")
+            && view_facade.contains("StatefulAppBuilder")
+            && layout_facade.contains("pub use super::super::layout_builders::{")
+            && layout_facade.contains("virtual_list_window")
+            && layout_facade.contains("DEFAULT_COLUMN_SPACING"),
+        "focused application facades should name the launch and layout API surfaces explicitly"
+    );
+    assert!(
+        !view_facade.contains("pub use super::super::launch::*;")
+            && !layout_facade.contains("pub use super::super::layout_builders::*;"),
+        "application facades should not wildcard-export public launch or layout builders"
     );
 }
 

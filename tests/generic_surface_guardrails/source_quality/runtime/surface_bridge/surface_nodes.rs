@@ -116,7 +116,9 @@ fn runtime_surface_input_dispatch_keeps_dependencies_explicit() {
 
     assert!(
         input.contains(
-            "use super::{SurfaceNode, SurfaceWidget, WidgetPath, node::SurfaceLayerChildKind};"
+            "use super::{
+    SurfaceNode, SurfaceWidget, WidgetPath, WidgetStateSyncPolicy, node::SurfaceLayerChildKind,
+};"
         ) && input.contains("gui::types::Rect")
             && input.contains("widgets::{WidgetId, WidgetInput, WidgetOutput}")
             && input.contains("std::collections::HashMap")

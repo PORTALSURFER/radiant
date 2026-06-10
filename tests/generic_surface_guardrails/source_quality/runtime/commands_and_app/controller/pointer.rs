@@ -50,7 +50,7 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
             && hit_test.contains("gui::types::Point")
             && hit_test.contains("layout::NodeId")
             && hit_test.contains("runtime::{RuntimeBridge, SurfaceWidget}")
-            && hit_test.contains("widgets::WidgetId")
+            && hit_test.contains("widgets::{PointerCapturePolicy, WidgetCursor, WidgetId}")
             && !hit_test.starts_with("use super::*;")
             && hit_test.contains("pub fn widget_at")
             && hit_test.contains("fn stable_hovered_widget_at"),

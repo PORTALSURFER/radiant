@@ -6,8 +6,8 @@ fn details_list_rows_use_named_parts_for_public_row_fields() {
     let source_path = manifest_dir.join("src/application/details_list/model.rs");
     let source = fs::read_to_string(&source_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
-    let application = fs::read_to_string(manifest_dir.join("src/application.rs"))
-        .expect("application module should be readable");
+    let facade = fs::read_to_string(manifest_dir.join("src/application/facade/details.rs"))
+        .expect("application details facade should be readable");
     let module = fs::read_to_string(manifest_dir.join("src/application/details_list.rs"))
         .expect("details-list module should be readable");
 
@@ -19,7 +19,7 @@ fn details_list_rows_use_named_parts_for_public_row_fields() {
     assert!(
         source.contains("Self::from_parts(DetailsRowParts {")
             && module.contains("DetailsRowParts")
-            && application.contains("DetailsRowParts"),
+            && facade.contains("DetailsRowParts"),
         "details-row compatibility constructor and public exports should keep the named-parts path available"
     );
 }
@@ -30,8 +30,8 @@ fn details_list_columns_use_named_parts_for_public_column_fields() {
     let source_path = manifest_dir.join("src/application/details_list/model.rs");
     let source = fs::read_to_string(&source_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
-    let application = fs::read_to_string(manifest_dir.join("src/application.rs"))
-        .expect("application module should be readable");
+    let facade = fs::read_to_string(manifest_dir.join("src/application/facade/details.rs"))
+        .expect("application details facade should be readable");
     let module = fs::read_to_string(manifest_dir.join("src/application/details_list.rs"))
         .expect("details-list module should be readable");
 
@@ -43,7 +43,7 @@ fn details_list_columns_use_named_parts_for_public_column_fields() {
     assert!(
         source.contains("Self::from_parts(DetailsColumnParts {")
             && module.contains("DetailsColumnParts")
-            && application.contains("DetailsColumnParts"),
+            && facade.contains("DetailsColumnParts"),
         "details-column compatibility constructors and public exports should keep the named-parts path available"
     );
 }
@@ -57,8 +57,8 @@ fn details_list_column_drag_state_stays_in_public_details_model() {
     let column_drag =
         fs::read_to_string(manifest_dir.join("src/application/details_list/model/column_drag.rs"))
             .expect("details-list column drag model should be readable");
-    let application = fs::read_to_string(manifest_dir.join("src/application.rs"))
-        .expect("application module should be readable");
+    let facade = fs::read_to_string(manifest_dir.join("src/application/facade/details.rs"))
+        .expect("application details facade should be readable");
     let module = fs::read_to_string(manifest_dir.join("src/application/details_list.rs"))
         .expect("details-list module should be readable");
 
@@ -73,8 +73,8 @@ fn details_list_column_drag_state_stays_in_public_details_model() {
     assert!(
         module.contains("DetailsColumnResizeDrag")
             && module.contains("DetailsColumnReorderDrag")
-            && application.contains("DetailsColumnResizeDrag")
-            && application.contains("DetailsColumnReorderDrag"),
+            && facade.contains("DetailsColumnResizeDrag")
+            && facade.contains("DetailsColumnReorderDrag"),
         "details-column drag helpers should be exported through application facades"
     );
 }
@@ -85,8 +85,8 @@ fn details_list_sort_uses_named_parts_for_public_sort_fields() {
     let source_path = manifest_dir.join("src/application/details_list/model.rs");
     let source = fs::read_to_string(&source_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
-    let application = fs::read_to_string(manifest_dir.join("src/application.rs"))
-        .expect("application module should be readable");
+    let facade = fs::read_to_string(manifest_dir.join("src/application/facade/details.rs"))
+        .expect("application details facade should be readable");
     let module = fs::read_to_string(manifest_dir.join("src/application/details_list.rs"))
         .expect("details-list module should be readable");
 
@@ -98,7 +98,7 @@ fn details_list_sort_uses_named_parts_for_public_sort_fields() {
     assert!(
         source.contains("Self::from_parts(DetailsSortParts {")
             && module.contains("DetailsSortParts")
-            && application.contains("DetailsSortParts"),
+            && facade.contains("DetailsSortParts"),
         "details-sort compatibility constructor and public exports should keep the named-parts path available"
     );
 }

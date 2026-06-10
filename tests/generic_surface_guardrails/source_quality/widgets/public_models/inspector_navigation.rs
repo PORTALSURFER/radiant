@@ -6,8 +6,8 @@ fn property_panel_rows_use_named_parts_for_public_inspector_fields() {
     let source_path = manifest_dir.join("src/application/property_panel.rs");
     let source = fs::read_to_string(&source_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
-    let application = fs::read_to_string(manifest_dir.join("src/application.rs"))
-        .expect("application module should be readable");
+    let facade = fs::read_to_string(manifest_dir.join("src/application/facade/panels.rs"))
+        .expect("application panel facade should be readable");
 
     assert!(
         source.contains("pub struct PropertyRowParts")
@@ -16,7 +16,7 @@ fn property_panel_rows_use_named_parts_for_public_inspector_fields() {
     );
     assert!(
         source.contains("Self::from_parts(PropertyRowParts {")
-            && application.contains("PropertyRowParts"),
+            && facade.contains("PropertyRowParts"),
         "property row compatibility constructor and public exports should keep the named-parts path available"
     );
 }
@@ -29,8 +29,8 @@ fn tree_list_items_use_named_parts_for_public_navigation_fields() {
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
     let row = fs::read_to_string(manifest_dir.join("src/application/tree_list/row.rs"))
         .expect("tree-list row view module should be readable");
-    let application = fs::read_to_string(manifest_dir.join("src/application.rs"))
-        .expect("application module should be readable");
+    let facade = fs::read_to_string(manifest_dir.join("src/application/facade/details.rs"))
+        .expect("application details facade should be readable");
 
     assert!(
         source.contains("pub struct TreeListItemParts")
@@ -40,7 +40,7 @@ fn tree_list_items_use_named_parts_for_public_navigation_fields() {
     assert!(
         source.contains("Self::from_parts(TreeListItemParts {")
             && source.contains("mod row;")
-            && application.contains("TreeListItemParts"),
+            && facade.contains("TreeListItemParts"),
         "tree-list compatibility constructor and public exports should keep the named-parts path available"
     );
     assert!(

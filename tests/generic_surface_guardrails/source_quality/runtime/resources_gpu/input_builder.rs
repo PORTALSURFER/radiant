@@ -3,7 +3,7 @@ use super::{prelude_source, radiant_source};
 #[test]
 fn gpu_surface_input_builder_uses_named_parts_for_message_mapping() {
     let application_builder = radiant_source("src/application/builders/leaf.rs");
-    let application = radiant_source("src/application.rs");
+    let application_facade = radiant_source("src/application/facade/surfaces.rs");
     let prelude = prelude_source();
     let app_test = radiant_source("tests/app_runtime_api/gpu_surface.rs");
 
@@ -18,8 +18,8 @@ fn gpu_surface_input_builder_uses_named_parts_for_message_mapping() {
         "input-emitting GPU surface builders should use named parts for resource identity and message mapping"
     );
     assert!(
-        application.contains("GpuSurfaceInputParts")
-            && application.contains("gpu_surface_input_from_parts")
+        application_facade.contains("GpuSurfaceInputParts")
+            && application_facade.contains("gpu_surface_input_from_parts")
             && prelude.contains("GpuSurfaceInputParts")
             && prelude.contains("gpu_surface_input_from_parts"),
         "GPU surface input parts should remain exported through the application facade and prelude"

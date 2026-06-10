@@ -18,6 +18,7 @@ mod selectable;
 mod slider;
 mod text_input;
 mod toggle;
+mod tree_row;
 
 pub use action_row::{ActionRowBuilder, DEFAULT_ACTION_ROW_HEIGHT, action_row};
 pub use badge::{
@@ -59,3 +60,4 @@ pub use selectable::{SelectableBuilder, selectable, selectable_mapped};
 pub use slider::{SliderBuilder, slider, slider_mapped};
 pub use text_input::{TextInputBuilder, text_input, text_input_mapped};
 pub use toggle::{ToggleBuilder, checkbox, toggle, toggle_mapped};
+pub use tree_row::{TreeRowBuilder, TreeRowDragDropState, TreeRowMessageBuilder, tree_row};

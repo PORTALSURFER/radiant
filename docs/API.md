@@ -394,6 +394,13 @@ belong to one durable row key. Use
 layer, folder, or lane rows where activation, secondary context-menu
 activation, drag lifecycle, committed drop, and hover-drop updates all share one
 durable row key.
+Use `tree_row(label)` when a compact tree or outline row only needs a label,
+depth, disclosure slot, selected state, standard dense-row chrome, and common
+`InteractiveRowActions` routing. Configure `TreeRowDragDropState` for
+host-owned drag/drop validation and pair the rows with
+`virtual_tree_list_window(...)` when the surrounding list needs virtualization
+and descendant guide overlays. Keep `EmbeddedInteractiveRowWidget` for unusual
+custom-painted rows that need visuals beyond `tree_row(...)`.
 Use the single-activation helpers when double-click has a separate host action
 such as rename, drill-in, or open-in-place behavior. Drag-capable controls can use
 `DragHandleMessage::phase()`, `position()`, `started_position()`,
@@ -433,12 +440,14 @@ instead of repeating raw marker geometry fields. Use
 `outline_if(...)` when custom rows should add optional markers or outlines from
 host-owned state without app-local mutation branches.
 Tree and outline rows that need continuous descendant guide lines can use
-`TreeGuideRow`, `TreeGuideStyle`, `tree_guide_segments(...)`,
-`tree_guide_overlay(...)`, `tree_guide_indent(...)`, and
-`virtual_tree_list_window(...)`. Applications should map their domain rows into
-depth plus `starts_descendant_group` metadata while Radiant owns segment
-projection, paint clipping for materialized virtual-list windows, passive
-indent sizing, and the standard fixed-row virtual tree body composition.
+`tree_row(...)`, `TreeRowDragDropState`, `TreeGuideRow`, `TreeGuideStyle`,
+`tree_guide_segments(...)`, `tree_guide_overlay(...)`,
+`tree_guide_indent(...)`, and `virtual_tree_list_window(...)`. Applications
+should map their domain rows into label/depth/disclosure state plus
+`starts_descendant_group` metadata while Radiant owns row chrome, shared
+interaction routing, segment projection, paint clipping for materialized
+virtual-list windows, passive indent sizing, and the standard fixed-row virtual
+tree body composition.
 Rows that need active drag-source motion after a retained refresh can opt into
 `with_drag_source_motion(...)`; rows that should accept drops without producing
 drop-hover messages can use `with_drop_only(...)`. Application-builder rows

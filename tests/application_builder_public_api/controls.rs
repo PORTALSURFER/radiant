@@ -10,3 +10,5 @@ mod form_widgets;
 mod interactive_row;
 #[path = "controls/option_list.rs"]
 mod option_list;
+#[path = "controls/tree_row.rs"]
+mod tree_row;

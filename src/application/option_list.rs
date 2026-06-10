@@ -378,24 +378,7 @@ fn compact_option_list_row<Message: 'static>(
     let primary_label = text(item.primary_label)
         .height(row_height)
         .width(primary_label_width.max(0.0))
-        .truncate()
-        .pointer_target(
-            pointer_target(true)
-                .pointer_move(pointer_move)
-                .pointer_press(false)
-                .pointer_release(true)
-                .pointer_drop(false)
-                .wheel(false)
-                .filter_map(move |message| match message {
-                    PointerShieldMessage::PointerRelease {
-                        button: PointerButton::Primary,
-                        ..
-                    } => activate(index),
-                    PointerShieldMessage::PointerMove { .. } => hover(index),
-                    _ => None,
-                })
-                .key(format!("compact-option-list-primary-hit-{index}")),
-        );
+        .truncate();
     row([
         primary_label,
         text(item.secondary_label.unwrap_or_default())
@@ -412,6 +395,23 @@ fn compact_option_list_row<Message: 'static>(
     .height(row_height)
     .fill_width()
     .spacing(column_gap.max(0.0))
+    .pointer_target(
+        pointer_target(true)
+            .pointer_move(pointer_move)
+            .pointer_press(false)
+            .pointer_release(true)
+            .pointer_drop(false)
+            .wheel(false)
+            .filter_map(move |message| match message {
+                PointerShieldMessage::PointerRelease {
+                    button: PointerButton::Primary,
+                    ..
+                } => activate(index),
+                PointerShieldMessage::PointerMove { .. } => hover(index),
+                _ => None,
+            })
+            .key(format!("compact-option-list-row-hit-{index}")),
+    )
 }
 
 #[cfg(test)]
@@ -578,6 +578,42 @@ mod tests {
             hover_rect.center(),
             WidgetInput::PointerMove {
                 position: hover_rect.center(),
+            },
+        );
+
+        assert_eq!(runtime.bridge().state(), &[1]);
+    }
+
+    #[test]
+    fn compact_option_list_interaction_maps_hover_across_full_row_width() {
+        let bridge = crate::runtime::DeclarativeOwnedRuntimeBridge::new(
+            Vec::<usize>::new(),
+            |_| {
+                let items = vec![
+                    CompactOptionListItem::new("Kick").secondary_label("Drum"),
+                    CompactOptionListItem::new("Snare")
+                        .secondary_label("Drum")
+                        .selected(true),
+                ];
+                let list = CompactOptionListParts::new(items, 80.0);
+                compact_option_list_from_parts_with_interaction(list, |_| None, Some)
+                    .width(180.0)
+                    .into_surface()
+            },
+            |state, message| state.push(message),
+        );
+        let mut runtime = crate::runtime::SurfaceRuntime::new(bridge, Vector2::new(180.0, 80.0));
+        let snare_rect = runtime
+            .frame_with_default_theme()
+            .paint_plan
+            .first_text_rect("Snare")
+            .expect("second option should paint");
+        let right_side = Point::new(168.0, snare_rect.center().y);
+
+        runtime.dispatch_input_at(
+            right_side,
+            WidgetInput::PointerMove {
+                position: right_side,
             },
         );
 

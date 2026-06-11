@@ -32,6 +32,9 @@ impl<Message> Clone for SurfaceChildParts<Message> {
     }
 }
 
+// These surface tree clones stay manual so recursive nodes and message mappers
+// can be cloned without requiring host application message types to implement
+// `Clone`.
 impl<Message> Clone for SurfaceChild<Message> {
     fn clone(&self) -> Self {
         Self {
@@ -346,6 +349,9 @@ impl<Message> Clone for SurfaceFloatingLayer<Message> {
     }
 }
 
+// Keep this recursive clone implementation explicit: surface trees can be
+// retained and replayed by the runtime even when the host message type is not
+// itself cloneable.
 impl<Message> Clone for SurfaceNode<Message> {
     fn clone(&self) -> Self {
         match self {

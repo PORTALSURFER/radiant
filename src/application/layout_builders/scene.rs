@@ -1,4 +1,4 @@
-//! Declarative root scene builder for base content plus transient layers.
+//! Declarative root scene builder for base content plus overlay layers.
 
 use crate::{
     application::{
@@ -16,7 +16,7 @@ use std::any::Any;
 
 /// Declarative root scene builder.
 ///
-/// A scene keeps normal base layout separate from typed transient UI layers so
+/// A scene keeps normal base layout separate from typed overlay layers so
 /// Radiant owns the generic root composition and layer z-order.
 pub struct Scene<Message> {
     base: ViewNode<Message>,
@@ -25,9 +25,9 @@ pub struct Scene<Message> {
     shortcuts: Option<Box<dyn Fn(KeyPress) -> ShortcutResolution<Message>>>,
 }
 
-/// Declarative collection of view-local transient scene layers.
+/// Declarative collection of view-local scene overlays.
 ///
-/// Use this when a component owns several transient overlays and wants to keep
+/// Use this when a component owns several overlays and wants to keep
 /// permanent layout composition separate from overlay projection.
 pub struct Overlays<Message> {
     layers: Vec<Layer<Message>>,
@@ -43,19 +43,19 @@ pub fn scene<Message>(base: ViewNode<Message>) -> Scene<Message> {
     }
 }
 
-/// Build an empty collection of typed transient overlays.
+/// Build an empty collection of typed overlays.
 pub fn overlays<Message>() -> Overlays<Message> {
     Overlays { layers: Vec::new() }
 }
 
 impl<Message> Overlays<Message> {
-    /// Add one typed transient overlay.
+    /// Add one typed overlay.
     pub fn layer(mut self, layer: Layer<Message>) -> Self {
         self.layers.push(layer);
         self
     }
 
-    /// Add one optional typed transient overlay.
+    /// Add one optional typed overlay.
     pub fn layer_opt(self, layer: Option<Layer<Message>>) -> Self {
         match layer {
             Some(layer) => self.layer(layer),
@@ -63,7 +63,7 @@ impl<Message> Overlays<Message> {
         }
     }
 
-    /// Add typed transient overlays in declaration order.
+    /// Add typed overlays in declaration order.
     pub fn layers(mut self, layers: impl IntoIterator<Item = Layer<Message>>) -> Self {
         self.layers.extend(layers);
         self
@@ -197,13 +197,13 @@ impl<Message> Overlays<Message> {
 }
 
 impl<Message: 'static> Scene<Message> {
-    /// Add one typed transient layer.
+    /// Add one typed scene overlay layer.
     pub fn layer(mut self, layer: Layer<Message>) -> Self {
         self.layers.push(layer);
         self
     }
 
-    /// Add one optional typed transient layer.
+    /// Add one optional typed scene overlay layer.
     pub fn layer_opt(self, layer: Option<Layer<Message>>) -> Self {
         match layer {
             Some(layer) => self.layer(layer),
@@ -211,7 +211,7 @@ impl<Message: 'static> Scene<Message> {
         }
     }
 
-    /// Add typed transient layers in declaration order.
+    /// Add typed scene overlay layers in declaration order.
     pub fn layers(mut self, layers: impl IntoIterator<Item = Layer<Message>>) -> Self {
         self.layers.extend(layers);
         self
@@ -483,11 +483,11 @@ mod tests {
     }
 
     #[test]
-    fn scene_transient_layers_project_from_base_descendants() {
+    fn scene_overlay_layers_project_from_base_descendants() {
         let labels = scene::<()>(column([
-            text("Status").popover_layer(text("Job details")),
-            text("Browser").context_menu_layer(text("Context menu")),
-            text("Editor").floating_layer(text("Completion")),
+            text("Status").overlays(overlays().popover(text("Job details"))),
+            text("Browser").overlays(overlays().context_menu(text("Context menu"))),
+            text("Editor").overlays(overlays().floating(text("Completion"))),
         ]))
         .into_view()
         .view_frame_at_size_with_default_theme(Vector2::new(320.0, 180.0))
@@ -620,10 +620,10 @@ mod tests {
     }
 
     #[test]
-    fn scene_transient_layers_preserve_declaration_order_within_kind() {
+    fn scene_overlay_layers_preserve_declaration_order_within_kind() {
         let labels = scene::<()>(row([
-            text("Left").modal_layer(text("Left modal")),
-            text("Right").modal_layer(text("Right modal")),
+            text("Left").overlays(overlays().modal(text("Left modal"))),
+            text("Right").overlays(overlays().modal(text("Right modal"))),
         ]))
         .into_view()
         .view_frame_at_size_with_default_theme(Vector2::new(320.0, 180.0))
@@ -634,8 +634,8 @@ mod tests {
     }
 
     #[test]
-    fn scene_transient_layers_compose_before_explicit_root_layers() {
-        let labels = scene::<()>(text("Base").modal_layer(text("Component modal")))
+    fn scene_overlay_layers_compose_before_explicit_root_layers() {
+        let labels = scene::<()>(text("Base").overlays(overlays().modal(text("Component modal"))))
             .layer(Layer::modal(text("Root modal")))
             .into_view()
             .view_frame_at_size_with_default_theme(Vector2::new(320.0, 180.0))
@@ -646,31 +646,26 @@ mod tests {
     }
 
     #[test]
-    fn scene_transient_dismiss_policy_routes_above_base() {
+    fn scene_overlay_dismiss_policy_routes_above_base() {
         #[derive(Clone, Debug, PartialEq)]
         enum Message {
             Base,
             Dismiss,
         }
 
-        let bridge = DeclarativeOwnedRuntimeBridge::new(
-            Vec::<Message>::new(),
-            |_| {
-                scene::<Message>(
-                    button("Base")
-                        .message(Message::Base)
-                        .fill()
-                        .transient_layer(
-                            Layer::context_menu(text("Menu"))
-                                .dismiss_on_outside_click(Message::Dismiss),
-                        ),
-                )
-                .into_view()
-                .fill()
-                .into_surface()
-            },
-            |state, message| state.push(message),
-        );
+        let bridge =
+            DeclarativeOwnedRuntimeBridge::new(
+                Vec::<Message>::new(),
+                |_| {
+                    scene::<Message>(button("Base").message(Message::Base).fill().overlays(
+                        overlays().dismissible_context_menu(text("Menu"), Message::Dismiss),
+                    ))
+                    .into_view()
+                    .fill()
+                    .into_surface()
+                },
+                |state, message| state.push(message),
+            );
         let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 160.0));
 
         runtime.dispatch_event(Event::primary_press(Point::new(220.0, 140.0)));

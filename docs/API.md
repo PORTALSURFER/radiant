@@ -629,28 +629,26 @@ outside-click dismissal.
 Base content with optional transient UI should normally use `scene(base)`.
 `Scene` is Radiant's declarative root surface model: applications decide which
 typed layers are active from state each frame, while Radiant owns generic scene
-projection and layer z-order. The preferred pattern is to declare transient
-layers beside the component that owns them. Use view-local helpers such as
-`ViewNode::popover_layer_opt(...)`, `context_menu_layer_opt(...)`,
-`modal_layer_opt(...)`, `tooltip_layer_opt(...)`, and
-`drag_preview_layer_opt(...)` for typed optional layers, or
-`ViewNode::overlays(ui::overlays().floating_opt(...).blocking_modal_opt(...))`
-when one component owns several optional transient surfaces. `Overlays` also
-provides typed helpers for `popover_opt(...)`, `modal_opt(...)`,
-`context_menu_opt(...)`, `dismissible_context_menu_opt(...)`, `tooltip_opt(...)`,
-and `drag_preview_opt(...)`. Keep `layer(...)` and `layer_opt(...)` for unusual
-custom `Layer` policy or advanced/manual composition.
+projection and layer z-order. The preferred pattern is to declare overlays
+beside the component that owns them with
+`ViewNode::overlays(ui::overlays().floating_opt(...).blocking_modal_opt(...))`.
+`Overlays` provides typed helpers for `floating(...)`, `popover(...)`,
+`modal(...)`, `blocking_modal(...)`, `context_menu(...)`,
+`dismissible_context_menu(...)`, `tooltip(...)`, and `drag_preview(...)`, plus
+matching `*_opt(...)` helpers for optional surfaces. Keep `Overlays::layer(...)`
+and `layer_opt(...)` for unusual custom `Layer` policy or advanced/manual
+composition.
 The root `scene(base)` collects descendant declarations during normal lowering,
 so the root view does not need a registry of every popup, modal, menu, tooltip,
 or drag preview the app might show.
-Use `Layer::floating(...)`, `Layer::popover(...)`, `Layer::modal(...)`,
-`Layer::context_menu(...)`, `Layer::tooltip(...)`, and
-`Layer::drag_preview(...)` to build typed layers. Attach several component-owned
-layers locally with `ViewNode::overlays(ui::overlays()...)`, attach one required
-layer with `ViewNode::transient_layer(...)`, or attach layers explicitly at the
-root with `Scene::layer(...)`, `Scene::layer_opt(...)`, or `Scene::layers(...)`
-when a host deliberately owns a root-level transient that does not belong to one
-component.
+Use `radiant::Layer::floating(...)`, `radiant::Layer::popover(...)`,
+`radiant::Layer::modal(...)`, `radiant::Layer::context_menu(...)`,
+`radiant::Layer::tooltip(...)`, and `radiant::Layer::drag_preview(...)` only
+when a host needs explicit advanced layer policy. Attach those custom layers locally through
+`ViewNode::overlays(ui::overlays().layer(...))`, or attach them explicitly at
+the root with `Scene::layer(...)`, `Scene::layer_opt(...)`, or
+`Scene::layers(...)` when a host deliberately owns a root-level transient that
+does not belong to one component.
 Layer input policy is explicit and Radiant-owned. `Layer::pass_through()` is
 the default and adds no synthesized input surface. `Layer::block_input()` adds a
 transparent full-scene input surface below that layer's foreground content,

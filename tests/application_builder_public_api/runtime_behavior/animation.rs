@@ -570,7 +570,7 @@ fn scene_presentation_merges_with_layer_projection_without_affecting_input() {
             .frame_clock(
                 ui::FrameClock::message(DemoMessage::Increment).when(|_state: &mut DemoState| true),
             )
-            .layer(ui::Layer::tooltip(ui::text("Tip").height(20.0)))
+            .layer(radiant::Layer::tooltip(ui::text("Tip").height(20.0)))
             .into_view()
         })
         .update_with(|state, message, _context| match message {

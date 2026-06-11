@@ -127,7 +127,7 @@ impl<'a> ViewLowering<'a> {
             ViewNodeKind::Scene { base, layers, .. } => {
                 let mut base = *base;
                 let mut collected_layers = Vec::new();
-                base.drain_transient_layers_in_declaration_order(&mut collected_layers);
+                base.drain_overlay_layers_in_declaration_order(&mut collected_layers);
                 collected_layers.extend(layers);
                 let base = self.lower_node(base, child_scope);
                 let layers = collected_layers

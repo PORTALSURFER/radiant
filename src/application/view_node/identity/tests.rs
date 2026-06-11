@@ -85,8 +85,9 @@ fn reserved_id_collection_includes_floating_layer_child_identities() {
 }
 
 #[test]
-fn view_node_transient_reserved_id_collection_includes_foreground_identities() {
-    let view: ViewNode<()> = text("owner").context_menu_layer(text("menu").id(12_345));
+fn view_node_overlay_reserved_id_collection_includes_foreground_identities() {
+    let view: ViewNode<()> = text("owner")
+        .overlays(crate::application::overlays().context_menu(text("menu").id(12_345)));
     let mut ids = Vec::new();
 
     view.collect_reserved_ids(ROOT_KEY_SCOPE, &mut ids);
@@ -95,10 +96,10 @@ fn view_node_transient_reserved_id_collection_includes_foreground_identities() {
 }
 
 #[test]
-fn view_node_transient_reserved_id_collection_includes_input_identities() {
+fn view_node_overlay_reserved_id_collection_includes_input_identities() {
     let mut layer = Layer::modal(text("modal").id(12_346));
     layer.input = Some(text("input").key("modal-input"));
-    let view: ViewNode<()> = text("owner").transient_layer(layer);
+    let view: ViewNode<()> = text("owner").overlays(crate::application::overlays().layer(layer));
     let mut ids = Vec::new();
 
     view.collect_reserved_ids(ROOT_KEY_SCOPE, &mut ids);
@@ -108,7 +109,7 @@ fn view_node_transient_reserved_id_collection_includes_input_identities() {
 }
 
 #[test]
-fn view_node_transient_optional_none_does_not_reserve_identity() {
+fn view_node_overlay_optional_none_does_not_reserve_identity() {
     let view: ViewNode<()> = text("owner").overlays(crate::application::overlays().layer_opt(None));
     let mut ids = Vec::new();
 

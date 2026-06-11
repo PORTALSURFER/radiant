@@ -371,7 +371,7 @@ fn scene_layer_pass_through_preserves_base_hit_target() {
         )
         .into(),
     )
-    .layer(ui::Layer::floating(
+    .layer(radiant::Layer::floating(
         SurfaceNode::static_widget(TextWidget::new(
             20,
             "Passive",
@@ -407,7 +407,7 @@ fn scene_layer_block_input_blocks_base_pointer_and_wheel() {
         .into(),
     )
     .layer(
-        ui::Layer::modal(
+        radiant::Layer::modal(
             SurfaceNode::static_widget(TextWidget::new(
                 20,
                 "Modal",
@@ -449,7 +449,7 @@ fn scene_layer_dismiss_on_outside_click_emits_message() {
         .into(),
     )
     .layer(
-        ui::Layer::context_menu(
+        radiant::Layer::context_menu(
             SurfaceNode::floating_layer(
                 20,
                 Point::new(0.0, 0.0),
@@ -494,7 +494,7 @@ fn scene_layer_dismiss_surface_routes_below_foreground_content() {
         .into(),
     )
     .layer(
-        ui::Layer::context_menu(
+        radiant::Layer::context_menu(
             SurfaceNode::floating_layer(
                 20,
                 Point::new(0.0, 0.0),

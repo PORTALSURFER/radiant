@@ -191,8 +191,11 @@ fn status_bar(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
     ])
     .spacing(8.0)
     .fill_width()
-    .popover_layer_opt(state.popover_open.then(popover_slot))
-    .tooltip_layer_opt(state.tooltip_open.then(tooltip_slot))
+    .overlays(
+        overlays()
+            .popover_opt(state.popover_open.then(popover_slot))
+            .tooltip_opt(state.tooltip_open.then(tooltip_slot)),
+    )
 }
 
 fn browser_area(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
@@ -202,8 +205,11 @@ fn browser_area(state: &SceneExampleState) -> ViewNode<SceneExampleMessage> {
     )
     .height(58.0)
     .fill_width()
-    .floating_layer_opt(state.floating_open.then(floating_layer_slot))
-    .drag_preview_layer_opt(state.drag_preview_open.then(drag_preview_slot))
+    .overlays(
+        overlays()
+            .floating_opt(state.floating_open.then(floating_layer_slot))
+            .drag_preview_opt(state.drag_preview_open.then(drag_preview_slot)),
+    )
     .overlays(overlays().layer_opt(state.context_menu_open.then(|| {
         Layer::context_menu(context_menu_slot())
             .dismiss_on_outside_click(SceneExampleMessage::CloseContextMenu)

@@ -22,7 +22,7 @@ use crate::{
 };
 use std::{any::Any, sync::Arc};
 
-/// A typed transient scene layer.
+/// A typed scene overlay layer.
 pub struct Layer<Message> {
     pub(in crate::application) kind: LayerKind,
     pub(in crate::application) input_policy: LayerInputPolicy,
@@ -79,7 +79,7 @@ pub struct ViewNode<Message> {
     scroll_message: Option<ScrollMessageMapper<Message>>,
     accepts_native_file_drop: bool,
     native_file_drop: Option<NativeFileDropMessageMapper<Message>>,
-    transient_layers: Vec<Layer<Message>>,
+    overlay_layers: Vec<Layer<Message>>,
 }
 
 pub(in crate::application) enum ViewNodeKind<Message> {
@@ -162,7 +162,7 @@ impl<Message> ViewNode<Message> {
             scroll_message: None,
             accepts_native_file_drop: false,
             native_file_drop: None,
-            transient_layers: Vec::new(),
+            overlay_layers: Vec::new(),
         }
     }
 
@@ -202,23 +202,18 @@ impl<Message> ViewNode<Message> {
         self
     }
 
-    /// Declare a view-local transient scene layer owned by this view subtree.
-    ///
-    /// Root scenes collect these declarations during scene lowering so
-    /// components can keep popovers, context menus, modals, tooltips, drag
-    /// previews, and other transient UI beside the view that owns them.
-    pub fn transient_layer(mut self, layer: Layer<Message>) -> Self {
+    pub(in crate::application) fn overlay_layer(mut self, layer: Layer<Message>) -> Self {
         if layer.has_reserved_identity_in_subtree() {
             self.has_reserved_descendant_identity = true;
         }
-        self.transient_layers.push(layer);
+        self.overlay_layers.push(layer);
         self
     }
 
-    /// Declare a collection of view-local transient scene overlays owned by this view subtree.
+    /// Declare a collection of view-local scene overlays owned by this view subtree.
     pub fn overlays(mut self, overlays: Overlays<Message>) -> Self {
         for layer in overlays.into_layers() {
-            self = self.transient_layer(layer);
+            self = self.overlay_layer(layer);
         }
         self
     }
@@ -250,84 +245,6 @@ impl<Message> ViewNode<Message> {
             None => self,
         }
     }
-
-    /// Declare a generic floating layer owned by this view subtree.
-    pub fn floating_layer(self, view: ViewNode<Message>) -> Self {
-        self.transient_layer(Layer::floating(view))
-    }
-
-    /// Declare an optional generic floating layer owned by this view subtree.
-    pub fn floating_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
-        match view {
-            Some(view) => self.floating_layer(view),
-            None => self,
-        }
-    }
-
-    /// Declare a popover layer owned by this view subtree.
-    pub fn popover_layer(self, view: ViewNode<Message>) -> Self {
-        self.transient_layer(Layer::popover(view))
-    }
-
-    /// Declare an optional popover layer owned by this view subtree.
-    pub fn popover_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
-        match view {
-            Some(view) => self.popover_layer(view),
-            None => self,
-        }
-    }
-
-    /// Declare a modal layer owned by this view subtree.
-    pub fn modal_layer(self, view: ViewNode<Message>) -> Self {
-        self.transient_layer(Layer::modal(view))
-    }
-
-    /// Declare an optional modal layer owned by this view subtree.
-    pub fn modal_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
-        match view {
-            Some(view) => self.modal_layer(view),
-            None => self,
-        }
-    }
-
-    /// Declare a context menu layer owned by this view subtree.
-    pub fn context_menu_layer(self, view: ViewNode<Message>) -> Self {
-        self.transient_layer(Layer::context_menu(view))
-    }
-
-    /// Declare an optional context menu layer owned by this view subtree.
-    pub fn context_menu_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
-        match view {
-            Some(view) => self.context_menu_layer(view),
-            None => self,
-        }
-    }
-
-    /// Declare a tooltip layer owned by this view subtree.
-    pub fn tooltip_layer(self, view: ViewNode<Message>) -> Self {
-        self.transient_layer(Layer::tooltip(view))
-    }
-
-    /// Declare an optional tooltip layer owned by this view subtree.
-    pub fn tooltip_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
-        match view {
-            Some(view) => self.tooltip_layer(view),
-            None => self,
-        }
-    }
-
-    /// Declare a drag-preview layer owned by this view subtree.
-    pub fn drag_preview_layer(self, view: ViewNode<Message>) -> Self {
-        self.transient_layer(Layer::drag_preview(view))
-    }
-
-    /// Declare an optional drag-preview layer owned by this view subtree.
-    pub fn drag_preview_layer_opt(self, view: Option<ViewNode<Message>>) -> Self {
-        match view {
-            Some(view) => self.drag_preview_layer(view),
-            None => self,
-        }
-    }
 }
 
 impl<Message> Layer<Message> {
@@ -341,7 +258,7 @@ impl<Message> Layer<Message> {
 }
 
 impl<Message> ViewNode<Message> {
-    pub(in crate::application) fn drain_transient_layers_in_declaration_order(
+    pub(in crate::application) fn drain_overlay_layers_in_declaration_order(
         &mut self,
         layers: &mut Vec<Layer<Message>>,
     ) {
@@ -351,14 +268,12 @@ impl<Message> ViewNode<Message> {
                 layers: scene_layers,
                 ..
             } => {
-                base.drain_transient_layers_in_declaration_order(layers);
+                base.drain_overlay_layers_in_declaration_order(layers);
                 for layer in scene_layers {
                     if let Some(input) = layer.input.as_mut() {
-                        input.drain_transient_layers_in_declaration_order(layers);
+                        input.drain_overlay_layers_in_declaration_order(layers);
                     }
-                    layer
-                        .view
-                        .drain_transient_layers_in_declaration_order(layers);
+                    layer.view.drain_overlay_layers_in_declaration_order(layers);
                 }
             }
             ViewNodeKind::Row { children, .. }
@@ -367,18 +282,18 @@ impl<Message> ViewNode<Message> {
             | ViewNodeKind::Wrap { children, .. }
             | ViewNodeKind::Stack { children } => {
                 for child in children {
-                    child.drain_transient_layers_in_declaration_order(layers);
+                    child.drain_overlay_layers_in_declaration_order(layers);
                 }
             }
             ViewNodeKind::Scroll { child }
             | ViewNodeKind::VirtualScroll { child, .. }
             | ViewNodeKind::FloatingLayer { child, .. } => {
-                child.drain_transient_layers_in_declaration_order(layers);
+                child.drain_overlay_layers_in_declaration_order(layers);
             }
             ViewNodeKind::Runtime(_)
             | ViewNodeKind::Widget(_)
             | ViewNodeKind::OverlayPanel { .. } => {}
         }
-        layers.append(&mut self.transient_layers);
+        layers.append(&mut self.overlay_layers);
     }
 }

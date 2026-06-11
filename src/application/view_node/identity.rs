@@ -58,7 +58,7 @@ impl<Message> ViewNode<Message> {
             }
             _ => {}
         }
-        for layer in &self.transient_layers {
+        for layer in &self.overlay_layers {
             if let Some(input) = layer.input.as_ref() {
                 input.collect_reserved_ids(child_scope, ids);
             }

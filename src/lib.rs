@@ -74,5 +74,5 @@ pub mod widgets;
 
 pub use application::{
     DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING,
-    DEFAULT_STYLED_CONTAINER_PADDING, Result, app, window,
+    DEFAULT_STYLED_CONTAINER_PADDING, Layer, LayerInputPolicy, Result, app, window,
 };

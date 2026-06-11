@@ -1,4 +1,16 @@
 //! Generic virtual-list primitives.
+//!
+//! Large-list contract:
+//! - Hosts keep stable row identity and durable selection state.
+//! - Radiant resolves a bounded materialized window from total item count,
+//!   viewport length, overscan, scroll, and optional focus.
+//! - Hosts construct widgets only for `window_start..window_end`; hidden rows
+//!   are represented by logical counts and scroll geometry, not hidden widgets.
+//! - Hit testing, overlay invalidation, repaint, and scroll state are scoped to
+//!   one resolved list window so one large list does not force other lists to
+//!   rebuild or repaint.
+//! - Overscan is explicit and small enough for the interaction, rather than an
+//!   accidental full-list materialization escape hatch.
 
 mod controller;
 mod geometry;

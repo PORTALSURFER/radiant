@@ -1,4 +1,9 @@
 /// Retained-list invalidation summary for bounded rebuild decisions.
+///
+/// This summary is scoped to one resolved virtual-list window. Structure and
+/// window changes rebuild materialized row geometry, while item-state changes
+/// are overlay/repaint work only. Hidden rows outside the materialized window
+/// should not be rebuilt or hit-tested during ordinary scroll.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct VirtualListInvalidation {
     /// Logical item order, count, or identity changed.

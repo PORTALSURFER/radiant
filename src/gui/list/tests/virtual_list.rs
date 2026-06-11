@@ -1,3 +1,4 @@
+mod contract;
 mod controller;
 mod geometry;
 mod invalidation;

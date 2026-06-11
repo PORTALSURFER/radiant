@@ -3,6 +3,11 @@
 /// The request is item-index based rather than pixel based so host applications
 /// can reuse it before projecting widgets or layout nodes. Pixel-based scroll
 /// containers should continue to use `layout::VirtualizationPolicy`.
+///
+/// Hosts should treat this as the projection contract for large lists: build
+/// rows only for the returned `window_start..window_end` range, keep the full
+/// logical count as metadata, and use stable row keys for retained focus,
+/// hover, selection, and overlay state.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct VirtualListWindowRequest {
     /// Total logical item count.
@@ -22,6 +27,11 @@ pub struct VirtualListWindowRequest {
 }
 
 /// Resolved logical window for a virtualized list.
+///
+/// `viewport_start..viewport_end` is the visible row range. The wider
+/// `window_start..window_end` range is the only range that should be
+/// materialized into row widgets, hit-test entries, or repaint overlays during
+/// a normal scroll frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct VirtualListWindow {
     /// Total logical item count.
@@ -75,6 +85,8 @@ impl VirtualListWindow {
 /// allocating. When `focused_index` is present, the previous viewport start is
 /// reused while the focus remains away from the configured guard band; near an
 /// edge, the viewport scrolls just enough to keep focus comfortably visible.
+/// The returned materialized length is bounded by
+/// `viewport_len + overscan * 2`, capped by the logical item count.
 pub fn resolve_virtual_list_window(request: VirtualListWindowRequest) -> VirtualListWindow {
     if request.total_items == 0 || request.viewport_len == 0 {
         return VirtualListWindow {

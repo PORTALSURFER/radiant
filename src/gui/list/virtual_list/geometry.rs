@@ -69,6 +69,10 @@ pub fn virtual_list_viewport_len_for_extent(
 }
 
 /// Resolve one item index from stacked virtual-list row geometry in O(1).
+///
+/// The `items` slice is the materialized window, not the full logical list.
+/// Hit testing therefore stays scoped to visible-plus-overscan rows and never
+/// requires hidden rows to be constructed.
 pub fn virtual_list_stacked_item_at_point(
     items: &[MaterializedVirtualListItem],
     point: Point,

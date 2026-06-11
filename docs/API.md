@@ -242,6 +242,34 @@ surface repaint by default unless the handler explicitly requests surface or
 paint-only repaint. Frame-clock messages use their `FrameClock::repaint_scope`
 policy first, so apps do not need to exclude frame messages from
 `RepaintPolicy`.
+
+## Large Virtual Lists
+
+Large list, table, tree, browser, and picker surfaces should use Radiant's
+virtual-list contract instead of constructing hidden rows. Host applications own
+the logical item collection, stable row keys, selection, and domain state.
+Radiant owns the bounded viewport math, focus-follow policy, row hit-test scope,
+scrollbar mapping, and retained overlay invalidation primitives.
+
+Use `VirtualListController` or `resolve_virtual_list_window(...)` with the total
+logical item count, visible viewport length, explicit overscan, requested
+viewport start, and optional focus. Then construct row widgets only for the
+returned `window_start..window_end` range. The wider logical count is metadata
+for scrollbars and clamping, not permission to build offscreen widgets. Stable
+row identity should come from host-owned IDs through `VirtualListItemKey`,
+`stable_widget_id(...)`, or explicit widget IDs, so focus, hover, drag,
+selection, and retained overlays survive sorting, filtering, insertion, and
+scroll-window changes.
+
+Hit testing should use the materialized row slice, such as with
+`virtual_list_stacked_item_at_point(...)`, so hidden rows are never needed to
+route normal pointer input. Repaint and invalidation should stay scoped to one
+list window: structure/window changes rebuild materialized geometry, while
+item-state changes are overlay-only through `VirtualListInvalidation`. Keep one
+`VirtualListController` per scrollable list surface; sharing a controller is an
+explicit host decision and otherwise one large list must not move another list's
+viewport or force its rows to be rebuilt.
+
 The older `.update_with(...)` name remains public as an advanced compatibility
 alias for the same context-aware message-handler hook. `PlatformResponse` exposes helpers such as
 `path()`, `into_path()`, `into_path_or_canceled()`, `is_canceled()`,

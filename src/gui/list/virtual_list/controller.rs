@@ -7,6 +7,11 @@ use super::{
 use crate::gui::types::Rect;
 
 /// Durable state for one item-index based virtual list viewport.
+///
+/// Store one controller per scrollable list surface. The controller owns only
+/// viewport/focus-follow state for that list, so scrolling or focusing one
+/// list does not invalidate another list unless the host explicitly shares
+/// state between them.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VirtualListController {
     total_items: usize,
@@ -23,6 +28,9 @@ pub struct VirtualListController {
 /// viewport length, materialization overscan, and focus-follow guard band. The
 /// named fields keep large-list projection call sites readable when several
 /// virtualized panes share the same controller workflow.
+///
+/// Projection is intentionally count-based: construct row views after resolving
+/// a [`VirtualListWindow`], and only for the materialized range.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VirtualListProjection {
     total_items: usize,

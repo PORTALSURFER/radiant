@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
+fn runtime_surface_nodes_keep_parts_internal_and_public_constructors_explicit() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source = fs::read_to_string(manifest_dir.join("src/runtime/surface/node.rs"))
         .expect("runtime surface node module should be readable");
@@ -26,34 +26,29 @@ fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
     let runtime =
         fs::read_to_string(manifest_dir.join("src/runtime/mod.rs")).expect("runtime module");
 
-    for (parts, from_parts, wrapper) in [
-        (
-            "pub struct SurfaceChildParts<Message>",
-            "pub fn from_parts(parts: SurfaceChildParts<Message>) -> Self",
-            "Self::from_parts(SurfaceChildParts {",
-        ),
-        (
-            "pub struct SurfaceContainerParts<Message>",
-            "pub fn from_parts(parts: SurfaceContainerParts<Message>) -> Self",
-            "Self::from_parts(SurfaceContainerParts {",
-        ),
-    ] {
-        assert!(
-            source.contains(parts) && source.contains(from_parts) && source.contains(wrapper),
-            "runtime surface nodes should expose named parts and compatibility wrappers for {parts}"
-        );
-    }
+    assert!(
+        source.contains("pub(in crate::runtime) struct SurfaceChildParts<Message>")
+            && source.contains(
+                "pub(in crate::runtime) fn from_parts(parts: SurfaceChildParts<Message>) -> Self"
+            )
+            && source.contains("Self::from_parts(SurfaceChildParts {")
+            && source.contains("pub(in crate::runtime) struct SurfaceContainerParts<Message>")
+            && source.contains(
+                "pub(in crate::runtime) fn from_parts(parts: SurfaceContainerParts<Message>) -> Self"
+            )
+            && source.contains("Self::from_parts(SurfaceContainerParts {"),
+        "runtime surface named parts should remain available only inside runtime construction"
+    );
     assert!(
         builders.contains("mod container;")
             && builders.contains("mod leaf;")
             && builders.contains("mod overlay;")
-            && !builders
-                .contains("pub fn container_from_parts(parts: SurfaceContainerParts<Message>)")
+            && !builders.contains("pub fn container_from_parts(")
             && !builders.contains("pub fn widget(")
             && !builders.contains("pub fn overlay_panel(")
             && container_builders.contains("pub fn scene(")
             && container_builders.contains(
-                "pub fn container_from_parts(parts: SurfaceContainerParts<Message>) -> Self"
+                "pub(in crate::runtime) fn container_from_parts(parts: SurfaceContainerParts<Message>) -> Self"
             )
             && container_builders.contains("pub fn virtual_scroll_area(")
             && container_builders.contains("fn scroll_area_with_virtualization(")
@@ -68,11 +63,12 @@ fn runtime_surface_nodes_use_named_parts_for_public_tree_construction() {
             )
             && widget_mapper.contains("pub struct WidgetMessageMapper<Message>")
             && widget_mapper.contains("pub type MessageMapper<Input, Message>")
-            && surface.contains("SurfaceChildParts")
-            && surface.contains("SurfaceContainerParts")
-            && runtime.contains("SurfaceChildParts")
-            && runtime.contains("SurfaceContainerParts"),
-        "runtime surface builders should stay focused while named parts remain publicly available"
+            && !surface.contains("pub use node::{
+    LayerKind, SurfaceChild, SurfaceChildParts")
+            && !surface.contains("SurfaceContainerParts")
+            && !runtime.contains("SurfaceChildParts")
+            && !runtime.contains("SurfaceContainerParts"),
+        "runtime surface builders should stay focused while parts stay out of public exports"
     );
 }
 

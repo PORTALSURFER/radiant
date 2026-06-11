@@ -15,8 +15,8 @@ pub struct SurfaceChild<Message> {
     pub child: SurfaceNode<Message>,
 }
 
-/// Named construction fields for a [`SurfaceChild`].
-pub struct SurfaceChildParts<Message> {
+/// Runtime-internal named construction fields for a [`SurfaceChild`].
+pub(in crate::runtime) struct SurfaceChildParts<Message> {
     /// Parent-owned slot parameters.
     pub slot: SlotParams,
     /// Child node attached to the slot.
@@ -42,8 +42,8 @@ impl<Message> Clone for SurfaceChild<Message> {
 }
 
 impl<Message> SurfaceChild<Message> {
-    /// Build a container-owned surface child from named parts.
-    pub fn from_parts(parts: SurfaceChildParts<Message>) -> Self {
+    /// Build a container-owned surface child from runtime-internal named parts.
+    pub(in crate::runtime) fn from_parts(parts: SurfaceChildParts<Message>) -> Self {
         Self {
             slot: parts.slot,
             child: parts.child,
@@ -74,8 +74,8 @@ pub struct SurfaceContainer<Message> {
     pub(super) children: Vec<SurfaceChild<Message>>,
 }
 
-/// Named construction fields for a [`SurfaceContainer`].
-pub struct SurfaceContainerParts<Message> {
+/// Runtime-internal named construction fields for a [`SurfaceContainer`].
+pub(in crate::runtime) struct SurfaceContainerParts<Message> {
     /// Stable layout node id.
     pub id: NodeId,
     /// Container behavior policy.
@@ -108,8 +108,8 @@ impl<Message> Clone for SurfaceContainer<Message> {
 }
 
 impl<Message> SurfaceContainer<Message> {
-    /// Build a generic container node from named parts.
-    pub fn from_parts(parts: SurfaceContainerParts<Message>) -> Self {
+    /// Build a generic container node from runtime-internal named parts.
+    pub(in crate::runtime) fn from_parts(parts: SurfaceContainerParts<Message>) -> Self {
         Self {
             id: parts.id,
             policy: parts.policy,

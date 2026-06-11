@@ -1099,6 +1099,10 @@ provide convenience constructors on `SurfaceNode`, but those helpers are owned b
 the primitive modules rather than the runtime surface core. Adding a widget
 should mean adding that widget module and optional helpers, not editing a central
 runtime widget catalog.
+The low-level named parts used to assemble `SurfaceChild` and surface
+containers stay internal to `radiant::runtime`; host code should use
+`SurfaceChild::new`, `SurfaceChild::fill`, and `SurfaceNode::container` for
+explicit runtime surface composition.
 Built-in widgets should keep widget-specific model, input, and paint behavior in
 or directly under their owning primitive module. Shared support modules are for
 reusable contracts such as common widget state, activation helpers, shared

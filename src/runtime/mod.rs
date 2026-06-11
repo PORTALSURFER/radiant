@@ -113,7 +113,6 @@ pub(in crate::runtime) use surface::{
 };
 pub use surface::{
     Element, LayerKind, MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper,
-    SurfaceChild, SurfaceChildParts, SurfaceContainer, SurfaceContainerParts, SurfaceFrame,
-    SurfaceLayer, SurfaceNode, SurfaceOverlay, SurfaceScene, SurfaceWidget, UiSurface, View,
-    WidgetMessageMapper,
+    SurfaceChild, SurfaceContainer, SurfaceFrame, SurfaceLayer, SurfaceNode, SurfaceOverlay,
+    SurfaceScene, SurfaceWidget, UiSurface, View, WidgetMessageMapper,
 };

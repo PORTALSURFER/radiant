@@ -1,6 +1,6 @@
 use super::super::{
-    SurfaceChild, SurfaceContainer, SurfaceContainerParts, SurfaceLayer, SurfaceNode, SurfaceScene,
-    widget::ScrollMessageMapper,
+    SurfaceChild, SurfaceContainer, SurfaceLayer, SurfaceNode, SurfaceScene,
+    node::SurfaceContainerParts, widget::ScrollMessageMapper,
 };
 use crate::{
     layout::{
@@ -33,8 +33,8 @@ impl<Message> SurfaceNode<Message> {
         })
     }
 
-    /// Build a container node from named parts.
-    pub fn container_from_parts(parts: SurfaceContainerParts<Message>) -> Self {
+    /// Build a container node from runtime-internal named parts.
+    pub(in crate::runtime) fn container_from_parts(parts: SurfaceContainerParts<Message>) -> Self {
         Self::Container(SurfaceContainer::from_parts(parts))
     }
 

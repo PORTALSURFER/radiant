@@ -5,10 +5,7 @@ use radiant::{
     layout::{
         Constraints, Point, Rect, SizeModeCross, SizeModeMain, SlotParams, Vector2, layout_tree,
     },
-    runtime::{
-        PaintPrimitive, SurfaceChild, SurfaceChildParts, SurfaceContainerParts, SurfaceNode,
-        UiSurface, WidgetMessageMapper,
-    },
+    runtime::{PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
     theme::ThemeTokens,
     widgets::{ButtonWidget, WidgetSizing},
 };
@@ -114,34 +111,26 @@ fn surface_node_grid_helper_projects_tile_layout() {
 }
 
 #[test]
-fn surface_nodes_support_named_parts_construction() {
-    let surface: UiSurface<DemoMessage> =
-        UiSurface::new(SurfaceNode::container_from_parts(SurfaceContainerParts {
-            id: 40,
-            policy: radiant::layout::ContainerPolicy {
-                kind: radiant::layout::ContainerKind::Row,
-                spacing: 4.0,
-                ..Default::default()
-            },
-            children: vec![
-                SurfaceChild::from_parts(SurfaceChildParts {
-                    slot: SlotParams::fill(),
-                    child: SurfaceNode::text(
-                        41,
-                        "Alpha",
-                        WidgetSizing::fixed(Vector2::new(40.0, 20.0)),
-                    ),
-                }),
-                SurfaceChild::from_parts(SurfaceChildParts {
-                    slot: SlotParams::fill(),
-                    child: SurfaceNode::text(
-                        42,
-                        "Beta",
-                        WidgetSizing::fixed(Vector2::new(40.0, 20.0)),
-                    ),
-                }),
-            ],
-        }));
+fn surface_nodes_support_explicit_public_container_construction() {
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::container(
+        40,
+        radiant::layout::ContainerPolicy {
+            kind: radiant::layout::ContainerKind::Row,
+            spacing: 4.0,
+            ..Default::default()
+        },
+        vec![
+            SurfaceChild::fill(SurfaceNode::text(
+                41,
+                "Alpha",
+                WidgetSizing::fixed(Vector2::new(40.0, 20.0)),
+            )),
+            SurfaceChild::new(
+                SlotParams::fill(),
+                SurfaceNode::text(42, "Beta", WidgetSizing::fixed(Vector2::new(40.0, 20.0))),
+            ),
+        ],
+    ));
 
     let output = layout_tree(
         &surface.layout_node(),

@@ -12,7 +12,7 @@ pub use field::{
     FlowFieldLayout, FlowFieldMetrics, FlowFieldMetricsParts, capped_flow_rows_height,
 };
 pub use item::{FlowItem, FlowItemWidth};
-pub use metrics::{FlowLayoutMetrics, FlowLayoutMetricsParts, flow_rows_height};
+pub use metrics::{FlowLayoutMetrics, flow_rows_height};
 pub use packer::{
     FlowRowPacker, flow_row_width, pack_flow_rows, pack_flow_rows_with_trailing_group,
     push_flow_row_group, push_flow_row_item,

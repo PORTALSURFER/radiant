@@ -1,16 +1,5 @@
 /// Geometry policy for a wrapped inline flow.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct FlowLayoutMetricsParts {
-    /// Horizontal gap between adjacent items in one row.
-    pub item_gap: f32,
-    /// Vertical gap between rows.
-    pub line_gap: f32,
-    /// Height of one row.
-    pub item_height: f32,
-}
-
-/// Geometry policy for a wrapped inline flow.
-#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FlowLayoutMetrics {
     /// Horizontal gap between adjacent items in one row.
     pub item_gap: f32,
@@ -21,22 +10,13 @@ pub struct FlowLayoutMetrics {
 }
 
 impl FlowLayoutMetrics {
-    /// Construct metrics from named already-resolved logical-pixel values.
-    pub const fn from_parts(parts: FlowLayoutMetricsParts) -> Self {
-        Self {
-            item_gap: parts.item_gap,
-            line_gap: parts.line_gap,
-            item_height: parts.item_height,
-        }
-    }
-
     /// Construct metrics from resolved logical-pixel values.
     pub const fn new(item_gap: f32, line_gap: f32, item_height: f32) -> Self {
-        Self::from_parts(FlowLayoutMetricsParts {
+        Self {
             item_gap,
             line_gap,
             item_height,
-        })
+        }
     }
 }
 

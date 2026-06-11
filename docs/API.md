@@ -1036,6 +1036,12 @@ next to each other. This keeps the explicit widget API aligned with the
 declarative builder model: stable IDs, content, state, and layout contracts are
 named at the construction boundary instead of being inferred from argument
 order.
+Named `Parts` types are not required for every small value object. Keep them
+public when they prevent long positional argument lists, carry optional or
+defaultable configuration, encode semantic distinctions that raw booleans or
+numbers would obscure, or reserve a forward-compatible construction contract.
+Prefer direct constructors for compact metric/value types whose fields are few
+and already have clear domain names, such as `FlowLayoutMetrics::new(...)`.
 Application-level compound controls follow the same rule: dropdown option parts
 use `DropdownOptionSelection` instead of a raw selected flag, so public examples
 can distinguish current-value state from the host message routed on activation.
@@ -2336,6 +2342,8 @@ caller-owned buffers. Hosts can use these to render dense badge clusters for
 metadata, filters, status chips, or other product-specific labels without
 embedding domain terms in Radiant.
 Wrapped chip, token, recipient, or pill editors can use
+`FlowLayoutMetrics::new(...)` for the compact item-gap, row-gap, and item-height
+policy, plus
 `FlowTrailingItemParts` and `pack_flow_rows_with_trailing_item` when a trailing
 input/control should stay on the current row only if enough editing room
 remains. Use `push_flow_row_group` when several flow items, such as a prefix

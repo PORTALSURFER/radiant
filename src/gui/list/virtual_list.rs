@@ -13,16 +13,16 @@
 //!   accidental full-list materialization escape hatch.
 
 mod controller;
+mod focus;
 mod geometry;
 mod invalidation;
 mod item;
+mod projection;
 mod scrollbar;
 mod window;
 
-pub use controller::{
-    VirtualListController, VirtualListFocusTarget, VirtualListFollowState, VirtualListProjection,
-    VirtualListSliceFocus,
-};
+pub use controller::VirtualListController;
+pub use focus::{VirtualListFocusTarget, VirtualListFollowState, VirtualListSliceFocus};
 pub use geometry::{
     VirtualListStackMetrics, VirtualListStackMetricsParts, virtual_list_stacked_item_at_point,
     virtual_list_viewport_len_for_extent,
@@ -31,6 +31,7 @@ pub use invalidation::VirtualListInvalidation;
 pub use item::{
     MaterializedVirtualListItem, VirtualListItemKey, VirtualListItemOverlay, VirtualListItemState,
 };
+pub use projection::VirtualListProjection;
 pub use scrollbar::{
     VirtualListScrollbar, VirtualListScrollbarRequest, resolve_virtual_list_scrollbar,
     virtual_list_scrollbar_thumb_offset_at_point, virtual_list_scrollbar_view_start_at_point,

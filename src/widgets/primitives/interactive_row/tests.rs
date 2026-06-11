@@ -403,7 +403,7 @@ fn embedded_interactive_row_widget_routes_configured_actions_by_default() {
     let pointer = Point::new(4.0, 4.0);
     let mut host = ActionRowHost {
         row: InteractiveRowWidget::new(12, WidgetSizing::fixed(Vector2::new(120.0, 22.0))),
-        actions: InteractiveRowActions::new().activate(|| "activated"),
+        actions: InteractiveRowActions::new().primary(|| "activated"),
     };
 
     let _ = host.handle_input(bounds, WidgetInput::primary_press(pointer));
@@ -416,7 +416,9 @@ fn embedded_interactive_row_widget_routes_configured_actions_by_default() {
 
 #[test]
 fn interactive_row_actions_routes_single_or_double_activation_to_same_action() {
-    let actions = InteractiveRowActions::new().activate_or_double(|| "activate");
+    let actions = InteractiveRowActions::new()
+        .primary(|| "activate")
+        .double(|| "activate");
 
     assert_eq!(
         actions.route(InteractiveRowMessage::Activate),
@@ -430,8 +432,9 @@ fn interactive_row_actions_routes_single_or_double_activation_to_same_action() {
 
 #[test]
 fn interactive_row_actions_routes_single_or_double_activation_with_key() {
-    let actions =
-        InteractiveRowActions::new().activate_or_double_key("folder", |key| (key, "activate"));
+    let actions = InteractiveRowActions::new()
+        .primary_key("folder", |key| (key, "activate"))
+        .double_key("folder", |key| (key, "activate"));
 
     assert_eq!(
         actions.route(InteractiveRowMessage::Activate),
@@ -445,8 +448,9 @@ fn interactive_row_actions_routes_single_or_double_activation_with_key() {
 
 #[test]
 fn interactive_row_actions_routes_single_modifiers_or_double_to_same_action() {
-    let actions =
-        InteractiveRowActions::new().activate_or_double_with_modifiers(|modifiers| modifiers);
+    let actions = InteractiveRowActions::new()
+        .primary_with_modifiers(|modifiers| modifiers)
+        .double(PointerModifiers::default);
     let modifiers = PointerModifiers {
         shift: true,
         command: true,
@@ -466,12 +470,23 @@ fn interactive_row_actions_routes_single_modifiers_or_double_to_same_action() {
 #[test]
 fn interactive_row_actions_routes_keyed_modifier_activation_secondary_and_drag() {
     let actions = InteractiveRowActions::new()
-        .activate_or_double_with_modifiers_secondary_drag_key(
-            "file",
-            |key, modifiers| (key, "activate", modifiers, Point::new(0.0, 0.0)),
-            |key, position| (key, "secondary", PointerModifiers::default(), position),
-            |key, drag| (key, "drag", PointerModifiers::default(), drag.position()),
-        );
+        .primary_with_modifiers_key("file", |key, modifiers| {
+            (key, "activate", modifiers, Point::new(0.0, 0.0))
+        })
+        .double_key("file", |key| {
+            (
+                key,
+                "activate",
+                PointerModifiers::default(),
+                Point::new(0.0, 0.0),
+            )
+        })
+        .secondary_key("file", |key, position| {
+            (key, "secondary", PointerModifiers::default(), position)
+        })
+        .drag_key("file", |key, drag| {
+            (key, "drag", PointerModifiers::default(), drag.position())
+        });
     let modifiers = PointerModifiers {
         shift: true,
         command: true,
@@ -525,14 +540,13 @@ fn interactive_row_actions_routes_activation_and_secondary_with_one_key() {
 
 #[test]
 fn interactive_row_actions_routes_keyed_tree_drop_row_actions() {
-    let actions = InteractiveRowActions::new().activate_or_double_secondary_drag_drop_target_key(
-        "folder",
-        |key| (key, "activate", Point::new(0.0, 0.0)),
-        |key, position| (key, "secondary", position),
-        |key, drag| (key, "drag", drag.position()),
-        |key| (key, "drop", Point::new(0.0, 0.0)),
-        |key, position| (key, "hover_drop", position),
-    );
+    let actions = InteractiveRowActions::new()
+        .primary_key("folder", |key| (key, "activate", Point::new(0.0, 0.0)))
+        .double_key("folder", |key| (key, "activate", Point::new(0.0, 0.0)))
+        .secondary_key("folder", |key, position| (key, "secondary", position))
+        .drag_key("folder", |key, drag| (key, "drag", drag.position()))
+        .drop_key("folder", |key| (key, "drop", Point::new(0.0, 0.0)))
+        .hover_drop_key("folder", |key, position| (key, "hover_drop", position));
     let position = Point::new(12.0, 24.0);
 
     assert_eq!(

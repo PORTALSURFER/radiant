@@ -374,26 +374,21 @@ host-specific row messages without repeating exhaustive event-shape matches.
 activation, modifier-aware activation, secondary-click, drag, drop, and
 hover-drop routing table that `interactive_row().actions(...)` and
 `interactive_row_underlay(...).actions(...)` use. Use the keyed variants
-(`activate_key(...)`, `activate_or_double_key(...)`,
-`activate_with_modifiers_key(...)`, `double_activate_key(...)`,
-`secondary_key(...)`, `drag_key(...)`, and `drop_target_key(...)`) when row
+(`primary_key(...)`, `primary_with_modifiers_key(...)`, `double_key(...)`,
+`secondary_key(...)`, `drag_key(...)`, `drop_key(...)`, `hover_drop_key(...)`,
+and `drop_target_key(...)`) when row
 interactions should route through the same host-owned item key without
 duplicating capture closures at each row, chip, or tree item. Use
-`activate_or_double(...)` or `activate_or_double_key(...)` when primary release
-and double-click should route to the same host action. Use
-`activate_or_double_with_modifiers(...)` when primary release should preserve
-modifier state but double-click still maps to the same action with default
-modifiers. Use `activate_secondary_key(...)` when a row or chip should route
-primary activation and secondary context-menu activation through the same
-host-owned key. Use
-`activate_or_double_with_modifiers_secondary_drag_key(...)` for selectable
-dense rows where primary release preserves modifiers and activation,
-double-click, secondary context-menu activation, and drag lifecycle events all
-belong to one durable row key. Use
-`activate_or_double_secondary_drag_drop_target_key(...)` for tree, outline,
-layer, folder, or lane rows where activation, secondary context-menu
-activation, drag lifecycle, committed drop, and hover-drop updates all share one
-durable row key.
+`primary(...)`/`primary_key(...)` plus `double(...)`/`double_key(...)` when
+primary release and double-click should route to the same host action. Use
+`primary_with_modifiers(...)` or `primary_with_modifiers_key(...)` when primary
+release should preserve modifier state; add a separate `double(...)` or
+`double_key(...)` slot when double-click should map to the same action with
+default modifiers. Use `activate_secondary_key(...)` as a tiny wrapper when a
+row or chip only needs primary activation and secondary context-menu activation
+through the same host-owned key. Compose primary, double, secondary, drag, drop,
+and hover-drop slots directly for denser row shapes such as selectable drag
+rows, tree rows, outline rows, layers, folders, or lanes.
 Use `tree_row(label)` when a compact tree or outline row only needs a label,
 depth, disclosure slot, selected state, standard dense-row chrome, and common
 `InteractiveRowActions` routing. Configure `TreeRowDragDropState` for

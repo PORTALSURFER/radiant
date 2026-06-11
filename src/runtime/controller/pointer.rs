@@ -6,6 +6,8 @@ use crate::{
 };
 
 mod move_routing;
+#[cfg(test)]
+mod tests;
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
@@ -165,6 +167,33 @@ where
         self.interaction.pointer.scroll_drag_capture = None;
     }
 
+    /// Clear pointer hover ownership and retained widget hover state.
+    ///
+    /// Native backends call this when the pointer leaves the surface or the
+    /// window loses focus, because no later pointer-move event is guaranteed to
+    /// arrive to clear paint-only hover fills.
+    pub(crate) fn clear_pointer_hover(&mut self) -> bool {
+        let mut cleared = false;
+        if let Some(widget_id) = self.interaction.hover.widget.take() {
+            if let Some(widget) = self.surface.find_widget_mut(widget_id)
+                && widget.widget_object().common().state.hovered
+            {
+                widget.widget_object_mut().common_mut().state.hovered = false;
+            }
+            cleared = true;
+        }
+        if self.interaction.hover.container.take().is_some() {
+            cleared = true;
+        }
+        if self.interaction.hover.scroll_affordance.take().is_some() {
+            cleared = true;
+        }
+        if cleared {
+            self.repaint_requested = true;
+        }
+        cleared
+    }
+
     /// End the runtime drag preview because ownership has moved to a native
     /// external drag loop.
     pub(crate) fn take_drag_preview_for_external_drag(&mut self) -> bool {
@@ -196,87 +225,4 @@ where
 pub(super) struct PointerMoveDispatch {
     pub(super) target: Option<WidgetId>,
     pub(super) emitted_output: bool,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        gui::types::Vector2,
-        layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams},
-        runtime::{Event, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
-        widgets::{PointerButton, PointerModifiers, TextInputWidget, TextWidget, WidgetSizing},
-    };
-    use std::sync::Arc;
-
-    struct FocusTestBridge;
-
-    impl RuntimeBridge<usize> for FocusTestBridge {
-        fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
-            Arc::new(UiSurface::new(SurfaceNode::column(
-                1,
-                0.0,
-                vec![
-                    fixed_child(
-                        28.0,
-                        SurfaceNode::widget(
-                            TextInputWidget::new(
-                                10,
-                                "tag",
-                                WidgetSizing::fixed(Vector2::new(160.0, 28.0)),
-                            ),
-                            WidgetMessageMapper::none(),
-                        ),
-                    ),
-                    fixed_child(
-                        28.0,
-                        SurfaceNode::widget(
-                            TextWidget::new(
-                                20,
-                                "Passive hit target",
-                                WidgetSizing::fixed(Vector2::new(160.0, 28.0)),
-                            ),
-                            WidgetMessageMapper::dynamic(|_| Some(20)),
-                        ),
-                    ),
-                ],
-            )))
-        }
-
-        fn reduce_message(&mut self, _message: usize) {}
-    }
-
-    fn fixed_child<Message>(height: f32, child: SurfaceNode<Message>) -> SurfaceChild<Message> {
-        SurfaceChild::new(
-            SlotParams {
-                size_main: SizeModeMain::Fixed(height),
-                size_cross: SizeModeCross::Fill,
-                constraints: Constraints::unconstrained(),
-                margin: Default::default(),
-                align_cross_override: None,
-                allow_fixed_compress: false,
-            },
-            child,
-        )
-    }
-
-    #[test]
-    fn pointer_press_on_non_focusable_hit_target_clears_existing_focus() {
-        let mut runtime = SurfaceRuntime::new(FocusTestBridge, Vector2::new(200.0, 80.0));
-
-        runtime.dispatch_event(Event::PointerPress {
-            position: Point::new(4.0, 4.0),
-            button: PointerButton::Primary,
-            modifiers: PointerModifiers::default(),
-        });
-        assert_eq!(runtime.focused_widget(), Some(10));
-
-        runtime.dispatch_event(Event::PointerPress {
-            position: Point::new(4.0, 32.0),
-            button: PointerButton::Primary,
-            modifiers: PointerModifiers::default(),
-        });
-
-        assert_eq!(runtime.focused_widget(), None);
-    }
 }

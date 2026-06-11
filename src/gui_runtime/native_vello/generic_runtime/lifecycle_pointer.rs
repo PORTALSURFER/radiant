@@ -81,6 +81,9 @@ where
         {
             outcome.repaint_requested = true;
         }
+        if self.core.runtime.clear_pointer_hover() {
+            outcome.repaint_requested = true;
+        }
         self.input.last_cursor = None;
         self.set_native_cursor(crate::widgets::WidgetCursor::Default);
         outcome

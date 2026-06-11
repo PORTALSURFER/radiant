@@ -168,3 +168,52 @@ fn native_pointer_harness_focus_loss_clears_native_pointer_state() {
     assert!(harness.runner.input.modifiers.is_empty());
     harness.focus_regained();
 }
+
+#[test]
+fn native_pointer_focus_loss_clears_retained_widget_hover() {
+    let mut harness = NativePointerHarness::new(demo_bridge(), Vector2::new(320.0, 40.0));
+    let button_point = harness
+        .runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&11)
+        .map(|rect| Point::new(rect.min.x + 4.0, rect.min.y + 4.0))
+        .expect("button should be laid out");
+
+    harness.cursor_moved_logical(button_point);
+    assert_eq!(harness.runner.core.runtime.hovered_widget(), Some(11));
+    assert!(
+        harness
+            .runner
+            .core
+            .runtime
+            .surface()
+            .find_widget(11)
+            .expect("hovered button")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+
+    let outcome = harness.focus_lost();
+
+    assert!(outcome.repaint_requested);
+    assert_eq!(harness.runner.input.last_cursor, None);
+    assert_eq!(harness.runner.core.runtime.hovered_widget(), None);
+    assert!(
+        !harness
+            .runner
+            .core
+            .runtime
+            .surface()
+            .find_widget(11)
+            .expect("previous hovered button")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+}

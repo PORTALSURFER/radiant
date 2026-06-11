@@ -451,6 +451,12 @@ composition from one app-neutral paint descriptor. Use `push_dense_row_fill`,
 `push_dense_row_inset_stroke` when a row needs individual state-prioritized
 fills, centered labels, edge markers, or outlines from Radiant's generic
 dense-row geometry helpers without repeating paint-plan guard code. Use
+`dense_row_palette_from_style(...)`,
+`dense_row_drop_outline_from_style(...)`, and
+`dense_row_tree_guide_color(...)` when custom dense rows, tree rows, or outline
+rows need standard hover, pressed, selected, drop-target, outline, and guide
+colors resolved from `ThemeTokens` plus `WidgetStyle` without host-local color
+tokens. Use
 `DenseRowPalette::interaction_fills(...)` and `interaction_fills_if(...)` when
 hovered and pressed fills should be supplied together, especially when
 interaction paint follows `InteractiveRowWidget::paints_interaction_fill()`.

@@ -21,7 +21,8 @@ pub use grid::{VirtualGridWindow, VirtualGridWindowRequest, resolve_virtual_grid
 pub use row_paint::{
     DenseRowChromeParts, DenseRowLabelParts, DenseRowMarkerEdge, DenseRowMarkerParts,
     DenseRowMarkerStyle, DenseRowOutlineStyle, DenseRowPalette, DenseRowVisualState,
-    dense_row_fill_color, dense_row_inset_rect, dense_row_label_font_size,
+    dense_row_drop_outline_from_style, dense_row_fill_color, dense_row_inset_rect,
+    dense_row_label_font_size, dense_row_palette_from_style, dense_row_tree_guide_color,
     dense_row_vertical_marker_rect, push_dense_row_chrome, push_dense_row_fill,
     push_dense_row_inset_stroke, push_dense_row_label, push_dense_row_labeled_chrome,
     push_dense_row_vertical_marker,

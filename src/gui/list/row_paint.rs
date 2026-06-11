@@ -4,7 +4,8 @@ use crate::{
     runtime::{
         PaintPrimitive, PaintText, PaintTextAlign, PaintTextRun, push_fill_rect, push_stroke_rect,
     },
-    widgets::{TextWrap, WidgetId},
+    theme::ThemeTokens,
+    widgets::{TextWrap, WidgetId, WidgetProminence, WidgetStyle, WidgetTone},
 };
 
 /// Generic visual state for a dense list or tree row.
@@ -110,6 +111,98 @@ impl DenseRowPalette {
     pub const fn candidate_hovered(mut self, color: Rgba8) -> Self {
         self.candidate_hovered = Some(color);
         self
+    }
+}
+
+/// Resolve standard dense-row feedback colors from theme tokens and semantic style.
+///
+/// Use this for compact lists, trees, and sidebars that need the same hover,
+/// pressed, selected, operation-target, and operation-candidate semantics
+/// without repeating app-local RGBA constants.
+pub fn dense_row_palette_from_style(theme: &ThemeTokens, style: WidgetStyle) -> DenseRowPalette {
+    let emphasis = dense_row_emphasis_color(theme, style.tone);
+    let hover = dense_row_hover_fill(theme, style.prominence);
+    DenseRowPalette::new()
+        .selected(emphasis.with_alpha(dense_row_selected_alpha(style.prominence)))
+        .interaction_fills(
+            hover,
+            dense_row_pressed_fill(theme, emphasis, style.prominence),
+        )
+        .active_target(emphasis.with_alpha(dense_row_active_target_alpha(style.prominence)))
+        .candidate_hovered(hover)
+}
+
+/// Resolve the standard dense-row drop-target outline for a semantic style.
+pub fn dense_row_drop_outline_from_style(
+    theme: &ThemeTokens,
+    style: WidgetStyle,
+) -> DenseRowOutlineStyle {
+    DenseRowOutlineStyle::new(
+        0.5,
+        dense_row_emphasis_color(theme, style.tone).with_alpha(235),
+        1.5,
+    )
+}
+
+/// Resolve the standard tree-guide color for dense tree rows.
+pub fn dense_row_tree_guide_color(theme: &ThemeTokens, style: WidgetStyle) -> Rgba8 {
+    dense_row_emphasis_color(theme, style.tone).with_alpha(match style.prominence {
+        WidgetProminence::Subtle => 152,
+        WidgetProminence::Normal => 176,
+        WidgetProminence::Strong => 200,
+    })
+}
+
+fn dense_row_emphasis_color(theme: &ThemeTokens, tone: WidgetTone) -> Rgba8 {
+    match tone {
+        WidgetTone::Neutral => theme.border_emphasis,
+        WidgetTone::Accent => theme.accent_mint,
+        WidgetTone::Success => theme.highlight_cyan,
+        WidgetTone::Warning => theme.accent_warning,
+        WidgetTone::Danger => theme.accent_danger,
+    }
+}
+
+fn dense_row_hover_fill(theme: &ThemeTokens, prominence: WidgetProminence) -> Rgba8 {
+    theme.text_primary.with_alpha(match prominence {
+        WidgetProminence::Subtle => 24,
+        WidgetProminence::Normal => 36,
+        WidgetProminence::Strong => 48,
+    })
+}
+
+fn dense_row_pressed_fill(
+    theme: &ThemeTokens,
+    emphasis: Rgba8,
+    prominence: WidgetProminence,
+) -> Rgba8 {
+    let amount = match prominence {
+        WidgetProminence::Subtle => 0.18,
+        WidgetProminence::Normal => 0.12,
+        WidgetProminence::Strong => 0.06,
+    };
+    emphasis
+        .blend_opaque_toward(theme.text_primary, amount)
+        .with_alpha(match prominence {
+            WidgetProminence::Subtle => 170,
+            WidgetProminence::Normal => 190,
+            WidgetProminence::Strong => 210,
+        })
+}
+
+fn dense_row_selected_alpha(prominence: WidgetProminence) -> u8 {
+    match prominence {
+        WidgetProminence::Subtle => 120,
+        WidgetProminence::Normal => 150,
+        WidgetProminence::Strong => 180,
+    }
+}
+
+fn dense_row_active_target_alpha(prominence: WidgetProminence) -> u8 {
+    match prominence {
+        WidgetProminence::Subtle => 220,
+        WidgetProminence::Normal => 230,
+        WidgetProminence::Strong => 240,
     }
 }
 

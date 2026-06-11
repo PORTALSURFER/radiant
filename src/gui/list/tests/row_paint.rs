@@ -1,13 +1,16 @@
 use super::super::{
     DenseRowChromeParts, DenseRowLabelParts, DenseRowMarkerEdge, DenseRowMarkerParts,
     DenseRowMarkerStyle, DenseRowOutlineStyle, DenseRowPalette, DenseRowVisualState,
-    dense_row_fill_color, dense_row_inset_rect, dense_row_label_font_size,
+    dense_row_drop_outline_from_style, dense_row_fill_color, dense_row_inset_rect,
+    dense_row_label_font_size, dense_row_palette_from_style, dense_row_tree_guide_color,
     dense_row_vertical_marker_rect, push_dense_row_chrome, push_dense_row_fill,
     push_dense_row_inset_stroke, push_dense_row_label, push_dense_row_labeled_chrome,
     push_dense_row_vertical_marker,
 };
 use crate::gui::types::{Point, Rect, Rgba8, Vector2};
 use crate::runtime::{PaintPrimitive, PaintStrokeRect};
+use crate::theme::ThemeTokens;
+use crate::widgets::{WidgetProminence, WidgetStyle, WidgetTone};
 
 const SELECTED: Rgba8 = Rgba8 {
     r: 1,
@@ -69,6 +72,53 @@ fn dense_row_palette_conditionally_sets_interaction_fills() {
     assert_eq!(enabled.pressed, Some(PRESSED));
     assert_eq!(disabled.hovered, None);
     assert_eq!(disabled.pressed, None);
+}
+
+#[test]
+fn dense_row_palette_resolves_from_theme_style() {
+    let theme = ThemeTokens::default();
+    let style = WidgetStyle::subtle(WidgetTone::Accent);
+    let palette = dense_row_palette_from_style(&theme, style);
+
+    assert_eq!(palette.selected, Some(theme.accent_mint.with_alpha(120)));
+    assert_eq!(palette.hovered, Some(theme.text_primary.with_alpha(24)));
+    assert_eq!(
+        palette.active_target,
+        Some(theme.accent_mint.with_alpha(220))
+    );
+    assert_eq!(palette.candidate_hovered, palette.hovered);
+    assert!(palette.pressed.is_some());
+}
+
+#[test]
+fn dense_row_palette_prominence_strengthens_state_alpha() {
+    let theme = ThemeTokens::default();
+    let subtle = dense_row_palette_from_style(&theme, WidgetStyle::subtle(WidgetTone::Accent));
+    let normal = dense_row_palette_from_style(
+        &theme,
+        WidgetStyle::new(WidgetTone::Accent, WidgetProminence::Normal),
+    );
+    let strong = dense_row_palette_from_style(&theme, WidgetStyle::strong(WidgetTone::Accent));
+
+    assert!(subtle.selected.unwrap().a < normal.selected.unwrap().a);
+    assert!(normal.selected.unwrap().a < strong.selected.unwrap().a);
+    assert!(subtle.hovered.unwrap().a < normal.hovered.unwrap().a);
+    assert!(normal.hovered.unwrap().a < strong.hovered.unwrap().a);
+}
+
+#[test]
+fn dense_row_outline_and_tree_guide_resolve_from_style() {
+    let theme = ThemeTokens::default();
+    let style = WidgetStyle::subtle(WidgetTone::Warning);
+
+    assert_eq!(
+        dense_row_drop_outline_from_style(&theme, style),
+        DenseRowOutlineStyle::new(0.5, theme.accent_warning.with_alpha(235), 1.5)
+    );
+    assert_eq!(
+        dense_row_tree_guide_color(&theme, style),
+        theme.accent_warning.with_alpha(152)
+    );
 }
 
 #[test]

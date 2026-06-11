@@ -79,8 +79,8 @@ name = "volume_slider"
 path = "examples/volume_slider.rs"
 
 [[example]]
-name = "sample_source_list"
-path = "examples/sample_source_list.rs"
+name = "list_actions"
+path = "examples/list_actions.rs"
 
 [[example]]
 name = "toolbar_icons"

@@ -26,7 +26,7 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         ],
     ),
     (
-        "sample_source_list",
+        "list_actions",
         &[
             "list(",
             "list_row_id(",

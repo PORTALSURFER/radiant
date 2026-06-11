@@ -1963,7 +1963,7 @@ manual validation:
 | Target area | Focused examples |
 | --- | --- |
 | First-use application API | `hello_world`, `generic_native`, `counter` |
-| State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `sample_source_list`, `animation_showcase` |
+| State, commands, and background work | `todo_list`, `message_routing`, `background_loading`, `status_bar`, `list_actions`, `animation_showcase` |
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
@@ -2168,9 +2168,9 @@ that implements paint and input dispatch through the public widget trait.
 Run `cargo run --example volume_slider` for a focused parameter-control sandbox
 that uses the prelude `slider(...)` builder, horizontal value changes, and a
 checkbox-backed mute state through explicit value messages.
-Run `cargo run --example sample_source_list` for a compact stateful list
-sandbox that emulates a sample-source picker with selectable rows, stable row
-IDs, and small `+` / `-` row actions.
+Run `cargo run --example list_actions` for a compact stateful list sandbox
+with selectable rows, stable row IDs, insertion, removal, and small `+` / `-`
+row actions.
 Run `cargo run --example toolbar_icons` for a horizontal SVG-icon toolbar
 sandbox that uses custom toggle buttons, state-driven active highlights, and
 muted inactive vector icons. Compact action strips should use direct

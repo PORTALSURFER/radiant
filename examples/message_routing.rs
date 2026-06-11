@@ -1,11 +1,11 @@
-//! Explicit message routing with a handler and command.
+//! Message routing with command follow-up work.
 
 use radiant::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Message {
-    Clicked,
-    Increment,
+    IncrementRequested,
+    ApplyIncrement,
 }
 
 #[derive(Default)]
@@ -23,17 +23,19 @@ fn main() -> radiant::Result {
                 text(format!("Count: {}", state.count))
                     .fill_width()
                     .height(32.0),
-                button("Increment").primary().message(Message::Clicked),
+                button("Increment")
+                    .primary()
+                    .message(Message::IncrementRequested),
             ])
             .padding(16.0)
             .spacing(12.0)
         })
         .update_command(|state, message| match message {
-            Message::Clicked => Command::batch([
-                Command::message(Message::Increment),
+            Message::IncrementRequested => Command::batch([
+                Command::message(Message::ApplyIncrement),
                 Command::request_repaint(),
             ]),
-            Message::Increment => {
+            Message::ApplyIncrement => {
                 state.count += 1;
                 Command::none()
             }

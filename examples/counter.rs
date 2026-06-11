@@ -1,6 +1,11 @@
-//! Small stateful counter app built with Radiant application builders.
+//! Small stateful counter app using Radiant's message-first application model.
 
 use radiant::prelude::*;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum CounterMessage {
+    Increment,
+}
 
 #[derive(Default)]
 struct CounterState {
@@ -17,10 +22,13 @@ fn main() -> radiant::Result {
                 text(format!("Count: {}", state.count)),
                 button("Increment")
                     .primary()
-                    .on_click(|state: &mut CounterState| state.count += 1),
+                    .message(CounterMessage::Increment),
             ])
             .padding(16.0)
             .spacing(8.0)
+        })
+        .update(|state, message| match message {
+            CounterMessage::Increment => state.count += 1,
         })
         .run()
 }

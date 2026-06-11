@@ -4,7 +4,9 @@ Radiant is a reusable declarative GUI library. Host applications own domain
 state and side effects; Radiant owns view-tree identity, layout, input routing,
 focus, style resolution, invalidation, and renderer-facing paint plans.
 For a contributor-facing map of subsystem ownership, rendering/text/platform
-boundaries, and validation lanes, see `docs/ARCHITECTURE.md`.
+boundaries, and validation lanes, see `docs/ARCHITECTURE.md`. For the preferred
+shape of application-facing APIs, examples, and cleanup tickets, see
+`docs/API_STYLE.md`.
 
 ## Dependency Boundary
 
@@ -29,6 +31,11 @@ and explicit runtime objects are part of the same API surface:
   and `radiant::gui` expose the same model with more explicit control over
   projection, commands, sizing, layout, styling, input, invalidation, and
   backend integration.
+
+Radiant's cleanup target is message-first application code: views emit explicit
+messages, and update handlers own durable state changes and side effects. Older
+callback-style APIs remain compatibility or advanced escape hatches, not the
+canonical style. See `docs/API_STYLE.md`.
 
 ## Application API
 
@@ -155,11 +162,17 @@ Focused widget and mapper tests can also call
 directly on an `IntoView` value when the test only needs to verify one projected
 view's widget-message mapping or input behavior.
 
-Small stateful apps can mutate state directly from widget callbacks while still
-lowering into the same message/command runtime:
+Small stateful apps should use the same message-first model as larger apps.
+Widgets emit explicit messages, and the update handler owns durable state
+changes:
 
 ```rust
 use radiant::prelude::*;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Message {
+    Increment,
+}
 
 #[derive(Default)]
 struct State {
@@ -173,10 +186,11 @@ fn main() -> radiant::Result {
         .view(|state| {
             column([
                 text(format!("Count: {}", state.count)),
-                button("Increment").on_click(|state: &mut State| {
-                    state.count += 1;
-                }),
+                button("Increment").message(Message::Increment),
             ])
+        })
+        .update(|state, message| match message {
+            Message::Increment => state.count += 1,
         })
         .run()
 }
@@ -2153,7 +2167,7 @@ Run `cargo run --example custom_widget` for a custom widget authoring sandbox
 that implements paint and input dispatch through the public widget trait.
 Run `cargo run --example volume_slider` for a focused parameter-control sandbox
 that uses the prelude `slider(...)` builder, horizontal value changes, and a
-checkbox-backed mute state through direct state callbacks.
+checkbox-backed mute state through explicit value messages.
 Run `cargo run --example sample_source_list` for a compact stateful list
 sandbox that emulates a sample-source picker with selectable rows, stable row
 IDs, and small `+` / `-` row actions.
@@ -2168,7 +2182,8 @@ the standard `icon_button(...)` builder. For common compact controls, use
 `close_button()` and `disclosure_button(expanded)` so apps do not repeat literal
 text labels or parse their own standard close/disclosure icons. Icon-button
 builders support both message-style `.message(...)` routing and direct
-state-callback `.on_click(...)` routing. Use `icon_button(...).passive()`,
+callback routing for compatibility. Use `.message(...)` for normal
+application interactions. Use `icon_button(...).passive()`,
 `close_button().passive()`, or `disclosure_button(expanded).passive()` when a
 standard icon should paint as decorative chrome while another parent surface
 owns interaction routing. Button reducers can use
@@ -2222,8 +2237,8 @@ Run `cargo run --example focus_controls` for an input/focus sandbox that uses
 `UpdateContext::focus(...)` and shortcuts to move keyboard
 focus from normal app messages.
 Run `cargo run --example plugin_panel` for a dense plugin-style control panel
-that stays on generic Radiant layout, style, focus, and state-callback APIs;
-host/plugin SDK integration remains outside Radiant.
+that stays on generic Radiant layout, style, focus, and message-first update
+APIs; host/plugin SDK integration remains outside Radiant.
 Run `cargo run --example eq_editor` for a graphical plugin-style EQ editor
 surface that paints a visual response curve, analyzer-style overlay, editable
 band handles, and parameter-routing messages without modeling DSP or audio

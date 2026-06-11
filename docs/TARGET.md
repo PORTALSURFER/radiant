@@ -176,6 +176,79 @@ Prefer simple, clear APIs that scale to advanced use cases.
 
 Avoid clever abstractions unless they clearly improve usability, correctness, performance, or maintainability.
 
+During the current API refinement phase, Radiant may break public API
+compatibility to remove mixed patterns, weak names, or migration debt. Because
+Radiant is vendor-owned by this workspace and consumed by Wavecrate, prefer one
+clean API plus Wavecrate call-site updates over compatibility aliases, parallel
+old/new builders, or half-finished migration layers.
+
+## Primitive Boundary
+
+Radiant is a generic UI system, not an application toolkit for one product
+category. Its public API should provide the primitive widgets, layout tools,
+interaction contracts, rendering hooks, and runtime services that host
+applications use to build their own product-specific interfaces.
+
+The default question for adding code to Radiant is:
+
+> Is this a generic UI primitive or reusable GUI building block that several
+> unrelated applications could reasonably use?
+
+If the answer is no, the code belongs in the host application. This rule applies
+even when moving the code into Radiant would make one current application call
+site shorter.
+
+Appropriate Radiant-owned primitives include:
+
+- Basic controls such as buttons, icon buttons, checkboxes, toggles, sliders,
+  dropdown triggers, text inputs, labels, badges, and status indicators.
+- Layout and composition primitives such as rows, columns, stacks, grids,
+  split panes, scroll areas, panels, cards, overlays, menus, popovers, and
+  modals.
+- Generic interaction primitives such as activation, secondary activation,
+  focus traversal, keyboard shortcuts, pointer capture, drag, drop, resize
+  handles, selection, hover, and disabled/read-only state.
+- Generic large-data UI primitives such as virtualized lists, tables, trees,
+  outline rows, property panels, inspectors, and details rows.
+- Generic visualization and editor building blocks such as timelines,
+  waveform-like value displays, meters, parameter controls, curves, grids,
+  markers, and retained GPU surfaces when they are domain-neutral and driven by
+  host-provided data.
+- Backend-neutral paint, geometry, theme, image, text, invalidation, resource,
+  window, and runtime coordination primitives.
+
+Radiant should not own:
+
+- Product workflows such as sample extraction, tagging, rating, library
+  scanning, plugin preset management, DAW arrangement logic, todo workflows, or
+  project planning behavior.
+- Product domain models such as sample IDs, tag categories, track models,
+  plugin parameters, task records, file-library entities, or application
+  command catalogs.
+- Product naming, copy, icons, colors, persistence keys, file formats, storage
+  policies, recovery behavior, or telemetry/logging semantics.
+- Composite widgets whose behavior only makes sense for one product. A host may
+  build a `SampleBrowser`, `TagLibrary`, `PluginPresetPanel`, or
+  `TodoFilterBar` from Radiant primitives, but those named product components
+  should not become Radiant primitives.
+- Side effects such as file I/O, audio playback, metadata writes, network
+  calls, plugin host operations, database updates, or product-specific
+  background jobs.
+
+A specialized visual surface can belong in Radiant only when it is expressed as
+a generic, host-data-driven primitive. For example, a reusable timeline ruler,
+range selection layer, virtualized tree row, waveform-style scalar display, or
+GPU surface host can be Radiant-owned. A sample-extraction timeline that knows
+about Wavecrate source files, tags, ratings, extraction success, or audio
+library persistence must remain Wavecrate-owned.
+
+When a host repeats layout math, interaction routing, hit testing, overlay
+placement, stable identity handling, virtual-list viewport logic, paint-plan
+construction, or widget-state styling across multiple surfaces, evaluate whether
+Radiant is missing a generic primitive. When a host repeats product policy,
+domain vocabulary, persistence rules, or workflow decisions, keep the code in
+the host and clean up the host abstraction instead.
+
 ## Unified Public API
 
 Radiant should expose one coherent public API surface for building applications.

@@ -31,6 +31,8 @@ second framework.
 
 - `docs/API.md`: application-facing API contract, examples, runtime model, and
   validation lane.
+- `docs/API_STYLE.md`: preferred public API style, example style, and cleanup
+  ticket criteria.
 - `docs/ARCHITECTURE.md`: contributor map for ownership boundaries, platform
   seams, rendering boundaries, and validation slices.
 - `docs/TARGET.md`: long-term project direction for a standalone,

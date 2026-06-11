@@ -2,7 +2,9 @@
 
 This map explains how the current Radiant codebase is organized against
 `docs/TARGET.md`. It is a contributor guide, not a second public API reference:
-`docs/API.md` remains the application-facing contract.
+`docs/API.md` remains the application-facing contract, while
+`docs/API_STYLE.md` defines the preferred application-facing API style and
+cleanup-ticket target shape.
 
 Radiant's architecture should keep one external mental model while allowing
 focused internal modules. The main ownership rule is:
@@ -12,6 +14,9 @@ focused internal modules. The main ownership rule is:
 - Radiant owns declarative view construction, stable widget identity, layout,
   input routing, focus, styling, invalidation, paint planning, diagnostics, and
   renderer-facing surface contracts.
+- Radiant additions must pass the primitive-boundary test in `docs/TARGET.md`:
+  they should be generic UI primitives or reusable GUI building blocks, not
+  product-shaped composite widgets or application workflows.
 - Native or embedded hosts own the platform event loop and decide how to attach
   Radiant surfaces to windows, popup surfaces, or host-controlled render
   targets.

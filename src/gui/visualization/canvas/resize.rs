@@ -36,7 +36,7 @@ pub fn horizontal_resize_edge_handles(
 /// Return body, start-edge, and end-edge handles for a horizontally resizable rectangle.
 ///
 /// Handles are returned in paint-order priority: body first, then start, then
-/// end. Passing the result to [`drag_handle_at_point`] gives edges priority
+/// end. Passing the result to [`super::drag_handle::drag_handle_at_point`] gives edges priority
 /// over the body when hit targets overlap.
 pub fn horizontal_resize_handles(
     rect: Rect,

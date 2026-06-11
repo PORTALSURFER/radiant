@@ -16,6 +16,6 @@ pub use crate::application::{
     interactive_row_underlay, labeled_control, labeled_control_control_offset,
     labeled_control_control_offset_for, labeled_control_from_parts, passive_badge, passive_button,
     passive_text_input, passive_toggle, pointer_drop_target, pointer_move_target, pointer_target,
-    progress_bar, progress_bar_for_snapshot, selectable, selectable_mapped, slider, slider_mapped,
-    state_dropdown, text_input, text_input_mapped, toggle, toggle_mapped, tree_row,
+    progress_bar, progress_bar_for_snapshot, row_actions, selectable, selectable_mapped, slider,
+    slider_mapped, state_dropdown, text_input, text_input_mapped, toggle, toggle_mapped, tree_row,
 };

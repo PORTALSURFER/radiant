@@ -97,20 +97,6 @@ impl<Message> InteractiveRowActions<Message> {
         self
     }
 
-    /// Emit the same host message for single and double primary activation.
-    ///
-    /// Use this when double-click should behave as the same row activation
-    /// rather than a separate open, rename, or edit action.
-    pub fn activate_or_double(
-        mut self,
-        message: impl Fn() -> Message + Send + Sync + 'static,
-    ) -> Self {
-        let message: Arc<dyn Fn() -> Message + Send + Sync + 'static> = Arc::new(message);
-        self.activate = Some(message.clone());
-        self.double_activate = Some(message);
-        self
-    }
-
     /// Emit a single-activation message for one host-owned row key.
     pub fn activate_key<Key>(
         mut self,
@@ -141,55 +127,12 @@ impl<Message> InteractiveRowActions<Message> {
         self.activate_key(key, message)
     }
 
-    /// Emit the same single-or-double activation message for one host-owned row key.
-    ///
-    /// Use this when both primary release and double-click select or activate
-    /// the same durable row, while rows with distinct double-click behavior
-    /// should keep using [`Self::activate_key`] and [`Self::double_activate_key`].
-    pub fn activate_or_double_key<Key>(
-        mut self,
-        key: Key,
-        message: impl Fn(Key) -> Message + Send + Sync + 'static,
-    ) -> Self
-    where
-        Key: Clone + Send + Sync + 'static,
-        Message: 'static,
-    {
-        let message: Arc<dyn Fn(Key) -> Message + Send + Sync + 'static> = Arc::new(message);
-        let double_key = key.clone();
-        self.activate = Some(Arc::new({
-            let message = message.clone();
-            move || message(key.clone())
-        }));
-        self.double_activate = Some(Arc::new(move || message(double_key.clone())));
-        self
-    }
-
     /// Emit a host message for single primary activation with modifier state.
     pub fn activate_with_modifiers(
         mut self,
         message: impl Fn(PointerModifiers) -> Message + Send + Sync + 'static,
     ) -> Self {
         self.activate_with_modifiers = Some(Arc::new(message));
-        self
-    }
-
-    /// Emit the same host action for modifier-aware single activation and double activation.
-    ///
-    /// Single primary activation receives the release modifiers. Double
-    /// activation uses default modifiers because the current row event does not
-    /// carry modifier state for double-clicks.
-    pub fn activate_or_double_with_modifiers(
-        mut self,
-        message: impl Fn(PointerModifiers) -> Message + Send + Sync + 'static,
-    ) -> Self
-    where
-        Message: 'static,
-    {
-        let message: Arc<dyn Fn(PointerModifiers) -> Message + Send + Sync + 'static> =
-            Arc::new(message);
-        self.activate_with_modifiers = Some(message.clone());
-        self.double_activate = Some(Arc::new(move || message(PointerModifiers::default())));
         self
     }
 
@@ -288,28 +231,6 @@ impl<Message> InteractiveRowActions<Message> {
         self
     }
 
-    /// Emit primary activation and secondary activation messages for one host-owned row key.
-    ///
-    /// Use this when a row, chip, or tree item has the common pairing of
-    /// primary activate/select and secondary context-menu behavior tied to the
-    /// same durable key.
-    pub fn activate_secondary_key<Key>(
-        mut self,
-        key: Key,
-        activate_message: impl Fn(Key) -> Message + Send + Sync + 'static,
-        secondary_message: impl Fn(Key, crate::gui::types::Point) -> Message + Send + Sync + 'static,
-    ) -> Self
-    where
-        Key: Clone + Send + Sync + 'static,
-    {
-        let secondary_key = key.clone();
-        self.activate = Some(Arc::new(move || activate_message(key.clone())));
-        self.secondary = Some(Arc::new(move |position| {
-            secondary_message(secondary_key.clone(), position)
-        }));
-        self
-    }
-
     /// Emit a host message for drag lifecycle updates.
     pub fn drag(
         mut self,
@@ -370,29 +291,6 @@ impl<Message> InteractiveRowActions<Message> {
         Key: Clone + Send + Sync + 'static,
     {
         self.hover_drop = Some(Arc::new(move |position| message(key.clone(), position)));
-        self
-    }
-
-    /// Emit drop and hover-drop messages for one host-owned target key.
-    ///
-    /// Use this when several row-like surfaces map drop and hover-drop to the
-    /// same durable application key, such as a folder, category, layer, lane, or
-    /// collection. The key stays host-owned; Radiant only centralizes the common
-    /// row-action routing shape.
-    pub fn drop_target_key<Key>(
-        mut self,
-        key: Key,
-        drop_message: impl Fn(Key) -> Message + Send + Sync + 'static,
-        hover_drop_message: impl Fn(Key, crate::gui::types::Point) -> Message + Send + Sync + 'static,
-    ) -> Self
-    where
-        Key: Clone + Send + Sync + 'static,
-    {
-        let hover_key = key.clone();
-        self.drop = Some(Arc::new(move || drop_message(key.clone())));
-        self.hover_drop = Some(Arc::new(move |position| {
-            hover_drop_message(hover_key.clone(), position)
-        }));
         self
     }
 

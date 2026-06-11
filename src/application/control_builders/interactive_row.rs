@@ -450,6 +450,11 @@ pub fn interactive_row() -> InteractiveRowBuilder {
     }
 }
 
+/// Build an empty interactive row action router.
+pub fn row_actions<Message>() -> InteractiveRowActions<Message> {
+    InteractiveRowActions::new()
+}
+
 /// Build arbitrary visible content backed by an interactive row underlay.
 ///
 /// The content remains visible above the row, while the backing row owns
@@ -704,11 +709,10 @@ mod tests {
 
     #[test]
     fn interactive_row_actions_route_keyed_drop_targets() {
-        let actions = InteractiveRowActions::new().drop_target_key(
-            String::from("target-a"),
-            DemoMessage::DropKey,
-            DemoMessage::HoverDropKey,
-        );
+        let target = String::from("target-a");
+        let actions = row_actions()
+            .drop_key(target.clone(), DemoMessage::DropKey)
+            .hover_drop_key(target, DemoMessage::HoverDropKey);
         let hover = Point::new(6.0, 12.0);
 
         assert_eq!(

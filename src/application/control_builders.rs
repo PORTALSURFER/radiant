@@ -42,7 +42,7 @@ pub use feedback_overlay::{FeedbackOverlayBuilder, feedback_overlay};
 pub use icon_button::{IconButtonBuilder, close_button, disclosure_button, icon_button};
 pub use interactive_row::{
     InteractiveRowActions, InteractiveRowBuilder, InteractiveRowUnderlayBuilder, interactive_row,
-    interactive_row_underlay,
+    interactive_row_underlay, row_actions,
 };
 pub use marker_run::{ColorMarkerRunBuilder, MarkerRunBuilder, marker_run, marker_run_colors};
 pub use pointer_shield::{

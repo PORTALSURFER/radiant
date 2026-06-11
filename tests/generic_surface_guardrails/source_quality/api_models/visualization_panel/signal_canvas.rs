@@ -60,14 +60,24 @@ fn canvas_layer_state_uses_named_parts_for_hit_test_fields() {
     let source_path = manifest_dir.join("src/gui/visualization/canvas.rs");
     let source = fs::read_to_string(&source_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+    let layer = fs::read_to_string(manifest_dir.join("src/gui/visualization/canvas/layer.rs"))
+        .expect("canvas layer source should be readable");
 
     assert!(
-        source.contains("pub struct CanvasLayerParts")
-            && source.contains("pub fn from_parts(parts: CanvasLayerParts) -> Self"),
+        source.contains("mod layer;")
+            && source.contains(
+                "pub use layer::{CanvasLayer, CanvasLayerOrder, CanvasLayerParts, canvas_layer_at_point};"
+            ),
+        "canvas root should keep the public layer exports while delegating layer state"
+    );
+
+    assert!(
+        layer.contains("pub struct CanvasLayerParts")
+            && layer.contains("pub fn from_parts(parts: CanvasLayerParts) -> Self"),
         "canvas layer state should expose named parts for readable public construction"
     );
     assert!(
-        source.contains("Self::from_parts(CanvasLayerParts {"),
+        layer.contains("Self::from_parts(CanvasLayerParts {"),
         "the positional compatibility constructor should delegate through the named parts object"
     );
 }

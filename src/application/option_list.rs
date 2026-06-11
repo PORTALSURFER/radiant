@@ -255,8 +255,11 @@ fn compact_option_list_from_parts_with_interaction_impl<Message: 'static>(
     let max_visible_rows = parts.max_visible_rows;
     let row_height = parts.row_height;
     let vertical_chrome = parts.vertical_chrome;
-    let primary_label_width = parts.primary_label_width;
-    let column_gap = parts.column_gap;
+    let row_metrics = CompactOptionListRowMetrics {
+        height: row_height,
+        primary_label_width: parts.primary_label_width,
+        column_gap: parts.column_gap,
+    };
     let style = parts.style;
     let padding = parts.padding;
     let rows = parts
@@ -267,9 +270,7 @@ fn compact_option_list_from_parts_with_interaction_impl<Message: 'static>(
             compact_option_list_row(
                 index,
                 item,
-                row_height,
-                primary_label_width,
-                column_gap,
+                row_metrics,
                 activate.clone(),
                 hover.clone(),
                 pointer_move,
@@ -365,24 +366,29 @@ fn compact_option_list_anchored_with_interaction_impl<Message: 'static>(
     )
 }
 
+#[derive(Clone, Copy)]
+struct CompactOptionListRowMetrics {
+    height: f32,
+    primary_label_width: f32,
+    column_gap: f32,
+}
+
 fn compact_option_list_row<Message: 'static>(
     index: usize,
     item: CompactOptionListItem,
-    row_height: f32,
-    primary_label_width: f32,
-    column_gap: f32,
+    metrics: CompactOptionListRowMetrics,
     activate: impl Fn(usize) -> Option<Message> + Send + Sync + 'static,
     hover: impl Fn(usize) -> Option<Message> + Send + Sync + 'static,
     pointer_move: bool,
 ) -> ViewNode<Message> {
     let primary_label = text(item.primary_label)
-        .height(row_height)
-        .width(primary_label_width.max(0.0))
+        .height(metrics.height)
+        .width(metrics.primary_label_width.max(0.0))
         .truncate();
     row([
         primary_label,
         text(item.secondary_label.unwrap_or_default())
-            .height(row_height)
+            .height(metrics.height)
             .fill_width()
             .truncate(),
     ])
@@ -392,9 +398,9 @@ fn compact_option_list_row<Message: 'static>(
     } else {
         WidgetStyle::default()
     })
-    .height(row_height)
+    .height(metrics.height)
     .fill_width()
-    .spacing(column_gap.max(0.0))
+    .spacing(metrics.column_gap.max(0.0))
     .pointer_target(
         pointer_target(true)
             .pointer_move(pointer_move)

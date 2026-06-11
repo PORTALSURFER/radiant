@@ -2,6 +2,12 @@
 
 use radiant::prelude::*;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum StylingMessage {
+    Noop,
+    SetToggle(bool),
+}
+
 #[derive(Clone, Debug, Default)]
 struct StylingState {
     toggle_enabled: bool,
@@ -13,39 +19,38 @@ fn main() -> radiant::Result {
         .size(360, 220)
         .min_size(280, 180)
         .view(styling_view)
+        .update(update)
         .run()
 }
 
-fn styling_view(state: &mut StylingState) -> View<StateAction<StylingState>> {
+fn styling_view(state: &mut StylingState) -> View<StylingMessage> {
     column([
         text("Button styles").size(160.0, 28.0),
         row([
-            button("Default").on_click(|_: &mut StylingState| {}).id(10),
+            button("Default").message(StylingMessage::Noop).id(10),
             button("Primary")
                 .primary()
-                .on_click(|_: &mut StylingState| {})
+                .message(StylingMessage::Noop)
                 .id(11),
             button("Danger")
                 .danger()
-                .on_click(|_: &mut StylingState| {})
+                .message(StylingMessage::Noop)
                 .id(12),
         ])
         .spacing(8.0),
         row([
             button("Subtle")
                 .subtle()
-                .on_click(|_: &mut StylingState| {})
+                .message(StylingMessage::Noop)
                 .id(13),
             toggle("Toggle", state.toggle_enabled)
-                .on_change(|state: &mut StylingState, enabled| {
-                    state.toggle_enabled = enabled;
-                })
+                .message(StylingMessage::SetToggle)
                 .id(14),
         ])
         .spacing(8.0),
         row([
             text("Hoverable row").fill_width(),
-            button("Open").on_click(|_: &mut StylingState| {}).id(15),
+            button("Open").message(StylingMessage::Noop).id(15),
         ])
         .style(WidgetStyle::default())
         .hoverable()
@@ -54,6 +59,13 @@ fn styling_view(state: &mut StylingState) -> View<StateAction<StylingState>> {
     ])
     .padding(16.0)
     .spacing(12.0)
+}
+
+fn update(state: &mut StylingState, message: StylingMessage) {
+    match message {
+        StylingMessage::Noop => {}
+        StylingMessage::SetToggle(enabled) => state.toggle_enabled = enabled,
+    }
 }
 
 #[cfg(test)]

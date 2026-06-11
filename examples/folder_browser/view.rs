@@ -2,13 +2,11 @@ use super::file_view::file_view;
 use super::tree::{folder_tree, splitter};
 use super::*;
 
-const SURFACE_WIDTH: f32 = 900.0;
-const SURFACE_HEIGHT: f32 = 540.0;
 const FOLDER_MENU_SIZE: ui::Vector2 = ui::Vector2 { x: 190.0, y: 126.0 };
 const FILE_MENU_SIZE: ui::Vector2 = ui::Vector2 { x: 190.0, y: 126.0 };
 const COLUMN_MENU_SIZE: ui::Vector2 = ui::Vector2 { x: 210.0, y: 250.0 };
 
-pub(super) fn project_surface(state: &mut BrowserState) -> ui::StateView<BrowserState> {
+pub(super) fn project_surface(state: &mut BrowserState) -> ui::View<BrowserMessage> {
     let page = ui::column([
         header(state),
         ui::row([folder_tree(state), splitter(), file_view(state)])
@@ -37,7 +35,7 @@ fn has_context_menu(state: &BrowserState) -> bool {
         || state.context.context_column.is_some()
 }
 
-fn header(state: &BrowserState) -> ui::StateView<BrowserState> {
+fn header(state: &BrowserState) -> ui::View<BrowserMessage> {
     ui::row([
         ui::text("Folder browser").size(170.0, 24.0),
         ui::text(format!(
@@ -53,29 +51,25 @@ fn header(state: &BrowserState) -> ui::StateView<BrowserState> {
     .spacing(12.0)
 }
 
-fn context_menu_layer(state: &BrowserState) -> ui::StateView<BrowserState> {
-    let bounds = ui::Rect::from_min_size(
-        ui::Point::new(0.0, 0.0),
-        ui::Vector2::new(SURFACE_WIDTH, SURFACE_HEIGHT),
-    );
+fn context_menu_layer(state: &BrowserState) -> ui::View<BrowserMessage> {
     let anchor = state.context.context_position.unwrap_or_default();
     if let Some(folder_id) = state.context.context_folder.as_ref() {
-        return ui::context_menu_overlay(
-            bounds,
+        return ui::message_context_menu_overlay(
             anchor,
             FOLDER_MENU_SIZE,
             folder_context_menu_title(state, folder_id),
             [
-                ui::MenuItem::new("Rename", BrowserState::begin_rename_from_context).primary(),
-                ui::MenuItem::new("New Folder", BrowserState::create_folder_from_context).subtle(),
-                ui::MenuItem::new("Cancel", BrowserState::close_context_menu).subtle(),
+                ui::MenuCommand::new("Rename", BrowserMessage::BeginFolderRenameFromContext)
+                    .primary(),
+                ui::MenuCommand::new("New Folder", BrowserMessage::CreateFolderFromContext)
+                    .subtle(),
+                ui::MenuCommand::new("Cancel", BrowserMessage::CloseFolderContextMenu).subtle(),
             ],
         )
         .key("context-menu-overlay");
     }
     if let Some(column_id) = state.context.context_column.as_ref() {
-        return ui::context_menu_overlay(
-            bounds,
+        return ui::message_context_menu_overlay(
             anchor,
             COLUMN_MENU_SIZE,
             column_context_menu_title(state, column_id),
@@ -84,15 +78,15 @@ fn context_menu_layer(state: &BrowserState) -> ui::StateView<BrowserState> {
         .key("context-menu-overlay");
     }
     if let Some(file_id) = state.context.context_file.as_ref() {
-        return ui::context_menu_overlay(
-            bounds,
+        return ui::message_context_menu_overlay(
             anchor,
             FILE_MENU_SIZE,
             file_context_menu_title(state, file_id),
             [
-                ui::MenuItem::new("Rename", BrowserState::begin_file_rename_from_context).primary(),
-                ui::MenuItem::new("Delete", BrowserState::delete_file_from_context).subtle(),
-                ui::MenuItem::new("Cancel", BrowserState::close_file_context_menu).subtle(),
+                ui::MenuCommand::new("Rename", BrowserMessage::BeginFileRenameFromContext)
+                    .primary(),
+                ui::MenuCommand::new("Delete", BrowserMessage::DeleteFileFromContext).subtle(),
+                ui::MenuCommand::new("Cancel", BrowserMessage::CloseFileContextMenu).subtle(),
             ],
         )
         .key("context-menu-overlay");
@@ -130,7 +124,7 @@ fn column_context_menu_title(state: &BrowserState, column_id: &str) -> String {
     format!("Columns from {column_name}")
 }
 
-fn column_context_menu_items(state: &BrowserState) -> Vec<ui::MenuItem<BrowserState>> {
+fn column_context_menu_items(state: &BrowserState) -> Vec<ui::MenuCommand<BrowserMessage>> {
     let mut items = state
         .columns
         .file_columns
@@ -143,21 +137,18 @@ fn column_context_menu_items(state: &BrowserState) -> Vec<ui::MenuItem<BrowserSt
             } else {
                 format!("{marker} {}", column.label)
             };
-            ui::MenuItem::new(label, move |state: &mut BrowserState| {
-                state.toggle_file_column(id.clone());
-            })
-            .subtle()
+            ui::MenuCommand::new(label, BrowserMessage::ToggleFileColumn(id)).subtle()
         })
         .collect::<Vec<_>>();
-    items.push(ui::MenuItem::new("Reset Defaults", BrowserState::reset_file_columns).primary());
-    items.push(ui::MenuItem::new("Close", BrowserState::close_column_context_menu).subtle());
+    items.push(ui::MenuCommand::new("Reset Defaults", BrowserMessage::ResetFileColumns).primary());
+    items.push(ui::MenuCommand::new("Close", BrowserMessage::CloseColumnContextMenu).subtle());
     items
 }
 
 pub(super) fn panel(
     title: impl Into<String>,
-    content: ui::StateView<BrowserState>,
-) -> ui::StateView<BrowserState> {
+    content: ui::View<BrowserMessage>,
+) -> ui::View<BrowserMessage> {
     ui::column([ui::text(title).fill_width().height(22.0), content])
         .style(ui::WidgetStyle::default())
         .fill_width()

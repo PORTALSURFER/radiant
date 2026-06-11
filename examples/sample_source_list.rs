@@ -2,6 +2,14 @@
 
 use radiant::prelude::*;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum SourceListMessage {
+    AddAfterSelection,
+    AddAfter(u64),
+    Select(u64),
+    Remove(u64),
+}
+
 #[derive(Clone, Debug)]
 struct SampleSource {
     id: u64,
@@ -81,16 +89,17 @@ fn main() -> radiant::Result {
         .size(520, 360)
         .min_size(380, 240)
         .view(project_surface)
+        .update(update)
         .run()
 }
 
-fn project_surface(state: &mut SourceListState) -> StateView<SourceListState> {
+fn project_surface(state: &mut SourceListState) -> View<SourceListMessage> {
     column([
         row([
             text("Sample Sources").height(30.0).fill_width(),
             button("+")
                 .primary()
-                .on_click(|state: &mut SourceListState| state.add_after(state.selected_id))
+                .message(SourceListMessage::AddAfterSelection)
                 .size(32.0, 32.0),
         ])
         .fill_width()
@@ -106,37 +115,42 @@ fn project_surface(state: &mut SourceListState) -> StateView<SourceListState> {
     .fill()
 }
 
-fn source_row(source: SampleSource, selected_id: Option<u64>) -> StateView<SourceListState> {
+fn source_row(source: SampleSource, selected_id: Option<u64>) -> View<SourceListMessage> {
     let id = source.id;
     let selected = selected_id == Some(id);
     list_row_id(
         id,
         [
             selectable(source.name, selected)
-                .on_change(move |state: &mut SourceListState, selected| {
-                    if selected {
-                        state.select(id);
-                    }
-                })
+                .message(move |_| SourceListMessage::Select(id))
                 .fill_width(),
             text(source.folder).height(28.0).fill_width(),
             button("+")
                 .subtle()
-                .on_click(move |state: &mut SourceListState| state.add_after(Some(id)))
+                .message(SourceListMessage::AddAfter(id))
                 .size(32.0, 32.0),
             selected_remove_button(id, selected),
         ],
     )
 }
 
-fn selected_remove_button(id: u64, selected: bool) -> StateView<SourceListState> {
+fn selected_remove_button(id: u64, selected: bool) -> View<SourceListMessage> {
     if selected {
         button("-")
             .danger()
-            .on_click(move |state: &mut SourceListState| state.remove(id))
+            .message(SourceListMessage::Remove(id))
             .size(32.0, 32.0)
     } else {
         text("").size(32.0, 32.0)
+    }
+}
+
+fn update(state: &mut SourceListState, message: SourceListMessage) {
+    match message {
+        SourceListMessage::AddAfterSelection => state.add_after(state.selected_id),
+        SourceListMessage::AddAfter(id) => state.add_after(Some(id)),
+        SourceListMessage::Select(id) => state.select(id),
+        SourceListMessage::Remove(id) => state.remove(id),
     }
 }
 

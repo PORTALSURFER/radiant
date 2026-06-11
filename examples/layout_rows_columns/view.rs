@@ -7,7 +7,16 @@ mod grid;
 #[cfg(test)]
 pub(super) use grid::{grid_is_crowded, grid_spacing};
 
-pub(super) fn project_surface(state: &mut LayoutDemoState) -> ui::StateView<LayoutDemoState> {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum LayoutDemoMessage {
+    SetSidebarVisible(bool),
+    SetNestedVisible(bool),
+    AdjustColumns(isize),
+    AdjustRows(isize),
+    AdjustDepth(isize),
+}
+
+pub(super) fn project_surface(state: &mut LayoutDemoState) -> ui::View<LayoutDemoMessage> {
     ui::column([header(), controls(state), playground(state)])
         .padding(16.0)
         .spacing(12.0)
@@ -15,7 +24,7 @@ pub(super) fn project_surface(state: &mut LayoutDemoState) -> ui::StateView<Layo
         .fill_height()
 }
 
-fn header() -> ui::StateView<LayoutDemoState> {
+fn header() -> ui::View<LayoutDemoMessage> {
     ui::column([
         ui::text("Rows and columns").size(240.0, 30.0),
         ui::text(
@@ -28,15 +37,15 @@ fn header() -> ui::StateView<LayoutDemoState> {
     .fill_width()
 }
 
-fn controls(state: &LayoutDemoState) -> ui::StateView<LayoutDemoState> {
+fn controls(state: &LayoutDemoState) -> ui::View<LayoutDemoMessage> {
     ui::column([
         ui::row([
             ui::checkbox(state.show_sidebar)
-                .on_change(|state: &mut LayoutDemoState, show| state.show_sidebar = show)
+                .message(LayoutDemoMessage::SetSidebarVisible)
                 .size(22.0, 22.0),
             ui::text("Sidebar").size(82.0, 24.0),
             ui::checkbox(state.show_nested)
-                .on_change(|state: &mut LayoutDemoState, show| state.show_nested = show)
+                .message(LayoutDemoMessage::SetNestedVisible)
                 .size(22.0, 22.0),
             ui::text("Nested cells").size(112.0, 24.0),
             ui::text(format!("Grid: {} x {}", state.columns, state.rows))
@@ -46,24 +55,12 @@ fn controls(state: &LayoutDemoState) -> ui::StateView<LayoutDemoState> {
         .fill_width()
         .spacing(8.0),
         ui::row([
-            control_button("Columns -", |state| {
-                state.columns = state.columns.saturating_sub(1).max(MIN_COLUMNS);
-            }),
-            control_button("Columns +", |state| {
-                state.columns = (state.columns + 1).min(MAX_COLUMNS);
-            }),
-            control_button("Rows -", |state| {
-                state.rows = state.rows.saturating_sub(1).max(MIN_ROWS);
-            }),
-            control_button("Rows +", |state| {
-                state.rows = (state.rows + 1).min(MAX_ROWS);
-            }),
-            control_button("Depth -", |state| {
-                state.depth = state.depth.saturating_sub(1);
-            }),
-            control_button("Depth +", |state| {
-                state.depth = (state.depth + 1).min(MAX_DEPTH);
-            }),
+            control_button("Columns -", LayoutDemoMessage::AdjustColumns(-1)),
+            control_button("Columns +", LayoutDemoMessage::AdjustColumns(1)),
+            control_button("Rows -", LayoutDemoMessage::AdjustRows(-1)),
+            control_button("Rows +", LayoutDemoMessage::AdjustRows(1)),
+            control_button("Depth -", LayoutDemoMessage::AdjustDepth(-1)),
+            control_button("Depth +", LayoutDemoMessage::AdjustDepth(1)),
         ])
         .fill_width()
         .spacing(8.0),
@@ -75,18 +72,15 @@ fn controls(state: &LayoutDemoState) -> ui::StateView<LayoutDemoState> {
     .spacing(10.0)
 }
 
-fn control_button(
-    label: &'static str,
-    apply: impl Fn(&mut LayoutDemoState) + Send + Sync + 'static,
-) -> ui::StateView<LayoutDemoState> {
+fn control_button(label: &'static str, message: LayoutDemoMessage) -> ui::View<LayoutDemoMessage> {
     ui::button(label)
-        .on_click(apply)
+        .message(message)
         .min_size(86.0, 32.0)
         .preferred_size(108.0, 32.0)
         .fill_width()
 }
 
-fn playground(state: &LayoutDemoState) -> ui::StateView<LayoutDemoState> {
+fn playground(state: &LayoutDemoState) -> ui::View<LayoutDemoMessage> {
     let mut sections = Vec::new();
     if state.show_sidebar {
         sections.push(sidebar_panel(state));
@@ -101,7 +95,7 @@ fn playground(state: &LayoutDemoState) -> ui::StateView<LayoutDemoState> {
         .spacing(12.0)
 }
 
-fn sidebar_panel(state: &LayoutDemoState) -> ui::StateView<LayoutDemoState> {
+fn sidebar_panel(state: &LayoutDemoState) -> ui::View<LayoutDemoMessage> {
     panel(
         "Fixed sidebar",
         ui::column([
@@ -124,7 +118,7 @@ fn sidebar_panel(state: &LayoutDemoState) -> ui::StateView<LayoutDemoState> {
     .size(210.0, 320.0)
 }
 
-fn metric_row(label: &'static str, value: usize) -> ui::StateView<LayoutDemoState> {
+fn metric_row(label: &'static str, value: usize) -> ui::View<LayoutDemoMessage> {
     ui::row([
         ui::text(label).fill_width().height(30.0),
         ui::text(value.to_string()).size(42.0, 30.0),
@@ -138,8 +132,8 @@ fn metric_row(label: &'static str, value: usize) -> ui::StateView<LayoutDemoStat
 
 fn panel(
     title: impl Into<String>,
-    content: ui::StateView<LayoutDemoState>,
-) -> ui::StateView<LayoutDemoState> {
+    content: ui::View<LayoutDemoMessage>,
+) -> ui::View<LayoutDemoMessage> {
     ui::column([ui::text(title).fill_width().height(24.0), content])
         .style(ui::WidgetStyle {
             tone: ui::WidgetTone::Accent,
@@ -151,7 +145,7 @@ fn panel(
         .spacing(8.0)
 }
 
-fn fixed_tile(label: impl Into<String>, height: f32) -> ui::StateView<LayoutDemoState> {
+fn fixed_tile(label: impl Into<String>, height: f32) -> ui::View<LayoutDemoMessage> {
     ui::text(label)
         .style(ui::WidgetStyle::default())
         .fill_width()
@@ -162,15 +156,35 @@ fn fixed_size_tile(
     label: impl Into<String>,
     width: f32,
     height: f32,
-) -> ui::StateView<LayoutDemoState> {
+) -> ui::View<LayoutDemoMessage> {
     ui::text(label)
         .style(ui::WidgetStyle::default())
         .size(width, height)
 }
 
-fn fill_tile(label: impl Into<String>) -> ui::StateView<LayoutDemoState> {
+fn fill_tile(label: impl Into<String>) -> ui::View<LayoutDemoMessage> {
     ui::text(label)
         .style(ui::WidgetStyle::default())
         .fill_width()
         .fill_height()
+}
+
+pub(super) fn update(state: &mut LayoutDemoState, message: LayoutDemoMessage) {
+    match message {
+        LayoutDemoMessage::SetSidebarVisible(show) => state.show_sidebar = show,
+        LayoutDemoMessage::SetNestedVisible(show) => state.show_nested = show,
+        LayoutDemoMessage::AdjustColumns(delta) => {
+            state.columns = adjust_bounded(state.columns, delta, MIN_COLUMNS, MAX_COLUMNS);
+        }
+        LayoutDemoMessage::AdjustRows(delta) => {
+            state.rows = adjust_bounded(state.rows, delta, MIN_ROWS, MAX_ROWS);
+        }
+        LayoutDemoMessage::AdjustDepth(delta) => {
+            state.depth = adjust_bounded(state.depth, delta, 0, MAX_DEPTH);
+        }
+    }
+}
+
+fn adjust_bounded(value: usize, delta: isize, min: usize, max: usize) -> usize {
+    value.saturating_add_signed(delta).clamp(min, max)
 }

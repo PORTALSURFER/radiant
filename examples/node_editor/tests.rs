@@ -1,16 +1,19 @@
 use radiant::{
     layout::{Point, Vector2},
-    prelude::StateAction,
     runtime::{RuntimeBridge, SurfaceRuntime},
     widgets::{PointerButton, TextWidget, WidgetInput, WidgetKey},
 };
 
-use crate::{model::NodeEditorState, view::project_surface};
+use crate::{
+    model::NodeEditorState,
+    view::{NodeEditorMessage, project_surface, update},
+};
 
 #[test]
 fn node_editor_routes_drag_selection_and_rewiring_through_public_builders() {
     let bridge = radiant::app(NodeEditorState::default())
         .view(project_surface)
+        .update(update)
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(780.0, 420.0));
 
@@ -75,17 +78,17 @@ fn node_editor_routes_drag_selection_and_rewiring_through_public_builders() {
     assert!(status.contains("filter wired to output"));
 }
 
-fn click<Bridge>(runtime: &mut SurfaceRuntime<Bridge, StateAction<NodeEditorState>>, widget_id: u64)
+fn click<Bridge>(runtime: &mut SurfaceRuntime<Bridge, NodeEditorMessage>, widget_id: u64)
 where
-    Bridge: RuntimeBridge<StateAction<NodeEditorState>>,
+    Bridge: RuntimeBridge<NodeEditorMessage>,
 {
     assert!(runtime.focus_widget(widget_id));
     assert!(runtime.dispatch_input(widget_id, WidgetInput::KeyPress(WidgetKey::Enter),));
 }
 
-fn status_text<Bridge>(runtime: &SurfaceRuntime<Bridge, StateAction<NodeEditorState>>) -> String
+fn status_text<Bridge>(runtime: &SurfaceRuntime<Bridge, NodeEditorMessage>) -> String
 where
-    Bridge: RuntimeBridge<StateAction<NodeEditorState>>,
+    Bridge: RuntimeBridge<NodeEditorMessage>,
 {
     runtime
         .surface()

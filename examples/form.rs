@@ -1,6 +1,13 @@
-//! Small form showing text input, toggle, and direct state callbacks.
+//! Small form showing text input, toggle, and message-first state updates.
 
 use radiant::prelude::*;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum FormMessage {
+    SetName(String),
+    SetEnabled(bool),
+    Submit,
+}
 
 struct FormState {
     name: String,
@@ -28,19 +35,12 @@ fn main() -> radiant::Result {
                 row([
                     text("Name").size(72.0, 28.0),
                     text_input(state.name.clone())
-                        .bind(|state: &mut FormState| &mut state.name)
+                        .message(FormMessage::SetName)
                         .fill_width(),
                 ])
                 .fill_width(),
                 row([
-                    toggle("Enabled", state.enabled).on_change(|state: &mut FormState, enabled| {
-                        state.enabled = enabled;
-                        state.submitted = if enabled {
-                            String::from("Form enabled")
-                        } else {
-                            String::from("Form disabled")
-                        };
-                    }),
+                    toggle("Enabled", state.enabled).message(FormMessage::SetEnabled),
                     text(if state.enabled {
                         "Status: edits will submit"
                     } else {
@@ -52,15 +52,7 @@ fn main() -> radiant::Result {
                 .fill_width()
                 .spacing(12.0),
                 row([
-                    button("Submit")
-                        .primary()
-                        .on_click(|state: &mut FormState| {
-                            state.submitted = if state.enabled {
-                                state.name.clone()
-                            } else {
-                                String::from("Blocked: form disabled")
-                            };
-                        }),
+                    button("Submit").primary().message(FormMessage::Submit),
                     text(format!("Submitted: {}", state.submitted)).fill_width(),
                 ])
                 .fill_width(),
@@ -68,5 +60,27 @@ fn main() -> radiant::Result {
             .padding(16.0)
             .spacing(10.0)
         })
+        .update(update)
         .run()
+}
+
+fn update(state: &mut FormState, message: FormMessage) {
+    match message {
+        FormMessage::SetName(name) => state.name = name,
+        FormMessage::SetEnabled(enabled) => {
+            state.enabled = enabled;
+            state.submitted = if enabled {
+                String::from("Form enabled")
+            } else {
+                String::from("Form disabled")
+            };
+        }
+        FormMessage::Submit => {
+            state.submitted = if state.enabled {
+                state.name.clone()
+            } else {
+                String::from("Blocked: form disabled")
+            };
+        }
+    }
 }

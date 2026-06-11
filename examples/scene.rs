@@ -1,5 +1,6 @@
 //! Declarative scene root example.
 
+use radiant::Layer;
 use radiant::layout::{Point, Vector2};
 use radiant::prelude::*;
 

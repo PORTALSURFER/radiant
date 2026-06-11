@@ -2,20 +2,16 @@
 
 use radiant::prelude::*;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum OverlayMessage {
+    CountClick,
+    ToggleMenu,
+}
+
 #[derive(Default)]
 struct OverlayExampleState {
     clicks: usize,
     menu_open: bool,
-}
-
-impl OverlayExampleState {
-    fn toggle_menu(&mut self) {
-        self.menu_open = !self.menu_open;
-    }
-
-    fn count_click(&mut self) {
-        self.clicks += 1;
-    }
 }
 
 fn main() -> radiant::Result {
@@ -30,7 +26,7 @@ fn main() -> radiant::Result {
                     .height(24.0)
                     .fill_width(),
                 button("Button under the floating layer")
-                    .on_click(OverlayExampleState::count_click)
+                    .message(OverlayMessage::CountClick)
                     .height(32.0)
                     .fill_width(),
                 button(if state.menu_open {
@@ -39,7 +35,7 @@ fn main() -> radiant::Result {
                     "Show Overlay"
                 })
                 .primary()
-                .on_click(OverlayExampleState::toggle_menu)
+                .message(OverlayMessage::ToggleMenu)
                 .height(32.0)
                 .fill_width(),
             ])
@@ -65,7 +61,15 @@ fn main() -> radiant::Result {
                 page
             }
         })
+        .update(update)
         .run()
+}
+
+fn update(state: &mut OverlayExampleState, message: OverlayMessage) {
+    match message {
+        OverlayMessage::CountClick => state.clicks += 1,
+        OverlayMessage::ToggleMenu => state.menu_open = !state.menu_open,
+    }
 }
 
 fn overlay_menu<Message: 'static>() -> ViewNode<Message> {

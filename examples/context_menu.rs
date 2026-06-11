@@ -1,10 +1,14 @@
 //! Context-menu application-builder helper.
 
+use radiant::layout::{Point, Vector2};
 use radiant::prelude::*;
-use radiant::{
-    gui::types::Rect,
-    layout::{Point, Vector2},
-};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ContextMenuMessage {
+    OpenMenu,
+    CloseMenu,
+    ApplyAction(&'static str),
+}
 
 #[derive(Clone, Debug)]
 struct ContextMenuState {
@@ -23,23 +27,6 @@ impl Default for ContextMenuState {
     }
 }
 
-impl ContextMenuState {
-    fn open_menu(&mut self) {
-        self.menu_open = true;
-        self.status = "Context menu opened".to_string();
-    }
-
-    fn close_menu(&mut self) {
-        self.menu_open = false;
-        self.status = "Context menu closed".to_string();
-    }
-
-    fn apply_action(&mut self, label: &'static str) {
-        self.menu_open = false;
-        self.status = format!("Selected: {label}");
-    }
-}
-
 fn main() -> radiant::Result {
     radiant::app(ContextMenuState::default())
         .title("Radiant Context Menu")
@@ -51,7 +38,7 @@ fn main() -> radiant::Result {
                 text(state.status.clone()).height(28.0).fill_width(),
                 button("Open Menu")
                     .primary()
-                    .on_click(ContextMenuState::open_menu)
+                    .message(ContextMenuMessage::OpenMenu)
                     .width(140.0)
                     .height(32.0),
             ])
@@ -64,25 +51,21 @@ fn main() -> radiant::Result {
             if state.menu_open {
                 stack([
                     page,
-                    context_menu_overlay(
-                        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(520.0, 260.0)),
+                    message_context_menu_overlay(
                         state.anchor,
                         Vector2::new(180.0, 144.0),
                         "Actions",
                         [
-                            MenuItem::new("Inspect", |state: &mut ContextMenuState| {
-                                state.apply_action("Inspect")
-                            })
-                            .primary(),
-                            MenuItem::new("Duplicate", |state: &mut ContextMenuState| {
-                                state.apply_action("Duplicate")
-                            })
+                            MenuCommand::new("Inspect", ContextMenuMessage::ApplyAction("Inspect"))
+                                .primary(),
+                            MenuCommand::new(
+                                "Duplicate",
+                                ContextMenuMessage::ApplyAction("Duplicate"),
+                            )
                             .subtle(),
-                            MenuItem::new("Delete", |state: &mut ContextMenuState| {
-                                state.apply_action("Delete")
-                            })
-                            .danger(),
-                            MenuItem::new("Cancel", ContextMenuState::close_menu).subtle(),
+                            MenuCommand::new("Delete", ContextMenuMessage::ApplyAction("Delete"))
+                                .danger(),
+                            MenuCommand::new("Cancel", ContextMenuMessage::CloseMenu).subtle(),
                         ],
                     )
                     .key("context-menu-overlay"),
@@ -93,5 +76,23 @@ fn main() -> radiant::Result {
                 page
             }
         })
+        .update(update)
         .run()
+}
+
+fn update(state: &mut ContextMenuState, message: ContextMenuMessage) {
+    match message {
+        ContextMenuMessage::OpenMenu => {
+            state.menu_open = true;
+            state.status = "Context menu opened".to_string();
+        }
+        ContextMenuMessage::CloseMenu => {
+            state.menu_open = false;
+            state.status = "Context menu closed".to_string();
+        }
+        ContextMenuMessage::ApplyAction(label) => {
+            state.menu_open = false;
+            state.status = format!("Selected: {label}");
+        }
+    }
 }

@@ -2,6 +2,12 @@
 
 use radiant::prelude::*;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum InspectorMessage {
+    SelectProperty(String),
+    SetLocked(bool),
+}
+
 #[derive(Clone, Debug)]
 struct InspectorState {
     selected: String,
@@ -20,11 +26,6 @@ impl Default for InspectorState {
 }
 
 impl InspectorState {
-    fn select_property(&mut self, id: String) {
-        self.selected = id.clone();
-        self.note = format!("Selected property: {id}");
-    }
-
     fn rows(&self) -> Vec<PropertyRow> {
         [
             PropertyRow::new("name", "Name", "Layer 12"),
@@ -48,25 +49,14 @@ fn main() -> radiant::Result {
         .min_size(420, 220)
         .view(|state| {
             row([
-                selectable_property_panel(
-                    "Inspector",
-                    state.rows(),
-                    Some(InspectorState::select_property),
-                )
-                .width(260.0)
-                .fill_height(),
+                inspector_panel_view(state.rows())
+                    .width(260.0)
+                    .fill_height(),
                 column([
                     text("Preview").height(24.0).fill_width(),
                     text(state.note.clone()).fill_width().height(28.0),
                     checkbox(state.locked)
-                        .on_change(|state: &mut InspectorState, locked| {
-                            state.locked = locked;
-                            state.note = if locked {
-                                "Layer locked".to_string()
-                            } else {
-                                "Layer unlocked".to_string()
-                            };
-                        })
+                        .message(InspectorMessage::SetLocked)
                         .key("locked-toggle")
                         .height(28.0),
                 ])
@@ -81,5 +71,71 @@ fn main() -> radiant::Result {
             .padding(12.0)
             .spacing(10.0)
         })
+        .update(update)
         .run()
+}
+
+fn inspector_panel_view(rows: Vec<PropertyRow>) -> View<InspectorMessage> {
+    column([
+        text("Inspector").height(20.0).fill_width(),
+        column(rows.into_iter().map(inspector_row))
+            .fill_width()
+            .spacing(1.0),
+    ])
+    .style(WidgetStyle::default())
+    .fill_width()
+    .padding(6.0)
+    .spacing(4.0)
+}
+
+fn inspector_row(row_data: PropertyRow) -> View<InspectorMessage> {
+    let selected = row_data.selected;
+    let row_id = row_data.id.clone();
+    let mut view = row([
+        text(row_data.label)
+            .key(format!("property-{row_id}-label"))
+            .size(112.0, 20.0),
+        button(row_data.value)
+            .message(InspectorMessage::SelectProperty(row_id.clone()))
+            .key(format!("property-{row_id}-value"))
+            .subtle()
+            .fill_width()
+            .height(20.0),
+    ])
+    .key(format!("property-row-{row_id}"))
+    .fill_width()
+    .height(24.0)
+    .padding_x(6.0)
+    .padding_y(1.0)
+    .spacing(6.0)
+    .style(if selected {
+        WidgetStyle {
+            tone: WidgetTone::Accent,
+            prominence: WidgetProminence::Subtle,
+        }
+    } else {
+        WidgetStyle::default()
+    })
+    .hoverable();
+    if selected {
+        view = view.primary();
+    }
+    view
+}
+
+fn update(state: &mut InspectorState, message: InspectorMessage) {
+    match message {
+        InspectorMessage::SelectProperty(id) => {
+            state.selected = id.clone();
+            state.note = format!("Selected property: {id}");
+        }
+        InspectorMessage::SetLocked(locked) => {
+            state.locked = locked;
+            state.note = if locked {
+                "Layer locked".to_string()
+            } else {
+                "Layer unlocked".to_string()
+            };
+        }
+    }
 }

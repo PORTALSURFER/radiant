@@ -1,8 +1,8 @@
-use super::{fill_tile, fixed_size_tile, fixed_tile, panel};
+use super::{LayoutDemoMessage, fill_tile, fixed_size_tile, fixed_tile, panel};
 use crate::model::LayoutDemoState;
 use radiant::prelude as ui;
 
-pub(super) fn main_grid_panel(state: &LayoutDemoState) -> ui::StateView<LayoutDemoState> {
+pub(super) fn main_grid_panel(state: &LayoutDemoState) -> ui::View<LayoutDemoMessage> {
     panel(
         "Dynamic split grid",
         ui::column(grid_rows(state))
@@ -14,7 +14,7 @@ pub(super) fn main_grid_panel(state: &LayoutDemoState) -> ui::StateView<LayoutDe
     .fill_height()
 }
 
-fn grid_rows(state: &LayoutDemoState) -> Vec<ui::StateView<LayoutDemoState>> {
+fn grid_rows(state: &LayoutDemoState) -> Vec<ui::View<LayoutDemoMessage>> {
     (0..state.rows)
         .map(|row_index| {
             ui::row(grid_cells(state, row_index))
@@ -25,7 +25,7 @@ fn grid_rows(state: &LayoutDemoState) -> Vec<ui::StateView<LayoutDemoState>> {
         .collect()
 }
 
-fn grid_cells(state: &LayoutDemoState, row_index: usize) -> Vec<ui::StateView<LayoutDemoState>> {
+fn grid_cells(state: &LayoutDemoState, row_index: usize) -> Vec<ui::View<LayoutDemoMessage>> {
     (0..state.columns)
         .map(|column_index| grid_cell(state, row_index, column_index))
         .collect()
@@ -35,7 +35,7 @@ fn grid_cell(
     state: &LayoutDemoState,
     row_index: usize,
     column_index: usize,
-) -> ui::StateView<LayoutDemoState> {
+) -> ui::View<LayoutDemoMessage> {
     if grid_is_crowded(state) {
         return compact_grid_cell(state, row_index, column_index);
     }
@@ -70,7 +70,7 @@ fn compact_grid_cell(
     state: &LayoutDemoState,
     row_index: usize,
     column_index: usize,
-) -> ui::StateView<LayoutDemoState> {
+) -> ui::View<LayoutDemoMessage> {
     let title = format!("C{}.{}", row_index + 1, column_index + 1);
     let summary = if state.show_nested {
         format!("{}x{} d{}", state.columns, state.rows, state.depth)
@@ -104,7 +104,7 @@ pub(crate) fn grid_spacing(state: &LayoutDemoState) -> f32 {
     if grid_is_crowded(state) { 4.0 } else { 8.0 }
 }
 
-fn nested_layout(depth: usize, seed: usize) -> ui::StateView<LayoutDemoState> {
+fn nested_layout(depth: usize, seed: usize) -> ui::View<LayoutDemoMessage> {
     if depth == 0 {
         return fill_tile(format!("Leaf fill {}", seed + 1));
     }

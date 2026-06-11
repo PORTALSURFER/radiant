@@ -6,7 +6,7 @@ mod model;
 mod view;
 
 use model::NodeEditorState;
-use view::project_surface;
+use view::{project_surface, update};
 
 #[cfg(test)]
 #[path = "node_editor/tests.rs"]
@@ -18,5 +18,6 @@ fn main() -> radiant::Result {
         .size(780, 420)
         .min_size(560, 320)
         .view(project_surface)
+        .update(update)
         .run()
 }

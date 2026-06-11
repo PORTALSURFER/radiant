@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(super) fn folder_tree(state: &BrowserState) -> ui::StateView<BrowserState> {
+pub(super) fn folder_tree(state: &BrowserState) -> ui::View<BrowserMessage> {
     let tree = ui::scroll(
         ui::column(
             state
@@ -20,30 +20,26 @@ pub(super) fn folder_tree(state: &BrowserState) -> ui::StateView<BrowserState> {
         .fill_height()
 }
 
-fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::StateView<BrowserState> {
+fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::View<BrowserMessage> {
     let id = folder.id.clone();
     let key = folder.id.clone();
-    let drag_id = folder.id.clone();
     let editing = state.rename.folder.as_deref() == Some(folder.id.as_str());
     let label = if editing {
         ui::row([
             ui::text_input(state.rename.folder_draft.clone())
                 .placeholder("Folder name")
-                .bind_submit(
-                    |state: &mut BrowserState| &mut state.rename.folder_draft,
-                    BrowserState::commit_rename,
-                )
+                .message_event(BrowserMessage::FolderRenameInput)
                 .key(format!("folder-rename-input-{key}"))
                 .fill_width()
                 .height(22.0),
             ui::button("OK")
                 .primary()
-                .on_click(BrowserState::commit_rename)
+                .message(BrowserMessage::CommitFolderRename)
                 .key(format!("folder-rename-ok-{key}"))
                 .size(36.0, 22.0),
             ui::close_button()
                 .subtle()
-                .on_click(BrowserState::cancel_folder_rename)
+                .message(BrowserMessage::CancelFolderRename)
                 .key(format!("folder-rename-cancel-{key}"))
                 .size(28.0, 22.0),
         ])
@@ -51,26 +47,22 @@ fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::StateView<Brow
         .height(22.0)
         .spacing(3.0)
     } else {
-        let select_id = id.clone();
-        let context_id = id.clone();
-        let drag_id = drag_id.clone();
+        let folder_id = id.clone();
         let mut label = if folder.draggable {
-            ui::button(folder.name.clone()).on_click_secondary_at_or_drag(
-                move |state: &mut BrowserState| state.activate_folder(select_id.clone()),
-                move |state: &mut BrowserState, position| {
-                    state.open_context_menu_at(context_id.clone(), position);
-                },
-                move |state: &mut BrowserState, message| {
-                    state.handle_folder_drag(drag_id.clone(), message);
-                },
-            )
+            ui::button(folder.name.clone())
+                .secondary_clicks()
+                .draggable()
+                .mapped(move |event| BrowserMessage::FolderLabel {
+                    folder_id: folder_id.clone(),
+                    event,
+                })
         } else {
-            ui::button(folder.name.clone()).on_click_or_secondary_at(
-                move |state: &mut BrowserState| state.activate_folder(select_id.clone()),
-                move |state: &mut BrowserState, position| {
-                    state.open_context_menu_at(context_id.clone(), position);
-                },
-            )
+            ui::button(folder.name.clone())
+                .secondary_clicks()
+                .mapped(move |event| BrowserMessage::FolderLabel {
+                    folder_id: folder_id.clone(),
+                    event,
+                })
         }
         .key(format!("folder-label-{key}"))
         .align_text(ui::TextAlign::Left)
@@ -87,7 +79,7 @@ fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::StateView<Brow
     let branch_control = if folder.has_children {
         ui::disclosure_button(folder.expanded)
             .subtle()
-            .on_click(move |state: &mut BrowserState| state.toggle_folder(toggle_id.clone()))
+            .message(BrowserMessage::ToggleFolder(toggle_id))
             .key(format!("folder-toggle-{id}"))
             .size(24.0, 22.0)
     } else {
@@ -113,11 +105,11 @@ fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::StateView<Brow
     .hoverable()
 }
 
-pub(super) fn splitter() -> ui::StateView<BrowserState> {
+pub(super) fn splitter() -> ui::View<BrowserMessage> {
     ui::column([
         ui::text("").fill_width().fill_height(),
         ui::drag_handle()
-            .on_drag(|state: &mut BrowserState, message| state.resize_tree(message))
+            .mapped(BrowserMessage::ResizeTree)
             .key("splitter-handle")
             .size(5.0, 28.0),
         ui::text("").fill_width().fill_height(),

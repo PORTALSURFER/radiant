@@ -2,6 +2,14 @@
 
 use radiant::prelude::*;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum GalleryMessage {
+    SetSelected(bool),
+    SetArmed(bool),
+    SetStatus(&'static str),
+    Reset,
+}
+
 #[derive(Clone, Debug)]
 struct GalleryState {
     selected: bool,
@@ -25,16 +33,17 @@ fn main() -> radiant::Result {
         .size(640, 380)
         .min_size(480, 280)
         .view(project_surface)
+        .update(update)
         .run()
 }
 
-fn project_surface(state: &mut GalleryState) -> StateView<GalleryState> {
+fn project_surface(state: &mut GalleryState) -> View<GalleryMessage> {
     column([
         row([
             text("Widget Gallery").height(30.0).fill_width(),
             badge(format!("Status: {}", state.status))
                 .primary()
-                .on_click(|state: &mut GalleryState| state.status = "acknowledged".to_string())
+                .message(GalleryMessage::SetStatus("acknowledged"))
                 .size(148.0, 28.0),
         ])
         .fill_width()
@@ -45,33 +54,23 @@ fn project_surface(state: &mut GalleryState) -> StateView<GalleryState> {
                     "Badges",
                     "Compact labels can still emit activation messages.",
                     row([
-                        badge("Ready").on_click(|state: &mut GalleryState| {
-                            state.status = "ready".to_string()
-                        }),
+                        badge("Ready").message(GalleryMessage::SetStatus("ready")),
                         badge("Warning")
                             .danger()
-                            .on_click(|state: &mut GalleryState| {
-                                state.status = "warning".to_string()
-                            }),
+                            .message(GalleryMessage::SetStatus("warning")),
                     ])
                     .spacing(8.0),
                 ),
                 control_tile(
                     "Selectables",
-                    "Selectable surfaces expose state through the same callback path.",
+                    "Selectable surfaces emit value messages for the update path.",
                     row([
-                        selectable("Primary", state.selected).primary().on_change(
-                            |state: &mut GalleryState, selected| {
-                                state.selected = selected;
-                                state.status =
-                                    if selected { "selected" } else { "cleared" }.to_string();
-                            },
-                        ),
-                        selectable("Armed", state.armed).subtle().on_change(
-                            |state: &mut GalleryState, selected| {
-                                state.armed = selected;
-                            },
-                        ),
+                        selectable("Primary", state.selected)
+                            .primary()
+                            .message(GalleryMessage::SetSelected),
+                        selectable("Armed", state.armed)
+                            .subtle()
+                            .message(GalleryMessage::SetArmed),
                     ])
                     .spacing(8.0),
                 ),
@@ -83,11 +82,7 @@ fn project_surface(state: &mut GalleryState) -> StateView<GalleryState> {
                             .wrap()
                             .height(48.0)
                             .fill_width(),
-                        button("Reset")
-                            .subtle()
-                            .on_click(|state: &mut GalleryState| {
-                                *state = GalleryState::default();
-                            }),
+                        button("Reset").subtle().message(GalleryMessage::Reset),
                     ])
                     .padding(12.0)
                     .spacing(8.0)
@@ -112,8 +107,8 @@ fn project_surface(state: &mut GalleryState) -> StateView<GalleryState> {
 fn control_tile(
     title: &'static str,
     description: &'static str,
-    controls: StateView<GalleryState>,
-) -> StateView<GalleryState> {
+    controls: View<GalleryMessage>,
+) -> View<GalleryMessage> {
     column([
         text(title).height(24.0).fill_width(),
         text(description).wrap().height(48.0).fill_width(),
@@ -127,6 +122,18 @@ fn control_tile(
     .spacing(8.0)
     .height(148.0)
     .fill_width()
+}
+
+fn update(state: &mut GalleryState, message: GalleryMessage) {
+    match message {
+        GalleryMessage::SetSelected(selected) => {
+            state.selected = selected;
+            state.status = if selected { "selected" } else { "cleared" }.to_string();
+        }
+        GalleryMessage::SetArmed(armed) => state.armed = armed,
+        GalleryMessage::SetStatus(status) => state.status = status.to_string(),
+        GalleryMessage::Reset => *state = GalleryState::default(),
+    }
 }
 
 fn summary_text(state: &GalleryState) -> String {

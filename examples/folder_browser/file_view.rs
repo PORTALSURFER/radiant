@@ -6,7 +6,7 @@ mod table;
 use super::*;
 use table::{details_header, file_details_row};
 
-pub(super) fn file_view(state: &BrowserState) -> ui::StateView<BrowserState> {
+pub(super) fn file_view(state: &BrowserState) -> ui::View<BrowserMessage> {
     let folder = state.selected_folder();
     let file_rows = ui::scroll(
         ui::column(
@@ -28,7 +28,7 @@ pub(super) fn file_view(state: &BrowserState) -> ui::StateView<BrowserState> {
         ui::text("Files").fill_width().height(28.0),
         ui::button("New File")
             .primary()
-            .on_click(BrowserState::create_file_in_selected_folder)
+            .message(BrowserMessage::CreateFileInSelectedFolder)
             .size(104.0, 28.0),
     ])
     .fill_width()

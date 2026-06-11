@@ -2,7 +2,7 @@ use std::path::Path;
 
 use super::super::*;
 
-pub(super) fn details_header(state: &BrowserState) -> ui::StateView<BrowserState> {
+pub(super) fn details_header(state: &BrowserState) -> ui::View<BrowserMessage> {
     ui::compact_details_header_row(
         state
             .visible_file_columns()
@@ -17,15 +17,11 @@ pub(super) fn details_header(state: &BrowserState) -> ui::StateView<BrowserState
                     column,
                     ui::row([
                         ui::button(label)
-                            .on_click_or_secondary_at(
-                                move |state: &mut BrowserState| state.sort_by(id.clone()),
-                                {
-                                    let id = column.id.clone();
-                                    move |state: &mut BrowserState, position| {
-                                        state.open_column_context_menu_at(id.clone(), position);
-                                    }
-                                },
-                            )
+                            .secondary_clicks()
+                            .mapped(move |event| BrowserMessage::ColumnHeader {
+                                column_id: id.clone(),
+                                event,
+                            })
                             .key(format!("file-sort-{}", column.id))
                             .fill_width()
                             .height(20.0)
@@ -33,8 +29,9 @@ pub(super) fn details_header(state: &BrowserState) -> ui::StateView<BrowserState
                         {
                             let id = column.id.clone();
                             ui::drag_handle()
-                                .on_drag(move |state: &mut BrowserState, message| {
-                                    state.resize_file_column(id.clone(), message);
+                                .mapped(move |event| BrowserMessage::ResizeFileColumn {
+                                    column_id: id.clone(),
+                                    event,
                                 })
                                 .key(format!("file-column-resize-{}", column.id))
                                 .size(4.0, 20.0)
@@ -49,10 +46,7 @@ pub(super) fn details_header(state: &BrowserState) -> ui::StateView<BrowserState
     )
 }
 
-pub(super) fn file_details_row(
-    state: &BrowserState,
-    file: &FileEntry,
-) -> ui::StateView<BrowserState> {
+pub(super) fn file_details_row(state: &BrowserState, file: &FileEntry) -> ui::View<BrowserMessage> {
     let selected = state.selection.selected_file.as_deref() == Some(file.id.as_str());
     let editing = state.rename.file.as_deref() == Some(file.id.as_str());
     let cells = state
@@ -83,25 +77,22 @@ pub(super) fn file_details_row(
         .hoverable()
 }
 
-fn file_name_editor(state: &BrowserState, file: &FileEntry) -> ui::StateView<BrowserState> {
+fn file_name_editor(state: &BrowserState, file: &FileEntry) -> ui::View<BrowserMessage> {
     ui::row([
         ui::text_input(state.rename.file_draft.clone())
             .placeholder("File name")
-            .bind_submit(
-                |state: &mut BrowserState| &mut state.rename.file_draft,
-                BrowserState::commit_file_rename,
-            )
+            .message_event(BrowserMessage::FileRenameInput)
             .key(format!("file-rename-input-{}", file.id))
             .fill_width()
             .height(20.0),
         ui::button("OK")
             .primary()
-            .on_click(BrowserState::commit_file_rename)
+            .message(BrowserMessage::CommitFileRename)
             .key(format!("file-rename-ok-{}", file.id))
             .size(36.0, 20.0),
         ui::button("X")
             .subtle()
-            .on_click(BrowserState::cancel_file_rename)
+            .message(BrowserMessage::CancelFileRename)
             .key(format!("file-rename-cancel-{}", file.id))
             .size(28.0, 20.0),
     ])
@@ -110,16 +101,14 @@ fn file_name_editor(state: &BrowserState, file: &FileEntry) -> ui::StateView<Bro
     .spacing(3.0)
 }
 
-fn file_name_cell(file: &FileEntry) -> ui::StateView<BrowserState> {
-    let select_id = file.id.clone();
-    let context_id = file.id.clone();
+fn file_name_cell(file: &FileEntry) -> ui::View<BrowserMessage> {
+    let file_id = file.id.clone();
     ui::button(file.name.clone())
-        .on_click_or_secondary_at(
-            move |state: &mut BrowserState| state.select_file_id(select_id.clone()),
-            move |state: &mut BrowserState, position| {
-                state.open_file_context_menu_at(context_id.clone(), position);
-            },
-        )
+        .secondary_clicks()
+        .mapped(move |event| BrowserMessage::FileButton {
+            file_id: file_id.clone(),
+            event,
+        })
         .key(format!("file-name-{}", file.id))
         .fill_width()
         .height(20.0)
@@ -137,25 +126,20 @@ fn file_column_value(file: &FileEntry, column_id: &str) -> String {
     }
 }
 
-fn file_cell(file_id: String, column_id: String, value: String) -> ui::StateView<BrowserState> {
-    let select_id = file_id.clone();
-    let context_id = file_id.clone();
+fn file_cell(file_id: String, column_id: String, value: String) -> ui::View<BrowserMessage> {
+    let button_file_id = file_id.clone();
     ui::button(value)
-        .on_click_or_secondary_at(
-            move |state: &mut BrowserState| state.select_file_id(select_id.clone()),
-            move |state: &mut BrowserState, position| {
-                state.open_file_context_menu_at(context_id.clone(), position);
-            },
-        )
+        .secondary_clicks()
+        .mapped(move |event| BrowserMessage::FileButton {
+            file_id: button_file_id.clone(),
+            event,
+        })
         .key(format!("{file_id}-{column_id}"))
         .fill_width()
         .height(20.0)
         .input_only()
 }
 
-fn sized_cell(
-    column: &FileColumn,
-    cell: ui::StateView<BrowserState>,
-) -> ui::StateView<BrowserState> {
+fn sized_cell(column: &FileColumn, cell: ui::View<BrowserMessage>) -> ui::View<BrowserMessage> {
     cell.size(column.width, 20.0)
 }

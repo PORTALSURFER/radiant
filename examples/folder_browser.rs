@@ -20,6 +20,7 @@ mod tree;
 mod view;
 use columns::*;
 use model::*;
+use radiant::widgets::{ButtonMessage, TextInputMessage};
 use state::*;
 use storage::*;
 
@@ -40,7 +41,105 @@ fn main() -> radiant::Result {
         .size(900, 540)
         .min_size(640, 360)
         .view(view::project_surface)
+        .update(update)
         .run()
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum BrowserMessage {
+    CreateFileInSelectedFolder,
+    FolderRenameInput(TextInputMessage),
+    CommitFolderRename,
+    CancelFolderRename,
+    FolderLabel {
+        folder_id: String,
+        event: ButtonMessage,
+    },
+    ToggleFolder(String),
+    ResizeTree(ui::DragHandleMessage),
+    FileRenameInput(TextInputMessage),
+    CommitFileRename,
+    CancelFileRename,
+    FileButton {
+        file_id: String,
+        event: ButtonMessage,
+    },
+    ColumnHeader {
+        column_id: String,
+        event: ButtonMessage,
+    },
+    ResizeFileColumn {
+        column_id: String,
+        event: ui::DragHandleMessage,
+    },
+    BeginFolderRenameFromContext,
+    CreateFolderFromContext,
+    CloseFolderContextMenu,
+    BeginFileRenameFromContext,
+    DeleteFileFromContext,
+    CloseFileContextMenu,
+    ToggleFileColumn(String),
+    ResetFileColumns,
+    CloseColumnContextMenu,
+}
+
+fn update(state: &mut BrowserState, message: BrowserMessage) {
+    match message {
+        BrowserMessage::CreateFileInSelectedFolder => state.create_file_in_selected_folder(),
+        BrowserMessage::FolderRenameInput(input) => {
+            let submitted = input.is_submitted();
+            state.rename.folder_draft = input.into_value();
+            if submitted {
+                state.commit_rename();
+            }
+        }
+        BrowserMessage::CommitFolderRename => state.commit_rename(),
+        BrowserMessage::CancelFolderRename => state.cancel_folder_rename(),
+        BrowserMessage::FolderLabel { folder_id, event } => match event {
+            ButtonMessage::Activate => state.activate_folder(folder_id),
+            ButtonMessage::SecondaryActivate { position } => {
+                state.open_context_menu_at(folder_id, position);
+            }
+            ButtonMessage::Drag(message) => state.handle_folder_drag(folder_id, message),
+        },
+        BrowserMessage::ToggleFolder(folder_id) => state.toggle_folder(folder_id),
+        BrowserMessage::ResizeTree(message) => state.resize_tree(message),
+        BrowserMessage::FileRenameInput(input) => {
+            let submitted = input.is_submitted();
+            state.rename.file_draft = input.into_value();
+            if submitted {
+                state.commit_file_rename();
+            }
+        }
+        BrowserMessage::CommitFileRename => state.commit_file_rename(),
+        BrowserMessage::CancelFileRename => state.cancel_file_rename(),
+        BrowserMessage::FileButton { file_id, event } => match event {
+            ButtonMessage::Activate => state.select_file_id(file_id),
+            ButtonMessage::SecondaryActivate { position } => {
+                state.open_file_context_menu_at(file_id, position);
+            }
+            ButtonMessage::Drag(_) => {}
+        },
+        BrowserMessage::ColumnHeader { column_id, event } => match event {
+            ButtonMessage::Activate => state.sort_by(column_id),
+            ButtonMessage::SecondaryActivate { position } => {
+                state.open_column_context_menu_at(column_id, position);
+            }
+            ButtonMessage::Drag(_) => {}
+        },
+        BrowserMessage::ResizeFileColumn { column_id, event } => {
+            state.resize_file_column(column_id, event);
+        }
+        BrowserMessage::BeginFolderRenameFromContext => state.begin_rename_from_context(),
+        BrowserMessage::CreateFolderFromContext => state.create_folder_from_context(),
+        BrowserMessage::CloseFolderContextMenu => state.close_context_menu(),
+        BrowserMessage::BeginFileRenameFromContext => state.begin_file_rename_from_context(),
+        BrowserMessage::DeleteFileFromContext => state.delete_file_from_context(),
+        BrowserMessage::CloseFileContextMenu => state.close_file_context_menu(),
+        BrowserMessage::ToggleFileColumn(column_id) => state.toggle_file_column(column_id),
+        BrowserMessage::ResetFileColumns => state.reset_file_columns(),
+        BrowserMessage::CloseColumnContextMenu => state.close_column_context_menu(),
+    }
 }
 
 #[cfg(test)]

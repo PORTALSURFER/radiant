@@ -2,6 +2,12 @@
 
 use radiant::prelude::*;
 
+#[derive(Clone, Debug, PartialEq)]
+enum VolumeMessage {
+    SetVolume(f32),
+    SetMuted(bool),
+}
+
 struct VolumeState {
     volume: f32,
     muted: bool,
@@ -31,18 +37,13 @@ fn main() -> radiant::Result {
                         .align_text(TextAlign::Right),
                     slider(audible_volume)
                         .primary()
-                        .on_change(|state: &mut VolumeState, volume| {
-                            state.volume = volume;
-                            state.muted = false;
-                        })
+                        .message(VolumeMessage::SetVolume)
                         .fill_width(),
                 ])
                 .spacing(10.0)
                 .fill_width(),
                 row([
-                    checkbox(state.muted).on_change(|state: &mut VolumeState, muted| {
-                        state.muted = muted;
-                    }),
+                    checkbox(state.muted).message(VolumeMessage::SetMuted),
                     text(if state.muted { "Muted" } else { "Live output" })
                         .height(28.0)
                         .fill_width(),
@@ -54,5 +55,16 @@ fn main() -> radiant::Result {
             .spacing(12.0)
             .fill()
         })
+        .update(update)
         .run()
+}
+
+fn update(state: &mut VolumeState, message: VolumeMessage) {
+    match message {
+        VolumeMessage::SetVolume(volume) => {
+            state.volume = volume;
+            state.muted = false;
+        }
+        VolumeMessage::SetMuted(muted) => state.muted = muted,
+    }
 }

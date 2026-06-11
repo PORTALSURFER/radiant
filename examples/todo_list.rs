@@ -12,7 +12,7 @@ mod view;
 mod tests;
 
 use model::TodoState;
-use view::project_surface;
+use view::{project_surface, update};
 
 fn main() -> radiant::Result {
     radiant::app(TodoState::default())
@@ -20,5 +20,6 @@ fn main() -> radiant::Result {
         .size(700, 480)
         .min_size(520, 340)
         .view(project_surface)
+        .update(update)
         .run()
 }

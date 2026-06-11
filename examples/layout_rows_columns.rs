@@ -12,7 +12,7 @@ mod view;
 mod tests;
 
 use model::LayoutDemoState;
-use view::project_surface;
+use view::{project_surface, update};
 
 fn main() -> radiant::Result {
     radiant::app(LayoutDemoState::default())
@@ -20,5 +20,6 @@ fn main() -> radiant::Result {
         .size(860, 620)
         .min_size(620, 420)
         .view(project_surface)
+        .update(update)
         .run()
 }

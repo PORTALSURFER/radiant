@@ -5,16 +5,23 @@ use crate::model::{
     connection_text, move_node_from_drag, node_base_id, node_body, node_label,
 };
 
-pub(super) fn project_surface(state: &mut NodeEditorState) -> StateView<NodeEditorState> {
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum NodeEditorMessage {
+    RefreshCanvas,
+    SetFilterEnabled(bool),
+    DragNode(&'static str, DragHandleMessage),
+    SelectNode(&'static str),
+    ConnectInput(&'static str),
+    ArmOutput(&'static str),
+}
+
+pub(super) fn project_surface(state: &mut NodeEditorState) -> View<NodeEditorMessage> {
     column([
         row([
             text("Node Editor").height(30.0).fill_width(),
             badge(format!("rev {}", state.revision))
                 .primary()
-                .on_click(|state: &mut NodeEditorState| {
-                    state.revision += 1;
-                    state.status = "canvas refreshed".to_string();
-                })
+                .message(NodeEditorMessage::RefreshCanvas)
                 .size(88.0, 28.0),
         ])
         .fill_width()
@@ -47,16 +54,7 @@ pub(super) fn project_surface(state: &mut NodeEditorState) -> StateView<NodeEdit
         .fill_width(),
         row([
             toggle("Filter enabled", state.filter_enabled)
-                .on_change(|state: &mut NodeEditorState, enabled| {
-                    state.filter_enabled = enabled;
-                    state.revision += 1;
-                    state.status = if enabled {
-                        "filter on"
-                    } else {
-                        "filter bypassed"
-                    }
-                    .to_string();
-                })
+                .message(NodeEditorMessage::SetFilterEnabled)
                 .size(148.0, 30.0),
             text(format!(
                 "selected={} connections={} status={}",
@@ -85,24 +83,17 @@ fn node_card(
     connection_summary: String,
     wiring_from_here: bool,
     selected: bool,
-) -> StateView<NodeEditorState> {
+) -> View<NodeEditorMessage> {
     stack([
         card().id(base_id).fill(),
         column([
             row([
                 drag_handle()
-                    .on_drag(move |state: &mut NodeEditorState, message| {
-                        move_node_from_drag(state, node_id, message);
-                    })
+                    .mapped(move |message| NodeEditorMessage::DragNode(node_id, message))
                     .id(base_id + 1)
                     .size(24.0, 24.0),
                 selectable(label, selected)
-                    .on_change(move |state: &mut NodeEditorState, selected| {
-                        if selected {
-                            state.selected_node = node_id;
-                            state.status = format!("{node_id} selected");
-                        }
-                    })
+                    .message(move |_| NodeEditorMessage::SelectNode(node_id))
                     .id(base_id + 2)
                     .fill_width(),
             ])
@@ -111,9 +102,7 @@ fn node_card(
             text(body).wrap().height(48.0).fill_width(),
             row([
                 badge("input")
-                    .on_click(move |state: &mut NodeEditorState| {
-                        connect_pending_output_to(state, node_id);
-                    })
+                    .message(NodeEditorMessage::ConnectInput(node_id))
                     .id(base_id + 3),
                 badge(if wiring_from_here {
                     "output armed"
@@ -121,9 +110,7 @@ fn node_card(
                     "output"
                 })
                 .primary()
-                .on_click(move |state: &mut NodeEditorState| {
-                    begin_connection_from(state, node_id);
-                })
+                .message(NodeEditorMessage::ArmOutput(node_id))
                 .id(base_id + 4),
             ])
             .spacing(8.0),
@@ -140,7 +127,7 @@ fn node_card(
     .fill_width()
 }
 
-fn connection_markers(state: &NodeEditorState) -> StateView<NodeEditorState> {
+fn connection_markers(state: &NodeEditorState) -> View<NodeEditorMessage> {
     stack(
         state
             .connections
@@ -170,4 +157,32 @@ fn connection_markers(state: &NodeEditorState) -> StateView<NodeEditorState> {
             .collect::<Vec<_>>(),
     )
     .fill()
+}
+
+pub(super) fn update(state: &mut NodeEditorState, message: NodeEditorMessage) {
+    match message {
+        NodeEditorMessage::RefreshCanvas => {
+            state.revision += 1;
+            state.status = "canvas refreshed".to_string();
+        }
+        NodeEditorMessage::SetFilterEnabled(enabled) => {
+            state.filter_enabled = enabled;
+            state.revision += 1;
+            state.status = if enabled {
+                "filter on"
+            } else {
+                "filter bypassed"
+            }
+            .to_string();
+        }
+        NodeEditorMessage::DragNode(node_id, message) => {
+            move_node_from_drag(state, node_id, message)
+        }
+        NodeEditorMessage::SelectNode(node_id) => {
+            state.selected_node = node_id;
+            state.status = format!("{node_id} selected");
+        }
+        NodeEditorMessage::ConnectInput(node_id) => connect_pending_output_to(state, node_id),
+        NodeEditorMessage::ArmOutput(node_id) => begin_connection_from(state, node_id),
+    }
 }

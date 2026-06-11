@@ -3,8 +3,18 @@ use crate::model::{
     TODO_LIST_LEFT, TODO_LIST_TOP, TODO_LIST_WIDTH, TODO_ROW_STEP, TodoItem, TodoListRow,
     TodoState, drag_handle_id,
 };
+use radiant::widgets::TextInputMessage;
 
-pub(super) fn project_surface(state: &mut TodoState) -> ui::StateView<TodoState> {
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum TodoMessage {
+    DraftInput(TextInputMessage),
+    AddDraft,
+    DragItem(u64, ui::DragHandleMessage),
+    SetDone(u64, bool),
+    Delete(u64),
+}
+
+pub(super) fn project_surface(state: &mut TodoState) -> ui::View<TodoMessage> {
     let page = ui::column([header_row(state), body_section(state)])
         .key("root")
         .subtle()
@@ -37,7 +47,7 @@ pub(super) fn project_surface(state: &mut TodoState) -> ui::StateView<TodoState>
     }
 }
 
-fn header_row(state: &TodoState) -> ui::StateView<TodoState> {
+fn header_row(state: &TodoState) -> ui::View<TodoMessage> {
     let complete = state.items.iter().filter(|item| item.done).count();
     let total = state.items.len();
     ui::row([
@@ -60,7 +70,7 @@ fn header_row(state: &TodoState) -> ui::StateView<TodoState> {
     .spacing(12.0)
 }
 
-fn body_section(state: &mut TodoState) -> ui::StateView<TodoState> {
+fn body_section(state: &mut TodoState) -> ui::View<TodoMessage> {
     ui::column([input_row(state), todo_list(state)])
         .key("body")
         .style(ui::WidgetStyle::default())
@@ -70,21 +80,18 @@ fn body_section(state: &mut TodoState) -> ui::StateView<TodoState> {
         .spacing(10.0)
 }
 
-fn input_row(state: &TodoState) -> ui::StateView<TodoState> {
+fn input_row(state: &TodoState) -> ui::View<TodoMessage> {
     ui::row([
         ui::text_input(state.draft.clone())
             .placeholder("What needs to be done?")
-            .bind_submit(
-                |state: &mut TodoState| &mut state.draft,
-                TodoState::add_draft,
-            )
+            .message_event(TodoMessage::DraftInput)
             .key("draft")
             .min_size(300.0, 42.0)
             .preferred_size(480.0, 42.0)
             .fill_width(),
         ui::button("ADD +")
             .primary()
-            .on_click(TodoState::add_draft)
+            .message(TodoMessage::AddDraft)
             .key("add")
             .size(120.0, 42.0),
     ])
@@ -93,7 +100,7 @@ fn input_row(state: &TodoState) -> ui::StateView<TodoState> {
     .spacing(12.0)
 }
 
-fn todo_list(state: &TodoState) -> ui::StateView<TodoState> {
+fn todo_list(state: &TodoState) -> ui::View<TodoMessage> {
     let dragging = state.drag.is_some();
     ui::scroll(
         ui::column(
@@ -109,26 +116,26 @@ fn todo_list(state: &TodoState) -> ui::StateView<TodoState> {
     .fill_height()
 }
 
-fn todo_row(row: TodoListRow<'_>, dragging: bool) -> ui::StateView<TodoState> {
+fn todo_row(row: TodoListRow<'_>, dragging: bool) -> ui::View<TodoMessage> {
     match row {
         TodoListRow::Item(item) if dragging => passive_todo_item_row(item),
         TodoListRow::Item(item) => todo_item_row(item),
     }
 }
 
-fn drag_capture_handle(item_id: u64) -> ui::StateView<TodoState> {
+fn drag_capture_handle(item_id: u64) -> ui::View<TodoMessage> {
     ui::drag_handle()
-        .on_drag(move |state: &mut TodoState, message| state.drag_item(item_id, message))
+        .mapped(move |message| TodoMessage::DragItem(item_id, message))
         .id(drag_handle_id(item_id))
         .input_only()
         .size(1.0, 1.0)
 }
 
-fn todo_item_row(item: &TodoItem) -> ui::StateView<TodoState> {
+fn todo_item_row(item: &TodoItem) -> ui::View<TodoMessage> {
     ui::list_row(item.id, todo_row_children(item))
 }
 
-fn passive_todo_item_row(item: &TodoItem) -> ui::StateView<TodoState> {
+fn passive_todo_item_row(item: &TodoItem) -> ui::View<TodoMessage> {
     ui::row_key(item.id, todo_row_children(item))
         .style(ui::WidgetStyle::default())
         .fill_width()
@@ -138,15 +145,15 @@ fn passive_todo_item_row(item: &TodoItem) -> ui::StateView<TodoState> {
         .spacing(16.0)
 }
 
-fn todo_row_children(item: &TodoItem) -> [ui::StateView<TodoState>; 4] {
+fn todo_row_children(item: &TodoItem) -> [ui::View<TodoMessage>; 4] {
     let id = item.id;
     [
         ui::drag_handle()
-            .on_drag(move |state: &mut TodoState, message| state.drag_item(id, message))
+            .mapped(move |message| TodoMessage::DragItem(id, message))
             .id(drag_handle_id(id))
             .size(22.0, 22.0),
         ui::checkbox(item.done)
-            .on_change(move |state: &mut TodoState, done| state.set_done(id, done))
+            .message(move |done| TodoMessage::SetDone(id, done))
             .key("done")
             .size(22.0, 22.0),
         ui::text(item.title.clone())
@@ -157,8 +164,24 @@ fn todo_row_children(item: &TodoItem) -> [ui::StateView<TodoState>; 4] {
         ui::button("DELETE")
             .danger()
             .subtle()
-            .on_click(move |state: &mut TodoState| state.delete(id))
+            .message(TodoMessage::Delete(id))
             .key("delete")
             .size(108.0, 32.0),
     ]
+}
+
+pub(super) fn update(state: &mut TodoState, message: TodoMessage) {
+    match message {
+        TodoMessage::DraftInput(input) => {
+            let submitted = input.is_submitted();
+            state.draft = input.into_value();
+            if submitted {
+                state.add_draft();
+            }
+        }
+        TodoMessage::AddDraft => state.add_draft(),
+        TodoMessage::DragItem(id, message) => state.drag_item(id, message),
+        TodoMessage::SetDone(id, done) => state.set_done(id, done),
+        TodoMessage::Delete(id) => state.delete(id),
+    }
 }

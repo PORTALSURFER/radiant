@@ -2,6 +2,12 @@
 
 use radiant::prelude::*;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum KeyMessage {
+    Reverse,
+    Remove(u64),
+}
+
 #[derive(Clone)]
 struct Item {
     id: u64,
@@ -42,9 +48,7 @@ fn main() -> radiant::Result {
             column([
                 row([
                     text("Stable keys").fill_width().height(32.0),
-                    button("Reverse")
-                        .primary()
-                        .on_click(|state: &mut KeyState| state.items.reverse()),
+                    button("Reverse").primary().message(KeyMessage::Reverse),
                 ])
                 .fill_width(),
                 list(state.items.iter(), keyed_row).fill_height(),
@@ -52,10 +56,11 @@ fn main() -> radiant::Result {
             .padding(16.0)
             .spacing(12.0)
         })
+        .update(update)
         .run()
 }
 
-fn keyed_row(item: &Item) -> StateView<KeyState> {
+fn keyed_row(item: &Item) -> View<KeyMessage> {
     let id = item.id;
     list_row(
         id,
@@ -63,10 +68,15 @@ fn keyed_row(item: &Item) -> StateView<KeyState> {
             text(item.label.clone()).key("label").fill_width(),
             button("Remove")
                 .danger()
-                .on_click(move |state: &mut KeyState| {
-                    state.items.retain(|item| item.id != id);
-                })
+                .message(KeyMessage::Remove(id))
                 .key("remove"),
         ],
     )
+}
+
+fn update(state: &mut KeyState, message: KeyMessage) {
+    match message {
+        KeyMessage::Reverse => state.items.reverse(),
+        KeyMessage::Remove(id) => state.items.retain(|item| item.id != id),
+    }
 }

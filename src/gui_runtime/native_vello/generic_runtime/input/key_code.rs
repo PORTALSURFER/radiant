@@ -21,6 +21,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) fn key_code_from_winit
         WinitKeyCode::Digit7 => KeyCode::Num7,
         WinitKeyCode::Digit8 => KeyCode::Num8,
         WinitKeyCode::Digit9 => KeyCode::Num9,
+        WinitKeyCode::Backquote => KeyCode::Backquote,
         WinitKeyCode::KeyA => KeyCode::A,
         WinitKeyCode::KeyB => KeyCode::B,
         WinitKeyCode::KeyC => KeyCode::C,
@@ -78,6 +79,10 @@ mod tests {
         assert_eq!(
             key_code_from_winit(WinitKeyCode::Digit1),
             Some(KeyCode::Num1)
+        );
+        assert_eq!(
+            key_code_from_winit(WinitKeyCode::Backquote),
+            Some(KeyCode::Backquote)
         );
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyA), Some(KeyCode::A));
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyE), Some(KeyCode::E));

@@ -25,6 +25,8 @@ pub enum KeyCode {
     Num8,
     /// Number row 9.
     Num9,
+    /// Backquote/backtick key (`).
+    Backquote,
     /// Latin letter A.
     A,
     /// Latin letter B.

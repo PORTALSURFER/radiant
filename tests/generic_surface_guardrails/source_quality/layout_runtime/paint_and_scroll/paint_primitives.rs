@@ -12,9 +12,18 @@ fn runtime_paint_primitive_support_keeps_models_queries_and_tests_focused() {
             .expect("paint primitive stats tests should be readable");
     let query = fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/query.rs"))
         .expect("paint primitive query module should be readable");
+    let query_primitive =
+        fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/query/primitive.rs"))
+            .expect("paint primitive query primitive module should be readable");
+    let query_widget =
+        fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/query/widget.rs"))
+            .expect("paint primitive query widget module should be readable");
     let query_tests =
         fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/query/tests.rs"))
             .expect("paint primitive query tests should be readable");
+    let query_widget_tests =
+        fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/query/tests/widget.rs"))
+            .expect("paint primitive query widget tests should be readable");
     let path = fs::read_to_string(manifest_dir.join("src/runtime/paint/primitives/path.rs"))
         .expect("paint primitive path module should be readable");
     let path_tests =
@@ -52,19 +61,24 @@ fn runtime_paint_primitive_support_keeps_models_queries_and_tests_focused() {
         "paint primitive stats behavior coverage should live in primitives/stats/tests.rs"
     );
     assert!(
-        query.contains("pub fn first_widget_rect(&self, widget_id: WidgetId) -> Option<Rect>")
-            && query.contains("pub fn widget_id(&self) -> Option<WidgetId>")
-            && query.contains("pub fn rect(&self) -> Option<Rect>")
-            && query.contains("#[path = \"query/tests.rs\"]")
+        query.contains("mod primitive;")
+            && query.contains("mod widget;")
+            && query.contains("mod tests;")
+            && query_widget
+                .contains("pub fn first_widget_rect(&self, widget_id: WidgetId) -> Option<Rect>")
+            && query_primitive.contains("pub fn widget_id(&self) -> Option<WidgetId>")
+            && query_primitive.contains("pub fn rect(&self) -> Option<Rect>")
             && !query
                 .contains("fn first_widget_rect_returns_first_rectangle_anchor_in_paint_order"),
-        "paint primitive query helpers should live in primitives/query.rs while behavior tests stay delegated"
+        "paint primitive query facade should delegate helpers by query family while behavior tests stay delegated"
     );
     assert!(
-        query_tests.contains("fn first_widget_rect_returns_first_rectangle_anchor_in_paint_order")
-            && query_tests
+        query_tests.contains("mod widget;")
+            && query_widget_tests
+                .contains("fn first_widget_rect_returns_first_rectangle_anchor_in_paint_order")
+            && query_widget_tests
                 .contains("fn paint_primitive_reports_widget_id_and_rect_for_anchor_primitives"),
-        "paint primitive query behavior coverage should live in primitives/query/tests.rs"
+        "paint primitive query behavior coverage should live in focused primitives/query/tests modules"
     );
     assert!(
         path.contains("pub struct PaintPath")

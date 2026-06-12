@@ -1,5 +1,5 @@
 use crate::{
-    application::StateAction,
+    application::compatibility::StateAction,
     gui::types::Point,
     widgets::{ButtonMessage, DragHandleMessage},
 };

@@ -1,6 +1,7 @@
 use crate::{
     application::{
-        MappedWidget, StateAction, ViewNode, default_badge_sizing, view_node_from_widget,
+        MappedWidget, ViewNode, compatibility::StateAction, default_badge_sizing,
+        view_node_from_widget,
     },
     runtime::WidgetMessageMapper,
     widgets::{BadgeMessage, BadgeWidget},

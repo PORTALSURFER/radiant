@@ -1,5 +1,7 @@
 use crate::{
-    application::{StateDragCallback, StateStringCallback, StateView, column, scroll},
+    application::{
+        StateDragCallback, StateStringCallback, column, compatibility::StateView, scroll,
+    },
     widgets::DragHandleMessage,
 };
 use std::sync::Arc;

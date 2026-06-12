@@ -1,7 +1,7 @@
 use crate::{
     application::{
-        MappedWidget, StateAction, ViewNode, danger_style, default_selectable_sizing,
-        primary_style, view_node_from_widget,
+        MappedWidget, ViewNode, compatibility::StateAction, danger_style,
+        default_selectable_sizing, primary_style, view_node_from_widget,
     },
     runtime::{PaintText, WidgetMessageMapper},
     widgets::{SelectableMessage, SelectableWidget, WidgetProminence, WidgetStyle},

@@ -164,10 +164,10 @@ fn update(state: &mut AppState, message: Message) {
 }
 ```
 
-The exact return type may vary (`View<Message>`, `StateView<State>`, or another
-documented view type), but the structure should stay obvious: app state is read
-to build the view, interactions emit intent, and the update path owns durable
-state changes.
+The exact return type may vary, but normal application-facing views should use
+`View<Message>` or another message-first documented view type. The structure
+should stay obvious: app state is read to build the view, interactions emit
+intent, and the update path owns durable state changes.
 
 ## Message Model
 

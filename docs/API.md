@@ -43,7 +43,7 @@ Radiant's application API is designed to be easy to read without hiding the
 runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `app`, `text`, `button`, `row`, `column`, `scroll`, `scroll_column`, `list`,
 `list_row`, `empty`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget`, `IntoView`, `View`,
-`StateView`, `Command`, `EmbeddedFont`, `StatusSegments`, `StatusLineLog`,
+`Command`, `EmbeddedFont`, `StatusSegments`, `StatusLineLog`,
 `StatusLineEntry`, `ContentViewChrome`, common custom-widget authoring contracts such as
 `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`,
 `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`,

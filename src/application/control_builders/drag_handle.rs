@@ -1,6 +1,7 @@
 use crate::{
     application::{
-        MappedWidget, StateAction, ViewNode, default_drag_handle_sizing, view_node_from_widget,
+        MappedWidget, ViewNode, compatibility::StateAction, default_drag_handle_sizing,
+        view_node_from_widget,
     },
     runtime::WidgetMessageMapper,
     widgets::{DragHandleMessage, DragHandleWidget},

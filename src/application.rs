@@ -18,11 +18,9 @@ pub(in crate::application) use view_node::ViewNodeKind;
 /// Application view node type used by builder functions.
 pub type View<Message = ()> = view_node::ViewNode<Message>;
 
-/// Application view node type for direct state-callback apps.
-pub type StateView<State> = View<state::StateAction<State>>;
-
 mod state;
 pub(in crate::application) use state::OptionalBaseline;
+pub mod compatibility;
 mod runtime;
 pub(in crate::application) use runtime::{
     AppBridge, AppBridgeLifecycle, AppUpdate, FrameMessageActivity, FrameRepaintSource,

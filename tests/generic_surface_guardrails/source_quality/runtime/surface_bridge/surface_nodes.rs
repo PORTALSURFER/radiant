@@ -5,6 +5,8 @@ fn runtime_surface_nodes_keep_parts_internal_and_public_constructors_explicit() 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source = fs::read_to_string(manifest_dir.join("src/runtime/surface/node.rs"))
         .expect("runtime surface node module should be readable");
+    let node_model = fs::read_to_string(manifest_dir.join("src/runtime/surface/node/model.rs"))
+        .expect("runtime surface node model should be readable");
     let widget = fs::read_to_string(manifest_dir.join("src/runtime/surface/widget.rs"))
         .expect("runtime surface widget module should be readable");
     let widget_mapper =
@@ -27,16 +29,17 @@ fn runtime_surface_nodes_keep_parts_internal_and_public_constructors_explicit() 
         fs::read_to_string(manifest_dir.join("src/runtime/mod.rs")).expect("runtime module");
 
     assert!(
-        source.contains("pub(in crate::runtime) struct SurfaceChildParts<Message>")
-            && source.contains(
+        source.contains("pub(in crate::runtime) use model::{SurfaceChildParts, SurfaceContainerParts};")
+            && node_model.contains("pub(in crate::runtime) struct SurfaceChildParts<Message>")
+            && node_model.contains(
                 "pub(in crate::runtime) fn from_parts(parts: SurfaceChildParts<Message>) -> Self"
             )
-            && source.contains("Self::from_parts(SurfaceChildParts {")
-            && source.contains("pub(in crate::runtime) struct SurfaceContainerParts<Message>")
-            && source.contains(
+            && node_model.contains("Self::from_parts(SurfaceChildParts {")
+            && node_model.contains("pub(in crate::runtime) struct SurfaceContainerParts<Message>")
+            && node_model.contains(
                 "pub(in crate::runtime) fn from_parts(parts: SurfaceContainerParts<Message>) -> Self"
             )
-            && source.contains("Self::from_parts(SurfaceContainerParts {"),
+            && node_model.contains("Self::from_parts(SurfaceContainerParts {"),
         "runtime surface named parts should remain available only inside runtime construction"
     );
     assert!(

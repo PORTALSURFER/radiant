@@ -1,7 +1,7 @@
 use crate::{
     application::{
-        StateDragCallback, StateStringCallback, StateView, button, disclosure_button, drag_handle,
-        row, spacer, text,
+        StateDragCallback, StateStringCallback, button, compatibility::StateView,
+        disclosure_button, drag_handle, row, spacer, text,
     },
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };

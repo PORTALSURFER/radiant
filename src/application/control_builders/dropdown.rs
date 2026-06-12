@@ -1,5 +1,5 @@
 use crate::{
-    application::{StateAction, ViewNode, button, stack},
+    application::{ViewNode, button, compatibility::StateAction, stack},
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 use std::sync::Arc;

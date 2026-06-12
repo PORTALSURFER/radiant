@@ -1,5 +1,7 @@
 use crate::{
-    application::{StateView, ViewNode, button, column, dismiss_layer, row, stack, text},
+    application::{
+        ViewNode, button, column, compatibility::StateView, dismiss_layer, row, stack, text,
+    },
     gui::types::{Point, Rect},
     layout::Vector2,
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},

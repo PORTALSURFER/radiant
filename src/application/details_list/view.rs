@@ -1,8 +1,8 @@
 use super::model::{DetailsColumn, DetailsRow, DetailsSort};
 use crate::{
     application::{
-        LayerHorizontalAnchor, LayerVerticalAnchor, StateStringCallback, StateView, View,
-        anchored_layer, button, column, drag_handle, input_underlay, row, scroll, text,
+        LayerHorizontalAnchor, LayerVerticalAnchor, StateStringCallback, View, anchored_layer,
+        button, column, compatibility::StateView, drag_handle, input_underlay, row, scroll, text,
     },
     layout::Vector2,
     widgets::{DragHandleMessage, WidgetId, WidgetProminence, WidgetStyle, WidgetTone},

@@ -1,6 +1,6 @@
 use crate::{
     application::{
-        MappedWidget, StateAction, ViewNode, default_slider_sizing, primary_style,
+        MappedWidget, ViewNode, compatibility::StateAction, default_slider_sizing, primary_style,
         view_node_from_widget,
     },
     runtime::WidgetMessageMapper,

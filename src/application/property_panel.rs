@@ -1,6 +1,7 @@
 use crate::{
     application::{
-        StateCallback, StateStringCallback, StateView, ViewNode, button, column, row, text,
+        StateCallback, StateStringCallback, ViewNode, button, column, compatibility::StateView,
+        row, text,
     },
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };

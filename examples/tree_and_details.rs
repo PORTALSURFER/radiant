@@ -4,6 +4,7 @@
 mod data;
 
 use data::{detail_rows_for, tree_children};
+use radiant::CompatibilityStateView;
 use radiant::prelude::*;
 use std::collections::HashSet;
 
@@ -101,7 +102,7 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn example_view(state: &mut ExampleState) -> StateView<ExampleState> {
+fn example_view(state: &mut ExampleState) -> CompatibilityStateView<ExampleState> {
     row([
         column([
             text("Tree").height(22.0).fill_width(),

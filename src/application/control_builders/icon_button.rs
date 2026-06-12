@@ -1,7 +1,9 @@
 use std::sync::OnceLock;
 
 use crate::{
-    application::{MappedWidget, StateAction, ViewNode, primary_style, view_node_from_widget},
+    application::{
+        MappedWidget, ViewNode, compatibility::StateAction, primary_style, view_node_from_widget,
+    },
     gui::svg::SvgIcon,
     runtime::WidgetMessageMapper,
     widgets::{ButtonMessage, IconButtonWidget, WidgetProminence, WidgetSizing, WidgetStyle},

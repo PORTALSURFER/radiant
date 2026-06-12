@@ -1,5 +1,7 @@
 use crate::{
-    application::{MappedWidget, StateAction, ViewNode, stack, text, view_node_from_widget},
+    application::{
+        MappedWidget, ViewNode, compatibility::StateAction, stack, text, view_node_from_widget,
+    },
     runtime::{PaintText, WidgetMessageMapper},
     widgets::{
         InteractiveRowMessage, InteractiveRowWidget, TextAlign, WidgetProminence, WidgetSizing,

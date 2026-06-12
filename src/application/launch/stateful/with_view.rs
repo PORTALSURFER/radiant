@@ -1,8 +1,8 @@
 use super::runnable::RunnableStatefulApp;
 use crate::{
     application::{
-        AppBridge, AppBridgeLifecycle, AppUpdate, Result, StateAction, UpdateContext,
-        launch::IntoView,
+        AppBridge, AppBridgeLifecycle, AppUpdate, Result, UpdateContext,
+        compatibility::StateAction, launch::IntoView,
     },
     gui_runtime::NativeRunOptions,
     runtime::{Command, RuntimeBridge, run_native_vello_runtime},
@@ -109,19 +109,19 @@ where
     View: IntoView<StateAction<State>> + 'static,
     State: 'static,
 {
-    /// Run this direct-callback app through the native Vello runtime.
+    /// Run this compatibility-only direct-callback app through the native Vello runtime.
     pub fn run(self) -> Result {
         let options = self.options.clone();
         run_native_vello_runtime(options, self.into_bridge())
     }
 
-    /// Run this app and return native runtime artifacts.
+    /// Run this compatibility-only app and return native runtime artifacts.
     pub fn run_with_artifacts(self) -> crate::gui_runtime::NativeGenericRunReport {
         let options = self.options.clone();
         crate::runtime::run_native_vello_runtime_with_artifacts(options, self.into_bridge())
     }
 
-    /// Lower this direct-callback app into the existing runtime bridge without opening a window.
+    /// Lower this compatibility-only direct-callback app into the runtime bridge.
     pub fn into_bridge(self) -> impl RuntimeBridge<StateAction<State>> {
         AppBridge::new(
             self.state,

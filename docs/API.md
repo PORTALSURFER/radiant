@@ -39,103 +39,12 @@ canonical style. See `docs/API_STYLE.md`.
 
 ## Application API
 
-Radiant's application API is designed to be easy to read without hiding the
-runtime model. `radiant::prelude` re-exports the common symbols: `window`,
-`app`, `text`, `button`, `row`, `column`, `scroll`, `scroll_column`, `list`,
-`list_row`, `empty`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget`, `IntoView`, `View`,
-`Command`, `EmbeddedFont`, `StatusSegments`, `StatusLineLog`,
-`StatusLineEntry`, `ContentViewChrome`, common custom-widget authoring contracts such as
-`Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`,
-`PointerButton`, `FocusBehavior`, `ActivationInputPolicy`,
-`handle_activation_input`, and backend-neutral paint primitives such as
-`PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`,
-`PaintFillRectBatch`,
-`PaintFillPath`, `PaintPathCommand`, `PaintTransform`, and `PaintTextRun`. It
-also includes the geometry, layout, image, color, and theme
-types needed in widget method signatures, including `Rect`, `Point`, `Vector2`,
-`LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, and `ThemeTokens`, plus
-app-facing asset helpers such as `SvgIcon` and `SvgIconTintCache`, common
-feedback geometry helpers such as `horizontal_progress_fill_rect`, paint geometry helpers such as
-`horizontal_line_rect` and `vertical_line_rect`, plus the builder types needed by method chains. These
-builders lower into the same `UiSurface`, `SurfaceNode`, `SurfaceChild`,
-`WidgetSizing`, and `RuntimeBridge` contracts available through the explicit
-runtime modules.
-
-Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`,
-`Rgba8::with_alpha_if`, `Rgba8::blend_toward`, and
-`Rgba8::blend_opaque_toward` for common color manipulation. Use
-`Rect::from_size(width, height)` for origin-based widget,
-viewport, and test bounds, or `Rect::from_xy_size(x, y, width, height)` for
-positioned widget bounds, instead of repeating `Point` plus `Vector2`
-construction. Dense visualizations can use `ColorRamp` and `ColorRampStop` for
-normalized heatmap and intensity palettes without local interpolation helpers.
-Custom canvas, image, GPU surface, and overlay widgets can use
-`WidgetCommon::without_default_chrome()` when they still need Radiant's sizing,
-focus, hit testing, and style contracts but draw their own focus and state
-affordances. Use `WidgetCommon::is_hovered()`, `is_pressed()`, `is_focused()`,
-`is_selected()`, `is_active()`, `is_disabled()`, and `is_read_only()`, or the
-matching `WidgetState` helpers, when tests, custom widgets, or automation need
-to query shared interaction state without reading the raw state fields. Use
-`InteractiveRowWidget::paints_interaction_fill()` when custom dense-row
-painters need hover/pressed fills to follow Radiant's hover suppression and
-active-drag policy. Use
-`Widget::paint_plan(...)` or
-`paint_plan_with_defaults(...)` when focused custom-widget tests or previews
-need the same `SurfacePaintPlan` query helpers available from full view
-frames. Dynamic custom widgets and row input layers can use
-`stable_widget_id(...)` to derive deterministic widget IDs from host-owned
-scopes and durable text app keys instead of duplicating local hashing helpers.
-Use `stable_widget_id_u64(...)` when dynamic rows or controls are keyed by
-durable numeric app IDs or enum indexes and projection should avoid allocating
-temporary strings. `interactive_row_underlay(content)` can use
-`.stable_input_id(scope, key)` or `.stable_u64_input_id(scope, key)` to bind
-those stable IDs directly to the backing interactive row.
-Custom matrix or heatmap widgets can use `DenseGridLayout` and `DenseGridCell`
-for reusable row/column cell projection and hit testing.
-For paint-plan emission,
-`WidgetPaint`, `push_fill_rect`, `push_fill_rect_batch`, `push_stroke_rect`,
-`push_stroke_rect_batch`, `push_fill_polygon`, `push_stroke_polyline`,
-`push_text`, `PaintTextMetrics`, and `push_text_run_with_metrics` provide the
-reusable primitive construction path used by complex examples and custom
-widgets. Dense custom widgets can use `push_visible_fill_rect` when derived or
-clipped geometry should only enter the paint plan if it has finite positive area.
-Use `WidgetPaint::new(...)` when several primitives are emitted for the same
-custom widget and local code would otherwise thread the same primitive buffer and
-widget id through every helper call. Timeline, waveform, progress, and
-scrubber-style custom widgets can use `push_horizontal_value_range_fill`,
-`push_horizontal_value_range_edge_fills`, and
-`push_horizontal_value_cursor_fill`, `push_horizontal_value_cursor_fills`, or
-the matching `WidgetPaint` methods, to append guarded normalized range, range
-edge, and single or repeated cursor fills without repeating local
-geometry-to-paint boilerplate.
-Editor-style widgets that draw sampled curves such as EQ responses,
-automation curves, fade curves, and analysis overlays can use
-`SampledCurveStrokeParts`, `sampled_curve_points`, and
-`push_sampled_curve_stroke` to keep finite-point filtering, bounds clamping,
-point-buffer allocation, and stroke emission on Radiant's generic paint path
-while the host owns the curve math.
-Tests, automation, and embedded hosts that inspect paint plans can use
-`SurfacePaintPlan::text_runs()`, `text_labels()`, `text_label_strings()`,
-`first_text_run(...)`, `contains_text(...)`, `first_text_run_after_x(...)`,
-`contains_text_after_x(...)`, `first_text_rect(...)`, `first_text_color(...)`, `text_inputs()`,
-`first_text_input()`, `contains_text_input()`,
-`paint_primitives()`, `contains_paint_primitives()`, `clip_starts()`,
-`rects()`, `contains_rect_matching(...)`, `paint_rects()`,
-`contains_paint_rect_matching(...)`, `fill_rects()`, `stroke_rects()`, `fill_polygons()`,
-`stroke_polylines()`, `svgs()`, and `gpu_surfaces()`. Widget-specific query
-helpers such as `fill_rects_for_widget(...)`,
-`visible_fill_rects_for_widget(...)`,
-`contains_visible_fill_rect_for_widget(...)`,
-`fill_polygons_for_widget(...)`, `visible_fill_polygons_for_widget(...)`,
-`contains_visible_fill_polygon_for_widget(...)`, `svgs_for_widget(...)`, and
-`first_svg_rect_for_widget(...)` cover common automation assertions without
-app-local primitive filtering. Transient overlays can use `first_widget_rect(...)`
-or `first_widget_rect_by_priority(...)` to anchor frame-time paint to a cached
-paint plan. Use
-`PaintPrimitive::text_run()`, `text_input()`, `clip_start()`, `fill_rect()`,
-`stroke_rect()`, `fill_polygon()`, `stroke_polyline()`, `svg()`, and
-`gpu_surface()`, to query common paint primitives without app-local exhaustive
-primitive matches.
+Radiant's application API is designed to make the normal app path obvious
+first. Application code imports `radiant::prelude::*`, declares view structure,
+emits explicit messages from widgets, and mutates durable state in the update
+handler. The helper and export inventory is documented later in
+[Prelude And Helper Reference](#prelude-and-helper-reference) so this section
+can stay focused on the canonical reader path.
 
 No-state apps can launch without naming `NativeRunOptions`, `RuntimeBridge`,
 `UiSurface`, `SurfaceNode`, `SurfaceChild`, or `WidgetSizing`:
@@ -195,6 +104,14 @@ fn main() -> radiant::Result {
         .run()
 }
 ```
+
+This message-first shape is the canonical style for new examples and host
+applications. Use `.handle_message(...)` when an update handler needs
+`UpdateContext<Message>` to emit follow-up messages, request repaint, move
+focus, start background work, schedule delayed messages, or request runtime
+exit. The older direct state-callback and reducer-style APIs remain available
+for compatibility or advanced control, but they are not the primary teaching
+path.
 
 Application builders generate deterministic structural IDs during projection and
 provide default widget sizing. Production apps and tests can opt back into
@@ -257,6 +174,106 @@ paint-only repaint. Frame-clock messages use their `FrameClock::repaint_scope`
 policy first, so apps do not need to exclude frame messages from
 `RepaintPolicy`.
 
+## Prelude And Helper Reference
+
+Normal application code should start with `radiant::prelude::*`. The prelude is
+a grouped facade over application builders, backend-neutral GUI helpers,
+runtime commands/resources, widgets, layout signatures, and theme tokens. It is
+not a separate framework: every builder lowers into the same `UiSurface`,
+`SurfaceNode`, `SurfaceChild`, `WidgetSizing`, and `RuntimeBridge` contracts
+available through the explicit `radiant::runtime`, `radiant::widgets`,
+`radiant::layout`, `radiant::theme`, and `radiant::gui` modules.
+
+| Area | Common prelude entries |
+| --- | --- |
+| Application setup | `window`, `app`, `IntoView`, `View`, `Command`, `EmbeddedFont` |
+| Basic views | `text`, `button`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
+| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `handle_activation_input` |
+| Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
+| Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
+| Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
+| Paint primitives | `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`, `PaintFillRectBatch`, `PaintFillPath`, `PaintPathCommand`, `PaintTransform`, `PaintTextRun` |
+
+Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`,
+`Rgba8::with_alpha_if`, `Rgba8::blend_toward`, and
+`Rgba8::blend_opaque_toward` for common color manipulation. Use
+`Rect::from_size(width, height)` for origin-based widget, viewport, and test
+bounds, or `Rect::from_xy_size(x, y, width, height)` for positioned widget
+bounds, instead of repeating `Point` plus `Vector2` construction. Dense
+visualizations can use `ColorRamp` and `ColorRampStop` for normalized heatmap
+and intensity palettes without local interpolation helpers.
+
+Custom canvas, image, GPU surface, and overlay widgets can use
+`WidgetCommon::without_default_chrome()` when they still need Radiant's sizing,
+focus, hit testing, and style contracts but draw their own focus and state
+affordances. Use `WidgetCommon::is_hovered()`, `is_pressed()`, `is_focused()`,
+`is_selected()`, `is_active()`, `is_disabled()`, and `is_read_only()`, or the
+matching `WidgetState` helpers, when tests, custom widgets, or automation need
+to query shared interaction state without reading raw state fields. Use
+`InteractiveRowWidget::paints_interaction_fill()` when custom dense-row
+painters need hover/pressed fills to follow Radiant's hover suppression and
+active-drag policy. Use `Widget::paint_plan(...)` or
+`paint_plan_with_defaults(...)` when focused custom-widget tests or previews
+need the same `SurfacePaintPlan` query helpers available from full view frames.
+
+Dynamic custom widgets and row input layers can use `stable_widget_id(...)` to
+derive deterministic widget IDs from host-owned scopes and durable text app
+keys instead of duplicating local hashing helpers. Use
+`stable_widget_id_u64(...)` when dynamic rows or controls are keyed by durable
+numeric app IDs or enum indexes and projection should avoid allocating
+temporary strings. `interactive_row_underlay(content)` can use
+`.stable_input_id(scope, key)` or `.stable_u64_input_id(scope, key)` to bind
+those stable IDs directly to the backing interactive row. Custom matrix or
+heatmap widgets can use `DenseGridLayout` and `DenseGridCell` for reusable
+row/column cell projection and hit testing.
+
+For paint-plan emission, `WidgetPaint`, `push_fill_rect`,
+`push_fill_rect_batch`, `push_stroke_rect`, `push_stroke_rect_batch`,
+`push_fill_polygon`, `push_stroke_polyline`, `push_text`,
+`PaintTextMetrics`, and `push_text_run_with_metrics` provide the reusable
+primitive construction path used by complex examples and custom widgets. Dense
+custom widgets can use `push_visible_fill_rect` when derived or clipped
+geometry should only enter the paint plan if it has finite positive area. Use
+`WidgetPaint::new(...)` when several primitives are emitted for the same custom
+widget and local code would otherwise thread the same primitive buffer and
+widget id through every helper call.
+
+Timeline, waveform, progress, and scrubber-style custom widgets can use
+`push_horizontal_value_range_fill`,
+`push_horizontal_value_range_edge_fills`,
+`push_horizontal_value_cursor_fill`,
+`push_horizontal_value_cursor_fills`, or the matching `WidgetPaint` methods,
+to append guarded normalized range, range edge, and single or repeated cursor
+fills without repeating local geometry-to-paint boilerplate. Editor-style
+widgets that draw sampled curves such as EQ responses, automation curves, fade
+curves, and analysis overlays can use `SampledCurveStrokeParts`,
+`sampled_curve_points`, and `push_sampled_curve_stroke` to keep finite-point
+filtering, bounds clamping, point-buffer allocation, and stroke emission on
+Radiant's generic paint path while the host owns the curve math.
+
+Tests, automation, and embedded hosts that inspect paint plans can use
+`SurfacePaintPlan::text_runs()`, `text_labels()`, `text_label_strings()`,
+`first_text_run(...)`, `contains_text(...)`, `first_text_run_after_x(...)`,
+`contains_text_after_x(...)`, `first_text_rect(...)`,
+`first_text_color(...)`, `text_inputs()`, `first_text_input()`,
+`contains_text_input()`, `paint_primitives()`,
+`contains_paint_primitives()`, `clip_starts()`, `rects()`,
+`contains_rect_matching(...)`, `paint_rects()`,
+`contains_paint_rect_matching(...)`, `fill_rects()`, `stroke_rects()`,
+`fill_polygons()`, `stroke_polylines()`, `svgs()`, and `gpu_surfaces()`.
+Widget-specific query helpers such as `fill_rects_for_widget(...)`,
+`visible_fill_rects_for_widget(...)`,
+`contains_visible_fill_rect_for_widget(...)`,
+`fill_polygons_for_widget(...)`, `visible_fill_polygons_for_widget(...)`,
+`contains_visible_fill_polygon_for_widget(...)`, `svgs_for_widget(...)`, and
+`first_svg_rect_for_widget(...)` cover common automation assertions without
+app-local primitive filtering. Transient overlays can use
+`first_widget_rect(...)` or `first_widget_rect_by_priority(...)` to anchor
+frame-time paint to a cached paint plan. Use `PaintPrimitive::text_run()`,
+`text_input()`, `clip_start()`, `fill_rect()`, `stroke_rect()`,
+`fill_polygon()`, `stroke_polyline()`, `svg()`, and `gpu_surface()` to query
+common paint primitives without app-local exhaustive primitive matches.
+
 ## Large Virtual Lists
 
 Large list, table, tree, browser, and picker surfaces should use Radiant's
@@ -283,6 +300,13 @@ item-state changes are overlay-only through `VirtualListInvalidation`. Keep one
 `VirtualListController` per scrollable list surface; sharing a controller is an
 explicit host decision and otherwise one large list must not move another list's
 viewport or force its rows to be rebuilt.
+
+## Message-Handler Helper Reference
+
+The normal application path remains `.update(...)` for simple message handlers
+and `.handle_message(...)` for handlers that need `UpdateContext`. The helpers
+in this section support more explicit runtime work, background task ownership,
+platform-service decoding, text-input event handling, and secondary windows.
 
 The older `.update_with(...)` name remains public as an advanced compatibility
 alias for the same context-aware message-handler hook. `PlatformResponse` exposes helpers such as

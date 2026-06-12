@@ -256,15 +256,16 @@ fn application_list_builders_keep_virtualization_tests_focused() {
             .expect("application list builder tests should be readable");
 
     assert!(
-        lists.contains("pub fn virtual_list<Message, Item>")
+        !lists.contains("pub fn virtual_list<Message, Item>")
             && lists.contains("pub fn virtual_list_window<Message: 'static>")
+            && lists.contains("pub fn virtual_list_windowed<Message, Project>")
             && lists.contains("fn apply_list_row_chrome<Message>")
             && lists.contains("#[path = \"lists/tests.rs\"]")
             && !lists.contains("fn virtual_list_window_projects_only_materialized_range"),
-        "application list builders should own builder logic while virtualization behavior tests stay delegated"
+        "application list builders should expose window-owned large-list APIs while virtualization behavior tests stay delegated"
     );
     assert!(
-        tests.contains("fn virtual_list_uses_packed_rows")
+        !tests.contains("fn virtual_list_uses_packed_rows")
             && tests.contains("fn virtual_list_window_projects_only_materialized_range")
             && tests.contains("fn count_layout_nodes"),
         "application list builder behavior coverage should live in layout_builders/lists/tests.rs"

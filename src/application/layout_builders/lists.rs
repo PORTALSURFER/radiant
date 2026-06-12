@@ -202,25 +202,6 @@ pub fn list<Message, Item>(
         .fill_height()
 }
 
-/// Build a vertically virtualized list with stable intrinsic-height rows.
-///
-/// This helper still projects every item before the layout engine virtualizes
-/// the scroll viewport. Prefer [`virtual_list_window`] for large fixed-height
-/// lists when the host can resolve a [`VirtualListWindow`] from logical scroll
-/// state.
-pub fn virtual_list<Message, Item>(
-    items: impl IntoIterator<Item = Item>,
-    project: impl FnMut(Item) -> ViewNode<Message>,
-    overscan_px: f32,
-) -> ViewNode<Message> {
-    virtual_scroll(
-        column(items.into_iter().map(project)).spacing(0.0),
-        overscan_px,
-    )
-    .style(WidgetStyle::default())
-    .fill_height()
-}
-
 /// Build a fixed-row virtual-list builder.
 ///
 /// Use this for large item-indexed lists where application state owns the
@@ -240,10 +221,9 @@ pub fn virtual_list_windowed<Message, Project>(
 
 /// Build a vertically virtualized fixed-row list from a pre-resolved logical window.
 ///
-/// Unlike [`virtual_list`], this helper only calls `project` for
-/// `window.window_start..window.window_end`. It is intended for large
-/// item-indexed lists whose host state already owns logical scroll position or
-/// focus-follow navigation through [`VirtualListWindow`].
+/// This helper only calls `project` for `window.window_start..window.window_end`.
+/// It is intended for large item-indexed lists whose host state already owns
+/// logical scroll position or focus-follow navigation through [`VirtualListWindow`].
 pub fn virtual_list_window<Message: 'static>(
     window: VirtualListWindow,
     row_height: f32,

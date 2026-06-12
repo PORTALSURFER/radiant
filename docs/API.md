@@ -2032,9 +2032,10 @@ lists so projection stays bounded to a `VirtualListWindow`; use
 `virtual_tree_list_window(...)` when a fixed-height tree or outline should
 compose materialized rows with standard guide overlays; use
 `virtual_list_window_body(...)` when the materialized window needs a shared
-overlay or grouped row body outside the standard tree-guide case; reserve
-`virtual_list(...)` for smaller lists where eagerly building every row remains
-acceptable.
+overlay or grouped row body outside the standard tree-guide case. Smaller
+eagerly projected lists should use `list(...)`, `scroll_column(...)`, or
+`bounded_scroll_column(...)` so large-list virtualization is reserved for
+window-owned projection.
 Run `cargo run --example inspector_panel` for a compact inspector/property
 panel sandbox that uses `PropertyRow`, `property_rows(...)`,
 `property_panel(...)`, and `message_selectable_property_panel(...)` on the same

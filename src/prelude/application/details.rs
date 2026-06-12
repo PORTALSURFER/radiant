@@ -17,7 +17,7 @@ pub use crate::application::{
     list_row_id, message_selectable_property_panel, message_selectable_sortable_details_list,
     message_sortable_details_list, message_tree_list, message_tree_list_with_drag,
     reorder_details_columns_by_id, update_details_column_reorder_drag,
-    update_details_column_resize_drag, virtual_list, virtual_list_window, virtual_list_window_body,
+    update_details_column_resize_drag, virtual_list_window, virtual_list_window_body,
     virtual_list_window_change_for_scroll, virtual_list_windowed, virtual_scroll,
     virtual_tree_list_window,
 };

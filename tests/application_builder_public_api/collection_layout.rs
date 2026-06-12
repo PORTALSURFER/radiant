@@ -97,42 +97,47 @@ fn application_builder_styled_containers_use_default_panel_padding() {
 }
 
 #[test]
-fn application_builder_virtual_list_records_virtual_window() {
+fn application_builder_virtual_list_window_projects_only_materialized_rows() {
     use radiant::prelude::{self as ui, IntoView};
 
-    let surface: UiSurface<DemoMessage> = ui::virtual_list(
-        0..512_u64,
+    let window = ui::VirtualListWindow {
+        total_items: 512,
+        viewport_start: 20,
+        viewport_end: 25,
+        window_start: 18,
+        window_end: 27,
+    };
+    let surface: UiSurface<DemoMessage> = ui::virtual_list_window(
+        window,
+        32.0,
         |index| {
             ui::list_row(
-                index,
+                10_000 + index as u64,
                 [ui::button(format!("Row {index:03}"))
                     .message(DemoMessage::Increment)
-                    .id(1_000 + index)],
+                    .id(1_000 + index as u64)],
             )
-            .id(10_000 + index)
+            .id(10_000 + index as u64)
         },
-        64.0,
+        32.0,
     )
     .id(2)
     .into_surface();
-    let mut state = LayoutState::default();
-    state.scroll_offsets.insert(2, Vector2::new(0.0, 640.0));
 
-    let output = layout_tree_with_state(
+    let output = layout_tree(
         &surface.layout_node(),
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(320.0, 180.0)),
-        &state,
-        LayoutDebugOptions::default(),
     );
-    let window = output
+    let runtime_window = output
         .virtual_windows
         .get(&2)
-        .expect("virtual_list should lower to a virtualized scroll viewport");
+        .expect("windowed virtual list should lower to a virtualized scroll viewport");
 
-    assert_eq!(window.total_children, 512);
-    assert!(window.first_index > 0);
-    assert!(window.culled_after > 0);
-    assert!(surface.find_widget(1_000).is_some());
+    assert_eq!(runtime_window.total_children, 3);
+    assert!(surface.find_widget(1_017).is_none());
+    assert!(surface.find_widget(1_018).is_some());
+    assert!(surface.find_widget(1_026).is_some());
+    assert!(surface.find_widget(1_027).is_none());
 }
 
 #[test]

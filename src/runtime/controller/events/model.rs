@@ -4,7 +4,8 @@ use crate::{
     widgets::{PointerButton, PointerModifiers, WidgetKey},
 };
 
-/// Backend-neutral runtime event routed through a [`super::SurfaceRuntime`].
+/// Backend-neutral runtime event routed through a
+/// [`SurfaceRuntime`](crate::runtime::controller::SurfaceRuntime).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event {
     /// Viewport size changed and layout should be recomputed.

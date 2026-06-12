@@ -84,9 +84,10 @@ fn selecting_file_records_selected_file_id() {
 }
 
 #[test]
-fn temp_root_is_the_browser_default_root() {
+fn in_memory_resource_graph_is_the_browser_default_root() {
     let state = BrowserState::default();
 
-    assert_eq!(state.folders[0].id, path_id(&temp_root()));
-    assert_eq!(state.selection.selected_folder, path_id(&temp_root()));
+    assert_eq!(state.folders[0].id, "demo-root");
+    assert_eq!(state.selection.selected_folder, "demo-root");
+    assert_eq!(state.status, "In-memory resource sandbox");
 }

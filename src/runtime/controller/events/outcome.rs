@@ -3,8 +3,9 @@ use crate::widgets::WidgetId;
 /// Routing summary for one pointer-move event.
 ///
 /// Backend adapters that distinguish full scene rebuilds from paint-only
-/// overlays can use this instead of [`super::SurfaceRuntime::dispatch_event`] for
-/// pointer motion. The outcome drains the runtime repaint/exit flags observed
+/// overlays can use this instead of
+/// [`SurfaceRuntime::dispatch_event`](crate::runtime::controller::SurfaceRuntime::dispatch_event)
+/// for pointer motion. The outcome drains the runtime repaint/exit flags observed
 /// during the route so callers can make one redraw decision without peeking at
 /// controller internals.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

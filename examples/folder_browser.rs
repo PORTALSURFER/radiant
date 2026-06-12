@@ -36,7 +36,7 @@ const MAX_FILE_COLUMN_WIDTH: f32 = 360.0;
 const ROOT_ENV_VAR: &str = "RADIANT_FOLDER_BROWSER_ROOT";
 
 fn main() -> radiant::Result {
-    radiant::app(BrowserState::from_root(resolve_browser_root()))
+    radiant::app(BrowserState::from_optional_root(resolve_browser_root()))
         .title("Radiant Folder Browser")
         .size(900, 540)
         .min_size(640, 360)

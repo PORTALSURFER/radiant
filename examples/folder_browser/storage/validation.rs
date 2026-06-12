@@ -1,40 +1,42 @@
-use std::path::Path;
+use crate::model::FolderEntry;
 
 pub(crate) fn validate_folder_rename(
-    source: &Path,
+    folders: &[FolderEntry],
+    source_id: &str,
     new_name: &str,
-    root: &Path,
+    root_id: &str,
 ) -> Result<(), String> {
-    if source == root {
+    if source_id == root_id {
         return Err(String::from("Cannot rename the root folder"));
     }
-    if !source.starts_with(root) {
-        return Err(String::from("Rename must stay inside the browser root"));
+    if !is_descendant_id(source_id, root_id) {
+        return Err(String::from("Rename must stay inside the resource root"));
     }
-    if !source.is_dir() {
+    if find_folder(folders, source_id).is_none() {
         return Err(String::from("Folder no longer exists"));
     }
     validate_entry_name(new_name, "Folder")
 }
 
 pub(crate) fn validate_file_rename(
-    source: &Path,
+    folders: &[FolderEntry],
+    source_id: &str,
     new_name: &str,
-    root: &Path,
+    root_id: &str,
 ) -> Result<(), String> {
-    if source == root {
+    if source_id == root_id {
         return Err(String::from("Cannot rename the root folder"));
     }
-    if !source.starts_with(root) {
-        return Err(String::from("Rename must stay inside the browser root"));
+    if !is_descendant_id(source_id, root_id) {
+        return Err(String::from("Rename must stay inside the resource root"));
     }
-    if !source.exists() {
+    if find_file(folders, source_id).is_none() {
         return Err(String::from("File no longer exists"));
     }
     validate_entry_name(new_name, "File")
 }
 
-pub(super) fn validate_entry_name(new_name: &str, kind: &str) -> Result<(), String> {
+pub(crate) fn validate_entry_name(new_name: &str, kind: &str) -> Result<(), String> {
     let trimmed = new_name.trim();
     if trimmed.is_empty() {
         return Err(format!("{kind} name cannot be empty"));
@@ -54,30 +56,23 @@ pub(super) fn validate_entry_name(new_name: &str, kind: &str) -> Result<(), Stri
     Ok(())
 }
 
-pub(crate) fn validate_folder_move(
-    source: &Path,
-    target: &Path,
-    root: &Path,
-) -> Result<(), String> {
-    if source == root {
-        return Err(String::from("Cannot move the root folder"));
-    }
-    if source == target {
-        return Err(String::from("Cannot move a folder into itself"));
-    }
-    if target.starts_with(source) {
-        return Err(String::from(
-            "Cannot move a folder into one of its descendants",
-        ));
-    }
-    if !source.starts_with(root) || !target.starts_with(root) {
-        return Err(String::from("Move must stay inside the browser root"));
-    }
-    if !source.is_dir() {
-        return Err(String::from("Source folder no longer exists"));
-    }
-    if !target.is_dir() {
-        return Err(String::from("Target folder no longer exists"));
-    }
-    Ok(())
+fn find_folder<'a>(folders: &'a [FolderEntry], id: &str) -> Option<&'a FolderEntry> {
+    folders.iter().find_map(|folder| folder.find(id))
+}
+
+fn find_file<'a>(folders: &'a [FolderEntry], id: &str) -> Option<&'a crate::model::FileEntry> {
+    folders.iter().find_map(|folder| find_file_in(folder, id))
+}
+
+fn find_file_in<'a>(folder: &'a FolderEntry, id: &str) -> Option<&'a crate::model::FileEntry> {
+    folder.files.iter().find(|file| file.id == id).or_else(|| {
+        folder
+            .children
+            .iter()
+            .find_map(|child| find_file_in(child, id))
+    })
+}
+
+fn is_descendant_id(id: &str, root_id: &str) -> bool {
+    id == root_id || id.starts_with(&format!("{root_id}/"))
 }

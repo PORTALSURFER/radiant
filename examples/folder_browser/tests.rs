@@ -1,6 +1,4 @@
 use super::*;
-use std::fs;
-use std::path::PathBuf;
 
 const TEST_ROOT: &str = "demo-root";
 const TEST_ALPHA: &str = "demo-root/alpha";
@@ -73,13 +71,6 @@ fn folder_entry_for_test(id: &str, name: &str, children: Vec<FolderEntry>) -> Fo
             modified_rank: 0,
         }],
     }
-}
-
-fn temp_test_root(suffix: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(
-        "radiant-folder-browser-{suffix}-{}",
-        std::process::id()
-    ))
 }
 
 #[path = "tests/context_menus.rs"]

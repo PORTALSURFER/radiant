@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use super::super::*;
 
@@ -53,10 +53,7 @@ impl BrowserState {
     }
 
     fn move_folder(&mut self, source_id: String, target_id: String) {
-        let Some(root_id) = self.folders.first().map(|folder| folder.id.clone()) else {
-            return;
-        };
-        match move_folder_on_disk(&source_id, &target_id, &root_id) {
+        match move_folder_in_memory(&mut self.folders, &source_id, &target_id) {
             Ok(destination) => {
                 self.status = format!(
                     "Moved {} into {}",
@@ -65,9 +62,7 @@ impl BrowserState {
                 );
                 self.selection.selected_folder = destination.clone();
                 self.selection.selected_file = None;
-                self.tree.expanded_folders.insert(root_id.clone());
                 self.tree.expanded_folders.insert(target_id);
-                self.folders = vec![load_root_folder(PathBuf::from(root_id))];
             }
             Err(message) => {
                 self.status = message;

@@ -1982,15 +1982,19 @@ cargo run --example waveform_view -- C:\path\to\sample.wav
 $env:RADIANT_WAVEFORM_PATH = "C:\path\to\sample.wav"
 ```
 
-If no folder root is supplied, `folder_browser` uses a temp-directory demo
-root. If no WAV path is supplied, `waveform_view` uses a generated synthetic
-signal while exercising the same waveform summary and GPU-surface projection
-path as real input. The waveform view keeps the dense signal body in a retained
-`GpuSurfaceContent::SignalSummaryBands` surface. It still demonstrates the
-advanced launch-level `.animated_transient_overlay_at(...)` hook for a playback
-playhead anchored through `SurfacePaintPlan::first_widget_rect`; new root app
-composition should prefer `Scene::overlay(...)` for paint-only transient
-presentation unless direct lifecycle wiring is specifically needed.
+If no folder root is supplied, `folder_browser` uses an in-memory resource
+sandbox. Supplying a root path loads a read-only tree/details snapshot for UI
+exploration; create, rename, delete, and drag-move interactions still mutate
+only the example's in-memory resource graph. Host applications own real file
+management policy. If no WAV path is supplied, `waveform_view` uses a generated
+synthetic signal while exercising the same waveform summary and GPU-surface
+projection path as real input. The waveform view keeps the dense signal body in
+a retained `GpuSurfaceContent::SignalSummaryBands` surface. It still
+demonstrates the advanced launch-level `.animated_transient_overlay_at(...)`
+hook for a playback playhead anchored through
+`SurfacePaintPlan::first_widget_rect`; new root app composition should prefer
+`Scene::overlay(...)` for paint-only transient presentation unless direct
+lifecycle wiring is specifically needed.
 Run `cargo run --example generic_native` for the compact native-runtime starter
 that demonstrates the current application-builder first-use path.
 Run `cargo run --example hello_world` for the smallest windowed app skeleton.

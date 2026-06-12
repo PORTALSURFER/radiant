@@ -408,3 +408,68 @@ fn application_interactive_row_builder_keeps_policy_and_underlay_focused() {
         "interactive-row drag/drop policy, message mapping, underlay composition, and widget lowering should have focused owners"
     );
 }
+
+#[test]
+fn application_tree_row_builder_keeps_defaults_state_and_composition_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root =
+        fs::read_to_string(manifest_dir.join("src/application/control_builders/tree_row/mod.rs"))
+            .expect("tree-row builder root should be readable");
+    let builder = fs::read_to_string(
+        manifest_dir.join("src/application/control_builders/tree_row/builder.rs"),
+    )
+    .expect("tree-row builder module should be readable");
+    let defaults = fs::read_to_string(
+        manifest_dir.join("src/application/control_builders/tree_row/defaults.rs"),
+    )
+    .expect("tree-row defaults module should be readable");
+    let drag_drop = fs::read_to_string(
+        manifest_dir.join("src/application/control_builders/tree_row/drag_drop.rs"),
+    )
+    .expect("tree-row drag/drop module should be readable");
+    let composition = fs::read_to_string(
+        manifest_dir.join("src/application/control_builders/tree_row/composition.rs"),
+    )
+    .expect("tree-row composition module should be readable");
+    let hit_target = fs::read_to_string(
+        manifest_dir.join("src/application/control_builders/tree_row/hit_target.rs"),
+    )
+    .expect("tree-row hit-target module should be readable");
+
+    assert!(
+        root.contains("mod builder;")
+            && root.contains("mod composition;")
+            && root.contains("mod defaults;")
+            && root.contains("mod drag_drop;")
+            && root.contains("mod hit_target;")
+            && root.contains("pub use builder::{TreeRowBuilder, TreeRowMessageBuilder, tree_row};")
+            && root.contains("pub use drag_drop::TreeRowDragDropState;")
+            && !root.contains("pub struct TreeRowBuilder")
+            && !root.contains("DEFAULT_TREE_ROW_HEIGHT"),
+        "tree-row root should stay a small facade over builder state, defaults, drag/drop state, composition, and hit-target lowering"
+    );
+    assert!(
+        builder.contains("pub struct TreeRowBuilder")
+            && builder.contains("pub struct TreeRowMessageBuilder")
+            && builder.contains("pub fn tree_row(")
+            && !builder.contains("fn expander<")
+            && !builder.contains("TreeRowHitTarget::new"),
+        "tree-row builder module should own public state and fluent setters while delegating composition and hit-target lowering"
+    );
+    assert!(
+        defaults.contains("DEFAULT_TREE_ROW_HEIGHT")
+            && defaults.contains("fn default_palette")
+            && defaults.contains("fn default_drop_target_outline")
+            && drag_drop.contains("pub struct TreeRowDragDropState")
+            && drag_drop.contains("pub const fn clears_hover_on_sync"),
+        "tree-row defaults and host-owned drag/drop state should stay in focused modules"
+    );
+    assert!(
+        composition.contains("fn expander<")
+            && composition.contains("fn hit_target<")
+            && composition.contains("TreeRowHitTarget::new")
+            && hit_target.contains("pub(super) struct TreeRowHitTarget")
+            && hit_target.contains("impl<Message> EmbeddedInteractiveRowWidget"),
+        "tree-row composition should own row/expander assembly and delegate custom hit-target painting to hit_target.rs"
+    );
+}

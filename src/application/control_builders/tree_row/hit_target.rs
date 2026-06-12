@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-use super::{DEFAULT_TREE_ROW_HEIGHT, TreeRowDragDropState};
+use super::{defaults::DEFAULT_TREE_ROW_HEIGHT, drag_drop::TreeRowDragDropState};
 
 #[derive(Clone)]
 pub(super) struct TreeRowHitTarget<Message> {

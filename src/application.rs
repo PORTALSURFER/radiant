@@ -24,7 +24,7 @@ pub mod compatibility;
 mod runtime;
 pub(in crate::application) use runtime::{
     AppBridge, AppBridgeLifecycle, AppUpdate, FrameMessageActivity, FrameRepaintSource,
-    PendingFrameRepaint, StateCallback, StateDragCallback, StateStringCallback,
+    PendingFrameRepaint,
 };
 mod builders;
 mod details_list;

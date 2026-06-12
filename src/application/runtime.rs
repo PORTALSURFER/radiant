@@ -10,7 +10,7 @@ use crate::{
     },
     widgets::RetainedSurfaceDescriptor,
 };
-use std::{any::Any, sync::Arc};
+use std::any::Any;
 
 mod bridge;
 mod queue;
@@ -59,12 +59,6 @@ pub(in crate::application) type AppScroll<State, Message> =
     Box<dyn FnMut(&mut State, ScrollUpdate, &mut UpdateContext<Message>)>;
 pub(in crate::application) type AppNativeFileDrop<State, Message> =
     Box<dyn FnMut(&mut State, NativeFileDrop, &mut UpdateContext<Message>)>;
-pub(in crate::application) type StateStringCallback<State> =
-    Arc<dyn Fn(&mut State, String) + Send + Sync>;
-pub(in crate::application) type StateCallback<State> = Arc<dyn Fn(&mut State) + Send + Sync>;
-pub(in crate::application) type StateDragCallback<State> =
-    Arc<dyn Fn(&mut State, String, crate::widgets::DragHandleMessage) + Send + Sync>;
-
 pub(in crate::application) trait AppFrameRepaintPolicy<State> {
     fn capture_before_frame(&mut self, state: &mut State) -> Box<dyn Any>;
     fn resolve_after_frame(&mut self, state: &mut State, scope: Box<dyn Any>) -> bool;

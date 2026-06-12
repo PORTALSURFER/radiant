@@ -2120,8 +2120,8 @@ view-local transient layers.
 Run `cargo run --example native_file_drop` for a view-local native OS file-drop
 target that maps `NativeFileDrop` events into normal app messages.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
-that composes `MenuItem`, `menu(...)`, and `context_menu_overlay(...)` with
-normal state callbacks.
+that composes `MenuCommand`, `message_menu(...)`, and
+`message_context_menu_overlay(...)` with normal app messages.
 Run `cargo run --example floating_overlay` for a floating-layer sandbox that
 positions an overlay menu without changing the underlying page layout.
 Run `cargo run --example split_workspace` for an editor-style split workspace

@@ -1,14 +1,12 @@
 use crate::{
-    application::{
-        StateDragCallback, StateStringCallback, View, column, compatibility::StateView, scroll,
-    },
+    application::{View, column, scroll},
     widgets::DragHandleMessage,
 };
 use std::sync::Arc;
 
 mod row;
 
-use row::{message_tree_list_row, tree_list_row};
+use row::message_tree_list_row;
 
 /// Named construction inputs for one visible tree-list row.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -90,52 +88,6 @@ impl TreeListItem {
         self.drop_target = drop_target;
         self
     }
-}
-
-/// Build a compact tree list from already-visible caller rows.
-pub fn tree_list<State: 'static>(
-    items: impl IntoIterator<Item = TreeListItem>,
-    on_select: impl Fn(&mut State, String) + Send + Sync + 'static,
-    on_toggle: impl Fn(&mut State, String) + Send + Sync + 'static,
-) -> StateView<State> {
-    tree_list_with_drag(
-        items,
-        on_select,
-        on_toggle,
-        None::<fn(&mut State, String)>,
-        None::<fn(&mut State, String, DragHandleMessage)>,
-    )
-}
-
-/// Build a compact tree list with optional per-row drag handles.
-pub fn tree_list_with_drag<State: 'static>(
-    items: impl IntoIterator<Item = TreeListItem>,
-    on_select: impl Fn(&mut State, String) + Send + Sync + 'static,
-    on_toggle: impl Fn(&mut State, String) + Send + Sync + 'static,
-    on_context: Option<impl Fn(&mut State, String) + Send + Sync + 'static>,
-    on_drag: Option<impl Fn(&mut State, String, DragHandleMessage) + Send + Sync + 'static>,
-) -> StateView<State> {
-    let on_select: StateStringCallback<State> = Arc::new(on_select);
-    let on_toggle: StateStringCallback<State> = Arc::new(on_toggle);
-    let on_context: Option<StateStringCallback<State>> =
-        on_context.map(|on_context| Arc::new(on_context) as StateStringCallback<State>);
-    let on_drag: Option<StateDragCallback<State>> =
-        on_drag.map(|on_drag| Arc::new(on_drag) as StateDragCallback<State>);
-
-    scroll(
-        column(items.into_iter().map(|item| {
-            tree_list_row(
-                item,
-                Arc::clone(&on_select),
-                Arc::clone(&on_toggle),
-                on_context.as_ref().map(Arc::clone),
-                on_drag.as_ref().map(Arc::clone),
-            )
-        }))
-        .fill_width()
-        .spacing(1.0),
-    )
-    .fill_height()
 }
 
 /// Build a compact tree list that emits select and toggle messages.

@@ -44,11 +44,12 @@ fn tree_list_items_use_named_parts_for_public_navigation_fields() {
         "tree-list compatibility constructor and public exports should keep the named-parts path available"
     );
     assert!(
-        !source.contains("fn tree_list_row")
-            && row.contains("fn tree_list_row")
+        !source.contains("fn message_tree_list_row")
+            && row.contains("fn message_tree_list_row")
             && row.contains("drag_handle()")
             && row.contains("tree-list-toggle-")
+            && row.contains(".message(toggle_message(toggle_id))")
             && row.contains("WidgetProminence::Subtle"),
-        "tree-list private row assembly should live in application/tree_list/row.rs"
+        "tree-list private message-first row assembly should live in application/tree_list/row.rs"
     );
 }

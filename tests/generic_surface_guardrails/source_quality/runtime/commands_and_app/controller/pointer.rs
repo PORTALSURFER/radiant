@@ -10,7 +10,7 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
     let input = controller_source("src/runtime/controller/input.rs");
 
     assert!(
-        pointer_events.contains("use super::SurfaceRuntime;")
+        pointer_events.contains("use super::super::SurfaceRuntime;")
             && pointer_events.contains("gui::types::Point")
             && pointer_events.contains("runtime::RuntimeBridge")
             && pointer_events

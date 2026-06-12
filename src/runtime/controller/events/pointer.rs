@@ -1,4 +1,4 @@
-use super::SurfaceRuntime;
+use super::super::SurfaceRuntime;
 use crate::{
     gui::types::Point,
     runtime::RuntimeBridge,
@@ -9,7 +9,7 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
-    pub(super) fn dispatch_pointer_press_event(
+    pub(in crate::runtime::controller::events) fn dispatch_pointer_press_event(
         &mut self,
         position: Point,
         button: PointerButton,
@@ -39,7 +39,7 @@ where
         )
     }
 
-    pub(super) fn dispatch_pointer_double_click_event(
+    pub(in crate::runtime::controller::events) fn dispatch_pointer_double_click_event(
         &mut self,
         position: Point,
         button: PointerButton,
@@ -73,7 +73,7 @@ where
         }
     }
 
-    pub(super) fn dispatch_pointer_release_event(
+    pub(in crate::runtime::controller::events) fn dispatch_pointer_release_event(
         &mut self,
         position: Point,
         button: PointerButton,
@@ -116,7 +116,7 @@ where
         .then_some(widget_id)
     }
 
-    pub(super) fn dispatch_pointer_modifiers_changed(
+    pub(in crate::runtime::controller::events) fn dispatch_pointer_modifiers_changed(
         &mut self,
         modifiers: PointerModifiers,
     ) -> Option<WidgetId> {

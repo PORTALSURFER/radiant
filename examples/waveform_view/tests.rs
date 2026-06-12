@@ -7,7 +7,6 @@ use radiant::{
     theme::ThemeTokens,
     widgets::{Widget, WidgetInput},
 };
-use std::path::PathBuf;
 
 #[path = "tests/gpu_projection.rs"]
 mod gpu_projection;
@@ -20,9 +19,9 @@ mod runtime;
 #[path = "tests/source.rs"]
 mod source;
 
-fn synthetic_file(mono_samples: Vec<f32>, sample_rate: u32, channels: usize) -> WaveformFile {
-    waveform_file_from_mono_samples(
-        PathBuf::from("synthetic-test-waveform"),
+fn synthetic_file(mono_samples: Vec<f32>, sample_rate: u32, channels: usize) -> SignalSource {
+    signal_source_from_samples(
+        "synthetic-test-waveform".to_owned(),
         sample_rate,
         channels,
         mono_samples,

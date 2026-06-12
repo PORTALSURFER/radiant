@@ -1,7 +1,7 @@
 use super::{
     WAVEFORM_HEIGHT, WAVEFORM_WIDTH,
     model::WaveformInteraction,
-    source::{BAND_COUNT, WaveformFile, WaveformViewport},
+    source::{BAND_COUNT, SignalSource, WaveformViewport},
 };
 use radiant::{
     gui::{
@@ -22,12 +22,12 @@ use radiant::{
 use std::sync::Arc;
 
 pub(super) fn waveform_viewport(
-    file: Arc<WaveformFile>,
+    source: Arc<SignalSource>,
     viewport: WaveformViewport,
     cursor_ratio: Option<f32>,
 ) -> ui::View<WaveformInteraction> {
     ui::custom_widget(
-        WaveformWidget::new(file, viewport, cursor_ratio),
+        WaveformWidget::new(source, viewport, cursor_ratio),
         |output| output.typed_ref::<WaveformInteraction>().copied(),
     )
 }
@@ -35,14 +35,14 @@ pub(super) fn waveform_viewport(
 #[derive(Clone, Debug)]
 pub(super) struct WaveformWidget {
     common: WidgetCommon,
-    file: Arc<WaveformFile>,
+    source: Arc<SignalSource>,
     viewport: WaveformViewport,
     cursor_ratio: Option<f32>,
 }
 
 impl WaveformWidget {
     pub(super) fn new(
-        file: Arc<WaveformFile>,
+        source: Arc<SignalSource>,
         viewport: WaveformViewport,
         cursor_ratio: Option<f32>,
     ) -> Self {
@@ -56,7 +56,7 @@ impl WaveformWidget {
         common.paint.paints_state_layers = false;
         Self {
             common,
-            file,
+            source,
             viewport,
             cursor_ratio,
         }
@@ -124,14 +124,14 @@ impl Widget for WaveformWidget {
 
         primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {
             widget_id: self.common.id,
-            key: self.file.path_hash(),
+            key: self.source.identity_hash(),
             revision: 0,
             rect: bounds,
             content: GpuSurfaceContent::SignalSummaryBands {
-                frames: self.file.frames,
+                frames: self.source.frames,
                 band_count: BAND_COUNT,
                 frame_range: [self.viewport.start as f32, self.viewport.end as f32],
-                summary: Arc::clone(&self.file.gpu_signal_summary),
+                summary: Arc::clone(&self.source.gpu_signal_summary),
                 gain_preview: None,
             },
             capabilities: GpuSurfaceCapabilities {

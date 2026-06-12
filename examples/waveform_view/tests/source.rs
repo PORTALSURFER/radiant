@@ -1,10 +1,18 @@
 use super::*;
 
 #[test]
-fn stereo_samples_downmix_to_single_mono_stream() {
-    let mono = downmix_to_mono(&[1.0, -1.0, 0.6, 0.2], 2, 2);
+fn interleaved_signal_bands_preserve_frame_order() {
+    let bands = [
+        WaveformBand::new(vec![1.0, 2.0]),
+        WaveformBand::new(vec![3.0, 4.0]),
+        WaveformBand::new(vec![5.0, 6.0]),
+        WaveformBand::new(vec![7.0, 8.0]),
+    ];
 
-    assert_eq!(mono, vec![0.0, 0.4]);
+    assert_eq!(
+        interleaved_band_samples(&bands).as_ref(),
+        &[1.0, 3.0, 5.0, 7.0, 2.0, 4.0, 6.0, 8.0]
+    );
 }
 
 #[test]
@@ -22,7 +30,7 @@ fn summary_stats_match_raw_range_stats() {
 
 #[test]
 fn default_waveform_source_uses_synthetic_signal_without_input_path() {
-    let file = load_waveform_source(None).expect("synthetic waveform should load");
+    let file = synthetic_signal_source();
 
     assert!(file.sample_rate > 0);
     assert!(!file.mono_samples.is_empty());

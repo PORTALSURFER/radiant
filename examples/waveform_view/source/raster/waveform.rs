@@ -1,16 +1,16 @@
-use super::super::{MIN_VISIBLE_FRAMES, WaveformBand, WaveformFile, WaveformViewport};
+use super::super::{MIN_VISIBLE_FRAMES, SignalSource, WaveformBand, WaveformViewport};
 use super::{PixelPaint, RasterSize, WaveformRaster, column_alpha};
 
 impl WaveformRaster {
-    pub(super) fn draw_waveform(&mut self, file: &WaveformFile, viewport: WaveformViewport) {
-        let viewport = viewport.clamp(file.frames, MIN_VISIBLE_FRAMES);
+    pub(super) fn draw_waveform(&mut self, source: &SignalSource, viewport: WaveformViewport) {
+        let viewport = viewport.clamp(source.frames, MIN_VISIBLE_FRAMES);
         let geometry = WaveformGeometry::new(viewport, self.size());
         super::labels::draw_band_labels(self);
 
-        for (band, style) in file.bands.iter().zip(band_styles()) {
+        for (band, style) in source.bands.iter().zip(band_styles()) {
             self.draw_band(band, geometry, style);
         }
-        self.draw_mono_ridge(file, geometry);
+        self.draw_mono_ridge(source, geometry);
     }
 
     fn draw_band(&mut self, band: &WaveformBand, geometry: WaveformGeometry, style: BandStyle) {
@@ -40,12 +40,12 @@ impl WaveformRaster {
         }
     }
 
-    fn draw_mono_ridge(&mut self, file: &WaveformFile, geometry: WaveformGeometry) {
+    fn draw_mono_ridge(&mut self, source: &SignalSource, geometry: WaveformGeometry) {
         for x in 0..self.width() {
             let column = geometry.column_range(x);
-            let stats = file
+            let stats = source
                 .mono_summary
-                .stats(&file.mono_samples, column.start, column.end);
+                .stats(&source.mono_samples, column.start, column.end);
             self.draw_symmetric_column(ColumnPaint {
                 x,
                 extent: stats.peak * geometry.half * 0.36,

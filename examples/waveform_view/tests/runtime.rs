@@ -5,10 +5,10 @@ fn waveform_playback_uses_paint_only_transient_playhead() {
     let mono_samples: Vec<f32> = (0..512)
         .map(|index| ((index as f32 / 16.0).sin() * 0.8).clamp(-1.0, 1.0))
         .collect();
-    let file = Arc::new(synthetic_file(mono_samples, 48_000, 2));
+    let source = Arc::new(synthetic_file(mono_samples, 48_000, 2));
     let mut runtime = SurfaceRuntime::new(
         radiant::app(WaveformApp {
-            file,
+            source,
             viewport: WaveformViewport::full(512),
             zoom_anchor_ratio: 0.5,
             playing: true,

@@ -3,9 +3,9 @@ use super::*;
 #[test]
 fn zoom_and_pan_keep_viewport_inside_sample() {
     let mono_samples = vec![0.0; 20_000];
-    let file = Arc::new(synthetic_file(mono_samples, 48_000, 1));
+    let source = Arc::new(synthetic_file(mono_samples, 48_000, 1));
     let mut app = WaveformApp {
-        file,
+        source,
         viewport: WaveformViewport::full(20_000),
         zoom_anchor_ratio: 0.5,
         playing: false,
@@ -23,9 +23,9 @@ fn zoom_and_pan_keep_viewport_inside_sample() {
 #[test]
 fn wheel_zoom_and_scrollbar_offset_update_viewport() {
     let mono_samples = vec![0.0; 20_000];
-    let file = Arc::new(synthetic_file(mono_samples, 48_000, 1));
+    let source = Arc::new(synthetic_file(mono_samples, 48_000, 1));
     let mut app = WaveformApp {
-        file,
+        source,
         viewport: WaveformViewport::full(20_000),
         zoom_anchor_ratio: 0.5,
         playing: false,
@@ -47,9 +47,9 @@ fn wheel_zoom_and_scrollbar_offset_update_viewport() {
 #[test]
 fn zoom_around_anchor_keeps_anchor_frame_at_same_ratio() {
     let mono_samples = vec![0.0; 20_000];
-    let file = Arc::new(synthetic_file(mono_samples, 48_000, 1));
+    let source = Arc::new(synthetic_file(mono_samples, 48_000, 1));
     let mut app = WaveformApp {
-        file,
+        source,
         viewport: WaveformViewport {
             start: 2_000,
             end: 12_000,

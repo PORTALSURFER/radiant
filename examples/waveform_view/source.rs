@@ -2,20 +2,14 @@ use radiant::runtime::GpuSignalSummary;
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
-    path::PathBuf,
     sync::Arc,
 };
 
-#[path = "source/bands.rs"]
-mod bands;
+#[path = "source/generator.rs"]
+mod generator;
+pub(super) use generator::synthetic_signal_source;
 #[cfg(test)]
-pub(super) use bands::{downmix_to_mono, interleaved_band_samples};
-
-#[path = "source/loading.rs"]
-mod loading;
-#[cfg(test)]
-pub(super) use loading::waveform_file_from_mono_samples;
-pub(super) use loading::{load_waveform_source, resolve_sample_path};
+pub(super) use generator::{interleaved_band_samples, signal_source_from_samples};
 
 #[path = "source/summary.rs"]
 mod summary;
@@ -37,8 +31,8 @@ pub(super) const MIN_VISIBLE_FRAMES: usize = 256;
 pub(super) const BAND_COUNT: usize = 4;
 
 #[derive(Clone, Debug)]
-pub(super) struct WaveformFile {
-    pub(super) path: PathBuf,
+pub(super) struct SignalSource {
+    pub(super) identity: String,
     pub(super) sample_rate: u32,
     pub(super) channels: usize,
     pub(super) frames: usize,
@@ -51,10 +45,10 @@ pub(super) struct WaveformFile {
     pub(super) gpu_signal_summary: Arc<GpuSignalSummary>,
 }
 
-impl WaveformFile {
-    pub(super) fn path_hash(&self) -> u64 {
+impl SignalSource {
+    pub(super) fn identity_hash(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
-        self.path.hash(&mut hasher);
+        self.identity.hash(&mut hasher);
         self.frames.hash(&mut hasher);
         self.sample_rate.hash(&mut hasher);
         hasher.finish()

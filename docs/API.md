@@ -1973,23 +1973,23 @@ manual validation:
 | Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling` |
 
 Run an example interactively with `cargo run --example <name>`. Showcase
-examples use portable defaults, with optional inputs for real local data:
+examples use portable defaults. `folder_browser` accepts an optional root for
+real local data while keeping mutations inside the example sandbox:
 
 ```powershell
 cargo run --example folder_browser -- C:\path\to\root
 $env:RADIANT_FOLDER_BROWSER_ROOT = "C:\path\to\root"
-cargo run --example waveform_view -- C:\path\to\sample.wav
-$env:RADIANT_WAVEFORM_PATH = "C:\path\to\sample.wav"
 ```
 
 If no folder root is supplied, `folder_browser` uses an in-memory resource
 sandbox. Supplying a root path loads a read-only tree/details snapshot for UI
 exploration; create, rename, delete, and drag-move interactions still mutate
 only the example's in-memory resource graph. Host applications own real file
-management policy. If no WAV path is supplied, `waveform_view` uses a generated
-synthetic signal while exercising the same waveform summary and GPU-surface
-projection path as real input. The waveform view keeps the dense signal body in
-a retained `GpuSurfaceContent::SignalSummaryBands` surface. It still
+management policy. `waveform_view` uses deterministic synthetic signal data to
+exercise waveform summaries, viewport interaction, overlay painting, and
+GPU-surface projection without teaching file decoding or audio preprocessing as
+Radiant API guidance. The waveform view keeps the dense signal body in a
+retained `GpuSurfaceContent::SignalSummaryBands` surface. It still
 demonstrates the advanced launch-level `.animated_transient_overlay_at(...)`
 hook for a playback playhead anchored through
 `SurfacePaintPlan::first_widget_rect`; new root app composition should prefer

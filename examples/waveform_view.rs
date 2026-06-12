@@ -1,4 +1,4 @@
-//! Load one WAV file and display it as an interactive mono waveform view.
+//! Display a deterministic signal as an interactive retained GPU waveform view.
 
 #[cfg(test)]
 use radiant::{
@@ -32,11 +32,11 @@ pub(crate) use surface_view::{paint_playhead_overlay, view};
 use widget::WaveformWidget;
 
 fn main() -> radiant::Result {
-    let file = Arc::new(load_waveform_source(resolve_sample_path())?);
-    let viewport = WaveformViewport::full(file.frames);
+    let source = Arc::new(synthetic_signal_source());
+    let viewport = WaveformViewport::full(source.frames);
 
     radiant::app(WaveformApp {
-        file,
+        source,
         viewport,
         zoom_anchor_ratio: 0.5,
         playing: false,

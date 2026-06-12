@@ -18,20 +18,20 @@ use std::{sync::Arc, time::Duration};
 
 pub(crate) fn view(state: &mut WaveformApp) -> ui::View<WaveformInteraction> {
     let title = format!(
-        "{} | {} Hz | {} channel{} -> mono | {} frames | {:.1} ms visible",
-        state.file.path.display(),
-        state.file.sample_rate,
-        state.file.channels,
-        if state.file.channels == 1 { "" } else { "s" },
-        state.file.frames,
-        state.viewport.visible_items() as f32 / state.file.sample_rate.max(1) as f32 * 1000.0,
+        "{} | {} Hz | {} channel{} | {} frames | {:.1} ms visible",
+        state.source.identity,
+        state.source.sample_rate,
+        state.source.channels,
+        if state.source.channels == 1 { "" } else { "s" },
+        state.source.frames,
+        state.viewport.visible_items() as f32 / state.source.sample_rate.max(1) as f32 * 1000.0,
     );
 
     ui::column([
         ui::text("Waveform").height(28.0).fill_width(),
         ui::text(title).height(24.0).fill_width().truncate(),
         waveform_viewport(
-            Arc::clone(&state.file),
+            Arc::clone(&state.source),
             state.viewport,
             (!state.playing).then_some(state.zoom_anchor_ratio),
         )
@@ -75,7 +75,7 @@ pub(crate) fn paint_playhead_overlay(
 }
 
 fn waveform_scrollbar(state: &WaveformApp) -> ui::View<WaveformInteraction> {
-    if !state.viewport.is_zoomed_in(state.file.frames) {
+    if !state.viewport.is_zoomed_in(state.source.frames) {
         return ui::spacer().fill_width().height(14.0);
     }
 
@@ -84,8 +84,8 @@ fn waveform_scrollbar(state: &WaveformApp) -> ui::View<WaveformInteraction> {
         ScrollbarAxis::Horizontal,
         WidgetSizing::fixed(Vector2::new(WAVEFORM_WIDTH as f32, 14.0)),
     );
-    scrollbar.props.viewport_fraction = state.viewport.visible_fraction(state.file.frames);
-    scrollbar.state.offset_fraction = state.viewport.offset_fraction(state.file.frames);
+    scrollbar.props.viewport_fraction = state.viewport.visible_fraction(state.source.frames);
+    scrollbar.state.offset_fraction = state.viewport.offset_fraction(state.source.frames);
     ui::custom_widget(scrollbar, |output| {
         output
             .typed_ref::<ScrollbarMessage>()

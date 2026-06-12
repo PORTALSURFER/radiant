@@ -7,19 +7,19 @@ mod labels;
 #[path = "raster/waveform.rs"]
 mod waveform;
 
-use super::{WaveformFile, WaveformViewport};
+use super::{SignalSource, WaveformViewport};
 use buffer::RasterBuffer;
 use radiant::gui::types::ImageRgba;
 
 pub(crate) fn render_waveform_image(
-    file: &WaveformFile,
+    source: &SignalSource,
     viewport: WaveformViewport,
     width: usize,
     height: usize,
 ) -> ImageRgba {
     let mut image = WaveformRaster::new(RasterSize { width, height });
     chrome::draw_raster_chrome(&mut image);
-    image.draw_waveform(file, viewport);
+    image.draw_waveform(source, viewport);
     image.into_image()
 }
 

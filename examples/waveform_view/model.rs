@@ -1,13 +1,13 @@
 use super::{
     WAVEFORM_WIDTH,
-    source::{MIN_VISIBLE_FRAMES, WaveformFile, WaveformViewport},
+    source::{MIN_VISIBLE_FRAMES, SignalSource, WaveformViewport},
 };
 use radiant::gui::types::Vector2;
 use std::sync::Arc;
 
 #[derive(Debug)]
 pub(super) struct WaveformApp {
-    pub(super) file: Arc<WaveformFile>,
+    pub(super) source: Arc<SignalSource>,
     pub(super) viewport: WaveformViewport,
     pub(super) zoom_anchor_ratio: f32,
     pub(super) playing: bool,
@@ -47,7 +47,7 @@ impl WaveformApp {
                 self.playing = !self.playing;
             }
             WaveformInteraction::Reset => {
-                self.viewport = WaveformViewport::full(self.file.frames);
+                self.viewport = WaveformViewport::full(self.source.frames);
                 self.playhead_ratio = 0.5;
             }
         }
@@ -66,21 +66,21 @@ impl WaveformApp {
     }
 
     pub(super) fn zoom_around_anchor(&mut self, factor: f32, anchor_ratio: f32) {
-        let total = self.file.frames.max(1);
+        let total = self.source.frames.max(1);
         self.viewport =
             self.viewport
                 .zoom_around_anchor(total, MIN_VISIBLE_FRAMES, factor, anchor_ratio);
     }
 
     pub(super) fn pan_by_visible_fraction(&mut self, fraction: f32) {
-        let total = self.file.frames.max(1);
+        let total = self.source.frames.max(1);
         self.viewport = self
             .viewport
             .pan_by_visible_fraction(total, MIN_VISIBLE_FRAMES, fraction);
     }
 
     fn set_offset_fraction(&mut self, offset_fraction: f32) {
-        let total = self.file.frames.max(1);
+        let total = self.source.frames.max(1);
         self.viewport =
             self.viewport
                 .with_offset_fraction(total, MIN_VISIBLE_FRAMES, offset_fraction);

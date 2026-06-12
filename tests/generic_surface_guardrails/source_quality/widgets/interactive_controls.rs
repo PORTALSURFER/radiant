@@ -104,14 +104,30 @@ fn interactive_row_primitive_keeps_surface_mappers_focused() {
     let input =
         fs::read_to_string(manifest_dir.join("src/widgets/primitives/interactive_row/input.rs"))
             .expect("interactive-row input module should be readable");
+    let actions =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/interactive_row/actions.rs"))
+            .expect("interactive-row actions module should be readable");
+    let paint =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/interactive_row/paint.rs"))
+            .expect("interactive-row paint module should be readable");
+    let embedded =
+        fs::read_to_string(manifest_dir.join("src/widgets/primitives/interactive_row/embedded.rs"))
+            .expect("interactive-row embedded module should be readable");
+    let widget_impl = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/interactive_row/widget_impl.rs"),
+    )
+    .expect("interactive-row widget impl module should be readable");
 
     assert!(
-        root.contains("mod builders;")
+        root.contains("mod actions;")
+            && root.contains("mod builders;")
+            && root.contains("mod embedded;")
             && root.contains("mod input;")
+            && root.contains("mod paint;")
+            && root.contains("mod widget_impl;")
             && root.contains("pub struct InteractiveRowWidget")
-            && root.contains("impl Widget for InteractiveRowWidget")
             && !root.contains("impl<Message> WidgetMessageMapper<Message>"),
-        "interactive-row primitive root should own widget state while delegating runtime mappers and backend-neutral input routing"
+        "interactive-row primitive root should own row state/configuration while delegating routing, paint, embedded wrappers, widget impl, and input routing"
     );
     assert!(
         builders.contains("impl<Message> WidgetMessageMapper<Message>")
@@ -129,6 +145,31 @@ fn interactive_row_primitive_keeps_surface_mappers_focused() {
             && !input.contains("use super::*;")
             && input.contains("pub fn handle_input("),
         "interactive-row input routing should name row, geometry, input, key, pointer, drag, and output-message dependencies explicitly"
+    );
+    assert!(
+        actions.contains("pub struct InteractiveRowActions")
+            && actions.contains("pub fn route(&self, message: InteractiveRowMessage)")
+            && !actions.contains("InteractiveRowWidget"),
+        "interactive-row action routing should live outside the primitive model and not depend on widget state"
+    );
+    assert!(
+        paint.contains("pub fn dense_visual_state(")
+            && paint.contains("pub fn push_dense_labeled_chrome(")
+            && paint.contains("DenseRowPalette")
+            && paint.contains("PaintPrimitive"),
+        "interactive-row dense-row paint projection should live in the paint module"
+    );
+    assert!(
+        embedded.contains("pub trait EmbeddedInteractiveRowWidget")
+            && embedded.contains("impl<T> Widget for T")
+            && embedded.contains("fn append_interactive_row_paint("),
+        "interactive-row embedded custom-widget delegation should live in the embedded module"
+    );
+    assert!(
+        widget_impl.contains("impl Widget for InteractiveRowWidget")
+            && widget_impl.contains("fn accepts_pointer_move(&self)")
+            && widget_impl.contains("push_control_chrome"),
+        "interactive-row widget trait implementation should live in widget_impl.rs"
     );
 }
 

@@ -1,27 +1,46 @@
 use super::ExampleContract;
 
 pub(super) const CONTRACTS: &[ExampleContract] = &[
-    ("counter", &["radiant::app(", ".on_click(", ".primary()"]),
+    (
+        "counter",
+        &[
+            "radiant::app(",
+            ".message(CounterMessage::Increment)",
+            ".update(",
+            ".primary()",
+        ],
+    ),
     (
         "todo_list",
         &[
             "use radiant::prelude as ui;",
             "text_input(",
-            ".bind_submit(",
+            ".message_event(TodoMessage::DraftInput)",
+            ".message(TodoMessage::AddDraft)",
             "drag_handle()",
             "drop_marker(",
             "overlay_panel(",
             "scroll(",
         ],
     ),
-    ("form", &["text_input(", ".bind(", "toggle(", ".on_change("]),
+    (
+        "form",
+        &[
+            "text_input(",
+            ".message(FormMessage::SetName)",
+            "toggle(",
+            ".message(FormMessage::SetEnabled)",
+            ".update(update)",
+        ],
+    ),
     (
         "volume_slider",
         &[
             "slider(",
             ".primary()",
-            ".on_change(",
+            ".message(VolumeMessage::SetVolume)",
             "checkbox(",
+            ".message(VolumeMessage::SetMuted)",
             "TextAlign::Right",
         ],
     ),

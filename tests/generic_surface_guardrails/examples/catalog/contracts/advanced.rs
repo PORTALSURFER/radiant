@@ -14,14 +14,20 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
     (
         "inspector_panel",
         &[
-            "selectable_property_panel(",
             "PropertyRow::new(",
-            ".on_change(",
+            "inspector_panel_view(",
+            "button(row_data.value)",
+            ".message(InspectorMessage::SelectProperty",
+            ".update(update)",
         ],
     ),
     (
         "context_menu",
-        &["context_menu_overlay(", "MenuItem::new(", ".danger()"],
+        &[
+            "message_context_menu_overlay(",
+            "MenuCommand::new(",
+            ".danger()",
+        ],
     ),
     (
         "paint_helpers",

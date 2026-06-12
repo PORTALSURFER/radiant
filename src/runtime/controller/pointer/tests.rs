@@ -4,7 +4,8 @@ use crate::{
     layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams},
     runtime::{Event, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
     widgets::{
-        InteractiveRowWidget, PointerButton, PointerModifiers, TextInputWidget, WidgetSizing,
+        FocusBehavior, InteractiveRowWidget, PointerButton, PointerModifiers, TextInputWidget,
+        WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -31,10 +32,7 @@ impl RuntimeBridge<usize> for FocusTestBridge {
                 fixed_child(
                     28.0,
                     SurfaceNode::widget(
-                        InteractiveRowWidget::new(
-                            20,
-                            WidgetSizing::fixed(Vector2::new(160.0, 28.0)),
-                        ),
+                        non_focusable_interactive_row(20),
                         WidgetMessageMapper::none(),
                     ),
                 ),
@@ -43,6 +41,13 @@ impl RuntimeBridge<usize> for FocusTestBridge {
     }
 
     fn reduce_message(&mut self, _message: usize) {}
+}
+
+fn non_focusable_interactive_row(id: u64) -> InteractiveRowWidget {
+    let mut row = InteractiveRowWidget::new(id, WidgetSizing::fixed(Vector2::new(160.0, 28.0)));
+    row.common.focus = FocusBehavior::None;
+    row.common.paint.suppresses_container_hover = true;
+    row
 }
 
 fn fixed_child<Message>(height: f32, child: SurfaceNode<Message>) -> SurfaceChild<Message> {

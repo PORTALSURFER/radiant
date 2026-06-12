@@ -19,7 +19,19 @@ fn progress_feedback_keeps_overlay_state_and_track_geometry_focused() {
         .expect("progress track module should be readable");
     let progress_track =
         fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track/progress.rs"))
-            .expect("progress track geometry module should be readable");
+            .expect("progress track facade should be readable");
+    let progress_track_scalar =
+        fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track/progress/scalar.rs"))
+            .expect("progress track scalar geometry module should be readable");
+    let progress_track_range =
+        fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track/progress/range.rs"))
+            .expect("progress track range geometry module should be readable");
+    let progress_track_cursor =
+        fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track/progress/cursor.rs"))
+            .expect("progress track cursor geometry module should be readable");
+    let progress_track_paint =
+        fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track/progress/paint.rs"))
+            .expect("progress track paint adapter module should be readable");
     let progress_track_tests =
         fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track/progress/tests.rs"))
             .expect("progress track geometry tests should be readable");
@@ -94,12 +106,40 @@ fn progress_feedback_keeps_overlay_state_and_track_geometry_focused() {
         "progress track root should re-export focused geometry modules without owning implementation"
     );
     assert!(
-        progress_track.contains("pub fn horizontal_progress_fill_rect")
-            && progress_track.contains("pub fn horizontal_progress_activity_rect")
-            && progress_track.contains("pub fn horizontal_progress_track_rect")
+        progress_track.contains("mod cursor;")
+            && progress_track.contains("mod paint;")
+            && progress_track.contains("mod range;")
+            && progress_track.contains("mod scalar;")
+            && progress_track.contains("pub use cursor::horizontal_value_cursor_rect;")
+            && progress_track.contains("pub use paint::{")
+            && progress_track.contains("pub use range::{")
+            && progress_track.contains("pub use scalar::{")
             && progress_track.contains("#[path = \"progress/tests.rs\"]")
             && !progress_track.contains("fn horizontal_progress_fill_rect_clamps_to_track"),
-        "progress track fill and activity geometry should live in progress/track/progress.rs while behavior tests stay delegated"
+        "progress track facade should re-export focused geometry and paint modules while behavior tests stay delegated"
+    );
+    assert!(
+        progress_track_scalar.contains("pub fn horizontal_progress_fill_rect")
+            && progress_track_scalar.contains("pub fn horizontal_progress_activity_rect")
+            && progress_track_scalar.contains("pub fn horizontal_progress_track_rect"),
+        "scalar progress fill and activity geometry should live in progress/track/progress/scalar.rs"
+    );
+    assert!(
+        progress_track_range.contains("pub fn horizontal_value_range_rect")
+            && progress_track_range.contains("pub fn horizontal_value_range_edge_rects")
+            && progress_track_range.contains("pub fn horizontal_wrapped_value_range_rects")
+            && progress_track_range.contains("fn wrapped_fraction"),
+        "value range and wraparound geometry should live in progress/track/progress/range.rs"
+    );
+    assert!(
+        progress_track_cursor.contains("pub fn horizontal_value_cursor_rect"),
+        "cursor geometry should live in progress/track/progress/cursor.rs"
+    );
+    assert!(
+        progress_track_paint.contains("pub fn push_horizontal_value_range_fill")
+            && progress_track_paint.contains("pub fn push_horizontal_value_cursor_fill")
+            && progress_track_paint.contains("impl WidgetPaint<'_>"),
+        "progress paint adapters should live in progress/track/progress/paint.rs"
     );
     assert!(
         progress_track_tests.contains("fn horizontal_progress_fill_rect_clamps_to_track")

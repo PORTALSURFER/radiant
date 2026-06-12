@@ -44,18 +44,35 @@ fn index_viewport_model_keeps_behavior_tests_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let range = fs::read_to_string(manifest_dir.join("src/gui/range.rs"))
         .expect("range facade should be readable");
-    let model = fs::read_to_string(manifest_dir.join("src/gui/range/index_viewport.rs"))
+    let root = fs::read_to_string(manifest_dir.join("src/gui/range/index_viewport.rs"))
+        .expect("index viewport root should be readable");
+    let model = fs::read_to_string(manifest_dir.join("src/gui/range/index_viewport/model.rs"))
         .expect("index viewport model should be readable");
+    let scope = fs::read_to_string(manifest_dir.join("src/gui/range/index_viewport/scope.rs"))
+        .expect("index viewport scope should be readable");
+    let projection =
+        fs::read_to_string(manifest_dir.join("src/gui/range/index_viewport/projection.rs"))
+            .expect("index viewport projection should be readable");
+    let navigation =
+        fs::read_to_string(manifest_dir.join("src/gui/range/index_viewport/navigation.rs"))
+            .expect("index viewport navigation should be readable");
+    let ratio = fs::read_to_string(manifest_dir.join("src/gui/range/index_viewport/ratio.rs"))
+        .expect("index viewport ratio should be readable");
     let tests = fs::read_to_string(manifest_dir.join("src/gui/range/index_viewport/tests.rs"))
         .expect("index viewport behavior tests should be readable");
 
     assert!(
         range.contains("pub use index_viewport::{IndexViewport, IndexViewportScope};")
+            && root.contains("pub use model::IndexViewport;")
+            && root.contains("pub use scope::IndexViewportScope;")
+            && root.contains("#[path = \"index_viewport/tests.rs\"]")
             && model.contains("pub struct IndexViewport")
-            && model.contains("pub struct IndexViewportScope")
-            && model.contains("#[path = \"index_viewport/tests.rs\"]")
-            && !model.contains("fn index_viewport_clamps_visible_span_and_offset_fraction"),
-        "index viewport should stay exported through the range facade while keeping behavior tests out of the model root"
+            && scope.contains("pub struct IndexViewportScope")
+            && projection.contains("visible_range_from_absolute")
+            && navigation.contains("zoom_around_anchor")
+            && ratio.contains("fn finite_unit_or")
+            && !root.contains("fn index_viewport_clamps_visible_span_and_offset_fraction"),
+        "index viewport should stay exported through the range facade while splitting model, scope, projection, navigation, and ratio helpers"
     );
     assert!(
         tests.contains("fn index_viewport_clamps_visible_span_and_offset_fraction")

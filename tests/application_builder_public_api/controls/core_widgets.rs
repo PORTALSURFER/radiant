@@ -187,7 +187,7 @@ fn button_builder_can_filter_secondary_activation_and_map_drag() {
 
 #[test]
 fn icon_button_builder_supports_message_and_state_callback_apps() {
-    use radiant::CompatibilityStateAction;
+    use radiant::compatibility::StateAction;
     use radiant::prelude::{self as ui, IntoView};
 
     let message_surface: UiSurface<DemoMessage> = ui::disclosure_button(true)
@@ -201,7 +201,7 @@ fn icon_button_builder_supports_message_and_state_callback_apps() {
             .active
     );
 
-    let state_surface: UiSurface<CompatibilityStateAction<DemoState>> = ui::close_button()
+    let state_surface: UiSurface<StateAction<DemoState>> = ui::close_button()
         .on_click(|state: &mut DemoState| state.count += 1)
         .id(32)
         .into_surface();

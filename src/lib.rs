@@ -72,9 +72,6 @@ pub mod theme;
 /// Stable public widget contracts.
 pub mod widgets;
 pub use application::compatibility;
-pub use application::compatibility::{
-    StateAction as CompatibilityStateAction, StateView as CompatibilityStateView,
-};
 
 pub use application::{
     DEFAULT_COLUMN_SPACING, DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING,

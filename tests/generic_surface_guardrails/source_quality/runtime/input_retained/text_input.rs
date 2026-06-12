@@ -43,6 +43,12 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
     let interaction_input =
         fs::read_to_string(manifest_dir.join("src/widgets/interaction/input.rs"))
             .expect("widget interaction input contract should be readable");
+    let interaction_input_event =
+        fs::read_to_string(manifest_dir.join("src/widgets/interaction/input/event.rs"))
+            .expect("widget interaction input event contract should be readable");
+    let text_edit_input =
+        fs::read_to_string(manifest_dir.join("src/widgets/interaction/input/text_edit.rs"))
+            .expect("widget text edit input contract should be readable");
     let native_text_edit = fs::read_to_string(
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/keyboard/text_edit.rs"),
     )
@@ -122,10 +128,12 @@ fn text_input_state_keeps_models_selection_navigation_and_editing_focused() {
         "text input edit command handling should live in model/editing/command.rs"
     );
     assert!(
-        interaction_input.contains("MoveWordLeft")
-            && interaction_input.contains("MoveWordRight")
-            && interaction_input.contains("DeleteWordLeft")
-            && interaction_input.contains("DeleteWordRight")
+        interaction_input.contains("pub use text_edit::TextEditCommand;")
+            && interaction_input_event.contains("TextEdit(TextEditCommand)")
+            && text_edit_input.contains("MoveWordLeft")
+            && text_edit_input.contains("MoveWordRight")
+            && text_edit_input.contains("DeleteWordLeft")
+            && text_edit_input.contains("DeleteWordRight")
             && native_text_edit.contains("let word_navigation =")
             && native_text_edit.contains("TextEditCommand::MoveWordLeft")
             && native_text_edit.contains("TextEditCommand::MoveWordRight")

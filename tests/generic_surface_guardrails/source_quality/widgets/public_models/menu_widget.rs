@@ -13,9 +13,9 @@ fn application_menus_use_named_parts_for_context_overlay_fields() {
     let prelude = public_prelude_source(&manifest_dir);
 
     for parts in [
-        "pub struct MenuItemParts",
-        "pub struct MenuParts",
-        "pub struct ContextMenuOverlayParts",
+        "pub struct MenuCommandParts",
+        "pub struct MessageMenuParts",
+        "pub struct MessageContextMenuOverlayParts",
     ] {
         assert!(
             model.contains(parts),
@@ -24,15 +24,15 @@ fn application_menus_use_named_parts_for_context_overlay_fields() {
     }
     for constructor in [
         (
-            "pub fn from_parts(parts: MenuItemParts<State>) -> Self",
+            "pub fn from_parts(parts: MenuCommandParts<Message>) -> Self",
             &model,
         ),
         (
-            "pub fn menu_from_parts<State: 'static>(parts: MenuParts<State>) -> StateView<State>",
+            "pub fn message_menu_from_parts<Message>(parts: MessageMenuParts<Message>)",
             &source,
         ),
         (
-            "pub fn context_menu_overlay_from_parts<State: 'static>",
+            "pub fn message_context_menu_overlay_from_parts<Message>",
             &source,
         ),
     ] {
@@ -44,19 +44,24 @@ fn application_menus_use_named_parts_for_context_overlay_fields() {
     }
     assert!(
         source.contains("mod model;")
+            && source.contains("MessageContextMenuOverlayParts,")
+            && !source.contains("pub struct MenuCommandParts<Message>")
+            && !source.contains("pub struct MessageContextMenuOverlayParts<Message>")
+            && model.contains("Self::from_parts(MenuCommandParts {")
             && source.contains(
-                "pub use model::{ContextMenuOverlayParts, MenuItem, MenuItemParts, MenuParts};",
+                "message_context_menu_overlay_from_parts(MessageContextMenuOverlayParts {",
             )
-            && !source.contains("pub struct MenuItemParts<State>")
-            && !source.contains("pub struct ContextMenuOverlayParts<State>")
-            && model.contains("Self::from_parts(MenuItemParts {")
-            && source.contains("context_menu_overlay_from_parts(ContextMenuOverlayParts {")
-            && facade.contains("ContextMenuOverlayParts")
-            && facade.contains("MenuItemParts")
-            && facade.contains("MenuParts")
-            && prelude.contains("ContextMenuOverlayParts")
-            && prelude.contains("context_menu_overlay_from_parts"),
-        "menu model types should live outside the builder root while compatibility helpers and public exports keep the named-parts path available"
+            && facade.contains("MessageContextMenuOverlayParts")
+            && facade.contains("MenuCommandParts")
+            && !facade.contains("MenuItemParts")
+            && !facade.contains(" ContextMenuOverlayParts")
+            && !facade.contains("{ContextMenuOverlayParts")
+            && prelude.contains("MessageContextMenuOverlayParts")
+            && prelude.contains("message_context_menu_overlay_from_parts")
+            && !prelude.contains("MenuItemParts")
+            && !prelude.contains(" context_menu_overlay_from_parts")
+            && !prelude.contains("{context_menu_overlay_from_parts"),
+        "menu model types should live outside the builder root while normal public exports stay message-first"
     );
 }
 

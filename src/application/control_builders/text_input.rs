@@ -1,12 +1,8 @@
 use crate::{
-    application::{
-        MappedWidget, ViewNode, compatibility::StateAction, default_text_input_sizing,
-        view_node_from_widget,
-    },
+    application::{MappedWidget, ViewNode, default_text_input_sizing, view_node_from_widget},
     runtime::WidgetMessageMapper,
     widgets::{TextInputChrome, TextInputMessage, TextInputWidget, WidgetProminence, WidgetStyle},
 };
-use std::sync::Arc;
 
 /// Builder for text inputs that can emit messages or mutate state directly.
 pub struct TextInputBuilder {
@@ -84,53 +80,6 @@ impl TextInputBuilder {
         let mut node = view_node_from_widget(MappedWidget::new(
             input,
             WidgetMessageMapper::text_input(map),
-        ));
-        node.style = style;
-        node
-    }
-
-    /// Mutate application state directly when the input value changes.
-    pub fn on_change<State: 'static>(
-        self,
-        apply: impl Fn(&mut State, String) + Send + Sync + 'static,
-    ) -> ViewNode<StateAction<State>> {
-        let apply = Arc::new(apply);
-        self.message(move |value| {
-            let apply = Arc::clone(&apply);
-            StateAction::new(move |state| apply(state, value.clone()))
-        })
-    }
-
-    /// Bind this input to a mutable `String` field on application state.
-    pub fn bind<State: 'static>(
-        self,
-        field: impl for<'a> Fn(&'a mut State) -> &'a mut String + Send + Sync + 'static,
-    ) -> ViewNode<StateAction<State>> {
-        self.on_change(move |state, value| *field(state) = value)
-    }
-
-    /// Bind edits to a mutable `String` field and run a state callback on submit.
-    pub fn bind_submit<State: 'static>(
-        self,
-        field: impl for<'a> Fn(&'a mut State) -> &'a mut String + Send + Sync + 'static,
-        submit: impl Fn(&mut State) + Send + Sync + 'static,
-    ) -> ViewNode<StateAction<State>> {
-        let field = Arc::new(field);
-        let submit = Arc::new(submit);
-        let (input, style) = self.into_widget_and_style();
-        let mut node = view_node_from_widget(MappedWidget::new(
-            input,
-            WidgetMessageMapper::text_input(move |message| {
-                let field = Arc::clone(&field);
-                let submit = Arc::clone(&submit);
-                StateAction::new(move |state| {
-                    let submitted = message.is_submitted();
-                    *field(state) = message.value().to_owned();
-                    if submitted {
-                        submit(state);
-                    }
-                })
-            }),
         ));
         node.style = style;
         node

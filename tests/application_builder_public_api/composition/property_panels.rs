@@ -4,9 +4,14 @@ use super::super::*;
 fn application_builder_property_panel_routes_row_selection() {
     use radiant::prelude as ui;
 
+    #[derive(Clone, Debug, PartialEq)]
+    enum Message {
+        Select(String),
+    }
+
     let mut bridge = ui::app(DemoState::default())
         .view(|state| {
-            ui::selectable_property_panel(
+            ui::message_selectable_property_panel(
                 "Inspector",
                 [
                     ui::PropertyRow::new("name", "Name", state.name.clone())
@@ -14,8 +19,11 @@ fn application_builder_property_panel_routes_row_selection() {
                     ui::PropertyRow::new("count", "Count", state.count.to_string())
                         .selected(state.name == "count"),
                 ],
-                Some(|state: &mut DemoState, id| state.name = id),
+                Some(Message::Select),
             )
+        })
+        .update(|state, message| match message {
+            Message::Select(id) => state.name = id,
         })
         .into_bridge();
 

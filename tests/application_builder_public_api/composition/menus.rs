@@ -4,6 +4,11 @@ use super::super::*;
 fn application_builder_context_menu_overlay_routes_items() {
     use radiant::prelude as ui;
 
+    #[derive(Clone, Debug, PartialEq)]
+    enum Message {
+        Select(&'static str),
+    }
+
     let mut bridge = ui::app(DemoState::default())
         .view(|state| {
             ui::stack([
@@ -11,24 +16,20 @@ fn application_builder_context_menu_overlay_routes_items() {
                     .id(10)
                     .height(24.0)
                     .fill_width(),
-                ui::context_menu_overlay(
-                    Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(320.0, 180.0)),
+                ui::message_context_menu_overlay(
                     Point::new(260.0, 150.0),
                     Vector2::new(140.0, 92.0),
                     "Actions",
                     [
-                        ui::MenuItem::new("Inspect", |state: &mut DemoState| {
-                            state.name = "inspect".to_string()
-                        })
-                        .primary(),
-                        ui::MenuItem::new("Delete", |state: &mut DemoState| {
-                            state.name = "delete".to_string()
-                        })
-                        .danger(),
+                        ui::MenuCommand::new("Inspect", Message::Select("inspect")).primary(),
+                        ui::MenuCommand::new("Delete", Message::Select("delete")).danger(),
                     ],
                 )
                 .id(20),
             ])
+        })
+        .update(|state, message| match message {
+            Message::Select(name) => state.name = name.to_string(),
         })
         .into_bridge();
 
@@ -61,33 +62,35 @@ fn application_builder_context_menu_overlay_routes_items() {
 #[test]
 fn application_builder_menus_support_named_parts_construction() {
     use radiant::prelude as ui;
-    use std::sync::Arc;
+
+    #[derive(Clone, Debug, PartialEq)]
+    enum Message {
+        Select(&'static str),
+    }
 
     let mut bridge = ui::app(DemoState::default())
         .view(|state| {
             ui::stack([
                 ui::text(format!("Selected: {}", state.name)).id(31),
-                ui::context_menu_overlay_from_parts(ui::ContextMenuOverlayParts {
-                    bounds: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 120.0)),
+                ui::message_context_menu_overlay_from_parts(ui::MessageContextMenuOverlayParts {
                     anchor: Point::new(12.0, 12.0),
                     size: Vector2::new(132.0, 88.0),
                     title: String::from("Actions"),
-                    items: vec![
-                        ui::MenuItem::from_parts(ui::MenuItemParts {
+                    style: radiant::widgets::WidgetStyle::default(),
+                    commands: vec![
+                        ui::MenuCommand::from_parts(ui::MenuCommandParts {
                             label: String::from("Inspect"),
                             style: radiant::widgets::WidgetStyle::default(),
-                            on_select: Arc::new(|state: &mut DemoState| {
-                                state.name = String::from("inspect")
-                            }),
+                            message: Message::Select("inspect"),
                         }),
-                        ui::MenuItem::new("Delete", |state: &mut DemoState| {
-                            state.name = String::from("delete")
-                        })
-                        .danger(),
+                        ui::MenuCommand::new("Delete", Message::Select("delete")).danger(),
                     ],
                 })
                 .id(30),
             ])
+        })
+        .update(|state, message| match message {
+            Message::Select(name) => state.name = name.to_string(),
         })
         .into_bridge();
 

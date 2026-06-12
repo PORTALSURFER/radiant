@@ -105,6 +105,33 @@ pub fn selectable_property_panel<State: 'static>(
     .spacing(4.0)
 }
 
+/// Build an inspector/property panel whose selectable rows emit host messages.
+pub fn message_selectable_property_panel<Message: 'static>(
+    title: impl Into<String>,
+    rows: impl IntoIterator<Item = PropertyRow>,
+    select_message: Option<impl Fn(String) -> Message + Send + Sync + 'static>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    let select_message = select_message.map(|select_message| {
+        Arc::new(select_message) as Arc<dyn Fn(String) -> Message + Send + Sync>
+    });
+    column([
+        text(title.into()).height(20.0).fill_width(),
+        column(
+            rows.into_iter()
+                .map(|row| message_property_row(row, select_message.as_ref().map(Arc::clone))),
+        )
+        .fill_width()
+        .spacing(1.0),
+    ])
+    .style(WidgetStyle::default())
+    .fill_width()
+    .padding(6.0)
+    .spacing(4.0)
+}
+
 fn read_only_property_row<Message: 'static>(row_data: PropertyRow) -> ViewNode<Message> {
     let selected = row_data.selected;
     let mut view = row([
@@ -179,6 +206,47 @@ fn property_row<State: 'static>(
     view
 }
 
+fn message_property_row<Message>(
+    row_data: PropertyRow,
+    select_message: Option<Arc<dyn Fn(String) -> Message + Send + Sync>>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    let row_id = row_data.id.clone();
+    let selected = row_data.selected;
+    let label = message_property_cell(
+        row_data.label,
+        format!("property-{}-label", row_data.id),
+        None,
+    );
+    let value = message_property_cell(
+        row_data.value,
+        format!("property-{}-value", row_data.id),
+        select_message.map(|select_message| select_message(row_id)),
+    );
+    let mut view = row([label.size(112.0, 20.0), value.fill_width().height(20.0)])
+        .key(format!("property-row-{}", row_data.id))
+        .fill_width()
+        .height(24.0)
+        .padding_x(6.0)
+        .padding_y(1.0)
+        .spacing(6.0)
+        .style(if selected {
+            WidgetStyle {
+                tone: WidgetTone::Accent,
+                prominence: WidgetProminence::Subtle,
+            }
+        } else {
+            WidgetStyle::default()
+        })
+        .hoverable();
+    if selected {
+        view = view.primary();
+    }
+    view
+}
+
 fn property_cell<State: 'static>(
     value: String,
     key: String,
@@ -187,6 +255,26 @@ fn property_cell<State: 'static>(
     if let Some(on_select) = on_select {
         button(value)
             .on_click(move |state: &mut State| on_select(state))
+            .key(key)
+            .subtle()
+            .fill_width()
+            .height(20.0)
+    } else {
+        text(value).key(key).fill_width().height(20.0)
+    }
+}
+
+fn message_property_cell<Message>(
+    value: String,
+    key: String,
+    message: Option<Message>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    if let Some(message) = message {
+        button(value)
+            .message(message)
             .key(key)
             .subtle()
             .fill_width()

@@ -67,8 +67,14 @@ fn application_view_builders_lower_into_runtime_surface_nodes() {
 }
 
 #[test]
-fn application_builders_support_direct_callbacks_scroll_and_sizing_helpers() {
+fn application_builders_support_message_callbacks_scroll_and_sizing_helpers() {
     use radiant::prelude as ui;
+
+    #[derive(Clone, Debug, PartialEq)]
+    enum Message {
+        Increment,
+        TextInput(TextInputMessage),
+    }
 
     let mut bridge = ui::app(DemoState::default())
         .title("Direct")
@@ -80,14 +86,11 @@ fn application_builders_support_direct_callbacks_scroll_and_sizing_helpers() {
                         .fixed(120.0, 24.0)
                         .baseline(17.0),
                     ui::button("Increment")
-                        .on_click(|state: &mut DemoState| state.count += 1)
+                        .message(Message::Increment)
                         .id(11)
                         .size(96.0, 32.0),
                     ui::text_input(state.name.clone())
-                        .bind_submit(
-                            |state: &mut DemoState| &mut state.name,
-                            |state: &mut DemoState| state.count += 1,
-                        )
+                        .message_event(Message::TextInput)
                         .id(12)
                         .min_size(120.0, 28.0)
                         .preferred_size(180.0, 28.0),
@@ -95,6 +98,16 @@ fn application_builders_support_direct_callbacks_scroll_and_sizing_helpers() {
                 .id(2),
             )
             .id(1)
+        })
+        .update(|state, message| match message {
+            Message::Increment => state.count += 1,
+            Message::TextInput(message) => {
+                let submitted = message.is_submitted();
+                state.name = message.value().to_owned();
+                if submitted {
+                    state.count += 1;
+                }
+            }
         })
         .into_bridge();
 
@@ -178,6 +191,12 @@ fn application_bridge_pulls_owned_surfaces_for_runtime_projection() {
 fn application_builders_scope_keys_and_bind_text_inputs_to_state_fields() {
     use radiant::prelude::{self as ui, IntoView};
 
+    #[derive(Clone, Debug, PartialEq)]
+    enum Message {
+        Delete,
+        NameChanged(String),
+    }
+
     let surface = ui::column_key(
         "todos",
         [
@@ -185,22 +204,18 @@ fn application_builders_scope_keys_and_bind_text_inputs_to_state_fields() {
                 1_u64,
                 [
                     ui::text("First").key("label"),
-                    ui::button("Delete")
-                        .on_click(|state: &mut DemoState| state.count += 1)
-                        .key("delete"),
+                    ui::button("Delete").message(Message::Delete).key("delete"),
                 ],
             ),
             ui::row_key(
                 2_u64,
                 [
                     ui::text("Second").key("label"),
-                    ui::button("Delete")
-                        .on_click(|state: &mut DemoState| state.count += 1)
-                        .key("delete"),
+                    ui::button("Delete").message(Message::Delete).key("delete"),
                 ],
             ),
             ui::text_input(String::from("Draft"))
-                .bind(|state: &mut DemoState| &mut state.name)
+                .message(Message::NameChanged)
                 .key("draft"),
         ],
     )

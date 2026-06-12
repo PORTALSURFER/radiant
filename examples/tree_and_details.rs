@@ -4,7 +4,6 @@
 mod data;
 
 use data::{detail_rows_for, tree_children};
-use radiant::CompatibilityStateView;
 use radiant::prelude::*;
 use std::collections::HashSet;
 
@@ -15,6 +14,14 @@ struct ExampleState {
     drag_status: String,
     expanded: HashSet<String>,
     sort: DetailsSort,
+}
+
+#[derive(Clone, Debug)]
+enum ExampleMessage {
+    ActivateTreeItem(String),
+    SelectRow(String),
+    RecordTreeDrag(String, DragHandleMessage),
+    SortBy(String),
 }
 
 impl Default for ExampleState {
@@ -99,19 +106,25 @@ fn main() -> radiant::Result {
         .size(680, 360)
         .min_size(520, 260)
         .view(example_view)
+        .update(|state, message| match message {
+            ExampleMessage::ActivateTreeItem(id) => state.activate_tree_item(id),
+            ExampleMessage::SelectRow(id) => state.select_row(id),
+            ExampleMessage::RecordTreeDrag(id, message) => state.record_tree_drag(id, message),
+            ExampleMessage::SortBy(column_id) => state.sort_by(column_id),
+        })
         .run()
 }
 
-fn example_view(state: &mut ExampleState) -> CompatibilityStateView<ExampleState> {
+fn example_view(state: &mut ExampleState) -> View<ExampleMessage> {
     row([
         column([
             text("Tree").height(22.0).fill_width(),
-            tree_list_with_drag(
+            message_tree_list_with_drag(
                 state.tree_items(),
-                ExampleState::activate_tree_item,
-                ExampleState::activate_tree_item,
-                None::<fn(&mut ExampleState, String)>,
-                Some(ExampleState::record_tree_drag),
+                ExampleMessage::ActivateTreeItem,
+                ExampleMessage::ActivateTreeItem,
+                None::<fn(String) -> ExampleMessage>,
+                Some(ExampleMessage::RecordTreeDrag),
             ),
             text(state.drag_status.clone()).height(22.0).fill_width(),
         ])
@@ -124,7 +137,7 @@ fn example_view(state: &mut ExampleState) -> CompatibilityStateView<ExampleState
             text(format!("Details: {}", state.selected_tree_item))
                 .height(22.0)
                 .fill_width(),
-            selectable_sortable_details_list(
+            message_selectable_sortable_details_list(
                 [
                     DetailsColumn::flexible("name", "Name"),
                     DetailsColumn::fixed("kind", "Kind", 120.0),
@@ -132,8 +145,8 @@ fn example_view(state: &mut ExampleState) -> CompatibilityStateView<ExampleState
                 ],
                 state.rows(),
                 Some(state.sort.clone()),
-                ExampleState::sort_by,
-                Some(ExampleState::select_row),
+                ExampleMessage::SortBy,
+                Some(ExampleMessage::SelectRow),
             ),
         ])
         .style(WidgetStyle::default())

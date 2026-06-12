@@ -71,6 +71,7 @@ pub mod runtime;
 pub mod theme;
 /// Stable public widget contracts.
 pub mod widgets;
+pub use application::compatibility;
 pub use application::compatibility::{
     StateAction as CompatibilityStateAction, StateView as CompatibilityStateView,
 };

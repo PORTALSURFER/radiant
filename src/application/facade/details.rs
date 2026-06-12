@@ -9,8 +9,9 @@ pub use super::super::details_list::{
     compact_details_row, compact_resizable_details_header_cell,
     compact_resizable_details_header_cell_with_ids, details_column_drag_content_left,
     details_column_drag_feedback, details_column_reorder_index, details_sort_label,
-    reorder_details_columns_by_id, selectable_sortable_details_list, sortable_details_list,
-    update_details_column_reorder_drag, update_details_column_resize_drag,
+    message_selectable_sortable_details_list, message_sortable_details_list,
+    reorder_details_columns_by_id, update_details_column_reorder_drag,
+    update_details_column_resize_drag,
 };
 pub use super::super::option_list::{
     CompactOptionListAnchoredParts, CompactOptionListFloatingAboveParts, CompactOptionListItem,
@@ -21,5 +22,5 @@ pub use super::super::option_list::{
     compact_option_list_from_parts_with_interaction,
 };
 pub use super::super::tree_list::{
-    TreeListItem, TreeListItemParts, tree_list, tree_list_with_drag,
+    TreeListItem, TreeListItemParts, message_tree_list, message_tree_list_with_drag,
 };

@@ -11,6 +11,6 @@ pub use super::super::panel_section::{
     panel_section_from_parts, panel_section_layer_from_parts,
 };
 pub use super::super::property_panel::{
-    PropertyRow, PropertyRowParts, property_panel, property_rows, selectable_property_panel,
+    PropertyRow, PropertyRowParts, message_selectable_property_panel, property_panel, property_rows,
 };
 pub use super::super::status_bar::{StatusBarParts, status_bar, status_bar_from_parts};

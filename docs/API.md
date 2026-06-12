@@ -2037,13 +2037,14 @@ overlay or grouped row body outside the standard tree-guide case; reserve
 acceptable.
 Run `cargo run --example inspector_panel` for a compact inspector/property
 panel sandbox that uses `PropertyRow`, `property_rows(...)`,
-`property_panel(...)`, and `selectable_property_panel(...)` on the same
+`property_panel(...)`, and `message_selectable_property_panel(...)` on the same
 application-builder path as other stateful examples. `property_rows(...)`
 builds read-only property rows without adding a titled panel shell, so host
 applications can embed standard inspector rows inside app-owned panel sections.
 `property_panel(...)` is read-only and can be used with any host message type;
-use `selectable_property_panel(...)` when property rows should emit state
-callbacks. Compact titled panels with optional header actions can use
+use `message_selectable_property_panel(...)` when property rows should emit
+host messages handled by the app reducer. Compact titled panels with optional
+header actions can use
 `PanelSectionParts`, `panel_section(...)`, `panel_section_from_parts(...)`, and
 `closeable_panel_section_from_parts(...)` instead of rebuilding title rows,
 close buttons, padding, spacing, and neutral panel chrome in application code.

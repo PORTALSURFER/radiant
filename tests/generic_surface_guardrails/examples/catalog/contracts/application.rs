@@ -90,8 +90,8 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
     (
         "tree_and_details",
         &[
-            "tree_list_with_drag(",
-            "selectable_sortable_details_list(",
+            "message_tree_list_with_drag(",
+            "message_selectable_sortable_details_list(",
             "DetailsColumn::fixed(",
             "DetailsSort::new(",
             "DragHandleMessage",

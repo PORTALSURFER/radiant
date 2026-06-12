@@ -361,3 +361,50 @@ fn application_dropdown_builder_keeps_menu_overlay_and_tests_focused() {
         "dropdown builder and named-option behavior tests should live in dropdown/tests.rs"
     );
 }
+
+#[test]
+fn application_interactive_row_builder_keeps_policy_and_underlay_focused() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = fs::read_to_string(
+        manifest_dir.join("src/application/control_builders/interactive_row/builder.rs"),
+    )
+    .expect("interactive-row builder root should be readable");
+    let drag_drop = fs::read_to_string(
+        manifest_dir.join("src/application/control_builders/interactive_row/builder/drag_drop.rs"),
+    )
+    .expect("interactive-row drag/drop policy module should be readable");
+    let messages = fs::read_to_string(
+        manifest_dir.join("src/application/control_builders/interactive_row/builder/messages.rs"),
+    )
+    .expect("interactive-row message mapping module should be readable");
+    let underlay = fs::read_to_string(
+        manifest_dir.join("src/application/control_builders/interactive_row/builder/underlay.rs"),
+    )
+    .expect("interactive-row underlay module should be readable");
+    let widget = fs::read_to_string(
+        manifest_dir.join("src/application/control_builders/interactive_row/builder/widget.rs"),
+    )
+    .expect("interactive-row widget lowering module should be readable");
+
+    assert!(
+        root.contains("#[path = \"builder/drag_drop.rs\"]")
+            && root.contains("#[path = \"builder/messages.rs\"]")
+            && root.contains("#[path = \"builder/underlay.rs\"]")
+            && root.contains("#[path = \"builder/widget.rs\"]")
+            && root.contains("pub struct InteractiveRowBuilder")
+            && !root.contains("pub struct InteractiveRowUnderlayBuilder")
+            && !root.contains("pub fn tracked_drag_source")
+            && !root.contains("fn with_message_mapper"),
+        "interactive-row builder root should own row configuration and delegate policy, routing, underlay, and widget lowering"
+    );
+    assert!(
+        drag_drop.contains("pub fn tracked_drag_source")
+            && drag_drop.contains("pub fn tracked_drop_target")
+            && drag_drop.contains("pub fn tracked_drop_candidate")
+            && messages.contains("fn with_message_mapper")
+            && underlay.contains("pub struct InteractiveRowUnderlayBuilder")
+            && underlay.contains("pub fn interactive_row_underlay")
+            && widget.contains("pub fn widget(self) -> InteractiveRowWidget"),
+        "interactive-row drag/drop policy, message mapping, underlay composition, and widget lowering should have focused owners"
+    );
+}

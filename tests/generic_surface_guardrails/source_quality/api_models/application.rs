@@ -251,24 +251,58 @@ fn application_list_builders_keep_virtualization_tests_focused() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let lists = fs::read_to_string(manifest_dir.join("src/application/layout_builders/lists.rs"))
         .expect("application list builders should be readable");
+    let virtual_builder = fs::read_to_string(
+        manifest_dir.join("src/application/layout_builders/lists/virtual_builder.rs"),
+    )
+    .expect("virtual list builder module should be readable");
+    let row_chrome = fs::read_to_string(
+        manifest_dir.join("src/application/layout_builders/lists/row_chrome.rs"),
+    )
+    .expect("row chrome module should be readable");
     let tests =
         fs::read_to_string(manifest_dir.join("src/application/layout_builders/lists/tests.rs"))
             .expect("application list builder tests should be readable");
+    let virtual_window_tests = fs::read_to_string(
+        manifest_dir.join("src/application/layout_builders/lists/tests/virtual_window.rs"),
+    )
+    .expect("virtual-window list tests should be readable");
+    let bounded_scroll_tests = fs::read_to_string(
+        manifest_dir.join("src/application/layout_builders/lists/tests/bounded_scroll.rs"),
+    )
+    .expect("bounded-scroll list tests should be readable");
 
     assert!(
-        !lists.contains("pub fn virtual_list<Message, Item>")
-            && lists.contains("pub fn virtual_list_window<Message: 'static>")
-            && lists.contains("pub fn virtual_list_windowed<Message, Project>")
-            && lists.contains("fn apply_list_row_chrome<Message>")
+        lists.contains("mod row_chrome;")
+            && lists.contains("mod scroll_columns;")
+            && lists.contains("mod scroll_update;")
+            && lists.contains("mod tree_window;")
+            && lists.contains("mod virtual_builder;")
+            && lists.contains("mod virtual_window;")
+            && lists.contains(
+                "pub use virtual_window::{virtual_list_window, virtual_list_window_body};"
+            )
             && lists.contains("#[path = \"lists/tests.rs\"]")
+            && !lists.contains("pub fn virtual_list<Message, Item>")
             && !lists.contains("fn virtual_list_window_projects_only_materialized_range"),
-        "application list builders should expose window-owned large-list APIs while virtualization behavior tests stay delegated"
+        "application list builders should stay a focused facade over row, scroll, virtual-window, and tree-list owners"
     );
     assert!(
-        !tests.contains("fn virtual_list_uses_packed_rows")
-            && tests.contains("fn virtual_list_window_projects_only_materialized_range")
-            && tests.contains("fn count_layout_nodes"),
-        "application list builder behavior coverage should live in layout_builders/lists/tests.rs"
+        virtual_builder.contains("pub struct VirtualListBuilder<Message, Project>")
+            && virtual_builder.contains("pub fn virtual_list_windowed<Message, Project>")
+            && row_chrome.contains("fn apply_list_row_chrome<Message>"),
+        "virtual-list builder and row chrome helpers should live in their focused owner modules"
+    );
+    assert!(
+        tests.contains("mod bounded_scroll;")
+            && tests.contains("mod row_chrome;")
+            && tests.contains("mod scroll_update;")
+            && tests.contains("mod tree_window;")
+            && tests.contains("mod virtual_window;")
+            && !tests.contains("fn virtual_list_uses_packed_rows")
+            && virtual_window_tests
+                .contains("fn virtual_list_window_projects_only_materialized_range")
+            && bounded_scroll_tests.contains("fn bounded_scroll_column_caps_visible_row_height"),
+        "application list builder behavior coverage should be split by list-builder concern"
     );
 }
 

@@ -5,8 +5,8 @@ use crate::{
         focus::FocusSurface, input::KeyPress, repaint::RepaintSignal, shortcuts::ShortcutResolution,
     },
     runtime::{
-        Command, PaintPrimitive, RuntimeAnimationActivity, RuntimeBridge, TransientOverlayContext,
-        UiSurface,
+        Command, PaintPrimitive, RuntimeAnimationActivity, RuntimeBridge, RuntimeDiagnostics,
+        TransientOverlayContext, UiSurface,
     },
 };
 use std::{sync::Arc, time::Duration};
@@ -73,9 +73,10 @@ where
         &mut self,
         name: &'static str,
         priority: crate::runtime::TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         work: Box<dyn FnOnce() -> Message + Send + 'static>,
     ) -> bool {
-        self.spawn_runtime_message_task(name, priority, work)
+        self.spawn_runtime_message_task(name, priority, is_cancelled, work)
     }
 
     fn request_platform_service(
@@ -137,6 +138,10 @@ where
 
     fn has_frame_diagnostics_observer(&self) -> bool {
         false
+    }
+
+    fn runtime_diagnostics(&self) -> RuntimeDiagnostics {
+        self.runtime.diagnostics_snapshot()
     }
 
     fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {

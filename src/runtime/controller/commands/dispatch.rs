@@ -3,6 +3,7 @@ use crate::{
     gui::types::Vector2,
     runtime::{Command, DragSession, ExternalDragSession, RuntimeBridge},
 };
+use std::time::Instant;
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
@@ -15,7 +16,10 @@ where
     ) {
         let refresh_before = outcome.surface_refresh_requested;
         outcome.messages_dispatched += 1;
+        let update_started = Instant::now();
         let command = self.bridge.update(message);
+        self.diagnostics
+            .record_update_handler(update_started.elapsed());
         let paint_only = command
             .repaint_scope()
             .is_some_and(|scope| scope.is_paint_only());
@@ -74,9 +78,13 @@ where
             Command::Perform {
                 name,
                 priority,
+                is_cancelled,
                 work,
             } => {
-                if self.bridge.spawn_message_task(name, priority, work) {
+                if self
+                    .bridge
+                    .spawn_message_task(name, priority, is_cancelled, work)
+                {
                     outcome.repaint_requested = true;
                 }
             }

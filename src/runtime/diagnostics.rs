@@ -1,5 +1,6 @@
 //! Public native runtime diagnostics models.
 
+mod business;
 mod cache_policy;
 mod frame;
 mod gpu_surface;
@@ -8,6 +9,11 @@ mod scene;
 mod text;
 mod timing;
 
+pub use business::{
+    BusinessRuntimeDiagnostics, BusinessTaskDiagnostic, BusinessTaskDiagnosticState,
+    RuntimeDiagnostics, UiRuntimeDiagnostics, UiUpdateHandlerDiagnostic,
+};
+pub(crate) use business::{RuntimeDiagnosticsRecorder, elapsed_since};
 pub use cache_policy::RetainedSurfaceCachePolicy;
 pub use frame::NativeFrameDiagnostics;
 pub use gpu_surface::{

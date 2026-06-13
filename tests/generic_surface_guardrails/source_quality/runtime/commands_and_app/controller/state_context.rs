@@ -65,7 +65,7 @@ fn runtime_controller_context_and_scratch_modules_use_explicit_dependencies() {
         context.contains("use super::SurfaceRuntime;")
             && context.contains("gui::types::{Rect, Vector2}")
             && context.contains("layout::{LayoutDebugOptions, LayoutOutput, NodeId}")
-            && context.contains("runtime::{RuntimeBridge, UiSurface}")
+            && context.contains("runtime::{RuntimeBridge, RuntimeDiagnostics, UiSurface}")
             && context.contains("widgets::WidgetId")
             && !context.starts_with("use super::*;")
             && context.contains("pub struct RuntimeContext<'a, Message>"),

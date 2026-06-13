@@ -41,6 +41,7 @@ where
             exit_requested: false,
             pending_input_command_outcome: CommandOutcome::default(),
             runtime_work: RuntimeWorkQueues::default(),
+            diagnostics: Default::default(),
         };
         runtime.relayout_with_traversal(traversal);
         runtime

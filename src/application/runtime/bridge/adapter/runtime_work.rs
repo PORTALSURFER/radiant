@@ -27,18 +27,20 @@ where
         &mut self,
         name: &'static str,
         priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         work: Box<dyn FnOnce() -> Message + Send + 'static>,
     ) -> bool {
         if !self.runtime.is_alive() {
             return false;
         }
         let runtime = Arc::downgrade(&self.runtime);
-        self.runtime.spawn_business_task(name, priority, move || {
-            let message = work();
-            if let Some(runtime) = runtime.upgrade() {
-                let _ = runtime.enqueue(message);
-            }
-        })
+        self.runtime
+            .spawn_business_task(name, priority, is_cancelled, move || {
+                let message = work();
+                if let Some(runtime) = runtime.upgrade() {
+                    let _ = runtime.enqueue(message);
+                }
+            })
     }
 
     pub(super) fn take_runtime_command_queue(&mut self) -> Vec<Command<Message>> {

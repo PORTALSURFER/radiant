@@ -1313,6 +1313,18 @@ should reduce, Radiant keeps the remaining commands/messages ordered, requests
 another wakeup, and lets the backend return to input/render work before
 continuing the queue.
 
+`SurfaceRuntime::runtime_diagnostics()` returns a generic
+`RuntimeDiagnostics` snapshot for tests and future debug panels. The
+`business` section reports accepted, started, completed, cancelled, rejected,
+failed, and currently running business work, plus bounded recent lifecycle
+events with task name, priority, queue delay, and run duration where applicable.
+The `ui` section reports update-handler counts, the longest observed update
+duration, and the latest handler that crossed Radiant's development
+slow-handler threshold. These values are diagnostics, not portable pass/fail
+performance budgets; use them to find blocking reducers, missing
+`UpdateContext::business()` handoffs, worker saturation, and stale cancellation
+paths without coupling Radiant to an application's domain data.
+
 ## Layout
 
 `radiant::layout` provides slot-based measurement and placement. Containers use

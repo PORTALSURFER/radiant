@@ -27,6 +27,7 @@ where
         let _ = self.runtime.spawn_business_task(
             "radiant-platform-service",
             TaskPriority::Interactive,
+            None,
             move || {
                 let response = perform_platform_request(request);
                 if let Some(runtime) = runtime.upgrade() {

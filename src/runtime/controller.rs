@@ -25,8 +25,8 @@ pub use events::{Event, PointerClickOutcome, PointerMoveOutcome};
 pub use scroll::ScrollUpdate;
 
 use super::{
-    ClipAncestors, Command, DragSession, ExternalDragSession, RuntimeBridge, SurfaceTraversalIndex,
-    UiSurface, WidgetDispatchResult, WidgetPath,
+    ClipAncestors, Command, DragSession, ExternalDragSession, RuntimeBridge,
+    RuntimeDiagnosticsRecorder, SurfaceTraversalIndex, UiSurface, WidgetDispatchResult, WidgetPath,
 };
 use crate::{
     gui::types::Rect,
@@ -75,6 +75,7 @@ where
     exit_requested: bool,
     pending_input_command_outcome: CommandOutcome,
     runtime_work: RuntimeWorkQueues<Message>,
+    diagnostics: RuntimeDiagnosticsRecorder,
 }
 
 /// Runtime controller for shared-surface declarative hosts.

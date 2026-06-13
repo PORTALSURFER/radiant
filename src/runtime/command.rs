@@ -76,6 +76,8 @@ pub enum Command<Message> {
         name: &'static str,
         /// Best-effort priority hint for the runtime-owned worker lane.
         priority: TaskPriority,
+        /// Optional cooperative cancellation probe for diagnostics.
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         /// Background work lowered into a message-producing closure.
         work: Box<dyn FnOnce() -> Message + Send + 'static>,
     },

@@ -1,5 +1,7 @@
 use super::AppRuntime;
-use crate::runtime::TaskPriority;
+use crate::runtime::{
+    BusinessTaskDiagnosticState, RuntimeDiagnosticsRecorder, TaskPriority, elapsed_since,
+};
 use std::sync::{
     Arc, Mutex, Weak,
     mpsc::{self, Sender},
@@ -15,6 +17,9 @@ const DEFAULT_BUSINESS_WORKERS: usize = 2;
 
 struct BusinessJob {
     priority: TaskPriority,
+    name: &'static str,
+    queued_at: std::time::Instant,
+    is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
     work: Box<dyn FnOnce() + Send + 'static>,
 }
 
@@ -25,6 +30,7 @@ struct BusinessJob {
 /// back to synchronous execution on the UI owner.
 pub(super) struct BusinessThreadPool {
     sender: Option<Sender<BusinessJob>>,
+    diagnostics: Arc<RuntimeDiagnosticsRecorder>,
     _workers: Vec<thread::JoinHandle<()>>,
 }
 
@@ -36,16 +42,31 @@ impl Default for BusinessThreadPool {
 
 impl BusinessThreadPool {
     fn new(worker_count: usize) -> Self {
+        Self::with_diagnostics_and_worker_count(
+            Arc::new(RuntimeDiagnosticsRecorder::default()),
+            worker_count,
+        )
+    }
+
+    pub(super) fn new_with_diagnostics(diagnostics: Arc<RuntimeDiagnosticsRecorder>) -> Self {
+        Self::with_diagnostics_and_worker_count(diagnostics, default_business_worker_count())
+    }
+
+    fn with_diagnostics_and_worker_count(
+        diagnostics: Arc<RuntimeDiagnosticsRecorder>,
+        worker_count: usize,
+    ) -> Self {
         let worker_count = worker_count.max(1);
         let (sender, receiver) = mpsc::channel::<BusinessJob>();
         let receiver = Arc::new(Mutex::new(receiver));
         let mut workers = Vec::with_capacity(worker_count);
         for worker_index in 0..worker_count {
             let receiver = Arc::clone(&receiver);
+            let diagnostics = Arc::clone(&diagnostics);
             let name = business_thread_name(format!("worker-{worker_index}"));
             match thread::Builder::new()
                 .name(name.clone())
-                .spawn(move || worker_loop(receiver))
+                .spawn(move || worker_loop(receiver, diagnostics))
             {
                 Ok(worker) => workers.push(worker),
                 Err(error) => {
@@ -60,6 +81,7 @@ impl BusinessThreadPool {
         let sender = (!workers.is_empty()).then_some(sender);
         Self {
             sender,
+            diagnostics,
             _workers: workers,
         }
     }
@@ -68,9 +90,11 @@ impl BusinessThreadPool {
         &self,
         name: &'static str,
         priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         work: impl FnOnce() + Send + 'static,
     ) -> bool {
         let Some(sender) = &self.sender else {
+            self.diagnostics.record_business_rejected(name, priority);
             tracing::warn!(
                 work.name = name,
                 "Radiant app runtime has no business workers available; refusing to block the UI path"
@@ -79,10 +103,17 @@ impl BusinessThreadPool {
         };
         match sender.send(BusinessJob {
             priority,
+            name,
+            queued_at: std::time::Instant::now(),
+            is_cancelled,
             work: Box::new(work),
         }) {
-            Ok(()) => true,
+            Ok(()) => {
+                self.diagnostics.record_business_queued(name, priority);
+                true
+            }
             Err(_) => {
+                self.diagnostics.record_business_rejected(name, priority);
                 tracing::warn!(
                     work.name = name,
                     "Radiant app runtime failed to queue work on business workers"
@@ -100,19 +131,36 @@ impl BusinessThreadPool {
     fn without_workers_for_test() -> Self {
         Self {
             sender: None,
+            diagnostics: Arc::new(RuntimeDiagnosticsRecorder::default()),
             _workers: Vec::new(),
         }
     }
 }
 
-fn worker_loop(receiver: Arc<Mutex<mpsc::Receiver<BusinessJob>>>) {
+fn worker_loop(
+    receiver: Arc<Mutex<mpsc::Receiver<BusinessJob>>>,
+    diagnostics: Arc<RuntimeDiagnosticsRecorder>,
+) {
     platform::configure_business_worker_thread(TaskPriority::Background);
     loop {
         let Ok(job) = lock_business_receiver(&receiver).recv() else {
             break;
         };
         platform::configure_business_worker_thread(job.priority);
+        let queue_delay = elapsed_since(job.queued_at);
+        diagnostics.record_business_started(job.name, job.priority, queue_delay);
+        let started = std::time::Instant::now();
         (job.work)();
+        let state = if job
+            .is_cancelled
+            .as_ref()
+            .is_some_and(|is_cancelled| is_cancelled())
+        {
+            BusinessTaskDiagnosticState::Cancelled
+        } else {
+            BusinessTaskDiagnosticState::Completed
+        };
+        diagnostics.record_business_finished(job.name, job.priority, state, elapsed_since(started));
         platform::configure_business_worker_thread(TaskPriority::Background);
     }
 }

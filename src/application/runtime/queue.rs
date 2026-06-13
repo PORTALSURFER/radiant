@@ -1,6 +1,6 @@
 use super::threading::BusinessThreadPool;
 use super::timer::TimerLane;
-use crate::runtime::TaskPriority;
+use crate::runtime::{RuntimeDiagnostics, RuntimeDiagnosticsRecorder, TaskPriority};
 use crate::{gui::repaint::RepaintSignal, runtime::Command};
 use std::sync::{
     Arc, Mutex, OnceLock,
@@ -13,6 +13,7 @@ pub(in crate::application) struct AppRuntime<Message> {
     commands: Mutex<Vec<Command<Message>>>,
     repaint: Mutex<Option<Arc<dyn RepaintSignal>>>,
     business: BusinessThreadPool,
+    diagnostics: Arc<RuntimeDiagnosticsRecorder>,
     timers: OnceLock<TimerLane<Message>>,
     alive: AtomicBool,
     frame_pending: AtomicBool,
@@ -20,11 +21,13 @@ pub(in crate::application) struct AppRuntime<Message> {
 
 impl<Message> Default for AppRuntime<Message> {
     fn default() -> Self {
+        let diagnostics = Arc::new(RuntimeDiagnosticsRecorder::default());
         Self {
             pending: Mutex::new(Vec::new()),
             commands: Mutex::new(Vec::new()),
             repaint: Mutex::new(None),
-            business: BusinessThreadPool::default(),
+            business: BusinessThreadPool::new_with_diagnostics(Arc::clone(&diagnostics)),
+            diagnostics,
             timers: OnceLock::new(),
             alive: AtomicBool::new(true),
             frame_pending: AtomicBool::new(false),
@@ -62,16 +65,21 @@ impl<Message> AppRuntime<Message> {
         &self,
         name: &'static str,
         priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         work: impl FnOnce() + Send + 'static,
     ) -> bool {
         if !self.is_alive() {
             return false;
         }
-        self.business.spawn(name, priority, work)
+        self.business.spawn(name, priority, is_cancelled, work)
     }
 
     pub(super) fn can_spawn_business_tasks(&self) -> bool {
         self.business.is_available()
+    }
+
+    pub(super) fn diagnostics_snapshot(&self) -> RuntimeDiagnostics {
+        self.diagnostics.snapshot()
     }
 
     pub(super) fn take_pending(&self) -> Vec<Message> {

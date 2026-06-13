@@ -86,6 +86,7 @@ impl<Message> Command<Message> {
     pub(crate) fn perform_with_priority<Output>(
         name: &'static str,
         priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         work: impl FnOnce() -> Output + Send + 'static,
         map: impl FnOnce(Output) -> Message + Send + 'static,
     ) -> Self
@@ -95,6 +96,7 @@ impl<Message> Command<Message> {
         Self::Perform {
             name,
             priority,
+            is_cancelled,
             work: Box::new(move || map(work())),
         }
     }

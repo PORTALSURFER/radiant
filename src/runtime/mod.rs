@@ -58,6 +58,7 @@ pub use controller::{
     RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceRuntime,
 };
 pub use diagnostics::{
+    BusinessRuntimeDiagnostics, BusinessTaskDiagnostic, BusinessTaskDiagnosticState,
     NativeCompositedBaseTiming, NativeFrameDiagnostics, NativeFrameTimingDiagnostics,
     NativeFrameWorkTimings, NativeGpuSurfaceAtlasDiagnostics, NativeGpuSurfaceCompositeDiagnostics,
     NativeGpuSurfaceCustomShaderDiagnostics, NativeGpuSurfaceCustomShaderFailureDiagnostics,
@@ -67,8 +68,10 @@ pub use diagnostics::{
     NativeSceneSurfaceDiagnostics, NativeSceneTextDiagnostics, NativeSceneTraversalDiagnostics,
     NativeTextCacheCounters, NativeTextCacheDiagnostics, NativeTextDiagnostics,
     NativeTextQualityDiagnostics, NativeTextQualityStatus, NativeTransientOverlayTiming,
-    RetainedSurfaceCachePolicy,
+    RetainedSurfaceCachePolicy, RuntimeDiagnostics, UiRuntimeDiagnostics,
+    UiUpdateHandlerDiagnostic,
 };
+pub(crate) use diagnostics::{RuntimeDiagnosticsRecorder, elapsed_since};
 pub(crate) use drag::DragSession;
 pub use drag::{DragPreview, DragPreviewTextSizing, DragRequest};
 pub(crate) use external_drag::ExternalDragSession;

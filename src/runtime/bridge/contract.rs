@@ -9,8 +9,8 @@ use crate::gui::{
 };
 use crate::runtime::{
     Command, NativeFileDrop, NativeFrameDiagnostics, PaintPrimitive, PlatformCompletion,
-    PlatformRequest, PlatformServiceFallback, ScrollUpdate, TaskPriority, TransientOverlayContext,
-    UiSurface,
+    PlatformRequest, PlatformServiceFallback, RuntimeDiagnostics, ScrollUpdate, TaskPriority,
+    TransientOverlayContext, UiSurface,
 };
 use crate::widgets::RetainedSurfaceDescriptor;
 use std::{sync::Arc, time::Duration};
@@ -97,6 +97,7 @@ pub trait RuntimeBridge<Message> {
         &mut self,
         _name: &'static str,
         _priority: TaskPriority,
+        _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         _work: Box<dyn FnOnce() -> Message + Send + 'static>,
     ) -> bool {
         false
@@ -213,6 +214,11 @@ pub trait RuntimeBridge<Message> {
 
     /// Observe structured diagnostics for one native presentation frame.
     fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
+
+    /// Return application-runtime diagnostics contributed by this bridge.
+    fn runtime_diagnostics(&self) -> RuntimeDiagnostics {
+        RuntimeDiagnostics::default()
+    }
 
     /// Lifecycle hook fired when the native runtime exits.
     fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {

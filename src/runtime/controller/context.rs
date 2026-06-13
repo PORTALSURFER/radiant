@@ -2,7 +2,7 @@ use super::SurfaceRuntime;
 use crate::{
     gui::types::{Rect, Vector2},
     layout::{LayoutDebugOptions, LayoutOutput, NodeId},
-    runtime::{RuntimeBridge, UiSurface},
+    runtime::{RuntimeBridge, RuntimeDiagnostics, UiSurface},
     widgets::WidgetId,
 };
 
@@ -60,6 +60,13 @@ where
             surface: &self.surface,
             layout: &self.layout,
         }
+    }
+
+    /// Return a generic runtime diagnostics snapshot for tests and debug panels.
+    pub fn runtime_diagnostics(&self) -> RuntimeDiagnostics {
+        let mut snapshot = self.bridge.runtime_diagnostics();
+        snapshot.ui = self.diagnostics.snapshot().ui;
+        snapshot
     }
 
     /// Return the current logical viewport size.

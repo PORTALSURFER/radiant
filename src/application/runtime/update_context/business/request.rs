@@ -85,9 +85,13 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         Output: Send + 'static,
     {
         let worker_token = token.clone();
+        let is_cancelled = token.map(|token| {
+            Box::new(move || token.is_cancelled()) as Box<dyn Fn() -> bool + Send + Sync + 'static>
+        });
         self.context.command(Command::perform_with_priority(
             self.name,
             self.priority,
+            is_cancelled,
             move || work(BusinessWorkContext::new(worker_token)),
             map,
         ));

@@ -79,3 +79,85 @@ fn application_task_helpers_keep_cancellation_completion_and_latest_state_focuse
         "application runtime facade should keep task helpers available through the public runtime path"
     );
 }
+
+#[test]
+fn app_facing_runtime_paths_do_not_introduce_obvious_blocking_calls() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let guarded_dirs = [
+        "src/application/runtime/bridge",
+        "src/application/runtime/update_context",
+        "src/runtime/controller/commands",
+    ];
+    let forbidden = [
+        "std::thread::sleep",
+        "thread::sleep",
+        "std::fs::",
+        "std::fs::read",
+        "std::fs::read_to_string",
+        ".join().",
+        ".join()",
+    ];
+    let mut violations = Vec::new();
+
+    for dir in guarded_dirs {
+        for path in rust_sources_under(&manifest_dir.join(dir)) {
+            let source = fs::read_to_string(&path).unwrap_or_else(|err| {
+                panic!(
+                    "guarded runtime source {} should be readable: {err}",
+                    path.display()
+                )
+            });
+            for token in forbidden {
+                if source.contains(token) {
+                    violations.push(format!(
+                        "{} contains {token}",
+                        relative_path(&manifest_dir, &path)
+                    ));
+                }
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "app-facing runtime/update paths must not introduce direct blocking APIs; use UpdateContext::business(), timers, subscriptions, or platform services instead:\n{}",
+        violations.join("\n")
+    );
+}
+
+#[test]
+fn example_blocking_work_stays_inside_business_runtime_workers() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut violations = Vec::new();
+    for path in rust_sources_under(&manifest_dir.join("examples")) {
+        let source = fs::read_to_string(&path).unwrap_or_else(|err| {
+            panic!(
+                "example source {} should be readable: {err}",
+                path.display()
+            )
+        });
+        let has_blocking_sleep =
+            source.contains("thread::sleep") || source.contains("std::thread::sleep");
+        if !has_blocking_sleep {
+            continue;
+        }
+        let relative = relative_path(&manifest_dir, &path);
+        if relative == "examples/popup_window/platform/readiness.rs" {
+            continue;
+        }
+        let allowed_worker_example = matches!(
+            relative.as_str(),
+            "examples/background_loading.rs" | "examples/status_bar/update.rs"
+        ) && source.contains(".business()")
+            && source.contains(".run(");
+        if !allowed_worker_example {
+            violations.push(relative);
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "examples with blocking sleeps must keep that work inside explicit BusinessRuntime workers:\n{}",
+        violations.join("\n")
+    );
+}

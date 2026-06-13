@@ -11,6 +11,7 @@ fn take_perform(
         radiant::runtime::Command::Perform {
             name,
             priority,
+            is_cancelled: _,
             work,
         } => (name, priority, work),
         other => panic!("expected one business perform command, got {other:?}"),

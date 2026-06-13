@@ -331,3 +331,120 @@ fn exclusive_pointer_capture_sync_clears_non_captured_hover_state() {
             .pressed
     );
 }
+
+#[test]
+fn retained_state_sync_keeps_only_current_hover_owner() {
+    let mut previous: SurfaceNode<()> = SurfaceNode::column(
+        1,
+        0.0,
+        vec![
+            SurfaceChild::fill(SurfaceNode::widget(
+                ButtonWidget::new(
+                    10,
+                    "Previous",
+                    WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
+                ),
+                WidgetMessageMapper::none(),
+            )),
+            SurfaceChild::fill(SurfaceNode::widget(
+                ButtonWidget::new(20, "Current", WidgetSizing::fixed(Vector2::new(80.0, 28.0))),
+                WidgetMessageMapper::none(),
+            )),
+        ],
+    );
+    let mut current = previous.clone();
+
+    let _ = previous.dispatch_input_at_path(
+        10,
+        &[0],
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0)),
+        WidgetInput::PointerMove {
+            position: Point::new(8.0, 8.0),
+        },
+    );
+    let _ = previous.dispatch_input_at_path(
+        20,
+        &[1],
+        Rect::from_min_size(Point::new(0.0, 28.0), Vector2::new(80.0, 28.0)),
+        WidgetInput::PointerMove {
+            position: Point::new(8.0, 36.0),
+        },
+    );
+
+    let previous_paths = HashMap::from([
+        (10, WidgetPath::from_slice(&[0])),
+        (20, WidgetPath::from_slice(&[1])),
+    ]);
+    let current_paths = previous_paths.clone();
+    current.synchronize_widget_state_from_paths(
+        &[10, 20],
+        &current_paths,
+        &previous,
+        &previous_paths,
+        WidgetStateSyncPolicy::retained_hover_owner(Some(20)),
+    );
+
+    assert!(
+        !current
+            .find_widget_at_path(&[0])
+            .expect("previous hover widget exists")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+    assert!(
+        current
+            .find_widget_at_path(&[1])
+            .expect("current hover widget exists")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+}
+
+#[test]
+fn retained_state_sync_clears_all_hover_when_pointer_has_no_owner() {
+    let mut previous: SurfaceNode<()> = SurfaceNode::column(
+        1,
+        0.0,
+        vec![SurfaceChild::fill(SurfaceNode::widget(
+            ButtonWidget::new(
+                10,
+                "Previous",
+                WidgetSizing::fixed(Vector2::new(80.0, 28.0)),
+            ),
+            WidgetMessageMapper::none(),
+        ))],
+    );
+    let mut current = previous.clone();
+
+    let _ = previous.dispatch_input_at_path(
+        10,
+        &[0],
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0)),
+        WidgetInput::PointerMove {
+            position: Point::new(8.0, 8.0),
+        },
+    );
+
+    let paths = HashMap::from([(10, WidgetPath::from_slice(&[0]))]);
+    current.synchronize_widget_state_from_paths(
+        &[10],
+        &paths,
+        &previous,
+        &paths,
+        WidgetStateSyncPolicy::retained_hover_owner(None),
+    );
+
+    assert!(
+        !current
+            .find_widget_at_path(&[0])
+            .expect("previous hover widget exists")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+}

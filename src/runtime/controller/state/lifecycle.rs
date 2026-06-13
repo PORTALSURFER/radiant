@@ -106,7 +106,9 @@ where
                 self.widget_pointer_capture_policy(*widget_id) == PointerCapturePolicy::Exclusive
             })
             .map(WidgetStateSyncPolicy::exclusive_pointer_capture)
-            .unwrap_or_default()
+            .unwrap_or_else(|| {
+                WidgetStateSyncPolicy::retained_hover_owner(self.interaction.hover.widget)
+            })
     }
 
     fn clear_stale_interaction_state(&mut self) {

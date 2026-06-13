@@ -5,7 +5,7 @@ use crate::{
     runtime::{Event, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
     widgets::{
         FocusBehavior, InteractiveRowWidget, PointerButton, PointerModifiers, TextInputWidget,
-        WidgetSizing,
+        WidgetInput, WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -110,6 +110,54 @@ fn clear_pointer_hover_clears_runtime_owner_and_retained_widget_state() {
             .surface()
             .find_widget(20)
             .expect("previous hovered widget")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+}
+
+#[test]
+fn refresh_clears_retained_hover_from_non_owner_widgets() {
+    let mut runtime = SurfaceRuntime::new(FocusTestBridge, Vector2::new(200.0, 80.0));
+
+    runtime.dispatch_pointer_move_with_outcome(Point::new(4.0, 32.0));
+    assert_eq!(runtime.hovered_widget(), Some(20));
+    runtime.dispatch_input(
+        10,
+        WidgetInput::PointerMove {
+            position: Point::new(4.0, 4.0),
+        },
+    );
+    assert!(
+        runtime
+            .surface()
+            .find_widget(10)
+            .expect("stale hover widget")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+
+    runtime.refresh();
+
+    assert_eq!(runtime.hovered_widget(), Some(20));
+    assert!(
+        !runtime
+            .surface()
+            .find_widget(10)
+            .expect("stale hover widget")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+    assert!(
+        runtime
+            .surface()
+            .find_widget(20)
+            .expect("current hover widget")
             .widget()
             .common()
             .state

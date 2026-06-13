@@ -1,8 +1,7 @@
 use super::runnable::RunnableStatefulApp;
 use crate::{
     application::{
-        AppBridge, AppBridgeLifecycle, AppUpdate, Result, UpdateContext,
-        compatibility::StateAction, launch::IntoView,
+        AppBridge, AppBridgeLifecycle, AppUpdate, Result, UpdateContext, launch::IntoView,
     },
     gui_runtime::NativeRunOptions,
     runtime::{Command, RuntimeBridge, run_native_vello_runtime},
@@ -17,6 +16,37 @@ pub struct StatefulAppWithView<State, Message, Project, View> {
     pub(super) lifecycle: AppBridgeLifecycle<State, Message>,
     pub(super) _message: PhantomData<Message>,
     pub(super) _view: PhantomData<View>,
+}
+
+impl<State, Project, View> StatefulAppWithView<State, (), Project, View>
+where
+    Project: FnMut(&mut State) -> View + 'static,
+    View: IntoView<()> + 'static,
+    State: 'static,
+{
+    /// Run this static-message app through the native Vello runtime.
+    pub fn run(self) -> Result {
+        let options = self.options.clone();
+        run_native_vello_runtime(options, self.into_bridge())
+    }
+
+    /// Run this static-message app and return native runtime artifacts.
+    pub fn run_with_artifacts(self) -> crate::gui_runtime::NativeGenericRunReport {
+        let options = self.options.clone();
+        crate::runtime::run_native_vello_runtime_with_artifacts(options, self.into_bridge())
+    }
+
+    /// Lower this static-message app into the runtime bridge without opening a window.
+    pub fn into_bridge(self) -> impl RuntimeBridge<()> {
+        AppBridge::new(
+            self.state,
+            self.project,
+            |_: &mut State, (): (), context: &mut UpdateContext<()>| {
+                context.request_repaint();
+            },
+            self.lifecycle,
+        )
+    }
 }
 
 impl<State, Message, Project, View> StatefulAppWithView<State, Message, Project, View>
@@ -100,39 +130,5 @@ where
         self.handle_message(Box::new(move |state, message, context| {
             context.command(update(state, message));
         }))
-    }
-}
-
-impl<State, Project, View> StatefulAppWithView<State, StateAction<State>, Project, View>
-where
-    Project: FnMut(&mut State) -> View + 'static,
-    View: IntoView<StateAction<State>> + 'static,
-    State: 'static,
-{
-    /// Run this compatibility-only direct-callback app through the native Vello runtime.
-    pub fn run(self) -> Result {
-        let options = self.options.clone();
-        run_native_vello_runtime(options, self.into_bridge())
-    }
-
-    /// Run this compatibility-only app and return native runtime artifacts.
-    pub fn run_with_artifacts(self) -> crate::gui_runtime::NativeGenericRunReport {
-        let options = self.options.clone();
-        crate::runtime::run_native_vello_runtime_with_artifacts(options, self.into_bridge())
-    }
-
-    /// Lower this compatibility-only direct-callback app into the runtime bridge.
-    pub fn into_bridge(self) -> impl RuntimeBridge<StateAction<State>> {
-        AppBridge::new(
-            self.state,
-            self.project,
-            |state: &mut State,
-             action: StateAction<State>,
-             context: &mut UpdateContext<StateAction<State>>| {
-                action.run(state);
-                context.request_repaint();
-            },
-            self.lifecycle,
-        )
     }
 }

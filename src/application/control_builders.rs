@@ -35,8 +35,7 @@ pub use dropdown::{
     dropdown_menu_overlay_below, dropdown_menu_overlay_below_from_parts,
     dropdown_menu_overlay_below_labeled_control,
     dropdown_menu_overlay_below_stacked_labeled_control, dropdown_menu_overlay_below_trigger,
-    dropdown_option, dropdown_trigger, dropdown_trigger_from_parts, dropdown_trigger_height,
-    state_dropdown,
+    dropdown_trigger, dropdown_trigger_from_parts, dropdown_trigger_height,
 };
 pub use feedback_overlay::{FeedbackOverlayBuilder, feedback_overlay};
 pub use icon_button::{IconButtonBuilder, close_button, disclosure_button, icon_button};

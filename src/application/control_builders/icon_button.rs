@@ -1,9 +1,7 @@
 use std::sync::OnceLock;
 
 use crate::{
-    application::{
-        MappedWidget, ViewNode, compatibility::StateAction, primary_style, view_node_from_widget,
-    },
+    application::{MappedWidget, ViewNode, primary_style, view_node_from_widget},
     gui::svg::SvgIcon,
     runtime::WidgetMessageMapper,
     widgets::{ButtonMessage, IconButtonWidget, WidgetProminence, WidgetSizing, WidgetStyle},
@@ -89,14 +87,6 @@ impl IconButtonBuilder {
         ));
         node.style = style;
         node
-    }
-
-    /// Mutate application state directly when activated.
-    pub fn on_click<State: 'static>(
-        self,
-        apply: impl Fn(&mut State) + Send + Sync + 'static,
-    ) -> ViewNode<StateAction<State>> {
-        self.message(StateAction::new(apply))
     }
 
     fn into_widget_and_style(self) -> (IconButtonWidget, Option<WidgetStyle>) {

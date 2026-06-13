@@ -1,14 +1,13 @@
 use crate::{
     application::{
-        MappedWidget, ViewNode, compatibility::StateAction, danger_style,
-        default_selectable_sizing, primary_style, view_node_from_widget,
+        MappedWidget, ViewNode, danger_style, default_selectable_sizing, primary_style,
+        view_node_from_widget,
     },
     runtime::{PaintText, WidgetMessageMapper},
     widgets::{SelectableMessage, SelectableWidget, WidgetProminence, WidgetStyle},
 };
-use std::sync::Arc;
 
-/// Builder for selectable controls that can emit messages or mutate state directly.
+/// Builder for selectable controls that emit explicit host messages.
 pub struct SelectableBuilder {
     label: PaintText,
     selected: bool,
@@ -62,18 +61,6 @@ impl SelectableBuilder {
         ));
         node.style = self.style;
         node
-    }
-
-    /// Mutate application state directly when selected state changes.
-    pub fn on_change<State: 'static>(
-        self,
-        apply: impl Fn(&mut State, bool) + Send + Sync + 'static,
-    ) -> ViewNode<StateAction<State>> {
-        let apply = Arc::new(apply);
-        self.message(move |selected| {
-            let apply = Arc::clone(&apply);
-            StateAction::new(move |state| apply(state, selected))
-        })
     }
 }
 

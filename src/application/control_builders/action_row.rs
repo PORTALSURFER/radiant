@@ -1,7 +1,5 @@
 use crate::{
-    application::{
-        MappedWidget, ViewNode, compatibility::StateAction, stack, text, view_node_from_widget,
-    },
+    application::{MappedWidget, ViewNode, stack, text, view_node_from_widget},
     runtime::{PaintText, WidgetMessageMapper},
     widgets::{
         InteractiveRowMessage, InteractiveRowWidget, TextAlign, WidgetProminence, WidgetSizing,
@@ -62,14 +60,6 @@ impl ActionRowBuilder {
         ])
         .fill_width()
         .height(DEFAULT_ACTION_ROW_HEIGHT)
-    }
-
-    /// Mutate application state directly when the row is activated.
-    pub fn on_activate<State: 'static>(
-        self,
-        apply: impl Fn(&mut State) + Send + Sync + 'static,
-    ) -> ViewNode<StateAction<State>> {
-        self.message(StateAction::new(apply))
     }
 }
 

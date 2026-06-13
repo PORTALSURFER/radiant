@@ -104,11 +104,10 @@ fn details_column_drag_helpers_cover_resize_and_reorder_state() {
 #[test]
 fn compact_details_row_exposes_details_list_density() {
     use super::*;
-    use radiant::compatibility::StateAction;
     use radiant::prelude as ui;
     use radiant::prelude::IntoView;
 
-    let surface: UiSurface<StateAction<DemoState>> = ui::column([ui::compact_details_row([
+    let surface: UiSurface<DemoState> = ui::column([ui::compact_details_row([
         ui::text("Name").id(10).fixed(40.0, 20.0),
         ui::text("Size").id(11).fixed(40.0, 20.0),
     ])
@@ -128,11 +127,10 @@ fn compact_details_row_exposes_details_list_density() {
 #[test]
 fn compact_details_cell_exposes_details_list_cell_sizing() {
     use super::*;
-    use radiant::compatibility::StateAction;
     use radiant::prelude as ui;
     use radiant::prelude::IntoView;
 
-    let surface: UiSurface<StateAction<DemoState>> = ui::column([ui::compact_details_row([
+    let surface: UiSurface<DemoState> = ui::column([ui::compact_details_row([
         ui::compact_details_cell(ui::text("Name").id(10), Some(64.0)),
         ui::compact_details_cell(ui::text("Kind").id(11), None),
     ])
@@ -152,17 +150,15 @@ fn compact_details_cell_exposes_details_list_cell_sizing() {
 #[test]
 fn compact_details_header_row_exposes_details_list_header_chrome() {
     use super::*;
-    use radiant::compatibility::StateAction;
     use radiant::prelude as ui;
     use radiant::prelude::IntoView;
 
-    let surface: UiSurface<StateAction<DemoState>> =
-        ui::column([ui::compact_details_header_row([
-            ui::text("Name").id(10).fixed(40.0, 20.0),
-            ui::text("Size").id(11).fixed(40.0, 20.0),
-        ])
-        .id(1)])
-        .into_surface();
+    let surface: UiSurface<DemoState> = ui::column([ui::compact_details_header_row([
+        ui::text("Name").id(10).fixed(40.0, 20.0),
+        ui::text("Size").id(11).fixed(40.0, 20.0),
+    ])
+    .id(1)])
+    .into_surface();
     let layout = layout_tree(
         &surface.layout_node(),
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 40.0)),

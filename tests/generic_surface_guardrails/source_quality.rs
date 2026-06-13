@@ -185,6 +185,44 @@ fn prelude_leaf_wildcard_export(line: &str) -> bool {
     trimmed.starts_with("pub use crate::") && trimmed.ends_with("::*;")
 }
 
+#[test]
+fn direct_state_callback_api_stays_out_of_common_surface() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let offenders = rust_sources_under(&manifest_dir.join("src"))
+        .into_iter()
+        .filter_map(|path| {
+            let source = fs::read_to_string(&path).unwrap_or_else(|err| {
+                panic!("source file {} should be readable: {err}", path.display())
+            });
+            let relative = relative_path(&manifest_dir, &path);
+            direct_state_callback_offense(&relative, &source)
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        offenders.is_empty(),
+        "direct state-callback APIs should not be exported or exposed through \
+         common Radiant builders:\n{}",
+        offenders.join("\n")
+    );
+}
+
+fn direct_state_callback_offense(relative: &str, source: &str) -> Option<String> {
+    let state_action = ["State", "Action"].concat();
+    let state_view = ["State", "View"].concat();
+    let application_compatibility = ["application::", "compatibility"].concat();
+    let compatibility_state_action = ["compatibility::", &state_action].concat();
+
+    if source.contains(&state_action)
+        || source.contains(&state_view)
+        || source.contains(&application_compatibility)
+        || source.contains(&compatibility_state_action)
+    {
+        return Some(relative.to_owned());
+    }
+    None
+}
+
 #[path = "source_quality/api_models.rs"]
 mod api_models;
 #[path = "source_quality/error_handling.rs"]

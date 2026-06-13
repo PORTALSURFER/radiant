@@ -1,14 +1,13 @@
 use crate::{
     application::{
-        MappedWidget, ViewNode, compatibility::StateAction, danger_style, default_toggle_sizing,
-        primary_style, view_node_from_widget,
+        MappedWidget, ViewNode, danger_style, default_toggle_sizing, primary_style,
+        view_node_from_widget,
     },
     runtime::{PaintText, WidgetMessageMapper},
     widgets::{ToggleMessage, ToggleWidget, WidgetProminence, WidgetStyle},
 };
-use std::sync::Arc;
 
-/// Builder for toggles that can emit messages or mutate state directly.
+/// Builder for toggles that emit explicit host messages.
 pub struct ToggleBuilder {
     label: PaintText,
     checked: bool,
@@ -55,18 +54,6 @@ impl ToggleBuilder {
         ));
         node.style = self.style;
         node
-    }
-
-    /// Mutate application state directly when checked state changes.
-    pub fn on_change<State: 'static>(
-        self,
-        apply: impl Fn(&mut State, bool) + Send + Sync + 'static,
-    ) -> ViewNode<StateAction<State>> {
-        let apply = Arc::new(apply);
-        self.message(move |checked| {
-            let apply = Arc::clone(&apply);
-            StateAction::new(move |state| apply(state, checked))
-        })
     }
 }
 

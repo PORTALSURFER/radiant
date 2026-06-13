@@ -1,24 +1,15 @@
 use crate::{
     application::{
-        MappedWidget, ViewNode, compatibility::StateAction, danger_style, default_button_sizing,
-        primary_style, view_node_from_widget,
+        MappedWidget, ViewNode, danger_style, default_button_sizing, primary_style,
+        view_node_from_widget,
     },
-    gui::types::Point,
     runtime::{PaintText, WidgetMessageMapper},
     widgets::{
         ButtonMessage, ButtonWidget, DragHandleMessage, WidgetOutput, WidgetProminence, WidgetStyle,
     },
 };
 
-mod state_actions;
-
-use state_actions::{
-    click_or_secondary_action, click_or_secondary_at_action, click_secondary_at_or_drag_action,
-    click_secondary_or_drag_action,
-};
-use std::sync::Arc;
-
-/// Builder for buttons that can emit messages or mutate state directly.
+/// Builder for buttons that emit explicit host messages.
 pub struct ButtonBuilder {
     label: PaintText,
     style: Option<WidgetStyle>,
@@ -131,82 +122,6 @@ impl ButtonBuilder {
         let mut node = view_node_from_widget(MappedWidget::new(button, messages));
         node.style = self.style;
         node
-    }
-
-    /// Mutate application state directly when activated.
-    pub fn on_click<State: 'static>(
-        self,
-        apply: impl Fn(&mut State) + Send + Sync + 'static,
-    ) -> ViewNode<StateAction<State>> {
-        self.message(StateAction::new(apply))
-    }
-
-    /// Mutate application state on primary or secondary/right activation.
-    pub fn on_click_or_secondary<State: 'static>(
-        self,
-        primary: impl Fn(&mut State) + Send + Sync + 'static,
-        secondary: impl Fn(&mut State) + Send + Sync + 'static,
-    ) -> ViewNode<StateAction<State>> {
-        let primary = Arc::new(primary);
-        let secondary = Arc::new(secondary);
-        self.secondary_clicks().mapped(move |message| {
-            click_or_secondary_action(message, Arc::clone(&primary), Arc::clone(&secondary))
-        })
-    }
-
-    /// Mutate application state on primary activation or secondary/right
-    /// activation with pointer position.
-    pub fn on_click_or_secondary_at<State: 'static>(
-        self,
-        primary: impl Fn(&mut State) + Send + Sync + 'static,
-        secondary: impl Fn(&mut State, Point) + Send + Sync + 'static,
-    ) -> ViewNode<StateAction<State>> {
-        let primary = Arc::new(primary);
-        let secondary = Arc::new(secondary);
-        self.secondary_clicks().mapped(move |message| {
-            click_or_secondary_at_action(message, Arc::clone(&primary), Arc::clone(&secondary))
-        })
-    }
-
-    /// Mutate application state on primary, secondary/right, or drag lifecycle messages.
-    pub fn on_click_secondary_or_drag<State: 'static>(
-        self,
-        primary: impl Fn(&mut State) + Send + Sync + 'static,
-        secondary: impl Fn(&mut State) + Send + Sync + 'static,
-        drag: impl Fn(&mut State, DragHandleMessage) + Send + Sync + 'static,
-    ) -> ViewNode<StateAction<State>> {
-        let primary = Arc::new(primary);
-        let secondary = Arc::new(secondary);
-        let drag = Arc::new(drag);
-        self.secondary_clicks().draggable().mapped(move |message| {
-            click_secondary_or_drag_action(
-                message,
-                Arc::clone(&primary),
-                Arc::clone(&secondary),
-                Arc::clone(&drag),
-            )
-        })
-    }
-
-    /// Mutate application state on primary, secondary/right with pointer
-    /// position, or drag lifecycle messages.
-    pub fn on_click_secondary_at_or_drag<State: 'static>(
-        self,
-        primary: impl Fn(&mut State) + Send + Sync + 'static,
-        secondary: impl Fn(&mut State, Point) + Send + Sync + 'static,
-        drag: impl Fn(&mut State, DragHandleMessage) + Send + Sync + 'static,
-    ) -> ViewNode<StateAction<State>> {
-        let primary = Arc::new(primary);
-        let secondary = Arc::new(secondary);
-        let drag = Arc::new(drag);
-        self.secondary_clicks().draggable().mapped(move |message| {
-            click_secondary_at_or_drag_action(
-                message,
-                Arc::clone(&primary),
-                Arc::clone(&secondary),
-                Arc::clone(&drag),
-            )
-        })
     }
 }
 

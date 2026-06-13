@@ -59,10 +59,6 @@ impl Default for BrowserState {
 }
 
 impl BrowserState {
-    pub(super) fn from_optional_root(root: Option<PathBuf>) -> Self {
-        root.map_or_else(Self::from_demo, Self::from_root)
-    }
-
     pub(super) fn from_demo() -> Self {
         Self::from_folder(
             demo_root_folder(),

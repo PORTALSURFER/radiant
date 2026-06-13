@@ -1,14 +1,10 @@
 use crate::{
-    application::{
-        MappedWidget, ViewNode, compatibility::StateAction, default_drag_handle_sizing,
-        view_node_from_widget,
-    },
+    application::{MappedWidget, ViewNode, default_drag_handle_sizing, view_node_from_widget},
     runtime::WidgetMessageMapper,
     widgets::{DragHandleMessage, DragHandleWidget},
 };
-use std::sync::Arc;
 
-/// Builder for compact drag handles that can emit messages or mutate state directly.
+/// Builder for compact drag handles that emit explicit host messages.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DragHandleBuilder {
     hover_chrome_only: bool,
@@ -34,18 +30,6 @@ impl DragHandleBuilder {
             handle,
             WidgetMessageMapper::drag_handle(map),
         ))
-    }
-
-    /// Mutate application state directly when the handle is dragged.
-    pub fn on_drag<State: 'static>(
-        self,
-        apply: impl Fn(&mut State, DragHandleMessage) + Send + Sync + 'static,
-    ) -> ViewNode<StateAction<State>> {
-        let apply = Arc::new(apply);
-        self.mapped(move |message| {
-            let apply = Arc::clone(&apply);
-            StateAction::new(move |state| apply(state, message))
-        })
     }
 }
 

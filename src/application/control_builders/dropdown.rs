@@ -1,8 +1,7 @@
 use crate::{
-    application::{ViewNode, button, compatibility::StateAction, stack},
+    application::{ViewNode, button, stack},
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
-use std::sync::Arc;
 
 mod menu;
 mod model;
@@ -262,33 +261,4 @@ where
 /// Return the normal-flow height for a dropdown toggle.
 pub fn dropdown_height(_open: bool, _option_count: usize) -> f32 {
     dropdown_trigger_height()
-}
-
-/// Build a state-mutating dropdown option.
-pub fn dropdown_option<State: 'static>(
-    label: impl Into<String>,
-    selected: bool,
-    apply: impl Fn(&mut State) + Send + Sync + 'static,
-) -> DropdownOption<StateAction<State>> {
-    DropdownOption::from_parts(DropdownOptionParts {
-        label: label.into(),
-        selection: DropdownOptionSelection::from_selected(selected),
-        message: StateAction::new(apply),
-    })
-}
-
-/// Build a state-mutating dropdown.
-pub fn state_dropdown<State: 'static>(
-    selected_label: impl Into<String>,
-    open: bool,
-    toggle: impl Fn(&mut State) + Send + Sync + 'static,
-    options: impl IntoIterator<Item = DropdownOption<StateAction<State>>>,
-) -> ViewNode<StateAction<State>> {
-    let toggle = Arc::new(toggle);
-    dropdown_from_parts(DropdownParts {
-        selected_label: selected_label.into(),
-        open,
-        toggle_message: StateAction::new(move |state| toggle(state)),
-        options: options.into_iter().collect(),
-    })
 }

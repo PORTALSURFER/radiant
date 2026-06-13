@@ -33,16 +33,16 @@ and explicit runtime objects are part of the same API surface:
   backend integration.
 
 Radiant's cleanup target is message-first application code: views emit explicit
-messages, and update handlers own durable state changes and side effects. Older
-callback-style APIs remain compatibility or advanced escape hatches, not the
-canonical style. See `docs/API_STYLE.md`.
+messages, and update handlers own durable state changes and side effects.
+Reducer-style aliases remain available for advanced lifecycle code, but ordinary
+application code should stay message-first. See `docs/API_STYLE.md`.
 
 ## Application API
 
-Radiant's application API is designed to make the normal app path obvious
-first. Application code imports `radiant::prelude::*`, declares view structure,
-emits explicit messages from widgets, and mutates durable state in the update
-handler. The helper and export inventory is documented later in
+Radiant's application API is designed to be easy to read without hiding the
+runtime model. Application code imports `radiant::prelude::*`, declares view
+structure, emits explicit messages from widgets, and mutates durable state in
+the update handler. The helper and export inventory is documented later in
 [Prelude And Helper Reference](#prelude-and-helper-reference) so this section
 can stay focused on the canonical reader path.
 
@@ -109,9 +109,8 @@ This message-first shape is the canonical style for new examples and host
 applications. Use `.handle_message(...)` when an update handler needs
 `UpdateContext<Message>` to emit follow-up messages, request repaint, move
 focus, start background work, schedule delayed messages, or request runtime
-exit. The older direct state-callback and reducer-style APIs remain available
-for compatibility or advanced control, but they are not the primary teaching
-path.
+exit. Reducer-style aliases remain available for advanced lifecycle control,
+but ordinary application code should stay message-first.
 
 Application builders generate deterministic structural IDs during projection and
 provide default widget sizing. Production apps and tests can opt back into
@@ -2009,10 +2008,14 @@ If no folder root is supplied, `folder_browser` uses an in-memory resource
 sandbox. Supplying a root path loads a read-only tree/details snapshot for UI
 exploration; create, rename, delete, and drag-move interactions still mutate
 only the example's in-memory resource graph. Host applications own real file
-management policy. `waveform_view` uses deterministic synthetic signal data to
-exercise waveform summaries, viewport interaction, overlay painting, and
-GPU-surface projection without teaching file decoding or audio preprocessing as
-Radiant API guidance. The waveform view keeps the dense signal body in a
+management policy. `waveform_view` uses a generated synthetic signal by default
+and accepts `RADIANT_WAVEFORM_PATH` for optional host-side input exploration.
+Run `cargo run --example waveform_view` to inspect the default synthetic signal
+path.
+`waveform_view` uses deterministic synthetic signal data to exercise waveform
+summaries, viewport interaction, overlay painting, and GPU-surface projection
+without teaching file decoding or audio preprocessing as Radiant API guidance.
+The waveform view keeps the dense signal body in a
 retained `GpuSurfaceContent::SignalSummaryBands` surface. It still
 demonstrates the advanced launch-level `.animated_transient_overlay_at(...)`
 hook for a playback playhead anchored through

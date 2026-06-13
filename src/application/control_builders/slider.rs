@@ -1,14 +1,12 @@
 use crate::{
     application::{
-        MappedWidget, ViewNode, compatibility::StateAction, default_slider_sizing, primary_style,
-        view_node_from_widget,
+        MappedWidget, ViewNode, default_slider_sizing, primary_style, view_node_from_widget,
     },
     runtime::WidgetMessageMapper,
     widgets::{SliderMessage, SliderWidget, WidgetProminence, WidgetSizing, WidgetStyle},
 };
-use std::sync::Arc;
 
-/// Builder for horizontal sliders that can emit messages or mutate state directly.
+/// Builder for horizontal sliders that emit explicit host messages.
 pub struct SliderBuilder {
     value: f32,
     style: Option<WidgetStyle>,
@@ -60,18 +58,6 @@ impl SliderBuilder {
         ));
         node.style = self.style;
         node
-    }
-
-    /// Mutate application state directly when the slider value changes.
-    pub fn on_change<State: 'static>(
-        self,
-        apply: impl Fn(&mut State, f32) + Send + Sync + 'static,
-    ) -> ViewNode<StateAction<State>> {
-        let apply = Arc::new(apply);
-        self.message(move |value| {
-            let apply = Arc::clone(&apply);
-            StateAction::new(move |state| apply(state, value))
-        })
     }
 }
 

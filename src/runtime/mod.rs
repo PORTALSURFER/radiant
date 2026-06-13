@@ -30,7 +30,7 @@ mod platform;
 mod resource;
 mod surface;
 
-pub use crate::application::BusinessWorkContext;
+pub use crate::application::runtime::BusinessWorkContext;
 pub use crate::gui_runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS,
     NativeFrameOptions, NativeGenericRunError, NativeGenericRunReport,

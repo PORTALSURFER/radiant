@@ -127,7 +127,7 @@ fn application_facade_leaves_match_prelude_roles() {
     for leaf in APPLICATION_FACADE_LEAVES {
         assert!(
             facade_root.contains(&format!("mod {leaf};"))
-                && facade_root.contains(&format!("pub use {leaf}::*;"))
+                && facade_root.contains(&format!("pub use {leaf}::{{"))
                 && manifest_dir
                     .join("src/application/facade")
                     .join(format!("{leaf}.rs"))
@@ -139,6 +139,12 @@ fn application_facade_leaves_match_prelude_roles() {
     assert!(
         facade_root.contains("mirror the application prelude's API roles"),
         "application facade root should document that new app-facing exports follow the prelude-aligned ownership model"
+    );
+    assert!(
+        APPLICATION_FACADE_LEAVES
+            .iter()
+            .all(|leaf| !facade_root.contains(&format!("pub use {leaf}::*;"))),
+        "application facade root should explicitly name each grouped public export instead of wildcarding child facades"
     );
 }
 

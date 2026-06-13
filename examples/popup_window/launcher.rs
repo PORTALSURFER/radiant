@@ -93,9 +93,8 @@ pub(super) fn update_launcher(
     match message {
         LauncherMessage::PreparePopups => {
             state.status = String::from("Preparing popup surfaces.");
-            context.spawn(
-                "popup-window-prewarm",
-                prepare_popup_hosts_for_install,
+            context.business().interactive("popup-window-prewarm").run(
+                |_| prepare_popup_hosts_for_install(),
                 |prepared| LauncherMessage::PopupsPrepared(Box::new(prepared)),
             );
         }

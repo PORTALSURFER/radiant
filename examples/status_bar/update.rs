@@ -57,9 +57,8 @@ pub(super) fn update(
 }
 
 fn spawn_worker(context: &mut UpdateContext<StatusMessage>, id: u64, duration: Duration) {
-    context.spawn(
-        "status-bar-worker",
-        move || {
+    context.business().background("status-bar-worker").run(
+        move |_| {
             thread::sleep(duration);
             id
         },

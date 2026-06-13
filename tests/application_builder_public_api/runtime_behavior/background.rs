@@ -19,11 +19,10 @@ fn application_builder_background_spawn_routes_worker_result() {
         .update_with(|state, message, context| match message {
             LoadingMessage::Start => {
                 state.name = "loading".to_string();
-                context.spawn(
-                    "test-loader",
-                    || "ready".to_string(),
-                    LoadingMessage::Loaded,
-                );
+                context
+                    .business()
+                    .background("test-loader")
+                    .run(|_| "ready".to_string(), LoadingMessage::Loaded);
                 context.request_repaint();
             }
             LoadingMessage::Loaded(value) => {

@@ -1,9 +1,11 @@
 use crate::runtime::Command;
 
+mod business;
 mod commands;
 mod platform;
 mod surface;
-mod tasks;
+
+pub use business::{BusinessRuntime, BusinessWorkContext};
 
 /// Context supplied to app update closures for runtime-visible follow-up work.
 pub struct UpdateContext<Message> {
@@ -19,6 +21,14 @@ impl<Message> Default for UpdateContext<Message> {
 }
 
 impl<Message> UpdateContext<Message> {
+    /// Access Radiant's business-work submission API.
+    ///
+    /// Use this for host-owned IO, decoding, cache hydration, persistence,
+    /// analysis, and other work that must not run on the UI/event/render path.
+    pub fn business(&mut self) -> BusinessRuntime<'_, Message> {
+        BusinessRuntime::new(self)
+    }
+
     /// Consume this update context into the batched runtime command it queued.
     ///
     /// Most apps use Radiant's app builders, which collect this automatically.

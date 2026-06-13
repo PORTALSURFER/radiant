@@ -1,0 +1,51 @@
+mod keyed_latest;
+mod latest;
+mod request;
+mod resource;
+mod work_context;
+
+use crate::runtime::TaskPriority;
+
+use request::BusinessRequest;
+
+use super::UpdateContext;
+
+pub use work_context::BusinessWorkContext;
+
+/// UI-update access point for submitting host-owned business work.
+pub struct BusinessRuntime<'context, Message> {
+    context: &'context mut UpdateContext<Message>,
+}
+
+impl<'context, Message> BusinessRuntime<'context, Message> {
+    pub(super) fn new(context: &'context mut UpdateContext<Message>) -> Self {
+        Self { context }
+    }
+
+    /// Submit user-visible work that should complete promptly off the UI path.
+    pub fn interactive(self, name: &'static str) -> BusinessRequest<'context, Message> {
+        self.request(name, TaskPriority::Interactive)
+    }
+
+    /// Submit ordinary background work off the UI path.
+    pub fn background(self, name: &'static str) -> BusinessRequest<'context, Message> {
+        self.request(name, TaskPriority::Background)
+    }
+
+    /// Submit opportunistic work that may yield to interactive/background work.
+    pub fn idle(self, name: &'static str) -> BusinessRequest<'context, Message> {
+        self.request(name, TaskPriority::Idle)
+    }
+
+    fn request(
+        self,
+        name: &'static str,
+        priority: TaskPriority,
+    ) -> BusinessRequest<'context, Message> {
+        BusinessRequest {
+            context: self.context,
+            name,
+            priority,
+        }
+    }
+}

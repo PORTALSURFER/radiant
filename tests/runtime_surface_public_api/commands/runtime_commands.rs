@@ -19,11 +19,12 @@ fn surface_runtime_executes_focus_exit_and_deferred_commands() {
     assert_eq!(drained.messages_dispatched, 1);
     assert_eq!(runtime.bridge().count, 1);
 
-    let performed = runtime.execute_command(Command::perform(
-        "increment",
-        || DemoMessage::Increment,
-        |message| message,
-    ));
+    let mut context = radiant::prelude::UpdateContext::default();
+    context
+        .business()
+        .background("increment")
+        .run(|_| DemoMessage::Increment, |message| message);
+    let performed = runtime.execute_command(context.into_command());
     assert!(performed.repaint_requested);
     let drained = drain_until_messages(&mut runtime, 1);
     assert_eq!(drained.messages_dispatched, 1);

@@ -54,15 +54,17 @@ fn main() -> radiant::Result {
         })
         .handle_message(|state, message, context| match message {
             LoadingMessage::Start => {
-                context.spawn_resource(
-                    &mut state.resource,
-                    "demo-loader",
-                    move || {
-                        thread::sleep(Duration::from_millis(60));
-                        Ok("Loaded payload from background work".to_string())
-                    },
-                    LoadingMessage::Loaded,
-                );
+                context
+                    .business()
+                    .background("demo-loader")
+                    .resource(&mut state.resource)
+                    .run(
+                        move |_| {
+                            thread::sleep(Duration::from_millis(60));
+                            Ok("Loaded payload from background work".to_string())
+                        },
+                        LoadingMessage::Loaded,
+                    );
                 context.request_repaint();
             }
             LoadingMessage::Loaded(completion) => {

@@ -79,19 +79,37 @@ fn update_context_keeps_followup_command_groups_in_focused_modules() {
     let platform =
         fs::read_to_string(manifest_dir.join("src/application/runtime/update_context/platform.rs"))
             .expect("application update context platform helpers should be readable");
-    let tasks =
-        fs::read_to_string(manifest_dir.join("src/application/runtime/update_context/tasks.rs"))
-            .expect("application update context task helpers should be readable");
+    let business = fs::read_to_string(
+        manifest_dir.join("src/application/runtime/update_context/business/mod.rs"),
+    )
+    .expect("application update context business root should be readable");
+    let business_request = fs::read_to_string(
+        manifest_dir.join("src/application/runtime/update_context/business/request.rs"),
+    )
+    .expect("application update context business request helpers should be readable");
+    let business_latest = fs::read_to_string(
+        manifest_dir.join("src/application/runtime/update_context/business/latest.rs"),
+    )
+    .expect("application update context business latest helpers should be readable");
+    let business_keyed_latest = fs::read_to_string(
+        manifest_dir.join("src/application/runtime/update_context/business/keyed_latest.rs"),
+    )
+    .expect("application update context business keyed latest helpers should be readable");
+    let business_resource = fs::read_to_string(
+        manifest_dir.join("src/application/runtime/update_context/business/resource.rs"),
+    )
+    .expect("application update context business resource helpers should be readable");
     let surface =
         fs::read_to_string(manifest_dir.join("src/application/runtime/update_context/surface.rs"))
             .expect("application update context surface helpers should be readable");
 
     for required in [
         "mod commands;",
+        "mod business;",
         "mod platform;",
         "mod surface;",
-        "mod tasks;",
         "pub struct UpdateContext<Message>",
+        "fn business(&mut self) -> BusinessRuntime<'_, Message>",
         "fn into_command(self) -> Command<Message>",
     ] {
         assert!(
@@ -115,11 +133,19 @@ fn update_context_keeps_followup_command_groups_in_focused_modules() {
         "platform and external-drag helpers should live in update_context/platform.rs"
     );
     assert!(
-        tasks.contains("pub fn spawn<Output>")
-            && tasks.contains("pub fn spawn_cancellable")
-            && tasks.contains("pub fn spawn_latest")
-            && tasks.contains("pub fn spawn_resource"),
-        "runtime task and resource helpers should live in update_context/tasks.rs"
+        business.contains("pub struct BusinessRuntime")
+            && business.contains("pub fn interactive(self, name: &'static str)")
+            && business.contains("pub fn background(self, name: &'static str)")
+            && business.contains("pub fn idle(self, name: &'static str)")
+            && business_request.contains("pub fn latest(self, latest: &mut LatestTask)")
+            && business_request.contains("pub fn latest_for<Key>")
+            && business_request.contains("pub fn resource<Output>")
+            && business_request.contains("pub fn cancellable(self)")
+            && business_request.contains("pub fn run<Output>")
+            && business_latest.contains("pub struct BusinessLatestRequest")
+            && business_keyed_latest.contains("pub struct BusinessKeyedLatestRequest")
+            && business_resource.contains("pub struct BusinessResourceRequest"),
+        "business runtime helpers should stay split by request concern under update_context/business"
     );
     assert!(
         surface.contains("pub fn focus")

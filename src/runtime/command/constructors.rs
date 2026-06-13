@@ -83,27 +83,7 @@ impl<Message> Command<Message> {
         Self::After { delay, message }
     }
 
-    /// Build a command that runs work on a runtime-managed business thread and
-    /// maps its result into a host message.
-    ///
-    /// Use this for IO, decoding, analysis, slow computation, and other work
-    /// that should not block the UI/event/render path. If synchronous execution
-    /// is intentionally required, dispatch a normal [`Command::message`] and do
-    /// that short work in the reducer instead.
-    pub fn perform<Output>(
-        name: &'static str,
-        work: impl FnOnce() -> Output + Send + 'static,
-        map: impl FnOnce(Output) -> Message + Send + 'static,
-    ) -> Self
-    where
-        Output: Send + 'static,
-    {
-        Self::perform_with_priority(name, TaskPriority::Background, work, map)
-    }
-
-    /// Build a background-work command with an explicit runtime scheduling
-    /// priority hint.
-    pub fn perform_with_priority<Output>(
+    pub(crate) fn perform_with_priority<Output>(
         name: &'static str,
         priority: TaskPriority,
         work: impl FnOnce() -> Output + Send + 'static,

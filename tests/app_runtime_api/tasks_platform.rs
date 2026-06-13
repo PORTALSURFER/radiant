@@ -1,5 +1,22 @@
 use super::*;
 
+fn take_perform(
+    command: radiant::runtime::Command<DemoMessage>,
+) -> (
+    &'static str,
+    radiant::prelude::TaskPriority,
+    Box<dyn FnOnce() -> DemoMessage + Send + 'static>,
+) {
+    match command {
+        radiant::runtime::Command::Perform {
+            name,
+            priority,
+            work,
+        } => (name, priority, work),
+        other => panic!("expected one business perform command, got {other:?}"),
+    }
+}
+
 #[test]
 fn latest_task_tracks_current_ticket_and_tags_spawned_completion() {
     let mut latest = radiant::prelude::LatestTask::new();
@@ -14,17 +31,133 @@ fn latest_task_tracks_current_ticket_and_tags_spawned_completion() {
 
     let mut latest = radiant::prelude::LatestTask::new();
     let mut context = radiant::prelude::UpdateContext::default();
-    context.spawn_latest(
-        &mut latest,
-        "latest-task-test",
-        || 7_u32,
-        |completion| {
-            assert_eq!(completion.task_id(), 1);
+    context
+        .business()
+        .background("latest-task-test")
+        .latest(&mut latest)
+        .run(
+            |_| 7_u32,
+            |completion| {
+                assert_eq!(completion.task_id(), 1);
+                DemoMessage::Increment
+            },
+        );
+
+    assert_eq!(latest.active().map(|ticket| ticket.id()), Some(1));
+}
+
+#[test]
+fn business_runtime_builds_named_priority_lanes() {
+    type SubmitBusinessWork = fn(&mut radiant::prelude::UpdateContext<DemoMessage>);
+    let cases: [(&str, radiant::prelude::TaskPriority, SubmitBusinessWork); 3] = [
+        (
+            "interactive-work",
+            radiant::prelude::TaskPriority::Interactive,
+            |context: &mut radiant::prelude::UpdateContext<DemoMessage>| {
+                context
+                    .business()
+                    .interactive("interactive-work")
+                    .run(|_| DemoMessage::Increment, |message| message);
+            },
+        ),
+        (
+            "background-work",
+            radiant::prelude::TaskPriority::Background,
+            |context: &mut radiant::prelude::UpdateContext<DemoMessage>| {
+                context
+                    .business()
+                    .background("background-work")
+                    .run(|_| DemoMessage::Increment, |message| message);
+            },
+        ),
+        (
+            "idle-work",
+            radiant::prelude::TaskPriority::Idle,
+            |context: &mut radiant::prelude::UpdateContext<DemoMessage>| {
+                context
+                    .business()
+                    .idle("idle-work")
+                    .run(|_| DemoMessage::Increment, |message| message);
+            },
+        ),
+    ];
+    for (expected_name, expected_priority, submit) in cases {
+        let mut context = radiant::prelude::UpdateContext::default();
+        submit(&mut context);
+
+        let (name, priority, work) = take_perform(context.into_command());
+
+        assert_eq!(name, expected_name);
+        assert_eq!(priority, expected_priority);
+        assert_eq!(work(), DemoMessage::Increment);
+    }
+}
+
+#[test]
+fn business_runtime_keyed_latest_tags_completion_with_key_and_ticket() {
+    let mut keyed = radiant::prelude::KeyedLatestTasks::new();
+    let key = String::from("row-1");
+    let mut context = radiant::prelude::UpdateContext::default();
+    context
+        .business()
+        .interactive("keyed-preview")
+        .latest_for(&mut keyed, key.clone())
+        .run(
+            |_| 42_u8,
+            |completion| {
+                assert_eq!(completion.key, "row-1");
+                assert_eq!(completion.task_id(), 1);
+                assert_eq!(completion.output, 42);
+                DemoMessage::Increment
+            },
+        );
+
+    assert_eq!(keyed.active(&key).map(|ticket| ticket.id()), Some(1));
+    let (_name, _priority, work) = take_perform(context.into_command());
+    assert_eq!(work(), DemoMessage::Increment);
+}
+
+#[test]
+fn business_runtime_resource_request_returns_typed_completion() {
+    let mut resource = radiant::prelude::ResourceSlot::<String>::new("preview");
+    let mut context = radiant::prelude::UpdateContext::default();
+    context
+        .business()
+        .background("load-preview")
+        .resource(&mut resource)
+        .run(
+            |_| Ok(String::from("ready")),
+            |completion| {
+                assert_eq!(completion.key().as_str(), "preview");
+                assert_eq!(completion.generation(), 1);
+                DemoMessage::Increment
+            },
+        );
+
+    assert!(resource.is_loading());
+    let (_name, _priority, work) = take_perform(context.into_command());
+    assert_eq!(work(), DemoMessage::Increment);
+}
+
+#[test]
+fn business_runtime_cancellable_work_exposes_worker_context() {
+    let mut context = radiant::prelude::UpdateContext::default();
+    let request = context
+        .business()
+        .background("cancel-visible")
+        .cancellable();
+    let token = request.token();
+    token.cancel();
+    request.run(
+        |worker| worker.is_cancelled(),
+        |cancelled| {
+            assert!(cancelled);
             DemoMessage::Increment
         },
     );
 
-    assert_eq!(latest.active().map(|ticket| ticket.id()), Some(1));
+    let (_name, _priority, work) = take_perform(context.into_command());
+    assert_eq!(work(), DemoMessage::Increment);
 }
 
 #[test]
@@ -130,16 +263,13 @@ fn confirm_dialog_supports_named_parts_construction() {
 }
 
 #[test]
-fn update_context_can_spawn_cancellable_work() {
-    let token = radiant::prelude::CancellationToken::new();
-    let worker_token = token.clone();
-    token.cancel();
-
+fn business_runtime_can_submit_cancellable_work() {
     let mut context = radiant::prelude::UpdateContext::default();
-    context.spawn_cancellable(
-        "cancel-test",
-        worker_token,
-        |token| token.is_cancelled(),
+    let request = context.business().background("cancel-test").cancellable();
+    let token = request.token();
+    token.cancel();
+    request.run(
+        |worker| worker.is_cancelled(),
         |cancelled| {
             assert!(cancelled);
             DemoMessage::Increment
@@ -148,22 +278,21 @@ fn update_context_can_spawn_cancellable_work() {
 }
 
 #[test]
-fn update_context_can_spawn_cancellable_latest_work() {
+fn business_runtime_can_submit_cancellable_latest_work() {
     let mut latest = radiant::prelude::LatestTask::new();
     let mut context = radiant::prelude::UpdateContext::default();
-    let token = context.spawn_cancellable_latest_with_priority(
-        &mut latest,
-        "latest-cancel-test",
-        radiant::prelude::TaskPriority::Idle,
-        |ticket, token| {
-            assert_eq!(ticket.id(), 1);
-            token.is_cancelled()
-        },
-        |completion| {
-            assert_eq!(completion.task_id(), 1);
-            DemoMessage::Increment
-        },
-    );
+    let token = context
+        .business()
+        .idle("latest-cancel-test")
+        .latest(&mut latest)
+        .cancellable()
+        .run(
+            |worker| worker.is_cancelled(),
+            |completion| {
+                assert_eq!(completion.task_id(), 1);
+                DemoMessage::Increment
+            },
+        );
 
     assert_eq!(latest.active().map(|ticket| ticket.id()), Some(1));
     assert!(!token.is_cancelled());
@@ -173,19 +302,14 @@ fn update_context_can_spawn_cancellable_latest_work() {
 
 #[test]
 fn update_context_accepts_task_priority_hints() {
-    let token = radiant::prelude::CancellationToken::new();
     let mut context = radiant::prelude::UpdateContext::default();
-    context.spawn_cancellable_with_priority(
-        "idle-cancel-test",
-        radiant::prelude::TaskPriority::Idle,
-        token,
-        |token| token.is_cancelled(),
-        |_| DemoMessage::Increment,
-    );
-    context.spawn_with_priority(
-        "interactive-test",
-        radiant::prelude::TaskPriority::Interactive,
-        || 1_u8,
-        |_| DemoMessage::Increment,
-    );
+    context
+        .business()
+        .idle("idle-cancel-test")
+        .cancellable()
+        .run(|worker| worker.is_cancelled(), |_| DemoMessage::Increment);
+    context
+        .business()
+        .interactive("interactive-test")
+        .run(|_| 1_u8, |_| DemoMessage::Increment);
 }

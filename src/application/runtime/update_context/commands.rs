@@ -1,4 +1,7 @@
-use crate::runtime::{Command, RepaintScope};
+use crate::{
+    application::LatestTask,
+    runtime::{Command, RepaintScope},
+};
 
 use super::UpdateContext;
 
@@ -31,6 +34,17 @@ impl<Message> UpdateContext<Message> {
     /// Dispatch a message after a delay.
     pub fn after(&mut self, delay: std::time::Duration, message: Message) {
         self.command(Command::after(delay, message));
+    }
+
+    /// Dispatch a delayed message tagged with a latest-task ticket.
+    pub fn after_latest(
+        &mut self,
+        latest: &mut LatestTask,
+        delay: std::time::Duration,
+        map: impl FnOnce(crate::application::TaskTicket) -> Message,
+    ) {
+        let ticket = latest.begin();
+        self.after(delay, map(ticket));
     }
 
     /// Request runtime exit.

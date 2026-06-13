@@ -6,7 +6,8 @@ fn resource_completions_use_named_parts_for_request_results() {
     let resource = radiant_source("src/runtime/resource.rs");
     let runtime = radiant_source("src/runtime/mod.rs");
     let prelude = prelude_source();
-    let update_context_tasks = radiant_source("src/application/runtime/update_context/tasks.rs");
+    let update_context_business_resource =
+        radiant_source("src/application/runtime/update_context/business/resource.rs");
 
     assert!(
         source.contains("pub struct ResourceCompletionParts")
@@ -16,10 +17,11 @@ fn resource_completions_use_named_parts_for_request_results() {
     );
     assert!(
         source.contains("ResourceCompletion::from_parts(ResourceCompletionParts {")
-            && update_context_tasks.contains(
-                "ResourceCompletion::from_parts(ResourceCompletionParts { request, load })"
-            ),
-        "resource completion mapping and spawn helpers should use the named-parts construction path"
+            && update_context_business_resource
+                .contains("ResourceCompletion::from_parts(ResourceCompletionParts")
+            && update_context_business_resource.contains("request: resource")
+            && update_context_business_resource.contains("load,"),
+        "resource completion mapping and business resource helpers should use the named-parts construction path"
     );
     assert!(
         resource.contains("ResourceCompletionParts")

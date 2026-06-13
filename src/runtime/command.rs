@@ -40,10 +40,11 @@ pub enum TaskPriority {
 /// ownership of IO, background work, and other side effects; this type only
 /// represents values the generic runtime can understand directly.
 ///
-/// UI reducers should stay short and non-blocking. Expensive work belongs in
-/// [`Command::perform`], which the application runtime offloads to a
-/// runtime-managed business thread before delivering the resulting message back
-/// through the normal UI update path.
+/// UI reducers should stay short and non-blocking. Expensive host work should
+/// be submitted with [`crate::application::BusinessRuntime`] through
+/// [`crate::application::UpdateContext::business`], which offloads it to a
+/// runtime-managed worker before delivering the resulting message back through
+/// the normal UI update path.
 #[derive(Default)]
 pub enum Command<Message> {
     /// No follow-up work is required.
@@ -69,6 +70,7 @@ pub enum Command<Message> {
         message: Message,
     },
     /// Run host work on a business thread and dispatch the resulting message.
+    #[doc(hidden)]
     Perform {
         /// Human-readable task name for diagnostics.
         name: &'static str,

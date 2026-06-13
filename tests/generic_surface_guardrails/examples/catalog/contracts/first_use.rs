@@ -95,7 +95,7 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
             "StatusMessage::ActionPressed",
             "StatusMessage::AutosaveChanged",
             "StatusSegments::primary(",
-            "context.spawn(",
+            "context.business().background(",
             "StatusMessage::WorkerFinished",
             ".animation(",
             ".on_frame(",
@@ -118,7 +118,8 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         "background_loading",
         &[
             ".handle_message(",
-            "context.spawn_resource(",
+            ".business()",
+            ".resource(&mut state.resource)",
             "ResourceCompletion",
             "LoadingMessage::Loaded",
         ],

@@ -28,11 +28,10 @@ fn app_startup_commands_use_full_runtime_dispatch() {
             context.focus(11);
             context.request_repaint();
             context.after(Duration::from_millis(1), DemoMessage::Increment);
-            context.spawn(
-                "startup-increment",
-                || DemoMessage::Increment,
-                |message| message,
-            );
+            context
+                .business()
+                .background("startup-increment")
+                .run(|_| DemoMessage::Increment, |message| message);
         })
         .update_with(|state, message, _context| {
             if matches!(message, DemoMessage::Increment) {

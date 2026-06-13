@@ -314,25 +314,20 @@ alias for the same context-aware message-handler hook. `PlatformResponse` expose
 `into_confirmation()`, while the `PlatformResultExt` prelude trait provides the
 same common decoders directly on platform-service callback results so reducers
 can propagate platform errors and reject wrong response shapes without local
-adapter code. Use `LatestTask` with
-`UpdateContext::spawn_latest(...)`
-for one-resource background loads where a newer selection should invalidate an
-older completion. The resulting message receives a `TaskCompletion<Output>`;
-call `LatestTask::finish(completion.ticket)` before applying the output so stale
-work is rejected consistently without host-specific task-id plumbing. Use
-`UpdateContext::spawn_cancellable_latest_with_priority(...)` when replace-latest
-work also needs cooperative cancellation and a scheduling priority. Use
-`UpdateContext::after_latest(...)` for debounced one-resource work when a
+adapter code. Use `context.business()` for host-owned business work that must
+not run on the UI/event/render path. The business builder exposes
+`interactive(...)`, `background(...)`, and `idle(...)` lanes, then optional
+policies such as `latest(&mut LatestTask)`,
+`latest_for(&mut KeyedLatestTasks<_>, key)`, `resource(&mut ResourceSlot<_>)`,
+and `cancellable()` before `.run(work, map)`.
+Latest completions receive a `TaskCompletion<Output>` or
+`KeyedTaskCompletion<Key, Output>`; call the matching `LatestTask::finish(...)`
+or `KeyedLatestTasks::finish(...)` before applying the output so stale work is
+rejected consistently without host-specific task-id plumbing. Use
+`UpdateContext::after_latest(...)` for debounced one-resource UI delays when a
 selection, search query, or inspector target should only start after it remains
 current for a short delay; the delayed message carries the same ticket type and
-should be accepted through the same `LatestTask` methods. Use
-`UpdateContext::spawn_with_priority(...)` or
-`spawn_cancellable_with_priority(...)` when background work should carry a
-best-effort `TaskPriority` hint, such as idle-priority indexing or interactive
-preview preparation. Use
-`KeyedLatestTasks` with `UpdateContext::spawn_latest_for(...)` when the same
-replace-latest behavior is needed independently for many keys, such as row
-previews, folder scans, or document-local workers.
+should be accepted through the same `LatestTask` methods.
 Text inputs can use `.message(...)` for value-only routing or
 `.message_event(...)` when the host needs to distinguish edits from submissions.
 Inline edit flows can seed caret and selection state with `.selection(...)` or
@@ -826,10 +821,11 @@ option list is empty. Use `active_selected_index(...)` when a fresh query
 should show options without selecting one yet, and
 `move_selection_from_edge(...)` when first ArrowDown/ArrowUp-style movement
 should select the first or last option before subsequent movement wraps.
-`CancellationToken` and `UpdateContext::spawn_cancellable(...)` provide a
-small cooperative-cancellation contract for long host-owned jobs. Radiant still
-does not force-stop work; applications keep a token clone and workers check it
-at natural boundaries before returning early.
+`CancellationToken` and `context.business().background(...).cancellable()`
+provide a small cooperative-cancellation contract for long host-owned jobs.
+Radiant still does not force-stop work; applications keep a token clone and
+workers check `BusinessWorkContext::is_cancelled()` at natural boundaries before
+returning early.
 `WindowSpec` describes one host-managed window without opening the platform
 runtime. `WindowManifest` stores ordered specs and rejects duplicate stable
 keys, non-positive or non-finite logical sizes, and non-finite popup positions,
@@ -1246,15 +1242,15 @@ cannot accidentally suppress a needed surface refresh.
 background resource work. Radiant does not own the filesystem or asset decoder,
 but examples and apps can use the same key/state/result shape for loading
 images, previews, manifests, fonts, or other resources through
-`Command::perform(...)`, `UpdateContext::spawn(...)`, or the higher-level
-`UpdateContext::spawn_resource(...)`. Use
+`context.business().background(...).resource(&mut slot).run(...)`. Use
 `ResourceSlot::begin_load()` and `ResourceSlot::apply_for(...)` when repeated
 loads for the same key can overlap; stale worker completions are ignored instead
 of replacing the current result. `ResourceRequest::ready(...)` and
 `ResourceRequest::failed(...)` construct keyed results from the request token so
 worker code does not need to clone or duplicate resource-key text manually.
-`spawn_resource(...)` performs that request/result wiring for fallible resource
-loads and returns a `ResourceCompletion<T>` through the normal message path.
+The business resource builder performs that request/result wiring for fallible
+resource loads and returns a `ResourceCompletion<T>` through the normal message
+path.
 Use `ResourceSlot::cancel_load()` to invalidate in-flight work while preserving
 the last ready value; use `ResourceSlot::clear()` when the value and error
 should be dropped.
@@ -1273,9 +1269,10 @@ host needs manual downcast or filtering behavior. Adding a widget should not
 require adding a central output enum variant.
 
 Asynchronous side effects remain host-owned, but normal apps use Radiant's app
-runtime to wire them into the UI. `Command::perform(...)`, `Command::after(...)`,
-`UpdateContext`, and `Subscription` provide message delivery and repaint
-wakeups; the app still owns the work and resulting domain messages.
+runtime to wire them into the UI. `UpdateContext::business()`,
+`Command::after(...)`, `UpdateContext`, and `Subscription` provide message
+delivery and repaint wakeups; the app still owns the work and resulting domain
+messages.
 
 ## UI-First Runtime Threading
 
@@ -1286,16 +1283,18 @@ business work.
 
 Application reducers run synchronously because they decide the next UI state, so
 they should stay short. Slow IO, decoding, indexing, analysis, loading, and other
-business work should use `Command::perform(...)`, `UpdateContext::spawn(...)`,
-`Command::after(...)`, or `Subscription`; the application runtime offloads that
-work to runtime-managed business threads and returns results through the normal
-message queue. Finite `Command::perform(...)` jobs run on a bounded business
-worker lane so bursts of host work do not create unbounded OS threads beside the
-UI path. If that lane cannot be started or a job cannot be queued, Radiant
-reports the offload failure instead of running the work synchronously on the
-UI/event/render owner. If an app explicitly needs immediate synchronous
-behavior, it can dispatch a normal message and do that short work in the
-reducer, but the default architecture is UI-first and non-blocking.
+business work should use `UpdateContext::business()` with the appropriate
+interactive, background, or idle lane; delayed messages should use
+`Command::after(...)`, and long-lived recurring sources should use
+`Subscription`. The application runtime offloads business work to
+runtime-managed business threads and returns results through the normal message
+queue. Finite business jobs run on a bounded business worker lane so bursts of
+host work do not create unbounded OS threads beside the UI path. If that lane
+cannot be started or a job cannot be queued, Radiant reports the offload failure
+instead of running the work synchronously on the UI/event/render owner. If an app
+explicitly needs immediate synchronous behavior, it can dispatch a normal
+message and do that short work in the reducer, but the default architecture is
+UI-first and non-blocking.
 Delayed messages use a runtime-owned timer lane rather than one sleeping OS
 thread per delay, so timer bursts do not monopolize the UI path or create
 unbounded background threads. Interval subscriptions use the same timer lane for
@@ -1993,7 +1992,7 @@ manual validation:
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
 | Custom widgets and retained GPU surfaces | `custom_widget`, `gpu_surface`, `custom_shader_surface`, `gpu_surface_stack_overlay`, `waveform_view`, `spectrogram` |
-| Generic advanced workspaces | `node_editor`, `timeline_editor`, `inspector_panel`, `split_workspace` |
+| Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `plugin_panel`, `eq_editor`, `spectrogram`, `mixer_console`, `piano_roll`, `modulation_matrix`, `arrangement_shell`, `inspector_panel`, `split_workspace` |
 | Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame` |
 | Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling` |
 
@@ -2194,8 +2193,9 @@ frame. The overlay caps its paint-only cadence to 60 FPS and anchors to the
 cached GPU-surface rectangle through `SurfacePaintPlan::first_widget_rect`.
 Prefer `Scene::overlay(...)` for normal root-scoped paint-only presentation.
 Run `cargo run --example background_loading` for a background-work sandbox that
-uses `ResourceSlot`, `ResourceCompletion`, and `UpdateContext::spawn_resource(...)`
-to route worker resource results back into the normal state update path.
+uses `ResourceSlot`, `ResourceCompletion`, and
+`UpdateContext::business().background(...).resource(...)` to route worker
+resource results back into the normal state update path.
 Run `cargo run --example typography` for a focused text sandbox that exercises
 wrapping, truncation, fixed text heights, fill sizing, and explicit baselines
 through the application-builder API.

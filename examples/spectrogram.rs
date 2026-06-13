@@ -1,4 +1,8 @@
-//! Realtime spectrogram sandbox for DAW-style GUI interaction.
+//! Retained heatmap visualization backed by deterministic synthetic data.
+//!
+//! This example validates Radiant frame-driven updates, custom heatmap paint,
+//! hover readout, and paint-only widget-local state. DSP and audio processing
+//! behavior are intentionally non-authoritative host-domain behavior.
 
 #[path = "spectrogram/model.rs"]
 mod model;

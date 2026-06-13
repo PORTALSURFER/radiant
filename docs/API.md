@@ -1992,10 +1992,25 @@ manual validation:
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
-| Custom widgets and retained GPU surfaces | `custom_widget`, `gpu_surface`, `custom_shader_surface`, `gpu_surface_stack_overlay`, `waveform_view` |
-| Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `inspector_panel`, `plugin_panel`, `eq_editor`, `spectrogram`, `mixer_console`, `piano_roll`, `modulation_matrix`, `arrangement_shell`, `split_workspace` |
+| Custom widgets and retained GPU surfaces | `custom_widget`, `gpu_surface`, `custom_shader_surface`, `gpu_surface_stack_overlay`, `waveform_view`, `spectrogram` |
+| Generic advanced workspaces | `node_editor`, `timeline_editor`, `inspector_panel`, `split_workspace` |
 | Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame` |
 | Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling` |
+
+Some maintained examples are intentionally advanced synthetic domain
+simulations rather than canonical API-contract starters. They validate dense
+control panels, retained custom-widget painting, runtime-local hover/drag
+previews, high-frequency frame updates, and message routing under realistic
+interaction pressure, but they do not define Radiant-owned product semantics:
+
+| Advanced simulation | Radiant behavior it validates | Non-authoritative domain behavior |
+| --- | --- | --- |
+| `plugin_panel` | compact control-panel layout, toggles, and explicit messages | plugin preset or host lifecycle policy |
+| `eq_editor` | custom response-curve widget paint and handle routing | DSP, analyzer, or audio-processing behavior |
+| `mixer_console` | dense rows, meters, faders, drag previews, and multi-selection | mixer, channel, send, solo, mute, or DSP semantics |
+| `piano_roll` | retained canvas editing, gesture previews, selection overlays, and frame overlays | MIDI note editing, quantization, piano-key semantics, velocity editing, or DAW workflow policy |
+| `modulation_matrix` | dense matrix interaction, hover overlays, and value editing | synthesizer modulation-routing semantics |
+| `arrangement_shell` | multi-pane workspace composition, timeline paint, and paint-only hover/playhead overlays | DAW arrangement, clips, tracks, transport, mixer, or audio behavior |
 
 Run an example interactively with `cargo run --example <name>`. Showcase
 examples use portable defaults. `folder_browser` accepts an optional root for
@@ -2271,38 +2286,37 @@ Run `cargo run --example keys` for stable keys and reversed list identity.
 Run `cargo run --example focus_controls` for an input/focus sandbox that uses
 `UpdateContext::focus(...)` and shortcuts to move keyboard
 focus from normal app messages.
-Run `cargo run --example plugin_panel` for a dense plugin-style control panel
-that stays on generic Radiant layout, style, focus, and message-first update
-APIs; host/plugin SDK integration remains outside Radiant.
-Run `cargo run --example eq_editor` for a graphical plugin-style EQ editor
-surface that paints a visual response curve, analyzer-style overlay, editable
-band handles, and parameter-routing messages without modeling DSP or audio
+Run `cargo run --example plugin_panel` for an advanced synthetic control-panel
+simulation that stays on generic Radiant layout, style, focus, and
+message-first update APIs; plugin SDK integration and preset policy remain
+outside Radiant.
+Run `cargo run --example eq_editor` for an advanced synthetic curve-editor
+simulation that paints a visual response curve, analyzer-style overlay,
+editable handles, and parameter-routing messages without modeling DSP or audio
 processing.
-Run `cargo run --example spectrogram` for a DAW-style realtime spectrogram
-surface that scrolls deterministic synthetic spectrum data through frame-driven
-messages, heatmap painting, hover readout, and transport controls without
-modeling DSP or audio processing.
-Run `cargo run --example mixer_console` for a dense 32-channel DAW-style mixer
-panel with deterministic synthetic meter levels, stereo decibel meters, faders,
-send controls, group tinting, Shift/Ctrl multi-selection, grouped fader
-adjustments, drag-and-drop strip reordering with insertion-line previews,
-mute/solo/arm buttons, and paint-only hover overlays without
-modeling DSP or audio processing.
-Run `cargo run --example piano_roll` for a piano-roll editor sandbox with a
-keyboard lane, beat grid, synthetic notes, drag-painted note creation,
-move/resize previews, overlap cutting, horizontal and vertical zoom/pan, an
-Ableton-style piano key lane, keyboard delete, Select/Paint tool switching, a
-4096-note stress mode, marquee multi-selection, a dense editable velocity lane
-linked to selected notes, and paint-only hover, drag, and playhead overlays
-without modeling MIDI, DSP, or audio processing.
-Run `cargo run --example modulation_matrix` for a dense modulation-routing
-matrix with source and destination labels, bipolar amount editing, clear/delete
-behavior, synthetic activity markers, and paint-only hover overlays without
-modeling synth, DSP, or audio processing.
-Run `cargo run --example arrangement_shell` for a DAW-style workspace shell with
-transport controls, a browser pane, arrangement overview, inspector, compact
-mixer/status strip, synthetic clips and meters, and paint-only arrangement hover
-and playhead overlays without modeling audio, DSP, or plugin behavior.
+Run `cargo run --example spectrogram` for a retained heatmap visualization that
+scrolls deterministic synthetic spectrum data through frame-driven messages,
+hover readout, and transport controls without modeling DSP or audio processing.
+Run `cargo run --example mixer_console` for an advanced synthetic dense-panel
+simulation with deterministic meter levels, faders, grouped drag previews,
+strip reordering, and paint-only hover overlays. It validates Radiant
+interaction and paint contracts; channel, send, mute, solo, and DSP semantics
+are not Radiant API guidance.
+Run `cargo run --example piano_roll` for an advanced synthetic retained-editor
+simulation with a keyboard-like lane, grid, synthetic note blocks, drag-create
+and move/resize previews, marquee selection, velocity-like handles, and
+paint-only hover, drag, and playhead overlays. It validates Radiant retained
+canvas and gesture contracts; MIDI note editing, quantization, piano-key
+semantics, velocity editing, and DAW workflow policy are non-authoritative.
+Run `cargo run --example modulation_matrix` for an advanced synthetic matrix
+simulation with source and destination labels, bipolar amount editing,
+clear/delete behavior, synthetic activity markers, and paint-only hover
+overlays. Synth routing semantics are non-authoritative.
+Run `cargo run --example arrangement_shell` for an advanced synthetic
+multi-pane workspace simulation with transport-like controls, a browser pane,
+timeline overview, inspector, compact status strip, synthetic clips/meters,
+and paint-only hover/playhead overlays. Arrangement, track, transport, mixer,
+audio, DSP, and plugin behavior remain host-owned.
 
 ## Quality Gate
 

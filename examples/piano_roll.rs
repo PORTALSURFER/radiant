@@ -1,4 +1,10 @@
-//! Piano-roll editor sandbox for DAW-style GUI interaction.
+//! Advanced synthetic retained-editor simulation.
+//!
+//! This example validates Radiant retained canvas editing, gesture previews,
+//! selection overlays, frame overlays, and dense custom-widget painting under a
+//! piano-roll-shaped stress case. MIDI note editing, quantization, piano-key
+//! semantics, velocity editing, and DAW workflow policy are intentionally
+//! non-authoritative host-domain behavior.
 
 #[path = "piano_roll/mod.rs"]
 mod piano_roll;

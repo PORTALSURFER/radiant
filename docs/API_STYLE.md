@@ -264,6 +264,14 @@ Good example categories:
 - native file drop
 - multi-window or embedded host integration
 
+Advanced synthetic domain simulations may stay under `examples/` when they
+validate Radiant behavior that smaller examples cannot stress well, such as
+dense custom-widget painting, high-frequency pointer drags, paint-only overlays,
+retained GPU surfaces, or multi-pane workspace composition. They must be
+documented as non-authoritative domain simulations, not as the default shape of
+Radiant application code. The domain model should never be read as Radiant-owned
+business logic.
+
 Examples should avoid mixing too many teaching goals. If an example demonstrates
 background loading, it should not also be the canonical styling, list, and
 overlay example.
@@ -331,6 +339,12 @@ Default example classifications:
 | `custom_widget.rs` | custom widget authoring |
 | `native_file_drop.rs` | view-local native file drop |
 | `multi_window_manifest.rs` | multi-window app structure |
+| `plugin_panel.rs` | advanced synthetic control-panel simulation, not plugin host policy |
+| `eq_editor.rs` | advanced synthetic curve-editor simulation, not DSP policy |
+| `mixer_console.rs` | advanced synthetic dense-panel simulation, not mixer semantics |
+| `piano_roll.rs` | advanced synthetic retained-editor simulation, not MIDI or DAW editing policy |
+| `modulation_matrix.rs` | advanced synthetic matrix simulation, not synth-routing semantics |
+| `arrangement_shell.rs` | advanced synthetic multi-pane workspace simulation, not arrangement or audio policy |
 
 ## Cleanup Ticket Criteria
 

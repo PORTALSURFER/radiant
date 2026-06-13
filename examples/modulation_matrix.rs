@@ -1,4 +1,8 @@
-//! Modulation matrix sandbox for DAW-style routing GUI interaction.
+//! Advanced synthetic matrix simulation.
+//!
+//! This example validates Radiant dense matrix interaction, value editing,
+//! synthetic activity markers, and paint-only hover overlays. Synth modulation
+//! routing semantics are intentionally non-authoritative host-domain behavior.
 
 #[path = "modulation_matrix/mod.rs"]
 mod modulation_matrix;

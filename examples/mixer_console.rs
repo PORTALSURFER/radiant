@@ -1,4 +1,9 @@
-//! Dense mixer console sandbox for DAW-style GUI interaction.
+//! Advanced synthetic dense-panel simulation.
+//!
+//! This example validates Radiant dense custom-widget paint, fader-like drags,
+//! grouped previews, row reordering, and paint-only hover overlays. Mixer,
+//! channel, send, solo, mute, and DSP semantics are intentionally
+//! non-authoritative host-domain behavior.
 
 #[path = "mixer_console/mod.rs"]
 mod mixer_console;

@@ -1,4 +1,8 @@
-//! Dense plugin-style control panel built from generic Radiant widgets.
+//! Advanced synthetic control-panel simulation built from generic Radiant widgets.
+//!
+//! This example validates compact control-panel layout, toggles, focus, and
+//! message-first updates. Plugin SDK integration, preset management, and host
+//! lifecycle policy remain outside Radiant.
 
 use radiant::prelude as ui;
 

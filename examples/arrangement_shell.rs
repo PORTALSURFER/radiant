@@ -1,4 +1,9 @@
-//! Arrangement shell sandbox for DAW-style multi-pane GUI composition.
+//! Advanced synthetic multi-pane workspace simulation.
+//!
+//! This example validates Radiant workspace composition, timeline-like paint,
+//! retained hover overlays, frame messages, and dense panel layout. Arrangement,
+//! track, transport, mixer, audio, DSP, and plugin behavior remain host-owned
+//! and are not Radiant API guidance.
 
 #[path = "arrangement_shell/mod.rs"]
 mod arrangement_shell;

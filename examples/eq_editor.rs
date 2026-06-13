@@ -1,4 +1,9 @@
-//! Graphical EQ editor sandbox for plugin-style GUI interaction.
+//! Advanced synthetic curve-editor simulation.
+//!
+//! This example validates Radiant custom response-curve paint, analyzer-style
+//! overlays, editable handles, and parameter messages. DSP, analyzer, plugin,
+//! and audio-processing behavior are intentionally non-authoritative
+//! host-domain behavior.
 
 #[path = "eq_editor/model.rs"]
 mod model;

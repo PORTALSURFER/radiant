@@ -80,6 +80,46 @@ fn details_list_column_drag_state_stays_in_public_details_model() {
 }
 
 #[test]
+fn details_list_view_composition_stays_split_by_responsibility() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let view_facade = fs::read_to_string(manifest_dir.join("src/application/details_list/view.rs"))
+        .expect("details-list view facade should be readable");
+    let list = fs::read_to_string(manifest_dir.join("src/application/details_list/view/list.rs"))
+        .expect("details-list composition module should be readable");
+    let compact =
+        fs::read_to_string(manifest_dir.join("src/application/details_list/view/compact.rs"))
+            .expect("details-list compact geometry module should be readable");
+    let header =
+        fs::read_to_string(manifest_dir.join("src/application/details_list/view/header.rs"))
+            .expect("details-list header interaction module should be readable");
+
+    assert!(
+        view_facade.contains("mod compact;")
+            && view_facade.contains("mod header;")
+            && view_facade.contains("mod list;")
+            && view_facade.lines().count() <= 24,
+        "details-list view facade should stay a small facade over focused child modules"
+    );
+    assert!(
+        list.contains("pub fn message_selectable_sortable_details_list")
+            && !list.contains("compact_resizable_details_header_cell"),
+        "details-list composition should own full list construction without absorbing header-cell helpers"
+    );
+    assert!(
+        compact.contains("pub struct CompactDetailsAnchoredCellParts")
+            && compact.contains("pub fn compact_details_cell")
+            && !compact.contains("DragHandleMessage"),
+        "compact details-list geometry should stay separate from header interactions"
+    );
+    assert!(
+        header.contains("pub struct CompactDetailsHeaderCellIds")
+            && header.contains("pub fn compact_resizable_details_header_cell_with_ids")
+            && header.contains("DragHandleMessage"),
+        "compact details-list header interactions should stay in a focused header module"
+    );
+}
+
+#[test]
 fn details_list_sort_uses_named_parts_for_public_sort_fields() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/application/details_list/model.rs");

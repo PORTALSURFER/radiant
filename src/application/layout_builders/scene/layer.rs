@@ -61,10 +61,10 @@ impl<Message> Layer<Message> {
         self.input_policy = LayerInputPolicy::DismissOnOutsideClick;
         self.input = Some(pointer_shield(true).filter_map(
             move |shield_message| match shield_message {
-                PointerShieldMessage::PointerPress { .. }
-                | PointerShieldMessage::PointerDrop { .. } => Some(message.clone()),
+                PointerShieldMessage::PointerPress { .. } => Some(message.clone()),
                 PointerShieldMessage::PointerMove { .. }
                 | PointerShieldMessage::PointerRelease { .. }
+                | PointerShieldMessage::PointerDrop { .. }
                 | PointerShieldMessage::Wheel { .. } => None,
             },
         ));

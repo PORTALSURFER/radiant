@@ -3,6 +3,7 @@ use crate::{
     gui::types::Point,
     layout::Vector2,
     runtime::{DeclarativeOwnedRuntimeBridge, Event, SurfaceRuntime},
+    widgets::{ButtonMessage, PointerButton, PointerModifiers},
 };
 
 #[test]
@@ -88,6 +89,59 @@ fn view_overlays_dismissible_context_menu_routes_outside_click() {
     runtime.dispatch_event(Event::primary_press(Point::new(220.0, 140.0)));
 
     assert_eq!(runtime.bridge().state(), &[Message::Dismiss]);
+}
+
+#[test]
+fn view_overlays_context_menu_survives_release_from_opening_secondary_press() {
+    #[derive(Clone, Debug, PartialEq)]
+    enum Message {
+        Open,
+        Dismiss,
+    }
+
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        false,
+        |open| {
+            let base = button("Target")
+                .secondary_clicks()
+                .filter_mapped(|message| match message {
+                    ButtonMessage::SecondaryActivate { .. } => Some(Message::Open),
+                    _ => None,
+                })
+                .fill();
+            let overlays = if *open {
+                overlays().dismissible_context_menu(text("Menu"), Message::Dismiss)
+            } else {
+                overlays()
+            };
+            scene(base.overlays(overlays))
+                .into_view()
+                .fill()
+                .into_surface()
+        },
+        |open, message| match message {
+            Message::Open => *open = true,
+            Message::Dismiss => *open = false,
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 160.0));
+    let target = Point::new(24.0, 18.0);
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: target,
+        button: PointerButton::Secondary,
+        modifiers: PointerModifiers::default(),
+    });
+    runtime.dispatch_event(Event::PointerRelease {
+        position: target,
+        button: PointerButton::Secondary,
+        modifiers: PointerModifiers::default(),
+    });
+
+    assert!(
+        *runtime.bridge().state(),
+        "releasing the secondary button that opened a context menu should not dismiss it"
+    );
 }
 
 #[test]

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn application_builder_update_context_can_move_keyboard_focus() {
+fn application_builder_ui_update_context_can_move_keyboard_focus() {
     use radiant::prelude as ui;
 
     let bridge = ui::app(DemoState::default())
@@ -18,7 +18,7 @@ fn application_builder_update_context_can_move_keyboard_focus() {
                     .height(24.0),
             ])
         })
-        .update_with(|state, message, context| match message {
+        .handle_message(|state, message, context| match message {
             FocusMessage::FocusName => {
                 state.name = String::from("focused");
                 context.focus(10);

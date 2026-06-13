@@ -58,7 +58,7 @@ fn view(state: &mut State) -> View<Message> {
     .padding(12.0)
 }
 
-fn update(state: &mut State, message: Message, context: &mut ui::UpdateContext<Message>) {
+fn update(state: &mut State, message: Message, context: &mut ui::UiUpdateContext<Message>) {
     match message {
         Message::Toggle => {
             state.running = !state.running;

@@ -92,7 +92,7 @@ pub(super) fn popup_view(state: &mut PopupState) -> View<PopupMessage> {
 pub(super) fn update_popup(
     state: &mut PopupState,
     message: PopupMessage,
-    context: &mut UpdateContext<PopupMessage>,
+    context: &mut UiUpdateContext<PopupMessage>,
 ) {
     match message {
         PopupMessage::TogglePinned => state.pinned = !state.pinned,

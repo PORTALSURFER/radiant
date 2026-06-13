@@ -75,7 +75,7 @@ impl DpiScaleChoice {
     }
 }
 
-fn apply_scale<Message>(context: &mut UpdateContext<Message>, choice: DpiScaleChoice) {
+fn apply_scale<Message>(context: &mut UiUpdateContext<Message>, choice: DpiScaleChoice) {
     context.set_dpi_scale(choice.scale());
     context.set_window_logical_size(Vector2::new(BASE_WINDOW_WIDTH, BASE_WINDOW_HEIGHT));
 }

@@ -5,9 +5,9 @@ use crate::{
     theme::DpiScale,
 };
 
-use super::UpdateContext;
+use super::UiUpdateContext;
 
-impl<Message> UpdateContext<Message> {
+impl<Message> UiUpdateContext<Message> {
     /// Queue a host-defined message.
     pub fn emit(&mut self, message: Message) {
         self.queue_command(Command::message(message));

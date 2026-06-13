@@ -3,9 +3,9 @@ use crate::runtime::{
     FileDialogRequest, PlatformRequest, PlatformResult,
 };
 
-use super::UpdateContext;
+use super::UiUpdateContext;
 
-impl<Message> UpdateContext<Message> {
+impl<Message> UiUpdateContext<Message> {
     /// Arm a native external drag session.
     ///
     /// Native backends launch the session when the active pointer drag leaves

@@ -33,7 +33,7 @@ fn app_startup_commands_use_full_runtime_dispatch() {
                 .background("startup-increment")
                 .run(|_| DemoMessage::Increment, |message| message);
         })
-        .update_with(|state, message, _context| {
+        .handle_message(|state, message, _context| {
             if matches!(message, DemoMessage::Increment) {
                 state.count += 1;
             }
@@ -70,7 +70,7 @@ fn app_startup_runs_once_when_repaint_signal_is_reinstalled() {
         .on_startup(|state, _context| {
             state.count += 1;
         })
-        .update_with(|_state, _message: DemoMessage, _context| {})
+        .handle_message(|_state, _message: DemoMessage, _context| {})
         .into_bridge();
 
     bridge.install_repaint_signal(Arc::new(CountingRepaintSignal {
@@ -100,7 +100,7 @@ fn app_runtime_effects_stop_after_runtime_exit() {
                 DemoMessage::Increment
             })
         })
-        .update_with(|state, message, _context| {
+        .handle_message(|state, message, _context| {
             if matches!(message, DemoMessage::Increment) {
                 state.count += 1;
             }

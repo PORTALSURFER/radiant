@@ -1,6 +1,6 @@
 use super::super::AppBridge;
 use crate::{
-    application::{IntoView, UpdateContext},
+    application::{IntoView, UiUpdateContext},
     gui::repaint::RepaintSignal,
     runtime::{Command, TaskPriority},
 };
@@ -9,7 +9,7 @@ use std::{sync::Arc, time::Duration};
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
 where
     Project: FnMut(&mut State) -> View + 'static,
-    Update: FnMut(&mut State, Message, &mut UpdateContext<Message>) + 'static,
+    Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
     Message: Send + 'static,
 {

@@ -120,7 +120,7 @@ fn app_facing_runtime_paths_do_not_introduce_obvious_blocking_calls() {
 
     assert!(
         violations.is_empty(),
-        "app-facing runtime/update paths must not introduce direct blocking APIs; use UpdateContext::business(), timers, subscriptions, or platform services instead:\n{}",
+        "app-facing runtime/update paths must not introduce direct blocking APIs; use UiUpdateContext::business(), timers, subscriptions, or platform services instead:\n{}",
         violations.join("\n")
     );
 }

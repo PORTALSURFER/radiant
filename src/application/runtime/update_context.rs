@@ -5,14 +5,19 @@ mod commands;
 mod platform;
 mod surface;
 
-pub use business::{BusinessRuntime, BusinessWorkContext};
+pub use business::BusinessRuntime;
 
-/// Context supplied to app update closures for runtime-visible follow-up work.
-pub struct UpdateContext<Message> {
+/// UI-safe context supplied to app message handlers.
+///
+/// This context is the only normal app-facing capability surface for
+/// runtime-visible follow-up work. It exposes repaint/focus/timer/platform
+/// requests and business-work scheduling, but not arbitrary command injection
+/// or worker-only business capabilities.
+pub struct UiUpdateContext<Message> {
     commands: Vec<Command<Message>>,
 }
 
-impl<Message> Default for UpdateContext<Message> {
+impl<Message> Default for UiUpdateContext<Message> {
     fn default() -> Self {
         Self {
             commands: Vec::new(),
@@ -20,7 +25,7 @@ impl<Message> Default for UpdateContext<Message> {
     }
 }
 
-impl<Message> UpdateContext<Message> {
+impl<Message> UiUpdateContext<Message> {
     pub(in crate::application) fn queue_command(&mut self, command: Command<Message>) {
         self.commands.push(command);
     }
@@ -33,7 +38,7 @@ impl<Message> UpdateContext<Message> {
         BusinessRuntime::new(self)
     }
 
-    /// Consume this update context into the batched runtime command it queued.
+    /// Consume this UI update context into the batched runtime command it queued.
     ///
     /// Most apps use Radiant's app builders, which collect this automatically.
     /// This method is for custom runtime bridges and tests that call a reducer

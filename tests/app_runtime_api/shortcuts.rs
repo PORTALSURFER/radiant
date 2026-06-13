@@ -30,7 +30,7 @@ fn app_shortcuts_dispatch_messages_before_focused_widget_key_routing() {
                 ShortcutResolution::unhandled()
             }
         })
-        .update_with(|state, message, _context| {
+        .handle_message(|state, message, _context| {
             if matches!(message, DemoMessage::Increment) {
                 state.count += 1;
             }
@@ -79,7 +79,7 @@ fn scene_shortcuts_dispatch_messages_before_focused_widget_key_routing() {
             )
             .into_view()
         })
-        .update_with(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Noop => {}
             _ => {}
@@ -117,7 +117,7 @@ fn scene_modal_shortcut_layer_consumes_unmatched_keys() {
             )
             .into_view()
         })
-        .update_with(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Noop => {}
             _ => {}
@@ -155,7 +155,7 @@ fn scene_shortcut_fallback_handles_dynamic_keys() {
             }))
             .into_view()
         })
-        .update_with(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Noop => {}
             _ => {}
@@ -192,7 +192,7 @@ fn scene_shortcuts_fall_back_to_app_builder_shortcuts_when_unhandled() {
                 ShortcutResolution::unhandled()
             }
         })
-        .update_with(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Noop => {}
             _ => {}

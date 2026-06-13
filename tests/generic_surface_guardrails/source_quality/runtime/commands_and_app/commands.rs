@@ -69,7 +69,7 @@ fn scroll_commands_use_named_parts_for_reveal_requests() {
 }
 
 #[test]
-fn update_context_keeps_followup_command_groups_in_focused_modules() {
+fn ui_update_context_keeps_followup_command_groups_in_focused_modules() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = fs::read_to_string(manifest_dir.join("src/application/runtime/update_context.rs"))
         .expect("application update context root should be readable");
@@ -108,14 +108,14 @@ fn update_context_keeps_followup_command_groups_in_focused_modules() {
         "mod business;",
         "mod platform;",
         "mod surface;",
-        "pub struct UpdateContext<Message>",
+        "pub struct UiUpdateContext<Message>",
         "pub(in crate::application) fn queue_command(&mut self, command: Command<Message>)",
         "fn business(&mut self) -> BusinessRuntime<'_, Message>",
         "fn into_command(self) -> Command<Message>",
     ] {
         assert!(
             root.contains(required),
-            "update context root should own the queue and delegate `{required}`"
+            "UI update context root should own the queue and delegate `{required}`"
         );
     }
     assert!(
@@ -162,6 +162,9 @@ fn app_facing_runtime_surface_hides_command_escape_hatches() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let prelude_commands = fs::read_to_string(manifest_dir.join("src/prelude/runtime/commands.rs"))
         .expect("runtime command prelude should be readable");
+    let prelude_runtime =
+        fs::read_to_string(manifest_dir.join("src/prelude/application/runtime.rs"))
+            .expect("application runtime prelude should be readable");
     let update_context =
         fs::read_to_string(manifest_dir.join("src/application/runtime/update_context.rs"))
             .expect("application update context root should be readable");
@@ -174,18 +177,51 @@ fn app_facing_runtime_surface_hides_command_escape_hatches() {
 
     assert!(
         !prelude_commands.contains("Command"),
-        "normal app prelude must not re-export runtime Command; apps should use typed UpdateContext helpers and context.business()"
+        "normal app prelude must not re-export runtime Command; apps should use typed UiUpdateContext helpers and context.business()"
+    );
+    assert!(
+        prelude_runtime.contains("UiUpdateContext")
+            && !prelude_runtime.contains(", UpdateContext")
+            && !prelude_runtime.contains("{\n    UpdateContext")
+            && !prelude_runtime.contains("BusinessWorkContext"),
+        "normal app prelude should expose UiUpdateContext, not the old context name or worker-only BusinessWorkContext"
     );
     assert!(
         update_context.contains(
             "pub(in crate::application) fn queue_command(&mut self, command: Command<Message>)"
         ) && !update_context.contains("pub fn command(")
             && !update_context_commands.contains("pub fn command("),
-        "UpdateContext may queue commands internally but must not expose arbitrary command injection to app handlers"
+        "UiUpdateContext may queue commands internally but must not expose arbitrary command injection to app handlers"
     );
     assert!(
         !app_with_view.contains("pub fn update_command")
+            && !app_with_view.contains("pub fn update_with")
+            && !app_with_view.contains("pub fn reducer")
             && !app_with_view.contains("context.command("),
-        "stateful app builders should not offer command-returning app handlers on the normal app-facing path"
+        "stateful app builders should not offer compatibility handler aliases or command-returning app handlers on the normal app-facing path"
+    );
+}
+
+#[test]
+fn business_work_context_is_worker_only_capability() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let work_context = fs::read_to_string(
+        manifest_dir.join("src/application/runtime/update_context/business/work_context.rs"),
+    )
+    .expect("business work context should be readable");
+    let request = fs::read_to_string(
+        manifest_dir.join("src/application/runtime/update_context/business/request.rs"),
+    )
+    .expect("business request should be readable");
+
+    assert!(
+        work_context.contains("pub struct BusinessWorkContext")
+            && work_context.contains("pub(super) fn new(")
+            && !work_context.contains("Default"),
+        "BusinessWorkContext should be public as a worker closure argument but not app-constructible"
+    );
+    assert!(
+        request.contains("move || work(BusinessWorkContext::new(worker_token))"),
+        "business runtime should create BusinessWorkContext only inside worker command execution"
     );
 }

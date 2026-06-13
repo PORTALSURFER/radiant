@@ -1,7 +1,7 @@
 use crate::application::CancellationToken;
 
 /// Context supplied to a business worker closure.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct BusinessWorkContext {
     cancellation: Option<CancellationToken>,
 }

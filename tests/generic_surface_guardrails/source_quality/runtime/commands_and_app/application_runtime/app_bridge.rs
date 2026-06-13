@@ -27,7 +27,7 @@ fn app_bridge_groups_lifecycle_hooks_and_runtime_flags() {
             && bridge.contains("AppStartup")
             && bridge.contains("RetainedPainter")
             && bridge.contains("TransientOverlayPainter")
-            && bridge.contains("UpdateContext")
+            && bridge.contains("UiUpdateContext")
             && bridge.contains("application::{IntoView, RepaintPolicy}")
             && bridge.contains("gui::{input::KeyPress, shortcuts::ShortcutResolution}")
             && bridge.contains("runtime::{Command, RepaintScope}")

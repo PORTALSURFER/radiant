@@ -12,7 +12,7 @@ fn active_animation_frame_messages_are_coalesced_until_drained() {
         })
         .animation(|_| true)
         .on_frame(|| DemoMessage::Increment)
-        .update_with(|state, message, _context| {
+        .handle_message(|state, message, _context| {
             if matches!(message, DemoMessage::Increment) {
                 state.count += 1;
             }
@@ -49,7 +49,7 @@ fn animation_activity_poll_is_reused_for_frame_queue() {
             true
         })
         .on_frame(|| DemoMessage::Increment)
-        .update_with(|_state, _message, _context| {})
+        .handle_message(|_state, _message, _context| {})
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 40.0));
 
@@ -73,7 +73,7 @@ fn polling_animation_activity_does_not_queue_frame_messages() {
         })
         .animation(|_| true)
         .on_frame(|| DemoMessage::Increment)
-        .update_with(|state, message, _context| {
+        .handle_message(|state, message, _context| {
             if matches!(message, DemoMessage::Increment) {
                 state.count += 1;
             }

@@ -1,11 +1,11 @@
 use super::super::AppBridge;
-use crate::application::{IntoView, UpdateContext};
+use crate::application::{IntoView, UiUpdateContext};
 use crate::runtime::{Command, NativeFileDrop};
 
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
 where
     Project: FnMut(&mut State) -> View + 'static,
-    Update: FnMut(&mut State, Message, &mut UpdateContext<Message>) + 'static,
+    Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
 {
     pub(super) fn runtime_exit_artifact(&mut self) -> Option<serde_json::Value> {
@@ -27,7 +27,7 @@ where
         let Some(native_file_drop) = self.lifecycle.native_file_drop.as_mut() else {
             return Command::none();
         };
-        let mut context = UpdateContext::default();
+        let mut context = UiUpdateContext::default();
         native_file_drop(&mut self.state, drop, &mut context);
         context.into_command()
     }

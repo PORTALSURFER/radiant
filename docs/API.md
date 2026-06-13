@@ -27,7 +27,7 @@ and explicit runtime objects are part of the same API surface:
 - `radiant::window("Title").size(...).run(text("Hello"))` for no-state apps.
 - `radiant::app(State::default()).view(...).update(...).run()` for small
   stateful apps, with `.handle_message(...)` when handlers need
-  `UpdateContext`.
+  `UiUpdateContext`.
 - `radiant::runtime`, `radiant::widgets`, `radiant::layout`, `radiant::theme`,
   and `radiant::gui` expose the same model with more explicit control over
   projection, explicit runtime commands, sizing, layout, styling, input, invalidation, and
@@ -109,7 +109,7 @@ fn main() -> radiant::Result {
 
 This message-first shape is the canonical style for new examples and host
 applications. Use `.handle_message(...)` when an update handler needs
-`UpdateContext<Message>` to emit follow-up messages, request repaint, move
+`UiUpdateContext<Message>` to emit follow-up messages, request repaint, move
 focus, schedule business work, request typed platform services, schedule delayed
 messages, or request runtime exit. Reducer-style aliases remain available for
 advanced lifecycle control during the breaking migration, but ordinary
@@ -168,7 +168,7 @@ examples should use stable keys or explicit IDs for controls whose focus or
 input state must survive list edits. The launch builders expose `.options(...)`
 for callers that need the full `NativeRunOptions` surface. Normal apps should
 use `.message(...)` on widgets plus `.update(...)` for state-only handlers or
-`.handle_message(...)` when they need `UpdateContext` capabilities. Native OS
+`.handle_message(...)` when they need `UiUpdateContext` capabilities. Native OS
 file-drop targets should be declared on the view subtree that owns the
 interaction:
 `.accepts_native_file_drop().on_native_file_drop(Message::FileDrop)`.
@@ -190,11 +190,11 @@ after projection. Use
 visible row content should keep its own paint tree while the transparent
 interactive-row underlay owns standard tracked drop-target behavior.
 Context-aware app code should use `.handle_message(...)` with an
-`UpdateContext<Message>` to emit messages, request repaint, move focus, schedule
+`UiUpdateContext<Message>` to emit messages, request repaint, move focus, schedule
 business work, request typed platform services, schedule delayed messages, or
-request runtime exit. The older `.reducer(...)` name remains public as a
-compatibility alias for the same state-machine role during the breaking
-migration. Use
+request runtime exit. Radiant does not keep compatibility aliases for this hook
+on the normal app-facing path; use `.handle_message(...)` so the UI context
+capability boundary is explicit at the call site. Use
 `.repaint_policy(...)` with `RepaintPolicy` only when ordinary app messages
 need custom automatic repaint behavior. Ordinary app messages request a
 surface repaint by default unless the handler explicitly requests surface or
@@ -214,7 +214,7 @@ available through the explicit `radiant::runtime`, `radiant::widgets`,
 
 | Area | Common prelude entries |
 | --- | --- |
-| Application setup | `window`, `app`, `IntoView`, `View`, `UpdateContext`, `EmbeddedFont` |
+| Application setup | `window`, `app`, `IntoView`, `View`, `UiUpdateContext`, `EmbeddedFont` |
 | Basic views | `text`, `button`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
 | Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `handle_activation_input` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
@@ -332,12 +332,11 @@ viewport or force its rows to be rebuilt.
 ## Message-Handler Helper Reference
 
 The normal application path remains `.update(...)` for simple message handlers
-and `.handle_message(...)` for handlers that need `UpdateContext`. The helpers
+and `.handle_message(...)` for handlers that need `UiUpdateContext`. The helpers
 in this section support more explicit runtime work, background task ownership,
 platform-service decoding, text-input event handling, and secondary windows.
 
-The older `.update_with(...)` name remains public as an advanced compatibility
-alias for the same context-aware message-handler hook. `PlatformResponse` exposes helpers such as
+`PlatformResponse` exposes helpers such as
 `path()`, `into_path()`, `into_path_or_canceled()`, `is_canceled()`,
 `is_completed()`, `into_completed()`, `confirmation()`, and
 `into_confirmation()`, while the `PlatformResultExt` prelude trait provides the
@@ -353,7 +352,7 @@ Latest completions receive a `TaskCompletion<Output>` or
 `KeyedTaskCompletion<Key, Output>`; call the matching `LatestTask::finish(...)`
 or `KeyedLatestTasks::finish(...)` before applying the output so stale work is
 rejected consistently without host-specific task-id plumbing. Use
-`UpdateContext::after_latest(...)` for debounced one-resource UI delays when a
+`UiUpdateContext::after_latest(...)` for debounced one-resource UI delays when a
 selection, search query, or inspector target should only start after it remains
 current for a short delay; the delayed message carries the same ticket type and
 should be accepted through the same `LatestTask` methods.
@@ -496,14 +495,14 @@ need generic drag lifecycle information or cancellation cleanup without duplicat
 widgets need to construct drag lifecycle messages directly. Use
 `DragHandlePhase::as_str()` for stable lowercase diagnostic labels. Reducers that
 resolve or cancel a drag gesture with both an in-window preview and an armed
-native external-drag payload can call `UpdateContext::end_drag_session()` instead
+native external-drag payload can call `UiUpdateContext::end_drag_session()` instead
 of ending those runtime surfaces separately. Use
-`UpdateContext::begin_drag_session(...)` when one gesture may have an in-window
+`UiUpdateContext::begin_drag_session(...)` when one gesture may have an in-window
 preview, a native external-drag payload, both, or neither. Use
-`UpdateContext::begin_drag_with_external(...)` when both requests are already
+`UiUpdateContext::begin_drag_with_external(...)` when both requests are already
 known to exist and should be started together. Explicit runtime bridges can use
 the corresponding `Command` constructors, but normal application handlers should
-stay on the typed `UpdateContext` surface.
+stay on the typed `UiUpdateContext` surface.
 Dense custom row painters can use `push_dense_row_chrome(...)` with
 `DenseRowChromeParts`, `DenseRowMarkerStyle`, and `DenseRowOutlineStyle` when
 one row needs standard fill, leading/trailing markers, and optional outline
@@ -805,7 +804,7 @@ launch and manifest builders provide integer `.size(...)` convenience methods
 plus `.logical_size(...)` and `.min_logical_size(...)` when hosts need
 fractional logical dimensions.
 For host-visible platform services, reducers can queue typed
-`PlatformRequest` commands through `UpdateContext::platform_request(...)`,
+`PlatformRequest` commands through `UiUpdateContext::platform_request(...)`,
 `pick_folder(...)`, `pick_file(...)`, `save_file(...)`, `open_path(...)`,
 `open_url(...)`, or `confirm(...)`. Custom bridges handle those requests via
 `RuntimeBridge::request_platform_service(...)`; bridges that do not provide a
@@ -1047,14 +1046,14 @@ implemented by every `RuntimeBridge<Message>`: hosts can provide a custom bridge
 or use `declarative_runtime_bridge(state, project, reduce)` to project an
 immutable `UiSurface<Message>` from state and reduce messages back into state.
 Apps that need runtime-visible follow-up work should use
-`radiant::app(...).handle_message(...)` with `UpdateContext`. Ordinary app
+`radiant::app(...).handle_message(...)` with `UiUpdateContext`. Ordinary app
 messages automatically request surface repaint unless the handler requests an
 explicit surface or paint-only repaint. `RepaintPolicy` lets app-builder code
 override that ordinary-message default outside the handler, while frame-clock
 messages use
 `FrameClock::repaint_scope(...)` for paint-only frame optimization. The older
-`.reducer(...)` and `.update_with(...)` hooks are retained for compatibility and
-custom lower-level lifecycle code. The app builder lowers into
+command-returning and alternate-name update hooks are intentionally removed from
+the normal app builder path. The app builder lowers into
 Radiant's bridge internally while keeping side effects and domain state
 host-owned. Low-level hosts can still provide a custom bridge or use
 `declarative_command_runtime_bridge(state, project, update)` when embedding
@@ -1255,7 +1254,7 @@ return `CommandOutcome` with dispatched-message and repaint-request summaries.
 `Command<Message>` is the runtime-visible follow-up value used by Radiant
 internals, explicit runtime bridges, tests, and advanced embedders. Normal
 applications should not use it as a general side-effect or worker escape hatch;
-they should use `UpdateContext` capabilities, typed platform services, and
+they should use `UiUpdateContext` capabilities, typed platform services, and
 `context.business()` from `.handle_message(...)`. Hosts that inspect only the
 immediate messages in a command can use
 `Command::into_messages_into(...)` to reuse caller-owned storage, while
@@ -1263,7 +1262,7 @@ immediate messages in a command can use
 `RepaintScope` is the typed repaint specificity contract: `Surface` requests a
 surface refresh plus repaint, while `PaintOnly` repaints the current paint plan
 for overlay-only motion. Reducers can queue `Command::repaint(scope)` or
-`UpdateContext::repaint(scope)`, and diagnostics can inspect
+`UiUpdateContext::repaint(scope)`, and diagnostics can inspect
 `Command::repaint_scope()` to see the merged effective scope for nested command
 batches. Mixed batches promote to `Surface` so a paint-only overlay request
 cannot accidentally suppress a needed surface refresh.
@@ -1299,8 +1298,8 @@ host needs manual downcast or filtering behavior. Adding a widget should not
 require adding a central output enum variant.
 
 Asynchronous business work remains host-owned, but normal apps use Radiant's
-app runtime to wire it into the UI. `UpdateContext::business()`,
-`UpdateContext::after(...)`, typed platform-service helpers, and
+app runtime to wire it into the UI. `UiUpdateContext::business()`,
+`UiUpdateContext::after(...)`, typed platform-service helpers, and
 `Subscription` provide message delivery and repaint wakeups; the app still owns
 the work and resulting domain messages.
 
@@ -1315,8 +1314,8 @@ Application reducers run synchronously because they decide the next UI state, so
 they must stay short. Slow IO, filesystem metadata checks, database access,
 decoding, indexing, analysis, loading, cache hydration, blocking waits or joins,
 thread creation, process/network work, and other business work must use
-`UpdateContext::business()` with the appropriate interactive, background, or
-idle lane. Delayed messages must use `UpdateContext::after(...)`, and
+`UiUpdateContext::business()` with the appropriate interactive, background, or
+idle lane. Delayed messages must use `UiUpdateContext::after(...)`, and
 long-lived recurring sources should use `Subscription`. The application runtime
 offloads business work to
 runtime-managed business threads and returns results through the normal message
@@ -1354,7 +1353,7 @@ The `ui` section reports update-handler counts, the longest observed update
 duration, and the latest handler that crossed Radiant's development
 slow-handler threshold. These values are diagnostics, not portable pass/fail
 performance budgets; use them to find blocking reducers, missing
-`UpdateContext::business()` handoffs, worker saturation, and stale cancellation
+`UiUpdateContext::business()` handoffs, worker saturation, and stale cancellation
 paths without coupling Radiant to an application's domain data.
 
 ## Layout
@@ -2238,7 +2237,7 @@ cached GPU-surface rectangle through `SurfacePaintPlan::first_widget_rect`.
 Prefer `Scene::overlay(...)` for normal root-scoped paint-only presentation.
 Run `cargo run --example background_loading` for a background-work sandbox that
 uses `ResourceSlot`, `ResourceCompletion`, and
-`UpdateContext::business().background(...).resource(...)` to route worker
+`UiUpdateContext::business().background(...).resource(...)` to route worker
 resource results back into the normal state update path.
 Run `cargo run --example typography` for a focused text sandbox that exercises
 wrapping, truncation, fixed text heights, fill sizing, and explicit baselines
@@ -2324,11 +2323,11 @@ hoverable styling examples.
 Run `cargo run --example scroll` for simple scroll-column composition.
 Run `cargo run --example sizing` for explicit, minimum, preferred, and fill
 sizing behavior.
-Run `cargo run --example message_routing` for `UpdateContext` follow-up
+Run `cargo run --example message_routing` for `UiUpdateContext` follow-up
 messages and repaint requests.
 Run `cargo run --example keys` for stable keys and reversed list identity.
 Run `cargo run --example focus_controls` for an input/focus sandbox that uses
-`UpdateContext::focus(...)` and shortcuts to move keyboard
+`UiUpdateContext::focus(...)` and shortcuts to move keyboard
 focus from normal app messages.
 Run `cargo run --example plugin_panel` for an advanced synthetic control-panel
 simulation that stays on generic Radiant layout, style, focus, and

@@ -11,11 +11,11 @@ use super::{
     latest::{BusinessLatestRequest, CancellableBusinessLatestRequest},
     resource::{BusinessResourceRequest, CancellableBusinessResourceRequest},
 };
-use crate::application::runtime::update_context::UpdateContext;
+use crate::application::runtime::update_context::UiUpdateContext;
 
 /// Builder for one named business request.
 pub struct BusinessRequest<'context, Message> {
-    pub(super) context: &'context mut UpdateContext<Message>,
+    pub(super) context: &'context mut UiUpdateContext<Message>,
     pub(super) name: &'static str,
     pub(super) priority: TaskPriority,
 }

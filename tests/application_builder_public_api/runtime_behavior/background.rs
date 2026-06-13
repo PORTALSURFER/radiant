@@ -16,7 +16,7 @@ fn application_builder_background_spawn_routes_worker_result() {
                     .height(28.0),
             ])
         })
-        .update_with(|state, message, context| match message {
+        .handle_message(|state, message, context| match message {
             LoadingMessage::Start => {
                 state.name = "loading".to_string();
                 context

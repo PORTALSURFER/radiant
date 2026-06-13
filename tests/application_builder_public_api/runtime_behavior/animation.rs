@@ -165,7 +165,7 @@ fn presentation_frame_clock_queues_frame_messages() {
             ui::presentation()
                 .frame_clock(ui::FrameClock::message(DemoMessage::Increment).when(|_| true)),
         )
-        .update_with(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
         })
         .into_bridge();
@@ -203,7 +203,7 @@ fn presentation_frame_clock_can_cap_frame_message_rate() {
                     .fps(30),
             ),
         )
-        .update_with(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
         })
         .into_bridge();
@@ -314,7 +314,7 @@ fn presentation_frame_clock_repaint_scope_requests_paint_only_after_frame_update
                     ),
             ),
         )
-        .update_with(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
         })
         .into_bridge();
@@ -347,7 +347,7 @@ fn presentation_frame_clock_without_repaint_scope_requests_surface_after_frame_u
             ui::Presentation::new()
                 .frame_clock(ui::FrameClock::message(DemoMessage::Increment).when(|_| true)),
         )
-        .reducer(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
         })
         .into_bridge();
@@ -374,7 +374,7 @@ fn frame_clock_origin_takes_precedence_over_ordinary_repaint_policy() {
             ui::Presentation::new()
                 .frame_clock(ui::FrameClock::message(DemoMessage::Increment).when(|_| true)),
         )
-        .reducer(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
         })
         .repaint_policy(ui::RepaintPolicy::none())
@@ -403,7 +403,7 @@ fn scene_frame_clock_queues_frame_message_when_active() {
             )
             .into_view()
         })
-        .update_with(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
         })
         .into_bridge();
@@ -440,7 +440,7 @@ fn scene_frame_clock_without_repaint_scope_requests_surface_after_frame_update()
             )
             .into_view()
         })
-        .reducer(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
         })
         .into_bridge();
@@ -470,7 +470,7 @@ fn scene_frame_clock_stays_idle_when_inactive() {
             )
             .into_view()
         })
-        .update_with(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
         })
         .into_bridge();
@@ -573,7 +573,7 @@ fn scene_presentation_merges_with_layer_projection_without_affecting_input() {
             .layer(radiant::Layer::tooltip(ui::text("Tip").height(20.0)))
             .into_view()
         })
-        .update_with(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
         })
         .into_bridge();
@@ -612,7 +612,7 @@ fn scene_presentation_preserves_base_widget_hit_testing() {
             )
             .into_view()
         })
-        .update_with(|state, message, _context| match message {
+        .handle_message(|state, message, _context| match message {
             DemoMessage::Increment => state.count += 1,
         })
         .into_bridge();

@@ -41,10 +41,9 @@ pub enum TaskPriority {
 /// represents values the generic runtime can understand directly.
 ///
 /// UI reducers should stay short and non-blocking. Expensive host work should
-/// be submitted with [`crate::application::BusinessRuntime`] through
-/// [`crate::application::UpdateContext::business`], which offloads it to a
-/// runtime-managed worker before delivering the resulting message back through
-/// the normal UI update path.
+/// be submitted through [`crate::application::UiUpdateContext::business`],
+/// which offloads it to a runtime-managed worker before delivering the
+/// resulting message back through the normal UI update path.
 #[derive(Default)]
 pub enum Command<Message> {
     /// No follow-up work is required.

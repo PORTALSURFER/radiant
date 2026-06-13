@@ -1,6 +1,6 @@
 use super::super::AppBridge;
 use crate::{
-    application::{IntoView, UpdateContext, ViewNode},
+    application::{IntoView, UiUpdateContext, ViewNode},
     gui::{focus::FocusSurface, input::KeyPress, shortcuts::ShortcutResolution},
     runtime::{Command, ScrollUpdate, UiSurface},
 };
@@ -10,7 +10,7 @@ impl<State: 'static, Message: 'static, Project, Update, View>
     AppBridge<State, Message, Project, Update, View>
 where
     Project: FnMut(&mut State) -> View + 'static,
-    Update: FnMut(&mut State, Message, &mut UpdateContext<Message>) + 'static,
+    Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
 {
     pub(super) fn project_surface_arc(&mut self) -> Arc<UiSurface<Message>> {
@@ -42,7 +42,7 @@ where
         update: ScrollUpdate,
     ) -> Option<Command<Message>> {
         let scroll = self.lifecycle.scroll.as_mut()?;
-        let mut context = UpdateContext::default();
+        let mut context = UiUpdateContext::default();
         scroll(&mut self.state, update, &mut context);
         Some(context.into_command())
     }

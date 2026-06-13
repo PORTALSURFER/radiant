@@ -21,7 +21,7 @@ Rust GUI API that keeps small examples direct and readable:
 - `lists.rs` demonstrates dynamic children without much framework ceremony.
 
 Radiant should learn from those examples without copying Xilem's exact model.
-Radiant already has its own explicit runtime commands, `UpdateContext`, retained
+Radiant already has its own explicit runtime commands, `UiUpdateContext`, retained
 surface, custom widget, paint-plan, and host-integration contracts. The desired
 outcome is the same readability: application code should reveal UI structure,
 state ownership, and emitted intent without forcing readers into internals.
@@ -176,7 +176,7 @@ Radiant's canonical application model is message-first:
 - views read state and declare UI structure
 - widgets emit explicit host messages or generic widget messages
 - update handlers own durable state changes
-- `UpdateContext` owns UI-safe runtime follow-up requests
+- `UiUpdateContext` owns UI-safe runtime follow-up requests
 - `context.business()` owns host business work that must leave the UI path
 - tests can assert emitted intent separately from state mutation
 
@@ -322,7 +322,7 @@ Use this protocol when creating Radiant API cleanup issues:
 1. Read `docs/API_STYLE.md`, `docs/TARGET.md`, `docs/API.md`, and
    `docs/ARCHITECTURE.md`.
 2. Classify the maintained examples by teaching purpose, such as no-state app,
-   message-first state, `UpdateContext` follow-up, background work, stable
+   message-first state, `UiUpdateContext` follow-up, background work, stable
    keyed lists, virtualized lists, overlays, custom widgets, native file drop,
    and multi-window or embedded host integration.
 3. Inspect current examples and Wavecrate call sites for drift from the
@@ -341,7 +341,7 @@ Default example classifications:
 | --- | --- |
 | `hello_world.rs` | no-state startup |
 | `counter.rs` | smallest message-first stateful app |
-| `message_routing.rs` | message routing with `UpdateContext` follow-up |
+| `message_routing.rs` | message routing with `UiUpdateContext` follow-up |
 | `background_loading.rs` | `context.business()` and background resources |
 | `keys.rs` | stable row identity |
 | `virtualized_list.rs` | large-list viewporting |

@@ -1,6 +1,6 @@
 use super::StatefulAppWithView;
 use crate::{
-    application::{IntoView, Presentation, Subscription, UpdateContext},
+    application::{IntoView, Presentation, Subscription, UiUpdateContext},
     gui::{focus::FocusSurface, input::KeyPress, shortcuts::ShortcutResolution},
     runtime::AuxiliaryWindow,
 };
@@ -77,7 +77,7 @@ where
     /// signals, messages, focus changes, or background tasks.
     pub fn on_scroll(
         mut self,
-        scroll: impl FnMut(&mut State, crate::runtime::ScrollUpdate, &mut UpdateContext<Message>)
+        scroll: impl FnMut(&mut State, crate::runtime::ScrollUpdate, &mut UiUpdateContext<Message>)
         + 'static,
     ) -> Self {
         self.lifecycle.scroll = Some(Box::new(scroll));
@@ -87,7 +87,7 @@ where
     /// Observe native operating-system file drag/drop events.
     pub fn on_native_file_drop(
         mut self,
-        drop: impl FnMut(&mut State, crate::runtime::NativeFileDrop, &mut UpdateContext<Message>)
+        drop: impl FnMut(&mut State, crate::runtime::NativeFileDrop, &mut UiUpdateContext<Message>)
         + 'static,
     ) -> Self {
         self.lifecycle.native_file_drop = Some(Box::new(drop));
@@ -97,7 +97,7 @@ where
     /// Register a startup hook.
     pub fn on_startup(
         mut self,
-        startup: impl FnMut(&mut State, &mut UpdateContext<Message>) + 'static,
+        startup: impl FnMut(&mut State, &mut UiUpdateContext<Message>) + 'static,
     ) -> Self {
         self.lifecycle.startup = Some(Box::new(startup));
         self

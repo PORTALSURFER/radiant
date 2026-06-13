@@ -16,7 +16,7 @@ focused internal modules. The main ownership rule is:
   renderer-facing surface contracts.
 - Radiant owns the scheduling boundary for UI-safe follow-up work. Normal app
   update handlers must not run business work directly; they schedule it through
-  `UpdateContext::business()` or request typed Radiant platform services.
+  `UiUpdateContext::business()` or request typed Radiant platform services.
 - Radiant additions must pass the primitive-boundary test in `docs/TARGET.md`:
   they should be generic UI primitives or reusable GUI building blocks, not
   product-shaped composite widgets or application workflows.

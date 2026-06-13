@@ -1,6 +1,6 @@
 use super::AppBridge;
 use crate::{
-    application::{IntoView, UpdateContext},
+    application::{IntoView, UiUpdateContext},
     gui::{
         focus::FocusSurface, input::KeyPress, repaint::RepaintSignal, shortcuts::ShortcutResolution,
     },
@@ -23,7 +23,7 @@ impl<State, Message, Project, Update, View> RuntimeBridge<Message>
     for AppBridge<State, Message, Project, Update, View>
 where
     Project: FnMut(&mut State) -> View + 'static,
-    Update: FnMut(&mut State, Message, &mut UpdateContext<Message>) + 'static,
+    Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
     Message: Send + 'static,
     State: 'static,

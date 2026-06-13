@@ -88,7 +88,7 @@ pub(super) fn run_launcher_window() -> radiant::Result {
 pub(super) fn update_launcher(
     state: &mut LauncherState,
     message: LauncherMessage,
-    context: &mut UpdateContext<LauncherMessage>,
+    context: &mut UiUpdateContext<LauncherMessage>,
 ) {
     match message {
         LauncherMessage::PreparePopups => {

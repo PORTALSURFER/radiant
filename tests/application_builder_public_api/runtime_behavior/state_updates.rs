@@ -40,7 +40,7 @@ fn stateful_app_builder_projects_updates_and_preserves_context_requests() {
 }
 
 #[test]
-fn handle_message_exposes_update_context_with_clear_app_api_name() {
+fn handle_message_exposes_ui_update_context_with_clear_app_api_name() {
     use radiant::prelude as ui;
 
     let mut bridge = ui::app(DemoState::default())
@@ -64,12 +64,12 @@ fn handle_message_exposes_update_context_with_clear_app_api_name() {
 }
 
 #[test]
-fn reducer_remains_compatibility_alias_for_context_aware_handlers() {
+fn handle_message_is_the_only_context_aware_app_handler_name() {
     use radiant::prelude as ui;
 
     let mut bridge = ui::app(DemoState::default())
         .view(|state| ui::text(format!("Count: {}", state.count)))
-        .reducer(|state, message, context| match message {
+        .handle_message(|state, message, context| match message {
             DemoMessage::Increment => {
                 state.count += 1;
                 context.request_repaint();

@@ -1,4 +1,4 @@
-//! Message routing with UpdateContext follow-up.
+//! Message routing with UiUpdateContext follow-up.
 
 use radiant::prelude::*;
 

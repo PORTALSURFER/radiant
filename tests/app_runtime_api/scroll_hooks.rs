@@ -42,7 +42,7 @@ fn app_scroll_hook_observes_runtime_scroll_offsets() {
                 .lock()
                 .expect("scroll observer lock should be available") = Some(update.offset.y);
         })
-        .update_with(|_state, _message: DemoMessage, _context| {})
+        .handle_message(|_state, _message: DemoMessage, _context| {})
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
 
@@ -86,7 +86,7 @@ fn declarative_virtual_list_window_change_routes_through_update() {
         .on_scroll(|state, _update, _context| {
             state.last_scroll_y = -1.0;
         })
-        .update_with(|state, message: DemoMessage, _context| {
+        .handle_message(|state, message: DemoMessage, _context| {
             if let DemoMessage::VirtualListWindowChanged(change) = message {
                 state.last_scroll_y = change.offset_y;
             }
@@ -133,7 +133,7 @@ fn app_scroll_hook_observes_scrollbar_drag_offsets() {
                 .lock()
                 .expect("scroll observer lock should be available") = Some(update.offset.y);
         })
-        .update_with(|_state, _message: DemoMessage, _context| {})
+        .handle_message(|_state, _message: DemoMessage, _context| {})
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
     let thumb = runtime

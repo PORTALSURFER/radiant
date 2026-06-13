@@ -157,7 +157,7 @@ fn app_gpu_surface_input_parts_route_through_normal_message_path() {
                 .size(240.0, 120.0),
             ])
         })
-        .update_with(|state, message, _context| {
+        .handle_message(|state, message, _context| {
             if let DemoMessage::GpuInput(WidgetInput::PointerPress { .. }) = message {
                 state.count += 1;
             }
@@ -201,7 +201,7 @@ fn app_gpu_surface_input_helper_routes_through_normal_message_path() {
                 .size(240.0, 120.0),
             ])
         })
-        .update_with(|state, message, _context| {
+        .handle_message(|state, message, _context| {
             if let DemoMessage::GpuInput(WidgetInput::PointerPress { .. }) = message {
                 state.count += 1;
             }

@@ -83,7 +83,7 @@ fn project_surface(state: &mut FocusState) -> View<FocusMessage> {
 fn update(
     state: &mut FocusState,
     message: FocusMessage,
-    context: &mut UpdateContext<FocusMessage>,
+    context: &mut UiUpdateContext<FocusMessage>,
 ) {
     match message {
         FocusMessage::FocusName => {

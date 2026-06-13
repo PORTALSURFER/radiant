@@ -56,7 +56,7 @@ fn launcher_view_tracks_selected_popup_mode_and_status() {
     update_launcher(
         &mut state,
         LauncherMessage::SelectMode(PopupMode::CommandPalette),
-        &mut UpdateContext::default(),
+        &mut UiUpdateContext::default(),
     );
 
     let view = launcher_view(&mut state).into_surface();

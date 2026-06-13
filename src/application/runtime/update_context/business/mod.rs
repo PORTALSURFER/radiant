@@ -8,17 +8,17 @@ use crate::runtime::TaskPriority;
 
 use request::BusinessRequest;
 
-use super::UpdateContext;
+use super::UiUpdateContext;
 
 pub use work_context::BusinessWorkContext;
 
 /// UI-update access point for submitting host-owned business work.
 pub struct BusinessRuntime<'context, Message> {
-    context: &'context mut UpdateContext<Message>,
+    context: &'context mut UiUpdateContext<Message>,
 }
 
 impl<'context, Message> BusinessRuntime<'context, Message> {
-    pub(super) fn new(context: &'context mut UpdateContext<Message>) -> Self {
+    pub(super) fn new(context: &'context mut UiUpdateContext<Message>) -> Self {
         Self { context }
     }
 

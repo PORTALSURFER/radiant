@@ -1,11 +1,11 @@
 use super::model::{StatusBarState, StatusMessage};
-use radiant::prelude::UpdateContext;
+use radiant::prelude::UiUpdateContext;
 use std::{thread, time::Duration};
 
 pub(super) fn update(
     state: &mut StatusBarState,
     message: StatusMessage,
-    context: &mut UpdateContext<StatusMessage>,
+    context: &mut UiUpdateContext<StatusMessage>,
 ) {
     match message {
         StatusMessage::ActionPressed => {
@@ -56,7 +56,7 @@ pub(super) fn update(
     }
 }
 
-fn spawn_worker(context: &mut UpdateContext<StatusMessage>, id: u64, duration: Duration) {
+fn spawn_worker(context: &mut UiUpdateContext<StatusMessage>, id: u64, duration: Duration) {
     context.business().background("status-bar-worker").run(
         move |_| {
             thread::sleep(duration);

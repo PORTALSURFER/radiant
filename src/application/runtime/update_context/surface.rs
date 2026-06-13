@@ -5,9 +5,9 @@ use crate::{
     widgets::WidgetId,
 };
 
-use super::UpdateContext;
+use super::UiUpdateContext;
 
-impl<Message> UpdateContext<Message> {
+impl<Message> UiUpdateContext<Message> {
     /// Move keyboard focus to a widget.
     pub fn focus(&mut self, widget_id: WidgetId) {
         self.queue_command(Command::focus(widget_id));

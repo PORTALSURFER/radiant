@@ -2,7 +2,7 @@ use super::super::AppBridge;
 use super::launch_animation;
 use crate::{
     application::{
-        FrameMessageActivity, FrameRepaintSource, IntoView, PendingFrameRepaint, UpdateContext,
+        FrameMessageActivity, FrameRepaintSource, IntoView, PendingFrameRepaint, UiUpdateContext,
     },
     runtime::RuntimeAnimationActivity,
 };
@@ -10,7 +10,7 @@ use crate::{
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
 where
     Project: FnMut(&mut State) -> View + 'static,
-    Update: FnMut(&mut State, Message, &mut UpdateContext<Message>) + 'static,
+    Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
 {
     pub(super) fn needs_runtime_animation(&mut self) -> bool {

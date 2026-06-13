@@ -29,7 +29,7 @@ pub use task::{
     CancellationToken, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, TaskCompletion,
     TaskTicket,
 };
-pub use update_context::{BusinessRuntime, BusinessWorkContext, UpdateContext};
+pub use update_context::UiUpdateContext;
 
 pub(in crate::application) type RetainedPainter<State> =
     Box<dyn FnMut(&mut State, RetainedSurfaceDescriptor, Rect, Vector2) -> Option<GuiPaintFrame>>;
@@ -47,18 +47,18 @@ pub(in crate::application) type AppShortcuts<State, Message> = Box<
     dyn FnMut(&mut State, Option<KeyPress>, KeyPress, FocusSurface) -> ShortcutResolution<Message>,
 >;
 pub(in crate::application) type AppStartup<State, Message> =
-    Box<dyn FnMut(&mut State, &mut UpdateContext<Message>)>;
+    Box<dyn FnMut(&mut State, &mut UiUpdateContext<Message>)>;
 pub(in crate::application) type AppShutdown<State> =
     Box<dyn FnMut(&mut State) -> Option<serde_json::Value>>;
 pub(in crate::application) type AppCloseRequested<State> = Box<dyn FnMut(&mut State) -> bool>;
 pub(in crate::application) type AppAuxiliaryWindows<State, Message> =
     Box<dyn FnMut(&mut State) -> Vec<AuxiliaryWindow<Message>>>;
 pub(in crate::application) type AppUpdate<State, Message> =
-    Box<dyn FnMut(&mut State, Message, &mut UpdateContext<Message>)>;
+    Box<dyn FnMut(&mut State, Message, &mut UiUpdateContext<Message>)>;
 pub(in crate::application) type AppScroll<State, Message> =
-    Box<dyn FnMut(&mut State, ScrollUpdate, &mut UpdateContext<Message>)>;
+    Box<dyn FnMut(&mut State, ScrollUpdate, &mut UiUpdateContext<Message>)>;
 pub(in crate::application) type AppNativeFileDrop<State, Message> =
-    Box<dyn FnMut(&mut State, NativeFileDrop, &mut UpdateContext<Message>)>;
+    Box<dyn FnMut(&mut State, NativeFileDrop, &mut UiUpdateContext<Message>)>;
 pub(in crate::application) trait AppFrameRepaintPolicy<State> {
     fn capture_before_frame(&mut self, state: &mut State) -> Box<dyn Any>;
     fn resolve_after_frame(&mut self, state: &mut State, scope: Box<dyn Any>) -> bool;

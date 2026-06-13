@@ -47,7 +47,7 @@ fn app_transient_overlay_painter_reads_state_and_cached_plan() {
                 },
             }));
         })
-        .update_with(|state, message, context| {
+        .handle_message(|state, message, context| {
             if matches!(message, DemoMessage::Increment) {
                 state.count += 1;
                 context.request_paint_only();

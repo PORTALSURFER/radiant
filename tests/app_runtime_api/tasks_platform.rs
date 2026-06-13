@@ -31,7 +31,7 @@ fn latest_task_tracks_current_ticket_and_tags_spawned_completion() {
     assert_eq!(latest.active(), None);
 
     let mut latest = radiant::prelude::LatestTask::new();
-    let mut context = radiant::prelude::UpdateContext::default();
+    let mut context = radiant::prelude::UiUpdateContext::default();
     context
         .business()
         .background("latest-task-test")
@@ -49,12 +49,12 @@ fn latest_task_tracks_current_ticket_and_tags_spawned_completion() {
 
 #[test]
 fn business_runtime_builds_named_priority_lanes() {
-    type SubmitBusinessWork = fn(&mut radiant::prelude::UpdateContext<DemoMessage>);
+    type SubmitBusinessWork = fn(&mut radiant::prelude::UiUpdateContext<DemoMessage>);
     let cases: [(&str, radiant::prelude::TaskPriority, SubmitBusinessWork); 3] = [
         (
             "interactive-work",
             radiant::prelude::TaskPriority::Interactive,
-            |context: &mut radiant::prelude::UpdateContext<DemoMessage>| {
+            |context: &mut radiant::prelude::UiUpdateContext<DemoMessage>| {
                 context
                     .business()
                     .interactive("interactive-work")
@@ -64,7 +64,7 @@ fn business_runtime_builds_named_priority_lanes() {
         (
             "background-work",
             radiant::prelude::TaskPriority::Background,
-            |context: &mut radiant::prelude::UpdateContext<DemoMessage>| {
+            |context: &mut radiant::prelude::UiUpdateContext<DemoMessage>| {
                 context
                     .business()
                     .background("background-work")
@@ -74,7 +74,7 @@ fn business_runtime_builds_named_priority_lanes() {
         (
             "idle-work",
             radiant::prelude::TaskPriority::Idle,
-            |context: &mut radiant::prelude::UpdateContext<DemoMessage>| {
+            |context: &mut radiant::prelude::UiUpdateContext<DemoMessage>| {
                 context
                     .business()
                     .idle("idle-work")
@@ -83,7 +83,7 @@ fn business_runtime_builds_named_priority_lanes() {
         ),
     ];
     for (expected_name, expected_priority, submit) in cases {
-        let mut context = radiant::prelude::UpdateContext::default();
+        let mut context = radiant::prelude::UiUpdateContext::default();
         submit(&mut context);
 
         let (name, priority, work) = take_perform(context.into_command());
@@ -98,7 +98,7 @@ fn business_runtime_builds_named_priority_lanes() {
 fn business_runtime_keyed_latest_tags_completion_with_key_and_ticket() {
     let mut keyed = radiant::prelude::KeyedLatestTasks::new();
     let key = String::from("row-1");
-    let mut context = radiant::prelude::UpdateContext::default();
+    let mut context = radiant::prelude::UiUpdateContext::default();
     context
         .business()
         .interactive("keyed-preview")
@@ -121,7 +121,7 @@ fn business_runtime_keyed_latest_tags_completion_with_key_and_ticket() {
 #[test]
 fn business_runtime_resource_request_returns_typed_completion() {
     let mut resource = radiant::prelude::ResourceSlot::<String>::new("preview");
-    let mut context = radiant::prelude::UpdateContext::default();
+    let mut context = radiant::prelude::UiUpdateContext::default();
     context
         .business()
         .background("load-preview")
@@ -142,7 +142,7 @@ fn business_runtime_resource_request_returns_typed_completion() {
 
 #[test]
 fn business_runtime_cancellable_work_exposes_worker_context() {
-    let mut context = radiant::prelude::UpdateContext::default();
+    let mut context = radiant::prelude::UiUpdateContext::default();
     let request = context
         .business()
         .background("cancel-visible")
@@ -162,9 +162,9 @@ fn business_runtime_cancellable_work_exposes_worker_context() {
 }
 
 #[test]
-fn update_context_schedules_delayed_latest_messages() {
+fn ui_update_context_schedules_delayed_latest_messages() {
     let mut latest = radiant::prelude::LatestTask::new();
-    let mut context = radiant::prelude::UpdateContext::default();
+    let mut context = radiant::prelude::UiUpdateContext::default();
     context.after_latest(
         &mut latest,
         std::time::Duration::from_millis(25),
@@ -179,8 +179,8 @@ fn update_context_schedules_delayed_latest_messages() {
 }
 
 #[test]
-fn update_context_exposes_platform_service_helpers() {
-    let mut context = radiant::prelude::UpdateContext::default();
+fn ui_update_context_exposes_platform_service_helpers() {
+    let mut context = radiant::prelude::UiUpdateContext::default();
     context.pick_folder(
         radiant::runtime::FileDialogRequest::new().title("Choose library"),
         |_| DemoMessage::Increment,
@@ -238,9 +238,9 @@ fn platform_response_helpers_cover_common_request_outcomes() {
 }
 
 #[test]
-fn update_context_exposes_drag_session_cleanup_helper() {
-    let mut context: radiant::prelude::UpdateContext<DemoMessage> =
-        radiant::prelude::UpdateContext::default();
+fn ui_update_context_exposes_drag_session_cleanup_helper() {
+    let mut context: radiant::prelude::UiUpdateContext<DemoMessage> =
+        radiant::prelude::UiUpdateContext::default();
     context.end_drag_session();
 }
 
@@ -265,7 +265,7 @@ fn confirm_dialog_supports_named_parts_construction() {
 
 #[test]
 fn business_runtime_can_submit_cancellable_work() {
-    let mut context = radiant::prelude::UpdateContext::default();
+    let mut context = radiant::prelude::UiUpdateContext::default();
     let request = context.business().background("cancel-test").cancellable();
     let token = request.token();
     token.cancel();
@@ -281,7 +281,7 @@ fn business_runtime_can_submit_cancellable_work() {
 #[test]
 fn business_runtime_can_submit_cancellable_latest_work() {
     let mut latest = radiant::prelude::LatestTask::new();
-    let mut context = radiant::prelude::UpdateContext::default();
+    let mut context = radiant::prelude::UiUpdateContext::default();
     let token = context
         .business()
         .idle("latest-cancel-test")
@@ -302,8 +302,8 @@ fn business_runtime_can_submit_cancellable_latest_work() {
 }
 
 #[test]
-fn update_context_accepts_task_priority_hints() {
-    let mut context = radiant::prelude::UpdateContext::default();
+fn ui_update_context_accepts_task_priority_hints() {
+    let mut context = radiant::prelude::UiUpdateContext::default();
     context
         .business()
         .idle("idle-cancel-test")

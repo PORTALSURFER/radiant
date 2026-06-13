@@ -1,7 +1,7 @@
 use super::runnable::RunnableStatefulApp;
 use crate::{
     application::{
-        AppBridge, AppBridgeLifecycle, AppUpdate, Result, UpdateContext, launch::IntoView,
+        AppBridge, AppBridgeLifecycle, AppUpdate, Result, UiUpdateContext, launch::IntoView,
     },
     gui_runtime::NativeRunOptions,
     runtime::{RuntimeBridge, run_native_vello_runtime},
@@ -41,7 +41,7 @@ where
         AppBridge::new(
             self.state,
             self.project,
-            |_: &mut State, (): (), context: &mut UpdateContext<()>| {
+            |_: &mut State, (): (), context: &mut UiUpdateContext<()>| {
                 context.request_repaint();
             },
             self.lifecycle,
@@ -70,13 +70,13 @@ where
         }))
     }
 
-    /// Attach an app message handler that can queue runtime-visible work through an update context.
+    /// Attach an app message handler that can queue UI-safe runtime follow-up work.
     pub fn handle_message<Update>(
         self,
         update: Update,
     ) -> RunnableStatefulApp<State, Message, Project, Update, View>
     where
-        Update: FnMut(&mut State, Message, &mut UpdateContext<Message>) + 'static,
+        Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     {
         RunnableStatefulApp {
             state: self.state,
@@ -87,35 +87,5 @@ where
             _message: PhantomData,
             _view: PhantomData,
         }
-    }
-
-    /// Compatibility alias for [`Self::handle_message`].
-    ///
-    /// Prefer [`Self::handle_message`] in app-facing code. The reducer name is
-    /// still public for existing callers and tests that intentionally use the
-    /// state-machine vocabulary.
-    pub fn reducer<Update>(
-        self,
-        update: Update,
-    ) -> RunnableStatefulApp<State, Message, Project, Update, View>
-    where
-        Update: FnMut(&mut State, Message, &mut UpdateContext<Message>) + 'static,
-    {
-        self.handle_message(update)
-    }
-
-    /// Advanced compatibility alias for [`Self::handle_message`].
-    ///
-    /// Prefer [`Self::handle_message`] for app-facing message handlers. This older name
-    /// remains public for existing code and examples that intentionally model
-    /// the lower-level update/context hook.
-    pub fn update_with<Update>(
-        self,
-        update: Update,
-    ) -> RunnableStatefulApp<State, Message, Project, Update, View>
-    where
-        Update: FnMut(&mut State, Message, &mut UpdateContext<Message>) + 'static,
-    {
-        self.handle_message(update)
     }
 }

@@ -1,6 +1,6 @@
 use super::super::AppBridge;
 use crate::{
-    application::{IntoView, UpdateContext},
+    application::{IntoView, UiUpdateContext},
     gui::{paint::PaintFrame as GuiPaintFrame, types::Rect},
     layout::Vector2,
     runtime::{PaintPrimitive, TransientOverlayContext},
@@ -10,7 +10,7 @@ use crate::{
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
 where
     Project: FnMut(&mut State) -> View + 'static,
-    Update: FnMut(&mut State, Message, &mut UpdateContext<Message>) + 'static,
+    Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
 {
     pub(super) fn render_app_retained_surface(

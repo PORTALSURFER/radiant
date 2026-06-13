@@ -3,7 +3,7 @@ use super::{
     AppAnimation, AppAuxiliaryWindows, AppCloseRequested, AppFrameClockActivity, AppFrameMessage,
     AppFrameRepaintPolicy, AppNativeFileDrop, AppRuntime, AppScroll, AppShortcuts, AppShutdown,
     AppStartup, AppSubscriptions, RetainedPainter, TransientOverlayActivity,
-    TransientOverlayPainter, UpdateContext,
+    TransientOverlayPainter, UiUpdateContext,
 };
 use crate::{
     application::{IntoView, RepaintPolicy},
@@ -146,7 +146,7 @@ impl<State, Message> AppBridgeLifecycle<State, Message> {
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
 where
     Project: FnMut(&mut State) -> View,
-    Update: FnMut(&mut State, Message, &mut UpdateContext<Message>),
+    Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>),
     View: IntoView<Message>,
 {
     /// Build an app bridge from host state, projection, reducer, and lifecycle hooks.
@@ -173,7 +173,7 @@ where
             .is_none()
             .then(|| self.ordinary_repaint_scope_for_message(&message))
             .flatten();
-        let mut context = UpdateContext::default();
+        let mut context = UiUpdateContext::default();
         (self.update)(&mut self.state, message, &mut context);
         let command = context.into_command();
         self.apply_repaint_policy(pending_frame, ordinary_repaint, command)
@@ -245,7 +245,7 @@ where
             return;
         }
         if let Some(startup) = self.lifecycle.startup.as_mut() {
-            let mut context = UpdateContext::default();
+            let mut context = UiUpdateContext::default();
             startup(&mut self.state, &mut context);
             self.runtime.enqueue_command(context.into_command());
         }

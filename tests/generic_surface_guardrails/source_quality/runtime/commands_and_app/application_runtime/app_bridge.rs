@@ -9,6 +9,10 @@ fn app_bridge_groups_lifecycle_hooks_and_runtime_flags() {
         manifest_dir.join("src/application/runtime/bridge/adapter/animation.rs"),
     )
     .expect("application runtime bridge animation adapter should be readable");
+    let launch_animation = fs::read_to_string(
+        manifest_dir.join("src/application/runtime/bridge/adapter/launch_animation.rs"),
+    )
+    .expect("launch-level animation adapter should be readable");
 
     assert!(
         bridge.contains("pub(in crate::application) lifecycle: AppBridgeLifecycle<State, Message>")
@@ -48,9 +52,17 @@ fn app_bridge_groups_lifecycle_hooks_and_runtime_flags() {
     }
     assert!(
         animation.contains(".lifecycle")
-            && animation.contains(".animation")
-            && animation.contains("self.lifecycle.frame_message")
+            && animation.contains("launch_animation::poll_launch_animation_activity")
+            && animation.contains("launch_animation::poll_launch_frame_message_activity")
             && animation.contains("self.runtime_flags.pending_animation_frame_activity"),
-        "animation adapter should route through the grouped lifecycle and runtime flag state"
+        "animation adapter should route normal frame-clock demand through grouped lifecycle and runtime flag state"
+    );
+    assert!(
+        !animation.contains("legacy_")
+            && launch_animation.contains("lifecycle")
+            && launch_animation.contains(".animation")
+            && launch_animation.contains("lifecycle.frame_message")
+            && launch_animation.contains("RuntimeAnimationDemand::from_flags"),
+        "launch-level animation compatibility should stay isolated outside the normal animation adapter"
     );
 }

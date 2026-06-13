@@ -1,9 +1,10 @@
 use super::super::AppBridge;
+use super::launch_animation;
 use crate::{
     application::{
         FrameMessageActivity, FrameRepaintSource, IntoView, PendingFrameRepaint, UpdateContext,
     },
-    runtime::{RuntimeAnimationActivity, RuntimeAnimationDemand},
+    runtime::RuntimeAnimationActivity,
 };
 
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
@@ -17,11 +18,8 @@ where
     }
 
     pub(super) fn runtime_animation_activity(&mut self) -> RuntimeAnimationActivity {
-        let legacy_animation_active = self
-            .lifecycle
-            .animation
-            .as_mut()
-            .is_some_and(|animation| animation(&mut self.state));
+        let launch_animation =
+            launch_animation::poll_launch_animation_activity(&mut self.lifecycle, &mut self.state);
         let frame_clock_animation = self
             .lifecycle
             .frame_clock_activity
@@ -50,21 +48,16 @@ where
             .map_or_else(RuntimeAnimationActivity::idle, |activity| {
                 activity(&mut self.state)
             });
-        let legacy_frame_message_active =
-            legacy_animation_active && self.lifecycle.frame_message.is_some();
         let app_frame_message_active =
-            legacy_frame_message_active || frame_clock_animation.needs_frame_message();
+            launch_animation.needs_frame_message() || frame_clock_animation.needs_frame_message();
         let scene_frame_message_active = scene_frame_clock_animation.needs_frame_message()
             && self.lifecycle.scene_frame_message.is_some();
         self.runtime_flags.pending_animation_frame_activity = Some(FrameMessageActivity {
             app: app_frame_message_active,
             scene: scene_frame_message_active,
         });
-        let legacy_animation = RuntimeAnimationDemand::from_flags(
-            legacy_animation_active,
-            legacy_frame_message_active,
-        );
-        RuntimeAnimationActivity::from_demand(legacy_animation)
+        launch_animation
+            .into_runtime_activity()
             .merge(frame_clock_animation)
             .merge(scene_frame_clock_animation)
             .merge(transient_overlay_animation)
@@ -99,12 +92,10 @@ where
     }
 
     fn poll_frame_message_activity(&mut self) -> FrameMessageActivity {
-        let legacy_active = self
-            .lifecycle
-            .animation
-            .as_mut()
-            .is_some_and(|animation| animation(&mut self.state))
-            && self.lifecycle.frame_message.is_some();
+        let launch_active = launch_animation::poll_launch_frame_message_activity(
+            &mut self.lifecycle,
+            &mut self.state,
+        );
         let frame_clock_active = self
             .lifecycle
             .frame_clock_activity
@@ -117,7 +108,7 @@ where
             .is_some_and(|activity| activity(&mut self.state).needs_frame_message())
             && self.lifecycle.scene_frame_message.is_some();
         FrameMessageActivity {
-            app: legacy_active || frame_clock_active,
+            app: launch_active || frame_clock_active,
             scene: scene_active,
         }
     }

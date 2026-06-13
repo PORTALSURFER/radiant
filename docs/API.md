@@ -961,8 +961,10 @@ that intentionally demonstrate the runtime lifecycle, and migration of existing
 callers. They are not deprecated in this phase because they still map to real
 runtime capabilities and are exercised by public API tests, but new root-scoped
 application presentation should prefer the `Scene` descriptors unless direct
-lifecycle wiring is specifically required. Custom runtime bridges can report the
-same split explicitly with `RuntimeAnimationActivity` and
+lifecycle wiring is specifically required. The built-in app bridge keeps those
+launch-level hooks in an isolated adapter so ordinary frame-clock demand remains
+the canonical presentation path. Custom runtime bridges can report the same
+split explicitly with `RuntimeAnimationActivity` and
 `RuntimeAnimationDemand`, distinguishing frame-message animation from paint-only
 presentation work and optionally carrying a per-activity target FPS.
 When a paint-only transient overlay is present, the native Vello runtime also

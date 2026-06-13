@@ -12,6 +12,7 @@ use crate::{
 use std::{sync::Arc, time::Duration};
 
 mod animation;
+mod launch_animation;
 mod lifecycle;
 mod paint;
 mod platform_services;

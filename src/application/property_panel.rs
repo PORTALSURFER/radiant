@@ -80,7 +80,7 @@ pub fn property_rows<Message: 'static>(
 }
 
 /// Build an inspector/property panel whose selectable rows emit host messages.
-pub fn message_selectable_property_panel<Message: 'static>(
+pub fn message_selectable_property_panel<Message>(
     title: impl Into<String>,
     rows: impl IntoIterator<Item = PropertyRow>,
     select_message: Option<impl Fn(String) -> Message + Send + Sync + 'static>,

@@ -91,7 +91,7 @@ impl TreeListItem {
 }
 
 /// Build a compact tree list that emits select and toggle messages.
-pub fn message_tree_list<Message: 'static>(
+pub fn message_tree_list<Message>(
     items: impl IntoIterator<Item = TreeListItem>,
     select_message: impl Fn(String) -> Message + Send + Sync + 'static,
     toggle_message: impl Fn(String) -> Message + Send + Sync + 'static,
@@ -109,7 +109,7 @@ where
 }
 
 /// Build a compact tree list with optional context and drag messages.
-pub fn message_tree_list_with_drag<Message: 'static>(
+pub fn message_tree_list_with_drag<Message>(
     items: impl IntoIterator<Item = TreeListItem>,
     select_message: impl Fn(String) -> Message + Send + Sync + 'static,
     toggle_message: impl Fn(String) -> Message + Send + Sync + 'static,

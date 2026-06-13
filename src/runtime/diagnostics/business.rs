@@ -7,7 +7,11 @@ use std::{
 use crate::runtime::TaskPriority;
 
 const RECENT_BUSINESS_EVENTS: usize = 32;
-pub(crate) const SLOW_UPDATE_HANDLER_THRESHOLD: Duration = Duration::from_millis(50);
+/// Default warn-only threshold for UI update-handler responsiveness diagnostics.
+pub const DEFAULT_SLOW_UPDATE_HANDLER_THRESHOLD: Duration = Duration::from_millis(50);
+/// Standard guidance attached to slow update-handler diagnostics.
+pub const SLOW_UPDATE_HANDLER_GUIDANCE: &str =
+    "move business work into context.business() or a typed platform service";
 
 /// Snapshot of generic runtime diagnostics suitable for tests and debug panels.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -91,6 +95,96 @@ pub struct UiRuntimeDiagnostics {
 pub struct UiUpdateHandlerDiagnostic {
     /// Measured handler duration.
     pub duration: Duration,
+    /// Configured slow-handler threshold.
+    pub threshold: Duration,
+    /// Runtime bridge type that executed the handler.
+    pub handler: &'static str,
+    /// Host message type reduced by the handler.
+    pub message: &'static str,
+    /// Developer guidance for fixing the slow handler.
+    pub guidance: &'static str,
+}
+
+impl UiUpdateHandlerDiagnostic {
+    /// Return the deterministic failure text used by strict diagnostics mode.
+    pub fn failure_message(&self) -> String {
+        format!(
+            "radiant update handler exceeded configured responsiveness threshold: handler={}, message={}, elapsed_ms={:.3}, threshold_ms={:.3}; {}",
+            self.handler,
+            self.message,
+            self.duration.as_secs_f64() * 1000.0,
+            self.threshold.as_secs_f64() * 1000.0,
+            self.guidance
+        )
+    }
+}
+
+/// Behavior for update-handler diagnostics when a handler exceeds the threshold.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum UiUpdateHandlerDiagnosticsMode {
+    /// Record the slow handler and emit a warning log.
+    #[default]
+    Warn,
+    /// Record the slow handler and panic to fail a test or development run.
+    Panic,
+}
+
+/// Runtime policy for measuring UI update-handler duration.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UiUpdateHandlerDiagnosticsPolicy {
+    threshold: Option<Duration>,
+    mode: UiUpdateHandlerDiagnosticsMode,
+}
+
+impl UiUpdateHandlerDiagnosticsPolicy {
+    /// Return the default warn-only development diagnostics policy.
+    pub const fn warn_default() -> Self {
+        Self::warn_at(DEFAULT_SLOW_UPDATE_HANDLER_THRESHOLD)
+    }
+
+    /// Record and warn when update handlers meet or exceed `threshold`.
+    pub const fn warn_at(threshold: Duration) -> Self {
+        Self {
+            threshold: Some(threshold),
+            mode: UiUpdateHandlerDiagnosticsMode::Warn,
+        }
+    }
+
+    /// Record and panic when update handlers meet or exceed `threshold`.
+    pub const fn panic_at(threshold: Duration) -> Self {
+        Self {
+            threshold: Some(threshold),
+            mode: UiUpdateHandlerDiagnosticsMode::Panic,
+        }
+    }
+
+    /// Disable update-handler duration measurement for this runtime.
+    pub const fn disabled() -> Self {
+        Self {
+            threshold: None,
+            mode: UiUpdateHandlerDiagnosticsMode::Warn,
+        }
+    }
+
+    /// Return the active threshold, or `None` when diagnostics are disabled.
+    pub const fn threshold(self) -> Option<Duration> {
+        self.threshold
+    }
+
+    /// Return the configured slow-handler action.
+    pub const fn mode(self) -> UiUpdateHandlerDiagnosticsMode {
+        self.mode
+    }
+}
+
+impl Default for UiUpdateHandlerDiagnosticsPolicy {
+    fn default() -> Self {
+        if cfg!(debug_assertions) {
+            Self::warn_default()
+        } else {
+            Self::disabled()
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -231,21 +325,38 @@ impl RuntimeDiagnosticsRecorder {
         );
     }
 
-    pub(crate) fn record_update_handler(&self, duration: Duration) {
+    pub(crate) fn record_update_handler(
+        &self,
+        duration: Duration,
+        threshold: Duration,
+        handler: &'static str,
+        message: &'static str,
+    ) -> Option<UiUpdateHandlerDiagnostic> {
         let mut state = lock_diagnostics_state(&self.state);
         state.snapshot.ui.update_handlers += 1;
         state.snapshot.ui.longest_update_handler =
             state.snapshot.ui.longest_update_handler.max(duration);
-        if duration >= SLOW_UPDATE_HANDLER_THRESHOLD {
-            state.snapshot.ui.slow_update_handlers += 1;
-            state.snapshot.ui.last_slow_update_handler =
-                Some(UiUpdateHandlerDiagnostic { duration });
-            tracing::warn!(
-                update_duration_ms = duration.as_secs_f64() * 1000.0,
-                threshold_ms = SLOW_UPDATE_HANDLER_THRESHOLD.as_secs_f64() * 1000.0,
-                "radiant update handler exceeded development responsiveness threshold"
-            );
+        if duration < threshold {
+            return None;
         }
+        let diagnostic = UiUpdateHandlerDiagnostic {
+            duration,
+            threshold,
+            handler,
+            message,
+            guidance: SLOW_UPDATE_HANDLER_GUIDANCE,
+        };
+        state.snapshot.ui.slow_update_handlers += 1;
+        state.snapshot.ui.last_slow_update_handler = Some(diagnostic.clone());
+        tracing::warn!(
+            update_duration_ms = duration.as_secs_f64() * 1000.0,
+            threshold_ms = threshold.as_secs_f64() * 1000.0,
+            update_handler = handler,
+            update_message = message,
+            guidance = SLOW_UPDATE_HANDLER_GUIDANCE,
+            "radiant update handler exceeded configured responsiveness threshold"
+        );
+        Some(diagnostic)
     }
 }
 

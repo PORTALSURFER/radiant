@@ -1,4 +1,5 @@
 use super::SurfaceRuntime;
+use crate::runtime::UiUpdateHandlerDiagnosticsPolicy;
 use crate::{
     gui::types::{Rect, Vector2},
     layout::{LayoutDebugOptions, LayoutOutput, NodeId},
@@ -67,6 +68,24 @@ where
         let mut snapshot = self.bridge.runtime_diagnostics();
         snapshot.ui = self.diagnostics.snapshot().ui;
         snapshot
+    }
+
+    /// Configure update-handler responsiveness diagnostics for this runtime.
+    ///
+    /// Use [`UiUpdateHandlerDiagnosticsPolicy::panic_at`] in tests or
+    /// development harnesses that should fail when UI handlers block. Use
+    /// [`UiUpdateHandlerDiagnosticsPolicy::disabled`] only for hosts that need
+    /// to remove even the timing read from an otherwise verified release path.
+    pub fn set_update_handler_diagnostics_policy(
+        &mut self,
+        policy: UiUpdateHandlerDiagnosticsPolicy,
+    ) {
+        self.update_handler_diagnostics_policy = policy;
+    }
+
+    /// Return the active update-handler diagnostics policy.
+    pub fn update_handler_diagnostics_policy(&self) -> UiUpdateHandlerDiagnosticsPolicy {
+        self.update_handler_diagnostics_policy
     }
 
     /// Return the current logical viewport size.

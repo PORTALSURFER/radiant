@@ -66,7 +66,7 @@ impl BrowserState {
         )
     }
 
-    pub(super) fn from_pending_root(root: &Path) -> Self {
+    pub(super) fn from_root(root: &Path) -> Self {
         let root_folder = placeholder_root_folder(root);
         Self::from_folder(
             root_folder,

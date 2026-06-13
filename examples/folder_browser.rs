@@ -39,7 +39,7 @@ const ROOT_ENV_VAR: &str = "RADIANT_FOLDER_BROWSER_ROOT";
 fn main() -> radiant::Result {
     let browser_root = resolve_browser_root();
     let initial_state = match browser_root.as_ref() {
-        Some(root) => BrowserState::from_pending_root(root),
+        Some(root) => BrowserState::from_root(root),
         None => BrowserState::from_demo(),
     };
 

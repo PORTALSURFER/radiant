@@ -7,6 +7,7 @@ fn public_module_tree_exposes_one_progressive_api_surface() {
         .expect("Radiant lib.rs should be readable");
     let public_modules = public_module_names(&lib);
     let expected = BTreeSet::from([
+        "guardrails".to_owned(),
         "gui".to_owned(),
         "gui_runtime".to_owned(),
         "layout".to_owned(),

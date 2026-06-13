@@ -59,17 +59,18 @@ pub use controller::{
 };
 pub use diagnostics::{
     BusinessRuntimeDiagnostics, BusinessTaskDiagnostic, BusinessTaskDiagnosticState,
-    NativeCompositedBaseTiming, NativeFrameDiagnostics, NativeFrameTimingDiagnostics,
-    NativeFrameWorkTimings, NativeGpuSurfaceAtlasDiagnostics, NativeGpuSurfaceCompositeDiagnostics,
-    NativeGpuSurfaceCustomShaderDiagnostics, NativeGpuSurfaceCustomShaderFailureDiagnostics,
-    NativeGpuSurfaceDiagnostics, NativeGpuSurfaceSignalDiagnostics,
-    NativeGpuSurfaceUnsupportedCustomShaderDiagnostics, NativeGpuTimingStatus,
-    NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics, NativeSceneMediaDiagnostics,
-    NativeSceneSurfaceDiagnostics, NativeSceneTextDiagnostics, NativeSceneTraversalDiagnostics,
-    NativeTextCacheCounters, NativeTextCacheDiagnostics, NativeTextDiagnostics,
-    NativeTextQualityDiagnostics, NativeTextQualityStatus, NativeTransientOverlayTiming,
-    RetainedSurfaceCachePolicy, RuntimeDiagnostics, UiRuntimeDiagnostics,
-    UiUpdateHandlerDiagnostic,
+    DEFAULT_SLOW_UPDATE_HANDLER_THRESHOLD, NativeCompositedBaseTiming, NativeFrameDiagnostics,
+    NativeFrameTimingDiagnostics, NativeFrameWorkTimings, NativeGpuSurfaceAtlasDiagnostics,
+    NativeGpuSurfaceCompositeDiagnostics, NativeGpuSurfaceCustomShaderDiagnostics,
+    NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
+    NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
+    NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
+    NativeSceneMediaDiagnostics, NativeSceneSurfaceDiagnostics, NativeSceneTextDiagnostics,
+    NativeSceneTraversalDiagnostics, NativeTextCacheCounters, NativeTextCacheDiagnostics,
+    NativeTextDiagnostics, NativeTextQualityDiagnostics, NativeTextQualityStatus,
+    NativeTransientOverlayTiming, RetainedSurfaceCachePolicy, RuntimeDiagnostics,
+    SLOW_UPDATE_HANDLER_GUIDANCE, UiRuntimeDiagnostics, UiUpdateHandlerDiagnostic,
+    UiUpdateHandlerDiagnosticsMode, UiUpdateHandlerDiagnosticsPolicy,
 };
 pub(crate) use diagnostics::{RuntimeDiagnosticsRecorder, elapsed_since};
 pub(crate) use drag::DragSession;

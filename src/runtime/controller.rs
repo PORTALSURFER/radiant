@@ -26,7 +26,8 @@ pub use scroll::ScrollUpdate;
 
 use super::{
     ClipAncestors, Command, DragSession, ExternalDragSession, RuntimeBridge,
-    RuntimeDiagnosticsRecorder, SurfaceTraversalIndex, UiSurface, WidgetDispatchResult, WidgetPath,
+    RuntimeDiagnosticsRecorder, SurfaceTraversalIndex, UiSurface, UiUpdateHandlerDiagnosticsPolicy,
+    WidgetDispatchResult, WidgetPath,
 };
 use crate::{
     gui::types::Rect,
@@ -76,6 +77,7 @@ where
     pending_input_command_outcome: CommandOutcome,
     runtime_work: RuntimeWorkQueues<Message>,
     diagnostics: RuntimeDiagnosticsRecorder,
+    update_handler_diagnostics_policy: UiUpdateHandlerDiagnosticsPolicy,
 }
 
 /// Runtime controller for shared-surface declarative hosts.

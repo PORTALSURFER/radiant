@@ -262,6 +262,12 @@ normal quality lane before merging meaningful changes.
   consumer test. Applications should scan app-facing update/action/view roots,
   add host-domain forbidden tokens such as decode or database entry points, and
   allowlist only explicit worker or platform-adapter modules.
+- Runtime slow-handler backstop:
+  configure `SurfaceRuntime::set_update_handler_diagnostics_policy(...)` with
+  `UiUpdateHandlerDiagnosticsPolicy::panic_at(...)` in deterministic
+  test/development harnesses when a slow UI update handler should fail the run.
+  Keep this as a supplement to API lockdown and static guardrails; business
+  worker durations are reported separately under `RuntimeDiagnostics::business`.
 - Examples: `cargo test --examples`, or the focused example target when a
   change is local to one sandbox.
 - Documentation: `cargo doc --no-deps` to verify the public docs build and

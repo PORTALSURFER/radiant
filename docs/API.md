@@ -140,6 +140,14 @@ with `.forbid_token(...)`, and keep `.allow_path_fragment(...)` entries limited
 to explicit worker, business-runtime, or typed platform-adapter modules. The
 report includes file and line numbers and points developers back to
 `UiUpdateContext::business()` or typed platform services.
+Runtime slow-handler diagnostics are the second line of defense for work that
+static scans cannot see, such as heavy CPU loops, lock contention, or helpers
+with innocent names. Test and development harnesses can call
+`SurfaceRuntime::set_update_handler_diagnostics_policy(...)` with
+`UiUpdateHandlerDiagnosticsPolicy::panic_at(threshold)` to fail when an update
+handler exceeds a controlled threshold. The default policy is warn-only in
+debug/test builds and disables the timing read in release builds unless a host
+explicitly opts in.
 
 This contract is mandatory for normal Radiant applications. During the current
 breaking migration, older command-returning or generic command-injection paths
@@ -1360,11 +1368,20 @@ continuing the queue.
 failed, and currently running business work, plus bounded recent lifecycle
 events with task name, priority, queue delay, and run duration where applicable.
 The `ui` section reports update-handler counts, the longest observed update
-duration, and the latest handler that crossed Radiant's development
-slow-handler threshold. These values are diagnostics, not portable pass/fail
-performance budgets; use them to find blocking reducers, missing
-`UiUpdateContext::business()` handoffs, worker saturation, and stale cancellation
-paths without coupling Radiant to an application's domain data.
+duration, and the latest handler that crossed the configured slow-handler
+threshold, including handler type, message type, elapsed time, threshold, and
+guidance to move business work to `context.business()` or typed platform
+services. Use
+`SurfaceRuntime::set_update_handler_diagnostics_policy(...)` with
+`UiUpdateHandlerDiagnosticsPolicy::warn_at(threshold)` for controlled warning
+thresholds, `panic_at(threshold)` for test/development fail-fast harnesses, or
+`disabled()` only when an otherwise verified release path needs to remove even
+the timing read. The default policy warns in debug/test builds and is disabled
+in release builds. These values are diagnostics, not portable pass/fail
+performance budgets outside a controlled harness; use them to find blocking
+reducers, missing `UiUpdateContext::business()` handoffs, worker saturation, and
+stale cancellation paths without coupling Radiant to an application's domain
+data.
 
 ## Layout
 

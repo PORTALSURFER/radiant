@@ -27,6 +27,8 @@ mod gpu_surface;
 mod lifecycle;
 #[path = "app_runtime_api/paint_overlay.rs"]
 mod paint_overlay;
+#[path = "app_runtime_api/runtime_diagnostics.rs"]
+mod runtime_diagnostics;
 #[path = "app_runtime_api/runtime_work.rs"]
 mod runtime_work;
 #[path = "app_runtime_api/scroll_hooks.rs"]

@@ -42,6 +42,7 @@ where
             pending_input_command_outcome: CommandOutcome::default(),
             runtime_work: RuntimeWorkQueues::default(),
             diagnostics: Default::default(),
+            update_handler_diagnostics_policy: Default::default(),
         };
         runtime.relayout_with_traversal(traversal);
         runtime

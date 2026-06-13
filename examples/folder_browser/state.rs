@@ -66,11 +66,11 @@ impl BrowserState {
         )
     }
 
-    pub(super) fn from_root(root: PathBuf) -> Self {
-        let root_folder = load_root_folder(&root);
+    pub(super) fn from_pending_root(root: &Path) -> Self {
+        let root_folder = placeholder_root_folder(root);
         Self::from_folder(
             root_folder,
-            format!("Read-only resource view: {}", root.display()),
+            format!("Loading resource view: {}", root.display()),
         )
     }
 
@@ -106,6 +106,23 @@ impl BrowserState {
             folders: vec![root_folder],
             status,
         }
+    }
+
+    pub(super) fn apply_root_folder(&mut self, root: PathBuf, root_folder: FolderEntry) {
+        let root_id = root_folder.id.clone();
+        self.selection.selected_folder = root_id.clone();
+        self.selection.selected_file = None;
+        self.tree.expanded_folders = [root_id].into_iter().collect();
+        self.context.context_folder = None;
+        self.context.context_file = None;
+        self.context.context_column = None;
+        self.context.context_position = None;
+        self.rename.folder = None;
+        self.rename.folder_draft.clear();
+        self.rename.file = None;
+        self.rename.file_draft.clear();
+        self.folders = vec![root_folder];
+        self.status = format!("Read-only resource view: {}", root.display());
     }
 
     pub(super) fn selected_folder(&self) -> &FolderEntry {
@@ -211,5 +228,14 @@ impl BrowserState {
             .into_iter()
             .map(|folder| folder.id)
             .collect()
+    }
+}
+
+fn placeholder_root_folder(root: &Path) -> FolderEntry {
+    FolderEntry {
+        id: path_id(root),
+        name: folder_label(root),
+        children: Vec::new(),
+        files: Vec::new(),
     }
 }

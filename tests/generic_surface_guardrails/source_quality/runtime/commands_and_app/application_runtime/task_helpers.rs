@@ -88,41 +88,15 @@ fn app_facing_runtime_paths_do_not_introduce_obvious_blocking_calls() {
         "src/application/runtime/update_context",
         "src/runtime/controller/commands",
     ];
-    let forbidden = [
-        "std::thread::sleep",
-        "thread::sleep",
-        "std::fs::",
-        "std::fs::read",
-        "std::fs::read_to_string",
-        ".join().",
-        ".join()",
-    ];
-    let mut violations = Vec::new();
+    let roots = guarded_dirs.map(|dir| manifest_dir.join(dir));
 
-    for dir in guarded_dirs {
-        for path in rust_sources_under(&manifest_dir.join(dir)) {
-            let source = fs::read_to_string(&path).unwrap_or_else(|err| {
-                panic!(
-                    "guarded runtime source {} should be readable: {err}",
-                    path.display()
-                )
-            });
-            for token in forbidden {
-                if source.contains(token) {
-                    violations.push(format!(
-                        "{} contains {token}",
-                        relative_path(&manifest_dir, &path)
-                    ));
-                }
-            }
-        }
-    }
-
-    assert!(
-        violations.is_empty(),
-        "app-facing runtime/update paths must not introduce direct blocking APIs; use UiUpdateContext::business(), timers, subscriptions, or platform services instead:\n{}",
-        violations.join("\n")
-    );
+    radiant::guardrails::NonBlockingGuardrail::app_update_paths()
+        .allow_path_fragment(
+            "src/application/runtime/bridge/adapter/platform_services.rs",
+            "typed platform-service adapter boundary",
+        )
+        .scan_roots(roots)
+        .expect("app-facing runtime/update paths must stay non-blocking");
 }
 
 #[test]
@@ -160,4 +134,37 @@ fn example_blocking_work_stays_inside_business_runtime_workers() {
         "examples with blocking sleeps must keep that work inside explicit BusinessRuntime workers:\n{}",
         violations.join("\n")
     );
+}
+
+#[test]
+fn radiant_examples_pass_reusable_non_blocking_guardrail() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+
+    radiant::guardrails::NonBlockingGuardrail::app_update_paths()
+        .allow_path_fragment(
+            "examples/background_loading.rs",
+            "example intentionally demonstrates BusinessRuntime offload",
+        )
+        .allow_path_fragment(
+            "examples/status_bar/update.rs",
+            "example intentionally demonstrates BusinessRuntime offload",
+        )
+        .allow_path_fragment(
+            "examples/popup_window/host/process.rs",
+            "popup example host process launcher is a platform boundary",
+        )
+        .allow_path_fragment(
+            "examples/popup_window/platform/readiness.rs",
+            "popup example readiness polling is a platform boundary",
+        )
+        .allow_path_fragment(
+            "examples/popup_window/host/child.rs",
+            "popup example focus handoff is a platform boundary",
+        )
+        .allow_path_fragment(
+            "examples/folder_browser/storage/scan.rs",
+            "folder browser filesystem scan worker boundary invoked through business runtime",
+        )
+        .scan_roots([manifest_dir.join("examples")])
+        .expect("Radiant examples should keep blocking work inside explicit worker or platform boundaries");
 }

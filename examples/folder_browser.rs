@@ -22,6 +22,7 @@ use columns::*;
 use model::*;
 use radiant::widgets::{ButtonMessage, TextInputMessage};
 use state::*;
+use std::path::PathBuf;
 use storage::*;
 
 const MIN_TREE_WIDTH: f32 = 190.0;
@@ -36,18 +37,25 @@ const MAX_FILE_COLUMN_WIDTH: f32 = 360.0;
 const ROOT_ENV_VAR: &str = "RADIANT_FOLDER_BROWSER_ROOT";
 
 fn main() -> radiant::Result {
-    let initial_state = match resolve_browser_root() {
-        Some(root) => BrowserState::from_root(root),
+    let browser_root = resolve_browser_root();
+    let initial_state = match browser_root.as_ref() {
+        Some(root) => BrowserState::from_pending_root(root),
         None => BrowserState::from_demo(),
     };
 
-    radiant::app(initial_state)
+    let app = radiant::app(initial_state)
         .title("Radiant Folder Browser")
         .size(900, 540)
         .min_size(640, 360)
-        .view(view::project_surface)
-        .update(update)
-        .run()
+        .view(view::project_surface);
+
+    match browser_root {
+        Some(root) => app
+            .on_startup(move |_state, context| schedule_root_scan(context, root.clone()))
+            .handle_message(update)
+            .run(),
+        None => app.handle_message(update).run(),
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -86,9 +94,17 @@ enum BrowserMessage {
     ToggleFileColumn(String),
     ResetFileColumns,
     CloseColumnContextMenu,
+    RootLoaded {
+        root: PathBuf,
+        folder: FolderEntry,
+    },
 }
 
-fn update(state: &mut BrowserState, message: BrowserMessage) {
+fn update(
+    state: &mut BrowserState,
+    message: BrowserMessage,
+    context: &mut ui::UiUpdateContext<BrowserMessage>,
+) {
     match message {
         BrowserMessage::CreateFileInSelectedFolder => state.create_file_in_selected_folder(),
         BrowserMessage::FolderRenameInput(input) => {
@@ -144,7 +160,26 @@ fn update(state: &mut BrowserState, message: BrowserMessage) {
         BrowserMessage::ToggleFileColumn(column_id) => state.toggle_file_column(column_id),
         BrowserMessage::ResetFileColumns => state.reset_file_columns(),
         BrowserMessage::CloseColumnContextMenu => state.close_column_context_menu(),
+        BrowserMessage::RootLoaded { root, folder } => {
+            state.apply_root_folder(root, folder);
+            context.request_repaint();
+        }
     }
+}
+
+fn schedule_root_scan(context: &mut ui::UiUpdateContext<BrowserMessage>, root: PathBuf) {
+    let loaded_root = root.clone();
+    context
+        .business()
+        .interactive("folder-browser-root-scan")
+        .run(
+            move |_| load_root_folder(&root),
+            move |folder| BrowserMessage::RootLoaded {
+                root: loaded_root,
+                folder,
+            },
+        );
+    context.request_repaint();
 }
 
 #[cfg(test)]

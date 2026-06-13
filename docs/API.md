@@ -133,6 +133,14 @@ Platform interactions such as file dialogs, reveal/open, clipboard text and
 file-list reads/writes, confirmation prompts, and native handoffs must use
 typed Radiant platform services instead of direct blocking calls from handlers.
 
+Host applications should enforce this boundary with a static guardrail test.
+Use `radiant::guardrails::NonBlockingGuardrail::app_update_paths()` over the
+application's UI/update/action/view roots, add host-specific forbidden tokens
+with `.forbid_token(...)`, and keep `.allow_path_fragment(...)` entries limited
+to explicit worker, business-runtime, or typed platform-adapter modules. The
+report includes file and line numbers and points developers back to
+`UiUpdateContext::business()` or typed platform services.
+
 This contract is mandatory for normal Radiant applications. During the current
 breaking migration, older command-returning or generic command-injection paths
 may still exist for compatibility, tests, or embedders, but they are not the

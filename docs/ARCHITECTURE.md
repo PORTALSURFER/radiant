@@ -257,6 +257,11 @@ normal quality lane before merging meaningful changes.
   integration test touched by the change.
 - Source-quality and documentation guardrails:
   `cargo test --test generic_surface_guardrails`.
+- Reusable host-app non-blocking scans:
+  `radiant::guardrails::NonBlockingGuardrail::app_update_paths()` from a
+  consumer test. Applications should scan app-facing update/action/view roots,
+  add host-domain forbidden tokens such as decode or database entry points, and
+  allowlist only explicit worker or platform-adapter modules.
 - Examples: `cargo test --examples`, or the focused example target when a
   change is local to one sandbox.
 - Documentation: `cargo doc --no-deps` to verify the public docs build and

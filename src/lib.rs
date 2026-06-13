@@ -41,6 +41,8 @@
 mod application;
 /// Shared environment-flag parsing helpers used by runtime internals.
 mod env_flags;
+/// Reusable static guardrails for Radiant host application tests.
+pub mod guardrails;
 /// Backend-agnostic GUI primitives.
 pub mod gui;
 /// Common imports for Radiant apps.

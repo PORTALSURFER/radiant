@@ -1,6 +1,6 @@
 //! Data model types for the folder browser example.
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct FolderEntry {
     pub(super) id: String,
     pub(super) name: String,
@@ -21,7 +21,7 @@ impl FolderEntry {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct FileEntry {
     pub(super) id: String,
     pub(super) name: String,

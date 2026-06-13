@@ -1,6 +1,7 @@
 use super::{
-    SurfaceContainer, SurfaceContainerTraversalRecord, SurfaceNode, SurfaceTraversalIndex,
-    SurfaceTraversalStats, SurfaceWidget, SurfaceWidgetTraversalRecord, UiSurface,
+    SurfaceContainer, SurfaceContainerTraversalRecord, SurfaceNode, SurfaceScene,
+    SurfaceTraversalIndex, SurfaceTraversalStats, SurfaceWidget, SurfaceWidgetTraversalRecord,
+    UiSurface,
 };
 use crate::layout::{ContainerKind, LayoutNode, NodeId, SlotChild, Vector2};
 use crate::layout::{ContainerPolicy, SlotParams};
@@ -51,41 +52,16 @@ impl<Message> UiSurface<Message> {
 impl<Message> SurfaceNode<Message> {
     pub(super) fn layout_node(&self) -> LayoutNode {
         match self {
-            Self::Scene(scene) => {
-                if !scene.has_layers() {
-                    return scene.base.layout_node();
-                }
-                let mut children = Vec::with_capacity(1 + scene.ordered_layer_child_count());
-                children.push(SlotChild::new(SlotParams::fill(), scene.base.layout_node()));
-                for layer in scene.ordered_layers() {
-                    if let Some(input) = &layer.input {
-                        children.push(SlotChild::new(SlotParams::fill(), input.layout_node()));
-                    }
-                    children.push(SlotChild::new(SlotParams::fill(), layer.node.layout_node()));
-                }
-                LayoutNode::container(
-                    scene.id,
-                    ContainerPolicy {
-                        kind: ContainerKind::Stack,
-                        ..ContainerPolicy::default()
-                    },
-                    children,
-                )
-            }
+            Self::Scene(scene) => scene_layout_node(scene, |_, child| child.layout_node()),
             Self::Container(container) => {
-                let mut children = Vec::with_capacity(container.children.len());
-                for child in &container.children {
-                    children.push(SlotChild::new(child.slot, child.child.layout_node()));
-                }
+                let children = container_layout_children(container, |_, child| child.layout_node());
                 LayoutNode::container(container.id, container.policy.clone(), children)
             }
             Self::Widget(widget) => widget.layout_node(),
             Self::Overlay(overlay) => LayoutNode::widget(overlay.id, Vector2::new(0.0, 0.0)),
             Self::FloatingLayer(layer) => {
-                let mut children = Vec::with_capacity(layer.container.children.len());
-                for child in &layer.container.children {
-                    children.push(SlotChild::new(child.slot, child.child.layout_node()));
-                }
+                let children =
+                    container_layout_children(&layer.container, |_, child| child.layout_node());
                 LayoutNode::container(layer.container.id, layer.container.policy.clone(), children)
             }
         }
@@ -104,61 +80,21 @@ impl<Message> SurfaceNode<Message> {
                         .base
                         .project_runtime(scroll_stack, child_path, traversal);
                 }
-                let mut children = Vec::with_capacity(1 + scene.ordered_layer_child_count());
-                child_path.push(0);
-                children.push(SlotChild::new(
-                    SlotParams::fill(),
-                    scene
-                        .base
-                        .project_runtime(scroll_stack, child_path, traversal),
-                ));
-                child_path.pop();
-
-                let mut scene_child_index = 1;
-                for layer in scene.ordered_layers() {
-                    if let Some(input) = &layer.input {
-                        child_path.push(scene_child_index);
-                        children.push(SlotChild::new(
-                            SlotParams::fill(),
-                            input.project_runtime(scroll_stack, child_path, traversal),
-                        ));
-                        child_path.pop();
-                        scene_child_index += 1;
-                    }
-
+                scene_layout_node(scene, |scene_child_index, child| {
                     child_path.push(scene_child_index);
-                    children.push(SlotChild::new(
-                        SlotParams::fill(),
-                        layer
-                            .node
-                            .project_runtime(scroll_stack, child_path, traversal),
-                    ));
+                    let layout = child.project_runtime(scroll_stack, child_path, traversal);
                     child_path.pop();
-                    scene_child_index += 1;
-                }
-
-                LayoutNode::container(
-                    scene.id,
-                    ContainerPolicy {
-                        kind: ContainerKind::Stack,
-                        ..ContainerPolicy::default()
-                    },
-                    children,
-                )
+                    layout
+                })
             }
             Self::Container(container) => {
                 let is_scroll = begin_container_runtime(container, scroll_stack, traversal);
-                let mut children = Vec::with_capacity(container.children.len());
-                for (child_index, child) in container.children.iter().enumerate() {
+                let children = container_layout_children(container, |child_index, child| {
                     child_path.push(child_index);
-                    children.push(SlotChild::new(
-                        child.slot,
-                        child
-                            .child
-                            .project_runtime(scroll_stack, child_path, traversal),
-                    ));
+                    let layout = child.project_runtime(scroll_stack, child_path, traversal);
                     child_path.pop();
-                }
+                    layout
+                });
                 end_container_runtime(is_scroll, scroll_stack);
                 LayoutNode::container(container.id, container.policy.clone(), children)
             }
@@ -168,27 +104,31 @@ impl<Message> SurfaceNode<Message> {
             }
             Self::Overlay(overlay) => LayoutNode::widget(overlay.id, Vector2::new(0.0, 0.0)),
             Self::FloatingLayer(layer) => {
-                let mut children = Vec::with_capacity(layer.container.children.len());
                 if layer.interactive {
                     let is_scroll =
                         begin_container_runtime(&layer.container, scroll_stack, traversal);
-                    for (child_index, child) in layer.container.children.iter().enumerate() {
-                        child_path.push(child_index);
-                        children.push(SlotChild::new(
-                            child.slot,
-                            child
-                                .child
-                                .project_runtime(scroll_stack, child_path, traversal),
-                        ));
-                        child_path.pop();
-                    }
+                    let children =
+                        container_layout_children(&layer.container, |child_index, child| {
+                            child_path.push(child_index);
+                            let layout = child.project_runtime(scroll_stack, child_path, traversal);
+                            child_path.pop();
+                            layout
+                        });
                     end_container_runtime(is_scroll, scroll_stack);
+                    LayoutNode::container(
+                        layer.container.id,
+                        layer.container.policy.clone(),
+                        children,
+                    )
                 } else {
-                    for child in &layer.container.children {
-                        children.push(SlotChild::new(child.slot, child.child.layout_node()));
-                    }
+                    let children =
+                        container_layout_children(&layer.container, |_, child| child.layout_node());
+                    LayoutNode::container(
+                        layer.container.id,
+                        layer.container.policy.clone(),
+                        children,
+                    )
                 }
-                LayoutNode::container(layer.container.id, layer.container.policy.clone(), children)
             }
         }
     }
@@ -212,44 +152,15 @@ impl<Message> SurfaceNode<Message> {
     ) {
         match self {
             Self::Scene(scene) => {
-                if !scene.has_layers() {
-                    scene
-                        .base
-                        .collect_runtime_index(scroll_stack, child_path, traversal);
-                    return;
-                }
-                child_path.push(0);
-                scene
-                    .base
-                    .collect_runtime_index(scroll_stack, child_path, traversal);
-                child_path.pop();
-
-                let mut scene_child_index = 1;
-                for layer in scene.ordered_layers() {
-                    if let Some(input) = &layer.input {
-                        child_path.push(scene_child_index);
-                        input.collect_runtime_index(scroll_stack, child_path, traversal);
-                        child_path.pop();
-                        scene_child_index += 1;
-                    }
-
-                    child_path.push(scene_child_index);
-                    layer
-                        .node
-                        .collect_runtime_index(scroll_stack, child_path, traversal);
-                    child_path.pop();
-                    scene_child_index += 1;
-                }
+                visit_scene_children(scene, child_path, |child, child_path| {
+                    child.collect_runtime_index(scroll_stack, child_path, traversal);
+                });
             }
             Self::Container(container) => {
                 let is_scroll = begin_container_runtime(container, scroll_stack, traversal);
-                for (child_index, child) in container.children.iter().enumerate() {
-                    child_path.push(child_index);
-                    child
-                        .child
-                        .collect_runtime_index(scroll_stack, child_path, traversal);
-                    child_path.pop();
-                }
+                visit_container_children(container, child_path, |child, child_path| {
+                    child.collect_runtime_index(scroll_stack, child_path, traversal);
+                });
                 end_container_runtime(is_scroll, scroll_stack);
             }
             Self::Widget(widget) => {
@@ -261,16 +172,117 @@ impl<Message> SurfaceNode<Message> {
                     return;
                 }
                 let is_scroll = begin_container_runtime(&layer.container, scroll_stack, traversal);
-                for (child_index, child) in layer.container.children.iter().enumerate() {
-                    child_path.push(child_index);
-                    child
-                        .child
-                        .collect_runtime_index(scroll_stack, child_path, traversal);
-                    child_path.pop();
-                }
+                visit_container_children(&layer.container, child_path, |child, child_path| {
+                    child.collect_runtime_index(scroll_stack, child_path, traversal);
+                });
                 end_container_runtime(is_scroll, scroll_stack);
             }
         }
+    }
+}
+
+fn scene_layout_node<Message>(
+    scene: &SurfaceScene<Message>,
+    mut child_layout: impl FnMut(usize, &SurfaceNode<Message>) -> LayoutNode,
+) -> LayoutNode {
+    if !scene.has_layers() {
+        return child_layout(0, &scene.base);
+    }
+    let mut children = Vec::with_capacity(1 + scene.ordered_layer_child_count());
+    push_scene_layout_children(scene, &mut children, child_layout);
+    LayoutNode::container(
+        scene.id,
+        ContainerPolicy {
+            kind: ContainerKind::Stack,
+            ..ContainerPolicy::default()
+        },
+        children,
+    )
+}
+
+fn push_scene_layout_children<Message>(
+    scene: &SurfaceScene<Message>,
+    children: &mut Vec<SlotChild>,
+    mut child_layout: impl FnMut(usize, &SurfaceNode<Message>) -> LayoutNode,
+) {
+    children.push(SlotChild::new(
+        SlotParams::fill(),
+        child_layout(0, &scene.base),
+    ));
+
+    let mut scene_child_index = 1;
+    for layer in scene.ordered_layers() {
+        if let Some(input) = &layer.input {
+            children.push(SlotChild::new(
+                SlotParams::fill(),
+                child_layout(scene_child_index, input),
+            ));
+            scene_child_index += 1;
+        }
+
+        children.push(SlotChild::new(
+            SlotParams::fill(),
+            child_layout(scene_child_index, &layer.node),
+        ));
+        scene_child_index += 1;
+    }
+}
+
+#[cfg(test)]
+fn visit_scene_children<Message>(
+    scene: &SurfaceScene<Message>,
+    child_path: &mut Vec<usize>,
+    mut visit_child: impl FnMut(&SurfaceNode<Message>, &mut Vec<usize>),
+) {
+    if !scene.has_layers() {
+        visit_child(&scene.base, child_path);
+        return;
+    }
+
+    child_path.push(0);
+    visit_child(&scene.base, child_path);
+    child_path.pop();
+
+    let mut scene_child_index = 1;
+    for layer in scene.ordered_layers() {
+        if let Some(input) = &layer.input {
+            child_path.push(scene_child_index);
+            visit_child(input, child_path);
+            child_path.pop();
+            scene_child_index += 1;
+        }
+
+        child_path.push(scene_child_index);
+        visit_child(&layer.node, child_path);
+        child_path.pop();
+        scene_child_index += 1;
+    }
+}
+
+fn container_layout_children<Message>(
+    container: &SurfaceContainer<Message>,
+    mut child_layout: impl FnMut(usize, &SurfaceNode<Message>) -> LayoutNode,
+) -> Vec<SlotChild> {
+    let mut children = Vec::with_capacity(container.children.len());
+    for (child_index, child) in container.children.iter().enumerate() {
+        children.push(SlotChild::new(
+            child.slot,
+            child_layout(child_index, &child.child),
+        ));
+    }
+    children
+}
+
+#[cfg(test)]
+fn visit_container_children<Message>(
+    container: &SurfaceContainer<Message>,
+    child_path: &mut Vec<usize>,
+    mut visit_child: impl FnMut(&SurfaceNode<Message>, &mut Vec<usize>),
+) {
+    for (child_index, child) in container.children.iter().enumerate() {
+        child_path.push(child_index);
+        visit_child(&child.child, child_path);
+        child_path.pop();
     }
 }
 

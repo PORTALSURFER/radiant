@@ -5,7 +5,7 @@ mod commands;
 mod platform;
 mod surface;
 
-pub use business::BusinessRuntime;
+pub use business::{BusinessRuntime, BusinessWorkContext};
 
 /// UI-safe context supplied to app message handlers.
 ///

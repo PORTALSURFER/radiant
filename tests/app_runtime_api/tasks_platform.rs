@@ -19,6 +19,12 @@ fn take_perform(
 }
 
 #[test]
+fn business_work_context_is_explicit_runtime_api_not_prelude_app_api() {
+    type WorkerContext = radiant::runtime::BusinessWorkContext;
+    let _accepts_worker_context = WorkerContext::is_cancelled as fn(&WorkerContext) -> bool;
+}
+
+#[test]
 fn latest_task_tracks_current_ticket_and_tags_spawned_completion() {
     let mut latest = radiant::prelude::LatestTask::new();
     let first = latest.begin();

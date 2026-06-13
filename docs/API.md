@@ -129,6 +129,9 @@ audio/image/data decoding or loading, cache hydration, network or process
 work, sleeps, blocking waits or joins, thread creation, long CPU transforms,
 and helper calls that hide those operations must leave the UI path through
 `context.business().interactive(...)`, `.background(...)`, or `.idle(...)`.
+Worker closures receive `radiant::runtime::BusinessWorkContext` as an explicit
+runtime capability so helper signatures can inspect cooperative cancellation
+without importing it from the normal app prelude or constructing it in UI code.
 Platform interactions such as file dialogs, reveal/open, clipboard text and
 file-list reads/writes, confirmation prompts, and native handoffs must use
 typed Radiant platform services instead of direct blocking calls from handlers.
@@ -871,8 +874,8 @@ should select the first or last option before subsequent movement wraps.
 `CancellationToken` and `context.business().background(...).cancellable()`
 provide a small cooperative-cancellation contract for long host-owned jobs.
 Radiant still does not force-stop work; applications keep a token clone and
-workers check `BusinessWorkContext::is_cancelled()` at natural boundaries before
-returning early.
+workers check `radiant::runtime::BusinessWorkContext::is_cancelled()` at natural
+boundaries before returning early.
 `WindowSpec` describes one host-managed window without opening the platform
 runtime. `WindowManifest` stores ordered specs and rejects duplicate stable
 keys, non-positive or non-finite logical sizes, and non-finite popup positions,

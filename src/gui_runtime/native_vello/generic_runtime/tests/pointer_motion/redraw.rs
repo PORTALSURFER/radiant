@@ -1,12 +1,16 @@
 use super::{
     super::{GenericNativeRuntimeCore, GenericNativeVelloRunner, RenderFrameProfile, demo_bridge},
-    fixtures::{LocalPointerMoveBridge, PointerMoveBridge},
+    fixtures::{
+        AdjacentTreeRowsBridge, DisclosureAndTreeRowBridge, LocalPointerMoveBridge,
+        PointerMoveBridge, VirtualTreeRowsBridge,
+    },
 };
 use crate::{
     layout::{Point, Vector2},
-    runtime::NativeRunOptions,
+    runtime::{NativeRunOptions, PaintPrimitive},
     widgets::PointerButton,
 };
+use winit::dpi::PhysicalPosition;
 
 #[test]
 fn pointer_move_inside_same_widget_does_not_request_redundant_redraw() {
@@ -189,4 +193,245 @@ fn local_pointer_move_state_inside_same_widget_requests_redraw() {
 
     assert!(second.routed);
     assert!(second.needs_redraw());
+}
+
+#[test]
+fn adjacent_tree_row_hover_transition_clears_previous_row_and_rebuilds_scene() {
+    let mut core = GenericNativeRuntimeCore::new(AdjacentTreeRowsBridge, Vector2::new(220.0, 48.0));
+    let first = core
+        .runtime
+        .layout()
+        .rects
+        .get(&81)
+        .copied()
+        .expect("first tree row should be laid out");
+    let second = core
+        .runtime
+        .layout()
+        .rects
+        .get(&82)
+        .copied()
+        .expect("second tree row should be laid out");
+
+    let enter_first = core.route_pointer_move(first.center());
+    assert!(enter_first.needs_scene_rebuild());
+    assert_eq!(core.runtime.hovered_widget(), Some(81));
+    assert!(
+        core.runtime
+            .surface()
+            .find_widget(81)
+            .expect("first row")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+
+    let enter_second = core.route_pointer_move(second.center());
+
+    assert!(
+        enter_second.needs_scene_rebuild(),
+        "moving between adjacent hover-painted tree rows must rebuild the scene"
+    );
+    assert_eq!(core.runtime.hovered_widget(), Some(82));
+    assert!(
+        !core
+            .runtime
+            .surface()
+            .find_widget(81)
+            .expect("first row")
+            .widget()
+            .common()
+            .state
+            .hovered,
+        "previous tree row hover must clear when the pointer enters another row"
+    );
+    assert!(
+        core.runtime
+            .surface()
+            .find_widget(82)
+            .expect("second row")
+            .widget()
+            .common()
+            .state
+            .hovered,
+        "current tree row should own the hover state"
+    );
+}
+
+#[test]
+fn disclosure_and_tree_row_hover_transitions_clear_previous_target() {
+    let mut core =
+        GenericNativeRuntimeCore::new(DisclosureAndTreeRowBridge, Vector2::new(220.0, 28.0));
+    let disclosure = core
+        .runtime
+        .layout()
+        .rects
+        .get(&83)
+        .copied()
+        .expect("disclosure should be laid out");
+    let row = core
+        .runtime
+        .layout()
+        .rects
+        .get(&84)
+        .copied()
+        .expect("tree row should be laid out");
+
+    let enter_disclosure = core.route_pointer_move(disclosure.center());
+    assert!(enter_disclosure.needs_scene_rebuild());
+    assert_eq!(core.runtime.hovered_widget(), Some(83));
+
+    let enter_row = core.route_pointer_move(row.center());
+    assert!(
+        enter_row.needs_scene_rebuild(),
+        "moving from disclosure to row label must rebuild hover paint"
+    );
+    assert_eq!(core.runtime.hovered_widget(), Some(84));
+    assert!(
+        !core
+            .runtime
+            .surface()
+            .find_widget(83)
+            .expect("disclosure")
+            .widget()
+            .common()
+            .state
+            .hovered,
+        "disclosure hover must clear after the pointer enters the row"
+    );
+    assert!(
+        core.runtime
+            .surface()
+            .find_widget(84)
+            .expect("tree row")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+
+    let return_to_disclosure = core.route_pointer_move(disclosure.center());
+    assert!(
+        return_to_disclosure.needs_scene_rebuild(),
+        "moving from row label back to disclosure must rebuild hover paint"
+    );
+    assert_eq!(core.runtime.hovered_widget(), Some(83));
+    assert!(
+        !core
+            .runtime
+            .surface()
+            .find_widget(84)
+            .expect("tree row")
+            .widget()
+            .common()
+            .state
+            .hovered,
+        "row hover must clear after the pointer enters the disclosure"
+    );
+    assert!(
+        core.runtime
+            .surface()
+            .find_widget(83)
+            .expect("disclosure")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+}
+
+#[test]
+fn native_runner_tree_row_hover_transition_rebuilds_visible_paint_plan() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        AdjacentTreeRowsBridge,
+        Vector2::new(220.0, 48.0),
+    );
+    runner.rebuild_scene();
+    let first = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&81)
+        .copied()
+        .expect("first tree row should be laid out");
+    let second = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&82)
+        .copied()
+        .expect("second tree row should be laid out");
+
+    runner.handle_cursor_moved(physical_position(first.center()));
+    assert!(row_fill_visible(
+        &runner.frame.last_paint_plan.primitives,
+        81
+    ));
+
+    runner.handle_cursor_moved(physical_position(second.center()));
+
+    assert!(
+        !row_fill_visible(&runner.frame.last_paint_plan.primitives, 81),
+        "native runner paint plan must drop the previous tree-row hover fill"
+    );
+    assert!(row_fill_visible(
+        &runner.frame.last_paint_plan.primitives,
+        82
+    ));
+}
+
+#[test]
+fn native_runner_virtual_tree_row_hover_transition_rebuilds_visible_paint_plan() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        VirtualTreeRowsBridge,
+        Vector2::new(220.0, 72.0),
+    );
+    runner.rebuild_scene();
+
+    runner.handle_cursor_moved(physical_position(Point::new(40.0, 33.0)));
+    let first_hover = runner
+        .core
+        .runtime
+        .hovered_widget()
+        .expect("first virtual tree row should be hovered");
+    assert!(row_fill_visible(
+        &runner.frame.last_paint_plan.primitives,
+        first_hover
+    ));
+
+    runner.handle_cursor_moved(physical_position(Point::new(40.0, 55.0)));
+    let second_hover = runner
+        .core
+        .runtime
+        .hovered_widget()
+        .expect("second virtual tree row should be hovered");
+
+    assert_ne!(first_hover, second_hover);
+    assert!(
+        !row_fill_visible(&runner.frame.last_paint_plan.primitives, first_hover),
+        "native runner virtual tree paint plan must drop the previous hover fill"
+    );
+    assert!(row_fill_visible(
+        &runner.frame.last_paint_plan.primitives,
+        second_hover
+    ));
+}
+
+fn physical_position(point: Point) -> PhysicalPosition<f64> {
+    PhysicalPosition::new(point.x as f64, point.y as f64)
+}
+
+fn row_fill_visible(primitives: &[PaintPrimitive], widget_id: u64) -> bool {
+    primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if fill.widget_id == widget_id && fill.rect.has_finite_positive_area()
+        )
+    })
 }

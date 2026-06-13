@@ -45,10 +45,13 @@ where
         let dispatch =
             self.dispatch_pointer_move_target_with_refresh(position, refresh_after_message);
         let target = dispatch.target;
-        let repaint_requested = self.take_repaint_requested();
-        let exit_requested = self.take_exit_requested();
         let hover_changed = previous_hovered_widget != self.interaction.hover.widget
             || previous_hovered_container != self.interaction.hover.container;
+        if hover_changed {
+            self.clear_retained_hover_except(self.interaction.hover.widget);
+        }
+        let repaint_requested = self.take_repaint_requested();
+        let exit_requested = self.take_exit_requested();
         let pointer_captured = self.interaction.pointer.capture.is_some();
         let target_prefers_paint_only =
             target.is_some_and(|widget_id| self.widget_prefers_pointer_move_paint_only(widget_id));
@@ -182,10 +185,33 @@ where
             }
             cleared = true;
         }
+        cleared |= self.clear_retained_hover_except(None);
         if self.interaction.hover.container.take().is_some() {
             cleared = true;
         }
         if self.interaction.hover.scroll_affordance.take().is_some() {
+            cleared = true;
+        }
+        if cleared {
+            self.repaint_requested = true;
+        }
+        cleared
+    }
+
+    fn clear_retained_hover_except(&mut self, owner: Option<WidgetId>) -> bool {
+        let mut cleared = false;
+        for index in 0..self.traversal.widgets.stateful_order.len() {
+            let widget_id = self.traversal.widgets.stateful_order[index];
+            if Some(widget_id) == owner {
+                continue;
+            }
+            let Some(widget) = self.surface.find_widget_mut(widget_id) else {
+                continue;
+            };
+            if !widget.widget_object().common().state.hovered {
+                continue;
+            }
+            widget.widget_object_mut().common_mut().state.hovered = false;
             cleared = true;
         }
         if cleared {

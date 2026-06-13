@@ -1,4 +1,6 @@
 use crate::{
+    application::IntoView,
+    gui::list::{TreeGuideRow, TreeGuideStyle, VirtualListWindow},
     layout::{Point, Rect, Vector2},
     runtime::{
         PaintFillRect, PaintPrimitive, RuntimeBridge, SurfaceNode, UiSurface, WidgetMessageMapper,
@@ -196,6 +198,105 @@ impl RuntimeBridge<()> for PaintOnlyPointerMoveBridge {
             PaintOnlyPointerMoveWidget::new(),
             WidgetMessageMapper::none(),
         )))
+    }
+
+    fn reduce_message(&mut self, _message: ()) {}
+}
+
+pub(super) struct AdjacentTreeRowsBridge;
+
+impl RuntimeBridge<()> for AdjacentTreeRowsBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        use crate::application::{column, row_actions, tree_row};
+
+        Arc::new(
+            column([
+                tree_row("One")
+                    .input_id(81)
+                    .row_height(22.0)
+                    .interactive_actions(row_actions()),
+                tree_row("Two")
+                    .input_id(82)
+                    .row_height(22.0)
+                    .interactive_actions(row_actions()),
+            ])
+            .spacing(0.0)
+            .into_surface(),
+        )
+    }
+
+    fn reduce_message(&mut self, _message: ()) {}
+}
+
+pub(super) struct DisclosureAndTreeRowBridge;
+
+impl RuntimeBridge<()> for DisclosureAndTreeRowBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        use crate::application::{disclosure_button, row, row_actions, tree_row};
+
+        Arc::new(
+            row([
+                disclosure_button(false)
+                    .subtle()
+                    .mapped(|_| ())
+                    .id(83)
+                    .size(28.0, 22.0),
+                tree_row("Folder")
+                    .input_id(84)
+                    .row_height(22.0)
+                    .interactive_actions(row_actions()),
+            ])
+            .spacing(1.0)
+            .into_surface(),
+        )
+    }
+
+    fn reduce_message(&mut self, _message: ()) {}
+}
+
+pub(super) struct VirtualTreeRowsBridge;
+
+impl RuntimeBridge<()> for VirtualTreeRowsBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        use crate::{
+            application::{row_actions, tree_row, virtual_tree_list_window},
+            gui::types::Rgba8,
+        };
+
+        let window = VirtualListWindow {
+            total_items: 3,
+            viewport_start: 0,
+            viewport_end: 3,
+            window_start: 0,
+            window_end: 3,
+        };
+        let guide_rows = [
+            TreeGuideRow::new(0, true),
+            TreeGuideRow::new(1, false),
+            TreeGuideRow::new(1, false),
+        ];
+        let labels = ["Root", "One", "Two"];
+
+        Arc::new(
+            virtual_tree_list_window(
+                window,
+                22.0,
+                &guide_rows,
+                TreeGuideStyle::new(12.0, 22.0, Rgba8::new(90, 120, 160, 255)),
+                |index| {
+                    tree_row(labels[index])
+                        .row_key(format!("folder-row-{index}"))
+                        .hit_key(format!("folder-row-hit-{index}"))
+                        .depth(guide_rows[index].depth)
+                        .has_children(guide_rows[index].starts_descendant_group)
+                        .expanded(true)
+                        .row_height(22.0)
+                        .interactive_actions(row_actions())
+                },
+                22.0,
+            )
+            .into_surface(),
+        )
     }
 
     fn reduce_message(&mut self, _message: ()) {}

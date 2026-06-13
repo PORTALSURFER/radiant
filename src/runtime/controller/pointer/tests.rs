@@ -164,3 +164,51 @@ fn refresh_clears_retained_hover_from_non_owner_widgets() {
             .hovered
     );
 }
+
+#[test]
+fn pointer_hover_transition_clears_retained_hover_from_non_owner_widgets() {
+    let mut runtime = SurfaceRuntime::new(FocusTestBridge, Vector2::new(200.0, 80.0));
+
+    runtime.dispatch_input(
+        10,
+        WidgetInput::PointerMove {
+            position: Point::new(4.0, 4.0),
+        },
+    );
+    assert!(
+        runtime
+            .surface()
+            .find_widget(10)
+            .expect("stale hover widget")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+
+    let outcome = runtime.dispatch_pointer_move_with_outcome(Point::new(4.0, 32.0));
+
+    assert!(outcome.hover_changed);
+    assert_eq!(runtime.hovered_widget(), Some(20));
+    assert!(
+        !runtime
+            .surface()
+            .find_widget(10)
+            .expect("stale hover widget")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+    assert!(
+        runtime
+            .surface()
+            .find_widget(20)
+            .expect("current hover widget")
+            .widget()
+            .common()
+            .state
+            .hovered
+    );
+    assert!(outcome.needs_redraw());
+}

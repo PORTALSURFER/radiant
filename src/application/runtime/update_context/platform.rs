@@ -150,6 +150,31 @@ impl<Message> UiUpdateContext<Message> {
         self.platform_request(PlatformRequest::CopyText(text.into()), on_completed);
     }
 
+    /// Ask the platform integration to copy file paths to the system clipboard.
+    pub fn copy_file_paths(
+        &mut self,
+        paths: impl Into<Vec<std::path::PathBuf>>,
+        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
+    ) {
+        self.platform_request(PlatformRequest::CopyFilePaths(paths.into()), on_completed);
+    }
+
+    /// Ask the platform integration to read text from the system clipboard.
+    pub fn read_text(
+        &mut self,
+        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
+    ) {
+        self.platform_request(PlatformRequest::ReadText, on_completed);
+    }
+
+    /// Ask the platform integration to read file paths from the system clipboard.
+    pub fn read_file_paths(
+        &mut self,
+        on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
+    ) {
+        self.platform_request(PlatformRequest::ReadFilePaths, on_completed);
+    }
+
     /// Ask the platform integration to show a confirmation dialog.
     pub fn confirm(
         &mut self,

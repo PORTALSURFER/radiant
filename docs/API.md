@@ -129,9 +129,9 @@ audio/image/data decoding or loading, cache hydration, network or process
 work, sleeps, blocking waits or joins, thread creation, long CPU transforms,
 and helper calls that hide those operations must leave the UI path through
 `context.business().interactive(...)`, `.background(...)`, or `.idle(...)`.
-Platform interactions such as file dialogs, reveal/open, clipboard,
-confirmation prompts, and native handoffs must use typed Radiant platform
-services instead of direct blocking calls from handlers.
+Platform interactions such as file dialogs, reveal/open, clipboard text and
+file-list reads/writes, confirmation prompts, and native handoffs must use
+typed Radiant platform services instead of direct blocking calls from handlers.
 
 This contract is mandatory for normal Radiant applications. During the current
 breaking migration, older command-returning or generic command-injection paths
@@ -806,11 +806,13 @@ fractional logical dimensions.
 For host-visible platform services, reducers can queue typed
 `PlatformRequest` commands through `UiUpdateContext::platform_request(...)`,
 `pick_folder(...)`, `pick_file(...)`, `save_file(...)`, `open_path(...)`,
-`open_url(...)`, or `confirm(...)`. Custom bridges handle those requests via
+`reveal_path(...)`, `open_url(...)`, `copy_text(...)`,
+`copy_file_paths(...)`, `read_text(...)`, `read_file_paths(...)`, or
+`confirm(...)`. Custom bridges handle those requests via
 `RuntimeBridge::request_platform_service(...)`; bridges that do not provide a
 platform service return an explicit unsupported error through the normal
 completion callback instead of blocking the UI thread or forcing app code to
-depend on a native dialog crate.
+depend on a native dialog or clipboard crate.
 `NativeGpuOptions` and `NativeGpuBackend` keep WGPU backend selection explicit
 without exposing normal app code to raw WGPU setup; the default remains WGPU's
 environment-aware adapter selection, while diagnostics or platform work can

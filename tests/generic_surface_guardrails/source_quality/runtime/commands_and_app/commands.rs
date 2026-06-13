@@ -130,6 +130,9 @@ fn ui_update_context_keeps_followup_command_groups_in_focused_modules() {
         platform.contains("pub fn begin_external_drag")
             && platform.contains("pub fn platform_request")
             && platform.contains("pub fn pick_folder")
+            && platform.contains("pub fn reveal_path")
+            && platform.contains("pub fn copy_file_paths")
+            && platform.contains("pub fn read_file_paths")
             && platform.contains("pub fn confirm"),
         "platform and external-drag helpers should live in update_context/platform.rs"
     );

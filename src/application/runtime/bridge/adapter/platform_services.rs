@@ -48,6 +48,9 @@ fn perform_platform_request(request: PlatformRequest) -> PlatformResult {
         PlatformRequest::RevealPath(path) => reveal_path(path),
         PlatformRequest::OpenUrl(url) => open_url(url),
         PlatformRequest::CopyText(text) => copy_text(text),
+        PlatformRequest::CopyFilePaths(paths) => copy_file_paths(paths),
+        PlatformRequest::ReadText => read_text(),
+        PlatformRequest::ReadFilePaths => read_file_paths(),
         PlatformRequest::Confirm(request) => confirm(request),
     }
 }
@@ -164,6 +167,38 @@ fn copy_text(text: String) -> PlatformResult {
         .set_text(text)
         .map_err(|err| format!("Failed to copy text: {err}"))?;
     Ok(PlatformResponse::Completed)
+}
+
+fn copy_file_paths(paths: Vec<std::path::PathBuf>) -> PlatformResult {
+    if paths.is_empty() {
+        return Err(String::from("No file paths to copy"));
+    }
+    let mut clipboard =
+        arboard::Clipboard::new().map_err(|err| format!("Failed to open clipboard: {err}"))?;
+    clipboard
+        .set()
+        .file_list(&paths)
+        .map_err(|err| format!("Failed to copy file paths: {err}"))?;
+    Ok(PlatformResponse::Completed)
+}
+
+fn read_text() -> PlatformResult {
+    let mut clipboard =
+        arboard::Clipboard::new().map_err(|err| format!("Failed to open clipboard: {err}"))?;
+    clipboard
+        .get_text()
+        .map(PlatformResponse::Text)
+        .map_err(|err| format!("Failed to read clipboard text: {err}"))
+}
+
+fn read_file_paths() -> PlatformResult {
+    let mut clipboard =
+        arboard::Clipboard::new().map_err(|err| format!("Failed to open clipboard: {err}"))?;
+    clipboard
+        .get()
+        .file_list()
+        .map(PlatformResponse::FilePaths)
+        .map_err(|err| format!("Failed to read clipboard file paths: {err}"))
 }
 
 fn confirm(request: crate::runtime::ConfirmDialogRequest) -> PlatformResult {

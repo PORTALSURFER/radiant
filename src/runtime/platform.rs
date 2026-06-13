@@ -17,6 +17,12 @@ pub enum PlatformRequest {
     OpenUrl(String),
     /// Ask the platform integration to copy text to the system clipboard.
     CopyText(String),
+    /// Ask the platform integration to copy file paths to the system clipboard.
+    CopyFilePaths(Vec<PathBuf>),
+    /// Ask the platform integration to read text from the system clipboard.
+    ReadText,
+    /// Ask the platform integration to read file paths from the system clipboard.
+    ReadFilePaths,
     /// Ask the platform integration to show a confirmation dialog.
     Confirm(ConfirmDialogRequest),
 }
@@ -28,6 +34,10 @@ pub enum PlatformResponse {
     Completed,
     /// The user chose a path.
     Path(PathBuf),
+    /// The platform returned text.
+    Text(String),
+    /// The platform returned file paths.
+    FilePaths(Vec<PathBuf>),
     /// The user canceled a path picker.
     Canceled,
     /// The user answered a confirmation dialog.
@@ -57,6 +67,22 @@ impl PlatformResponse {
     pub fn into_path(self) -> Option<PathBuf> {
         match self {
             Self::Path(path) => Some(path),
+            _ => None,
+        }
+    }
+
+    /// Consume and return text from a clipboard-style platform request.
+    pub fn into_text(self) -> Option<String> {
+        match self {
+            Self::Text(text) => Some(text),
+            _ => None,
+        }
+    }
+
+    /// Consume and return file paths from a clipboard-style platform request.
+    pub fn into_file_paths(self) -> Option<Vec<PathBuf>> {
+        match self {
+            Self::FilePaths(paths) => Some(paths),
             _ => None,
         }
     }
@@ -114,6 +140,12 @@ pub trait PlatformResultExt {
 
     /// Consume and return the confirmation response from a confirmation dialog.
     fn into_confirmation(self) -> Result<ConfirmationResponse, String>;
+
+    /// Consume and return text from a clipboard-style platform request.
+    fn into_text(self) -> Result<String, String>;
+
+    /// Consume and return file paths from a clipboard-style platform request.
+    fn into_file_paths(self) -> Result<Vec<PathBuf>, String>;
 }
 
 impl PlatformResultExt for PlatformResult {
@@ -130,6 +162,20 @@ impl PlatformResultExt for PlatformResult {
     fn into_confirmation(self) -> Result<ConfirmationResponse, String> {
         match self? {
             PlatformResponse::Confirmation(response) => Ok(response),
+            other => Err(unexpected_platform_response(other)),
+        }
+    }
+
+    fn into_text(self) -> Result<String, String> {
+        match self? {
+            PlatformResponse::Text(text) => Ok(text),
+            other => Err(unexpected_platform_response(other)),
+        }
+    }
+
+    fn into_file_paths(self) -> Result<Vec<PathBuf>, String> {
+        match self? {
+            PlatformResponse::FilePaths(paths) => Ok(paths),
             other => Err(unexpected_platform_response(other)),
         }
     }
@@ -344,6 +390,19 @@ mod tests {
                 ConfirmationResponse::Accepted,
             ))),
             Ok(ConfirmationResponse::Accepted)
+        );
+    }
+
+    #[test]
+    fn platform_result_ext_decodes_clipboard_results() {
+        let paths = vec![PathBuf::from("/samples/kick.wav")];
+        assert_eq!(
+            PlatformResultExt::into_text(Ok(PlatformResponse::Text(String::from("copied")))),
+            Ok(String::from("copied"))
+        );
+        assert_eq!(
+            PlatformResultExt::into_file_paths(Ok(PlatformResponse::FilePaths(paths.clone()))),
+            Ok(paths)
         );
     }
 }

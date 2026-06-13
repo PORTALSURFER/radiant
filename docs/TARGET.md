@@ -369,8 +369,9 @@ The target app-facing model is:
   lanes, such as `context.business().interactive(...)`,
   `.background(...)`, or `.idle(...)`.
 - Platform side effects that belong to the GUI/runtime boundary, such as file
-  dialogs, reveal/open, clipboard, confirmation prompts, and native handoffs,
-  are requested through typed Radiant platform services.
+  dialogs, reveal/open, clipboard text/file-list reads and writes,
+  confirmation prompts, and native handoffs, are requested through typed
+  Radiant platform services.
 - Worker closures receive business context and return results through the
   normal message path; they do not mutate UI state directly.
 

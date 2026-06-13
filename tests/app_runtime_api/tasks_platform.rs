@@ -196,7 +196,17 @@ fn ui_update_context_exposes_platform_service_helpers() {
     context.open_path(std::path::PathBuf::from(r"C:\samples"), |_| {
         DemoMessage::Increment
     });
+    context.reveal_path(std::path::PathBuf::from(r"C:\samples\kick.wav"), |_| {
+        DemoMessage::Increment
+    });
     context.open_url("https://example.invalid", |_| DemoMessage::Increment);
+    context.copy_text("C:/samples/kick.wav", |_| DemoMessage::Increment);
+    context.copy_file_paths(
+        vec![std::path::PathBuf::from(r"C:\samples\kick.wav")],
+        |_| DemoMessage::Increment,
+    );
+    context.read_text(|_| DemoMessage::Increment);
+    context.read_file_paths(|_| DemoMessage::Increment);
     context.confirm(
         radiant::runtime::ConfirmDialogRequest::new("Delete sample", "Delete selected sample?"),
         |_| DemoMessage::Increment,
@@ -235,6 +245,13 @@ fn platform_response_helpers_cover_common_request_outcomes() {
         confirmation.into_confirmation(),
         Some(radiant::prelude::ConfirmationResponse::Accepted)
     );
+
+    let text = radiant::prelude::PlatformResponse::Text(String::from("C:/samples/kick.wav"));
+    assert_eq!(text.into_text(), Some(String::from("C:/samples/kick.wav")));
+
+    let paths = vec![std::path::PathBuf::from(r"C:\samples\kick.wav")];
+    let file_paths = radiant::prelude::PlatformResponse::FilePaths(paths.clone());
+    assert_eq!(file_paths.into_file_paths(), Some(paths));
 }
 
 #[test]

@@ -21,6 +21,10 @@ impl<Message> Default for UpdateContext<Message> {
 }
 
 impl<Message> UpdateContext<Message> {
+    pub(in crate::application) fn queue_command(&mut self, command: Command<Message>) {
+        self.commands.push(command);
+    }
+
     /// Access Radiant's business-work submission API.
     ///
     /// Use this for host-owned IO, decoding, cache hydration, persistence,

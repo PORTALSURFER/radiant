@@ -15,7 +15,7 @@ impl<Message> UpdateContext<Message> {
         request: ExternalDragRequest,
         on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static,
     ) {
-        self.command(Command::begin_external_drag(request, on_completed));
+        self.queue_command(Command::begin_external_drag(request, on_completed));
     }
 
     /// Begin an in-window drag preview and arm a matching native external drag.
@@ -28,7 +28,7 @@ impl<Message> UpdateContext<Message> {
         external: ExternalDragRequest,
         on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static,
     ) {
-        self.command(Command::begin_drag_with_external(
+        self.queue_command(Command::begin_drag_with_external(
             drag,
             external,
             on_completed,
@@ -46,17 +46,17 @@ impl<Message> UpdateContext<Message> {
         external: Option<ExternalDragRequest>,
         on_completed: impl FnOnce(Result<ExternalDragOutcome, String>) -> Message + Send + 'static,
     ) {
-        self.command(Command::begin_drag_session(drag, external, on_completed));
+        self.queue_command(Command::begin_drag_session(drag, external, on_completed));
     }
 
     /// Arm a native external drag session without completion notification.
     pub fn begin_external_drag_without_completion(&mut self, request: ExternalDragRequest) {
-        self.command(Command::begin_external_drag_without_completion(request));
+        self.queue_command(Command::begin_external_drag_without_completion(request));
     }
 
     /// Clear any active native external drag session.
     pub fn end_external_drag(&mut self) {
-        self.command(Command::end_external_drag());
+        self.queue_command(Command::end_external_drag());
     }
 
     /// End the active pointer drag preview and any armed native external drag.
@@ -70,12 +70,12 @@ impl<Message> UpdateContext<Message> {
 
     /// Begin a runtime-owned pointer drag preview session.
     pub fn begin_drag(&mut self, request: DragRequest) {
-        self.command(Command::begin_drag(request));
+        self.queue_command(Command::begin_drag(request));
     }
 
     /// End any active runtime-owned pointer drag preview session.
     pub fn end_drag(&mut self) {
-        self.command(Command::end_drag());
+        self.queue_command(Command::end_drag());
     }
 
     /// Request a platform service through the active runtime bridge.
@@ -84,7 +84,7 @@ impl<Message> UpdateContext<Message> {
         request: PlatformRequest,
         on_completed: impl FnOnce(PlatformResult) -> Message + Send + 'static,
     ) {
-        self.command(Command::platform_request(request, on_completed));
+        self.queue_command(Command::platform_request(request, on_completed));
     }
 
     /// Ask the platform integration to choose a folder.

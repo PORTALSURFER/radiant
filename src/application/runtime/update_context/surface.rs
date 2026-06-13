@@ -10,12 +10,12 @@ use super::UpdateContext;
 impl<Message> UpdateContext<Message> {
     /// Move keyboard focus to a widget.
     pub fn focus(&mut self, widget_id: WidgetId) {
-        self.command(Command::focus(widget_id));
+        self.queue_command(Command::focus(widget_id));
     }
 
     /// Move one scroll container to a logical offset.
     pub fn scroll_to(&mut self, node_id: NodeId, offset: Vector2) {
-        self.command(Command::scroll_to(node_id, offset));
+        self.queue_command(Command::scroll_to(node_id, offset));
     }
 
     /// Reveal a vertical span inside one scroll container.
@@ -27,7 +27,7 @@ impl<Message> UpdateContext<Message> {
         margin_top: f32,
         margin_bottom: f32,
     ) {
-        self.command(Command::scroll_into_view(
+        self.queue_command(Command::scroll_into_view(
             node_id,
             target_y,
             target_height,
@@ -38,7 +38,7 @@ impl<Message> UpdateContext<Message> {
 
     /// Reveal a vertical span inside one scroll container from named parts.
     pub fn scroll_into_view_from_parts(&mut self, parts: ScrollIntoViewParts) {
-        self.command(Command::scroll_into_view_from_parts(parts));
+        self.queue_command(Command::scroll_into_view_from_parts(parts));
     }
 
     /// Reveal a vertical span inside one scroll container and snap movement to a fixed row height.
@@ -51,7 +51,7 @@ impl<Message> UpdateContext<Message> {
         margin_bottom: f32,
         snap_y: f32,
     ) {
-        self.command(Command::scroll_into_view_snapped(
+        self.queue_command(Command::scroll_into_view_snapped(
             node_id,
             target_y,
             target_height,
@@ -63,7 +63,7 @@ impl<Message> UpdateContext<Message> {
 
     /// Reveal a fixed-stride row inside one scroll container from named parts.
     pub fn scroll_fixed_row_into_view_from_parts(&mut self, parts: ScrollFixedRowIntoViewParts) {
-        self.command(Command::scroll_fixed_row_into_view_from_parts(parts));
+        self.queue_command(Command::scroll_fixed_row_into_view_from_parts(parts));
     }
 
     /// Reveal a fixed-stride row inside one scroll container with directional context rows.
@@ -76,7 +76,7 @@ impl<Message> UpdateContext<Message> {
         trailing_context_rows: usize,
         direction: i32,
     ) {
-        self.command(Command::scroll_fixed_row_into_view(
+        self.queue_command(Command::scroll_fixed_row_into_view(
             node_id,
             row_index,
             row_stride,

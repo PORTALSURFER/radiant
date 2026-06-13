@@ -109,6 +109,7 @@ fn update_context_keeps_followup_command_groups_in_focused_modules() {
         "mod platform;",
         "mod surface;",
         "pub struct UpdateContext<Message>",
+        "pub(in crate::application) fn queue_command(&mut self, command: Command<Message>)",
         "fn business(&mut self) -> BusinessRuntime<'_, Message>",
         "fn into_command(self) -> Command<Message>",
     ] {
@@ -153,5 +154,38 @@ fn update_context_keeps_followup_command_groups_in_focused_modules() {
             && surface.contains("pub fn scroll_into_view_from_parts")
             && surface.contains("pub fn scroll_fixed_row_into_view_from_parts"),
         "focus and scroll helpers should live in update_context/surface.rs"
+    );
+}
+
+#[test]
+fn app_facing_runtime_surface_hides_command_escape_hatches() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let prelude_commands = fs::read_to_string(manifest_dir.join("src/prelude/runtime/commands.rs"))
+        .expect("runtime command prelude should be readable");
+    let update_context =
+        fs::read_to_string(manifest_dir.join("src/application/runtime/update_context.rs"))
+            .expect("application update context root should be readable");
+    let update_context_commands =
+        fs::read_to_string(manifest_dir.join("src/application/runtime/update_context/commands.rs"))
+            .expect("application update context command helpers should be readable");
+    let app_with_view =
+        fs::read_to_string(manifest_dir.join("src/application/launch/stateful/with_view.rs"))
+            .expect("stateful app with-view builder should be readable");
+
+    assert!(
+        !prelude_commands.contains("Command"),
+        "normal app prelude must not re-export runtime Command; apps should use typed UpdateContext helpers and context.business()"
+    );
+    assert!(
+        update_context.contains(
+            "pub(in crate::application) fn queue_command(&mut self, command: Command<Message>)"
+        ) && !update_context.contains("pub fn command(")
+            && !update_context_commands.contains("pub fn command("),
+        "UpdateContext may queue commands internally but must not expose arbitrary command injection to app handlers"
+    );
+    assert!(
+        !app_with_view.contains("pub fn update_command")
+            && !app_with_view.contains("context.command("),
+        "stateful app builders should not offer command-returning app handlers on the normal app-facing path"
     );
 }

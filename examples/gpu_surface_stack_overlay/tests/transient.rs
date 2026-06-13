@@ -45,7 +45,7 @@ fn animated_transient_overlay_requests_paint_only_frames() {
                     painted_probe.set(true);
                 },
             )
-            .update_command(|_state: &mut DemoState, _message| Command::none())
+            .handle_message(|_state: &mut DemoState, _message, _context| {})
             .into_bridge(),
         Vector2::new(SURFACE_WIDTH, SURFACE_HEIGHT),
     );

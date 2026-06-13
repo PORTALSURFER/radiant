@@ -4,7 +4,7 @@ use crate::{
         AppBridge, AppBridgeLifecycle, AppUpdate, Result, UpdateContext, launch::IntoView,
     },
     gui_runtime::NativeRunOptions,
-    runtime::{Command, RuntimeBridge, run_native_vello_runtime},
+    runtime::{RuntimeBridge, run_native_vello_runtime},
 };
 use std::marker::PhantomData;
 
@@ -66,7 +66,7 @@ where
     {
         self.handle_message(Box::new(move |state, message, context| {
             update(state, message);
-            context.command(Command::request_repaint());
+            context.request_repaint();
         }))
     }
 
@@ -117,18 +117,5 @@ where
         Update: FnMut(&mut State, Message, &mut UpdateContext<Message>) + 'static,
     {
         self.handle_message(update)
-    }
-
-    /// Attach a simple app message handler that returns runtime-visible commands.
-    pub fn update_command<Update>(
-        self,
-        mut update: Update,
-    ) -> RunnableStatefulApp<State, Message, Project, AppUpdate<State, Message>, View>
-    where
-        Update: FnMut(&mut State, Message) -> Command<Message> + 'static,
-    {
-        self.handle_message(Box::new(move |state, message, context| {
-            context.command(update(state, message));
-        }))
     }
 }

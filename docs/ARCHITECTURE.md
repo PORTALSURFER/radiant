@@ -192,7 +192,7 @@ Radiant is Windows-first today, but core GUI, runtime, widget, layout, and
 paint-plan code should stay platform-neutral. Windows-specific integration
 belongs in native runtime/windowing modules or explicitly named platform
 adapters. Platform services such as file dialogs and URL opening flow through
-typed `PlatformRequest` values and `RuntimeBridge::request_platform_service`.
+typed `PlatformRequest` commands and `RuntimeBridge::request_platform_service`.
 Application update handlers request those services through Radiant context
 helpers instead of calling platform APIs directly. The portable library
 boundary should keep compiling for future Linux and macOS targets even while

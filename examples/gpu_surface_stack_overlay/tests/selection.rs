@@ -92,12 +92,12 @@ fn runtime_resize_drag_previews_locally_and_commits_once() {
                     .size(SURFACE_WIDTH, SURFACE_HEIGHT),
                 ])
             })
-            .update_command(|state: &mut DemoState, message| match message {
+            .handle_message(|state: &mut DemoState, message, context| match message {
                 DemoMessage::CommitResize { start, end } => {
                     state.commit_selection(start, end);
-                    Command::request_repaint()
+                    context.request_repaint();
                 }
-                _ => Command::none(),
+                _ => {}
             })
             .into_bridge(),
         Vector2::new(SURFACE_WIDTH, SURFACE_HEIGHT + 32.0),

@@ -21,7 +21,7 @@ Rust GUI API that keeps small examples direct and readable:
 - `lists.rs` demonstrates dynamic children without much framework ceremony.
 
 Radiant should learn from those examples without copying Xilem's exact model.
-Radiant already has its own runtime, `Command`, `UpdateContext`, retained
+Radiant already has its own explicit runtime commands, `UpdateContext`, retained
 surface, custom widget, paint-plan, and host-integration contracts. The desired
 outcome is the same readability: application code should reveal UI structure,
 state ownership, and emitted intent without forcing readers into internals.

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn stateful_app_builder_projects_updates_and_preserves_commands() {
+fn stateful_app_builder_projects_updates_and_preserves_context_requests() {
     use radiant::prelude as ui;
 
     let mut bridge = ui::app(DemoState::default())
@@ -13,10 +13,10 @@ fn stateful_app_builder_projects_updates_and_preserves_commands() {
                 ui::button("Increment").message(DemoMessage::Increment),
             ])
         })
-        .update_command(|state, message| match message {
+        .handle_message(|state, message, context| match message {
             DemoMessage::Increment => {
                 state.count += 1;
-                Command::request_repaint()
+                context.request_repaint();
             }
         })
         .into_bridge();

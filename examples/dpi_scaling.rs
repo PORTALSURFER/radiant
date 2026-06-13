@@ -76,11 +76,8 @@ impl DpiScaleChoice {
 }
 
 fn apply_scale<Message>(context: &mut UpdateContext<Message>, choice: DpiScaleChoice) {
-    context.command(Command::set_dpi_scale(choice.scale()));
-    context.command(Command::set_window_logical_size(Vector2::new(
-        BASE_WINDOW_WIDTH,
-        BASE_WINDOW_HEIGHT,
-    )));
+    context.set_dpi_scale(choice.scale());
+    context.set_window_logical_size(Vector2::new(BASE_WINDOW_WIDTH, BASE_WINDOW_HEIGHT));
 }
 
 fn project_surface(state: &mut DpiScalingState) -> View<DpiScalingMessage> {

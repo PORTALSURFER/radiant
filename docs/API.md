@@ -30,7 +30,7 @@ and explicit runtime objects are part of the same API surface:
   `UpdateContext`.
 - `radiant::runtime`, `radiant::widgets`, `radiant::layout`, `radiant::theme`,
   and `radiant::gui` expose the same model with more explicit control over
-  projection, commands, sizing, layout, styling, input, invalidation, and
+  projection, explicit runtime commands, sizing, layout, styling, input, invalidation, and
   backend integration.
 
 Radiant's cleanup target is message-first, non-blocking application code: views
@@ -498,11 +498,12 @@ widgets need to construct drag lifecycle messages directly. Use
 resolve or cancel a drag gesture with both an in-window preview and an armed
 native external-drag payload can call `UpdateContext::end_drag_session()` instead
 of ending those runtime surfaces separately. Use
-`UpdateContext::begin_drag_session(...)` or `Command::begin_drag_session(...)`
-when one gesture may have an in-window preview, a native external-drag payload,
-both, or neither. Use `UpdateContext::begin_drag_with_external(...)` or
-`Command::begin_drag_with_external(...)` when both requests are already known to
-exist and should be started together.
+`UpdateContext::begin_drag_session(...)` when one gesture may have an in-window
+preview, a native external-drag payload, both, or neither. Use
+`UpdateContext::begin_drag_with_external(...)` when both requests are already
+known to exist and should be started together. Explicit runtime bridges can use
+the corresponding `Command` constructors, but normal application handlers should
+stay on the typed `UpdateContext` surface.
 Dense custom row painters can use `push_dense_row_chrome(...)` with
 `DenseRowChromeParts`, `DenseRowMarkerStyle`, and `DenseRowOutlineStyle` when
 one row needs standard fill, leading/trailing markers, and optional outline
@@ -1324,8 +1325,8 @@ host work do not create unbounded OS threads beside the UI path. If that lane
 cannot be started or a job cannot be queued, Radiant reports the offload failure
 instead of running the work synchronously on the UI/event/render owner. If an app
 explicitly needs immediate synchronous behavior, it can dispatch a normal
-message and do that short UI-state work in the reducer, but the architecture is
-UI-first and non-blocking.
+message and do that short UI-state work in the reducer, but the default
+architecture is UI-first and non-blocking.
 Delayed messages use a runtime-owned timer lane rather than one sleeping OS
 thread per delay, so timer bursts do not monopolize the UI path or create
 unbounded background threads. Interval subscriptions use the same timer lane for

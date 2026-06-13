@@ -25,8 +25,8 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         &[
             "use radiant::theme::DpiScale;",
             "DpiScale::new(",
-            "Command::set_dpi_scale(",
-            "Command::set_window_logical_size(",
+            "context.set_dpi_scale(",
+            "context.set_window_logical_size(",
             "physical_to_logical(",
             "DpiScaleChoice::Two",
             "dpi_scaling_example_projects_metrics_for_selected_scale",
@@ -39,11 +39,7 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
     ),
     (
         "message_routing",
-        &[
-            ".update_command",
-            "Command::message",
-            "Command::request_repaint",
-        ],
+        &[".handle_message", "context.emit", "context.request_repaint"],
     ),
     ("keys", &[".key(", "list_row(", ".reverse()"]),
     (

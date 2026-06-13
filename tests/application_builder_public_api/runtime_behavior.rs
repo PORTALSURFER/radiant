@@ -1,7 +1,7 @@
 use super::{DemoMessage, DemoState, widget_ref};
 use radiant::{
     layout::Vector2,
-    runtime::{Command, PaintFillRect, PaintPrimitive, RuntimeBridge, SurfaceRuntime},
+    runtime::{PaintFillRect, PaintPrimitive, RuntimeBridge, SurfaceRuntime},
     widgets::{ButtonMessage, TextWidget},
 };
 use std::{

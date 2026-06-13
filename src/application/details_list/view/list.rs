@@ -8,7 +8,7 @@ use std::sync::Arc;
 use super::super::model::{DetailsColumn, DetailsRow, DetailsSort};
 
 /// Build a compact details list that emits sort messages.
-pub fn message_sortable_details_list<Message: 'static>(
+pub fn message_sortable_details_list<Message>(
     columns: impl IntoIterator<Item = DetailsColumn>,
     rows: impl IntoIterator<Item = DetailsRow>,
     sort: Option<DetailsSort>,
@@ -27,7 +27,7 @@ where
 }
 
 /// Build a compact details list that emits sort and row-selection messages.
-pub fn message_selectable_sortable_details_list<Message: 'static>(
+pub fn message_selectable_sortable_details_list<Message>(
     columns: impl IntoIterator<Item = DetailsColumn>,
     rows: impl IntoIterator<Item = DetailsRow>,
     sort: Option<DetailsSort>,

@@ -1,4 +1,4 @@
-//! Message routing with command follow-up work.
+//! Message routing with UpdateContext follow-up.
 
 use radiant::prelude::*;
 
@@ -30,14 +30,13 @@ fn main() -> radiant::Result {
             .padding(16.0)
             .spacing(12.0)
         })
-        .update_command(|state, message| match message {
-            Message::IncrementRequested => Command::batch([
-                Command::message(Message::ApplyIncrement),
-                Command::request_repaint(),
-            ]),
+        .handle_message(|state, message, context| match message {
+            Message::IncrementRequested => {
+                context.emit(Message::ApplyIncrement);
+                context.request_repaint();
+            }
             Message::ApplyIncrement => {
                 state.count += 1;
-                Command::none()
             }
         })
         .run()

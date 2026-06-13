@@ -1,8 +1,9 @@
 # Radiant Core API
 
 Radiant is a reusable declarative GUI library. Host applications own domain
-state and side effects; Radiant owns view-tree identity, layout, input routing,
-focus, style resolution, invalidation, and renderer-facing paint plans.
+state and business logic; Radiant owns view-tree identity, layout, input
+routing, focus, style resolution, invalidation, renderer-facing paint plans,
+typed platform services, and business-work scheduling.
 For a contributor-facing map of subsystem ownership, rendering/text/platform
 boundaries, and validation lanes, see `docs/ARCHITECTURE.md`. For the preferred
 shape of application-facing APIs, examples, and cleanup tickets, see
@@ -32,10 +33,11 @@ and explicit runtime objects are part of the same API surface:
   projection, commands, sizing, layout, styling, input, invalidation, and
   backend integration.
 
-Radiant's cleanup target is message-first application code: views emit explicit
-messages, and update handlers own durable state changes and side effects.
-Reducer-style aliases remain available for advanced lifecycle code, but ordinary
-application code should stay message-first. See `docs/API_STYLE.md`.
+Radiant's cleanup target is message-first, non-blocking application code: views
+emit explicit messages, update handlers own durable state changes, and any
+business work must be scheduled through Radiant. Reducer-style aliases remain
+available for advanced lifecycle code during the breaking migration, but
+ordinary application code should stay message-first. See `docs/API_STYLE.md`.
 
 ## Application API
 
@@ -108,9 +110,35 @@ fn main() -> radiant::Result {
 This message-first shape is the canonical style for new examples and host
 applications. Use `.handle_message(...)` when an update handler needs
 `UpdateContext<Message>` to emit follow-up messages, request repaint, move
-focus, start background work, schedule delayed messages, or request runtime
-exit. Reducer-style aliases remain available for advanced lifecycle control,
-but ordinary application code should stay message-first.
+focus, schedule business work, request typed platform services, schedule delayed
+messages, or request runtime exit. Reducer-style aliases remain available for
+advanced lifecycle control during the breaking migration, but ordinary
+application code should stay message-first.
+
+### Non-Blocking App Contract
+
+Radiant application handlers are UI reducers. They run on the UI/event/render
+path and must stay short. A handler may mutate durable host state, apply a
+business or platform-service result, emit follow-up messages, request repaint or
+paint-only repaint, move focus, schedule timers or debounced messages, request
+typed platform services, and schedule host-owned business work through
+`context.business()`.
+
+Handlers must not run business work directly. Filesystem and database access,
+audio/image/data decoding or loading, cache hydration, network or process
+work, sleeps, blocking waits or joins, thread creation, long CPU transforms,
+and helper calls that hide those operations must leave the UI path through
+`context.business().interactive(...)`, `.background(...)`, or `.idle(...)`.
+Platform interactions such as file dialogs, reveal/open, clipboard,
+confirmation prompts, and native handoffs must use typed Radiant platform
+services instead of direct blocking calls from handlers.
+
+This contract is mandatory for normal Radiant applications. During the current
+breaking migration, older command-returning or generic command-injection paths
+may still exist for compatibility, tests, or embedders, but they are not the
+target app-facing architecture and are scheduled for removal or isolation behind
+advanced-only surfaces. Wavecrate is the current consumer, so compatibility
+with old app-facing task/spawn/command APIs is not a design constraint.
 
 Application builders generate deterministic structural IDs during projection and
 provide default widget sizing. Production apps and tests can opt back into
@@ -138,11 +166,11 @@ adjacent `drag_handle()` sibling by hand. Use
 standard subtle hover-only resize handle with stable identity. Stateful
 examples should use stable keys or explicit IDs for controls whose focus or
 input state must survive list edits. The launch builders expose `.options(...)`
-for callers that need the full `NativeRunOptions` surface. Apps that prefer
-explicit message routing can use `.message(...)` on widgets plus `.update(...)`
-or `.update_command(...)` on the app when simple handlers need to return
-`Command<Message>` values directly. Native OS file-drop targets should be
-declared on the view subtree that owns the interaction:
+for callers that need the full `NativeRunOptions` surface. Normal apps should
+use `.message(...)` on widgets plus `.update(...)` for state-only handlers or
+`.handle_message(...)` when they need `UpdateContext` capabilities. Native OS
+file-drop targets should be declared on the view subtree that owns the
+interaction:
 `.accepts_native_file_drop().on_native_file_drop(Message::FileDrop)`.
 Radiant routes hover, cancel, and drop events to the topmost accepting target
 using the normal surface traversal and attaches `NativeFileDrop::target_widget`
@@ -162,10 +190,11 @@ after projection. Use
 visible row content should keep its own paint tree while the transparent
 interactive-row underlay owns standard tracked drop-target behavior.
 Context-aware app code should use `.handle_message(...)` with an
-`UpdateContext<Message>` to emit messages, request repaint, move focus, start
-background work, schedule delayed messages, or request runtime exit. The older
-`.reducer(...)` name remains public as a compatibility alias for the same
-state-machine role. Use
+`UpdateContext<Message>` to emit messages, request repaint, move focus, schedule
+business work, request typed platform services, schedule delayed messages, or
+request runtime exit. The older `.reducer(...)` name remains public as a
+compatibility alias for the same state-machine role during the breaking
+migration. Use
 `.repaint_policy(...)` with `RepaintPolicy` only when ordinary app messages
 need custom automatic repaint behavior. Ordinary app messages request a
 surface repaint by default unless the handler explicitly requests surface or
@@ -185,7 +214,7 @@ available through the explicit `radiant::runtime`, `radiant::widgets`,
 
 | Area | Common prelude entries |
 | --- | --- |
-| Application setup | `window`, `app`, `IntoView`, `View`, `Command`, `EmbeddedFont` |
+| Application setup | `window`, `app`, `IntoView`, `View`, `UpdateContext`, `EmbeddedFont` |
 | Basic views | `text`, `button`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
 | Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `handle_activation_input` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
@@ -1016,12 +1045,12 @@ Radiant does not define the domain model. The public `App<Message>` contract is
 implemented by every `RuntimeBridge<Message>`: hosts can provide a custom bridge
 or use `declarative_runtime_bridge(state, project, reduce)` to project an
 immutable `UiSurface<Message>` from state and reduce messages back into state.
-Apps whose update flow returns runtime-visible follow-up work can use
-`radiant::app(...).update_command(...)`; apps that need `UpdateContext` should
-use `.handle_message(...)`. Ordinary app messages automatically request surface
-repaint unless the handler requests an explicit surface or paint-only repaint
-command. `RepaintPolicy` lets app-builder code override that ordinary-message
-default outside the handler, while frame-clock messages use
+Apps that need runtime-visible follow-up work should use
+`radiant::app(...).handle_message(...)` with `UpdateContext`. Ordinary app
+messages automatically request surface repaint unless the handler requests an
+explicit surface or paint-only repaint. `RepaintPolicy` lets app-builder code
+override that ordinary-message default outside the handler, while frame-clock
+messages use
 `FrameClock::repaint_scope(...)` for paint-only frame optimization. The older
 `.reducer(...)` and `.update_with(...)` hooks are retained for compatibility and
 custom lower-level lifecycle code. The app builder lowers into
@@ -1212,7 +1241,7 @@ paint-only drag motion instead of rebuilding the Vello scene for every
 mouse-move event. Widgets that paint pointer-motion state in `append_paint(...)`
 should not opt into the paint-only pointer path.
 
-## Message And Command
+## Message And Runtime Follow-Up
 
 Radiant routes widget outputs into host-defined `Message` values through
 `WidgetMessageMapper`. `SurfaceRuntime` dispatches input, emits mapped messages,
@@ -1222,12 +1251,12 @@ hook for hosts that only mutate state; `RuntimeBridge::update` can return
 `Command<Message>` for hosts that need runtime-visible follow-up work.
 `SurfaceRuntime::dispatch_message` and `SurfaceRuntime::execute_command` both
 return `CommandOutcome` with dispatched-message and repaint-request summaries.
-`Command<Message>` is the generic runtime-visible follow-up value for host
-reducers that need to queue messages, batch runtime-visible work, request
-repaint, schedule delayed messages, run background work, move focus, override
-native DPI through `Command::set_dpi_scale(...)`, request a native-window
-logical viewport size through `Command::set_window_logical_size(...)`, or
-request runtime exit. Hosts that inspect only the immediate messages in a command can use
+`Command<Message>` is the runtime-visible follow-up value used by Radiant
+internals, explicit runtime bridges, tests, and advanced embedders. Normal
+applications should not use it as a general side-effect or worker escape hatch;
+they should use `UpdateContext` capabilities, typed platform services, and
+`context.business()` from `.handle_message(...)`. Hosts that inspect only the
+immediate messages in a command can use
 `Command::into_messages_into(...)` to reuse caller-owned storage, while
 `Command::into_messages()` remains the allocating convenience wrapper.
 `RepaintScope` is the typed repaint specificity contract: `Surface` requests a
@@ -1268,11 +1297,11 @@ manual downcast chains. `WidgetMessageMapper::dynamic(...)` is available when a
 host needs manual downcast or filtering behavior. Adding a widget should not
 require adding a central output enum variant.
 
-Asynchronous side effects remain host-owned, but normal apps use Radiant's app
-runtime to wire them into the UI. `UpdateContext::business()`,
-`Command::after(...)`, `UpdateContext`, and `Subscription` provide message
-delivery and repaint wakeups; the app still owns the work and resulting domain
-messages.
+Asynchronous business work remains host-owned, but normal apps use Radiant's
+app runtime to wire it into the UI. `UpdateContext::business()`,
+`UpdateContext::after(...)`, typed platform-service helpers, and
+`Subscription` provide message delivery and repaint wakeups; the app still owns
+the work and resulting domain messages.
 
 ## UI-First Runtime Threading
 
@@ -1282,18 +1311,20 @@ Vello presentation must stay responsive and should not wait on application
 business work.
 
 Application reducers run synchronously because they decide the next UI state, so
-they should stay short. Slow IO, decoding, indexing, analysis, loading, and other
-business work should use `UpdateContext::business()` with the appropriate
-interactive, background, or idle lane; delayed messages should use
-`Command::after(...)`, and long-lived recurring sources should use
-`Subscription`. The application runtime offloads business work to
+they must stay short. Slow IO, filesystem metadata checks, database access,
+decoding, indexing, analysis, loading, cache hydration, blocking waits or joins,
+thread creation, process/network work, and other business work must use
+`UpdateContext::business()` with the appropriate interactive, background, or
+idle lane. Delayed messages must use `UpdateContext::after(...)`, and
+long-lived recurring sources should use `Subscription`. The application runtime
+offloads business work to
 runtime-managed business threads and returns results through the normal message
 queue. Finite business jobs run on a bounded business worker lane so bursts of
 host work do not create unbounded OS threads beside the UI path. If that lane
 cannot be started or a job cannot be queued, Radiant reports the offload failure
 instead of running the work synchronously on the UI/event/render owner. If an app
 explicitly needs immediate synchronous behavior, it can dispatch a normal
-message and do that short work in the reducer, but the default architecture is
+message and do that short UI-state work in the reducer, but the architecture is
 UI-first and non-blocking.
 Delayed messages use a runtime-owned timer lane rather than one sleeping OS
 thread per delay, so timer bursts do not monopolize the UI path or create
@@ -2292,8 +2323,8 @@ hoverable styling examples.
 Run `cargo run --example scroll` for simple scroll-column composition.
 Run `cargo run --example sizing` for explicit, minimum, preferred, and fill
 sizing behavior.
-Run `cargo run --example message_routing` for command-returning update flows,
-runtime messages, and repaint requests.
+Run `cargo run --example message_routing` for `UpdateContext` follow-up
+messages and repaint requests.
 Run `cargo run --example keys` for stable keys and reversed list identity.
 Run `cargo run --example focus_controls` for an input/focus sandbox that uses
 `UpdateContext::focus(...)` and shortcuts to move keyboard

@@ -176,13 +176,23 @@ Radiant's canonical application model is message-first:
 - views read state and declare UI structure
 - widgets emit explicit host messages or generic widget messages
 - update handlers own durable state changes
-- `Command` and `UpdateContext` own runtime follow-up work
+- `UpdateContext` owns UI-safe runtime follow-up requests
+- `context.business()` owns host business work that must leave the UI path
 - tests can assert emitted intent separately from state mutation
 
 Do not add or document direct state-callback APIs as the preferred style. If an
 older callback-style API exists, cleanup work should replace ordinary
 application usage with message-first routing instead of preserving two equal
 styles.
+
+Update handlers are UI reducers, not business executors. They may mutate host
+state, apply business or platform-service results, emit messages, request
+repaint/focus/timers, request typed platform services, and schedule business
+work. They must not perform filesystem, database, decode/load, network,
+process, cache hydration, blocking waits/joins, sleeps, thread creation, or
+long CPU work directly. Examples that need those behaviors should show
+`context.business()` or typed platform-service requests instead of direct
+blocking calls from the handler.
 
 Example:
 
@@ -256,7 +266,7 @@ Good example categories:
 
 - hello world and no-state startup
 - explicit message routing
-- background work with `UpdateContext`
+- background work with `context.business()`
 - stable keyed lists
 - virtualized lists
 - overlays and context menus
@@ -312,9 +322,9 @@ Use this protocol when creating Radiant API cleanup issues:
 1. Read `docs/API_STYLE.md`, `docs/TARGET.md`, `docs/API.md`, and
    `docs/ARCHITECTURE.md`.
 2. Classify the maintained examples by teaching purpose, such as no-state app,
-   message-first state, command follow-up, background work, stable keyed lists,
-   virtualized lists, overlays, custom widgets, native file drop, and
-   multi-window or embedded host integration.
+   message-first state, `UpdateContext` follow-up, background work, stable
+   keyed lists, virtualized lists, overlays, custom widgets, native file drop,
+   and multi-window or embedded host integration.
 3. Inspect current examples and Wavecrate call sites for drift from the
    message-first, primitive-boundary, and example-as-contract rules.
 4. Identify the top five highest-value cleanup issues by API confusion,
@@ -331,8 +341,8 @@ Default example classifications:
 | --- | --- |
 | `hello_world.rs` | no-state startup |
 | `counter.rs` | smallest message-first stateful app |
-| `message_routing.rs` | message routing with `Command` follow-up |
-| `background_loading.rs` | `UpdateContext` and background resources |
+| `message_routing.rs` | message routing with `UpdateContext` follow-up |
+| `background_loading.rs` | `context.business()` and background resources |
 | `keys.rs` | stable row identity |
 | `virtualized_list.rs` | large-list viewporting |
 | `context_menu.rs` | context menu and overlay routing |

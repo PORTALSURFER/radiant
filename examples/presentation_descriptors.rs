@@ -2,8 +2,7 @@
 
 use radiant::prelude as ui;
 use ui::{
-    Command, PaintFillRect, PaintPrimitive, Point, Rect, Rgba8, TransientOverlayContext, Vector2,
-    View,
+    PaintFillRect, PaintPrimitive, Point, Rect, Rgba8, TransientOverlayContext, Vector2, View,
 };
 
 #[derive(Clone)]
@@ -63,7 +62,7 @@ fn update(state: &mut State, message: Message, context: &mut ui::UpdateContext<M
     match message {
         Message::Toggle => {
             state.running = !state.running;
-            context.command(Command::request_repaint());
+            context.request_repaint();
         }
         Message::Frame => {
             state.frame = state.frame.wrapping_add(1);

@@ -18,12 +18,12 @@ fn main() -> radiant::Result {
         .min_size(620, 420)
         .view(project_surface)
         .on_startup(|state, context| {
-            context.command(scale_commands(state.selected));
+            apply_scale(context, state.selected);
         })
-        .update_command(|state, message| match message {
+        .handle_message(|state, message, context| match message {
             DpiScalingMessage::Select(scale) => {
                 state.selected = scale;
-                scale_commands(scale)
+                apply_scale(context, scale);
             }
         })
         .run()
@@ -75,11 +75,12 @@ impl DpiScaleChoice {
     }
 }
 
-fn scale_commands<Message>(choice: DpiScaleChoice) -> Command<Message> {
-    Command::batch([
-        Command::set_dpi_scale(choice.scale()),
-        Command::set_window_logical_size(Vector2::new(BASE_WINDOW_WIDTH, BASE_WINDOW_HEIGHT)),
-    ])
+fn apply_scale<Message>(context: &mut UpdateContext<Message>, choice: DpiScaleChoice) {
+    context.command(Command::set_dpi_scale(choice.scale()));
+    context.command(Command::set_window_logical_size(Vector2::new(
+        BASE_WINDOW_WIDTH,
+        BASE_WINDOW_HEIGHT,
+    )));
 }
 
 fn project_surface(state: &mut DpiScalingState) -> View<DpiScalingMessage> {

@@ -38,18 +38,18 @@ fn main() -> radiant::Result {
                 paint_transient_blob(state, context.plan, context.animation_time, primitives);
             },
         )
-        .update_command(|state: &mut DemoState, message| match message {
+        .handle_message(|state: &mut DemoState, message, context| match message {
             DemoMessage::ToggleSelection => {
                 state.selected = !state.selected;
-                Command::request_repaint()
+                context.request_repaint();
             }
             DemoMessage::ToggleAnimation => {
                 state.running = !state.running;
-                Command::request_repaint()
+                context.request_repaint();
             }
             DemoMessage::CommitResize { start, end } => {
                 state.commit_selection(start, end);
-                Command::request_repaint()
+                context.request_repaint();
             }
         })
         .run()

@@ -19,14 +19,13 @@ fn main() -> radiant::Result {
         .size(460, 128)
         .min_size(400, 112)
         .view(project_surface)
-        .update_command(|state: &mut DemoState, message| match message {
-            DemoMessage::ButtonPressed => Command::batch([
-                Command::message(DemoMessage::Increment),
-                Command::request_repaint(),
-            ]),
+        .handle_message(|state: &mut DemoState, message, context| match message {
+            DemoMessage::ButtonPressed => {
+                context.emit(DemoMessage::Increment);
+                context.request_repaint();
+            }
             DemoMessage::Increment => {
                 state.count += 1;
-                Command::none()
             }
         })
         .run()

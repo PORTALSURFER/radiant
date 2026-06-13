@@ -353,6 +353,42 @@ Radiant should provide the GUI-side capabilities needed for that integration, su
 
 Radiant is a GUI library, not an audio engine or plugin framework. It should be suitable for building audio/plugin interfaces, but plugin-domain logic belongs outside Radiant.
 
+## Non-Blocking Application Runtime Contract
+
+Radiant applications should be structurally non-blocking by default. The
+UI/event/render path owns input, focus, layout, repaint, presentation, and short
+host state reducers. It must not be the place where host-owned business work is
+performed.
+
+The target app-facing model is:
+
+- Views project host state into a declarative UI and emit host messages.
+- Update handlers synchronously apply lightweight state changes and UI/runtime
+  requests.
+- Host-owned business work is scheduled only through Radiant's business runtime
+  lanes, such as `context.business().interactive(...)`,
+  `.background(...)`, or `.idle(...)`.
+- Platform side effects that belong to the GUI/runtime boundary, such as file
+  dialogs, reveal/open, clipboard, confirmation prompts, and native handoffs,
+  are requested through typed Radiant platform services.
+- Worker closures receive business context and return results through the
+  normal message path; they do not mutate UI state directly.
+
+Forbidden work on the normal update-handler path includes filesystem and
+database access, decoding/loading, cache hydration, network or process work,
+sleeps, blocking waits or joins, thread creation, long CPU transforms, and
+helper calls that hide those operations. Rust cannot prove every possible
+blocking call through the type system, so the final architecture should combine
+API removal, capability-limited contexts, reusable static guardrails, runtime
+slow-handler diagnostics, and CI enforcement.
+
+Radiant may break public compatibility during this phase. Wavecrate is the
+current consumer, so the desired final shape is more important than preserving
+old app-facing command, task, or spawn escape hatches. Low-level runtime command
+machinery can remain internal or advanced-only where custom hosts and tests
+need it, but the normal app path should make the business runtime the only
+practical way to run host business work off the UI path.
+
 ## Declarative GUI Model
 
 Radiant should move toward a clean declarative GUI model.

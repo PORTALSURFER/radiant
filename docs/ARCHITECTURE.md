@@ -9,11 +9,14 @@ cleanup-ticket target shape.
 Radiant's architecture should keep one external mental model while allowing
 focused internal modules. The main ownership rule is:
 
-- Application code owns domain state, side effects, files, audio/plugin hosts,
-  and product-specific naming.
+- Application code owns domain state, business logic, files, audio/plugin
+  hosts, and product-specific naming.
 - Radiant owns declarative view construction, stable widget identity, layout,
   input routing, focus, styling, invalidation, paint planning, diagnostics, and
   renderer-facing surface contracts.
+- Radiant owns the scheduling boundary for UI-safe follow-up work. Normal app
+  update handlers must not run business work directly; they schedule it through
+  `UpdateContext::business()` or request typed Radiant platform services.
 - Radiant additions must pass the primitive-boundary test in `docs/TARGET.md`:
   they should be generic UI primitives or reusable GUI building blocks, not
   product-shaped composite widgets or application workflows.
@@ -27,6 +30,15 @@ Normal application code should start through `radiant::prelude`,
 `radiant::window(...)`, or `radiant::app(...)`. These builders lower into the
 same `UiSurface`, `SurfaceNode`, `WidgetId`, `Command`, and `RuntimeBridge`
 contracts exposed through the explicit runtime modules.
+
+The normal app-facing surface is intentionally non-blocking. Update handlers
+may mutate durable UI/application state, apply business or platform-service
+results, emit messages, request repaint/focus/timers, request typed platform
+services, and schedule business work. Filesystem, database, decode/load,
+network/process work, sleeps, blocking waits or joins, thread creation, cache
+hydration, and long CPU transforms belong behind the business runtime or a
+platform adapter. Command-returning and command-injection paths are migration or
+advanced surfaces, not the target ordinary application model.
 
 The explicit runtime and widget modules are supported control surfaces, not a
 competing framework. They exist for custom hosts, tests, advanced widgets,
@@ -103,8 +115,8 @@ new focused export leaf or a module split, not a formatting workaround.
 ## Core Subsystems
 
 - `src/application` owns the application-builder runtime: state projection,
-  update callbacks, runtime messages, subscriptions, timers, and background
-  work delivery back into the UI-first runtime.
+  update callbacks, runtime messages, subscriptions, timers, and business-work
+  delivery back into the UI-first runtime.
 - `src/runtime` owns backend-neutral retained surfaces, runtime commands,
   widget traversal, input dispatch, focus, scroll state, resource slots,
   platform requests, paint plans, diagnostics, GPU-surface payload contracts,
@@ -180,9 +192,11 @@ Radiant is Windows-first today, but core GUI, runtime, widget, layout, and
 paint-plan code should stay platform-neutral. Windows-specific integration
 belongs in native runtime/windowing modules or explicitly named platform
 adapters. Platform services such as file dialogs and URL opening flow through
-typed `PlatformRequest` commands and `RuntimeBridge::request_platform_service`.
-The portable library boundary should keep compiling for future Linux and macOS
-targets even while native runtime behavior is validated Windows-first.
+typed `PlatformRequest` values and `RuntimeBridge::request_platform_service`.
+Application update handlers request those services through Radiant context
+helpers instead of calling platform APIs directly. The portable library
+boundary should keep compiling for future Linux and macOS targets even while
+native runtime behavior is validated Windows-first.
 
 Current target-specific seams are intentionally narrow:
 
@@ -281,8 +295,8 @@ data preparation.
 Radiant should not own VST SDK integration, audio-domain host behavior,
 application-specific asset models, product-specific state, or accessibility
 systems in the current phase. Those concerns can integrate with Radiant through
-host-owned state, platform services, custom widgets, runtime commands, and
-embedded-host surfaces without becoming Radiant core.
+host-owned state, platform services, custom widgets, business-runtime requests,
+and embedded-host surfaces without becoming Radiant core.
 
 Avoid new architecture that creates parallel application models, leaks renderer
 internals into normal app code, couples core modules to Windows-only behavior,

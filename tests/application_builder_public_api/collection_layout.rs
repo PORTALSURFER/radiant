@@ -128,12 +128,11 @@ fn application_builder_virtual_list_window_projects_only_materialized_rows() {
         &surface.layout_node(),
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(320.0, 180.0)),
     );
-    let runtime_window = output
-        .virtual_windows
-        .get(&2)
-        .expect("windowed virtual list should lower to a virtualized scroll viewport");
 
-    assert_eq!(runtime_window.total_children, 3);
+    assert!(
+        !output.virtual_windows.contains_key(&2),
+        "app-windowed virtual lists should not add a second runtime virtualization layer"
+    );
     assert!(surface.find_widget(1_017).is_none());
     assert!(surface.find_widget(1_018).is_some());
     assert!(surface.find_widget(1_026).is_some());

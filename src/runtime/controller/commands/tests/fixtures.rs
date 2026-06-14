@@ -1,9 +1,10 @@
 use super::super::*;
 use crate::layout::ContainerPolicy;
 use crate::runtime::{
-    PlatformCompletion, PlatformRequest, PlatformResponse, PlatformServiceFallback, SurfaceNode,
+    BusinessMessageSink, PlatformCompletion, PlatformRequest, PlatformResponse,
+    PlatformServiceFallback, SurfaceNode, TaskPriority,
 };
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
 pub(super) struct QueuedCommandBridge {
@@ -15,6 +16,11 @@ pub(super) struct QueuedCommandBridge {
 pub(super) struct PlatformCommandBridge {
     pub(super) dispatched: Vec<usize>,
     pub(super) requests: Vec<PlatformRequest>,
+}
+
+#[derive(Default)]
+pub(super) struct StreamingCommandBridge {
+    pub(super) dispatched: Arc<Mutex<Vec<usize>>>,
 }
 
 impl RuntimeBridge<usize> for PlatformCommandBridge {
@@ -57,5 +63,41 @@ impl RuntimeBridge<usize> for QueuedCommandBridge {
 
     fn drain_runtime_commands_into(&mut self, commands: &mut Vec<Command<usize>>) {
         commands.append(&mut self.commands);
+    }
+}
+
+impl RuntimeBridge<usize> for StreamingCommandBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+        Arc::new(UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn reduce_message(&mut self, message: usize) {
+        self.dispatched
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .push(message);
+    }
+
+    fn spawn_streaming_message_task(
+        &mut self,
+        _name: &'static str,
+        _priority: TaskPriority,
+        _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        work: Box<dyn FnOnce(BusinessMessageSink<usize>) + Send + 'static>,
+    ) -> bool {
+        let dispatched = Arc::clone(&self.dispatched);
+        let sink = BusinessMessageSink::new(move |message| {
+            dispatched
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .push(message);
+            true
+        });
+        work(sink);
+        true
     }
 }

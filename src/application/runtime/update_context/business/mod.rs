@@ -2,6 +2,7 @@ mod keyed_latest;
 mod latest;
 mod request;
 mod resource;
+mod sink;
 mod work_context;
 
 use crate::runtime::TaskPriority;
@@ -10,6 +11,7 @@ use request::BusinessRequest;
 
 use super::UiUpdateContext;
 
+pub use sink::BusinessEventSink;
 pub use work_context::BusinessWorkContext;
 
 /// UI-update access point for submitting host-owned business work.

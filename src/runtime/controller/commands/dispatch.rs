@@ -105,6 +105,19 @@ where
                     outcome.repaint_requested = true;
                 }
             }
+            Command::PerformStream {
+                name,
+                priority,
+                is_cancelled,
+                work,
+            } => {
+                if self
+                    .bridge
+                    .spawn_streaming_message_task(name, priority, is_cancelled, work)
+                {
+                    outcome.repaint_requested = true;
+                }
+            }
             Command::Focus(widget_id) => {
                 let focused = self.focus_widget(widget_id);
                 outcome.repaint_requested |= focused;

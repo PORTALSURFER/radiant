@@ -1,6 +1,6 @@
 use crate::application::{CancellationToken, TaskCompletion, TaskTicket};
 
-use super::{BusinessWorkContext, request::BusinessRequest};
+use super::{BusinessEventSink, BusinessWorkContext, request::BusinessRequest};
 
 /// Builder for one latest business request.
 pub struct BusinessLatestRequest<'context, Message> {
@@ -40,6 +40,30 @@ impl<'context, Message> BusinessLatestRequest<'context, Message> {
                 output: work(context),
             },
             map,
+        );
+    }
+
+    /// Run latest work that may emit intermediate events tagged with this task ticket.
+    pub fn stream<Event, Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(TaskCompletion<Event>) -> Message + Send + Sync + 'static,
+        map_final: impl FnOnce(TaskCompletion<Output>) -> Message + Send + 'static,
+    ) where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        let ticket = self.ticket;
+        self.request.stream(
+            work,
+            move |event| {
+                map_event(TaskCompletion {
+                    ticket,
+                    output: event,
+                })
+            },
+            move |output| map_final(TaskCompletion { ticket, output }),
         );
     }
 }
@@ -82,6 +106,34 @@ impl<'context, Message> CancellableBusinessLatestRequest<'context, Message> {
                 output: work(context),
             },
             map,
+        );
+        token
+    }
+
+    /// Run cancellable latest work that may emit intermediate events tagged with this task ticket.
+    pub fn stream<Event, Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(TaskCompletion<Event>) -> Message + Send + Sync + 'static,
+        map_final: impl FnOnce(TaskCompletion<Output>) -> Message + Send + 'static,
+    ) -> CancellationToken
+    where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        let token = self.token.clone();
+        let ticket = self.ticket;
+        self.request.stream_with_optional_cancellation(
+            Some(self.token),
+            work,
+            move |event| {
+                map_event(TaskCompletion {
+                    ticket,
+                    output: event,
+                })
+            },
+            move |output| map_final(TaskCompletion { ticket, output }),
         );
         token
     }

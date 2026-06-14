@@ -29,7 +29,7 @@ pub use task::{
     CancellationToken, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, TaskCompletion,
     TaskTicket,
 };
-pub use update_context::{BusinessWorkContext, UiUpdateContext};
+pub use update_context::{BusinessEventSink, BusinessWorkContext, UiUpdateContext};
 
 pub(in crate::application) type RetainedPainter<State> =
     Box<dyn FnMut(&mut State, RetainedSurfaceDescriptor, Rect, Vector2) -> Option<GuiPaintFrame>>;

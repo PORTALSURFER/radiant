@@ -6,7 +6,7 @@ use crate::{
 };
 
 use super::{
-    BusinessWorkContext,
+    BusinessEventSink, BusinessWorkContext,
     keyed_latest::{BusinessKeyedLatestRequest, CancellableBusinessKeyedLatestRequest},
     latest::{BusinessLatestRequest, CancellableBusinessLatestRequest},
     resource::{BusinessResourceRequest, CancellableBusinessResourceRequest},
@@ -76,6 +76,21 @@ impl<'context, Message> BusinessRequest<'context, Message> {
         self.run_with_optional_cancellation(None, work, map);
     }
 
+    /// Run this business request and allow worker code to emit intermediate
+    /// events before the final output message.
+    pub fn stream<Event, Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(Event) -> Message + Send + Sync + 'static,
+        map_final: impl FnOnce(Output) -> Message + Send + 'static,
+    ) where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        self.stream_with_optional_cancellation(None, work, map_event, map_final);
+    }
+
     pub(super) fn run_with_optional_cancellation<Output>(
         self,
         token: Option<CancellationToken>,
@@ -95,6 +110,37 @@ impl<'context, Message> BusinessRequest<'context, Message> {
             move || work(BusinessWorkContext::new(worker_token)),
             map,
         ));
+    }
+
+    pub(super) fn stream_with_optional_cancellation<Event, Output>(
+        self,
+        token: Option<CancellationToken>,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(Event) -> Message + Send + Sync + 'static,
+        map_final: impl FnOnce(Output) -> Message + Send + 'static,
+    ) where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        let worker_token = token.clone();
+        let is_cancelled = token.map(|token| {
+            Box::new(move || token.is_cancelled()) as Box<dyn Fn() -> bool + Send + Sync + 'static>
+        });
+        self.context
+            .queue_command(Command::perform_stream_with_priority(
+                self.name,
+                self.priority,
+                is_cancelled,
+                move |message_sink| {
+                    let event_sink = BusinessEventSink::new({
+                        let message_sink = message_sink.clone();
+                        move |event| message_sink.emit(map_event(event))
+                    });
+                    let output = work(BusinessWorkContext::new(worker_token), event_sink);
+                    let _ = message_sink.emit(map_final(output));
+                },
+            ));
     }
 }
 
@@ -168,6 +214,28 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
         let token = self.token.clone();
         self.request
             .run_with_optional_cancellation(Some(self.token), work, map);
+        token
+    }
+
+    /// Run this cancellable request as a stream and return its cancellation token.
+    pub fn stream<Event, Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(Event) -> Message + Send + Sync + 'static,
+        map_final: impl FnOnce(Output) -> Message + Send + 'static,
+    ) -> CancellationToken
+    where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        let token = self.token.clone();
+        self.request.stream_with_optional_cancellation(
+            Some(self.token),
+            work,
+            map_event,
+            map_final,
+        );
         token
     }
 }

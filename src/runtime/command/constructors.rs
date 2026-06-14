@@ -1,4 +1,4 @@
-use super::{Command, TaskPriority};
+use super::{BusinessMessageSink, Command, TaskPriority};
 use crate::{
     runtime::{
         DragRequest, ExternalDragOutcome, ExternalDragRequest, PlatformRequest, PlatformResult,
@@ -98,6 +98,20 @@ impl<Message> Command<Message> {
             priority,
             is_cancelled,
             work: Box::new(move || map(work())),
+        }
+    }
+
+    pub(crate) fn perform_stream_with_priority(
+        name: &'static str,
+        priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        work: impl FnOnce(BusinessMessageSink<Message>) + Send + 'static,
+    ) -> Self {
+        Self::PerformStream {
+            name,
+            priority,
+            is_cancelled,
+            work: Box::new(work),
         }
     }
 

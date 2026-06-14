@@ -8,9 +8,9 @@ use crate::gui::{
     types::{Rect, Vector2},
 };
 use crate::runtime::{
-    Command, NativeFileDrop, NativeFrameDiagnostics, PaintPrimitive, PlatformCompletion,
-    PlatformRequest, PlatformServiceFallback, RuntimeDiagnostics, ScrollUpdate, TaskPriority,
-    TransientOverlayContext, UiSurface,
+    BusinessMessageSink, Command, NativeFileDrop, NativeFrameDiagnostics, PaintPrimitive,
+    PlatformCompletion, PlatformRequest, PlatformServiceFallback, RuntimeDiagnostics, ScrollUpdate,
+    TaskPriority, TransientOverlayContext, UiSurface,
 };
 use crate::widgets::RetainedSurfaceDescriptor;
 use std::{sync::Arc, time::Duration};
@@ -99,6 +99,17 @@ pub trait RuntimeBridge<Message> {
         _priority: TaskPriority,
         _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         _work: Box<dyn FnOnce() -> Message + Send + 'static>,
+    ) -> bool {
+        false
+    }
+
+    /// Spawn host work that may emit multiple messages before it completes.
+    fn spawn_streaming_message_task(
+        &mut self,
+        _name: &'static str,
+        _priority: TaskPriority,
+        _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        _work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
     ) -> bool {
         false
     }

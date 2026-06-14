@@ -37,6 +37,7 @@ impl<Message> Command<Message> {
             | Self::RequestPaintOnly
             | Self::After { .. }
             | Self::Perform { .. }
+            | Self::PerformStream { .. }
             | Self::Focus(_)
             | Self::ScrollTo { .. }
             | Self::ScrollIntoView { .. }
@@ -65,6 +66,7 @@ impl<Message> Command<Message> {
             | Self::RequestPaintOnly
             | Self::After { .. }
             | Self::Perform { .. }
+            | Self::PerformStream { .. }
             | Self::Focus(_)
             | Self::ScrollTo { .. }
             | Self::ScrollIntoView { .. }

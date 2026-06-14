@@ -2,7 +2,7 @@ use super::super::AppBridge;
 use crate::{
     application::{IntoView, UiUpdateContext},
     gui::repaint::RepaintSignal,
-    runtime::{Command, TaskPriority},
+    runtime::{BusinessMessageSink, Command, TaskPriority},
 };
 use std::{sync::Arc, time::Duration};
 
@@ -40,6 +40,29 @@ where
                 if let Some(runtime) = runtime.upgrade() {
                     let _ = runtime.enqueue(message);
                 }
+            })
+    }
+
+    pub(super) fn spawn_runtime_streaming_message_task(
+        &mut self,
+        name: &'static str,
+        priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
+    ) -> bool {
+        if !self.runtime.is_alive() {
+            return false;
+        }
+        let runtime = Arc::downgrade(&self.runtime);
+        self.runtime
+            .spawn_business_task(name, priority, is_cancelled, move || {
+                let sink_runtime = runtime.clone();
+                let sink = BusinessMessageSink::new(move |message| {
+                    sink_runtime
+                        .upgrade()
+                        .is_some_and(|runtime| runtime.enqueue(message))
+                });
+                work(sink);
             })
     }
 

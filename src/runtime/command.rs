@@ -4,6 +4,7 @@ use super::drag::DragRequest;
 use super::external_drag::{ExternalDragCompletion, ExternalDragRequest};
 use super::platform::{PlatformCompletion, PlatformRequest};
 use crate::{gui::types::Vector2, layout::NodeId, theme::DpiScale, widgets::WidgetId};
+use std::sync::Arc;
 use std::time::Duration;
 
 mod constructors;
@@ -32,6 +33,31 @@ pub enum TaskPriority {
     Background,
     /// Opportunistic work that should yield to interaction and rendering.
     Idle,
+}
+
+/// Runtime-owned message sink passed to streaming business workers.
+pub struct BusinessMessageSink<Message> {
+    emit: Arc<dyn Fn(Message) -> bool + Send + Sync + 'static>,
+}
+
+impl<Message> Clone for BusinessMessageSink<Message> {
+    fn clone(&self) -> Self {
+        Self {
+            emit: Arc::clone(&self.emit),
+        }
+    }
+}
+
+impl<Message> BusinessMessageSink<Message> {
+    pub(crate) fn new(emit: impl Fn(Message) -> bool + Send + Sync + 'static) -> Self {
+        Self {
+            emit: Arc::new(emit),
+        }
+    }
+
+    pub(crate) fn emit(&self, message: Message) -> bool {
+        (self.emit)(message)
+    }
 }
 
 /// Runtime-facing command produced by host application logic.
@@ -79,6 +105,19 @@ pub enum Command<Message> {
         is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         /// Background work lowered into a message-producing closure.
         work: Box<dyn FnOnce() -> Message + Send + 'static>,
+    },
+    /// Run host work on a business thread and allow it to dispatch
+    /// intermediate messages before it completes.
+    #[doc(hidden)]
+    PerformStream {
+        /// Human-readable task name for diagnostics.
+        name: &'static str,
+        /// Best-effort priority hint for the runtime-owned worker lane.
+        priority: TaskPriority,
+        /// Optional cooperative cancellation probe for diagnostics.
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        /// Background work lowered into a message-emitting closure.
+        work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
     },
     /// Move keyboard focus to one widget.
     Focus(WidgetId),

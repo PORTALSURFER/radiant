@@ -367,6 +367,14 @@ not run on the UI/event/render path. The business builder exposes
 policies such as `latest(&mut LatestTask)`,
 `latest_for(&mut KeyedLatestTasks<_>, key)`, `resource(&mut ResourceSlot<_>)`,
 and `cancellable()` before `.run(work, map)`.
+Use `.stream(work, map_event, map_final)` when one worker should report
+progressive results, such as progress, preview-ready, and final-ready states,
+without exposing UI state to the worker or using an app-local message channel.
+Streaming workers receive a `BusinessEventSink<Event>` and emitted events are
+mapped back through the normal message queue. `latest(...).stream(...)` tags
+both intermediate events and the final output with the same `TaskCompletion`
+ticket, so hosts can keep stale-result protection while adopting staged
+loading designs.
 Latest completions receive a `TaskCompletion<Output>` or
 `KeyedTaskCompletion<Key, Output>`; call the matching `LatestTask::finish(...)`
 or `KeyedLatestTasks::finish(...)` before applying the output so stale work is

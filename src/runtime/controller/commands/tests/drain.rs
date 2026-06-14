@@ -1,5 +1,8 @@
-use super::{super::*, fixtures::QueuedCommandBridge};
-use crate::runtime::{DragPreview, DragRequest};
+use super::{
+    super::*,
+    fixtures::{QueuedCommandBridge, StreamingCommandBridge},
+};
+use crate::runtime::{DragPreview, DragRequest, TaskPriority};
 
 #[test]
 fn runtime_command_drains_are_bounded_and_request_followup_wakeup() {
@@ -84,4 +87,29 @@ fn runtime_message_drains_are_smaller_during_active_drag() {
     assert_eq!(first.messages_dispatched, 8);
     assert!(first.runtime_work_remaining);
     assert_eq!(runtime.bridge().dispatched, (0..8).collect::<Vec<_>>());
+}
+
+#[test]
+fn streaming_business_command_emits_intermediate_and_final_messages() {
+    let bridge = StreamingCommandBridge::default();
+    let dispatched = bridge.dispatched.clone();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+
+    runtime.execute_command(Command::perform_stream_with_priority(
+        "stream-test",
+        TaskPriority::Interactive,
+        None,
+        |sink| {
+            assert!(sink.emit(1));
+            assert!(sink.emit(2));
+            assert!(sink.emit(3));
+        },
+    ));
+
+    assert_eq!(
+        *dispatched
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()),
+        vec![1, 2, 3]
+    );
 }

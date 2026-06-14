@@ -26,6 +26,11 @@ where
                 .field("name", name)
                 .field("priority", priority)
                 .finish(),
+            Self::PerformStream { name, priority, .. } => f
+                .debug_struct("PerformStream")
+                .field("name", name)
+                .field("priority", priority)
+                .finish(),
             Self::Focus(widget_id) => f.debug_tuple("Focus").field(widget_id).finish(),
             Self::ScrollTo { node_id, offset } => f
                 .debug_struct("ScrollTo")

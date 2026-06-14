@@ -32,6 +32,12 @@ mod fixtures {
         b: 0,
         a: 255,
     };
+    pub(super) const SELECTED_HOVERED: Rgba8 = Rgba8 {
+        r: 2,
+        g: 1,
+        b: 0,
+        a: 255,
+    };
     pub(super) const PRESSED: Rgba8 = Rgba8 {
         r: 3,
         g: 0,
@@ -54,6 +60,7 @@ mod fixtures {
     pub(super) fn palette() -> DenseRowPalette {
         DenseRowPalette::new()
             .selected(SELECTED)
+            .selected_hovered(SELECTED_HOVERED)
             .hovered(HOVERED)
             .pressed(PRESSED)
             .active_target(ACTIVE)

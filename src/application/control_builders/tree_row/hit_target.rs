@@ -1,6 +1,9 @@
 use crate::{
     gui::{
-        list::{DenseRowChromeParts, DenseRowLabelParts, DenseRowOutlineStyle, DenseRowPalette},
+        list::{
+            DenseRowChromeParts, DenseRowLabelParts, DenseRowMarkerStyle, DenseRowOutlineStyle,
+            DenseRowPalette,
+        },
         types::{Rect, Rgba8},
     },
     layout::{LayoutOutput, Vector2},
@@ -23,6 +26,7 @@ pub(super) struct TreeRowHitTarget<Message> {
     drag_drop: TreeRowDragDropState,
     palette: DenseRowPalette,
     drop_target_outline: DenseRowOutlineStyle,
+    selected_hover_marker: Option<DenseRowMarkerStyle>,
     normal_label_color: Option<Rgba8>,
     highlighted_label_color: Rgba8,
 }
@@ -33,6 +37,7 @@ pub(super) struct TreeRowHitTargetParts<Message> {
     pub(super) drag_drop: TreeRowDragDropState,
     pub(super) palette: DenseRowPalette,
     pub(super) drop_target_outline: DenseRowOutlineStyle,
+    pub(super) selected_hover_marker: Option<DenseRowMarkerStyle>,
     pub(super) normal_label_color: Option<Rgba8>,
     pub(super) highlighted_label_color: Rgba8,
     pub(super) actions: InteractiveRowActions<Message>,
@@ -65,6 +70,7 @@ impl<Message> TreeRowHitTarget<Message> {
             drag_drop: parts.drag_drop,
             palette: parts.palette,
             drop_target_outline: parts.drop_target_outline,
+            selected_hover_marker: parts.selected_hover_marker,
             normal_label_color: parts.normal_label_color,
             highlighted_label_color: parts.highlighted_label_color,
         }
@@ -79,9 +85,18 @@ impl<Message> TreeRowHitTarget<Message> {
     }
 
     fn chrome_parts(&self) -> DenseRowChromeParts {
-        self.row
+        let state = self.row.dense_visual_state(self.visual_state_parts());
+        let mut chrome = self
+            .row
             .dense_chrome_parts(self.visual_state_parts(), self.palette)
-            .outline_if(self.drag_drop.drop_target, self.drop_target_outline)
+            .outline_if(self.drag_drop.drop_target, self.drop_target_outline);
+        if state.selected
+            && state.hovered
+            && let Some(marker) = self.selected_hover_marker
+        {
+            chrome = chrome.leading_marker(marker);
+        }
+        chrome
     }
 
     fn label_color(&self, theme: &ThemeTokens) -> Rgba8 {

@@ -22,10 +22,27 @@ fn push_dense_row_fill_appends_prioritized_fill_when_visible() {
         PaintPrimitive::FillRect(fill) => {
             assert_eq!(fill.widget_id, 7);
             assert_eq!(fill.rect, bounds);
-            assert_eq!(fill.color, HOVERED);
+            assert_eq!(fill.color, SELECTED_HOVERED);
         }
         primitive => panic!("expected fill rect, got {primitive:?}"),
     }
+}
+
+#[test]
+fn selected_hovered_fill_falls_back_to_hover_when_not_configured() {
+    let state = DenseRowVisualState {
+        selected: true,
+        hovered: true,
+        ..DenseRowVisualState::default()
+    };
+
+    assert_eq!(
+        dense_row_fill_color(
+            state,
+            DenseRowPalette::new().selected(SELECTED).hovered(HOVERED),
+        ),
+        Some(HOVERED)
+    );
 }
 
 #[test]

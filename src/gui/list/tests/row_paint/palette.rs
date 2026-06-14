@@ -2,10 +2,13 @@ use super::fixtures::*;
 
 #[test]
 fn dense_row_palette_sets_interaction_fills_together() {
-    let palette = DenseRowPalette::new().interaction_fills(HOVERED, PRESSED);
+    let palette = DenseRowPalette::new()
+        .selected_hovered(SELECTED_HOVERED)
+        .interaction_fills(HOVERED, PRESSED);
 
     assert_eq!(palette.hovered, Some(HOVERED));
     assert_eq!(palette.pressed, Some(PRESSED));
+    assert_eq!(palette.selected_hovered, Some(SELECTED_HOVERED));
     assert_eq!(palette.selected, None);
     assert_eq!(palette.active_target, None);
     assert_eq!(palette.candidate_hovered, None);

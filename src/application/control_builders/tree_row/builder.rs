@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     application::ViewNode,
     gui::{
-        list::{DenseRowOutlineStyle, DenseRowPalette, TreeGuideStyle},
+        list::{DenseRowMarkerStyle, DenseRowOutlineStyle, DenseRowPalette, TreeGuideStyle},
         types::Rgba8,
     },
     runtime::PaintText,
@@ -34,6 +34,7 @@ pub struct TreeRowBuilder {
     pub(super) hit_key: Option<String>,
     pub(super) palette: DenseRowPalette,
     pub(super) drop_target_outline: DenseRowOutlineStyle,
+    pub(super) selected_hover_marker: Option<DenseRowMarkerStyle>,
     pub(super) normal_label_color: Option<Rgba8>,
     pub(super) highlighted_label_color: Rgba8,
 }
@@ -129,6 +130,12 @@ impl TreeRowBuilder {
         self
     }
 
+    /// Set a leading marker painted only when the row is both selected and hovered.
+    pub fn selected_hover_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.selected_hover_marker = Some(marker);
+        self
+    }
+
     /// Override the normal label color.
     pub fn label_color(mut self, color: Rgba8) -> Self {
         self.normal_label_color = Some(color);
@@ -176,6 +183,7 @@ pub fn tree_row(label: impl Into<PaintText>) -> TreeRowBuilder {
         hit_key: None,
         palette: default_palette(),
         drop_target_outline: default_drop_target_outline(),
+        selected_hover_marker: None,
         normal_label_color: None,
         highlighted_label_color: DEFAULT_HIGHLIGHTED_LABEL_COLOR,
     }

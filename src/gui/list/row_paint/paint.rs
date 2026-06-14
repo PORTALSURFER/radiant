@@ -114,6 +114,8 @@ pub fn dense_row_fill_color(state: DenseRowVisualState, palette: DenseRowPalette
         palette.candidate_hovered
     } else if state.pressed {
         palette.pressed
+    } else if state.hovered && state.selected {
+        palette.selected_hovered.or(palette.hovered)
     } else if state.hovered {
         palette.hovered
     } else if state.selected {

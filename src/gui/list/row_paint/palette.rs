@@ -10,6 +10,8 @@ use crate::{
 pub struct DenseRowPalette {
     /// Fill for the selected state.
     pub selected: Option<Rgba8>,
+    /// Fill for the combined selected and pointer-hover state.
+    pub selected_hovered: Option<Rgba8>,
     /// Fill for pointer hover.
     pub hovered: Option<Rgba8>,
     /// Fill for pointer press.
@@ -25,6 +27,7 @@ impl DenseRowPalette {
     pub const fn new() -> Self {
         Self {
             selected: None,
+            selected_hovered: None,
             hovered: None,
             pressed: None,
             active_target: None,
@@ -35,6 +38,12 @@ impl DenseRowPalette {
     /// Set the selected fill color.
     pub const fn selected(mut self, color: Rgba8) -> Self {
         self.selected = Some(color);
+        self
+    }
+
+    /// Set the selected and pointer-hover fill color.
+    pub const fn selected_hovered(mut self, color: Rgba8) -> Self {
+        self.selected_hovered = Some(color);
         self
     }
 

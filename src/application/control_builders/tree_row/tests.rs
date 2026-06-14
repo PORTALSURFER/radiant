@@ -1,7 +1,11 @@
+use super::hit_target::{TreeRowHitTarget, TreeRowHitTargetParts};
 use crate::{
     application::{IntoView, tree_row},
-    gui::types::{Point, Rect, Vector2},
-    widgets::{InteractiveRowActions, PointerButton, PointerModifiers, WidgetInput},
+    gui::{
+        list::{DenseRowMarkerParts, DenseRowMarkerStyle, DenseRowPalette},
+        types::{Point, Rect, Rgba8, Vector2},
+    },
+    widgets::{InteractiveRowActions, PointerButton, PointerModifiers, Widget, WidgetInput},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -56,5 +60,44 @@ fn tree_row_with_toggle_projects_label() {
         view.view_frame_at_size_with_default_theme(Vector2::new(160.0, 22.0))
             .paint_plan
             .contains_text("Folder")
+    );
+}
+
+#[test]
+fn selected_hover_tree_row_paints_configured_fill_and_marker() {
+    let selected_hover = Rgba8::new(20, 40, 60, 180);
+    let marker = Rgba8::new(220, 80, 40, 245);
+    let mut target = TreeRowHitTarget::new(TreeRowHitTargetParts {
+        label: "Folder".into(),
+        selected: true,
+        drag_drop: Default::default(),
+        palette: DenseRowPalette::new().selected_hovered(selected_hover),
+        drop_target_outline: crate::gui::list::DenseRowOutlineStyle::new(
+            0.5,
+            Rgba8::new(0, 0, 0, 0),
+            1.0,
+        ),
+        selected_hover_marker: Some(DenseRowMarkerStyle::new(
+            DenseRowMarkerParts::leading(3.0),
+            marker,
+        )),
+        normal_label_color: None,
+        highlighted_label_color: Rgba8::new(255, 255, 255, 255),
+        actions: InteractiveRowActions::new().activate(|| TreeRowMessage::Activate),
+    });
+    let bounds = Rect::from_size(160.0, 22.0);
+
+    target.handle_input(bounds, WidgetInput::pointer_move(Point::new(8.0, 10.0)));
+    let plan = target.paint_plan_with_defaults(bounds);
+
+    assert!(
+        plan.fill_rects()
+            .any(|fill| fill.rect == bounds && fill.color == selected_hover),
+        "selected+hovered tree row should use the configured selected-hover fill"
+    );
+    assert!(
+        plan.fill_rects()
+            .any(|fill| fill.rect.width() == 3.0 && fill.color == marker),
+        "selected+hovered tree row should paint the configured leading marker"
     );
 }

@@ -88,6 +88,7 @@ impl TreeRowBuilder {
             drag_drop: self.drag_drop,
             palette: self.palette,
             drop_target_outline: self.drop_target_outline,
+            selected_hover_marker: self.selected_hover_marker,
             normal_label_color: self.normal_label_color,
             highlighted_label_color: self.highlighted_label_color,
             actions,

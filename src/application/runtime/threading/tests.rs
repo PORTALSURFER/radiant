@@ -107,6 +107,41 @@ fn interactive_business_work_does_not_wait_behind_blocked_background_work() {
 }
 
 #[test]
+fn interactive_business_work_does_not_wait_behind_blocked_io_work() {
+    let pool = BusinessThreadPool::new(1);
+    let (io_started_tx, io_started_rx) = mpsc::channel();
+    let (release_io_tx, release_io_rx) = mpsc::channel();
+    let (interactive_tx, interactive_rx) = mpsc::channel();
+
+    assert!(
+        pool.spawn("blocked-io", TaskPriority::BlockingIo, None, move || {
+            io_started_tx.send(()).expect("send io start");
+            release_io_rx.recv().expect("wait for io release");
+        })
+    );
+    io_started_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("blocking IO task starts");
+
+    assert!(
+        pool.spawn("interactive", TaskPriority::Interactive, None, move || {
+            interactive_tx
+                .send(())
+                .expect("send interactive completion");
+        })
+    );
+
+    interactive_rx
+        .recv_timeout(Duration::from_millis(250))
+        .expect("interactive task should run on its own lane");
+    release_io_tx.send(()).expect("release IO task");
+
+    let diagnostics = wait_for_business_completion(&pool, 2);
+    assert_eq!(diagnostics.business.completed, 2);
+    assert!(diagnostics.business.max_interactive_queue_delay < Duration::from_millis(250));
+}
+
+#[test]
 fn business_thread_pool_rejects_work_when_no_workers_are_available() {
     let pool = BusinessThreadPool::without_workers_for_test();
     let ran = Arc::new(AtomicBool::new(false));

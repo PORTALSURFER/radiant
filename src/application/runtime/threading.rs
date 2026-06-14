@@ -16,6 +16,7 @@ const RUNTIME_CANCEL_POLL: std::time::Duration = std::time::Duration::from_milli
 const BUSINESS_THREAD_PREFIX: &str = "radiant-business";
 const DEFAULT_BUSINESS_WORKERS: usize = 2;
 const INTERACTIVE_BUSINESS_WORKERS: usize = 1;
+const BLOCKING_IO_BUSINESS_WORKERS: usize = 1;
 const IDLE_BUSINESS_WORKERS: usize = 1;
 const INTERACTIVE_CHECKPOINT_WARNING: std::time::Duration = std::time::Duration::from_millis(250);
 const STREAM_EVENT_WARNING: std::time::Duration = std::time::Duration::from_millis(500);
@@ -36,6 +37,7 @@ struct BusinessJob {
 pub(super) struct BusinessThreadPool {
     interactive: BusinessLane,
     background: BusinessLane,
+    blocking_io: BusinessLane,
     idle: BusinessLane,
     diagnostics: Arc<RuntimeDiagnosticsRecorder>,
 }
@@ -73,6 +75,11 @@ impl BusinessThreadPool {
             background_count,
             Arc::clone(&diagnostics),
         );
+        let blocking_io = BusinessLane::spawn(
+            TaskPriority::BlockingIo,
+            BLOCKING_IO_BUSINESS_WORKERS,
+            Arc::clone(&diagnostics),
+        );
         let idle = BusinessLane::spawn(
             TaskPriority::Idle,
             IDLE_BUSINESS_WORKERS,
@@ -81,6 +88,7 @@ impl BusinessThreadPool {
         Self {
             interactive,
             background,
+            blocking_io,
             idle,
             diagnostics,
         }
@@ -128,6 +136,7 @@ impl BusinessThreadPool {
         match priority {
             TaskPriority::Interactive => &self.interactive,
             TaskPriority::Background => &self.background,
+            TaskPriority::BlockingIo => &self.blocking_io,
             TaskPriority::Idle => &self.idle,
         }
     }
@@ -135,6 +144,7 @@ impl BusinessThreadPool {
     pub(super) const fn is_available(&self) -> bool {
         self.interactive.sender.is_some()
             || self.background.sender.is_some()
+            || self.blocking_io.sender.is_some()
             || self.idle.sender.is_some()
     }
 
@@ -143,6 +153,7 @@ impl BusinessThreadPool {
         Self {
             interactive: BusinessLane::empty(),
             background: BusinessLane::empty(),
+            blocking_io: BusinessLane::empty(),
             idle: BusinessLane::empty(),
             diagnostics: Arc::new(RuntimeDiagnosticsRecorder::default()),
         }
@@ -300,6 +311,7 @@ fn business_lane_name(priority: TaskPriority) -> &'static str {
     match priority {
         TaskPriority::Interactive => "interactive",
         TaskPriority::Background => "background",
+        TaskPriority::BlockingIo => "blocking-io",
         TaskPriority::Idle => "idle",
     }
 }

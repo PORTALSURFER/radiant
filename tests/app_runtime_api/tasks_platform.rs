@@ -56,7 +56,7 @@ fn latest_task_tracks_current_ticket_and_tags_spawned_completion() {
 #[test]
 fn business_runtime_builds_named_priority_lanes() {
     type SubmitBusinessWork = fn(&mut radiant::prelude::UiUpdateContext<DemoMessage>);
-    let cases: [(&str, radiant::prelude::TaskPriority, SubmitBusinessWork); 3] = [
+    let cases: [(&str, radiant::prelude::TaskPriority, SubmitBusinessWork); 4] = [
         (
             "interactive-work",
             radiant::prelude::TaskPriority::Interactive,
@@ -84,6 +84,16 @@ fn business_runtime_builds_named_priority_lanes() {
                 context
                     .business()
                     .idle("idle-work")
+                    .run(|_| DemoMessage::Increment, |message| message);
+            },
+        ),
+        (
+            "blocking-io-work",
+            radiant::prelude::TaskPriority::BlockingIo,
+            |context: &mut radiant::prelude::UiUpdateContext<DemoMessage>| {
+                context
+                    .business()
+                    .blocking_io("blocking-io-work")
                     .run(|_| DemoMessage::Increment, |message| message);
             },
         ),
@@ -335,5 +345,9 @@ fn ui_update_context_accepts_task_priority_hints() {
     context
         .business()
         .interactive("interactive-test")
+        .run(|_| 1_u8, |_| DemoMessage::Increment);
+    context
+        .business()
+        .blocking_io("blocking-io-test")
         .run(|_| 1_u8, |_| DemoMessage::Increment);
 }

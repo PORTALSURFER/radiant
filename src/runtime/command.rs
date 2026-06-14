@@ -31,6 +31,9 @@ pub enum TaskPriority {
     /// existing business-worker behavior.
     #[default]
     Background,
+    /// Blocking filesystem, database, process, or other IO work that should be
+    /// explicit and limited separately from ordinary CPU/background work.
+    BlockingIo,
     /// Opportunistic work that should yield to interaction and rendering.
     Idle,
 }

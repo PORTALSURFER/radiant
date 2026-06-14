@@ -8,6 +8,7 @@ pub(super) fn configure_business_worker_thread(priority: crate::runtime::TaskPri
     let native_priority = match priority {
         crate::runtime::TaskPriority::Interactive => THREAD_PRIORITY_NORMAL,
         crate::runtime::TaskPriority::Background => THREAD_PRIORITY_BELOW_NORMAL,
+        crate::runtime::TaskPriority::BlockingIo => THREAD_PRIORITY_BELOW_NORMAL,
         crate::runtime::TaskPriority::Idle => THREAD_PRIORITY_LOWEST,
     };
     let ok = unsafe { SetThreadPriority(GetCurrentThread(), native_priority) };

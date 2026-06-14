@@ -45,6 +45,8 @@ pub struct BusinessRuntimeDiagnostics {
     pub max_interactive_queue_delay: Duration,
     /// Longest observed background-task queue delay.
     pub max_background_queue_delay: Duration,
+    /// Longest observed blocking-IO-task queue delay.
+    pub max_blocking_io_queue_delay: Duration,
     /// Longest observed idle-task queue delay.
     pub max_idle_queue_delay: Duration,
     /// Longest observed worker execution duration.
@@ -53,6 +55,8 @@ pub struct BusinessRuntimeDiagnostics {
     pub max_interactive_run_duration: Duration,
     /// Longest observed background worker execution duration.
     pub max_background_run_duration: Duration,
+    /// Longest observed blocking-IO worker execution duration.
+    pub max_blocking_io_run_duration: Duration,
     /// Longest observed idle worker execution duration.
     pub max_idle_run_duration: Duration,
     /// Number of cooperative worker checkpoints reported by business tasks.
@@ -533,6 +537,10 @@ fn update_priority_queue_delay(
             diagnostics.max_background_queue_delay =
                 diagnostics.max_background_queue_delay.max(queue_delay);
         }
+        TaskPriority::BlockingIo => {
+            diagnostics.max_blocking_io_queue_delay =
+                diagnostics.max_blocking_io_queue_delay.max(queue_delay);
+        }
         TaskPriority::Idle => {
             diagnostics.max_idle_queue_delay = diagnostics.max_idle_queue_delay.max(queue_delay);
         }
@@ -552,6 +560,10 @@ fn update_priority_run_duration(
         TaskPriority::Background => {
             diagnostics.max_background_run_duration =
                 diagnostics.max_background_run_duration.max(run_duration);
+        }
+        TaskPriority::BlockingIo => {
+            diagnostics.max_blocking_io_run_duration =
+                diagnostics.max_blocking_io_run_duration.max(run_duration);
         }
         TaskPriority::Idle => {
             diagnostics.max_idle_run_duration = diagnostics.max_idle_run_duration.max(run_duration);

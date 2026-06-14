@@ -37,6 +37,11 @@ impl<'context, Message> BusinessRuntime<'context, Message> {
         self.request(name, TaskPriority::Background)
     }
 
+    /// Submit explicit blocking IO work off the UI path on a limited lane.
+    pub fn blocking_io(self, name: &'static str) -> BusinessRequest<'context, Message> {
+        self.request(name, TaskPriority::BlockingIo)
+    }
+
     /// Submit opportunistic work that may yield to interactive/background work.
     pub fn idle(self, name: &'static str) -> BusinessRequest<'context, Message> {
         self.request(name, TaskPriority::Idle)

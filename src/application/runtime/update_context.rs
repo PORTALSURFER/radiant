@@ -5,6 +5,7 @@ mod commands;
 mod platform;
 mod surface;
 
+pub(in crate::application) use business::with_business_work_diagnostics;
 pub use business::{BusinessEventSink, BusinessRuntime, BusinessWorkContext};
 
 /// UI-safe context supplied to app message handlers.

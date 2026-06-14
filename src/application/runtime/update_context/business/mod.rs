@@ -13,6 +13,7 @@ use super::UiUpdateContext;
 
 pub use sink::BusinessEventSink;
 pub use work_context::BusinessWorkContext;
+pub(in crate::application) use work_context::with_business_work_diagnostics;
 
 /// UI-update access point for submitting host-owned business work.
 pub struct BusinessRuntime<'context, Message> {

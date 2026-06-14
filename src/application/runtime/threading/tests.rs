@@ -58,8 +58,52 @@ fn business_thread_pool_runs_queued_work_on_named_workers() {
     assert!(
         completed
             .iter()
-            .all(|(_, name)| name.starts_with("radiant-business-worker-"))
+            .all(|(_, name)| name.starts_with("radiant-business-background-"))
     );
+}
+
+#[test]
+fn interactive_business_work_does_not_wait_behind_blocked_background_work() {
+    let pool = BusinessThreadPool::new(1);
+    let (background_started_tx, background_started_rx) = mpsc::channel();
+    let (release_background_tx, release_background_rx) = mpsc::channel();
+    let (interactive_tx, interactive_rx) = mpsc::channel();
+
+    assert!(pool.spawn(
+        "blocked-background",
+        TaskPriority::Background,
+        None,
+        move || {
+            background_started_tx
+                .send(())
+                .expect("send background start");
+            release_background_rx
+                .recv()
+                .expect("wait for background release");
+        }
+    ));
+    background_started_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("background task starts");
+
+    assert!(
+        pool.spawn("interactive", TaskPriority::Interactive, None, move || {
+            interactive_tx
+                .send(())
+                .expect("send interactive completion");
+        })
+    );
+
+    interactive_rx
+        .recv_timeout(Duration::from_millis(250))
+        .expect("interactive task should run on its own lane");
+    release_background_tx
+        .send(())
+        .expect("release background task");
+
+    let diagnostics = wait_for_business_completion(&pool, 2);
+    assert_eq!(diagnostics.business.completed, 2);
+    assert!(diagnostics.business.max_interactive_queue_delay < Duration::from_millis(250));
 }
 
 #[test]

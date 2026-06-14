@@ -1,4 +1,5 @@
 use super::AppRuntime;
+use super::update_context::with_business_work_diagnostics;
 use crate::runtime::{
     BusinessTaskDiagnosticState, RuntimeDiagnosticsRecorder, TaskPriority, elapsed_since,
 };
@@ -14,6 +15,8 @@ mod platform;
 const RUNTIME_CANCEL_POLL: std::time::Duration = std::time::Duration::from_millis(50);
 const BUSINESS_THREAD_PREFIX: &str = "radiant-business";
 const DEFAULT_BUSINESS_WORKERS: usize = 2;
+const INTERACTIVE_BUSINESS_WORKERS: usize = 1;
+const IDLE_BUSINESS_WORKERS: usize = 1;
 
 struct BusinessJob {
     priority: TaskPriority,
@@ -29,9 +32,10 @@ struct BusinessJob {
 /// capacity is unavailable. Work submission reports failure instead of falling
 /// back to synchronous execution on the UI owner.
 pub(super) struct BusinessThreadPool {
-    sender: Option<Sender<BusinessJob>>,
+    interactive: BusinessLane,
+    background: BusinessLane,
+    idle: BusinessLane,
     diagnostics: Arc<RuntimeDiagnosticsRecorder>,
-    _workers: Vec<thread::JoinHandle<()>>,
 }
 
 impl Default for BusinessThreadPool {
@@ -56,33 +60,27 @@ impl BusinessThreadPool {
         diagnostics: Arc<RuntimeDiagnosticsRecorder>,
         worker_count: usize,
     ) -> Self {
-        let worker_count = worker_count.max(1);
-        let (sender, receiver) = mpsc::channel::<BusinessJob>();
-        let receiver = Arc::new(Mutex::new(receiver));
-        let mut workers = Vec::with_capacity(worker_count);
-        for worker_index in 0..worker_count {
-            let receiver = Arc::clone(&receiver);
-            let diagnostics = Arc::clone(&diagnostics);
-            let name = business_thread_name(format!("worker-{worker_index}"));
-            match thread::Builder::new()
-                .name(name.clone())
-                .spawn(move || worker_loop(receiver, diagnostics))
-            {
-                Ok(worker) => workers.push(worker),
-                Err(error) => {
-                    tracing::warn!(
-                        thread.name = %name,
-                        error = %error,
-                        "Radiant app runtime failed to spawn business worker"
-                    );
-                }
-            }
-        }
-        let sender = (!workers.is_empty()).then_some(sender);
+        let background_count = worker_count.max(1);
+        let interactive = BusinessLane::spawn(
+            TaskPriority::Interactive,
+            INTERACTIVE_BUSINESS_WORKERS,
+            Arc::clone(&diagnostics),
+        );
+        let background = BusinessLane::spawn(
+            TaskPriority::Background,
+            background_count,
+            Arc::clone(&diagnostics),
+        );
+        let idle = BusinessLane::spawn(
+            TaskPriority::Idle,
+            IDLE_BUSINESS_WORKERS,
+            Arc::clone(&diagnostics),
+        );
         Self {
-            sender,
+            interactive,
+            background,
+            idle,
             diagnostics,
-            _workers: workers,
         }
     }
 
@@ -93,7 +91,8 @@ impl BusinessThreadPool {
         is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         work: impl FnOnce() + Send + 'static,
     ) -> bool {
-        let Some(sender) = &self.sender else {
+        let lane = self.lane(priority);
+        let Some(sender) = &lane.sender else {
             self.diagnostics.record_business_rejected(name, priority);
             tracing::warn!(
                 work.name = name,
@@ -123,25 +122,87 @@ impl BusinessThreadPool {
         }
     }
 
+    fn lane(&self, priority: TaskPriority) -> &BusinessLane {
+        match priority {
+            TaskPriority::Interactive => &self.interactive,
+            TaskPriority::Background => &self.background,
+            TaskPriority::Idle => &self.idle,
+        }
+    }
+
     pub(super) const fn is_available(&self) -> bool {
-        self.sender.is_some()
+        self.interactive.sender.is_some()
+            || self.background.sender.is_some()
+            || self.idle.sender.is_some()
     }
 
     #[cfg(test)]
     fn without_workers_for_test() -> Self {
         Self {
-            sender: None,
+            interactive: BusinessLane::empty(),
+            background: BusinessLane::empty(),
+            idle: BusinessLane::empty(),
             diagnostics: Arc::new(RuntimeDiagnosticsRecorder::default()),
+        }
+    }
+}
+
+struct BusinessLane {
+    sender: Option<Sender<BusinessJob>>,
+    _workers: Vec<thread::JoinHandle<()>>,
+}
+
+impl BusinessLane {
+    #[cfg(test)]
+    fn empty() -> Self {
+        Self {
+            sender: None,
             _workers: Vec::new(),
+        }
+    }
+
+    fn spawn(
+        priority: TaskPriority,
+        worker_count: usize,
+        diagnostics: Arc<RuntimeDiagnosticsRecorder>,
+    ) -> Self {
+        let worker_count = worker_count.max(1);
+        let (sender, receiver) = mpsc::channel::<BusinessJob>();
+        let receiver = Arc::new(Mutex::new(receiver));
+        let mut workers = Vec::with_capacity(worker_count);
+        for worker_index in 0..worker_count {
+            let receiver = Arc::clone(&receiver);
+            let diagnostics = Arc::clone(&diagnostics);
+            let name =
+                business_thread_name(format!("{}-{worker_index}", business_lane_name(priority)));
+            match thread::Builder::new()
+                .name(name.clone())
+                .spawn(move || worker_loop(priority, receiver, diagnostics))
+            {
+                Ok(worker) => workers.push(worker),
+                Err(error) => {
+                    tracing::warn!(
+                        thread.name = %name,
+                        error = %error,
+                        "Radiant app runtime failed to spawn business worker"
+                    );
+                }
+            }
+        }
+        let sender = (!workers.is_empty()).then_some(sender);
+        Self {
+            sender,
+            _workers: workers,
         }
     }
 }
 
 fn worker_loop(
+    lane_priority: TaskPriority,
     receiver: Arc<Mutex<mpsc::Receiver<BusinessJob>>>,
     diagnostics: Arc<RuntimeDiagnosticsRecorder>,
 ) {
-    platform::configure_business_worker_thread(TaskPriority::Background);
+    platform::configure_business_worker_thread(lane_priority);
     loop {
         let Ok(job) = lock_business_receiver(&receiver).recv() else {
             break;
@@ -150,7 +211,9 @@ fn worker_loop(
         let queue_delay = elapsed_since(job.queued_at);
         diagnostics.record_business_started(job.name, job.priority, queue_delay);
         let started = std::time::Instant::now();
-        (job.work)();
+        with_business_work_diagnostics(Arc::clone(&diagnostics), job.name, job.priority, || {
+            (job.work)();
+        });
         let state = if job
             .is_cancelled
             .as_ref()
@@ -161,7 +224,7 @@ fn worker_loop(
             BusinessTaskDiagnosticState::Completed
         };
         diagnostics.record_business_finished(job.name, job.priority, state, elapsed_since(started));
-        platform::configure_business_worker_thread(TaskPriority::Background);
+        platform::configure_business_worker_thread(lane_priority);
     }
 }
 
@@ -204,6 +267,14 @@ fn spawn_named_thread(name: String, work: impl FnOnce() + Send + 'static) -> boo
 fn business_thread_name(name: impl Into<String>) -> String {
     let name = name.into();
     format!("{BUSINESS_THREAD_PREFIX}-{name}")
+}
+
+fn business_lane_name(priority: TaskPriority) -> &'static str {
+    match priority {
+        TaskPriority::Interactive => "interactive",
+        TaskPriority::Background => "background",
+        TaskPriority::Idle => "idle",
+    }
 }
 
 #[cfg(test)]

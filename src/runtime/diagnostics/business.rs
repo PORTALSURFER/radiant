@@ -41,8 +41,28 @@ pub struct BusinessRuntimeDiagnostics {
     pub running: usize,
     /// Longest observed delay between task submission and worker start.
     pub max_queue_delay: Duration,
+    /// Longest observed interactive-task queue delay.
+    pub max_interactive_queue_delay: Duration,
+    /// Longest observed background-task queue delay.
+    pub max_background_queue_delay: Duration,
+    /// Longest observed idle-task queue delay.
+    pub max_idle_queue_delay: Duration,
     /// Longest observed worker execution duration.
     pub max_run_duration: Duration,
+    /// Longest observed interactive worker execution duration.
+    pub max_interactive_run_duration: Duration,
+    /// Longest observed background worker execution duration.
+    pub max_background_run_duration: Duration,
+    /// Longest observed idle worker execution duration.
+    pub max_idle_run_duration: Duration,
+    /// Number of cooperative worker checkpoints reported by business tasks.
+    pub checkpoints: usize,
+    /// Longest duration observed between cooperative checkpoints.
+    pub max_checkpoint_gap: Duration,
+    /// Number of intermediate events emitted by streaming business tasks.
+    pub stream_events: usize,
+    /// Longest duration observed between emitted stream events.
+    pub max_stream_event_gap: Duration,
     /// Bounded recent lifecycle events, ordered oldest to newest.
     pub recent: Vec<BusinessTaskDiagnostic>,
 }
@@ -60,6 +80,10 @@ pub struct BusinessTaskDiagnostic {
     pub queue_delay: Option<Duration>,
     /// Worker duration for terminal events.
     pub run_duration: Option<Duration>,
+    /// Duration since the previous cooperative checkpoint for checkpoint events.
+    pub checkpoint_gap: Option<Duration>,
+    /// Duration since the previous stream event for stream-event diagnostics.
+    pub stream_event_gap: Option<Duration>,
 }
 
 /// Business-task lifecycle state recorded in runtime diagnostics.
@@ -75,6 +99,10 @@ pub enum BusinessTaskDiagnosticState {
     Cancelled,
     /// Task could not be accepted by the worker queue.
     Rejected,
+    /// Task reported a cooperative checkpoint.
+    Checkpoint,
+    /// Streaming task emitted one intermediate event.
+    StreamEvent,
 }
 
 /// UI-path responsiveness diagnostics recorded by the generic runtime controller.
@@ -238,6 +266,8 @@ impl RuntimeDiagnosticsRecorder {
                 state: BusinessTaskDiagnosticState::Queued,
                 queue_delay: None,
                 run_duration: None,
+                checkpoint_gap: None,
+                stream_event_gap: None,
             },
         );
         tracing::debug!(work.name = name, ?priority, "radiant business work queued");
@@ -255,6 +285,7 @@ impl RuntimeDiagnosticsRecorder {
         state.snapshot.business.running += 1;
         state.snapshot.business.max_queue_delay =
             state.snapshot.business.max_queue_delay.max(queue_delay);
+        update_priority_queue_delay(&mut state.snapshot.business, priority, queue_delay);
         push_business_event(
             &mut state,
             BusinessTaskDiagnostic {
@@ -263,6 +294,8 @@ impl RuntimeDiagnosticsRecorder {
                 state: BusinessTaskDiagnosticState::Started,
                 queue_delay: Some(queue_delay),
                 run_duration: None,
+                checkpoint_gap: None,
+                stream_event_gap: None,
             },
         );
         tracing::debug!(
@@ -288,6 +321,7 @@ impl RuntimeDiagnosticsRecorder {
             .business
             .max_run_duration
             .max(run_duration);
+        update_priority_run_duration(&mut diagnostics.snapshot.business, priority, run_duration);
         match state {
             BusinessTaskDiagnosticState::Completed => diagnostics.snapshot.business.completed += 1,
             BusinessTaskDiagnosticState::Cancelled => diagnostics.snapshot.business.cancelled += 1,
@@ -295,7 +329,10 @@ impl RuntimeDiagnosticsRecorder {
                 diagnostics.snapshot.business.rejected += 1;
                 diagnostics.snapshot.business.failed += 1;
             }
-            BusinessTaskDiagnosticState::Queued | BusinessTaskDiagnosticState::Started => {}
+            BusinessTaskDiagnosticState::Queued
+            | BusinessTaskDiagnosticState::Started
+            | BusinessTaskDiagnosticState::Checkpoint
+            | BusinessTaskDiagnosticState::StreamEvent => {}
         }
         push_business_event(
             &mut diagnostics,
@@ -305,6 +342,8 @@ impl RuntimeDiagnosticsRecorder {
                 state,
                 queue_delay: None,
                 run_duration: Some(run_duration),
+                checkpoint_gap: None,
+                stream_event_gap: None,
             },
         );
         tracing::debug!(
@@ -322,6 +361,60 @@ impl RuntimeDiagnosticsRecorder {
             priority,
             BusinessTaskDiagnosticState::Rejected,
             Duration::ZERO,
+        );
+    }
+
+    pub(crate) fn record_business_checkpoint(
+        &self,
+        name: &'static str,
+        priority: TaskPriority,
+        checkpoint_gap: Duration,
+    ) {
+        let mut state = lock_diagnostics_state(&self.state);
+        state.snapshot.business.checkpoints += 1;
+        state.snapshot.business.max_checkpoint_gap = state
+            .snapshot
+            .business
+            .max_checkpoint_gap
+            .max(checkpoint_gap);
+        push_business_event(
+            &mut state,
+            BusinessTaskDiagnostic {
+                name,
+                priority,
+                state: BusinessTaskDiagnosticState::Checkpoint,
+                queue_delay: None,
+                run_duration: None,
+                checkpoint_gap: Some(checkpoint_gap),
+                stream_event_gap: None,
+            },
+        );
+    }
+
+    pub(crate) fn record_business_stream_event(
+        &self,
+        name: &'static str,
+        priority: TaskPriority,
+        stream_event_gap: Duration,
+    ) {
+        let mut state = lock_diagnostics_state(&self.state);
+        state.snapshot.business.stream_events += 1;
+        state.snapshot.business.max_stream_event_gap = state
+            .snapshot
+            .business
+            .max_stream_event_gap
+            .max(stream_event_gap);
+        push_business_event(
+            &mut state,
+            BusinessTaskDiagnostic {
+                name,
+                priority,
+                state: BusinessTaskDiagnosticState::StreamEvent,
+                queue_delay: None,
+                run_duration: None,
+                checkpoint_gap: None,
+                stream_event_gap: Some(stream_event_gap),
+            },
         );
     }
 
@@ -357,6 +450,46 @@ impl RuntimeDiagnosticsRecorder {
             "radiant update handler exceeded configured responsiveness threshold"
         );
         Some(diagnostic)
+    }
+}
+
+fn update_priority_queue_delay(
+    diagnostics: &mut BusinessRuntimeDiagnostics,
+    priority: TaskPriority,
+    queue_delay: Duration,
+) {
+    match priority {
+        TaskPriority::Interactive => {
+            diagnostics.max_interactive_queue_delay =
+                diagnostics.max_interactive_queue_delay.max(queue_delay);
+        }
+        TaskPriority::Background => {
+            diagnostics.max_background_queue_delay =
+                diagnostics.max_background_queue_delay.max(queue_delay);
+        }
+        TaskPriority::Idle => {
+            diagnostics.max_idle_queue_delay = diagnostics.max_idle_queue_delay.max(queue_delay);
+        }
+    }
+}
+
+fn update_priority_run_duration(
+    diagnostics: &mut BusinessRuntimeDiagnostics,
+    priority: TaskPriority,
+    run_duration: Duration,
+) {
+    match priority {
+        TaskPriority::Interactive => {
+            diagnostics.max_interactive_run_duration =
+                diagnostics.max_interactive_run_duration.max(run_duration);
+        }
+        TaskPriority::Background => {
+            diagnostics.max_background_run_duration =
+                diagnostics.max_background_run_duration.max(run_duration);
+        }
+        TaskPriority::Idle => {
+            diagnostics.max_idle_run_duration = diagnostics.max_idle_run_duration.max(run_duration);
+        }
     }
 }
 

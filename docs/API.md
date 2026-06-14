@@ -132,6 +132,12 @@ and helper calls that hide those operations must leave the UI path through
 Worker closures receive `radiant::runtime::BusinessWorkContext` as an explicit
 runtime capability so helper signatures can inspect cooperative cancellation
 without importing it from the normal app prelude or constructing it in UI code.
+Radiant runs interactive, background, and idle business work on separate
+runtime-owned lanes so user-visible interactive work is not queued behind
+background or idle jobs that are already running. Long workers should call
+`BusinessWorkContext::checkpoint()`, `check_cancelled()`,
+`yield_if_elapsed(...)`, or `fail_if_over_budget(...)` at natural chunk
+boundaries so cancellation and checkpoint diagnostics stay meaningful.
 Platform interactions such as file dialogs, reveal/open, clipboard text and
 file-list reads/writes, confirmation prompts, and native handoffs must use
 typed Radiant platform services instead of direct blocking calls from handlers.
@@ -375,6 +381,11 @@ mapped back through the normal message queue. `latest(...).stream(...)` tags
 both intermediate events and the final output with the same `TaskCompletion`
 ticket, so hosts can keep stale-result protection while adopting staged
 loading designs.
+Long-running workers should use `BusinessWorkContext::checkpoint()` when a
+chunk completes, `check_cancelled()` when they can stop promptly,
+`yield_if_elapsed(duration)` when CPU work should periodically yield, and
+`fail_if_over_budget(duration)` when an interactive worker must enforce a hard
+checkpoint budget.
 Latest completions receive a `TaskCompletion<Output>` or
 `KeyedTaskCompletion<Key, Output>`; call the matching `LatestTask::finish(...)`
 or `KeyedLatestTasks::finish(...)` before applying the output so stale work is
@@ -1377,7 +1388,10 @@ continuing the queue.
 `RuntimeDiagnostics` snapshot for tests and future debug panels. The
 `business` section reports accepted, started, completed, cancelled, rejected,
 failed, and currently running business work, plus bounded recent lifecycle
-events with task name, priority, queue delay, and run duration where applicable.
+events with task name, priority, queue delay, run duration, checkpoint gap, and
+stream-event gap where applicable. It also reports per-priority maximum queue
+delay and run duration, cooperative checkpoint counts and maximum checkpoint
+gap, and streaming event counts plus maximum gap between stream events.
 The `ui` section reports update-handler counts, the longest observed update
 duration, and the latest handler that crossed the configured slow-handler
 threshold, including handler type, message type, elapsed time, threshold, and

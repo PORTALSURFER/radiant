@@ -95,8 +95,8 @@ pub use panels::{
 };
 pub use runtime::{
     CancellationToken, FrameClock, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, Presentation,
-    RepaintPolicy, Subscription, TaskCompletion, TaskTicket, TransientOverlay, UiUpdateContext,
-    presentation,
+    RepaintPolicy, ResourceTaskTicket, ResourceTasks, Subscription, TaskCompletion, TaskTicket,
+    TransientOverlay, UiUpdateContext, presentation,
 };
 pub use surfaces::{
     DynamicWidget, DynamicWidgetParts, GpuSurfaceConfiguredParts, GpuSurfaceInputParts,

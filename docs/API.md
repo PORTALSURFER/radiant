@@ -138,6 +138,15 @@ background or idle jobs that are already running. Long workers should call
 `BusinessWorkContext::checkpoint()`, `check_cancelled()`,
 `yield_if_elapsed(...)`, or `fail_if_over_budget(...)` at natural chunk
 boundaries so cancellation and checkpoint diagnostics stay meaningful.
+Resource-scoped work should use `ResourceKey` with `ResourceTasks` and the
+business request policies `latest_for_resource(...)` or `exclusive_for(...)`.
+Use latest resource work when the newest request for a file, document, cache
+entry, device, or viewport should win; use exclusive resource work when
+duplicate loads for the same key should be rejected until the active request
+finishes or is cancelled. Keyed streaming workers tag intermediate and final
+messages with both the resource key and task ticket so stale progress,
+preview-ready, playback-ready, and final messages can be ignored without
+app-local ticket plumbing.
 Platform interactions such as file dialogs, reveal/open, clipboard text and
 file-list reads/writes, confirmation prompts, and native handoffs must use
 typed Radiant platform services instead of direct blocking calls from handlers.
@@ -371,16 +380,20 @@ adapter code. Use `context.business()` for host-owned business work that must
 not run on the UI/event/render path. The business builder exposes
 `interactive(...)`, `background(...)`, and `idle(...)` lanes, then optional
 policies such as `latest(&mut LatestTask)`,
-`latest_for(&mut KeyedLatestTasks<_>, key)`, `resource(&mut ResourceSlot<_>)`,
-and `cancellable()` before `.run(work, map)`.
+`latest_for(&mut KeyedLatestTasks<_>, key)`,
+`latest_for_resource(&mut ResourceTasks, ResourceKey)`,
+`exclusive_for(&mut ResourceTasks, ResourceKey)`,
+`resource(&mut ResourceSlot<_>)`, and `cancellable()` before
+`.run(work, map)`.
 Use `.stream(work, map_event, map_final)` when one worker should report
 progressive results, such as progress, preview-ready, and final-ready states,
 without exposing UI state to the worker or using an app-local message channel.
 Streaming workers receive a `BusinessEventSink<Event>` and emitted events are
 mapped back through the normal message queue. `latest(...).stream(...)` tags
 both intermediate events and the final output with the same `TaskCompletion`
-ticket, so hosts can keep stale-result protection while adopting staged
-loading designs.
+ticket; keyed/latest resource streams tag events and final output with a
+`KeyedTaskCompletion<Key, Output>` so hosts can keep stale-result protection
+while adopting staged loading designs.
 Long-running workers should use `BusinessWorkContext::checkpoint()` when a
 chunk completes, `check_cancelled()` when they can stop promptly,
 `yield_if_elapsed(duration)` when CPU work should periodically yield, and
@@ -389,7 +402,10 @@ checkpoint budget.
 Latest completions receive a `TaskCompletion<Output>` or
 `KeyedTaskCompletion<Key, Output>`; call the matching `LatestTask::finish(...)`
 or `KeyedLatestTasks::finish(...)` before applying the output so stale work is
-rejected consistently without host-specific task-id plumbing. Use
+rejected consistently without host-specific task-id plumbing. Resource-keyed
+completions should call `ResourceTasks::finish_key(...)` or
+`ResourceTasks::is_active_key(...)` with the carried `ResourceKey` and
+`TaskTicket` before applying progress, preview, playback, or final output. Use
 `UiUpdateContext::after_latest(...)` for debounced one-resource UI delays when a
 selection, search query, or inspector target should only start after it remains
 current for a short delay; the delayed message carries the same ticket type and
@@ -1391,7 +1407,9 @@ failed, and currently running business work, plus bounded recent lifecycle
 events with task name, priority, queue delay, run duration, checkpoint gap, and
 stream-event gap where applicable. It also reports per-priority maximum queue
 delay and run duration, cooperative checkpoint counts and maximum checkpoint
-gap, and streaming event counts plus maximum gap between stream events.
+gap, streaming event counts plus maximum gap between stream events, and warning
+counts/recent events for tasks that exceed the configured checkpoint or stream
+event warning threshold without reporting progress.
 The `ui` section reports update-handler counts, the longest observed update
 duration, and the latest handler that crossed the configured slow-handler
 threshold, including handler type, message type, elapsed time, threshold, and

@@ -85,6 +85,7 @@ impl BusinessWorkContext {
         let gap = now.saturating_duration_since(*last_checkpoint);
         *last_checkpoint = now;
         if let Some(task) = current_business_task() {
+            record_current_business_checkpoint();
             task.diagnostics
                 .record_business_checkpoint(task.name, task.priority, gap);
         }
@@ -140,7 +141,20 @@ pub(crate) struct BusinessWorkDiagnosticScope {
     pub(crate) diagnostics: Arc<RuntimeDiagnosticsRecorder>,
     pub(crate) name: &'static str,
     pub(crate) priority: TaskPriority,
-    pub(crate) last_stream_event: Arc<Mutex<Instant>>,
+    pub(crate) state: Arc<Mutex<BusinessWorkDiagnosticState>>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct BusinessWorkDiagnosticSummary {
+    pub(crate) checkpoints: usize,
+    pub(crate) stream_events: usize,
+}
+
+#[derive(Debug)]
+pub(crate) struct BusinessWorkDiagnosticState {
+    last_stream_event: Instant,
+    checkpoints: usize,
+    stream_events: usize,
 }
 
 thread_local! {
@@ -152,21 +166,57 @@ pub(crate) fn with_business_work_diagnostics(
     name: &'static str,
     priority: TaskPriority,
     work: impl FnOnce(),
-) {
+) -> BusinessWorkDiagnosticSummary {
+    let state = Arc::new(Mutex::new(BusinessWorkDiagnosticState {
+        last_stream_event: Instant::now(),
+        checkpoints: 0,
+        stream_events: 0,
+    }));
     let previous = CURRENT_BUSINESS_TASK.with(|current| {
         current.replace(Some(BusinessWorkDiagnosticScope {
             diagnostics,
             name,
             priority,
-            last_stream_event: Arc::new(Mutex::new(Instant::now())),
+            state: Arc::clone(&state),
         }))
     });
     work();
     CURRENT_BUSINESS_TASK.with(|current| {
         current.replace(previous);
     });
+    let state = lock_diagnostic_state(&state);
+    BusinessWorkDiagnosticSummary {
+        checkpoints: state.checkpoints,
+        stream_events: state.stream_events,
+    }
 }
 
 pub(crate) fn current_business_task() -> Option<BusinessWorkDiagnosticScope> {
     CURRENT_BUSINESS_TASK.with(|current| current.borrow().clone())
+}
+
+pub(crate) fn record_current_business_checkpoint() {
+    if let Some(task) = current_business_task() {
+        let mut state = lock_diagnostic_state(&task.state);
+        state.checkpoints = state.checkpoints.saturating_add(1);
+    }
+}
+
+pub(crate) fn record_current_business_stream_event() -> Option<Duration> {
+    current_business_task().map(|task| {
+        let now = Instant::now();
+        let mut state = lock_diagnostic_state(&task.state);
+        let gap = now.saturating_duration_since(state.last_stream_event);
+        state.last_stream_event = now;
+        state.stream_events = state.stream_events.saturating_add(1);
+        gap
+    })
+}
+
+fn lock_diagnostic_state(
+    state: &Mutex<BusinessWorkDiagnosticState>,
+) -> std::sync::MutexGuard<'_, BusinessWorkDiagnosticState> {
+    state
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }

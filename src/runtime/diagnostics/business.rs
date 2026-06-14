@@ -63,6 +63,10 @@ pub struct BusinessRuntimeDiagnostics {
     pub stream_events: usize,
     /// Longest duration observed between emitted stream events.
     pub max_stream_event_gap: Duration,
+    /// Number of completed interactive tasks that exceeded the checkpoint warning threshold without a checkpoint.
+    pub missing_checkpoint_warnings: usize,
+    /// Number of completed tasks that exceeded the stream-event warning threshold without emitting an intermediate event.
+    pub missing_stream_event_warnings: usize,
     /// Bounded recent lifecycle events, ordered oldest to newest.
     pub recent: Vec<BusinessTaskDiagnostic>,
 }
@@ -103,6 +107,10 @@ pub enum BusinessTaskDiagnosticState {
     Checkpoint,
     /// Streaming task emitted one intermediate event.
     StreamEvent,
+    /// Task exceeded the checkpoint warning threshold without reporting a checkpoint.
+    MissingCheckpoint,
+    /// Task exceeded the stream-event warning threshold without emitting progress.
+    MissingStreamEvent,
 }
 
 /// UI-path responsiveness diagnostics recorded by the generic runtime controller.
@@ -332,7 +340,9 @@ impl RuntimeDiagnosticsRecorder {
             BusinessTaskDiagnosticState::Queued
             | BusinessTaskDiagnosticState::Started
             | BusinessTaskDiagnosticState::Checkpoint
-            | BusinessTaskDiagnosticState::StreamEvent => {}
+            | BusinessTaskDiagnosticState::StreamEvent
+            | BusinessTaskDiagnosticState::MissingCheckpoint
+            | BusinessTaskDiagnosticState::MissingStreamEvent => {}
         }
         push_business_event(
             &mut diagnostics,
@@ -415,6 +425,62 @@ impl RuntimeDiagnosticsRecorder {
                 checkpoint_gap: None,
                 stream_event_gap: Some(stream_event_gap),
             },
+        );
+    }
+
+    pub(crate) fn record_business_missing_checkpoint(
+        &self,
+        name: &'static str,
+        priority: TaskPriority,
+        run_duration: Duration,
+    ) {
+        let mut state = lock_diagnostics_state(&self.state);
+        state.snapshot.business.missing_checkpoint_warnings += 1;
+        push_business_event(
+            &mut state,
+            BusinessTaskDiagnostic {
+                name,
+                priority,
+                state: BusinessTaskDiagnosticState::MissingCheckpoint,
+                queue_delay: None,
+                run_duration: Some(run_duration),
+                checkpoint_gap: None,
+                stream_event_gap: None,
+            },
+        );
+        tracing::warn!(
+            work.name = name,
+            ?priority,
+            run_duration_ms = run_duration.as_secs_f64() * 1000.0,
+            "radiant business work exceeded checkpoint warning threshold without reporting a checkpoint"
+        );
+    }
+
+    pub(crate) fn record_business_missing_stream_event(
+        &self,
+        name: &'static str,
+        priority: TaskPriority,
+        run_duration: Duration,
+    ) {
+        let mut state = lock_diagnostics_state(&self.state);
+        state.snapshot.business.missing_stream_event_warnings += 1;
+        push_business_event(
+            &mut state,
+            BusinessTaskDiagnostic {
+                name,
+                priority,
+                state: BusinessTaskDiagnosticState::MissingStreamEvent,
+                queue_delay: None,
+                run_duration: Some(run_duration),
+                checkpoint_gap: None,
+                stream_event_gap: None,
+            },
+        );
+        tracing::warn!(
+            work.name = name,
+            ?priority,
+            run_duration_ms = run_duration.as_secs_f64() * 1000.0,
+            "radiant business work exceeded stream-event warning threshold without emitting progress"
         );
     }
 

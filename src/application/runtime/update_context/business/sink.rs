@@ -1,6 +1,6 @@
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
-use super::work_context::current_business_task;
+use super::work_context::{current_business_task, record_current_business_stream_event};
 
 /// Worker-side sender for intermediate business-work events.
 ///
@@ -35,13 +35,7 @@ impl<Event> BusinessEventSink<Event> {
 
     fn record_emit(&self) {
         if let Some(task) = current_business_task() {
-            let now = Instant::now();
-            let mut last_event = task
-                .last_stream_event
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let gap = now.saturating_duration_since(*last_event);
-            *last_event = now;
+            let gap = record_current_business_stream_event().unwrap_or_default();
             task.diagnostics
                 .record_business_stream_event(task.name, task.priority, gap);
         }

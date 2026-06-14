@@ -1,8 +1,9 @@
 use std::hash::Hash;
 
 use crate::{
+    application::runtime::ResourceTasks,
     application::{CancellationToken, KeyedLatestTasks, LatestTask},
-    runtime::{Command, ResourceSlot, TaskPriority},
+    runtime::{Command, ResourceKey, ResourceSlot, TaskPriority},
 };
 
 use super::{
@@ -51,6 +52,38 @@ impl<'context, Message> BusinessRequest<'context, Message> {
             ticket: latest.begin(key.clone()),
             key,
         }
+    }
+
+    /// Start replace-latest work for one generic resource key.
+    pub fn latest_for_resource(
+        self,
+        resources: &mut ResourceTasks,
+        key: impl Into<ResourceKey>,
+    ) -> BusinessKeyedLatestRequest<'context, Message, ResourceKey> {
+        let ticket = resources.begin_latest(key.into());
+        let key = ticket.key().clone();
+        BusinessKeyedLatestRequest {
+            request: self,
+            ticket: ticket.ticket(),
+            key,
+        }
+    }
+
+    /// Start exclusive work for one generic resource key.
+    ///
+    /// Returns `None` when the same key already has an active exclusive task.
+    pub fn exclusive_for(
+        self,
+        resources: &mut ResourceTasks,
+        key: impl Into<ResourceKey>,
+    ) -> Option<BusinessKeyedLatestRequest<'context, Message, ResourceKey>> {
+        let ticket = resources.begin_exclusive(key.into())?;
+        let key = ticket.key().clone();
+        Some(BusinessKeyedLatestRequest {
+            request: self,
+            ticket: ticket.ticket(),
+            key,
+        })
     }
 
     /// Start a resource load for one host-owned resource slot.
@@ -187,6 +220,40 @@ impl<'context, Message> CancellableBusinessRequest<'context, Message> {
             ticket,
             key,
         }
+    }
+
+    /// Start cancellable replace-latest work for one generic resource key.
+    pub fn latest_for_resource(
+        self,
+        resources: &mut ResourceTasks,
+        key: impl Into<ResourceKey>,
+    ) -> CancellableBusinessKeyedLatestRequest<'context, Message, ResourceKey> {
+        let ticket = resources.begin_latest(key.into());
+        let key = ticket.key().clone();
+        CancellableBusinessKeyedLatestRequest {
+            request: self.request,
+            token: self.token,
+            ticket: ticket.ticket(),
+            key,
+        }
+    }
+
+    /// Start cancellable exclusive work for one generic resource key.
+    ///
+    /// Returns `None` when the same key already has an active exclusive task.
+    pub fn exclusive_for(
+        self,
+        resources: &mut ResourceTasks,
+        key: impl Into<ResourceKey>,
+    ) -> Option<CancellableBusinessKeyedLatestRequest<'context, Message, ResourceKey>> {
+        let ticket = resources.begin_exclusive(key.into())?;
+        let key = ticket.key().clone();
+        Some(CancellableBusinessKeyedLatestRequest {
+            request: self.request,
+            token: self.token,
+            ticket: ticket.ticket(),
+            key,
+        })
     }
 
     /// Start a resource load for one host-owned resource slot.

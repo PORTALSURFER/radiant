@@ -26,8 +26,8 @@ pub(in crate::application) use bridge::{
 pub(in crate::application) use queue::AppRuntime;
 pub use subscription::Subscription;
 pub use task::{
-    CancellationToken, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, TaskCompletion,
-    TaskTicket,
+    CancellationToken, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, ResourceTaskTicket,
+    ResourceTasks, TaskCompletion, TaskTicket,
 };
 pub use update_context::{BusinessEventSink, BusinessWorkContext, UiUpdateContext};
 

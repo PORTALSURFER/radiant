@@ -1,5 +1,5 @@
 use super::AppRuntime;
-use super::update_context::with_business_work_diagnostics;
+use super::update_context::{BusinessWorkDiagnosticSummary, with_business_work_diagnostics};
 use crate::runtime::{
     BusinessTaskDiagnosticState, RuntimeDiagnosticsRecorder, TaskPriority, elapsed_since,
 };
@@ -17,6 +17,8 @@ const BUSINESS_THREAD_PREFIX: &str = "radiant-business";
 const DEFAULT_BUSINESS_WORKERS: usize = 2;
 const INTERACTIVE_BUSINESS_WORKERS: usize = 1;
 const IDLE_BUSINESS_WORKERS: usize = 1;
+const INTERACTIVE_CHECKPOINT_WARNING: std::time::Duration = std::time::Duration::from_millis(250);
+const STREAM_EVENT_WARNING: std::time::Duration = std::time::Duration::from_millis(500);
 
 struct BusinessJob {
     priority: TaskPriority,
@@ -207,15 +209,22 @@ fn worker_loop(
         let Ok(job) = lock_business_receiver(&receiver).recv() else {
             break;
         };
-        platform::configure_business_worker_thread(job.priority);
-        let queue_delay = elapsed_since(job.queued_at);
-        diagnostics.record_business_started(job.name, job.priority, queue_delay);
+        let name = job.name;
+        let priority = job.priority;
+        let queued_at = job.queued_at;
+        let is_cancelled = job.is_cancelled;
+        let work = job.work;
+        platform::configure_business_worker_thread(priority);
+        let queue_delay = elapsed_since(queued_at);
+        diagnostics.record_business_started(name, priority, queue_delay);
         let started = std::time::Instant::now();
-        with_business_work_diagnostics(Arc::clone(&diagnostics), job.name, job.priority, || {
-            (job.work)();
-        });
-        let state = if job
-            .is_cancelled
+        let summary =
+            with_business_work_diagnostics(Arc::clone(&diagnostics), name, priority, || {
+                (work)();
+            });
+        let run_duration = elapsed_since(started);
+        record_business_progress_warnings(&diagnostics, name, priority, &summary, run_duration);
+        let state = if is_cancelled
             .as_ref()
             .is_some_and(|is_cancelled| is_cancelled())
         {
@@ -223,8 +232,26 @@ fn worker_loop(
         } else {
             BusinessTaskDiagnosticState::Completed
         };
-        diagnostics.record_business_finished(job.name, job.priority, state, elapsed_since(started));
+        diagnostics.record_business_finished(name, priority, state, run_duration);
         platform::configure_business_worker_thread(lane_priority);
+    }
+}
+
+fn record_business_progress_warnings(
+    diagnostics: &RuntimeDiagnosticsRecorder,
+    name: &'static str,
+    priority: TaskPriority,
+    summary: &BusinessWorkDiagnosticSummary,
+    run_duration: std::time::Duration,
+) {
+    if priority == TaskPriority::Interactive
+        && run_duration >= INTERACTIVE_CHECKPOINT_WARNING
+        && summary.checkpoints == 0
+    {
+        diagnostics.record_business_missing_checkpoint(name, priority, run_duration);
+    }
+    if run_duration >= STREAM_EVENT_WARNING && summary.stream_events == 0 {
+        diagnostics.record_business_missing_stream_event(name, priority, run_duration);
     }
 }
 

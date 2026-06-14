@@ -2073,10 +2073,11 @@ For multi-region application shells, use `workspace_shell(main_workspace)` when
 the readable app shape is a top bar, central workspace row, optional leading and
 trailing sidebars, and optional status bar. The builder composes ordinary
 Radiant views through `top_bar(...)`, `leading_sidebar(...)`,
-`trailing_sidebar(...)`, and `status_bar(...)`; applications still own panel
-state, product copy, and region contents. Keep `row(...)` and `column(...)` for
-small custom layouts, and use `workspace_shell(...)` when the shell structure is
-itself the public contract a reader or test should recognize. The
+`trailing_sidebar(...)`, `status_bar(...)`, and view-local `overlays(...)`;
+applications still own panel state, product copy, and region contents. Keep
+`row(...)` and `column(...)` for small custom layouts, and use
+`workspace_shell(...)` when the shell structure is itself the public contract a
+reader or test should recognize. The
 `arrangement_shell` example demonstrates this contract without making DAW,
 transport, clip, or mixer semantics part of Radiant.
 

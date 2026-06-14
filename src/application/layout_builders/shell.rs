@@ -1,7 +1,7 @@
 //! Generic application shell layout builder.
 
 use crate::{
-    application::{ViewNode, column, row},
+    application::{Overlays, ViewNode, column, row},
     widgets::WidgetStyle,
 };
 
@@ -16,6 +16,7 @@ pub struct WorkspaceShellBuilder<Message> {
     workspace_spacing: f32,
     padding: f32,
     style: Option<WidgetStyle>,
+    overlays: Option<Overlays<Message>>,
 }
 
 impl<Message> WorkspaceShellBuilder<Message> {
@@ -67,6 +68,12 @@ impl<Message> WorkspaceShellBuilder<Message> {
         self
     }
 
+    /// Attach view-local overlays to the shell owner region.
+    pub fn overlays(mut self, overlays: Overlays<Message>) -> Self {
+        self.overlays = Some(overlays);
+        self
+    }
+
     /// Build the shell view.
     pub fn build(self) -> ViewNode<Message> {
         let mut workspace_children = Vec::new();
@@ -90,6 +97,9 @@ impl<Message> WorkspaceShellBuilder<Message> {
         if let Some(style) = self.style {
             shell = shell.style(style);
         }
+        if let Some(overlays) = self.overlays {
+            shell = shell.overlays(overlays);
+        }
         shell
     }
 }
@@ -106,14 +116,15 @@ pub fn workspace_shell<Message>(workspace: ViewNode<Message>) -> WorkspaceShellB
         workspace_spacing: 4.0,
         padding: 0.0,
         style: None,
+        overlays: None,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        application::{IntoView, text, workspace_shell},
-        layout::{ContainerKind, LayoutNode},
+        application::{IntoView, Layer, overlays, scene, text, workspace_shell},
+        layout::{ContainerKind, LayoutNode, Vector2},
     };
 
     #[test]
@@ -157,5 +168,37 @@ mod tests {
         };
         assert_eq!(workspace_row.policy.kind, ContainerKind::Row);
         assert_eq!(workspace_row.children.len(), 3);
+    }
+
+    #[test]
+    fn workspace_shell_fills_available_space() {
+        let surface = workspace_shell(text::<()>("Main")).build().into_surface();
+        let root = surface.layout_node();
+        let root_id = root.id();
+        let layout = surface.layout_at_size(Vector2::new(640.0, 480.0));
+
+        assert_eq!(
+            layout
+                .rects
+                .get(&root_id)
+                .map(|rect| Vector2::new(rect.width(), rect.height())),
+            Some(Vector2::new(640.0, 480.0))
+        );
+    }
+
+    #[test]
+    fn workspace_shell_preserves_owner_overlays() {
+        let labels = scene::<()>(
+            workspace_shell(text("Main"))
+                .top_bar(text("Top"))
+                .overlays(overlays().layer(Layer::floating(text("Floating"))))
+                .build(),
+        )
+        .into_view()
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 180.0))
+        .paint_plan
+        .text_label_strings();
+
+        assert_eq!(labels, ["Top", "Main", "Floating"]);
     }
 }

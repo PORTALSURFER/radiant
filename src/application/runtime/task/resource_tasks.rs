@@ -123,7 +123,7 @@ mod tests {
     #[test]
     fn exclusive_resource_tasks_reject_duplicate_active_key() {
         let mut tasks = ResourceTasks::new();
-        let key = ResourceKey::new("sample:C:/kick.wav");
+        let key = ResourceKey::scoped("sample", "C:/kick.wav");
 
         let first = tasks
             .begin_exclusive(key.clone())
@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn latest_resource_tasks_replace_previous_ticket_for_same_key() {
         let mut tasks = ResourceTasks::new();
-        let key = ResourceKey::new("sample:C:/kick.wav");
+        let key = ResourceKey::scoped("sample", "C:/kick.wav");
 
         let first = tasks.begin_latest(key.clone());
         let second = tasks.begin_latest(key);

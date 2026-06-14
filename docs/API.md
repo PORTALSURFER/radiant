@@ -140,6 +140,11 @@ background or idle jobs that are already running. Long workers should call
 boundaries so cancellation and checkpoint diagnostics stay meaningful.
 Resource-scoped work should use `ResourceKey` with `ResourceTasks` and the
 business request policies `latest_for_resource(...)` or `exclusive_for(...)`.
+Build keys with `ResourceKey::scoped(scope, identity)` for stable host-owned
+classes such as documents, cache entries, folders, devices, or viewports, and
+`ResourceKey::path(scope, path)` when the host has already chosen path display
+text as the resource identity. `ResourceKey::new(...)` remains available for
+advanced hosts that already own a complete opaque key.
 Use latest resource work when the newest request for a file, document, cache
 entry, device, or viewport should win; use exclusive resource work when
 duplicate loads for the same key should be rejected until the active request
@@ -406,6 +411,8 @@ rejected consistently without host-specific task-id plumbing. Resource-keyed
 completions should call `ResourceTasks::finish_key(...)` or
 `ResourceTasks::is_active_key(...)` with the carried `ResourceKey` and
 `TaskTicket` before applying progress, preview, playback, or final output. Use
+`ResourceKey::scoped(...)` or `ResourceKey::path(...)` to keep resource classes
+explicit instead of hand-concatenating scope prefixes in app code. Use
 `UiUpdateContext::after_latest(...)` for debounced one-resource UI delays when a
 selection, search query, or inspector target should only start after it remains
 current for a short delay; the delayed message carries the same ticket type and

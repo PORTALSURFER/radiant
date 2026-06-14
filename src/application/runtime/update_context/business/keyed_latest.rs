@@ -22,7 +22,7 @@ mod tests {
         context
             .business()
             .interactive("keyed-stream-test")
-            .latest_for(&mut latest, ResourceKey::new("sample:C:/kick.wav"))
+            .latest_for(&mut latest, ResourceKey::scoped("sample", "C:/kick.wav"))
             .stream(
                 |_context, events| {
                     assert!(events.emit("preview"));

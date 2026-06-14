@@ -4,7 +4,7 @@ use super::radiant_source;
 fn gpu_surface_widget_uses_named_parts_for_retained_resource_identity() {
     let source = radiant_source("src/widgets/primitives/gpu_surface.rs");
     let widgets = radiant_source("src/widgets/mod.rs");
-    let application_builder = radiant_source("src/application/builders/leaf.rs");
+    let application_builder = radiant_source("src/application/builders/leaf/gpu.rs");
 
     assert!(
         source.contains("pub struct GpuSurfaceParts")

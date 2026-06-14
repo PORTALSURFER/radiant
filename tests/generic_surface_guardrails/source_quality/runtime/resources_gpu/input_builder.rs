@@ -2,7 +2,7 @@ use super::{prelude_source, radiant_source};
 
 #[test]
 fn gpu_surface_input_builder_uses_named_parts_for_message_mapping() {
-    let application_builder = radiant_source("src/application/builders/leaf.rs");
+    let application_builder = radiant_source("src/application/builders/leaf/gpu.rs");
     let application_facade = radiant_source("src/application/facade/surfaces.rs");
     let prelude = prelude_source();
     let app_test = radiant_source("tests/app_runtime_api/gpu_surface.rs");

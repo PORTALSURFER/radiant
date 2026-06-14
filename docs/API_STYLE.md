@@ -211,6 +211,10 @@ radiant::app(LoadingState::default())
 - Prefer `column([...])` and `row([...])` for short fixed child lists.
 - Prefer `children().push(...).push_opt(...).push_if(...)` when optional
   branches make arrays or tuples harder to scan.
+- Prefer `workspace_shell(main)` when a serious app surface has the common
+  top-bar, workspace-row, optional sidebars, and status-bar shape. Keep panel
+  state and product-specific region contents in the host; the Radiant builder is
+  only the readable generic shell composition contract.
 - Prefer `list(items.iter(), row_view)` or another documented list primitive
   for repeated homogeneous rows.
 - Dynamic rows must use stable identity from host-owned IDs. Avoid index-based

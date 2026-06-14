@@ -2069,6 +2069,17 @@ manual validation:
 | Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame` |
 | Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling` |
 
+For multi-region application shells, use `workspace_shell(main_workspace)` when
+the readable app shape is a top bar, central workspace row, optional leading and
+trailing sidebars, and optional status bar. The builder composes ordinary
+Radiant views through `top_bar(...)`, `leading_sidebar(...)`,
+`trailing_sidebar(...)`, and `status_bar(...)`; applications still own panel
+state, product copy, and region contents. Keep `row(...)` and `column(...)` for
+small custom layouts, and use `workspace_shell(...)` when the shell structure is
+itself the public contract a reader or test should recognize. The
+`arrangement_shell` example demonstrates this contract without making DAW,
+transport, clip, or mixer semantics part of Radiant.
+
 Some maintained examples are intentionally advanced synthetic domain
 simulations rather than canonical API-contract starters. They validate dense
 control panels, retained custom-widget painting, runtime-local hover/drag
@@ -2386,10 +2397,11 @@ simulation with source and destination labels, bipolar amount editing,
 clear/delete behavior, synthetic activity markers, and paint-only hover
 overlays. Synth routing semantics are non-authoritative.
 Run `cargo run --example arrangement_shell` for an advanced synthetic
-multi-pane workspace simulation with transport-like controls, a browser pane,
-timeline overview, inspector, compact status strip, synthetic clips/meters,
-and paint-only hover/playhead overlays. Arrangement, track, transport, mixer,
-audio, DSP, and plugin behavior remain host-owned.
+multi-pane workspace simulation that uses `workspace_shell(...)` for readable
+top/sidebar/workspace/status composition around transport-like controls, a
+browser pane, timeline overview, inspector, compact status strip, synthetic
+clips/meters, and paint-only hover/playhead overlays. Arrangement, track,
+transport, mixer, audio, DSP, and plugin behavior remain host-owned.
 
 ## Quality Gate
 

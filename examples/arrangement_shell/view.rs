@@ -13,21 +13,16 @@ use components::{
 };
 
 pub(crate) fn project_surface(state: &mut ArrangementShellState) -> View<AppMessage> {
-    column([
-        transport_bar(state),
-        row([
-            browser_panel(state),
-            arrangement_panel(state),
-            inspector_panel(state),
-        ])
-        .fill()
-        .spacing(10.0),
-        mixer_strip(state),
-    ])
-    .style(WidgetStyle::default())
-    .padding(14.0)
-    .spacing(10.0)
-    .fill()
+    workspace_shell(arrangement_panel(state))
+        .top_bar(transport_bar(state))
+        .leading_sidebar(browser_panel(state))
+        .trailing_sidebar(inspector_panel(state))
+        .status_bar(mixer_strip(state))
+        .style(WidgetStyle::default())
+        .padding(14.0)
+        .outer_spacing(10.0)
+        .workspace_spacing(10.0)
+        .build()
 }
 
 fn transport_bar(state: &ArrangementShellState) -> View<AppMessage> {

@@ -8,6 +8,7 @@ mod overlays;
 mod resizable;
 mod scene;
 mod scroll;
+mod shell;
 
 pub use collection::{Children, children};
 pub use containers::{
@@ -32,3 +33,4 @@ pub use overlays::{
 pub use resizable::resizable;
 pub use scene::{Overlays, Scene, overlays, scene};
 pub use scroll::{scroll, virtual_scroll};
+pub use shell::{WorkspaceShellBuilder, workspace_shell};

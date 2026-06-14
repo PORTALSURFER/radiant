@@ -2070,8 +2070,8 @@ manual validation:
 | Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling` |
 
 For multi-region application shells, use `workspace_shell(main_workspace)` when
-the readable app shape is a top bar, central workspace row, optional leading and
-trailing sidebars, and optional status bar. The builder composes ordinary
+the readable app shape is a top bar, central workspace row, optional leading or
+trailing sidebars/panels, and optional status bar. The builder composes ordinary
 Radiant views through `top_bar(...)`, `leading_sidebar(...)`,
 `trailing_sidebar(...)`, `status_bar(...)`, and view-local `overlays(...)`;
 applications still own panel state, product copy, and region contents. Keep

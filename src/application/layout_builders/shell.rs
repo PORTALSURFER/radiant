@@ -9,8 +9,8 @@ use crate::{
 pub struct WorkspaceShellBuilder<Message> {
     workspace: ViewNode<Message>,
     top_bar: Option<ViewNode<Message>>,
-    leading_sidebar: Option<ViewNode<Message>>,
-    trailing_sidebar: Option<ViewNode<Message>>,
+    leading_sidebars: Vec<ViewNode<Message>>,
+    trailing_sidebars: Vec<ViewNode<Message>>,
     status_bar: Option<ViewNode<Message>>,
     outer_spacing: f32,
     workspace_spacing: f32,
@@ -28,13 +28,13 @@ impl<Message> WorkspaceShellBuilder<Message> {
 
     /// Add the leading sidebar region before the main workspace.
     pub fn leading_sidebar(mut self, view: ViewNode<Message>) -> Self {
-        self.leading_sidebar = Some(view);
+        self.leading_sidebars.push(view);
         self
     }
 
     /// Add the trailing sidebar region after the main workspace.
     pub fn trailing_sidebar(mut self, view: ViewNode<Message>) -> Self {
-        self.trailing_sidebar = Some(view);
+        self.trailing_sidebars.push(view);
         self
     }
 
@@ -77,9 +77,9 @@ impl<Message> WorkspaceShellBuilder<Message> {
     /// Build the shell view.
     pub fn build(self) -> ViewNode<Message> {
         let mut workspace_children = Vec::new();
-        workspace_children.extend(self.leading_sidebar);
+        workspace_children.extend(self.leading_sidebars);
         workspace_children.push(self.workspace);
-        workspace_children.extend(self.trailing_sidebar);
+        workspace_children.extend(self.trailing_sidebars);
 
         let workspace_row = row(workspace_children)
             .fill()
@@ -109,8 +109,8 @@ pub fn workspace_shell<Message>(workspace: ViewNode<Message>) -> WorkspaceShellB
     WorkspaceShellBuilder {
         workspace,
         top_bar: None,
-        leading_sidebar: None,
-        trailing_sidebar: None,
+        leading_sidebars: Vec::new(),
+        trailing_sidebars: Vec::new(),
         status_bar: None,
         outer_spacing: 4.0,
         workspace_spacing: 4.0,
@@ -153,6 +153,7 @@ mod tests {
     fn workspace_shell_includes_optional_sidebars_around_workspace() {
         let layout = workspace_shell(text::<()>("Main"))
             .leading_sidebar(text("Leading"))
+            .leading_sidebar(text("Inspector"))
             .trailing_sidebar(text("Trailing"))
             .build()
             .into_surface()
@@ -167,7 +168,7 @@ mod tests {
             panic!("workspace region should lower to a row");
         };
         assert_eq!(workspace_row.policy.kind, ContainerKind::Row);
-        assert_eq!(workspace_row.children.len(), 3);
+        assert_eq!(workspace_row.children.len(), 4);
     }
 
     #[test]

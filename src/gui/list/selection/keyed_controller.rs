@@ -1,10 +1,7 @@
-use std::collections::BTreeSet;
-
 use crate::gui::selection::SelectionSet;
 
+use super::key_membership::{OrderedKeyMembership, ordered_key_index};
 use super::{ListSelectionIntent, ListSelectionModifiers, list_index_after_delta};
-
-const KEY_MEMBERSHIP_LINEAR_SCAN_LIMIT: usize = 64;
 
 /// Reusable focus, anchor, and multi-selection state for lists keyed by stable row identity.
 ///
@@ -299,36 +296,5 @@ where
 
     fn bump_revision(&mut self) {
         self.revision = self.revision.wrapping_add(1);
-    }
-}
-
-fn ordered_key_index<K: PartialEq>(key: &K, ordered_keys: &[K]) -> Option<usize> {
-    ordered_keys.iter().position(|candidate| candidate == key)
-}
-
-struct OrderedKeyMembership<'a, K> {
-    ordered_keys: &'a [K],
-    indexed_keys: Option<BTreeSet<&'a K>>,
-}
-
-impl<'a, K> OrderedKeyMembership<'a, K>
-where
-    K: Ord,
-{
-    fn new(ordered_keys: &'a [K], expected_lookups: usize) -> Self {
-        let indexed_keys = (ordered_keys.len().saturating_mul(expected_lookups)
-            > KEY_MEMBERSHIP_LINEAR_SCAN_LIMIT)
-            .then(|| ordered_keys.iter().collect());
-        Self {
-            ordered_keys,
-            indexed_keys,
-        }
-    }
-
-    fn contains(&self, key: &K) -> bool {
-        self.indexed_keys.as_ref().map_or_else(
-            || self.ordered_keys.contains(key),
-            |keys| keys.contains(key),
-        )
     }
 }

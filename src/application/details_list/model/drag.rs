@@ -4,7 +4,6 @@ use crate::widgets::DragHandleMessage;
 use super::{DetailsColumnPlacement, details_column_reorder_index, reorder_details_columns_by_id};
 
 #[cfg(test)]
-#[path = "column_drag/tests.rs"]
 mod tests;
 
 /// Active pointer-driven details-column resize state.

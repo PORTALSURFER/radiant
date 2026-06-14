@@ -1,3 +1,4 @@
+use super::super::DetailsColumnPlacement;
 use super::*;
 use crate::widgets::DragHandleMessage;
 

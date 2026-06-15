@@ -55,6 +55,7 @@ impl Default for NativeRunnerInputState {
 
 pub(super) struct NativeRunnerTimingState {
     pub(super) redraw_requested: bool,
+    pub(super) redraw_requested_at: Option<Instant>,
     pub(super) startup_timing: StartupTimingProfile,
     pub(super) first_frame_presented: bool,
     pub(super) animation_origin: Instant,
@@ -75,6 +76,7 @@ impl Default for NativeRunnerTimingState {
         let now = Instant::now();
         Self {
             redraw_requested: false,
+            redraw_requested_at: None,
             startup_timing: StartupTimingProfile::new(),
             first_frame_presented: false,
             animation_origin: now,

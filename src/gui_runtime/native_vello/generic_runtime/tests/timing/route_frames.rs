@@ -135,3 +135,24 @@ fn interactive_scene_rebuilds_are_capped_to_frame_cadence() {
     runner.timing.last_interactive_scene_rebuild = now - interval;
     assert!(runner.should_rebuild_interactive_scene_now(now));
 }
+
+#[test]
+fn pending_redraw_requests_are_reissued_when_input_starves_present() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let now = Instant::now();
+
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(now);
+    assert!(
+        !runner.pending_redraw_request_is_stale(now + Duration::from_millis(8)),
+        "fresh pending redraws should still coalesce"
+    );
+    assert!(
+        runner.pending_redraw_request_is_stale(now + Duration::from_millis(17)),
+        "stale pending redraws should be reissued during sustained input bursts"
+    );
+}

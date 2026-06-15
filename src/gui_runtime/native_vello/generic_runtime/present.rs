@@ -22,6 +22,7 @@ where
 {
     pub(super) fn redraw(&mut self, event_loop: &ActiveEventLoop) {
         self.timing.redraw_requested = false;
+        self.timing.redraw_requested_at = None;
         self.timing.surface_resize_applied_this_frame = false;
         if !self.timing.first_frame_presented {
             self.timing.startup_timing.mark_first_redraw_started();

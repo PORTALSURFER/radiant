@@ -12,7 +12,7 @@ use crate::{
     gui_runtime::native_vello::NativeTextRenderer,
     runtime::{NativeRunOptions, RuntimeAnimationActivity, RuntimeBridge},
 };
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use winit::event_loop::ActiveEventLoop;
 
 pub(super) struct GenericNativeVelloRunner<Bridge, Message>
@@ -39,6 +39,8 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    const REDRAW_REISSUE_AFTER: Duration = Duration::from_millis(16);
+
     pub(super) fn new(options: NativeRunOptions, bridge: Bridge, viewport: Vector2) -> Self {
         let text_renderer = NativeTextRenderer::with_options(&options.text);
         let debug_layout = options.frame.debug_layout;
@@ -56,13 +58,21 @@ where
     }
 
     pub(super) fn request_redraw_if_needed(&mut self) {
-        if self.timing.redraw_requested {
+        let now = Instant::now();
+        if self.timing.redraw_requested && !self.pending_redraw_request_is_stale(now) {
             return;
         }
         if let Some(window) = self.window.window.as_ref() {
             window.request_redraw();
             self.timing.redraw_requested = true;
+            self.timing.redraw_requested_at = Some(now);
         }
+    }
+
+    pub(super) fn pending_redraw_request_is_stale(&self, now: Instant) -> bool {
+        self.timing.redraw_requested_at.is_none_or(|requested_at| {
+            now.duration_since(requested_at) >= Self::REDRAW_REISSUE_AFTER
+        })
     }
 
     pub(super) fn drain_timed_frame_now(

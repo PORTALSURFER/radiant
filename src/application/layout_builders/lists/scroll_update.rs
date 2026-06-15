@@ -7,16 +7,18 @@ use crate::runtime::ScrollUpdate;
 pub(super) fn resolve_virtual_list_window_change(
     offset_y: f32,
     row_height: f32,
+    viewport_height: f32,
     current: VirtualListWindow,
     overscan_px: f32,
 ) -> VirtualListWindowChange {
     let row_height = row_height.max(1.0);
     let requested_start =
         virtual_list_view_start_for_scroll_offset(offset_y, row_height, current.total_items);
+    let viewport_len = (viewport_height.max(0.0) / row_height).ceil().max(1.0) as usize;
     let overscan = (overscan_px.max(0.0) / row_height).ceil() as usize;
     let window = resolve_virtual_list_window(VirtualListWindowRequest {
         total_items: current.total_items,
-        viewport_len: current.viewport_len(),
+        viewport_len,
         requested_start,
         overscan,
         focused_index: None,
@@ -40,6 +42,7 @@ pub fn virtual_list_window_change_for_scroll(
     resolve_virtual_list_window_change(
         update.offset.y,
         row_height,
+        update.viewport.y,
         current,
         row_height.max(0.0) * overscan_rows as f32,
     )

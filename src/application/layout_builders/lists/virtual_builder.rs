@@ -76,6 +76,7 @@ where
                 message(resolve_virtual_list_window_change(
                     update.offset.y,
                     row_height,
+                    update.viewport.y,
                     window,
                     overscan_px,
                 ))

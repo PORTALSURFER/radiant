@@ -58,3 +58,45 @@ fn scroll_area_scrollbar_drag_requests_interactive_surface_refresh() {
     core.refresh_surface();
     assert_eq!(core.runtime.bridge().project_count, 2);
 }
+
+#[test]
+fn scrollbar_drag_surface_refresh_rebuilds_immediately_while_captured() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ScrollRefreshBridge::default(),
+        Vector2::new(240.0, 40.0),
+    );
+    runner.rebuild_scene();
+    runner.timing.last_interactive_scene_rebuild = Instant::now();
+    let scroll_rect = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&61)
+        .copied()
+        .expect("scroll area should be laid out");
+    let press = Point::new(scroll_rect.max.x - 2.0, scroll_rect.min.y + 8.0);
+    let drag = Point::new(press.x, press.y + 14.0);
+
+    runner
+        .core
+        .route_pointer_press(press, PointerButton::Primary);
+    let outcome = runner.core.route_pointer_move(drag);
+    runner.handle_gpu_surface_pointer_move_outcome(outcome, Some(press), drag);
+
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 1);
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        2,
+        "scrollbar drags with app-owned scroll state must refresh before the next presented scene"
+    );
+    assert!(
+        !runner.timing.deferred_surface_refresh,
+        "captured scrollbar drags should not leave a stale virtual-list surface pending"
+    );
+    assert!(
+        !runner.timing.deferred_scene_rebuild,
+        "captured scrollbar drags should not leave the scene pointing at stale materialized rows"
+    );
+}

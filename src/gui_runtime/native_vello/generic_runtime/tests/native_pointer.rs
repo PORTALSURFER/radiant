@@ -126,11 +126,11 @@ fn native_pointer_harness_refreshes_scroll_area_wheel_surface_interactively() {
     assert_eq!(harness.runner.core.runtime.bridge().scroll_count, 1);
     assert_eq!(
         harness.runner.core.runtime.bridge().project_count,
-        1,
-        "native wheel routing should coalesce projection until the next redraw"
+        2,
+        "native wheel routing should refresh the projected surface on the first interactive frame"
     );
-    assert!(harness.runner.timing.deferred_surface_refresh);
-    assert!(harness.runner.timing.deferred_scene_rebuild);
+    assert!(!harness.runner.timing.deferred_surface_refresh);
+    assert!(!harness.runner.timing.deferred_scene_rebuild);
 
     harness
         .runner
@@ -138,7 +138,7 @@ fn native_pointer_harness_refreshes_scroll_area_wheel_surface_interactively() {
     assert_eq!(
         harness.runner.core.runtime.bridge().project_count,
         2,
-        "deferred scene rebuild should refresh the projected surface before painting"
+        "no extra deferred scene rebuild should be queued after the immediate interactive refresh"
     );
 }
 

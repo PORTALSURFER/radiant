@@ -27,7 +27,16 @@ where
             return;
         }
         if outcome.interactive_scene_rebuild_requested {
-            self.defer_interactive_scene_rebuild();
+            let now = std::time::Instant::now();
+            if self.should_rebuild_interactive_scene_now(now) {
+                if outcome.interactive_surface_refresh_requested {
+                    self.refresh_and_rebuild_scene_for_interactive_route_now();
+                } else {
+                    self.rebuild_scene_for_interactive_route_now();
+                }
+            } else {
+                self.defer_interactive_scene_rebuild();
+            }
             self.request_redraw_if_needed();
             return;
         }

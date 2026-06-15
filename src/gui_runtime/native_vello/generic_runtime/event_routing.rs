@@ -45,17 +45,28 @@ where
         let pending = self.runtime.take_pending_input_command_outcome();
         let captured_pointer_refresh =
             outcome.pointer_captured && pending.surface_refresh_requested;
-        if pending.surface_refresh_requested && outcome.hover_changed && !captured_pointer_refresh {
+        let scroll_drag_surface_refresh =
+            self.runtime.scrollbar_drag_active() && pending.surface_refresh_requested;
+        if pending.surface_refresh_requested
+            && outcome.hover_changed
+            && !captured_pointer_refresh
+            && !scroll_drag_surface_refresh
+        {
             self.runtime.refresh();
         }
         GenericRouteOutcome {
             routed: outcome.routed(),
-            redraw_requested: outcome.hover_changed || captured_pointer_refresh,
+            redraw_requested: outcome.hover_changed
+                || captured_pointer_refresh
+                || scroll_drag_surface_refresh,
             deferred_surface_refresh_requested: pending.surface_refresh_requested
                 && !outcome.hover_changed
-                && !captured_pointer_refresh,
-            interactive_surface_refresh_requested: captured_pointer_refresh,
-            interactive_scene_rebuild_requested: captured_pointer_refresh,
+                && !captured_pointer_refresh
+                && !scroll_drag_surface_refresh,
+            interactive_surface_refresh_requested: captured_pointer_refresh
+                || scroll_drag_surface_refresh,
+            interactive_scene_rebuild_requested: captured_pointer_refresh
+                || scroll_drag_surface_refresh,
             repaint_requested: outcome.repaint_requested || pending.surface_repaint_requested,
             paint_only_requested: outcome.paint_only_requested || pending.paint_only_requested,
             exit_requested: outcome.exit_requested || pending.exit_requested,

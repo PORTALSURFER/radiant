@@ -102,6 +102,10 @@ where
             .map(|capture| capture.node_id)
     }
 
+    pub(crate) fn scrollbar_drag_active(&self) -> bool {
+        self.interaction.pointer.scroll_drag_capture.is_some()
+    }
+
     fn scrollbar_drag_capture_at(&self, point: Point) -> Option<ScrollDragCapture> {
         self.traversal
             .containers

@@ -28,7 +28,7 @@ fn scrollbar_drag_state_survives_view_refresh_after_offset_message() {
 }
 
 #[test]
-fn scroll_area_scrollbar_drag_defers_surface_refresh_until_requested() {
+fn scroll_area_scrollbar_drag_requests_interactive_surface_refresh() {
     let mut core =
         GenericNativeRuntimeCore::new(ScrollRefreshBridge::default(), Vector2::new(240.0, 40.0));
     let scroll_rect = core
@@ -44,13 +44,15 @@ fn scroll_area_scrollbar_drag_defers_surface_refresh_until_requested() {
     core.route_pointer_press(press, PointerButton::Primary);
     let outcome = core.route_pointer_move(drag);
 
-    assert!(outcome.deferred_surface_refresh_requested);
-    assert!(!outcome.needs_scene_rebuild());
+    assert!(!outcome.deferred_surface_refresh_requested);
+    assert!(outcome.interactive_surface_refresh_requested);
+    assert!(outcome.interactive_scene_rebuild_requested);
+    assert!(outcome.needs_scene_rebuild());
     assert_eq!(core.runtime.bridge().scroll_count, 1);
     assert_eq!(
         core.runtime.bridge().project_count,
         1,
-        "scroll-area scrollbar drag should not refresh the projected surface immediately"
+        "scroll-area scrollbar drag should leave projection to the runner refresh path"
     );
 
     core.refresh_surface();

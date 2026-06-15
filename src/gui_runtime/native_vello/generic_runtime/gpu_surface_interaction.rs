@@ -26,6 +26,15 @@ where
         if !outcome.needs_redraw() {
             return;
         }
+        if outcome.interactive_scene_rebuild_requested {
+            if outcome.interactive_surface_refresh_requested {
+                self.refresh_and_rebuild_scene_for_interactive_route_now();
+            } else {
+                self.rebuild_scene_for_interactive_route_now();
+            }
+            self.request_redraw_if_needed();
+            return;
+        }
         if self.can_fast_path_gpu_surface_route(position, delta) {
             self.timing.deferred_surface_refresh = true;
             self.request_redraw_if_needed();

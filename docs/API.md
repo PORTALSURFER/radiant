@@ -976,7 +976,6 @@ declared on `ui::scene(...)`:
 ui::scene(layout::shell(state))
     .frame_clock(
         ui::FrameClock::message(GuiMessage::Frame)
-            .when(|state| state.frame_message_animation_active())
             .fps(60)
             .repaint_scope(
                 |state| state.frame_repaint_scope_before_update(),
@@ -1011,7 +1010,6 @@ radiant::app(state)
         ui::presentation()
             .frame_clock(
                 ui::FrameClock::message(GuiMessage::Frame)
-                    .when(|state| state.frame_message_animation_active())
                     .fps(60)
                     .repaint_scope(
                         |state| state.frame_repaint_scope_before_update(),
@@ -1039,6 +1037,13 @@ to `Scene` or to the app builder. Reducer messages request a surface repaint by
 default, while frame-clock messages with `repaint_scope(...)` can resolve to
 paint-only repaint when the frame update did not require a structural surface
 refresh.
+
+For realtime-feeling desktop surfaces, prefer a 60Hz frame clock with a strict
+`repaint_scope(...)` policy over a conditional frame clock that starts and stops
+around foreground activity. The steady clock gives the runtime a predictable
+cadence to measure and diagnose; the repaint scope, retained surface revisions,
+layout/text caches, and transient overlays keep stable frames from doing full
+surface work when nothing relevant changed.
 
 Compatibility policy: root-scoped app presentation should use
 `Scene::frame_clock(...)` and `Scene::overlay(...)`. App-builder

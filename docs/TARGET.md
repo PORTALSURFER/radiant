@@ -492,6 +492,40 @@ Important hot paths should have benchmarks, profiling notes, diagnostics, or str
 
 Performance should be treated as an architectural concern, not as an afterthought.
 
+## 60Hz Retained Presentation Target
+
+Radiant should target steady 60Hz presentation for interactive desktop surfaces.
+Missing the cadence is a runtime-diagnostics event that should be logged or
+reported with enough context to investigate the cause.
+
+The 60Hz target must not mean full UI work every frame. Frame cadence and frame
+work are separate contracts:
+
+- The runtime should be able to wake and present at 60Hz when a surface is
+  visible and expected to feel live.
+- If application state, layout inputs, paint inputs, retained GPU payloads, text
+  runs, scroll windows, and transient overlays are unchanged, the frame should
+  reuse existing work and avoid surface reprojection, layout, paint-plan
+  rebuilds, Vello scene re-encoding, retained GPU-surface uploads, and text
+  shaping.
+- Frame-clock messages that only update presentation state should resolve to
+  `PaintOnly` when the cached base surface remains valid.
+- Transient cursor, hover, drag, playhead, and progress overlays should prefer
+  overlay or paint-only paths over structural surface refreshes.
+- Retained surfaces should expose stable keys, revisions, dirty masks, and
+  diagnostics so hosts can prove that unchanged segments are reused.
+- Virtualized lists and dense trees should retain measurement and window metrics
+  across scroll and hover frames, invalidating only when their dependencies
+  change.
+
+Radiant tests and diagnostics should make this contract hard to regress. The
+runtime should expose counters for surface refreshes, paint-only presents, scene
+rebuilds, paint-plan rebuilds, layout cache hits/misses, text cache hits/misses,
+retained-surface hits/misses, GPU upload/rebuild counts, transient-overlay work,
+and missed 60Hz frame deadlines. Stress tests should assert that stable idle
+frames and overlay-only motion reuse cached work, while targeted invalidation
+rebuilds only the affected regions or retained segments.
+
 ## Modern CPU/GPU Architecture
 
 Radiant should be designed from the ground up to take advantage of modern CPU and GPU capabilities.

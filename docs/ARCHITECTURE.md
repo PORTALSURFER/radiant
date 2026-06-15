@@ -171,6 +171,16 @@ and frame presentation live under
 stay there or behind explicit GPU-surface contracts, not leak into normal
 application-builder code.
 
+Frame cadence, invalidation, and render reuse are separate responsibilities.
+Native runtimes should be able to maintain a steady 60Hz presentation cadence
+while rebuilding only the work invalidated by host state, layout, paint, text,
+retained-surface revision, GPU payload, or transient-overlay changes.
+`src/runtime` owns the backend-neutral invalidation and repaint-scope contract;
+`src/gui_runtime/native_vello/generic_runtime` owns the native scheduling,
+cached base-scene presentation, retained GPU-surface reuse, and frame-diagnostic
+counters that prove stable frames avoid unnecessary reprojection, scene
+encoding, GPU upload, or text/layout cache churn.
+
 ## Text Boundary
 
 Radiant treats text as a first-class GUI concern but keeps the responsibilities

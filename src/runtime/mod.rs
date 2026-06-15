@@ -54,6 +54,7 @@ pub use command::{
     BusinessMessageSink, Command, RepaintScope, ScrollFixedRowIntoViewParts, ScrollIntoViewParts,
     TaskPriority,
 };
+pub(crate) use controller::WheelOrScrollRoute;
 pub use controller::{
     CommandOutcome, DeclarativeOwnedSurfaceRuntime, DeclarativeSurfaceRuntime, Event,
     FocusTraversal, PointerClickOutcome, PointerMoveOutcome, RuntimeContext, RuntimeSurfaceFrame,

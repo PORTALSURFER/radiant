@@ -23,6 +23,7 @@ pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};
 pub use events::{Event, PointerClickOutcome, PointerMoveOutcome};
 pub use scroll::ScrollUpdate;
+pub(crate) use scroll::WheelOrScrollRoute;
 
 use super::{
     ClipAncestors, Command, DragSession, ExternalDragSession, RuntimeBridge,

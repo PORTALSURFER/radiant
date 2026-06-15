@@ -26,7 +26,7 @@ fn deferred_scroll_routes_message_without_refreshing_surface_until_requested() {
 }
 
 #[test]
-fn deferred_scroll_fallback_routes_scroll_message_without_refreshing_surface_until_requested() {
+fn deferred_scroll_fallback_requests_interactive_surface_refresh() {
     let mut core =
         GenericNativeRuntimeCore::new(ScrollRefreshBridge::default(), Vector2::new(240.0, 40.0));
     let point = Point::new(12.0, 12.0);
@@ -38,13 +38,15 @@ fn deferred_scroll_fallback_routes_scroll_message_without_refreshing_surface_unt
     );
 
     assert!(outcome.routed);
-    assert!(outcome.deferred_surface_refresh_requested);
-    assert!(!outcome.needs_scene_rebuild());
+    assert!(!outcome.deferred_surface_refresh_requested);
+    assert!(outcome.interactive_surface_refresh_requested);
+    assert!(outcome.interactive_scene_rebuild_requested);
+    assert!(outcome.needs_scene_rebuild());
     assert_eq!(core.runtime.bridge().scroll_count, 1);
     assert_eq!(
         core.runtime.bridge().project_count,
         1,
-        "deferred scroll fallback should not refresh the projected surface immediately"
+        "route classification should leave projection to the native runner interactive refresh path"
     );
 
     core.refresh_surface();

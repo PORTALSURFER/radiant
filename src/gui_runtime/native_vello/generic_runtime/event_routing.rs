@@ -8,6 +8,7 @@ use crate::gui::{
     input::KeyPress,
     types::{Point, Vector2},
 };
+use crate::runtime::WheelOrScrollRoute;
 use crate::runtime::{Event, RuntimeBridge};
 use crate::widgets::{PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey};
 use std::time::Instant;
@@ -146,22 +147,26 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) -> GenericRouteOutcome {
-        let routed = self
+        let route = self
             .runtime
-            .wheel_or_scroll_at_deferred_refresh_with_modifiers(position, delta, modifiers);
+            .wheel_or_scroll_route_deferred_refresh_with_modifiers(position, delta, modifiers);
         let pending = self.runtime.take_pending_input_command_outcome();
         let repaint_requested = self.runtime.take_repaint_requested();
         let exit_requested = self.runtime.take_exit_requested();
-        let deferred_surface_refresh = pending.surface_refresh_requested;
+        let routed = route != WheelOrScrollRoute::NotRouted;
+        let scroll_surface_refresh =
+            route == WheelOrScrollRoute::ScrollContainer && pending.surface_refresh_requested;
+        let deferred_surface_refresh = pending.surface_refresh_requested && !scroll_surface_refresh;
         GenericRouteOutcome {
             routed,
-            redraw_requested: routed && !deferred_surface_refresh,
+            redraw_requested: (routed && !deferred_surface_refresh) || scroll_surface_refresh,
             repaint_requested: (repaint_requested || pending.surface_repaint_requested)
-                && !deferred_surface_refresh,
+                && !deferred_surface_refresh
+                && !scroll_surface_refresh,
             paint_only_requested: pending.paint_only_requested,
             deferred_surface_refresh_requested: deferred_surface_refresh,
-            interactive_surface_refresh_requested: false,
-            interactive_scene_rebuild_requested: false,
+            interactive_surface_refresh_requested: scroll_surface_refresh,
+            interactive_scene_rebuild_requested: scroll_surface_refresh,
             exit_requested: exit_requested || pending.exit_requested,
             runtime_work_remaining: pending.runtime_work_remaining,
             dpi_scale_override: pending.dpi_scale_override,

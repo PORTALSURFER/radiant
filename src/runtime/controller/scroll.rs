@@ -1,6 +1,8 @@
 mod scrollbar;
 mod wheel;
 
+pub(crate) use wheel::WheelOrScrollRoute;
+
 use super::SurfaceRuntime;
 use crate::{
     gui::types::{Point, Vector2},

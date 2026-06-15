@@ -7,6 +7,17 @@ use crate::{
     widgets::{PointerModifiers, WidgetId, WidgetInput},
 };
 
+/// Route taken by a wheel event after widget-first routing and scroll fallback.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WheelOrScrollRoute {
+    /// No widget or scroll container accepted the wheel event.
+    NotRouted,
+    /// A wheel-aware widget handled the event.
+    Widget,
+    /// The event fell back to a scroll container.
+    ScrollContainer,
+}
+
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
@@ -49,10 +60,25 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) -> bool {
+        self.wheel_or_scroll_route_deferred_refresh_with_modifiers(point, delta, modifiers)
+            != WheelOrScrollRoute::NotRouted
+    }
+
+    /// Route modified wheel input while reporting whether widget handling or
+    /// scroll-container fallback accepted it.
+    pub(crate) fn wheel_or_scroll_route_deferred_refresh_with_modifiers(
+        &mut self,
+        point: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+    ) -> WheelOrScrollRoute {
         if self.dispatch_wheel_at_with_refresh(point, delta, modifiers, false) {
-            return true;
+            return WheelOrScrollRoute::Widget;
         }
-        self.scroll_at_deferred_refresh(point, delta)
+        if self.scroll_at_deferred_refresh(point, delta) {
+            return WheelOrScrollRoute::ScrollContainer;
+        }
+        WheelOrScrollRoute::NotRouted
     }
 
     fn dispatch_wheel_at(

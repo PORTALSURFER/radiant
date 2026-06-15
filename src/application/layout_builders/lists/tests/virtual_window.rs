@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     application::{ViewNode, button, column},
     gui::list::VirtualListWindow,
-    layout::NodeId,
+    layout::{ContainerKind, LayoutNode, NodeId, VirtualizationAxis},
 };
 
 #[test]
@@ -73,4 +73,42 @@ fn virtual_list_window_body_keeps_spacers_generic() {
         count_layout_nodes(&layout) < 68,
         "body projection should stay bounded to the materialized range"
     );
+}
+
+#[test]
+fn virtual_list_window_body_applies_virtual_scroll_overscan() {
+    let window = VirtualListWindow {
+        total_items: 10_000,
+        viewport_start: 120,
+        viewport_end: 128,
+        window_start: 116,
+        window_end: 132,
+    };
+
+    let view: ViewNode<()> =
+        virtual_list_window_body(window, 32.0, |_| column(Vec::<ViewNode<()>>::new()), 96.0);
+    let layout = view.into_surface().layout_node();
+    let policy = first_scroll_virtualization_policy(&layout)
+        .expect("virtual-list body should lower to a virtualized scroll container");
+
+    assert!(policy.enabled);
+    assert_eq!(policy.axis, VirtualizationAxis::Vertical);
+    assert_eq!(policy.overscan_px, 96.0);
+}
+
+fn first_scroll_virtualization_policy(
+    node: &LayoutNode,
+) -> Option<crate::layout::VirtualizationPolicy> {
+    match node {
+        LayoutNode::Widget(_) => None,
+        LayoutNode::Container(container) => {
+            if container.policy.kind == ContainerKind::ScrollView {
+                return container.policy.virtualization;
+            }
+            container
+                .children
+                .iter()
+                .find_map(|child| first_scroll_virtualization_policy(&child.child))
+        }
+    }
 }

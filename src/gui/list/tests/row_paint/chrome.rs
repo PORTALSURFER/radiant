@@ -55,7 +55,7 @@ fn push_dense_row_chrome_composes_fill_markers_and_outline() {
     match &primitives[0] {
         PaintPrimitive::FillRect(fill) => {
             assert_eq!(fill.rect, bounds);
-            assert_eq!(fill.color, HOVERED);
+            assert_eq!(fill.color, SELECTED_HOVERED);
         }
         primitive => panic!("expected row fill rect, got {primitive:?}"),
     }

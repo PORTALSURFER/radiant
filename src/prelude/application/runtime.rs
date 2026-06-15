@@ -8,4 +8,4 @@ pub use crate::application::{
     app, presentation, window,
 };
 pub use crate::application::{FrameClock, Presentation, TransientOverlay};
-pub use crate::runtime::{BusinessEventSink, BusinessWorkContext};
+pub use crate::runtime::BusinessEventSink;

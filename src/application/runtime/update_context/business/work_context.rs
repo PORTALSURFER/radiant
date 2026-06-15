@@ -126,7 +126,7 @@ mod tests {
     #[test]
     fn fail_if_over_budget_reports_budget_error() {
         let context = BusinessWorkContext::new(None);
-        std::thread::sleep(Duration::from_millis(2));
+        *lock_instant(&context.last_checkpoint) = Instant::now() - Duration::from_millis(2);
 
         let error = context
             .fail_if_over_budget(Duration::ZERO)
@@ -144,7 +144,7 @@ pub(crate) struct BusinessWorkDiagnosticScope {
     pub(crate) state: Arc<Mutex<BusinessWorkDiagnosticState>>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BusinessWorkDiagnosticSummary {
     pub(crate) checkpoints: usize,
     pub(crate) stream_events: usize,

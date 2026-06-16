@@ -263,6 +263,44 @@ fn native_scrollbar_release_flushes_pending_drag_position() {
 }
 
 #[test]
+fn native_scrollbar_drag_keeps_virtual_list_rows_rendered_across_repeated_flushes() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        AppVirtualListBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    let scroll_rect = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&81)
+        .copied()
+        .expect("virtual list scroll area should be laid out");
+    let press = Point::new(scroll_rect.max.x - 2.0, scroll_rect.min.y + 6.0);
+    runner
+        .core
+        .route_pointer_press(press, PointerButton::Primary);
+
+    for y in [
+        scroll_rect.min.y + 18.0,
+        scroll_rect.min.y + 34.0,
+        scroll_rect.max.y - 6.0,
+        scroll_rect.min.y + 42.0,
+        scroll_rect.min.y + 22.0,
+    ] {
+        runner.queue_scrollbar_drag(Point::new(press.x, y));
+        runner.flush_pending_scrollbar_drag_now();
+        let paint = runner.core.runtime.paint_plan(&Default::default());
+        assert!(
+            paint.text_runs().count() > 0,
+            "repeated native scrollbar drags should not leave an empty virtual-list paint plan"
+        );
+    }
+}
+
+#[test]
 fn wheel_scroll_presents_new_virtual_list_rows_after_far_jump() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

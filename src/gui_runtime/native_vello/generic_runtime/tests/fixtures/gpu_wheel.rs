@@ -188,7 +188,7 @@ impl RuntimeBridge<String> for GpuWheelScrollBridge {
                     WidgetMessageMapper::none(),
                 ),
             )
-            .with_scroll_message(Arc::new(|_| String::from("scroll"))),
+            .with_scroll_message(Arc::new(|_| Some(String::from("scroll")))),
         ))
     }
 

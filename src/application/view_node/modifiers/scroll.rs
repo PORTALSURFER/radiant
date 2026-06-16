@@ -11,6 +11,18 @@ impl<Message> ViewNode<Message> {
         mut self,
         message: impl Fn(ScrollUpdate) -> Message + Send + Sync + 'static,
     ) -> Self {
+        self.scroll_message = Some(std::sync::Arc::new(move |update| Some(message(update))));
+        self
+    }
+
+    /// Optionally emit a host message when this scroll container's runtime offset changes.
+    ///
+    /// Use this for high-frequency scroll surfaces that can update local runtime
+    /// offset without host reprojection until the logical scroll window changes.
+    pub fn on_scroll_update_opt(
+        mut self,
+        message: impl Fn(ScrollUpdate) -> Option<Message> + Send + Sync + 'static,
+    ) -> Self {
         self.scroll_message = Some(std::sync::Arc::new(message));
         self
     }

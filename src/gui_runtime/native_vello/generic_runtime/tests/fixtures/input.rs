@@ -1,4 +1,9 @@
 use super::super::*;
+use crate::application::IntoView;
+use crate::gui::list::{
+    VirtualListWindow, VirtualListWindowChange, VirtualListWindowRequest,
+    resolve_virtual_list_window,
+};
 use crate::layout::{SizeModeCross, SizeModeMain};
 
 #[derive(Default)]
@@ -21,6 +26,30 @@ pub(in super::super) struct WheelRefreshBridge {
 pub(in super::super) struct ScrollRefreshBridge {
     pub(in super::super) scroll_count: usize,
     pub(in super::super) project_count: usize,
+}
+
+pub(in super::super) struct AppVirtualListBridge {
+    pub(in super::super) window: VirtualListWindow,
+    pub(in super::super) scroll_count: usize,
+    pub(in super::super) project_count: usize,
+}
+
+impl Default for AppVirtualListBridge {
+    fn default() -> Self {
+        Self {
+            window: resolve_virtual_list_window(VirtualListWindowRequest {
+                total_items: 100,
+                viewport_len: 4,
+                requested_start: 0,
+                overscan: 1,
+                focused_index: None,
+                previous_start: None,
+                guard_band: 0,
+            }),
+            scroll_count: 0,
+            project_count: 0,
+        }
+    }
 }
 
 impl RuntimeBridge<String> for CanvasBridge {
@@ -123,7 +152,7 @@ impl RuntimeBridge<String> for ScrollRefreshBridge {
                         .collect(),
                 ),
             )
-            .with_scroll_message(Arc::new(|_| String::from("scroll"))),
+            .with_scroll_message(Arc::new(|_| Some(String::from("scroll")))),
         ))
     }
 
@@ -131,5 +160,32 @@ impl RuntimeBridge<String> for ScrollRefreshBridge {
         if message == "scroll" {
             self.scroll_count += 1;
         }
+    }
+}
+
+impl RuntimeBridge<VirtualListWindowChange> for AppVirtualListBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<VirtualListWindowChange>> {
+        self.project_count += 1;
+        let window = self.window;
+        Arc::new(
+            crate::application::virtual_list_windowed(|index| {
+                crate::application::text(format!("Row {index}"))
+                    .height(20.0)
+                    .fill_width()
+            })
+            .row_height(20.0)
+            .window(window)
+            .overscan_px(20.0)
+            .on_window_changed(|change| change)
+            .view()
+            .id(81)
+            .fill()
+            .into_surface(),
+        )
+    }
+
+    fn reduce_message(&mut self, message: VirtualListWindowChange) {
+        self.scroll_count += 1;
+        self.window = message.window;
     }
 }

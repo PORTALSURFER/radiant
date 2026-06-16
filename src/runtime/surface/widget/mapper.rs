@@ -9,8 +9,11 @@ use std::sync::Arc;
 /// Shared mapper type that turns widget-specific payloads into host-defined messages.
 pub type MessageMapper<Input, Message> = Arc<dyn Fn(Input) -> Message + Send + Sync>;
 
-/// Shared mapper type that turns scroll movement into host-defined messages.
-pub type ScrollMessageMapper<Message> = MessageMapper<ScrollUpdate, Message>;
+/// Shared mapper type that turns scroll movement into optional host-defined messages.
+///
+/// Scroll containers may update local runtime offset for sub-row or otherwise
+/// unchanged movement without asking the host to reproject the surface.
+pub type ScrollMessageMapper<Message> = Arc<dyn Fn(ScrollUpdate) -> Option<Message> + Send + Sync>;
 
 /// Shared mapper type that turns native file-drop events into host-defined messages.
 pub type NativeFileDropMessageMapper<Message> = MessageMapper<NativeFileDrop, Message>;

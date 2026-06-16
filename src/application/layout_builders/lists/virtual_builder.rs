@@ -72,14 +72,15 @@ where
         );
 
         if let Some(message) = on_window_changed {
-            view = view.on_scroll_update(move |update| {
-                message(resolve_virtual_list_window_change(
+            view = view.on_scroll_update_opt(move |update| {
+                let change = resolve_virtual_list_window_change(
                     update.offset.y,
                     row_height,
                     update.viewport.y,
                     window,
                     overscan_px,
-                ))
+                );
+                (change.window != window).then(|| message(change))
             });
         }
         view

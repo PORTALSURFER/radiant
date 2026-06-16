@@ -143,3 +143,53 @@ fn wheel_scroll_surface_refresh_rebuilds_immediately() {
         "wheel scroll should not present stale materialized rows"
     );
 }
+
+#[test]
+fn app_virtual_list_subrow_wheel_scroll_stays_runtime_local() {
+    let mut core =
+        GenericNativeRuntimeCore::new(AppVirtualListBridge::default(), Vector2::new(240.0, 80.0));
+    let position = Point::new(20.0, 20.0);
+
+    let outcome = core.route_scroll_deferred_refresh_with_modifiers(
+        position,
+        Vector2::new(0.0, 10.0),
+        PointerModifiers::default(),
+    );
+
+    assert!(outcome.routed);
+    assert!(outcome.needs_scene_rebuild());
+    assert!(!outcome.interactive_surface_refresh_requested);
+    assert_eq!(
+        core.runtime.bridge().scroll_count,
+        0,
+        "sub-row virtual-list scrolling should not force host reprojection"
+    );
+    assert_eq!(core.runtime.bridge().project_count, 1);
+}
+
+#[test]
+fn app_virtual_list_row_crossing_wheel_scroll_requests_surface_refresh() {
+    let mut core =
+        GenericNativeRuntimeCore::new(AppVirtualListBridge::default(), Vector2::new(240.0, 80.0));
+    let position = Point::new(20.0, 20.0);
+
+    let outcome = core.route_scroll_deferred_refresh_with_modifiers(
+        position,
+        Vector2::new(0.0, 25.0),
+        PointerModifiers::default(),
+    );
+
+    assert!(outcome.routed);
+    assert!(outcome.interactive_surface_refresh_requested);
+    assert!(outcome.interactive_scene_rebuild_requested);
+    assert_eq!(
+        core.runtime.bridge().scroll_count,
+        1,
+        "row-crossing virtual-list scrolling must ask the host for a new materialized window"
+    );
+    assert_eq!(
+        core.runtime.bridge().project_count,
+        1,
+        "surface refresh is still left to the runner so stale rows are not presented"
+    );
+}

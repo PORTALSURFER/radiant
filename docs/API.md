@@ -1491,7 +1491,9 @@ Application-builder code that owns a resolved logical window can use
 `virtual_list_window(...)` for fixed-height rows; it preserves full scroll
 extent with spacer rows while only projecting the materialized item range.
 Prefer `virtual_list_windowed(...)` when runtime scrolling should update the
-host-owned logical window through normal messages:
+host-owned logical window through normal messages. Runtime pixel scrolling that
+does not change the resolved logical window stays runtime-local, so sub-row
+wheel/touchpad motion does not force host reprojection:
 
 ```rust
 ui::virtual_list_windowed(|index| row(index))
@@ -1509,9 +1511,11 @@ composed as one body, such as row groups, table overlays, guide overlays, or
 other decoration spanning several fixed-height rows, while Radiant still owns
 the full-scroll spacer geometry.
 Apps that need a one-off declarative scroll mapping can attach
-`ViewNode::on_scroll_update(...)`; lower-level hosts can still observe
-runtime-owned scroll containers with app-builder `.on_scroll(...)` or, for
-custom bridges, `RuntimeBridge::scroll_updated(ScrollUpdate)`.
+`ViewNode::on_scroll_update(...)`; use `ViewNode::on_scroll_update_opt(...)`
+when a high-frequency scroll surface should suppress host messages for
+unchanged logical state. Lower-level hosts can still observe runtime-owned
+scroll containers with app-builder `.on_scroll(...)` or, for custom bridges,
+`RuntimeBridge::scroll_updated(ScrollUpdate)`.
 `virtual_list_view_start_after_scroll_delta` applies signed logical-row scroll
 deltas to virtual-list viewport starts with the same allocation-free clamping
 contract, leaving hit testing and platform input normalization to the host or

@@ -1,6 +1,7 @@
 //! Focused state groups owned by the generic native Vello runner.
 
-use super::{PendingGpuSurfaceWheel, PendingScrollbarDrag};
+use super::PendingGpuSurfaceWheel;
+use super::PendingScrollbarDrag;
 use crate::gui::types::Point;
 use crate::gui::types::Vector2;
 use crate::gui_runtime::native_vello::startup::StartupTimingProfile;

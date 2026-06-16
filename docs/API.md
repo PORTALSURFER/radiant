@@ -255,6 +255,18 @@ not a separate framework: every builder lowers into the same `UiSurface`,
 available through the explicit `radiant::runtime`, `radiant::widgets`,
 `radiant::layout`, `radiant::theme`, and `radiant::gui` modules.
 
+The prelude boundary is intentionally conservative. It should contain common
+app-facing types that ordinary declarative UI code reaches for repeatedly:
+builders, messages, widget contracts, geometry used in signatures, theme
+tokens, backend-neutral paint primitives, and typed runtime commands. Advanced
+host-control APIs, renderer or windowing implementation details, backend crates
+such as Vello/WGPU/winit, and platform-specific adapters stay on explicit
+modules. Examples may import `radiant::runtime`, `radiant::widgets`,
+`radiant::layout`, `radiant::theme`, or `radiant::gui` beside the prelude when
+they are demonstrating custom widgets, tests, retained surfaces, diagnostics,
+or other advanced control; that explicit import is the signal that the example
+has moved beyond the common app import set.
+
 | Area | Common prelude entries |
 | --- | --- |
 | Application setup | `window`, `app`, `IntoView`, `View`, `UiUpdateContext`, `EmbeddedFont` |

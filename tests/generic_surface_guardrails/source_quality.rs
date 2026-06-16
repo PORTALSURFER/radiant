@@ -182,7 +182,35 @@ fn public_prelude_leaf_groups_do_not_wildcard_export_owning_subsystems() {
 
 fn prelude_leaf_wildcard_export(line: &str) -> bool {
     let trimmed = line.trim();
-    trimmed.starts_with("pub use crate::") && trimmed.ends_with("::*;")
+    trimmed.starts_with("pub use ") && trimmed.contains("::*")
+}
+
+#[test]
+fn public_prelude_stays_backend_neutral() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let source = public_prelude_source(&manifest_dir);
+
+    let forbidden = [
+        "macroquad",
+        "native_vello",
+        "vello",
+        "wgpu",
+        "winit",
+        "windows::",
+        "windows_core",
+        "windows_sys",
+        "windows-sys",
+    ];
+    let offenders = forbidden
+        .into_iter()
+        .filter(|token| source.contains(token))
+        .collect::<Vec<_>>();
+
+    assert!(
+        offenders.is_empty(),
+        "radiant::prelude should stay backend-neutral; renderer, windowing, and platform-specific APIs belong on explicit modules, not common imports:\n{}",
+        offenders.join("\n")
+    );
 }
 
 #[test]

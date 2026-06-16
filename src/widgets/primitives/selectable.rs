@@ -1,5 +1,6 @@
 //! Reusable selectable surface primitive.
 
+use crate::gui::automation::AutomationRole;
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, PaintText};
@@ -86,6 +87,14 @@ impl Widget for SelectableWidget {
 
     fn accepts_pointer_move(&self) -> bool {
         false
+    }
+
+    fn automation_role(&self) -> AutomationRole {
+        AutomationRole::Selectable
+    }
+
+    fn automation_label(&self) -> Option<String> {
+        Some(self.props.label.as_str().to_owned())
     }
 
     fn append_paint(

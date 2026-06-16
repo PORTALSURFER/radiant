@@ -1,5 +1,9 @@
 use super::{SurfaceFloatingLayer, SurfaceOverlay, SurfaceScene};
 use crate::{
+    gui::automation::{
+        AutomationBounds, AutomationNodeId, AutomationNodeSemantics, AutomationNodeSnapshot,
+        AutomationRole,
+    },
     layout::{ContainerPolicy, NodeId, SlotParams},
     runtime::{
         DevtoolsLayoutDiagnostic, DevtoolsNodeKind, DevtoolsNodeSnapshot, DevtoolsWidgetSnapshot,
@@ -158,6 +162,65 @@ impl<Message> SurfaceNode<Message> {
         }
     }
 
+    pub(in crate::runtime) fn automation_snapshot_node(
+        &self,
+        layout: &crate::layout::LayoutOutput,
+    ) -> AutomationNodeSnapshot {
+        let node_id = self.id();
+        AutomationNodeSnapshot::from_semantics(
+            AutomationNodeId::new(node_id.to_string()),
+            layout
+                .rects
+                .get(&node_id)
+                .copied()
+                .map(AutomationBounds::from_rect)
+                .unwrap_or_else(AutomationBounds::zero),
+            self.automation_semantics(),
+        )
+        .with_children(self.automation_children(layout))
+    }
+
+    fn automation_semantics(&self) -> AutomationNodeSemantics {
+        match self {
+            Self::Scene(_) => AutomationNodeSemantics::new(AutomationRole::Root),
+            Self::Container(_) | Self::FloatingLayer(_) => {
+                AutomationNodeSemantics::new(AutomationRole::Group)
+            }
+            Self::Overlay(_) => AutomationNodeSemantics::new(AutomationRole::Panel),
+            Self::Widget(widget) => widget.widget().automation_semantics(),
+        }
+    }
+
+    fn automation_children(
+        &self,
+        layout: &crate::layout::LayoutOutput,
+    ) -> Vec<AutomationNodeSnapshot> {
+        match self {
+            Self::Scene(scene) => std::iter::once(scene.base.as_ref())
+                .chain(scene.ordered_layers().flat_map(|layer| {
+                    layer
+                        .input
+                        .as_ref()
+                        .into_iter()
+                        .chain(std::iter::once(&layer.node))
+                }))
+                .map(|child| child.automation_snapshot_node(layout))
+                .collect(),
+            Self::Container(container) => container
+                .children
+                .iter()
+                .map(|child| child.child.automation_snapshot_node(layout))
+                .collect(),
+            Self::FloatingLayer(layer) => layer
+                .container
+                .children
+                .iter()
+                .map(|child| child.child.automation_snapshot_node(layout))
+                .collect(),
+            Self::Widget(_) | Self::Overlay(_) => Vec::new(),
+        }
+    }
+
     fn devtools_node_kind(&self) -> DevtoolsNodeKind {
         match self {
             Self::Scene(_) => DevtoolsNodeKind::Scene,
@@ -185,6 +248,7 @@ impl<Message> SurfaceNode<Message> {
             accepts_pointer_move: widget.accepts_pointer_move(),
             captured: pointer_capture == Some(widget.id()),
             state: common.state,
+            semantics: widget.widget().automation_semantics(),
         })
     }
 

@@ -17,6 +17,7 @@
 //! Native window adapters can compose against this controller without coupling
 //! the public runtime API to any host application's top-level contracts.
 
+mod automation;
 mod bridge;
 mod command;
 mod controller;
@@ -32,6 +33,10 @@ mod resource;
 mod surface;
 
 pub use crate::application::runtime::{BusinessEventSink, BusinessWorkContext};
+pub use crate::gui::automation::{
+    AutomationBounds, AutomationFocusHints, AutomationLiveRegion, AutomationNodeId,
+    AutomationNodeSemantics, AutomationNodeSnapshot, AutomationRole, GuiAutomationSnapshot,
+};
 pub use crate::gui_runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS,
     NativeFrameOptions, NativeGenericRunError, NativeGenericRunReport,

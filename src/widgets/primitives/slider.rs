@@ -6,6 +6,7 @@ mod input;
 mod model;
 mod paint;
 
+use crate::gui::automation::AutomationRole;
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
@@ -104,6 +105,14 @@ impl Widget for SliderWidget {
 
     fn accepts_pointer_move(&self) -> bool {
         true
+    }
+
+    fn automation_role(&self) -> AutomationRole {
+        AutomationRole::Slider
+    }
+
+    fn automation_value_text(&self) -> Option<String> {
+        Some(format!("{:.3}", self.state.value))
     }
 
     fn append_paint(

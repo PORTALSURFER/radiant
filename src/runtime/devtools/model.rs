@@ -1,4 +1,5 @@
 use crate::{
+    gui::automation::AutomationNodeSemantics,
     gui::types::Rect,
     layout::{LayoutDiagnosticCode, NodeId},
     runtime::{RuntimeDiagnostics, SurfacePaintStats},
@@ -119,7 +120,7 @@ pub enum DevtoolsNodeKind {
 }
 
 /// Widget leaf state shown by devtools.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DevtoolsWidgetSnapshot {
     /// Focus participation contract.
     pub focus: FocusBehavior,
@@ -137,6 +138,8 @@ pub struct DevtoolsWidgetSnapshot {
     pub captured: bool,
     /// Shared widget interaction and visual state.
     pub state: WidgetState,
+    /// Backend-neutral automation semantics for this widget.
+    pub semantics: AutomationNodeSemantics,
 }
 
 /// One layout diagnostic attached to a devtools node.

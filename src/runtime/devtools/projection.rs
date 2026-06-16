@@ -82,7 +82,26 @@ fn selected_detail_lines(snapshot: &DevtoolsSnapshot) -> Vec<String> {
         format!("bounds: {}", format_bounds(node.bounds)),
         format!("children: {}", node.children.len()),
     ];
-    if let Some(widget) = node.widget {
+    if let Some(widget) = node.widget.as_ref() {
+        lines.push(format!("role: {:?}", widget.semantics.role));
+        if let Some(label) = &widget.semantics.label {
+            lines.push(format!("label: {label}"));
+        }
+        if let Some(value) = &widget.semantics.value_text {
+            lines.push(format!("value: {value}"));
+        }
+        if let Some(checked) = widget.semantics.checked {
+            lines.push(format!("checked: {checked}"));
+        }
+        lines.push(format!(
+            "semantics: selected={} disabled={} read_only={} focusable={} focused={} live={:?}",
+            widget.semantics.selected,
+            widget.semantics.disabled,
+            widget.semantics.read_only,
+            widget.semantics.focusable,
+            widget.semantics.focused,
+            widget.semantics.live_region
+        ));
         lines.push(format!("focus: {:?}", widget.focus));
         lines.push(format!(
             "flags: focusable={} key={} hit={} wheel={} move={}",
@@ -152,7 +171,11 @@ fn devtools_tree_label(node: &DevtoolsNodeSnapshot, depth: usize) -> String {
     if let Some(bounds) = node.bounds {
         label.push_str(&format!(" {}", format_bounds(Some(bounds))));
     }
-    if let Some(widget) = node.widget {
+    if let Some(widget) = node.widget.as_ref() {
+        label.push_str(&format!(" role={:?}", widget.semantics.role));
+        if let Some(semantic_label) = &widget.semantics.label {
+            label.push_str(&format!(" label=\"{semantic_label}\""));
+        }
         if widget.state.hovered {
             label.push_str(" hover");
         }

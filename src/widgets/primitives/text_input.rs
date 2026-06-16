@@ -1,5 +1,6 @@
 //! Reusable single-line text-input primitive.
 
+use crate::gui::automation::AutomationRole;
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::PaintPrimitive;
@@ -107,6 +108,21 @@ impl Widget for TextInputWidget {
 
     fn accepts_pointer_move(&self) -> bool {
         false
+    }
+
+    fn automation_role(&self) -> AutomationRole {
+        AutomationRole::TextInput
+    }
+
+    fn automation_label(&self) -> Option<String> {
+        self.props
+            .placeholder
+            .as_ref()
+            .map(|placeholder| placeholder.as_str().to_owned())
+    }
+
+    fn automation_value_text(&self) -> Option<String> {
+        Some(self.state.value.clone())
     }
 
     fn selected_text_slice(&self) -> Option<&str> {

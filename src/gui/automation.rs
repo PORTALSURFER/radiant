@@ -32,6 +32,14 @@ pub enum AutomationRole {
     Tab,
     /// Clickable button.
     Button,
+    /// Toggle or switch with a checked state.
+    Toggle,
+    /// Generic selectable option, row, tile, or item.
+    Selectable,
+    /// Plain text label.
+    Text,
+    /// Editable text field.
+    TextInput,
     /// Search or text-entry field.
     SearchField,
     /// Slider or continuous meter interaction surface.
@@ -50,6 +58,116 @@ pub enum AutomationRole {
     Readout,
     /// Dialog or modal container.
     Dialog,
+    /// Custom widget or host-defined semantic surface.
+    Custom,
+}
+
+/// Live-region announcement policy carried by backend-neutral automation data.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutomationLiveRegion {
+    /// No live-region semantics.
+    #[default]
+    None,
+    /// Polite status/update region.
+    Polite,
+    /// Assertive status/update region.
+    Assertive,
+}
+
+/// Optional directional focus hints for future adapters and tests.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutomationFocusHints {
+    /// Previous logical focus target.
+    pub previous: Option<AutomationNodeId>,
+    /// Next logical focus target.
+    pub next: Option<AutomationNodeId>,
+    /// Upward logical focus target.
+    pub up: Option<AutomationNodeId>,
+    /// Downward logical focus target.
+    pub down: Option<AutomationNodeId>,
+    /// Left logical focus target.
+    pub left: Option<AutomationNodeId>,
+    /// Right logical focus target.
+    pub right: Option<AutomationNodeId>,
+}
+
+/// Backend-neutral semantic metadata attached to an automation node.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AutomationNodeSemantics {
+    /// Behavioral role for this node.
+    pub role: AutomationRole,
+    /// Optional human-readable label shown by the GUI.
+    pub label: Option<String>,
+    /// Optional longer description for inspectors and future adapters.
+    pub description: Option<String>,
+    /// Optional current value or summary text.
+    pub value_text: Option<String>,
+    /// Optional checked state for toggles, checkboxes, and switches.
+    pub checked: Option<bool>,
+    /// Whether the node is currently selected.
+    pub selected: bool,
+    /// Whether the node rejects interaction while still painting.
+    pub disabled: bool,
+    /// Whether the node is read-only but visible or focusable.
+    pub read_only: bool,
+    /// Whether the node can receive focus.
+    pub focusable: bool,
+    /// Whether the node currently owns focus.
+    pub focused: bool,
+    /// Optional tab-order index for tests and future adapters.
+    pub tab_index: Option<i32>,
+    /// Optional directional focus hints.
+    pub focus_hints: AutomationFocusHints,
+    /// Optional live-region policy.
+    pub live_region: AutomationLiveRegion,
+    /// Additional deterministic metadata for automation and test consumers.
+    pub metadata: BTreeMap<String, String>,
+}
+
+impl AutomationNodeSemantics {
+    /// Build neutral semantics for the provided role.
+    pub fn new(role: AutomationRole) -> Self {
+        Self {
+            role,
+            label: None,
+            description: None,
+            value_text: None,
+            checked: None,
+            selected: false,
+            disabled: false,
+            read_only: false,
+            focusable: false,
+            focused: false,
+            tab_index: None,
+            focus_hints: AutomationFocusHints::default(),
+            live_region: AutomationLiveRegion::None,
+            metadata: BTreeMap::new(),
+        }
+    }
+
+    /// Return whether the node is enabled.
+    pub const fn enabled(&self) -> bool {
+        !self.disabled
+    }
+
+    /// Return this semantic payload with a label.
+    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    /// Return this semantic payload with value text.
+    pub fn with_value_text(mut self, value: impl Into<String>) -> Self {
+        self.value_text = Some(value.into());
+        self
+    }
+
+    /// Return this semantic payload with checked state.
+    pub fn with_checked(mut self, checked: bool) -> Self {
+        self.checked = Some(checked);
+        self
+    }
 }
 
 /// Quantized window-space bounds for one automation node.
@@ -86,8 +204,61 @@ pub struct AutomationNodeSnapshot {
     pub available_actions: Vec<String>,
     /// Additional deterministic metadata for automation and test consumers.
     pub metadata: BTreeMap<String, String>,
+    /// Rich backend-neutral semantics for tests, devtools, and future adapters.
+    pub semantics: AutomationNodeSemantics,
     /// Child nodes in semantic tree order.
     pub children: Vec<AutomationNodeSnapshot>,
+}
+
+impl AutomationBounds {
+    /// Build automation bounds from a runtime layout rectangle.
+    pub fn from_rect(rect: crate::gui::types::Rect) -> Self {
+        Self {
+            x: rect.min.x,
+            y: rect.min.y,
+            width: rect.width(),
+            height: rect.height(),
+        }
+    }
+
+    /// Return empty bounds for nodes that do not participate in layout.
+    pub const fn zero() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height: 0.0,
+        }
+    }
+}
+
+impl AutomationNodeSnapshot {
+    /// Build a snapshot node from bounds and rich semantics.
+    pub fn from_semantics(
+        id: AutomationNodeId,
+        bounds: AutomationBounds,
+        semantics: AutomationNodeSemantics,
+    ) -> Self {
+        Self {
+            id,
+            role: semantics.role,
+            label: semantics.label.clone(),
+            bounds,
+            value: semantics.value_text.clone(),
+            enabled: semantics.enabled(),
+            selected: semantics.selected,
+            available_actions: Vec::new(),
+            metadata: semantics.metadata.clone(),
+            semantics,
+            children: Vec::new(),
+        }
+    }
+
+    /// Return this snapshot node with semantic children.
+    pub fn with_children(mut self, children: Vec<AutomationNodeSnapshot>) -> Self {
+        self.children = children;
+        self
+    }
 }
 
 /// Full deterministic automation snapshot emitted for one GUI frame/state.

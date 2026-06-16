@@ -176,6 +176,9 @@ where
 }
 
 #[cfg(test)]
+#[path = "runtime_surface_public_api/automation.rs"]
+mod automation;
+#[cfg(test)]
 #[path = "runtime_surface_public_api/commands.rs"]
 mod commands;
 #[cfg(test)]

@@ -5,6 +5,7 @@ mod input;
 mod model;
 mod paint;
 
+use crate::gui::automation::AutomationRole;
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, PaintText};
@@ -97,6 +98,18 @@ impl Widget for ToggleWidget {
 
     fn accepts_pointer_move(&self) -> bool {
         false
+    }
+
+    fn automation_role(&self) -> AutomationRole {
+        AutomationRole::Toggle
+    }
+
+    fn automation_label(&self) -> Option<String> {
+        Some(self.props.label.as_str().to_owned())
+    }
+
+    fn automation_checked(&self) -> Option<bool> {
+        Some(self.state.checked)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

@@ -1,5 +1,6 @@
 //! Reusable text and label primitive.
 
+use crate::gui::automation::AutomationRole;
 use crate::gui::types::{Rect, Rgba8};
 use crate::layout::{LayoutOutput, Vector2};
 use crate::runtime::{PaintPrimitive, PaintText};
@@ -151,6 +152,14 @@ impl Widget for TextWidget {
 
     fn needs_state_synchronization(&self) -> bool {
         false
+    }
+
+    fn automation_role(&self) -> AutomationRole {
+        AutomationRole::Text
+    }
+
+    fn automation_label(&self) -> Option<String> {
+        Some(self.text.as_str().to_owned())
     }
 
     fn set_text_wrap(&mut self, wrap: TextWrap) -> bool {

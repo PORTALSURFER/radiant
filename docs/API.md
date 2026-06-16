@@ -1451,7 +1451,8 @@ data.
 `DevtoolsSnapshot` for in-app inspectors, debug overlays, tests, and embedded
 host diagnostics. The snapshot includes the current viewport, a stable
 surface-node tree with node kinds, resolved bounds, widget focusability and
-interaction state, layout diagnostics grouped by node, a selected-node
+interaction state, backend-neutral widget automation semantics, layout
+diagnostics grouped by node, a selected-node
 candidate derived from pointer capture/focus/hover state, aggregate
 `SurfacePaintStats`, and the same generic `RuntimeDiagnostics` described
 above. Use `devtools_snapshot_with_theme(...)` when paint statistics should be
@@ -2527,9 +2528,19 @@ crate-level Clippy allows.
 
 `radiant::gui::automation` owns the serializable automation snapshot contract:
 `AutomationNodeId`, `AutomationRole`, `AutomationBounds`,
-`AutomationNodeSnapshot`, and `GuiAutomationSnapshot`. Backends and test tools
-can consume this semantic tree without depending on a host application's state
-types or reducer.
+`AutomationFocusHints`, `AutomationLiveRegion`, `AutomationNodeSemantics`,
+`AutomationNodeSnapshot`, and `GuiAutomationSnapshot`. `SurfaceRuntime` exposes
+`automation_snapshot()` to derive this tree from the current projected surface,
+layout bounds, and widget contracts. Backends and test tools can consume this
+semantic tree without depending on a host application's state types or reducer.
+Common widgets populate generic role, label, value text, checked/selected,
+disabled/read-only, focusable/focused, live-region, and metadata fields when the
+data already exists. `AutomationNodeSnapshot` keeps compatibility aliases such
+as `role`, `label`, `value`, `enabled`, `selected`, and `metadata`, while the
+richer `semantics` payload is the preferred source for new tests, devtools, and
+future adapters. Directional focus hints and live-region values are
+backend-neutral hints only; Radiant does not implement AccessKit, screen-reader
+bridges, web accessibility, or OS accessibility trees in the current phase.
 
 `radiant::gui::snapshot` owns deterministic rendered-frame snapshot primitives:
 `VisualSnapshot`, `SnapshotPrimitive`, `SnapshotTextRun`, `SnapshotRect`,

@@ -1,4 +1,5 @@
 use super::*;
+use std::time::{Duration, Instant};
 use winit::{
     dpi::PhysicalPosition,
     event::{MouseButton, MouseScrollDelta},
@@ -139,6 +140,66 @@ fn native_pointer_harness_refreshes_scroll_area_wheel_surface_interactively() {
         harness.runner.core.runtime.bridge().project_count,
         2,
         "no extra deferred scene rebuild should be queued after the immediate interactive refresh"
+    );
+}
+
+#[test]
+fn native_wheel_flushes_coalesced_scroll_when_redraw_is_starved() {
+    let mut harness =
+        NativePointerHarness::new(AppVirtualListBridge::default(), Vector2::new(240.0, 80.0));
+    harness.cursor_moved_logical(Point::new(20.0, 20.0));
+    harness.runner.timing.redraw_requested = true;
+    harness.runner.timing.redraw_requested_at = Some(Instant::now() - Duration::from_millis(20));
+
+    let route = harness.mouse_wheel_route(MouseScrollDelta::LineDelta(0.0, -100.0));
+
+    assert_eq!(route.diagnostic.result, NativePointerRouteResult::Routed);
+    assert_eq!(harness.runner.core.runtime.bridge().scroll_count, 1);
+    assert!(harness.runner.core.runtime.bridge().project_count > 1);
+    assert!(
+        harness
+            .runner
+            .core
+            .runtime
+            .paint_plan(&Default::default())
+            .contains_text("Row 99"),
+        "starved wheel redraw should refresh virtual rows immediately"
+    );
+}
+
+#[test]
+fn native_scrollbar_drag_flushes_when_redraw_is_starved() {
+    let mut harness =
+        NativePointerHarness::new(AppVirtualListBridge::default(), Vector2::new(240.0, 80.0));
+    let scroll_rect = harness
+        .runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&81)
+        .copied()
+        .expect("virtual list scroll area should be laid out");
+    let press = Point::new(scroll_rect.max.x - 2.0, scroll_rect.min.y + 6.0);
+    let drag = Point::new(press.x, scroll_rect.max.y - 6.0);
+
+    harness.cursor_moved_logical(press);
+    harness.mouse_pressed(MouseButton::Left);
+    harness.runner.timing.redraw_requested = true;
+    harness.runner.timing.redraw_requested_at = Some(Instant::now() - Duration::from_millis(20));
+    harness.cursor_moved_logical(drag);
+
+    assert!(harness.runner.input.pending_scrollbar_drag.is_none());
+    assert_eq!(harness.runner.core.runtime.bridge().scroll_count, 1);
+    assert!(harness.runner.core.runtime.bridge().project_count > 1);
+    assert!(
+        harness
+            .runner
+            .core
+            .runtime
+            .paint_plan(&Default::default())
+            .contains_text("Row 99"),
+        "starved scrollbar redraw should refresh virtual rows immediately"
     );
 }
 

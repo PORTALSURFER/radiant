@@ -21,6 +21,11 @@ where
         let previous = self.input.last_cursor;
         self.input.last_cursor = Some(position);
         if self.core.runtime.scrollbar_drag_active() {
+            if self.pending_interactive_scroll_flush_is_due(Instant::now()) {
+                let outcome = self.core.route_pointer_move(position);
+                self.handle_gpu_surface_pointer_move_outcome(outcome, previous, position);
+                return;
+            }
             self.queue_scrollbar_drag(position);
             return;
         }

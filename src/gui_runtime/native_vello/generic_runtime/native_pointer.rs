@@ -187,7 +187,11 @@ where
             self.maybe_log_native_pointer_diagnostic(diagnostic);
             return NativeWheelRoute::new(outcome, diagnostic);
         }
-        if self.can_coalesce_scroll_container_wheel(position, delta) {
+        let can_queue_scroll_container_wheel = self
+            .can_coalesce_scroll_container_wheel(position, delta)
+            && self.timing.redraw_requested
+            && !self.pending_interactive_scroll_flush_is_due(Instant::now());
+        if can_queue_scroll_container_wheel {
             self.queue_scroll_container_wheel(position, delta, modifiers);
             let outcome = GenericRouteOutcome {
                 paint_only_requested: true,

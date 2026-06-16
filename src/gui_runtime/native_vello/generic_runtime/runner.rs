@@ -81,6 +81,10 @@ where
         })
     }
 
+    pub(super) fn pending_interactive_scroll_flush_is_due(&self, now: Instant) -> bool {
+        self.timing.redraw_requested && self.pending_redraw_request_is_stale(now)
+    }
+
     pub(super) fn drain_timed_frame_now(
         &mut self,
         now: Instant,

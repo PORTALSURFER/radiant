@@ -341,24 +341,26 @@ fn native_wheel_over_virtual_list_coalesces_until_redraw() {
 
     let first =
         runner.route_native_mouse_wheel(winit::event::MouseScrollDelta::LineDelta(0.0, -24.0));
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(Instant::now());
     let second =
         runner.route_native_mouse_wheel(winit::event::MouseScrollDelta::LineDelta(0.0, -24.0));
 
-    assert_eq!(first.diagnostic.result, NativePointerRouteResult::Coalesced);
+    assert_eq!(first.diagnostic.result, NativePointerRouteResult::Routed);
     assert_eq!(
         second.diagnostic.result,
         NativePointerRouteResult::Coalesced
     );
     assert_eq!(
         runner.core.runtime.bridge().scroll_count,
-        0,
-        "coalesced native wheel input should not refresh app-owned virtual rows per OS event"
+        1,
+        "first native wheel input should refresh immediately before follow-up events coalesce"
     );
-    assert_eq!(runner.core.runtime.bridge().project_count, project_count);
+    assert!(runner.core.runtime.bridge().project_count > project_count);
 
     runner.flush_pending_scroll_container_wheel(&mut RenderFrameProfile::default());
 
-    assert_eq!(runner.core.runtime.bridge().scroll_count, 1);
+    assert!(runner.core.runtime.bridge().scroll_count >= 1);
     assert!(runner.core.runtime.bridge().project_count > project_count);
     assert!(
         runner

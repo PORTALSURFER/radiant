@@ -84,3 +84,32 @@ fn queued_gpu_surface_wheel_flushes_one_coalesced_update() {
     );
     assert!(runner.timing.deferred_surface_refresh);
 }
+
+#[test]
+fn queued_gpu_surface_wheel_refreshes_scroll_fallback_immediately() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelScrollBridge::default(),
+        Vector2::new(240.0, 40.0),
+    );
+    runner.rebuild_scene();
+    let point = Point::new(40.0, 20.0);
+
+    runner.queue_gpu_surface_wheel(point, Vector2::new(0.0, 40.0), Default::default());
+    runner.flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
+
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 1);
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        2,
+        "scroll fallback from a coalesced GPU region must refresh before the next present"
+    );
+    assert!(
+        !runner.timing.deferred_surface_refresh,
+        "interactive scroll fallback should not leave stale materialized rows deferred"
+    );
+    assert!(
+        !runner.timing.deferred_scene_rebuild,
+        "interactive scroll fallback should not present a stale scene"
+    );
+}

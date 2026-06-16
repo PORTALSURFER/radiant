@@ -101,6 +101,45 @@ fn declarative_virtual_list_window_change_routes_through_update() {
 }
 
 #[test]
+fn declarative_virtual_list_bottom_scroll_keeps_rows_materialized() {
+    let bridge = app(DemoState::default())
+        .view(|state: &mut DemoState| {
+            let requested_start = (state.last_scroll_y / 20.0).floor() as usize;
+            let window = ui::resolve_virtual_list_window(ui::VirtualListWindowRequest {
+                total_items: 100,
+                viewport_len: 4,
+                requested_start,
+                overscan: 1,
+                focused_index: None,
+                previous_start: None,
+                guard_band: 0,
+            });
+            ui::virtual_list_windowed(|index| {
+                ui::text_line(format!("Row {index}"), 20.0).id(100 + index as u64)
+            })
+            .row_height(20.0)
+            .window(window)
+            .overscan_px(20.0)
+            .on_window_changed(DemoMessage::VirtualListWindowChanged)
+            .view()
+            .id(20)
+            .fill()
+        })
+        .handle_message(|state, message: DemoMessage, _context| {
+            if let DemoMessage::VirtualListWindowChanged(change) = message {
+                state.last_scroll_y = change.offset_y;
+            }
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 80.0));
+
+    assert!(runtime.scroll_at(Point::new(20.0, 56.0), Vector2::new(0.0, 100.0 * 20.0)));
+
+    assert_eq!(text_value(runtime.surface(), 196), "Row 96");
+    assert_eq!(text_value(runtime.surface(), 199), "Row 99");
+}
+
+#[test]
 fn app_scroll_hook_observes_scrollbar_drag_offsets() {
     let observed_scroll_y = Arc::new(Mutex::new(None));
     let observed_scroll_y_for_hook = Arc::clone(&observed_scroll_y);

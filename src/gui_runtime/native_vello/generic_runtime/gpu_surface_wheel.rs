@@ -52,6 +52,14 @@ where
         });
         profile.coalesced_wheel_route = elapsed;
         maybe_log_route_profile("coalesced_wheel", profile.coalesced_wheel_route, outcome);
+        if outcome.interactive_surface_refresh_requested {
+            self.refresh_and_rebuild_scene_for_interactive_route_now();
+            return;
+        }
+        if outcome.interactive_scene_rebuild_requested {
+            self.rebuild_scene_for_interactive_route_now();
+            return;
+        }
         if outcome.needs_redraw() {
             self.timing.deferred_surface_refresh = true;
         }

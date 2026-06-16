@@ -11,6 +11,11 @@ pub(super) struct PendingGpuSurfaceWheel {
     pub(super) modifiers: PointerModifiers,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(super) struct PendingScrollbarDrag {
+    pub(super) position: Point,
+}
+
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: crate::runtime::RuntimeBridge<Message>,
@@ -60,6 +65,28 @@ where
             }
         }
         self.request_redraw_if_needed();
+    }
+
+    pub(super) fn queue_scrollbar_drag(&mut self, position: Point) {
+        self.input.pending_scrollbar_drag = Some(PendingScrollbarDrag { position });
+        self.request_redraw_if_needed();
+    }
+
+    pub(super) fn flush_pending_scrollbar_drag_now(&mut self) {
+        let Some(pending) = self.input.pending_scrollbar_drag.take() else {
+            return;
+        };
+        let outcome = self.core.route_pointer_move(pending.position);
+        maybe_log_route_profile(
+            "coalesced_scrollbar_drag",
+            std::time::Duration::ZERO,
+            outcome,
+        );
+        self.handle_gpu_surface_pointer_move_outcome(
+            outcome,
+            Some(pending.position),
+            pending.position,
+        );
     }
 
     pub(super) fn flush_pending_gpu_surface_wheel(&mut self, profile: &mut RenderFrameProfile) {

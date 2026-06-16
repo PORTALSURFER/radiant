@@ -20,6 +20,10 @@ where
         };
         let previous = self.input.last_cursor;
         self.input.last_cursor = Some(position);
+        if self.core.runtime.scrollbar_drag_active() {
+            self.queue_scrollbar_drag(position);
+            return;
+        }
         if self.can_fast_path_native_hover_move(position) {
             self.update_gpu_surface_cursor_overlay(position);
             self.update_native_cursor_at_last_position();
@@ -81,6 +85,7 @@ where
         {
             outcome.repaint_requested = true;
         }
+        self.input.pending_scrollbar_drag = None;
         if self.core.runtime.clear_pointer_hover() {
             outcome.repaint_requested = true;
         }
@@ -92,6 +97,8 @@ where
     fn clear_native_modifier_state(&mut self) -> GenericRouteOutcome {
         self.input.last_navigation_key_repeat = None;
         self.input.pending_gpu_surface_wheel = None;
+        self.input.pending_scroll_container_wheel = None;
+        self.input.pending_scrollbar_drag = None;
         if self.input.modifiers.is_empty() {
             return GenericRouteOutcome::default();
         }

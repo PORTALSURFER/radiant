@@ -1,6 +1,6 @@
 //! Focused state groups owned by the generic native Vello runner.
 
-use super::PendingGpuSurfaceWheel;
+use super::{PendingGpuSurfaceWheel, PendingScrollbarDrag};
 use crate::gui::types::Point;
 use crate::gui::types::Vector2;
 use crate::gui_runtime::native_vello::startup::StartupTimingProfile;
@@ -39,6 +39,7 @@ pub(super) struct NativeRunnerInputState {
     pub(super) last_navigation_key_repeat: Option<Instant>,
     pub(super) pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
     pub(super) pending_scroll_container_wheel: Option<PendingGpuSurfaceWheel>,
+    pub(super) pending_scrollbar_drag: Option<PendingScrollbarDrag>,
 }
 
 impl Default for NativeRunnerInputState {
@@ -51,6 +52,7 @@ impl Default for NativeRunnerInputState {
             last_navigation_key_repeat: None,
             pending_gpu_surface_wheel: None,
             pending_scroll_container_wheel: None,
+            pending_scrollbar_drag: None,
         }
     }
 }

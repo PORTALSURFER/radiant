@@ -180,6 +180,89 @@ fn scrollbar_drag_presents_new_virtual_list_rows_after_far_jump() {
 }
 
 #[test]
+fn native_scrollbar_drag_coalesces_to_latest_position_until_redraw() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        AppVirtualListBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    let scroll_rect = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&81)
+        .copied()
+        .expect("virtual list scroll area should be laid out");
+    let press = Point::new(scroll_rect.max.x - 2.0, scroll_rect.min.y + 6.0);
+    let middle_drag = Point::new(press.x, scroll_rect.min.y + 30.0);
+    let final_drag = Point::new(press.x, scroll_rect.max.y - 6.0);
+
+    runner
+        .core
+        .route_pointer_press(press, PointerButton::Primary);
+    let project_count = runner.core.runtime.bridge().project_count;
+    runner.queue_scrollbar_drag(middle_drag);
+    runner.queue_scrollbar_drag(final_drag);
+
+    assert_eq!(
+        runner.core.runtime.bridge().scroll_count,
+        0,
+        "native thumb moves should not reproject app-owned virtual rows per pointer event"
+    );
+    assert_eq!(runner.core.runtime.bridge().project_count, project_count);
+
+    runner.flush_pending_scrollbar_drag_now();
+
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 1);
+    assert!(runner.core.runtime.bridge().project_count > project_count);
+    assert!(runner.core.runtime.bridge().window.viewport_start >= 80);
+    assert!(
+        runner
+            .core
+            .runtime
+            .paint_plan(&Default::default())
+            .contains_text("Row 99")
+    );
+}
+
+#[test]
+fn native_scrollbar_release_flushes_pending_drag_position() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        AppVirtualListBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    let scroll_rect = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&81)
+        .copied()
+        .expect("virtual list scroll area should be laid out");
+    let press = Point::new(scroll_rect.max.x - 2.0, scroll_rect.min.y + 6.0);
+    let final_drag = Point::new(press.x, scroll_rect.max.y - 6.0);
+
+    runner.input.last_cursor = Some(press);
+    runner
+        .core
+        .route_pointer_press(press, PointerButton::Primary);
+    runner.queue_scrollbar_drag(final_drag);
+    runner.input.last_cursor = Some(final_drag);
+
+    let _release = runner.route_native_mouse_input(
+        winit::event::MouseButton::Left,
+        winit::event::ElementState::Released,
+    );
+
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 1);
+    assert!(runner.core.runtime.bridge().window.viewport_start >= 80);
+}
+
+#[test]
 fn wheel_scroll_presents_new_virtual_list_rows_after_far_jump() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

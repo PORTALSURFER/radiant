@@ -66,7 +66,7 @@ use frame_cadence::{
 };
 use frame_state::NativeVelloFrameState;
 use gpu_surface::GpuSurfaceRenderer;
-use gpu_surface_wheel::PendingGpuSurfaceWheel;
+use gpu_surface_wheel::{PendingGpuSurfaceWheel, PendingScrollbarDrag};
 use input::{
     key_code_from_winit, keypress_from_input, logical_point_from_winit, pointer_button_from_winit,
     pointer_modifiers_from_winit,

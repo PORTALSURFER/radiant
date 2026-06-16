@@ -140,6 +140,9 @@ where
                 diagnostic,
             );
         };
+        if state == ElementState::Released {
+            self.flush_pending_scrollbar_drag_now();
+        }
         let modifiers = self.pointer_modifiers();
         let started = Instant::now();
         let outcome = match state {

@@ -1,5 +1,5 @@
 use super::super::containers::column;
-use super::super::scroll::virtual_scroll;
+use super::super::scroll::scroll;
 use crate::application::{ViewNode, spacer};
 use crate::gui::list::VirtualListWindow;
 use crate::widgets::WidgetStyle;
@@ -42,7 +42,7 @@ pub fn virtual_list_window_body<Message: 'static>(
     window: VirtualListWindow,
     row_height: f32,
     body: impl FnOnce(VirtualListWindow) -> ViewNode<Message>,
-    overscan_px: f32,
+    _overscan_px: f32,
 ) -> ViewNode<Message> {
     let row_height = row_height.max(0.0);
     let projected_len = window.window_len();
@@ -67,7 +67,7 @@ pub fn virtual_list_window_body<Message: 'static>(
         children.push(spacer().height(bottom_spacer_height).fill_width());
     }
 
-    virtual_scroll(column(children).spacing(0.0), overscan_px)
+    scroll(column(children).spacing(0.0))
         .style(WidgetStyle::default())
         .fill_height()
 }

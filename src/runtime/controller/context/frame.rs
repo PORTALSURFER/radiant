@@ -90,6 +90,7 @@ where
             self.append_widget_runtime_overlay(self.interaction.pointer.capture, theme, primitives);
         }
         self.append_drag_preview_overlay(theme, primitives);
+        self.append_devtools_overlay_paint(theme, primitives);
     }
 
     /// Return whether runtime-local overlay painting can emit primitives.
@@ -106,6 +107,7 @@ where
                 .session
                 .as_ref()
                 .is_some_and(|session| session.visible)
+            || self.devtools_overlay.enabled
     }
 
     /// Package the current runtime viewport, layout, and paint plan for a host renderer.

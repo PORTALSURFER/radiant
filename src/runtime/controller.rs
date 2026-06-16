@@ -26,9 +26,9 @@ pub use scroll::ScrollUpdate;
 pub(crate) use scroll::WheelOrScrollRoute;
 
 use super::{
-    ClipAncestors, Command, DragSession, ExternalDragSession, RuntimeBridge,
-    RuntimeDiagnosticsRecorder, SurfaceTraversalIndex, UiSurface, UiUpdateHandlerDiagnosticsPolicy,
-    WidgetDispatchResult, WidgetPath,
+    ClipAncestors, Command, DevtoolsOverlayOptions, DragSession, ExternalDragSession,
+    RuntimeBridge, RuntimeDiagnosticsRecorder, SurfaceTraversalIndex, UiSurface,
+    UiUpdateHandlerDiagnosticsPolicy, WidgetDispatchResult, WidgetPath,
 };
 use crate::{
     gui::types::Rect,
@@ -73,12 +73,13 @@ where
     traversal: RuntimeTraversalState,
     scratch: RuntimeScratch,
     interaction: RuntimeInteractionState<Message>,
-    repaint_requested: bool,
+    pub(in crate::runtime) repaint_requested: bool,
     exit_requested: bool,
     pending_input_command_outcome: CommandOutcome,
     runtime_work: RuntimeWorkQueues<Message>,
     diagnostics: RuntimeDiagnosticsRecorder,
     update_handler_diagnostics_policy: UiUpdateHandlerDiagnosticsPolicy,
+    pub(in crate::runtime) devtools_overlay: DevtoolsOverlayOptions,
 }
 
 /// Runtime controller for shared-surface declarative hosts.

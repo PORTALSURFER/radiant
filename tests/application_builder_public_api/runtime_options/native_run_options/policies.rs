@@ -92,6 +92,16 @@ fn native_run_options_expose_retained_surface_cache_policy() {
 }
 
 #[test]
+fn native_run_options_expose_devtools_overlay_policy() {
+    let options = NativeRunOptions::default().devtools_overlay(DevtoolsOverlayOptions::enabled());
+
+    assert!(!NativeRunOptions::default().frame.devtools.is_enabled());
+    assert!(options.frame.devtools.is_enabled());
+    let disabled = options.devtools_overlay_enabled(false);
+    assert!(!disabled.frame.devtools.is_enabled());
+}
+
+#[test]
 fn native_run_options_expose_gpu_backend_policy() {
     let options = NativeRunOptions {
         gpu: NativeGpuOptions {

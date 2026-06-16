@@ -44,10 +44,16 @@ where
     pub(super) fn new(options: NativeRunOptions, bridge: Bridge, viewport: Vector2) -> Self {
         let text_renderer = NativeTextRenderer::with_options(&options.text);
         let debug_layout = options.frame.debug_layout;
+        let devtools_overlay = options.frame.devtools;
         let retained_surface_cache = options.frame.retained_surface_cache;
         Self {
             options,
-            core: GenericNativeRuntimeCore::new_with_debug_layout(bridge, viewport, debug_layout),
+            core: GenericNativeRuntimeCore::new_with_frame_options(
+                bridge,
+                viewport,
+                debug_layout,
+                devtools_overlay,
+            ),
             runtime_wakeup: RuntimeWakeup::default(),
             window: NativeRunnerWindowState::default(),
             frame: NativeVelloFrameState::new(text_renderer, retained_surface_cache),

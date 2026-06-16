@@ -858,14 +858,14 @@ application inventing a separate bit layout and diagnostic vocabulary.
 `NativeRunOptions` keeps platform/window integration policy behind Radiant's
 native runtime boundary. Common launch code can stay platform-neutral while
 still configuring `window.title`, `window.geometry`, `window.behavior`,
-`window.icon`, `frame.target_fps`, and whether native file drag-and-drop is
-requested on platforms that support it. Native animation frame rates are
-normalized through `NativeRunOptions::normalized_target_fps()` and the exported
-`MIN_NATIVE_TARGET_FPS` / `MAX_NATIVE_TARGET_FPS` bounds before timed redraws
-or present-mode selection use them. Focused text-input caret animation uses a
-lower native cadence when it is the only timed animation demand, while explicit
-application or overlay animation frame-rate caps remain authoritative. Window
-launch and manifest builders provide integer `.size(...)` convenience methods
+`window.icon`, `frame.target_fps`, `frame.devtools`, and whether native file
+drag-and-drop is requested on platforms that support it. Native animation frame
+rates are normalized through `NativeRunOptions::normalized_target_fps()` and
+the exported `MIN_NATIVE_TARGET_FPS` / `MAX_NATIVE_TARGET_FPS` bounds before
+timed redraws or present-mode selection use them. Focused text-input caret
+animation uses a lower native cadence when it is the only timed animation
+demand, while explicit application or overlay animation frame-rate caps remain
+authoritative. Window launch and manifest builders provide integer `.size(...)` convenience methods
 plus `.logical_size(...)` and `.min_logical_size(...)` when hosts need
 fractional logical dimensions.
 For host-visible platform services, reducers can queue typed
@@ -960,6 +960,11 @@ surface is visible so first activation cannot delay the visual reveal. Direct
 `.validate()` before startup, and the native runtime returns
 `NativeGenericRunError::InvalidWindowOptions` instead of passing non-finite or
 non-positive geometry into the platform window layer.
+Use `NativeRunOptions::default().devtools_overlay_enabled(true)` or
+`.devtools_overlay(DevtoolsOverlayOptions::enabled())` to opt into Radiant's
+runtime-local devtools overlay for native inspector builds. The overlay is
+disabled by default and paints as runtime overlay content, so ordinary apps do
+not pay for inspector presentation unless they enable it.
 
 Serious apps use the same builder API. `radiant::app(...)` supports
 `.subscriptions(...)` for interval and worker-message sources, `.on_startup(...)`,
@@ -1441,6 +1446,22 @@ performance budgets outside a controlled harness; use them to find blocking
 reducers, missing `UiUpdateContext::business()` handoffs, worker saturation, and
 stale cancellation paths without coupling Radiant to an application's domain
 data.
+
+`SurfaceRuntime::devtools_snapshot()` returns a backend-neutral
+`DevtoolsSnapshot` for in-app inspectors, debug overlays, tests, and embedded
+host diagnostics. The snapshot includes the current viewport, a stable
+surface-node tree with node kinds, resolved bounds, widget focusability and
+interaction state, layout diagnostics grouped by node, a selected-node
+candidate derived from pointer capture/focus/hover state, aggregate
+`SurfacePaintStats`, and the same generic `RuntimeDiagnostics` described
+above. Use `devtools_snapshot_with_theme(...)` when paint statistics should be
+computed with a non-default theme. The snapshot is deliberately generic:
+applications may add host labels or presentation around it, but Radiant does
+not expose raw backend handles or application-domain state through this API.
+Native inspector builds can enable a lightweight runtime overlay with
+`NativeRunOptions::default().devtools_overlay_enabled(true)` or configure it
+directly with `DevtoolsOverlayOptions`; this reuses the same snapshot data and
+stays disabled by default.
 
 ## Layout
 

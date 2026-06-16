@@ -1,5 +1,5 @@
 use super::super::{NativeGpuOptions, NativeTextOptions, NativeWindowMode, WindowIconRgba};
-use crate::runtime::RetainedSurfaceCachePolicy;
+use crate::runtime::{DevtoolsOverlayOptions, RetainedSurfaceCachePolicy};
 
 /// Default title for generic Radiant native windows.
 pub const DEFAULT_NATIVE_WINDOW_TITLE: &str = "Radiant";
@@ -84,6 +84,8 @@ pub struct NativeFrameOptions {
     pub debug_layout: bool,
     /// Retained custom-surface frame cache policy.
     pub retained_surface_cache: RetainedSurfaceCachePolicy,
+    /// Runtime-local devtools inspector overlay policy.
+    pub devtools: DevtoolsOverlayOptions,
 }
 
 impl Default for NativeWindowOptions {
@@ -116,6 +118,7 @@ impl Default for NativeFrameOptions {
             target_fps: 120,
             debug_layout: false,
             retained_surface_cache: RetainedSurfaceCachePolicy::default(),
+            devtools: DevtoolsOverlayOptions::default(),
         }
     }
 }

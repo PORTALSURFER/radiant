@@ -6,8 +6,9 @@ use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState},
     runtime::{
-        CommandOutcome, DeclarativeOwnedRuntimeBridge, DeclarativeRuntimeBridge, RuntimeBridge,
-        SurfaceRuntimeProjection, UiSurface, surface::WidgetStateSyncPolicy,
+        CommandOutcome, DeclarativeOwnedRuntimeBridge, DeclarativeRuntimeBridge,
+        DevtoolsOverlayOptions, RuntimeBridge, SurfaceRuntimeProjection, UiSurface,
+        surface::WidgetStateSyncPolicy,
     },
     widgets::PointerCapturePolicy,
 };
@@ -43,6 +44,7 @@ where
             runtime_work: RuntimeWorkQueues::default(),
             diagnostics: Default::default(),
             update_handler_diagnostics_policy: Default::default(),
+            devtools_overlay: DevtoolsOverlayOptions::default(),
         };
         runtime.relayout_with_traversal(traversal);
         runtime

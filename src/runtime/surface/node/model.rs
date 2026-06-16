@@ -1,7 +1,10 @@
 use super::{SurfaceFloatingLayer, SurfaceOverlay, SurfaceScene};
 use crate::{
     layout::{ContainerPolicy, NodeId, SlotParams},
-    runtime::surface::widget::{ScrollMessageMapper, SurfaceWidget},
+    runtime::{
+        DevtoolsLayoutDiagnostic, DevtoolsNodeKind, DevtoolsNodeSnapshot, DevtoolsWidgetSnapshot,
+        surface::widget::{ScrollMessageMapper, SurfaceWidget},
+    },
     widgets::WidgetStyle,
 };
 
@@ -128,6 +131,91 @@ impl<Message> SurfaceNode<Message> {
             Self::Widget(widget) => widget.id(),
             Self::Overlay(overlay) => overlay.id,
             Self::FloatingLayer(layer) => layer.container.id,
+        }
+    }
+
+    pub(in crate::runtime) fn devtools_snapshot_node(
+        &self,
+        pointer_capture: Option<NodeId>,
+        layout: &crate::layout::LayoutOutput,
+    ) -> DevtoolsNodeSnapshot {
+        let node_id = self.id();
+        DevtoolsNodeSnapshot {
+            node_id,
+            kind: self.devtools_node_kind(),
+            bounds: layout.rects.get(&node_id).copied(),
+            widget: self.devtools_widget_snapshot(pointer_capture),
+            layout_diagnostics: layout
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.node_id == node_id)
+                .map(|diagnostic| DevtoolsLayoutDiagnostic {
+                    code: diagnostic.code,
+                    message: diagnostic.message.to_string(),
+                })
+                .collect(),
+            children: self.devtools_children(pointer_capture, layout),
+        }
+    }
+
+    fn devtools_node_kind(&self) -> DevtoolsNodeKind {
+        match self {
+            Self::Scene(_) => DevtoolsNodeKind::Scene,
+            Self::Container(_) => DevtoolsNodeKind::Container,
+            Self::Widget(_) => DevtoolsNodeKind::Widget,
+            Self::Overlay(_) => DevtoolsNodeKind::Overlay,
+            Self::FloatingLayer(_) => DevtoolsNodeKind::FloatingLayer,
+        }
+    }
+
+    fn devtools_widget_snapshot(
+        &self,
+        pointer_capture: Option<NodeId>,
+    ) -> Option<DevtoolsWidgetSnapshot> {
+        let Self::Widget(widget) = self else {
+            return None;
+        };
+        let common = widget.widget().common();
+        Some(DevtoolsWidgetSnapshot {
+            focus: common.focus,
+            focusable: widget.is_focusable(),
+            keyboard_focusable: widget.is_keyboard_focusable(),
+            receives_pointer_hit_testing: widget.receives_pointer_hit_testing(),
+            accepts_wheel_input: widget.receives_wheel_input(),
+            accepts_pointer_move: widget.accepts_pointer_move(),
+            captured: pointer_capture == Some(widget.id()),
+            state: common.state,
+        })
+    }
+
+    fn devtools_children(
+        &self,
+        pointer_capture: Option<NodeId>,
+        layout: &crate::layout::LayoutOutput,
+    ) -> Vec<DevtoolsNodeSnapshot> {
+        match self {
+            Self::Scene(scene) => std::iter::once(scene.base.as_ref())
+                .chain(scene.ordered_layers().flat_map(|layer| {
+                    layer
+                        .input
+                        .as_ref()
+                        .into_iter()
+                        .chain(std::iter::once(&layer.node))
+                }))
+                .map(|child| child.devtools_snapshot_node(pointer_capture, layout))
+                .collect(),
+            Self::Container(container) => container
+                .children
+                .iter()
+                .map(|child| child.child.devtools_snapshot_node(pointer_capture, layout))
+                .collect(),
+            Self::FloatingLayer(layer) => layer
+                .container
+                .children
+                .iter()
+                .map(|child| child.child.devtools_snapshot_node(pointer_capture, layout))
+                .collect(),
+            Self::Widget(_) | Self::Overlay(_) => Vec::new(),
         }
     }
 }

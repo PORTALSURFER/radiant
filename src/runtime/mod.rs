@@ -20,6 +20,7 @@
 mod bridge;
 mod command;
 mod controller;
+mod devtools;
 mod diagnostics;
 mod drag;
 mod external_drag;
@@ -59,6 +60,10 @@ pub use controller::{
     CommandOutcome, DeclarativeOwnedSurfaceRuntime, DeclarativeSurfaceRuntime, Event,
     FocusTraversal, PointerClickOutcome, PointerMoveOutcome, RuntimeContext, RuntimeSurfaceFrame,
     RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceRuntime,
+};
+pub use devtools::{
+    DevtoolsLayoutDiagnostic, DevtoolsNodeKind, DevtoolsNodeSnapshot, DevtoolsOverlayOptions,
+    DevtoolsSnapshot, DevtoolsWidgetSnapshot,
 };
 pub use diagnostics::{
     BusinessRuntimeDiagnostics, BusinessTaskDiagnostic, BusinessTaskDiagnosticState,

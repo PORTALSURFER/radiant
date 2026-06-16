@@ -2,7 +2,9 @@
 
 use super::GenericRouteOutcome;
 use crate::gui::types::{Point, Vector2};
-use crate::runtime::{CommandOutcome, RuntimeAnimationActivity, RuntimeBridge, SurfaceRuntime};
+use crate::runtime::{
+    CommandOutcome, DevtoolsOverlayOptions, RuntimeAnimationActivity, RuntimeBridge, SurfaceRuntime,
+};
 use crate::theme::ThemeTokens;
 use crate::widgets::PointerButton;
 use std::time::Instant;
@@ -32,15 +34,31 @@ where
         Self::new_with_debug_layout(bridge, viewport, false)
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn new_with_debug_layout(
         bridge: Bridge,
         viewport: Vector2,
         debug_layout: bool,
     ) -> Self {
+        Self::new_with_frame_options(
+            bridge,
+            viewport,
+            debug_layout,
+            DevtoolsOverlayOptions::default(),
+        )
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn new_with_frame_options(
+        bridge: Bridge,
+        viewport: Vector2,
+        debug_layout: bool,
+        devtools_overlay: DevtoolsOverlayOptions,
+    ) -> Self {
         let mut runtime = SurfaceRuntime::new(bridge, viewport);
         if debug_layout {
             runtime.set_layout_debug_options(crate::layout::LayoutDebugOptions::bounds_only());
         }
+        runtime.set_devtools_overlay_options(devtools_overlay);
         Self {
             runtime,
             last_pointer_press: None,

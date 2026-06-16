@@ -1,4 +1,5 @@
 use super::{NativePopupOptions, NativeWindowMode};
+use crate::runtime::DevtoolsOverlayOptions;
 
 mod model;
 mod validation;
@@ -97,6 +98,17 @@ impl NativeRunOptions {
             NativeWindowMode::Window => NativePopupOptions::default().position(x, y),
         };
         self.popup_policy(popup)
+    }
+
+    /// Configure the runtime-local devtools inspector overlay.
+    pub fn devtools_overlay(mut self, options: DevtoolsOverlayOptions) -> Self {
+        self.frame.devtools = options;
+        self
+    }
+
+    /// Enable or disable the runtime-local devtools inspector overlay.
+    pub fn devtools_overlay_enabled(self, enabled: bool) -> Self {
+        self.devtools_overlay(DevtoolsOverlayOptions { enabled })
     }
 
     /// Return the effective native animation frame rate after policy clamping.

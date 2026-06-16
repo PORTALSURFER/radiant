@@ -1232,6 +1232,26 @@ inspection on the same allocation-free path. The owned
 `focused_text_selection` helper remains available for callers that need to keep
 the selection after releasing the runtime borrow.
 
+Advanced text input capabilities are intentionally staged behind this
+single-line contract. Multiline editing should not be added by teaching
+`TextInputWidget` ad hoc newline behavior; it should be a generic text-area
+capability with layout-aware vertical navigation, line metrics, wrapping policy,
+and cursor-stop mapping shared with renderer text layout. Undo and redo should
+be widget-local edit history for text mutations and selection groups, separate
+from application undo stacks; hosts may mirror submitted values into their own
+history, but Radiant text editing should not assume a host undo model. Password
+or secret entry should be a first-class masked text-input mode, not only a paint
+hack: display and automation value text should be masked, copying selected text
+should be disabled by default unless the mode explicitly allows it, and tests
+should prove selection/caret behavior still operates on the underlying logical
+value. Native IME composition belongs at the platform adapter boundary, which
+should translate platform preedit/commit/cancel events into backend-neutral
+composition state and final text commits; the widget model should own the
+logical composition range once that generic event exists. Bidirectional text and
+complex shaping belong to renderer text layout and cursor-stop mapping, while
+`TextInputState` continues to store logical Unicode-scalar positions instead of
+renderer glyph positions.
+
 Implement `Widget` directly when a downstream application needs a new focusable
 leaf with its own input handling, host-routable output payload, or
 backend-neutral paint contribution. Compose existing primitives when the desired

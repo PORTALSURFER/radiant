@@ -163,6 +163,8 @@ where
         let position = self.input.last_cursor;
         let delta = scroll_delta_to_logical(delta, self.window.dpi_scale);
         let modifiers = self.pointer_modifiers();
+        let now = Instant::now();
+        self.flush_stale_pending_wheel_input(now);
         let mut diagnostic = self.native_pointer_diagnostic(
             NativePointerEventKind::MouseWheel,
             position,
@@ -190,7 +192,7 @@ where
         let can_queue_scroll_container_wheel = self
             .can_coalesce_scroll_container_wheel(position, delta)
             && self.timing.redraw_requested
-            && !self.pending_interactive_scroll_flush_is_due(Instant::now());
+            && !self.pending_interactive_scroll_flush_is_due(now);
         if can_queue_scroll_container_wheel {
             self.queue_scroll_container_wheel(position, delta, modifiers);
             let outcome = GenericRouteOutcome {
@@ -213,6 +215,15 @@ where
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);
         self.maybe_log_native_pointer_diagnostic(diagnostic);
         NativeWheelRoute::new(outcome, diagnostic)
+    }
+
+    fn flush_stale_pending_wheel_input(&mut self, now: Instant) {
+        if !self.pending_interactive_scroll_flush_is_due(now) {
+            return;
+        }
+        let mut profile = super::RenderFrameProfile::default();
+        self.flush_pending_gpu_surface_wheel(&mut profile);
+        self.flush_pending_scroll_container_wheel(&mut profile);
     }
 
     pub(super) fn route_native_modifiers_changed(

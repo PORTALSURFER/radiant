@@ -168,6 +168,52 @@ fn native_wheel_flushes_coalesced_scroll_when_redraw_is_starved() {
 }
 
 #[test]
+fn native_wheel_flushes_stale_coalesced_scroll_before_new_wheel_input() {
+    let mut harness =
+        NativePointerHarness::new(AppVirtualListBridge::default(), Vector2::new(240.0, 80.0));
+    harness.cursor_moved_logical(Point::new(20.0, 20.0));
+    harness.runner.timing.redraw_requested = true;
+    harness.runner.timing.redraw_requested_at = Some(Instant::now());
+
+    let queued = harness.mouse_wheel_route(MouseScrollDelta::LineDelta(0.0, -20.0));
+    assert_eq!(
+        queued.diagnostic.result,
+        NativePointerRouteResult::Coalesced
+    );
+    assert_eq!(
+        harness.runner.core.runtime.bridge().scroll_count,
+        0,
+        "fresh pending redraws may coalesce scroll input until paint"
+    );
+
+    harness.runner.timing.redraw_requested_at = Some(Instant::now() - Duration::from_millis(20));
+    let routed = harness.mouse_wheel_route(MouseScrollDelta::LineDelta(0.0, -20.0));
+
+    assert_eq!(routed.diagnostic.result, NativePointerRouteResult::Routed);
+    assert!(
+        harness
+            .runner
+            .input
+            .pending_scroll_container_wheel
+            .is_none(),
+        "new wheel input must not leave an older coalesced scroll delta pending"
+    );
+    assert!(
+        harness.runner.core.runtime.bridge().scroll_count >= 2,
+        "stale coalesced scroll should flush before routing the fresh wheel event"
+    );
+    assert!(
+        harness.runner.core.runtime.bridge().window.viewport_start >= 80,
+        "ordered wheel deltas should advance the app-owned virtual window"
+    );
+    let paint = harness.runner.core.runtime.paint_plan(&Default::default());
+    assert!(
+        paint.text_runs().count() > 0 && paint.contains_text("Row 80"),
+        "ordered wheel flushing should keep virtual-list rows rendered after a large jump"
+    );
+}
+
+#[test]
 fn native_scrollbar_drag_flushes_when_redraw_is_starved() {
     let mut harness =
         NativePointerHarness::new(AppVirtualListBridge::default(), Vector2::new(240.0, 80.0));

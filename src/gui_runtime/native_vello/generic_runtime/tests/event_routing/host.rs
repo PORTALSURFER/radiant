@@ -120,6 +120,25 @@ fn focused_text_input_typing_preempts_host_shortcuts() {
 }
 
 #[test]
+fn focused_text_input_routes_all_scalars_from_one_text_event() {
+    let bridge = ShortcutDemoBridge::default();
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        bridge,
+        Vector2::new(320.0, 40.0),
+    );
+    focus_demo_text_input(&mut runner.core);
+
+    let mut outcome = GenericRouteOutcome::default();
+    assert!(
+        runner.route_focused_text_input_before_shortcuts(KeyCode::E, Some("éx"), &mut outcome,)
+    );
+
+    assert_eq!(runner.core.runtime.bridge().state.name, "éx");
+    assert_eq!(runner.core.runtime.bridge().state.count, 0);
+}
+
+#[test]
 fn focused_text_input_backspace_preempts_host_shortcuts() {
     let bridge = ShortcutDemoBridge::default();
     let mut runner = GenericNativeVelloRunner::new(

@@ -2,6 +2,24 @@ use crate::widgets::interaction::TextEditCommand;
 
 use super::super::TextInputState;
 
+// OPT-857 text-input conformance checklist.
+//
+// Covered today:
+// - single-line scalar caret movement and selection extension/collapse
+// - word movement and word deletion
+// - Home/End movement with and without selection extension
+// - selection deletion and replacement
+// - sanitized insertion, including newline stripping
+// - character-limit replacement semantics
+// - double-click word selection through widget tests
+// - focused runtime keyboard routing through native runtime tests
+//
+// Explicitly not covered because Radiant does not yet expose the feature:
+// - multiline Up/Down layout-aware navigation
+// - undo/redo grouping
+// - password masking mode
+// - platform IME composition and bidirectional shaping behavior
+
 #[test]
 fn text_input_state_applies_backend_neutral_editing_commands() {
     let mut state = TextInputState::from_value(String::from("alpha beta"));
@@ -32,6 +50,45 @@ fn text_input_state_applies_backend_neutral_editing_commands() {
     assert_eq!(state.value, "onetwo beta");
     assert_eq!(state.caret, 6);
     assert_eq!(state.selection_anchor, 6);
+}
+
+#[test]
+fn text_input_state_home_end_and_collapse_follow_single_line_contract() {
+    let mut state = TextInputState::from_value(String::from("alpha beta"));
+
+    let result = state.apply_edit_command(
+        TextEditCommand::MoveHome {
+            extend_selection: true,
+        },
+        None,
+    );
+
+    assert!(!result.value_changed);
+    assert!(result.selection_changed);
+    assert_eq!(state.selected_text_slice(), Some("alpha beta"));
+
+    let result = state.apply_edit_command(
+        TextEditCommand::MoveRight {
+            extend_selection: false,
+        },
+        None,
+    );
+
+    assert!(!result.value_changed);
+    assert!(result.selection_changed);
+    assert_eq!(state.caret, state.char_len());
+    assert!(!state.has_selection());
+
+    let result = state.apply_edit_command(
+        TextEditCommand::MoveEnd {
+            extend_selection: true,
+        },
+        None,
+    );
+
+    assert!(!result.value_changed);
+    assert!(result.selection_changed);
+    assert_eq!(state.selected_text_slice(), None);
 }
 
 #[test]

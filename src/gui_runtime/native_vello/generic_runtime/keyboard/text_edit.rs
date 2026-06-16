@@ -159,9 +159,6 @@ where
     /// Route printable text from a keyboard event into the focused widget.
     pub(super) fn route_text_input(&mut self, text: &str, route_outcome: &mut GenericRouteOutcome) {
         for character in text.chars().filter(|character| !character.is_control()) {
-            if route_outcome.routed {
-                break;
-            }
             let outcome = self.core.route_character(character);
             route_outcome.merge(outcome);
         }

@@ -56,6 +56,7 @@ pub fn virtual_list_window_body<Message: 'static>(
     if projected_len > 0 {
         children.push(
             body(window)
+                .key("virtual-list-window-body")
                 .fill_width()
                 .height(row_height * projected_len as f32),
         );

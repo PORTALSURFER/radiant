@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     application::{ViewNode, button, column},
     gui::list::VirtualListWindow,
-    layout::{ContainerKind, LayoutNode, NodeId, VirtualizationAxis},
+    layout::{ContainerKind, LayoutNode, NodeId},
 };
 
 #[test]
@@ -76,7 +76,33 @@ fn virtual_list_window_body_keeps_spacers_generic() {
 }
 
 #[test]
-fn virtual_list_window_body_applies_virtual_scroll_overscan() {
+fn virtual_list_window_body_keeps_body_identity_when_top_spacer_appears() {
+    let top_window = VirtualListWindow {
+        total_items: 10_000,
+        viewport_start: 0,
+        viewport_end: 8,
+        window_start: 0,
+        window_end: 12,
+    };
+    let scrolled_window = VirtualListWindow {
+        total_items: 10_000,
+        viewport_start: 120,
+        viewport_end: 128,
+        window_start: 116,
+        window_end: 132,
+    };
+
+    let top_body_id = virtual_list_body_container_id(top_window);
+    let scrolled_body_id = virtual_list_body_container_id(scrolled_window);
+
+    assert_eq!(
+        top_body_id, scrolled_body_id,
+        "the materialized body needs stable identity as spacer rows appear and disappear"
+    );
+}
+
+#[test]
+fn virtual_list_window_body_uses_app_owned_spacer_scroll() {
     let window = VirtualListWindow {
         total_items: 10_000,
         viewport_start: 120,
@@ -88,27 +114,67 @@ fn virtual_list_window_body_applies_virtual_scroll_overscan() {
     let view: ViewNode<()> =
         virtual_list_window_body(window, 32.0, |_| column(Vec::<ViewNode<()>>::new()), 96.0);
     let layout = view.into_surface().layout_node();
-    let policy = first_scroll_virtualization_policy(&layout)
-        .expect("virtual-list body should lower to a virtualized scroll container");
+    let scroll = first_scroll_container(&layout)
+        .expect("virtual-list body should lower to a scroll container");
 
-    assert!(policy.enabled);
-    assert_eq!(policy.axis, VirtualizationAxis::Vertical);
-    assert_eq!(policy.overscan_px, 96.0);
+    assert_eq!(scroll.policy.kind, ContainerKind::ScrollView);
+    assert!(
+        scroll.policy.virtualization.is_none(),
+        "app-owned virtual windows must not let layout-level virtualization cull the body spacer"
+    );
 }
 
-fn first_scroll_virtualization_policy(
-    node: &LayoutNode,
-) -> Option<crate::layout::VirtualizationPolicy> {
+fn virtual_list_body_container_id(window: VirtualListWindow) -> NodeId {
+    let view: ViewNode<()> = virtual_list_window_body(
+        window,
+        32.0,
+        |window| {
+            column((window.window_start..window.window_end).map(|index| {
+                list_row_id(
+                    30_000 + index as NodeId,
+                    [button(format!("Row {index:05}"))
+                        .message(())
+                        .id(40_000 + index as NodeId)],
+                )
+            }))
+        },
+        64.0,
+    );
+    let layout = view.into_surface().layout_node();
+    let LayoutNode::Container(scroll) = layout else {
+        panic!("virtual-list body should lower to a scroll container");
+    };
+    let content = scroll
+        .children
+        .first()
+        .expect("scroll container should have content");
+    let LayoutNode::Container(content_column) = &content.child else {
+        panic!("scroll content should be a column");
+    };
+    let body = content_column
+        .children
+        .iter()
+        .find_map(|child| match &child.child {
+            LayoutNode::Container(container) if container.policy.kind == ContainerKind::Column => {
+                Some(container.id)
+            }
+            _ => None,
+        })
+        .expect("scroll content should include the materialized body column");
+    body
+}
+
+fn first_scroll_container(node: &LayoutNode) -> Option<&crate::layout::ContainerNode> {
     match node {
         LayoutNode::Widget(_) => None,
         LayoutNode::Container(container) => {
             if container.policy.kind == ContainerKind::ScrollView {
-                return container.policy.virtualization;
+                return Some(container);
             }
             container
                 .children
                 .iter()
-                .find_map(|child| first_scroll_virtualization_policy(&child.child))
+                .find_map(|child| first_scroll_container(&child.child))
         }
     }
 }

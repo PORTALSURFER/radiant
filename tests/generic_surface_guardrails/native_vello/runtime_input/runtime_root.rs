@@ -15,6 +15,15 @@ fn native_generic_runtime_root_tests_stay_grouped_by_runtime_concern() {
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/tests/timing.rs"),
     )
     .expect("native generic runtime timing tests should be readable");
+    let timing_route_frames = fs::read_to_string(
+        manifest_dir
+            .join("src/gui_runtime/native_vello/generic_runtime/tests/timing/route_frames.rs"),
+    )
+    .expect("native generic runtime frame-routing timing tests should be readable");
+    let timing_fixtures = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/tests/timing/fixtures.rs"),
+    )
+    .expect("native generic runtime timing fixtures should be readable");
     let window_policy = fs::read_to_string(
         manifest_dir.join("src/gui_runtime/native_vello/generic_runtime/tests/window_policy.rs"),
     )
@@ -31,8 +40,11 @@ fn native_generic_runtime_root_tests_stay_grouped_by_runtime_concern() {
     assert!(
         runtime_core.contains("fn generic_core_empty_runtime_wakeup_does_not_need_redraw")
             && runtime_core.contains("fn generic_core_can_enable_layout_debug_before_first_frame")
-            && timing.contains("fn hover_redraws_do_not_reset_timed_animation_deadline")
-            && timing.contains("struct TestFrameMessageBridge")
+            && timing.contains("mod route_frames;")
+            && timing.contains("mod fixtures;")
+            && timing_route_frames
+                .contains("fn hover_redraws_do_not_reset_timed_animation_deadline")
+            && timing_fixtures.contains("struct TestFrameMessageBridge")
             && window_policy.contains("fn generic_native_window_applies_floating_popup_policy"),
         "native generic runtime tests should stay grouped by runtime core, timing, and window policy concerns"
     );

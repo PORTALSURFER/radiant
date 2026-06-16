@@ -239,17 +239,18 @@ where
         let mut sync_auxiliary_windows_now = false;
         if outcome.needs_scene_rebuild() {
             if outcome.interactive_scene_rebuild_requested {
-                let now = Instant::now();
-                if self.should_rebuild_interactive_scene_now(now) {
-                    if outcome.interactive_surface_refresh_requested {
-                        self.refresh_and_rebuild_scene_for_interactive_route_now();
-                    } else {
-                        self.rebuild_scene_for_interactive_route_now();
-                    }
+                if outcome.interactive_surface_refresh_requested {
+                    self.refresh_and_rebuild_scene_for_interactive_route_now();
                     self.defer_auxiliary_window_sync();
                 } else {
-                    self.defer_interactive_scene_rebuild();
-                    self.defer_auxiliary_window_sync();
+                    let now = Instant::now();
+                    if self.should_rebuild_interactive_scene_now(now) {
+                        self.rebuild_scene_for_interactive_route_now();
+                        self.defer_auxiliary_window_sync();
+                    } else {
+                        self.defer_interactive_scene_rebuild();
+                        self.defer_auxiliary_window_sync();
+                    }
                 }
             } else {
                 self.rebuild_scene();

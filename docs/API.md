@@ -1458,10 +1458,15 @@ above. Use `devtools_snapshot_with_theme(...)` when paint statistics should be
 computed with a non-default theme. The snapshot is deliberately generic:
 applications may add host labels or presentation around it, but Radiant does
 not expose raw backend handles or application-domain state through this API.
+Call `DevtoolsSnapshot::inspector_projection()` when a debug view needs the
+flattened tree rows plus selected-node and runtime detail lines used by
+Radiant's built-in overlay.
 Native inspector builds can enable a lightweight runtime overlay with
 `NativeRunOptions::default().devtools_overlay_enabled(true)` or configure it
 directly with `DevtoolsOverlayOptions`; this reuses the same snapshot data and
-stays disabled by default.
+stays disabled by default. The overlay paints a compact surface tree,
+selected-node detail panel, and runtime summary from backend-neutral paint
+primitives.
 
 ## Layout
 

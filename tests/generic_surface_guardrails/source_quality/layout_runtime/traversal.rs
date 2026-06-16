@@ -78,8 +78,11 @@ fn surface_layout_projection_records_traversal_through_index_methods() {
             && layout.contains("SurfaceContainer, SurfaceContainerTraversalRecord, SurfaceNode")
             && layout.contains("SurfaceTraversalIndex")
             && layout.contains("SurfaceTraversalStats")
-            && layout.contains("SurfaceWidget, SurfaceWidgetTraversalRecord, UiSurface")
-            && layout.contains("layout::{ContainerKind, LayoutNode, NodeId, SlotChild, Vector2}")
+            && layout.contains("SurfaceWidget, SurfaceWidgetTraversalRecord")
+            && layout.contains("UiSurface")
+            && layout.contains(
+                "use crate::layout::{ContainerKind, LayoutNode, NodeId, SlotChild, Vector2};"
+            )
             && !layout.starts_with("use super::*;"),
         "surface layout projection should name surface, traversal, and layout dependencies while describing traversal records instead of mutating buckets directly"
     );

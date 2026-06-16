@@ -60,6 +60,44 @@ fn surface_runtime_devtools_snapshot_reports_live_interaction_state() {
 }
 
 #[test]
+fn surface_runtime_devtools_projection_flattens_tree_and_selected_details() {
+    let bridge = declarative_runtime_bridge(
+        DemoState::default(),
+        project_surface,
+        |_state: &mut DemoState, _message| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 80.0));
+
+    runtime.dispatch_event(Event::PointerMove {
+        position: Point::new(164.0, 12.0),
+    });
+
+    let projection = runtime.devtools_snapshot().inspector_projection();
+
+    assert!(
+        projection
+            .tree_rows
+            .iter()
+            .any(|row| row.node_id == 11 && row.selected && row.hovered),
+        "devtools projection should expose navigable selected tree rows"
+    );
+    assert!(
+        projection
+            .selected_details
+            .iter()
+            .any(|line| line.contains("state: hover=true")),
+        "selected-node details should expose interaction state"
+    );
+    assert!(
+        projection
+            .runtime_details
+            .iter()
+            .any(|line| line.starts_with("paint: total=")),
+        "runtime details should include paint summary"
+    );
+}
+
+#[test]
 fn surface_runtime_devtools_overlay_appends_runtime_overlay_primitives() {
     let bridge = declarative_runtime_bridge(
         DemoState::default(),
@@ -84,6 +122,10 @@ fn surface_runtime_devtools_overlay_appends_runtime_overlay_primitives() {
         }),
         "devtools overlay should append backend-neutral paint for the overlay panel"
     );
+    let text = primitive_text(&primitives);
+    assert!(text.iter().any(|line| *line == "Surface tree"));
+    assert!(text.iter().any(|line| *line == "Selected node"));
+    assert!(text.iter().any(|line| *line == "Runtime"));
 }
 
 fn devtools_node(root: &DevtoolsNodeSnapshot, node_id: u64) -> Option<&DevtoolsNodeSnapshot> {
@@ -93,4 +135,12 @@ fn devtools_node(root: &DevtoolsNodeSnapshot, node_id: u64) -> Option<&DevtoolsN
     root.children
         .iter()
         .find_map(|child| devtools_node(child, node_id))
+}
+
+fn primitive_text(primitives: &[PaintPrimitive]) -> Vec<&str> {
+    primitives
+        .iter()
+        .filter_map(|primitive| primitive.text_run())
+        .map(|text| text.text.as_str())
+        .collect()
 }

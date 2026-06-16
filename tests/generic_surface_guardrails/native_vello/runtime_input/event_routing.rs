@@ -32,6 +32,16 @@ fn native_event_routing_tests_stay_grouped_by_input_concern() {
             .join("src/gui_runtime/native_vello/generic_runtime/tests/event_routing/drag_drop.rs"),
     )
     .expect("native drag/drop event-routing tests should be readable");
+    let drag_drop_hover = fs::read_to_string(
+        manifest_dir.join(
+            "src/gui_runtime/native_vello/generic_runtime/tests/event_routing/drag_drop/hover_routing.rs",
+        ),
+    )
+    .expect("native drag/drop hover-routing tests should be readable");
+    let drag_drop_fixtures = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/tests/event_routing/drag_drop/fixtures.rs",
+    ))
+    .expect("native drag/drop fixtures should be readable");
 
     assert!(
         root.contains("mod host;")
@@ -49,8 +59,11 @@ fn native_event_routing_tests_stay_grouped_by_input_concern() {
             && scroll
                 .contains("fn scrollbar_drag_state_survives_view_refresh_after_offset_message")
             && repaint.contains("fn generic_core_drains_command_repaint_requests_after_routing")
-            && drag_drop.contains("struct DropBridge")
-            && drag_drop.contains("fn captured_drag_routes_pointer_move_to_hovered_drop_target"),
+            && drag_drop.contains("mod hover_routing;")
+            && drag_drop.contains("mod fixtures;")
+            && drag_drop_fixtures.contains("struct DropBridge")
+            && drag_drop_hover
+                .contains("fn captured_drag_routes_pointer_move_to_hovered_drop_target"),
         "native event-routing tests should stay grouped by host, canvas, scroll, repaint, and drag/drop concerns"
     );
 }

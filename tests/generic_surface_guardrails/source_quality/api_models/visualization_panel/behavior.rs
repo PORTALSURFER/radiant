@@ -11,6 +11,9 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
         .expect("spatial visualization model should be readable");
     let canvas = fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/canvas.rs"))
         .expect("canvas visualization tests should be readable");
+    let canvas_layers =
+        fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/canvas/layers.rs"))
+            .expect("canvas layer visualization tests should be readable");
     let grid = fs::read_to_string(manifest_dir.join("src/gui/visualization/tests/grid.rs"))
         .expect("dense grid visualization tests should be readable");
     let grid_model = fs::read_to_string(manifest_dir.join("src/gui/visualization/grid.rs"))
@@ -57,7 +60,9 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
     assert!(
         spatial.contains("fn normalized_milli_point_projects_and_clamps_into_rect")
             && spatial.contains("fn spatial_panel_groups_labels_selection_and_point_data")
-            && canvas.contains("fn canvas_invalidation_splits_scene_and_interaction_rebuilds")
+            && canvas.contains("mod layers;")
+            && canvas_layers
+                .contains("fn canvas_invalidation_splits_scene_and_interaction_rebuilds")
             && grid.contains("fn dense_grid_raster_layout_projects_bottom_up_cells_with_bleed")
             && signal.contains("fn signal_tool_state_preserves_generic_interaction_flags")
             && strip.contains("fn vertical_strip_stack_layout_projects_bottom_anchored_slots")
@@ -68,6 +73,11 @@ fn visualization_behavior_tests_stay_grouped_by_surface_concern() {
             && timeline.contains("mod aggregate;")
             && timeline.contains("mod fixtures;")
             && !timeline.contains("fn timeline_motion_state_aggregates_surface_chrome_tools"),
+        "visualization behavior test root should delegate timeline behavior groups"
+    );
+    assert!(
+        timeline_aggregate
+            .contains("fn timeline_motion_state_aggregates_surface_chrome_tools_and_transport"),
         "visualization behavior tests should stay grouped by spatial, canvas, signal, and timeline concerns"
     );
     assert!(

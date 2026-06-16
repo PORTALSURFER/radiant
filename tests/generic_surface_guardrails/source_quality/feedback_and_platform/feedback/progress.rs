@@ -35,6 +35,10 @@ fn progress_feedback_keeps_overlay_state_and_track_geometry_focused() {
     let progress_track_tests =
         fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track/progress/tests.rs"))
             .expect("progress track geometry tests should be readable");
+    let progress_track_scalar_tests = fs::read_to_string(
+        manifest_dir.join("src/gui/feedback/progress/track/progress/tests/scalar.rs"),
+    )
+    .expect("progress scalar geometry tests should be readable");
     let meter_track =
         fs::read_to_string(manifest_dir.join("src/gui/feedback/progress/track/meter.rs"))
             .expect("progress meter geometry module should be readable");
@@ -142,8 +146,10 @@ fn progress_feedback_keeps_overlay_state_and_track_geometry_focused() {
         "progress paint adapters should live in progress/track/progress/paint.rs"
     );
     assert!(
-        progress_track_tests.contains("fn horizontal_progress_fill_rect_clamps_to_track")
-            && progress_track_tests
+        progress_track_tests.contains("mod scalar;")
+            && progress_track_scalar_tests
+                .contains("fn horizontal_progress_fill_rect_clamps_to_track")
+            && progress_track_scalar_tests
                 .contains("fn horizontal_progress_track_rect_switches_between_activity_and_fill"),
         "progress track behavior tests should live in progress/track/progress/tests.rs"
     );

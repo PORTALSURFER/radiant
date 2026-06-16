@@ -40,7 +40,10 @@ results, emit messages, request repaint/focus/timers, request typed platform
 services, and schedule business work. Filesystem, database, decode/load,
 network/process work, sleeps, blocking waits or joins, thread creation, cache
 hydration, and long CPU transforms belong behind the business runtime or a
-platform adapter. Command-returning and command-injection paths are migration or
+platform adapter. Static app call sites should use the named business lanes;
+host policy that already resolved a runtime `TaskPriority` should use
+`context.business().priority(name, priority)` instead of duplicating lane
+matches in reducers. Command-returning and command-injection paths are migration or
 advanced surfaces, not the target ordinary application model.
 
 The explicit runtime and widget modules are supported control surfaces, not a

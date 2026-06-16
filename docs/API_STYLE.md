@@ -192,7 +192,11 @@ work. They must not perform filesystem, database, decode/load, network,
 process, cache hydration, blocking waits/joins, sleeps, thread creation, or
 long CPU work directly. Examples that need those behaviors should show
 `context.business()` or typed platform-service requests instead of direct
-blocking calls from the handler.
+blocking calls from the handler. When the lane is static, prefer the named
+business helpers such as `interactive(...)`, `background(...)`,
+`blocking_io(...)`, and `idle(...)`; when host policy already produced a
+`TaskPriority`, use `context.business().priority(name, priority)` so the
+business boundary remains explicit without app-local lane-selection boilerplate.
 
 Example:
 

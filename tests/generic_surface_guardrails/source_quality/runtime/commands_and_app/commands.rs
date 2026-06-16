@@ -139,6 +139,7 @@ fn ui_update_context_keeps_followup_command_groups_in_focused_modules() {
     assert!(
         business.contains("pub struct BusinessRuntime")
             && business.contains("pub fn interactive(self, name: &'static str)")
+            && business.contains("pub fn priority(")
             && business.contains("pub fn background(self, name: &'static str)")
             && business.contains("pub fn idle(self, name: &'static str)")
             && business_request.contains("pub fn latest(self, latest: &mut LatestTask)")

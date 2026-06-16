@@ -37,7 +37,8 @@ fn latest_task_tracks_current_ticket_and_tags_spawned_completion() {
     assert_eq!(latest.active(), None);
 
     let mut latest = radiant::prelude::LatestTask::new();
-    let mut context = radiant::prelude::UiUpdateContext::default();
+    let mut context: radiant::prelude::UiUpdateContext<DemoMessage> =
+        radiant::prelude::UiUpdateContext::default();
     context
         .business()
         .background("latest-task-test")
@@ -111,6 +112,25 @@ fn business_runtime_builds_named_priority_lanes() {
 }
 
 #[test]
+fn business_runtime_priority_helper_uses_host_selected_lane() {
+    let mut context: radiant::prelude::UiUpdateContext<DemoMessage> =
+        radiant::prelude::UiUpdateContext::default();
+    context
+        .business()
+        .priority(
+            "host-selected-work",
+            radiant::prelude::TaskPriority::BlockingIo,
+        )
+        .run(|_| DemoMessage::Increment, |message| message);
+
+    let (name, priority, work) = take_perform(context.into_command());
+
+    assert_eq!(name, "host-selected-work");
+    assert_eq!(priority, radiant::prelude::TaskPriority::BlockingIo);
+    assert_eq!(work(), DemoMessage::Increment);
+}
+
+#[test]
 fn business_runtime_keyed_latest_tags_completion_with_key_and_ticket() {
     let mut keyed = radiant::prelude::KeyedLatestTasks::new();
     let key = String::from("row-1");
@@ -132,6 +152,67 @@ fn business_runtime_keyed_latest_tags_completion_with_key_and_ticket() {
     assert_eq!(keyed.active(&key).map(|ticket| ticket.id()), Some(1));
     let (_name, _priority, work) = take_perform(context.into_command());
     assert_eq!(work(), DemoMessage::Increment);
+}
+
+#[test]
+fn business_runtime_priority_helper_composes_with_resource_policies() {
+    let mut resources = radiant::prelude::ResourceTasks::default();
+    let key = radiant::prelude::ResourceKey::scoped("preview", "kick");
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    context
+        .business()
+        .priority(
+            "resource-preview",
+            radiant::prelude::TaskPriority::Interactive,
+        )
+        .latest_for_resource(&mut resources, key.clone())
+        .run(
+            |_| 42_u8,
+            |completion| {
+                assert_eq!(
+                    completion.key,
+                    radiant::prelude::ResourceKey::scoped("preview", "kick")
+                );
+                assert_eq!(completion.task_id(), 1);
+                assert_eq!(completion.output, 42);
+                DemoMessage::Increment
+            },
+        );
+
+    assert_eq!(resources.active(&key).map(|ticket| ticket.id()), Some(1));
+    let (name, priority, work) = take_perform(context.into_command());
+    assert_eq!(name, "resource-preview");
+    assert_eq!(priority, radiant::prelude::TaskPriority::Interactive);
+    assert_eq!(work(), DemoMessage::Increment);
+
+    let exclusive_key = radiant::prelude::ResourceKey::scoped("preview", "snare");
+    let mut exclusive_context: radiant::prelude::UiUpdateContext<DemoMessage> =
+        radiant::prelude::UiUpdateContext::default();
+    let first = exclusive_context
+        .business()
+        .priority(
+            "exclusive-preview",
+            radiant::prelude::TaskPriority::Background,
+        )
+        .exclusive_for(&mut resources, exclusive_key.clone());
+    assert!(
+        first.is_some(),
+        "first exclusive resource work should start"
+    );
+
+    let mut duplicate_context: radiant::prelude::UiUpdateContext<DemoMessage> =
+        radiant::prelude::UiUpdateContext::default();
+    let first = duplicate_context
+        .business()
+        .priority(
+            "exclusive-preview",
+            radiant::prelude::TaskPriority::Background,
+        )
+        .exclusive_for(&mut resources, exclusive_key);
+    assert!(
+        first.is_none(),
+        "active resource should reject duplicate work"
+    );
 }
 
 #[test]

@@ -32,6 +32,20 @@ impl<'context, Message> BusinessRuntime<'context, Message> {
         self.request(name, TaskPriority::Interactive)
     }
 
+    /// Submit work on a host-selected priority lane.
+    ///
+    /// Prefer the named lane helpers when the priority is static at the call
+    /// site. Use this helper when host policy already resolved the lane and
+    /// the update handler should still schedule the work through Radiant's
+    /// explicit business-runtime boundary.
+    pub fn priority(
+        self,
+        name: &'static str,
+        priority: TaskPriority,
+    ) -> BusinessRequest<'context, Message> {
+        self.request(name, priority)
+    }
+
     /// Submit ordinary background work off the UI path.
     pub fn background(self, name: &'static str) -> BusinessRequest<'context, Message> {
         self.request(name, TaskPriority::Background)

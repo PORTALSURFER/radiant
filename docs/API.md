@@ -129,7 +129,9 @@ audio/image/data decoding or loading, cache hydration, network or process
 work, sleeps, blocking waits or joins, thread creation, long CPU transforms,
 and helper calls that hide those operations must leave the UI path through
 `context.business().interactive(...)`, `.background(...)`, `.blocking_io(...)`,
-or `.idle(...)`.
+or `.idle(...)`. When host policy already resolved a `TaskPriority`, use
+`context.business().priority(name, priority)` instead of repeating a local
+priority-to-lane match in app code.
 Worker closures receive `radiant::runtime::BusinessWorkContext` as an explicit
 runtime capability so helper signatures can inspect cooperative cancellation
 without importing it from the normal app prelude or constructing it in UI code.
@@ -399,8 +401,10 @@ same common decoders directly on platform-service callback results so reducers
 can propagate platform errors and reject wrong response shapes without local
 adapter code. Use `context.business()` for host-owned business work that must
 not run on the UI/event/render path. The business builder exposes
-`interactive(...)`, `background(...)`, `blocking_io(...)`, and `idle(...)` lanes, then optional
-policies such as `latest(&mut LatestTask)`,
+`interactive(...)`, `background(...)`, `blocking_io(...)`, and `idle(...)`
+lanes, plus `priority(name, TaskPriority)` when a host-owned scheduler policy
+has already selected the lane, then optional policies such as
+`latest(&mut LatestTask)`,
 `latest_for(&mut KeyedLatestTasks<_>, key)`,
 `latest_for_resource(&mut ResourceTasks, ResourceKey)`,
 `exclusive_for(&mut ResourceTasks, ResourceKey)`,

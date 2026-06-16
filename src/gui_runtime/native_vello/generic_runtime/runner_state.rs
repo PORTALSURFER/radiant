@@ -38,6 +38,7 @@ pub(super) struct NativeRunnerInputState {
     pub(super) modifiers: ModifiersState,
     pub(super) last_navigation_key_repeat: Option<Instant>,
     pub(super) pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
+    pub(super) pending_scroll_container_wheel: Option<PendingGpuSurfaceWheel>,
 }
 
 impl Default for NativeRunnerInputState {
@@ -49,6 +50,7 @@ impl Default for NativeRunnerInputState {
             modifiers: ModifiersState::default(),
             last_navigation_key_repeat: None,
             pending_gpu_surface_wheel: None,
+            pending_scroll_container_wheel: None,
         }
     }
 }

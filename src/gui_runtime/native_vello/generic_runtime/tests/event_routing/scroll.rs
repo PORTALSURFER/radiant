@@ -145,6 +145,110 @@ fn wheel_scroll_surface_refresh_rebuilds_immediately() {
 }
 
 #[test]
+fn scrollbar_drag_presents_new_virtual_list_rows_after_far_jump() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        AppVirtualListBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    runner.timing.last_interactive_scene_rebuild = Instant::now();
+    let scroll_rect = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&81)
+        .copied()
+        .expect("virtual list scroll area should be laid out");
+    let press = Point::new(scroll_rect.max.x - 2.0, scroll_rect.min.y + 6.0);
+    let drag = Point::new(press.x, scroll_rect.max.y - 6.0);
+
+    runner
+        .core
+        .route_pointer_press(press, PointerButton::Primary);
+    let outcome = runner.core.route_pointer_move(drag);
+    runner.handle_gpu_surface_pointer_move_outcome(outcome, Some(press), drag);
+
+    let paint = runner.core.runtime.paint_plan(&Default::default());
+    assert!(runner.core.runtime.bridge().window.viewport_start >= 80);
+    assert!(paint.contains_text("Row 99"));
+    assert!(
+        paint.text_runs().count() > 0,
+        "far scrollbar drag should not present empty materialized virtual-list rows"
+    );
+}
+
+#[test]
+fn wheel_scroll_presents_new_virtual_list_rows_after_far_jump() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        AppVirtualListBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    runner.timing.last_interactive_scene_rebuild = Instant::now();
+    let position = Point::new(20.0, 20.0);
+    let delta = Vector2::new(0.0, 2_000.0);
+
+    let outcome = runner.core.route_scroll_deferred_refresh_with_modifiers(
+        position,
+        delta,
+        PointerModifiers::default(),
+    );
+    runner.handle_gpu_surface_route_outcome(outcome, position, delta);
+
+    let paint = runner.core.runtime.paint_plan(&Default::default());
+    assert_eq!(runner.core.runtime.bridge().window.viewport_start, 96);
+    assert!(paint.contains_text("Row 99"));
+    assert!(
+        paint.text_runs().count() > 0,
+        "far wheel scroll should not present empty materialized virtual-list rows"
+    );
+}
+
+#[test]
+fn native_wheel_over_virtual_list_coalesces_until_redraw() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        AppVirtualListBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    runner.input.last_cursor = Some(Point::new(20.0, 20.0));
+    let project_count = runner.core.runtime.bridge().project_count;
+
+    let first =
+        runner.route_native_mouse_wheel(winit::event::MouseScrollDelta::LineDelta(0.0, -24.0));
+    let second =
+        runner.route_native_mouse_wheel(winit::event::MouseScrollDelta::LineDelta(0.0, -24.0));
+
+    assert_eq!(first.diagnostic.result, NativePointerRouteResult::Coalesced);
+    assert_eq!(
+        second.diagnostic.result,
+        NativePointerRouteResult::Coalesced
+    );
+    assert_eq!(
+        runner.core.runtime.bridge().scroll_count,
+        0,
+        "coalesced native wheel input should not refresh app-owned virtual rows per OS event"
+    );
+    assert_eq!(runner.core.runtime.bridge().project_count, project_count);
+
+    runner.flush_pending_scroll_container_wheel(&mut RenderFrameProfile::default());
+
+    assert_eq!(runner.core.runtime.bridge().scroll_count, 1);
+    assert!(runner.core.runtime.bridge().project_count > project_count);
+    assert!(
+        runner
+            .core
+            .runtime
+            .paint_plan(&Default::default())
+            .contains_text("Row 99")
+    );
+}
+
+#[test]
 fn app_virtual_list_subrow_wheel_scroll_stays_runtime_local() {
     let mut core =
         GenericNativeRuntimeCore::new(AppVirtualListBridge::default(), Vector2::new(240.0, 80.0));

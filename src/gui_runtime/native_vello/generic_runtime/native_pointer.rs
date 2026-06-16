@@ -184,6 +184,19 @@ where
             self.maybe_log_native_pointer_diagnostic(diagnostic);
             return NativeWheelRoute::new(outcome, diagnostic);
         }
+        if self.can_coalesce_scroll_container_wheel(position, delta) {
+            self.queue_scroll_container_wheel(position, delta, modifiers);
+            let outcome = GenericRouteOutcome {
+                paint_only_requested: true,
+                ..GenericRouteOutcome::default()
+            };
+            diagnostic.result = NativePointerRouteResult::Coalesced;
+            diagnostic.outcome = outcome;
+            diagnostic.deferred_surface_refresh = self.timing.deferred_surface_refresh;
+            diagnostic.deferred_scene_rebuild = self.timing.deferred_scene_rebuild;
+            self.maybe_log_native_pointer_diagnostic(diagnostic);
+            return NativeWheelRoute::new(outcome, diagnostic);
+        }
         let started = Instant::now();
         let outcome = self
             .core

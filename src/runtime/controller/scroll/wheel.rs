@@ -132,6 +132,10 @@ where
         true
     }
 
+    pub(crate) fn wheel_widget_accepts_at(&self, point: Point) -> bool {
+        self.wheel_widget_at(point).is_some()
+    }
+
     fn wheel_widget_at(&self, point: Point) -> Option<WidgetId> {
         self.traversal
             .widgets

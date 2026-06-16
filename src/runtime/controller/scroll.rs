@@ -47,6 +47,10 @@ where
         self.scroll_at_with_refresh(point, delta, false)
     }
 
+    pub(crate) fn scroll_container_accepts_wheel_at(&self, point: Point) -> bool {
+        self.scroll_container_at(point).is_some()
+    }
+
     fn scroll_at_with_refresh(
         &mut self,
         point: Point,

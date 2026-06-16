@@ -38,6 +38,7 @@ where
         let diagnostics_requested = self.core.has_frame_diagnostics_observer();
         let mut profile = RenderFrameProfile::recording(profile_enabled || diagnostics_requested);
         self.flush_pending_gpu_surface_wheel(&mut profile);
+        self.flush_pending_scroll_container_wheel(&mut profile);
         self.refresh_deferred_surface_if_needed(&mut profile);
         self.rebuild_deferred_scene_if_needed(&mut profile);
         self.sync_deferred_auxiliary_windows_if_needed(event_loop);

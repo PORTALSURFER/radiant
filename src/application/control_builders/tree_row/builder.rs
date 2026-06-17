@@ -25,6 +25,7 @@ pub struct TreeRowBuilder {
     pub(super) expanded: bool,
     pub(super) has_children: bool,
     pub(super) selected: bool,
+    pub(super) focused: bool,
     pub(super) drag_drop: TreeRowDragDropState,
     pub(super) row_height: f32,
     pub(super) expander_width: f32,
@@ -61,6 +62,12 @@ impl TreeRowBuilder {
     /// Set whether the row is selected.
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = selected;
+        self
+    }
+
+    /// Set whether the host considers this row keyboard-focused.
+    pub fn focused(mut self, focused: bool) -> Self {
+        self.focused = focused;
         self
     }
 
@@ -174,6 +181,7 @@ pub fn tree_row(label: impl Into<PaintText>) -> TreeRowBuilder {
         expanded: false,
         has_children: false,
         selected: false,
+        focused: false,
         drag_drop: TreeRowDragDropState::default(),
         row_height: DEFAULT_TREE_ROW_HEIGHT,
         expander_width: DEFAULT_TREE_EXPANDER_WIDTH,

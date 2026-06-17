@@ -85,6 +85,7 @@ impl TreeRowBuilder {
         let widget = TreeRowHitTarget::new(TreeRowHitTargetParts {
             label: self.label,
             selected: self.selected,
+            focused: self.focused,
             drag_drop: self.drag_drop,
             palette: self.palette,
             drop_target_outline: self.drop_target_outline,

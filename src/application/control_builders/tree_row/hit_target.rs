@@ -23,6 +23,7 @@ pub(super) struct TreeRowHitTarget<Message> {
     actions: InteractiveRowActions<Message>,
     label: PaintText,
     selected: bool,
+    focused: bool,
     drag_drop: TreeRowDragDropState,
     palette: DenseRowPalette,
     drop_target_outline: DenseRowOutlineStyle,
@@ -34,6 +35,7 @@ pub(super) struct TreeRowHitTarget<Message> {
 pub(super) struct TreeRowHitTargetParts<Message> {
     pub(super) label: PaintText,
     pub(super) selected: bool,
+    pub(super) focused: bool,
     pub(super) drag_drop: TreeRowDragDropState,
     pub(super) palette: DenseRowPalette,
     pub(super) drop_target_outline: DenseRowOutlineStyle,
@@ -68,6 +70,7 @@ impl<Message> TreeRowHitTarget<Message> {
             actions: parts.actions,
             label: parts.label,
             selected: parts.selected,
+            focused: parts.focused,
             drag_drop: parts.drag_drop,
             palette: parts.palette,
             drop_target_outline: parts.drop_target_outline,
@@ -85,11 +88,15 @@ impl<Message> TreeRowHitTarget<Message> {
         }
     }
 
+    fn visual_state(&self) -> crate::gui::list::DenseRowVisualState {
+        let mut state = self.row.dense_visual_state(self.visual_state_parts());
+        state.hovered |= self.focused;
+        state
+    }
+
     fn chrome_parts(&self) -> DenseRowChromeParts {
-        let state = self.row.dense_visual_state(self.visual_state_parts());
-        let mut chrome = self
-            .row
-            .dense_chrome_parts(self.visual_state_parts(), self.palette)
+        let state = self.visual_state();
+        let mut chrome = DenseRowChromeParts::new(state, self.palette)
             .outline_if(self.drag_drop.drop_target, self.drop_target_outline);
         if state.selected
             && state.hovered
@@ -101,11 +108,7 @@ impl<Message> TreeRowHitTarget<Message> {
     }
 
     fn label_color(&self, theme: &ThemeTokens) -> Rgba8 {
-        if self
-            .row
-            .dense_visual_state(self.visual_state_parts())
-            .emphasizes_label()
-        {
+        if self.visual_state().emphasizes_label() {
             self.highlighted_label_color
         } else {
             self.normal_label_color.unwrap_or(theme.text_primary)

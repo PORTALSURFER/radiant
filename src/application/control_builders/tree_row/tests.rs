@@ -11,6 +11,7 @@ use crate::{
 #[derive(Clone, Debug, PartialEq)]
 enum TreeRowMessage {
     Activate,
+    ActivateWithModifiers(PointerModifiers),
     Toggle,
 }
 
@@ -45,6 +46,44 @@ fn tree_row_routes_interactive_actions() {
     assert_eq!(
         output.and_then(|output| output.typed_cloned::<TreeRowMessage>()),
         Some(TreeRowMessage::Activate)
+    );
+}
+
+#[test]
+fn tree_row_routes_modifier_aware_activation() {
+    let view = tree_row("Folder").input_id(92).interactive_actions(
+        InteractiveRowActions::new().primary_with_modifiers(TreeRowMessage::ActivateWithModifiers),
+    );
+    let mut surface = view.into_surface();
+    let bounds = Rect::from_size(160.0, 22.0);
+    let position = Point::new(8.0, 10.0);
+    let modifiers = PointerModifiers {
+        command: true,
+        ..PointerModifiers::default()
+    };
+
+    surface.dispatch_widget_input(
+        92,
+        bounds,
+        WidgetInput::PointerPress {
+            position,
+            button: PointerButton::Primary,
+            modifiers,
+        },
+    );
+    let output = surface.dispatch_widget_input(
+        92,
+        bounds,
+        WidgetInput::PointerRelease {
+            position,
+            button: PointerButton::Primary,
+            modifiers,
+        },
+    );
+
+    assert_eq!(
+        output.and_then(|output| output.typed_cloned::<TreeRowMessage>()),
+        Some(TreeRowMessage::ActivateWithModifiers(modifiers))
     );
 }
 

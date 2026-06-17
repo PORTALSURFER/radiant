@@ -56,6 +56,7 @@ impl<Message> TreeRowHitTarget<Message> {
                 parts.drag_drop.drop_candidate,
                 parts.drag_drop.drop_target_active,
             )
+            .activation_modifiers()
             .custom_paint_hit_target();
         if parts.drag_drop.clears_hover_on_sync() {
             row = row.clear_hover_on_sync();

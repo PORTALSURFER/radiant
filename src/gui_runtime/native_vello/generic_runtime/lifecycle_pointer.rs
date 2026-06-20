@@ -12,14 +12,23 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    pub(super) fn handle_cursor_entered(&mut self) {
+        self.set_native_cursor_visible(true);
+        self.force_native_cursor(crate::widgets::WidgetCursor::Default);
+    }
+
     pub(super) fn handle_cursor_moved(&mut self, position: PhysicalPosition<f64>) {
         let Some(position) = logical_point_from_winit(position, self.window.dpi_scale) else {
             self.input.last_cursor = None;
-            self.set_native_cursor(crate::widgets::WidgetCursor::Default);
+            self.set_native_cursor_visible(true);
+            self.force_native_cursor(crate::widgets::WidgetCursor::Default);
             return;
         };
         let previous = self.input.last_cursor;
         self.input.last_cursor = Some(position);
+        if previous.is_none() {
+            self.force_native_cursor(crate::widgets::WidgetCursor::Default);
+        }
         if self.core.runtime.scrollbar_drag_active() {
             if self.pending_interactive_scroll_flush_is_due(Instant::now()) {
                 let outcome = self.core.route_pointer_move(position);
@@ -95,6 +104,7 @@ where
             outcome.repaint_requested = true;
         }
         self.input.last_cursor = None;
+        self.set_native_cursor_visible(true);
         self.set_native_cursor(crate::widgets::WidgetCursor::Default);
         outcome
     }

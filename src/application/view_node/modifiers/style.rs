@@ -23,6 +23,12 @@ impl<Message> ViewNode<Message> {
         self
     }
 
+    /// Show a passive runtime tooltip while this widget is hovered.
+    pub fn tooltip(mut self, tooltip: impl Into<String>) -> Self {
+        self.tooltip = Some(tooltip.into());
+        self
+    }
+
     /// Use the accent tone and strong prominence.
     pub fn primary(self) -> Self {
         self.style(primary_style())

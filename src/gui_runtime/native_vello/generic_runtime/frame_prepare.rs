@@ -24,6 +24,7 @@ where
         self.frame.mark_scene_texture_dirty();
         self.frame.refresh_gpu_surface_interaction_regions();
         self.frame.refresh_post_gpu_overlay_cache();
+        self.export_automation_targets();
         self.timing
             .startup_timing
             .mark_deferred_model_refresh_done();

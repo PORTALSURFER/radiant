@@ -8,7 +8,8 @@ use crate::runtime::{
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{
-    ActivationInputPolicy, ButtonMessage, WidgetInput, WidgetOutput, handle_activation_input,
+    ActivationInputPolicy, ButtonMessage, PointerButton, WidgetInput, WidgetOutput,
+    handle_activation_input,
 };
 use crate::widgets::primitives::support::{WidgetCommon, push_button_chrome};
 
@@ -21,6 +22,8 @@ pub struct IconButtonWidget {
     pub common: WidgetCommon,
     /// Retained icon painted in the button bounds.
     pub icon: SvgIcon,
+    /// Whether the button paints standard button chrome behind the icon.
+    pub chrome: IconButtonChrome,
 }
 
 /// Named construction fields for [`IconButtonWidget`].
@@ -34,6 +37,15 @@ pub struct IconButtonWidgetParts {
     pub sizing: WidgetSizing,
 }
 
+/// Chrome treatment for an icon button.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IconButtonChrome {
+    /// Paint the usual button fill, border, and hover/pressed overlay.
+    Standard,
+    /// Paint only the icon while preserving normal hit testing and activation.
+    Bare,
+}
+
 impl IconButtonWidget {
     /// Build an SVG icon button descriptor from named identity, icon, and sizing fields.
     pub fn from_parts(parts: IconButtonWidgetParts) -> Self {
@@ -44,12 +56,19 @@ impl IconButtonWidget {
         Self {
             common,
             icon: parts.icon,
+            chrome: IconButtonChrome::Standard,
         }
     }
 
     /// Build an SVG icon button descriptor.
     pub fn new(id: WidgetId, icon: SvgIcon, sizing: WidgetSizing) -> Self {
         Self::from_parts(IconButtonWidgetParts { id, icon, sizing })
+    }
+
+    /// Return this icon button without the standard button fill or border.
+    pub fn bare(mut self) -> Self {
+        self.chrome = IconButtonChrome::Bare;
+        self
     }
 }
 
@@ -63,14 +82,22 @@ impl Widget for IconButtonWidget {
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        handle_activation_input(
+        let result = handle_activation_input(
             &mut self.common.state,
             bounds,
             &input,
             ActivationInputPolicy::focusable(),
-        )
-        .activated()
-        .then(|| WidgetOutput::typed(ButtonMessage::Activate))
+        );
+        result.activated().then(|| {
+            WidgetOutput::typed(match input {
+                WidgetInput::PointerRelease {
+                    button: PointerButton::Primary,
+                    modifiers,
+                    ..
+                } => ButtonMessage::ActivateWithModifiers { modifiers },
+                _ => ButtonMessage::Activate,
+            })
+        })
     }
 
     fn accepts_pointer_move(&self) -> bool {
@@ -90,8 +117,13 @@ impl Widget for IconButtonWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        push_button_chrome(primitives, &self.common, bounds, theme);
-        if !self.common.state.disabled && (self.common.state.hovered || self.common.state.pressed) {
+        if self.chrome == IconButtonChrome::Standard {
+            push_button_chrome(primitives, &self.common, bounds, theme);
+        }
+        if self.chrome == IconButtonChrome::Standard
+            && !self.common.state.disabled
+            && (self.common.state.hovered || self.common.state.pressed)
+        {
             let mut fill = theme.accent_danger;
             fill.a = if self.common.state.pressed { 92 } else { 48 };
             let mut border = theme.accent_danger;
@@ -172,6 +204,48 @@ mod tests {
         let pressed_overlay = accent_overlay_alpha(&pressed, theme.accent_danger)
             .expect("pressed should paint an accent overlay");
         assert!(pressed_overlay > hover_overlay);
+    }
+
+    #[test]
+    fn bare_icon_button_paints_icon_without_button_chrome() {
+        let icon = SvgIcon::from_svg(
+            r##"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path fill="#ffffff" d="M6 4h4v8H6z"/>
+</svg>"##,
+        )
+        .expect("valid icon");
+        let bounds = Rect::from_min_size(
+            Point::new(0.0, 0.0),
+            crate::layout::Vector2::new(16.0, 18.0),
+        );
+        let widget = IconButtonWidget::new(
+            102,
+            icon,
+            WidgetSizing::fixed(crate::layout::Vector2::new(16.0, 18.0)),
+        )
+        .bare();
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            bounds,
+            &Default::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(
+            primitives
+                .iter()
+                .any(|primitive| matches!(primitive, PaintPrimitive::Svg(_))),
+            "bare icon button should still paint the icon"
+        );
+        assert!(
+            !primitives.iter().any(|primitive| matches!(
+                primitive,
+                PaintPrimitive::FillPolygon(_) | PaintPrimitive::StrokePolygon(_)
+            )),
+            "bare icon button should not paint button chrome"
+        );
     }
 
     fn accent_overlay_alpha(

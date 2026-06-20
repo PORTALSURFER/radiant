@@ -3,7 +3,7 @@
 use super::super::{CommandOutcome, SurfaceRuntime};
 use crate::{
     gui::types::{Point, Vector2},
-    runtime::{RuntimeBridge, WidgetDispatchResult},
+    runtime::{RuntimeBridge, WheelHitTarget, WidgetDispatchResult},
     widgets::{PointerModifiers, WidgetId, WidgetInput},
 };
 
@@ -36,10 +36,8 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) -> bool {
-        if self.dispatch_wheel_at(point, delta, modifiers) {
-            return true;
-        }
-        self.scroll_at(point, delta)
+        self.wheel_or_scroll_route_with_modifiers(point, delta, modifiers, true)
+            != WheelOrScrollRoute::NotRouted
     }
 
     /// Route wheel input but defer host-surface refresh until the caller chooses
@@ -72,34 +70,51 @@ where
         delta: Vector2,
         modifiers: PointerModifiers,
     ) -> WheelOrScrollRoute {
-        if self.dispatch_wheel_at_with_refresh(point, delta, modifiers, false) {
-            return WheelOrScrollRoute::Widget;
-        }
-        if self.scroll_at_deferred_refresh(point, delta) {
-            return WheelOrScrollRoute::ScrollContainer;
-        }
-        WheelOrScrollRoute::NotRouted
+        self.wheel_or_scroll_route_with_modifiers(point, delta, modifiers, false)
     }
 
-    fn dispatch_wheel_at(
-        &mut self,
-        point: Point,
-        delta: Vector2,
-        modifiers: PointerModifiers,
-    ) -> bool {
-        self.dispatch_wheel_at_with_refresh(point, delta, modifiers, true)
-    }
-
-    fn dispatch_wheel_at_with_refresh(
+    fn wheel_or_scroll_route_with_modifiers(
         &mut self,
         point: Point,
         delta: Vector2,
         modifiers: PointerModifiers,
         refresh_after_message: bool,
+    ) -> WheelOrScrollRoute {
+        match self.wheel_target_at(point) {
+            Some(WheelHitTarget::Widget(widget_id)) => {
+                if self.dispatch_wheel_to_widget_with_refresh(
+                    widget_id,
+                    point,
+                    delta,
+                    modifiers,
+                    refresh_after_message,
+                ) {
+                    WheelOrScrollRoute::Widget
+                } else if self.scroll_at_with_refresh(point, delta, refresh_after_message) {
+                    WheelOrScrollRoute::ScrollContainer
+                } else {
+                    WheelOrScrollRoute::NotRouted
+                }
+            }
+            Some(WheelHitTarget::ScrollContainer(_)) => {
+                if self.scroll_at_with_refresh(point, delta, refresh_after_message) {
+                    WheelOrScrollRoute::ScrollContainer
+                } else {
+                    WheelOrScrollRoute::NotRouted
+                }
+            }
+            None => WheelOrScrollRoute::NotRouted,
+        }
+    }
+
+    fn dispatch_wheel_to_widget_with_refresh(
+        &mut self,
+        widget_id: WidgetId,
+        point: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+        refresh_after_message: bool,
     ) -> bool {
-        let Some(widget_id) = self.wheel_widget_at(point) else {
-            return false;
-        };
         let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
             return false;
         };
@@ -150,6 +165,28 @@ where
                     .get(widget_id)
                     .is_some_and(|rect| rect.contains(point))
                     && self.widget_clip_contains_point(*widget_id, point)
+            })
+    }
+
+    fn wheel_target_at(&self, point: Point) -> Option<WheelHitTarget> {
+        self.traversal
+            .widgets
+            .wheel_targets
+            .visible()
+            .iter()
+            .rev()
+            .copied()
+            .find(|target| match *target {
+                WheelHitTarget::Widget(widget_id) => {
+                    self.layout
+                        .rects
+                        .get(&widget_id)
+                        .is_some_and(|rect| rect.contains(point))
+                        && self.widget_clip_contains_point(widget_id, point)
+                }
+                WheelHitTarget::ScrollContainer(node_id) => {
+                    self.scroll_container_accepts_point(node_id, point)
+                }
             })
     }
 }

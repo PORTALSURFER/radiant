@@ -1,5 +1,19 @@
 use crate::{layout::NodeId, widgets::WidgetId};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::runtime) enum WheelHitTarget {
+    Widget(WidgetId),
+    ScrollContainer(NodeId),
+}
+
+impl WheelHitTarget {
+    pub(in crate::runtime) const fn node_id(self) -> NodeId {
+        match self {
+            Self::Widget(id) | Self::ScrollContainer(id) => id,
+        }
+    }
+}
+
 pub(in crate::runtime) struct SurfaceContainerTraversalRecord<'a> {
     pub(in crate::runtime) id: NodeId,
     pub(in crate::runtime) clipped_by: &'a [NodeId],

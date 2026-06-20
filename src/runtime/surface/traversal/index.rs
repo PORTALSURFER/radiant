@@ -18,7 +18,7 @@ mod records;
 mod tests;
 
 pub(in crate::runtime) use records::{
-    SurfaceContainerTraversalRecord, SurfaceWidgetTraversalRecord,
+    SurfaceContainerTraversalRecord, SurfaceWidgetTraversalRecord, WheelHitTarget,
 };
 
 pub(in crate::runtime) struct SurfaceTraversalIndex {
@@ -27,6 +27,7 @@ pub(in crate::runtime) struct SurfaceTraversalIndex {
     pub(in crate::runtime) keyboard_focus_order: Vec<WidgetId>,
     pub(in crate::runtime) pointer_hit_order: Vec<WidgetId>,
     pub(in crate::runtime) wheel_hit_order: Vec<WidgetId>,
+    pub(in crate::runtime) wheel_target_order: Vec<WheelHitTarget>,
     pub(in crate::runtime) native_file_drop_hit_order: Vec<WidgetId>,
     pub(in crate::runtime) stateful_widget_order: Vec<WidgetId>,
     pub(in crate::runtime) widget_paths: HashMap<WidgetId, WidgetPath>,
@@ -46,6 +47,7 @@ impl SurfaceTraversalIndex {
             keyboard_focus_order: Vec::with_capacity(stats.widgets),
             pointer_hit_order: Vec::with_capacity(stats.widgets),
             wheel_hit_order: Vec::with_capacity(stats.widgets),
+            wheel_target_order: Vec::with_capacity(stats.widgets + stats.scroll_containers),
             native_file_drop_hit_order: Vec::with_capacity(stats.widgets),
             stateful_widget_order: Vec::with_capacity(stats.stateful_widgets),
             widget_paths: HashMap::with_capacity(stats.widgets),
@@ -69,6 +71,11 @@ impl SurfaceTraversalIndex {
         reserve_vec_capacity(&mut self.pointer_hit_order, stats.widgets);
         self.wheel_hit_order.clear();
         reserve_vec_capacity(&mut self.wheel_hit_order, stats.widgets);
+        self.wheel_target_order.clear();
+        reserve_vec_capacity(
+            &mut self.wheel_target_order,
+            stats.widgets + stats.scroll_containers,
+        );
         self.native_file_drop_hit_order.clear();
         reserve_vec_capacity(&mut self.native_file_drop_hit_order, stats.widgets);
         self.stateful_widget_order.clear();
@@ -101,6 +108,7 @@ impl SurfaceTraversalIndex {
         self.keyboard_focus_order.clear();
         self.pointer_hit_order.clear();
         self.wheel_hit_order.clear();
+        self.wheel_target_order.clear();
         self.native_file_drop_hit_order.clear();
         self.stateful_widget_order.clear();
         self.widget_paths.clear();

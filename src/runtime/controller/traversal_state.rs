@@ -1,7 +1,11 @@
 //! Traversal indexes and lookup caches derived from the projected surface tree.
 
 use super::{ClipAncestors, WidgetPath, hit_order::HitOrderIndex};
-use crate::{layout::NodeId, widgets::WidgetId};
+use crate::{
+    layout::{LayoutOutput, NodeId},
+    runtime::WheelHitTarget,
+    widgets::WidgetId,
+};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Default)]
@@ -18,8 +22,41 @@ pub(super) struct RuntimeWidgetTraversal {
     pub(super) native_file_drop: HitOrderIndex,
     pub(super) keyboard_focus: HitOrderIndex,
     pub(super) wheel: HitOrderIndex,
+    pub(super) wheel_targets: RuntimeWheelTargetTraversal,
     pub(super) stateful_order: Vec<WidgetId>,
     pub(super) paths: RuntimeWidgetPathState,
+}
+
+#[derive(Default)]
+pub(super) struct RuntimeWheelTargetTraversal {
+    order: Vec<WheelHitTarget>,
+    visible: Vec<WheelHitTarget>,
+}
+
+impl RuntimeWheelTargetTraversal {
+    pub(super) fn set_order(&mut self, order: Vec<WheelHitTarget>) {
+        self.order = order;
+        self.visible.clear();
+    }
+
+    pub(super) fn refresh_visible(&mut self, layout: &LayoutOutput) {
+        self.visible.clear();
+        self.visible.extend(
+            self.order
+                .iter()
+                .copied()
+                .filter(|target: &WheelHitTarget| layout.rects.contains_key(&target.node_id())),
+        );
+    }
+
+    pub(super) fn visible(&self) -> &[WheelHitTarget] {
+        &self.visible
+    }
+
+    pub(super) fn take_order(&mut self) -> Vec<WheelHitTarget> {
+        self.visible.clear();
+        std::mem::take(&mut self.order)
+    }
 }
 
 #[derive(Default)]

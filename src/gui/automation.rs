@@ -3,6 +3,19 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+/// Stable action name for moving keyboard or logical focus to a node.
+pub const AUTOMATION_ACTION_FOCUS: &str = "focus";
+/// Stable action name for pressing a button-like node.
+pub const AUTOMATION_ACTION_PRESS: &str = "press";
+/// Stable action name for selecting a row, option, or item.
+pub const AUTOMATION_ACTION_SELECT: &str = "select";
+/// Stable action name for changing text in an editable text node.
+pub const AUTOMATION_ACTION_SET_TEXT: &str = "set_text";
+/// Stable action name for changing a continuous value.
+pub const AUTOMATION_ACTION_SET_VALUE: &str = "set_value";
+/// Stable action name for toggling an on/off value.
+pub const AUTOMATION_ACTION_TOGGLE: &str = "toggle";
+
 /// Stable semantic identifier for one automation node in a GUI tree.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct AutomationNodeId(pub String);
@@ -168,6 +181,40 @@ impl AutomationNodeSemantics {
         self.checked = Some(checked);
         self
     }
+
+    /// Return conservative default action identifiers implied by this node's
+    /// role and interaction state.
+    pub fn default_available_actions(&self) -> Vec<String> {
+        if self.disabled {
+            return Vec::new();
+        }
+
+        let mut actions = Vec::new();
+        if self.focusable {
+            actions.push(AUTOMATION_ACTION_FOCUS.to_owned());
+        }
+
+        match self.role {
+            AutomationRole::Button | AutomationRole::Tab => {
+                actions.push(AUTOMATION_ACTION_PRESS.to_owned());
+            }
+            AutomationRole::Toggle => {
+                actions.push(AUTOMATION_ACTION_TOGGLE.to_owned());
+            }
+            AutomationRole::Selectable | AutomationRole::Row => {
+                actions.push(AUTOMATION_ACTION_SELECT.to_owned());
+            }
+            AutomationRole::TextInput | AutomationRole::SearchField if !self.read_only => {
+                actions.push(AUTOMATION_ACTION_SET_TEXT.to_owned());
+            }
+            AutomationRole::Slider if !self.read_only => {
+                actions.push(AUTOMATION_ACTION_SET_VALUE.to_owned());
+            }
+            _ => {}
+        }
+
+        actions
+    }
 }
 
 /// Quantized window-space bounds for one automation node.
@@ -181,6 +228,15 @@ pub struct AutomationBounds {
     pub width: f32,
     /// Height in logical window coordinates.
     pub height: f32,
+}
+
+/// Logical window-space point for automation targets.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AutomationPoint {
+    /// Horizontal coordinate in logical window space.
+    pub x: f32,
+    /// Vertical coordinate in logical window space.
+    pub y: f32,
 }
 
 /// One node in the GUI automation tree.
@@ -230,6 +286,19 @@ impl AutomationBounds {
             height: 0.0,
         }
     }
+
+    /// Return whether these bounds describe an empty or non-hit-testable area.
+    pub fn is_empty(&self) -> bool {
+        self.width <= 0.0 || self.height <= 0.0
+    }
+
+    /// Return the center point of these bounds in logical window space.
+    pub fn center(&self) -> AutomationPoint {
+        AutomationPoint {
+            x: self.x + self.width * 0.5,
+            y: self.y + self.height * 0.5,
+        }
+    }
 }
 
 impl AutomationNodeSnapshot {
@@ -247,7 +316,7 @@ impl AutomationNodeSnapshot {
             value: semantics.value_text.clone(),
             enabled: semantics.enabled(),
             selected: semantics.selected,
-            available_actions: Vec::new(),
+            available_actions: semantics.default_available_actions(),
             metadata: semantics.metadata.clone(),
             semantics,
             children: Vec::new(),
@@ -258,6 +327,37 @@ impl AutomationNodeSnapshot {
     pub fn with_children(mut self, children: Vec<AutomationNodeSnapshot>) -> Self {
         self.children = children;
         self
+    }
+
+    /// Return a flattened list of automation targets rooted at this node.
+    pub fn automation_targets(&self) -> Vec<AutomationTarget> {
+        let mut targets = Vec::new();
+        let mut path = Vec::new();
+        let mut tree_index = 0;
+        self.push_automation_targets(0, &mut path, &mut tree_index, &mut targets);
+        targets
+    }
+
+    fn push_automation_targets(
+        &self,
+        depth: usize,
+        path: &mut Vec<AutomationNodeId>,
+        tree_index: &mut usize,
+        targets: &mut Vec<AutomationTarget>,
+    ) {
+        path.push(self.id.clone());
+        let current_index = *tree_index;
+        *tree_index += 1;
+        targets.push(AutomationTarget::from_node(
+            self,
+            depth,
+            current_index,
+            path.clone(),
+        ));
+        for child in &self.children {
+            child.push_automation_targets(depth + 1, path, tree_index, targets);
+        }
+        path.pop();
     }
 }
 
@@ -272,4 +372,111 @@ pub struct GuiAutomationSnapshot {
     pub viewport_height: u32,
     /// Root semantic automation node.
     pub root: AutomationNodeSnapshot,
+}
+
+/// Flattened automation target derived from one semantic node.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AutomationTarget {
+    /// Stable semantic identifier for this target.
+    pub id: AutomationNodeId,
+    /// Preorder index in the flattened automation tree.
+    pub tree_index: usize,
+    /// Depth in the semantic automation tree.
+    pub depth: usize,
+    /// Root-to-target semantic path.
+    pub path: Vec<AutomationNodeId>,
+    /// Behavioral role for this target.
+    pub role: AutomationRole,
+    /// Optional human-readable label shown by the GUI.
+    pub label: Option<String>,
+    /// Optional longer description for inspectors and adapters.
+    pub description: Option<String>,
+    /// Optional current value or summary text.
+    pub value: Option<String>,
+    /// Quantized window-space bounds.
+    pub bounds: AutomationBounds,
+    /// Center point in logical window space, suitable for pointer automation.
+    pub center: AutomationPoint,
+    /// Whether this target is currently enabled.
+    pub enabled: bool,
+    /// Whether this target is currently selected or active.
+    pub selected: bool,
+    /// Optional checked state for toggle-like targets.
+    pub checked: Option<bool>,
+    /// Whether this target can receive focus.
+    pub focusable: bool,
+    /// Whether this target currently owns focus.
+    pub focused: bool,
+    /// Whether this target is a concrete interaction target.
+    pub interaction_target: bool,
+    /// Stable action identifiers that this target can trigger.
+    pub available_actions: Vec<String>,
+    /// Additional deterministic metadata for automation and test consumers.
+    pub metadata: BTreeMap<String, String>,
+}
+
+impl AutomationTarget {
+    /// Build a flattened target from a tree node and traversal metadata.
+    pub fn from_node(
+        node: &AutomationNodeSnapshot,
+        depth: usize,
+        tree_index: usize,
+        path: Vec<AutomationNodeId>,
+    ) -> Self {
+        let interaction_target =
+            node.enabled && !node.bounds.is_empty() && !node.available_actions.is_empty();
+        Self {
+            id: node.id.clone(),
+            tree_index,
+            depth,
+            path,
+            role: node.role,
+            label: node.label.clone(),
+            description: node.semantics.description.clone(),
+            value: node.value.clone(),
+            bounds: node.bounds,
+            center: node.bounds.center(),
+            enabled: node.enabled,
+            selected: node.selected,
+            checked: node.semantics.checked,
+            focusable: node.semantics.focusable,
+            focused: node.semantics.focused,
+            interaction_target,
+            available_actions: node.available_actions.clone(),
+            metadata: node.metadata.clone(),
+        }
+    }
+
+    /// Return the most useful human-facing text for inspectors and scripts.
+    pub fn display_text(&self) -> Option<&str> {
+        self.label
+            .as_deref()
+            .or(self.value.as_deref())
+            .or(self.description.as_deref())
+    }
+}
+
+/// Flattened automation target list for one GUI frame/state.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GuiAutomationTargetSnapshot {
+    /// Schema version for forward-compatible artifact readers.
+    pub schema_version: u32,
+    /// Quantized viewport width for the captured layout.
+    pub viewport_width: u32,
+    /// Quantized viewport height for the captured layout.
+    pub viewport_height: u32,
+    /// Flattened targets in semantic tree preorder.
+    pub targets: Vec<AutomationTarget>,
+}
+
+impl GuiAutomationSnapshot {
+    /// Return a flattened, coordinate-bearing target snapshot.
+    pub fn target_snapshot(&self) -> GuiAutomationTargetSnapshot {
+        GuiAutomationTargetSnapshot {
+            schema_version: 1,
+            viewport_width: self.viewport_width,
+            viewport_height: self.viewport_height,
+            targets: self.root.automation_targets(),
+        }
+    }
 }

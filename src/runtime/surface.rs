@@ -28,7 +28,7 @@ pub(in crate::runtime) use path::{ClipAncestors, WidgetPath};
 pub(in crate::runtime) use state_sync::WidgetStateSyncPolicy;
 pub(in crate::runtime) use traversal::{
     SurfaceContainerTraversalRecord, SurfaceTraversalIndex, SurfaceTraversalStats,
-    SurfaceWidgetTraversalRecord,
+    SurfaceWidgetTraversalRecord, WheelHitTarget,
 };
 pub use widget::{
     MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper, SurfaceWidget,

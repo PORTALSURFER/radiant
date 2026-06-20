@@ -97,8 +97,8 @@ impl SignalGainPreviewKey {
                 preview.fade_out_length.to_bits(),
                 preview.fade_out_curve.to_bits(),
                 preview.fade_out_mute.to_bits(),
-                0,
-                0,
+                preview.fade_in_outer_gain.to_bits(),
+                preview.fade_out_outer_gain.to_bits(),
             ],
         }
     }
@@ -134,12 +134,16 @@ mod tests {
             fade_in_length: 0.25,
             fade_in_curve: 0.4,
             fade_in_mute: 0.0,
+            fade_in_outer_gain: 1.0,
             fade_out_length: 0.2,
             fade_out_curve: 0.6,
             fade_out_mute: 0.1,
+            fade_out_outer_gain: 0.75,
         };
         let mut changed = preview;
         changed.fade_in_length = 0.3;
+        let mut changed_outer_gain = preview;
+        changed_outer_gain.fade_out_outer_gain = 0.25;
 
         assert_ne!(
             SignalGainPreviewKey::new(None),
@@ -148,6 +152,10 @@ mod tests {
         assert_ne!(
             SignalGainPreviewKey::new(Some(preview)),
             SignalGainPreviewKey::new(Some(changed))
+        );
+        assert_ne!(
+            SignalGainPreviewKey::new(Some(preview)),
+            SignalGainPreviewKey::new(Some(changed_outer_gain))
         );
     }
 }

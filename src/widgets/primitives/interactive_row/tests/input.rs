@@ -65,6 +65,34 @@ fn handle_input_mapped_routes_custom_row_output() {
 }
 
 #[test]
+fn small_pressed_motion_does_not_start_row_drag() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let mut row =
+        InteractiveRowWidget::new(11, WidgetSizing::fixed(Vector2::new(120.0, 22.0))).with_drag();
+    let start = Point::new(8.0, 6.0);
+    let tiny_move = Point::new(11.0, 10.0);
+
+    assert_eq!(
+        row.handle_input(bounds, WidgetInput::primary_press(start)),
+        None
+    );
+    assert_eq!(
+        row.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: tiny_move
+            }
+        ),
+        None
+    );
+    assert!(!row.dragged);
+    assert_eq!(
+        row.handle_input(bounds, WidgetInput::primary_release(tiny_move)),
+        Some(InteractiveRowMessage::Activate)
+    );
+}
+
+#[test]
 fn focus_loss_preserves_started_row_drag() {
     let bounds = Rect::from_size(120.0, 22.0);
     let mut row =

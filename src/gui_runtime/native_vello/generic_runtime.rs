@@ -19,6 +19,7 @@ use std::time::Duration;
 #[cfg(test)]
 use vello::Scene;
 
+mod automation_export;
 mod auxiliary;
 mod composited_base;
 mod core;
@@ -57,6 +58,7 @@ mod surface;
 mod surface_size;
 mod window;
 
+use automation_export::NativeAutomationTargetExporter;
 use auxiliary::{AuxiliaryNativeWindow, AuxiliaryWindowEventResult};
 use composited_base::CompositedBaseFrame;
 pub(in crate::gui_runtime::native_vello) use core::{GenericNativeRuntimeCore, PointerPressStamp};

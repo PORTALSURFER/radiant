@@ -6,6 +6,9 @@ use crate::widgets::interaction::{ButtonMessage, DragHandleMessage, PointerButto
 use super::ButtonWidget;
 use crate::widgets::primitives::support::activate_on_keyboard;
 
+const DRAG_START_SLOP_PX: f32 = 3.0;
+const DRAG_START_SLOP_SQUARED: f32 = DRAG_START_SLOP_PX * DRAG_START_SLOP_PX;
+
 pub(super) fn handle_button_input(
     button: &mut ButtonWidget,
     bounds: Rect,
@@ -24,13 +27,17 @@ pub(super) fn handle_button_input(
             if button.common.state.pressed {
                 button.state.armed = button.common.state.hovered;
                 if button.props.drag {
+                    let press_position = button.state.press_position.unwrap_or(position);
+                    if !button.state.dragged && !drag_slop_exceeded(press_position, position) {
+                        return None;
+                    }
                     let message = if button.state.dragged {
                         DragHandleMessage::Moved { position }
                     } else {
                         button.state.dragged = true;
                         button.common.state.active = true;
                         DragHandleMessage::Started {
-                            position: button.state.press_position.unwrap_or(position),
+                            position: press_position,
                         }
                     };
                     return Some(ButtonMessage::Drag(message));
@@ -110,4 +117,13 @@ pub(super) fn handle_button_input(
         }
         _ => None,
     }
+}
+
+fn drag_slop_exceeded(
+    origin: crate::gui::types::Point,
+    position: crate::gui::types::Point,
+) -> bool {
+    let delta_x = position.x - origin.x;
+    let delta_y = position.y - origin.y;
+    delta_x * delta_x + delta_y * delta_y > DRAG_START_SLOP_SQUARED
 }

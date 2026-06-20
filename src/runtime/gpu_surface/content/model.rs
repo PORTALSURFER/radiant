@@ -129,6 +129,8 @@ pub struct GpuSignalGainPreview {
     ///
     /// Kept under the historical "mute" field name for API compatibility.
     pub fade_in_mute: f32,
+    /// Gain at the outer edge of the fade-in extension.
+    pub fade_in_outer_gain: f32,
     /// Fade-out length as a fraction of the selection width.
     pub fade_out_length: f32,
     /// Fade-out curve tension.
@@ -137,6 +139,8 @@ pub struct GpuSignalGainPreview {
     ///
     /// Kept under the historical "mute" field name for API compatibility.
     pub fade_out_mute: f32,
+    /// Gain at the outer edge of the fade-out extension.
+    pub fade_out_outer_gain: f32,
 }
 
 /// Renderable shape resolved from a retained GPU signal payload.

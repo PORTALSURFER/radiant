@@ -91,9 +91,11 @@ fn gpu_surface_content_validation_rejects_non_finite_gain_preview() {
         fade_in_length: 0.0,
         fade_in_curve: 0.5,
         fade_in_mute: 0.0,
+        fade_in_outer_gain: 1.0,
         fade_out_length: 0.0,
         fade_out_curve: 0.5,
         fade_out_mute: 0.0,
+        fade_out_outer_gain: 1.0,
     };
     let content = GpuSurfaceContent::SignalSummaryBands {
         frames: 2,

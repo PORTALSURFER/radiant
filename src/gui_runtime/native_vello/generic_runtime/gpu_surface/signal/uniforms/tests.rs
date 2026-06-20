@@ -67,14 +67,16 @@ fn signal_gain_preview_uniforms_mark_active_preview() {
         fade_in_length: 0.25,
         fade_in_curve: 0.4,
         fade_in_mute: 0.0,
+        fade_in_outer_gain: 1.0,
         fade_out_length: 0.2,
         fade_out_curve: 0.6,
         fade_out_mute: 0.1,
+        fade_out_outer_gain: 0.5,
     };
 
     let uniforms = signal_gain_preview_uniforms(Some(preview));
 
     assert_eq!(uniforms[0], [1.0, 0.1, 0.8, 0.75]);
     assert_eq!(uniforms[1], [0.25, 0.4, 0.2, 0.6]);
-    assert_eq!(uniforms[2], [0.0, 0.1, 0.0, 0.0]);
+    assert_eq!(uniforms[2], [0.0, 0.1, 1.0, 0.5]);
 }

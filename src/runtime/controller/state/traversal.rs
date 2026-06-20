@@ -33,6 +33,10 @@ where
             .widgets
             .wheel
             .set_order(traversal.wheel_hit_order);
+        self.traversal
+            .widgets
+            .wheel_targets
+            .set_order(traversal.wheel_target_order);
         self.traversal.widgets.stateful_order = traversal.stateful_widget_order;
         self.traversal
             .containers
@@ -57,6 +61,10 @@ where
             .refresh_visible(&self.layout);
         self.traversal.widgets.wheel.refresh_visible(&self.layout);
         self.traversal
+            .widgets
+            .wheel_targets
+            .refresh_visible(&self.layout);
+        self.traversal
             .containers
             .styled
             .refresh_visible(&self.layout);
@@ -77,6 +85,7 @@ where
             pointer_hit_order: self.traversal.widgets.pointer.take_order(),
             native_file_drop_hit_order: self.traversal.widgets.native_file_drop.take_order(),
             wheel_hit_order: self.traversal.widgets.wheel.take_order(),
+            wheel_target_order: self.traversal.widgets.wheel_targets.take_order(),
             stateful_widget_order: std::mem::take(&mut self.traversal.widgets.stateful_order),
             widget_paths: if reuse_widget_paths {
                 std::mem::take(&mut self.traversal.widgets.paths.current)

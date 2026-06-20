@@ -113,6 +113,10 @@ impl<Message> SurfaceWidget<Message> {
         !self.widget.common().state.disabled && self.accepts_native_file_drop
     }
 
+    pub(in crate::runtime) fn tooltip(&self) -> Option<&str> {
+        self.widget.common().tooltip.as_deref()
+    }
+
     pub(in crate::runtime) fn receives_wheel_input(&self) -> bool {
         !self.widget.common().state.disabled && self.widget.accepts_wheel_input()
     }

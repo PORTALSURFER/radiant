@@ -60,6 +60,35 @@ Run all checked examples with:
 cargo test --examples
 ```
 
+## macOS Dev App Bundles
+
+Direct Unix binaries with windows are not always visible as normal applications
+to macOS LaunchServices or app-level UI automation tools. Radiant ships a
+generic helper for host applications that need a LaunchServices-visible
+development `.app` wrapper around a prebuilt binary:
+
+```bash
+cargo build --release --bin my_app
+RADIANT_DEV_APP_NAME="My App" \
+RADIANT_DEV_APP_BINARY="$PWD/target/release/my_app" \
+RADIANT_DEV_APP_BUNDLE_ID="com.example.my-app.dev" \
+vendor/radiant/scripts/dev_app_bundle.sh --log
+```
+
+The helper stages `target/dev-app/My App.app`, writes a minimal `Info.plist`,
+copies the binary into `Contents/MacOS`, ad-hoc signs when possible, and
+launches through `open`. Set `RADIANT_DEV_APP_PREPARE_ONLY=1` to stage without
+launching. This supports app-level automation attachment by app name or bundle
+id; Radiant's backend-neutral automation snapshots and flattened target
+projection remain the semantic UI source for tests, devtools, Computer Use
+sidecars, and future accessibility adapters.
+
+For direct dev-app sidecars, set `RADIANT_AUTOMATION_TARGET_EXPORT` to a JSON
+path before launching. The native runtime writes the latest flattened target
+snapshot after surface refreshes, using atomic replacement and skipping
+unchanged payloads. Set `RADIANT_AUTOMATION_TARGET_EXPORT_PRETTY=1` for readable
+JSON during manual automation work.
+
 ## Validation
 
 The normal local quality lane is documented in `docs/API.md`. The short version:

@@ -119,6 +119,28 @@ fn draggable_button_emits_drag_lifecycle_instead_of_click_when_moved() {
 }
 
 #[test]
+fn draggable_button_ignores_tiny_pointer_jitter_before_click_release() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0));
+    let mut button =
+        ButtonWidget::new(17, "Folder", WidgetSizing::fixed(Vector2::new(80.0, 28.0))).with_drag();
+    let press_point = Point::new(10.0, 10.0);
+    let jitter_point = Point::new(12.0, 11.0);
+
+    assert_eq!(
+        button.handle_input(bounds, WidgetInput::primary_press(press_point)),
+        None
+    );
+    assert_eq!(
+        button.handle_input(bounds, WidgetInput::pointer_move(jitter_point)),
+        None
+    );
+    assert_eq!(
+        button.handle_input(bounds, WidgetInput::primary_release(jitter_point)),
+        Some(ButtonMessage::Activate)
+    );
+}
+
+#[test]
 fn draggable_button_release_after_capture_state_restore_ends_drag() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0));
     let mut button =

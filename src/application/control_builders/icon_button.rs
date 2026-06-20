@@ -25,6 +25,7 @@ pub struct IconButtonBuilder {
     style: Option<WidgetStyle>,
     enabled: bool,
     active: bool,
+    bare: bool,
 }
 
 impl IconButtonBuilder {
@@ -56,6 +57,12 @@ impl IconButtonBuilder {
     /// Set whether this button should paint as active.
     pub fn active(mut self, active: bool) -> Self {
         self.active = active;
+        self
+    }
+
+    /// Paint only the retained icon while preserving hit testing and activation.
+    pub fn bare(mut self) -> Self {
+        self.bare = true;
         self
     }
 
@@ -95,6 +102,9 @@ impl IconButtonBuilder {
             self.icon,
             WidgetSizing::fixed(crate::layout::Vector2::new(28.0, 24.0)),
         );
+        if self.bare {
+            widget = widget.bare();
+        }
         widget.common.state.disabled = !self.enabled;
         widget.common.state.active = self.active;
         (widget, self.style)
@@ -108,6 +118,7 @@ pub fn icon_button(icon: SvgIcon) -> IconButtonBuilder {
         style: None,
         enabled: true,
         active: false,
+        bare: false,
     }
 }
 

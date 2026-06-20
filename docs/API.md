@@ -884,6 +884,22 @@ demand, while explicit application or overlay animation frame-rate caps remain
 authoritative. Window launch and manifest builders provide integer `.size(...)` convenience methods
 plus `.logical_size(...)` and `.min_logical_size(...)` when hosts need
 fractional logical dimensions.
+On macOS, hosts that need direct development builds to appear as normal
+LaunchServices applications can use `scripts/dev_app_bundle.sh` after building
+their binary. The helper stages a minimal `.app` wrapper, writes `Info.plist`,
+copies the executable into `Contents/MacOS`, ad-hoc signs when possible, and
+launches with `open`, so app-level automation tools can attach by application
+name or bundle id. Hosts provide generic environment inputs such as
+`RADIANT_DEV_APP_NAME`, `RADIANT_DEV_APP_BINARY`, `RADIANT_DEV_APP_BUNDLE_ID`,
+`RADIANT_DEV_APP_VERSION`, and optional `RADIANT_DEV_APP_ICON` `.icns` assets;
+Radiant owns the bundle mechanics while the host keeps build flags, product
+naming, logging arguments, and app-specific launch policy.
+Native dev and automation sidecars can set `RADIANT_AUTOMATION_TARGET_EXPORT`
+to a JSON path. The native Vello runtime exports
+`GuiAutomationTargetSnapshot` after surface refreshes with atomic file
+replacement and unchanged-payload suppression; set
+`RADIANT_AUTOMATION_TARGET_EXPORT_PRETTY=1` for readable JSON during manual
+automation work.
 For host-visible platform services, reducers can queue typed
 `PlatformRequest` commands through `UiUpdateContext::platform_request(...)`,
 `pick_folder(...)`, `pick_file(...)`, `save_file(...)`, `open_path(...)`,
@@ -2564,19 +2580,34 @@ crate-level Clippy allows.
 
 `radiant::gui::automation` owns the serializable automation snapshot contract:
 `AutomationNodeId`, `AutomationRole`, `AutomationBounds`,
-`AutomationFocusHints`, `AutomationLiveRegion`, `AutomationNodeSemantics`,
-`AutomationNodeSnapshot`, and `GuiAutomationSnapshot`. `SurfaceRuntime` exposes
-`automation_snapshot()` to derive this tree from the current projected surface,
-layout bounds, and widget contracts. Backends and test tools can consume this
-semantic tree without depending on a host application's state types or reducer.
+`AutomationPoint`, `AutomationFocusHints`, `AutomationLiveRegion`,
+`AutomationNodeSemantics`, `AutomationNodeSnapshot`, `AutomationTarget`, and
+`GuiAutomationSnapshot` / `GuiAutomationTargetSnapshot`. `SurfaceRuntime` exposes
+`automation_snapshot()` and `automation_target_snapshot()` to derive this tree
+and its flattened target projection from the current projected surface, layout
+bounds, and widget contracts. Backends and test tools can consume this semantic
+tree without depending on a host application's state types or reducer.
 Common widgets populate generic role, label, value text, checked/selected,
 disabled/read-only, focusable/focused, live-region, and metadata fields when the
 data already exists. `AutomationNodeSnapshot` keeps compatibility aliases such
 as `role`, `label`, `value`, `enabled`, `selected`, and `metadata`, while the
 richer `semantics` payload is the preferred source for new tests, devtools, and
-future adapters. Directional focus hints and live-region values are
-backend-neutral hints only; Radiant does not implement AccessKit, screen-reader
-bridges, web accessibility, or OS accessibility trees in the current phase.
+future adapters. Snapshot nodes also derive conservative default action names
+such as `focus`, `press`, `toggle`, `select`, `set_text`, and `set_value` from
+their role and state. `GuiAutomationSnapshot::target_snapshot()` flattens the
+tree into coordinate-bearing automation targets with tree order, depth,
+root-to-node path, bounds, center point, role, label/value text, current state,
+actions, and metadata; this is the supported bridge shape for tests, devtools,
+Computer Use sidecars, and future native adapters that need stable GUI targets
+without coupling to host state. Directional focus hints and live-region values
+are backend-neutral hints only; Radiant does not implement AccessKit,
+screen-reader bridges, web accessibility, or OS accessibility trees in the
+current phase.
+The macOS development app-bundle helper improves process/window discovery for
+app-level automation tools. `RADIANT_AUTOMATION_TARGET_EXPORT` pairs with that
+launch path by exposing the current flattened target snapshot to external
+sidecars, but it does not replace the semantic automation snapshot and does not
+by itself expose per-widget native accessibility nodes.
 
 `radiant::gui::snapshot` owns deterministic rendered-frame snapshot primitives:
 `VisualSnapshot`, `SnapshotPrimitive`, `SnapshotTextRun`, `SnapshotRect`,

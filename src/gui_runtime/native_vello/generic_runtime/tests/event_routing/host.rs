@@ -120,6 +120,26 @@ fn focused_text_input_typing_preempts_host_shortcuts() {
 }
 
 #[test]
+fn handled_shortcut_text_does_not_enter_newly_focused_text_input() {
+    let bridge = FocusTextInputShortcutBridge::default();
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        bridge,
+        Vector2::new(320.0, 40.0),
+    );
+
+    let mut outcome = runner.core.route_key_press(
+        KeyPress::new(KeyCode::Backquote),
+        WidgetKey::from_key_code(KeyCode::Backquote),
+    );
+    assert!(outcome.routed);
+    assert!(runner.core.has_focused_text_input());
+    assert!(!runner.route_text_input_after_unhandled_keypress("§", &mut outcome));
+
+    assert_eq!(runner.core.runtime.bridge().state.name, "");
+}
+
+#[test]
 fn focused_text_input_routes_all_scalars_from_one_text_event() {
     let bridge = ShortcutDemoBridge::default();
     let mut runner = GenericNativeVelloRunner::new(
@@ -250,6 +270,11 @@ struct ShortcutDemoBridge {
 }
 
 #[derive(Default)]
+struct FocusTextInputShortcutBridge {
+    state: DemoState,
+}
+
+#[derive(Default)]
 struct FocusRefreshCanvasBridge {
     text: String,
 }
@@ -293,6 +318,34 @@ impl RuntimeBridge<DemoMessage> for ShortcutDemoBridge {
     ) -> ShortcutResolution<DemoMessage> {
         match press.key {
             KeyCode::Backspace | KeyCode::E => ShortcutResolution::action(DemoMessage::Increment),
+            _ => ShortcutResolution::unhandled(),
+        }
+    }
+}
+
+impl RuntimeBridge<DemoMessage> for FocusTextInputShortcutBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        demo_surface(&self.state)
+    }
+
+    fn update(&mut self, message: DemoMessage) -> Command<DemoMessage> {
+        match message {
+            DemoMessage::Increment => Command::focus(12),
+            DemoMessage::Rename(name) => {
+                self.state.name = name;
+                Command::none()
+            }
+        }
+    }
+
+    fn resolve_key_press(
+        &mut self,
+        _pending_chord: Option<KeyPress>,
+        press: KeyPress,
+        _focus: FocusSurface,
+    ) -> ShortcutResolution<DemoMessage> {
+        match press.key {
+            KeyCode::Backquote => ShortcutResolution::action(DemoMessage::Increment),
             _ => ShortcutResolution::unhandled(),
         }
     }

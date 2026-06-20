@@ -11,6 +11,7 @@ pub struct SliderBuilder {
     value: f32,
     style: Option<WidgetStyle>,
     sizing: Option<crate::layout::Vector2>,
+    paints_focus: Option<bool>,
 }
 
 impl SliderBuilder {
@@ -39,19 +40,29 @@ impl SliderBuilder {
         self
     }
 
+    /// Control whether this slider paints focus affordances.
+    pub fn paint_focus(mut self, paint: bool) -> Self {
+        self.paints_focus = Some(paint);
+        self
+    }
+
     /// Emit a host message mapped from the normalized slider value.
     pub fn message<Message: 'static>(
         self,
         map: impl Fn(f32) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
+        let mut slider = SliderWidget::new(
+            0,
+            self.value,
+            self.sizing
+                .map(WidgetSizing::fixed)
+                .unwrap_or_else(default_slider_sizing),
+        );
+        if let Some(paint) = self.paints_focus {
+            slider.common.paint.paints_focus = paint;
+        }
         let mut node = view_node_from_widget(MappedWidget::new(
-            SliderWidget::new(
-                0,
-                self.value,
-                self.sizing
-                    .map(WidgetSizing::fixed)
-                    .unwrap_or_else(default_slider_sizing),
-            ),
+            slider,
             WidgetMessageMapper::slider(move |message| match message {
                 SliderMessage::ValueChanged { value } => map(value),
             }),
@@ -67,6 +78,7 @@ pub fn slider(value: f32) -> SliderBuilder {
         value,
         style: None,
         sizing: None,
+        paints_focus: None,
     }
 }
 

@@ -1,7 +1,7 @@
 //! Backend-neutral automation snapshot extraction for runtime surfaces.
 
 use crate::{
-    gui::automation::GuiAutomationSnapshot,
+    gui::automation::{GuiAutomationSnapshot, GuiAutomationTargetSnapshot},
     runtime::{RuntimeBridge, SurfaceRuntime},
 };
 
@@ -23,5 +23,11 @@ where
             viewport_height: viewport.height().max(0.0).round() as u32,
             root,
         }
+    }
+
+    /// Return a flattened, coordinate-bearing automation target snapshot for the
+    /// current surface.
+    pub fn automation_target_snapshot(&self) -> GuiAutomationTargetSnapshot {
+        self.automation_snapshot().target_snapshot()
     }
 }

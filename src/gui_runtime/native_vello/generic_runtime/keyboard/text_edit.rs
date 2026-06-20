@@ -163,4 +163,16 @@ where
             route_outcome.merge(outcome);
         }
     }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime) fn route_text_input_after_unhandled_keypress(
+        &mut self,
+        text: &str,
+        route_outcome: &mut GenericRouteOutcome,
+    ) -> bool {
+        if route_outcome.routed {
+            return false;
+        }
+        self.route_text_input(text, route_outcome);
+        route_outcome.routed
+    }
 }

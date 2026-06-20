@@ -1,11 +1,11 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
 use super::{
-    AuxiliaryNativeWindow, GenericNativeRuntimeCore, GenericRouteOutcome, NativeRunnerInputState,
-    NativeRunnerTimingState, NativeRunnerWindowState, NativeVelloFrameState, RuntimeWakeup,
-    SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
-    animation_frame_interval_for_normalized_fps, encode_surface_paint_plan_to_scene,
-    timed_frame_cadence, timed_frame_target_fps,
+    AuxiliaryNativeWindow, GenericNativeRuntimeCore, GenericRouteOutcome,
+    NativeAutomationTargetExporter, NativeRunnerInputState, NativeRunnerTimingState,
+    NativeRunnerWindowState, NativeVelloFrameState, RuntimeWakeup, SurfaceSceneEncodeContext,
+    TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
+    encode_surface_paint_plan_to_scene, timed_frame_cadence, timed_frame_target_fps,
 };
 use crate::{
     gui::types::Vector2,
@@ -13,6 +13,7 @@ use crate::{
     runtime::{NativeRunOptions, RuntimeAnimationActivity, RuntimeBridge},
 };
 use std::time::{Duration, Instant};
+use tracing::{info, warn};
 use winit::event_loop::ActiveEventLoop;
 
 pub(super) struct GenericNativeVelloRunner<Bridge, Message>
@@ -26,6 +27,7 @@ where
     pub(super) frame: NativeVelloFrameState,
     pub(super) input: NativeRunnerInputState,
     pub(super) timing: NativeRunnerTimingState,
+    pub(super) automation_targets: NativeAutomationTargetExporter,
     pub(super) auxiliary_windows: Vec<AuxiliaryNativeWindow<Message>>,
 }
 
@@ -59,6 +61,7 @@ where
             frame: NativeVelloFrameState::new(text_renderer, retained_surface_cache),
             input: NativeRunnerInputState::default(),
             timing: NativeRunnerTimingState::default(),
+            automation_targets: NativeAutomationTargetExporter::from_env(),
             auxiliary_windows: Vec::new(),
         }
     }
@@ -159,6 +162,40 @@ where
         self.frame.refresh_post_gpu_overlay_cache();
         self.restore_native_hover_cursor_overlay();
         self.frame.mark_scene_content_dirty();
+        self.export_automation_targets();
+    }
+
+    pub(super) fn export_automation_targets(&mut self) {
+        let snapshot = self.core.runtime.automation_target_snapshot();
+        match self.automation_targets.export(&snapshot) {
+            Ok(true) => {
+                if let Some(path) = self.automation_targets.path() {
+                    info!(
+                        "radiant generic native vello: exported automation target snapshot to {}",
+                        path.display()
+                    );
+                }
+            }
+            Ok(false) => {}
+            Err(err) => {
+                if self.automation_targets.has_warned_after_failure() {
+                    return;
+                }
+                self.automation_targets.mark_warned_after_failure();
+                if let Some(path) = err.path() {
+                    warn!(
+                        "radiant generic native vello: failed to export automation target snapshot to {}: {}",
+                        path.display(),
+                        err
+                    );
+                } else {
+                    warn!(
+                        "radiant generic native vello: failed to export automation target snapshot: {}",
+                        err
+                    );
+                }
+            }
+        }
     }
 
     pub(super) fn rebuild_scene_for_interactive_route_now(&mut self) {

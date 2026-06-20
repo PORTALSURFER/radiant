@@ -141,6 +141,15 @@ impl<Key> VirtualListFollowState<Key> {
     pub fn clear(&mut self) {
         self.focus_key = None;
     }
+
+    /// Remember the current focus key without triggering follow scrolling.
+    ///
+    /// Hosts can use this after a user manually scrolls and then selects an item
+    /// that is already visible. The selection state still advances, but manual
+    /// scroll remains authoritative until the next out-of-view focus change.
+    pub fn remember_focus_key(&mut self, focus_key: Option<Key>) {
+        self.focus_key = focus_key;
+    }
 }
 
 impl<Key: PartialEq> VirtualListFollowState<Key> {

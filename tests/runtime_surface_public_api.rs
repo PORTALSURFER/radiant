@@ -9,7 +9,10 @@ use radiant::{
         shortcuts::ShortcutResolution,
         types::{ImageRgba, Rgba8},
     },
-    layout::{Point, Rect, Vector2, layout_tree, layout_tree_with_state},
+    layout::{
+        Constraints, Point, Rect, SizeModeCross, SizeModeMain, SlotParams, Vector2, layout_tree,
+        layout_tree_with_state,
+    },
     runtime::{
         Command, Element, Event, FocusTraversal, GpuShaderSurfaceDescriptor,
         GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceOverlay,
@@ -173,6 +176,36 @@ where
         .as_any()
         .downcast_ref::<T>()
         .unwrap_or_else(|| panic!("expected widget {id} to be {expected}"))
+}
+
+fn intrinsic_slot() -> SlotParams {
+    SlotParams {
+        size_main: SizeModeMain::Intrinsic,
+        size_cross: SizeModeCross::Intrinsic,
+        constraints: Constraints::unconstrained(),
+        margin: Default::default(),
+        align_cross_override: None,
+        allow_fixed_compress: false,
+    }
+}
+
+fn text_rows(
+    first_id: u64,
+    count: u64,
+    label: &'static str,
+) -> Vec<SurfaceChild<ScenePointerMessage>> {
+    (0..count)
+        .map(|index| {
+            SurfaceChild::new(
+                intrinsic_slot(),
+                SurfaceNode::text(
+                    first_id + index,
+                    format!("{label} {index}"),
+                    WidgetSizing::fixed(Vector2::new(120.0, 22.0)),
+                ),
+            )
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -443,6 +476,42 @@ fn scene_layer_block_input_blocks_base_pointer_and_wheel() {
 
     assert_ne!(press_target, Some(10));
     assert!(bridge.events().is_empty());
+}
+
+#[test]
+fn scene_layer_block_input_allows_foreground_scroll_before_input_shield() {
+    let base =
+        SurfaceNode::scroll_area(10, SurfaceNode::column(11, 0.0, text_rows(100, 12, "Base")));
+    let modal = SurfaceNode::scroll_area(
+        20,
+        SurfaceNode::column(21, 0.0, text_rows(200, 12, "Modal")),
+    );
+    let root = ui::scene(base.into())
+        .layer(radiant::Layer::modal(modal.into()).block_input())
+        .into_view()
+        .into_surface();
+    let mut runtime = SurfaceRuntime::new(
+        SceneSurfaceBridge::new(root.into_root()),
+        Vector2::new(140.0, 60.0),
+    );
+    let base_before = runtime.layout().rects[&100];
+    let modal_before = runtime.layout().rects[&200];
+
+    runtime.dispatch_event(Event::Scroll {
+        position: Point::new(16.0, 16.0),
+        delta: Vector2::new(0.0, 44.0),
+    });
+
+    let base_after = runtime.layout().rects[&100];
+    let modal_after = runtime.layout().rects[&200];
+    assert_eq!(
+        base_after.min.y, base_before.min.y,
+        "the modal input shield should still prevent background scroll"
+    );
+    assert!(
+        modal_after.min.y < modal_before.min.y,
+        "wheel input over modal foreground should scroll the modal body"
+    );
 }
 
 #[test]

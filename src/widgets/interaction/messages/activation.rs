@@ -6,6 +6,11 @@ use crate::{gui::types::Point, widgets::interaction::input::PointerModifiers};
 pub enum ButtonMessage {
     /// The button was activated by pointer or keyboard input.
     Activate,
+    /// The button was activated by primary pointer input with modifier state.
+    ActivateWithModifiers {
+        /// Modifier state at release time.
+        modifiers: PointerModifiers,
+    },
     /// The button received a secondary/right pointer click.
     SecondaryActivate {
         /// Pointer position where the secondary activation occurred.
@@ -18,7 +23,18 @@ pub enum ButtonMessage {
 impl ButtonMessage {
     /// Return whether this message is a primary button activation.
     pub fn is_activate(self) -> bool {
-        matches!(self, Self::Activate)
+        matches!(self, Self::Activate | Self::ActivateWithModifiers { .. })
+    }
+
+    /// Return modifier state when this message is an activation.
+    ///
+    /// Keyboard activation and legacy plain activation use default modifiers.
+    pub fn activation_modifiers(self) -> Option<PointerModifiers> {
+        match self {
+            Self::Activate => Some(PointerModifiers::default()),
+            Self::ActivateWithModifiers { modifiers } => Some(modifiers),
+            _ => None,
+        }
     }
 
     /// Return the secondary/right-click activation position, when present.

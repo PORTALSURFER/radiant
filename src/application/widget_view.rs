@@ -24,6 +24,7 @@ pub struct WidgetViewContext {
     pub(in crate::application) text_color: Option<TextColorRole>,
     pub(in crate::application) text_background: Option<TextBackgroundRole>,
     pub(in crate::application) text_inset: Option<Vector2>,
+    pub(in crate::application) tooltip: Option<String>,
 }
 
 impl WidgetViewContext {
@@ -44,16 +45,21 @@ impl WidgetViewContext {
 
     /// Apply common view-node options to a widget before lowering.
     pub fn apply_to(&self, widget: &mut dyn Widget) {
-        let common = widget.common_mut();
-        common.id = self.id;
-        if let Some(sizing) = self.sizing {
-            common.sizing = sizing;
-        }
-        if let Some(style) = self.style {
-            common.style = style;
-        }
-        if self.input_only {
-            common.paint.paints_state_layers = false;
+        {
+            let common = widget.common_mut();
+            common.id = self.id;
+            if let Some(sizing) = self.sizing {
+                common.sizing = sizing;
+            }
+            if let Some(style) = self.style {
+                common.style = style;
+            }
+            if self.input_only {
+                common.paint.paints_state_layers = false;
+            }
+            if let Some(tooltip) = &self.tooltip {
+                common.tooltip = Some(tooltip.clone());
+            }
         }
         if let Some(wrap) = self.text_wrap {
             widget.set_text_wrap(wrap);

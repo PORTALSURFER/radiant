@@ -2,11 +2,14 @@
 
 use super::InteractiveRowWidget;
 use crate::{
-    gui::types::Rect,
+    gui::types::{Point, Rect},
     widgets::interaction::{
         DragHandleMessage, InteractiveRowMessage, PointerButton, WidgetInput, WidgetKey,
     },
 };
+
+const ROW_DRAG_START_DISTANCE: f32 = 7.0;
+const ROW_DRAG_START_DISTANCE_SQUARED: f32 = ROW_DRAG_START_DISTANCE * ROW_DRAG_START_DISTANCE;
 
 impl InteractiveRowWidget {
     /// Route one backend-neutral interaction into the row.
@@ -33,6 +36,9 @@ impl InteractiveRowWidget {
                     return None;
                 }
                 if self.common.state.pressed && self.props.draggable {
+                    if !self.dragged && !drag_start_threshold_met(self.pressed_position, position) {
+                        return None;
+                    }
                     let message = if self.dragged {
                         DragHandleMessage::Moved { position }
                     } else {
@@ -58,6 +64,7 @@ impl InteractiveRowWidget {
                 self.common.state.hovered = true;
                 self.common.state.pressed = true;
                 self.common.state.focused = true;
+                self.pressed_position = Some(position);
                 self.dragged = false;
                 None
             }
@@ -76,6 +83,7 @@ impl InteractiveRowWidget {
             } if bounds.contains(position) => {
                 self.common.state.hovered = true;
                 self.common.state.pressed = false;
+                self.pressed_position = None;
                 self.dragged = false;
                 Some(InteractiveRowMessage::DoubleActivate)
             }
@@ -91,6 +99,7 @@ impl InteractiveRowWidget {
                 {
                     self.common.state.pressed = false;
                     self.common.state.hovered = true;
+                    self.pressed_position = None;
                     self.dragged = false;
                     return Some(InteractiveRowMessage::Drop);
                 }
@@ -99,6 +108,7 @@ impl InteractiveRowWidget {
                 let dragged = self.props.drag_source || (self.common.state.pressed && self.dragged);
                 self.common.state.pressed = false;
                 self.common.state.hovered = bounds.contains(position);
+                self.pressed_position = None;
                 self.dragged = false;
                 if dragged {
                     return Some(InteractiveRowMessage::Drag(DragHandleMessage::Ended {
@@ -125,6 +135,7 @@ impl InteractiveRowWidget {
                 self.common.state.focused = focused;
                 if !focused && !self.dragged && !self.props.drag_source {
                     self.common.state.pressed = false;
+                    self.pressed_position = None;
                     self.dragged = false;
                 }
                 None
@@ -137,10 +148,20 @@ impl InteractiveRowWidget {
             _ => {
                 if matches!(input, WidgetInput::PointerRelease { .. }) {
                     self.common.state.pressed = false;
+                    self.pressed_position = None;
                     self.dragged = false;
                 }
                 None
             }
         }
     }
+}
+
+fn drag_start_threshold_met(start: Option<Point>, current: Point) -> bool {
+    let Some(start) = start else {
+        return true;
+    };
+    let dx = current.x - start.x;
+    let dy = current.y - start.y;
+    (dx * dx + dy * dy) >= ROW_DRAG_START_DISTANCE_SQUARED
 }

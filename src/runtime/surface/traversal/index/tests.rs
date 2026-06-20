@@ -46,6 +46,13 @@ fn traversal_records_route_to_expected_buckets() {
     assert_eq!(index.keyboard_focus_order, vec![20]);
     assert_eq!(index.pointer_hit_order, vec![20]);
     assert_eq!(index.wheel_hit_order, vec![20]);
+    assert_eq!(
+        index.wheel_target_order,
+        vec![
+            WheelHitTarget::ScrollContainer(10),
+            WheelHitTarget::Widget(20)
+        ]
+    );
     assert_eq!(index.native_file_drop_hit_order, vec![20]);
     assert_eq!(index.stateful_widget_order, vec![20]);
     assert!(index.container_hover_suppression.contains(&20));

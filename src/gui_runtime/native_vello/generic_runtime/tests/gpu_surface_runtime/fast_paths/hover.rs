@@ -43,6 +43,35 @@ fn leaving_native_gpu_hover_still_routes_next_widget_move() {
 }
 
 #[test]
+fn native_gpu_hover_hides_native_cursor_until_surface_exit() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuHoverExitBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    runner.rebuild_scene();
+
+    runner.handle_cursor_moved(PhysicalPosition::new(20.0, 20.0));
+
+    assert!(
+        !runner.input.native_cursor_visible,
+        "GPU hover surfaces draw their own cursor overlay and should hide the native host cursor"
+    );
+    assert_eq!(
+        runner.input.native_cursor,
+        Some(crate::widgets::WidgetCursor::Default),
+        "hidden native cursor should still be reset to default so it reappears cleanly"
+    );
+
+    runner.handle_cursor_moved(PhysicalPosition::new(220.0, 20.0));
+
+    assert!(
+        runner.input.native_cursor_visible,
+        "native cursor must be restored as soon as pointer leaves the GPU hover surface"
+    );
+}
+
+#[test]
 fn native_gpu_hover_fast_path_respects_active_top_pointer_widget() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

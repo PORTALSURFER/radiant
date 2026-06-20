@@ -73,11 +73,11 @@ where
             return;
         }
         if let Some(text) = event.text.as_ref() {
-            self.route_text_input(text, &mut route_outcome);
+            self.route_text_input_after_unhandled_keypress(text, &mut route_outcome);
         } else if matches!(event.logical_key, Key::Named(NamedKey::Space)) {
-            self.route_text_input(" ", &mut route_outcome);
+            self.route_text_input_after_unhandled_keypress(" ", &mut route_outcome);
         } else if let Key::Character(text) = &event.logical_key {
-            self.route_text_input(text.as_str(), &mut route_outcome);
+            self.route_text_input_after_unhandled_keypress(text.as_str(), &mut route_outcome);
         }
         if !route_outcome.routed && matches!(event.logical_key, Key::Named(NamedKey::Backspace)) {
             let outcome = self.core.route_widget_key(WidgetKey::Backspace);

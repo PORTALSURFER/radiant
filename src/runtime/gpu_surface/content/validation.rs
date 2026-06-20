@@ -114,9 +114,11 @@ pub(super) fn validate_signal_gain_preview(
         preview.fade_in_length,
         preview.fade_in_curve,
         preview.fade_in_mute,
+        preview.fade_in_outer_gain,
         preview.fade_out_length,
         preview.fade_out_curve,
         preview.fade_out_mute,
+        preview.fade_out_outer_gain,
     ];
     if values.iter().all(|value| value.is_finite()) {
         Ok(())

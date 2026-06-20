@@ -1,10 +1,10 @@
 use super::{
     PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintTextAlign, PaintTextRun,
     geometry::{blend_color, inset_rect},
-    text::{push_text_run, text_font_size},
+    text::{optical_centered_baseline, push_text_run, text_font_size},
 };
 use crate::{
-    gui::types::{Point, Rect},
+    gui::types::{Point, Rect, Vector2},
     layout::{LayoutOutput, NodeId},
     theme::ThemeTokens,
     widgets::{TextWrap, WidgetId, WidgetState, WidgetStyle, resolve_widget_visual_tokens},
@@ -130,5 +130,65 @@ pub(crate) fn push_overlay_panel(
             rect,
             color: tokens.emphasis,
         }));
+    }
+}
+
+pub(crate) fn push_tooltip_panel(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    rect: Rect,
+    lines: &[String],
+    theme: &ThemeTokens,
+    font_size: f32,
+    line_height: f32,
+) {
+    let shadow = Rect::from_min_max(
+        Point::new(rect.min.x + 2.0, rect.min.y + 3.0),
+        Point::new(rect.max.x + 2.0, rect.max.y + 3.0),
+    );
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id,
+        rect: shadow,
+        color: crate::gui::types::Rgba8 {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 88,
+        },
+    }));
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id,
+        rect,
+        color: theme.surface_overlay.blend_toward(theme.bg_primary, 0.18),
+    }));
+    primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+        widget_id,
+        rect,
+        color: theme.border_emphasis,
+        width: 1.0,
+    }));
+
+    let text_rect = inset_rect(rect, 8.0, 4.0);
+    for (index, line) in lines.iter().enumerate() {
+        let line_rect = Rect::from_min_size(
+            Point::new(
+                text_rect.min.x,
+                text_rect.min.y + index as f32 * line_height,
+            ),
+            Vector2::new(text_rect.width(), line_height),
+        );
+        push_text_run(
+            primitives,
+            PaintTextRun {
+                widget_id,
+                text: super::PaintText::from(line.as_str()),
+                rect: line_rect,
+                baseline: optical_centered_baseline(line_rect, font_size),
+                color: theme.text_primary,
+                align: PaintTextAlign::Left,
+                wrap: TextWrap::None,
+                font_size,
+            },
+        );
     }
 }

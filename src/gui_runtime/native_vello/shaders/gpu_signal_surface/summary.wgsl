@@ -55,7 +55,8 @@ fn preview_gain_at_position(position: f32) -> f32 {
         if (position >= fade_start && position <= selection_start) {
             let t = clamp((position - fade_start) / max(selection_start - fade_start, 0.000001), 0.0, 1.0);
             let fade_in_curve = clamp(params.gain_preview_b.y, 0.0, 1.0);
-            return 1.0 - preview_curve_value(t, fade_in_curve);
+            let outer_gain = clamp(params.gain_preview_c.z, 0.0, 1.0);
+            return outer_gain * (1.0 - preview_curve_value(t, fade_in_curve));
         }
     }
     let fade_out_mute = max(params.gain_preview_c.y, 0.0);
@@ -64,7 +65,8 @@ fn preview_gain_at_position(position: f32) -> f32 {
         if (position >= selection_end && position <= fade_end) {
             let t = clamp((position - selection_end) / max(fade_end - selection_end, 0.000001), 0.0, 1.0);
             let fade_out_curve = clamp(params.gain_preview_b.w, 0.0, 1.0);
-            return preview_curve_value(t, fade_out_curve);
+            let outer_gain = clamp(params.gain_preview_c.w, 0.0, 1.0);
+            return outer_gain * preview_curve_value(t, fade_out_curve);
         }
     }
     if (position < selection_start || position > selection_end) {

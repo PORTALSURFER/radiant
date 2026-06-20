@@ -39,19 +39,11 @@ where
         self.scroll_at_with_refresh(point, delta, true)
     }
 
-    pub(in crate::runtime::controller) fn scroll_at_deferred_refresh(
-        &mut self,
-        point: Point,
-        delta: Vector2,
-    ) -> bool {
-        self.scroll_at_with_refresh(point, delta, false)
-    }
-
     pub(crate) fn scroll_container_accepts_wheel_at(&self, point: Point) -> bool {
         self.scroll_container_at(point).is_some()
     }
 
-    fn scroll_at_with_refresh(
+    pub(in crate::runtime::controller) fn scroll_at_with_refresh(
         &mut self,
         point: Point,
         delta: Vector2,
@@ -143,19 +135,25 @@ where
             .iter()
             .rev()
             .copied()
-            .find(|node_id| {
-                self.layout
-                    .rects
-                    .get(node_id)
-                    .is_some_and(|rect| rect.contains(point))
-                    && self
-                        .layout
-                        .overflow_flags
-                        .get(node_id)
-                        .is_some_and(|overflow| {
-                            overflow.policy == OverflowPolicy::Scroll && (overflow.x || overflow.y)
-                        })
-                    && self.container_clip_contains_point(*node_id, point)
-            })
+            .find(|node_id| self.scroll_container_accepts_point(*node_id, point))
+    }
+
+    pub(in crate::runtime::controller) fn scroll_container_accepts_point(
+        &self,
+        node_id: NodeId,
+        point: Point,
+    ) -> bool {
+        self.layout
+            .rects
+            .get(&node_id)
+            .is_some_and(|rect| rect.contains(point))
+            && self
+                .layout
+                .overflow_flags
+                .get(&node_id)
+                .is_some_and(|overflow| {
+                    overflow.policy == OverflowPolicy::Scroll && (overflow.x || overflow.y)
+                })
+            && self.container_clip_contains_point(node_id, point)
     }
 }

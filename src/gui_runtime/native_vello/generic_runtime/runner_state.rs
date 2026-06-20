@@ -35,6 +35,9 @@ pub(super) struct NativeRunnerWindowState {
 pub(super) struct NativeRunnerInputState {
     pub(super) last_cursor: Option<Point>,
     pub(super) native_cursor: Option<WidgetCursor>,
+    pub(super) native_cursor_visible: bool,
+    #[cfg(test)]
+    pub(super) native_cursor_apply_count: usize,
     pub(super) clipboard: Option<arboard::Clipboard>,
     pub(super) modifiers: ModifiersState,
     pub(super) last_navigation_key_repeat: Option<Instant>,
@@ -48,6 +51,9 @@ impl Default for NativeRunnerInputState {
         Self {
             last_cursor: None,
             native_cursor: None,
+            native_cursor_visible: true,
+            #[cfg(test)]
+            native_cursor_apply_count: 0,
             clipboard: arboard::Clipboard::new().ok(),
             modifiers: ModifiersState::default(),
             last_navigation_key_repeat: None,

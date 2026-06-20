@@ -44,6 +44,7 @@ impl Widget for InteractiveRowWidget {
             if self.props.clear_hover_on_sync {
                 self.common.state.hovered = false;
             }
+            self.pressed_position = previous.pressed_position;
             self.dragged = previous.dragged;
         }
     }

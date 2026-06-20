@@ -120,6 +120,7 @@ impl<Message> AuxiliaryNativeWindow<Message> {
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 self.runner.update_native_dpi_scale(scale_factor);
             }
+            WindowEvent::CursorEntered { .. } => self.runner.handle_cursor_entered(),
             WindowEvent::CursorMoved { position, .. } => self.runner.handle_cursor_moved(position),
             WindowEvent::CursorLeft { .. } => self.runner.handle_cursor_left(event_loop),
             WindowEvent::MouseInput { button, state, .. } => {

@@ -837,7 +837,16 @@ Full accessibility support is a non-goal for the current phase.
 
 Do not spend implementation effort on accessibility-specific systems unless they are directly needed for another core feature. Accessibility can be revisited later once the core library architecture is stronger.
 
-However, avoid unnecessary design choices that would make future accessibility impossible if there is no meaningful cost to keeping the architecture flexible.
+Radiant does own backend-neutral automation snapshots and flattened automation
+target projections for tests, devtools, direct-manipulation sidecars, and future
+adapters. These may carry generic roles, labels, values, bounds, center points,
+stable action names, focus state, and metadata when that information already
+belongs to reusable widgets or runtime layout.
+
+However, avoid unnecessary design choices that would make future accessibility
+impossible if there is no meaningful cost to keeping the architecture flexible.
+Keep native accessibility adapters as a future integration layer until the core
+runtime and widget semantics are ready to support them deliberately.
 
 ## Application Independence
 

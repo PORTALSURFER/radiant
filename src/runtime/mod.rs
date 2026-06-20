@@ -34,8 +34,11 @@ mod surface;
 
 pub use crate::application::runtime::{BusinessEventSink, BusinessWorkContext};
 pub use crate::gui::automation::{
+    AUTOMATION_ACTION_FOCUS, AUTOMATION_ACTION_PRESS, AUTOMATION_ACTION_SELECT,
+    AUTOMATION_ACTION_SET_TEXT, AUTOMATION_ACTION_SET_VALUE, AUTOMATION_ACTION_TOGGLE,
     AutomationBounds, AutomationFocusHints, AutomationLiveRegion, AutomationNodeId,
-    AutomationNodeSemantics, AutomationNodeSnapshot, AutomationRole, GuiAutomationSnapshot,
+    AutomationNodeSemantics, AutomationNodeSnapshot, AutomationPoint, AutomationRole,
+    AutomationTarget, GuiAutomationSnapshot, GuiAutomationTargetSnapshot,
 };
 pub use crate::gui_runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS,
@@ -125,8 +128,8 @@ pub use resource::{
     ResourceRequest, ResourceSlot,
 };
 pub(in crate::runtime) use surface::{
-    ClipAncestors, SurfaceRuntimeProjection, SurfaceTraversalIndex, WidgetDispatchResult,
-    WidgetPath, empty_paint_plan_for_layout,
+    ClipAncestors, SurfaceRuntimeProjection, SurfaceTraversalIndex, WheelHitTarget,
+    WidgetDispatchResult, WidgetPath, empty_paint_plan_for_layout,
 };
 pub use surface::{
     Element, LayerKind, MessageMapper, NativeFileDropMessageMapper, ScrollMessageMapper,

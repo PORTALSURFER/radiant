@@ -1,6 +1,6 @@
 //! Reusable dense-list/tree row interaction primitive.
 
-use crate::gui::types::Rect;
+use crate::gui::types::{Point, Rect};
 use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{InteractiveRowMessage, WidgetInput, WidgetOutput};
 use crate::widgets::primitives::support::WidgetCommon;
@@ -25,6 +25,7 @@ pub struct InteractiveRowWidget {
     pub common: WidgetCommon,
     /// Immutable row configuration.
     pub props: InteractiveRowProps,
+    pressed_position: Option<Point>,
     dragged: bool,
 }
 
@@ -95,6 +96,7 @@ impl InteractiveRowWidget {
         Self {
             common,
             props: InteractiveRowProps::default(),
+            pressed_position: None,
             dragged: false,
         }
     }

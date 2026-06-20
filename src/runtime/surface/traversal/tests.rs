@@ -121,6 +121,7 @@ fn traversal_index_clear_for_stats_grows_reused_storage_to_requested_capacity() 
     assert!(index.keyboard_focus_order.capacity() >= 96);
     assert!(index.pointer_hit_order.capacity() >= 96);
     assert!(index.wheel_hit_order.capacity() >= 96);
+    assert!(index.wheel_target_order.capacity() >= 104);
     assert!(index.stateful_widget_order.capacity() >= 24);
     assert!(index.widget_paths.capacity() >= 96);
     assert!(index.container_hover_suppression.capacity() >= 96);

@@ -1,6 +1,6 @@
 use super::{
     ClipAncestors, SurfaceContainerTraversalRecord, SurfaceTraversalIndex,
-    SurfaceWidgetTraversalRecord, WidgetPath,
+    SurfaceWidgetTraversalRecord, WheelHitTarget, WidgetPath,
 };
 
 impl SurfaceTraversalIndex {
@@ -14,6 +14,8 @@ impl SurfaceTraversalIndex {
         }
         if let Some(content) = record.scroll_content {
             self.scroll_container_order.push(record.id);
+            self.wheel_target_order
+                .push(WheelHitTarget::ScrollContainer(record.id));
             self.scroll_content_by_container.insert(record.id, content);
         }
         if record.styled_hoverable {
@@ -37,6 +39,8 @@ impl SurfaceTraversalIndex {
         }
         if record.receives_wheel_input {
             self.wheel_hit_order.push(record.id);
+            self.wheel_target_order
+                .push(WheelHitTarget::Widget(record.id));
         }
         if record.accepts_native_file_drop {
             self.native_file_drop_hit_order.push(record.id);

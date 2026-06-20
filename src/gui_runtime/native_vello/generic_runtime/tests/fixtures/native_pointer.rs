@@ -31,6 +31,10 @@ where
         self.runner.handle_cursor_moved(position);
     }
 
+    pub(in super::super) fn cursor_entered(&mut self) {
+        self.runner.handle_cursor_entered();
+    }
+
     pub(in super::super) fn modifiers_changed(&mut self, modifiers: ModifiersState) {
         let outcome = self.runner.route_native_modifiers_changed(modifiers);
         self.apply_route_outcome(outcome);

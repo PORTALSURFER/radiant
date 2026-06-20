@@ -20,6 +20,8 @@ pub struct WidgetCommon {
     pub paint: crate::widgets::contract::PaintContract,
     /// Shared style vocabulary independent from any app theme.
     pub style: WidgetStyle,
+    /// Optional hover tooltip text supplied by the application view tree.
+    pub tooltip: Option<String>,
     /// Current interaction and visual state.
     pub state: WidgetState,
 }
@@ -33,6 +35,7 @@ impl WidgetCommon {
             focus: FocusBehavior::None,
             paint: Default::default(),
             style: WidgetStyle::default(),
+            tooltip: None,
             state: WidgetState::default(),
         }
     }

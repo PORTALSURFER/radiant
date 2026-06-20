@@ -151,6 +151,7 @@ impl<'a> ViewLowering<'a> {
                 text_color: node.text_color,
                 text_background: node.text_background,
                 text_inset: node.text_inset,
+                tooltip: node.tooltip,
             }),
             ViewNodeKind::Row { spacing, children } => {
                 let policy = ContainerPolicy {

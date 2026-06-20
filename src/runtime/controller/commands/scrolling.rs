@@ -79,7 +79,7 @@ where
         if !row_stride.is_finite() || row_stride <= f32::EPSILON {
             return None;
         }
-        let visible_rows = (viewport.height().max(0.0) / row_stride).floor().max(1.0) as usize;
+        let visible_rows = (viewport.height().max(0.0) / row_stride).ceil().max(1.0) as usize;
         let target_offset_y = if direction < 0 {
             let top_limit = row_index.saturating_sub(leading_context_rows);
             let top_limit_y = top_limit as f32 * row_stride;

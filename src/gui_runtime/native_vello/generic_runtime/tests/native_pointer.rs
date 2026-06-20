@@ -41,6 +41,64 @@ fn native_pointer_harness_uses_physical_to_logical_cursor_conversion() {
 }
 
 #[test]
+fn native_pointer_enter_reasserts_default_cursor_when_cache_is_default() {
+    let mut harness = NativePointerHarness::new(demo_bridge(), Vector2::new(320.0, 40.0));
+    harness.runner.input.native_cursor = Some(crate::widgets::WidgetCursor::Default);
+    harness.runner.input.native_cursor_visible = false;
+    let updates_before = harness.runner.input.native_cursor_apply_count;
+
+    harness.cursor_entered();
+
+    assert!(harness.runner.input.native_cursor_visible);
+    assert_eq!(
+        harness.runner.input.native_cursor,
+        Some(crate::widgets::WidgetCursor::Default)
+    );
+    assert_eq!(
+        harness.runner.input.native_cursor_apply_count,
+        updates_before + 1,
+        "cursor entry must reclaim native cursor ownership even when the cached logical cursor did not change"
+    );
+}
+
+#[test]
+fn native_pointer_first_move_reasserts_default_cursor_when_cache_is_default() {
+    let mut harness = NativePointerHarness::new(demo_bridge(), Vector2::new(320.0, 40.0));
+    harness.runner.input.native_cursor = Some(crate::widgets::WidgetCursor::Default);
+    let updates_before = harness.runner.input.native_cursor_apply_count;
+
+    harness.cursor_moved_logical(Point::new(4.0, 4.0));
+
+    assert_eq!(
+        harness.runner.input.native_cursor,
+        Some(crate::widgets::WidgetCursor::Default)
+    );
+    assert!(
+        harness.runner.input.native_cursor_apply_count > updates_before,
+        "first pointer motion after an absent cursor must not trust a stale native cursor cache"
+    );
+}
+
+#[test]
+fn native_pointer_repeated_hover_move_reasserts_default_cursor_when_cache_is_default() {
+    let mut harness = NativePointerHarness::new(demo_bridge(), Vector2::new(320.0, 40.0));
+    harness.cursor_moved_logical(Point::new(4.0, 4.0));
+    harness.runner.input.native_cursor = Some(crate::widgets::WidgetCursor::Default);
+    let updates_before = harness.runner.input.native_cursor_apply_count;
+
+    harness.cursor_moved_logical(Point::new(5.0, 4.0));
+
+    assert_eq!(
+        harness.runner.input.native_cursor,
+        Some(crate::widgets::WidgetCursor::Default)
+    );
+    assert!(
+        harness.runner.input.native_cursor_apply_count > updates_before,
+        "hover motion inside the app must reclaim native cursor ownership even when the cached logical cursor did not change"
+    );
+}
+
+#[test]
 fn native_pointer_harness_drops_mouse_input_without_cursor() {
     let mut harness = NativePointerHarness::new(demo_bridge(), Vector2::new(320.0, 40.0));
 
@@ -214,6 +272,55 @@ fn native_wheel_flushes_stale_coalesced_scroll_before_new_wheel_input() {
 }
 
 #[test]
+fn native_pointer_press_flushes_coalesced_scroll_before_click_routing() {
+    let mut harness =
+        NativePointerHarness::new(AppVirtualListBridge::default(), Vector2::new(240.0, 80.0));
+    harness.cursor_moved_logical(Point::new(20.0, 20.0));
+    harness.runner.timing.redraw_requested = true;
+    harness.runner.timing.redraw_requested_at = Some(Instant::now());
+
+    let queued = harness.mouse_wheel_route(MouseScrollDelta::LineDelta(0.0, -100.0));
+    assert_eq!(
+        queued.diagnostic.result,
+        NativePointerRouteResult::Coalesced
+    );
+    assert!(
+        harness
+            .runner
+            .input
+            .pending_scroll_container_wheel
+            .is_some(),
+        "fresh wheel input should be pending before the click"
+    );
+    assert_eq!(harness.runner.core.runtime.bridge().scroll_count, 0);
+
+    let _press = harness.mouse_pressed_route(MouseButton::Left);
+
+    assert!(
+        harness
+            .runner
+            .input
+            .pending_scroll_container_wheel
+            .is_none(),
+        "mouse press should commit pending scroll before hit testing the click"
+    );
+    assert_eq!(harness.runner.core.runtime.bridge().scroll_count, 1);
+    assert!(
+        harness.runner.core.runtime.bridge().window.viewport_start >= 80,
+        "the coalesced scroll should update the app-owned virtual window before click routing"
+    );
+    assert!(
+        harness
+            .runner
+            .core
+            .runtime
+            .paint_plan(&Default::default())
+            .contains_text("Row 99"),
+        "click routing should see freshly materialized bottom rows"
+    );
+}
+
+#[test]
 fn native_scrollbar_drag_flushes_when_redraw_is_starved() {
     let mut harness =
         NativePointerHarness::new(AppVirtualListBridge::default(), Vector2::new(240.0, 80.0));
@@ -276,12 +383,14 @@ fn native_pointer_harness_focus_loss_clears_native_pointer_state() {
     let mut harness =
         NativePointerHarness::new(GpuWheelBridge::default(), Vector2::new(320.0, 80.0));
     harness.cursor_moved_logical(Point::new(40.0, 20.0));
+    assert!(!harness.runner.input.native_cursor_visible);
     harness.modifiers_changed(ModifiersState::ALT);
 
     let outcome = harness.focus_lost();
 
     assert!(outcome.routed);
     assert_eq!(harness.runner.input.last_cursor, None);
+    assert!(harness.runner.input.native_cursor_visible);
     assert!(harness.runner.input.modifiers.is_empty());
     harness.focus_regained();
 }

@@ -98,7 +98,9 @@ impl ButtonBuilder {
     {
         self.draggable()
             .filter_mapped(move |message| match message {
-                ButtonMessage::Activate => Some(activate.clone()),
+                ButtonMessage::Activate | ButtonMessage::ActivateWithModifiers { .. } => {
+                    Some(activate.clone())
+                }
                 ButtonMessage::Drag(message) => Some(drag(message)),
                 ButtonMessage::SecondaryActivate { .. } => None,
             })

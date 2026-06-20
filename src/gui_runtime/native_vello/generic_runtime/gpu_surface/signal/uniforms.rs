@@ -53,7 +53,12 @@ fn signal_gain_preview_uniforms(preview: Option<GpuSignalGainPreview>) -> [[f32;
             preview.fade_out_length,
             preview.fade_out_curve,
         ],
-        [preview.fade_in_mute, preview.fade_out_mute, 0.0, 0.0],
+        [
+            preview.fade_in_mute,
+            preview.fade_out_mute,
+            preview.fade_in_outer_gain,
+            preview.fade_out_outer_gain,
+        ],
     ]
 }
 

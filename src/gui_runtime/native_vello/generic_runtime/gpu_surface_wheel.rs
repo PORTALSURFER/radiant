@@ -89,6 +89,12 @@ where
         );
     }
 
+    pub(super) fn flush_pending_wheel_input_now(&mut self) {
+        let mut profile = RenderFrameProfile::default();
+        self.flush_pending_gpu_surface_wheel(&mut profile);
+        self.flush_pending_scroll_container_wheel(&mut profile);
+    }
+
     pub(super) fn flush_pending_gpu_surface_wheel(&mut self, profile: &mut RenderFrameProfile) {
         let Some(pending) = self.input.pending_gpu_surface_wheel.take() else {
             return;

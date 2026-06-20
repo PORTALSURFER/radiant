@@ -28,7 +28,9 @@ where
         button(item.label)
             .secondary_clicks()
             .filter_mapped(move |message| match message {
-                ButtonMessage::Activate => Some(select_message(select_id.clone())),
+                ButtonMessage::Activate | ButtonMessage::ActivateWithModifiers { .. } => {
+                    Some(select_message(select_id.clone()))
+                }
                 ButtonMessage::SecondaryActivate { .. } => {
                     Some(context_message(context_id.clone()))
                 }

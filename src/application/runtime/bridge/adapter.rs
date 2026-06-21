@@ -5,8 +5,8 @@ use crate::{
         focus::FocusSurface, input::KeyPress, repaint::RepaintSignal, shortcuts::ShortcutResolution,
     },
     runtime::{
-        Command, PaintPrimitive, RuntimeAnimationActivity, RuntimeBridge, RuntimeDiagnostics,
-        TransientOverlayContext, UiSurface,
+        Command, NativeFileOpen, PaintPrimitive, RuntimeAnimationActivity, RuntimeBridge,
+        RuntimeDiagnostics, TransientOverlayContext, UiSurface,
     },
 };
 use std::{sync::Arc, time::Duration};
@@ -50,6 +50,10 @@ where
 
     fn native_file_drop(&mut self, drop: crate::runtime::NativeFileDrop) -> Command<Message> {
         self.native_file_drop_command(drop)
+    }
+
+    fn native_file_open(&mut self, open: NativeFileOpen) -> Command<Message> {
+        self.native_file_open_command(open)
     }
 
     fn resolve_key_press(

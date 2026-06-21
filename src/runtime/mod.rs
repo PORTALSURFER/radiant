@@ -26,6 +26,7 @@ mod diagnostics;
 mod drag;
 mod external_drag;
 mod file_drop;
+mod file_open;
 mod gpu_surface;
 mod paint;
 mod platform;
@@ -97,6 +98,7 @@ pub use external_drag::{
     ExternalDragRequest,
 };
 pub use file_drop::{NativeFileDrop, NativeFileDropPhase};
+pub use file_open::NativeFileOpen;
 pub use gpu_surface::{
     GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview,
     GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,

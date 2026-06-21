@@ -1,9 +1,9 @@
 use super::subscription::spawn_subscription;
 use super::{
     AppAnimation, AppAuxiliaryWindows, AppCloseRequested, AppFrameClockActivity, AppFrameMessage,
-    AppFrameRepaintPolicy, AppNativeFileDrop, AppRuntime, AppScroll, AppShortcuts, AppShutdown,
-    AppStartup, AppSubscriptions, RetainedPainter, TransientOverlayActivity,
-    TransientOverlayPainter, UiUpdateContext,
+    AppFrameRepaintPolicy, AppNativeFileDrop, AppNativeFileOpen, AppRuntime, AppScroll,
+    AppShortcuts, AppShutdown, AppStartup, AppSubscriptions, RetainedPainter,
+    TransientOverlayActivity, TransientOverlayPainter, UiUpdateContext,
 };
 use crate::{
     application::{IntoView, RepaintPolicy},
@@ -81,7 +81,10 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
         Option<Box<dyn Fn(KeyPress) -> ShortcutResolution<Message>>>,
     /// Runtime scroll observer.
     pub(in crate::application) scroll: Option<AppScroll<State, Message>>,
+    /// Native drag/drop observer.
     pub(in crate::application) native_file_drop: Option<AppNativeFileDrop<State, Message>>,
+    /// Native file-open observer.
+    pub(in crate::application) native_file_open: Option<AppNativeFileOpen<State, Message>>,
     /// Startup hook.
     pub(in crate::application) startup: Option<AppStartup<State, Message>>,
     /// Shutdown artifact hook.
@@ -119,6 +122,7 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
             scene_shortcuts: None,
             scroll: None,
             native_file_drop: None,
+            native_file_open: None,
             startup: None,
             shutdown: None,
             close_requested: None,

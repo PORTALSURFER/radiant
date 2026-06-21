@@ -110,6 +110,7 @@ where
                 let outcome = self.core.drain_runtime_messages();
                 self.handle_route_outcome(event_loop, outcome);
             }
+            RuntimeUserEvent::OpenFiles(paths) => self.handle_native_file_open(event_loop, paths),
         }
     }
 

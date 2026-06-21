@@ -1,6 +1,6 @@
 use super::super::AppBridge;
 use crate::application::{IntoView, UiUpdateContext};
-use crate::runtime::{Command, NativeFileDrop};
+use crate::runtime::{Command, NativeFileDrop, NativeFileOpen};
 
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
 where
@@ -29,6 +29,15 @@ where
         };
         let mut context = UiUpdateContext::default();
         native_file_drop(&mut self.state, drop, &mut context);
+        context.into_command()
+    }
+
+    pub(super) fn native_file_open_command(&mut self, open: NativeFileOpen) -> Command<Message> {
+        let Some(native_file_open) = self.lifecycle.native_file_open.as_mut() else {
+            return Command::none();
+        };
+        let mut context = UiUpdateContext::default();
+        native_file_open(&mut self.state, open, &mut context);
         context.into_command()
     }
 }

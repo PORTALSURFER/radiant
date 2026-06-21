@@ -8,9 +8,9 @@ use crate::gui::{
     types::{Rect, Vector2},
 };
 use crate::runtime::{
-    BusinessMessageSink, Command, NativeFileDrop, NativeFrameDiagnostics, PaintPrimitive,
-    PlatformCompletion, PlatformRequest, PlatformServiceFallback, RuntimeDiagnostics, ScrollUpdate,
-    TaskPriority, TransientOverlayContext, UiSurface,
+    BusinessMessageSink, Command, NativeFileDrop, NativeFileOpen, NativeFrameDiagnostics,
+    PaintPrimitive, PlatformCompletion, PlatformRequest, PlatformServiceFallback,
+    RuntimeDiagnostics, ScrollUpdate, TaskPriority, TransientOverlayContext, UiSurface,
 };
 use crate::widgets::RetainedSurfaceDescriptor;
 use std::{sync::Arc, time::Duration};
@@ -64,6 +64,11 @@ pub trait RuntimeBridge<Message> {
     /// Handle a native operating-system file drag/drop event. Backends populate
     /// pointer position and widget target when available.
     fn native_file_drop(&mut self, _drop: NativeFileDrop) -> Command<Message> {
+        Command::none()
+    }
+
+    /// Handle a native operating-system request to open documents or files.
+    fn native_file_open(&mut self, _open: NativeFileOpen) -> Command<Message> {
         Command::none()
     }
 

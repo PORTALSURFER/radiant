@@ -40,6 +40,7 @@ mod lifecycle;
 mod lifecycle_pointer;
 mod native_cursor;
 mod native_file_drop;
+mod native_file_open;
 mod native_pointer;
 mod pointer_click;
 mod popup_drag;
@@ -158,6 +159,8 @@ where
         }
     };
     let viewport = initial_viewport(&options);
+    let native_file_open_events =
+        native_file_open::install_native_file_open_handler(event_loop.create_proxy());
     let mut runner = GenericNativeVelloRunner::new(options, bridge, viewport);
     let proxy = event_loop.create_proxy();
     let repaint_signal: Arc<dyn RepaintSignal> = runner.runtime_wakeup.install_proxy(proxy);
@@ -169,6 +172,7 @@ where
     let run_result = event_loop
         .run_app(&mut runner)
         .map_err(|err| NativeGenericRunError::EventLoopRun(err.to_string()));
+    drop(native_file_open_events);
     let elapsed = run_started.elapsed();
     match &run_result {
         Ok(_) => info!(

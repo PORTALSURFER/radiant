@@ -5,8 +5,8 @@ use crate::{
     },
     layout::Vector2,
     runtime::{
-        AuxiliaryWindow, NativeFileDrop, PaintPrimitive, RuntimeAnimationActivity, ScrollUpdate,
-        TransientOverlayContext,
+        AuxiliaryWindow, NativeFileDrop, NativeFileOpen, PaintPrimitive, RuntimeAnimationActivity,
+        ScrollUpdate, TransientOverlayContext,
     },
     widgets::RetainedSurfaceDescriptor,
 };
@@ -59,6 +59,8 @@ pub(in crate::application) type AppScroll<State, Message> =
     Box<dyn FnMut(&mut State, ScrollUpdate, &mut UiUpdateContext<Message>)>;
 pub(in crate::application) type AppNativeFileDrop<State, Message> =
     Box<dyn FnMut(&mut State, NativeFileDrop, &mut UiUpdateContext<Message>)>;
+pub(in crate::application) type AppNativeFileOpen<State, Message> =
+    Box<dyn FnMut(&mut State, NativeFileOpen, &mut UiUpdateContext<Message>)>;
 pub(in crate::application) trait AppFrameRepaintPolicy<State> {
     fn capture_before_frame(&mut self, state: &mut State) -> Box<dyn Any>;
     fn resolve_after_frame(&mut self, state: &mut State, scope: Box<dyn Any>) -> bool;

@@ -20,6 +20,11 @@ Optional environment:
   RADIANT_DEV_APP_VERSION        Bundle version. Default: 0.0.0
   RADIANT_DEV_APP_CATEGORY       LSApplicationCategoryType. Default: public.app-category.developer-tools
   RADIANT_DEV_APP_ICON           Optional .icns file copied into Contents/Resources.
+  RADIANT_DEV_APP_DOCUMENT_TYPE_NAME       Optional CFBundleDocumentTypes name.
+  RADIANT_DEV_APP_DOCUMENT_EXTENSIONS      Optional space/comma separated document extensions.
+  RADIANT_DEV_APP_DOCUMENT_CONTENT_TYPES   Optional space/comma separated UTTypes.
+  RADIANT_DEV_APP_DOCUMENT_ROLE            Optional document role. Default: Viewer.
+  RADIANT_DEV_APP_DOCUMENT_HANDLER_RANK    Optional LSHandlerRank. Default: Alternate.
   RADIANT_DEV_APP_PREPARE_ONLY   If truthy, stage the bundle without launching.
   RADIANT_DEV_APP_SIGN           If false, skip ad-hoc codesign. Default: true.
 EOF
@@ -64,6 +69,67 @@ absolute_path() {
   printf '%s/%s' "$parent" "$basename"
 }
 
+plist_string_array_items() {
+  local values="$1"
+  local indent="$2"
+  local token
+  values="${values//,/ }"
+  for token in $values; do
+    if [[ -n "$token" ]]; then
+      printf '%s<string>%s</string>\n' "$indent" "$(xml_escape "$token")"
+    fi
+  done
+}
+
+document_types_plist_block() {
+  local type_name="$1"
+  local extensions="$2"
+  local content_types="$3"
+  local role="${4:-Viewer}"
+  local handler_rank="${5:-Alternate}"
+  local extensions_block=""
+  local content_types_block=""
+
+  if [[ -z "$extensions" && -z "$content_types" ]]; then
+    return 0
+  fi
+  if [[ -z "$type_name" ]]; then
+    type_name="Documents"
+  fi
+  extensions_block="$(plist_string_array_items "$extensions" "        ")"
+  content_types_block="$(plist_string_array_items "$content_types" "        ")"
+
+  cat <<EOF
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>$(xml_escape "$type_name")</string>
+      <key>CFBundleTypeRole</key>
+      <string>$(xml_escape "$role")</string>
+      <key>LSHandlerRank</key>
+      <string>$(xml_escape "$handler_rank")</string>
+EOF
+  if [[ -n "$extensions_block" ]]; then
+    cat <<EOF
+      <key>CFBundleTypeExtensions</key>
+      <array>
+${extensions_block}      </array>
+EOF
+  fi
+  if [[ -n "$content_types_block" ]]; then
+    cat <<EOF
+      <key>LSItemContentTypes</key>
+      <array>
+${content_types_block}      </array>
+EOF
+  fi
+  cat <<EOF
+    </dict>
+  </array>
+EOF
+}
+
 write_info_plist() {
   local plist_path="$1"
   local app_name_xml="$2"
@@ -71,6 +137,7 @@ write_info_plist() {
   local version_xml="$4"
   local category_xml="$5"
   local icon_file_xml="${6:-}"
+  local document_types_block="${7:-}"
   local icon_file_block=""
 
   if [[ -n "$icon_file_xml" ]]; then
@@ -104,6 +171,7 @@ ${icon_file_block}
   <string>${version_xml}</string>
   <key>LSApplicationCategoryType</key>
   <string>${category_xml}</string>
+${document_types_block}
   <key>NSHighResolutionCapable</key>
   <true/>
 </dict>
@@ -148,6 +216,12 @@ bundle_root="${RADIANT_DEV_APP_BUNDLE_ROOT:-$(pwd)/target/dev-app}"
 version="${RADIANT_DEV_APP_VERSION:-0.0.0}"
 category="${RADIANT_DEV_APP_CATEGORY:-public.app-category.developer-tools}"
 icon="${RADIANT_DEV_APP_ICON:-}"
+document_types_block="$(document_types_plist_block \
+  "${RADIANT_DEV_APP_DOCUMENT_TYPE_NAME:-}" \
+  "${RADIANT_DEV_APP_DOCUMENT_EXTENSIONS:-}" \
+  "${RADIANT_DEV_APP_DOCUMENT_CONTENT_TYPES:-}" \
+  "${RADIANT_DEV_APP_DOCUMENT_ROLE:-Viewer}" \
+  "${RADIANT_DEV_APP_DOCUMENT_HANDLER_RANK:-Alternate}")"
 app_dir="$bundle_root/${app_name}.app"
 contents_dir="$app_dir/Contents"
 macos_dir="$contents_dir/MacOS"
@@ -178,7 +252,8 @@ write_info_plist \
   "$(xml_escape "$bundle_id")" \
   "$(xml_escape "$version")" \
   "$(xml_escape "$category")" \
-  "$(xml_escape "$icon_file")"
+  "$(xml_escape "$icon_file")" \
+  "$document_types_block"
 printf 'APPL????' > "$contents_dir/PkgInfo"
 cp "$binary" "$executable"
 chmod 755 "$executable"

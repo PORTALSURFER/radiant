@@ -94,6 +94,16 @@ where
         self
     }
 
+    /// Observe native operating-system document/file-open requests.
+    pub fn on_native_file_open(
+        mut self,
+        open: impl FnMut(&mut State, crate::runtime::NativeFileOpen, &mut UiUpdateContext<Message>)
+        + 'static,
+    ) -> Self {
+        self.lifecycle.native_file_open = Some(Box::new(open));
+        self
+    }
+
     /// Register a startup hook.
     pub fn on_startup(
         mut self,

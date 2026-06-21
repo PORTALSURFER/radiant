@@ -143,14 +143,69 @@ fn selected_hover_tree_row_paints_configured_fill_and_marker() {
 }
 
 #[test]
-fn focused_tree_row_paints_hover_fill() {
-    let hover = Rgba8::new(20, 40, 60, 180);
+fn selected_idle_tree_row_keeps_normal_label_color() {
+    let normal = Rgba8::new(120, 130, 140, 255);
+    let highlighted = Rgba8::new(255, 255, 255, 255);
+    let target = TreeRowHitTarget::new(TreeRowHitTargetParts {
+        label: "Folder".into(),
+        selected: true,
+        focused: true,
+        drag_drop: Default::default(),
+        palette: DenseRowPalette::new().selected(Rgba8::new(20, 40, 60, 180)),
+        drop_target_outline: crate::gui::list::DenseRowOutlineStyle::new(
+            0.5,
+            Rgba8::new(0, 0, 0, 0),
+            1.0,
+        ),
+        selected_hover_marker: None,
+        normal_label_color: Some(normal),
+        highlighted_label_color: highlighted,
+        actions: InteractiveRowActions::new().activate(|| TreeRowMessage::Activate),
+    });
+    let bounds = Rect::from_size(160.0, 22.0);
+
+    let plan = target.paint_plan_with_defaults(bounds);
+
+    assert_eq!(plan.first_text_color("Folder"), Some(normal));
+}
+
+#[test]
+fn selected_hovered_tree_row_uses_highlighted_label_color() {
+    let normal = Rgba8::new(120, 130, 140, 255);
+    let highlighted = Rgba8::new(255, 255, 255, 255);
+    let mut target = TreeRowHitTarget::new(TreeRowHitTargetParts {
+        label: "Folder".into(),
+        selected: true,
+        focused: true,
+        drag_drop: Default::default(),
+        palette: DenseRowPalette::new().selected(Rgba8::new(20, 40, 60, 180)),
+        drop_target_outline: crate::gui::list::DenseRowOutlineStyle::new(
+            0.5,
+            Rgba8::new(0, 0, 0, 0),
+            1.0,
+        ),
+        selected_hover_marker: None,
+        normal_label_color: Some(normal),
+        highlighted_label_color: highlighted,
+        actions: InteractiveRowActions::new().activate(|| TreeRowMessage::Activate),
+    });
+    let bounds = Rect::from_size(160.0, 22.0);
+
+    target.handle_input(bounds, WidgetInput::pointer_move(Point::new(8.0, 10.0)));
+    let plan = target.paint_plan_with_defaults(bounds);
+
+    assert_eq!(plan.first_text_color("Folder"), Some(highlighted));
+}
+
+#[test]
+fn focused_tree_row_paints_selected_fill() {
+    let selected = Rgba8::new(20, 40, 60, 180);
     let target = TreeRowHitTarget::new(TreeRowHitTargetParts {
         label: "Folder".into(),
         selected: false,
         focused: true,
         drag_drop: Default::default(),
-        palette: DenseRowPalette::new().hovered(hover),
+        palette: DenseRowPalette::new().selected(selected),
         drop_target_outline: crate::gui::list::DenseRowOutlineStyle::new(
             0.5,
             Rgba8::new(0, 0, 0, 0),
@@ -167,13 +222,14 @@ fn focused_tree_row_paints_hover_fill() {
 
     assert!(
         plan.fill_rects()
-            .any(|fill| fill.rect == bounds && fill.color == hover),
-        "focused tree row should use the same fill as pointer hover"
+            .any(|fill| fill.rect == bounds && fill.color == selected),
+        "focused tree row should use the selected fill without pointer-hover emphasis"
     );
 }
 
 #[test]
-fn selected_focused_tree_row_paints_selected_hover_fill_and_marker() {
+fn selected_focused_tree_row_paints_selected_fill_without_marker() {
+    let selected = Rgba8::new(12, 24, 36, 140);
     let selected_hover = Rgba8::new(20, 40, 60, 180);
     let marker = Rgba8::new(220, 80, 40, 245);
     let target = TreeRowHitTarget::new(TreeRowHitTargetParts {
@@ -181,7 +237,9 @@ fn selected_focused_tree_row_paints_selected_hover_fill_and_marker() {
         selected: true,
         focused: true,
         drag_drop: Default::default(),
-        palette: DenseRowPalette::new().selected_hovered(selected_hover),
+        palette: DenseRowPalette::new()
+            .selected(selected)
+            .selected_hovered(selected_hover),
         drop_target_outline: crate::gui::list::DenseRowOutlineStyle::new(
             0.5,
             Rgba8::new(0, 0, 0, 0),
@@ -201,12 +259,13 @@ fn selected_focused_tree_row_paints_selected_hover_fill_and_marker() {
 
     assert!(
         plan.fill_rects()
-            .any(|fill| fill.rect == bounds && fill.color == selected_hover),
-        "selected+focused tree row should use selected-hover fill"
+            .any(|fill| fill.rect == bounds && fill.color == selected),
+        "selected+focused tree row should use the base selected fill"
     );
     assert!(
-        plan.fill_rects()
+        !plan
+            .fill_rects()
             .any(|fill| fill.rect.width() == 3.0 && fill.color == marker),
-        "selected+focused tree row should paint the configured leading marker"
+        "selected+focused tree row should not paint pointer-hover marker"
     );
 }

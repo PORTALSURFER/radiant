@@ -90,7 +90,7 @@ impl<Message> TreeRowHitTarget<Message> {
 
     fn visual_state(&self) -> crate::gui::list::DenseRowVisualState {
         let mut state = self.row.dense_visual_state(self.visual_state_parts());
-        state.hovered |= self.focused;
+        state.selected |= self.focused;
         state
     }
 
@@ -108,11 +108,21 @@ impl<Message> TreeRowHitTarget<Message> {
     }
 
     fn label_color(&self, theme: &ThemeTokens) -> Rgba8 {
-        if self.visual_state().emphasizes_label() {
+        if self.label_visual_state().emphasizes_label() {
             self.highlighted_label_color
         } else {
             self.normal_label_color.unwrap_or(theme.text_primary)
         }
+    }
+
+    fn label_visual_state(&self) -> crate::gui::list::DenseRowVisualState {
+        let mut state = self.row.dense_visual_state(self.visual_state_parts());
+        if state.hovered && self.focused {
+            state.selected = true;
+        } else if !state.hovered {
+            state.selected = false;
+        }
+        state
     }
 }
 

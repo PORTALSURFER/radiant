@@ -4,6 +4,7 @@ use crate::{
     application::ViewNode,
     gui::{
         list::{DenseRowMarkerStyle, DenseRowOutlineStyle, DenseRowPalette, TreeGuideStyle},
+        svg::SvgIcon,
         types::Rgba8,
     },
     runtime::PaintText,
@@ -38,6 +39,7 @@ pub struct TreeRowBuilder {
     pub(super) selected_hover_marker: Option<DenseRowMarkerStyle>,
     pub(super) normal_label_color: Option<Rgba8>,
     pub(super) highlighted_label_color: Rgba8,
+    pub(super) trailing_icon: Option<SvgIcon>,
 }
 
 impl TreeRowBuilder {
@@ -155,6 +157,12 @@ impl TreeRowBuilder {
         self
     }
 
+    /// Paint a small passive icon at the trailing edge of the hit target.
+    pub fn trailing_icon(mut self, icon: SvgIcon) -> Self {
+        self.trailing_icon = Some(icon);
+        self
+    }
+
     /// Attach a toggle action for the disclosure/expander slot.
     pub fn on_toggle<Message>(
         self,
@@ -194,6 +202,7 @@ pub fn tree_row(label: impl Into<PaintText>) -> TreeRowBuilder {
         selected_hover_marker: None,
         normal_label_color: None,
         highlighted_label_color: DEFAULT_HIGHLIGHTED_LABEL_COLOR,
+        trailing_icon: None,
     }
 }
 

@@ -92,6 +92,7 @@ impl TreeRowBuilder {
             selected_hover_marker: self.selected_hover_marker,
             normal_label_color: self.normal_label_color,
             highlighted_label_color: self.highlighted_label_color,
+            trailing_icon: self.trailing_icon,
             actions,
         });
         let mut view = crate::application::view_node_from_widget(MappedWidget::new(

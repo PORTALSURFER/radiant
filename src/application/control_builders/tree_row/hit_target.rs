@@ -4,6 +4,7 @@ use crate::{
             DenseRowChromeParts, DenseRowLabelParts, DenseRowMarkerStyle, DenseRowOutlineStyle,
             DenseRowPalette,
         },
+        svg::SvgIcon,
         types::{Rect, Rgba8},
     },
     layout::{LayoutOutput, Vector2},
@@ -30,6 +31,7 @@ pub(super) struct TreeRowHitTarget<Message> {
     selected_hover_marker: Option<DenseRowMarkerStyle>,
     normal_label_color: Option<Rgba8>,
     highlighted_label_color: Rgba8,
+    trailing_icon: Option<SvgIcon>,
 }
 
 pub(super) struct TreeRowHitTargetParts<Message> {
@@ -42,8 +44,12 @@ pub(super) struct TreeRowHitTargetParts<Message> {
     pub(super) selected_hover_marker: Option<DenseRowMarkerStyle>,
     pub(super) normal_label_color: Option<Rgba8>,
     pub(super) highlighted_label_color: Rgba8,
+    pub(super) trailing_icon: Option<SvgIcon>,
     pub(super) actions: InteractiveRowActions<Message>,
 }
+
+const TREE_ROW_TRAILING_ICON_SIZE: f32 = 11.0;
+const TREE_ROW_TRAILING_ICON_INSET: f32 = 5.0;
 
 impl<Message> TreeRowHitTarget<Message> {
     pub(super) fn new(parts: TreeRowHitTargetParts<Message>) -> Self {
@@ -77,6 +83,7 @@ impl<Message> TreeRowHitTarget<Message> {
             selected_hover_marker: parts.selected_hover_marker,
             normal_label_color: parts.normal_label_color,
             highlighted_label_color: parts.highlighted_label_color,
+            trailing_icon: parts.trailing_icon,
         }
     }
 
@@ -157,5 +164,15 @@ where
             self.chrome_parts(),
             DenseRowLabelParts::new(self.label.clone(), self.label_color(theme)),
         );
+        if let Some(icon) = &self.trailing_icon {
+            icon.append_paint(primitives, self.row.id(), trailing_icon_rect(bounds));
+        }
     }
+}
+
+fn trailing_icon_rect(bounds: Rect) -> Rect {
+    let size = TREE_ROW_TRAILING_ICON_SIZE.min(bounds.height()).max(0.0);
+    let x = (bounds.max.x - TREE_ROW_TRAILING_ICON_INSET - size).max(bounds.min.x);
+    let y = bounds.min.y + ((bounds.height() - size) * 0.5).max(0.0);
+    Rect::from_xy_size(x, y, size, size)
 }

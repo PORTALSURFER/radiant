@@ -1,5 +1,6 @@
 use super::super::SurfaceRuntime;
 use crate::{
+    gui::text_layout::{TextWidthEstimate, estimated_text_width_in_range},
     gui::types::{Point, Rect},
     layout::{LayoutOutput, Vector2},
     runtime::{
@@ -16,7 +17,9 @@ const TOOLTIP_MIN_WIDTH: f32 = 140.0;
 const TOOLTIP_MAX_WIDTH: f32 = 360.0;
 const TOOLTIP_FONT_SIZE: f32 = 9.0;
 const TOOLTIP_LINE_HEIGHT: f32 = 13.0;
-const TOOLTIP_AVERAGE_CHAR_WIDTH: f32 = 5.4;
+const TOOLTIP_BITMAP_GLYPH_HEIGHT: f32 = 7.0;
+const TOOLTIP_BITMAP_GLYPH_ADVANCE: f32 = 6.0;
+const TOOLTIP_CHAR_ADVANCE_SAFETY: f32 = 1.0;
 const TOOLTIP_HORIZONTAL_PADDING: f32 = 16.0;
 const TOOLTIP_VERTICAL_PADDING: f32 = 8.0;
 
@@ -317,13 +320,17 @@ fn tooltip_rect_for_lines(
 }
 
 fn tooltip_width_for_lines(lines: &[String]) -> f32 {
-    let max_chars = lines
+    lines
         .iter()
-        .map(|line| line.chars().count())
-        .max()
-        .unwrap_or(0);
-    (max_chars as f32 * TOOLTIP_AVERAGE_CHAR_WIDTH + TOOLTIP_HORIZONTAL_PADDING)
-        .clamp(TOOLTIP_MIN_WIDTH, TOOLTIP_MAX_WIDTH)
+        .map(|line| {
+            estimated_text_width_in_range(
+                line,
+                tooltip_width_estimate(),
+                TOOLTIP_MIN_WIDTH,
+                TOOLTIP_MAX_WIDTH,
+            )
+        })
+        .fold(TOOLTIP_MIN_WIDTH, f32::max)
 }
 
 fn tooltip_height(line_count: usize) -> f32 {
@@ -331,9 +338,22 @@ fn tooltip_height(line_count: usize) -> f32 {
 }
 
 fn tooltip_max_line_chars(max_width: f32) -> usize {
-    ((max_width - TOOLTIP_HORIZONTAL_PADDING).max(1.0) / TOOLTIP_AVERAGE_CHAR_WIDTH)
+    ((max_width - TOOLTIP_HORIZONTAL_PADDING).max(1.0) / tooltip_rendered_character_advance())
         .floor()
         .max(12.0) as usize
+}
+
+fn tooltip_width_estimate() -> TextWidthEstimate {
+    TextWidthEstimate::new(tooltip_character_advance(), TOOLTIP_HORIZONTAL_PADDING)
+}
+
+fn tooltip_character_advance() -> f32 {
+    tooltip_rendered_character_advance().ceil() + TOOLTIP_CHAR_ADVANCE_SAFETY
+}
+
+fn tooltip_rendered_character_advance() -> f32 {
+    let scale = (TOOLTIP_FONT_SIZE / TOOLTIP_BITMAP_GLYPH_HEIGHT).clamp(1.0, 3.0);
+    TOOLTIP_BITMAP_GLYPH_ADVANCE * scale
 }
 
 fn tooltip_lines(tooltip: &str, max_line_chars: usize) -> Vec<String> {
@@ -389,8 +409,8 @@ fn push_tooltip_word(lines: &mut Vec<String>, current: &mut String, word: &str, 
 #[cfg(test)]
 mod tests {
     use super::{
-        TOOLTIP_FONT_SIZE, TOOLTIP_LINE_HEIGHT, TOOLTIP_MAX_WIDTH, TOOLTIP_OVERLAY_ID,
-        tooltip_layout,
+        TOOLTIP_FONT_SIZE, TOOLTIP_HORIZONTAL_PADDING, TOOLTIP_LINE_HEIGHT, TOOLTIP_MAX_WIDTH,
+        TOOLTIP_OVERLAY_ID, tooltip_character_advance, tooltip_layout,
     };
     use crate::{
         gui::types::{Point, Rect},
@@ -512,5 +532,23 @@ mod tests {
                 .any(|line| line.contains("Command-click"))
         );
         assert!(layout.rect.height() >= 3.0 * TOOLTIP_LINE_HEIGHT + 8.0);
+    }
+
+    #[test]
+    fn tooltip_layout_reserves_rendered_bitmap_width_for_short_toolbar_help() {
+        let tooltip = "Loop preview playback.";
+        let layout = tooltip_layout(
+            Rect::from_min_size(Point::new(144.0, 72.0), Vector2::new(28.0, 24.0)),
+            tooltip,
+            Vector2::new(572.0, 344.0),
+        );
+        let text_width = layout.rect.width() - TOOLTIP_HORIZONTAL_PADDING;
+        let required_width = tooltip.chars().count() as f32 * tooltip_character_advance();
+
+        assert_eq!(layout.lines, vec![String::from(tooltip)]);
+        assert!(
+            text_width >= required_width,
+            "tooltip should reserve enough text width: {text_width} >= {required_width}"
+        );
     }
 }

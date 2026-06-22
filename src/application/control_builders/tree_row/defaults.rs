@@ -1,5 +1,5 @@
 use crate::gui::{
-    list::{DenseRowOutlineStyle, DenseRowPalette, TreeGuideStyle},
+    list::{DenseRowOutlineStyle, DenseRowPalette, TreeGuideMetrics, TreeGuideStyle},
     types::Rgba8,
 };
 
@@ -55,6 +55,10 @@ pub(super) fn default_guide_style() -> TreeGuideStyle {
         DEFAULT_TREE_ROW_HEIGHT,
         DEFAULT_TREE_GUIDE_COLOR,
     )
+}
+
+pub(super) fn default_guide_metrics() -> TreeGuideMetrics {
+    default_guide_style().metrics()
 }
 
 pub(super) fn default_palette() -> DenseRowPalette {

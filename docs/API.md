@@ -581,8 +581,11 @@ hover-drop slots directly for row shapes such as tokens, selectable drag rows,
 tree rows, outline rows, layers, folders, collections, or lanes.
 Use `tree_row(label)` when a compact tree or outline row only needs a label,
 depth, disclosure slot, selected state, standard dense-row chrome, and common
-`InteractiveRowActions` routing. Configure `TreeRowDragDropState` for
-host-owned drag/drop validation and pair the rows with
+`InteractiveRowActions` routing. Call `.style(WidgetStyle::...)` when the row's
+palette and drop-target outline should resolve from the active `ThemeTokens` at
+paint time; keep `.palette(...)` and `.drop_target_outline(...)` for fixed-color
+overrides. Configure `TreeRowDragDropState` for host-owned drag/drop validation
+and pair the rows with
 `virtual_tree_list_window(...)` when the surrounding list needs virtualization
 and descendant guide overlays. Keep `EmbeddedInteractiveRowWidget` for unusual
 custom-painted rows that need visuals beyond `tree_row(...)`.
@@ -635,10 +638,14 @@ instead of repeating raw marker geometry fields. Use
 `outline_if(...)` when custom rows should add optional markers or outlines from
 host-owned state without app-local mutation branches.
 Tree and outline rows that need continuous descendant guide lines can use
-`tree_row(...)`, `TreeRowDragDropState`, `TreeGuideRow`, `TreeGuideStyle`,
+`tree_row(...)`, `TreeRowDragDropState`, `TreeGuideRow`, `TreeGuideMetrics`,
+`TreeGuideStyle`, `StyledTreeGuideStyle`, `TreeGuideOverlayStyle`,
 `tree_guide_segments(...)`, `tree_guide_overlay(...)`,
-`tree_guide_indent(...)`, and `virtual_tree_list_window(...)`. Applications
-should map their domain rows into label/depth/disclosure state plus
+`tree_guide_indent(...)`, and `virtual_tree_list_window(...)`. Use fixed
+`TreeGuideStyle` for caller-resolved colors, or pass `StyledTreeGuideStyle` /
+`TreeGuideMetrics::new(...).with_widget_style(...)` when guide colors should
+resolve from the active theme and a semantic `WidgetStyle`. Applications should
+map their domain rows into label/depth/disclosure state plus
 `starts_descendant_group` metadata while Radiant owns row chrome, shared
 interaction routing, segment projection, paint clipping for materialized
 virtual-list windows, passive indent sizing, and the standard fixed-row virtual
@@ -1591,7 +1598,9 @@ ui::virtual_list_windowed(|index| row(index))
 ```
 
 Use `virtual_tree_list_window(...)` for fixed-height tree or outline rows when
-the same materialized range should include a standard tree-guide overlay.
+the same materialized range should include a standard tree-guide overlay; pass
+`StyledTreeGuideStyle` when guide color should follow the frame theme instead
+of a fixed `TreeGuideStyle` color.
 Use `virtual_list_window_body(...)` when the materialized range needs to be
 composed as one body, such as row groups, table overlays, guide overlays, or
 other decoration spanning several fixed-height rows, while Radiant still owns
@@ -2335,7 +2344,9 @@ sandbox that keeps 10k selectable rows responsive through
 `virtual_list_window(...)`. Use the windowed helper for large fixed-height
 lists so projection stays bounded to a `VirtualListWindow`; use
 `virtual_tree_list_window(...)` when a fixed-height tree or outline should
-compose materialized rows with standard guide overlays; use
+compose materialized rows with standard guide overlays, including
+style-resolved `StyledTreeGuideStyle` overlays when guide color should follow
+the active theme; use
 `virtual_list_window_body(...)` when the materialized window needs a shared
 overlay or grouped row body outside the standard tree-guide case. Smaller
 eagerly projected lists should use `list(...)`, `scroll_column(...)`, or

@@ -1,7 +1,9 @@
 use super::super::containers::{column, stack};
 use super::virtual_window::virtual_list_window_body;
 use crate::application::ViewNode;
-use crate::gui::list::{TreeGuideRow, TreeGuideStyle, VirtualListWindow, tree_guide_overlay};
+use crate::gui::list::{
+    TreeGuideOverlayStyle, TreeGuideRow, VirtualListWindow, tree_guide_overlay,
+};
 
 /// Build a vertically virtualized fixed-row tree list with guide overlays.
 ///
@@ -13,10 +15,11 @@ pub fn virtual_tree_list_window<Message: 'static>(
     window: VirtualListWindow,
     row_height: f32,
     guide_rows: &[TreeGuideRow],
-    guide_style: TreeGuideStyle,
+    guide_style: impl Into<TreeGuideOverlayStyle>,
     mut project: impl FnMut(usize) -> ViewNode<Message>,
     overscan_px: f32,
 ) -> ViewNode<Message> {
+    let guide_style = guide_style.into();
     virtual_list_window_body(
         window,
         row_height,

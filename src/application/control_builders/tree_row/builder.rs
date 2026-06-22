@@ -3,18 +3,20 @@ use std::sync::Arc;
 use crate::{
     application::ViewNode,
     gui::{
-        list::{DenseRowMarkerStyle, DenseRowOutlineStyle, DenseRowPalette, TreeGuideStyle},
+        list::{DenseRowMarkerStyle, DenseRowOutlineStyle, DenseRowPalette, TreeGuideMetrics},
         svg::SvgIcon,
         types::Rgba8,
     },
     runtime::PaintText,
-    widgets::{InteractiveRowActions, WidgetId, stable_widget_id, stable_widget_id_u64},
+    widgets::{
+        InteractiveRowActions, WidgetId, WidgetStyle, stable_widget_id, stable_widget_id_u64,
+    },
 };
 
 use super::{
     defaults::{
         DEFAULT_HIGHLIGHTED_LABEL_COLOR, DEFAULT_TREE_EXPANDER_WIDTH, DEFAULT_TREE_ROW_HEIGHT,
-        default_drop_target_outline, default_guide_style, default_palette,
+        default_guide_metrics,
     },
     drag_drop::TreeRowDragDropState,
 };
@@ -30,12 +32,13 @@ pub struct TreeRowBuilder {
     pub(super) drag_drop: TreeRowDragDropState,
     pub(super) row_height: f32,
     pub(super) expander_width: f32,
-    pub(super) guide_style: TreeGuideStyle,
+    pub(super) guide_metrics: TreeGuideMetrics,
+    pub(super) style: Option<WidgetStyle>,
     pub(super) input_id: Option<WidgetId>,
     pub(super) row_key: Option<String>,
     pub(super) hit_key: Option<String>,
-    pub(super) palette: DenseRowPalette,
-    pub(super) drop_target_outline: DenseRowOutlineStyle,
+    pub(super) palette: Option<DenseRowPalette>,
+    pub(super) drop_target_outline: Option<DenseRowOutlineStyle>,
     pub(super) selected_hover_marker: Option<DenseRowMarkerStyle>,
     pub(super) normal_label_color: Option<Rgba8>,
     pub(super) highlighted_label_color: Rgba8,
@@ -92,8 +95,14 @@ impl TreeRowBuilder {
     }
 
     /// Set the tree-guide style used for the leading indent.
-    pub fn guide_style(mut self, style: TreeGuideStyle) -> Self {
-        self.guide_style = style;
+    pub fn guide_style(mut self, style: impl Into<TreeGuideMetrics>) -> Self {
+        self.guide_metrics = style.into();
+        self
+    }
+
+    /// Resolve standard dense-row chrome from this semantic widget style.
+    pub fn style(mut self, style: WidgetStyle) -> Self {
+        self.style = Some(style);
         self
     }
 
@@ -129,13 +138,13 @@ impl TreeRowBuilder {
 
     /// Override dense-row fill colors.
     pub fn palette(mut self, palette: DenseRowPalette) -> Self {
-        self.palette = palette;
+        self.palette = Some(palette);
         self
     }
 
     /// Override the outline used for committed drop targets.
     pub fn drop_target_outline(mut self, outline: DenseRowOutlineStyle) -> Self {
-        self.drop_target_outline = outline;
+        self.drop_target_outline = Some(outline);
         self
     }
 
@@ -193,12 +202,13 @@ pub fn tree_row(label: impl Into<PaintText>) -> TreeRowBuilder {
         drag_drop: TreeRowDragDropState::default(),
         row_height: DEFAULT_TREE_ROW_HEIGHT,
         expander_width: DEFAULT_TREE_EXPANDER_WIDTH,
-        guide_style: default_guide_style(),
+        guide_metrics: default_guide_metrics(),
+        style: None,
         input_id: None,
         row_key: None,
         hit_key: None,
-        palette: default_palette(),
-        drop_target_outline: default_drop_target_outline(),
+        palette: None,
+        drop_target_outline: None,
         selected_hover_marker: None,
         normal_label_color: None,
         highlighted_label_color: DEFAULT_HIGHLIGHTED_LABEL_COLOR,

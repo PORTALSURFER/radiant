@@ -33,8 +33,8 @@ pub use selection::{
     unit_interval_index,
 };
 pub use tree_guides::{
-    TreeGuideOverlay, TreeGuideRow, TreeGuideSegment, TreeGuideStyle, tree_guide_indent,
-    tree_guide_overlay, tree_guide_segments,
+    StyledTreeGuideStyle, TreeGuideMetrics, TreeGuideOverlay, TreeGuideOverlayStyle, TreeGuideRow,
+    TreeGuideSegment, TreeGuideStyle, tree_guide_indent, tree_guide_overlay, tree_guide_segments,
 };
 pub use virtual_list::{
     MaterializedVirtualListItem, VirtualListController, VirtualListFocusTarget,

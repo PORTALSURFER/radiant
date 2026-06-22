@@ -28,7 +28,7 @@ impl TreeRowBuilder {
     ) -> ViewNode<Message> {
         let row_height = self.row_height;
         let depth = self.depth;
-        let guide_style = self.guide_style;
+        let guide_metrics = self.guide_metrics;
         let row_key = self.row_key.clone();
         let hit_key = self
             .hit_key
@@ -40,10 +40,14 @@ impl TreeRowBuilder {
             hit_target = hit_target.key(hit_key);
         }
 
-        let mut row = row([tree_guide_indent(depth, guide_style), expander, hit_target])
-            .spacing(1.0)
-            .fill_width()
-            .height(row_height);
+        let mut row = row([
+            tree_guide_indent(depth, guide_metrics),
+            expander,
+            hit_target,
+        ])
+        .spacing(1.0)
+        .fill_width()
+        .height(row_height);
         if let Some(row_key) = row_key {
             row = row.key(row_key);
         }
@@ -87,6 +91,7 @@ impl TreeRowBuilder {
             selected: self.selected,
             focused: self.focused,
             drag_drop: self.drag_drop,
+            style: self.style,
             palette: self.palette,
             drop_target_outline: self.drop_target_outline,
             selected_hover_marker: self.selected_hover_marker,

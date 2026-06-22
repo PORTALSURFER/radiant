@@ -2,7 +2,7 @@ use crate::{
     gui::{
         list::{
             DenseRowChromeParts, DenseRowLabelParts, DenseRowMarkerStyle, DenseRowOutlineStyle,
-            DenseRowPalette,
+            DenseRowPalette, dense_row_drop_outline_from_style, dense_row_palette_from_style,
         },
         svg::SvgIcon,
         types::{Rect, Rgba8},
@@ -12,11 +12,14 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         EmbeddedInteractiveRowWidget, InteractiveRowActions, InteractiveRowVisualStateParts,
-        InteractiveRowWidget, WidgetSizing,
+        InteractiveRowWidget, WidgetSizing, WidgetStyle,
     },
 };
 
-use super::{defaults::DEFAULT_TREE_ROW_HEIGHT, drag_drop::TreeRowDragDropState};
+use super::{
+    defaults::{DEFAULT_TREE_ROW_HEIGHT, default_drop_target_outline, default_palette},
+    drag_drop::TreeRowDragDropState,
+};
 
 #[derive(Clone)]
 pub(super) struct TreeRowHitTarget<Message> {
@@ -26,8 +29,9 @@ pub(super) struct TreeRowHitTarget<Message> {
     selected: bool,
     focused: bool,
     drag_drop: TreeRowDragDropState,
-    palette: DenseRowPalette,
-    drop_target_outline: DenseRowOutlineStyle,
+    style: Option<WidgetStyle>,
+    palette: Option<DenseRowPalette>,
+    drop_target_outline: Option<DenseRowOutlineStyle>,
     selected_hover_marker: Option<DenseRowMarkerStyle>,
     normal_label_color: Option<Rgba8>,
     highlighted_label_color: Rgba8,
@@ -39,8 +43,9 @@ pub(super) struct TreeRowHitTargetParts<Message> {
     pub(super) selected: bool,
     pub(super) focused: bool,
     pub(super) drag_drop: TreeRowDragDropState,
-    pub(super) palette: DenseRowPalette,
-    pub(super) drop_target_outline: DenseRowOutlineStyle,
+    pub(super) style: Option<WidgetStyle>,
+    pub(super) palette: Option<DenseRowPalette>,
+    pub(super) drop_target_outline: Option<DenseRowOutlineStyle>,
     pub(super) selected_hover_marker: Option<DenseRowMarkerStyle>,
     pub(super) normal_label_color: Option<Rgba8>,
     pub(super) highlighted_label_color: Rgba8,
@@ -71,6 +76,9 @@ impl<Message> TreeRowHitTarget<Message> {
         }
         let mut row = row.widget();
         row.common.sizing = WidgetSizing::fixed(Vector2::new(0.0, DEFAULT_TREE_ROW_HEIGHT));
+        if let Some(style) = parts.style {
+            row.common.style = style;
+        }
         Self {
             row,
             actions: parts.actions,
@@ -78,6 +86,7 @@ impl<Message> TreeRowHitTarget<Message> {
             selected: parts.selected,
             focused: parts.focused,
             drag_drop: parts.drag_drop,
+            style: parts.style,
             palette: parts.palette,
             drop_target_outline: parts.drop_target_outline,
             selected_hover_marker: parts.selected_hover_marker,
@@ -101,10 +110,26 @@ impl<Message> TreeRowHitTarget<Message> {
         state
     }
 
-    fn chrome_parts(&self) -> DenseRowChromeParts {
+    fn palette(&self, theme: &ThemeTokens) -> DenseRowPalette {
+        self.palette.unwrap_or_else(|| {
+            self.style
+                .map(|style| dense_row_palette_from_style(theme, style))
+                .unwrap_or_else(default_palette)
+        })
+    }
+
+    fn drop_target_outline(&self, theme: &ThemeTokens) -> DenseRowOutlineStyle {
+        self.drop_target_outline.unwrap_or_else(|| {
+            self.style
+                .map(|style| dense_row_drop_outline_from_style(theme, style))
+                .unwrap_or_else(default_drop_target_outline)
+        })
+    }
+
+    fn chrome_parts(&self, theme: &ThemeTokens) -> DenseRowChromeParts {
         let state = self.visual_state();
-        let mut chrome = DenseRowChromeParts::new(state, self.palette)
-            .outline_if(self.drag_drop.drop_target, self.drop_target_outline);
+        let mut chrome = DenseRowChromeParts::new(state, self.palette(theme))
+            .outline_if(self.drag_drop.drop_target, self.drop_target_outline(theme));
         if state.selected
             && state.hovered
             && let Some(marker) = self.selected_hover_marker
@@ -161,7 +186,7 @@ where
         self.row.push_dense_labeled_chrome(
             primitives,
             bounds,
-            self.chrome_parts(),
+            self.chrome_parts(theme),
             DenseRowLabelParts::new(self.label.clone(), self.label_color(theme)),
         );
         if let Some(icon) = &self.trailing_icon {

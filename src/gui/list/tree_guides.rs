@@ -1,12 +1,15 @@
 //! Generic tree-guide geometry and paint helpers for virtualized dense trees.
 
+use super::row_paint::dense_row_tree_guide_color;
 use crate::{
     application::{View, custom_widget, spacer},
     gui::types::{Point, Rect, Rgba8, Vector2},
     layout::LayoutOutput,
     runtime::{PaintPrimitive, push_fill_rect},
     theme::ThemeTokens,
-    widgets::{PaintBounds, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
+    widgets::{
+        PaintBounds, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing, WidgetStyle,
+    },
 };
 
 const TREE_GUIDE_OVERLAY_WIDGET_ID: u64 = 0x7261_6469_616e_7404;
@@ -79,6 +82,154 @@ impl TreeGuideStyle {
         self.end_gap = gap;
         self
     }
+
+    /// Return this fixed-color style's geometry without the resolved color.
+    pub const fn metrics(self) -> TreeGuideMetrics {
+        TreeGuideMetrics {
+            indent_width: self.indent_width,
+            row_height: self.row_height,
+            guide_width: self.guide_width,
+            end_gap: self.end_gap,
+        }
+    }
+}
+
+/// Visual and sizing parameters for tree guides without a resolved color.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TreeGuideMetrics {
+    /// Per-level horizontal indent in logical pixels.
+    pub indent_width: f32,
+    /// Fixed tree row height in logical pixels.
+    pub row_height: f32,
+    /// Guide stroke width in logical pixels.
+    pub guide_width: f32,
+    /// Gap trimmed from the guide end when the final row is materialized.
+    pub end_gap: f32,
+}
+
+impl TreeGuideMetrics {
+    /// Build tree-guide metrics from the required row geometry.
+    pub const fn new(indent_width: f32, row_height: f32) -> Self {
+        Self {
+            indent_width,
+            row_height,
+            guide_width: 1.0,
+            end_gap: 5.0,
+        }
+    }
+
+    /// Set guide stroke width.
+    pub const fn guide_width(mut self, width: f32) -> Self {
+        self.guide_width = width;
+        self
+    }
+
+    /// Set the gap trimmed from the guide end when the final row is visible.
+    pub const fn end_gap(mut self, gap: f32) -> Self {
+        self.end_gap = gap;
+        self
+    }
+
+    /// Resolve these metrics to a fixed-color tree-guide style.
+    pub const fn with_color(self, color: Rgba8) -> TreeGuideStyle {
+        TreeGuideStyle {
+            indent_width: self.indent_width,
+            row_height: self.row_height,
+            guide_width: self.guide_width,
+            end_gap: self.end_gap,
+            color,
+        }
+    }
+
+    /// Resolve guide color from the active theme and a semantic widget style.
+    pub const fn with_widget_style(self, style: WidgetStyle) -> StyledTreeGuideStyle {
+        StyledTreeGuideStyle {
+            metrics: self,
+            style,
+        }
+    }
+}
+
+impl From<TreeGuideStyle> for TreeGuideMetrics {
+    fn from(style: TreeGuideStyle) -> Self {
+        style.metrics()
+    }
+}
+
+impl From<StyledTreeGuideStyle> for TreeGuideMetrics {
+    fn from(style: StyledTreeGuideStyle) -> Self {
+        style.metrics
+    }
+}
+
+/// Tree-guide style whose color resolves from the active theme at paint time.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StyledTreeGuideStyle {
+    /// Tree-guide geometry shared by rows and overlays.
+    pub metrics: TreeGuideMetrics,
+    /// Semantic widget style used to resolve the guide color.
+    pub style: WidgetStyle,
+}
+
+impl StyledTreeGuideStyle {
+    /// Build a theme-resolved tree-guide style from row geometry and semantic style.
+    pub const fn new(indent_width: f32, row_height: f32, style: WidgetStyle) -> Self {
+        TreeGuideMetrics::new(indent_width, row_height).with_widget_style(style)
+    }
+
+    /// Set guide stroke width.
+    pub const fn guide_width(mut self, width: f32) -> Self {
+        self.metrics = self.metrics.guide_width(width);
+        self
+    }
+
+    /// Set the gap trimmed from the guide end when the final row is visible.
+    pub const fn end_gap(mut self, gap: f32) -> Self {
+        self.metrics = self.metrics.end_gap(gap);
+        self
+    }
+
+    fn resolve(self, theme: &ThemeTokens) -> TreeGuideStyle {
+        self.metrics
+            .with_color(dense_row_tree_guide_color(theme, self.style))
+    }
+}
+
+/// Paint style for guide overlays.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TreeGuideOverlayStyle {
+    /// Paint guides with a caller-resolved fixed color.
+    Fixed(TreeGuideStyle),
+    /// Resolve guides from the active theme and a semantic widget style.
+    Styled(StyledTreeGuideStyle),
+}
+
+impl TreeGuideOverlayStyle {
+    fn metrics(self) -> TreeGuideMetrics {
+        match self {
+            Self::Fixed(style) => style.metrics(),
+            Self::Styled(style) => style.metrics,
+        }
+    }
+
+    fn resolve(self, theme: &ThemeTokens) -> TreeGuideStyle {
+        match self {
+            Self::Fixed(style) => style,
+            Self::Styled(style) => style.resolve(theme),
+        }
+    }
+}
+
+impl From<TreeGuideStyle> for TreeGuideOverlayStyle {
+    fn from(style: TreeGuideStyle) -> Self {
+        Self::Fixed(style)
+    }
+}
+
+impl From<StyledTreeGuideStyle> for TreeGuideOverlayStyle {
+    fn from(style: StyledTreeGuideStyle) -> Self {
+        Self::Styled(style)
+    }
 }
 
 /// Paint-only widget for continuous vertical guides over a materialized tree window.
@@ -88,7 +239,7 @@ pub struct TreeGuideOverlay {
     first_row: usize,
     row_count: usize,
     segments: Vec<TreeGuideSegment>,
-    style: TreeGuideStyle,
+    style: TreeGuideOverlayStyle,
 }
 
 impl TreeGuideOverlay {
@@ -97,11 +248,13 @@ impl TreeGuideOverlay {
         first_row: usize,
         row_count: usize,
         segments: Vec<TreeGuideSegment>,
-        style: TreeGuideStyle,
+        style: impl Into<TreeGuideOverlayStyle>,
     ) -> Self {
+        let style = style.into();
+        let metrics = style.metrics();
         let mut common = WidgetCommon::new(
             TREE_GUIDE_OVERLAY_WIDGET_ID,
-            WidgetSizing::fixed(Vector2::new(0.0, row_count as f32 * style.row_height)),
+            WidgetSizing::fixed(Vector2::new(0.0, row_count as f32 * metrics.row_height)),
         )
         .without_default_chrome();
         common.paint.bounds = PaintBounds::AllowOverflow;
@@ -142,9 +295,9 @@ impl Widget for TreeGuideOverlay {
         primitives: &mut Vec<PaintPrimitive>,
         bounds: Rect,
         _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
+        theme: &ThemeTokens,
     ) {
-        let Some(style) = normalized_tree_guide_style(self.style) else {
+        let Some(style) = normalized_tree_guide_style(self.style.resolve(theme)) else {
             return;
         };
         let last_row = self.first_row + self.row_count;
@@ -181,23 +334,29 @@ pub fn tree_guide_overlay<Message: 'static>(
     rows: &[TreeGuideRow],
     first_row: usize,
     end_row: usize,
-    style: TreeGuideStyle,
+    style: impl Into<TreeGuideOverlayStyle>,
 ) -> View<Message> {
     let row_count = end_row.saturating_sub(first_row);
+    let style = style.into();
+    let metrics = style.metrics();
     custom_widget(
         TreeGuideOverlay::new(first_row, row_count, tree_guide_segments(rows), style),
         |_| None,
     )
     .key(format!("tree-guide-overlay-{first_row}-{end_row}"))
     .fill_width()
-    .height(row_count as f32 * style.row_height.max(0.0))
+    .height(row_count as f32 * metrics.row_height.max(0.0))
 }
 
 /// Build a passive indent spacer for a tree row depth.
-pub fn tree_guide_indent<Message: 'static>(depth: usize, style: TreeGuideStyle) -> View<Message> {
+pub fn tree_guide_indent<Message: 'static>(
+    depth: usize,
+    style: impl Into<TreeGuideMetrics>,
+) -> View<Message> {
+    let metrics = style.into();
     spacer()
-        .width(depth as f32 * style.indent_width.max(0.0))
-        .height(style.row_height.max(0.0))
+        .width(depth as f32 * metrics.indent_width.max(0.0))
+        .height(metrics.row_height.max(0.0))
 }
 
 /// Project continuous vertical guide segments from tree row metadata.

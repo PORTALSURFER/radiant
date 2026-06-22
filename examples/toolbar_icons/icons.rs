@@ -34,22 +34,19 @@ impl ToolbarIcons {
 #[derive(Clone, Debug)]
 pub(super) struct ToolbarIcon {
     cache: &'static SvgIconTintCache,
-    active: Rgba8,
-    inactive: Rgba8,
+    palette: SvgIconTintPalette,
 }
 
 impl ToolbarIcon {
     fn new(cache: &'static SvgIconTintCache, active: Rgba8, inactive: Rgba8) -> Self {
         Self {
             cache,
-            active,
-            inactive,
+            palette: SvgIconTintPalette::new(inactive, active, inactive),
         }
     }
 
     pub(super) fn glyph(&self, active: bool) -> SvgIcon {
-        let color = if active { self.active } else { self.inactive };
-        self.cache.icon(color)
+        self.cache.icon_for_state(self.palette, true, active)
     }
 }
 

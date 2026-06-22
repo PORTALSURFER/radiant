@@ -283,7 +283,7 @@ has moved beyond the common app import set.
 | Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `handle_activation_input` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
-| Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
+| Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `SvgIconTintPalette`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
 | Paint primitives | `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`, `PaintFillRectBatch`, `PaintFillPath`, `PaintPathCommand`, `PaintTransform`, `PaintTextRun` |
 
 Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`,
@@ -1968,7 +1968,10 @@ icons whose tint follows theme or interaction state can use
 `SvgIcon::from_svg_with_current_color(...)`,
 `SvgIcon::try_from_svg_with_current_color(...)`, or a static
 `SvgIconTintCache` so repeated projections clone retained tinted documents
-instead of reparsing formatted SVG strings. `svg_with_current_color(...)`
+instead of reparsing formatted SVG strings. Use `SvgIconTintPalette` with
+`SvgIconTintCache::icon_for_state(...)` when enabled, active, and disabled icon
+states should resolve through one app-owned palette instead of repeated
+state-color branches. `svg_with_current_color(...)`
 provides the same root-attribute injection for one-off asset preparation. The
 native Vello backend appends retained SVG documents through `vello_svg` during
 scene encoding. `SvgIcon::empty()` creates a no-paint icon for defensive

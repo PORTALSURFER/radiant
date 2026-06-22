@@ -33,6 +33,24 @@ impl ResourceKey {
     }
 }
 
+impl From<&'static str> for ResourceKey {
+    fn from(value: &'static str) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<String> for ResourceKey {
+    fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
+impl fmt::Display for ResourceKey {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::ResourceKey;
@@ -49,23 +67,5 @@ mod tests {
         let key = ResourceKey::path("cache", std::path::Path::new("samples/kick.wav"));
 
         assert_eq!(key.as_str(), "cache:samples/kick.wav");
-    }
-}
-
-impl From<&'static str> for ResourceKey {
-    fn from(value: &'static str) -> Self {
-        Self::new(value)
-    }
-}
-
-impl From<String> for ResourceKey {
-    fn from(value: String) -> Self {
-        Self::new(value)
-    }
-}
-
-impl fmt::Display for ResourceKey {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
     }
 }

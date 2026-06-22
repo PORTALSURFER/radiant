@@ -114,11 +114,10 @@ fn runtime_surface_input_dispatch_keeps_dependencies_explicit() {
         .expect("runtime surface input tests should be readable");
 
     assert!(
-        input.contains(
-            "use super::{
-    SurfaceNode, SurfaceWidget, WidgetPath, WidgetStateSyncPolicy, node::SurfaceLayerChildKind,
-};"
-        ) && input.contains("gui::types::Rect")
+        input.contains("use super::{")
+            && input.contains("SurfaceNode, SurfaceWidget, WidgetPath, WidgetStateSyncPolicy")
+            && input.contains("node::SurfaceLayerChildKind")
+            && input.contains("gui::types::Rect")
             && input.contains("widgets::{WidgetId, WidgetInput, WidgetOutput}")
             && input.contains("std::collections::HashMap")
             && !input.starts_with("use super::*;")

@@ -229,6 +229,10 @@ Current target-specific seams are intentionally narrow:
   window attribute extensions such as Windows drag/drop and popup taskbar
   policy. Non-Windows targets keep the same runtime options and no-op the
   unsupported window hints.
+- `src/gui_runtime/native_vello/generic_runtime/native_file_open.rs` owns native
+  open-document callbacks. macOS delegates ApplicationServices open-document
+  events into Radiant's backend-neutral file-open command route, while other
+  targets keep the same runtime contract with an explicit no-op registration.
 - `src/gui_runtime/native_vello/generic_runtime/external_drag/platform.rs` owns
   external drag-out platform selection. Windows delegates to the native drag
   implementation; other targets report an explicit unsupported result through

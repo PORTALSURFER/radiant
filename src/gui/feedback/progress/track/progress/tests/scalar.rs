@@ -14,6 +14,67 @@ fn horizontal_progress_fill_rect_clamps_to_track() {
 }
 
 #[test]
+fn push_horizontal_progress_fill_appends_visible_fill() {
+    let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
+    let color = Rgba8::new(1, 2, 3, 4);
+    let mut primitives = Vec::new();
+
+    assert!(push_horizontal_progress_fill(
+        &mut primitives,
+        41,
+        track,
+        0.25,
+        color,
+    ));
+
+    let [PaintPrimitive::FillRect(fill)] = primitives.as_slice() else {
+        panic!("expected one fill rect");
+    };
+    assert_eq!(fill.widget_id, 41);
+    assert_eq!(
+        fill.rect,
+        Rect::from_min_max(Point::new(10.0, 20.0), Point::new(35.0, 60.0))
+    );
+    assert_eq!(fill.color, color);
+}
+
+#[test]
+fn widget_paint_pushes_horizontal_progress_fill() {
+    let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
+    let color = Rgba8::new(1, 2, 3, 4);
+    let mut primitives = Vec::new();
+    let mut paint = WidgetPaint::new(&mut primitives, 41);
+
+    assert!(paint.push_horizontal_progress_fill(track, 0.25, color));
+
+    let [PaintPrimitive::FillRect(fill)] = primitives.as_slice() else {
+        panic!("expected one fill rect");
+    };
+    assert_eq!(fill.widget_id, 41);
+    assert_eq!(
+        fill.rect,
+        Rect::from_min_max(Point::new(10.0, 20.0), Point::new(35.0, 60.0))
+    );
+    assert_eq!(fill.color, color);
+}
+
+#[test]
+fn push_horizontal_progress_fill_skips_empty_progress() {
+    let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 60.0));
+    let mut primitives = Vec::new();
+
+    assert!(!push_horizontal_progress_fill(
+        &mut primitives,
+        41,
+        track,
+        0.0,
+        Rgba8::new(1, 2, 3, 4),
+    ));
+
+    assert!(primitives.is_empty());
+}
+
+#[test]
 fn horizontal_progress_fill_rect_omits_empty_tracks_and_zero_fraction() {
     let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 28.0));
     let empty_width = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(10.0, 28.0));

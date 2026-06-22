@@ -98,8 +98,8 @@ fn gpu_signal_shader_uses_raw_peak_to_shape_colored_bands() {
 fn gpu_signal_shader_previews_outer_fade_extensions_as_crossfades() {
     let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
 
-    assert!(shader.contains("return 1.0 - preview_curve_value(t, fade_in_curve);"));
-    assert!(shader.contains("return preview_curve_value(t, fade_out_curve);"));
+    assert!(shader.contains("return outer_gain * (1.0 - preview_curve_value(t, fade_in_curve));"));
+    assert!(shader.contains("return outer_gain * preview_curve_value(t, fade_out_curve);"));
     assert!(!shader.contains("if (position >= mute_start && position <= selection_start)"));
     assert!(!shader.contains("if (position >= selection_end && position <= mute_end)"));
 }

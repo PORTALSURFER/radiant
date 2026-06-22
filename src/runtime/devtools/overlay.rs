@@ -78,8 +78,8 @@ fn append_devtools_inspector_panel(
 }
 
 fn devtools_overlay_panel_rect(viewport: Rect) -> Rect {
-    let width = viewport.width().min(DEVTOOLS_PANEL_WIDTH).max(320.0);
-    let height = viewport.height().min(DEVTOOLS_PANEL_HEIGHT).max(156.0);
+    let width = viewport.width().clamp(320.0, DEVTOOLS_PANEL_WIDTH);
+    let height = viewport.height().clamp(156.0, DEVTOOLS_PANEL_HEIGHT);
     Rect::from_min_size(
         Point::new(
             (viewport.max.x - width - DEVTOOLS_PANEL_MARGIN).max(DEVTOOLS_PANEL_MARGIN),

@@ -151,7 +151,7 @@ fn virtual_list_body_container_id(window: VirtualListWindow) -> NodeId {
     let LayoutNode::Container(content_column) = &content.child else {
         panic!("scroll content should be a column");
     };
-    let body = content_column
+    content_column
         .children
         .iter()
         .find_map(|child| match &child.child {
@@ -160,8 +160,7 @@ fn virtual_list_body_container_id(window: VirtualListWindow) -> NodeId {
             }
             _ => None,
         })
-        .expect("scroll content should include the materialized body column");
-    body
+        .expect("scroll content should include the materialized body column")
 }
 
 fn first_scroll_container(node: &LayoutNode) -> Option<&crate::layout::ContainerNode> {

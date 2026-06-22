@@ -74,7 +74,9 @@ fn runtime_controller_context_and_scratch_modules_use_explicit_dependencies() {
     assert!(
         context_frame.contains("use super::super::SurfaceRuntime;")
             && context_frame.contains("gui::types::{Point, Rect}")
-            && context_frame.contains("layout::LayoutOutput")
+            && context_frame
+                .contains("gui::text_layout::{TextWidthEstimate, estimated_text_width_in_range}")
+            && context_frame.contains("layout::{LayoutOutput, Vector2}")
             && context_frame.contains("PaintPrimitive")
             && context_frame.contains("RuntimeBridge")
             && context_frame.contains("SurfaceFrame")

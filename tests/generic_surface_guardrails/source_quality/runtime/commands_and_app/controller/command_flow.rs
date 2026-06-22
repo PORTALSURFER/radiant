@@ -80,10 +80,11 @@ fn controller_commands_keep_outcome_drain_and_dispatch_in_focused_modules() {
     assert!(
         scroll_wheel.contains("use super::super::{CommandOutcome, SurfaceRuntime};")
             && scroll_wheel.contains("gui::types::{Point, Vector2}")
-            && scroll_wheel.contains("runtime::{RuntimeBridge, WidgetDispatchResult}")
+            && scroll_wheel
+                .contains("runtime::{RuntimeBridge, WheelHitTarget, WidgetDispatchResult}")
             && scroll_wheel.contains("widgets::{PointerModifiers, WidgetId, WidgetInput}")
             && !scroll_wheel.starts_with("use super::super::*;")
-            && scroll_wheel.contains("fn dispatch_wheel_at_with_refresh")
+            && scroll_wheel.contains("fn dispatch_wheel_to_widget_with_refresh")
             && scroll_wheel.contains("fn wheel_widget_at"),
         "runtime controller wheel routing should name command outcome, controller, geometry, bridge, dispatch result, pointer, and widget dependencies without inheriting the controller root"
     );

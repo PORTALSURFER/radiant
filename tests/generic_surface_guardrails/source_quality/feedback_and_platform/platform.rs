@@ -19,6 +19,7 @@ const ALLOWED_PLATFORM_SPECIFIC_SOURCE_FILES: &[&str] = &[
     "src/gui_runtime/native_vello/generic_runtime/external_drag/platform.rs",
     "src/gui_runtime/native_vello/generic_runtime/external_drag/preview.rs",
     "src/gui_runtime/native_vello/generic_runtime/external_drag/windows.rs",
+    "src/gui_runtime/native_vello/generic_runtime/native_file_open.rs",
     "src/gui_runtime/native_vello/generic_runtime/window/platform.rs",
     "src/gui_runtime/native_vello/text_renderer/font.rs",
 ];

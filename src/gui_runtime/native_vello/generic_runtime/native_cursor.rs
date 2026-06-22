@@ -43,10 +43,8 @@ where
     }
 
     fn apply_native_cursor(&mut self, cursor: WidgetCursor, update: NativeCursorUpdate) {
-        if self.input.native_cursor == Some(cursor) {
-            if update == NativeCursorUpdate::SkipUnchanged {
-                return;
-            }
+        if self.input.native_cursor == Some(cursor) && update == NativeCursorUpdate::SkipUnchanged {
+            return;
         }
         self.input.native_cursor = Some(cursor);
         #[cfg(test)]

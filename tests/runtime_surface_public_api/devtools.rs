@@ -123,9 +123,9 @@ fn surface_runtime_devtools_overlay_appends_runtime_overlay_primitives() {
         "devtools overlay should append backend-neutral paint for the overlay panel"
     );
     let text = primitive_text(&primitives);
-    assert!(text.iter().any(|line| *line == "Surface tree"));
-    assert!(text.iter().any(|line| *line == "Selected node"));
-    assert!(text.iter().any(|line| *line == "Runtime"));
+    assert!(text.contains(&"Surface tree"));
+    assert!(text.contains(&"Selected node"));
+    assert!(text.contains(&"Runtime"));
 }
 
 fn devtools_node(root: &DevtoolsNodeSnapshot, node_id: u64) -> Option<&DevtoolsNodeSnapshot> {

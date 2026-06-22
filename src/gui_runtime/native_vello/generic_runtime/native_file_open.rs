@@ -54,6 +54,11 @@ impl Drop for NativeFileOpenRegistration {
 #[cfg(not(target_os = "macos"))]
 pub(super) struct NativeFileOpenRegistration;
 
+#[cfg(not(target_os = "macos"))]
+impl Drop for NativeFileOpenRegistration {
+    fn drop(&mut self) {}
+}
+
 #[cfg(target_os = "macos")]
 mod platform {
     use super::{NativeFileOpenRegistration, RuntimeUserEvent};
@@ -332,6 +337,10 @@ mod platform {
     pub(super) fn install_native_file_open_handler(
         _proxy: EventLoopProxy<RuntimeUserEvent>,
     ) -> NativeFileOpenRegistration {
+        // Non-macOS runtimes have no native open-document callback, but the
+        // shared event enum still owns the route used by the macOS adapter.
+        let _open_files_event_constructor: fn(Vec<std::path::PathBuf>) -> RuntimeUserEvent =
+            RuntimeUserEvent::OpenFiles;
         NativeFileOpenRegistration
     }
 }

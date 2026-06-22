@@ -73,13 +73,9 @@ where
             return;
         }
         if outcome.interactive_scene_rebuild_requested {
-            if self.core.runtime.scrollbar_drag_active() {
-                if outcome.interactive_surface_refresh_requested {
-                    self.refresh_and_rebuild_scene_for_interactive_route_now();
-                } else {
-                    self.rebuild_scene_for_interactive_route_now();
-                }
-            } else if self.should_rebuild_interactive_scene_now(std::time::Instant::now()) {
+            let should_rebuild_now = self.core.runtime.scrollbar_drag_active()
+                || self.should_rebuild_interactive_scene_now(std::time::Instant::now());
+            if should_rebuild_now {
                 if outcome.interactive_surface_refresh_requested {
                     self.refresh_and_rebuild_scene_for_interactive_route_now();
                 } else {

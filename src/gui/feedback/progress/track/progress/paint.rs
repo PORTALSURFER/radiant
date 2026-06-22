@@ -7,7 +7,27 @@ use crate::{
 use super::{
     cursor::horizontal_value_cursor_rect,
     range::{horizontal_value_range_edge_rects, horizontal_value_range_rect},
+    scalar::horizontal_progress_fill_rect,
 };
+
+/// Push the filled leading segment for a horizontal progress track.
+///
+/// Returns `true` when a fill primitive was appended. This combines
+/// [`horizontal_progress_fill_rect`] with Radiant's visible-rect paint guard so
+/// progress overlays, custom widgets, and feedback tracks do not need local
+/// rect construction or primitive boilerplate.
+pub fn push_horizontal_progress_fill(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    track: Rect,
+    progress_fraction: f32,
+    color: Rgba8,
+) -> bool {
+    let Some(rect) = horizontal_progress_fill_rect(track, progress_fraction) else {
+        return false;
+    };
+    push_visible_fill_rect(primitives, widget_id, rect, color)
+}
 
 /// Push a normalized horizontal range segment into a paint primitive buffer.
 ///
@@ -99,6 +119,26 @@ pub fn push_horizontal_value_cursor_fills(
 }
 
 impl WidgetPaint<'_> {
+    /// Push a horizontal progress fill for this widget.
+    ///
+    /// This is the [`WidgetPaint`] counterpart to
+    /// [`push_horizontal_progress_fill`].
+    pub fn push_horizontal_progress_fill(
+        &mut self,
+        track: Rect,
+        progress_fraction: f32,
+        color: Rgba8,
+    ) -> bool {
+        let widget_id = self.widget_id();
+        push_horizontal_progress_fill(
+            self.primitives_mut(),
+            widget_id,
+            track,
+            progress_fraction,
+            color,
+        )
+    }
+
     /// Push a normalized horizontal range segment for this widget.
     ///
     /// This is the [`WidgetPaint`] counterpart to

@@ -9,37 +9,6 @@ pub struct BusinessKeyedLatestRequest<'context, Message, Key> {
     pub(super) key: Key,
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::application::KeyedLatestTasks;
-    use crate::application::runtime::update_context::UiUpdateContext;
-    use crate::runtime::{Command, ResourceKey, TaskPriority};
-
-    #[test]
-    fn keyed_latest_stream_tags_intermediate_and_final_outputs() {
-        let mut context = UiUpdateContext::<String>::default();
-        let mut latest = KeyedLatestTasks::new();
-        context
-            .business()
-            .interactive("keyed-stream-test")
-            .latest_for(&mut latest, ResourceKey::scoped("sample", "C:/kick.wav"))
-            .stream(
-                |_context, events| {
-                    assert!(events.emit("preview"));
-                    "done"
-                },
-                |event| format!("{}:{}:{}", event.key, event.ticket.id(), event.output),
-                |output| format!("{}:{}:{}", output.key, output.ticket.id(), output.output),
-            );
-
-        let command = context.into_command();
-        let Command::PerformStream { priority, .. } = &command else {
-            panic!("expected stream command");
-        };
-        assert_eq!(*priority, TaskPriority::Interactive);
-    }
-}
-
 impl<Message, Key> BusinessKeyedLatestRequest<'_, Message, Key> {
     /// Return the task ticket assigned to this request.
     pub fn ticket(&self) -> TaskTicket {
@@ -208,5 +177,36 @@ where
             },
         );
         token
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::application::KeyedLatestTasks;
+    use crate::application::runtime::update_context::UiUpdateContext;
+    use crate::runtime::{Command, ResourceKey, TaskPriority};
+
+    #[test]
+    fn keyed_latest_stream_tags_intermediate_and_final_outputs() {
+        let mut context = UiUpdateContext::<String>::default();
+        let mut latest = KeyedLatestTasks::new();
+        context
+            .business()
+            .interactive("keyed-stream-test")
+            .latest_for(&mut latest, ResourceKey::scoped("sample", "C:/kick.wav"))
+            .stream(
+                |_context, events| {
+                    assert!(events.emit("preview"));
+                    "done"
+                },
+                |event| format!("{}:{}:{}", event.key, event.ticket.id(), event.output),
+                |output| format!("{}:{}:{}", output.key, output.ticket.id(), output.output),
+            );
+
+        let command = context.into_command();
+        let Command::PerformStream { priority, .. } = &command else {
+            panic!("expected stream command");
+        };
+        assert_eq!(*priority, TaskPriority::Interactive);
     }
 }

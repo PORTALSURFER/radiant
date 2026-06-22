@@ -324,12 +324,14 @@ widget and local code would otherwise thread the same primitive buffer and
 widget id through every helper call.
 
 Timeline, waveform, progress, and scrubber-style custom widgets can use
+`push_horizontal_progress_fill`,
 `push_horizontal_value_range_fill`,
 `push_horizontal_value_range_edge_fills`,
 `push_horizontal_value_cursor_fill`,
 `push_horizontal_value_cursor_fills`, or the matching `WidgetPaint` methods,
-to append guarded normalized range, range edge, and single or repeated cursor
-fills without repeating local geometry-to-paint boilerplate. Editor-style
+to append guarded progress fills, normalized range fills, range edges, and
+single or repeated cursor fills without repeating local geometry-to-paint
+boilerplate. Editor-style
 widgets that draw sampled curves such as EQ responses, automation curves, fade
 curves, and analysis overlays can use `SampledCurveStrokeParts`,
 `sampled_curve_points`, and `push_sampled_curve_stroke` to keep finite-point
@@ -1637,7 +1639,8 @@ projection,
 status/reference/channel chrome, `SignalToolFlags` and `SignalToolState` for
 generic enabled/visible tool flags, `SignalRasterPreview` for retained raster
 image payloads and loading state, `horizontal_progress_fill_rect` for resolving normalized
-progress-track fill geometry, `horizontal_progress_activity_rect` for
+progress-track fill geometry, `push_horizontal_progress_fill` for guarded
+progress-fill paint emission, `horizontal_progress_activity_rect` for
 indeterminate progress segments, `horizontal_progress_track_rect` for switching
 between determinate and indeterminate progress tracks, `horizontal_meter_fill_rect` and
 `horizontal_discrete_meter_fill_rect` for reusable meter geometry,

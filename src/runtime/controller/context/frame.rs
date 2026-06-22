@@ -289,9 +289,7 @@ struct TooltipLayout {
 }
 
 fn tooltip_layout(anchor: Rect, tooltip: &str, viewport: Vector2) -> TooltipLayout {
-    let max_width = (viewport.x - TOOLTIP_MARGIN * 2.0)
-        .max(1.0)
-        .min(TOOLTIP_MAX_WIDTH);
+    let max_width = (viewport.x - TOOLTIP_MARGIN * 2.0).clamp(1.0, TOOLTIP_MAX_WIDTH);
     let max_line_chars = tooltip_max_line_chars(max_width);
     let lines = tooltip_lines(tooltip, max_line_chars);
     let rect = tooltip_rect_for_lines(anchor, &lines, max_width, viewport);

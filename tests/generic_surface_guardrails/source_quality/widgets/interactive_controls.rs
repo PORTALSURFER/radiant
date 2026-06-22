@@ -136,7 +136,7 @@ fn interactive_row_primitive_keeps_surface_mappers_focused() {
     );
     assert!(
         input.contains("use super::InteractiveRowWidget;")
-            && input.contains("gui::types::Rect")
+            && input.contains("gui::types::{Point, Rect}")
             && input.contains("InteractiveRowMessage")
             && input.contains("WidgetInput")
             && input.contains("DragHandleMessage")

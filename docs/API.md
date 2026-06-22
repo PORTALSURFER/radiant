@@ -1397,6 +1397,11 @@ they should use `UiUpdateContext` capabilities, typed platform services, and
 immediate messages in a command can use
 `Command::into_messages_into(...)` to reuse caller-owned storage, while
 `Command::into_messages()` remains the allocating convenience wrapper.
+Host-side unit tests that need to execute queued business work without a runtime
+adapter can use `Command::run_inline_for_tests(...)`. It runs `Message`, `Batch`,
+`Perform`, and `PerformStream` commands synchronously and preserves streamed
+message order, while intentionally ignoring repaint, timer, focus, drag,
+platform, window, and exit commands that require an installed runtime adapter.
 `RepaintScope` is the typed repaint specificity contract: `Surface` requests a
 surface refresh plus repaint, while `PaintOnly` repaints the current paint plan
 for overlay-only motion. Reducers can queue `Command::repaint(scope)` or

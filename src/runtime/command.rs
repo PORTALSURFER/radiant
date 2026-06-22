@@ -10,6 +10,7 @@ use std::time::Duration;
 mod constructors;
 mod debug;
 mod flatten;
+mod inline;
 mod query;
 mod repaint;
 mod scroll;

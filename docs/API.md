@@ -314,14 +314,18 @@ keys instead of duplicating local hashing helpers. Use
 `stable_widget_id_u64(...)` when dynamic rows or controls are keyed by durable
 numeric app IDs or enum indexes and projection should avoid allocating
 temporary strings. `interactive_row_underlay(content)` can use
-`.stable_input_id(scope, key)` or `.stable_u64_input_id(scope, key)` to bind
-those stable IDs directly to the backing interactive row. Use
+`.input_key(...)`, `.stable_input_id(scope, key)`, or
+`.stable_u64_input_id(scope, key)` to bind caller-owned identity directly to
+the backing interactive row. Use
 `.dense_chrome()`, `.selected(...)`, `.active_target(...)`, `.candidate(...)`,
 or `.visual_state(...)` when arbitrary visible row content should keep
 Radiant's standard dense-row hover, pressed, selected, and drop-target chrome
-without an app-local transparent hit-target widget. Custom matrix or
-heatmap widgets can use `DenseGridLayout` and `DenseGridCell` for reusable
-row/column cell projection and hit testing.
+without an app-local transparent hit-target widget. Use
+`.dense_chrome_palette(...)`, `.leading_marker(...)`, `.trailing_marker(...)`,
+and `.outline(...)` when app-owned row state needs custom fills, edge markers,
+or outlines while Radiant still owns generic row input and dense-state
+projection. Custom matrix or heatmap widgets can use `DenseGridLayout` and
+`DenseGridCell` for reusable row/column cell projection and hit testing.
 
 For paint-plan emission, `WidgetPaint`, `push_fill_rect`,
 `push_fill_rect_batch`, `push_stroke_rect`, `push_stroke_rect_batch`,
@@ -2516,12 +2520,14 @@ list composition with drag-aware row controls. Use
 `interactive_row_underlay(content)` when arbitrary visible row content should
 stay above a generic interactive row that owns activation, secondary
 activation, drag, drop, focus, and row feedback paint while preserving a stable
-input widget id for dispatch and tests. Use `.stable_input_id(...)` or
+input widget id or key. Use `.input_key(...)`, `.stable_input_id(...)`, or
 `.stable_u64_input_id(...)` on dynamic underlay rows instead of creating
-app-local row input-id helper functions. Use `.dense_chrome()`,
-`.selected(...)`, `.candidate(...)`, or `.visual_state(...)` on underlay rows
-whose visible content is app-owned but whose dense row feedback should remain
-Radiant-owned.
+app-local row input identity helpers. Use `.dense_chrome()`, `.selected(...)`,
+`.candidate(...)`, or `.visual_state(...)` on underlay rows whose visible
+content is app-owned but whose dense row feedback should remain Radiant-owned.
+Use `.dense_chrome_palette(...)`, `.leading_marker(...)`,
+`.trailing_marker(...)`, and `.outline(...)` when that generic underlay needs
+app-specific dense row fills or edge/status markers.
 Run `cargo run --example theme_playground` for a theme-token sandbox that
 compares density scale, tone, prominence, and interactive state through normal
 application views. It is intended to make theme policy visually inspectable, not

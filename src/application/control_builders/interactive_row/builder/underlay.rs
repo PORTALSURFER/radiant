@@ -1,6 +1,12 @@
 use crate::{
     application::{MappedWidget, ViewNode, input_underlay, view_node_from_widget},
-    gui::{list::dense_row_palette_from_style, types::Rect},
+    gui::{
+        list::{
+            DenseRowChromeParts, DenseRowMarkerStyle, DenseRowOutlineStyle, DenseRowPalette,
+            dense_row_palette_from_style,
+        },
+        types::Rect,
+    },
     layout::LayoutOutput,
     runtime::{PaintPrimitive, WidgetMessageMapper},
     theme::ThemeTokens,
@@ -18,8 +24,10 @@ pub struct InteractiveRowUnderlayBuilder<Message> {
     content: ViewNode<Message>,
     row: InteractiveRowBuilder,
     input_id: Option<WidgetId>,
+    input_key: Option<String>,
     style: Option<WidgetStyle>,
     visual_state: InteractiveRowVisualStateParts,
+    chrome: DenseInteractiveRowUnderlayChrome,
     dense_chrome: bool,
 }
 
@@ -84,6 +92,17 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
     /// Assign a stable widget id to the backing interactive row.
     pub fn input_id(mut self, id: WidgetId) -> Self {
         self.input_id = Some(id);
+        self.input_key = None;
+        self
+    }
+
+    /// Assign a stable key to the backing interactive row.
+    ///
+    /// Use this when a dynamic row should refresh retained widget state based
+    /// on caller-owned projection state but does not need a public numeric id.
+    pub fn input_key(mut self, key: impl Into<String>) -> Self {
+        self.input_key = Some(key.into());
+        self.input_id = None;
         self
     }
 
@@ -93,6 +112,7 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
     /// should survive projection changes without app-local input-id helpers.
     pub fn stable_input_id(mut self, scope: u64, key: impl AsRef<str>) -> Self {
         self.input_id = Some(stable_widget_id(scope, key));
+        self.input_key = None;
         self
     }
 
@@ -102,12 +122,68 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
     /// without allocating temporary strings.
     pub fn stable_u64_input_id(mut self, scope: u64, key: u64) -> Self {
         self.input_id = Some(stable_widget_id_u64(scope, key));
+        self.input_key = None;
         self
     }
 
     /// Apply an explicit style to the backing interactive row.
     pub fn style(mut self, style: WidgetStyle) -> Self {
         self.style = Some(style);
+        self
+    }
+
+    /// Override dense-row fill colors for this underlay.
+    pub fn dense_chrome_palette(mut self, palette: DenseRowPalette) -> Self {
+        self.chrome.palette = Some(palette);
+        self.dense_chrome = true;
+        self
+    }
+
+    /// Add a leading-edge marker to the dense-row underlay chrome.
+    pub fn leading_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.chrome.leading_marker = Some(marker);
+        self.dense_chrome = true;
+        self
+    }
+
+    /// Add a leading-edge marker when `condition` is true.
+    pub fn leading_marker_if(mut self, condition: bool, marker: DenseRowMarkerStyle) -> Self {
+        if condition {
+            self.chrome.leading_marker = Some(marker);
+            self.dense_chrome = true;
+        }
+        self
+    }
+
+    /// Add a trailing-edge marker to the dense-row underlay chrome.
+    pub fn trailing_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.chrome.trailing_marker = Some(marker);
+        self.dense_chrome = true;
+        self
+    }
+
+    /// Add a trailing-edge marker when `condition` is true.
+    pub fn trailing_marker_if(mut self, condition: bool, marker: DenseRowMarkerStyle) -> Self {
+        if condition {
+            self.chrome.trailing_marker = Some(marker);
+            self.dense_chrome = true;
+        }
+        self
+    }
+
+    /// Add an inset outline to the dense-row underlay chrome.
+    pub fn outline(mut self, outline: DenseRowOutlineStyle) -> Self {
+        self.chrome.outline = Some(outline);
+        self.dense_chrome = true;
+        self
+    }
+
+    /// Add an inset outline when `condition` is true.
+    pub fn outline_if(mut self, condition: bool, outline: DenseRowOutlineStyle) -> Self {
+        if condition {
+            self.chrome.outline = Some(outline);
+            self.dense_chrome = true;
+        }
         self
     }
 
@@ -137,14 +213,20 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
             content,
             row,
             input_id,
+            input_key,
             style,
             visual_state,
+            chrome,
             dense_chrome,
         } = self;
         let row = row.widget();
         let mut input = if dense_chrome {
             view_node_from_widget(MappedWidget::new(
-                DenseInteractiveRowUnderlayWidget { row, visual_state },
+                DenseInteractiveRowUnderlayWidget {
+                    row,
+                    visual_state,
+                    chrome,
+                },
                 messages,
             ))
         } else {
@@ -152,6 +234,8 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
         };
         if let Some(id) = input_id {
             input = input.id(id);
+        } else if let Some(key) = input_key {
+            input = input.key(key);
         }
         if let Some(style) = style {
             input = input.style(style);
@@ -164,6 +248,35 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
 struct DenseInteractiveRowUnderlayWidget {
     row: InteractiveRowWidget,
     visual_state: InteractiveRowVisualStateParts,
+    chrome: DenseInteractiveRowUnderlayChrome,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct DenseInteractiveRowUnderlayChrome {
+    palette: Option<DenseRowPalette>,
+    leading_marker: Option<DenseRowMarkerStyle>,
+    trailing_marker: Option<DenseRowMarkerStyle>,
+    outline: Option<DenseRowOutlineStyle>,
+}
+
+impl DenseInteractiveRowUnderlayChrome {
+    fn palette(self, row: &InteractiveRowWidget, theme: &ThemeTokens) -> DenseRowPalette {
+        let palette = self
+            .palette
+            .unwrap_or_else(|| dense_row_palette_from_style(theme, row.common.style));
+        if row.paints_interaction_fill() {
+            palette
+        } else {
+            palette.without_interaction_fills()
+        }
+    }
+
+    fn apply_to(self, mut chrome: DenseRowChromeParts) -> DenseRowChromeParts {
+        chrome.leading_marker = self.leading_marker;
+        chrome.trailing_marker = self.trailing_marker;
+        chrome.outline = self.outline;
+        chrome
+    }
 }
 
 impl Widget for DenseInteractiveRowUnderlayWidget {
@@ -200,13 +313,9 @@ impl Widget for DenseInteractiveRowUnderlayWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        let palette = dense_row_palette_from_style(theme, self.row.common.style);
-        let palette = if self.row.paints_interaction_fill() {
-            palette
-        } else {
-            palette.without_interaction_fills()
-        };
+        let palette = self.chrome.palette(&self.row, theme);
         let chrome = self.row.dense_chrome_parts(self.visual_state, palette);
+        let chrome = self.chrome.apply_to(chrome);
         self.row.push_dense_chrome(primitives, bounds, chrome);
     }
 }
@@ -222,8 +331,10 @@ pub fn interactive_row_underlay<Message: 'static>(
         content,
         row: interactive_row(),
         input_id: None,
+        input_key: None,
         style: None,
         visual_state: InteractiveRowVisualStateParts::default(),
+        chrome: DenseInteractiveRowUnderlayChrome::default(),
         dense_chrome: false,
     }
 }

@@ -26,12 +26,35 @@ fn dense_row_palette_conditionally_sets_interaction_fills() {
 }
 
 #[test]
+fn dense_row_palette_can_strip_pointer_interaction_fills() {
+    let palette = DenseRowPalette::new()
+        .selected(SELECTED)
+        .selected_hovered(SELECTED_HOVERED)
+        .hovered(HOVERED)
+        .pressed(PRESSED)
+        .active_target(ACTIVE)
+        .candidate_hovered(CANDIDATE)
+        .without_interaction_fills();
+
+    assert_eq!(palette.selected, Some(SELECTED));
+    assert_eq!(palette.active_target, Some(ACTIVE));
+    assert_eq!(palette.selected_hovered, None);
+    assert_eq!(palette.hovered, None);
+    assert_eq!(palette.pressed, None);
+    assert_eq!(palette.candidate_hovered, None);
+}
+
+#[test]
 fn dense_row_palette_resolves_from_theme_style() {
     let theme = ThemeTokens::default();
     let style = WidgetStyle::subtle(WidgetTone::Accent);
     let palette = dense_row_palette_from_style(&theme, style);
 
     assert_eq!(palette.selected, Some(theme.accent_mint.with_alpha(120)));
+    assert_eq!(
+        palette.selected_hovered,
+        Some(theme.accent_mint.with_alpha(174))
+    );
     assert_eq!(palette.hovered, Some(theme.text_primary.with_alpha(24)));
     assert_eq!(
         palette.active_target,

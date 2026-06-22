@@ -1,8 +1,13 @@
 use crate::{
-    application::{ViewNode, input_underlay},
+    application::{MappedWidget, ViewNode, input_underlay, view_node_from_widget},
+    gui::{list::dense_row_palette_from_style, types::Rect},
+    layout::LayoutOutput,
+    runtime::{PaintPrimitive, WidgetMessageMapper},
+    theme::ThemeTokens,
     widgets::{
-        InteractiveRowActions, InteractiveRowMessage, WidgetId, WidgetStyle, stable_widget_id,
-        stable_widget_id_u64,
+        InteractiveRowActions, InteractiveRowMessage, InteractiveRowVisualStateParts,
+        InteractiveRowWidget, Widget, WidgetId, WidgetInput, WidgetOutput, WidgetStyle,
+        stable_widget_id, stable_widget_id_u64,
     },
 };
 
@@ -14,6 +19,8 @@ pub struct InteractiveRowUnderlayBuilder<Message> {
     row: InteractiveRowBuilder,
     input_id: Option<WidgetId>,
     style: Option<WidgetStyle>,
+    visual_state: InteractiveRowVisualStateParts,
+    dense_chrome: bool,
 }
 
 impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
@@ -32,6 +39,45 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
     /// tree while the underlay owns generic drop and hover-drop routing.
     pub fn tracked_drop_target(mut self, drag_active: bool, active_target: bool) -> Self {
         self.row = self.row.tracked_drop_target(drag_active, active_target);
+        self.visual_state.active_target = active_target;
+        self
+    }
+
+    /// Paint Radiant's standard dense-row chrome behind the visible content.
+    ///
+    /// Use this for list, tree, sidebar, picker, and inspector rows whose
+    /// content is app-owned but whose hover, pressed, selected, and drop-target
+    /// feedback should follow Radiant's generic dense-row policy.
+    pub fn dense_chrome(mut self) -> Self {
+        self.dense_chrome = true;
+        self
+    }
+
+    /// Mark the row as selected by host-owned state and paint dense-row chrome.
+    pub fn selected(mut self, selected: bool) -> Self {
+        self.visual_state.selected = selected;
+        self.dense_chrome = true;
+        self
+    }
+
+    /// Mark the row as a committed operation target and paint dense-row chrome.
+    pub fn active_target(mut self, active_target: bool) -> Self {
+        self.visual_state.active_target = active_target;
+        self.dense_chrome = true;
+        self
+    }
+
+    /// Mark the row as a valid operation candidate and paint dense-row chrome.
+    pub fn candidate(mut self, candidate: bool) -> Self {
+        self.visual_state.candidate = candidate;
+        self.dense_chrome = true;
+        self
+    }
+
+    /// Apply host-owned visual state and paint dense-row chrome.
+    pub fn visual_state(mut self, parts: InteractiveRowVisualStateParts) -> Self {
+        self.visual_state = parts;
+        self.dense_chrome = true;
         self
     }
 
@@ -70,13 +116,7 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
         self,
         map: impl Fn(InteractiveRowMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
-        let Self {
-            content,
-            row,
-            input_id,
-            style,
-        } = self;
-        Self::finish_parts(content, row.mapped(map), input_id, style)
+        self.finish(WidgetMessageMapper::interactive_row(map))
     }
 
     /// Emit host messages for selected row interactions.
@@ -84,32 +124,32 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
         self,
         map: impl Fn(InteractiveRowMessage) -> Option<Message> + Send + Sync + 'static,
     ) -> ViewNode<Message> {
-        let Self {
-            content,
-            row,
-            input_id,
-            style,
-        } = self;
-        Self::finish_parts(content, row.filter_mapped(map), input_id, style)
+        self.finish(WidgetMessageMapper::interactive_row_filtered(map))
     }
 
     /// Emit host messages for common row actions.
     pub fn actions(self, actions: InteractiveRowActions<Message>) -> ViewNode<Message> {
+        self.filter_mapped(move |message| actions.route(message))
+    }
+
+    fn finish(self, messages: WidgetMessageMapper<Message>) -> ViewNode<Message> {
         let Self {
             content,
             row,
             input_id,
             style,
+            visual_state,
+            dense_chrome,
         } = self;
-        Self::finish_parts(content, row.actions(actions), input_id, style)
-    }
-
-    fn finish_parts(
-        content: ViewNode<Message>,
-        mut input: ViewNode<Message>,
-        input_id: Option<WidgetId>,
-        style: Option<WidgetStyle>,
-    ) -> ViewNode<Message> {
+        let row = row.widget();
+        let mut input = if dense_chrome {
+            view_node_from_widget(MappedWidget::new(
+                DenseInteractiveRowUnderlayWidget { row, visual_state },
+                messages,
+            ))
+        } else {
+            view_node_from_widget(MappedWidget::new(row, messages))
+        };
         if let Some(id) = input_id {
             input = input.id(id);
         }
@@ -117,6 +157,57 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
             input = input.style(style);
         }
         input_underlay(content, input)
+    }
+}
+
+#[derive(Clone)]
+struct DenseInteractiveRowUnderlayWidget {
+    row: InteractiveRowWidget,
+    visual_state: InteractiveRowVisualStateParts,
+}
+
+impl Widget for DenseInteractiveRowUnderlayWidget {
+    fn common(&self) -> &crate::widgets::WidgetCommon {
+        self.row.common()
+    }
+
+    fn common_mut(&mut self) -> &mut crate::widgets::WidgetCommon {
+        self.row.common_mut()
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        self.row
+            .handle_input(bounds, input)
+            .map(WidgetOutput::typed)
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        self.row.accepts_pointer_move()
+    }
+
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        if let Some(previous) = previous.as_any().downcast_ref::<Self>() {
+            self.row.synchronize_from_previous(&previous.row);
+        } else if let Some(previous) = previous.as_any().downcast_ref::<InteractiveRowWidget>() {
+            self.row.synchronize_from_previous(previous);
+        }
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        let palette = dense_row_palette_from_style(theme, self.row.common.style);
+        let palette = if self.row.paints_interaction_fill() {
+            palette
+        } else {
+            palette.without_interaction_fills()
+        };
+        let chrome = self.row.dense_chrome_parts(self.visual_state, palette);
+        self.row.push_dense_chrome(primitives, bounds, chrome);
     }
 }
 
@@ -132,5 +223,7 @@ pub fn interactive_row_underlay<Message: 'static>(
         row: interactive_row(),
         input_id: None,
         style: None,
+        visual_state: InteractiveRowVisualStateParts::default(),
+        dense_chrome: false,
     }
 }

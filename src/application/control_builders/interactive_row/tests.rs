@@ -367,3 +367,62 @@ fn interactive_row_underlay_paints_visible_content() {
         "interactive row underlay should paint visible content"
     );
 }
+
+#[test]
+fn interactive_row_underlay_dense_chrome_paints_selected_state() {
+    let frame = UiSurface::new(
+        interactive_row_underlay(text("Collection"))
+            .selected(true)
+            .style(crate::widgets::WidgetStyle::subtle(
+                crate::widgets::WidgetTone::Accent,
+            ))
+            .mapped(|_| ())
+            .size(140.0, 22.0)
+            .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+        &Default::default(),
+    );
+
+    assert!(
+        frame.paint_plan.fill_rects().any(|fill| fill.color
+            == crate::theme::ThemeTokens::default()
+                .accent_mint
+                .with_alpha(120)),
+        "dense underlay should paint the selected row fill"
+    );
+    assert!(
+        frame.paint_plan.primitives.iter().any(
+            |primitive| matches!(primitive, PaintPrimitive::Text(text) if text.text == "Collection"),
+        ),
+        "dense underlay should keep app-owned visible content above the row chrome"
+    );
+}
+
+#[test]
+fn interactive_row_underlay_dense_chrome_paints_active_target_state() {
+    let frame = UiSurface::new(
+        interactive_row_underlay(text("Collection"))
+            .tracked_drop_target(true, true)
+            .dense_chrome()
+            .style(crate::widgets::WidgetStyle::subtle(
+                crate::widgets::WidgetTone::Accent,
+            ))
+            .mapped(|_| ())
+            .size(140.0, 22.0)
+            .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+        &Default::default(),
+    );
+
+    assert!(
+        frame.paint_plan.fill_rects().any(|fill| fill.color
+            == crate::theme::ThemeTokens::default()
+                .accent_mint
+                .with_alpha(220)),
+        "dense underlay should paint the active drop-target fill"
+    );
+}

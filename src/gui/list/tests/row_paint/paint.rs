@@ -46,6 +46,26 @@ fn selected_hovered_fill_falls_back_to_hover_when_not_configured() {
 }
 
 #[test]
+fn selected_hovered_fill_falls_back_to_selected_when_interaction_fills_are_stripped() {
+    let state = DenseRowVisualState {
+        selected: true,
+        hovered: true,
+        ..DenseRowVisualState::default()
+    };
+
+    assert_eq!(
+        dense_row_fill_color(
+            state,
+            DenseRowPalette::new()
+                .selected(SELECTED)
+                .hovered(HOVERED)
+                .without_interaction_fills(),
+        ),
+        Some(SELECTED)
+    );
+}
+
+#[test]
 fn push_dense_row_paint_helpers_skip_invisible_or_missing_geometry() {
     let collapsed = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(0.0, 8.0));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(20.0, 8.0));

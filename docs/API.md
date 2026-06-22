@@ -315,7 +315,11 @@ keys instead of duplicating local hashing helpers. Use
 numeric app IDs or enum indexes and projection should avoid allocating
 temporary strings. `interactive_row_underlay(content)` can use
 `.stable_input_id(scope, key)` or `.stable_u64_input_id(scope, key)` to bind
-those stable IDs directly to the backing interactive row. Custom matrix or
+those stable IDs directly to the backing interactive row. Use
+`.dense_chrome()`, `.selected(...)`, `.active_target(...)`, `.candidate(...)`,
+or `.visual_state(...)` when arbitrary visible row content should keep
+Radiant's standard dense-row hover, pressed, selected, and drop-target chrome
+without an app-local transparent hit-target widget. Custom matrix or
 heatmap widgets can use `DenseGridLayout` and `DenseGridCell` for reusable
 row/column cell projection and hit testing.
 
@@ -552,7 +556,12 @@ the router from the application facade and
 `InteractiveRowActions::route(...)` when custom row wrappers need the same
 activation, modifier-aware activation, secondary-click, drag, drop, and
 hover-drop routing table that `interactive_row().actions(...)` and
-`interactive_row_underlay(...).actions(...)` use. Use the keyed variants
+`interactive_row_underlay(...).actions(...)` use. Prefer
+`interactive_row_underlay(...).dense_chrome().actions(...)` plus the
+underlay builder's host-owned visual-state methods when custom visible row
+content only needs standard dense chrome; keep `EmbeddedInteractiveRowWidget`
+for unusual widgets that add custom paint beyond Radiant's dense-row fill,
+marker, and outline model. Use the keyed variants
 (`primary_key(...)`, `primary_with_modifiers_key(...)`, `double_key(...)`,
 `secondary_key(...)`, `drag_key(...)`, `drop_key(...)`, and
 `hover_drop_key(...)`) when row interactions should route through the same
@@ -606,10 +615,13 @@ dense-row geometry helpers without repeating paint-plan guard code. Use
 `dense_row_tree_guide_color(...)` when custom dense rows, tree rows, or outline
 rows need standard hover, pressed, selected, drop-target, outline, and guide
 colors resolved from `ThemeTokens` plus `WidgetStyle` without host-local color
-tokens. Use
-`DenseRowPalette::interaction_fills(...)` and `interaction_fills_if(...)` when
-hovered and pressed fills should be supplied together, especially when
-interaction paint follows `InteractiveRowWidget::paints_interaction_fill()`.
+tokens. The standard palette includes a distinct selected-hover fill so
+selected rows can brighten on pointer hover without app-local state-priority
+code. Use `DenseRowPalette::interaction_fills(...)`,
+`interaction_fills_if(...)`, and `without_interaction_fills(...)` when hovered
+and pressed fills should be supplied or suppressed together, especially when
+interaction paint follows `InteractiveRowWidget::paints_interaction_fill()`
+while selected and committed target state should remain visible.
 Use `DenseRowLabelParts` when custom dense rows need row-height-aware label
 sizing, text insets, alignment, and wrapping without constructing
 `PaintTextRun` manually. Use `DenseRowMarkerParts::leading(width)` and
@@ -2506,7 +2518,10 @@ stay above a generic interactive row that owns activation, secondary
 activation, drag, drop, focus, and row feedback paint while preserving a stable
 input widget id for dispatch and tests. Use `.stable_input_id(...)` or
 `.stable_u64_input_id(...)` on dynamic underlay rows instead of creating
-app-local row input-id helper functions.
+app-local row input-id helper functions. Use `.dense_chrome()`,
+`.selected(...)`, `.candidate(...)`, or `.visual_state(...)` on underlay rows
+whose visible content is app-owned but whose dense row feedback should remain
+Radiant-owned.
 Run `cargo run --example theme_playground` for a theme-token sandbox that
 compares density scale, tone, prominence, and interactive state through normal
 application views. It is intended to make theme policy visually inspectable, not

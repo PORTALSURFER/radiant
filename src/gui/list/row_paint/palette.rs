@@ -91,6 +91,18 @@ impl DenseRowPalette {
         self.candidate_hovered = Some(color);
         self
     }
+
+    /// Remove pointer-driven fills while preserving host-owned persistent state.
+    ///
+    /// Use this when a row temporarily suppresses hover or pressed interaction
+    /// paint but should still show selected or committed operation-target state.
+    pub const fn without_interaction_fills(mut self) -> Self {
+        self.selected_hovered = None;
+        self.hovered = None;
+        self.pressed = None;
+        self.candidate_hovered = None;
+        self
+    }
 }
 
 /// Resolve standard dense-row feedback colors from theme tokens and semantic style.
@@ -103,6 +115,7 @@ pub fn dense_row_palette_from_style(theme: &ThemeTokens, style: WidgetStyle) -> 
     let hover = dense_row_hover_fill(theme, style.prominence);
     DenseRowPalette::new()
         .selected(emphasis.with_alpha(dense_row_selected_alpha(style.prominence)))
+        .selected_hovered(emphasis.with_alpha(dense_row_selected_hover_alpha(style.prominence)))
         .interaction_fills(
             hover,
             dense_row_pressed_fill(theme, emphasis, style.prominence),
@@ -174,6 +187,14 @@ fn dense_row_selected_alpha(prominence: WidgetProminence) -> u8 {
         WidgetProminence::Subtle => 120,
         WidgetProminence::Normal => 150,
         WidgetProminence::Strong => 180,
+    }
+}
+
+fn dense_row_selected_hover_alpha(prominence: WidgetProminence) -> u8 {
+    match prominence {
+        WidgetProminence::Subtle => 174,
+        WidgetProminence::Normal => 202,
+        WidgetProminence::Strong => 230,
     }
 }
 

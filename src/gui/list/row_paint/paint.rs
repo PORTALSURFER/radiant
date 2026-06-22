@@ -111,11 +111,15 @@ pub fn dense_row_fill_color(state: DenseRowVisualState, palette: DenseRowPalette
     if state.active_target {
         palette.active_target
     } else if state.hovered && state.candidate {
-        palette.candidate_hovered
+        palette
+            .candidate_hovered
+            .or_else(|| selected_hover_fill(state, palette))
     } else if state.pressed {
-        palette.pressed
+        palette
+            .pressed
+            .or_else(|| state.selected.then_some(palette.selected).flatten())
     } else if state.hovered && state.selected {
-        palette.selected_hovered.or(palette.hovered)
+        selected_hover_fill(state, palette)
     } else if state.hovered {
         palette.hovered
     } else if state.selected {
@@ -123,6 +127,19 @@ pub fn dense_row_fill_color(state: DenseRowVisualState, palette: DenseRowPalette
     } else {
         None
     }
+}
+
+fn selected_hover_fill(state: DenseRowVisualState, palette: DenseRowPalette) -> Option<Rgba8> {
+    state
+        .selected
+        .then_some(
+            palette
+                .selected_hovered
+                .or(palette.hovered)
+                .or(palette.selected),
+        )
+        .flatten()
+        .or(palette.hovered)
 }
 
 /// Push the highest-priority dense-row fill for the supplied state and palette.

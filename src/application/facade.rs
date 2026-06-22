@@ -90,8 +90,8 @@ pub use panels::{
     form_row_from_parts, labeled_control, labeled_control_control_offset,
     labeled_control_control_offset_for, labeled_control_from_parts,
     message_selectable_property_panel, panel_section, panel_section_from_parts,
-    panel_section_layer_from_parts, property_panel, property_rows, status_bar,
-    status_bar_from_parts,
+    panel_section_layer_from_parts, panel_section_resize_header, property_panel, property_rows,
+    status_bar, status_bar_from_parts,
 };
 pub use runtime::{
     CancellationToken, FrameClock, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, Presentation,

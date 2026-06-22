@@ -1,5 +1,8 @@
 use super::PanelSectionParts;
-use crate::application::{ViewNode, close_button, column, row, text};
+use crate::{
+    application::{ViewNode, close_button, column, drag_handle, row, text},
+    widgets::{DragHandleMessage, WidgetStyle, WidgetTone},
+};
 
 /// Build a compact titled panel section with Radiant's neutral panel defaults.
 pub fn panel_section<Message: 'static>(
@@ -48,6 +51,24 @@ where
                 .height(20.0),
         ),
     )
+}
+
+/// Build a full-width compact resize header for collapsible panel sections.
+///
+/// This is useful when the whole header strip should be the resize hit target
+/// while host state keeps owning size, collapse policy, and resize messages.
+pub fn panel_section_resize_header<Message: 'static>(
+    key: impl ToString,
+    height: f32,
+    map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+) -> ViewNode<Message> {
+    drag_handle()
+        .hover_chrome_only()
+        .mapped(map)
+        .key(key)
+        .style(WidgetStyle::subtle(WidgetTone::Accent))
+        .fill_width()
+        .height(height)
 }
 
 fn panel_section_header<Message: 'static>(

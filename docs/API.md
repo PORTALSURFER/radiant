@@ -2371,6 +2371,9 @@ without constructing view parts.
 Use `PanelSectionParts::trailing_resize_handle(...)` when a resizable titled
 panel should use Radiant's standard compact drag handle while the host reducer
 keeps owning durable size, constraints, and resize messages.
+Use `panel_section_resize_header(...)` when a collapsible panel needs the whole
+header strip to act as a subtle hover-only resize hit target while the host
+still owns durable size and collapse policy.
 Compact control panels can use `LabeledControlParts`,
 `labeled_control(...)`, `labeled_control_from_parts(...)`, and
 `labeled_control_control_offset(...)` for label-over-control groups and overlay
@@ -2747,6 +2750,7 @@ visibility through a named state, a primary text value, fixed-size toggle
 state, and an auxiliary label without owning product-specific preference names.
 Titled panel code that needs to anchor popovers, completion lists, or other
 foreground chrome to the panel content area can use
+`PanelSectionGeometry::header_only_height()`,
 `PanelSectionParts::content_top_offset()`,
 `content_top_inset_from_bottom(...)`, `content_bottom_inset()`,
 `section_height_for_content_height(...)`, and

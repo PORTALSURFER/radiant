@@ -1,5 +1,9 @@
 use super::*;
-use crate::{application::IntoView, application::text, layout::Vector2};
+use crate::{
+    application::{IntoView, column, spacer, text},
+    layout::Vector2,
+    widgets::{DragHandleMessage, WidgetOutput},
+};
 
 #[test]
 fn panel_section_parts_adds_trailing_resize_handle() {
@@ -21,6 +25,7 @@ fn panel_section_parts_exposes_content_offsets() {
         .title_height(22.0)
         .spacing(5.0);
 
+    assert_eq!(parts.geometry().header_only_height(), 38.0);
     assert_eq!(parts.content_top_offset(), 35.0);
     assert_eq!(parts.content_top_inset_from_bottom(120.0), 85.0);
     assert_eq!(parts.content_bottom_inset(), 8.0);
@@ -49,7 +54,34 @@ fn panel_section_geometry_exposes_content_height_conversion() {
         .title_height(20.0)
         .spacing(4.0);
 
+    assert_eq!(geometry.header_only_height(), 32.0);
     assert_eq!(geometry.content_top_offset(), 30.0);
     assert_eq!(geometry.section_height_for_content_height(100.0), 136.0);
     assert_eq!(geometry.content_height_for_section_height(136.0), 100.0);
+}
+
+#[test]
+fn panel_section_resize_header_spans_width_and_routes_drag_messages() {
+    const HEADER_ID: u64 = 4_200;
+
+    let header =
+        panel_section_resize_header("inspector-header-resize", 24.0, |_| "resize").id(HEADER_ID);
+    let layout = column([header, spacer()]).view_layout_at_size(Vector2::new(240.0, 48.0));
+    let rect = layout
+        .rects
+        .get(&HEADER_ID)
+        .expect("resize header should be laid out");
+
+    assert_eq!(rect.width(), 240.0);
+    assert_eq!(rect.height(), 24.0);
+
+    assert_eq!(
+        panel_section_resize_header("inspector-header-resize", 24.0, |_| "resize")
+            .id(HEADER_ID)
+            .view_dispatch_widget_output(
+                HEADER_ID,
+                WidgetOutput::typed(DragHandleMessage::started(rect.center())),
+            ),
+        Some("resize")
+    );
 }

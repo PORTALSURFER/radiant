@@ -8,7 +8,7 @@ pub use super::super::labeled_control::{
 pub use super::super::panel_section::{
     PanelSectionGeometry, PanelSectionLayerParts, PanelSectionParts,
     closeable_panel_section_from_parts, closeable_panel_section_layer_from_parts, panel_section,
-    panel_section_from_parts, panel_section_layer_from_parts,
+    panel_section_from_parts, panel_section_layer_from_parts, panel_section_resize_header,
 };
 pub use super::super::property_panel::{
     PropertyRow, PropertyRowParts, message_selectable_property_panel, property_panel, property_rows,

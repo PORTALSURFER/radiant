@@ -41,6 +41,39 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
         self
     }
 
+    /// Configure the backing row as an input-only layer for app-owned row paint.
+    ///
+    /// Use this when the visible content or dense underlay chrome owns all row
+    /// feedback, while Radiant should still route generic row input behavior.
+    pub fn custom_paint_hit_target(mut self) -> Self {
+        self.row = self.row.custom_paint_hit_target();
+        self
+    }
+
+    /// Include primary-release modifier state in row activation messages.
+    pub fn activation_modifiers(mut self) -> Self {
+        self.row = self.row.activation_modifiers();
+        self
+    }
+
+    /// Configure the backing row as a host-tracked drag source.
+    ///
+    /// Use this when arbitrary visible row content should keep its own paint
+    /// tree while the underlay owns generic drag lifecycle routing.
+    pub fn tracked_drag_source(mut self, drag_active: bool, drag_source: bool) -> Self {
+        self.row = self.row.tracked_drag_source(drag_active, drag_source);
+        self
+    }
+
+    /// Configure the backing row as a host-tracked drag source that keeps
+    /// emitting pointer movement after the active source is rebuilt.
+    pub fn tracked_drag_source_with_motion(mut self, drag_active: bool, drag_source: bool) -> Self {
+        self.row = self
+            .row
+            .tracked_drag_source_with_motion(drag_active, drag_source);
+        self
+    }
+
     /// Configure the backing row as a host-tracked drop target.
     ///
     /// Use this when arbitrary visible row content should keep its own paint

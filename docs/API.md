@@ -2533,9 +2533,13 @@ stay above a generic interactive row that owns activation, secondary
 activation, drag, drop, focus, and row feedback paint while preserving a stable
 input widget id or key. Use `.input_key(...)`, `.stable_input_id(...)`, or
 `.stable_u64_input_id(...)` on dynamic underlay rows instead of creating
-app-local row input identity helpers. Use `.dense_chrome()`, `.selected(...)`,
-`.candidate(...)`, or `.visual_state(...)` on underlay rows whose visible
-content is app-owned but whose dense row feedback should remain Radiant-owned.
+app-local row input identity helpers. Use `.custom_paint_hit_target()`,
+`.activation_modifiers()`, `.tracked_drag_source(...)`, or
+`.tracked_drag_source_with_motion(...)` on underlay rows when app-owned visible
+content still needs standard Radiant row input presets without dropping to
+`.row(|row| ...)`. Use `.dense_chrome()`, `.selected(...)`, `.candidate(...)`,
+or `.visual_state(...)` on underlay rows whose visible content is app-owned but
+whose dense row feedback should remain Radiant-owned.
 Use `.dense_chrome_palette(...)`, `.leading_marker(...)`,
 `.trailing_marker(...)`, and `.outline(...)` when that generic underlay needs
 app-specific dense row fills or edge/status markers.

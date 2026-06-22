@@ -74,6 +74,43 @@ fn interactive_row_underlay_configures_tracked_drop_target() {
 }
 
 #[test]
+fn interactive_row_underlay_exposes_common_input_presets() {
+    let surface = interactive_row_underlay(text("Sample"))
+        .custom_paint_hit_target()
+        .activation_modifiers()
+        .tracked_drag_source(true, true)
+        .input_id(774)
+        .mapped(|_| ())
+        .size(140.0, 22.0)
+        .into_surface();
+    let _ = surface.frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+        &Default::default(),
+    );
+
+    let row = surface
+        .find_widget(774)
+        .and_then(|widget| {
+            widget
+                .widget()
+                .as_any()
+                .downcast_ref::<crate::widgets::InteractiveRowWidget>()
+        })
+        .expect("underlay should preserve the configured input row");
+
+    assert!(row.props.draggable);
+    assert!(row.props.drag_active);
+    assert!(row.props.drag_source);
+    assert!(row.props.activation_modifiers);
+    assert_eq!(
+        row.props.pointer_motion,
+        crate::widgets::InteractiveRowPointerMotion::DuringInteraction
+    );
+    assert_eq!(row.common.focus, crate::widgets::FocusBehavior::None);
+    assert!(!row.common.paint.paints_state_layers);
+}
+
+#[test]
 fn interactive_row_underlay_derives_stable_text_input_id() {
     let view = interactive_row_underlay(text("Source"))
         .stable_input_id(42, "source-a")

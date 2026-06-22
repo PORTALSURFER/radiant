@@ -18,5 +18,7 @@ pub use packer::{
     push_flow_row_group, push_flow_row_item,
 };
 pub use trailing::{
-    FlowTrailingItemParts, flow_trailing_item_starts_new_row, pack_flow_rows_with_trailing_item,
+    FlowTrailingItemParts, flow_trailing_item_starts_new_row,
+    flow_width_with_following_item_reserved, pack_flow_rows_with_trailing_item,
+    pack_flow_rows_with_trailing_item_and_following_item,
 };

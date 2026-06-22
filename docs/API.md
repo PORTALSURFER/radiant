@@ -2711,7 +2711,13 @@ Wrapped chip, token, recipient, or pill editors can use
 policy, plus
 `FlowTrailingItemParts` and `pack_flow_rows_with_trailing_item` when a trailing
 input/control should stay on the current row only if enough editing room
-remains. Use `push_flow_row_group` when several flow items, such as a prefix
+remains. Use
+`pack_flow_rows_with_trailing_item_and_following_item(...)` and
+`FlowTrailingItemParts::reserve_following_item(...)` when that trailing editor
+must reserve room for a compact following action such as a picker, library
+toggle, or add-menu button; use `flow_width_with_following_item_reserved(...)`
+for the same reservation policy when building an atomic trailing group
+manually. Use `push_flow_row_group` when several flow items, such as a prefix
 token plus its editor, should wrap atomically instead of splitting across rows.
 Use `pack_flow_rows_with_trailing_group` when callers need the common form of
 packing existing items and appending one such atomic trailing group.

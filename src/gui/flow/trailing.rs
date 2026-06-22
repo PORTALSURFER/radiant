@@ -31,6 +31,34 @@ impl<Create> FlowTrailingItemParts<Create> {
             min_remaining_width,
         }
     }
+
+    /// Reserve horizontal room after the trailing item for a following action.
+    ///
+    /// Use this when a chip, token, recipient, or pill editor has a text input
+    /// followed by a compact control such as a picker, library toggle, or
+    /// add-menu button. The compact and standalone widths both reserve the
+    /// follow-up control while keeping at least `min_width`, capped by the
+    /// original requested width.
+    pub fn reserve_following_item(
+        mut self,
+        following_width: f32,
+        following_gap: f32,
+        min_width: f32,
+    ) -> Self {
+        self.width = flow_width_with_following_item_reserved(
+            self.width,
+            following_width,
+            following_gap,
+            min_width,
+        );
+        self.standalone_width = flow_width_with_following_item_reserved(
+            self.standalone_width,
+            following_width,
+            following_gap,
+            min_width,
+        );
+        self
+    }
 }
 
 /// Pack variable-width items and append one trailing editor/control item.
@@ -77,6 +105,42 @@ where
     packer.into_rows()
 }
 
+/// Pack variable-width items, append one trailing editor/control item, then an
+/// optional following control.
+///
+/// This is the common token-editor shape where a final text editor should
+/// reserve room for a compact action button on the same row. If the following
+/// item is present, the trailing editor's compact and standalone widths are
+/// reduced by `metrics.item_gap + following.width` before packing, but never
+/// below `trailing_min_width.min(original_width)`. The following item is then
+/// pushed through the normal row packer so it wraps consistently with other
+/// flow items.
+pub fn pack_flow_rows_with_trailing_item_and_following_item<T, Create>(
+    items: impl IntoIterator<Item = FlowItem<T>>,
+    trailing: FlowTrailingItemParts<Create>,
+    following: Option<FlowItem<T>>,
+    trailing_min_width: f32,
+    content_width: f32,
+    metrics: FlowLayoutMetrics,
+) -> Vec<Vec<T>>
+where
+    T: FlowItemWidth,
+    Create: FnOnce(f32) -> T,
+{
+    let trailing = if let Some(following) = &following {
+        trailing.reserve_following_item(following.width, metrics.item_gap, trailing_min_width)
+    } else {
+        trailing
+    };
+    let mut rows = pack_flow_rows_with_trailing_item(items, trailing, content_width, metrics);
+    if let Some(following) = following {
+        let mut packer = FlowRowPacker::from_rows(rows, content_width, metrics);
+        packer.push_item(following.value, following.width);
+        rows = packer.into_rows();
+    }
+    rows
+}
+
 /// Return whether a trailing item should start on a new row.
 ///
 /// This is useful for editable pill/tag fields where the text input should move
@@ -108,6 +172,32 @@ pub fn flow_trailing_item_starts_new_row(
         content_width,
         item_gap,
     )
+}
+
+/// Return an item width after reserving room for a following item.
+///
+/// This keeps inline editor width-reservation policy in Radiant instead of
+/// forcing host apps to repeat `available - gap - button` math. Non-finite and
+/// negative widths are normalized to zero, and the result keeps at least
+/// `min_width.min(width)` so very small controls do not grow unexpectedly.
+pub fn flow_width_with_following_item_reserved(
+    width: f32,
+    following_width: f32,
+    following_gap: f32,
+    min_width: f32,
+) -> f32 {
+    let width = finite_nonnegative_width(width);
+    let reserved =
+        finite_nonnegative_width(following_width) + finite_nonnegative_width(following_gap);
+    (width - reserved).max(finite_nonnegative_width(min_width).min(width))
+}
+
+fn finite_nonnegative_width(value: f32) -> f32 {
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
+    }
 }
 
 fn trailing_item_starts_new_row_after_width(

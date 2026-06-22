@@ -224,6 +224,82 @@ fn pack_flow_rows_with_trailing_item_handles_empty_items() {
 }
 
 #[test]
+fn trailing_item_parts_reserve_following_action_width() {
+    let parts = FlowTrailingItemParts::new(|width: f32| width, 120.0, 240.0, 100.0)
+        .reserve_following_item(22.0, 3.0, 61.0);
+
+    assert_eq!(parts.width, 95.0);
+    assert_eq!(parts.standalone_width, 215.0);
+    assert_eq!(
+        flow_width_with_following_item_reserved(70.0, 22.0, 3.0, 61.0),
+        61.0
+    );
+    assert_eq!(
+        flow_width_with_following_item_reserved(f32::INFINITY, 22.0, 3.0, 61.0),
+        0.0
+    );
+}
+
+#[test]
+fn pack_flow_rows_with_trailing_item_and_following_item_keeps_action_after_editor() {
+    #[derive(Clone, Debug, PartialEq)]
+    struct SizedItem(&'static str, f32);
+
+    impl FlowItemWidth for SizedItem {
+        fn flow_width(&self) -> f32 {
+            self.1
+        }
+    }
+
+    let rows = pack_flow_rows_with_trailing_item_and_following_item(
+        [FlowItem::new(SizedItem("pill", 38.0), 38.0)],
+        FlowTrailingItemParts::new(|width| SizedItem("input", width), 120.0, 180.0, 90.0),
+        Some(FlowItem::new(SizedItem("toggle", 22.0), 22.0)),
+        61.0,
+        220.0,
+        metrics(),
+    );
+
+    assert_eq!(
+        rows,
+        vec![vec![
+            SizedItem("pill", 38.0),
+            SizedItem("input", 95.0),
+            SizedItem("toggle", 22.0)
+        ]]
+    );
+}
+
+#[test]
+fn pack_flow_rows_with_trailing_item_and_following_item_reserves_standalone_width() {
+    #[derive(Clone, Debug, PartialEq)]
+    struct SizedItem(&'static str, f32);
+
+    impl FlowItemWidth for SizedItem {
+        fn flow_width(&self) -> f32 {
+            self.1
+        }
+    }
+
+    let rows = pack_flow_rows_with_trailing_item_and_following_item(
+        [FlowItem::new(SizedItem("wide-pill", 160.0), 160.0)],
+        FlowTrailingItemParts::new(|width| SizedItem("input", width), 120.0, 220.0, 90.0),
+        Some(FlowItem::new(SizedItem("toggle", 22.0), 22.0)),
+        61.0,
+        220.0,
+        metrics(),
+    );
+
+    assert_eq!(
+        rows,
+        vec![
+            vec![SizedItem("wide-pill", 160.0)],
+            vec![SizedItem("input", 195.0), SizedItem("toggle", 22.0)]
+        ]
+    );
+}
+
+#[test]
 fn push_flow_row_group_keeps_items_together_when_wrapping() {
     #[derive(Clone, Debug, PartialEq)]
     struct SizedItem(&'static str, f32);

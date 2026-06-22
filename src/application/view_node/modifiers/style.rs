@@ -29,6 +29,14 @@ impl<Message> ViewNode<Message> {
         self
     }
 
+    /// Show a passive runtime tooltip when one is provided.
+    pub fn tooltip_opt(mut self, tooltip: Option<impl Into<String>>) -> Self {
+        if let Some(tooltip) = tooltip {
+            self.tooltip = Some(tooltip.into());
+        }
+        self
+    }
+
     /// Use the accent tone and strong prominence.
     pub fn primary(self) -> Self {
         self.style(primary_style())

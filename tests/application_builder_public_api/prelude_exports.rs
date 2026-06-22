@@ -69,6 +69,31 @@ fn view_node_overlay_helpers_are_available_from_prelude_views() {
 }
 
 #[test]
+fn view_node_tooltip_opt_is_available_from_prelude_views() {
+    use radiant::prelude::*;
+
+    let with_tooltip = button("Help").message(()).tooltip_opt(Some("Helpful"));
+    let without_tooltip = button("Plain")
+        .message(())
+        .tooltip_opt(None::<&'static str>);
+
+    assert_eq!(
+        with_tooltip
+            .into_surface()
+            .find_widget(1)
+            .and_then(|widget| widget.widget_object().common().tooltip.as_deref()),
+        Some("Helpful")
+    );
+    assert_eq!(
+        without_tooltip
+            .into_surface()
+            .find_widget(1)
+            .and_then(|widget| widget.widget_object().common().tooltip.as_deref()),
+        None
+    );
+}
+
+#[test]
 fn prelude_exports_children_builder_for_optional_container_children() {
     use radiant::prelude::*;
 

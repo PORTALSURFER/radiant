@@ -2478,7 +2478,9 @@ callback routing for compatibility. Use `.message(...)` for normal
 application interactions. Use `icon_button(...).passive()`,
 `close_button().passive()`, or `disclosure_button(expanded).passive()` when a
 standard icon should paint as decorative chrome while another parent surface
-owns interaction routing. Button reducers can use
+owns interaction routing. Use `.tooltip_opt(...)` when tooltip text is
+controlled by optional app state so projection code does not repeat
+`if enabled { view.tooltip(...) } else { view }` wrappers. Button reducers can use
 `ButtonMessage::is_activate()`, `secondary_position()`, and `drag_message()` to
 route primary activation, context-menu clicks, or drag lifecycle events without
 repeating the raw button enum shape. Button-backed drags emit `Cancelled` when

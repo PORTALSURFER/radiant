@@ -1,6 +1,6 @@
 use std::{collections::HashMap, hash::Hash};
 
-use super::{LatestTask, TaskTicket};
+use super::{KeyedTaskCompletion, LatestTask, TaskTicket};
 
 #[cfg(test)]
 #[path = "keyed_latest/tests.rs"]
@@ -61,12 +61,29 @@ where
             .is_some_and(|task| task.is_active(ticket))
     }
 
+    /// Return whether this completion belongs to the active latest task for its key.
+    pub fn is_active_completion<Output>(
+        &self,
+        completion: &KeyedTaskCompletion<Key, Output>,
+    ) -> bool {
+        self.is_active(&completion.key, completion.ticket)
+    }
+
     /// Clear the active task for `key` when `ticket` is still current.
     pub fn finish(&mut self, key: &Key, ticket: TaskTicket) -> bool {
         let Some(task) = self.tasks.get_mut(key) else {
             return false;
         };
         task.finish(ticket)
+    }
+
+    /// Clear the active task for a current keyed completion and return its output.
+    pub fn finish_completion<Output>(
+        &mut self,
+        completion: KeyedTaskCompletion<Key, Output>,
+    ) -> Option<Output> {
+        self.finish(&completion.key, completion.ticket)
+            .then_some(completion.output)
     }
 
     /// Cancel any active task for `key` while keeping the key remembered.

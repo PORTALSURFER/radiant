@@ -157,7 +157,14 @@ duplicate loads for the same key should be rejected until the active request
 finishes or is cancelled. Keyed streaming workers tag intermediate and final
 messages with both the resource key and task ticket so stale progress,
 preview-ready, playback-ready, and final messages can be ignored without
-app-local ticket plumbing.
+app-local ticket plumbing. Use `LatestTask::is_active_completion(...)`,
+`LatestTask::finish_completion(...)`,
+`KeyedLatestTasks::is_active_completion(...)`,
+`KeyedLatestTasks::finish_completion(...)`,
+`ResourceTasks::is_active_completion(...)`, and
+`ResourceTasks::finish_completion(...)` when reducers receive
+`TaskCompletion` or `KeyedTaskCompletion` values; these helpers keep ticket
+validation and output extraction in one generic task API.
 Platform interactions such as file dialogs, reveal/open, clipboard text and
 file-list reads/writes, confirmation prompts, and native handoffs must use
 typed Radiant platform services instead of direct blocking calls from handlers.

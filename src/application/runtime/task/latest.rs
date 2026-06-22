@@ -1,4 +1,4 @@
-use super::TaskTicket;
+use super::{TaskCompletion, TaskTicket};
 
 #[cfg(test)]
 #[path = "latest/tests.rs"]
@@ -44,6 +44,11 @@ impl LatestTask {
         self.active == Some(ticket)
     }
 
+    /// Return whether this completion belongs to the active latest task.
+    pub fn is_active_completion<Output>(&self, completion: &TaskCompletion<Output>) -> bool {
+        self.is_active(completion.ticket)
+    }
+
     /// Clear this task if `ticket` is still active.
     pub fn finish(&mut self, ticket: TaskTicket) -> bool {
         if self.is_active(ticket) {
@@ -52,6 +57,14 @@ impl LatestTask {
         } else {
             false
         }
+    }
+
+    /// Clear this task for a current completion and return its output.
+    pub fn finish_completion<Output>(
+        &mut self,
+        completion: TaskCompletion<Output>,
+    ) -> Option<Output> {
+        self.finish(completion.ticket).then_some(completion.output)
     }
 
     /// Clear any active task.

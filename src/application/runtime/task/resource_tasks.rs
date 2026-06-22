@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::runtime::ResourceKey;
 
-use super::{KeyedLatestTasks, TaskTicket};
+use super::{KeyedLatestTasks, KeyedTaskCompletion, TaskTicket};
 
 /// Tracks in-flight business work by generic resource key.
 ///
@@ -69,6 +69,14 @@ impl ResourceTasks {
         self.latest.is_active(key, ticket) || self.exclusive.get(key).copied() == Some(ticket)
     }
 
+    /// Return whether this resource completion still belongs to active work.
+    pub fn is_active_completion<Output>(
+        &self,
+        completion: &KeyedTaskCompletion<ResourceKey, Output>,
+    ) -> bool {
+        self.is_active_key(&completion.key, completion.ticket)
+    }
+
     /// Finish a resource task only when the ticket is still current.
     pub fn finish(&mut self, task: &ResourceTaskTicket) -> bool {
         self.finish_key(task.key(), task.ticket())
@@ -82,6 +90,15 @@ impl ResourceTasks {
             self.exclusive.remove(key);
         }
         latest_finished || exclusive_finished
+    }
+
+    /// Finish a current resource completion and return its output.
+    pub fn finish_completion<Output>(
+        &mut self,
+        completion: KeyedTaskCompletion<ResourceKey, Output>,
+    ) -> Option<Output> {
+        self.finish_key(&completion.key, completion.ticket)
+            .then_some(completion.output)
     }
 
     /// Cancel all active latest and exclusive work for one resource key.
@@ -144,5 +161,35 @@ mod tests {
 
         assert!(!tasks.is_active(&first));
         assert!(tasks.is_active(&second));
+    }
+
+    #[test]
+    fn resource_tasks_finish_completion_returns_only_current_output() {
+        let mut tasks = ResourceTasks::new();
+        let key = ResourceKey::scoped("sample", "C:/kick.wav");
+
+        let stale = tasks.begin_latest(key.clone());
+        let current = tasks
+            .begin_exclusive(key.clone())
+            .expect("exclusive task starts");
+
+        let stale_completion = KeyedTaskCompletion {
+            key: key.clone(),
+            ticket: stale.ticket(),
+            output: "stale",
+        };
+        assert!(!tasks.is_active_completion(&stale_completion));
+        assert_eq!(tasks.finish_completion(stale_completion), None);
+
+        assert_eq!(
+            tasks.finish_completion(KeyedTaskCompletion {
+                key: key.clone(),
+                ticket: current.ticket(),
+                output: "current",
+            }),
+            Some("current")
+        );
+        assert_eq!(tasks.active(&key), None);
+        assert!(tasks.begin_exclusive(key).is_some());
     }
 }

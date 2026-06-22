@@ -1,4 +1,4 @@
-use super::KeyedLatestTasks;
+use super::{KeyedLatestTasks, KeyedTaskCompletion};
 
 #[test]
 fn keyed_latest_tasks_reject_stale_tickets_per_key() {
@@ -29,4 +29,30 @@ fn keyed_latest_tasks_can_cancel_and_remove_keys() {
     assert!(!tasks.is_active(&String::from("preview"), ticket));
     assert!(tasks.remove(&String::from("preview")).is_some());
     assert!(tasks.is_empty());
+}
+
+#[test]
+fn keyed_latest_tasks_finish_completion_returns_only_current_output() {
+    let mut tasks = KeyedLatestTasks::new();
+
+    let stale = tasks.begin("a");
+    let current = tasks.begin("a");
+
+    let stale_completion = KeyedTaskCompletion {
+        key: "a",
+        ticket: stale,
+        output: "stale",
+    };
+    assert!(!tasks.is_active_completion(&stale_completion));
+    assert_eq!(tasks.finish_completion(stale_completion), None);
+
+    assert_eq!(
+        tasks.finish_completion(KeyedTaskCompletion {
+            key: "a",
+            ticket: current,
+            output: "current",
+        }),
+        Some("current")
+    );
+    assert_eq!(tasks.active(&"a"), None);
 }

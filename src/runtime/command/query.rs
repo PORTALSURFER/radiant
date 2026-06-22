@@ -1,4 +1,4 @@
-use super::{Command, RepaintScope};
+use super::{Command, RepaintScope, TaskPriority};
 
 impl<Message> Command<Message> {
     /// Return whether this command performs no work.
@@ -68,5 +68,68 @@ impl<Message> Command<Message> {
     /// Return whether this command or any nested command requests paint-only redraw.
     pub fn requests_paint_only(&self) -> bool {
         matches!(self.repaint_scope(), Some(RepaintScope::PaintOnly))
+    }
+
+    /// Return the priority for the first queued business command with `name`.
+    ///
+    /// This inspects both one-shot and streaming business commands and walks
+    /// nested batches in dispatch order. It is primarily useful in tests and
+    /// diagnostics that need to verify app work was routed to the intended
+    /// runtime-managed business lane without pattern-matching hidden command
+    /// internals.
+    pub fn business_task_priority(&self, name: &'static str) -> Option<TaskPriority> {
+        match self {
+            Self::Perform {
+                name: command_name,
+                priority,
+                ..
+            }
+            | Self::PerformStream {
+                name: command_name,
+                priority,
+                ..
+            } if *command_name == name => Some(*priority),
+            Self::Batch(commands) => commands
+                .iter()
+                .find_map(|command| command.business_task_priority(name)),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::runtime::{Command, TaskPriority};
+
+    #[test]
+    fn business_task_priority_finds_perform_command_in_batch() {
+        let command = Command::batch([
+            Command::Message(1),
+            Command::perform_with_priority(
+                "target",
+                TaskPriority::Interactive,
+                None,
+                || 2,
+                |message| message,
+            ),
+        ]);
+
+        assert_eq!(
+            command.business_task_priority("target"),
+            Some(TaskPriority::Interactive)
+        );
+    }
+
+    #[test]
+    fn business_task_priority_finds_stream_command_in_batch() {
+        let command = Command::batch([
+            Command::Message(1),
+            Command::perform_stream_with_priority("target", TaskPriority::BlockingIo, None, |_| {}),
+        ]);
+
+        assert_eq!(
+            command.business_task_priority("target"),
+            Some(TaskPriority::BlockingIo)
+        );
     }
 }

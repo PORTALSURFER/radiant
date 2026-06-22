@@ -1402,6 +1402,9 @@ adapter can use `Command::run_inline_for_tests(...)`. It runs `Message`, `Batch`
 `Perform`, and `PerformStream` commands synchronously and preserves streamed
 message order, while intentionally ignoring repaint, timer, focus, drag,
 platform, window, and exit commands that require an installed runtime adapter.
+Tests and diagnostics can use `Command::business_task_priority(...)` to verify
+that a named one-shot or streaming business command was queued on the expected
+runtime worker lane without pattern-matching hidden command internals.
 `RepaintScope` is the typed repaint specificity contract: `Surface` requests a
 surface refresh plus repaint, while `PaintOnly` repaints the current paint plan
 for overlay-only motion. Reducers can queue `Command::repaint(scope)` or

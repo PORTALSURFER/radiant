@@ -8,7 +8,6 @@ pub(crate) fn launcher_view(state: &mut LauncherState) -> View<LauncherMessage> 
     column([
         text("Popup workflow")
             .id(11)
-            .key("title")
             .height(32.0)
             .fill_width(),
         text("Open a real popup window, drag its title area, then close it from inside the popup.")
@@ -29,7 +28,6 @@ pub(crate) fn launcher_view(state: &mut LauncherState) -> View<LauncherMessage> 
                 .mapped(|_| LauncherMessage::OpenPopup)
                 .primary()
                 .id(14)
-                .key("open")
                 .size(132.0, 34.0),
             text(format!("Launches: {}", state.launches))
                 .id(15)

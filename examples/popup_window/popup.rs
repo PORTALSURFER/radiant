@@ -48,11 +48,7 @@ pub(super) fn popup_view(state: &mut PopupState) -> View<PopupMessage> {
     column([
         row([
             pinned_badge,
-            text(state.mode.label())
-                .id(12)
-                .key("title")
-                .height(26.0)
-                .fill_width(),
+            text(state.mode.label()).id(12).height(26.0).fill_width(),
         ])
         .key("header")
         .spacing(8.0)
@@ -75,7 +71,6 @@ pub(super) fn popup_view(state: &mut PopupState) -> View<PopupMessage> {
                 .message(PopupMessage::Close)
                 .danger()
                 .id(18)
-                .key("close")
                 .size(92.0, 30.0),
         ])
         .key("actions")

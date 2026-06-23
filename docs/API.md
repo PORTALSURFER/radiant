@@ -2930,6 +2930,10 @@ must survive insertion, removal, reordering, or scroll-window changes. Generated
 IDs are suitable for static local structure, but dynamic collections should not
 depend on positional identity when user focus, selection, drag state, or cache
 reuse matters.
+Use either `.id(...)` or `.key(...)` on one view node; if both are chained, the
+last identity modifier wins. Prefer explicit IDs for external automation,
+focus, and tests that need stable numeric handles, and prefer scoped keys for
+ordinary repeated view structure.
 
 Reducers own all durable application state. Widget input emits host messages,
 and runtime-local state is limited to GUI concerns such as focus, hover,

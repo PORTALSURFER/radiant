@@ -1,6 +1,8 @@
 use super::*;
 use crate::{
-    application::{Layer, ROOT_KEY_SCOPE, column, floating_layer, grid, row, row_key, text},
+    application::{
+        Layer, ROOT_KEY_SCOPE, column, floating_layer, grid, row, row_key, scoped_key_id, text,
+    },
     gui::types::Point,
     layout::Vector2,
     runtime::{SurfaceNode, WidgetMessageMapper},
@@ -32,6 +34,18 @@ fn reserved_id_collection_skips_unreserved_descendants() {
 
     assert_eq!(ids.len(), 1);
     assert!(ids.contains(&view.resolved_id(ROOT_KEY_SCOPE).unwrap()));
+}
+
+#[test]
+fn identity_modifiers_use_last_call_wins() {
+    let keyed = text::<()>("Keyed").id(42).key("title");
+    let identified = text::<()>("Identified").key("title").id(42);
+
+    assert_eq!(
+        keyed.resolved_id(ROOT_KEY_SCOPE),
+        Some(scoped_key_id(ROOT_KEY_SCOPE, "title"))
+    );
+    assert_eq!(identified.resolved_id(ROOT_KEY_SCOPE), Some(42));
 }
 
 #[test]

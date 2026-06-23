@@ -174,6 +174,27 @@ impl<Message> InteractiveRowActions<Message> {
         self
     }
 
+    /// Emit primary and secondary activation messages for one host-owned row key.
+    ///
+    /// Use this when the same row, badge, chip, or tree item key routes normal
+    /// activation and context-menu activation to separate host message shapes.
+    pub fn primary_secondary_key<Key>(
+        mut self,
+        key: Key,
+        primary_message: impl Fn(Key) -> Message + Send + Sync + 'static,
+        secondary_message: impl Fn(Key, Point) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+    {
+        let primary_key = key.clone();
+        self.activate = Some(Arc::new(move || primary_message(primary_key.clone())));
+        self.secondary = Some(Arc::new(move |position| {
+            secondary_message(key.clone(), position)
+        }));
+        self
+    }
+
     /// Emit a host message for drag lifecycle updates.
     pub fn drag(
         mut self,

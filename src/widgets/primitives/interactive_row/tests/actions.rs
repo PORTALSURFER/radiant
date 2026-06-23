@@ -107,9 +107,11 @@ fn interactive_row_actions_routes_keyed_modifier_activation_secondary_and_drag()
 
 #[test]
 fn interactive_row_actions_routes_activation_and_secondary_with_one_key() {
-    let actions = InteractiveRowActions::new()
-        .primary_key("source", |key| (key, "activate", Point::new(0.0, 0.0)))
-        .secondary_key("source", |key, position| (key, "secondary", position));
+    let actions = InteractiveRowActions::new().primary_secondary_key(
+        "source",
+        |key| (key, "activate", Point::new(0.0, 0.0)),
+        |key, position| (key, "secondary", position),
+    );
     let position = Point::new(12.0, 24.0);
 
     assert_eq!(

@@ -244,6 +244,30 @@ fn interactive_row_actions_route_keyed_activation_and_secondary_actions() {
 }
 
 #[test]
+fn interactive_row_actions_route_keyed_primary_and_secondary_actions() {
+    let actions = row_actions().primary_secondary_key(
+        String::from("target-a"),
+        DemoMessage::ActivateKey,
+        DemoMessage::SecondaryKey,
+    );
+    let secondary = Point::new(8.0, 14.0);
+
+    assert_eq!(
+        actions.route(InteractiveRowMessage::Activate),
+        Some(DemoMessage::ActivateKey(String::from("target-a")))
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::SecondaryActivate {
+            position: secondary
+        }),
+        Some(DemoMessage::SecondaryKey(
+            String::from("target-a"),
+            secondary
+        ))
+    );
+}
+
+#[test]
 fn interactive_row_actions_route_keyed_modifier_activation_and_drag() {
     let modifiers = crate::widgets::PointerModifiers {
         alt: true,

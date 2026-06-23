@@ -581,7 +581,9 @@ marker, and outline model. Use the keyed variants
 host-owned item key without duplicating capture closures at each row, chip, or
 tree item. Use `drop_target_key(...)` when drop and hover-drop both route
 through the same host-owned target key but still produce separate host message
-shapes. Use
+shapes. Use `primary_secondary_key(...)` when primary activation and secondary
+context-menu activation share the same host-owned key but emit separate host
+message shapes. Use
 `primary(...)`/`primary_key(...)` plus `double(...)`/`double_key(...)` when
 primary release and double-click should route to the same host action. Use
 `primary_with_modifiers(...)` or `primary_with_modifiers_key(...)` when primary

@@ -32,6 +32,7 @@ impl VirtualListController {
         let window = change.window;
         self.total_items = window.total_items;
         self.viewport_len = window.viewport_len().max(1);
+        self.runtime_viewport_len = Some(self.viewport_len);
         self.overscan = window.overscan();
         self.viewport_start = window.viewport_start;
         self.focused_index = None;
@@ -64,5 +65,16 @@ impl VirtualListController {
             window_end: viewport_start.saturating_add(viewport_len),
         };
         window.viewport_contains(index)
+    }
+
+    /// Return whether an index is visible in the runtime-reported viewport.
+    ///
+    /// This returns `false` until a runtime window change has reported an
+    /// actual viewport length. Hosts can use it to avoid treating an estimated
+    /// projection viewport as a direct runtime scroll position.
+    pub fn runtime_viewport_contains_index(&self, total_items: usize, index: usize) -> bool {
+        self.runtime_viewport_len.is_some_and(|viewport_len| {
+            self.viewport_contains_index(total_items, viewport_len, index)
+        })
     }
 }

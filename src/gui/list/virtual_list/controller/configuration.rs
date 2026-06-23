@@ -17,7 +17,18 @@ impl VirtualListController {
     /// Set the visible logical item count and clamp dependent state.
     pub fn set_viewport_len(&mut self, viewport_len: usize) {
         self.viewport_len = viewport_len;
+        self.runtime_viewport_len = None;
         self.clamp_viewport_start();
+    }
+
+    /// Clear the remembered runtime viewport length.
+    ///
+    /// Use this when the host knows the scroll container was rebuilt or its
+    /// geometry is no longer authoritative. Normal projection reconfiguration
+    /// should keep this value so runtime-derived viewport length survives
+    /// filtering, sorting, or focus-follow updates.
+    pub fn clear_runtime_viewport_len(&mut self) {
+        self.runtime_viewport_len = None;
     }
 
     /// Set the materialization overscan.

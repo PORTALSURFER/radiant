@@ -405,6 +405,11 @@ scroll-window changes.
 `leading_overscan()`, and `trailing_overscan()` when app-owned state needs to
 retain the runtime's materialization policy without hand-computing it from
 window bounds.
+After a runtime-originated window change, `VirtualListController` records the
+runtime viewport length. Use `runtime_viewport_len_or(fallback)` when the next
+projection should prefer the runtime viewport over an estimated host viewport,
+and `runtime_viewport_contains_index(...)` when only a known runtime viewport
+should suppress focus-follow scrolling.
 
 Hit testing should use the materialized row slice, such as with
 `virtual_list_stacked_item_at_point(...)`, so hidden rows are never needed to
@@ -712,6 +717,10 @@ Use `apply_window_change(...)` when
 `virtual_list_windowed(...).on_window_changed(...)` reports a
 runtime-originated window change and the app stores durable list state in a
 `VirtualListController`. Use
+`runtime_viewport_len_or(fallback)` to carry the runtime-reported viewport
+length into later projection passes, and use
+`runtime_viewport_contains_index(...)` when already-visible focus logic should
+only trust a viewport reported by the scroll container. Use
 `viewport_contains_index(...)` before reconfiguring after filters, sorts, or
 selection changes when an already-visible focused item should not force a scroll
 jump.

@@ -8,6 +8,7 @@
 pub struct VirtualListController {
     pub(super) total_items: usize,
     pub(super) viewport_len: usize,
+    pub(super) runtime_viewport_len: Option<usize>,
     pub(super) viewport_start: usize,
     pub(super) overscan: usize,
     pub(super) guard_band: usize,
@@ -26,6 +27,7 @@ impl VirtualListController {
         Self {
             total_items: 0,
             viewport_len: 0,
+            runtime_viewport_len: None,
             viewport_start: 0,
             overscan: 0,
             guard_band: 0,
@@ -50,6 +52,21 @@ impl VirtualListController {
     /// Return the visible logical item count.
     pub const fn viewport_len(&self) -> usize {
         self.viewport_len
+    }
+
+    /// Return the runtime-reported viewport length, if a scroll container has
+    /// reported one.
+    pub const fn runtime_viewport_len(&self) -> Option<usize> {
+        self.runtime_viewport_len
+    }
+
+    /// Return the runtime-reported viewport length, falling back to host
+    /// projection input.
+    pub const fn runtime_viewport_len_or(&self, fallback: usize) -> usize {
+        match self.runtime_viewport_len {
+            Some(viewport_len) => viewport_len,
+            None => fallback,
+        }
     }
 
     /// Return the current viewport start.

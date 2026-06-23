@@ -64,9 +64,65 @@ fn virtual_list_controller_applies_runtime_window_change() {
     assert_eq!(window.window_end, 43);
     assert_eq!(controller.total_items(), 100);
     assert_eq!(controller.viewport_len(), 10);
+    assert_eq!(controller.runtime_viewport_len(), Some(10));
+    assert_eq!(controller.runtime_viewport_len_or(4), 10);
     assert_eq!(controller.overscan(), 3);
     assert_eq!(controller.guard_band(), 2);
     assert_eq!(controller.focused_index(), None);
+}
+
+#[test]
+fn virtual_list_controller_tracks_runtime_viewport_containment() {
+    let mut controller = VirtualListController::new();
+
+    assert_eq!(controller.runtime_viewport_len(), None);
+    assert_eq!(controller.runtime_viewport_len_or(8), 8);
+    assert!(!controller.runtime_viewport_contains_index(100, 30));
+
+    controller.apply_window_change(VirtualListWindowChange {
+        offset_y: 30.0 * 22.0,
+        row_height: 22.0,
+        window: VirtualListWindow {
+            total_items: 100,
+            viewport_start: 30,
+            viewport_end: 42,
+            window_start: 28,
+            window_end: 44,
+        },
+    });
+
+    assert_eq!(controller.runtime_viewport_len(), Some(12));
+    assert_eq!(controller.runtime_viewport_len_or(8), 12);
+    assert!(controller.runtime_viewport_contains_index(100, 30));
+    assert!(controller.runtime_viewport_contains_index(100, 41));
+    assert!(!controller.runtime_viewport_contains_index(100, 42));
+
+    controller.clear_runtime_viewport_len();
+
+    assert_eq!(controller.runtime_viewport_len(), None);
+    assert_eq!(controller.runtime_viewport_len_or(8), 8);
+    assert!(!controller.runtime_viewport_contains_index(100, 30));
+}
+
+#[test]
+fn virtual_list_controller_explicit_viewport_len_clears_runtime_viewport() {
+    let mut controller = VirtualListController::new();
+    controller.apply_window_change(VirtualListWindowChange {
+        offset_y: 30.0 * 22.0,
+        row_height: 22.0,
+        window: VirtualListWindow {
+            total_items: 100,
+            viewport_start: 30,
+            viewport_end: 42,
+            window_start: 28,
+            window_end: 44,
+        },
+    });
+
+    controller.set_viewport_len(8);
+
+    assert_eq!(controller.runtime_viewport_len(), None);
+    assert_eq!(controller.runtime_viewport_len_or(6), 6);
 }
 
 #[test]

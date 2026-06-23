@@ -10,6 +10,9 @@ use crate::{
 const DEFAULT_PANEL_SECTION_HEADER_SPACING: f32 = 4.0;
 const DEFAULT_PANEL_SECTION_RESIZE_HANDLE_WIDTH: f32 = 26.0;
 const DEFAULT_PANEL_SECTION_RESIZE_HANDLE_HEIGHT: f32 = 18.0;
+const DEFAULT_DIALOG_PANEL_PADDING: f32 = 8.0;
+const DEFAULT_DIALOG_PANEL_SPACING: f32 = 6.0;
+const DEFAULT_DIALOG_PANEL_TITLE_HEIGHT: f32 = 24.0;
 
 /// Named construction fields for a compact titled panel section.
 pub struct PanelSectionParts<Message> {
@@ -66,6 +69,19 @@ impl<Message> PanelSectionParts<Message> {
             header_spacing: DEFAULT_PANEL_SECTION_HEADER_SPACING,
             title_height: DEFAULT_PANEL_SECTION_TITLE_HEIGHT,
         }
+    }
+
+    /// Build titled panel-section parts with Radiant's standard dialog chrome.
+    ///
+    /// This preset is intended for modal dialogs, popovers, and floating
+    /// utility panels where the app owns the content and close behavior while
+    /// Radiant owns consistent strong panel styling and compact dialog spacing.
+    pub fn dialog(title: impl Into<String>, content: ViewNode<Message>, tone: WidgetTone) -> Self {
+        Self::new(title, content)
+            .style(WidgetStyle::strong(tone))
+            .padding(DEFAULT_DIALOG_PANEL_PADDING)
+            .spacing(DEFAULT_DIALOG_PANEL_SPACING)
+            .title_height(DEFAULT_DIALOG_PANEL_TITLE_HEIGHT)
     }
 
     /// Set fixed section height.

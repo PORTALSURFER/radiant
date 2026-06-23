@@ -3,7 +3,7 @@ use crate::{
     application::{IntoView, column, spacer, text},
     gui::types::Point,
     layout::Vector2,
-    widgets::{DragHandleMessage, WidgetOutput},
+    widgets::{DragHandleMessage, WidgetOutput, WidgetStyle, WidgetTone},
 };
 
 #[test]
@@ -80,6 +80,19 @@ fn panel_section_parts_exposes_content_offsets() {
     assert_eq!(parts.content_bottom_inset(), 8.0);
     assert_eq!(parts.section_height_for_content_height(64.0), 107.0);
     assert_eq!(parts.content_height_for_section_height(107.0), 64.0);
+}
+
+#[test]
+fn panel_section_dialog_parts_use_standard_dialog_chrome() {
+    let parts: PanelSectionParts<()> =
+        PanelSectionParts::dialog("Confirm", text("Body"), WidgetTone::Warning);
+
+    assert_eq!(parts.title, "Confirm");
+    assert_eq!(parts.style, WidgetStyle::strong(WidgetTone::Warning));
+    assert_eq!(parts.padding, 8.0);
+    assert_eq!(parts.spacing, 6.0);
+    assert_eq!(parts.title_height, 24.0);
+    assert_eq!(parts.geometry().header_only_height(), 40.0);
 }
 
 #[test]

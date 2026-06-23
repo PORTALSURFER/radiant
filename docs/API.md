@@ -2446,7 +2446,10 @@ dismiss layer while preserving the base content underneath. Fixed-size titled
 popovers and inspector panels can use `PanelSectionLayerParts`,
 `panel_section_layer_from_parts(...)`, or
 `closeable_panel_section_layer_from_parts(...)` to keep panel sizing and
-full-surface anchored placement in one generic contract.
+full-surface anchored placement in one generic contract. Use
+`PanelSectionParts::dialog(...)` when a modal, popover, or floating utility
+panel should use Radiant's standard strong dialog chrome while the host owns
+content, size, placement, and close behavior.
 Use `dropdown_menu_overlay_below_stacked_labeled_control(...)` when a dropdown
 trigger lives inside a compact stacked labeled-control panel and the menu should
 anchor below the current `StackedLayoutCursor` item without repeating label

@@ -12,7 +12,7 @@ pub(super) struct IconToggleButton {
 
 impl IconToggleButton {
     pub(super) fn new(tool: ToolId, icon: ToolbarIcon, active: bool) -> Self {
-        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(42.0, 36.0)));
+        let mut common = WidgetCommon::fixed(0, 42.0, 36.0);
         common.focus = FocusBehavior::Keyboard;
         common.state.active = active;
         common.style = WidgetStyle {

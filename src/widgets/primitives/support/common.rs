@@ -1,6 +1,6 @@
 //! Shared descriptor contract for primitive widgets.
 
-use crate::layout::LayoutNode;
+use crate::layout::{LayoutNode, Vector2};
 use crate::widgets::contract::{FocusBehavior, WidgetId, WidgetSizing, WidgetState, WidgetStyle};
 
 #[cfg(test)]
@@ -38,6 +38,14 @@ impl WidgetCommon {
             tooltip: None,
             state: WidgetState::default(),
         }
+    }
+
+    /// Build a shared widget contract with fixed intrinsic sizing.
+    ///
+    /// This is the common constructor for user-authored custom widgets and
+    /// fixed-size primitives whose stable id and size are known together.
+    pub fn fixed(id: WidgetId, width: f32, height: f32) -> Self {
+        Self::new(id, WidgetSizing::fixed(Vector2::new(width, height)))
     }
 
     /// Return this contract with explicit focus participation.

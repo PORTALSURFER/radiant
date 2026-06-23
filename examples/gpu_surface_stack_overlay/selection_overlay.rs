@@ -23,10 +23,7 @@ pub(super) struct SelectionOverlay {
 
 impl SelectionOverlay {
     pub(super) fn new(state: &DemoState) -> Self {
-        let mut common = WidgetCommon::new(
-            0,
-            WidgetSizing::fixed(Vector2::new(SURFACE_WIDTH, SURFACE_HEIGHT)),
-        );
+        let mut common = WidgetCommon::fixed(0, SURFACE_WIDTH, SURFACE_HEIGHT);
         common.focus = FocusBehavior::Pointer;
         common.paint.bounds = PaintBounds::ClipToRect;
         common.paint.paints_focus = false;

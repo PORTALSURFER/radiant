@@ -5,7 +5,7 @@ use super::{
 };
 use radiant::{
     gui::{
-        types::{Point, Rect, Rgba8, Vector2},
+        types::{Point, Rect, Rgba8},
         visualization::HorizontalValueAxis,
     },
     layout::LayoutOutput,
@@ -15,9 +15,7 @@ use radiant::{
         GpuSurfaceRuntimeOverlays, PaintGpuSurface, PaintPrimitive,
     },
     theme::ThemeTokens,
-    widgets::{
-        FocusBehavior, PaintBounds, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
-    },
+    widgets::{FocusBehavior, PaintBounds, Widget, WidgetCommon, WidgetInput, WidgetOutput},
 };
 use std::sync::Arc;
 
@@ -46,10 +44,7 @@ impl WaveformWidget {
         viewport: WaveformViewport,
         cursor_ratio: Option<f32>,
     ) -> Self {
-        let mut common = WidgetCommon::new(
-            0,
-            WidgetSizing::fixed(Vector2::new(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)),
-        );
+        let mut common = WidgetCommon::fixed(0, WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32);
         common.focus = FocusBehavior::Pointer;
         common.paint.bounds = PaintBounds::ClipToRect;
         common.paint.paints_focus = false;

@@ -2,6 +2,17 @@ use super::*;
 use crate::layout::Vector2;
 
 #[test]
+fn fixed_constructor_sets_identity_and_fixed_sizing() {
+    let common = WidgetCommon::fixed(3, 120.0, 40.0);
+
+    assert_eq!(common.id, 3);
+    assert_eq!(
+        common.sizing,
+        WidgetSizing::fixed(Vector2::new(120.0, 40.0))
+    );
+}
+
+#[test]
 fn focus_helpers_expose_pointer_hit_testing_intent() {
     let sizing = WidgetSizing::fixed(Vector2::new(120.0, 40.0));
 

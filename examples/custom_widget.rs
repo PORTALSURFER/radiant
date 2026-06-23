@@ -20,7 +20,7 @@ struct StatusChip {
 
 impl StatusChip {
     fn new(active: bool) -> Self {
-        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(140.0, 32.0)));
+        let mut common = WidgetCommon::fixed(0, 140.0, 32.0);
         common.focus = FocusBehavior::Keyboard;
         Self { common, active }
     }

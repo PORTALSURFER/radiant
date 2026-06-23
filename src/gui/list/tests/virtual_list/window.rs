@@ -25,7 +25,13 @@ fn virtual_list_window_clamps_requested_bounds_and_applies_overscan() {
     );
     assert_eq!(window.viewport_len(), 10);
     assert_eq!(window.window_len(), 13);
+    assert_eq!(window.leading_overscan(), 3);
+    assert_eq!(window.trailing_overscan(), 0);
+    assert_eq!(window.overscan(), 3);
+    assert!(window.viewport_contains(99));
+    assert!(!window.viewport_contains(87));
     assert!(window.contains(99));
+    assert!(window.contains(87));
     assert!(!window.contains(86));
 }
 

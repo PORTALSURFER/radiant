@@ -1,6 +1,6 @@
 use super::super::super::{
     VirtualListController, VirtualListFocusTarget, VirtualListFollowState, VirtualListProjection,
-    VirtualListSliceFocus,
+    VirtualListSliceFocus, VirtualListWindow, VirtualListWindowChange,
 };
 use crate::gui::types::{Point, Rect};
 
@@ -38,6 +38,46 @@ fn virtual_list_controller_configures_and_focuses_in_one_projection_step() {
     assert_eq!(controller.overscan(), 2);
     assert_eq!(controller.guard_band(), 2);
     assert_eq!(controller.focused_index(), Some(4));
+}
+
+#[test]
+fn virtual_list_controller_applies_runtime_window_change() {
+    let mut controller = VirtualListController::new();
+    controller.set_guard_band(2);
+    controller.focus(40);
+
+    let window = controller.apply_window_change(VirtualListWindowChange {
+        offset_y: 30.0 * 22.0,
+        row_height: 22.0,
+        window: VirtualListWindow {
+            total_items: 100,
+            viewport_start: 30,
+            viewport_end: 40,
+            window_start: 27,
+            window_end: 43,
+        },
+    });
+
+    assert_eq!(window.viewport_start, 30);
+    assert_eq!(window.viewport_end, 40);
+    assert_eq!(window.window_start, 27);
+    assert_eq!(window.window_end, 43);
+    assert_eq!(controller.total_items(), 100);
+    assert_eq!(controller.viewport_len(), 10);
+    assert_eq!(controller.overscan(), 3);
+    assert_eq!(controller.guard_band(), 2);
+    assert_eq!(controller.focused_index(), None);
+}
+
+#[test]
+fn virtual_list_controller_checks_projected_viewport_containment() {
+    let mut controller = VirtualListController::with_items(100, 10);
+    controller.set_viewport_start(95);
+
+    assert!(controller.viewport_contains_index(30, 8, 29));
+    assert!(!controller.viewport_contains_index(30, 8, 21));
+    assert!(!controller.viewport_contains_index(30, 8, 30));
+    assert!(!controller.viewport_contains_index(30, 0, 0));
 }
 
 #[test]

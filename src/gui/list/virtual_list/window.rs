@@ -68,9 +68,29 @@ impl VirtualListWindow {
         self.viewport_end.saturating_sub(self.viewport_start)
     }
 
+    /// Number of materialized overscan rows retained around the viewport.
+    pub fn overscan(self) -> usize {
+        self.leading_overscan().max(self.trailing_overscan())
+    }
+
+    /// Number of materialized rows retained before the viewport.
+    pub fn leading_overscan(self) -> usize {
+        self.viewport_start.saturating_sub(self.window_start)
+    }
+
+    /// Number of materialized rows retained after the viewport.
+    pub fn trailing_overscan(self) -> usize {
+        self.window_end.saturating_sub(self.viewport_end)
+    }
+
     /// Return whether the materialized window contains no items.
     pub fn is_empty(self) -> bool {
         self.window_start == self.window_end
+    }
+
+    /// Return whether a logical item index is inside the visible viewport.
+    pub fn viewport_contains(self, index: usize) -> bool {
+        index >= self.viewport_start && index < self.viewport_end
     }
 
     /// Return whether a logical item index is inside the materialized window.

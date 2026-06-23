@@ -393,6 +393,11 @@ row identity should come from host-owned IDs through `VirtualListItemKey`,
 `stable_widget_id(...)`, or explicit widget IDs, so focus, hover, drag,
 selection, and retained overlays survive sorting, filtering, insertion, and
 scroll-window changes.
+`VirtualListWindow::viewport_contains(...)` tests the visible viewport, while
+`contains(...)` tests the wider materialized window. Use `overscan()`,
+`leading_overscan()`, and `trailing_overscan()` when app-owned state needs to
+retain the runtime's materialization policy without hand-computing it from
+window bounds.
 
 Hit testing should use the materialized row slice, such as with
 `virtual_list_stacked_item_at_point(...)`, so hidden rows are never needed to
@@ -692,6 +697,13 @@ scrolling moves the viewport.
 Use `set_scroll_offset_for_items(...)` when a native scroll update arrives
 through a list whose item count may also have changed because of filtering,
 search, or app-owned selection.
+Use `apply_window_change(...)` when
+`virtual_list_windowed(...).on_window_changed(...)` reports a
+runtime-originated window change and the app stores durable list state in a
+`VirtualListController`. Use
+`viewport_contains_index(...)` before reconfiguring after filters, sorts, or
+selection changes when an already-visible focused item should not force a scroll
+jump.
 Use `configure_and_focus_optional(...)` when a projection pass should update
 item count, viewport policy, and optional host selection in one controller call.
   Use `configure_projection_and_focus_optional(...)` or

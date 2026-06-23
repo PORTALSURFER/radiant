@@ -43,6 +43,42 @@ fn application_builder_panel_section_supports_convenience_constructor() {
 }
 
 #[test]
+fn panel_section_header_parts_builds_standard_resize_header() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::panel_section_from_header_parts(
+        ui::PanelSectionHeaderParts::resize_header(
+            "resize-header",
+            22.0,
+            ui::text("Panel content"),
+            |_| DemoMessage::Increment,
+        )
+        .header_id(12)
+        .height(72.0),
+    )
+    .id(1)
+    .into_surface();
+    let frame = surface.frame_at_size(ui::Vector2::new(180.0, 72.0), &Default::default());
+
+    let panel = frame.layout.rects.get(&1).expect("panel rect");
+    let header = frame.layout.rects.get(&12).expect("header rect");
+
+    assert_eq!(panel.height(), 72.0);
+    assert_eq!(header.height(), 22.0);
+    assert_eq!(header.width(), 168.0);
+    assert_eq!(
+        surface.dispatch_widget_output(
+            12,
+            radiant::widgets::WidgetOutput::typed(ui::DragHandleMessage::started(ui::Point::new(
+                header.center().x,
+                header.center().y,
+            ))),
+        ),
+        Some(DemoMessage::Increment)
+    );
+}
+
+#[test]
 fn closeable_panel_section_routes_standard_close_button_message() {
     use radiant::prelude::{self as ui, IntoView};
 

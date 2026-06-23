@@ -3,7 +3,8 @@ use super::geometry::{
     DEFAULT_PANEL_SECTION_TITLE_HEIGHT, PanelSectionGeometry,
 };
 use crate::{
-    application::{ViewNode, drag_handle_mapped},
+    application::{ViewNode, drag_handle, drag_handle_mapped},
+    layout::NodeId,
     widgets::{DragHandleMessage, WidgetProminence, WidgetStyle, WidgetTone},
 };
 
@@ -192,6 +193,42 @@ impl<Message> PanelSectionHeaderParts<Message> {
             padding: DEFAULT_PANEL_SECTION_PADDING,
             spacing: DEFAULT_PANEL_SECTION_SPACING,
         }
+    }
+
+    /// Build custom-header panel-section parts with Radiant's standard full-width resize header.
+    ///
+    /// This is useful for resizable sidebars, inspectors, and collapsible
+    /// panels where the entire compact header strip should act as the resize
+    /// hit target while the host reducer owns durable size and constraints.
+    pub fn resize_header<Map>(
+        key: impl ToString,
+        header_height: f32,
+        content: ViewNode<Message>,
+        map: Map,
+    ) -> Self
+    where
+        Message: 'static,
+        Map: Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+    {
+        Self::new(
+            drag_handle()
+                .hover_chrome_only()
+                .mapped(map)
+                .key(key)
+                .style(WidgetStyle::subtle(WidgetTone::Accent))
+                .fill_width()
+                .height(header_height),
+            content,
+        )
+    }
+
+    /// Assign a stable id to the custom header view.
+    ///
+    /// This is primarily useful for tests, automation, and host integrations
+    /// that need to address the header separately from the panel section.
+    pub fn header_id(mut self, id: NodeId) -> Self {
+        self.header = self.header.id(id);
+        self
     }
 
     /// Set fixed section height.

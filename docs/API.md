@@ -2418,6 +2418,10 @@ Use `PanelSectionHeaderParts` with `panel_section_from_header_parts(...)` when
 the app owns a custom header view, such as a resize strip, segmented toolbar, or
 compact tab row, but Radiant should still own the standard panel container
 chrome.
+Use `PanelSectionHeaderParts::resize_header(...)` when that custom header is
+Radiant's standard full-width hover-only resize strip; add `.header_id(...)`
+when tests, automation, or host integrations need a stable id for the header
+separately from the section container.
 Use `PanelSectionGeometry` when app-owned resize constraints or fixed-content
 panels need the same panel padding, title-height, and spacing calculations
 without constructing view parts.

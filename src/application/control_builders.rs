@@ -3,6 +3,7 @@
 mod action_row;
 mod badge;
 mod button;
+mod button_row;
 mod color_marker;
 mod drag_handle;
 mod dropdown;
@@ -25,6 +26,7 @@ pub use badge::{
     BadgeBuilder, InteractiveBadgeBuilder, badge, badge_mapped, badge_message, interactive_badge,
 };
 pub use button::{ButtonBuilder, button, button_mapped, button_message};
+pub use button_row::{ButtonRowParts, button_row, button_row_from_parts};
 pub use color_marker::{ColorMarkerBuilder, color_marker};
 pub use drag_handle::{DragHandleBuilder, drag_handle, drag_handle_mapped};
 pub use dropdown::{

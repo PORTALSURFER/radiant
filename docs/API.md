@@ -281,7 +281,7 @@ has moved beyond the common app import set.
 | Area | Common prelude entries |
 | --- | --- |
 | Application setup | `window`, `app`, `IntoView`, `View`, `UiUpdateContext`, `EmbeddedFont` |
-| Basic views | `text`, `button`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
+| Basic views | `text`, `button`, `button_row`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
 | Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `handle_activation_input` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
@@ -2414,6 +2414,9 @@ anchors without repeating label text styling and stacked spacing.
 Use `FormRowParts`, `form_row(...)`, or `form_row_from_parts(...)` when a
 panel needs compact horizontal label/control rows with Radiant-owned label
 width, row padding, spacing, hover behavior, and optional row styling.
+Use `button_row(...)` or `button_row_from_parts(...)` when dialogs, popovers,
+inspectors, or utility panels need a compact horizontal group of app-owned
+buttons with Radiant-owned spacing and row height.
 Centered fixed-size foreground surfaces can use `CenteredLayerParts`,
 `centered_layer(...)`, and `centered_layer_from_parts(...)` instead of
 rebuilding spacer rows and columns in application code.
@@ -2552,6 +2555,9 @@ controls one tooltip, so projection code does not repeat
 route primary activation, context-menu clicks, or drag lifecycle events without
 repeating the raw button enum shape. Button-backed drags emit `Cancelled` when
 focus loss aborts an active drag before release.
+Use `button_row(...)` for compact horizontal dialog, popover, inspector, and
+utility-panel button groups where the app owns button text, tone, messages, and
+widths while Radiant owns the group spacing and row height.
 Use `drag_handle().hover_chrome_only()` for subtle splitters or reorder handles
 that need a persistent hit target but should hide idle chrome until hover,
 press, or focus.

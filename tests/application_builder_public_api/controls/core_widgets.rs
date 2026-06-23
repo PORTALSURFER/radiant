@@ -62,6 +62,38 @@ fn application_builder_dense_control_panel_uses_generic_focusable_widgets() {
 }
 
 #[test]
+fn button_row_groups_app_owned_buttons_with_compact_geometry() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::column([ui::button_row([
+        ui::button("Apply")
+            .primary()
+            .message(DemoMessage::Increment)
+            .id(20)
+            .width(72.0),
+        ui::button("Cancel")
+            .message(DemoMessage::Increment)
+            .id(21)
+            .width(68.0),
+    ])
+    .id(10)])
+    .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 40.0)),
+    );
+
+    assert_eq!(surface.keyboard_focus_order(), vec![20, 21]);
+    assert_eq!(layout.rects[&10].height(), 26.0);
+    assert_eq!(layout.rects[&20].height(), 24.0);
+    assert!((layout.rects[&21].min.x - layout.rects[&20].max.x - 6.0).abs() < 0.01);
+    assert_eq!(
+        surface.dispatch_widget_output(20, WidgetOutput::typed(ButtonMessage::Activate)),
+        Some(DemoMessage::Increment)
+    );
+}
+
+#[test]
 fn application_builders_expose_padding_style_and_text_policy_helpers() {
     use radiant::prelude::{self as ui, IntoView};
 

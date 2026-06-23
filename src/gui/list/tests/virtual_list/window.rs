@@ -90,6 +90,64 @@ fn virtual_list_window_handles_empty_or_zero_viewport_requests() {
 }
 
 #[test]
+fn virtual_list_window_reconcile_clamps_after_count_shrinks() {
+    let window = resolve_virtual_list_window(VirtualListWindowRequest {
+        total_items: 100,
+        viewport_len: 10,
+        requested_start: 95,
+        overscan: 3,
+        ..VirtualListWindowRequest::default()
+    });
+
+    assert_eq!(
+        window.reconcile_total_items(8),
+        VirtualListWindow {
+            total_items: 8,
+            viewport_start: 0,
+            viewport_end: 8,
+            window_start: 0,
+            window_end: 8,
+        }
+    );
+}
+
+#[test]
+fn virtual_list_window_reconcile_retains_overscan_after_count_grows() {
+    let window = resolve_virtual_list_window(VirtualListWindowRequest {
+        total_items: 100,
+        viewport_len: 10,
+        requested_start: 95,
+        overscan: 3,
+        ..VirtualListWindowRequest::default()
+    });
+
+    assert_eq!(
+        window.reconcile_total_items(110),
+        VirtualListWindow {
+            total_items: 110,
+            viewport_start: 90,
+            viewport_end: 100,
+            window_start: 87,
+            window_end: 103,
+        }
+    );
+}
+
+#[test]
+fn virtual_list_window_reconcile_recovers_minimum_nonempty_viewport() {
+    assert_eq!(
+        VirtualListWindow::default().reconcile_total_items(5),
+        VirtualListWindow {
+            total_items: 5,
+            viewport_start: 0,
+            viewport_end: 1,
+            window_start: 0,
+            window_end: 1,
+        }
+    );
+}
+
+#[test]
 fn virtual_list_view_start_for_scroll_offset_clamps_to_item_range() {
     assert_eq!(virtual_list_view_start_for_scroll_offset(0.0, 22.0, 24), 0);
     assert_eq!(

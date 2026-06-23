@@ -407,7 +407,9 @@ scroll-window changes.
 `contains(...)` tests the wider materialized window. Use `overscan()`,
 `leading_overscan()`, and `trailing_overscan()` when app-owned state needs to
 retain the runtime's materialization policy without hand-computing it from
-window bounds.
+window bounds. Use `reconcile_total_items(...)` when host-owned data changes
+after a materialized window was cached and the current viewport should be
+clamped to the new logical count without app-local window validity checks.
 After a runtime-originated window change, `VirtualListController` records the
 runtime viewport length. Use `runtime_viewport_len_or(fallback)` when the next
 projection should prefer the runtime viewport over an estimated host viewport,

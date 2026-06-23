@@ -97,6 +97,27 @@ impl VirtualListWindow {
     pub fn contains(self, index: usize) -> bool {
         index >= self.window_start && index < self.window_end
     }
+
+    /// Reconcile this resolved window against a new logical item count.
+    ///
+    /// Use this when host-owned list data changes after a window was cached for
+    /// projection. The returned window preserves the current viewport start,
+    /// visible length, and widest overscan policy while clamping every bound to
+    /// the new item count. If the current window has no visible rows and the
+    /// new count is nonzero, one visible row is used as the minimum recoverable
+    /// viewport length; hosts with an authoritative viewport size can call
+    /// [`resolve_virtual_list_window`] directly.
+    pub fn reconcile_total_items(self, total_items: usize) -> Self {
+        resolve_virtual_list_window(VirtualListWindowRequest {
+            total_items,
+            viewport_len: self.viewport_len().max(1),
+            requested_start: self.viewport_start,
+            overscan: self.overscan(),
+            focused_index: None,
+            previous_start: None,
+            guard_band: 0,
+        })
+    }
 }
 
 /// Resolve an item-index based virtualized list window.

@@ -2738,6 +2738,9 @@ manually. Use `push_flow_row_group` when several flow items, such as a prefix
 token plus its editor, should wrap atomically instead of splitting across rows.
 Use `pack_flow_rows_with_trailing_group` when callers need the common form of
 packing existing items and appending one such atomic trailing group.
+Use `pack_flow_rows_with_flexible_trailing_group(...)` when that atomic trailing
+group contains a flexible editor/control and an optional following action that
+must reserve width while the whole group wraps together.
 Use `FlowRowPacker` when rows are built incrementally and repeated appends
 should retain the current row width instead of rescanning the trailing row.
 Use `capped_flow_rows_height(...)` when the editor should grow to a maximum

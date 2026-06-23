@@ -300,6 +300,72 @@ fn pack_flow_rows_with_trailing_item_and_following_item_reserves_standalone_widt
 }
 
 #[test]
+fn pack_flow_rows_with_flexible_trailing_group_keeps_group_and_action_together() {
+    #[derive(Clone, Debug, PartialEq)]
+    struct SizedItem(&'static str, f32);
+
+    impl FlowItemWidth for SizedItem {
+        fn flow_width(&self) -> f32 {
+            self.1
+        }
+    }
+
+    let rows = pack_flow_rows_with_flexible_trailing_group(
+        [FlowItem::new(SizedItem("pill", 38.0), 38.0)],
+        [FlowItem::new(SizedItem("prefix", 50.0), 50.0)],
+        FlowTrailingItemParts::new(|width| SizedItem("input", width), 120.0, 180.0, 90.0),
+        Some(FlowItem::new(SizedItem("toggle", 22.0), 22.0)),
+        61.0,
+        220.0,
+        metrics(),
+    );
+
+    assert_eq!(
+        rows,
+        vec![vec![
+            SizedItem("pill", 38.0),
+            SizedItem("prefix", 50.0),
+            SizedItem("input", 95.0),
+            SizedItem("toggle", 22.0)
+        ]]
+    );
+}
+
+#[test]
+fn pack_flow_rows_with_flexible_trailing_group_wraps_group_atomically() {
+    #[derive(Clone, Debug, PartialEq)]
+    struct SizedItem(&'static str, f32);
+
+    impl FlowItemWidth for SizedItem {
+        fn flow_width(&self) -> f32 {
+            self.1
+        }
+    }
+
+    let rows = pack_flow_rows_with_flexible_trailing_group(
+        [FlowItem::new(SizedItem("wide-pill", 160.0), 160.0)],
+        [FlowItem::new(SizedItem("prefix", 50.0), 50.0)],
+        FlowTrailingItemParts::new(|width| SizedItem("input", width), 120.0, 180.0, 90.0),
+        Some(FlowItem::new(SizedItem("toggle", 22.0), 22.0)),
+        61.0,
+        220.0,
+        metrics(),
+    );
+
+    assert_eq!(
+        rows,
+        vec![
+            vec![SizedItem("wide-pill", 160.0)],
+            vec![
+                SizedItem("prefix", 50.0),
+                SizedItem("input", 155.0),
+                SizedItem("toggle", 22.0)
+            ]
+        ]
+    );
+}
+
+#[test]
 fn push_flow_row_group_keeps_items_together_when_wrapping() {
     #[derive(Clone, Debug, PartialEq)]
     struct SizedItem(&'static str, f32);

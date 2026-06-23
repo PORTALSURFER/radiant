@@ -141,6 +141,73 @@ where
     rows
 }
 
+/// Pack variable-width items and append an atomic trailing group containing a
+/// flexible editor/control and an optional following control.
+///
+/// This is useful for token, recipient, chip, and pill editors where a prefix
+/// token plus final editor must wrap together, while the final editor should
+/// reserve space for a compact following action such as a picker, add button,
+/// or library toggle.
+pub fn pack_flow_rows_with_flexible_trailing_group<T, Create>(
+    items: impl IntoIterator<Item = FlowItem<T>>,
+    group_leading: impl IntoIterator<Item = FlowItem<T>>,
+    trailing: FlowTrailingItemParts<Create>,
+    following: Option<FlowItem<T>>,
+    trailing_min_width: f32,
+    content_width: f32,
+    metrics: FlowLayoutMetrics,
+) -> Vec<Vec<T>>
+where
+    T: FlowItemWidth,
+    Create: FnOnce(f32) -> T,
+{
+    let trailing = if let Some(following) = &following {
+        trailing.reserve_following_item(following.width, metrics.item_gap, trailing_min_width)
+    } else {
+        trailing
+    };
+    let group_leading = group_leading.into_iter().collect::<Vec<_>>();
+    let required_width = flexible_group_required_width(
+        &group_leading,
+        trailing.width.max(trailing.min_remaining_width),
+        following.as_ref(),
+        metrics.item_gap,
+    );
+
+    let mut packer = FlowRowPacker::new(content_width, metrics);
+    for item in items {
+        packer.push_item(item.value, item.width);
+    }
+    let group_starts_new_row = trailing_item_starts_new_row_after_width(
+        packer.current_row_width(),
+        required_width,
+        0.0,
+        content_width,
+        metrics.item_gap,
+    );
+    let mut rows = packer.into_rows();
+    if group_starts_new_row || rows.is_empty() {
+        rows.push(Vec::new());
+    }
+
+    let trailing_width = if rows.last().is_some_and(Vec::is_empty) {
+        trailing.standalone_width
+    } else {
+        trailing.width
+    };
+    let mut group = group_leading;
+    group.push(FlowItem::new(
+        (trailing.create)(trailing_width),
+        trailing_width,
+    ));
+    if let Some(following) = following {
+        group.push(following);
+    }
+    let mut packer = FlowRowPacker::from_rows(rows, content_width, metrics);
+    packer.push_group(group);
+    packer.into_rows()
+}
+
 /// Return whether a trailing item should start on a new row.
 ///
 /// This is useful for editable pill/tag fields where the text input should move
@@ -198,6 +265,24 @@ fn finite_nonnegative_width(value: f32) -> f32 {
     } else {
         0.0
     }
+}
+
+fn flexible_group_required_width<T>(
+    leading: &[FlowItem<T>],
+    trailing_width: f32,
+    following: Option<&FlowItem<T>>,
+    item_gap: f32,
+) -> f32 {
+    let item_gap = item_gap.max(0.0);
+    let mut width = 0.0;
+    for item in leading {
+        width = proposed_row_width(width, item.width.max(0.0), item_gap);
+    }
+    width = proposed_row_width(width, trailing_width.max(0.0), item_gap);
+    if let Some(following) = following {
+        width = proposed_row_width(width, following.width.max(0.0), item_gap);
+    }
+    width
 }
 
 fn trailing_item_starts_new_row_after_width(

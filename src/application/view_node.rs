@@ -247,6 +247,22 @@ impl<Message> ViewNode<Message> {
             None => self,
         }
     }
+
+    /// Attach a lazily built transparent pointer target when `condition` is true.
+    pub fn pointer_target_if(
+        self,
+        condition: bool,
+        target: impl FnOnce() -> PointerTarget<Message>,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        if condition {
+            self.pointer_target(target())
+        } else {
+            self
+        }
+    }
 }
 
 impl<Message> Layer<Message> {

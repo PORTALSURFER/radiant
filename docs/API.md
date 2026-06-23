@@ -882,9 +882,10 @@ tooltips, and drag previews. Lower-level callers can still use
 `overlay_stack(base)` for bounded local overlays such as loading feedback,
 paint-only markers, or advanced transparent input shields that share one content
 region's bounds. Prefer attaching ordinary bounded pointer/drop routing to the
-owning view with `.pointer_target(...)` or `.pointer_target_opt(...)` and a
-`pointer_target(...)`, `pointer_drop_target(...)`, or `pointer_move_target(...)`
-builder. Add optional overlay-stack children with
+owning view with `.pointer_target(...)`, `.pointer_target_opt(...)`, or the lazy
+conditional `.pointer_target_if(...)` and a `pointer_target(...)`,
+`pointer_drop_target(...)`, or `pointer_move_target(...)` builder. Add optional
+overlay-stack children with
 `OverlayStack::overlay_opt(...)` and `OverlayStack::input_opt(...)`, then call
 `OverlayStack::into_view()`.
 It delegates projection to `stack_layers(...)`, so a base-only stack returns the

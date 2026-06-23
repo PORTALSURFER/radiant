@@ -196,6 +196,60 @@ mod tests {
     }
 
     #[test]
+    fn view_pointer_target_if_skips_disabled_target() {
+        let bridge = DeclarativeOwnedRuntimeBridge::new(
+            Vec::<Message>::new(),
+            |_| {
+                button("Base")
+                    .message(Message::Base)
+                    .fill()
+                    .pointer_target_if(false, drop_target)
+                    .into_surface()
+            },
+            |state, message| state.push(message),
+        );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 40.0));
+
+        runtime.dispatch_input_at(
+            Point::new(8.0, 8.0),
+            WidgetInput::PointerDrop {
+                position: Point::new(8.0, 8.0),
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            },
+        );
+
+        assert!(runtime.bridge().state().is_empty());
+    }
+
+    #[test]
+    fn view_pointer_target_if_routes_enabled_target() {
+        let bridge = DeclarativeOwnedRuntimeBridge::new(
+            Vec::<Message>::new(),
+            |_| {
+                button("Base")
+                    .message(Message::Base)
+                    .fill()
+                    .pointer_target_if(true, drop_target)
+                    .into_surface()
+            },
+            |state, message| state.push(message),
+        );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 40.0));
+
+        runtime.dispatch_input_at(
+            Point::new(8.0, 8.0),
+            WidgetInput::PointerDrop {
+                position: Point::new(8.0, 8.0),
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            },
+        );
+
+        assert_eq!(runtime.bridge().state(), &[Message::Drop]);
+    }
+
+    #[test]
     fn view_pointer_target_preserves_owner_slot_sizing() {
         let bridge = DeclarativeOwnedRuntimeBridge::new(
             Vec::<Message>::new(),

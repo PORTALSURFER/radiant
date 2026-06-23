@@ -579,7 +579,9 @@ marker, and outline model. Use the keyed variants
 `secondary_key(...)`, `drag_key(...)`, `drop_key(...)`, and
 `hover_drop_key(...)`) when row interactions should route through the same
 host-owned item key without duplicating capture closures at each row, chip, or
-tree item. Use
+tree item. Use `drop_target_key(...)` when drop and hover-drop both route
+through the same host-owned target key but still produce separate host message
+shapes. Use
 `primary(...)`/`primary_key(...)` plus `double(...)`/`double_key(...)` when
 primary release and double-click should route to the same host action. Use
 `primary_with_modifiers(...)` or `primary_with_modifiers_key(...)` when primary

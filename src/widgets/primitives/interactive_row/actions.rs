@@ -1,6 +1,9 @@
 //! Common host-action routing for interactive row messages.
 
-use crate::widgets::interaction::{DragHandleMessage, InteractiveRowMessage, PointerModifiers};
+use crate::{
+    gui::types::Point,
+    widgets::interaction::{DragHandleMessage, InteractiveRowMessage, PointerModifiers},
+};
 use std::sync::Arc;
 
 /// Host callbacks for common interactive-row message routing.
@@ -14,10 +17,10 @@ pub struct InteractiveRowActions<Message> {
     activate_with_modifiers:
         Option<Arc<dyn Fn(PointerModifiers) -> Message + Send + Sync + 'static>>,
     double_activate: Option<Arc<dyn Fn() -> Message + Send + Sync + 'static>>,
-    secondary: Option<Arc<dyn Fn(crate::gui::types::Point) -> Message + Send + Sync + 'static>>,
+    secondary: Option<Arc<dyn Fn(Point) -> Message + Send + Sync + 'static>>,
     drag: Option<Arc<dyn Fn(DragHandleMessage) -> Message + Send + Sync + 'static>>,
     drop: Option<Arc<dyn Fn() -> Message + Send + Sync + 'static>>,
-    hover_drop: Option<Arc<dyn Fn(crate::gui::types::Point) -> Message + Send + Sync + 'static>>,
+    hover_drop: Option<Arc<dyn Fn(Point) -> Message + Send + Sync + 'static>>,
 }
 
 impl<Message> InteractiveRowActions<Message> {
@@ -153,10 +156,7 @@ impl<Message> InteractiveRowActions<Message> {
     }
 
     /// Emit a host message for secondary activation.
-    pub fn secondary(
-        mut self,
-        message: impl Fn(crate::gui::types::Point) -> Message + Send + Sync + 'static,
-    ) -> Self {
+    pub fn secondary(mut self, message: impl Fn(Point) -> Message + Send + Sync + 'static) -> Self {
         self.secondary = Some(Arc::new(message));
         self
     }
@@ -165,7 +165,7 @@ impl<Message> InteractiveRowActions<Message> {
     pub fn secondary_key<Key>(
         mut self,
         key: Key,
-        message: impl Fn(Key, crate::gui::types::Point) -> Message + Send + Sync + 'static,
+        message: impl Fn(Key, Point) -> Message + Send + Sync + 'static,
     ) -> Self
     where
         Key: Clone + Send + Sync + 'static,
@@ -218,7 +218,7 @@ impl<Message> InteractiveRowActions<Message> {
     /// Emit a host message when another row drag hovers this drop target.
     pub fn hover_drop(
         mut self,
-        message: impl Fn(crate::gui::types::Point) -> Message + Send + Sync + 'static,
+        message: impl Fn(Point) -> Message + Send + Sync + 'static,
     ) -> Self {
         self.hover_drop = Some(Arc::new(message));
         self
@@ -228,12 +228,34 @@ impl<Message> InteractiveRowActions<Message> {
     pub fn hover_drop_key<Key>(
         mut self,
         key: Key,
-        message: impl Fn(Key, crate::gui::types::Point) -> Message + Send + Sync + 'static,
+        message: impl Fn(Key, Point) -> Message + Send + Sync + 'static,
     ) -> Self
     where
         Key: Clone + Send + Sync + 'static,
     {
         self.hover_drop = Some(Arc::new(move |position| message(key.clone(), position)));
+        self
+    }
+
+    /// Emit drop and hover-drop messages for one host-owned target key.
+    ///
+    /// Use this when a row, chip, tree item, lane, or layer routes both the
+    /// eventual drop and live hover-target update through the same host-owned
+    /// identity.
+    pub fn drop_target_key<Key>(
+        mut self,
+        key: Key,
+        drop_message: impl Fn(Key) -> Message + Send + Sync + 'static,
+        hover_drop_message: impl Fn(Key, Point) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+    {
+        let drop_key = key.clone();
+        self.drop = Some(Arc::new(move || drop_message(drop_key.clone())));
+        self.hover_drop = Some(Arc::new(move |position| {
+            hover_drop_message(key.clone(), position)
+        }));
         self
     }
 

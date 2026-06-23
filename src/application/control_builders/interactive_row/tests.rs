@@ -273,9 +273,8 @@ fn interactive_row_actions_route_keyed_modifier_activation_and_drag() {
 #[test]
 fn interactive_row_actions_route_keyed_drop_targets() {
     let target = String::from("target-a");
-    let actions = row_actions()
-        .drop_key(target.clone(), DemoMessage::DropKey)
-        .hover_drop_key(target, DemoMessage::HoverDropKey);
+    let actions =
+        row_actions().drop_target_key(target, DemoMessage::DropKey, DemoMessage::HoverDropKey);
     let hover = Point::new(6.0, 12.0);
 
     assert_eq!(

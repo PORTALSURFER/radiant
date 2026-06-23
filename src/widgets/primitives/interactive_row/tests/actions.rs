@@ -129,8 +129,11 @@ fn interactive_row_actions_routes_keyed_tree_drop_row_actions() {
         .double_key("folder", |key| (key, "activate", Point::new(0.0, 0.0)))
         .secondary_key("folder", |key, position| (key, "secondary", position))
         .drag_key("folder", |key, drag| (key, "drag", drag.position()))
-        .drop_key("folder", |key| (key, "drop", Point::new(0.0, 0.0)))
-        .hover_drop_key("folder", |key, position| (key, "hover_drop", position));
+        .drop_target_key(
+            "folder",
+            |key| (key, "drop", Point::new(0.0, 0.0)),
+            |key, position| (key, "hover_drop", position),
+        );
     let position = Point::new(12.0, 24.0);
 
     assert_eq!(

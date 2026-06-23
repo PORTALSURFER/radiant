@@ -1206,8 +1206,11 @@ GPU-heavy retained views can be placed directly with
 same generated-ID, layout, focus, hit-test, and paint-plan path as standard
 widgets, then emits `PaintPrimitive::GpuSurface` for native GPU backends.
 Applications that need custom capability flags, runtime pointer-line policies,
-or lightweight backend-composited overlays can use
-`GpuSurfaceConfiguredParts` with `gpu_surface_configured_from_parts(...)`.
+or runtime-owned overlay behavior can use
+`gpu_surface_with_capabilities(key, revision, content, capabilities)`.
+Use `GpuSurfaceConfiguredParts` with `gpu_surface_configured_from_parts(...)`
+for advanced named-field construction that also needs lightweight
+backend-composited overlays.
 GPU surfaces that need host-visible input can use
 `gpu_surface_input(key, revision, content, |input| Message::GpuInput(input))`;
 plain `gpu_surface(...)` remains passive so pointer motion over retained visual
@@ -1904,11 +1907,11 @@ Standard widgets emit Vello-friendly paint primitives such as fills, batched
 same-color rectangle fills, strokes, text, images, clips, and overlays.
 Specialized realtime visuals can instead emit `PaintPrimitive::GpuSurface`
 through the application builders `gpu_surface(...)`,
-`gpu_surface_configured_from_parts(...)`, or `gpu_surface_input(...)`, or
-through `GpuSurfaceWidget` in lower-level host code. GPU surfaces are still
-normal Radiant widgets: they own stable identity, receive layout bounds, can
-route widget input, and paint through the same `SurfacePaintPlan` as
-Vello-backed widgets.
+`gpu_surface_with_capabilities(...)`, `gpu_surface_configured_from_parts(...)`,
+or `gpu_surface_input(...)`, or through `GpuSurfaceWidget` in lower-level host
+code. GPU surfaces are still normal Radiant widgets: they own stable identity,
+receive layout bounds, can route widget input, and paint through the same
+`SurfacePaintPlan` as Vello-backed widgets.
 
 Use retained GPU surfaces for dense visuals where the payload is naturally
 texture, signal, or shader data: waveform bodies, meters, scopes, large preview

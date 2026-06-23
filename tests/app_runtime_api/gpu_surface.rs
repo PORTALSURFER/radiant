@@ -6,7 +6,7 @@ use radiant::{
         GpuSurfaceCapabilities, GpuSurfaceConfiguredParts, GpuSurfaceContent, GpuSurfaceInputParts,
         GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, IntoView, Rgba8,
         gpu_surface, gpu_surface_configured_from_parts, gpu_surface_input,
-        gpu_surface_input_from_parts,
+        gpu_surface_input_from_parts, gpu_surface_with_capabilities,
     },
     runtime::{PaintPrimitive, SurfaceRuntime},
     theme::ThemeTokens,
@@ -69,7 +69,65 @@ fn app_gpu_surface_builder_lowers_through_normal_view_path() {
 }
 
 #[test]
-fn app_configured_gpu_surface_builder_preserves_capabilities_and_overlays() {
+fn app_gpu_surface_capabilities_helper_preserves_capabilities() {
+    let atlas = Arc::new(ImageRgba::new(2, 1, vec![255; 8]).expect("valid atlas"));
+    let line = GpuSurfaceLineStyle {
+        color: Rgba8 {
+            r: 255,
+            g: 255,
+            b: 255,
+            a: 235,
+        },
+        width: 1.0,
+    };
+    let view = gpu_surface_with_capabilities::<DemoMessage>(
+        41,
+        7,
+        GpuSurfaceContent::RgbaAtlas {
+            source_rect: Rect::from_min_size(
+                radiant::layout::Point::new(0.0, 0.0),
+                Vector2::new(2.0, 1.0),
+            ),
+            atlas,
+        },
+        GpuSurfaceCapabilities {
+            fast_pointer_move: true,
+            coalesce_vertical_wheel: true,
+            runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(line),
+        },
+    )
+    .id(90)
+    .size(240.0, 120.0);
+    let surface = view.into_surface();
+    let layout = radiant::layout::layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(
+            radiant::layout::Point::new(0.0, 0.0),
+            Vector2::new(320.0, 160.0),
+        ),
+    );
+
+    let plan = surface.paint_plan(&layout, &ThemeTokens::default());
+    let gpu = plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::GpuSurface(gpu) => Some(gpu),
+            _ => None,
+        })
+        .expect("configured GPU surface should emit a retained GPU paint primitive");
+
+    assert_eq!(gpu.widget_id, 90);
+    assert!(gpu.capabilities.fast_pointer_move);
+    assert!(gpu.capabilities.coalesce_vertical_wheel);
+    assert_eq!(
+        gpu.capabilities.runtime_overlays.pointer_vertical_line,
+        Some(line)
+    );
+}
+
+#[test]
+fn app_configured_gpu_surface_parts_preserve_capabilities_and_overlays() {
     let atlas = Arc::new(ImageRgba::new(2, 1, vec![255; 8]).expect("valid atlas"));
     let line = GpuSurfaceLineStyle {
         color: Rgba8 {

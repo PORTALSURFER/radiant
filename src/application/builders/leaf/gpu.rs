@@ -114,6 +114,29 @@ pub fn gpu_surface_configured_from_parts<Message: 'static>(
     )
 }
 
+/// Build a retained GPU surface view with generated identity and capabilities.
+///
+/// Use this when a passive retained GPU surface needs generic runtime behavior
+/// such as fast pointer motion, coalesced wheel routing, or runtime-owned
+/// overlays without dropping to named construction parts.
+pub fn gpu_surface_with_capabilities<Message: 'static>(
+    key: u64,
+    revision: u64,
+    content: GpuSurfaceContent,
+    capabilities: GpuSurfaceCapabilities,
+) -> ViewNode<Message> {
+    view_node_from_widget(
+        GpuSurfaceWidget::from_parts(GpuSurfaceParts {
+            id: 0,
+            sizing: default_gpu_surface_sizing(),
+            key,
+            revision,
+            content,
+        })
+        .with_capabilities(capabilities),
+    )
+}
+
 /// Build an input-emitting retained GPU surface view with generated identity.
 ///
 /// This keeps GPU-heavy widgets on the same application message path as

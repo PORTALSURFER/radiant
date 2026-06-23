@@ -92,8 +92,7 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
     (
         "gpu_surface",
         &[
-            "gpu_surface_input_from_parts(",
-            "GpuSurfaceInputParts",
+            "gpu_surface_input(",
             "GpuSurfaceContent::RgbaAtlas",
             "OnceLock<Arc<ImageRgba>>",
             "gpu_surface_example_lowers_to_retained_gpu_primitive",

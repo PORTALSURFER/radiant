@@ -1,6 +1,7 @@
 use super::*;
 use crate::{
     application::{IntoView, column, spacer, text},
+    gui::types::Point,
     layout::Vector2,
     widgets::{DragHandleMessage, WidgetOutput},
 };
@@ -16,6 +17,54 @@ fn panel_section_parts_adds_trailing_resize_handle() {
     let frame = panel_section_from_parts(parts)
         .view_frame_at_size_with_default_theme(Vector2::new(240.0, 120.0));
     assert!(frame.paint_plan.contains_text("Inspector"));
+}
+
+#[test]
+fn panel_section_header_parts_builds_custom_header_section() {
+    const HEADER_ID: u64 = 4_201;
+    const BODY_ID: u64 = 4_202;
+
+    let header =
+        panel_section_resize_header("custom-header-resize", 5.0, |_| "resize").id(HEADER_ID);
+    let body = text("Body").id(BODY_ID).fill_width().height(20.0);
+    let section = panel_section_from_header_parts(
+        PanelSectionHeaderParts::new(header, body)
+            .padding(6.0)
+            .spacing(1.0)
+            .height(80.0),
+    );
+    let layout = section.view_layout_at_size(Vector2::new(240.0, 100.0));
+    let header_rect = layout
+        .rects
+        .get(&HEADER_ID)
+        .expect("custom panel header should be laid out");
+    let body_rect = layout
+        .rects
+        .get(&BODY_ID)
+        .expect("custom panel body should be laid out");
+
+    assert!(header_rect.width() >= 228.0);
+    assert_eq!(header_rect.height(), 5.0);
+    assert_eq!(body_rect.min.y, header_rect.max.y + 1.0);
+}
+
+#[test]
+fn panel_section_header_parts_routes_custom_header_input() {
+    const HEADER_ID: u64 = 4_203;
+
+    let header =
+        panel_section_resize_header("custom-header-resize", 5.0, |_| "resize").id(HEADER_ID);
+    let section = panel_section_from_header_parts(
+        PanelSectionHeaderParts::new(header, text("Body")).height(80.0),
+    );
+
+    assert_eq!(
+        section.view_dispatch_widget_output(
+            HEADER_ID,
+            WidgetOutput::typed(DragHandleMessage::started(Point::new(8.0, 8.0))),
+        ),
+        Some("resize")
+    );
 }
 
 #[test]

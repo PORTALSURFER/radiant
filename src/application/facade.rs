@@ -85,14 +85,14 @@ pub use overlays::{
     pointer_drop_shield, pointer_move_shield, pointer_shield,
 };
 pub use panels::{
-    FormRowParts, LabeledControlParts, PanelSectionGeometry, PanelSectionLayerParts,
-    PanelSectionParts, PropertyRow, PropertyRowParts, StatusBarParts,
+    FormRowParts, LabeledControlParts, PanelSectionGeometry, PanelSectionHeaderParts,
+    PanelSectionLayerParts, PanelSectionParts, PropertyRow, PropertyRowParts, StatusBarParts,
     closeable_panel_section_from_parts, closeable_panel_section_layer_from_parts, form_row,
     form_row_from_parts, labeled_control, labeled_control_control_offset,
     labeled_control_control_offset_for, labeled_control_from_parts,
-    message_selectable_property_panel, panel_section, panel_section_from_parts,
-    panel_section_layer_from_parts, panel_section_resize_header, property_panel, property_rows,
-    status_bar, status_bar_from_parts,
+    message_selectable_property_panel, panel_section, panel_section_from_header_parts,
+    panel_section_from_parts, panel_section_layer_from_parts, panel_section_resize_header,
+    property_panel, property_rows, status_bar, status_bar_from_parts,
 };
 pub use runtime::{
     CancellationToken, FrameClock, KeyedLatestTasks, KeyedTaskCompletion, LatestTask, Presentation,

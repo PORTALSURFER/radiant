@@ -2392,6 +2392,10 @@ header actions can use
 `PanelSectionParts`, `panel_section(...)`, `panel_section_from_parts(...)`, and
 `closeable_panel_section_from_parts(...)` instead of rebuilding title rows,
 close buttons, padding, spacing, and neutral panel chrome in application code.
+Use `PanelSectionHeaderParts` with `panel_section_from_header_parts(...)` when
+the app owns a custom header view, such as a resize strip, segmented toolbar, or
+compact tab row, but Radiant should still own the standard panel container
+chrome.
 Use `PanelSectionGeometry` when app-owned resize constraints or fixed-content
 panels need the same panel padding, title-height, and spacing calculations
 without constructing view parts.

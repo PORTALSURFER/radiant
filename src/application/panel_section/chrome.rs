@@ -1,4 +1,4 @@
-use super::PanelSectionParts;
+use super::{PanelSectionHeaderParts, PanelSectionParts};
 use crate::{
     application::{ViewNode, close_button, column, drag_handle, row, text},
     widgets::{DragHandleMessage, WidgetStyle, WidgetTone},
@@ -24,6 +24,21 @@ pub fn panel_section_from_parts<Message: 'static>(
         parts.header_spacing,
     );
     let mut section = column([header, parts.content])
+        .style(parts.style)
+        .padding(parts.padding)
+        .spacing(parts.spacing)
+        .fill_width();
+    if let Some(height) = parts.height {
+        section = section.height(height);
+    }
+    section
+}
+
+/// Build a compact panel section with an app-provided header view.
+pub fn panel_section_from_header_parts<Message: 'static>(
+    parts: PanelSectionHeaderParts<Message>,
+) -> ViewNode<Message> {
+    let mut section = column([parts.header, parts.content])
         .style(parts.style)
         .padding(parts.padding)
         .spacing(parts.spacing)

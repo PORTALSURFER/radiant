@@ -33,6 +33,22 @@ pub struct PanelSectionParts<Message> {
     pub title_height: f32,
 }
 
+/// Named construction fields for a compact panel section with an app-provided header view.
+pub struct PanelSectionHeaderParts<Message> {
+    /// Header view shown above the content, such as a resize strip or custom toolbar.
+    pub header: ViewNode<Message>,
+    /// Main section content.
+    pub content: ViewNode<Message>,
+    /// Optional fixed section height. When omitted the section uses intrinsic height.
+    pub height: Option<f32>,
+    /// Visual styling applied to the section container.
+    pub style: WidgetStyle,
+    /// Inner container padding.
+    pub padding: f32,
+    /// Vertical spacing between the header and content.
+    pub spacing: f32,
+}
+
 impl<Message> PanelSectionParts<Message> {
     /// Build titled panel-section parts with Radiant's compact neutral defaults.
     pub fn new(title: impl Into<String>, content: ViewNode<Message>) -> Self {
@@ -143,5 +159,46 @@ impl<Message> PanelSectionParts<Message> {
     pub fn content_height_for_section_height(&self, section_height: f32) -> f32 {
         self.geometry()
             .content_height_for_section_height(section_height)
+    }
+}
+
+impl<Message> PanelSectionHeaderParts<Message> {
+    /// Build custom-header panel-section parts with Radiant's compact neutral defaults.
+    pub fn new(header: ViewNode<Message>, content: ViewNode<Message>) -> Self {
+        Self {
+            header,
+            content,
+            height: None,
+            style: WidgetStyle {
+                tone: WidgetTone::Neutral,
+                prominence: WidgetProminence::Subtle,
+            },
+            padding: DEFAULT_PANEL_SECTION_PADDING,
+            spacing: DEFAULT_PANEL_SECTION_SPACING,
+        }
+    }
+
+    /// Set fixed section height.
+    pub fn height(mut self, height: f32) -> Self {
+        self.height = Some(height);
+        self
+    }
+
+    /// Override section container style.
+    pub fn style(mut self, style: WidgetStyle) -> Self {
+        self.style = style;
+        self
+    }
+
+    /// Override inner container padding.
+    pub fn padding(mut self, padding: f32) -> Self {
+        self.padding = padding;
+        self
+    }
+
+    /// Override vertical spacing between the header and content.
+    pub fn spacing(mut self, spacing: f32) -> Self {
+        self.spacing = spacing;
+        self
     }
 }

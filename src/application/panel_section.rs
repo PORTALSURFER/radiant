@@ -6,12 +6,12 @@ mod parts;
 mod tests;
 
 pub use chrome::{
-    closeable_panel_section_from_parts, panel_section, panel_section_from_parts,
-    panel_section_resize_header,
+    closeable_panel_section_from_parts, panel_section, panel_section_from_header_parts,
+    panel_section_from_parts, panel_section_resize_header,
 };
 pub use geometry::PanelSectionGeometry;
 pub use layer::{
     PanelSectionLayerParts, closeable_panel_section_layer_from_parts,
     panel_section_layer_from_parts,
 };
-pub use parts::PanelSectionParts;
+pub use parts::{PanelSectionHeaderParts, PanelSectionParts};

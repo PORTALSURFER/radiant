@@ -59,6 +59,9 @@ pub use progress_bar::{
 pub use scrollbar::{ScrollbarBuilder, scrollbar};
 pub use selectable::{SelectableBuilder, selectable, selectable_mapped};
 pub use slider::{SliderBuilder, slider, slider_mapped};
-pub use text_input::{TextInputBuilder, text_input, text_input_mapped};
+pub use text_input::{
+    TextInputBuilder, TextInputWithClearButtonBuilder, text_input, text_input_clear_button_id,
+    text_input_mapped,
+};
 pub use toggle::{ToggleBuilder, checkbox, toggle, toggle_mapped};
 pub use tree_row::{TreeRowBuilder, TreeRowDragDropState, TreeRowMessageBuilder, tree_row};

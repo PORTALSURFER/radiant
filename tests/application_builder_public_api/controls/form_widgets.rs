@@ -240,3 +240,86 @@ fn text_input_builder_can_seed_selection_and_route_full_input_events() {
         })
     );
 }
+
+#[test]
+fn text_input_clear_button_builder_keeps_clear_slot_stable_and_routes_messages() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    enum Message {
+        Rename(String),
+        Clear,
+    }
+
+    let surface = ui::text_input("kick")
+        .placeholder("Any")
+        .clear_button(Message::Clear)
+        .id(31)
+        .message_event(|message| Message::Rename(message.into_value()))
+        .into_surface();
+    let clear_button_id = ui::text_input_clear_button_id(31);
+    let input = widget_ref::<TextInputWidget, _>(&surface, 31, "clearable input");
+
+    assert_eq!(input.props.placeholder.as_deref(), Some("Any"));
+    assert_eq!(
+        surface.dispatch_widget_output(
+            31,
+            radiant::widgets::WidgetOutput::typed(TextInputMessage::Changed {
+                value: String::from("snare"),
+            }),
+        ),
+        Some(Message::Rename(String::from("snare")))
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            clear_button_id,
+            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
+        ),
+        Some(Message::Clear)
+    );
+
+    let empty_surface = ui::text_input("")
+        .clear_button(Message::Clear)
+        .id(41)
+        .message_event(|message| Message::Rename(message.into_value()))
+        .into_surface();
+    let empty_clear_button_id = ui::text_input_clear_button_id(41);
+
+    assert!(empty_surface.find_widget(empty_clear_button_id).is_none());
+    assert_eq!(
+        empty_surface.dispatch_widget_output(
+            empty_clear_button_id,
+            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
+        ),
+        None
+    );
+}
+
+#[test]
+fn text_input_clear_button_builder_supports_mapped_clear_messages() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    enum Message {
+        Rename(String),
+        Clear(String),
+    }
+
+    let surface = ui::text_input("kick")
+        .placeholder("Any")
+        .clear_button_mapped(|| Message::Clear(String::from("name-filter")))
+        .id(31)
+        .message_event(|message| Message::Rename(message.into_value()))
+        .into_surface();
+    let clear_button_id = ui::text_input_clear_button_id(31);
+
+    let input = widget_ref::<TextInputWidget, _>(&surface, 31, "clearable input");
+    assert_eq!(input.props.placeholder.as_deref(), Some("Any"));
+    assert_eq!(
+        surface.dispatch_widget_output(
+            clear_button_id,
+            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
+        ),
+        Some(Message::Clear(String::from("name-filter")))
+    );
+}

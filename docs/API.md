@@ -200,7 +200,12 @@ Use `empty()` for optional branches that must return a view without
 contributing visible layout size; use `spacer()` when the view should reserve a
 non-painting fixed or flexible gap. Use `fixed_slot_opt(...)` or
 `fixed_slot_if(...)` when optional content should keep a fixed-width and
-fixed-height control slot while absent. Use `text_line(label, height)` for
+fixed-height control slot while absent. Use
+`text_input(value).clear_button(message)` when a search/filter input needs a
+reserved clear-button slot without app-local row assembly; `.id(...)` or
+`.key(...)` on that builder identifies the text input and Radiant derives the
+clear affordance identity. Use
+`text_line(label, height)` for
 fixed-height single-line labels that should fill their parent width and truncate
 rather than wrap. Use `children().push(...).push_opt(...).push_if(...)` when a
 row, column, grid, stack, or similar container has a short declarative child
@@ -2562,6 +2567,15 @@ focus loss aborts an active drag before release.
 Use `button_row(...)` for compact horizontal dialog, popover, inspector, and
 utility-panel button groups where the app owns button text, tone, messages, and
 widths while Radiant owns the group spacing and row height.
+Use `text_input(value).clear_button(message)` for compact search, filter,
+rename, or command fields where the app owns value/messages but Radiant should
+own the input row, fixed clear-button slot, spacing, and hidden-button
+behavior. Use `.clear_button_mapped(...)` when the clear action needs to build
+the host message lazily instead of cloning one message value. The clear-button
+slot uses compact defaults; `.id(...)` and `.key(...)` identify the text input,
+and Radiant derives the child clear-button identity. Use
+`text_input_clear_button_id(input_id)` only in tests, automation, or host
+integration code that needs to address that generated child.
 Use `drag_handle().hover_chrome_only()` for subtle splitters or reorder handles
 that need a persistent hit target but should hide idle chrome until hover,
 press, or focus.

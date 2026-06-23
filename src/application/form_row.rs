@@ -54,6 +54,18 @@ impl<Message> FormRowParts<Message> {
         }
     }
 
+    /// Build dense form-row parts with no outer padding or hover chrome.
+    ///
+    /// Use this for sidebar filters, compact inspectors, popover editors, and
+    /// other dense control groups where the surrounding panel already provides
+    /// hover/selection feedback and outer spacing.
+    pub fn dense(id: impl ToString, label: ViewNode<Message>, control: ViewNode<Message>) -> Self {
+        Self::new(id, label, control)
+            .padding_x(0.0)
+            .padding_y(0.0)
+            .hoverable(false)
+    }
+
     /// Override fixed row height.
     pub const fn height(mut self, height: f32) -> Self {
         self.height = height;
@@ -199,5 +211,24 @@ mod tests {
 
         assert_eq!(label.width(), 48.0);
         assert!(control.min.x >= label.max.x + 3.0);
+    }
+
+    #[test]
+    fn dense_form_row_removes_outer_chrome_for_embedded_control_rows() {
+        let parts = FormRowParts::<TestMessage>::dense(
+            "filter",
+            spacer().id(LABEL_ID),
+            spacer().id(CONTROL_ID),
+        )
+        .label_width(38.0);
+
+        assert_eq!(parts.padding_x, 0.0);
+        assert_eq!(parts.padding_y, 0.0);
+        assert!(!parts.hoverable);
+
+        let layout = form_row_from_parts(parts).view_layout_at_size(Vector2::new(160.0, 24.0));
+        let label = layout.rects.get(&LABEL_ID).expect("label rect");
+
+        assert_eq!(label.width(), 38.0);
     }
 }

@@ -2474,7 +2474,10 @@ Compact control panels can use `LabeledControlParts`,
 anchors without repeating label text styling and stacked spacing.
 Use `FormRowParts`, `form_row(...)`, or `form_row_from_parts(...)` when a
 panel needs compact horizontal label/control rows with Radiant-owned label
-width, row padding, spacing, hover behavior, and optional row styling.
+width, row padding, spacing, hover behavior, and optional row styling. Use
+`FormRowParts::dense(...)` when a sidebar filter, popover editor, or compact
+inspector row needs the same label/control geometry without row padding or
+hover chrome because the surrounding panel already owns that feedback.
 Use `button_row(...)` or `button_row_from_parts(...)` when dialogs, popovers,
 inspectors, or utility panels need a compact horizontal group of app-owned
 buttons with Radiant-owned spacing and row height.

@@ -46,6 +46,11 @@ impl Widget for InteractiveRowWidget {
             }
             self.pressed_position = previous.pressed_position;
             self.dragged = previous.dragged;
+            if retained_drag_ended(previous, self) {
+                self.common.state.pressed = false;
+                self.pressed_position = None;
+                self.dragged = false;
+            }
         }
     }
 
@@ -60,4 +65,9 @@ impl Widget for InteractiveRowWidget {
             push_control_chrome(primitives, &self.common, bounds, theme);
         }
     }
+}
+
+fn retained_drag_ended(previous: &InteractiveRowWidget, current: &InteractiveRowWidget) -> bool {
+    (previous.props.drag_active && !current.props.drag_active)
+        || (previous.props.drag_source && !current.props.drag_source)
 }

@@ -145,3 +145,46 @@ fn focus_loss_clears_pressed_row_before_drag_starts() {
     assert!(!row.common.state.pressed);
     assert!(!row.dragged);
 }
+
+#[test]
+fn synchronize_from_previous_clears_retained_drag_when_host_drag_becomes_idle() {
+    let start = Point::new(8.0, 6.0);
+    let mut previous =
+        InteractiveRowWidget::new(13, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+            .with_drag()
+            .with_drag_active(true)
+            .with_drag_source(true);
+    previous.common.state.pressed = true;
+    previous.pressed_position = Some(start);
+    previous.dragged = true;
+    assert!(previous.common.state.pressed);
+    assert!(previous.dragged);
+
+    let mut current =
+        InteractiveRowWidget::new(13, WidgetSizing::fixed(Vector2::new(120.0, 22.0))).with_drag();
+    crate::widgets::Widget::synchronize_from_previous(&mut current, &previous);
+
+    assert!(!current.common.state.pressed);
+    assert!(current.pressed_position.is_none());
+    assert!(!current.dragged);
+}
+
+#[test]
+fn synchronize_from_previous_preserves_ordinary_pressed_row_state() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let start = Point::new(8.0, 6.0);
+    let mut previous =
+        InteractiveRowWidget::new(14, WidgetSizing::fixed(Vector2::new(120.0, 22.0))).with_drag();
+    let _ = previous.handle_input(bounds, WidgetInput::primary_press(start));
+    assert!(previous.common.state.pressed);
+    assert_eq!(previous.pressed_position, Some(start));
+    assert!(!previous.dragged);
+
+    let mut current =
+        InteractiveRowWidget::new(14, WidgetSizing::fixed(Vector2::new(120.0, 22.0))).with_drag();
+    crate::widgets::Widget::synchronize_from_previous(&mut current, &previous);
+
+    assert!(current.common.state.pressed);
+    assert_eq!(current.pressed_position, Some(start));
+    assert!(!current.dragged);
+}

@@ -244,7 +244,10 @@ state should configure the common draggable, drag-active, drag-source, and
 pointer-motion policy together. Use
 `InteractiveRowBuilder::tracked_drag_source_with_motion(...)` when the active
 source is retained from host state and should keep emitting pointer movement
-after projection. Use
+after projection. Retained tracked rows automatically clear stale pressed and
+drag state when host synchronization moves them from an active drag/source state
+to idle or non-source, so apps do not need to churn row identity after drag
+cancellation just to reset transient input paint. Use
 `InteractiveRowUnderlayBuilder::tracked_drop_target(...)` when arbitrary
 visible row content should keep its own paint tree while the transparent
 interactive-row underlay owns standard tracked drop-target behavior.
@@ -559,7 +562,10 @@ hovered operation candidates without repeating dense-row state predicates. Use
 `InteractiveRowWidget::handle_input_mapped(...)` and
 `synchronize_from_previous_embedded(...)` when a custom row widget embeds an
 interactive row for generic input behavior but exposes host-specific messages
-and custom paint outside the trait shape. Use `InteractiveRowWidget::id()`, `common()`, and
+and custom paint outside the trait shape. Interactive-row synchronization
+preserves ordinary pressed state between frames, but clears stale pressed and
+drag state when a retained host-tracked drag row is no longer active or no
+longer the drag source. Use `InteractiveRowWidget::id()`, `common()`, and
 `common_mut()` when custom row wrappers need paint identity or widget-contract
 delegation without reading the embedded row field layout. Use
 `InteractiveRowWidget::push_dense_fill(...)` when a custom row painter should

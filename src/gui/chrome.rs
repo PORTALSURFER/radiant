@@ -54,6 +54,14 @@ impl StatusSegments {
         Self::new(left, "", "")
     }
 
+    /// Build status segments with left and center labels populated.
+    ///
+    /// Use this when trailing controls or progress content occupy the right
+    /// side of a status bar and no right text segment is needed.
+    pub fn left_center(left: impl Into<String>, center: impl Into<String>) -> Self {
+        Self::new(left, center, "")
+    }
+
     /// Return these segments with a replaced left label.
     pub fn with_left(mut self, left: impl Into<String>) -> Self {
         self.left = left.into();

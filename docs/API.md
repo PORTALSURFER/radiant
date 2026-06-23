@@ -2079,9 +2079,12 @@ hit testing, and automation paths.
 `RevisionCounter` provides a tiny GUI-state revision nonce for invalidating
 retained widget identity, cached projections, or host-owned retained resources
 after application-owned interaction state changes.
-`StatusSegments::new(...)`, `StatusSegments::primary(...)`, and the
-`with_left(...)` / `with_center(...)` / `with_right(...)` builders provide a
-structured left/center/right status-bar model for application chrome.
+`StatusSegments::new(...)`, `StatusSegments::primary(...)`,
+`StatusSegments::left_center(...)`, and the `with_left(...)` /
+`with_center(...)` / `with_right(...)` builders provide a structured
+left/center/right status-bar model for application chrome. Use
+`StatusSegments::left_center(...)` when the status bar has left and center text
+plus trailing live content but no right text segment.
 Application-builder views can use `StatusBarParts`, `status_bar(...)`, and
 `status_bar_from_parts(...)` to render those segments with standard compact
 status-bar sizing, padding, spacing, truncation, and optional trailing content

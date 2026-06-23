@@ -45,6 +45,15 @@ fn status_segments_primary_populates_left_label_only() {
 }
 
 #[test]
+fn status_segments_left_center_leaves_right_label_empty() {
+    let segments = StatusSegments::left_center("2 samples", "Scanning");
+
+    assert_eq!(segments.left, "2 samples");
+    assert_eq!(segments.center, "Scanning");
+    assert_eq!(segments.right, "");
+}
+
+#[test]
 fn content_view_chrome_defaults_to_product_neutral_copy() {
     let chrome = ContentViewChrome::default();
 

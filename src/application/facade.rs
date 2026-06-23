@@ -46,8 +46,9 @@ pub use details::{
     compact_resizable_details_header_cell_with_ids, details_column_drag_content_left,
     details_column_drag_feedback, details_column_reorder_index, details_sort_label,
     message_selectable_sortable_details_list, message_sortable_details_list, message_tree_list,
-    message_tree_list_with_drag, reorder_details_columns_by_id, update_details_column_reorder_drag,
-    update_details_column_resize_drag,
+    message_tree_list_with_drag, reorder_details_columns_by_id,
+    reorder_visible_details_columns_by_id, update_details_column_reorder_drag,
+    update_details_column_resize_drag, update_visible_details_column_reorder_drag,
 };
 pub use layout::{
     BoundedScrollColumnParts, Children, ColorMarkerRunBuilder, DEFAULT_ACTION_ROW_HEIGHT,

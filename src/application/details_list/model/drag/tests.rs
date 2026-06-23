@@ -338,3 +338,57 @@ fn update_details_column_reorder_drag_cancel_clears_without_reorder() {
     assert_eq!(columns, ["name", "rating", "extension"]);
     assert_eq!(drag, None);
 }
+
+#[test]
+fn update_visible_details_column_reorder_drag_preserves_hidden_columns() {
+    let mut drag = None;
+    let mut columns = vec![
+        String::from("name"),
+        String::from("source_folder"),
+        String::from("rating"),
+        String::from("extension"),
+        String::from("path"),
+    ];
+    let placements = vec![
+        DetailsColumnPlacement::new("name", 240.0),
+        DetailsColumnPlacement::new("rating", 68.0),
+        DetailsColumnPlacement::new("extension", 54.0),
+    ];
+    let visible = |column: &String| column.as_str() != "source_folder" && column.as_str() != "path";
+
+    assert!(!update_visible_details_column_reorder_drag(
+        &mut drag,
+        &mut columns,
+        "rating",
+        DragHandleMessage::Started {
+            position: crate::gui::types::Point::new(300.0, 0.0)
+        },
+        &placements,
+        10.0,
+        String::as_str,
+        visible,
+    ));
+    assert_eq!(
+        drag.as_ref().map(|drag| drag.pointer),
+        Some(crate::gui::types::Point::new(300.0, 0.0))
+    );
+
+    assert!(update_visible_details_column_reorder_drag(
+        &mut drag,
+        &mut columns,
+        "ignored",
+        DragHandleMessage::Ended {
+            position: crate::gui::types::Point::new(8.0, 0.0)
+        },
+        &placements,
+        10.0,
+        String::as_str,
+        visible,
+    ));
+
+    assert_eq!(
+        columns,
+        ["rating", "name", "source_folder", "extension", "path"]
+    );
+    assert_eq!(drag, None);
+}

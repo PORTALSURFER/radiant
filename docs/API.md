@@ -511,8 +511,12 @@ Resizable and reorderable details headers can keep interaction state in
 `update_details_column_resize_drag(...)`,
 `update_details_column_reorder_drag(...)`,
 `details_column_drag_content_left(...)`, `details_column_reorder_index(...)`,
-`details_column_drag_feedback(...)`, and `reorder_details_columns_by_id(...)`
-for stable framework-owned column geometry and drag-lifecycle behavior.
+`details_column_drag_feedback(...)`, `reorder_details_columns_by_id(...)`,
+`reorder_visible_details_columns_by_id(...)`, and
+`update_visible_details_column_reorder_drag(...)` for stable framework-owned
+column geometry and drag-lifecycle behavior. Use the visible-subset helpers
+when durable column preferences include hidden columns but the rendered header
+only exposes a filtered subset.
 `DetailsColumnReorderDrag` retains the current pointer position and exposes
 `current_feedback(...)` so host applications can render drag previews and local
 insertion markers without duplicating the generic drag lifecycle or marker
@@ -725,7 +729,10 @@ item count, viewport policy, and optional host selection in one controller call.
 Use `local_drop_marker(...)` for non-interactive insertion markers that should
 be positioned in a local stack or row layer, such as details-header reorder
 targets or list drop indicators, without rebuilding spacer and feedback-overlay
-composition in application code.
+composition in application code. The marker paints from its assigned bounds and
+clamps to the visible local range, so constrained or clipped headers keep a
+visible insertion affordance instead of dropping the marker when the target lies
+near the trailing edge.
 Timeline and waveform-style surfaces can use `IndexViewport` for generic
 integer range navigation. It owns clamping, visible fraction, scrollbar offset,
 anchor-preserving zoom, visible-span pan, `pan_by_visible_ratio_drag(...)` for

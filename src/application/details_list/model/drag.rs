@@ -1,7 +1,10 @@
 use crate::gui::types::Point;
 use crate::widgets::DragHandleMessage;
 
-use super::{DetailsColumnPlacement, details_column_reorder_index, reorder_details_columns_by_id};
+use super::{
+    DetailsColumnPlacement, details_column_reorder_index, reorder_details_columns_by_id,
+    reorder_visible_details_columns_by_id,
+};
 
 #[cfg(test)]
 mod tests;
@@ -308,6 +311,71 @@ pub fn update_details_column_reorder_drag<T>(
                 drag.current_target_index(placements, column_gap)
                     .is_some_and(|target_index| {
                         reorder_details_columns_by_id(columns, &drag.column_id, target_index, id)
+                    })
+            });
+            *active_drag = None;
+            changed
+        }
+        DragHandleMessage::Cancelled { .. } => {
+            *active_drag = None;
+            false
+        }
+        DragHandleMessage::DoubleActivate { .. } => false,
+    }
+}
+
+/// Apply one drag-handle message to reorder state for a visible column subset.
+///
+/// This is the details-list counterpart to
+/// [`update_details_column_reorder_drag`] for hosts that retain hidden columns
+/// in durable preferences. Reorder thresholds are resolved from the rendered
+/// `placements` slice, and the final move is applied to the visible subset of
+/// `columns` while hidden columns keep their relative order.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "matches the base details-column drag helper plus a host visibility predicate"
+)]
+pub fn update_visible_details_column_reorder_drag<T>(
+    active_drag: &mut Option<DetailsColumnReorderDrag>,
+    columns: &mut Vec<T>,
+    column_id: impl ToString,
+    message: DragHandleMessage,
+    placements: &[DetailsColumnPlacement],
+    column_gap: f32,
+    id: impl Fn(&T) -> &str,
+    is_visible: impl Fn(&T) -> bool,
+) -> bool {
+    match message {
+        DragHandleMessage::Started { position } => {
+            let column_id = column_id.to_string();
+            let Some(content_left) =
+                details_column_drag_content_left(placements, &column_id, position.x, column_gap)
+            else {
+                return false;
+            };
+            *active_drag = Some(DetailsColumnReorderDrag::from_start(
+                column_id,
+                content_left,
+                position,
+            ));
+            false
+        }
+        DragHandleMessage::Moved { position } => active_drag.as_mut().is_some_and(|drag| {
+            drag.pointer = position;
+            false
+        }),
+        DragHandleMessage::Ended { position } => {
+            let changed = active_drag.as_mut().is_some_and(|drag| {
+                drag.pointer = position;
+                drag.current_target_index(placements, column_gap)
+                    .is_some_and(|target_index| {
+                        reorder_visible_details_columns_by_id(
+                            columns,
+                            &drag.column_id,
+                            target_index,
+                            id,
+                            is_visible,
+                        )
                     })
             });
             *active_drag = None;

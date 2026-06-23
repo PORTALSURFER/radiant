@@ -10,8 +10,9 @@ pub use super::super::details_list::{
     compact_resizable_details_header_cell_with_ids, details_column_drag_content_left,
     details_column_drag_feedback, details_column_reorder_index, details_sort_label,
     message_selectable_sortable_details_list, message_sortable_details_list,
-    reorder_details_columns_by_id, update_details_column_reorder_drag,
-    update_details_column_resize_drag,
+    reorder_details_columns_by_id, reorder_visible_details_columns_by_id,
+    update_details_column_reorder_drag, update_details_column_resize_drag,
+    update_visible_details_column_reorder_drag,
 };
 pub use super::super::option_list::{
     CompactOptionListAnchoredParts, CompactOptionListFloatingAboveParts, CompactOptionListItem,

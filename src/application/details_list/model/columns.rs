@@ -118,10 +118,79 @@ pub fn reorder_details_columns_by_id<T>(
     true
 }
 
+/// Move one visible details-list column to a visible target index.
+///
+/// Hosts often keep durable column preferences for both visible and hidden
+/// columns. The `target_visible_index` value is resolved against the visible
+/// subset only, while hidden columns remain in their existing relative order.
+pub fn reorder_visible_details_columns_by_id<T>(
+    columns: &mut Vec<T>,
+    dragged_id: &str,
+    target_visible_index: usize,
+    id: impl Fn(&T) -> &str,
+    is_visible: impl Fn(&T) -> bool,
+) -> bool {
+    let Some(from_index) = columns.iter().position(|column| id(column) == dragged_id) else {
+        return false;
+    };
+    if !is_visible(&columns[from_index]) {
+        return false;
+    }
+
+    let mut visible_index = 0usize;
+    let mut from_visible_index = None;
+    for column in columns.iter() {
+        if !is_visible(column) {
+            continue;
+        }
+        if id(column) == dragged_id {
+            from_visible_index = Some(visible_index);
+            break;
+        }
+        visible_index += 1;
+    }
+
+    let visible_count = columns.iter().filter(|column| is_visible(column)).count();
+    if visible_count == 0 {
+        return false;
+    }
+    let target_visible_index = target_visible_index.min(visible_count.saturating_sub(1));
+    if from_visible_index == Some(target_visible_index) {
+        return false;
+    }
+
+    let column = columns.remove(from_index);
+    let insert_index =
+        visible_details_column_insert_index(columns, target_visible_index, is_visible);
+    columns.insert(insert_index, column);
+    true
+}
+
+fn visible_details_column_insert_index<T>(
+    columns: &[T],
+    target_visible_index: usize,
+    is_visible: impl Fn(&T) -> bool,
+) -> usize {
+    let mut visible_seen = 0usize;
+    let mut after_last_visible = 0usize;
+    for (index, column) in columns.iter().enumerate() {
+        if !is_visible(column) {
+            continue;
+        }
+        if visible_seen == target_visible_index {
+            return index;
+        }
+        visible_seen += 1;
+        after_last_visible = index + 1;
+    }
+    after_last_visible
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         DetailsColumnPlacement, details_column_reorder_index, reorder_details_columns_by_id,
+        reorder_visible_details_columns_by_id,
     };
 
     #[test]
@@ -164,5 +233,63 @@ mod tests {
         ));
 
         assert_eq!(columns, ["name", "extension", "size", "rating"]);
+    }
+
+    #[test]
+    fn reorder_visible_details_columns_by_id_targets_visible_subset() {
+        let mut columns = vec![
+            String::from("name"),
+            String::from("source_folder"),
+            String::from("rating"),
+            String::from("extension"),
+            String::from("path"),
+        ];
+        let visible =
+            |column: &String| column.as_str() != "source_folder" && column.as_str() != "path";
+
+        assert!(reorder_visible_details_columns_by_id(
+            &mut columns,
+            "rating",
+            0,
+            String::as_str,
+            visible,
+        ));
+
+        assert_eq!(
+            columns,
+            ["rating", "name", "source_folder", "extension", "path"]
+        );
+
+        assert!(reorder_visible_details_columns_by_id(
+            &mut columns,
+            "rating",
+            usize::MAX,
+            String::as_str,
+            visible,
+        ));
+
+        assert_eq!(
+            columns,
+            ["name", "source_folder", "extension", "rating", "path"]
+        );
+    }
+
+    #[test]
+    fn reorder_visible_details_columns_by_id_ignores_hidden_dragged_column() {
+        let mut columns = vec![
+            String::from("name"),
+            String::from("source_folder"),
+            String::from("rating"),
+        ];
+
+        assert!(!reorder_visible_details_columns_by_id(
+            &mut columns,
+            "source_folder",
+            0,
+            String::as_str,
+            |column| column.as_str() != "source_folder",
+        ));
+
+        assert_eq!(columns, ["name", "source_folder", "rating"]);
     }
 }

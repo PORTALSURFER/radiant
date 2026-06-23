@@ -1,6 +1,8 @@
 use crate::{
     application::{View, button, drag_handle, input_underlay, row, text},
-    widgets::{DragHandleMessage, WidgetId, WidgetProminence, WidgetStyle, WidgetTone},
+    widgets::{
+        DragHandleMessage, WidgetId, WidgetProminence, WidgetStyle, WidgetTone, stable_widget_id,
+    },
 };
 
 /// Stable widget ids for a compact resizable details header cell.
@@ -16,6 +18,19 @@ impl CompactDetailsHeaderCellIds {
     /// Build explicit ids for the sort/reorder and resize surfaces.
     pub const fn new(sort_drag: Option<WidgetId>, resize: Option<WidgetId>) -> Self {
         Self { sort_drag, resize }
+    }
+
+    /// Derive sort/reorder and resize ids from caller-owned scopes and a stable column key.
+    ///
+    /// Use this for dynamic details-list headers where each column needs
+    /// retained interaction identity, but the app should not repeat the
+    /// sort/resize id derivation at every header call site.
+    pub fn from_stable_key(sort_drag_scope: u64, resize_scope: u64, key: impl AsRef<str>) -> Self {
+        let key = key.as_ref();
+        Self::new(
+            Some(stable_widget_id(sort_drag_scope, key)),
+            Some(stable_widget_id(resize_scope, key)),
+        )
     }
 }
 
@@ -122,4 +137,19 @@ where
     .width(width)
     .height(20.0)
     .spacing(1.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CompactDetailsHeaderCellIds;
+    use crate::widgets::stable_widget_id;
+
+    #[test]
+    fn compact_details_header_cell_ids_can_derive_stable_column_ids() {
+        let ids = CompactDetailsHeaderCellIds::from_stable_key(11, 22, "name");
+
+        assert_eq!(ids.sort_drag, Some(stable_widget_id(11, "name")));
+        assert_eq!(ids.resize, Some(stable_widget_id(22, "name")));
+        assert_ne!(ids.sort_drag, ids.resize);
+    }
 }

@@ -525,7 +525,10 @@ Custom details-list headers can use
   still composing app-specific menus or column policies. Use
   `compact_resizable_details_header_cell_with_ids(...)` with
   `CompactDetailsHeaderCellIds` when dynamic header cells need stable explicit
-  widget ids for retained focus, drag, or resize state.
+  widget ids for retained focus, drag, or resize state; use
+  `CompactDetailsHeaderCellIds::from_stable_key(...)` when sort/reorder and
+  resize ids should be derived from two caller-owned scopes plus one stable
+  column key.
 Resizable and reorderable details headers can keep interaction state in
 `DetailsColumnResizeDrag` and `DetailsColumnReorderDrag`, using
 `update_details_column_resize_drag(...)`,

@@ -281,7 +281,7 @@ has moved beyond the common app import set.
 | Area | Common prelude entries |
 | --- | --- |
 | Application setup | `window`, `app`, `IntoView`, `View`, `UiUpdateContext`, `EmbeddedFont` |
-| Basic views | `text`, `button`, `button_row`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
+| Basic views | `text`, `button`, `button_row`, `toolbar`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
 | Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `handle_activation_input` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
@@ -1683,10 +1683,10 @@ instead of allocating geometry vectors on every layout or paint pass.
 for compact toolbars without baking product-specific toolbar concepts into the
 layout adapter. `layout::fixed_width_item_extent_for_available_width` resolves
 the largest fixed item extent that fits a compact row after caller-reserved gaps.
-Compact control strips should be built directly from `row(...)`, `spacer()`,
-padding, spacing, sizing, and the app-owned controls. Radiant keeps the generic
-layout primitives small; product-specific toolbar object models should live in
-the app when a product needs one.
+Compact control strips can use `ToolbarParts`, `ToolbarAlignment`,
+`toolbar(...)`, and `toolbar_from_parts(...)` when the app owns the actual
+controls but Radiant should own common strip height, padding, spacing,
+start/center/end alignment, and trailing-control group placement.
 Declarative views can use `SurfaceNode::scroll_area` and
 `SurfaceNode::virtual_scroll_area` for the scroll viewport itself, then project
 generic rows, cards, images, badges, selectables, or host-defined canvas cells as
@@ -2417,6 +2417,10 @@ width, row padding, spacing, hover behavior, and optional row styling.
 Use `button_row(...)` or `button_row_from_parts(...)` when dialogs, popovers,
 inspectors, or utility panels need a compact horizontal group of app-owned
 buttons with Radiant-owned spacing and row height.
+Use `ToolbarParts`, `ToolbarAlignment`, `toolbar(...)`, or
+`toolbar_from_parts(...)` when top bars, transport strips, inspector toolbars,
+or similar app-owned control strips need Radiant-owned height, padding, spacing,
+alignment, and optional trailing controls.
 Centered fixed-size foreground surfaces can use `CenteredLayerParts`,
 `centered_layer(...)`, and `centered_layer_from_parts(...)` instead of
 rebuilding spacer rows and columns in application code.

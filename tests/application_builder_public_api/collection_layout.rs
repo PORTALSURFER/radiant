@@ -74,6 +74,45 @@ fn application_builder_default_containers_use_dense_spacing() {
 }
 
 #[test]
+fn application_builder_toolbar_splits_main_and_trailing_controls() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::toolbar_from_parts(
+        ui::ToolbarParts::new([ui::button("Left")
+            .message(DemoMessage::Increment)
+            .id(10)
+            .width(40.0)])
+        .trailing(
+            ui::button("Right")
+                .message(DemoMessage::Increment)
+                .id(11)
+                .width(48.0),
+        )
+        .height(30.0)
+        .padding_x(8.0)
+        .padding_y(4.0)
+        .spacing(6.0),
+    )
+    .id(1)
+    .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 30.0)),
+    );
+
+    assert_eq!(layout.rects[&1].height(), 30.0);
+    assert_eq!(layout.rects[&10].min.x, 8.0);
+    assert_eq!(layout.rects[&11].max.x, 172.0);
+    assert_eq!(
+        surface.dispatch_widget_output(
+            10,
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate)
+        ),
+        Some(DemoMessage::Increment)
+    );
+}
+
+#[test]
 fn application_builder_styled_containers_use_default_panel_padding() {
     use radiant::prelude::{self as ui, IntoView};
 

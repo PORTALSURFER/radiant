@@ -10,6 +10,7 @@ mod scene;
 mod scroll;
 mod shell;
 mod slots;
+mod toolbar;
 
 pub use collection::{Children, children};
 pub use containers::{
@@ -36,3 +37,4 @@ pub use scene::{Overlays, Scene, overlays, scene};
 pub use scroll::{scroll, virtual_scroll};
 pub use shell::{WorkspaceShellBuilder, workspace_shell};
 pub use slots::{fixed_slot_if, fixed_slot_opt};
+pub use toolbar::{ToolbarAlignment, ToolbarParts, toolbar, toolbar_from_parts};

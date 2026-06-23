@@ -113,9 +113,11 @@ fn details_list_view_composition_stays_split_by_responsibility() {
     );
     assert!(
         header.contains("pub struct CompactDetailsHeaderCellIds")
+            && header.contains("pub fn compact_details_header_sort_drag_id")
+            && header.contains("pub fn compact_details_header_resize_id")
             && header.contains("pub fn compact_resizable_details_header_cell_with_ids")
             && header.contains("DragHandleMessage"),
-        "compact details-list header interactions should stay in a focused header module"
+        "compact details-list header interactions should stay in a focused header module and derive child ids from parent cell identity"
     );
 }
 

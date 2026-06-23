@@ -526,13 +526,19 @@ Custom details-list headers can use
   `compact_details_header_row(...)`, `compact_resizable_details_header_cell(...)`,
   and `details_sort_label(...)` to share Radiant's compact header chrome,
   sortable click-or-drag behavior, resize handles, and sort marker copy while
-  still composing app-specific menus or column policies. Use
+  still composing app-specific menus or column policies. Dynamic header cells
+  should assign one stable header-cell id with `.id(stable_widget_id(scope,
+  column_key))`; Radiant derives the internal sort/reorder and resize child
+  identities under that parent. Use `compact_details_header_sort_drag_id(...)`
+  or `compact_details_header_resize_id(...)` only in tests, automation, or host
+  integrations that need to address those child affordances directly. Use
   `compact_resizable_details_header_cell_with_ids(...)` with
   `CompactDetailsHeaderCellIds` when dynamic header cells need stable explicit
-  widget ids for retained focus, drag, or resize state; use
-  `CompactDetailsHeaderCellIds::from_stable_key(...)` when sort/reorder and
-  resize ids should be derived from two caller-owned scopes plus one stable
-  column key.
+  externally reserved widget ids for retained focus, drag, or resize state; use
+  `CompactDetailsHeaderCellIds::from_cell_id(...)` to derive the default child
+  ids from a stable parent cell id, or
+  `CompactDetailsHeaderCellIds::from_stable_key(...)` only when preserving an
+  existing two-scope external id contract.
 Resizable and reorderable details headers can keep interaction state in
 `DetailsColumnResizeDrag` and `DetailsColumnReorderDrag`, using
 `update_details_column_resize_drag(...)`,

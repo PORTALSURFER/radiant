@@ -201,12 +201,16 @@ fn compact_resizable_details_header_cell_builds_standard_interactive_cell() {
         &surface.layout_node(),
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 40.0)),
     );
+    let sort_drag_id = ui::compact_details_header_sort_drag_id(1);
+    let resize_id = ui::compact_details_header_resize_id(1);
     let frame = radiant::runtime::UiSurface::new(surface.root().clone()).frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 40.0)),
         &Default::default(),
     );
 
     assert_eq!(layout.rects[&1].width(), 120.0);
+    assert!(layout.rects.contains_key(&sort_drag_id));
+    assert_eq!(layout.rects[&resize_id].width(), 4.0);
     assert_eq!(layout.rects[&2].min.x, 120.0);
     assert!(
         frame.paint_plan.primitives.iter().any(

@@ -19,10 +19,10 @@ pub use containers::{
 };
 pub use lists::{
     BoundedScrollColumnParts, MaterializedVirtualListBuilder, VirtualListBuilder,
-    bounded_scroll_column, bounded_scroll_column_from_parts, list, list_row, list_row_id,
-    scroll_column, virtual_list_materialized_windowed, virtual_list_window,
+    VirtualTreeListBuilder, bounded_scroll_column, bounded_scroll_column_from_parts, list,
+    list_row, list_row_id, scroll_column, virtual_list_materialized_windowed, virtual_list_window,
     virtual_list_window_body, virtual_list_window_change_for_scroll, virtual_list_windowed,
-    virtual_tree_list_window,
+    virtual_tree_list_window, virtual_tree_list_windowed,
 };
 pub use overlay_stack::{OverlayStack, overlay_stack};
 pub use overlays::{

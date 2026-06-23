@@ -1661,10 +1661,13 @@ ui::virtual_list_materialized_windowed(current_window, rows, |index, row| {
 .view()
 ```
 
-Use `virtual_tree_list_window(...)` for fixed-height tree or outline rows when
-the same materialized range should include a standard tree-guide overlay; pass
-`StyledTreeGuideStyle` when guide color should follow the frame theme instead
-of a fixed `TreeGuideStyle` color.
+Use `virtual_tree_list_windowed(...)` for fixed-height tree or outline rows when
+runtime scrolling should update the host-owned logical window through normal
+messages and the same materialized range should include a standard tree-guide
+overlay. Use the direct `virtual_tree_list_window(...)` helper when the host
+already handles scroll-window updates separately. Pass `StyledTreeGuideStyle`
+when guide color should follow the frame theme instead of a fixed
+`TreeGuideStyle` color.
 Use `virtual_list_window_body(...)` when the materialized range needs to be
 composed as one body, such as row groups, table overlays, guide overlays, or
 other decoration spanning several fixed-height rows, while Radiant still owns
@@ -2415,6 +2418,8 @@ materialized rows for the current window; use `virtual_tree_list_window(...)`
 when a fixed-height tree or outline should compose materialized rows with
 standard guide overlays, including style-resolved `StyledTreeGuideStyle`
 overlays when guide color should follow the active theme; use
+`virtual_tree_list_windowed(...)` for the same tree-guide composition when
+runtime scroll-window changes should be emitted as ordinary app messages; use
 `virtual_list_window_body(...)` when the materialized window needs a shared
 overlay or grouped row body outside the standard tree-guide case. Smaller
 eagerly projected lists should use `list(...)`, `scroll_column(...)`, or

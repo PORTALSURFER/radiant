@@ -220,6 +220,52 @@ fn application_builder_virtual_list_materialized_windowed_uses_preloaded_rows() 
 }
 
 #[test]
+fn application_builder_virtual_tree_list_windowed_uses_window_messages() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let window = ui::VirtualListWindow {
+        total_items: 256,
+        viewport_start: 10,
+        viewport_end: 14,
+        window_start: 8,
+        window_end: 16,
+    };
+    let guides = (0..256)
+        .map(|index| ui::TreeGuideRow::new(index % 2, index % 3 == 0))
+        .collect::<Vec<_>>();
+    let surface: UiSurface<DemoMessage> = ui::virtual_tree_list_windowed(
+        window,
+        28.0,
+        &guides,
+        ui::TreeGuideStyle::new(10.0, 28.0, ui::Rgba8::new(90, 120, 160, 255)),
+        |index| {
+            ui::list_row_id(
+                30_000 + index as u64,
+                [ui::button(format!("Node {index:03}"))
+                    .message(DemoMessage::Increment)
+                    .id(3_000 + index as u64)],
+            )
+        },
+    )
+    .overscan_px(56.0)
+    .on_window_changed(|_| DemoMessage::Increment)
+    .view()
+    .id(4)
+    .into_surface();
+
+    let output = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(320.0, 180.0)),
+    );
+
+    assert!(!output.virtual_windows.contains_key(&4));
+    assert!(surface.find_widget(3_007).is_none());
+    assert!(surface.find_widget(3_008).is_some());
+    assert!(surface.find_widget(3_015).is_some());
+    assert!(surface.find_widget(3_016).is_none());
+}
+
+#[test]
 fn application_builder_list_row_id_uses_direct_numeric_identity() {
     use radiant::prelude::{self as ui, IntoView};
 

@@ -7,7 +7,8 @@ pub use super::super::labeled_control::{
 };
 pub use super::super::panel_section::{
     PanelSectionGeometry, PanelSectionHeaderParts, PanelSectionLayerParts, PanelSectionParts,
-    closeable_panel_section_from_parts, closeable_panel_section_layer_from_parts, panel_section,
+    closeable_dialog_layer, closeable_panel_section_from_parts,
+    closeable_panel_section_layer_from_parts, dialog_layer, panel_section,
     panel_section_from_header_parts, panel_section_from_parts, panel_section_layer_from_parts,
     panel_section_resize_header,
 };

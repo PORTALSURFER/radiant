@@ -2473,7 +2473,10 @@ dismiss layer while preserving the base content underneath. Fixed-size titled
 popovers and inspector panels can use `PanelSectionLayerParts`,
 `panel_section_layer_from_parts(...)`, or
 `closeable_panel_section_layer_from_parts(...)` to keep panel sizing and
-full-surface anchored placement in one generic contract. Use
+full-surface anchored placement in one generic contract. Use `dialog_layer(...)`
+or `closeable_dialog_layer(...)` for the common centered fixed-size dialog case
+when Radiant's standard dialog chrome is enough and the app only supplies title,
+content, tone, size, and close message. Use
 `PanelSectionParts::dialog(...)` when a modal, popover, or floating utility
 panel should use Radiant's standard strong dialog chrome while the host owns
 content, size, placement, and close behavior.

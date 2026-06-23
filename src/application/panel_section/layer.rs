@@ -7,6 +7,7 @@ use crate::{
         anchored_layer_from_parts,
     },
     layout::Vector2,
+    widgets::WidgetTone,
 };
 
 /// Named construction fields for a fixed-size panel section in an anchored layer.
@@ -76,6 +77,23 @@ pub fn panel_section_layer_from_parts<Message: 'static>(
     )
 }
 
+/// Build a fixed-size dialog panel in a parent-anchored layer.
+///
+/// Use this for modal dialogs, popovers, and floating utility panels that want
+/// Radiant's standard dialog panel chrome without spelling out the lower-level
+/// panel-section and anchored-layer parts.
+pub fn dialog_layer<Message: 'static>(
+    title: impl Into<String>,
+    content: ViewNode<Message>,
+    tone: WidgetTone,
+    size: Vector2,
+) -> ViewNode<Message> {
+    panel_section_layer_from_parts(PanelSectionLayerParts::new(
+        PanelSectionParts::dialog(title, content, tone),
+        size,
+    ))
+}
+
 /// Build a closeable fixed-size panel section in a parent-anchored layer.
 pub fn closeable_panel_section_layer_from_parts<Message>(
     parts: PanelSectionLayerParts<Message>,
@@ -95,6 +113,27 @@ where
         parts.vertical,
         parts.inset_x,
         parts.inset_y,
+    )
+}
+
+/// Build a closeable fixed-size dialog panel in a parent-anchored layer.
+///
+/// This convenience covers the common app-modal case while preserving
+/// [`closeable_panel_section_layer_from_parts`] for callers that need custom
+/// panel parts, anchoring, or insets.
+pub fn closeable_dialog_layer<Message>(
+    title: impl Into<String>,
+    content: ViewNode<Message>,
+    tone: WidgetTone,
+    size: Vector2,
+    close_message: Message,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    closeable_panel_section_layer_from_parts(
+        PanelSectionLayerParts::new(PanelSectionParts::dialog(title, content, tone), size),
+        close_message,
     )
 }
 

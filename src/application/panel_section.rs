@@ -11,7 +11,7 @@ pub use chrome::{
 };
 pub use geometry::PanelSectionGeometry;
 pub use layer::{
-    PanelSectionLayerParts, closeable_panel_section_layer_from_parts,
-    panel_section_layer_from_parts,
+    PanelSectionLayerParts, closeable_dialog_layer, closeable_panel_section_layer_from_parts,
+    dialog_layer, panel_section_layer_from_parts,
 };
 pub use parts::{PanelSectionHeaderParts, PanelSectionParts};

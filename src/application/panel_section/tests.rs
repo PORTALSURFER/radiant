@@ -96,6 +96,35 @@ fn panel_section_dialog_parts_use_standard_dialog_chrome() {
 }
 
 #[test]
+fn dialog_layer_projects_standard_dialog_panel() {
+    let frame = dialog_layer::<()>(
+        "Confirm",
+        text("Body"),
+        WidgetTone::Warning,
+        Vector2::new(220.0, 120.0),
+    )
+    .view_frame_at_size_with_default_theme(Vector2::new(320.0, 220.0));
+
+    assert!(frame.paint_plan.contains_text("Confirm"));
+    assert!(frame.paint_plan.contains_text("Body"));
+}
+
+#[test]
+fn closeable_dialog_layer_projects_standard_dialog_panel() {
+    let frame = closeable_dialog_layer(
+        "Settings",
+        text("Body"),
+        WidgetTone::Neutral,
+        Vector2::new(220.0, 120.0),
+        "close",
+    )
+    .view_frame_at_size_with_default_theme(Vector2::new(320.0, 220.0));
+
+    assert!(frame.paint_plan.contains_text("Settings"));
+    assert!(frame.paint_plan.contains_text("Body"));
+}
+
+#[test]
 fn panel_section_content_offsets_sanitize_invalid_inputs() {
     let parts: PanelSectionParts<()> = PanelSectionParts::new("Inspector", text("Body"))
         .padding(f32::NAN)

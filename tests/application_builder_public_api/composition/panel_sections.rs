@@ -118,6 +118,31 @@ fn closeable_panel_section_layer_routes_standard_close_button_message() {
 }
 
 #[test]
+fn dialog_layer_helpers_project_standard_dialogs() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let frame = ui::column([
+        ui::dialog_layer(
+            "Info",
+            ui::text("Plain dialog body"),
+            ui::WidgetTone::Neutral,
+            ui::Vector2::new(180.0, 96.0),
+        ),
+        ui::closeable_dialog_layer(
+            "Warning",
+            ui::text("Closeable dialog body"),
+            ui::WidgetTone::Warning,
+            ui::Vector2::new(180.0, 96.0),
+            DemoMessage::Increment,
+        ),
+    ])
+    .view_frame_at_size_with_default_theme(ui::Vector2::new(240.0, 220.0));
+
+    assert!(frame.paint_plan.contains_text("Info"));
+    assert!(frame.paint_plan.contains_text("Warning"));
+}
+
+#[test]
 fn panel_section_parts_support_named_overrides() {
     use radiant::prelude as ui;
 

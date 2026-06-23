@@ -179,6 +179,47 @@ fn application_builder_virtual_list_window_projects_only_materialized_rows() {
 }
 
 #[test]
+fn application_builder_virtual_list_materialized_windowed_uses_preloaded_rows() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let window = ui::VirtualListWindow {
+        total_items: 512,
+        viewport_start: 20,
+        viewport_end: 25,
+        window_start: 18,
+        window_end: 27,
+    };
+    let rows = ["kick", "snare", "hat"];
+    let surface: UiSurface<DemoMessage> =
+        ui::virtual_list_materialized_windowed(window, &rows, |index, label: &&str| {
+            ui::list_row(
+                20_000 + index as u64,
+                [ui::button(format!("{index:03} {label}"))
+                    .message(DemoMessage::Increment)
+                    .id(2_000 + index as u64)],
+            )
+            .id(20_000 + index as u64)
+        })
+        .row_height(32.0)
+        .overscan_px(32.0)
+        .on_window_changed(|_| DemoMessage::Increment)
+        .view()
+        .id(3)
+        .into_surface();
+
+    let output = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(320.0, 180.0)),
+    );
+
+    assert!(!output.virtual_windows.contains_key(&3));
+    assert!(surface.find_widget(2_017).is_none());
+    assert!(surface.find_widget(2_018).is_some());
+    assert!(surface.find_widget(2_020).is_some());
+    assert!(surface.find_widget(2_021).is_none());
+}
+
+#[test]
 fn application_builder_list_row_id_uses_direct_numeric_identity() {
     use radiant::prelude::{self as ui, IntoView};
 

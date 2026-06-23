@@ -14,7 +14,10 @@ pub use scroll_columns::{
 };
 pub use scroll_update::virtual_list_window_change_for_scroll;
 pub use tree_window::virtual_tree_list_window;
-pub use virtual_builder::{VirtualListBuilder, virtual_list_windowed};
+pub use virtual_builder::{
+    MaterializedVirtualListBuilder, VirtualListBuilder, virtual_list_materialized_windowed,
+    virtual_list_windowed,
+};
 pub use virtual_window::{virtual_list_window, virtual_list_window_body};
 
 #[cfg(test)]

@@ -76,6 +76,47 @@ fn virtual_list_window_body_keeps_spacers_generic() {
 }
 
 #[test]
+fn virtual_list_materialized_windowed_projects_slice_rows_with_global_indices() {
+    let window = VirtualListWindow {
+        total_items: 10_000,
+        viewport_start: 120,
+        viewport_end: 128,
+        window_start: 116,
+        window_end: 132,
+    };
+    let rows = ["kick", "snare", "hat"];
+    let mut projected = Vec::new();
+
+    let view: ViewNode<()> =
+        virtual_list_materialized_windowed(window, &rows, |index, label: &&str| {
+            projected.push((index, (*label).to_owned()));
+            list_row_id(
+                50_000 + index as NodeId,
+                [button(format!("Row {index:05}: {label}"))
+                    .message(())
+                    .id(60_000 + index as NodeId)],
+            )
+        })
+        .row_height(32.0)
+        .overscan_px(64.0)
+        .view();
+
+    assert_eq!(
+        projected,
+        vec![
+            (116, String::from("kick")),
+            (117, String::from("snare")),
+            (118, String::from("hat")),
+        ]
+    );
+    let layout = view.into_surface().layout_node();
+    assert!(
+        count_layout_nodes(&layout) < 48,
+        "materialized projection should stay bounded to provided rows"
+    );
+}
+
+#[test]
 fn virtual_list_window_body_keeps_body_identity_when_top_spacer_appears() {
     let top_window = VirtualListWindow {
         total_items: 10_000,

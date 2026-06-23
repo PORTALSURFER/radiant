@@ -1646,6 +1646,21 @@ ui::virtual_list_windowed(|index| row(index))
     .view()
 ```
 
+When host state has already fetched or projected the current materialized
+window, use `virtual_list_materialized_windowed(window, rows, |index, row| ...)`
+instead of adapting the global row index back into the local slice at every call
+site:
+
+```rust
+ui::virtual_list_materialized_windowed(current_window, rows, |index, row| {
+    row_view(index, row)
+})
+.row_height(22.0)
+.overscan_px(88.0)
+.on_window_changed(Message::ListWindowChanged)
+.view()
+```
+
 Use `virtual_tree_list_window(...)` for fixed-height tree or outline rows when
 the same materialized range should include a standard tree-guide overlay; pass
 `StyledTreeGuideStyle` when guide color should follow the frame theme instead
@@ -2393,12 +2408,13 @@ that collects `LayoutDiagnostic` entries and debug primitives from
 `LayoutDebugOptions::all_enabled()`.
 Run `cargo run --example virtualized_list` for a large application-builder list
 sandbox that keeps 10k selectable rows responsive through
-`virtual_list_window(...)`. Use the windowed helper for large fixed-height
+`virtual_list_windowed(...)`. Use the windowed helper for large fixed-height
 lists so projection stays bounded to a `VirtualListWindow`; use
-`virtual_tree_list_window(...)` when a fixed-height tree or outline should
-compose materialized rows with standard guide overlays, including
-style-resolved `StyledTreeGuideStyle` overlays when guide color should follow
-the active theme; use
+`virtual_list_materialized_windowed(...)` when app state already owns the
+materialized rows for the current window; use `virtual_tree_list_window(...)`
+when a fixed-height tree or outline should compose materialized rows with
+standard guide overlays, including style-resolved `StyledTreeGuideStyle`
+overlays when guide color should follow the active theme; use
 `virtual_list_window_body(...)` when the materialized window needs a shared
 overlay or grouped row body outside the standard tree-guide case. Smaller
 eagerly projected lists should use `list(...)`, `scroll_column(...)`, or

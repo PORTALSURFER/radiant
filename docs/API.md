@@ -2545,7 +2545,8 @@ application interactions. Use `icon_button(...).passive()`,
 `close_button().passive()`, or `disclosure_button(expanded).passive()` when a
 standard icon should paint as decorative chrome while another parent surface
 owns interaction routing. Use `.tooltip_opt(...)` when tooltip text is
-controlled by optional app state so projection code does not repeat
+controlled by optional app state, or `.tooltip_if(...)` when a boolean condition
+controls one tooltip, so projection code does not repeat
 `if enabled { view.tooltip(...) } else { view }` wrappers. Button reducers can use
 `ButtonMessage::is_activate()`, `secondary_position()`, and `drag_message()` to
 route primary activation, context-menu clicks, or drag lifecycle events without

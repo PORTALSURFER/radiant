@@ -37,6 +37,15 @@ impl<Message> ViewNode<Message> {
         self
     }
 
+    /// Show a passive runtime tooltip only when `condition` is true.
+    pub fn tooltip_if(self, condition: bool, tooltip: impl Into<String>) -> Self {
+        if condition {
+            self.tooltip(tooltip)
+        } else {
+            self
+        }
+    }
+
     /// Use the accent tone and strong prominence.
     pub fn primary(self) -> Self {
         self.style(primary_style())

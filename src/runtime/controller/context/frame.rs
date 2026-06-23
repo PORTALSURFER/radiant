@@ -499,6 +499,36 @@ mod tests {
     }
 
     #[test]
+    fn tooltip_if_false_skips_hover_tooltip() {
+        let bridge = DeclarativeOwnedRuntimeBridge::new(
+            (),
+            |_| {
+                crate::runtime::UiSurface::new(
+                    button("Idle")
+                        .message(TooltipDemoMessage::Click)
+                        .tooltip_if(false, "Audition volume")
+                        .id(301)
+                        .size(80.0, 24.0)
+                        .into_node(),
+                )
+            },
+            |_, _: TooltipDemoMessage| {},
+        );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 80.0));
+
+        runtime.dispatch_event(Event::PointerMove {
+            position: Point::new(8.0, 8.0),
+        });
+
+        assert!(
+            !runtime
+                .frame_with_default_theme()
+                .paint_plan
+                .contains_text("Audition volume")
+        );
+    }
+
+    #[test]
     fn tooltip_rect_allows_long_compact_help_text_to_fit() {
         let layout = tooltip_layout(
             Rect::from_min_size(Point::new(240.0, 300.0), Vector2::new(40.0, 18.0)),

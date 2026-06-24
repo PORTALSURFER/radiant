@@ -21,6 +21,7 @@ fn signal_uniforms_group_shape_level_and_gain_preview() {
         bucket_frames: 4,
         buckets: Arc::from([GpuSignalSummaryBucket::default(); 8]),
     };
+    let bucket_window = super::super::SignalBucketWindow { start: 1, end: 4 };
     let body_key = SignalBodyCacheKey::new(SignalBodyCacheKeyParts {
         revision: 9,
         extent: surface_pixel_extent(
@@ -31,7 +32,7 @@ fn signal_uniforms_group_shape_level_and_gain_preview() {
         frames: shape.frames,
         band_count: shape.band_count,
         frame_range: shape.frame_range,
-        sample_count: level.buckets.len(),
+        sample_count: bucket_window.sample_count(shape.band_count),
         level_index: 1,
         gain_preview: None,
     });
@@ -48,13 +49,14 @@ fn signal_uniforms_group_shape_level_and_gain_preview() {
     let selected = SelectedSignalLevel {
         index: 1,
         level: &level,
+        bucket_window,
     };
 
     let uniforms = signal_uniforms(&source, &selected, body_key);
 
     assert_eq!(uniforms.dest, [0.0, 0.0, 96.0, 48.0]);
     assert_eq!(uniforms.frame_range, [16.0, 80.0, 128.0, 2.0]);
-    assert_eq!(uniforms.summary_meta, [4.0, 4.0, 1.0, 0.0]);
+    assert_eq!(uniforms.summary_meta, [4.0, 3.0, 1.0, 1.0]);
     assert_eq!(uniforms.gain_preview_a, [0.0; 4]);
 }
 

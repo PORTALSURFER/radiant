@@ -20,9 +20,9 @@ pub(super) fn signal_uniforms(
         ],
         summary_meta: [
             selected.level.bucket_frames as f32,
-            (selected.level.buckets.len() / source.shape.band_count) as f32,
+            selected.bucket_window.bucket_count() as f32,
             selected.index as f32,
-            0.0,
+            selected.bucket_window.start as f32,
         ],
         gain_preview_a: gain_uniforms[0],
         gain_preview_b: gain_uniforms[1],

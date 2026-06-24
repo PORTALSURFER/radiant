@@ -8,14 +8,17 @@ use super::stats::GpuSurfaceRenderStats;
 use super::{GpuSurfaceRenderTarget, GpuSurfaceRenderer};
 #[path = "signal/uniforms.rs"]
 mod uniforms;
+#[path = "signal/window.rs"]
+mod window;
 use crate::gui::types::Rect as UiRect;
 use crate::runtime::{
-    GpuSignalGainPreview, GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryLevel,
-    GpuSurfaceContent, PaintGpuSurface,
+    GpuSignalGainPreview, GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket,
+    GpuSignalSummaryLevel, GpuSurfaceContent, PaintGpuSurface,
 };
 use std::sync::Arc;
 use uniforms::{signal_gain_preview, signal_uniforms};
 use vello::wgpu;
+use window::{SignalBucketWindow, signal_bucket_window};
 
 struct SignalRenderSource {
     shape: GpuSignalRenderShape,
@@ -26,13 +29,16 @@ struct SignalRenderSource {
 struct SignalBodyRequest<'a> {
     body_key: SignalBodyCacheKey,
     level_index: usize,
-    level: &'a GpuSignalSummaryLevel,
+    bucket_start: usize,
+    bucket_count: usize,
+    buckets: &'a [GpuSignalSummaryBucket],
     uniforms: SignalUniforms,
 }
 
 struct SelectedSignalLevel<'a> {
     index: usize,
     level: &'a GpuSignalSummaryLevel,
+    bucket_window: SignalBucketWindow,
 }
 
 struct SignalBodyKeyRequest<'a> {
@@ -65,8 +71,13 @@ impl GpuSurfaceRenderer {
             target.device,
             target.queue,
             surface.key,
-            SignalBufferCacheKey::new(surface.revision, body.level_index),
-            body.level.buckets.as_ref(),
+            SignalBufferCacheKey::new(
+                surface.revision,
+                body.level_index,
+                body.bucket_start,
+                body.bucket_count,
+            ),
+            body.buckets,
             &body.uniforms,
         );
         let Some(texture_view) = self.ensure_signal_body_texture(
@@ -138,7 +149,11 @@ fn signal_body_request<'a>(
     Some(SignalBodyRequest {
         body_key,
         level_index: selected.index,
-        level: selected.level,
+        bucket_start: selected.bucket_window.start,
+        bucket_count: selected.bucket_window.bucket_count(),
+        buckets: selected
+            .bucket_window
+            .buckets(selected.level, source.shape.band_count),
         uniforms,
     })
 }
@@ -156,9 +171,13 @@ fn selected_signal_level<'a>(
     let index = source
         .summary
         .level_for_frames_per_pixel(visible / physical_width);
+    let level = source.summary.levels.get(index)?;
+    let bucket_window =
+        signal_bucket_window(source.shape.frame_range, level, source.shape.band_count)?;
     Some(SelectedSignalLevel {
         index,
-        level: source.summary.levels.get(index)?,
+        level,
+        bucket_window,
     })
 }
 
@@ -170,7 +189,10 @@ fn signal_body_cache_key(request: SignalBodyKeyRequest<'_>) -> Option<SignalBody
         frames: request.source.shape.frames,
         band_count: request.source.shape.band_count,
         frame_range: request.source.shape.frame_range,
-        sample_count: request.selected.level.buckets.len(),
+        sample_count: request
+            .selected
+            .bucket_window
+            .sample_count(request.source.shape.band_count),
         level_index: request.selected.index,
         gain_preview: request.source.gain_preview,
     }))

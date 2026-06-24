@@ -6,9 +6,10 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let end = max(params.frame_range.y, start + 1.0);
     let bucket_frames = max(params.summary_meta.x, 1.0);
     let bucket_count = u32(max(params.summary_meta.y, 1.0));
+    let bucket_offset = max(params.summary_meta.w, 0.0);
     let visible = end - start;
     let pixel_width = 1.0 / max(params.dest.z, 1.0);
-    let summary_window = SignalSummaryWindow(start, visible, bucket_frames, bucket_count);
+    let summary_window = SignalSummaryWindow(start, visible, bucket_frames, bucket_count, bucket_offset);
     let frame_position = clamp(
         (start + visible * clamp(in.local.x, 0.0, 1.0)) / max(f32(frames) - 1.0, 1.0),
         0.0,

@@ -19,6 +19,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct SignalBufferCacheKey {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) revision: u64,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) level_index: usize,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) bucket_start: usize,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) bucket_count: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) style_revision: u32,
 }
 
@@ -26,10 +28,14 @@ impl SignalBufferCacheKey {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn new(
         revision: u64,
         level_index: usize,
+        bucket_start: usize,
+        bucket_count: usize,
     ) -> Self {
         Self {
             revision,
             level_index,
+            bucket_start,
+            bucket_count,
             style_revision: GPU_SIGNAL_STYLE_REVISION,
         }
     }
@@ -119,10 +125,20 @@ mod tests {
 
     #[test]
     fn signal_buffer_cache_key_keeps_revision_and_level_independent() {
-        let high_revision = SignalBufferCacheKey::new(1_u64 << 32, 0);
-        let low_revision_high_level = SignalBufferCacheKey::new(0, 1);
+        let high_revision = SignalBufferCacheKey::new(1_u64 << 32, 0, 4, 8);
+        let low_revision_high_level = SignalBufferCacheKey::new(0, 1, 4, 8);
 
         assert_ne!(high_revision, low_revision_high_level);
+    }
+
+    #[test]
+    fn signal_buffer_cache_key_tracks_uploaded_bucket_window() {
+        let first = SignalBufferCacheKey::new(9, 0, 4, 8);
+        let moved = SignalBufferCacheKey::new(9, 0, 5, 8);
+        let wider = SignalBufferCacheKey::new(9, 0, 4, 9);
+
+        assert_ne!(first, moved);
+        assert_ne!(first, wider);
     }
 
     #[test]

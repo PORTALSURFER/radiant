@@ -26,6 +26,7 @@ struct SignalSummaryWindow {
     visible: f32,
     bucket_frames: f32,
     bucket_count: u32,
+    bucket_offset: f32,
 };
 
 struct SignalBandQuery {

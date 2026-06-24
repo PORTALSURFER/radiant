@@ -74,6 +74,36 @@ fn interactive_row_underlay_configures_tracked_drop_target() {
 }
 
 #[test]
+fn interactive_row_underlay_configures_tracked_drop_candidate_clear() {
+    let surface = interactive_row_underlay(text("Collection"))
+        .tracked_drop_candidate(true, false, false, true)
+        .input_id(775)
+        .mapped(|_| ())
+        .size(140.0, 22.0)
+        .into_surface();
+    let _ = surface.frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+        &Default::default(),
+    );
+
+    let row = surface
+        .find_widget(775)
+        .and_then(|widget| {
+            widget
+                .widget()
+                .as_any()
+                .downcast_ref::<crate::widgets::InteractiveRowWidget>()
+        })
+        .expect("underlay should preserve the configured input row");
+
+    assert!(row.props.droppable);
+    assert!(row.props.drag_active);
+    assert!(row.props.drop_hover);
+    assert!(row.props.clear_drop_on_hover);
+    assert!(row.props.pointer_motion_active);
+}
+
+#[test]
 fn interactive_row_underlay_exposes_common_input_presets() {
     let surface = interactive_row_underlay(text("Sample"))
         .custom_paint_hit_target()

@@ -152,6 +152,25 @@ impl InteractiveBadgeBuilder {
         self
     }
 
+    /// Configure a host-tracked conditional badge drop target.
+    ///
+    /// Use this when host-owned validation decides whether this badge is a
+    /// valid drop target, but Radiant should still route target-enter and
+    /// stale-target clear lifecycle messages through the badge's interaction
+    /// layer.
+    pub fn tracked_drop_candidate(
+        mut self,
+        drag_active: bool,
+        current_target: bool,
+        candidate: bool,
+        active_target: bool,
+    ) -> Self {
+        self.row =
+            self.row
+                .tracked_drop_candidate(drag_active, current_target, candidate, active_target);
+        self
+    }
+
     /// Mark whether a related row drag is active in this badge's container.
     pub fn drag_active(mut self, active: bool) -> Self {
         self.row = self.row.drag_active(active);

@@ -84,6 +84,26 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
         self
     }
 
+    /// Configure the backing row as a host-tracked conditional drop target.
+    ///
+    /// Use this when arbitrary visible row content should keep its own paint
+    /// tree while Radiant owns the generic candidate hover and stale-target
+    /// clear lifecycle for host-validated drops.
+    pub fn tracked_drop_candidate(
+        mut self,
+        drag_active: bool,
+        current_target: bool,
+        candidate: bool,
+        active_target: bool,
+    ) -> Self {
+        self.row =
+            self.row
+                .tracked_drop_candidate(drag_active, current_target, candidate, active_target);
+        self.visual_state.active_target = current_target;
+        self.visual_state.candidate = candidate;
+        self
+    }
+
     /// Paint Radiant's standard dense-row chrome behind the visible content.
     ///
     /// Use this for list, tree, sidebar, picker, and inspector rows whose

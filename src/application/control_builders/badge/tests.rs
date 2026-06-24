@@ -10,6 +10,7 @@ use crate::{
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
     Activate,
+    ClearDrop,
     Drag,
     Secondary,
 }
@@ -43,6 +44,7 @@ fn interactive_badge_routes_row_interactions_through_badge_visual() {
         .update(|state, message| {
             state.status = match message {
                 DemoMessage::Activate => "activated",
+                DemoMessage::ClearDrop => "cleared",
                 DemoMessage::Drag => "dragged",
                 DemoMessage::Secondary => "secondary",
             };
@@ -89,6 +91,7 @@ fn interactive_badge_routes_common_row_actions() {
         .update(|state, message| {
             state.status = match message {
                 DemoMessage::Activate => "activated",
+                DemoMessage::ClearDrop => "cleared",
                 DemoMessage::Drag => "dragged",
                 DemoMessage::Secondary => "secondary",
             };
@@ -148,6 +151,7 @@ fn interactive_badge_tracked_drag_source_with_motion_routes_source_moves() {
         .update(|state, message| {
             state.status = match message {
                 DemoMessage::Activate => "activated",
+                DemoMessage::ClearDrop => "cleared",
                 DemoMessage::Drag => "dragged",
                 DemoMessage::Secondary => "secondary",
             };
@@ -168,6 +172,47 @@ fn interactive_badge_tracked_drag_source_with_motion_routes_source_moves() {
                 .downcast_ref::<crate::widgets::TextWidget>())
             .map(|widget| widget.text.as_str()),
         Some("dragged")
+    );
+}
+
+#[test]
+fn interactive_badge_tracked_drop_candidate_routes_stale_target_clear() {
+    let bridge = app(DemoState::default())
+        .view(|state| {
+            column([
+                interactive_badge("Tag")
+                    .tracked_drop_candidate(true, false, false, true)
+                    .actions(InteractiveRowActions::new().clear_drop(|_| DemoMessage::ClearDrop))
+                    .width(80.0)
+                    .height(22.0),
+                text(state.status).id(333).height(22.0),
+            ])
+            .spacing(0.0)
+        })
+        .update(|state, message| {
+            state.status = match message {
+                DemoMessage::Activate => "activated",
+                DemoMessage::ClearDrop => "cleared",
+                DemoMessage::Drag => "dragged",
+                DemoMessage::Secondary => "secondary",
+            };
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 44.0));
+    let position = Point::new(8.0, 8.0);
+
+    runtime.dispatch_input_at(position, WidgetInput::PointerMove { position });
+
+    assert_eq!(
+        runtime
+            .surface()
+            .find_widget(333)
+            .and_then(|widget| widget
+                .widget_object()
+                .as_any()
+                .downcast_ref::<crate::widgets::TextWidget>())
+            .map(|widget| widget.text.as_str()),
+        Some("cleared")
     );
 }
 

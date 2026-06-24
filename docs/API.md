@@ -251,6 +251,9 @@ cancellation just to reset transient input paint. Use
 `InteractiveRowUnderlayBuilder::tracked_drop_target(...)` when arbitrary
 visible row content should keep its own paint tree while the transparent
 interactive-row underlay owns standard tracked drop-target behavior. Use
+`InteractiveRowUnderlayBuilder::tracked_drop_candidate(...)` for the same
+conditional drop-target lifecycle through an underlay row without dropping to
+`.row(|row| ...)`. Use
 `InteractiveRowBuilder::tracked_drop_candidate(...)` with
 `InteractiveRowActions::tracked_drop_candidate_key(...)` when host-owned
 candidate validation needs Radiant to route both target hover and stale-target
@@ -2618,7 +2621,10 @@ without hand-building transparent input overlays in application code. Use
 host-owned badge drag state should configure draggable, drag-active,
 drag-source, and pointer-motion policy together; use
 `tracked_drag_source_with_motion(...)` when the retained active badge source
-should keep emitting pointer movement after projection.
+should keep emitting pointer movement after projection. Use
+`tracked_drop_candidate(...)` when badge or pill drop candidacy is
+host-validated but Radiant should own target-enter and stale-target clear
+routing.
 Run `cargo run --example custom_widget` for a custom widget authoring sandbox
 that implements paint and input dispatch through the public widget trait.
 Run `cargo run --example volume_slider` for a focused parameter-control sandbox
@@ -2687,9 +2693,12 @@ app-local row input identity helpers. Use `.custom_paint_hit_target()`,
 `.activation_modifiers()`, `.tracked_drag_source(...)`, or
 `.tracked_drag_source_with_motion(...)` on underlay rows when app-owned visible
 content still needs standard Radiant row input presets without dropping to
-`.row(|row| ...)`. Use `.dense_chrome()`, `.selected(...)`, `.candidate(...)`,
-or `.visual_state(...)` on underlay rows whose visible content is app-owned but
-whose dense row feedback should remain Radiant-owned.
+`.row(|row| ...)`. Use `.tracked_drop_target(...)` or
+`.tracked_drop_candidate(...)` when underlay rows need Radiant-owned drop-target
+lifecycle routing around host-owned domain state. Use `.dense_chrome()`,
+`.selected(...)`, `.candidate(...)`, or `.visual_state(...)` on underlay rows
+whose visible content is app-owned but whose dense row feedback should remain
+Radiant-owned.
 Use `.dense_chrome_palette(...)`, `.leading_marker(...)`,
 `.trailing_marker(...)`, and `.outline(...)` when that generic underlay needs
 app-specific dense row fills or edge/status markers.

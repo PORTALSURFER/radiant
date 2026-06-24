@@ -59,7 +59,11 @@ where
                             .scroll_content_by_container
                             .get(&diagnostic.node_id)?,
                     )?;
-                    let viewport_rect = self.layout.rects.get(&diagnostic.node_id)?;
+                    let viewport_rect = self
+                        .layout
+                        .viewport_bounds
+                        .get(&diagnostic.node_id)
+                        .or_else(|| self.layout.rects.get(&diagnostic.node_id))?;
                     let current_offset = self.layout_state.scroll_offset(diagnostic.node_id);
                     Some((
                         diagnostic.node_id,
@@ -87,7 +91,16 @@ fn clamped_scroll_offset(current: Vector2, child_rect: Rect, viewport_rect: Rect
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::types::Point;
+    use crate::{
+        gui::types::Point,
+        layout::{
+            Constraints, ContainerKind, ContainerPolicy, OverflowPolicy, SizeModeCross,
+            SizeModeMain, SlotParams,
+        },
+        runtime::{RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
+        widgets::{TextWidget, WidgetSizing},
+    };
+    use std::sync::Arc;
 
     #[test]
     fn clamped_scroll_offset_reuses_current_offset_once_for_both_axes() {
@@ -109,5 +122,72 @@ mod tests {
             clamped_scroll_offset(Vector2::new(8.0, 12.0), child, viewport),
             Vector2::new(0.0, 0.0)
         );
+    }
+
+    #[test]
+    fn scroll_offset_sync_uses_padded_viewport_bounds() {
+        let mut runtime = SurfaceRuntime::new(PaddedScrollBridge, Vector2::new(100.0, 80.0));
+        let point = Point::new(8.0, 8.0);
+
+        assert!(runtime.scroll_at(point, Vector2::new(0.0, 10_000.0)));
+        let before = runtime
+            .layout()
+            .rects
+            .get(&PaddedScrollBridge::CONTENT_ID)
+            .copied()
+            .expect("content rect after scroll");
+
+        runtime.refresh();
+        let after = runtime
+            .layout()
+            .rects
+            .get(&PaddedScrollBridge::CONTENT_ID)
+            .copied()
+            .expect("content rect after refresh");
+
+        assert_eq!(
+            after, before,
+            "refresh should not rewrite a padded scroll viewport offset using the outer container"
+        );
+    }
+
+    struct PaddedScrollBridge;
+
+    impl PaddedScrollBridge {
+        const CONTENT_ID: u64 = 2;
+    }
+
+    impl RuntimeBridge<()> for PaddedScrollBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+            Arc::new(UiSurface::new(SurfaceNode::container(
+                1,
+                ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: OverflowPolicy::Scroll,
+                    padding: crate::layout::Insets::all(4.0),
+                    ..ContainerPolicy::default()
+                },
+                vec![SurfaceChild::new(
+                    SlotParams {
+                        size_main: SizeModeMain::Intrinsic,
+                        size_cross: SizeModeCross::Fill,
+                        constraints: Constraints::unconstrained(),
+                        margin: Default::default(),
+                        align_cross_override: None,
+                        allow_fixed_compress: false,
+                    },
+                    SurfaceNode::widget(
+                        TextWidget::new(
+                            Self::CONTENT_ID,
+                            "Tall",
+                            WidgetSizing::fixed(Vector2::new(80.0, 400.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    ),
+                )],
+            )))
+        }
+
+        fn reduce_message(&mut self, _message: ()) {}
     }
 }

@@ -4,6 +4,7 @@ use super::super::{
 use super::intrinsic_slot;
 use crate::gui::{
     layout_core::{
+        model::Insets,
         model::{ContainerKind, ContainerPolicy, OverflowPolicy},
         tree::{LayoutNode, SlotChild},
     },
@@ -33,6 +34,36 @@ fn scroll_view_records_overflow_flags() {
     assert!(overflow.x);
     assert!(overflow.y);
     assert_eq!(overflow.policy, OverflowPolicy::Scroll);
+}
+
+#[test]
+fn scroll_view_records_padded_viewport_bounds() {
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            overflow: OverflowPolicy::Scroll,
+            padding: Insets::all(4.0),
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild {
+            slot: intrinsic_slot(),
+            child: LayoutNode::widget(2, Vector2::new(200.0, 160.0)),
+        }],
+    );
+
+    let output = layout_tree(
+        &root,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0)),
+    );
+
+    assert_eq!(
+        output.viewport_bounds.get(&1),
+        Some(&Rect::from_min_size(
+            Point::new(4.0, 4.0),
+            Vector2::new(92.0, 72.0)
+        ))
+    );
 }
 
 #[test]

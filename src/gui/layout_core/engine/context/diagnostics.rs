@@ -74,6 +74,7 @@ impl<'a> LayoutContext<'a> {
     }
 
     pub(crate) fn record_viewport_bounds(&mut self, node_id: NodeId, rect: Rect) {
+        self.output.viewport_bounds.insert(node_id, rect);
         self.record_debug(node_id, DebugPrimitiveKind::ViewportBounds, rect);
     }
 

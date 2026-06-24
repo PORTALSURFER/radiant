@@ -16,6 +16,8 @@ pub struct LayoutOutput {
     pub diagnostics: Vec<LayoutDiagnostic>,
     /// Optional debug primitives emitted by the traversal.
     pub debug_primitives: Vec<LayoutDebugPrimitive>,
+    /// Scroll viewport bounds keyed by scroll container id.
+    pub viewport_bounds: BTreeMap<NodeId, Rect>,
     /// Virtualization window metadata keyed by scroll container id.
     pub virtual_windows: BTreeMap<NodeId, VirtualWindowInfo>,
     /// Traversal counters collected during this layout pass.
@@ -29,6 +31,7 @@ impl LayoutOutput {
         self.overflow_flags.clear();
         self.diagnostics.clear();
         self.debug_primitives.clear();
+        self.viewport_bounds.clear();
         self.virtual_windows.clear();
         self.stats = LayoutStats::default();
     }

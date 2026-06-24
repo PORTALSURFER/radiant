@@ -184,7 +184,6 @@ fn compact_resizable_details_header_cell_builds_standard_interactive_cell() {
 
     let surface: UiSurface<HeaderMessage> = ui::row([
         ui::compact_resizable_details_header_cell(
-            "name-header",
             "Name v",
             120.0,
             HeaderMessage::Sort,

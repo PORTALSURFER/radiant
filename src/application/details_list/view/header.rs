@@ -112,11 +112,12 @@ pub fn compact_details_header_row<Message>(
 ///
 /// Dynamic header cells should receive a caller-owned stable id with `.id(...)`;
 /// Radiant scopes the internal sort/reorder input and resize handle identities
-/// under that cell id. Use [`compact_details_header_sort_drag_id`] or
+/// under that cell id. Use `.key(...)` on the returned view only when a
+/// repeated static header needs keyed structure but not an external numeric id.
+/// Use [`compact_details_header_sort_drag_id`] or
 /// [`compact_details_header_resize_id`] only when tests, automation, or host
 /// integrations need to address those child affordances directly.
 pub fn compact_resizable_details_header_cell<Message>(
-    key: impl Into<String>,
     label: impl Into<String>,
     width: f32,
     sort_message: Message,
@@ -127,7 +128,6 @@ where
     Message: Clone + Send + Sync + 'static,
 {
     compact_resizable_details_header_cell_with_ids(
-        key,
         label,
         width,
         CompactDetailsHeaderCellIds::default(),
@@ -139,12 +139,7 @@ where
 
 /// Build a compact sortable, reorderable, and resizable details-list header
 /// cell with explicit stable widget ids for the interactive surfaces.
-#[allow(
-    clippy::too_many_arguments,
-    reason = "compatibility API with two optional stable widget ids"
-)]
 pub fn compact_resizable_details_header_cell_with_ids<Message>(
-    key: impl Into<String>,
     label: impl Into<String>,
     width: f32,
     ids: CompactDetailsHeaderCellIds,
@@ -155,7 +150,6 @@ pub fn compact_resizable_details_header_cell_with_ids<Message>(
 where
     Message: Clone + Send + Sync + 'static,
 {
-    let key = key.into();
     let label = label.into();
     let mut sort_drag = button("")
         .hover_chrome_only()
@@ -188,7 +182,6 @@ where
         .height(20.0),
         resize,
     ])
-    .key(key)
     .width(width)
     .height(20.0)
     .spacing(1.0)

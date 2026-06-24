@@ -539,9 +539,11 @@ Custom details-list headers can use
   and `details_sort_label(...)` to share Radiant's compact header chrome,
   sortable click-or-drag behavior, resize handles, and sort marker copy while
   still composing app-specific menus or column policies. Dynamic header cells
-  should assign one stable header-cell id with `.id(stable_widget_id(scope,
-  column_key))`; Radiant derives the internal sort/reorder and resize child
-  identities under that parent. Use `compact_details_header_sort_drag_id(...)`
+  should assign one stable header-cell id to the returned cell with
+  `.id(stable_widget_id(scope, column_key))`; Radiant derives the internal
+  sort/reorder and resize child identities under that parent. Use `.key(...)`
+  only when repeated static header structure needs a scoped key but not an
+  external numeric id. Use `compact_details_header_sort_drag_id(...)`
   or `compact_details_header_resize_id(...)` only in tests, automation, or host
   integrations that need to address those child affordances directly. Use
   `compact_resizable_details_header_cell_with_ids(...)` with

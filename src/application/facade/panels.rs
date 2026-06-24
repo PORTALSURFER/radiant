@@ -1,6 +1,6 @@
 //! Panel, form row, labeled control, property panel, and status bar exports.
 
-pub use super::super::form_row::{FormRowParts, form_row, form_row_from_parts};
+pub use super::super::form_row::{FormRowParts, dense_form_row, form_row, form_row_from_parts};
 pub use super::super::labeled_control::{
     LabeledControlParts, labeled_control, labeled_control_control_offset,
     labeled_control_control_offset_for, labeled_control_from_parts,

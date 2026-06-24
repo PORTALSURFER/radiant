@@ -135,6 +135,16 @@ pub fn form_row<Message: 'static>(
     form_row_from_parts(FormRowParts::new(id, label, control))
 }
 
+/// Build a dense horizontal label/control row without row padding or hover chrome.
+pub fn dense_form_row<Message: 'static>(
+    id: impl ToString,
+    label: ViewNode<Message>,
+    control: ViewNode<Message>,
+    label_width: f32,
+) -> ViewNode<Message> {
+    form_row_from_parts(FormRowParts::dense(id, label, control).label_width(label_width))
+}
+
 /// Build a compact horizontal label/control row from named parts.
 pub fn form_row_from_parts<Message: 'static>(parts: FormRowParts<Message>) -> ViewNode<Message> {
     let mut view = row([
@@ -160,7 +170,7 @@ pub fn form_row_from_parts<Message: 'static>(parts: FormRowParts<Message>) -> Vi
 
 #[cfg(test)]
 mod tests {
-    use super::{FormRowParts, form_row_from_parts};
+    use super::{FormRowParts, dense_form_row, form_row_from_parts};
     use crate::application::{IntoView, spacer};
     use crate::{
         layout::Vector2,
@@ -230,5 +240,23 @@ mod tests {
         let label = layout.rects.get(&LABEL_ID).expect("label rect");
 
         assert_eq!(label.width(), 38.0);
+    }
+
+    #[test]
+    fn dense_form_row_helper_uses_dense_defaults() {
+        let layout = dense_form_row::<TestMessage>(
+            "filter",
+            spacer().id(LABEL_ID),
+            spacer().id(CONTROL_ID),
+            38.0,
+        )
+        .view_layout_at_size(Vector2::new(160.0, 24.0));
+
+        let label = layout.rects.get(&LABEL_ID).expect("label rect");
+        let control = layout.rects.get(&CONTROL_ID).expect("control rect");
+
+        assert_eq!(label.width(), 38.0);
+        assert_eq!(label.min.x, 0.0);
+        assert!(control.min.x >= label.max.x + 6.0);
     }
 }

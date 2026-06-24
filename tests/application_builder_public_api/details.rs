@@ -148,6 +148,35 @@ fn compact_details_cell_exposes_details_list_cell_sizing() {
 }
 
 #[test]
+fn compact_details_anchored_cell_exposes_fluent_normal_path() {
+    use super::*;
+    use radiant::prelude as ui;
+    use radiant::prelude::IntoView;
+
+    let surface: UiSurface<DemoState> =
+        ui::column([ui::compact_details_row([ui::compact_details_anchored_cell(
+            ui::text("OK").id(10),
+            ui::Vector2::new(24.0, 14.0),
+        )
+        .width(64.0)
+        .horizontal(ui::LayerHorizontalAnchor::End)
+        .vertical(ui::LayerVerticalAnchor::Start)
+        .inset(2.0, 3.0)
+        .view()])
+        .id(1)])
+        .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(96.0, 40.0)),
+    );
+
+    assert_eq!(layout.rects[&10].width(), 24.0);
+    assert_eq!(layout.rects[&10].height(), 14.0);
+    assert!(layout.rects[&10].min.x >= 40.0);
+    assert!(layout.rects[&10].min.y >= 4.0);
+}
+
+#[test]
 fn compact_details_header_row_exposes_details_list_header_chrome() {
     use super::*;
     use radiant::prelude as ui;

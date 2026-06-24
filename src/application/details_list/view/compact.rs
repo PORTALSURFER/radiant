@@ -3,6 +3,11 @@ use crate::{
     layout::Vector2,
 };
 
+/// Fluent builder for a compact details-list cell with a fixed-size anchored child.
+pub struct CompactDetailsAnchoredCellBuilder<Message> {
+    parts: CompactDetailsAnchoredCellParts<Message>,
+}
+
 /// Named inputs for a compact details-list cell with a fixed-size anchored child.
 pub struct CompactDetailsAnchoredCellParts<Message> {
     child: View<Message>,
@@ -12,6 +17,47 @@ pub struct CompactDetailsAnchoredCellParts<Message> {
     vertical: LayerVerticalAnchor,
     inset_x: f32,
     inset_y: f32,
+}
+
+impl<Message> CompactDetailsAnchoredCellBuilder<Message> {
+    /// Use a fixed cell width.
+    pub fn width(mut self, width: f32) -> Self {
+        self.parts.width = Some(width);
+        self
+    }
+
+    /// Fill the remaining details-row width.
+    pub fn fill_width(mut self) -> Self {
+        self.parts.width = None;
+        self
+    }
+
+    /// Place the fixed-size child along the compact cell's horizontal axis.
+    pub fn horizontal(mut self, horizontal: LayerHorizontalAnchor) -> Self {
+        self.parts.horizontal = horizontal;
+        self
+    }
+
+    /// Place the fixed-size child along the compact cell's vertical axis.
+    pub fn vertical(mut self, vertical: LayerVerticalAnchor) -> Self {
+        self.parts.vertical = vertical;
+        self
+    }
+
+    /// Offset the child from its anchor by the given x/y inset.
+    pub fn inset(mut self, x: f32, y: f32) -> Self {
+        self.parts.inset_x = x;
+        self.parts.inset_y = y;
+        self
+    }
+
+    /// Build this anchored compact details-cell view.
+    pub fn view(self) -> View<Message>
+    where
+        Message: 'static,
+    {
+        compact_details_anchored_cell_from_parts(self.parts)
+    }
 }
 
 impl<Message> CompactDetailsAnchoredCellParts<Message> {
@@ -86,6 +132,20 @@ pub fn compact_details_cell<Message>(cell: View<Message>, width: Option<f32>) ->
 
 /// Build a compact details-list cell with a fixed-size anchored child.
 ///
+/// The returned builder keeps the normal path fluent for app code while
+/// preserving [`CompactDetailsAnchoredCellParts`] for advanced named-field
+/// construction.
+pub fn compact_details_anchored_cell<Message>(
+    child: View<Message>,
+    size: Vector2,
+) -> CompactDetailsAnchoredCellBuilder<Message> {
+    CompactDetailsAnchoredCellBuilder {
+        parts: CompactDetailsAnchoredCellParts::new(child, size),
+    }
+}
+
+/// Build a compact details-list cell with a fixed-size anchored child.
+///
 /// This preserves the standard compact cell sizing policy while letting hosts
 /// place badges, status markers, compact actions, or other fixed-size content
 /// inside the cell without rebuilding the full-size anchored layer and then
@@ -121,16 +181,15 @@ mod tests {
 
     #[test]
     fn compact_details_anchored_cell_preserves_cell_size_and_places_child() {
-        let frame = compact_details_anchored_cell_from_parts::<()>(
-            CompactDetailsAnchoredCellParts::new(
-                text("K").style(WidgetStyle::subtle(WidgetTone::Warning)),
-                Vector2::new(24.0, 14.0),
-            )
-            .width(Some(64.0))
-            .horizontal(LayerHorizontalAnchor::End)
-            .vertical(LayerVerticalAnchor::Start)
-            .inset(2.0, 3.0),
+        let frame = compact_details_anchored_cell::<()>(
+            text("K").style(WidgetStyle::subtle(WidgetTone::Warning)),
+            Vector2::new(24.0, 14.0),
         )
+        .width(64.0)
+        .horizontal(LayerHorizontalAnchor::End)
+        .vertical(LayerVerticalAnchor::Start)
+        .inset(2.0, 3.0)
+        .view()
         .view_frame_at_size_with_default_theme(Vector2::new(64.0, 20.0));
 
         let text_rect = frame

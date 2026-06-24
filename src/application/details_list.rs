@@ -11,7 +11,8 @@ pub use model::{
     update_visible_details_column_reorder_drag,
 };
 pub use view::{
-    CompactDetailsAnchoredCellParts, CompactDetailsHeaderCellIds,
+    CompactDetailsAnchoredCellBuilder, CompactDetailsAnchoredCellParts,
+    CompactDetailsHeaderCellIds, compact_details_anchored_cell,
     compact_details_anchored_cell_from_parts, compact_details_cell,
     compact_details_header_resize_id, compact_details_header_row,
     compact_details_header_sort_drag_id, compact_details_row,

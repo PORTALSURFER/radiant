@@ -34,12 +34,13 @@ pub use controls::{
     toggle_mapped, tree_row,
 };
 pub use details::{
-    CompactDetailsAnchoredCellParts, CompactDetailsHeaderCellIds, CompactOptionListAnchoredParts,
+    CompactDetailsAnchoredCellBuilder, CompactDetailsAnchoredCellParts,
+    CompactDetailsHeaderCellIds, CompactOptionListAnchoredParts,
     CompactOptionListFloatingAboveParts, CompactOptionListItem, CompactOptionListParts,
     DetailsColumn, DetailsColumnDragFeedback, DetailsColumnParts, DetailsColumnPlacement,
     DetailsColumnReorderDrag, DetailsColumnResizeDrag, DetailsColumnWidthUpdate, DetailsRow,
     DetailsRowParts, DetailsSort, DetailsSortParts, SortDirection, TreeListItem, TreeListItemParts,
-    compact_details_anchored_cell_from_parts, compact_details_cell,
+    compact_details_anchored_cell, compact_details_anchored_cell_from_parts, compact_details_cell,
     compact_details_header_resize_id, compact_details_header_row,
     compact_details_header_sort_drag_id, compact_details_row, compact_option_list,
     compact_option_list_anchored, compact_option_list_anchored_with_activation,

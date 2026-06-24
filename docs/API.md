@@ -530,10 +530,12 @@ Custom details-list rows can use `compact_details_row(...)` and
 `compact_details_cell(...)` to share Radiant's compact row chrome, 20px cell
 height, fixed-width cell sizing, and flexible fill-cell sizing while still
 composing app-specific cell contents. Use
+`compact_details_anchored_cell(...)` when a compact cell needs a fixed-size
+anchored child such as a badge, status marker, or compact action without
+rebuilding the anchored-layer and cell-sizing composition locally. Keep
 `CompactDetailsAnchoredCellParts` with
-`compact_details_anchored_cell_from_parts(...)` when a compact cell needs a
-fixed-size anchored child such as a badge, status marker, or compact action
-without rebuilding the anchored-layer and cell-sizing composition locally.
+`compact_details_anchored_cell_from_parts(...)` for advanced named-field
+construction.
 Custom details-list headers can use
   `compact_details_header_row(...)`, `compact_resizable_details_header_cell(...)`,
   and `details_sort_label(...)` to share Radiant's compact header chrome,

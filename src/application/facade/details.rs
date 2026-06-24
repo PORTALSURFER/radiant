@@ -1,12 +1,12 @@
 //! Details-list, compact-list, option-list, and tree-list exports.
 
 pub use super::super::details_list::{
-    CompactDetailsAnchoredCellParts, CompactDetailsHeaderCellIds, DetailsColumn,
-    DetailsColumnDragFeedback, DetailsColumnParts, DetailsColumnPlacement,
-    DetailsColumnReorderDrag, DetailsColumnResizeDrag, DetailsColumnWidthUpdate, DetailsRow,
-    DetailsRowParts, DetailsSort, DetailsSortParts, SortDirection,
-    compact_details_anchored_cell_from_parts, compact_details_cell,
-    compact_details_header_resize_id, compact_details_header_row,
+    CompactDetailsAnchoredCellBuilder, CompactDetailsAnchoredCellParts,
+    CompactDetailsHeaderCellIds, DetailsColumn, DetailsColumnDragFeedback, DetailsColumnParts,
+    DetailsColumnPlacement, DetailsColumnReorderDrag, DetailsColumnResizeDrag,
+    DetailsColumnWidthUpdate, DetailsRow, DetailsRowParts, DetailsSort, DetailsSortParts,
+    SortDirection, compact_details_anchored_cell, compact_details_anchored_cell_from_parts,
+    compact_details_cell, compact_details_header_resize_id, compact_details_header_row,
     compact_details_header_sort_drag_id, compact_details_row,
     compact_resizable_details_header_cell, compact_resizable_details_header_cell_with_ids,
     details_column_drag_content_left, details_column_drag_feedback, details_column_reorder_index,

@@ -3,8 +3,9 @@ mod header;
 mod list;
 
 pub use compact::{
-    CompactDetailsAnchoredCellParts, compact_details_anchored_cell_from_parts,
-    compact_details_cell, compact_details_row,
+    CompactDetailsAnchoredCellBuilder, CompactDetailsAnchoredCellParts,
+    compact_details_anchored_cell, compact_details_anchored_cell_from_parts, compact_details_cell,
+    compact_details_row,
 };
 pub use header::{
     CompactDetailsHeaderCellIds, compact_details_header_resize_id, compact_details_header_row,

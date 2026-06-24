@@ -34,6 +34,32 @@ fn drop_target_mode_configures_hover_and_drop_only_states() {
 }
 
 #[test]
+fn tracked_drop_candidate_hover_emits_clear_for_non_candidate_when_target_active() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let mut row = InteractiveRowWidget::new(15, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_tracked_drop_candidate(true, false, false, true);
+    let position = Point::new(8.0, 6.0);
+
+    assert_eq!(
+        row.handle_input(bounds, WidgetInput::pointer_move(position)),
+        Some(InteractiveRowMessage::ClearDropTarget { position })
+    );
+}
+
+#[test]
+fn tracked_drop_candidate_hover_emits_target_for_candidate() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let mut row = InteractiveRowWidget::new(16, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_tracked_drop_candidate(true, false, true, true);
+    let position = Point::new(8.0, 6.0);
+
+    assert_eq!(
+        row.handle_input(bounds, WidgetInput::pointer_move(position)),
+        Some(InteractiveRowMessage::HoverDropTarget { position })
+    );
+}
+
+#[test]
 fn handle_input_mapped_routes_custom_row_output() {
     let bounds = Rect::from_size(120.0, 22.0);
     let mut row = InteractiveRowWidget::new(10, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));

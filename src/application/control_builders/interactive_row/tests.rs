@@ -348,6 +348,7 @@ fn tracked_drop_candidate_suppresses_hover_for_current_target() {
     assert!(view.props.droppable);
     assert!(view.props.drag_active);
     assert!(!view.props.drop_hover);
+    assert!(!view.props.clear_drop_on_hover);
     assert!(view.props.pointer_motion_active);
     assert_eq!(
         view.props.pointer_motion,
@@ -364,6 +365,7 @@ fn tracked_drop_candidate_reports_hover_for_new_candidate() {
     assert!(view.props.droppable);
     assert!(view.props.drag_active);
     assert!(view.props.drop_hover);
+    assert!(!view.props.clear_drop_on_hover);
     assert!(!view.props.pointer_motion_active);
 }
 
@@ -376,6 +378,7 @@ fn tracked_drop_candidate_reports_hover_to_clear_active_target() {
     assert!(view.props.droppable);
     assert!(view.props.drag_active);
     assert!(view.props.drop_hover);
+    assert!(view.props.clear_drop_on_hover);
     assert!(view.props.pointer_motion_active);
 }
 

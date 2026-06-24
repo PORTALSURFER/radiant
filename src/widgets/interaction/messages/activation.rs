@@ -94,6 +94,11 @@ pub enum InteractiveRowMessage {
         /// Pointer position where the drop target hover occurred.
         position: Point,
     },
+    /// The row was hovered while a tracked drop target should be cleared.
+    ClearDropTarget {
+        /// Pointer position where the stale drop target should be cleared.
+        position: Point,
+    },
 }
 
 impl InteractiveRowMessage {
@@ -158,6 +163,14 @@ impl InteractiveRowMessage {
     pub fn hover_drop_position(self) -> Option<Point> {
         match self {
             Self::HoverDropTarget { position } => Some(position),
+            _ => None,
+        }
+    }
+
+    /// Return the drop-target clear position, when present.
+    pub fn clear_drop_position(self) -> Option<Point> {
+        match self {
+            Self::ClearDropTarget { position } => Some(position),
             _ => None,
         }
     }

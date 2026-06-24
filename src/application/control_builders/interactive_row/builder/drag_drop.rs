@@ -37,6 +37,7 @@ impl InteractiveRowBuilder {
     pub fn droppable(mut self, drag_active: bool) -> Self {
         self.droppable = true;
         self.drop_hover = true;
+        self.clear_drop_on_hover = false;
         self.drag_active = drag_active;
         self
     }
@@ -45,6 +46,7 @@ impl InteractiveRowBuilder {
     pub fn drop_only(mut self, drag_active: bool) -> Self {
         self.droppable = true;
         self.drop_hover = false;
+        self.clear_drop_on_hover = false;
         self.drag_active = drag_active;
         self
     }
@@ -54,6 +56,7 @@ impl InteractiveRowBuilder {
     pub fn drop_target_mode(mut self, drag_active: bool, hover_messages: bool) -> Self {
         self.droppable = drag_active;
         self.drop_hover = drag_active && hover_messages;
+        self.clear_drop_on_hover = false;
         self.drag_active = drag_active;
         self
     }
@@ -68,6 +71,7 @@ impl InteractiveRowBuilder {
         self.pointer_motion_active = active_target;
         self.droppable = drag_active;
         self.drop_hover = drag_active && !active_target;
+        self.clear_drop_on_hover = false;
         self.drag_active = drag_active;
         self
     }
@@ -89,6 +93,7 @@ impl InteractiveRowBuilder {
         self.pointer_motion_active = active_target;
         self.droppable = drag_active;
         self.drop_hover = drag_active && !current_target && (candidate || active_target);
+        self.clear_drop_on_hover = drag_active && !current_target && !candidate && active_target;
         self.drag_active = drag_active;
         self
     }

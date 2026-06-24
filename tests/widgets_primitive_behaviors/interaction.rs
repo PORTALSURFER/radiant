@@ -170,6 +170,13 @@ fn interactive_row_message_helpers_project_common_custom_row_intents() {
         .hover_drop_position(),
         Some(Point::new(20.0, 10.0))
     );
+    assert_eq!(
+        InteractiveRowMessage::ClearDropTarget {
+            position: Point::new(22.0, 12.0)
+        }
+        .clear_drop_position(),
+        Some(Point::new(22.0, 12.0))
+    );
     assert!(InteractiveRowMessage::Drop.is_drop());
     assert_eq!(
         InteractiveRowMessage::SecondaryActivate {

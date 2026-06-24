@@ -52,6 +52,9 @@ impl InteractiveRowWidget {
                     && self.props.drag_active
                     && self.props.drop_hover
                 {
+                    if self.props.clear_drop_on_hover {
+                        return Some(InteractiveRowMessage::ClearDropTarget { position });
+                    }
                     return Some(InteractiveRowMessage::HoverDropTarget { position });
                 }
                 None

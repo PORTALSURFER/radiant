@@ -250,7 +250,11 @@ to idle or non-source, so apps do not need to churn row identity after drag
 cancellation just to reset transient input paint. Use
 `InteractiveRowUnderlayBuilder::tracked_drop_target(...)` when arbitrary
 visible row content should keep its own paint tree while the transparent
-interactive-row underlay owns standard tracked drop-target behavior.
+interactive-row underlay owns standard tracked drop-target behavior. Use
+`InteractiveRowBuilder::tracked_drop_candidate(...)` with
+`InteractiveRowActions::tracked_drop_candidate_key(...)` when host-owned
+candidate validation needs Radiant to route both target hover and stale-target
+clear intents without app-local hover filtering.
 Context-aware app code should use `.handle_message(...)` with an
 `UiUpdateContext<Message>` to emit messages, request repaint, move focus, schedule
 business work, request typed platform services, schedule delayed messages, or
@@ -595,9 +599,10 @@ row needs that standard chrome followed by one centered dense-row label. Use
 `InteractiveRowMessage::activation_modifiers()`,
 `single_activation_modifiers()`, `is_single_activation()`,
 `is_double_activation()`,
-`secondary_position()`, `drag_message()`, `hover_drop_position()`, and
-`is_drop()` when custom row widgets need to map Radiant row interactions into
-host-specific row messages without repeating exhaustive event-shape matches.
+`secondary_position()`, `drag_message()`, `hover_drop_position()`,
+`clear_drop_position()`, and `is_drop()` when custom row widgets need to map
+Radiant row interactions into host-specific row messages without repeating
+exhaustive event-shape matches.
 `InteractiveRowActions` is a widget-layer router; use `row_actions()` to build
 the router from the application facade and
 `InteractiveRowActions::route(...)` when custom row wrappers need the same
@@ -615,7 +620,9 @@ marker, and outline model. Use the keyed variants
 host-owned item key without duplicating capture closures at each row, chip, or
 tree item. Use `drop_target_key(...)` when drop and hover-drop both route
 through the same host-owned target key but still produce separate host message
-shapes. Use `primary_secondary_key(...)` when primary activation and secondary
+shapes. Use `tracked_drop_candidate_key(...)` when drop, valid-target hover,
+and tracked-target clear should route through one host-owned target key. Use
+`primary_secondary_key(...)` when primary activation and secondary
 context-menu activation share the same host-owned key but emit separate host
 message shapes. Use
 `primary(...)`/`primary_key(...)` plus `double(...)`/`double_key(...)` when
@@ -710,7 +717,9 @@ requesting the same hover-target update.
 Use `tracked_drop_candidate(drag_active, current_target, candidate,
 active_target)` when host-owned validation decides whether this row is a valid
 drop target and non-candidate rows must still report hover once to clear a
-previously active target.
+previously active target. Those non-candidate hover reports emit
+`InteractiveRowMessage::ClearDropTarget` instead of `HoverDropTarget`, allowing
+the action router to keep target-enter and target-clear host messages distinct.
 Use `InteractiveRowBuilder::filter_mapped(...)` when only selected row events
 should emit host messages, such as activation and drop while drag-hover or
 secondary-click events are ignored. This avoids routing ignored row interactions

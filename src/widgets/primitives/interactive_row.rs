@@ -46,6 +46,8 @@ pub struct InteractiveRowProps {
     pub suppress_hover: bool,
     /// Whether active drop-target hover emits hover messages.
     pub drop_hover: bool,
+    /// Whether active drop-target hover clears a tracked target.
+    pub clear_drop_on_hover: bool,
     /// Clear stale hover state when a retained row is synchronized.
     pub clear_hover_on_sync: bool,
     /// Emit modifier-aware activation messages for primary pointer release.
@@ -151,6 +153,7 @@ impl InteractiveRowWidget {
     pub fn with_drop_target_mode(mut self, drag_active: bool, hover_messages: bool) -> Self {
         self.props.droppable = drag_active;
         self.props.drop_hover = drag_active && hover_messages;
+        self.props.clear_drop_on_hover = false;
         self.props.drag_active = drag_active;
         self
     }
@@ -170,6 +173,8 @@ impl InteractiveRowWidget {
     ) -> Self {
         self.props.droppable = drag_active;
         self.props.drop_hover = drag_active && !current_target && (candidate || active_target);
+        self.props.clear_drop_on_hover =
+            drag_active && !current_target && !candidate && active_target;
         self.props.drag_active = drag_active;
         self.props.pointer_motion = InteractiveRowPointerMotion::DuringInteraction;
         self.props.pointer_motion_active = active_target;

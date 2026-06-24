@@ -29,6 +29,7 @@ impl InteractiveRowBuilder {
         }
         if self.droppable {
             row = row.with_drop_target_mode(self.drag_active, self.drop_hover);
+            row.props.clear_drop_on_hover = self.clear_drop_on_hover;
         }
         if self.activation_modifiers {
             row = row.with_activation_modifiers();

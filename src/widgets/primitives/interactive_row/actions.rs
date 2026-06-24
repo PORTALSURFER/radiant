@@ -21,6 +21,7 @@ pub struct InteractiveRowActions<Message> {
     drag: Option<Arc<dyn Fn(DragHandleMessage) -> Message + Send + Sync + 'static>>,
     drop: Option<Arc<dyn Fn() -> Message + Send + Sync + 'static>>,
     hover_drop: Option<Arc<dyn Fn(Point) -> Message + Send + Sync + 'static>>,
+    clear_drop: Option<Arc<dyn Fn(Point) -> Message + Send + Sync + 'static>>,
 }
 
 impl<Message> InteractiveRowActions<Message> {
@@ -34,6 +35,7 @@ impl<Message> InteractiveRowActions<Message> {
             drag: None,
             drop: None,
             hover_drop: None,
+            clear_drop: None,
         }
     }
 
@@ -258,6 +260,28 @@ impl<Message> InteractiveRowActions<Message> {
         self
     }
 
+    /// Emit a host message when a tracked drop target should be cleared.
+    pub fn clear_drop(
+        mut self,
+        message: impl Fn(Point) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        self.clear_drop = Some(Arc::new(message));
+        self
+    }
+
+    /// Emit a drop-target clear message for one host-owned row key.
+    pub fn clear_drop_key<Key>(
+        mut self,
+        key: Key,
+        message: impl Fn(Key, Point) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+    {
+        self.clear_drop = Some(Arc::new(move |position| message(key.clone(), position)));
+        self
+    }
+
     /// Emit drop and hover-drop messages for one host-owned target key.
     ///
     /// Use this when a row, chip, tree item, lane, or layer routes both the
@@ -280,6 +304,33 @@ impl<Message> InteractiveRowActions<Message> {
         self
     }
 
+    /// Emit drop, hover, and tracked-target clear messages for one target key.
+    ///
+    /// Use this with tracked drop-candidate rows when the generic row primitive
+    /// owns the hover lifecycle and the host only needs domain messages for
+    /// target entry, target clearing, and final drop.
+    pub fn tracked_drop_candidate_key<Key>(
+        mut self,
+        key: Key,
+        drop_message: impl Fn(Key) -> Message + Send + Sync + 'static,
+        hover_drop_message: impl Fn(Key, Point) -> Message + Send + Sync + 'static,
+        clear_drop_message: impl Fn(Key, Point) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+    {
+        let drop_key = key.clone();
+        let hover_key = key.clone();
+        self.drop = Some(Arc::new(move || drop_message(drop_key.clone())));
+        self.hover_drop = Some(Arc::new(move |position| {
+            hover_drop_message(hover_key.clone(), position)
+        }));
+        self.clear_drop = Some(Arc::new(move |position| {
+            clear_drop_message(key.clone(), position)
+        }));
+        self
+    }
+
     /// Route a generic row interaction into the configured host action.
     pub fn route(&self, message: InteractiveRowMessage) -> Option<Message> {
         if let Some(position) = message.secondary_position() {
@@ -293,6 +344,9 @@ impl<Message> InteractiveRowActions<Message> {
         }
         if let Some(position) = message.hover_drop_position() {
             return self.hover_drop.as_ref().map(|callback| callback(position));
+        }
+        if let Some(position) = message.clear_drop_position() {
+            return self.clear_drop.as_ref().map(|callback| callback(position));
         }
         if message.is_double_activation() {
             return self.double_activate.as_ref().map(|callback| callback());

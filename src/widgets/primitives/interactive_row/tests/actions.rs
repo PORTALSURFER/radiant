@@ -165,3 +165,27 @@ fn interactive_row_actions_routes_keyed_tree_drop_row_actions() {
         Some(("folder", "hover_drop", position))
     );
 }
+
+#[test]
+fn interactive_row_actions_routes_tracked_drop_candidate_clear() {
+    let actions = InteractiveRowActions::new().tracked_drop_candidate_key(
+        "folder",
+        |key| (key, "drop", Point::new(0.0, 0.0)),
+        |key, position| (key, "hover_drop", position),
+        |key, position| (key, "clear_drop", position),
+    );
+    let position = Point::new(12.0, 24.0);
+
+    assert_eq!(
+        actions.route(InteractiveRowMessage::Drop),
+        Some(("folder", "drop", Point::new(0.0, 0.0)))
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::HoverDropTarget { position }),
+        Some(("folder", "hover_drop", position))
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::ClearDropTarget { position }),
+        Some(("folder", "clear_drop", position))
+    );
+}

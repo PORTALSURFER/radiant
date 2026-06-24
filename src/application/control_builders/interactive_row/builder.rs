@@ -25,6 +25,7 @@ pub struct InteractiveRowBuilder {
     draggable: bool,
     droppable: bool,
     drop_hover: bool,
+    clear_drop_on_hover: bool,
     drag_active: bool,
     drag_source: bool,
     drag_source_motion: bool,

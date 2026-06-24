@@ -17,6 +17,7 @@ pub fn interactive_row() -> InteractiveRowBuilder {
         draggable: false,
         droppable: false,
         drop_hover: false,
+        clear_drop_on_hover: false,
         drag_active: false,
         drag_source: false,
         drag_source_motion: false,

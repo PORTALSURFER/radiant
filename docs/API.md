@@ -416,7 +416,10 @@ After a runtime-originated window change, `VirtualListController` records the
 runtime viewport length. Use `runtime_viewport_len_or(fallback)` when the next
 projection should prefer the runtime viewport over an estimated host viewport,
 and `runtime_viewport_contains_index(...)` when only a known runtime viewport
-should suppress focus-follow scrolling.
+should suppress focus-follow scrolling. Use
+`configure_projection_and_focus_changed_unless_visible_optional(...)` when a
+changed selection key should follow only if the selected item is outside that
+runtime-reported viewport.
 
 Hit testing should use the materialized row slice, such as with
 `virtual_list_stacked_item_at_point(...)`, so hidden rows are never needed to
@@ -757,6 +760,9 @@ item count, viewport policy, and optional host selection in one controller call.
   `configure_and_focus_changed_optional_with_context_row(...)` when a list should
   scroll newly selected items into view without overriding manual scroll while
   the same app-owned item key remains selected. Use
+  `configure_projection_and_focus_changed_unless_visible_optional(...)` when a
+  pointer or host selection can move to another item that is already visible and
+  direct runtime scroll position should stay authoritative. Use
   `VirtualListSliceFocus::from_slice_by(...)` with
   `configure_slice_focus_changed_optional(...)` when the host owns a filtered or
   sorted item slice and stable focus key while Radiant should derive the item

@@ -64,6 +64,41 @@ impl VirtualListController {
         focus: VirtualListFocusTarget<Key>,
     ) -> VirtualListWindow {
         self.configure_projection(projection);
+        self.focus_changed_optional(follow_state, focus)
+    }
+
+    /// Configure named projection inputs and follow changed focus only when the
+    /// focused item is not already in the runtime-reported viewport.
+    ///
+    /// This preserves direct runtime scroll position when pointer selection
+    /// moves to another visible item, while still scrolling keyboard or
+    /// programmatic selection changes that land outside the known viewport.
+    pub fn configure_projection_and_focus_changed_unless_visible_optional<Key: PartialEq>(
+        &mut self,
+        follow_state: &mut VirtualListFollowState<Key>,
+        projection: VirtualListProjection,
+        focus: VirtualListFocusTarget<Key>,
+    ) -> VirtualListWindow {
+        self.configure_projection(projection);
+        let focus_key_changed = follow_state.focus_key() != focus.key.as_ref();
+        let changed_focus_is_visible = focus_key_changed
+            && focus.key.is_some()
+            && focus
+                .index
+                .is_some_and(|index| self.runtime_viewport_contains_index(self.total_items, index));
+        if changed_focus_is_visible {
+            follow_state.remember_focus_key(focus.key);
+            self.clear_focus();
+            return self.resolve();
+        }
+        self.focus_changed_optional(follow_state, focus)
+    }
+
+    fn focus_changed_optional<Key: PartialEq>(
+        &mut self,
+        follow_state: &mut VirtualListFollowState<Key>,
+        focus: VirtualListFocusTarget<Key>,
+    ) -> VirtualListWindow {
         if follow_state.update_focus_key(focus.key) {
             return match focus.index {
                 Some(index) => self.focus(index),

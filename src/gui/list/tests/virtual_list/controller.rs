@@ -330,6 +330,48 @@ fn virtual_list_projection_follows_changed_focus() {
 }
 
 #[test]
+fn virtual_list_projection_preserves_runtime_viewport_for_visible_changed_focus() {
+    let mut controller = VirtualListController::new();
+    let mut follow = VirtualListFollowState::new();
+    let projection = VirtualListProjection::new(100, 18, 4, 2).with_context_row();
+
+    controller.apply_window_change(VirtualListWindowChange {
+        offset_y: 40.0 * 22.0,
+        row_height: 22.0,
+        window: VirtualListWindow {
+            total_items: 100,
+            viewport_start: 40,
+            viewport_end: 58,
+            window_start: 36,
+            window_end: 62,
+        },
+    });
+
+    let visible = controller.configure_projection_and_focus_changed_unless_visible_optional(
+        &mut follow,
+        projection,
+        VirtualListFocusTarget::new(Some("row-55"), Some(55)),
+    );
+
+    assert_eq!(visible.viewport_start, 40);
+    assert_eq!(visible.viewport_end, 58);
+    assert_eq!(visible.window_start, 36);
+    assert_eq!(visible.window_end, 62);
+    assert_eq!(follow.focus_key(), Some(&"row-55"));
+    assert_eq!(controller.focused_index(), None);
+
+    let hidden = controller.configure_projection_and_focus_changed_unless_visible_optional(
+        &mut follow,
+        projection,
+        VirtualListFocusTarget::new(Some("row-05"), Some(5)),
+    );
+
+    assert_eq!(hidden.viewport_start, 2);
+    assert_eq!(follow.focus_key(), Some(&"row-05"));
+    assert_eq!(controller.focused_index(), Some(5));
+}
+
+#[test]
 fn virtual_list_controller_clears_focus_when_changed_key_has_no_index() {
     let mut controller = VirtualListController::new();
     let mut follow = VirtualListFollowState::new();

@@ -1,11 +1,12 @@
 use super::*;
 use crate::{
-    gui::types::Vector2,
-    layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams},
-    runtime::{Event, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
+    gui::types::{Rect, Vector2},
+    layout::{Constraints, LayoutOutput, SizeModeCross, SizeModeMain, SlotParams},
+    runtime::{Event, PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
+    theme::ThemeTokens,
     widgets::{
         FocusBehavior, InteractiveRowWidget, PointerButton, PointerModifiers, TextInputWidget,
-        WidgetInput, WidgetSizing,
+        Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -41,6 +42,74 @@ impl RuntimeBridge<usize> for FocusTestBridge {
     }
 
     fn reduce_message(&mut self, _message: usize) {}
+}
+
+#[derive(Default)]
+struct FocusLossOutputBridge {
+    dispatched: Vec<usize>,
+}
+
+impl RuntimeBridge<usize> for FocusLossOutputBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+        Arc::new(UiSurface::new(SurfaceNode::widget(
+            FocusLossOutputWidget::new(30),
+            WidgetMessageMapper::typed(|message: usize| message),
+        )))
+    }
+
+    fn reduce_message(&mut self, message: usize) {
+        self.dispatched.push(message);
+    }
+}
+
+#[derive(Clone)]
+struct FocusLossOutputWidget {
+    common: WidgetCommon,
+}
+
+impl FocusLossOutputWidget {
+    fn new(id: u64) -> Self {
+        let mut common = WidgetCommon::fixed(id, 160.0, 28.0).without_default_chrome();
+        common.paint.suppresses_container_hover = true;
+        Self { common }
+    }
+}
+
+impl Widget for FocusLossOutputWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+                ..
+            } if bounds.contains(position) => {
+                self.common.state.pressed = true;
+                None
+            }
+            WidgetInput::FocusChanged(false) => {
+                self.common.state.pressed = false;
+                Some(WidgetOutput::typed(99_usize))
+            }
+            _ => None,
+        }
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
 }
 
 fn non_focusable_interactive_row(id: u64) -> InteractiveRowWidget {
@@ -115,6 +184,84 @@ fn clear_pointer_hover_clears_runtime_owner_and_retained_widget_state() {
             .state
             .hovered
     );
+}
+
+#[test]
+fn cancel_pointer_capture_clears_captured_pressed_widget_state() {
+    let mut runtime = SurfaceRuntime::new(FocusTestBridge, Vector2::new(200.0, 80.0));
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: Point::new(4.0, 32.0),
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    assert_eq!(runtime.pointer_capture(), Some(20));
+    assert!(
+        runtime
+            .surface()
+            .find_widget(20)
+            .expect("captured widget")
+            .widget()
+            .common()
+            .state
+            .pressed
+    );
+
+    runtime.cancel_pointer_capture();
+
+    assert_eq!(runtime.pointer_capture(), None);
+    assert!(runtime.repaint_requested());
+    assert!(
+        !runtime
+            .surface()
+            .find_widget(20)
+            .expect("previously captured widget")
+            .widget()
+            .common()
+            .state
+            .pressed
+    );
+}
+
+#[test]
+fn cancel_pointer_capture_does_not_dispatch_focus_loss_output() {
+    let mut runtime =
+        SurfaceRuntime::new(FocusLossOutputBridge::default(), Vector2::new(200.0, 80.0));
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: Point::new(4.0, 4.0),
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    assert_eq!(runtime.pointer_capture(), Some(30));
+    assert!(
+        runtime
+            .surface()
+            .find_widget(30)
+            .expect("captured widget")
+            .widget()
+            .common()
+            .state
+            .pressed
+    );
+
+    runtime.cancel_pointer_capture();
+
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(runtime.bridge().dispatched, Vec::<usize>::new());
+    assert!(
+        !runtime
+            .surface()
+            .find_widget(30)
+            .expect("previously captured widget")
+            .widget()
+            .common()
+            .state
+            .pressed
+    );
+
+    assert!(runtime.dispatch_input(30, WidgetInput::FocusChanged(false)));
+    assert_eq!(runtime.bridge().dispatched, vec![99]);
 }
 
 #[test]

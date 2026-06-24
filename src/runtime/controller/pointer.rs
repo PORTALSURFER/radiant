@@ -165,9 +165,35 @@ where
     /// the originating surface must not keep treating later pointer motion as a
     /// continuation of the in-window press.
     pub(crate) fn cancel_pointer_capture(&mut self) {
+        let captured = self.interaction.pointer.capture.take();
+        if let Some(widget_id) = captured {
+            self.cancel_captured_widget_state(widget_id);
+        }
         self.interaction.pointer.capture = None;
         self.interaction.pointer.capture_state = None;
         self.interaction.pointer.scroll_drag_capture = None;
+    }
+
+    fn cancel_captured_widget_state(&mut self, widget_id: WidgetId) {
+        let Some(previous_state) = self
+            .surface_widget(widget_id)
+            .map(|widget| widget.widget_object().common().state)
+        else {
+            return;
+        };
+        let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
+            return;
+        };
+        let _ = self.dispatch_surface_input(widget_id, bounds, WidgetInput::FocusChanged(false));
+        let Some(next_state) = self
+            .surface_widget(widget_id)
+            .map(|widget| widget.widget_object().common().state)
+        else {
+            return;
+        };
+        if previous_state != next_state {
+            self.repaint_requested = true;
+        }
     }
 
     /// Clear pointer hover ownership and retained widget hover state.

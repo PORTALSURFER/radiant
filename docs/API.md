@@ -1475,6 +1475,12 @@ under the pointer can still receive live feedback while the source remains
 captured. Older custom widgets that only override
 `Widget::allows_captured_pointer_pass_through()` keep the same behavior through
 the default policy implementation.
+Native focus loss and external drag handoff cancel pointer capture without
+routing a synthetic release to the host. Radiant clears the captured widget's
+transient retained state through the widget input path and requests repaint
+only when that local state changed. Hosts should model durable drag/drop
+results as messages, but they should not duplicate generic pressed, capture, or
+focus-loss cleanup in application reducers.
 Custom widgets must still be pointer hit-test eligible before pointer hooks can
 run. Use `WidgetCommon::with_pointer_focus()` for hover, drag, tooltip, cursor,
 or paint-only overlay widgets that should skip keyboard traversal, or

@@ -219,6 +219,25 @@ impl Widget for PointerShieldWidget {
         self.props.active && self.props.pointer_move
     }
 
+    fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
+        if !self.props.active {
+            return false;
+        }
+        match input {
+            WidgetInput::PointerMove { .. } => self.props.pointer_move,
+            WidgetInput::PointerPress { .. } => self.props.pointer_press,
+            WidgetInput::PointerDoubleClick { .. } => self.props.pointer_press,
+            WidgetInput::PointerRelease { .. } => self.props.pointer_release,
+            WidgetInput::PointerDrop { .. } => self.props.pointer_drop,
+            WidgetInput::Wheel { .. } => self.props.wheel,
+            WidgetInput::PointerModifiersChanged { .. }
+            | WidgetInput::FocusChanged(_)
+            | WidgetInput::KeyPress(_)
+            | WidgetInput::Character(_)
+            | WidgetInput::TextEdit(_) => true,
+        }
+    }
+
     fn accepts_wheel_input(&self) -> bool {
         self.props.active && self.props.wheel
     }

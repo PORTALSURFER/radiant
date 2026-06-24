@@ -3,7 +3,7 @@ use crate::{
     gui::types::Point,
     layout::NodeId,
     runtime::{RuntimeBridge, SurfaceWidget},
-    widgets::{PointerCapturePolicy, WidgetCursor, WidgetId},
+    widgets::{PointerCapturePolicy, WidgetCursor, WidgetId, WidgetInput},
 };
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -20,6 +20,26 @@ where
             .rev()
             .copied()
             .find(|widget_id| self.widget_contains_point(*widget_id, point))
+    }
+
+    pub(super) fn widget_at_for_input(
+        &self,
+        point: Point,
+        input: &WidgetInput,
+    ) -> Option<WidgetId> {
+        self.traversal
+            .widgets
+            .pointer
+            .visible()
+            .iter()
+            .rev()
+            .copied()
+            .find(|widget_id| {
+                self.widget_contains_point(*widget_id, point)
+                    && self
+                        .surface_widget(*widget_id)
+                        .is_some_and(|widget| widget.accepts_pointer_input(input))
+            })
     }
 
     pub(super) fn pointer_widget_at_for_move(&self, point: Point) -> Option<WidgetId> {

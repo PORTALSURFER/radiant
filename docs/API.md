@@ -874,6 +874,14 @@ hit-test widgets. `PointerShieldProps::wheel` and
 move-only and drop-only convenience constructors leave wheel disabled.
 Convenience constructors such as `.pointer_move_only(...)` and
 `.pointer_drop_only(...)` cover common transparent overlay policies.
+Container-owned pointer targets can use
+`ViewNode::pointer_target(...)`, `pointer_target_if(...)`,
+`pointer_move_target(...)`, and `pointer_drop_target(...)` for bounded drag,
+drop, cancellation, and hover-clear behavior without hand-building overlay
+stacks. When multiple pointer targets are stacked on the same owner, Radiant
+routes each pointer input to the topmost target that accepts that event kind.
+For example, a move-only target above a release/drop target observes motion
+without shadowing the lower target's release or drop handling.
 Popover and menu stacks can use `dismiss_layer(message)` as a transparent
 full-surface activation layer behind foreground content, avoiding app-local
 empty input-only buttons for outside-click dismissal.

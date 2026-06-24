@@ -111,21 +111,42 @@ pub fn pointer_drop_target(active: bool) -> PointerTargetBuilder {
 #[cfg(test)]
 mod tests {
     use crate::{
-        application::{IntoView, PointerTarget, button, pointer_drop_target, row, text},
+        application::{
+            IntoView, PointerTarget, button, pointer_drop_target, pointer_move_target,
+            pointer_target, row, text,
+        },
         gui::types::Point,
         layout::Vector2,
         runtime::{DeclarativeOwnedRuntimeBridge, SurfaceRuntime},
-        widgets::{PointerButton, PointerModifiers, WidgetInput},
+        widgets::{PointerButton, PointerModifiers, PointerShieldMessage, WidgetInput},
     };
 
     #[derive(Clone, Debug, PartialEq)]
     enum Message {
         Base,
         Drop,
+        Move,
+        Release,
     }
 
     fn drop_target() -> PointerTarget<Message> {
         pointer_drop_target(true).on_drop(Message::Drop)
+    }
+
+    fn move_target() -> PointerTarget<Message> {
+        pointer_move_target(true).on_pointer_move(|_| Message::Move)
+    }
+
+    fn release_target() -> PointerTarget<Message> {
+        pointer_target(true)
+            .pointer_move(false)
+            .pointer_press(false)
+            .pointer_drop(false)
+            .wheel(false)
+            .filter_map(|message| match message {
+                PointerShieldMessage::PointerRelease { .. } => Some(Message::Release),
+                _ => None,
+            })
     }
 
     #[test]
@@ -153,6 +174,34 @@ mod tests {
         );
 
         assert_eq!(runtime.bridge().state(), &[Message::Drop]);
+    }
+
+    #[test]
+    fn stacked_pointer_targets_route_to_topmost_event_compatible_target() {
+        let bridge = DeclarativeOwnedRuntimeBridge::new(
+            Vec::<Message>::new(),
+            |_| {
+                button("Base")
+                    .message(Message::Base)
+                    .fill()
+                    .pointer_target(drop_target())
+                    .pointer_target(release_target())
+                    .pointer_target(move_target())
+                    .into_surface()
+            },
+            |state, message| state.push(message),
+        );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 40.0));
+        let position = Point::new(8.0, 8.0);
+
+        runtime.dispatch_input_at(position, WidgetInput::pointer_move(position));
+        runtime.dispatch_input_at(position, WidgetInput::primary_release(position));
+        runtime.dispatch_input_at(position, WidgetInput::primary_drop(position));
+
+        assert_eq!(
+            runtime.bridge().state(),
+            &[Message::Move, Message::Release, Message::Drop]
+        );
     }
 
     #[test]

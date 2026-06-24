@@ -83,7 +83,7 @@ where
         point: Point,
         input: WidgetInput,
     ) -> Option<(WidgetId, bool)> {
-        let widget_id = self.widget_at(point)?;
+        let widget_id = self.widget_at_for_input(point, &input)?;
         if matches!(
             input,
             WidgetInput::PointerPress { .. } | WidgetInput::PointerDoubleClick { .. }

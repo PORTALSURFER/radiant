@@ -50,11 +50,12 @@ fn pointer_controller_keeps_move_routing_in_focused_module() {
             && hit_test.contains("gui::types::Point")
             && hit_test.contains("layout::NodeId")
             && hit_test.contains("runtime::{RuntimeBridge, SurfaceWidget}")
-            && hit_test.contains("widgets::{PointerCapturePolicy, WidgetCursor, WidgetId}")
+            && hit_test
+                .contains("widgets::{PointerCapturePolicy, WidgetCursor, WidgetId, WidgetInput}")
             && !hit_test.starts_with("use super::*;")
             && hit_test.contains("pub fn widget_at")
             && hit_test.contains("fn stable_hovered_widget_at"),
-        "runtime controller hit testing should name controller, geometry, layout, bridge, widget, and traversal dependencies"
+        "runtime controller hit testing should name controller, geometry, layout, bridge, widget, widget-input, and traversal dependencies"
     );
     assert!(
         hit_order.contains("use std::collections::HashMap;")

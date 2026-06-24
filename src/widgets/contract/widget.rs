@@ -116,6 +116,17 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
         true
     }
 
+    /// Return whether this widget can be selected as the target for a direct pointer input.
+    ///
+    /// The default is permissive so existing interactive widgets keep their
+    /// previous hit-testing behavior. Widgets that expose explicit event
+    /// policies, such as transparent pointer shields, can return `false` for
+    /// disabled pointer event kinds so stacked input layers do not shadow
+    /// lower layers that are intended to handle those events.
+    fn accepts_pointer_input(&self, _input: &WidgetInput) -> bool {
+        true
+    }
+
     /// Return the default automation role for this widget.
     fn automation_role(&self) -> AutomationRole {
         AutomationRole::Custom

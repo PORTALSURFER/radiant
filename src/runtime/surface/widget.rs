@@ -125,6 +125,10 @@ impl<Message> SurfaceWidget<Message> {
         !self.widget.common().state.disabled && self.widget.accepts_pointer_move()
     }
 
+    pub(in crate::runtime) fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
+        !self.widget.common().state.disabled && self.widget.accepts_pointer_input(input)
+    }
+
     pub(in crate::runtime) fn prefers_pointer_move_paint_only(&self) -> bool {
         !self.widget.common().state.disabled && self.widget.prefers_pointer_move_paint_only()
     }

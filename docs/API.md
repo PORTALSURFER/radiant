@@ -336,6 +336,8 @@ temporary strings. `interactive_row_underlay(content)` can use
 `.input_key(...)`, `.stable_input_id(scope, key)`, or
 `.stable_u64_input_id(scope, key)` to bind caller-owned identity directly to
 the backing interactive row. Use
+`.stable_row_identity(scope, row_key)` when one durable row key should identify
+both the composed row subtree and the backing input widget. Use
 `.dense_chrome()`, `.selected(...)`, `.active_target(...)`, `.candidate(...)`,
 or `.visual_state(...)` when arbitrary visible row content should keep
 Radiant's standard dense-row hover, pressed, selected, and drop-target chrome
@@ -2712,8 +2714,9 @@ list composition with drag-aware row controls. Use
 stay above a generic interactive row that owns activation, secondary
 activation, drag, drop, focus, and row feedback paint while preserving a stable
 input widget id or key. Use `.input_key(...)`, `.stable_input_id(...)`, or
-`.stable_u64_input_id(...)` on dynamic underlay rows instead of creating
-app-local row input identity helpers. Use `.custom_paint_hit_target()`,
+`.stable_u64_input_id(...)` on dynamic underlay rows when only the input layer
+needs explicit identity; use `.stable_row_identity(...)` when the same durable
+row key should also key the composed row subtree. Use `.custom_paint_hit_target()`,
 `.activation_modifiers()`, `.tracked_drag_source(...)`, or
 `.tracked_drag_source_with_motion(...)` on underlay rows when app-owned visible
 content still needs standard Radiant row input presets without dropping to

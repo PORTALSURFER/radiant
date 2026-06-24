@@ -158,6 +158,33 @@ fn interactive_row_underlay_derives_stable_text_input_id() {
 }
 
 #[test]
+fn interactive_row_underlay_stable_row_identity_keys_row_and_input() {
+    let row_key = "source-row-source-a";
+    fn keyed_row(row_key: &'static str) -> ViewNode<DemoMessage> {
+        interactive_row_underlay(text("Source"))
+            .stable_row_identity(42, row_key)
+            .mapped(|_| DemoMessage::Activate)
+            .size(140.0, 22.0)
+    }
+    let input_id = crate::widgets::stable_widget_id(42, row_key);
+
+    assert_eq!(
+        keyed_row(row_key).view_dispatch_widget_output(
+            input_id,
+            WidgetOutput::typed(InteractiveRowMessage::Activate),
+        ),
+        Some(DemoMessage::Activate)
+    );
+    let layout = keyed_row(row_key).view_layout_at_size(Vector2::new(140.0, 22.0));
+    let root_id = crate::application::scoped_key_id(crate::application::ROOT_KEY_SCOPE, row_key);
+
+    assert!(
+        layout.rects.contains_key(&root_id),
+        "stable row identity should key the composed row subtree"
+    );
+}
+
+#[test]
 fn interactive_row_underlay_derives_stable_numeric_input_id() {
     let view = interactive_row_underlay(text("Collection"))
         .stable_u64_input_id(43, 7)

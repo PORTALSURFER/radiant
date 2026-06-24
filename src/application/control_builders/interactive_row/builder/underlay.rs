@@ -25,6 +25,7 @@ pub struct InteractiveRowUnderlayBuilder<Message> {
     row: InteractiveRowBuilder,
     input_id: Option<WidgetId>,
     input_key: Option<String>,
+    row_key: Option<String>,
     style: Option<WidgetStyle>,
     visual_state: InteractiveRowVisualStateParts,
     chrome: DenseInteractiveRowUnderlayChrome,
@@ -169,6 +170,20 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
         self
     }
 
+    /// Assign one stable row key to the composed row and its backing input widget.
+    ///
+    /// Use this for dynamic rows whose outer view subtree and retained input
+    /// widget should follow the same caller-owned row identity. Prefer
+    /// [`Self::input_id`] or [`Self::input_key`] plus a view-node key only when
+    /// those identities deliberately differ.
+    pub fn stable_row_identity(mut self, input_scope: u64, row_key: impl Into<String>) -> Self {
+        let row_key = row_key.into();
+        self.input_id = Some(stable_widget_id(input_scope, row_key.as_str()));
+        self.input_key = None;
+        self.row_key = Some(row_key);
+        self
+    }
+
     /// Derive and assign a stable input widget id from a caller-owned numeric key.
     ///
     /// Use this for dynamic rows keyed by durable numeric IDs or enum indexes
@@ -267,6 +282,7 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
             row,
             input_id,
             input_key,
+            row_key,
             style,
             visual_state,
             chrome,
@@ -293,7 +309,11 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
         if let Some(style) = style {
             input = input.style(style);
         }
-        input_underlay(content, input)
+        let mut row = input_underlay(content, input);
+        if let Some(row_key) = row_key {
+            row = row.key(row_key);
+        }
+        row
     }
 }
 
@@ -385,6 +405,7 @@ pub fn interactive_row_underlay<Message: 'static>(
         row: interactive_row(),
         input_id: None,
         input_key: None,
+        row_key: None,
         style: None,
         visual_state: InteractiveRowVisualStateParts::default(),
         chrome: DenseInteractiveRowUnderlayChrome::default(),

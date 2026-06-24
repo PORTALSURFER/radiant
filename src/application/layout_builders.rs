@@ -28,10 +28,10 @@ pub use overlay_stack::{OverlayStack, overlay_stack};
 pub use overlays::{
     AnchoredLayerParts, CenteredLayerParts, FloatingLayerAnchorParts, FloatingLayerPlacement,
     LayerHorizontalAnchor, LayerVerticalAnchor, anchored_layer, anchored_layer_from_parts,
-    centered_layer, centered_layer_from_parts, dismiss_layer, dismissible_overlay, drag_preview,
-    drag_preview_sized, drop_marker, floating_layer, floating_layer_above,
-    floating_layer_around_from_parts, floating_layer_below, floating_layer_with_input,
-    input_overlay, input_underlay, local_drop_marker, overlay_panel,
+    centered_layer, centered_layer_from_parts, dismiss_layer, dismissible_overlay,
+    dismissible_overlay_with_interactive_base, drag_preview, drag_preview_sized, drop_marker,
+    floating_layer, floating_layer_above, floating_layer_around_from_parts, floating_layer_below,
+    floating_layer_with_input, input_overlay, input_underlay, local_drop_marker, overlay_panel,
 };
 pub use resizable::resizable;
 pub use scene::{Overlays, Scene, overlays, scene};

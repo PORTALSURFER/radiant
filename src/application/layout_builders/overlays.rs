@@ -16,7 +16,10 @@ pub use floating::{
     floating_layer, floating_layer_above, floating_layer_around_from_parts, floating_layer_below,
     floating_layer_with_input,
 };
-pub use input::{dismiss_layer, dismissible_overlay, input_overlay, input_underlay};
+pub use input::{
+    dismiss_layer, dismissible_overlay, dismissible_overlay_with_interactive_base, input_overlay,
+    input_underlay,
+};
 pub use layers::{
     anchored_layer, anchored_layer_from_parts, centered_layer, centered_layer_from_parts,
 };

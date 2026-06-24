@@ -881,6 +881,10 @@ When the caller has separate base content and foreground overlay content,
 `dismissible_overlay(base, overlay, message)` composes the standard
 base/dismiss/foreground stack so apps do not repeat the ordering required for
 outside-click dismissal.
+Use `dismissible_overlay_with_interactive_base(base, overlay, message)` when
+the base surface contains controls that should remain clickable while the
+foreground overlay is open; Radiant routes non-interactive base space to the
+dismiss layer and keeps foreground overlay content on top.
 Base content with optional transient UI should normally use `scene(base)`.
 `Scene` is Radiant's declarative root surface model: applications decide which
 typed layers are active from state each frame, while Radiant owns generic scene
@@ -2539,13 +2543,16 @@ row and the overlay should be anchored from the row top. Use
 menu is projected as a separate stack-level overlay.
 Transient dropdowns, menus, and popovers can use `dismissible_overlay(...)`
 when foreground overlay content should sit above a transparent outside-click
-dismiss layer while preserving the base content underneath. Fixed-size titled
-popovers, dialogs, and inspector panels that use Radiant's standard dialog
-chrome can use `DialogLayerParts`, `dialog_layer_from_parts(...)`, or
-`closeable_dialog_layer_from_parts(...)` to keep title, content, tone, size,
-full-surface anchored placement, and optional close routing in one generic
-contract. Use `dialog_layer(...)` or `closeable_dialog_layer(...)` for the
-common centered fixed-size dialog case. Use `PanelSectionLayerParts`,
+dismiss layer while preserving the base content underneath. Use
+`dismissible_overlay_with_interactive_base(...)` for dropdown groups where
+clicking another trigger should switch menus instead of only closing the
+current one. Fixed-size titled popovers, dialogs, and inspector panels that use
+Radiant's standard dialog chrome can use `DialogLayerParts`,
+`dialog_layer_from_parts(...)`, or `closeable_dialog_layer_from_parts(...)` to
+keep title, content, tone, size, full-surface anchored placement, and optional
+close routing in one generic contract. Use `dialog_layer(...)` or
+`closeable_dialog_layer(...)` for the common centered fixed-size dialog case.
+Use `PanelSectionLayerParts`,
 `panel_section_layer_from_parts(...)`, or
 `closeable_panel_section_layer_from_parts(...)` when a fixed-size anchored
 surface needs custom panel-section parts or non-dialog chrome. Use

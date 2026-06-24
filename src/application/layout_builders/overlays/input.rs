@@ -32,6 +32,23 @@ where
     stack([base, dismiss_layer(dismiss_message), overlay]).fill()
 }
 
+/// Stack a transparent dismiss layer behind base content and a foreground overlay.
+///
+/// Use this for dropdown groups, inspectors, and transient panels where the
+/// base surface must remain interactive while the overlay is open. Clicks on
+/// base widgets route to those widgets; clicks on non-interactive base space or
+/// outside the foreground overlay route to the dismiss layer.
+pub fn dismissible_overlay_with_interactive_base<Message>(
+    base: ViewNode<Message>,
+    overlay: ViewNode<Message>,
+    dismiss_message: Message,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    stack([dismiss_layer(dismiss_message), base, overlay]).fill()
+}
+
 /// Layer transparent input over visible content in one stacked view.
 ///
 /// This is useful for composite controls where the application owns the visual

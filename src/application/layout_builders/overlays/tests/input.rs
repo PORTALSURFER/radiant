@@ -1,6 +1,9 @@
-use super::super::{dismissible_overlay, floating_layer_with_input, input_overlay, input_underlay};
+use super::super::{
+    dismissible_overlay, dismissible_overlay_with_interactive_base, floating_layer_with_input,
+    input_overlay, input_underlay,
+};
 use crate::{
-    application::{app, button, text},
+    application::{app, button, row, text},
     gui::types::Point,
     layout::Vector2,
     runtime::{Event, SurfaceRuntime},
@@ -160,6 +163,92 @@ fn dismissible_overlay_routes_outside_activation_to_dismiss_layer() {
         runtime
             .surface()
             .find_widget(92)
+            .and_then(|widget| widget.widget_object().as_any().downcast_ref::<TextWidget>())
+            .map(|widget| widget.text.as_str()),
+        Some("dismissed")
+    );
+}
+
+#[test]
+fn dismissible_overlay_with_interactive_base_keeps_base_controls_above_dismiss_layer() {
+    let bridge = app(DemoState::default())
+        .view(|state| {
+            let status = if state.dismissed {
+                "dismissed"
+            } else if state.activated {
+                "activated"
+            } else {
+                "open"
+            };
+            let base = row([
+                button("base").message(DemoMessage::Activate).width(60.0),
+                text(status).id(93).width(80.0),
+            ])
+            .height(24.0);
+            dismissible_overlay_with_interactive_base(
+                base,
+                floating_layer_with_input(
+                    Point::new(80.0, 0.0),
+                    Vector2::new(40.0, 24.0),
+                    button("menu").message(DemoMessage::Activate).fill(),
+                    true,
+                ),
+                DemoMessage::Dismiss,
+            )
+        })
+        .update(|state, message| match message {
+            DemoMessage::Activate => state.activated = true,
+            DemoMessage::Dismiss => state.dismissed = true,
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 60.0));
+
+    runtime.dispatch_primary_click(Point::new(12.0, 8.0));
+
+    assert_eq!(
+        runtime
+            .surface()
+            .find_widget(93)
+            .and_then(|widget| widget.widget_object().as_any().downcast_ref::<TextWidget>())
+            .map(|widget| widget.text.as_str()),
+        Some("activated")
+    );
+}
+
+#[test]
+fn dismissible_overlay_with_interactive_base_dismisses_noninteractive_base_space() {
+    let bridge = app(DemoState::default())
+        .view(|state| {
+            let status = if state.dismissed { "dismissed" } else { "open" };
+            let base = row([
+                button("base").message(DemoMessage::Activate).width(60.0),
+                text(status).id(94).width(80.0),
+            ])
+            .height(24.0);
+            dismissible_overlay_with_interactive_base(
+                base,
+                floating_layer_with_input(
+                    Point::new(80.0, 0.0),
+                    Vector2::new(40.0, 24.0),
+                    button("menu").message(DemoMessage::Activate).fill(),
+                    true,
+                ),
+                DemoMessage::Dismiss,
+            )
+        })
+        .update(|state, message| match message {
+            DemoMessage::Activate => state.activated = true,
+            DemoMessage::Dismiss => state.dismissed = true,
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 60.0));
+
+    runtime.dispatch_primary_click(Point::new(150.0, 8.0));
+
+    assert_eq!(
+        runtime
+            .surface()
+            .find_widget(94)
             .and_then(|widget| widget.widget_object().as_any().downcast_ref::<TextWidget>())
             .map(|widget| widget.text.as_str()),
         Some("dismissed")

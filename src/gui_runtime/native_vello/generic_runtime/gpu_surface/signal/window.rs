@@ -55,11 +55,11 @@ impl SignalBucketWindow {
         self.bucket_count().saturating_mul(band_count.max(1))
     }
 
-    pub(super) fn buckets<'a>(
+    pub(super) fn buckets(
         self,
-        level: &'a GpuSignalSummaryLevel,
+        level: &GpuSignalSummaryLevel,
         band_count: usize,
-    ) -> &'a [GpuSignalSummaryBucket] {
+    ) -> &[GpuSignalSummaryBucket] {
         let band_count = band_count.max(1);
         let start = self.start.saturating_mul(band_count);
         let end = self.end.saturating_mul(band_count).min(level.buckets.len());

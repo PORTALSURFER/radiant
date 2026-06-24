@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    application::{IntoView, column, spacer, text},
+    application::{IntoView, LayerHorizontalAnchor, LayerVerticalAnchor, column, spacer, text},
     gui::types::Point,
     layout::Vector2,
     widgets::{DragHandleMessage, WidgetOutput, WidgetStyle, WidgetTone},
@@ -121,6 +121,26 @@ fn closeable_dialog_layer_projects_standard_dialog_panel() {
     .view_frame_at_size_with_default_theme(Vector2::new(320.0, 220.0));
 
     assert!(frame.paint_plan.contains_text("Settings"));
+    assert!(frame.paint_plan.contains_text("Body"));
+}
+
+#[test]
+fn dialog_layer_parts_anchor_standard_dialog_panel() {
+    let frame = closeable_dialog_layer_from_parts(
+        DialogLayerParts::new(
+            "Anchored",
+            text("Body"),
+            WidgetTone::Neutral,
+            Vector2::new(220.0, 120.0),
+        )
+        .horizontal(LayerHorizontalAnchor::End)
+        .vertical(LayerVerticalAnchor::End)
+        .inset(12.0, 10.0),
+        "close",
+    )
+    .view_frame_at_size_with_default_theme(Vector2::new(320.0, 220.0));
+
+    assert!(frame.paint_plan.contains_text("Anchored"));
     assert!(frame.paint_plan.contains_text("Body"));
 }
 

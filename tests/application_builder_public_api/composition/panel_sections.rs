@@ -171,11 +171,52 @@ fn dialog_layer_helpers_project_standard_dialogs() {
             ui::Vector2::new(180.0, 96.0),
             DemoMessage::Increment,
         ),
+        ui::dialog_layer_from_parts(
+            ui::DialogLayerParts::new(
+                "Anchored",
+                ui::text("Anchored dialog body"),
+                ui::WidgetTone::Accent,
+                ui::Vector2::new(180.0, 96.0),
+            )
+            .horizontal(ui::LayerHorizontalAnchor::End)
+            .vertical(ui::LayerVerticalAnchor::End)
+            .inset(8.0, 6.0),
+        ),
     ])
-    .view_frame_at_size_with_default_theme(ui::Vector2::new(240.0, 220.0));
+    .view_frame_at_size_with_default_theme(ui::Vector2::new(240.0, 340.0));
 
     assert!(frame.paint_plan.contains_text("Info"));
     assert!(frame.paint_plan.contains_text("Warning"));
+    assert!(frame.paint_plan.contains_text("Anchored"));
+}
+
+#[test]
+fn closeable_dialog_layer_parts_route_standard_close_button_message() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::closeable_dialog_layer_from_parts(
+        ui::DialogLayerParts::new(
+            "Anchored",
+            ui::text("Anchored closeable dialog body"),
+            ui::WidgetTone::Neutral,
+            ui::Vector2::new(180.0, 96.0),
+        )
+        .horizontal(ui::LayerHorizontalAnchor::End)
+        .vertical(ui::LayerVerticalAnchor::End)
+        .inset(8.0, 6.0),
+        DemoMessage::Increment,
+    )
+    .into_surface();
+    let focus_order = surface.keyboard_focus_order();
+
+    assert_eq!(focus_order.len(), 1);
+    assert_eq!(
+        surface.dispatch_widget_output(
+            focus_order[0],
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+        ),
+        Some(DemoMessage::Increment)
+    );
 }
 
 #[test]

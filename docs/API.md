@@ -2517,16 +2517,18 @@ menu is projected as a separate stack-level overlay.
 Transient dropdowns, menus, and popovers can use `dismissible_overlay(...)`
 when foreground overlay content should sit above a transparent outside-click
 dismiss layer while preserving the base content underneath. Fixed-size titled
-popovers and inspector panels can use `PanelSectionLayerParts`,
+popovers, dialogs, and inspector panels that use Radiant's standard dialog
+chrome can use `DialogLayerParts`, `dialog_layer_from_parts(...)`, or
+`closeable_dialog_layer_from_parts(...)` to keep title, content, tone, size,
+full-surface anchored placement, and optional close routing in one generic
+contract. Use `dialog_layer(...)` or `closeable_dialog_layer(...)` for the
+common centered fixed-size dialog case. Use `PanelSectionLayerParts`,
 `panel_section_layer_from_parts(...)`, or
-`closeable_panel_section_layer_from_parts(...)` to keep panel sizing and
-full-surface anchored placement in one generic contract. Use `dialog_layer(...)`
-or `closeable_dialog_layer(...)` for the common centered fixed-size dialog case
-when Radiant's standard dialog chrome is enough and the app only supplies title,
-content, tone, size, and close message. Use
+`closeable_panel_section_layer_from_parts(...)` when a fixed-size anchored
+surface needs custom panel-section parts or non-dialog chrome. Use
 `PanelSectionParts::dialog(...)` when a modal, popover, or floating utility
-panel should use Radiant's standard strong dialog chrome while the host owns
-content, size, placement, and close behavior.
+panel should use Radiant's standard strong dialog chrome inside another
+panel-section composition.
 Use `dropdown_menu_overlay_below_stacked_labeled_control(...)` when a dropdown
 trigger lives inside a compact stacked labeled-control panel and the menu should
 anchor below the current `StackedLayoutCursor` item without repeating label

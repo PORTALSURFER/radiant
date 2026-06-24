@@ -10,6 +10,76 @@ use crate::{
     widgets::WidgetTone,
 };
 
+/// Named construction fields for a fixed-size dialog panel in an anchored layer.
+pub struct DialogLayerParts<Message> {
+    /// Dialog title shown in the standard panel header.
+    pub title: String,
+    /// Main dialog content.
+    pub content: ViewNode<Message>,
+    /// Visual tone applied to Radiant's standard strong dialog chrome.
+    pub tone: WidgetTone,
+    /// Fixed foreground dialog size.
+    pub size: Vector2,
+    /// Horizontal placement policy inside the parent layer.
+    pub horizontal: LayerHorizontalAnchor,
+    /// Vertical placement policy inside the parent layer.
+    pub vertical: LayerVerticalAnchor,
+    /// Horizontal inset from the selected horizontal anchor.
+    pub inset_x: f32,
+    /// Vertical inset from the selected vertical anchor.
+    pub inset_y: f32,
+}
+
+impl<Message> DialogLayerParts<Message> {
+    /// Build anchored dialog-layer parts with Radiant's standard dialog chrome.
+    pub fn new(
+        title: impl Into<String>,
+        content: ViewNode<Message>,
+        tone: WidgetTone,
+        size: Vector2,
+    ) -> Self {
+        Self {
+            title: title.into(),
+            content,
+            tone,
+            size,
+            horizontal: LayerHorizontalAnchor::Center,
+            vertical: LayerVerticalAnchor::Center,
+            inset_x: 0.0,
+            inset_y: 0.0,
+        }
+    }
+
+    /// Set the horizontal anchor.
+    pub fn horizontal(mut self, anchor: LayerHorizontalAnchor) -> Self {
+        self.horizontal = anchor;
+        self
+    }
+
+    /// Set the vertical anchor.
+    pub fn vertical(mut self, anchor: LayerVerticalAnchor) -> Self {
+        self.vertical = anchor;
+        self
+    }
+
+    /// Set both edge insets.
+    pub fn inset(mut self, x: f32, y: f32) -> Self {
+        self.inset_x = x.max(0.0);
+        self.inset_y = y.max(0.0);
+        self
+    }
+
+    fn into_panel_layer_parts(self) -> PanelSectionLayerParts<Message> {
+        PanelSectionLayerParts::new(
+            PanelSectionParts::dialog(self.title, self.content, self.tone),
+            self.size,
+        )
+        .horizontal(self.horizontal)
+        .vertical(self.vertical)
+        .inset(self.inset_x, self.inset_y)
+    }
+}
+
 /// Named construction fields for a fixed-size panel section in an anchored layer.
 pub struct PanelSectionLayerParts<Message> {
     /// Panel-section content and chrome configuration.
@@ -88,10 +158,14 @@ pub fn dialog_layer<Message: 'static>(
     tone: WidgetTone,
     size: Vector2,
 ) -> ViewNode<Message> {
-    panel_section_layer_from_parts(PanelSectionLayerParts::new(
-        PanelSectionParts::dialog(title, content, tone),
-        size,
-    ))
+    dialog_layer_from_parts(DialogLayerParts::new(title, content, tone, size))
+}
+
+/// Build a fixed-size dialog panel in a parent-anchored layer.
+pub fn dialog_layer_from_parts<Message: 'static>(
+    parts: DialogLayerParts<Message>,
+) -> ViewNode<Message> {
+    panel_section_layer_from_parts(parts.into_panel_layer_parts())
 }
 
 /// Build a closeable fixed-size panel section in a parent-anchored layer.
@@ -131,10 +205,21 @@ pub fn closeable_dialog_layer<Message>(
 where
     Message: Clone + Send + Sync + 'static,
 {
-    closeable_panel_section_layer_from_parts(
-        PanelSectionLayerParts::new(PanelSectionParts::dialog(title, content, tone), size),
+    closeable_dialog_layer_from_parts(
+        DialogLayerParts::new(title, content, tone, size),
         close_message,
     )
+}
+
+/// Build a closeable fixed-size dialog panel in a parent-anchored layer.
+pub fn closeable_dialog_layer_from_parts<Message>(
+    parts: DialogLayerParts<Message>,
+    close_message: Message,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    closeable_panel_section_layer_from_parts(parts.into_panel_layer_parts(), close_message)
 }
 
 fn panel_section_layer<Message: 'static>(

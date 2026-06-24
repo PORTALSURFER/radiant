@@ -30,10 +30,13 @@ impl TreeRowBuilder {
         let depth = self.depth;
         let guide_metrics = self.guide_metrics;
         let row_key = self.row_key.clone();
-        let hit_key = self
-            .hit_key
-            .clone()
-            .or_else(|| row_key.as_ref().map(|key| format!("{key}-hit")));
+        let hit_key = if self.input_id.is_none() {
+            self.hit_key
+                .clone()
+                .or_else(|| row_key.as_ref().map(|key| format!("{key}-hit")))
+        } else {
+            None
+        };
         let expander = self.expander(toggle);
         let mut hit_target = self.hit_target(actions).fill_width().height(row_height);
         if let Some(hit_key) = hit_key {

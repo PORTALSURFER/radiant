@@ -642,10 +642,15 @@ hover-drop slots directly for row shapes such as tokens, selectable drag rows,
 tree rows, outline rows, layers, folders, collections, or lanes.
 Use `tree_row(label)` when a compact tree or outline row only needs a label,
 depth, disclosure slot, selected state, standard dense-row chrome, and common
-`InteractiveRowActions` routing. Call `.style(WidgetStyle::...)` when the row's
-palette and drop-target outline should resolve from the active `ThemeTokens` at
-paint time; keep `.palette(...)` and `.drop_target_outline(...)` for fixed-color
-overrides. Configure `TreeRowDragDropState` for host-owned drag/drop validation
+`InteractiveRowActions` routing. Use `.stable_row_identity(scope, row_key)` when
+one durable row key should identify both the composed row subtree and retained
+hit target. Keep `.row_key(...)`, `.input_id(...)`, `.stable_input_id(...)`,
+`.stable_u64_input_id(...)`, or `.hit_key(...)` for deliberately split identity
+contracts or externally reserved widget IDs. Call `.style(WidgetStyle::...)`
+when the row's palette and drop-target outline should resolve from the active
+`ThemeTokens` at paint time; keep `.palette(...)` and
+`.drop_target_outline(...)` for fixed-color overrides. Configure
+`TreeRowDragDropState` for host-owned drag/drop validation
 and pair the rows with
 `virtual_tree_list_window(...)` when the surrounding list needs virtualization
 and descendant guide overlays. Keep `EmbeddedInteractiveRowWidget` for unusual

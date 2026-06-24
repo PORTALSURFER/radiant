@@ -8,7 +8,7 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         InteractiveRowActions, PointerButton, PointerModifiers, Widget, WidgetInput, WidgetStyle,
-        WidgetTone,
+        WidgetTone, stable_widget_id,
     },
 };
 
@@ -50,6 +50,51 @@ fn tree_row_routes_interactive_actions() {
     assert_eq!(
         output.and_then(|output| output.typed_cloned::<TreeRowMessage>()),
         Some(TreeRowMessage::Activate)
+    );
+}
+
+#[test]
+fn tree_row_stable_row_identity_keys_row_and_hit_target() {
+    let row_key = "folder-row-source-a";
+    fn keyed_row(row_key: &'static str) -> crate::application::ViewNode<TreeRowMessage> {
+        tree_row("Folder")
+            .stable_row_identity(42, row_key)
+            .interactive_actions(InteractiveRowActions::new().activate(|| TreeRowMessage::Activate))
+    }
+    let input_id = stable_widget_id(42, row_key);
+    let mut surface = keyed_row(row_key).into_surface();
+    let bounds = Rect::from_size(160.0, 22.0);
+    let position = Point::new(8.0, 10.0);
+
+    surface.dispatch_widget_input(
+        input_id,
+        bounds,
+        WidgetInput::PointerPress {
+            position,
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+        },
+    );
+    let output = surface.dispatch_widget_input(
+        input_id,
+        bounds,
+        WidgetInput::PointerRelease {
+            position,
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+        },
+    );
+
+    assert_eq!(
+        output.and_then(|output| output.typed_cloned::<TreeRowMessage>()),
+        Some(TreeRowMessage::Activate)
+    );
+    let layout = keyed_row(row_key).view_layout_at_size(Vector2::new(160.0, 22.0));
+    let root_id = crate::application::scoped_key_id(crate::application::ROOT_KEY_SCOPE, row_key);
+
+    assert!(
+        layout.rects.contains_key(&root_id),
+        "stable tree row identity should key the composed row subtree"
     );
 }
 

@@ -109,18 +109,21 @@ impl TreeRowBuilder {
     /// Set a stable widget id for the interactive hit target.
     pub fn input_id(mut self, id: WidgetId) -> Self {
         self.input_id = Some(id);
+        self.hit_key = None;
         self
     }
 
     /// Derive a stable hit-target id from a text key.
     pub fn stable_input_id(mut self, scope: u64, key: impl AsRef<str>) -> Self {
         self.input_id = Some(stable_widget_id(scope, key));
+        self.hit_key = None;
         self
     }
 
     /// Derive a stable hit-target id from a numeric key.
     pub fn stable_u64_input_id(mut self, scope: u64, key: u64) -> Self {
         self.input_id = Some(stable_widget_id_u64(scope, key));
+        self.hit_key = None;
         self
     }
 
@@ -130,9 +133,24 @@ impl TreeRowBuilder {
         self
     }
 
+    /// Assign one stable row key to the composed row and its hit target.
+    ///
+    /// Use this for dynamic tree rows whose outer view subtree and retained
+    /// hit-target widget should follow the same caller-owned row identity.
+    /// Prefer [`Self::row_key`] plus [`Self::input_id`] or [`Self::hit_key`]
+    /// only when those identities deliberately differ.
+    pub fn stable_row_identity(mut self, input_scope: u64, row_key: impl Into<String>) -> Self {
+        let row_key = row_key.into();
+        self.input_id = Some(stable_widget_id(input_scope, row_key.as_str()));
+        self.row_key = Some(row_key);
+        self.hit_key = None;
+        self
+    }
+
     /// Override the stable key used for the interactive hit target.
     pub fn hit_key(mut self, key: impl Into<String>) -> Self {
         self.hit_key = Some(key.into());
+        self.input_id = None;
         self
     }
 

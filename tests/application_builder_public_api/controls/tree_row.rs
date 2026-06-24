@@ -16,15 +16,16 @@ fn tree_row_builder_is_available_from_prelude() {
             drop_target: true,
             ..ui::TreeRowDragDropState::new()
         })
-        .input_id(55)
+        .stable_row_identity(55, "folder-row")
         .interactive_actions(ui::InteractiveRowActions::new().activate(|| TreeMessage::Activate));
+    let input_id = ui::stable_widget_id(55, "folder-row");
 
     let mut surface = view.into_surface();
     let bounds = ui::Rect::from_size(180.0, 22.0);
     let position = ui::Point::new(20.0, 10.0);
 
     surface.dispatch_widget_input(
-        55,
+        input_id,
         bounds,
         ui::WidgetInput::PointerPress {
             position,
@@ -33,7 +34,7 @@ fn tree_row_builder_is_available_from_prelude() {
         },
     );
     let output = surface.dispatch_widget_input(
-        55,
+        input_id,
         bounds,
         ui::WidgetInput::PointerRelease {
             position,

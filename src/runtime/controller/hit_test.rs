@@ -36,15 +36,14 @@ where
             .copied()
             .find(|widget_id| {
                 self.widget_contains_point(*widget_id, point)
-                    && self
-                        .surface_widget(*widget_id)
-                        .is_some_and(|widget| widget.accepts_pointer_input(input))
+                    && self.widget_accepts_pointer_input(*widget_id, input)
             })
     }
 
     pub(super) fn pointer_widget_at_for_move(&self, point: Point) -> Option<WidgetId> {
-        self.stable_hovered_widget_at(point)
-            .or_else(|| self.widget_at(point))
+        let input = WidgetInput::PointerMove { position: point };
+        self.stable_hovered_widget_at(point, &input)
+            .or_else(|| self.widget_at_for_input(point, &input))
     }
 
     /// Return the cursor requested by the active pointer target at `point`.
@@ -119,6 +118,15 @@ where
             .is_some_and(SurfaceWidget::accepts_pointer_move)
     }
 
+    pub(super) fn widget_accepts_pointer_input(
+        &self,
+        widget_id: WidgetId,
+        input: &WidgetInput,
+    ) -> bool {
+        self.surface_widget(widget_id)
+            .is_some_and(|widget| widget.accepts_pointer_input(input))
+    }
+
     pub(super) fn widget_allows_captured_pointer_pass_through(&self, widget_id: WidgetId) -> bool {
         self.widget_pointer_capture_policy(widget_id) == PointerCapturePolicy::PassThrough
     }
@@ -137,7 +145,7 @@ where
             .is_some_and(SurfaceWidget::prefers_pointer_move_paint_only)
     }
 
-    fn stable_hovered_widget_at(&self, point: Point) -> Option<WidgetId> {
+    fn stable_hovered_widget_at(&self, point: Point, input: &WidgetInput) -> Option<WidgetId> {
         let hovered = self.interaction.hover.widget?;
         if !self.widget_contains_point(hovered, point) {
             return None;
@@ -149,8 +157,14 @@ where
             .iter()
             .rev()
             .copied()
-            .find(|widget_id| self.widget_contains_point(*widget_id, point))
-            .or(Some(hovered))
+            .find(|widget_id| {
+                self.widget_contains_point(*widget_id, point)
+                    && self.widget_accepts_pointer_input(*widget_id, input)
+            })
+            .or_else(|| {
+                self.widget_accepts_pointer_input(hovered, input)
+                    .then_some(hovered)
+            })
     }
 
     pub(in crate::runtime::controller) fn widget_contains_point(

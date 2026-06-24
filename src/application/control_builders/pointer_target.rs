@@ -184,9 +184,9 @@ mod tests {
                 button("Base")
                     .message(Message::Base)
                     .fill()
-                    .pointer_target(drop_target())
-                    .pointer_target(release_target())
                     .pointer_target(move_target())
+                    .pointer_target(release_target())
+                    .pointer_target(drop_target())
                     .into_surface()
             },
             |state, message| state.push(message),
@@ -194,7 +194,7 @@ mod tests {
         let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 40.0));
         let position = Point::new(8.0, 8.0);
 
-        runtime.dispatch_input_at(position, WidgetInput::pointer_move(position));
+        runtime.dispatch_pointer_move_with_outcome(position);
         runtime.dispatch_input_at(position, WidgetInput::primary_release(position));
         runtime.dispatch_input_at(position, WidgetInput::primary_drop(position));
 

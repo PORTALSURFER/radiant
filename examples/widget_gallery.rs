@@ -70,6 +70,9 @@ fn project_surface(state: &mut GalleryState) -> View<GalleryMessage> {
                             .message(GalleryMessage::SetSelected),
                         selectable("Armed", state.armed)
                             .subtle()
+                            .color_marker(Some(Rgba8::new(255, 178, 76, 230)))
+                            .color_marker_side(8)
+                            .color_marker_align(ColorMarkerAlign::Left)
                             .message(GalleryMessage::SetArmed),
                     ])
                     .spacing(8.0),

@@ -764,6 +764,45 @@ fn color_marker_paints_right_aligned_square() {
 }
 
 #[test]
+fn selectable_paints_configured_color_marker_without_overlapping_label() {
+    let color = radiant::gui::types::Rgba8::new(30, 140, 90, 220);
+    let widget = SelectableWidget::new(
+        44,
+        "Choice",
+        true,
+        WidgetSizing::fixed(Vector2::new(80.0, 20.0)),
+    )
+    .with_color_marker_props(
+        ColorMarkerProps::new(Some(color))
+            .side(6)
+            .inset(2)
+            .align(ColorMarkerAlign::Right),
+    );
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 20.0));
+    let mut primitives = Vec::new();
+
+    widget.append_paint(
+        &mut primitives,
+        bounds,
+        &Default::default(),
+        &Default::default(),
+    );
+
+    assert!(primitives.iter().any(|primitive| matches!(
+        primitive,
+        radiant::runtime::PaintPrimitive::FillRect(fill)
+            if fill.color == color
+                && fill.rect
+                    == Rect::from_min_max(Point::new(72.0, 7.0), Point::new(78.0, 13.0))
+    )));
+    assert!(primitives.iter().any(|primitive| matches!(
+        primitive,
+        radiant::runtime::PaintPrimitive::Text(text)
+            if text.text.as_str() == "Choice" && text.rect.max.x == 68.0
+    )));
+}
+
+#[test]
 fn drag_handle_emits_captured_drag_lifecycle() {
     let mut handle = DragHandleWidget::new(12, WidgetSizing::fixed(Vector2::new(24.0, 24.0)));
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(24.0, 24.0));

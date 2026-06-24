@@ -1,12 +1,12 @@
 //! Reusable selectable surface primitive.
 
 use crate::gui::automation::AutomationRole;
-use crate::gui::types::Rect;
+use crate::gui::types::{Rect, Rgba8};
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, PaintText};
 use crate::theme::ThemeTokens;
 
-use super::support::WidgetCommon;
+use super::{ColorMarkerProps, support::WidgetCommon};
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{SelectableMessage, WidgetInput, WidgetOutput};
 
@@ -47,7 +47,10 @@ impl SelectableWidget {
         common.state.selected = parts.selected;
         Self {
             common,
-            props: SelectableProps { label: parts.label },
+            props: SelectableProps {
+                label: parts.label,
+                color_marker: None,
+            },
         }
     }
 
@@ -69,6 +72,18 @@ impl SelectableWidget {
     /// Route one backend-neutral interaction into the selectable.
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<SelectableMessage> {
         input::handle_selectable_input(self, bounds, input)
+    }
+
+    /// Paint an optional passive color marker inside this selectable.
+    pub fn with_color_marker(mut self, color: Option<Rgba8>) -> Self {
+        self.props.color_marker = Some(ColorMarkerProps::new(color));
+        self
+    }
+
+    /// Paint an optional passive color marker with explicit marker geometry.
+    pub fn with_color_marker_props(mut self, props: ColorMarkerProps) -> Self {
+        self.props.color_marker = Some(props);
+        self
     }
 }
 

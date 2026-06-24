@@ -2,8 +2,8 @@ use super::super::*;
 use radiant::widgets::{
     BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerRunWidget,
     ColorMarkerWidget, DragHandleMessage, FeedbackOverlayWidget, FocusBehavior, IconButtonWidget,
-    MarkerRunWidget, PaintBounds, SliderMessage, SliderWidget, TextInputWidget, TextWidget,
-    ToggleWidget, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
+    MarkerRunWidget, PaintBounds, SelectableWidget, SliderMessage, SliderWidget, TextInputWidget,
+    TextWidget, ToggleWidget, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
 };
 
 #[test]
@@ -258,6 +258,41 @@ fn color_marker_is_prelude_accessible_and_passive() {
         surface.dispatch_widget_output(23, WidgetOutput::typed(())),
         None
     );
+}
+
+#[test]
+fn selectable_builder_supports_color_marker_adornment() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let color = ui::Rgba8::new(20, 120, 80, 255);
+    let surface: UiSurface<()> = ui::selectable("Ready", true)
+        .color_marker(Some(color))
+        .color_marker_side(6)
+        .color_marker_inset(2)
+        .color_marker_align(ui::ColorMarkerAlign::Left)
+        .message(|_| ())
+        .id(28)
+        .into_surface();
+
+    let selectable = widget_ref::<SelectableWidget, _>(&surface, 28, "selectable");
+    let marker = selectable.props.color_marker.expect("selectable marker");
+    assert_eq!(marker.color, Some(color));
+    assert_eq!(marker.side, 6);
+    assert_eq!(marker.inset, 2);
+    assert_eq!(marker.align, ui::ColorMarkerAlign::Left);
+
+    let ordered_surface: UiSurface<()> = ui::selectable("Queued", false)
+        .color_marker_side(7)
+        .color_marker_inset(1)
+        .color_marker(Some(color))
+        .message(|_| ())
+        .id(29)
+        .into_surface();
+    let ordered = widget_ref::<SelectableWidget, _>(&ordered_surface, 29, "selectable");
+    let ordered_marker = ordered.props.color_marker.expect("selectable marker");
+    assert_eq!(ordered_marker.color, Some(color));
+    assert_eq!(ordered_marker.side, 7);
+    assert_eq!(ordered_marker.inset, 1);
 }
 
 #[test]

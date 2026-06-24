@@ -63,6 +63,29 @@ impl ColorMarkerProps {
             align: ColorMarkerAlign::Right,
         }
     }
+
+    /// Set the preferred marker side length.
+    pub fn side(mut self, side: u8) -> Self {
+        self.side = side;
+        self
+    }
+
+    /// Set the horizontal edge inset.
+    pub fn inset(mut self, inset: u8) -> Self {
+        self.inset = inset;
+        self
+    }
+
+    /// Set horizontal alignment.
+    pub fn align(mut self, align: ColorMarkerAlign) -> Self {
+        self.align = align;
+        self
+    }
+
+    /// Return the marker paint rectangle inside `bounds`.
+    pub fn rect_in(self, bounds: Rect) -> Option<Rect> {
+        marker_rect(bounds, self)
+    }
 }
 
 impl ColorMarkerWidget {
@@ -134,7 +157,7 @@ impl Widget for ColorMarkerWidget {
         let Some(color) = self.props.color else {
             return;
         };
-        let Some(rect) = marker_rect(bounds, self.props) else {
+        let Some(rect) = self.props.rect_in(bounds) else {
             return;
         };
         primitives.push(PaintPrimitive::FillRect(PaintFillRect {

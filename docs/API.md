@@ -945,6 +945,10 @@ and a transparent input surface should share bounds without repeating a local
 two-child stack. Use `input_underlay(content, input)` when the input surface
 should stay below visible content so it can paint hover, selection, drag, or
 drop-target feedback behind custom row contents.
+Clickable swatches, status filters, and other compact selectable options should
+use `selectable(...).color_marker(...)` with `.color_marker_side(...)`,
+`.color_marker_inset(...)`, or `.color_marker_align(...)` instead of composing a
+passive `color_marker(...)` below a selectable input surface.
 Passive visual feedback layers can use `FeedbackOverlayWidget` for background
 tints, determinate progress fills, and edge-band accents without app-local
 paint-only custom widgets.

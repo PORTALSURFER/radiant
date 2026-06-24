@@ -966,7 +966,8 @@ tints, determinate progress fills, and edge-band accents without app-local
 paint-only custom widgets.
 Status surfaces and background-job indicators can use `ProgressBarWidget` for
 theme-backed determinate or indeterminate horizontal progress, with optional
-pointer activation when the bar should open details. Use
+pointer activation when the bar should open details. Use `.passive()` for
+display-only progress bars that should paint without host output mappings. Use
 `ProgressBarBuilder::message(...)` for simple activation actions, or
 `mapped(...)` when reducers need to inspect `ProgressBarMessage` directly.
 Applications that already track work with `ProgressSnapshot` can use

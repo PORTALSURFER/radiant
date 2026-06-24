@@ -53,11 +53,25 @@ impl ProgressBarBuilder {
         self.mapped(move |_| message.clone())
     }
 
+    /// Build a display-only progress bar without host messages.
+    pub fn passive<Message: 'static>(self) -> ViewNode<Message> {
+        let (progress, style) = self.into_widget_and_style();
+        view_node_with_style(progress, style)
+    }
+
     /// Emit a mapped host message when this progress bar emits output.
     pub fn mapped<Message: 'static>(
         self,
         map: impl Fn(ProgressBarMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
+        let (progress, style) = self.into_widget_and_style();
+        view_node_with_style(
+            MappedWidget::new(progress, WidgetMessageMapper::typed(map)),
+            style,
+        )
+    }
+
+    fn into_widget_and_style(self) -> (ProgressBarWidget, Option<WidgetStyle>) {
         let mut progress = ProgressBarWidget::from_parts(ProgressBarWidgetParts {
             id: 0,
             sizing: WidgetSizing::fixed(crate::layout::Vector2::new(120.0, 10.0)),
@@ -72,11 +86,17 @@ impl ProgressBarBuilder {
         if self.activation {
             progress = progress.with_activation();
         }
-        let mut node =
-            view_node_from_widget(MappedWidget::new(progress, WidgetMessageMapper::typed(map)));
-        node.style = self.style;
-        node
+        (progress, self.style)
     }
+}
+
+fn view_node_with_style<Message>(
+    widget: impl crate::application::WidgetView<Message> + 'static,
+    style: Option<WidgetStyle>,
+) -> ViewNode<Message> {
+    let mut node = view_node_from_widget(widget);
+    node.style = style;
+    node
 }
 
 /// Build a progress bar from an explicit mode.
@@ -149,6 +169,30 @@ mod tests {
                 crate::widgets::WidgetOutput::typed(ProgressBarMessage::Activate,)
             ),
             Some("toggle")
+        );
+    }
+
+    #[test]
+    fn progress_bar_passive_paints_without_host_output_mapping() {
+        fn passive_bar() -> ViewNode<&'static str> {
+            progress_bar(ProgressBarMode::Determinate(0.5))
+                .passive::<&'static str>()
+                .id(43)
+        }
+
+        let frame = passive_bar()
+            .view_frame_at_size_with_default_theme(crate::layout::Vector2::new(120.0, 10.0));
+
+        assert!(
+            frame.paint_plan.fill_rects().count() >= 2,
+            "passive progress bars should still paint track and fill"
+        );
+        assert_eq!(
+            passive_bar().view_dispatch_widget_output(
+                43,
+                crate::widgets::WidgetOutput::typed(ProgressBarMessage::Activate,)
+            ),
+            None
         );
     }
 }

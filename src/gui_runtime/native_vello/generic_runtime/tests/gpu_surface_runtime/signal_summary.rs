@@ -27,6 +27,12 @@ fn gpu_signal_shader_uses_summary_sampling_without_looped_sample_scan() {
 }
 
 #[test]
+fn gpu_signal_shader_parses_as_wgsl() {
+    naga::front::wgsl::parse_str(super::super::super::gpu_surface::GPU_SIGNAL_SHADER)
+        .expect("signal surface shader should parse before runtime");
+}
+
+#[test]
 fn gpu_signal_shader_groups_projection_parameters() {
     let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
 

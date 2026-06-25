@@ -18,8 +18,8 @@ fn band_peak_at(query: SignalBandQuery, window: SignalSummaryWindow) -> f32 {
     if (frame < 0.0 || frame > window.frames) {
         return 0.0;
     }
-    let frame = max(frame, 0.0);
-    let source_bucket = floor(frame / max(window.bucket_frames, 1.0));
+    let source_frame = max(frame, 0.0);
+    let source_bucket = floor(source_frame / max(window.bucket_frames, 1.0));
     let bucket = u32(clamp(source_bucket - window.bucket_offset, 0.0, f32(window.bucket_count - 1u)));
     return summary_peak(bucket, query.band, query.band_count, window.bucket_count);
 }

@@ -91,6 +91,67 @@ fn surface_runtime_scroll_fixed_row_into_view_counts_partial_trailing_row() {
 }
 
 #[test]
+fn surface_runtime_scroll_fixed_row_into_view_neutral_direction_reveals_above_and_below() {
+    const ROW_HEIGHT: f32 = 24.0;
+    let surface = Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+        31,
+        SurfaceNode::column(
+            32,
+            0.0,
+            (0..30)
+                .map(|index| {
+                    SurfaceChild::new(
+                        intrinsic_slot(),
+                        SurfaceNode::text(
+                            100 + index,
+                            format!("Row {index}"),
+                            WidgetSizing::fixed(Vector2::new(180.0, ROW_HEIGHT)),
+                        ),
+                    )
+                })
+                .collect(),
+        ),
+    )));
+    let bridge = ScrollObserverBridge {
+        surface,
+        updates: 0,
+        last_update: None,
+    };
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, ROW_HEIGHT * 10.0));
+
+    runtime.execute_command(Command::scroll_to(31, Vector2::new(0.0, ROW_HEIGHT * 10.0)));
+    runtime.bridge_mut().last_update = None;
+    runtime.execute_command(Command::scroll_fixed_row_into_view(
+        31, 5, ROW_HEIGHT, 2, 2, 0,
+    ));
+    let update = runtime
+        .bridge()
+        .last_update
+        .expect("neutral fixed-row reveal should scroll upward for rows above the viewport");
+    assert_eq!(update.offset.y, ROW_HEIGHT * 3.0);
+
+    runtime.execute_command(Command::scroll_to(31, Vector2::new(0.0, 0.0)));
+    runtime.bridge_mut().last_update = None;
+    runtime.execute_command(Command::scroll_fixed_row_into_view(
+        31, 14, ROW_HEIGHT, 2, 2, 0,
+    ));
+    let update = runtime
+        .bridge()
+        .last_update
+        .expect("neutral fixed-row reveal should scroll downward for rows below the viewport");
+    assert_eq!(update.offset.y, ROW_HEIGHT * 7.0);
+
+    runtime.bridge_mut().last_update = None;
+    runtime.execute_command(Command::scroll_fixed_row_into_view(
+        31, 13, ROW_HEIGHT, 2, 2, 0,
+    ));
+    assert!(
+        runtime.bridge().last_update.is_none(),
+        "neutral fixed-row reveal should keep a row visible with enough context"
+    );
+}
+
+#[test]
 fn surface_runtime_scroll_fixed_row_into_view_does_not_drift_over_repeated_navigation() {
     const ROW_HEIGHT: f32 = 24.0;
     const ROWS: u64 = 40;

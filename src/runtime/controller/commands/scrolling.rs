@@ -80,25 +80,29 @@ where
             return None;
         }
         let visible_rows = (viewport.height().max(0.0) / row_stride).ceil().max(1.0) as usize;
+        let top_limit = row_index.saturating_sub(leading_context_rows);
+        let top_limit_y = top_limit as f32 * row_stride;
+        let bottom_limit = row_index
+            .saturating_add(trailing_context_rows)
+            .saturating_add(1)
+            .saturating_sub(visible_rows);
+        let bottom_limit_y = bottom_limit as f32 * row_stride;
         let target_offset_y = if direction < 0 {
-            let top_limit = row_index.saturating_sub(leading_context_rows);
-            let top_limit_y = top_limit as f32 * row_stride;
             if current.y > top_limit_y {
                 top_limit_y
             } else {
                 current.y
             }
         } else if direction > 0 {
-            let bottom_limit = row_index
-                .saturating_add(trailing_context_rows)
-                .saturating_add(1)
-                .saturating_sub(visible_rows);
-            let bottom_limit_y = bottom_limit as f32 * row_stride;
             if current.y < bottom_limit_y {
                 bottom_limit_y
             } else {
                 current.y
             }
+        } else if current.y > top_limit_y {
+            top_limit_y
+        } else if current.y < bottom_limit_y {
+            bottom_limit_y
         } else {
             current.y
         };

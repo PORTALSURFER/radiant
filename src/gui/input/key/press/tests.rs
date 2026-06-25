@@ -7,6 +7,7 @@ fn keypress_constructors_preserve_modifier_state() {
         KeyPress {
             key: KeyCode::G,
             command: false,
+            control: false,
             shift: false,
             alt: false,
         }
@@ -16,6 +17,17 @@ fn keypress_constructors_preserve_modifier_state() {
         KeyPress {
             key: KeyCode::G,
             command: true,
+            control: false,
+            shift: false,
+            alt: false,
+        }
+    );
+    assert_eq!(
+        KeyPress::with_control(KeyCode::G),
+        KeyPress {
+            key: KeyCode::G,
+            command: false,
+            control: true,
             shift: false,
             alt: false,
         }
@@ -25,6 +37,7 @@ fn keypress_constructors_preserve_modifier_state() {
         KeyPress {
             key: KeyCode::G,
             command: false,
+            control: false,
             shift: true,
             alt: false,
         }
@@ -34,6 +47,7 @@ fn keypress_constructors_preserve_modifier_state() {
         KeyPress {
             key: KeyCode::G,
             command: false,
+            control: false,
             shift: false,
             alt: true,
         }

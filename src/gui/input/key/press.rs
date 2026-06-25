@@ -11,6 +11,8 @@ pub struct KeyPress {
     pub key: KeyCode,
     /// Whether the platform command modifier is held.
     pub command: bool,
+    /// Whether physical Control is held separately from the platform command modifier.
+    pub control: bool,
     /// Whether Shift is held.
     pub shift: bool,
     /// Whether Alt is held.
@@ -23,6 +25,7 @@ impl KeyPress {
         Self {
             key,
             command: false,
+            control: false,
             shift: false,
             alt: false,
         }
@@ -33,6 +36,18 @@ impl KeyPress {
         Self {
             key,
             command: true,
+            control: false,
+            shift: false,
+            alt: false,
+        }
+    }
+
+    /// Build a control-modified keypress.
+    pub const fn with_control(key: KeyCode) -> Self {
+        Self {
+            key,
+            command: false,
+            control: true,
             shift: false,
             alt: false,
         }
@@ -43,6 +58,7 @@ impl KeyPress {
         Self {
             key,
             command: false,
+            control: false,
             shift: true,
             alt: false,
         }
@@ -53,6 +69,7 @@ impl KeyPress {
         Self {
             key,
             command: false,
+            control: false,
             shift: false,
             alt: true,
         }

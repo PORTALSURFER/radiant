@@ -49,15 +49,29 @@ pub(super) fn keypress_from_input(
 ) -> KeyPress {
     KeyPress {
         key,
-        command: modifiers.control_key() || modifiers.super_key(),
+        command: command_modifier_from_winit(modifiers),
+        control: control_modifier_from_winit(modifiers),
         shift: modifiers.shift_key(),
         alt: modifiers.alt_key(),
     }
 }
 
+fn command_modifier_from_winit(modifiers: winit::keyboard::ModifiersState) -> bool {
+    if cfg!(target_os = "macos") {
+        modifiers.super_key()
+    } else {
+        modifiers.control_key() || modifiers.super_key()
+    }
+}
+
+fn control_modifier_from_winit(modifiers: winit::keyboard::ModifiersState) -> bool {
+    cfg!(target_os = "macos") && modifiers.control_key()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use winit::keyboard::ModifiersState;
 
     #[test]
     fn logical_point_from_winit_rejects_nonfinite_or_overflowing_coordinates() {
@@ -73,5 +87,25 @@ mod tests {
             logical_point_from_winit(PhysicalPosition::new(f64::MAX, 20.25), DpiScale::ONE),
             None
         );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn macos_keypress_keeps_control_distinct_from_command() {
+        let command = keypress_from_input(KeyCode::Space, ModifiersState::SUPER);
+        assert!(command.command);
+        assert!(!command.control);
+
+        let control = keypress_from_input(KeyCode::Space, ModifiersState::CONTROL);
+        assert!(!control.command);
+        assert!(control.control);
+    }
+
+    #[test]
+    #[cfg(not(target_os = "macos"))]
+    fn non_macos_keypress_treats_control_as_platform_command() {
+        let control = keypress_from_input(KeyCode::Space, ModifiersState::CONTROL);
+        assert!(control.command);
+        assert!(!control.control);
     }
 }

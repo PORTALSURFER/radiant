@@ -34,6 +34,9 @@ fn shortcut_gesture_matches_explicit_and_any_shift_modifiers() {
     assert!(ShortcutGesture::any_shift(KeyCode::N).matches(KeyPress::new(KeyCode::N)));
     assert!(ShortcutGesture::any_shift(KeyCode::N).matches(KeyPress::with_shift(KeyCode::N)));
     assert!(ShortcutGesture::with_command(KeyCode::A).matches(KeyPress::with_command(KeyCode::A)));
+    assert!(ShortcutGesture::with_control(KeyCode::A).matches(KeyPress::with_control(KeyCode::A)));
+    assert!(!ShortcutGesture::with_command(KeyCode::A).matches(KeyPress::with_control(KeyCode::A)));
+    assert!(!ShortcutGesture::with_control(KeyCode::A).matches(KeyPress::with_command(KeyCode::A)));
 }
 
 #[test]

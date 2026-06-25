@@ -26,8 +26,10 @@ impl ShortcutModifier {
 pub struct ShortcutGesture {
     /// Primary key.
     pub key: KeyCode,
-    /// Command/control modifier policy.
+    /// Platform command modifier policy.
     pub command: ShortcutModifier,
+    /// Physical Control modifier policy.
+    pub control: ShortcutModifier,
     /// Shift modifier policy.
     pub shift: ShortcutModifier,
     /// Alt modifier policy.
@@ -40,16 +42,29 @@ impl ShortcutGesture {
         Self {
             key,
             command: ShortcutModifier::Off,
+            control: ShortcutModifier::Off,
             shift: ShortcutModifier::Off,
             alt: ShortcutModifier::Off,
         }
     }
 
-    /// Build an exact command/control key gesture.
+    /// Build an exact platform command key gesture.
     pub const fn with_command(key: KeyCode) -> Self {
         Self {
             key,
             command: ShortcutModifier::On,
+            control: ShortcutModifier::Off,
+            shift: ShortcutModifier::Off,
+            alt: ShortcutModifier::Off,
+        }
+    }
+
+    /// Build an exact physical Control key gesture.
+    pub const fn with_control(key: KeyCode) -> Self {
+        Self {
+            key,
+            command: ShortcutModifier::Off,
+            control: ShortcutModifier::On,
             shift: ShortcutModifier::Off,
             alt: ShortcutModifier::Off,
         }
@@ -60,6 +75,7 @@ impl ShortcutGesture {
         Self {
             key,
             command: ShortcutModifier::Off,
+            control: ShortcutModifier::Off,
             shift: ShortcutModifier::On,
             alt: ShortcutModifier::Off,
         }
@@ -70,6 +86,7 @@ impl ShortcutGesture {
         Self {
             key,
             command: ShortcutModifier::Off,
+            control: ShortcutModifier::Off,
             shift: ShortcutModifier::Off,
             alt: ShortcutModifier::On,
         }
@@ -80,6 +97,7 @@ impl ShortcutGesture {
         Self {
             key,
             command: ShortcutModifier::Off,
+            control: ShortcutModifier::Off,
             shift: ShortcutModifier::Any,
             alt: ShortcutModifier::Off,
         }
@@ -89,6 +107,7 @@ impl ShortcutGesture {
     pub fn matches(self, press: KeyPress) -> bool {
         self.key == press.key
             && self.command.matches(press.command)
+            && self.control.matches(press.control)
             && self.shift.matches(press.shift)
             && self.alt.matches(press.alt)
     }
@@ -99,6 +118,11 @@ impl From<KeyPress> for ShortcutGesture {
         Self {
             key: press.key,
             command: if press.command {
+                ShortcutModifier::On
+            } else {
+                ShortcutModifier::Off
+            },
+            control: if press.control {
                 ShortcutModifier::On
             } else {
                 ShortcutModifier::Off

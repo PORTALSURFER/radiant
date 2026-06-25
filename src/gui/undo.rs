@@ -351,6 +351,7 @@ mod tests {
             UndoRedoIntent::from_key_press(KeyPress {
                 key: KeyCode::Z,
                 command: true,
+                control: false,
                 shift: true,
                 alt: false,
             }),

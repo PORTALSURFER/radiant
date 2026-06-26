@@ -128,7 +128,8 @@ impl<Message> AuxiliaryNativeWindow<Message> {
                 self.runner.handle_route_outcome(event_loop, route.outcome);
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                let _ = self.runner.route_native_mouse_wheel(delta);
+                let route = self.runner.route_native_mouse_wheel(delta);
+                self.runner.handle_route_outcome(event_loop, route.outcome);
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 self.runner.handle_keyboard_event(event_loop, event)

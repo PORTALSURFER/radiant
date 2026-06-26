@@ -84,17 +84,15 @@ impl NativeMouseInputRoute {
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct NativeWheelRoute {
-    #[cfg(test)]
     pub(super) outcome: GenericRouteOutcome,
     #[cfg(test)]
     pub(super) diagnostic: NativePointerRouteDiagnostic,
 }
 
 impl NativeWheelRoute {
-    fn new(_outcome: GenericRouteOutcome, _diagnostic: NativePointerRouteDiagnostic) -> Self {
+    fn new(outcome: GenericRouteOutcome, _diagnostic: NativePointerRouteDiagnostic) -> Self {
         Self {
-            #[cfg(test)]
-            outcome: _outcome,
+            outcome,
             #[cfg(test)]
             diagnostic: _diagnostic,
         }

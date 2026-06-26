@@ -89,7 +89,8 @@ where
                 self.handle_route_outcome(event_loop, route.outcome);
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                let _ = self.route_native_mouse_wheel(delta);
+                let route = self.route_native_mouse_wheel(delta);
+                self.handle_route_outcome(event_loop, route.outcome);
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 self.handle_keyboard_event(event_loop, event)

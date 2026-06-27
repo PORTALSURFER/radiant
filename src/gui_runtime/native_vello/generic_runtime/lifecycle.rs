@@ -100,8 +100,15 @@ where
                 self.handle_keyboard_event(event_loop, event)
             }
             WindowEvent::ModifiersChanged(modifiers) => {
-                let routed = self.route_native_modifiers_changed(modifiers.state());
-                self.handle_route_outcome(event_loop, routed);
+                let state = modifiers.state();
+                if self.should_launch_external_drag_before_app_switch(state) {
+                    self.input.modifiers = state;
+                    let outcome = self.launch_external_drag_if_armed();
+                    self.handle_route_outcome(event_loop, outcome);
+                } else {
+                    let routed = self.route_native_modifiers_changed(state);
+                    self.handle_route_outcome(event_loop, routed);
+                }
             }
             WindowEvent::RedrawRequested => self.redraw(event_loop),
             _ => {}

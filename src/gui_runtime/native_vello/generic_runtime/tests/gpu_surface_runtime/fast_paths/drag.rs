@@ -170,6 +170,44 @@ fn focus_loss_cleans_native_pointer_state_before_external_drag_launch() {
 }
 
 #[test]
+fn macos_command_modifier_can_launch_external_drag_before_app_switch() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner
+        .core
+        .runtime
+        .execute_command(Command::begin_external_drag_without_completion(
+            ExternalDragRequest::files(
+                [std::path::PathBuf::from(r"C:\samples\kick.wav")],
+                "kick.wav",
+            ),
+        ));
+    runner
+        .core
+        .runtime
+        .execute_command(Command::begin_drag(DragRequest::new(
+            DragPreview::sized("kick.wav", Vector2::new(150.0, 24.0)),
+            Point::new(30.0, 20.0),
+        )));
+
+    assert_eq!(
+        runner
+            .should_launch_external_drag_before_app_switch(winit::keyboard::ModifiersState::SUPER),
+        cfg!(target_os = "macos"),
+        "macOS Cmd-Tab can cancel the internal drag before focus loss, so Super-down must be an early external-drag handoff"
+    );
+    runner.input.modifiers = winit::keyboard::ModifiersState::SUPER;
+    assert!(
+        !runner
+            .should_launch_external_drag_before_app_switch(winit::keyboard::ModifiersState::SUPER),
+        "holding Command should only trigger the early handoff on the first transition"
+    );
+}
+
+#[test]
 fn focus_regain_after_external_drag_reissues_coalesced_redraw() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

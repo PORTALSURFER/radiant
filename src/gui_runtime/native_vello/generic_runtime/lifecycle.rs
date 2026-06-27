@@ -61,6 +61,10 @@ where
             WindowEvent::Focused(false) => {
                 let routed = self.handle_focus_lost_before_external_drag();
                 self.handle_route_outcome(event_loop, routed);
+                if self.core.runtime.external_drag_armed() {
+                    let outcome = self.launch_external_drag_if_armed();
+                    self.handle_route_outcome(event_loop, outcome);
+                }
             }
             WindowEvent::Focused(true) => self.handle_focus_regained_after_native_modal_loop(),
             WindowEvent::CursorEntered { .. } => self.handle_cursor_entered(),

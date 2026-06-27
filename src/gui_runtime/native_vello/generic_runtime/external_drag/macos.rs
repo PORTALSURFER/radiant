@@ -16,6 +16,8 @@ type ObjcBool = i8;
 const YES: ObjcBool = 1;
 const NO: ObjcBool = 0;
 const NS_DRAG_OPERATION_COPY: usize = 1;
+const NS_LEFT_MOUSE_DOWN: usize = 1;
+const NS_LEFT_MOUSE_DRAGGED: usize = 6;
 const NS_UTF8_STRING_ENCODING: usize = 4;
 
 #[repr(C)]
@@ -64,8 +66,8 @@ pub(super) fn start_external_drag(
     }
     let _pool = AutoreleasePool::new()?;
     let app = unsafe { shared_application()? };
-    let event = unsafe { current_event(app)? };
-    let view = unsafe { key_window_content_view(app)? };
+    let (window, view) = unsafe { key_window_and_content_view(app)? };
+    let event = unsafe { external_drag_event(app, window)? };
     let items = unsafe { dragging_items(paths)? };
     let source = unsafe { dragging_source()? };
     let session = unsafe {
@@ -125,16 +127,57 @@ unsafe fn shared_application() -> Result<Id, String> {
     }
 }
 
-unsafe fn current_event(app: Id) -> Result<Id, String> {
-    let event = unsafe { msg_id(app, selector(c"currentEvent")) };
+unsafe fn external_drag_event(app: Id, window: Id) -> Result<Id, String> {
+    let event = unsafe { current_event(app) };
+    if !event.is_null() && unsafe { is_drag_start_event(event) } {
+        Ok(event)
+    } else {
+        unsafe { synthetic_left_drag_event(window) }
+    }
+}
+
+unsafe fn current_event(app: Id) -> Id {
+    unsafe { msg_id(app, selector(c"currentEvent")) }
+}
+
+unsafe fn is_drag_start_event(event: Id) -> bool {
+    matches!(
+        unsafe { msg_usize(event, selector(c"type")) },
+        NS_LEFT_MOUSE_DOWN | NS_LEFT_MOUSE_DRAGGED
+    )
+}
+
+unsafe fn synthetic_left_drag_event(window: Id) -> Result<Id, String> {
+    let point = unsafe { msg_point(window, selector(c"mouseLocationOutsideOfEventStream")) };
+    let window_number = unsafe { msg_isize(window, selector(c"windowNumber")) };
+    let event_class = unsafe { class(c"NSEvent")? };
+    let event = unsafe {
+        msg_id_usize_point_usize_f64_isize_id_isize_isize_f64(
+            event_class,
+            selector(
+                c"mouseEventWithType:location:modifierFlags:timestamp:windowNumber:context:eventNumber:clickCount:pressure:",
+            ),
+            NS_LEFT_MOUSE_DRAGGED,
+            point,
+            0,
+            0.0,
+            window_number,
+            std::ptr::null_mut(),
+            0,
+            1,
+            1.0,
+        )
+    };
     if event.is_null() {
-        Err(String::from("NSApplication currentEvent returned nil"))
+        Err(String::from(
+            "Failed to synthesize NSEvent for external drag",
+        ))
     } else {
         Ok(event)
     }
 }
 
-unsafe fn key_window_content_view(app: Id) -> Result<Id, String> {
+unsafe fn key_window_and_content_view(app: Id) -> Result<(Id, Id), String> {
     let mut window = unsafe { msg_id(app, selector(c"keyWindow")) };
     if window.is_null() {
         window = unsafe { msg_id(app, selector(c"mainWindow")) };
@@ -146,7 +189,7 @@ unsafe fn key_window_content_view(app: Id) -> Result<Id, String> {
     if view.is_null() {
         Err(String::from("NSWindow contentView returned nil"))
     } else {
-        Ok(view)
+        Ok((window, view))
     }
 }
 
@@ -376,6 +419,49 @@ unsafe fn msg_id_usize(receiver: Id, selector: Sel, arg: usize) -> Id {
     unsafe { msg(receiver, selector, arg) }
 }
 
+unsafe fn msg_id_usize_point_usize_f64_isize_id_isize_isize_f64(
+    receiver: Id,
+    selector: Sel,
+    event_type: usize,
+    location: NSPoint,
+    modifier_flags: usize,
+    timestamp: f64,
+    window_number: isize,
+    context: Id,
+    event_number: isize,
+    click_count: isize,
+    pressure: f64,
+) -> Id {
+    let msg: unsafe extern "C" fn(
+        Id,
+        Sel,
+        usize,
+        NSPoint,
+        usize,
+        f64,
+        isize,
+        Id,
+        isize,
+        isize,
+        f64,
+    ) -> Id = unsafe { std::mem::transmute(objc_msgSend as *const ()) };
+    unsafe {
+        msg(
+            receiver,
+            selector,
+            event_type,
+            location,
+            modifier_flags,
+            timestamp,
+            window_number,
+            context,
+            event_number,
+            click_count,
+            pressure,
+        )
+    }
+}
+
 unsafe fn msg_id_ptr_usize_usize(
     receiver: Id,
     selector: Sel,
@@ -404,6 +490,24 @@ unsafe fn msg_void_rect_id(receiver: Id, selector: Sel, rect: NSRect, arg: Id) {
     let msg: unsafe extern "C" fn(Id, Sel, NSRect, Id) =
         unsafe { std::mem::transmute(objc_msgSend as *const ()) };
     unsafe { msg(receiver, selector, rect, arg) }
+}
+
+unsafe fn msg_isize(receiver: Id, selector: Sel) -> isize {
+    let msg: unsafe extern "C" fn(Id, Sel) -> isize =
+        unsafe { std::mem::transmute(objc_msgSend as *const ()) };
+    unsafe { msg(receiver, selector) }
+}
+
+unsafe fn msg_point(receiver: Id, selector: Sel) -> NSPoint {
+    let msg: unsafe extern "C" fn(Id, Sel) -> NSPoint =
+        unsafe { std::mem::transmute(objc_msgSend as *const ()) };
+    unsafe { msg(receiver, selector) }
+}
+
+unsafe fn msg_usize(receiver: Id, selector: Sel) -> usize {
+    let msg: unsafe extern "C" fn(Id, Sel) -> usize =
+        unsafe { std::mem::transmute(objc_msgSend as *const ()) };
+    unsafe { msg(receiver, selector) }
 }
 
 fn path_to_string(path: &Path) -> Result<String, String> {

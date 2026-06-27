@@ -101,8 +101,14 @@ fn native_external_drag_platform_selection_stays_focused() {
         platform.contains("#[cfg(target_os = \"windows\")]")
             && platform.contains("#[path = \"windows.rs\"]")
             && platform.contains("windows::start_external_drag(request)")
-            && platform.contains("#[cfg(not(target_os = \"windows\"))]")
-            && platform.contains("External drag-out is only supported on Windows in this backend"),
+            && platform.contains("#[cfg(target_os = \"macos\")]")
+            && platform.contains("#[path = \"macos.rs\"]")
+            && platform.contains("macos::start_external_drag(request)")
+            && platform
+                .contains("#[cfg(not(any(target_os = \"windows\", target_os = \"macos\")))]")
+            && platform.contains(
+                "External drag-out is only supported on Windows and macOS in this backend"
+            ),
         "external drag platform support and fallback should stay in platform.rs"
     );
     assert!(

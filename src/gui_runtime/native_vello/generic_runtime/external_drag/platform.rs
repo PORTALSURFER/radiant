@@ -29,6 +29,6 @@ pub(super) fn start_external_drag(
     _request: &ExternalDragRequest,
 ) -> Result<ExternalDragOutcome, String> {
     Err(String::from(
-        "External drag-out is only supported on Windows in this backend",
+        "External drag-out is only supported on Windows and macOS in this backend",
     ))
 }

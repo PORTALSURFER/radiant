@@ -6,6 +6,10 @@ use crate::runtime::{ExternalDragOutcome, ExternalDragRequest};
 #[path = "windows.rs"]
 mod windows;
 
+#[cfg(target_os = "macos")]
+#[path = "macos.rs"]
+mod macos;
+
 #[cfg(target_os = "windows")]
 pub(super) fn start_external_drag(
     request: &ExternalDragRequest,
@@ -13,7 +17,14 @@ pub(super) fn start_external_drag(
     windows::start_external_drag(request)
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+pub(super) fn start_external_drag(
+    request: &ExternalDragRequest,
+) -> Result<ExternalDragOutcome, String> {
+    macos::start_external_drag(request)
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 pub(super) fn start_external_drag(
     _request: &ExternalDragRequest,
 ) -> Result<ExternalDragOutcome, String> {

@@ -6,7 +6,7 @@ use crate::runtime::{
     CommandOutcome, DevtoolsOverlayOptions, RuntimeAnimationActivity, RuntimeBridge, SurfaceRuntime,
 };
 use crate::theme::ThemeTokens;
-use crate::widgets::PointerButton;
+use crate::widgets::{PointerButton, WidgetKey};
 use std::time::Instant;
 
 pub(in crate::gui_runtime::native_vello) struct GenericNativeRuntimeCore<Bridge, Message>
@@ -174,5 +174,12 @@ where
 
     pub(in crate::gui_runtime::native_vello) fn has_focused_text_input(&self) -> bool {
         self.runtime.focused_text_input_id().is_some()
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn focused_widget_preempts_host_shortcut_key(
+        &self,
+        key: WidgetKey,
+    ) -> bool {
+        self.runtime.focused_widget_preempts_host_shortcut_key(key)
     }
 }

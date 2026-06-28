@@ -74,6 +74,15 @@ where
         })
     }
 
+    /// Return whether the focused widget asks to receive `key` before host shortcuts.
+    pub fn focused_widget_preempts_host_shortcut_key(&self, key: WidgetKey) -> bool {
+        let Some(widget_id) = self.interaction.focus.focused_widget else {
+            return false;
+        };
+        self.surface_widget(widget_id)
+            .is_some_and(|widget| widget.widget_object().preempts_host_shortcut_key(key))
+    }
+
     /// Return selected text from the focused text input as a borrowed slice, if any.
     pub fn focused_text_selection_slice(&self) -> Option<&str> {
         let widget_id = self.focused_text_input_id()?;

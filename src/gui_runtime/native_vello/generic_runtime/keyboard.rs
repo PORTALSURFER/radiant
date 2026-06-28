@@ -51,6 +51,10 @@ where
                 self.handle_route_outcome(event_loop, route_outcome);
                 return;
             }
+            if self.route_focused_widget_preempting_shortcut_key(key, &mut route_outcome) {
+                self.handle_route_outcome(event_loop, route_outcome);
+                return;
+            }
             if self.route_space_text_input(key, &mut route_outcome) {
                 self.handle_route_outcome(event_loop, route_outcome);
                 return;

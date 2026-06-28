@@ -107,6 +107,44 @@ fn surface_runtime_reports_focused_text_input_only_when_editable() {
 }
 
 #[test]
+fn surface_runtime_reports_focused_widget_shortcut_preemption_opt_in() {
+    let bridge = declarative_runtime_bridge(
+        (),
+        |_| {
+            Arc::new(UiSurface::new(SurfaceNode::row(
+                1,
+                8.0,
+                vec![
+                    SurfaceChild::fill(SurfaceNode::widget(
+                        ButtonWidget::new(
+                            11,
+                            "Button",
+                            WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    )),
+                    SurfaceChild::fill(SurfaceNode::widget(
+                        PreemptingArrowWidget::new(12),
+                        WidgetMessageMapper::none(),
+                    )),
+                ],
+            )))
+        },
+        |_, ()| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 32.0));
+
+    assert!(!runtime.focused_widget_preempts_host_shortcut_key(WidgetKey::ArrowUp));
+    assert!(runtime.focus_widget(11));
+    assert!(!runtime.focused_widget_preempts_host_shortcut_key(WidgetKey::ArrowUp));
+    assert!(runtime.focus_widget(12));
+    assert!(runtime.focused_widget_preempts_host_shortcut_key(WidgetKey::ArrowUp));
+    assert!(!runtime.focused_widget_preempts_host_shortcut_key(WidgetKey::ArrowDown));
+    runtime.clear_focus();
+    assert!(!runtime.focused_widget_preempts_host_shortcut_key(WidgetKey::ArrowUp));
+}
+
+#[test]
 fn surface_runtime_keeps_disabled_widgets_out_of_focus_order() {
     let bridge = declarative_runtime_bridge(
         DemoState::default(),
@@ -188,6 +226,49 @@ fn surface_runtime_clears_focus_when_refresh_removes_widget() {
         runtime.surface().find_widget(12).is_none(),
         "the refreshed surface should no longer contain the focused widget"
     );
+}
+
+#[derive(Clone, Debug)]
+struct PreemptingArrowWidget {
+    common: WidgetCommon,
+}
+
+impl PreemptingArrowWidget {
+    fn new(id: u64) -> Self {
+        let mut common = WidgetCommon::new(id, WidgetSizing::fixed(Vector2::new(96.0, 28.0)));
+        common.focus = radiant::widgets::FocusBehavior::Keyboard;
+        Self { common }
+    }
+}
+
+impl Widget for PreemptingArrowWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        if let WidgetInput::FocusChanged(focused) = input {
+            self.common.state.focused = focused;
+        }
+        None
+    }
+
+    fn preempts_host_shortcut_key(&self, key: WidgetKey) -> bool {
+        matches!(key, WidgetKey::ArrowUp) && self.common.state.focused
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &radiant::layout::LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
 }
 
 fn text_input_runtime(

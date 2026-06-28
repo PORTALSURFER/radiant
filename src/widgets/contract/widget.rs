@@ -8,7 +8,7 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         FocusBehavior,
-        interaction::{WidgetCursor, WidgetInput, WidgetOutput},
+        interaction::{WidgetCursor, WidgetInput, WidgetKey, WidgetOutput},
         primitives::{TextAlign, TextBackgroundRole, TextColorRole, TextWrap, WidgetCommon},
     },
 };
@@ -88,6 +88,16 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
 
     /// Return whether this widget accepts text-editing input while focused.
     fn accepts_text_input(&self) -> bool {
+        false
+    }
+
+    /// Return whether this focused widget explicitly owns a key before host shortcuts.
+    ///
+    /// Use this sparingly for widgets whose focused editing contract depends on
+    /// a key that the host also uses globally. Returning `true` does not route
+    /// the key by itself; it lets the native backend give the focused widget
+    /// first refusal before resolving host-level shortcuts.
+    fn preempts_host_shortcut_key(&self, _key: WidgetKey) -> bool {
         false
     }
 

@@ -85,6 +85,31 @@ where
         }
     }
 
+    pub(super) fn route_focused_widget_preempting_shortcut_key(
+        &mut self,
+        key: KeyCode,
+        route_outcome: &mut GenericRouteOutcome,
+    ) -> bool {
+        if self.input.modifiers.control_key()
+            || self.input.modifiers.super_key()
+            || self.input.modifiers.alt_key()
+        {
+            return false;
+        }
+        let Some(widget_key) = WidgetKey::from_key_code(key) else {
+            return false;
+        };
+        if !self
+            .core
+            .focused_widget_preempts_host_shortcut_key(widget_key)
+        {
+            return false;
+        }
+        let outcome = self.core.route_widget_key(widget_key);
+        route_outcome.merge(outcome);
+        outcome.routed
+    }
+
     pub(in crate::gui_runtime::native_vello::generic_runtime) fn route_focused_text_input_before_shortcuts(
         &mut self,
         key: KeyCode,

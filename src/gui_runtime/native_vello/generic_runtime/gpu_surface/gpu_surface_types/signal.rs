@@ -66,6 +66,7 @@ mod tests {
             height: 32,
             frame_start_bits: 0.0f32.to_bits(),
             frame_end_bits: 1.0f32.to_bits(),
+            sample_slide_frame_offset: 0,
             frames: 128,
             band_count: 2,
             sample_count: 256,

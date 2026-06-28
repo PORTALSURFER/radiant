@@ -32,6 +32,7 @@ fn signal_uniforms_group_shape_level_and_gain_preview() {
         frames: shape.frames,
         band_count: shape.band_count,
         frame_range: shape.frame_range,
+        sample_slide_frame_offset: 12,
         sample_count: bucket_window.sample_count(shape.band_count),
         level_index: 1,
         gain_preview: None,
@@ -45,6 +46,7 @@ fn signal_uniforms_group_shape_level_and_gain_preview() {
             levels: vec![level.clone()],
         }),
         gain_preview: None,
+        sample_slide_frame_offset: 12,
     };
     let selected = SelectedSignalLevel {
         index: 1,
@@ -56,6 +58,7 @@ fn signal_uniforms_group_shape_level_and_gain_preview() {
 
     assert_eq!(uniforms.dest, [0.0, 0.0, 96.0, 48.0]);
     assert_eq!(uniforms.frame_range, [16.0, 80.0, 128.0, 2.0]);
+    assert_eq!(uniforms.slide_preview, [12.0, 0.0, 0.0, 0.0]);
     assert_eq!(uniforms.summary_meta, [4.0, 3.0, 1.0, 1.0]);
     assert_eq!(uniforms.gain_preview_a, [0.0; 4]);
 }

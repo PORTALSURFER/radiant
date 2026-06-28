@@ -21,6 +21,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Gp
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct SignalUniforms {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) dest: [f32; 4],
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) frame_range: [f32; 4],
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) slide_preview: [f32; 4],
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) summary_meta: [f32; 4],
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) gain_preview_a: [f32; 4],
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) gain_preview_b: [f32; 4],

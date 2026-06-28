@@ -41,6 +41,7 @@ fn gpu_surface_content_validation_reports_summary_shape_errors() {
         frame_range: [0.0, 2.0],
         summary,
         gain_preview: None,
+        sample_slide_frame_offset: 0,
     };
 
     assert_eq!(
@@ -69,6 +70,7 @@ fn gpu_surface_content_validation_rejects_zero_band_summary_before_level_checks(
             }],
         }),
         gain_preview: None,
+        sample_slide_frame_offset: 0,
     };
 
     assert_eq!(
@@ -103,6 +105,7 @@ fn gpu_surface_content_validation_rejects_non_finite_gain_preview() {
         frame_range: [0.0, 2.0],
         summary,
         gain_preview: Some(preview),
+        sample_slide_frame_offset: 0,
     };
 
     match content.validate() {

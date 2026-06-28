@@ -14,7 +14,12 @@ fn band_query(x: f32, band: u32, band_count: u32) -> SignalBandQuery {
 
 fn band_peak_at(query: SignalBandQuery, window: SignalSummaryWindow) -> f32 {
     let center = clamp(query.x, 0.0, 1.0);
-    let frame = window.start + window.visible * center;
+    let visual_frame = window.start + window.visible * center;
+    let slide_offset = params.slide_preview.x;
+    var frame = visual_frame - slide_offset;
+    if (slide_offset != 0.0 && window.frames > 1.0) {
+        frame = frame - floor(frame / window.frames) * window.frames;
+    }
     if (frame < 0.0 || frame > window.frames) {
         return 0.0;
     }

@@ -18,6 +18,7 @@ pub(super) fn signal_uniforms(
             source.shape.frames as f32,
             source.shape.band_count as f32,
         ],
+        slide_preview: [source.sample_slide_frame_offset as f32, 0.0, 0.0, 0.0],
         summary_meta: [
             selected.level.bucket_frames as f32,
             selected.bucket_window.bucket_count() as f32,
@@ -38,6 +39,16 @@ pub(super) fn signal_gain_preview(content: &GpuSurfaceContent) -> Option<GpuSign
     match content {
         GpuSurfaceContent::SignalSummaryBands { gain_preview, .. } => *gain_preview,
         _ => None,
+    }
+}
+
+pub(super) fn signal_sample_slide_frame_offset(content: &GpuSurfaceContent) -> i64 {
+    match content {
+        GpuSurfaceContent::SignalSummaryBands {
+            sample_slide_frame_offset,
+            ..
+        } => *sample_slide_frame_offset,
+        _ => 0,
     }
 }
 

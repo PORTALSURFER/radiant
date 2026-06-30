@@ -82,9 +82,9 @@ pub use engine::{
     VirtualWindowInfo, layout_tree, layout_tree_with_state,
 };
 pub use model::{
-    ContainerKind, ContainerPolicy, CrossAlign, FloatingLayerPolicy, GridPolicy, Insets, MainAlign,
-    OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams, SwitchBreakpoint, VirtualizationAxis,
-    VirtualizationPolicy, WrapPolicy,
+    ContainerKind, ContainerPolicy, CrossAlign, FloatingLayerPolicy, FloatingLayerVerticalOverflow,
+    GridPolicy, Insets, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams,
+    SwitchBreakpoint, VirtualizationAxis, VirtualizationPolicy, WrapPolicy,
 };
 pub use row_helpers::{
     StackedLayoutCursor, StackedLayoutItem, StackedRowRectsParts, fixed_width_group_width,

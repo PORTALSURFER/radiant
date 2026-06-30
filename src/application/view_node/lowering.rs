@@ -245,9 +245,17 @@ impl<'a> ViewLowering<'a> {
                 size,
                 child,
                 interactive,
+                vertical_overflow,
             } => {
                 let child = self.lower_node(*child, child_scope);
-                SurfaceNode::floating_layer(id, offset, size, child, interactive)
+                SurfaceNode::floating_layer_with_vertical_overflow(
+                    id,
+                    offset,
+                    size,
+                    child,
+                    interactive,
+                    vertical_overflow,
+                )
             }
         };
         let lowered = if accepts_native_file_drop {

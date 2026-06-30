@@ -1,7 +1,10 @@
 use crate::{
-    application::{ViewNode, button, column, dismiss_layer, row, stack, text},
+    application::{
+        ViewNode, button, column, dismiss_layer, floating_layer_with_input_and_vertical_overflow,
+        stack, text,
+    },
     gui::types::Point,
-    layout::Vector2,
+    layout::{FloatingLayerVerticalOverflow, Vector2},
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 
@@ -236,25 +239,20 @@ pub fn message_context_menu_overlay_from_parts<Message>(
 where
     Message: Clone + Send + Sync + 'static,
 {
-    let top = parts.anchor.y.max(0.0);
-    let left = parts.anchor.x.max(0.0);
-    column([
-        text("").fill_width().height(top),
-        row([
-            text("").size(left, 1.0),
-            message_menu_from_parts(MessageMenuParts {
-                title: parts.title,
-                style: parts.style,
-                commands: parts.commands,
-            })
-            .width(parts.size.x)
-            .height(parts.size.y),
-            text("").fill_width().height(1.0),
-        ])
-        .fill_width()
+    let anchor = Point::new(parts.anchor.x.max(0.0), parts.anchor.y.max(0.0));
+    floating_layer_with_input_and_vertical_overflow(
+        anchor,
+        parts.size,
+        message_menu_from_parts(MessageMenuParts {
+            title: parts.title,
+            style: parts.style,
+            commands: parts.commands,
+        })
+        .width(parts.size.x)
         .height(parts.size.y),
-        text("").fill_width().fill_height(),
-    ])
+        true,
+        FloatingLayerVerticalOverflow::FlipUpWhenClipped,
+    )
     .fill()
 }
 

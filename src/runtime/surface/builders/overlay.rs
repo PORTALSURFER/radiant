@@ -3,7 +3,10 @@ use super::super::{
 };
 use crate::{
     gui::types::{Point, Rect, Vector2},
-    layout::{ContainerKind, ContainerPolicy, FloatingLayerPolicy, NodeId, SlotParams},
+    layout::{
+        ContainerKind, ContainerPolicy, FloatingLayerPolicy, FloatingLayerVerticalOverflow, NodeId,
+        SlotParams,
+    },
     runtime::PaintText,
     widgets::WidgetStyle,
 };
@@ -42,9 +45,32 @@ impl<Message> SurfaceNode<Message> {
         child: SurfaceNode<Message>,
         interactive: bool,
     ) -> Self {
+        Self::floating_layer_with_vertical_overflow(
+            id,
+            offset,
+            size,
+            child,
+            interactive,
+            FloatingLayerVerticalOverflow::Fixed,
+        )
+    }
+
+    /// Build a floating child tree with vertical overflow placement policy.
+    pub fn floating_layer_with_vertical_overflow(
+        id: NodeId,
+        offset: Point,
+        size: Vector2,
+        child: SurfaceNode<Message>,
+        interactive: bool,
+        vertical_overflow: FloatingLayerVerticalOverflow,
+    ) -> Self {
         let policy = ContainerPolicy {
             kind: ContainerKind::FloatingLayer,
-            floating: FloatingLayerPolicy { offset, size },
+            floating: FloatingLayerPolicy {
+                offset,
+                size,
+                vertical_overflow,
+            },
             ..ContainerPolicy::default()
         };
         Self::FloatingLayer(SurfaceFloatingLayer {

@@ -9,6 +9,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) frames: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) band_count: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) frame_range: [f32; 2],
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) sample_slide_frame_offset:
+        i64,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) sample_count: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) level_index: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) gain_preview:
@@ -48,6 +50,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Si
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) height: u32,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) frame_start_bits: u32,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) frame_end_bits: u32,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) sample_slide_frame_offset:
+        i64,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) frames: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) band_count: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) sample_count: usize,
@@ -67,6 +71,7 @@ impl SignalBodyCacheKey {
             height: parts.extent.height,
             frame_start_bits: parts.frame_range[0].to_bits(),
             frame_end_bits: parts.frame_range[1].to_bits(),
+            sample_slide_frame_offset: parts.sample_slide_frame_offset,
             frames: parts.frames,
             band_count: parts.band_count,
             sample_count: parts.sample_count,

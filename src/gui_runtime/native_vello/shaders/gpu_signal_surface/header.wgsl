@@ -1,6 +1,7 @@
 struct Params {
     dest: vec4<f32>,
     frame_range: vec4<f32>,
+    slide_preview: vec4<f32>,
     summary_meta: vec4<f32>,
     gain_preview_a: vec4<f32>,
     gain_preview_b: vec4<f32>,

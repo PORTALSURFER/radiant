@@ -128,6 +128,7 @@ impl Widget for WaveformWidget {
                 frame_range: [self.viewport.start as f32, self.viewport.end as f32],
                 summary: Arc::clone(&self.source.gpu_signal_summary),
                 gain_preview: None,
+                sample_slide_frame_offset: 0,
             },
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,

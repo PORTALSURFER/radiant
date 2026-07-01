@@ -34,7 +34,7 @@ mod tests {
         let signal = SignalUniforms::default();
 
         assert_eq!(std::mem::size_of::<GpuSurfaceUniforms>(), 240);
-        assert_eq!(std::mem::size_of::<SignalUniforms>(), 128);
+        assert_eq!(std::mem::size_of::<SignalUniforms>(), 144);
         assert_eq!(
             uniforms_as_bytes(&surface).len(),
             std::mem::size_of::<GpuSurfaceUniforms>()

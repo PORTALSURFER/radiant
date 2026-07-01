@@ -55,6 +55,7 @@ fn signal_summary_payload_must_match_declared_shape() {
         frame_range: [0.0, 2.0],
         summary,
         gain_preview: None,
+        sample_slide_frame_offset: 0,
     };
 
     assert!(!content.is_renderable());

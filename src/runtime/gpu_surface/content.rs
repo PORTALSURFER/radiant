@@ -50,6 +50,9 @@ pub enum GpuSurfaceContent {
         summary: Arc<GpuSignalSummary>,
         /// Optional gain envelope preview applied by the GPU renderer.
         gain_preview: Option<GpuSignalGainPreview>,
+        /// Optional circular frame offset preview. Positive offsets move signal
+        /// content later in the visible timeline and wrap around source bounds.
+        sample_slide_frame_offset: i64,
     },
     /// Opaque custom shader payload routed through the normal GPU-surface path.
     CustomShader {
@@ -84,6 +87,7 @@ impl GpuSurfaceContent {
                 frame_range,
                 summary,
                 gain_preview,
+                sample_slide_frame_offset: _,
             } => {
                 validate_signal_summary_shape(*frames, *band_count, summary)?;
                 validate_signal_gain_preview(*gain_preview)?;
@@ -128,6 +132,7 @@ impl GpuSurfaceContent {
                 frame_range,
                 summary,
                 gain_preview,
+                sample_slide_frame_offset: _,
             } => {
                 if validate_signal_summary_shape(*frames, *band_count, summary).is_err() {
                     return None;

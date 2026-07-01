@@ -16,7 +16,7 @@ use crate::runtime::{
     GpuSignalSummaryLevel, GpuSurfaceContent, PaintGpuSurface,
 };
 use std::sync::Arc;
-use uniforms::{signal_gain_preview, signal_uniforms};
+use uniforms::{signal_gain_preview, signal_sample_slide_frame_offset, signal_uniforms};
 use vello::wgpu;
 use window::{SignalBucketWindow, signal_bucket_window};
 
@@ -24,6 +24,7 @@ struct SignalRenderSource {
     shape: GpuSignalRenderShape,
     summary: Arc<GpuSignalSummary>,
     gain_preview: Option<GpuSignalGainPreview>,
+    sample_slide_frame_offset: i64,
 }
 
 struct SignalBodyRequest<'a> {
@@ -125,10 +126,12 @@ impl GpuSurfaceRenderer {
             GpuSurfaceContent::SignalSummaryBands { summary, .. } => Arc::clone(summary),
             _ => return None,
         };
+        let sample_slide_frame_offset = signal_sample_slide_frame_offset(&surface.content);
         Some(SignalRenderSource {
             shape,
             summary,
             gain_preview: signal_gain_preview(&surface.content),
+            sample_slide_frame_offset,
         })
     }
 }
@@ -172,8 +175,11 @@ fn selected_signal_level<'a>(
         .summary
         .level_for_frames_per_pixel(visible / physical_width);
     let level = source.summary.levels.get(index)?;
-    let bucket_window =
-        signal_bucket_window(source.shape.frame_range, level, source.shape.band_count)?;
+    let bucket_window = signal_bucket_window(
+        signal_bucket_frame_range(source),
+        level,
+        source.shape.band_count,
+    )?;
     Some(SelectedSignalLevel {
         index,
         level,
@@ -189,6 +195,7 @@ fn signal_body_cache_key(request: SignalBodyKeyRequest<'_>) -> Option<SignalBody
         frames: request.source.shape.frames,
         band_count: request.source.shape.band_count,
         frame_range: request.source.shape.frame_range,
+        sample_slide_frame_offset: request.source.sample_slide_frame_offset,
         sample_count: request
             .selected
             .bucket_window
@@ -196,4 +203,21 @@ fn signal_body_cache_key(request: SignalBodyKeyRequest<'_>) -> Option<SignalBody
         level_index: request.selected.index,
         gain_preview: request.source.gain_preview,
     }))
+}
+
+fn signal_bucket_frame_range(source: &SignalRenderSource) -> [f32; 2] {
+    if source.sample_slide_frame_offset == 0 {
+        return source.shape.frame_range;
+    }
+    let frames = source.shape.frames as f32;
+    if frames <= 1.0 {
+        return source.shape.frame_range;
+    }
+    let start = source.shape.frame_range[0] - source.sample_slide_frame_offset as f32;
+    let end = source.shape.frame_range[1] - source.sample_slide_frame_offset as f32;
+    if start >= 0.0 && end <= frames {
+        [start, end]
+    } else {
+        [0.0, frames]
+    }
 }

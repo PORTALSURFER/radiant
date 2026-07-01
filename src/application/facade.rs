@@ -88,7 +88,8 @@ pub use overlays::{
     dropdown_menu_overlay_below_labeled_control,
     dropdown_menu_overlay_below_stacked_labeled_control, dropdown_menu_overlay_below_trigger,
     feedback_overlay, floating_layer, floating_layer_above, floating_layer_around_from_parts,
-    floating_layer_below, floating_layer_with_input, input_overlay, input_underlay, overlay_panel,
+    floating_layer_below, floating_layer_with_input,
+    floating_layer_with_input_and_vertical_overflow, input_overlay, input_underlay, overlay_panel,
     pointer_drop_shield, pointer_move_shield, pointer_shield,
 };
 pub use panels::{

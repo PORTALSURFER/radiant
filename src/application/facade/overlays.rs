@@ -13,5 +13,6 @@ pub use super::super::layout_builders::{
     centered_layer, centered_layer_from_parts, dismiss_layer, dismissible_overlay,
     dismissible_overlay_with_interactive_base, drag_preview, drag_preview_sized, drop_marker,
     floating_layer, floating_layer_above, floating_layer_around_from_parts, floating_layer_below,
-    floating_layer_with_input, input_overlay, input_underlay, overlay_panel,
+    floating_layer_with_input, floating_layer_with_input_and_vertical_overflow, input_overlay,
+    input_underlay, overlay_panel,
 };

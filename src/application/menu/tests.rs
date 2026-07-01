@@ -147,6 +147,95 @@ fn dismissible_context_menu_with_width_uses_standard_menu_height() {
 }
 
 #[test]
+fn message_context_menu_overlay_opens_down_when_space_below() {
+    let size = Vector2::new(200.0, message_menu_height(2));
+    let frame = UiSurface::new(
+        message_context_menu_overlay(
+            Point::new(80.0, 90.0),
+            size,
+            "Actions",
+            [
+                MenuCommand::new("Open", MenuMessage::Open),
+                MenuCommand::new("Delete", MenuMessage::Delete).danger(),
+            ],
+        )
+        .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 360.0)),
+        &Default::default(),
+    );
+
+    let menu_rect = painted_menu_rect(&frame.paint_plan.primitives, size);
+
+    assert_eq!(menu_rect.min, Point::new(80.0, 90.0));
+}
+
+#[test]
+fn message_context_menu_overlay_flips_up_when_bottom_would_clip() {
+    let size = Vector2::new(200.0, message_menu_height(2));
+    let frame = UiSurface::new(
+        message_context_menu_overlay(
+            Point::new(80.0, 330.0),
+            size,
+            "Actions",
+            [
+                MenuCommand::new("Open", MenuMessage::Open),
+                MenuCommand::new("Delete", MenuMessage::Delete).danger(),
+            ],
+        )
+        .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 360.0)),
+        &Default::default(),
+    );
+
+    let menu_rect = painted_menu_rect(&frame.paint_plan.primitives, size);
+
+    assert_eq!(menu_rect.min, Point::new(80.0, 226.0));
+    assert_eq!(menu_rect.max.y, 330.0);
+}
+
+#[test]
+fn flipped_message_context_menu_routes_clicks_to_painted_items() {
+    let size = Vector2::new(200.0, message_menu_height(2));
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        Vec::<MenuMessage>::new(),
+        move |_| {
+            UiSurface::new(
+                message_context_menu_overlay(
+                    Point::new(80.0, 330.0),
+                    size,
+                    "Actions",
+                    [
+                        MenuCommand::new("Open", MenuMessage::Open),
+                        MenuCommand::new("Delete", MenuMessage::Delete).danger(),
+                    ],
+                )
+                .into_node(),
+            )
+        },
+        |messages: &mut Vec<MenuMessage>, message| messages.push(message),
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(640.0, 360.0));
+    let delete_command = Point::new(100.0, 306.0);
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: delete_command,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    runtime.dispatch_event(Event::PointerRelease {
+        position: delete_command,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+
+    assert_eq!(runtime.bridge().state(), &[MenuMessage::Delete]);
+}
+
+#[test]
 fn dismissible_context_menu_with_width_policy_sizes_from_longest_label() {
     let policy = MessageMenuWidthPolicy::new(
         crate::gui::text_layout::TextWidthEstimate::new(8.0, 24.0),
@@ -214,4 +303,15 @@ fn compact_message_menu_width_policy_clamps_to_default_range() {
 fn menu_command_style_helpers_are_generic() {
     let command = MenuCommand::new("Open", MenuMessage::Open).primary();
     assert_eq!(command.style.tone, WidgetTone::Accent);
+}
+
+fn painted_menu_rect(primitives: &[PaintPrimitive], size: Vector2) -> Rect {
+    primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill) => Some(fill.rect),
+            _ => None,
+        })
+        .find(|rect| (rect.width() - size.x).abs() < 0.01 && (rect.height() - size.y).abs() < 0.01)
+        .expect("painted compact menu rect")
 }

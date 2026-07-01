@@ -149,7 +149,7 @@ pub(super) fn layout_floating_layer(
     let policy = container.policy.floating;
     let origin = Point::new(
         content.min.x + policy.offset.x,
-        content.min.y + policy.offset.y,
+        content.min.y + floating_layer_y_offset(policy, content.height()),
     );
     let rect = Rect::from_min_size(
         origin,
@@ -157,6 +157,36 @@ pub(super) fn layout_floating_layer(
     );
     context.record_slot_margin(child.child.id(), rect, child.slot.margin);
     layout_node(&child.child, rect, context);
+}
+
+fn floating_layer_y_offset(
+    policy: crate::layout::FloatingLayerPolicy,
+    container_height: f32,
+) -> f32 {
+    match policy.vertical_overflow {
+        crate::layout::FloatingLayerVerticalOverflow::Fixed => policy.offset.y,
+        crate::layout::FloatingLayerVerticalOverflow::FlipUpWhenClipped => {
+            floating_layer_flip_up_y_offset(policy.offset.y, policy.size.y, container_height)
+        }
+    }
+}
+
+fn floating_layer_flip_up_y_offset(anchor_y: f32, layer_height: f32, container_height: f32) -> f32 {
+    let anchor_y = anchor_y.max(0.0);
+    let layer_height = layer_height.max(0.0);
+    let container_height = container_height.max(0.0);
+    if anchor_y + layer_height <= container_height {
+        return anchor_y;
+    }
+
+    let space_above = anchor_y;
+    let space_below = (container_height - anchor_y).max(0.0);
+    let max_y = (container_height - layer_height).max(0.0);
+    if space_above > space_below {
+        (anchor_y - layer_height).clamp(0.0, max_y)
+    } else {
+        anchor_y.clamp(0.0, max_y)
+    }
 }
 
 pub(super) fn place_aligned_rect(

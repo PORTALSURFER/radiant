@@ -24,6 +24,9 @@ impl InteractiveRowBuilder {
         if self.suppress_hover {
             row = row.suppress_hover(true);
         }
+        if self.hover_messages {
+            row = row.with_hover_messages(true);
+        }
         if self.clear_hover_on_sync {
             row = row.clear_hover_on_sync();
         }

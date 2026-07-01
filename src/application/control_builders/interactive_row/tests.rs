@@ -211,6 +211,7 @@ fn interactive_row_actions_route_common_row_messages() {
                     .activate(|| DemoMessage::Activate)
                     .double_activate(|| DemoMessage::DoubleActivate)
                     .drop(|| DemoMessage::Drop)
+                    .hover(DemoMessage::HoverDrop)
                     .hover_drop(DemoMessage::HoverDrop)
                     .secondary(DemoMessage::Secondary),
             )
@@ -220,6 +221,13 @@ fn interactive_row_actions_route_common_row_messages() {
     let hover = Point::new(4.0, 9.0);
     let secondary = Point::new(10.0, 12.0);
 
+    assert_eq!(
+        action_row().view_dispatch_widget_output(
+            771,
+            WidgetOutput::typed(InteractiveRowMessage::Hover { position: hover }),
+        ),
+        Some(DemoMessage::HoverDrop(hover))
+    );
     assert_eq!(
         action_row()
             .view_dispatch_widget_output(771, WidgetOutput::typed(InteractiveRowMessage::Drop),),

@@ -56,6 +56,9 @@ fn interactive_row_actions_routes_single_modifiers_or_double_to_same_action() {
 #[test]
 fn interactive_row_actions_routes_keyed_modifier_activation_secondary_and_drag() {
     let actions = InteractiveRowActions::new()
+        .hover_key("file", |key, position| {
+            (key, "hover", PointerModifiers::default(), position)
+        })
         .primary_with_modifiers_key("file", |key, modifiers| {
             (key, "activate", modifiers, Point::new(0.0, 0.0))
         })
@@ -80,6 +83,10 @@ fn interactive_row_actions_routes_keyed_modifier_activation_secondary_and_drag()
     };
     let position = Point::new(12.0, 24.0);
 
+    assert_eq!(
+        actions.route(InteractiveRowMessage::Hover { position }),
+        Some(("file", "hover", PointerModifiers::default(), position))
+    );
     assert_eq!(
         actions.route(InteractiveRowMessage::ActivateWithModifiers { modifiers }),
         Some(("file", "activate", modifiers, Point::new(0.0, 0.0)))

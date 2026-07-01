@@ -70,6 +70,10 @@ where
         self.runtime.set_viewport_and_report_relayout(viewport)
     }
 
+    pub(super) fn set_current_pointer_position(&mut self, position: Option<Point>) {
+        self.runtime.set_current_pointer_position(position);
+    }
+
     #[cfg(test)]
     pub(super) fn paint_plan(&self) -> crate::runtime::SurfacePaintPlan {
         self.runtime.paint_plan(&self.theme)

@@ -2,7 +2,9 @@ use super::*;
 use crate::{
     gui::types::{Rect, Vector2},
     layout::{Constraints, LayoutOutput, SizeModeCross, SizeModeMain, SlotParams},
-    runtime::{Event, PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
+    runtime::{
+        Command, Event, PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
+    },
     theme::ThemeTokens,
     widgets::{
         FocusBehavior, InteractiveRowWidget, PointerButton, PointerModifiers, TextInputWidget,
@@ -59,6 +61,30 @@ impl RuntimeBridge<usize> for FocusLossOutputBridge {
 
     fn reduce_message(&mut self, message: usize) {
         self.dispatched.push(message);
+    }
+}
+
+#[derive(Default)]
+struct PointerSnapshotBridge {
+    snapshots: Vec<Option<Point>>,
+}
+
+impl RuntimeBridge<()> for PointerSnapshotBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        Arc::new(UiSurface::new(SurfaceNode::container(
+            1,
+            Default::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn update_with_runtime(
+        &mut self,
+        _message: (),
+        snapshot: crate::runtime::RuntimeUpdateSnapshot,
+    ) -> Command<()> {
+        self.snapshots.push(snapshot.current_pointer_position());
+        Command::none()
     }
 }
 
@@ -131,6 +157,31 @@ fn fixed_child<Message>(height: f32, child: SurfaceNode<Message>) -> SurfaceChil
         },
         child,
     )
+}
+
+#[test]
+fn pointer_events_feed_latest_position_to_update_snapshot() {
+    let mut runtime =
+        SurfaceRuntime::new(PointerSnapshotBridge::default(), Vector2::new(200.0, 80.0));
+
+    runtime.dispatch_event(Event::pointer_move(Point::new(3.0, 4.0)));
+    runtime.dispatch_message(());
+    runtime.dispatch_event(Event::primary_press(Point::new(9.0, 10.0)));
+    runtime.dispatch_message(());
+    runtime.dispatch_event(Event::scroll(
+        Point::new(11.0, 12.0),
+        Vector2::new(0.0, 16.0),
+    ));
+    runtime.dispatch_message(());
+
+    assert_eq!(
+        runtime.bridge().snapshots,
+        vec![
+            Some(Point::new(3.0, 4.0)),
+            Some(Point::new(9.0, 10.0)),
+            Some(Point::new(11.0, 12.0)),
+        ]
+    );
 }
 
 #[test]

@@ -8,7 +8,7 @@ use super::{
 use crate::{
     application::{IntoView, RepaintPolicy},
     gui::{input::KeyPress, shortcuts::ShortcutResolution},
-    runtime::{Command, RepaintScope},
+    runtime::{Command, RepaintScope, RuntimeUpdateSnapshot},
 };
 use std::{any::Any, collections::HashMap, marker::PhantomData, sync::Arc};
 
@@ -172,12 +172,20 @@ where
     }
 
     fn run_update(&mut self, message: Message) -> Command<Message> {
+        self.run_update_with_runtime(message, RuntimeUpdateSnapshot::default())
+    }
+
+    fn run_update_with_runtime(
+        &mut self,
+        message: Message,
+        runtime_snapshot: RuntimeUpdateSnapshot,
+    ) -> Command<Message> {
         let pending_frame = self.runtime_flags.pending_frame_repaint.take();
         let ordinary_repaint = pending_frame
             .is_none()
             .then(|| self.ordinary_repaint_scope_for_message(&message))
             .flatten();
-        let mut context = UiUpdateContext::default();
+        let mut context = UiUpdateContext::from_runtime_snapshot(runtime_snapshot);
         (self.update)(&mut self.state, message, &mut context);
         let command = context.into_command();
         self.apply_repaint_policy(pending_frame, ordinary_repaint, command)

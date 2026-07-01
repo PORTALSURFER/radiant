@@ -37,6 +37,14 @@ where
         self.run_update(message)
     }
 
+    pub(super) fn update_message_with_runtime(
+        &mut self,
+        message: Message,
+        snapshot: crate::runtime::RuntimeUpdateSnapshot,
+    ) -> Command<Message> {
+        self.run_update_with_runtime(message, snapshot)
+    }
+
     pub(super) fn scroll_updated_command(
         &mut self,
         update: ScrollUpdate,

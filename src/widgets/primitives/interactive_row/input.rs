@@ -57,6 +57,9 @@ impl InteractiveRowWidget {
                     }
                     return Some(InteractiveRowMessage::HoverDropTarget { position });
                 }
+                if self.common.state.hovered && self.props.hover_messages {
+                    return Some(InteractiveRowMessage::Hover { position });
+                }
                 None
             }
             WidgetInput::PointerPress {

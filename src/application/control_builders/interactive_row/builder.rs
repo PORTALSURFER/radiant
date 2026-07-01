@@ -30,6 +30,7 @@ pub struct InteractiveRowBuilder {
     drag_source: bool,
     drag_source_motion: bool,
     suppress_hover: bool,
+    hover_messages: bool,
     clear_hover_on_sync: bool,
     activation_modifiers: bool,
     pointer_motion_during_interaction: bool,
@@ -98,6 +99,12 @@ impl InteractiveRowBuilder {
     /// Ignore hover updates for this row while preserving activation and drag behavior.
     pub fn suppress_hover(mut self, suppress: bool) -> Self {
         self.suppress_hover = suppress;
+        self
+    }
+
+    /// Emit host messages when pointer hover moves over this row.
+    pub fn hover_messages(mut self, enabled: bool) -> Self {
+        self.hover_messages = enabled;
         self
     }
 

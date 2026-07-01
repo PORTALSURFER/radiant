@@ -44,6 +44,8 @@ pub struct InteractiveRowProps {
     pub drag_source_motion: bool,
     /// Whether pointer hover should be ignored and cleared for this row.
     pub suppress_hover: bool,
+    /// Whether ordinary row hover should emit host messages.
+    pub hover_messages: bool,
     /// Whether active drop-target hover emits hover messages.
     pub drop_hover: bool,
     /// Whether active drop-target hover clears a tracked target.
@@ -202,6 +204,12 @@ impl InteractiveRowWidget {
     /// Ignore pointer hover for this row while preserving other interactions.
     pub fn suppress_hover(mut self, suppress_hover: bool) -> Self {
         self.props.suppress_hover = suppress_hover;
+        self
+    }
+
+    /// Emit host messages for ordinary row hover.
+    pub fn with_hover_messages(mut self, enabled: bool) -> Self {
+        self.props.hover_messages = enabled;
         self
     }
 

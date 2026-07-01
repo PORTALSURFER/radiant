@@ -1,10 +1,53 @@
 use super::*;
+use crate::gui::{
+    focus::FocusSurface,
+    input::{KeyCode, KeyPress},
+    shortcuts::ShortcutResolution,
+};
+use crate::widgets::WidgetKey;
 use std::time::{Duration, Instant};
 use winit::{
     dpi::PhysicalPosition,
     event::{MouseButton, MouseScrollDelta},
     keyboard::ModifiersState,
 };
+
+#[derive(Default)]
+struct PointerSnapshotShortcutBridge {
+    snapshots: Vec<Option<Point>>,
+}
+
+impl RuntimeBridge<()> for PointerSnapshotShortcutBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        Arc::new(UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn update_with_runtime(
+        &mut self,
+        _message: (),
+        snapshot: crate::runtime::RuntimeUpdateSnapshot,
+    ) -> Command<()> {
+        self.snapshots.push(snapshot.current_pointer_position());
+        Command::none()
+    }
+
+    fn resolve_key_press(
+        &mut self,
+        _pending_chord: Option<KeyPress>,
+        press: KeyPress,
+        _focus: FocusSurface,
+    ) -> ShortcutResolution<()> {
+        if press.key == KeyCode::W {
+            ShortcutResolution::action(())
+        } else {
+            ShortcutResolution::unhandled()
+        }
+    }
+}
 
 #[test]
 fn native_pointer_harness_routes_cursor_and_mouse_to_runner_state() {
@@ -25,6 +68,33 @@ fn native_pointer_harness_routes_cursor_and_mouse_to_runner_state() {
     assert!(harness.mouse_released(MouseButton::Left).routed);
 
     assert_eq!(harness.runner.core.runtime.bridge().state.count, 1);
+}
+
+#[test]
+fn native_keypress_update_snapshot_uses_hover_cursor_without_mouse_press() {
+    let mut harness = NativePointerHarness::new(
+        PointerSnapshotShortcutBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let hover = Point::new(88.0, 18.0);
+
+    harness.runner.input.last_cursor = Some(hover);
+    harness
+        .runner
+        .core
+        .runtime
+        .set_current_pointer_position(None);
+    harness.runner.sync_runtime_pointer_from_native_cursor();
+    let outcome = harness.runner.core.route_key_press(
+        KeyPress::new(KeyCode::W),
+        WidgetKey::from_key_code(KeyCode::W),
+    );
+    harness.runner.apply_route_outcome(outcome);
+
+    assert_eq!(
+        harness.runner.core.runtime.bridge().snapshots,
+        vec![Some(hover)]
+    );
 }
 
 #[test]

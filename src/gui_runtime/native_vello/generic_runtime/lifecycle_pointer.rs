@@ -26,6 +26,7 @@ where
         };
         let previous = self.input.last_cursor;
         self.input.last_cursor = Some(position);
+        self.core.set_current_pointer_position(Some(position));
         if previous.is_none() {
             self.force_native_cursor(crate::widgets::WidgetCursor::Default);
         }
@@ -100,6 +101,7 @@ where
             outcome.repaint_requested = true;
         }
         self.input.pending_scrollbar_drag = None;
+        self.core.set_current_pointer_position(None);
         if self.core.runtime.clear_pointer_hover() {
             outcome.repaint_requested = true;
         }

@@ -60,6 +60,25 @@ fn tracked_drop_candidate_hover_emits_target_for_candidate() {
 }
 
 #[test]
+fn normal_hover_emits_hover_position() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let mut quiet_row =
+        InteractiveRowWidget::new(17, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
+    let mut row = InteractiveRowWidget::new(18, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_hover_messages(true);
+    let position = Point::new(8.0, 6.0);
+
+    assert_eq!(
+        quiet_row.handle_input(bounds, WidgetInput::pointer_move(position)),
+        None
+    );
+    assert_eq!(
+        row.handle_input(bounds, WidgetInput::pointer_move(position)),
+        Some(InteractiveRowMessage::Hover { position })
+    );
+}
+
+#[test]
 fn handle_input_mapped_routes_custom_row_output() {
     let bounds = Rect::from_size(120.0, 22.0);
     let mut row = InteractiveRowWidget::new(10, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));

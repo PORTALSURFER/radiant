@@ -17,6 +17,7 @@ pub struct InteractiveRowActions<Message> {
     activate_with_modifiers:
         Option<Arc<dyn Fn(PointerModifiers) -> Message + Send + Sync + 'static>>,
     double_activate: Option<Arc<dyn Fn() -> Message + Send + Sync + 'static>>,
+    hover: Option<Arc<dyn Fn(Point) -> Message + Send + Sync + 'static>>,
     secondary: Option<Arc<dyn Fn(Point) -> Message + Send + Sync + 'static>>,
     drag: Option<Arc<dyn Fn(DragHandleMessage) -> Message + Send + Sync + 'static>>,
     drop: Option<Arc<dyn Fn() -> Message + Send + Sync + 'static>>,
@@ -31,6 +32,7 @@ impl<Message> InteractiveRowActions<Message> {
             activate: None,
             activate_with_modifiers: None,
             double_activate: None,
+            hover: None,
             secondary: None,
             drag: None,
             drop: None,
@@ -155,6 +157,25 @@ impl<Message> InteractiveRowActions<Message> {
         Key: Clone + Send + Sync + 'static,
     {
         self.double_activate_key(key, message)
+    }
+
+    /// Emit a host message when pointer hover moves over this row.
+    pub fn hover(mut self, message: impl Fn(Point) -> Message + Send + Sync + 'static) -> Self {
+        self.hover = Some(Arc::new(message));
+        self
+    }
+
+    /// Emit a hover message for one host-owned row key.
+    pub fn hover_key<Key>(
+        mut self,
+        key: Key,
+        message: impl Fn(Key, Point) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+    {
+        self.hover = Some(Arc::new(move |position| message(key.clone(), position)));
+        self
     }
 
     /// Emit a host message for secondary activation.
@@ -333,6 +354,9 @@ impl<Message> InteractiveRowActions<Message> {
 
     /// Route a generic row interaction into the configured host action.
     pub fn route(&self, message: InteractiveRowMessage) -> Option<Message> {
+        if let Some(position) = message.hover_position() {
+            return self.hover.as_ref().map(|callback| callback(position));
+        }
         if let Some(position) = message.secondary_position() {
             return self.secondary.as_ref().map(|callback| callback(position));
         }
@@ -358,6 +382,11 @@ impl<Message> InteractiveRowActions<Message> {
             return self.activate.as_ref().map(|callback| callback());
         }
         None
+    }
+
+    /// Return whether this router maps ordinary row hover.
+    pub fn routes_hover(&self) -> bool {
+        self.hover.is_some()
     }
 }
 

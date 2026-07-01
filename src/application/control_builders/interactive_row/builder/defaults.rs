@@ -22,6 +22,7 @@ pub fn interactive_row() -> InteractiveRowBuilder {
         drag_source: false,
         drag_source_motion: false,
         suppress_hover: false,
+        hover_messages: false,
         clear_hover_on_sync: false,
         activation_modifiers: false,
         pointer_motion_during_interaction: false,

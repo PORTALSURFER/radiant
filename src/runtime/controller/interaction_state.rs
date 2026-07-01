@@ -3,6 +3,7 @@
 use super::{DragSession, ExternalDragSession};
 use crate::{
     gui::input::KeyPress,
+    gui::types::Point,
     layout::NodeId,
     widgets::{WidgetId, WidgetState},
 };
@@ -40,6 +41,7 @@ pub(super) struct RuntimeHoverState {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(super) struct RuntimePointerState {
+    pub(super) current_position: Option<Point>,
     pub(super) capture: Option<WidgetId>,
     pub(super) capture_state: Option<(WidgetId, WidgetState)>,
     pub(super) scroll_drag_capture: Option<ScrollDragCapture>,

@@ -272,7 +272,10 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
     }
 
     /// Emit host messages for common row actions.
-    pub fn actions(self, actions: InteractiveRowActions<Message>) -> ViewNode<Message> {
+    pub fn actions(mut self, actions: InteractiveRowActions<Message>) -> ViewNode<Message> {
+        if actions.routes_hover() {
+            self.row = self.row.hover_messages(true);
+        }
         self.filter_mapped(move |message| actions.route(message))
     }
 

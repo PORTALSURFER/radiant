@@ -71,6 +71,11 @@ pub enum ListItemMessage {
 /// Message emitted by a reusable interactive row primitive.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum InteractiveRowMessage {
+    /// The row received pointer hover movement.
+    Hover {
+        /// Pointer position where the hover occurred.
+        position: Point,
+    },
     /// The row was activated by pointer or keyboard input.
     Activate,
     /// The row was activated by primary pointer input with modifier state.
@@ -147,6 +152,14 @@ impl InteractiveRowMessage {
     pub fn secondary_position(self) -> Option<Point> {
         match self {
             Self::SecondaryActivate { position } => Some(position),
+            _ => None,
+        }
+    }
+
+    /// Return the row-hover position, when present.
+    pub fn hover_position(self) -> Option<Point> {
+        match self {
+            Self::Hover { position } => Some(position),
             _ => None,
         }
     }

@@ -47,10 +47,10 @@ pub(super) fn for_each_marker_rect(
     let y = bounds.min.y + (bounds.height() - side) * 0.5;
     for index in 0..count {
         let x = start_x + index as f32 * (side + gap);
-        push(
-            index,
-            Rect::from_min_max(Point::new(x, y), Point::new(x + side, y + side)),
-        );
+        let rect = Rect::from_min_max(Point::new(x, y), Point::new(x + side, y + side));
+        if let Some(rect) = clip_marker_rect(rect, bounds) {
+            push(index, rect);
+        }
     }
 }
 
@@ -70,4 +70,12 @@ fn marker_start_x(bounds: Rect, align: MarkerRunAlign, total_width: f32, inset: 
         MarkerRunAlign::Center => bounds.min.x + (bounds.width() - total_width) * 0.5,
         MarkerRunAlign::Right => (bounds.max.x - total_width - inset).max(bounds.min.x),
     }
+}
+
+fn clip_marker_rect(rect: Rect, bounds: Rect) -> Option<Rect> {
+    let clipped = Rect::from_min_max(
+        Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y)),
+        Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y)),
+    );
+    clipped.has_finite_positive_area().then_some(clipped)
 }

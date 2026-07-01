@@ -32,6 +32,7 @@ mod paint;
 mod platform;
 mod resource;
 mod surface;
+mod update_snapshot;
 
 pub use crate::application::runtime::{BusinessEventSink, BusinessWorkContext};
 pub use crate::gui::automation::{
@@ -138,3 +139,4 @@ pub use surface::{
     SurfaceChild, SurfaceContainer, SurfaceFrame, SurfaceLayer, SurfaceNode, SurfaceOverlay,
     SurfaceScene, SurfaceWidget, UiSurface, View, WidgetMessageMapper,
 };
+pub use update_snapshot::RuntimeUpdateSnapshot;

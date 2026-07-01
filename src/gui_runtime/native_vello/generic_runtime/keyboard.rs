@@ -23,6 +23,7 @@ where
         if event.state != ElementState::Pressed {
             return;
         }
+        self.sync_runtime_pointer_from_native_cursor();
         let repeat = event.repeat;
         let mut repeat_accepted = !repeat;
         let mut route_outcome = GenericRouteOutcome::default();
@@ -92,6 +93,11 @@ where
             route_outcome.merge(outcome);
         }
         self.handle_route_outcome(event_loop, route_outcome);
+    }
+
+    pub(super) fn sync_runtime_pointer_from_native_cursor(&mut self) {
+        self.core
+            .set_current_pointer_position(self.input.last_cursor);
     }
 }
 

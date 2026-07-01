@@ -21,7 +21,10 @@ where
                 self.set_viewport(viewport);
                 None
             }
-            Event::PointerMove { position } => self.dispatch_pointer_move_target(position).target,
+            Event::PointerMove { position } => {
+                self.observe_pointer_position(position);
+                self.dispatch_pointer_move_target(position).target
+            }
             Event::PointerModifiersChanged { modifiers } => {
                 self.dispatch_pointer_modifiers_changed(modifiers)
             }
@@ -29,17 +32,26 @@ where
                 position,
                 button,
                 modifiers,
-            } => self.dispatch_pointer_press_event(position, button, modifiers),
+            } => {
+                self.observe_pointer_position(position);
+                self.dispatch_pointer_press_event(position, button, modifiers)
+            }
             Event::PointerDoubleClick {
                 position,
                 button,
                 modifiers,
-            } => self.dispatch_pointer_double_click_event(position, button, modifiers),
+            } => {
+                self.observe_pointer_position(position);
+                self.dispatch_pointer_double_click_event(position, button, modifiers)
+            }
             Event::PointerRelease {
                 position,
                 button,
                 modifiers,
-            } => self.dispatch_pointer_release_event(position, button, modifiers),
+            } => {
+                self.observe_pointer_position(position);
+                self.dispatch_pointer_release_event(position, button, modifiers)
+            }
             Event::KeyPress(key) => self.dispatch_focused_input(WidgetInput::KeyPress(key)),
             Event::Character(character) => {
                 self.dispatch_focused_input(WidgetInput::Character(character))
@@ -50,10 +62,15 @@ where
                 None
             }
             Event::Scroll { position, delta } => {
+                self.observe_pointer_position(position);
                 self.wheel_or_scroll_at(position, delta);
                 None
             }
         }
+    }
+
+    fn observe_pointer_position(&mut self, position: Point) {
+        self.interaction.pointer.current_position = Some(position);
     }
 
     /// Route a pointer press followed by a matching release at the same point.

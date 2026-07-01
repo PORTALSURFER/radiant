@@ -1,4 +1,7 @@
-use crate::runtime::Command;
+use crate::{
+    gui::types::Point,
+    runtime::{Command, RuntimeUpdateSnapshot},
+};
 
 mod business;
 mod commands;
@@ -18,19 +21,34 @@ pub(in crate::application) use business::{
 /// or worker-only business capabilities.
 pub struct UiUpdateContext<Message> {
     commands: Vec<Command<Message>>,
+    runtime_snapshot: RuntimeUpdateSnapshot,
 }
 
 impl<Message> Default for UiUpdateContext<Message> {
     fn default() -> Self {
         Self {
             commands: Vec::new(),
+            runtime_snapshot: RuntimeUpdateSnapshot::default(),
         }
     }
 }
 
 impl<Message> UiUpdateContext<Message> {
+    /// Build an update context around a runtime-owned input snapshot.
+    pub fn from_runtime_snapshot(runtime_snapshot: RuntimeUpdateSnapshot) -> Self {
+        Self {
+            commands: Vec::new(),
+            runtime_snapshot,
+        }
+    }
+
     pub(in crate::application) fn queue_command(&mut self, command: Command<Message>) {
         self.commands.push(command);
+    }
+
+    /// Latest logical pointer position known to the runtime for this update.
+    pub fn current_pointer_position(&self) -> Option<Point> {
+        self.runtime_snapshot.current_pointer_position()
     }
 
     /// Access Radiant's business-work submission API.

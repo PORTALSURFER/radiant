@@ -1,7 +1,7 @@
 use super::SurfaceRuntime;
 use crate::runtime::UiUpdateHandlerDiagnosticsPolicy;
 use crate::{
-    gui::types::{Rect, Vector2},
+    gui::types::{Point, Rect, Vector2},
     layout::{LayoutDebugOptions, LayoutOutput, NodeId},
     runtime::{RuntimeBridge, RuntimeDiagnostics, UiSurface},
     widgets::WidgetId,
@@ -101,6 +101,16 @@ where
     /// Return the widget that currently owns pointer capture.
     pub fn pointer_capture(&self) -> Option<WidgetId> {
         self.interaction.pointer.capture
+    }
+
+    /// Return the latest logical pointer position observed by this runtime.
+    pub fn current_pointer_position(&self) -> Option<Point> {
+        self.interaction.pointer.current_position
+    }
+
+    /// Replace the latest logical pointer position observed by this runtime.
+    pub fn set_current_pointer_position(&mut self, position: Option<Point>) {
+        self.interaction.pointer.current_position = position;
     }
 
     pub(crate) fn interactive_pointer_route_active(&self) -> bool {

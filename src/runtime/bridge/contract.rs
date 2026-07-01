@@ -10,7 +10,8 @@ use crate::gui::{
 use crate::runtime::{
     BusinessMessageSink, Command, NativeFileDrop, NativeFileOpen, NativeFrameDiagnostics,
     PaintPrimitive, PlatformCompletion, PlatformRequest, PlatformServiceFallback,
-    RuntimeDiagnostics, ScrollUpdate, TaskPriority, TransientOverlayContext, UiSurface,
+    RuntimeDiagnostics, RuntimeUpdateSnapshot, ScrollUpdate, TaskPriority, TransientOverlayContext,
+    UiSurface,
 };
 use crate::widgets::RetainedSurfaceDescriptor;
 use std::{sync::Arc, time::Duration};
@@ -53,6 +54,16 @@ pub trait RuntimeBridge<Message> {
     fn update(&mut self, message: Message) -> Command<Message> {
         self.reduce_message(message);
         Command::none()
+    }
+
+    /// Update application state with a read-only snapshot of runtime-owned
+    /// input state captured at the time the message is dispatched.
+    fn update_with_runtime(
+        &mut self,
+        message: Message,
+        _snapshot: RuntimeUpdateSnapshot,
+    ) -> Command<Message> {
+        self.update(message)
     }
 
     /// Observe runtime-owned scroll movement and optionally return follow-up

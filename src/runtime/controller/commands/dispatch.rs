@@ -2,7 +2,7 @@ use super::{CommandOutcome, SurfaceRuntime};
 use crate::runtime::UiUpdateHandlerDiagnosticsMode;
 use crate::{
     gui::types::Vector2,
-    runtime::{Command, DragSession, ExternalDragSession, RuntimeBridge},
+    runtime::{Command, DragSession, ExternalDragSession, RuntimeBridge, RuntimeUpdateSnapshot},
 };
 use std::{any::type_name, panic::panic_any, time::Instant};
 
@@ -34,10 +34,10 @@ where
     fn run_update_handler(&mut self, message: Message) -> Command<Message> {
         let policy = self.update_handler_diagnostics_policy;
         let Some(threshold) = policy.threshold() else {
-            return self.bridge.update(message);
+            return self.run_update_handler_with_snapshot(message);
         };
         let update_started = Instant::now();
-        let command = self.bridge.update(message);
+        let command = self.run_update_handler_with_snapshot(message);
         let slow = self.diagnostics.record_update_handler(
             update_started.elapsed(),
             threshold,
@@ -48,6 +48,12 @@ where
             panic_any(diagnostic.failure_message());
         }
         command
+    }
+
+    fn run_update_handler_with_snapshot(&mut self, message: Message) -> Command<Message> {
+        let snapshot =
+            RuntimeUpdateSnapshot::with_current_pointer_position(self.current_pointer_position());
+        self.bridge.update_with_runtime(message, snapshot)
     }
 
     pub(in crate::runtime::controller) fn execute_command_inner(

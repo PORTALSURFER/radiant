@@ -68,6 +68,13 @@ pub struct NativeWindowBehavior {
     pub owner_window_handle: Option<isize>,
     /// Whether the native window should stay out of the platform taskbar when supported.
     pub skip_taskbar: bool,
+    /// Whether the native window should become visible after its render surface is ready.
+    ///
+    /// Normal application windows reveal after surface setup so users do not
+    /// see partially initialized native surfaces. Profiling and host-managed
+    /// embedder flows may keep the window hidden while still allowing surface
+    /// creation and first-present diagnostics to run.
+    pub reveal_after_surface_setup: bool,
     /// Native window presentation mode for this surface.
     pub mode: NativeWindowMode,
 }
@@ -107,6 +114,7 @@ impl Default for NativeWindowBehavior {
             drag_and_drop: true,
             owner_window_handle: None,
             skip_taskbar: false,
+            reveal_after_surface_setup: true,
             mode: NativeWindowMode::default(),
         }
     }

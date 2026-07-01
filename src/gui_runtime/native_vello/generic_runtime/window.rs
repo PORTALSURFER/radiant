@@ -64,9 +64,10 @@ pub(super) fn platform_drag_and_drop_enabled(options: &NativeRunOptions) -> bool
 }
 
 pub(super) fn reveal_window_after_surface_setup(options: &NativeRunOptions) -> bool {
-    options
-        .popup_options()
-        .is_none_or(|popup| popup.initially_visible)
+    options.window.behavior.reveal_after_surface_setup
+        && options
+            .popup_options()
+            .is_none_or(|popup| popup.initially_visible)
 }
 
 pub(super) fn reveal_window_after_first_present(_options: &NativeRunOptions) -> bool {

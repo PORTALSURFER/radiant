@@ -36,6 +36,24 @@ fn generic_native_window_reveals_after_surface_setup() {
 }
 
 #[test]
+fn generic_native_window_can_remain_hidden_after_surface_setup() {
+    let options = NativeRunOptions {
+        window: NativeWindowOptions {
+            behavior: NativeWindowBehavior {
+                reveal_after_surface_setup: false,
+                ..NativeWindowBehavior::default()
+            },
+            ..NativeWindowOptions::default()
+        },
+        ..NativeRunOptions::default()
+    };
+
+    assert!(!window::reveal_window_after_surface_setup(&options));
+    assert!(!window::reveal_window_after_first_present(&options));
+    assert!(!window::hide_window_after_first_present(&options));
+}
+
+#[test]
 fn generic_native_window_reveals_popups_after_surface_setup() {
     let options = NativeRunOptions::popup("Drag Preview");
 

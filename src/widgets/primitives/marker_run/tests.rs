@@ -59,6 +59,39 @@ fn right_aligned_marker_run_respects_gap_and_inset() {
 }
 
 #[test]
+fn overflowing_marker_run_clips_rects_to_bounds() {
+    let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(24.0, 40.0));
+    let rects = marker_rects(
+        bounds,
+        MarkerRunProps {
+            count: 3,
+            side: 6,
+            gap: 4,
+            inset: 4,
+            align: MarkerRunAlign::Right,
+            color: Some(WHITE),
+        },
+    );
+
+    assert_eq!(
+        rects,
+        vec![
+            Rect::from_min_max(Point::new(10.0, 27.0), Point::new(16.0, 33.0)),
+            Rect::from_min_max(Point::new(20.0, 27.0), Point::new(24.0, 33.0)),
+        ]
+    );
+    assert!(
+        rects.iter().all(|rect| {
+            rect.min.x >= bounds.min.x
+                && rect.max.x <= bounds.max.x
+                && rect.min.y >= bounds.min.y
+                && rect.max.y <= bounds.max.y
+        }),
+        "overflowing marker runs should not emit paint outside their bounds: {rects:?}"
+    );
+}
+
+#[test]
 fn empty_or_transparent_marker_runs_paint_no_rects() {
     assert!(marker_rects(bounds(), MarkerRunProps::new(Some(WHITE), 0)).is_empty());
 

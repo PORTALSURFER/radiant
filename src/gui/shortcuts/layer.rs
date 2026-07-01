@@ -78,6 +78,11 @@ impl<Action> ShortcutLayer<Action> {
         self.modal
     }
 
+    /// Return the registered shortcut bindings in insertion order.
+    pub fn bindings(&self) -> &[ShortcutBinding<Action>] {
+        &self.bindings
+    }
+
     /// Resolve `press` against this layer.
     pub fn resolve(&self, press: KeyPress) -> ShortcutResolution<Action>
     where

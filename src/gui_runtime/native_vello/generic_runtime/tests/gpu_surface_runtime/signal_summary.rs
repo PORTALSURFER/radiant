@@ -51,6 +51,14 @@ fn gpu_signal_shader_groups_projection_parameters() {
 }
 
 #[test]
+fn gpu_signal_shader_does_not_cap_gain_preview() {
+    let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
+
+    assert!(shader.contains("return gain * max(params.gain_preview_a.w, 0.0);"));
+    assert!(!shader.contains("clamp(params.gain_preview_a.w, 0.0, 4.0)"));
+}
+
+#[test]
 fn gpu_signal_shader_keeps_waveform_bands_visually_distinct() {
     let shader = super::super::super::gpu_surface::GPU_SIGNAL_SHADER;
 

@@ -98,7 +98,7 @@ fn preview_gain_at_position(position: f32) -> f32 {
             gain = gain * preview_curve_value(time_until_end / fade_out_len, clamp(params.gain_preview_b.w, 0.0, 1.0));
         }
     }
-    return gain * clamp(params.gain_preview_a.w, 0.0, 4.0);
+    return gain * max(params.gain_preview_a.w, 0.0);
 }
 
 fn blend(src: vec3<f32>, alpha: f32, dst: vec4<f32>) -> vec4<f32> {

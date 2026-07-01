@@ -1018,7 +1018,10 @@ the exported `MIN_NATIVE_TARGET_FPS` / `MAX_NATIVE_TARGET_FPS` bounds before
 timed redraws or present-mode selection use them. Focused text-input caret
 animation uses a lower native cadence when it is the only timed animation
 demand, while explicit application or overlay animation frame-rate caps remain
-authoritative. Window launch and manifest builders provide integer `.size(...)` convenience methods
+authoritative. Set `window.behavior.reveal_after_surface_setup` to `false` only
+when a host-managed or profiling flow must create and present the native surface
+without making the window visible after setup. Window launch and manifest
+builders provide integer `.size(...)` convenience methods
 plus `.logical_size(...)` and `.min_logical_size(...)` when hosts need
 fractional logical dimensions.
 On macOS, hosts that need direct development builds to appear as normal

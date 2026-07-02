@@ -274,6 +274,16 @@ fn message_menu_paints_command_labels_and_hotkey_hints_as_columns() {
     assert_eq!(open.align, PaintTextAlign::Left);
     assert_eq!(duplicate.align, PaintTextAlign::Left);
     assert_eq!(shortcut.align, PaintTextAlign::Right);
+    let hint_metrics = crate::gui::text_layout::TextWidthEstimate::new(
+        MessageMenuWidthPolicy::compact().metrics.character_advance,
+        MENU_HOTKEY_HINT_HORIZONTAL_PADDING,
+    );
+    let minimum_hint_width = crate::gui::text_layout::estimated_text_width("Cmd-O", hint_metrics);
+    assert!(
+        shortcut.rect.width() >= minimum_hint_width,
+        "shortcut hint column should reserve enough width for the painted text: shortcut={:?}, minimum={minimum_hint_width}",
+        shortcut.rect
+    );
     assert!(
         (open.rect.min.x - duplicate.rect.min.x).abs() < 0.01,
         "labels should share a left column: open={:?}, duplicate={:?}",

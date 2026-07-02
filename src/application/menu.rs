@@ -31,6 +31,7 @@ pub const MENU_ITEM_SPACING: f32 = 4.0;
 
 const MENU_ROW_TEXT_PADDING_X: f32 = 8.0;
 const MENU_LABEL_HOTKEY_GAP: f32 = 16.0;
+const MENU_HOTKEY_HINT_HORIZONTAL_PADDING: f32 = 16.0;
 
 /// Build a compact vertical menu that emits host messages.
 pub fn message_menu<Message>(
@@ -290,7 +291,10 @@ struct MenuCommandTextColumns {
 
 fn menu_command_text_columns<Message>(commands: &[MenuCommand<Message>]) -> MenuCommandTextColumns {
     let compact = MessageMenuWidthPolicy::compact();
-    let metrics = TextWidthEstimate::new(compact.metrics.character_advance, 0.0);
+    let metrics = TextWidthEstimate::new(
+        compact.metrics.character_advance,
+        MENU_HOTKEY_HINT_HORIZONTAL_PADDING,
+    );
     let hotkey_hint_width = commands
         .iter()
         .filter_map(|command| command.hotkey_hint.as_ref())

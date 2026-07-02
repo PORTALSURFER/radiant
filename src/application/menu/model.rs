@@ -5,8 +5,8 @@ use crate::{
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 
-const COMPACT_MENU_AVERAGE_ADVANCE_FACTOR: f32 = 0.56;
-const COMPACT_MENU_FONT_SIZE: f32 = 13.0;
+const COMPACT_MENU_AVERAGE_ADVANCE_FACTOR: f32 = 0.62;
+const COMPACT_MENU_FONT_SIZE: f32 = 14.0;
 const COMPACT_MENU_HORIZONTAL_TEXT_PADDING: f32 = 48.0;
 const COMPACT_MENU_HOTKEY_GAP_CHARS: usize = 3;
 const COMPACT_MENU_MIN_WIDTH: f32 = 210.0;

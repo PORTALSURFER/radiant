@@ -80,6 +80,7 @@ fn application_builder_menus_support_named_parts_construction() {
                     commands: vec![
                         ui::MenuCommand::from_parts(ui::MenuCommandParts {
                             label: String::from("Inspect"),
+                            hotkey_hint: Some(String::from("Cmd-I")),
                             style: radiant::widgets::WidgetStyle::default(),
                             message: Message::Select("inspect"),
                         }),

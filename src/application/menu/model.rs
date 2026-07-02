@@ -8,6 +8,7 @@ use crate::{
 const COMPACT_MENU_AVERAGE_ADVANCE_FACTOR: f32 = 0.56;
 const COMPACT_MENU_FONT_SIZE: f32 = 13.0;
 const COMPACT_MENU_HORIZONTAL_TEXT_PADDING: f32 = 48.0;
+const COMPACT_MENU_HOTKEY_GAP_CHARS: usize = 3;
 const COMPACT_MENU_MIN_WIDTH: f32 = 210.0;
 const COMPACT_MENU_MAX_WIDTH: f32 = 320.0;
 
@@ -15,6 +16,7 @@ const COMPACT_MENU_MAX_WIDTH: f32 = 320.0;
 #[derive(Clone, Debug, PartialEq)]
 pub struct MenuCommand<Message> {
     pub(crate) label: String,
+    pub(crate) hotkey_hint: Option<String>,
     pub(crate) style: WidgetStyle,
     pub(crate) message: Message,
 }
@@ -24,6 +26,8 @@ pub struct MenuCommand<Message> {
 pub struct MenuCommandParts<Message> {
     /// Visible menu-item label.
     pub label: String,
+    /// Optional trailing shortcut or hotkey hint.
+    pub hotkey_hint: Option<String>,
     /// Visual styling applied to the backing button.
     pub style: WidgetStyle,
     /// Host message emitted when the item is activated.
@@ -35,6 +39,7 @@ impl<Message> MenuCommand<Message> {
     pub fn from_parts(parts: MenuCommandParts<Message>) -> Self {
         Self {
             label: parts.label,
+            hotkey_hint: parts.hotkey_hint.filter(|hint| !hint.is_empty()),
             style: parts.style,
             message: parts.message,
         }
@@ -44,9 +49,17 @@ impl<Message> MenuCommand<Message> {
     pub fn new(label: impl Into<String>, message: Message) -> Self {
         Self::from_parts(MenuCommandParts {
             label: label.into(),
+            hotkey_hint: None,
             style: WidgetStyle::default(),
             message,
         })
+    }
+
+    /// Render a trailing shortcut or hotkey hint for this command.
+    pub fn hotkey_hint(mut self, hint: impl Into<String>) -> Self {
+        let hint = hint.into();
+        self.hotkey_hint = (!hint.is_empty()).then_some(hint);
+        self
     }
 
     /// Use accent styling for a primary menu action.
@@ -132,7 +145,7 @@ impl MessageMenuWidthPolicy {
         let title_chars = title.chars().count();
         let command_chars = commands
             .iter()
-            .map(|command| command.label.chars().count())
+            .map(command_menu_width_chars)
             .max()
             .unwrap_or(0);
         estimated_text_width_for_char_count_in_range(
@@ -142,6 +155,14 @@ impl MessageMenuWidthPolicy {
             self.max_width,
         )
     }
+}
+
+fn command_menu_width_chars<Message>(command: &MenuCommand<Message>) -> usize {
+    let label_chars = command.label.chars().count();
+    let Some(hint) = command.hotkey_hint.as_ref() else {
+        return label_chars;
+    };
+    label_chars + COMPACT_MENU_HOTKEY_GAP_CHARS + hint.chars().count()
 }
 
 /// Named construction fields for a full-surface dismissible context-menu layer.

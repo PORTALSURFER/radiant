@@ -3,7 +3,10 @@ use crate::{
     application::IntoView,
     gui::types::{Point, Rect},
     layout::Vector2,
-    runtime::{DeclarativeOwnedRuntimeBridge, Event, PaintPrimitive, SurfaceRuntime, UiSurface},
+    runtime::{
+        DeclarativeOwnedRuntimeBridge, Event, PaintPrimitive, PaintTextAlign, SurfaceRuntime,
+        UiSurface,
+    },
     widgets::{PointerButton, PointerModifiers, WidgetTone},
 };
 
@@ -233,6 +236,74 @@ fn flipped_message_context_menu_routes_clicks_to_painted_items() {
     });
 
     assert_eq!(runtime.bridge().state(), &[MenuMessage::Delete]);
+}
+
+#[test]
+fn message_menu_paints_command_labels_and_hotkey_hints_as_columns() {
+    let size = Vector2::new(280.0, message_menu_height(2));
+    let frame = UiSurface::new(
+        message_context_menu_overlay(
+            Point::new(80.0, 90.0),
+            size,
+            "Actions",
+            [
+                MenuCommand::new("Open", MenuMessage::Open).hotkey_hint("Cmd-O"),
+                MenuCommand::new("Duplicate Without Shortcut", MenuMessage::Delete),
+            ],
+        )
+        .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 360.0)),
+        &Default::default(),
+    );
+
+    let open = frame
+        .paint_plan
+        .first_text_run("Open")
+        .expect("shortcut-backed label should paint");
+    let duplicate = frame
+        .paint_plan
+        .first_text_run("Duplicate Without Shortcut")
+        .expect("plain label should paint");
+    let shortcut = frame
+        .paint_plan
+        .first_text_run("Cmd-O")
+        .expect("shortcut hint should paint");
+
+    assert_eq!(open.align, PaintTextAlign::Left);
+    assert_eq!(duplicate.align, PaintTextAlign::Left);
+    assert_eq!(shortcut.align, PaintTextAlign::Right);
+    assert!(
+        (open.rect.min.x - duplicate.rect.min.x).abs() < 0.01,
+        "labels should share a left column: open={:?}, duplicate={:?}",
+        open.rect,
+        duplicate.rect
+    );
+    assert!(
+        duplicate.rect.max.x + MENU_LABEL_HOTKEY_GAP <= shortcut.rect.min.x,
+        "label and shortcut columns should not overlap: duplicate={:?}, shortcut={:?}",
+        duplicate.rect,
+        shortcut.rect
+    );
+}
+
+#[test]
+fn message_menu_hotkey_hint_width_contributes_to_auto_width() {
+    let policy = MessageMenuWidthPolicy::new(
+        crate::gui::text_layout::TextWidthEstimate::new(8.0, 24.0),
+        100.0,
+        320.0,
+    );
+    let commands_without_hint = [MenuCommand::new("Open", MenuMessage::Open)];
+    let commands_with_hint =
+        [MenuCommand::new("Open", MenuMessage::Open).hotkey_hint("Command-Shift-O")];
+
+    assert!(
+        policy.width_for_title_and_commands("Actions", &commands_with_hint)
+            > policy.width_for_title_and_commands("Actions", &commands_without_hint),
+        "shortcut hints should reserve menu width"
+    );
 }
 
 #[test]

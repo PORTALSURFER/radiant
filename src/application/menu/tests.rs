@@ -3,7 +3,10 @@ use crate::{
     application::IntoView,
     gui::types::{Point, Rect},
     layout::Vector2,
-    runtime::{DeclarativeOwnedRuntimeBridge, Event, PaintPrimitive, SurfaceRuntime, UiSurface},
+    runtime::{
+        DeclarativeOwnedRuntimeBridge, Event, PaintPrimitive, PaintTextAlign, SurfaceRuntime,
+        UiSurface,
+    },
     widgets::{PointerButton, PointerModifiers, WidgetTone},
 };
 
@@ -233,6 +236,152 @@ fn flipped_message_context_menu_routes_clicks_to_painted_items() {
     });
 
     assert_eq!(runtime.bridge().state(), &[MenuMessage::Delete]);
+}
+
+#[test]
+fn message_menu_paints_command_labels_and_hotkey_hints_as_columns() {
+    let size = Vector2::new(280.0, message_menu_height(2));
+    let frame = UiSurface::new(
+        message_context_menu_overlay(
+            Point::new(80.0, 90.0),
+            size,
+            "Actions",
+            [
+                MenuCommand::new("Open", MenuMessage::Open).hotkey_hint("Cmd-O"),
+                MenuCommand::new("Duplicate Without Shortcut", MenuMessage::Delete),
+            ],
+        )
+        .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 360.0)),
+        &Default::default(),
+    );
+
+    let open = frame
+        .paint_plan
+        .first_text_run("Open")
+        .expect("shortcut-backed label should paint");
+    let duplicate = frame
+        .paint_plan
+        .first_text_run("Duplicate Without Shortcut")
+        .expect("plain label should paint");
+    let shortcut = frame
+        .paint_plan
+        .first_text_run("Cmd-O")
+        .expect("shortcut hint should paint");
+
+    assert_eq!(open.align, PaintTextAlign::Left);
+    assert_eq!(duplicate.align, PaintTextAlign::Left);
+    assert_eq!(shortcut.align, PaintTextAlign::Right);
+    let hint_metrics = crate::gui::text_layout::TextWidthEstimate::new(
+        MessageMenuWidthPolicy::compact().metrics.character_advance,
+        MENU_HOTKEY_HINT_HORIZONTAL_PADDING,
+    );
+    let minimum_hint_width = crate::gui::text_layout::estimated_text_width("Cmd-O", hint_metrics);
+    assert!(
+        shortcut.rect.width() >= minimum_hint_width,
+        "shortcut hint column should reserve enough width for the painted text: shortcut={:?}, minimum={minimum_hint_width}",
+        shortcut.rect
+    );
+    assert!(
+        (open.rect.min.x - duplicate.rect.min.x).abs() < 0.01,
+        "labels should share a left column: open={:?}, duplicate={:?}",
+        open.rect,
+        duplicate.rect
+    );
+    assert!(
+        open.rect.max.x + MENU_LABEL_HOTKEY_GAP <= shortcut.rect.min.x,
+        "hinted label and shortcut columns should not overlap: open={:?}, shortcut={:?}",
+        open.rect,
+        shortcut.rect
+    );
+    assert!(
+        duplicate.rect.max.x > shortcut.rect.min.x,
+        "plain labels should not reserve an empty shortcut column: duplicate={:?}, shortcut={:?}",
+        duplicate.rect,
+        shortcut.rect
+    );
+}
+
+#[test]
+fn message_menu_hotkey_hint_width_contributes_to_auto_width() {
+    let policy = MessageMenuWidthPolicy::new(
+        crate::gui::text_layout::TextWidthEstimate::new(8.0, 24.0),
+        100.0,
+        320.0,
+    );
+    let commands_without_hint = [MenuCommand::new("Open", MenuMessage::Open)];
+    let commands_with_hint =
+        [MenuCommand::new("Open", MenuMessage::Open).hotkey_hint("Command-Shift-O")];
+
+    assert!(
+        policy.width_for_title_and_commands("Actions", &commands_with_hint)
+            > policy.width_for_title_and_commands("Actions", &commands_without_hint),
+        "shortcut hints should reserve menu width"
+    );
+}
+
+#[test]
+fn compact_message_menu_fits_folder_delete_label_and_shortcut_hint() {
+    let policy = MessageMenuWidthPolicy::compact();
+    let commands = [
+        MenuCommand::new("Delete Folder", MenuMessage::Delete).hotkey_hint("Delete / Backspace")
+    ];
+    let width = policy.width_for_title_and_commands("Documents", &commands);
+    let frame = UiSurface::new(
+        message_context_menu_overlay(
+            Point::new(80.0, 90.0),
+            Vector2::new(width, message_menu_height(commands.len())),
+            "Documents",
+            commands,
+        )
+        .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 360.0)),
+        &Default::default(),
+    );
+
+    let label = frame
+        .paint_plan
+        .first_text_run("Delete Folder")
+        .expect("delete label should paint");
+    let shortcut = frame
+        .paint_plan
+        .first_text_run("Delete / Backspace")
+        .expect("delete shortcut hint should paint");
+    let label_metrics =
+        crate::gui::text_layout::TextWidthEstimate::new(policy.metrics.character_advance, 0.0);
+    let shortcut_metrics = crate::gui::text_layout::TextWidthEstimate::new(
+        policy.metrics.character_advance,
+        MENU_HOTKEY_HINT_HORIZONTAL_PADDING,
+    );
+    let minimum_label_width =
+        crate::gui::text_layout::estimated_text_width("Delete Folder", label_metrics);
+    let minimum_shortcut_width =
+        crate::gui::text_layout::estimated_text_width("Delete / Backspace", shortcut_metrics);
+
+    assert!(
+        width > 320.0,
+        "compact menus should widen beyond the old ceiling for label plus shortcut rows: {width}"
+    );
+    assert!(
+        label.rect.width() >= minimum_label_width,
+        "label should fit in its column: label={:?}, minimum={minimum_label_width}",
+        label.rect
+    );
+    assert!(
+        shortcut.rect.width() >= minimum_shortcut_width,
+        "shortcut should fit in its column: shortcut={:?}, minimum={minimum_shortcut_width}",
+        shortcut.rect
+    );
+    assert!(
+        label.rect.max.x + MENU_LABEL_HOTKEY_GAP <= shortcut.rect.min.x,
+        "label and shortcut columns should not overlap: label={:?}, shortcut={:?}",
+        label.rect,
+        shortcut.rect
+    );
 }
 
 #[test]

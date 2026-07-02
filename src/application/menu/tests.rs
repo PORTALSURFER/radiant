@@ -323,6 +323,68 @@ fn message_menu_hotkey_hint_width_contributes_to_auto_width() {
 }
 
 #[test]
+fn compact_message_menu_fits_folder_delete_label_and_shortcut_hint() {
+    let policy = MessageMenuWidthPolicy::compact();
+    let commands = [
+        MenuCommand::new("Delete Folder", MenuMessage::Delete).hotkey_hint("Delete / Backspace")
+    ];
+    let width = policy.width_for_title_and_commands("Documents", &commands);
+    let frame = UiSurface::new(
+        message_context_menu_overlay(
+            Point::new(80.0, 90.0),
+            Vector2::new(width, message_menu_height(commands.len())),
+            "Documents",
+            commands,
+        )
+        .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 360.0)),
+        &Default::default(),
+    );
+
+    let label = frame
+        .paint_plan
+        .first_text_run("Delete Folder")
+        .expect("delete label should paint");
+    let shortcut = frame
+        .paint_plan
+        .first_text_run("Delete / Backspace")
+        .expect("delete shortcut hint should paint");
+    let label_metrics =
+        crate::gui::text_layout::TextWidthEstimate::new(policy.metrics.character_advance, 0.0);
+    let shortcut_metrics = crate::gui::text_layout::TextWidthEstimate::new(
+        policy.metrics.character_advance,
+        MENU_HOTKEY_HINT_HORIZONTAL_PADDING,
+    );
+    let minimum_label_width =
+        crate::gui::text_layout::estimated_text_width("Delete Folder", label_metrics);
+    let minimum_shortcut_width =
+        crate::gui::text_layout::estimated_text_width("Delete / Backspace", shortcut_metrics);
+
+    assert!(
+        width > 320.0,
+        "compact menus should widen beyond the old ceiling for label plus shortcut rows: {width}"
+    );
+    assert!(
+        label.rect.width() >= minimum_label_width,
+        "label should fit in its column: label={:?}, minimum={minimum_label_width}",
+        label.rect
+    );
+    assert!(
+        shortcut.rect.width() >= minimum_shortcut_width,
+        "shortcut should fit in its column: shortcut={:?}, minimum={minimum_shortcut_width}",
+        shortcut.rect
+    );
+    assert!(
+        label.rect.max.x + MENU_LABEL_HOTKEY_GAP <= shortcut.rect.min.x,
+        "label and shortcut columns should not overlap: label={:?}, shortcut={:?}",
+        label.rect,
+        shortcut.rect
+    );
+}
+
+#[test]
 fn dismissible_context_menu_with_width_policy_sizes_from_longest_label() {
     let policy = MessageMenuWidthPolicy::new(
         crate::gui::text_layout::TextWidthEstimate::new(8.0, 24.0),

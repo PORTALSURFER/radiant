@@ -10,7 +10,7 @@ const COMPACT_MENU_FONT_SIZE: f32 = 14.0;
 const COMPACT_MENU_HORIZONTAL_TEXT_PADDING: f32 = 48.0;
 const COMPACT_MENU_HOTKEY_GAP_CHARS: usize = 3;
 const COMPACT_MENU_MIN_WIDTH: f32 = 210.0;
-const COMPACT_MENU_MAX_WIDTH: f32 = 320.0;
+const COMPACT_MENU_MAX_WIDTH: f32 = 380.0;
 
 /// One clickable item in a generic message-emitting menu.
 #[derive(Clone, Debug, PartialEq)]

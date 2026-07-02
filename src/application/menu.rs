@@ -313,6 +313,7 @@ where
 {
     let label_color = menu_command_label_color(command.style);
     let hint_color = menu_command_hotkey_hint_color(command.style);
+    let hotkey_hint = command.hotkey_hint.clone();
     let mut label_row = vec![
         text(command.label.clone())
             .align_text(TextAlign::Left)
@@ -321,9 +322,10 @@ where
             .fill_width()
             .height(MENU_ITEM_HEIGHT),
     ];
-    if text_columns.hotkey_hint_width > 0.0 {
+    let has_hotkey_hint = hotkey_hint.is_some() && text_columns.hotkey_hint_width > 0.0;
+    if let Some(hotkey_hint) = hotkey_hint {
         label_row.push(
-            text(command.hotkey_hint.clone().unwrap_or_default())
+            text(hotkey_hint)
                 .align_text(TextAlign::Right)
                 .text_color(hint_color)
                 .truncate()
@@ -342,7 +344,7 @@ where
             .fill_width()
             .height(MENU_ITEM_HEIGHT)
             .padding_x(MENU_ROW_TEXT_PADDING_X)
-            .spacing(if text_columns.hotkey_hint_width > 0.0 {
+            .spacing(if has_hotkey_hint {
                 MENU_LABEL_HOTKEY_GAP
             } else {
                 0.0

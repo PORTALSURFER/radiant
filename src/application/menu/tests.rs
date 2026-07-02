@@ -291,8 +291,14 @@ fn message_menu_paints_command_labels_and_hotkey_hints_as_columns() {
         duplicate.rect
     );
     assert!(
-        duplicate.rect.max.x + MENU_LABEL_HOTKEY_GAP <= shortcut.rect.min.x,
-        "label and shortcut columns should not overlap: duplicate={:?}, shortcut={:?}",
+        open.rect.max.x + MENU_LABEL_HOTKEY_GAP <= shortcut.rect.min.x,
+        "hinted label and shortcut columns should not overlap: open={:?}, shortcut={:?}",
+        open.rect,
+        shortcut.rect
+    );
+    assert!(
+        duplicate.rect.max.x > shortcut.rect.min.x,
+        "plain labels should not reserve an empty shortcut column: duplicate={:?}, shortcut={:?}",
         duplicate.rect,
         shortcut.rect
     );

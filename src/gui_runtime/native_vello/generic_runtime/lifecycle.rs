@@ -2,10 +2,11 @@
 
 use super::{
     AuxiliaryWindowEventResult, GenericNativeVelloRunner, RuntimeUserEvent, TimedFrameCadence,
-    should_start_popup_window_drag, timed_frame_cadence, timed_frame_target_fps,
+    animation_frame_interval, should_start_popup_window_drag, timed_frame_cadence,
+    timed_frame_target_fps,
 };
 use crate::runtime::RuntimeBridge;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tracing::warn;
 use winit::{
     application::ApplicationHandler,
@@ -13,6 +14,9 @@ use winit::{
     event_loop::{ActiveEventLoop, ControlFlow},
     window::WindowId,
 };
+
+const LATE_TIMED_FRAME_LOG_THRESHOLD: Duration = Duration::from_millis(24);
+const LATE_TIMED_FRAME_MAX_CONTINUOUS_GAP: Duration = Duration::from_secs(1);
 
 impl<Bridge, Message> ApplicationHandler<RuntimeUserEvent>
     for GenericNativeVelloRunner<Bridge, Message>
@@ -151,6 +155,31 @@ where
                 event_loop.set_control_flow(ControlFlow::WaitUntil(next_frame));
             }
             TimedFrameCadence::DrainNow { next_wake } => {
+                let expected_interval = animation_frame_interval(frame_target_fps);
+                let elapsed_since_last = now.duration_since(self.timing.last_timed_frame_drain);
+                let overdue = elapsed_since_last.saturating_sub(expected_interval);
+                if overdue >= LATE_TIMED_FRAME_LOG_THRESHOLD
+                    && elapsed_since_last <= LATE_TIMED_FRAME_MAX_CONTINUOUS_GAP
+                {
+                    warn!(
+                        target: "radiant::debug::frame_profile",
+                        event = "radiant.timed_frame.late",
+                        target_fps = frame_target_fps,
+                        elapsed_since_last_frame_us = elapsed_since_last.as_micros(),
+                        expected_interval_us = expected_interval.as_micros(),
+                        overdue_us = overdue.as_micros(),
+                        animation_needs_frame_message = animation_activity.needs_frame_message(),
+                        animation_needs_animation = animation_activity.needs_animation(),
+                        needs_text_caret_animation,
+                        redraw_requested = self.timing.redraw_requested,
+                        redraw_pending_us = self
+                            .timing
+                            .redraw_requested_at
+                            .map(|requested_at| now.duration_since(requested_at).as_micros())
+                            .unwrap_or(0),
+                        "Timed frame wakeup arrived late"
+                    );
+                }
                 let outcome =
                     self.drain_timed_frame_now(now, animation_activity, needs_text_caret_animation);
                 if outcome.exit_requested {

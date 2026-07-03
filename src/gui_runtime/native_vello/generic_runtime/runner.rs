@@ -42,6 +42,7 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     const REDRAW_REISSUE_AFTER: Duration = Duration::from_millis(16);
+    const REDRAW_REISSUE_LOG_AFTER: Duration = Duration::from_millis(32);
 
     pub(super) fn new(options: NativeRunOptions, bridge: Bridge, viewport: Vector2) -> Self {
         let text_renderer = NativeTextRenderer::with_options(&options.text);
@@ -72,6 +73,20 @@ where
             return;
         }
         if let Some(window) = self.window.window.as_ref() {
+            if self.timing.redraw_requested
+                && let Some(requested_at) = self.timing.redraw_requested_at
+            {
+                let pending = now.duration_since(requested_at);
+                if pending >= Self::REDRAW_REISSUE_LOG_AFTER {
+                    warn!(
+                        target: "radiant::debug::frame_profile",
+                        event = "radiant.redraw_request.reissued",
+                        pending_us = pending.as_micros(),
+                        stale_after_us = Self::REDRAW_REISSUE_AFTER.as_micros(),
+                        "Reissued stale redraw request"
+                    );
+                }
+            }
             window.request_redraw();
             self.timing.redraw_requested = true;
             self.timing.redraw_requested_at = Some(now);

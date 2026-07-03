@@ -111,6 +111,25 @@ where
         self.timing.redraw_requested && self.pending_redraw_request_is_stale(now)
     }
 
+    pub(super) fn should_flush_pending_redraw_after_route(
+        &self,
+        pending: Duration,
+        since_last_present: Duration,
+    ) -> bool {
+        pending >= Self::REDRAW_REISSUE_AFTER
+            || since_last_present
+                >= animation_frame_interval_for_normalized_fps(self.options.normalized_target_fps())
+    }
+
+    fn should_log_pending_redraw_route_flush(
+        &self,
+        pending: Duration,
+        since_last_present: Duration,
+    ) -> bool {
+        pending >= Self::REDRAW_REISSUE_LOG_AFTER
+            || since_last_present >= Self::REDRAW_REISSUE_LOG_AFTER
+    }
+
     pub(super) fn drain_timed_frame_now(
         &mut self,
         now: Instant,
@@ -287,15 +306,19 @@ where
             && self.timing.redraw_requested
         {
             let since_last_present = Instant::now().duration_since(self.timing.last_redraw);
-            warn!(
-                target: "radiant::debug::frame_profile",
-                event = "radiant.redraw_request.flushed_pending",
-                pending_us = pending.as_micros(),
-                since_last_present_us = since_last_present.as_micros(),
-                stale = pending >= Self::REDRAW_REISSUE_AFTER,
-                "Flushed pending redraw request after route"
-            );
-            self.redraw(event_loop);
+            if self.should_flush_pending_redraw_after_route(pending, since_last_present) {
+                if self.should_log_pending_redraw_route_flush(pending, since_last_present) {
+                    warn!(
+                        target: "radiant::debug::frame_profile",
+                        event = "radiant.redraw_request.flushed_pending",
+                        pending_us = pending.as_micros(),
+                        since_last_present_us = since_last_present.as_micros(),
+                        stale = pending >= Self::REDRAW_REISSUE_AFTER,
+                        "Flushed pending redraw request after route"
+                    );
+                }
+                self.redraw(event_loop);
+            }
         }
     }
 

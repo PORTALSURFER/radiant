@@ -120,6 +120,41 @@ fn pending_message_queue_drains_into_reused_output_without_replacing_queue_stora
 }
 
 #[test]
+fn pending_frame_drains_before_regular_messages() {
+    let runtime = AppRuntime::<u32>::default();
+
+    assert!(runtime.enqueue(1));
+    assert!(runtime.enqueue_frame(99));
+    assert!(runtime.enqueue(2));
+
+    assert_eq!(runtime.take_pending(), vec![99, 1, 2]);
+}
+
+#[test]
+fn pending_frame_drains_before_retained_backlog() {
+    let runtime = AppRuntime::<u32>::default();
+    let mut pending = vec![10, 11];
+
+    assert!(runtime.enqueue(1));
+    assert!(runtime.enqueue_frame(99));
+    runtime.drain_pending_into(&mut pending);
+
+    assert_eq!(pending, vec![99, 10, 11, 1]);
+}
+
+#[test]
+fn pending_frame_is_coalesced_until_drained() {
+    let runtime = AppRuntime::<u32>::default();
+
+    assert!(runtime.enqueue_frame(1));
+    assert!(!runtime.enqueue_frame(2));
+    assert_eq!(runtime.take_pending(), vec![1]);
+
+    assert!(runtime.enqueue_frame(3));
+    assert_eq!(runtime.take_pending(), vec![3]);
+}
+
+#[test]
 fn command_queue_drains_into_reused_output_without_replacing_queue_storage() {
     let runtime = AppRuntime::<u32>::default();
     for message in 0..32 {

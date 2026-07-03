@@ -10,13 +10,13 @@ use std::time::Duration;
 
 pub(in crate::application) struct AppRuntime<Message> {
     pending: Mutex<Vec<Message>>,
+    pending_frame: Mutex<Option<Message>>,
     commands: Mutex<Vec<Command<Message>>>,
     repaint: Mutex<Option<Arc<dyn RepaintSignal>>>,
     business: BusinessThreadPool,
     diagnostics: Arc<RuntimeDiagnosticsRecorder>,
     timers: OnceLock<TimerLane<Message>>,
     alive: AtomicBool,
-    frame_pending: AtomicBool,
 }
 
 impl<Message> Default for AppRuntime<Message> {
@@ -24,13 +24,13 @@ impl<Message> Default for AppRuntime<Message> {
         let diagnostics = Arc::new(RuntimeDiagnosticsRecorder::default());
         Self {
             pending: Mutex::new(Vec::new()),
+            pending_frame: Mutex::new(None),
             commands: Mutex::new(Vec::new()),
             repaint: Mutex::new(None),
             business: BusinessThreadPool::new_with_diagnostics(Arc::clone(&diagnostics)),
             diagnostics,
             timers: OnceLock::new(),
             alive: AtomicBool::new(true),
-            frame_pending: AtomicBool::new(false),
         }
     }
 }
@@ -46,10 +46,18 @@ impl<Message> AppRuntime<Message> {
     }
 
     pub(super) fn enqueue_frame(&self, message: Message) -> bool {
-        if self.frame_pending.swap(true, Ordering::AcqRel) {
+        if !self.is_alive() {
             return false;
         }
-        self.enqueue(message)
+        {
+            let mut pending_frame = lock_runtime_state(&self.pending_frame);
+            if pending_frame.is_some() {
+                return false;
+            }
+            *pending_frame = Some(message);
+        }
+        self.request_repaint();
+        true
     }
 
     pub(super) fn enqueue_command(&self, command: Command<Message>) -> bool {
@@ -83,14 +91,16 @@ impl<Message> AppRuntime<Message> {
     }
 
     pub(super) fn take_pending(&self) -> Vec<Message> {
+        let frame = lock_runtime_state(&self.pending_frame).take();
         let pending = drain_runtime_vec(&self.pending);
-        self.frame_pending.store(false, Ordering::Release);
-        pending
+        prepend_pending_frame(frame, pending)
     }
 
     pub(super) fn drain_pending_into(&self, pending: &mut Vec<Message>) {
+        if let Some(frame) = lock_runtime_state(&self.pending_frame).take() {
+            pending.insert(0, frame);
+        }
         drain_runtime_vec_into(&self.pending, pending);
-        self.frame_pending.store(false, Ordering::Release);
     }
 
     pub(super) fn take_commands(&self) -> Vec<Command<Message>> {
@@ -114,7 +124,7 @@ impl<Message> AppRuntime<Message> {
 
     pub(super) fn shutdown(&self) {
         self.alive.store(false, Ordering::Release);
-        self.frame_pending.store(false, Ordering::Release);
+        *lock_runtime_state(&self.pending_frame) = None;
         lock_runtime_state(&self.pending).clear();
         lock_runtime_state(&self.commands).clear();
     }
@@ -163,6 +173,13 @@ fn drain_runtime_vec<T>(state: &Mutex<Vec<T>>) -> Vec<T> {
     let mut queued = lock_runtime_state(state);
     let retained_capacity = queued.capacity();
     std::mem::replace(&mut *queued, Vec::with_capacity(retained_capacity))
+}
+
+fn prepend_pending_frame<T>(frame: Option<T>, mut pending: Vec<T>) -> Vec<T> {
+    if let Some(frame) = frame {
+        pending.insert(0, frame);
+    }
+    pending
 }
 
 fn drain_runtime_vec_into<T>(state: &Mutex<Vec<T>>, out: &mut Vec<T>) {

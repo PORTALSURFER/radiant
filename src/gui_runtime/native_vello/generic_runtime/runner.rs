@@ -99,13 +99,12 @@ where
         })
     }
 
-    pub(super) fn stale_pending_redraw_elapsed(&self, now: Instant) -> Option<Duration> {
+    pub(super) fn pending_redraw_elapsed(&self, now: Instant) -> Option<Duration> {
         if !self.timing.redraw_requested {
             return None;
         }
         let requested_at = self.timing.redraw_requested_at?;
-        let elapsed = now.duration_since(requested_at);
-        (elapsed >= Self::REDRAW_REISSUE_AFTER).then_some(elapsed)
+        Some(now.duration_since(requested_at))
     }
 
     pub(super) fn pending_interactive_scroll_flush_is_due(&self, now: Instant) -> bool {
@@ -275,7 +274,7 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
     ) {
-        let stale_redraw_at_route_start = self.stale_pending_redraw_elapsed(Instant::now());
+        let pending_redraw_at_route_start = self.pending_redraw_elapsed(Instant::now());
         let applied = self.apply_route_outcome(outcome);
         if applied.exit_requested {
             event_loop.exit();
@@ -284,14 +283,17 @@ where
         if applied.sync_auxiliary_windows_now {
             self.sync_auxiliary_windows(event_loop);
         }
-        if let Some(pending) = stale_redraw_at_route_start
+        if let Some(pending) = pending_redraw_at_route_start
             && self.timing.redraw_requested
         {
+            let since_last_present = Instant::now().duration_since(self.timing.last_redraw);
             warn!(
                 target: "radiant::debug::frame_profile",
-                event = "radiant.redraw_request.flushed_stale",
+                event = "radiant.redraw_request.flushed_pending",
                 pending_us = pending.as_micros(),
-                "Flushed stale redraw request after route"
+                since_last_present_us = since_last_present.as_micros(),
+                stale = pending >= Self::REDRAW_REISSUE_AFTER,
+                "Flushed pending redraw request after route"
             );
             self.redraw(event_loop);
         }

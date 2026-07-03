@@ -158,7 +158,7 @@ fn pending_redraw_requests_are_reissued_when_input_starves_present() {
 }
 
 #[test]
-fn stale_pending_redraw_elapsed_tracks_starved_present_age() {
+fn pending_redraw_elapsed_tracks_present_age() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
         TestFrameMessageBridge::default(),
@@ -166,18 +166,18 @@ fn stale_pending_redraw_elapsed_tracks_starved_present_age() {
     );
     let now = Instant::now();
 
-    assert_eq!(runner.stale_pending_redraw_elapsed(now), None);
+    assert_eq!(runner.pending_redraw_elapsed(now), None);
 
     runner.timing.redraw_requested = true;
     runner.timing.redraw_requested_at = Some(now);
     assert_eq!(
-        runner.stale_pending_redraw_elapsed(now + Duration::from_millis(8)),
-        None,
-        "fresh pending redraws should keep coalescing"
+        runner.pending_redraw_elapsed(now + Duration::from_millis(8)),
+        Some(Duration::from_millis(8)),
+        "fresh pending redraw age should be available to route-time flushes"
     );
     assert_eq!(
-        runner.stale_pending_redraw_elapsed(now + Duration::from_millis(17)),
+        runner.pending_redraw_elapsed(now + Duration::from_millis(17)),
         Some(Duration::from_millis(17)),
-        "stale pending redraw age should be available to route-time flushes"
+        "stale pending redraw age should still be available to route-time flushes"
     );
 }

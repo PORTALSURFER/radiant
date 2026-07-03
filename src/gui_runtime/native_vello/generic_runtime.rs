@@ -82,7 +82,7 @@ use native_pointer::{
 use pointer_click::pointer_press_event;
 use popup_drag::should_start_popup_window_drag;
 use post_gpu_overlay::PostGpuOverlayRenderer;
-use render_profile::{RenderFrameProfile, maybe_log_render_profile};
+use render_profile::{RenderFrameProfile, maybe_log_render_profile, maybe_log_slow_render_profile};
 pub(in crate::gui_runtime::native_vello) use route_outcome::GenericRouteOutcome;
 pub use run_report::{
     NativeGenericRunError, NativeGenericRunReport, NativeGenericRuntimeArtifacts,

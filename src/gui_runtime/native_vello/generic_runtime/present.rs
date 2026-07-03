@@ -1,7 +1,7 @@
 use super::{
     GenericNativeVelloRunner, RenderFrameProfile, RenderSurfacePixelSize,
-    hide_window_after_first_present, maybe_log_render_profile, post_gpu_overlay,
-    render_profile_enabled, reveal_window_after_first_present,
+    hide_window_after_first_present, maybe_log_render_profile, maybe_log_slow_render_profile,
+    post_gpu_overlay, render_profile_enabled, reveal_window_after_first_present,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
@@ -36,7 +36,7 @@ where
         };
         let profile_enabled = render_profile_enabled();
         let diagnostics_requested = self.core.has_frame_diagnostics_observer();
-        let mut profile = RenderFrameProfile::recording(profile_enabled || diagnostics_requested);
+        let mut profile = RenderFrameProfile::recording(true);
         self.flush_pending_scrollbar_drag_now();
         self.flush_pending_gpu_surface_wheel(&mut profile);
         self.flush_pending_scroll_container_wheel(&mut profile);
@@ -141,11 +141,7 @@ where
             Default::default()
         };
         let now = Instant::now();
-        let since_last_present = if profile_enabled || diagnostics_requested {
-            now.duration_since(self.timing.last_redraw)
-        } else {
-            Default::default()
-        };
+        let since_last_present = now.duration_since(self.timing.last_redraw);
         if profile_enabled {
             maybe_log_render_profile(
                 "present",
@@ -157,6 +153,14 @@ where
                 since_last_present,
             );
         }
+        maybe_log_slow_render_profile(
+            "present",
+            self.frame.last_scene_stats,
+            render_to_texture_elapsed,
+            profile,
+            gpu_surface_stats,
+            since_last_present,
+        );
         if diagnostics_requested {
             let diagnostics = native_frame_diagnostics(NativeFrameDiagnosticsParts {
                 stats: self.frame.last_scene_stats,
@@ -198,11 +202,7 @@ where
             Default::default()
         };
         let now = Instant::now();
-        let since_last_present = if profile_enabled || diagnostics_requested {
-            now.duration_since(self.timing.last_redraw)
-        } else {
-            Default::default()
-        };
+        let since_last_present = now.duration_since(self.timing.last_redraw);
         let gpu_surface_stats = Default::default();
         if profile_enabled {
             maybe_log_render_profile(
@@ -215,6 +215,14 @@ where
                 since_last_present,
             );
         }
+        maybe_log_slow_render_profile(
+            "present.resize_direct",
+            self.frame.last_scene_stats,
+            render_to_texture_elapsed,
+            profile,
+            gpu_surface_stats,
+            since_last_present,
+        );
         if diagnostics_requested {
             let diagnostics = native_frame_diagnostics(NativeFrameDiagnosticsParts {
                 stats: self.frame.last_scene_stats,

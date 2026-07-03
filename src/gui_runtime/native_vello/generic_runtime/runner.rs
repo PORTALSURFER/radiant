@@ -99,6 +99,15 @@ where
         })
     }
 
+    pub(super) fn stale_pending_redraw_elapsed(&self, now: Instant) -> Option<Duration> {
+        if !self.timing.redraw_requested {
+            return None;
+        }
+        let requested_at = self.timing.redraw_requested_at?;
+        let elapsed = now.duration_since(requested_at);
+        (elapsed >= Self::REDRAW_REISSUE_AFTER).then_some(elapsed)
+    }
+
     pub(super) fn pending_interactive_scroll_flush_is_due(&self, now: Instant) -> bool {
         self.timing.redraw_requested && self.pending_redraw_request_is_stale(now)
     }
@@ -266,12 +275,25 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
     ) {
+        let stale_redraw_at_route_start = self.stale_pending_redraw_elapsed(Instant::now());
         let applied = self.apply_route_outcome(outcome);
         if applied.exit_requested {
             event_loop.exit();
+            return;
         }
         if applied.sync_auxiliary_windows_now {
             self.sync_auxiliary_windows(event_loop);
+        }
+        if let Some(pending) = stale_redraw_at_route_start
+            && self.timing.redraw_requested
+        {
+            warn!(
+                target: "radiant::debug::frame_profile",
+                event = "radiant.redraw_request.flushed_stale",
+                pending_us = pending.as_micros(),
+                "Flushed stale redraw request after route"
+            );
+            self.redraw(event_loop);
         }
     }
 

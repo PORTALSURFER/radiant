@@ -15,7 +15,7 @@ mod platform;
 const RUNTIME_CANCEL_POLL: std::time::Duration = std::time::Duration::from_millis(50);
 const BUSINESS_THREAD_PREFIX: &str = "radiant-business";
 const DEFAULT_BUSINESS_WORKERS: usize = 2;
-const INTERACTIVE_BUSINESS_WORKERS: usize = 1;
+const INTERACTIVE_BUSINESS_WORKERS: usize = 2;
 const BLOCKING_IO_BUSINESS_WORKERS: usize = 1;
 const IDLE_BUSINESS_WORKERS: usize = 1;
 const INTERACTIVE_CHECKPOINT_WARNING: std::time::Duration = std::time::Duration::from_millis(250);

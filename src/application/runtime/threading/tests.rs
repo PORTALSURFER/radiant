@@ -107,6 +107,46 @@ fn interactive_business_work_does_not_wait_behind_blocked_background_work() {
 }
 
 #[test]
+fn interactive_business_lane_runs_more_than_one_user_visible_task() {
+    let pool = BusinessThreadPool::new(1);
+    let (first_started_tx, first_started_rx) = mpsc::channel();
+    let (release_first_tx, release_first_rx) = mpsc::channel();
+    let (second_started_tx, second_started_rx) = mpsc::channel();
+
+    assert!(pool.spawn(
+        "blocked-interactive",
+        TaskPriority::Interactive,
+        None,
+        move || {
+            first_started_tx.send(()).expect("send first start");
+            release_first_rx.recv().expect("wait for first release");
+        }
+    ));
+    first_started_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("first interactive task starts");
+
+    assert!(pool.spawn(
+        "second-interactive",
+        TaskPriority::Interactive,
+        None,
+        move || {
+            second_started_tx.send(()).expect("send second start");
+        }
+    ));
+
+    second_started_rx
+        .recv_timeout(Duration::from_millis(250))
+        .expect("second interactive task should start on another worker");
+    release_first_tx
+        .send(())
+        .expect("release first interactive task");
+
+    let diagnostics = wait_for_business_completion(&pool, 2);
+    assert_eq!(diagnostics.business.completed, 2);
+}
+
+#[test]
 fn interactive_business_work_does_not_wait_behind_blocked_io_work() {
     let pool = BusinessThreadPool::new(1);
     let (io_started_tx, io_started_rx) = mpsc::channel();

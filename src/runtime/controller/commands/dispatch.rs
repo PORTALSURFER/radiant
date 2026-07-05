@@ -133,6 +133,12 @@ where
                 outcome.repaint_requested |= focused;
                 outcome.surface_repaint_requested |= focused;
             }
+            Command::ClearFocus => {
+                let had_focus = self.focused_widget().is_some();
+                self.clear_focus();
+                outcome.repaint_requested |= had_focus;
+                outcome.surface_repaint_requested |= had_focus;
+            }
             Command::ScrollTo { node_id, offset } => {
                 let offset = Vector2::new(offset.x.max(0.0), offset.y.max(0.0));
                 self.scroll_to_offset(node_id, offset);

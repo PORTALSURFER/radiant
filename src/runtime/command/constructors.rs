@@ -120,6 +120,11 @@ impl<Message> Command<Message> {
         Self::Focus(widget_id)
     }
 
+    /// Build a command that clears keyboard focus.
+    pub const fn clear_focus() -> Self {
+        Self::ClearFocus
+    }
+
     /// Build a command that arms a native external drag session.
     pub fn begin_external_drag(
         request: ExternalDragRequest,

@@ -8,8 +8,9 @@ use super::{
 use crate::{
     application::{IntoView, RepaintPolicy},
     gui::{input::KeyPress, shortcuts::ShortcutResolution},
-    runtime::{Command, RepaintScope, RuntimeUpdateSnapshot},
+    runtime::{Command, RepaintScope},
 };
+use crate::runtime::RuntimeUpdateSnapshot;
 use std::{any::Any, collections::HashMap, marker::PhantomData, sync::Arc};
 
 mod adapter;

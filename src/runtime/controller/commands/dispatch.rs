@@ -2,8 +2,9 @@ use super::{CommandOutcome, SurfaceRuntime};
 use crate::runtime::UiUpdateHandlerDiagnosticsMode;
 use crate::{
     gui::types::Vector2,
-    runtime::{Command, DragSession, ExternalDragSession, RuntimeBridge, RuntimeUpdateSnapshot},
+    runtime::{Command, DragSession, ExternalDragSession, RuntimeBridge},
 };
+use crate::runtime::RuntimeUpdateSnapshot;
 use std::{any::type_name, panic::panic_any, time::Instant};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -21,6 +22,9 @@ where
         let paint_only = command
             .repaint_scope()
             .is_some_and(|scope| scope.is_paint_only());
+        if !paint_only {
+            self.refresh();
+        }
         let messages_before_command = outcome.messages_dispatched;
         self.execute_command_inner(command, outcome);
         let command_dispatched_messages = outcome.messages_dispatched > messages_before_command;

@@ -118,7 +118,7 @@ fn native_render_profile_uses_explicit_imports() {
 
     assert!(
         render_profile.contains("use std::time::{Duration, Instant};")
-            && render_profile.contains("use tracing::info;")
+            && render_profile.contains("use tracing::{info, warn};")
             && render_profile.contains("RetainedSurfaceEncodeStats")
             && render_profile.contains("GpuSurfaceRenderStats")
             && render_profile.contains("TextLayoutProfileCounters")

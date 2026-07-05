@@ -1,7 +1,7 @@
 //! Public API coverage for generic runtime bridge contracts.
 
 use radiant::{
-    layout::Vector2,
+    layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams, Vector2},
     runtime::{
         App, DeclarativeOwnedRuntimeBridge, DeclarativeOwnedRuntimeBridgeParts,
         DeclarativeOwnedSurfaceRuntime, DeclarativeRuntimeBridge, DeclarativeRuntimeBridgeParts,
@@ -37,6 +37,8 @@ enum DemoMessage {
 struct DemoState {
     count: usize,
     name: String,
+    show_list: bool,
+    scroll_reports: Vec<f32>,
 }
 
 fn widget_ref<'a, T, Message>(surface: &'a UiSurface<Message>, id: u64, expected: &str) -> &'a T

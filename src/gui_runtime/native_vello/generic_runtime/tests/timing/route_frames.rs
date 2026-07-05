@@ -156,3 +156,56 @@ fn pending_redraw_requests_are_reissued_when_input_starves_present() {
         "stale pending redraws should be reissued during sustained input bursts"
     );
 }
+
+#[test]
+fn pending_redraw_elapsed_tracks_present_age() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let now = Instant::now();
+
+    assert_eq!(runner.pending_redraw_elapsed(now), None);
+
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(now);
+    assert_eq!(
+        runner.pending_redraw_elapsed(now + Duration::from_millis(8)),
+        Some(Duration::from_millis(8)),
+        "fresh pending redraw age should be available to route-time flushes"
+    );
+    assert_eq!(
+        runner.pending_redraw_elapsed(now + Duration::from_millis(17)),
+        Some(Duration::from_millis(17)),
+        "stale pending redraw age should still be available to route-time flushes"
+    );
+}
+
+#[test]
+fn route_time_redraw_flush_waits_for_frame_slot_or_stale_request() {
+    let runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let frame_interval =
+        frame_cadence::animation_frame_interval(runner.options.normalized_target_fps());
+
+    assert!(
+        !runner
+            .should_flush_pending_redraw_after_route(Duration::from_millis(1), frame_interval / 2),
+        "fresh redraws should not force an extra present inside the current frame slot"
+    );
+    assert!(
+        runner.should_flush_pending_redraw_after_route(Duration::from_millis(1), frame_interval),
+        "fresh redraws should flush when the next visible frame is due"
+    );
+    assert!(
+        runner.should_flush_pending_redraw_after_route(
+            Duration::from_millis(17),
+            Duration::from_millis(1)
+        ),
+        "stale redraw requests should be flushed even when the last present was recent"
+    );
+}

@@ -1,7 +1,8 @@
 use super::SurfaceRuntime;
+use crate::gui::types::Point;
 use crate::runtime::UiUpdateHandlerDiagnosticsPolicy;
 use crate::{
-    gui::types::{Point, Rect, Vector2},
+    gui::types::{Rect, Vector2},
     layout::{LayoutDebugOptions, LayoutOutput, NodeId},
     runtime::{RuntimeBridge, RuntimeDiagnostics, UiSurface},
     widgets::WidgetId,

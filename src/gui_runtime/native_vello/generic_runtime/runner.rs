@@ -42,6 +42,7 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     const REDRAW_REISSUE_AFTER: Duration = Duration::from_millis(16);
+    const REDRAW_REISSUE_LOG_AFTER: Duration = Duration::from_millis(32);
 
     pub(super) fn new(options: NativeRunOptions, bridge: Bridge, viewport: Vector2) -> Self {
         let text_renderer = NativeTextRenderer::with_options(&options.text);
@@ -72,6 +73,20 @@ where
             return;
         }
         if let Some(window) = self.window.window.as_ref() {
+            if self.timing.redraw_requested
+                && let Some(requested_at) = self.timing.redraw_requested_at
+            {
+                let pending = now.duration_since(requested_at);
+                if pending >= Self::REDRAW_REISSUE_LOG_AFTER {
+                    warn!(
+                        target: "radiant::debug::frame_profile",
+                        event = "radiant.redraw_request.reissued",
+                        pending_us = pending.as_micros(),
+                        stale_after_us = Self::REDRAW_REISSUE_AFTER.as_micros(),
+                        "Reissued stale redraw request"
+                    );
+                }
+            }
             window.request_redraw();
             self.timing.redraw_requested = true;
             self.timing.redraw_requested_at = Some(now);
@@ -84,8 +99,35 @@ where
         })
     }
 
+    pub(super) fn pending_redraw_elapsed(&self, now: Instant) -> Option<Duration> {
+        if !self.timing.redraw_requested {
+            return None;
+        }
+        let requested_at = self.timing.redraw_requested_at?;
+        Some(now.duration_since(requested_at))
+    }
+
     pub(super) fn pending_interactive_scroll_flush_is_due(&self, now: Instant) -> bool {
         self.timing.redraw_requested && self.pending_redraw_request_is_stale(now)
+    }
+
+    pub(super) fn should_flush_pending_redraw_after_route(
+        &self,
+        pending: Duration,
+        since_last_present: Duration,
+    ) -> bool {
+        pending >= Self::REDRAW_REISSUE_AFTER
+            || since_last_present
+                >= animation_frame_interval_for_normalized_fps(self.options.normalized_target_fps())
+    }
+
+    fn should_log_pending_redraw_route_flush(
+        &self,
+        pending: Duration,
+        since_last_present: Duration,
+    ) -> bool {
+        pending >= Self::REDRAW_REISSUE_LOG_AFTER
+            || since_last_present >= Self::REDRAW_REISSUE_LOG_AFTER
     }
 
     pub(super) fn drain_timed_frame_now(
@@ -251,12 +293,32 @@ where
         event_loop: &ActiveEventLoop,
         outcome: GenericRouteOutcome,
     ) {
+        let pending_redraw_at_route_start = self.pending_redraw_elapsed(Instant::now());
         let applied = self.apply_route_outcome(outcome);
         if applied.exit_requested {
             event_loop.exit();
+            return;
         }
         if applied.sync_auxiliary_windows_now {
             self.sync_auxiliary_windows(event_loop);
+        }
+        if let Some(pending) = pending_redraw_at_route_start
+            && self.timing.redraw_requested
+        {
+            let since_last_present = Instant::now().duration_since(self.timing.last_redraw);
+            if self.should_flush_pending_redraw_after_route(pending, since_last_present) {
+                if self.should_log_pending_redraw_route_flush(pending, since_last_present) {
+                    warn!(
+                        target: "radiant::debug::frame_profile",
+                        event = "radiant.redraw_request.flushed_pending",
+                        pending_us = pending.as_micros(),
+                        since_last_present_us = since_last_present.as_micros(),
+                        stale = pending >= Self::REDRAW_REISSUE_AFTER,
+                        "Flushed pending redraw request after route"
+                    );
+                }
+                self.redraw(event_loop);
+            }
         }
     }
 

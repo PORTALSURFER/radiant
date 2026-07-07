@@ -148,6 +148,9 @@ pub(super) fn maybe_log_slow_render_profile(
     gpu_surface_stats: GpuSurfaceRenderStats,
     since_last_present: Duration,
 ) {
+    if !slow_render_profile_enabled() {
+        return;
+    }
     let cpu_envelope_total = tracked_cpu_envelope_total(frame, render_to_texture_elapsed);
     let slow_phase_total = [
         frame.coalesced_wheel_route,
@@ -207,6 +210,10 @@ pub(super) fn maybe_log_slow_render_profile(
         since_last_present_us = since_last_present.as_micros(),
         "radiant native slow frame profile"
     );
+}
+
+pub(super) const fn slow_render_profile_enabled() -> bool {
+    cfg!(debug_assertions)
 }
 
 fn tracked_cpu_envelope_total(

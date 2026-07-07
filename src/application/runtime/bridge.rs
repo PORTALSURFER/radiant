@@ -5,13 +5,13 @@ use super::{
     AppShortcuts, AppShutdown, AppStartup, AppSubscriptions, RetainedPainter,
     TransientOverlayActivity, TransientOverlayPainter, UiUpdateContext,
 };
+use crate::runtime::RuntimeUpdateSnapshot;
 use crate::{
     application::{IntoView, RepaintPolicy},
     gui::{input::KeyPress, shortcuts::ShortcutResolution},
     runtime::{Command, RepaintScope},
 };
-use crate::runtime::RuntimeUpdateSnapshot;
-use std::{any::Any, collections::HashMap, marker::PhantomData, sync::Arc};
+use std::{any::Any, collections::HashMap, marker::PhantomData, sync::Arc, time::Instant};
 
 mod adapter;
 
@@ -29,6 +29,10 @@ pub(in crate::application) struct AppBridge<State, Message, Project, Update, Vie
 pub(in crate::application) struct AppBridgeRuntimeFlags {
     /// Cached animation-frame activity from the latest animation poll.
     pub(in crate::application) pending_animation_frame_activity: Option<FrameMessageActivity>,
+    /// Last app-level frame message queued from the timed-frame scheduler.
+    pub(in crate::application) last_app_frame_message_at: Option<Instant>,
+    /// Last scene-level frame message queued from the timed-frame scheduler.
+    pub(in crate::application) last_scene_frame_message_at: Option<Instant>,
     /// Origin and optional captured state for the currently queued frame message.
     pub(in crate::application) pending_frame_repaint: Option<PendingFrameRepaint>,
     /// Whether app subscriptions have been installed for this bridge.
@@ -40,7 +44,9 @@ pub(in crate::application) struct AppBridgeRuntimeFlags {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(in crate::application) struct FrameMessageActivity {
     pub(in crate::application) app: bool,
+    pub(in crate::application) app_target_fps: Option<u32>,
     pub(in crate::application) scene: bool,
+    pub(in crate::application) scene_target_fps: Option<u32>,
 }
 
 pub(in crate::application) struct PendingFrameRepaint {

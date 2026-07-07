@@ -1,7 +1,7 @@
 use super::{
     GenericNativeVelloRunner, GenericRouteOutcome, key_code_from_winit, keypress_from_input,
 };
-use crate::gui::input::KeyCode;
+use crate::gui::input::{KeyCode, KeyPress};
 use crate::{runtime::RuntimeBridge, widgets::WidgetKey};
 use std::time::Instant;
 use winit::{
@@ -27,6 +27,7 @@ where
         let repeat = event.repeat;
         let mut repeat_accepted = !repeat;
         let mut route_outcome = GenericRouteOutcome::default();
+        let logical_text = keyboard_event_text(&event);
         if let PhysicalKey::Code(code) = event.physical_key
             && let Some(key) = key_code_from_winit(code)
         {
@@ -60,11 +61,8 @@ where
                 self.handle_route_outcome(event_loop, route_outcome);
                 return;
             }
-            if self.route_focused_text_input_before_shortcuts(
-                key,
-                keyboard_event_text(&event),
-                &mut route_outcome,
-            ) {
+            if self.route_focused_text_input_before_shortcuts(key, logical_text, &mut route_outcome)
+            {
                 self.handle_route_outcome(event_loop, route_outcome);
                 return;
             }
@@ -76,6 +74,17 @@ where
         }
         if !repeat_accepted {
             return;
+        }
+        if !route_outcome.routed
+            && !self.core.has_focused_text_input()
+            && let Some(press) = logical_shortcut_keypress_from_text(logical_text)
+        {
+            let outcome = self.core.route_key_press(press, None);
+            route_outcome.merge(outcome);
+            if route_outcome.routed {
+                self.handle_route_outcome(event_loop, route_outcome);
+                return;
+            }
         }
         if let Some(text) = event.text.as_ref() {
             self.route_text_input_after_unhandled_keypress(text, &mut route_outcome);
@@ -109,4 +118,36 @@ fn keyboard_event_text(event: &KeyEvent) -> Option<&str> {
             None
         }
     })
+}
+
+fn logical_shortcut_keypress_from_text(text: Option<&str>) -> Option<KeyPress> {
+    Some(KeyPress::new(match text? {
+        "[" => KeyCode::OpenBracket,
+        "]" => KeyCode::CloseBracket,
+        _ => return None,
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn logical_shortcut_keypress_from_text_maps_bracket_characters() {
+        assert_eq!(
+            logical_shortcut_keypress_from_text(Some("[")),
+            Some(KeyPress::new(KeyCode::OpenBracket))
+        );
+        assert_eq!(
+            logical_shortcut_keypress_from_text(Some("]")),
+            Some(KeyPress::new(KeyCode::CloseBracket))
+        );
+    }
+
+    #[test]
+    fn logical_shortcut_keypress_from_text_ignores_non_exact_bracket_text() {
+        assert_eq!(logical_shortcut_keypress_from_text(Some("{")), None);
+        assert_eq!(logical_shortcut_keypress_from_text(Some("[]")), None);
+        assert_eq!(logical_shortcut_keypress_from_text(None), None);
+    }
 }

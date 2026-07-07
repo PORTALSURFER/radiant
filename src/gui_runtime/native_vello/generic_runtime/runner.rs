@@ -5,7 +5,8 @@ use super::{
     NativeAutomationTargetExporter, NativeRunnerInputState, NativeRunnerTimingState,
     NativeRunnerWindowState, NativeVelloFrameState, RuntimeWakeup, SurfaceSceneEncodeContext,
     TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
-    encode_surface_paint_plan_to_scene, timed_frame_cadence, timed_frame_target_fps,
+    encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
+    timed_frame_target_fps,
 };
 use crate::{
     gui::types::Vector2,
@@ -77,7 +78,7 @@ where
                 && let Some(requested_at) = self.timing.redraw_requested_at
             {
                 let pending = now.duration_since(requested_at);
-                if pending >= Self::REDRAW_REISSUE_LOG_AFTER {
+                if slow_render_profile_enabled() && pending >= Self::REDRAW_REISSUE_LOG_AFTER {
                     warn!(
                         target: "radiant::debug::frame_profile",
                         event = "radiant.redraw_request.reissued",
@@ -99,6 +100,24 @@ where
         })
     }
 
+    pub(super) fn should_defer_timed_frame_drain_for_pending_redraw(&self, now: Instant) -> bool {
+        self.timing.redraw_requested && !self.pending_redraw_request_is_stale(now)
+    }
+
+    pub(super) fn pending_redraw_retry_deadline(&self) -> Option<Instant> {
+        if !self.timing.redraw_requested {
+            return None;
+        }
+        self.timing
+            .redraw_requested_at
+            .and_then(|requested_at| requested_at.checked_add(Self::REDRAW_REISSUE_AFTER))
+    }
+
+    pub(super) fn frame_wait_deadline(&self, scheduled: Instant) -> Instant {
+        self.pending_redraw_retry_deadline()
+            .map_or(scheduled, |deadline| scheduled.min(deadline))
+    }
+
     pub(super) fn pending_redraw_elapsed(&self, now: Instant) -> Option<Duration> {
         if !self.timing.redraw_requested {
             return None;
@@ -114,11 +133,9 @@ where
     pub(super) fn should_flush_pending_redraw_after_route(
         &self,
         pending: Duration,
-        since_last_present: Duration,
+        _since_last_present: Duration,
     ) -> bool {
         pending >= Self::REDRAW_REISSUE_AFTER
-            || since_last_present
-                >= animation_frame_interval_for_normalized_fps(self.options.normalized_target_fps())
     }
 
     fn should_log_pending_redraw_route_flush(
@@ -126,8 +143,9 @@ where
         pending: Duration,
         since_last_present: Duration,
     ) -> bool {
-        pending >= Self::REDRAW_REISSUE_LOG_AFTER
-            || since_last_present >= Self::REDRAW_REISSUE_LOG_AFTER
+        slow_render_profile_enabled()
+            && (pending >= Self::REDRAW_REISSUE_LOG_AFTER
+                || since_last_present >= Self::REDRAW_REISSUE_LOG_AFTER)
     }
 
     pub(super) fn drain_timed_frame_now(
@@ -146,6 +164,9 @@ where
         let native_target_fps = self.options.normalized_target_fps();
         let native_frame_interval = animation_frame_interval_for_normalized_fps(native_target_fps);
         if now.duration_since(self.timing.last_timed_frame_drain) < native_frame_interval {
+            return;
+        }
+        if self.should_defer_timed_frame_drain_for_pending_redraw(now) {
             return;
         }
         let animation_activity = self.core.animation_activity();

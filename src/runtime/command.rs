@@ -125,6 +125,8 @@ pub enum Command<Message> {
     },
     /// Move keyboard focus to one widget.
     Focus(WidgetId),
+    /// Clear keyboard focus from any focused widget.
+    ClearFocus,
     /// Move one scroll container to a logical offset.
     ScrollTo {
         /// Scroll container node to move.

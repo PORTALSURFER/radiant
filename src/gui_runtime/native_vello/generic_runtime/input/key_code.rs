@@ -97,6 +97,14 @@ mod tests {
             Some(KeyCode::Semicolon)
         );
         assert_eq!(
+            key_code_from_winit(WinitKeyCode::BracketLeft),
+            Some(KeyCode::OpenBracket)
+        );
+        assert_eq!(
+            key_code_from_winit(WinitKeyCode::BracketRight),
+            Some(KeyCode::CloseBracket)
+        );
+        assert_eq!(
             key_code_from_winit(WinitKeyCode::ArrowLeft),
             Some(KeyCode::ArrowLeft)
         );

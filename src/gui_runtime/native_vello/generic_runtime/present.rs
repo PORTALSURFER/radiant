@@ -2,6 +2,7 @@ use super::{
     GenericNativeVelloRunner, RenderFrameProfile, RenderSurfacePixelSize,
     hide_window_after_first_present, maybe_log_render_profile, maybe_log_slow_render_profile,
     post_gpu_overlay, render_profile_enabled, reveal_window_after_first_present,
+    slow_render_profile_enabled,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
@@ -36,7 +37,10 @@ where
         };
         let profile_enabled = render_profile_enabled();
         let diagnostics_requested = self.core.has_frame_diagnostics_observer();
-        let mut profile = RenderFrameProfile::recording(true);
+        let slow_profile_enabled = slow_render_profile_enabled();
+        let mut profile = RenderFrameProfile::recording(
+            profile_enabled || diagnostics_requested || slow_profile_enabled,
+        );
         self.flush_pending_scrollbar_drag_now();
         self.flush_pending_gpu_surface_wheel(&mut profile);
         self.flush_pending_scroll_container_wheel(&mut profile);

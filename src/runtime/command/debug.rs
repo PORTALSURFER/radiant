@@ -32,6 +32,7 @@ where
                 .field("priority", priority)
                 .finish(),
             Self::Focus(widget_id) => f.debug_tuple("Focus").field(widget_id).finish(),
+            Self::ClearFocus => f.write_str("ClearFocus"),
             Self::ScrollTo { node_id, offset } => f
                 .debug_struct("ScrollTo")
                 .field("node_id", node_id)

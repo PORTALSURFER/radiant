@@ -46,6 +46,57 @@ fn pointer_routes_drain_due_frame_message_animation() {
 }
 
 #[test]
+fn due_frame_animation_waits_behind_fresh_pending_redraw() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let interval = frame_cadence::animation_frame_interval(60);
+    let last_drain = Instant::now() - interval;
+    runner.timing.last_timed_frame_drain = last_drain;
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(Instant::now());
+    let mut outcome = GenericRouteOutcome::default();
+
+    runner.merge_due_timed_frame_for_route(&mut outcome);
+
+    assert_eq!(
+        runner.timing.last_timed_frame_drain, last_drain,
+        "pending presentation should keep timed animation from consuming a hidden frame"
+    );
+    assert_eq!(
+        outcome,
+        GenericRouteOutcome::default(),
+        "fresh pending redraws already have a visible frame in flight"
+    );
+}
+
+#[test]
+fn stale_pending_redraw_does_not_block_due_frame_animation() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let interval = frame_cadence::animation_frame_interval(60);
+    let last_drain = Instant::now() - interval;
+    runner.timing.last_timed_frame_drain = last_drain;
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(Instant::now() - Duration::from_millis(17));
+    let mut outcome = GenericRouteOutcome::default();
+
+    runner.merge_due_timed_frame_for_route(&mut outcome);
+
+    assert!(
+        runner.timing.last_timed_frame_drain > last_drain,
+        "stale pending redraws should keep the recovery path moving"
+    );
+    assert!(outcome.routed);
+    assert!(outcome.needs_redraw());
+}
+
+#[test]
 fn pointer_move_outcome_drain_keeps_frame_animation_moving() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
@@ -183,7 +234,29 @@ fn pending_redraw_elapsed_tracks_present_age() {
 }
 
 #[test]
-fn route_time_redraw_flush_waits_for_frame_slot_or_stale_request() {
+fn frame_wait_deadline_includes_pending_redraw_reissue_deadline() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let now = Instant::now();
+    let scheduled = now + Duration::from_millis(30);
+
+    assert_eq!(runner.frame_wait_deadline(scheduled), scheduled);
+
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(now);
+
+    assert_eq!(
+        runner.frame_wait_deadline(scheduled),
+        now + Duration::from_millis(16),
+        "animation waits should wake early enough to recover a swallowed redraw"
+    );
+}
+
+#[test]
+fn route_time_redraw_flush_waits_for_stale_request() {
     let runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
         TestFrameMessageBridge::default(),
@@ -198,8 +271,8 @@ fn route_time_redraw_flush_waits_for_frame_slot_or_stale_request() {
         "fresh redraws should not force an extra present inside the current frame slot"
     );
     assert!(
-        runner.should_flush_pending_redraw_after_route(Duration::from_millis(1), frame_interval),
-        "fresh redraws should flush when the next visible frame is due"
+        !runner.should_flush_pending_redraw_after_route(Duration::from_millis(1), frame_interval),
+        "fresh redraws should stay on the native redraw path even when the last present is old"
     );
     assert!(
         runner.should_flush_pending_redraw_after_route(

@@ -11,10 +11,6 @@ pub(super) struct LaunchAnimationActivity {
 }
 
 impl LaunchAnimationActivity {
-    pub(super) fn needs_frame_message(&self) -> bool {
-        self.runtime_activity.needs_frame_message()
-    }
-
     pub(super) fn into_runtime_activity(self) -> RuntimeAnimationActivity {
         self.runtime_activity
     }

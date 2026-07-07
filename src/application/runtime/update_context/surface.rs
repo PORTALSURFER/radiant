@@ -13,6 +13,11 @@ impl<Message> UiUpdateContext<Message> {
         self.queue_command(Command::focus(widget_id));
     }
 
+    /// Clear keyboard focus from any focused widget.
+    pub fn clear_focus(&mut self) {
+        self.queue_command(Command::clear_focus());
+    }
+
     /// Move one scroll container to a logical offset.
     pub fn scroll_to(&mut self, node_id: NodeId, offset: Vector2) {
         self.queue_command(Command::scroll_to(node_id, offset));

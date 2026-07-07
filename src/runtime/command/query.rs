@@ -12,6 +12,7 @@ impl<Message> Command<Message> {
             | Self::Perform { .. }
             | Self::PerformStream { .. }
             | Self::Focus(_)
+            | Self::ClearFocus
             | Self::ScrollTo { .. }
             | Self::ScrollIntoView { .. }
             | Self::ScrollFixedRowIntoView { .. }
@@ -53,6 +54,7 @@ impl<Message> Command<Message> {
             | Self::Perform { .. }
             | Self::PerformStream { .. }
             | Self::Focus(_)
+            | Self::ClearFocus
             | Self::ScrollTo { .. }
             | Self::ScrollIntoView { .. }
             | Self::ScrollFixedRowIntoView { .. }

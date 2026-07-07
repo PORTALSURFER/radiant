@@ -103,6 +103,7 @@ pub struct FrameClock<State, Message> {
     message: AppFrameMessage<Message>,
     when: Box<dyn FnMut(&mut State) -> bool>,
     target_fps: Option<u32>,
+    dynamic_target_fps: Option<Box<dyn FnMut(&mut State) -> Option<u32>>>,
     repaint_policy: Option<Box<dyn AppFrameRepaintPolicy<State>>>,
 }
 
@@ -129,6 +130,7 @@ impl<State: 'static, Message> FrameClock<State, Message> {
             message: Box::new(message),
             when: Box::new(|_| true),
             target_fps: None,
+            dynamic_target_fps: None,
             repaint_policy: None,
         }
     }
@@ -142,6 +144,14 @@ impl<State: 'static, Message> FrameClock<State, Message> {
     /// Request a maximum frame-message cadence.
     pub const fn fps(mut self, target_fps: u32) -> Self {
         self.target_fps = Some(target_fps);
+        self
+    }
+
+    /// Request a state-dependent maximum frame-message cadence.
+    ///
+    /// Returning `None` keeps the frame clock at the native animation cadence.
+    pub fn fps_with(mut self, target_fps: impl FnMut(&mut State) -> Option<u32> + 'static) -> Self {
+        self.dynamic_target_fps = Some(Box::new(target_fps));
         self
     }
 
@@ -167,12 +177,16 @@ impl<State: 'static, Message> FrameClock<State, Message> {
             message,
             mut when,
             target_fps,
+            mut dynamic_target_fps,
             repaint_policy,
         } = self;
         let activity = Box::new(move |state: &mut State| {
             if !when(state) {
                 return RuntimeAnimationActivity::idle();
             }
+            let target_fps = dynamic_target_fps
+                .as_mut()
+                .map_or(target_fps, |target_fps| target_fps(state));
             match target_fps {
                 Some(target_fps) => RuntimeAnimationActivity::frame_messages_at(target_fps),
                 None => RuntimeAnimationActivity::frame_messages(),

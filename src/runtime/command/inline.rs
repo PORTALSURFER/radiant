@@ -32,6 +32,7 @@ impl<Message> Command<Message> {
             | Self::SetDpiScale(_)
             | Self::SetWindowLogicalSize(_)
             | Self::Focus(_)
+            | Self::ClearFocus
             | Self::ScrollTo { .. }
             | Self::ScrollIntoView { .. }
             | Self::ScrollFixedRowIntoView { .. }

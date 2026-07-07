@@ -99,6 +99,24 @@ where
         })
     }
 
+    pub(super) fn should_defer_timed_frame_drain_for_pending_redraw(&self, now: Instant) -> bool {
+        self.timing.redraw_requested && !self.pending_redraw_request_is_stale(now)
+    }
+
+    pub(super) fn pending_redraw_retry_deadline(&self) -> Option<Instant> {
+        if !self.timing.redraw_requested {
+            return None;
+        }
+        self.timing
+            .redraw_requested_at
+            .and_then(|requested_at| requested_at.checked_add(Self::REDRAW_REISSUE_AFTER))
+    }
+
+    pub(super) fn frame_wait_deadline(&self, scheduled: Instant) -> Instant {
+        self.pending_redraw_retry_deadline()
+            .map_or(scheduled, |deadline| scheduled.min(deadline))
+    }
+
     pub(super) fn pending_redraw_elapsed(&self, now: Instant) -> Option<Duration> {
         if !self.timing.redraw_requested {
             return None;
@@ -146,6 +164,9 @@ where
         let native_target_fps = self.options.normalized_target_fps();
         let native_frame_interval = animation_frame_interval_for_normalized_fps(native_target_fps);
         if now.duration_since(self.timing.last_timed_frame_drain) < native_frame_interval {
+            return;
+        }
+        if self.should_defer_timed_frame_drain_for_pending_redraw(now) {
             return;
         }
         let animation_activity = self.core.animation_activity();

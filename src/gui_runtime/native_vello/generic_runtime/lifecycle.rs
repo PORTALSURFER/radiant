@@ -152,9 +152,16 @@ where
         match cadence {
             TimedFrameCadence::Idle => event_loop.set_control_flow(ControlFlow::Wait),
             TimedFrameCadence::WaitUntil(next_frame) => {
-                event_loop.set_control_flow(ControlFlow::WaitUntil(next_frame));
+                event_loop
+                    .set_control_flow(ControlFlow::WaitUntil(self.frame_wait_deadline(next_frame)));
             }
             TimedFrameCadence::DrainNow { next_wake } => {
+                if self.should_defer_timed_frame_drain_for_pending_redraw(now) {
+                    event_loop.set_control_flow(ControlFlow::WaitUntil(
+                        self.frame_wait_deadline(next_wake),
+                    ));
+                    return;
+                }
                 let expected_interval = animation_frame_interval(frame_target_fps);
                 let elapsed_since_last = now.duration_since(self.timing.last_timed_frame_drain);
                 let overdue = elapsed_since_last.saturating_sub(expected_interval);

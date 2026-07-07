@@ -2,7 +2,7 @@ use super::{
     AppRuntime, BusinessThreadPool, business_thread_name, default_business_worker_count,
     sleep_while_runtime_alive, spawn_business_thread,
 };
-use crate::runtime::TaskPriority;
+use crate::runtime::{BusinessTaskDiagnosticState, TaskPriority};
 use std::{
     sync::{
         Arc,
@@ -259,6 +259,48 @@ fn business_thread_pool_records_cancelled_completion_diagnostics() {
 }
 
 #[test]
+fn single_worker_business_lane_keeps_running_after_task_panic() {
+    let pool = BusinessThreadPool::new(1);
+    let (panic_started_tx, panic_started_rx) = mpsc::channel();
+    let (next_ran_tx, next_ran_rx) = mpsc::channel();
+
+    assert!(pool.spawn("panic-idle", TaskPriority::Idle, None, move || {
+        panic_started_tx.send(()).expect("send panic start");
+        panic!("intentional idle worker panic");
+    }));
+    panic_started_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("panicking idle task should start");
+
+    assert!(
+        pool.spawn("after-panic-idle", TaskPriority::Idle, None, move || {
+            next_ran_tx.send(()).expect("send post-panic task");
+        })
+    );
+    next_ran_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("single idle worker should run next task after panic");
+
+    let diagnostics = wait_for_business_completion(&pool, 2);
+    assert_eq!(diagnostics.business.started, 2);
+    assert_eq!(diagnostics.business.completed, 1);
+    assert_eq!(diagnostics.business.failed, 1);
+    assert_eq!(diagnostics.business.running, 0);
+    assert!(diagnostics.business.recent.iter().any(|event| {
+        event.name == "panic-idle"
+            && event.priority == TaskPriority::Idle
+            && event.state == BusinessTaskDiagnosticState::Started
+            && event.queue_delay.is_some()
+    }));
+    assert!(diagnostics.business.recent.iter().any(|event| {
+        event.name == "panic-idle"
+            && event.priority == TaskPriority::Idle
+            && event.state == BusinessTaskDiagnosticState::Panicked
+            && event.run_duration.is_some()
+    }));
+}
+
+#[test]
 fn runtime_sleep_stops_promptly_after_shutdown() {
     let runtime = Arc::new(AppRuntime::<u32>::default());
     let weak = Arc::downgrade(&runtime);
@@ -281,7 +323,9 @@ fn wait_for_business_completion(
     let deadline = Instant::now() + Duration::from_secs(1);
     loop {
         let diagnostics = pool.diagnostics.snapshot();
-        let terminal = diagnostics.business.completed + diagnostics.business.cancelled;
+        let terminal = diagnostics.business.completed
+            + diagnostics.business.cancelled
+            + diagnostics.business.failed;
         if terminal >= expected_terminal || Instant::now() >= deadline {
             return diagnostics;
         }

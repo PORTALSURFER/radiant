@@ -134,6 +134,25 @@ mod tests {
 
         assert!(error.contains("checkpoint budget"));
     }
+
+    #[test]
+    fn business_work_diagnostic_scope_restores_after_panic() {
+        let diagnostics = Arc::new(RuntimeDiagnosticsRecorder::default());
+
+        let result = std::panic::catch_unwind(|| {
+            with_business_work_diagnostics(
+                Arc::clone(&diagnostics),
+                "panic-scope",
+                TaskPriority::Background,
+                || {
+                    panic!("intentional diagnostic scope panic");
+                },
+            );
+        });
+
+        assert!(result.is_err());
+        assert!(current_business_task().is_none());
+    }
 }
 
 #[derive(Clone)]
@@ -167,27 +186,53 @@ pub(crate) fn with_business_work_diagnostics(
     priority: TaskPriority,
     work: impl FnOnce(),
 ) -> BusinessWorkDiagnosticSummary {
-    let state = Arc::new(Mutex::new(BusinessWorkDiagnosticState {
-        last_stream_event: Instant::now(),
-        checkpoints: 0,
-        stream_events: 0,
-    }));
-    let previous = CURRENT_BUSINESS_TASK.with(|current| {
-        current.replace(Some(BusinessWorkDiagnosticScope {
-            diagnostics,
-            name,
-            priority,
-            state: Arc::clone(&state),
-        }))
-    });
+    let scope = BusinessWorkDiagnosticScopeGuard::install(diagnostics, name, priority);
     work();
-    CURRENT_BUSINESS_TASK.with(|current| {
-        current.replace(previous);
-    });
-    let state = lock_diagnostic_state(&state);
-    BusinessWorkDiagnosticSummary {
-        checkpoints: state.checkpoints,
-        stream_events: state.stream_events,
+    scope.summary()
+}
+
+struct BusinessWorkDiagnosticScopeGuard {
+    state: Arc<Mutex<BusinessWorkDiagnosticState>>,
+    previous: Option<BusinessWorkDiagnosticScope>,
+}
+
+impl BusinessWorkDiagnosticScopeGuard {
+    fn install(
+        diagnostics: Arc<RuntimeDiagnosticsRecorder>,
+        name: &'static str,
+        priority: TaskPriority,
+    ) -> Self {
+        let state = Arc::new(Mutex::new(BusinessWorkDiagnosticState {
+            last_stream_event: Instant::now(),
+            checkpoints: 0,
+            stream_events: 0,
+        }));
+        let previous = CURRENT_BUSINESS_TASK.with(|current| {
+            current.replace(Some(BusinessWorkDiagnosticScope {
+                diagnostics,
+                name,
+                priority,
+                state: Arc::clone(&state),
+            }))
+        });
+        Self { state, previous }
+    }
+
+    fn summary(&self) -> BusinessWorkDiagnosticSummary {
+        let state = lock_diagnostic_state(&self.state);
+        BusinessWorkDiagnosticSummary {
+            checkpoints: state.checkpoints,
+            stream_events: state.stream_events,
+        }
+    }
+}
+
+impl Drop for BusinessWorkDiagnosticScopeGuard {
+    fn drop(&mut self) {
+        let previous = self.previous.take();
+        CURRENT_BUSINESS_TASK.with(|current| {
+            current.replace(previous);
+        });
     }
 }
 

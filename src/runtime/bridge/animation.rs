@@ -12,6 +12,7 @@ pub struct RuntimeAnimationActivity {
     paint_frames: bool,
     frame_messages: bool,
     target_fps: Option<u32>,
+    frame_message_target_fps: Option<u32>,
 }
 
 /// Named animation demand used to construct [`RuntimeAnimationActivity`].
@@ -37,6 +38,7 @@ impl RuntimeAnimationActivity {
             paint_frames: false,
             frame_messages: false,
             target_fps: None,
+            frame_message_target_fps: None,
         }
     }
 
@@ -46,6 +48,7 @@ impl RuntimeAnimationActivity {
             paint_frames: true,
             frame_messages: false,
             target_fps: None,
+            frame_message_target_fps: None,
         }
     }
 
@@ -58,6 +61,7 @@ impl RuntimeAnimationActivity {
             paint_frames: true,
             frame_messages: false,
             target_fps: Some(target_fps),
+            frame_message_target_fps: None,
         }
     }
 
@@ -67,6 +71,7 @@ impl RuntimeAnimationActivity {
             paint_frames: true,
             frame_messages: true,
             target_fps: None,
+            frame_message_target_fps: None,
         }
     }
 
@@ -79,6 +84,7 @@ impl RuntimeAnimationActivity {
             paint_frames: true,
             frame_messages: true,
             target_fps: Some(target_fps),
+            frame_message_target_fps: Some(target_fps),
         }
     }
 
@@ -126,6 +132,7 @@ impl RuntimeAnimationActivity {
             paint_frames,
             frame_messages: paint_frames && frame_messages,
             target_fps: merge_target_fps(self, other),
+            frame_message_target_fps: merge_frame_message_target_fps(self, other),
         }
     }
 
@@ -147,6 +154,15 @@ impl RuntimeAnimationActivity {
             None
         }
     }
+
+    /// Return the requested frame-message rate, if frame messages are active.
+    pub const fn frame_message_target_fps(self) -> Option<u32> {
+        if self.frame_messages {
+            self.frame_message_target_fps
+        } else {
+            None
+        }
+    }
 }
 
 impl RuntimeAnimationDemand {
@@ -155,6 +171,29 @@ impl RuntimeAnimationDemand {
             (false, _) => Self::Idle,
             (true, false) => Self::PaintOnly,
             (true, true) => Self::FrameMessages,
+        }
+    }
+}
+
+const fn merge_frame_message_target_fps(
+    left: RuntimeAnimationActivity,
+    right: RuntimeAnimationActivity,
+) -> Option<u32> {
+    match (
+        left.frame_message_target_fps(),
+        right.frame_message_target_fps(),
+    ) {
+        (None, None) if left.frame_messages && right.frame_messages => None,
+        (None, None) => None,
+        (Some(_), None) if right.frame_messages => None,
+        (None, Some(_)) if left.frame_messages => None,
+        (Some(fps), None) | (None, Some(fps)) => Some(fps),
+        (Some(left), Some(right)) => {
+            if left >= right {
+                Some(left)
+            } else {
+                Some(right)
+            }
         }
     }
 }

@@ -35,11 +35,23 @@ fn runtime_animation_activity_uses_named_demands_for_policy() {
 fn runtime_animation_activity_carries_optional_frame_rate_policy() {
     assert_eq!(RuntimeAnimationActivity::idle().target_fps(), None);
     assert_eq!(
+        RuntimeAnimationActivity::idle().frame_message_target_fps(),
+        None
+    );
+    assert_eq!(
         RuntimeAnimationActivity::paint_only_at(24).target_fps(),
         Some(24)
     );
     assert_eq!(
+        RuntimeAnimationActivity::paint_only_at(24).frame_message_target_fps(),
+        None
+    );
+    assert_eq!(
         RuntimeAnimationActivity::frame_messages_at(30).target_fps(),
+        Some(30)
+    );
+    assert_eq!(
+        RuntimeAnimationActivity::frame_messages_at(30).frame_message_target_fps(),
         Some(30)
     );
     assert_eq!(
@@ -58,6 +70,7 @@ fn runtime_animation_activity_merges_message_and_paint_demands() {
     assert!(activity.needs_animation());
     assert!(activity.needs_frame_message());
     assert_eq!(activity.target_fps(), Some(24));
+    assert_eq!(activity.frame_message_target_fps(), Some(24));
 }
 
 #[test]
@@ -68,6 +81,7 @@ fn runtime_animation_activity_merge_preserves_fastest_capped_source() {
     assert!(activity.needs_animation());
     assert!(activity.needs_frame_message());
     assert_eq!(activity.target_fps(), Some(60));
+    assert_eq!(activity.frame_message_target_fps(), Some(60));
 }
 
 #[test]
@@ -78,4 +92,16 @@ fn runtime_animation_activity_merge_keeps_uncapped_source_uncapped() {
     assert!(activity.needs_animation());
     assert!(activity.needs_frame_message());
     assert_eq!(activity.target_fps(), None);
+    assert_eq!(activity.frame_message_target_fps(), None);
+}
+
+#[test]
+fn runtime_animation_activity_preserves_capped_frame_messages_with_uncapped_paint() {
+    let activity = RuntimeAnimationActivity::paint_only()
+        .merge(RuntimeAnimationActivity::frame_messages_at(60));
+
+    assert!(activity.needs_animation());
+    assert!(activity.needs_frame_message());
+    assert_eq!(activity.target_fps(), None);
+    assert_eq!(activity.frame_message_target_fps(), Some(60));
 }

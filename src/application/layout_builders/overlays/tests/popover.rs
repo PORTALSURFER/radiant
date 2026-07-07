@@ -153,3 +153,56 @@ fn dismissible_anchored_popover_backing_emits_close_message() {
 
     assert_eq!(runtime.bridge().state(), &[Message::Close]);
 }
+
+#[test]
+fn dismissible_anchored_popover_routes_foreground_clicks_before_backing_layer() {
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        Vec::<Message>::new(),
+        |_| {
+            UiSurface::new(
+                dismissible_anchored_popover_from_parts(
+                    AnchoredPopoverParts::below(
+                        button("Run").message(Message::Activate),
+                        AnchoredPopoverAnchor::pointer(Point::new(180.0, 112.0)),
+                        Vector2::new(80.0, 30.0),
+                    ),
+                    Message::Close,
+                )
+                .into_node(),
+            )
+        },
+        |messages: &mut Vec<Message>, message| messages.push(message),
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(200.0, 120.0));
+    let foreground_button_after_flip_and_clamp = Point::new(140.0, 96.0);
+    let outside_popover = Point::new(8.0, 8.0);
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: foreground_button_after_flip_and_clamp,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    runtime.dispatch_event(Event::PointerRelease {
+        position: foreground_button_after_flip_and_clamp,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+
+    assert_eq!(runtime.bridge().state(), &[Message::Activate]);
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: outside_popover,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    runtime.dispatch_event(Event::PointerRelease {
+        position: outside_popover,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+
+    assert_eq!(
+        runtime.bridge().state(),
+        &[Message::Activate, Message::Close]
+    );
+}

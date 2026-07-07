@@ -217,6 +217,44 @@ fn presentation_frame_clock_can_cap_frame_message_rate() {
 }
 
 #[test]
+fn presentation_frame_clock_can_use_state_dependent_frame_message_rate() {
+    use radiant::prelude as ui;
+
+    let bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::text(format!("Frame {}", state.count))
+                .id(10)
+                .height(24.0)
+        })
+        .presentation(
+            ui::Presentation::new().frame_clock(
+                ui::FrameClock::message_with(|| DemoMessage::Increment)
+                    .when(|_| true)
+                    .fps_with(|state: &mut DemoState| (state.count == 0).then_some(30)),
+            ),
+        )
+        .handle_message(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
+
+    let activity = runtime.bridge_mut().animation_activity();
+    assert!(activity.needs_animation());
+    assert!(activity.needs_frame_message());
+    assert_eq!(activity.target_fps(), Some(30));
+
+    assert!(runtime.bridge_mut().queue_animation_frame());
+    let drained = runtime.drain_runtime_messages();
+    assert_eq!(drained.messages_dispatched, 1);
+
+    let activity = runtime.bridge_mut().animation_activity();
+    assert!(activity.needs_animation());
+    assert!(activity.needs_frame_message());
+    assert_eq!(activity.target_fps(), None);
+}
+
+#[test]
 fn presentation_transient_overlay_uses_paint_only_frame_activity() {
     use radiant::prelude as ui;
 

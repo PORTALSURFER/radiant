@@ -194,7 +194,7 @@ where
                     event_loop.exit();
                     return;
                 }
-                self.handle_timed_frame_outcome(event_loop, outcome);
+                self.handle_route_outcome(event_loop, outcome);
                 event_loop.set_control_flow(ControlFlow::WaitUntil(next_wake));
             }
         }

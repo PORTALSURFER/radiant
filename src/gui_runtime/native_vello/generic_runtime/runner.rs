@@ -345,9 +345,42 @@ where
         }
     }
 
+    pub(super) fn handle_timed_frame_outcome(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        outcome: GenericRouteOutcome,
+    ) {
+        let applied = self.apply_route_outcome_without_native_redraw_request(outcome);
+        if applied.exit_requested {
+            event_loop.exit();
+            return;
+        }
+        if applied.sync_auxiliary_windows_now {
+            self.sync_auxiliary_windows(event_loop);
+        }
+        if self.timing.redraw_requested {
+            self.redraw(event_loop);
+        }
+    }
+
     pub(super) fn apply_route_outcome(
         &mut self,
+        outcome: GenericRouteOutcome,
+    ) -> AppliedRouteOutcome {
+        self.apply_route_outcome_with_redraw_request(outcome, true)
+    }
+
+    fn apply_route_outcome_without_native_redraw_request(
+        &mut self,
+        outcome: GenericRouteOutcome,
+    ) -> AppliedRouteOutcome {
+        self.apply_route_outcome_with_redraw_request(outcome, false)
+    }
+
+    fn apply_route_outcome_with_redraw_request(
+        &mut self,
         mut outcome: GenericRouteOutcome,
+        request_native_redraw: bool,
     ) -> AppliedRouteOutcome {
         self.merge_due_timed_frame_for_route(&mut outcome);
         if outcome.exit_requested {
@@ -386,7 +419,12 @@ where
             self.timing.deferred_surface_refresh = true;
         }
         if outcome.needs_redraw() {
-            self.request_redraw_if_needed();
+            if request_native_redraw {
+                self.request_redraw_if_needed();
+            } else {
+                self.timing.redraw_requested = true;
+                self.timing.redraw_requested_at = Some(Instant::now());
+            }
         }
         self.request_runtime_wakeup_if_needed(outcome);
         AppliedRouteOutcome {

@@ -3,11 +3,14 @@ use super::update_context::{BusinessWorkDiagnosticSummary, with_business_work_di
 use crate::runtime::{
     BusinessTaskDiagnosticState, RuntimeDiagnosticsRecorder, TaskPriority, elapsed_since,
 };
-use std::sync::{
-    Arc, Mutex, Weak,
-    mpsc::{self, Sender},
-};
 use std::thread;
+use std::{
+    panic::{self, AssertUnwindSafe},
+    sync::{
+        Arc, Mutex, Weak,
+        mpsc::{self, Sender},
+    },
+};
 
 mod platform;
 
@@ -229,23 +232,52 @@ fn worker_loop(
         let queue_delay = elapsed_since(queued_at);
         diagnostics.record_business_started(name, priority, queue_delay);
         let started = std::time::Instant::now();
+        let mut work_result = Ok(());
         let summary =
             with_business_work_diagnostics(Arc::clone(&diagnostics), name, priority, || {
-                (work)();
+                work_result = panic::catch_unwind(AssertUnwindSafe(move || {
+                    (work)();
+                }));
             });
         let run_duration = elapsed_since(started);
         record_business_progress_warnings(&diagnostics, name, priority, &summary, run_duration);
-        let state = if is_cancelled
-            .as_ref()
-            .is_some_and(|is_cancelled| is_cancelled())
-        {
-            BusinessTaskDiagnosticState::Cancelled
-        } else {
-            BusinessTaskDiagnosticState::Completed
+        let state = match work_result {
+            Ok(())
+                if is_cancelled
+                    .as_ref()
+                    .is_some_and(|is_cancelled| is_cancelled()) =>
+            {
+                BusinessTaskDiagnosticState::Cancelled
+            }
+            Ok(()) => BusinessTaskDiagnosticState::Completed,
+            Err(panic_payload) => {
+                log_business_task_panic(name, priority, run_duration, panic_payload);
+                BusinessTaskDiagnosticState::Panicked
+            }
         };
         diagnostics.record_business_finished(name, priority, state, run_duration);
         platform::configure_business_worker_thread(lane_priority);
     }
+}
+
+fn log_business_task_panic(
+    name: &'static str,
+    priority: TaskPriority,
+    run_duration: std::time::Duration,
+    panic_payload: Box<dyn std::any::Any + Send>,
+) {
+    let panic_message = panic_payload
+        .downcast_ref::<&'static str>()
+        .copied()
+        .or_else(|| panic_payload.downcast_ref::<String>().map(String::as_str))
+        .unwrap_or("non-string panic payload");
+    tracing::error!(
+        work.name = name,
+        ?priority,
+        run_duration_ms = run_duration.as_secs_f64() * 1000.0,
+        panic_message,
+        "radiant business work panicked; keeping worker lane alive"
+    );
 }
 
 fn record_business_progress_warnings(

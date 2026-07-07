@@ -105,6 +105,8 @@ pub enum BusinessTaskDiagnosticState {
     Completed,
     /// Task completed after cooperative cancellation had been requested.
     Cancelled,
+    /// Task panicked while executing on a worker thread.
+    Panicked,
     /// Task could not be accepted by the worker queue.
     Rejected,
     /// Task reported a cooperative checkpoint.
@@ -337,6 +339,7 @@ impl RuntimeDiagnosticsRecorder {
         match state {
             BusinessTaskDiagnosticState::Completed => diagnostics.snapshot.business.completed += 1,
             BusinessTaskDiagnosticState::Cancelled => diagnostics.snapshot.business.cancelled += 1,
+            BusinessTaskDiagnosticState::Panicked => diagnostics.snapshot.business.failed += 1,
             BusinessTaskDiagnosticState::Rejected => {
                 diagnostics.snapshot.business.rejected += 1;
                 diagnostics.snapshot.business.failed += 1;

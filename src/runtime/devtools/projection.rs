@@ -152,11 +152,13 @@ fn runtime_detail_lines(snapshot: &DevtoolsSnapshot) -> Vec<String> {
             snapshot.diagnostics.ui.update_handlers, snapshot.diagnostics.ui.slow_update_handlers
         ),
         format!(
-            "business: queued={} running={} completed={} cancelled={}",
+            "business: queued={} running={} completed={} cancelled={} failed={} rejected={}",
             snapshot.diagnostics.business.queued,
             snapshot.diagnostics.business.running,
             snapshot.diagnostics.business.completed,
-            snapshot.diagnostics.business.cancelled
+            snapshot.diagnostics.business.cancelled,
+            snapshot.diagnostics.business.failed,
+            snapshot.diagnostics.business.rejected
         ),
         format!(
             "business max queue={:.1}ms run={:.1}ms",

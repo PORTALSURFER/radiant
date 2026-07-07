@@ -31,6 +31,11 @@ where
                 .field("name", name)
                 .field("priority", priority)
                 .finish(),
+            Self::PerformStreamLatest { name, priority, .. } => f
+                .debug_struct("PerformStreamLatest")
+                .field("name", name)
+                .field("priority", priority)
+                .finish(),
             Self::Focus(widget_id) => f.debug_tuple("Focus").field(widget_id).finish(),
             Self::ClearFocus => f.write_str("ClearFocus"),
             Self::ScrollTo { node_id, offset } => f

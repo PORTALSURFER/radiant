@@ -4,7 +4,13 @@ use crate::{
     gui::repaint::RepaintSignal,
     runtime::{BusinessMessageSink, Command, TaskPriority},
 };
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
 where
@@ -62,6 +68,45 @@ where
                         .upgrade()
                         .is_some_and(|runtime| runtime.enqueue(message))
                 });
+                work(sink);
+            })
+    }
+
+    pub(super) fn spawn_runtime_latest_streaming_message_task(
+        &mut self,
+        name: &'static str,
+        priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
+    ) -> bool {
+        if !self.runtime.is_alive() {
+            return false;
+        }
+        let runtime = Arc::downgrade(&self.runtime);
+        self.runtime
+            .spawn_business_task(name, priority, is_cancelled, move || {
+                let Some(runtime) = runtime.upgrade() else {
+                    return;
+                };
+                let slot = runtime.begin_stream_slot();
+                let live = Arc::new(AtomicBool::new(true));
+                let emit_runtime = Arc::clone(&runtime);
+                let emit_latest_runtime = Arc::clone(&runtime);
+                let close_live = Arc::clone(&live);
+                let latest_live = Arc::clone(&live);
+                let sink = BusinessMessageSink::new_with_latest(
+                    move |message| emit_runtime.enqueue(message),
+                    move |message| {
+                        if !latest_live.load(Ordering::Acquire) {
+                            emit_latest_runtime.record_stale_stream_event();
+                            return false;
+                        }
+                        emit_latest_runtime.enqueue_stream_latest(slot, message)
+                    },
+                    move || {
+                        close_live.store(false, Ordering::Release);
+                    },
+                );
                 work(sink);
             })
     }

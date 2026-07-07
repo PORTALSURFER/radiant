@@ -130,6 +130,20 @@ pub trait RuntimeBridge<Message> {
         false
     }
 
+    /// Spawn host work whose intermediate messages may be coalesced by the runtime.
+    ///
+    /// Only the latest pending intermediate message for a stream slot is kept.
+    /// Completion and ordinary messages still use the ordered runtime queue.
+    fn spawn_latest_streaming_message_task(
+        &mut self,
+        name: &'static str,
+        priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
+    ) -> bool {
+        self.spawn_streaming_message_task(name, priority, is_cancelled, work)
+    }
+
     // Platform services.
 
     /// Request a host-visible platform service such as a file picker or dialog.

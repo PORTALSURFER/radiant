@@ -4,12 +4,23 @@ use crate::runtime::{RuntimeDiagnostics, RuntimeDiagnosticsRecorder, TaskPriorit
 use crate::{gui::repaint::RepaintSignal, runtime::Command};
 use std::sync::{
     Arc, Mutex, OnceLock,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 use std::time::Duration;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::application) struct RuntimeStreamSlot(u64);
+
+enum PendingMessage<Message> {
+    Ordinary(Message),
+    StreamLatest {
+        slot: RuntimeStreamSlot,
+        message: Message,
+    },
+}
+
 pub(in crate::application) struct AppRuntime<Message> {
-    pending: Mutex<Vec<Message>>,
+    pending: Mutex<Vec<PendingMessage<Message>>>,
     pending_frame: Mutex<Option<Message>>,
     commands: Mutex<Vec<Command<Message>>>,
     repaint: Mutex<Option<Arc<dyn RepaintSignal>>>,
@@ -17,6 +28,7 @@ pub(in crate::application) struct AppRuntime<Message> {
     diagnostics: Arc<RuntimeDiagnosticsRecorder>,
     timers: OnceLock<TimerLane<Message>>,
     alive: AtomicBool,
+    next_stream_slot: AtomicU64,
 }
 
 impl<Message> Default for AppRuntime<Message> {
@@ -31,6 +43,7 @@ impl<Message> Default for AppRuntime<Message> {
             diagnostics,
             timers: OnceLock::new(),
             alive: AtomicBool::new(true),
+            next_stream_slot: AtomicU64::new(1),
         }
     }
 }
@@ -40,9 +53,47 @@ impl<Message> AppRuntime<Message> {
         if !self.is_alive() {
             return false;
         }
-        lock_runtime_state(&self.pending).push(message);
+        {
+            let mut pending = lock_runtime_state(&self.pending);
+            pending.push(PendingMessage::Ordinary(message));
+            self.record_pending_depth(&pending);
+        }
         self.request_repaint();
         true
+    }
+
+    pub(super) fn begin_stream_slot(&self) -> RuntimeStreamSlot {
+        RuntimeStreamSlot(self.next_stream_slot.fetch_add(1, Ordering::Relaxed))
+    }
+
+    pub(super) fn enqueue_stream_latest(&self, slot: RuntimeStreamSlot, message: Message) -> bool {
+        if !self.is_alive() {
+            self.diagnostics.record_stream_message_dropped();
+            return false;
+        }
+        {
+            let mut pending = lock_runtime_state(&self.pending);
+            if let Some(existing) = pending.iter_mut().find_map(|pending| match pending {
+                PendingMessage::StreamLatest {
+                    slot: pending_slot,
+                    message,
+                } if *pending_slot == slot => Some(message),
+                PendingMessage::Ordinary(_) | PendingMessage::StreamLatest { .. } => None,
+            }) {
+                *existing = message;
+                self.diagnostics.record_stream_message_coalesced();
+                self.record_pending_depth(&pending);
+            } else {
+                pending.push(PendingMessage::StreamLatest { slot, message });
+                self.record_pending_depth(&pending);
+            }
+        }
+        self.request_repaint();
+        true
+    }
+
+    pub(super) fn record_stale_stream_event(&self) {
+        self.diagnostics.record_stream_message_stale();
     }
 
     pub(super) fn enqueue_frame(&self, message: Message) -> bool {
@@ -56,6 +107,7 @@ impl<Message> AppRuntime<Message> {
             }
             *pending_frame = Some(message);
         }
+        self.record_current_pending_depth();
         self.request_repaint();
         true
     }
@@ -92,7 +144,11 @@ impl<Message> AppRuntime<Message> {
 
     pub(super) fn take_pending(&self) -> Vec<Message> {
         let frame = lock_runtime_state(&self.pending_frame).take();
-        let pending = drain_runtime_vec(&self.pending);
+        let pending = drain_runtime_vec(&self.pending)
+            .into_iter()
+            .map(PendingMessage::into_message)
+            .collect();
+        self.record_current_pending_depth();
         prepend_pending_frame(frame, pending)
     }
 
@@ -100,7 +156,9 @@ impl<Message> AppRuntime<Message> {
         if let Some(frame) = lock_runtime_state(&self.pending_frame).take() {
             pending.insert(0, frame);
         }
-        drain_runtime_vec_into(&self.pending, pending);
+        let mut queued = lock_runtime_state(&self.pending);
+        pending.extend(queued.drain(..).map(PendingMessage::into_message));
+        self.record_pending_depth(&queued);
     }
 
     pub(super) fn take_commands(&self) -> Vec<Command<Message>> {
@@ -127,10 +185,24 @@ impl<Message> AppRuntime<Message> {
         *lock_runtime_state(&self.pending_frame) = None;
         lock_runtime_state(&self.pending).clear();
         lock_runtime_state(&self.commands).clear();
+        self.record_current_pending_depth();
     }
 
     pub(super) fn is_alive(&self) -> bool {
         self.alive.load(Ordering::Acquire)
+    }
+
+    fn record_current_pending_depth(&self) {
+        let pending = lock_runtime_state(&self.pending);
+        self.record_pending_depth(&pending);
+    }
+
+    fn record_pending_depth(&self, pending: &[PendingMessage<Message>]) {
+        let pending_frame = lock_runtime_state(&self.pending_frame).is_some() as usize;
+        self.diagnostics.record_message_queue_depth(
+            pending.len() + pending_frame,
+            pending.iter().filter(|message| message.is_stream()).count(),
+        );
     }
 }
 
@@ -173,6 +245,18 @@ fn drain_runtime_vec<T>(state: &Mutex<Vec<T>>) -> Vec<T> {
     let mut queued = lock_runtime_state(state);
     let retained_capacity = queued.capacity();
     std::mem::replace(&mut *queued, Vec::with_capacity(retained_capacity))
+}
+
+impl<Message> PendingMessage<Message> {
+    fn into_message(self) -> Message {
+        match self {
+            Self::Ordinary(message) | Self::StreamLatest { message, .. } => message,
+        }
+    }
+
+    fn is_stream(&self) -> bool {
+        matches!(self, Self::StreamLatest { .. })
+    }
 }
 
 fn prepend_pending_frame<T>(frame: Option<T>, mut pending: Vec<T>) -> Vec<T> {

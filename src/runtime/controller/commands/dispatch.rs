@@ -1,10 +1,10 @@
 use super::{CommandOutcome, SurfaceRuntime};
+use crate::runtime::RuntimeUpdateSnapshot;
 use crate::runtime::UiUpdateHandlerDiagnosticsMode;
 use crate::{
     gui::types::Vector2,
     runtime::{Command, DragSession, ExternalDragSession, RuntimeBridge},
 };
-use crate::runtime::RuntimeUpdateSnapshot;
 use std::{any::type_name, panic::panic_any, time::Instant};
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -125,6 +125,21 @@ where
                     .bridge
                     .spawn_streaming_message_task(name, priority, is_cancelled, work)
                 {
+                    outcome.repaint_requested = true;
+                }
+            }
+            Command::PerformStreamLatest {
+                name,
+                priority,
+                is_cancelled,
+                work,
+            } => {
+                if self.bridge.spawn_latest_streaming_message_task(
+                    name,
+                    priority,
+                    is_cancelled,
+                    work,
+                ) {
                     outcome.repaint_requested = true;
                 }
             }

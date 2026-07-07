@@ -58,6 +58,35 @@ impl<Message> Command<Message> {
                     dispatch(message);
                 }
             }
+            Self::PerformStreamLatest { work, .. } => {
+                let (sender, receiver) = std::sync::mpsc::channel();
+                let latest = std::sync::Arc::new(std::sync::Mutex::new(None));
+                let latest_for_emit = std::sync::Arc::clone(&latest);
+                let latest_for_close = std::sync::Arc::clone(&latest);
+                let sender_for_emit = sender.clone();
+                let sink = BusinessMessageSink::new_with_latest(
+                    move |message| sender.send(message).is_ok(),
+                    move |message| {
+                        *latest_for_emit
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(message);
+                        true
+                    },
+                    move || {
+                        let latest = latest_for_close
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .take();
+                        if let Some(message) = latest {
+                            let _ = sender_for_emit.send(message);
+                        }
+                    },
+                );
+                work(sink);
+                for message in receiver.try_iter() {
+                    dispatch(message);
+                }
+            }
         }
     }
 }
@@ -82,6 +111,26 @@ mod tests {
         command.run_inline_for_tests(|message| messages.push(message));
 
         assert_eq!(messages, vec![1, 2]);
+    }
+
+    #[test]
+    fn inline_runner_dispatches_latest_stream_message_before_final() {
+        let command = Command::perform_latest_stream_with_priority(
+            "inline-latest-stream",
+            TaskPriority::Background,
+            None,
+            |sink| {
+                assert!(sink.emit_latest(1));
+                assert!(sink.emit_latest(2));
+                sink.close_latest();
+                assert!(sink.emit(3));
+            },
+        );
+        let mut messages = Vec::new();
+
+        command.run_inline_for_tests(|message| messages.push(message));
+
+        assert_eq!(messages, vec![2, 3]);
     }
 
     #[test]

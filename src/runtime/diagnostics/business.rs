@@ -16,10 +16,31 @@ pub const SLOW_UPDATE_HANDLER_GUIDANCE: &str =
 /// Snapshot of generic runtime diagnostics suitable for tests and debug panels.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RuntimeDiagnostics {
+    /// Runtime message-queue pressure and coalescing diagnostics.
+    pub queue: RuntimeMessageQueueDiagnostics,
     /// Runtime-owned business worker lifecycle diagnostics.
     pub business: BusinessRuntimeDiagnostics,
     /// UI/update responsiveness diagnostics recorded by the generic controller.
     pub ui: UiRuntimeDiagnostics,
+}
+
+/// Counters for runtime-delivered message queues.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RuntimeMessageQueueDiagnostics {
+    /// Number of pending runtime-delivered messages currently waiting for the UI loop.
+    pub current_pending_messages: usize,
+    /// Largest pending runtime-delivered message depth observed since startup.
+    pub max_pending_messages: usize,
+    /// Number of coalescible stream slots currently represented in the pending queue.
+    pub current_pending_stream_slots: usize,
+    /// Largest coalescible stream-slot count observed since startup.
+    pub max_pending_stream_slots: usize,
+    /// Number of stream events that replaced an older pending event for the same slot.
+    pub stream_events_coalesced: usize,
+    /// Number of stream events dropped because their stream slot was no longer live.
+    pub stream_events_stale: usize,
+    /// Number of stream events dropped because the runtime was no longer accepting messages.
+    pub stream_events_dropped: usize,
 }
 
 /// Counters and recent events for runtime-managed business work.
@@ -261,6 +282,37 @@ impl RuntimeDiagnosticsRecorder {
         let mut snapshot = state.snapshot.clone();
         snapshot.business.recent = state.recent_business.iter().cloned().collect();
         snapshot
+    }
+
+    pub(crate) fn record_message_queue_depth(&self, pending_messages: usize, stream_slots: usize) {
+        let mut state = lock_diagnostics_state(&self.state);
+        state.snapshot.queue.current_pending_messages = pending_messages;
+        state.snapshot.queue.max_pending_messages = state
+            .snapshot
+            .queue
+            .max_pending_messages
+            .max(pending_messages);
+        state.snapshot.queue.current_pending_stream_slots = stream_slots;
+        state.snapshot.queue.max_pending_stream_slots = state
+            .snapshot
+            .queue
+            .max_pending_stream_slots
+            .max(stream_slots);
+    }
+
+    pub(crate) fn record_stream_message_coalesced(&self) {
+        let mut state = lock_diagnostics_state(&self.state);
+        state.snapshot.queue.stream_events_coalesced += 1;
+    }
+
+    pub(crate) fn record_stream_message_stale(&self) {
+        let mut state = lock_diagnostics_state(&self.state);
+        state.snapshot.queue.stream_events_stale += 1;
+    }
+
+    pub(crate) fn record_stream_message_dropped(&self) {
+        let mut state = lock_diagnostics_state(&self.state);
+        state.snapshot.queue.stream_events_dropped += 1;
     }
 
     pub(crate) fn record_business_queued(

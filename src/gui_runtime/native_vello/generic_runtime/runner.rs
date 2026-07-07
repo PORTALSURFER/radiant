@@ -5,7 +5,8 @@ use super::{
     NativeAutomationTargetExporter, NativeRunnerInputState, NativeRunnerTimingState,
     NativeRunnerWindowState, NativeVelloFrameState, RuntimeWakeup, SurfaceSceneEncodeContext,
     TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
-    encode_surface_paint_plan_to_scene, timed_frame_cadence, timed_frame_target_fps,
+    encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
+    timed_frame_target_fps,
 };
 use crate::{
     gui::types::Vector2,
@@ -77,7 +78,7 @@ where
                 && let Some(requested_at) = self.timing.redraw_requested_at
             {
                 let pending = now.duration_since(requested_at);
-                if pending >= Self::REDRAW_REISSUE_LOG_AFTER {
+                if slow_render_profile_enabled() && pending >= Self::REDRAW_REISSUE_LOG_AFTER {
                     warn!(
                         target: "radiant::debug::frame_profile",
                         event = "radiant.redraw_request.reissued",
@@ -144,8 +145,9 @@ where
         pending: Duration,
         since_last_present: Duration,
     ) -> bool {
-        pending >= Self::REDRAW_REISSUE_LOG_AFTER
-            || since_last_present >= Self::REDRAW_REISSUE_LOG_AFTER
+        slow_render_profile_enabled()
+            && (pending >= Self::REDRAW_REISSUE_LOG_AFTER
+                || since_last_present >= Self::REDRAW_REISSUE_LOG_AFTER)
     }
 
     pub(super) fn drain_timed_frame_now(

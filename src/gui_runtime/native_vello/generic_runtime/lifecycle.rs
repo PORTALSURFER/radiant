@@ -2,8 +2,8 @@
 
 use super::{
     AuxiliaryWindowEventResult, GenericNativeVelloRunner, RuntimeUserEvent, TimedFrameCadence,
-    animation_frame_interval, should_start_popup_window_drag, timed_frame_cadence,
-    timed_frame_target_fps,
+    animation_frame_interval, should_start_popup_window_drag, slow_render_profile_enabled,
+    timed_frame_cadence, timed_frame_target_fps,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::{Duration, Instant};
@@ -167,6 +167,7 @@ where
                 let overdue = elapsed_since_last.saturating_sub(expected_interval);
                 if overdue >= LATE_TIMED_FRAME_LOG_THRESHOLD
                     && elapsed_since_last <= LATE_TIMED_FRAME_MAX_CONTINUOUS_GAP
+                    && slow_render_profile_enabled()
                 {
                     warn!(
                         target: "radiant::debug::frame_profile",

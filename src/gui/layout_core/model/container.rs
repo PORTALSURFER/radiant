@@ -49,6 +49,8 @@ pub struct FloatingLayerPolicy {
     pub offset: Point,
     /// Child bounds used by the floating layer layout pass.
     pub size: Vector2,
+    /// Horizontal overflow behavior when the requested child bounds do not fit.
+    pub horizontal_overflow: FloatingLayerHorizontalOverflow,
     /// Vertical overflow behavior when the requested child bounds do not fit.
     pub vertical_overflow: FloatingLayerVerticalOverflow,
 }
@@ -58,9 +60,20 @@ impl Default for FloatingLayerPolicy {
         Self {
             offset: Point::new(0.0, 0.0),
             size: Vector2::new(0.0, 0.0),
+            horizontal_overflow: FloatingLayerHorizontalOverflow::Fixed,
             vertical_overflow: FloatingLayerVerticalOverflow::Fixed,
         }
     }
+}
+
+/// Horizontal overflow policy for explicitly positioned floating content.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FloatingLayerHorizontalOverflow {
+    /// Keep the requested horizontal offset even when content clips.
+    #[default]
+    Fixed,
+    /// Clamp the layer origin so the content stays inside the containing bounds.
+    ClampToViewport,
 }
 
 /// Vertical overflow policy for explicitly positioned floating content.

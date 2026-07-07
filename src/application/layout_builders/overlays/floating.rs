@@ -1,7 +1,7 @@
 use super::parts::{FloatingLayerAnchorParts, FloatingLayerPlacement};
 use crate::application::{ViewNode, ViewNodeKind};
 use crate::gui::types::Point;
-use crate::layout::{FloatingLayerVerticalOverflow, Vector2};
+use crate::layout::{FloatingLayerHorizontalOverflow, FloatingLayerVerticalOverflow, Vector2};
 
 /// Build a non-interactive floating child tree positioned relative to its parent.
 ///
@@ -30,6 +30,7 @@ pub fn floating_layer_with_input<Message>(
         size,
         child,
         interactive,
+        FloatingLayerHorizontalOverflow::Fixed,
         FloatingLayerVerticalOverflow::Fixed,
     )
 }
@@ -40,6 +41,7 @@ pub fn floating_layer_with_input_and_vertical_overflow<Message>(
     size: Vector2,
     child: ViewNode<Message>,
     interactive: bool,
+    horizontal_overflow: FloatingLayerHorizontalOverflow,
     vertical_overflow: FloatingLayerVerticalOverflow,
 ) -> ViewNode<Message> {
     let has_reserved_descendant_identity = child.has_reserved_identity_in_subtree();
@@ -48,6 +50,7 @@ pub fn floating_layer_with_input_and_vertical_overflow<Message>(
         size,
         child: Box::new(child),
         interactive,
+        horizontal_overflow,
         vertical_overflow,
     })
     .with_reserved_descendant_identity(has_reserved_descendant_identity)

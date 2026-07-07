@@ -14,7 +14,10 @@ use slot::SlotBehavior;
 use crate::{
     application::{Overlays, PointerTarget, WidgetView},
     gui::{input::KeyPress, shortcuts::ShortcutResolution},
-    layout::{CrossAlign, FloatingLayerVerticalOverflow, Insets, MainAlign, NodeId, Vector2},
+    layout::{
+        CrossAlign, FloatingLayerHorizontalOverflow, FloatingLayerVerticalOverflow, Insets,
+        MainAlign, NodeId, Vector2,
+    },
     runtime::{
         LayerKind, NativeFileDrop, NativeFileDropMessageMapper, ScrollMessageMapper, SurfaceNode,
     },
@@ -130,6 +133,7 @@ pub(in crate::application) enum ViewNodeKind<Message> {
         size: crate::layout::Vector2,
         child: Box<ViewNode<Message>>,
         interactive: bool,
+        horizontal_overflow: FloatingLayerHorizontalOverflow,
         vertical_overflow: FloatingLayerVerticalOverflow,
     },
 }

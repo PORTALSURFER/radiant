@@ -2558,6 +2558,14 @@ inside a caller-owned stack layer can use `FloatingLayerAnchorParts`,
 `floating_layer_below(...)`, and `floating_layer_around_from_parts(...)`
 instead of hand-computing popup, autocomplete, tooltip, or compact editor
 offsets in application code.
+Use `AnchoredPopoverParts`, `AnchoredPopoverAnchor`,
+`anchored_popover_from_parts(...)`, and
+`dismissible_anchored_popover_from_parts(...)` for the preferred anchored
+popover path when content needs trigger-relative or pointer-relative placement,
+horizontal viewport clamping, bottom-edge flipping, interactive hit testing,
+and optional outside-click dismissal as one primitive. Dropdowns, context
+menus, and custom app popovers should wrap this path rather than rebuilding
+spacer rows or separate overlay geometry.
 Fixed-row transient lists can use `BoundedScrollColumnParts`,
 `bounded_scroll_column(...)`, and `bounded_scroll_column_from_parts(...)` so
 application code projects domain-specific rows while Radiant owns capped
@@ -2601,9 +2609,10 @@ while also using the standard compact menu height. Use
 `dismissible_context_menu_with_width(...)` when the width is deliberately fixed.
 When a context menu is declared as a `Scene` layer and should use
 `Layer::dismiss_on_outside_click(...)`, use
-`message_context_menu_overlay_auto_width(...)` or its explicit-width variants
+`anchored_message_menu_overlay_auto_width(...)` or its explicit-width variants
 for the foreground-only menu content so dismissal stays owned by the scene
-layer policy.
+layer policy. The older `message_context_menu_overlay_*` helpers remain
+compatibility wrappers over the same anchored menu primitive.
 These helpers avoid app-local `message_menu_height(...)` sizing and hard-coded
 context-menu width constants.
 Run `cargo run --example scene` for the preferred root-scene sandbox. It
@@ -2615,7 +2624,7 @@ Run `cargo run --example native_file_drop` for a view-local native OS file-drop
 target that maps `NativeFileDrop` events into normal app messages.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
 that composes `MenuCommand`, `message_menu(...)`, and
-`message_context_menu_overlay(...)` with normal app messages.
+`anchored_message_menu_overlay(...)` with normal app messages.
 Run `cargo run --example floating_overlay` for a floating-layer sandbox that
 positions an overlay menu without changing the underlying page layout.
 Run `cargo run --example split_workspace` for an editor-style split workspace

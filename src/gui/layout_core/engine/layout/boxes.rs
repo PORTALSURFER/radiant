@@ -148,7 +148,7 @@ pub(super) fn layout_floating_layer(
     };
     let policy = container.policy.floating;
     let origin = Point::new(
-        content.min.x + policy.offset.x,
+        content.min.x + floating_layer_x_offset(policy, content.width()),
         content.min.y + floating_layer_y_offset(policy, content.height()),
     );
     let rect = Rect::from_min_size(
@@ -157,6 +157,21 @@ pub(super) fn layout_floating_layer(
     );
     context.record_slot_margin(child.child.id(), rect, child.slot.margin);
     layout_node(&child.child, rect, context);
+}
+
+fn floating_layer_x_offset(
+    policy: crate::layout::FloatingLayerPolicy,
+    container_width: f32,
+) -> f32 {
+    let x = policy.offset.x.max(0.0);
+    match policy.horizontal_overflow {
+        crate::layout::FloatingLayerHorizontalOverflow::Fixed => x,
+        crate::layout::FloatingLayerHorizontalOverflow::ClampToViewport => {
+            let layer_width = policy.size.x.max(0.0);
+            let max_x = (container_width.max(0.0) - layer_width).max(0.0);
+            x.clamp(0.0, max_x)
+        }
+    }
 }
 
 fn floating_layer_y_offset(

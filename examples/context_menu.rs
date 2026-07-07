@@ -51,7 +51,7 @@ fn main() -> radiant::Result {
             if state.menu_open {
                 stack([
                     page,
-                    message_context_menu_overlay(
+                    anchored_message_menu_overlay(
                         state.anchor,
                         Vector2::new(180.0, 144.0),
                         "Actions",

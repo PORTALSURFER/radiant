@@ -1,4 +1,5 @@
 use crate::application::ViewNode;
+use crate::gui::types::Point;
 use crate::layout::Vector2;
 
 /// Named construction fields for a centered fixed-size child layer.
@@ -45,6 +46,115 @@ pub enum FloatingLayerPlacement {
     Above,
     /// Place the floating layer below the trigger.
     Below,
+}
+
+/// Anchor geometry for a generic anchored popover.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AnchoredPopoverAnchor {
+    /// Anchor origin in the owning overlay layer.
+    pub origin: Point,
+    /// Optional anchor size, present for trigger-relative popovers.
+    pub size: Option<Vector2>,
+}
+
+impl AnchoredPopoverAnchor {
+    /// Build a pointer-relative anchor.
+    pub fn pointer(point: Point) -> Self {
+        Self {
+            origin: Point::new(point.x.max(0.0), point.y.max(0.0)),
+            size: None,
+        }
+    }
+
+    /// Build a trigger-relative anchor.
+    pub fn trigger(x: f32, y: f32, width: f32, height: f32) -> Self {
+        Self {
+            origin: Point::new(x.max(0.0), y.max(0.0)),
+            size: Some(Vector2::new(width.max(0.0), height.max(0.0))),
+        }
+    }
+
+    pub(in crate::application) fn height(self) -> f32 {
+        self.size.map_or(0.0, |size| size.y)
+    }
+}
+
+/// Vertical placement policy for an anchored popover.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AnchoredPopoverPlacement {
+    /// Prefer placing the popover below the anchor.
+    Below,
+    /// Prefer placing the popover above the anchor.
+    Above,
+}
+
+/// Named construction fields for a generic anchored popover.
+pub struct AnchoredPopoverParts<Message> {
+    /// Content rendered inside the popover.
+    pub child: ViewNode<Message>,
+    /// Anchor geometry in the owning overlay layer.
+    pub anchor: AnchoredPopoverAnchor,
+    /// Fixed popover size.
+    pub size: Vector2,
+    /// Preferred vertical placement.
+    pub placement: AnchoredPopoverPlacement,
+    /// Gap between the anchor and popover.
+    pub gap: f32,
+    /// Whether to flip upward when below placement would clip.
+    pub flip_when_clipped: bool,
+    /// Whether to clamp the horizontal origin inside the viewport.
+    pub clamp_to_viewport: bool,
+    /// Whether child widgets receive input traversal.
+    pub interactive: bool,
+}
+
+impl<Message> AnchoredPopoverParts<Message> {
+    /// Build a below-anchor popover from named content, anchor, and size.
+    pub fn below(child: ViewNode<Message>, anchor: AnchoredPopoverAnchor, size: Vector2) -> Self {
+        Self {
+            child,
+            anchor,
+            size,
+            placement: AnchoredPopoverPlacement::Below,
+            gap: 0.0,
+            flip_when_clipped: true,
+            clamp_to_viewport: true,
+            interactive: true,
+        }
+    }
+
+    /// Build an above-anchor popover from named content, anchor, and size.
+    pub fn above(child: ViewNode<Message>, anchor: AnchoredPopoverAnchor, size: Vector2) -> Self {
+        Self {
+            placement: AnchoredPopoverPlacement::Above,
+            flip_when_clipped: false,
+            ..Self::below(child, anchor, size)
+        }
+    }
+
+    /// Set the anchor gap.
+    pub fn gap(mut self, gap: f32) -> Self {
+        self.gap = gap.max(0.0);
+        self
+    }
+
+    /// Enable or disable flip-on-clipped behavior.
+    pub fn flip_when_clipped(mut self, flip_when_clipped: bool) -> Self {
+        self.flip_when_clipped = flip_when_clipped;
+        self
+    }
+
+    /// Enable or disable horizontal viewport clamping.
+    pub fn clamp_to_viewport(mut self, clamp_to_viewport: bool) -> Self {
+        self.clamp_to_viewport = clamp_to_viewport;
+        self
+    }
+
+    /// Enable or disable input traversal through the popover content.
+    pub fn interactive(mut self, interactive: bool) -> Self {
+        self.interactive = interactive;
+        self
+    }
 }
 
 /// Named construction fields for an anchored fixed-size child layer.

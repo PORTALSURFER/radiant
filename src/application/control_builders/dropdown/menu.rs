@@ -1,6 +1,11 @@
 use crate::{
-    application::{ViewNode, button, column, labeled_control_control_offset, row, text},
+    application::{
+        AnchoredPopoverAnchor, AnchoredPopoverParts, ViewNode, anchored_popover_from_parts, button,
+        column, labeled_control_control_offset, row, text,
+    },
     gui::layout_core::StackedLayoutCursor,
+    gui::types::Point,
+    layout::Vector2,
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 
@@ -186,12 +191,17 @@ where
     Message: Clone + Send + Sync + 'static,
 {
     let menu_height = dropdown_menu_height(options.len());
-    let mut menu = dropdown_menu(options).height(menu_height);
     if let Some(width) = width {
-        menu = menu.width(width);
-    } else {
-        menu = menu.fill_width();
+        return anchored_dropdown_menu_popover(
+            AnchoredPopoverAnchor::pointer(Point::new(x, y)),
+            Vector2::new(width, menu_height),
+            options,
+        )
+        .key("dropdown-menu-overlay");
     }
+
+    let mut menu = dropdown_menu(options).height(menu_height);
+    menu = menu.fill_width();
     column([
         dropdown_overlay_gap().height(y.max(0.0)).fill_width(),
         row([
@@ -205,6 +215,22 @@ where
     ])
     .key("dropdown-menu-overlay")
     .fill()
+}
+
+/// Build a dropdown menu as an anchored popover from named anchor geometry.
+pub fn anchored_dropdown_menu_popover<Message>(
+    anchor: AnchoredPopoverAnchor,
+    size: Vector2,
+    options: Vec<DropdownOption<Message>>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    anchored_popover_from_parts(AnchoredPopoverParts::below(
+        dropdown_menu(options),
+        anchor,
+        size,
+    ))
 }
 
 fn dropdown_overlay_gap<Message: 'static>() -> ViewNode<Message> {

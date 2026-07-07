@@ -25,6 +25,7 @@ pub(super) fn policy_hash(policy: &ContainerPolicy, hasher: &mut impl Hasher) {
     hash_f32(policy.floating.offset.y, hasher);
     hash_f32(policy.floating.size.x, hasher);
     hash_f32(policy.floating.size.y, hasher);
+    floating_horizontal_overflow_code(policy.floating.horizontal_overflow).hash(hasher);
     floating_vertical_overflow_code(policy.floating.vertical_overflow).hash(hasher);
     policy.aspect_ratio.map(f32::to_bits).hash(hasher);
     for breakpoint in &policy.switch_breakpoints {
@@ -100,6 +101,15 @@ fn overflow_code(value: OverflowPolicy) -> u8 {
         OverflowPolicy::Scroll => 1,
         OverflowPolicy::Wrap => 2,
         OverflowPolicy::Shrink => 3,
+    }
+}
+
+fn floating_horizontal_overflow_code(
+    value: crate::gui::layout_core::model::FloatingLayerHorizontalOverflow,
+) -> u8 {
+    match value {
+        crate::gui::layout_core::model::FloatingLayerHorizontalOverflow::Fixed => 0,
+        crate::gui::layout_core::model::FloatingLayerHorizontalOverflow::ClampToViewport => 1,
     }
 }
 

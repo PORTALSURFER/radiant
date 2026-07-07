@@ -245,6 +245,7 @@ impl<'a> ViewLowering<'a> {
                 size,
                 child,
                 interactive,
+                horizontal_overflow,
                 vertical_overflow,
             } => {
                 let child = self.lower_node(*child, child_scope);
@@ -254,6 +255,7 @@ impl<'a> ViewLowering<'a> {
                     size,
                     child,
                     interactive,
+                    horizontal_overflow,
                     vertical_overflow,
                 )
             }

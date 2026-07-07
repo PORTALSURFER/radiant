@@ -7,6 +7,7 @@ mod layers;
 mod markers;
 mod panel;
 mod parts;
+mod popover;
 
 #[cfg(test)]
 mod tests;
@@ -26,6 +27,8 @@ pub use layers::{
 pub use markers::{drop_marker, local_drop_marker};
 pub use panel::overlay_panel;
 pub use parts::{
-    AnchoredLayerParts, CenteredLayerParts, FloatingLayerAnchorParts, FloatingLayerPlacement,
-    LayerHorizontalAnchor, LayerVerticalAnchor,
+    AnchoredLayerParts, AnchoredPopoverAnchor, AnchoredPopoverParts, AnchoredPopoverPlacement,
+    CenteredLayerParts, FloatingLayerAnchorParts, FloatingLayerPlacement, LayerHorizontalAnchor,
+    LayerVerticalAnchor,
 };
+pub use popover::{anchored_popover_from_parts, dismissible_anchored_popover_from_parts};

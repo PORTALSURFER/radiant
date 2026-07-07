@@ -51,8 +51,8 @@ pub mod prelude;
 pub mod layout {
     pub use crate::gui::layout_core::{
         Constraints, ConstraintsParts, ContainerKind, ContainerNode, ContainerNodeParts,
-        ContainerPolicy, CrossAlign, DebugPrimitiveKind, FloatingLayerPolicy,
-        FloatingLayerVerticalOverflow, GridPolicy, Insets, LayoutDebugOptions,
+        ContainerPolicy, CrossAlign, DebugPrimitiveKind, FloatingLayerHorizontalOverflow,
+        FloatingLayerPolicy, FloatingLayerVerticalOverflow, GridPolicy, Insets, LayoutDebugOptions,
         LayoutDebugPrimitive, LayoutDiagnostic, LayoutDiagnosticCode, LayoutEngine, LayoutNode,
         LayoutOutput, LayoutState, LayoutStats, MainAlign, NodeId, OverflowInfo, OverflowPolicy,
         Point, Rect, SizeModeCross, SizeModeMain, SlotChild, SlotChildParts, SlotParams,

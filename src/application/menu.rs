@@ -1,13 +1,13 @@
 use crate::{
     application::{
-        ViewNode, button, column, dismiss_layer, floating_layer_with_input_and_vertical_overflow,
-        row, stack, text,
+        AnchoredPopoverAnchor, AnchoredPopoverParts, ViewNode, anchored_popover_from_parts, button,
+        column, dismiss_layer, row, stack, text,
     },
     gui::{
         text_layout::{TextWidthEstimate, estimated_text_width_for_char_count},
         types::Point,
     },
-    layout::{FloatingLayerVerticalOverflow, Vector2},
+    layout::Vector2,
     widgets::{TextAlign, TextColorRole, WidgetProminence, WidgetStyle, WidgetTone},
 };
 
@@ -177,7 +177,7 @@ pub fn message_context_menu_overlay<Message>(
 where
     Message: Clone + Send + Sync + 'static,
 {
-    message_context_menu_overlay_from_parts(MessageContextMenuOverlayParts {
+    anchored_message_menu_overlay_from_parts(MessageContextMenuOverlayParts {
         anchor,
         size,
         title: title.into(),
@@ -199,7 +199,7 @@ where
 {
     let commands = commands.into_iter().collect::<Vec<_>>();
     let size = Vector2::new(width, message_menu_height(commands.len()));
-    message_context_menu_overlay(anchor, size, title, commands)
+    anchored_message_menu_overlay(anchor, size, title, commands)
 }
 
 /// Build a foreground-only message context-menu layer using Radiant's default
@@ -212,7 +212,7 @@ pub fn message_context_menu_overlay_auto_width<Message>(
 where
     Message: Clone + Send + Sync + 'static,
 {
-    message_context_menu_overlay_with_width_policy(
+    anchored_message_menu_overlay_with_width_policy(
         anchor,
         MessageMenuWidthPolicy::compact(),
         title,
@@ -237,7 +237,7 @@ where
         width_policy.width_for_title_and_commands(&title, &commands),
         message_menu_height(commands.len()),
     );
-    message_context_menu_overlay(anchor, size, title, commands)
+    anchored_message_menu_overlay(anchor, size, title, commands)
 }
 
 /// Build a foreground-only message context-menu layer from named parts.
@@ -247,21 +247,83 @@ pub fn message_context_menu_overlay_from_parts<Message>(
 where
     Message: Clone + Send + Sync + 'static,
 {
-    let anchor = Point::new(parts.anchor.x.max(0.0), parts.anchor.y.max(0.0));
-    floating_layer_with_input_and_vertical_overflow(
+    anchored_message_menu_overlay_from_parts(parts)
+}
+
+/// Build a foreground-only anchored message-menu layer.
+pub fn anchored_message_menu_overlay<Message>(
+    anchor: Point,
+    size: Vector2,
+    title: impl Into<String>,
+    commands: impl IntoIterator<Item = MenuCommand<Message>>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    anchored_message_menu_overlay_from_parts(MessageContextMenuOverlayParts {
         anchor,
-        parts.size,
+        size,
+        title: title.into(),
+        style: WidgetStyle::new(WidgetTone::Neutral, WidgetProminence::Strong),
+        commands: commands.into_iter().collect(),
+    })
+}
+
+/// Build a foreground-only anchored message-menu layer using the standard
+/// compact width and height policy.
+pub fn anchored_message_menu_overlay_auto_width<Message>(
+    anchor: Point,
+    title: impl Into<String>,
+    commands: impl IntoIterator<Item = MenuCommand<Message>>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    anchored_message_menu_overlay_with_width_policy(
+        anchor,
+        MessageMenuWidthPolicy::compact(),
+        title,
+        commands,
+    )
+}
+
+/// Build a foreground-only anchored message-menu layer with a deterministic
+/// menu width derived from the title and command labels.
+pub fn anchored_message_menu_overlay_with_width_policy<Message>(
+    anchor: Point,
+    width_policy: MessageMenuWidthPolicy,
+    title: impl Into<String>,
+    commands: impl IntoIterator<Item = MenuCommand<Message>>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    let title = title.into();
+    let commands = commands.into_iter().collect::<Vec<_>>();
+    let size = Vector2::new(
+        width_policy.width_for_title_and_commands(&title, &commands),
+        message_menu_height(commands.len()),
+    );
+    anchored_message_menu_overlay(anchor, size, title, commands)
+}
+
+/// Build a foreground-only anchored message-menu layer from named parts.
+pub fn anchored_message_menu_overlay_from_parts<Message>(
+    parts: MessageContextMenuOverlayParts<Message>,
+) -> ViewNode<Message>
+where
+    Message: Clone + Send + Sync + 'static,
+{
+    let size = Vector2::new(parts.size.x.max(1.0), parts.size.y.max(1.0));
+    anchored_popover_from_parts(AnchoredPopoverParts::below(
         message_menu_from_parts(MessageMenuParts {
             title: parts.title,
             style: parts.style,
             commands: parts.commands,
-        })
-        .width(parts.size.x)
-        .height(parts.size.y),
-        true,
-        FloatingLayerVerticalOverflow::FlipUpWhenClipped,
-    )
-    .fill()
+        }),
+        AnchoredPopoverAnchor::pointer(parts.anchor),
+        size,
+    ))
 }
 
 /// Build a dismissible context-menu layer from named parts.

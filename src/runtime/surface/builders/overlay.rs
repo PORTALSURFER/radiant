@@ -4,8 +4,8 @@ use super::super::{
 use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::{
-        ContainerKind, ContainerPolicy, FloatingLayerPolicy, FloatingLayerVerticalOverflow, NodeId,
-        SlotParams,
+        ContainerKind, ContainerPolicy, FloatingLayerHorizontalOverflow, FloatingLayerPolicy,
+        FloatingLayerVerticalOverflow, NodeId, SlotParams,
     },
     runtime::PaintText,
     widgets::WidgetStyle,
@@ -51,6 +51,7 @@ impl<Message> SurfaceNode<Message> {
             size,
             child,
             interactive,
+            FloatingLayerHorizontalOverflow::Fixed,
             FloatingLayerVerticalOverflow::Fixed,
         )
     }
@@ -62,6 +63,7 @@ impl<Message> SurfaceNode<Message> {
         size: Vector2,
         child: SurfaceNode<Message>,
         interactive: bool,
+        horizontal_overflow: FloatingLayerHorizontalOverflow,
         vertical_overflow: FloatingLayerVerticalOverflow,
     ) -> Self {
         let policy = ContainerPolicy {
@@ -69,6 +71,7 @@ impl<Message> SurfaceNode<Message> {
             floating: FloatingLayerPolicy {
                 offset,
                 size,
+                horizontal_overflow,
                 vertical_overflow,
             },
             ..ContainerPolicy::default()

@@ -256,7 +256,7 @@ fn frame_wait_deadline_includes_pending_redraw_reissue_deadline() {
 }
 
 #[test]
-fn route_time_redraw_flush_waits_for_frame_slot_or_stale_request() {
+fn route_time_redraw_flush_waits_for_stale_request() {
     let runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
         TestFrameMessageBridge::default(),
@@ -271,8 +271,8 @@ fn route_time_redraw_flush_waits_for_frame_slot_or_stale_request() {
         "fresh redraws should not force an extra present inside the current frame slot"
     );
     assert!(
-        runner.should_flush_pending_redraw_after_route(Duration::from_millis(1), frame_interval),
-        "fresh redraws should flush when the next visible frame is due"
+        !runner.should_flush_pending_redraw_after_route(Duration::from_millis(1), frame_interval),
+        "fresh redraws should stay on the native redraw path even when the last present is old"
     );
     assert!(
         runner.should_flush_pending_redraw_after_route(

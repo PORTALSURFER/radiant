@@ -133,11 +133,9 @@ where
     pub(super) fn should_flush_pending_redraw_after_route(
         &self,
         pending: Duration,
-        since_last_present: Duration,
+        _since_last_present: Duration,
     ) -> bool {
         pending >= Self::REDRAW_REISSUE_AFTER
-            || since_last_present
-                >= animation_frame_interval_for_normalized_fps(self.options.normalized_target_fps())
     }
 
     fn should_log_pending_redraw_route_flush(

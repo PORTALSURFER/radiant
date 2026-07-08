@@ -151,9 +151,7 @@ impl StatefulRefreshBench {
     fn step(&mut self) -> ScenarioCounters {
         self.runtime.refresh();
         black_box(self.runtime.layout());
-        ScenarioCounters::default()
-            .with_scene_rebuild_count(1)
-            .with_surface_refresh_count(1)
+        ScenarioCounters::default().with_surface_refresh_count(1)
     }
 }
 

@@ -43,7 +43,7 @@ const SCENE_CACHE_INVALIDATION_COUNTERS: &[&str] = &[
     "overlay_rebuild_count",
     "allocation_sensitive_work_count",
 ];
-const SCENE_CACHE_REFRESH_COUNTERS: &[&str] = &["scene_rebuild_count", "surface_refresh_count"];
+const SCENE_CACHE_REFRESH_COUNTERS: &[&str] = &["surface_refresh_count"];
 const TEXT_PAINT_COUNTERS: &[&str] = &["paint_primitive_count"];
 const TEXT_CACHE_COUNTERS: &[&str] = &["text_cache_hit_count"];
 const TEXT_EDIT_COUNTERS: &[&str] = &["allocation_sensitive_work_count"];

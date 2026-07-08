@@ -87,8 +87,8 @@ pub use diagnostics::{
     NativeSceneTraversalDiagnostics, NativeTextCacheCounters, NativeTextCacheDiagnostics,
     NativeTextDiagnostics, NativeTextQualityDiagnostics, NativeTextQualityStatus,
     NativeTransientOverlayTiming, RetainedSurfaceCachePolicy, RuntimeDiagnostics,
-    SLOW_UPDATE_HANDLER_GUIDANCE, UiRuntimeDiagnostics, UiUpdateHandlerDiagnostic,
-    UiUpdateHandlerDiagnosticsMode, UiUpdateHandlerDiagnosticsPolicy,
+    RuntimeMessageQueueDiagnostics, SLOW_UPDATE_HANDLER_GUIDANCE, UiRuntimeDiagnostics,
+    UiUpdateHandlerDiagnostic, UiUpdateHandlerDiagnosticsMode, UiUpdateHandlerDiagnosticsPolicy,
 };
 pub(crate) use diagnostics::{RuntimeDiagnosticsRecorder, elapsed_since};
 pub(crate) use drag::DragSession;

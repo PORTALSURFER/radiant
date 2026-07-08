@@ -24,7 +24,7 @@ fn pending_messages_recover_after_poisoned_queue_lock() {
     let poisoned = Arc::clone(&runtime);
     let _ = thread::spawn(move || {
         let mut pending = poisoned.pending.lock().expect("pending messages lock");
-        pending.push(1);
+        pending.push(PendingMessage::Ordinary(1));
         panic!("poison pending message queue");
     })
     .join();
@@ -85,6 +85,84 @@ fn pending_message_queue_retains_capacity_after_drain() {
 }
 
 #[test]
+fn stream_latest_messages_coalesce_by_slot() {
+    let runtime = AppRuntime::<u32>::default();
+    let slot = runtime.begin_stream_slot();
+
+    for message in 0..100 {
+        assert!(runtime.enqueue_stream_latest(slot, message));
+    }
+
+    assert_eq!(runtime.take_pending(), vec![99]);
+    let diagnostics = runtime.diagnostics_snapshot();
+    assert_eq!(diagnostics.queue.stream_events_coalesced, 99);
+    assert_eq!(diagnostics.queue.max_pending_messages, 1);
+    assert_eq!(diagnostics.queue.max_pending_stream_slots, 1);
+    assert_eq!(diagnostics.queue.current_pending_messages, 0);
+    assert_eq!(diagnostics.queue.current_pending_stream_slots, 0);
+}
+
+#[test]
+fn stream_latest_messages_preserve_final_message_order() {
+    let runtime = AppRuntime::<u32>::default();
+    let slot = runtime.begin_stream_slot();
+
+    assert!(runtime.enqueue(1));
+    assert!(runtime.enqueue_stream_latest(slot, 10));
+    assert!(runtime.enqueue_stream_latest(slot, 11));
+    assert!(runtime.enqueue(2));
+
+    assert_eq!(runtime.take_pending(), vec![1, 11, 2]);
+}
+
+#[test]
+fn independent_stream_slots_keep_one_latest_message_each() {
+    let runtime = AppRuntime::<u32>::default();
+    let first = runtime.begin_stream_slot();
+    let second = runtime.begin_stream_slot();
+
+    assert!(runtime.enqueue_stream_latest(first, 1));
+    assert!(runtime.enqueue_stream_latest(second, 10));
+    assert!(runtime.enqueue_stream_latest(first, 2));
+    assert!(runtime.enqueue_stream_latest(second, 11));
+
+    assert_eq!(runtime.take_pending(), vec![2, 11]);
+    let diagnostics = runtime.diagnostics_snapshot();
+    assert_eq!(diagnostics.queue.stream_events_coalesced, 2);
+    assert_eq!(diagnostics.queue.max_pending_messages, 2);
+    assert_eq!(diagnostics.queue.max_pending_stream_slots, 2);
+}
+
+#[test]
+fn ordinary_pending_messages_keep_full_ordering_and_depth() {
+    let runtime = AppRuntime::<u32>::default();
+
+    for message in 0..100 {
+        assert!(runtime.enqueue(message));
+    }
+
+    assert_eq!(runtime.take_pending(), (0..100).collect::<Vec<_>>());
+    let diagnostics = runtime.diagnostics_snapshot();
+    assert_eq!(diagnostics.queue.stream_events_coalesced, 0);
+    assert_eq!(diagnostics.queue.max_pending_messages, 100);
+    assert_eq!(diagnostics.queue.max_pending_stream_slots, 0);
+}
+
+#[test]
+fn stream_diagnostics_count_stale_and_shutdown_drops() {
+    let runtime = AppRuntime::<u32>::default();
+    let slot = runtime.begin_stream_slot();
+
+    runtime.record_stale_stream_event();
+    runtime.shutdown();
+
+    assert!(!runtime.enqueue_stream_latest(slot, 1));
+    let diagnostics = runtime.diagnostics_snapshot();
+    assert_eq!(diagnostics.queue.stream_events_stale, 1);
+    assert_eq!(diagnostics.queue.stream_events_dropped, 1);
+}
+
+#[test]
 fn command_queue_retains_capacity_after_drain() {
     let runtime = AppRuntime::<u32>::default();
     for message in 0..32 {
@@ -117,6 +195,44 @@ fn pending_message_queue_drains_into_reused_output_without_replacing_queue_stora
     let queue = runtime.pending.lock().expect("pending lock");
     assert!(queue.is_empty());
     assert_eq!(queue.capacity(), queue_capacity);
+}
+
+#[test]
+fn budgeted_pending_drain_preserves_latest_slot_while_backlog_is_full() {
+    let runtime = AppRuntime::<u32>::default();
+    let slot = runtime.begin_stream_slot();
+    let mut retained_backlog = (0..8).collect::<Vec<_>>();
+
+    assert!(runtime.enqueue_stream_latest(slot, 100));
+    assert!(runtime.drain_pending_batch_into(&mut retained_backlog, 8));
+    assert_eq!(retained_backlog, (0..8).collect::<Vec<_>>());
+
+    assert!(runtime.enqueue_stream_latest(slot, 101));
+    let diagnostics = runtime.diagnostics_snapshot();
+    assert_eq!(diagnostics.queue.stream_events_coalesced, 1);
+    assert_eq!(diagnostics.queue.current_pending_messages, 1);
+    assert_eq!(diagnostics.queue.current_pending_stream_slots, 1);
+
+    let mut next_batch = Vec::new();
+    assert!(!runtime.drain_pending_batch_into(&mut next_batch, 8));
+    assert_eq!(next_batch, vec![101]);
+}
+
+#[test]
+fn budgeted_pending_drain_reports_remaining_runtime_work() {
+    let runtime = AppRuntime::<u32>::default();
+    let mut batch = Vec::new();
+
+    for message in 0..10 {
+        assert!(runtime.enqueue(message));
+    }
+
+    assert!(runtime.drain_pending_batch_into(&mut batch, 8));
+    assert_eq!(batch, (0..8).collect::<Vec<_>>());
+
+    batch.clear();
+    assert!(!runtime.drain_pending_batch_into(&mut batch, 8));
+    assert_eq!(batch, vec![8, 9]);
 }
 
 #[test]

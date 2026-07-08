@@ -42,12 +42,16 @@ pub enum TaskPriority {
 /// Runtime-owned message sink passed to streaming business workers.
 pub struct BusinessMessageSink<Message> {
     emit: Arc<dyn Fn(Message) -> bool + Send + Sync + 'static>,
+    emit_latest: Option<Arc<dyn Fn(Message) -> bool + Send + Sync + 'static>>,
+    close_latest: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
 }
 
 impl<Message> Clone for BusinessMessageSink<Message> {
     fn clone(&self) -> Self {
         Self {
             emit: Arc::clone(&self.emit),
+            emit_latest: self.emit_latest.as_ref().map(Arc::clone),
+            close_latest: self.close_latest.as_ref().map(Arc::clone),
         }
     }
 }
@@ -56,11 +60,38 @@ impl<Message> BusinessMessageSink<Message> {
     pub(crate) fn new(emit: impl Fn(Message) -> bool + Send + Sync + 'static) -> Self {
         Self {
             emit: Arc::new(emit),
+            emit_latest: None,
+            close_latest: None,
+        }
+    }
+
+    pub(crate) fn new_with_latest(
+        emit: impl Fn(Message) -> bool + Send + Sync + 'static,
+        emit_latest: impl Fn(Message) -> bool + Send + Sync + 'static,
+        close_latest: impl Fn() + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            emit: Arc::new(emit),
+            emit_latest: Some(Arc::new(emit_latest)),
+            close_latest: Some(Arc::new(close_latest)),
         }
     }
 
     pub(crate) fn emit(&self, message: Message) -> bool {
         (self.emit)(message)
+    }
+
+    pub(crate) fn emit_latest(&self, message: Message) -> bool {
+        match &self.emit_latest {
+            Some(emit) => emit(message),
+            None => self.emit(message),
+        }
+    }
+
+    pub(crate) fn close_latest(&self) {
+        if let Some(close) = &self.close_latest {
+            close();
+        }
     }
 }
 
@@ -121,6 +152,19 @@ pub enum Command<Message> {
         /// Optional cooperative cancellation probe for diagnostics.
         is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
         /// Background work lowered into a message-emitting closure.
+        work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
+    },
+    /// Run host work on a business thread and coalesce intermediate stream
+    /// messages so only the latest pending event for the stream remains queued.
+    #[doc(hidden)]
+    PerformStreamLatest {
+        /// Human-readable task name for diagnostics.
+        name: &'static str,
+        /// Best-effort priority hint for the runtime-owned worker lane.
+        priority: TaskPriority,
+        /// Optional cooperative cancellation probe for diagnostics.
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        /// Background work lowered into a latest-event message-emitting closure.
         work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
     },
     /// Move keyboard focus to one widget.

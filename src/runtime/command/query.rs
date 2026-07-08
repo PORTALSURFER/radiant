@@ -11,6 +11,7 @@ impl<Message> Command<Message> {
             | Self::After { .. }
             | Self::Perform { .. }
             | Self::PerformStream { .. }
+            | Self::PerformStreamLatest { .. }
             | Self::Focus(_)
             | Self::ClearFocus
             | Self::ScrollTo { .. }
@@ -53,6 +54,7 @@ impl<Message> Command<Message> {
             | Self::After { .. }
             | Self::Perform { .. }
             | Self::PerformStream { .. }
+            | Self::PerformStreamLatest { .. }
             | Self::Focus(_)
             | Self::ClearFocus
             | Self::ScrollTo { .. }
@@ -87,6 +89,11 @@ impl<Message> Command<Message> {
                 ..
             }
             | Self::PerformStream {
+                name: command_name,
+                priority,
+                ..
+            }
+            | Self::PerformStreamLatest {
                 name: command_name,
                 priority,
                 ..

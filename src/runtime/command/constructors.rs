@@ -115,6 +115,20 @@ impl<Message> Command<Message> {
         }
     }
 
+    pub(crate) fn perform_latest_stream_with_priority(
+        name: &'static str,
+        priority: TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        work: impl FnOnce(BusinessMessageSink<Message>) + Send + 'static,
+    ) -> Self {
+        Self::PerformStreamLatest {
+            name,
+            priority,
+            is_cancelled,
+            work: Box::new(work),
+        }
+    }
+
     /// Build a command that moves keyboard focus to one widget.
     pub const fn focus(widget_id: WidgetId) -> Self {
         Self::Focus(widget_id)

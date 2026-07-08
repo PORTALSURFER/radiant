@@ -101,6 +101,16 @@ where
         self.spawn_runtime_streaming_message_task(name, priority, is_cancelled, work)
     }
 
+    fn spawn_latest_streaming_message_task(
+        &mut self,
+        name: &'static str,
+        priority: crate::runtime::TaskPriority,
+        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        work: Box<dyn FnOnce(crate::runtime::BusinessMessageSink<Message>) + Send + 'static>,
+    ) -> bool {
+        self.spawn_runtime_latest_streaming_message_task(name, priority, is_cancelled, work)
+    }
+
     fn request_platform_service(
         &mut self,
         request: crate::runtime::PlatformRequest,
@@ -123,6 +133,14 @@ where
 
     fn drain_runtime_messages_into(&mut self, messages: &mut Vec<Message>) {
         self.drain_runtime_message_queue_into(messages);
+    }
+
+    fn drain_runtime_message_batch_into(
+        &mut self,
+        messages: &mut Vec<Message>,
+        max_messages: usize,
+    ) -> bool {
+        self.drain_runtime_message_queue_batch_into(messages, max_messages)
     }
 
     fn needs_animation(&mut self) -> bool {

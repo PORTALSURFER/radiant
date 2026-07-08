@@ -18,11 +18,7 @@ use std::{sync::Arc, time::Duration};
 
 /// Generic host/runtime bridge for declarative message-driven surfaces.
 ///
-/// Hosts project immutable [`UiSurface`] snapshots and reduce widget messages
-/// into owned state. The trait is intentionally broad because it is the single
-/// explicit adapter contract for custom hosts, with default hooks grouped by
-/// projection, updates, scheduling, platform services, queues, animation,
-/// retained/transient rendering, diagnostics, and lifecycle.
+/// The single explicit adapter contract for custom hosts.
 pub trait RuntimeBridge<Message> {
     // Surface projection.
 
@@ -30,10 +26,7 @@ pub trait RuntimeBridge<Message> {
     fn project_surface(&mut self) -> Arc<UiSurface<Message>>;
 
     /// Pull the latest immutable UI surface snapshot as an owned value.
-    ///
-    /// Bridges that can project owned surfaces directly should override this
-    /// method so runtime refreshes do not allocate a temporary [`Arc`] or clone
-    /// a shared surface snapshot.
+    /// Owned-surface bridges can override this to avoid temporary [`Arc`] clones.
     fn pull_surface(&mut self) -> UiSurface<Message> {
         Arc::unwrap_or_clone(self.project_surface())
     }
@@ -49,15 +42,12 @@ pub trait RuntimeBridge<Message> {
     fn reduce_message(&mut self, _message: Message) {}
 
     /// Update application state and return runtime-visible follow-up work.
-    /// Hosts that only reduce messages can keep overriding
-    /// [`RuntimeBridge::reduce_message`].
     fn update(&mut self, message: Message) -> Command<Message> {
         self.reduce_message(message);
         Command::none()
     }
 
-    /// Update application state with a read-only snapshot of runtime-owned
-    /// input state captured at the time the message is dispatched.
+    /// Update state with a read-only snapshot of runtime-owned input state.
     fn update_with_runtime(
         &mut self,
         message: Message,
@@ -66,14 +56,12 @@ pub trait RuntimeBridge<Message> {
         self.update(message)
     }
 
-    /// Observe runtime-owned scroll movement and optionally return follow-up
-    /// work, such as synchronizing an app-owned virtual-list viewport.
+    /// Observe runtime-owned scroll movement and optionally return follow-up work.
     fn scroll_updated(&mut self, _update: ScrollUpdate) -> Option<Command<Message>> {
         None
     }
 
-    /// Handle a native operating-system file drag/drop event. Backends populate
-    /// pointer position and widget target when available.
+    /// Handle a native file drag/drop event with available target metadata.
     fn native_file_drop(&mut self, _drop: NativeFileDrop) -> Command<Message> {
         Command::none()
     }
@@ -95,15 +83,11 @@ pub trait RuntimeBridge<Message> {
 
     // Runtime scheduling and host work.
 
-    /// Install a repaint signal for host-owned background work to wake the
-    /// native runtime after asynchronous state changes.
+    /// Install a repaint signal for host-owned background work.
     fn install_repaint_signal(&mut self, _signal: Arc<dyn RepaintSignal>) {}
 
     /// Queue a host-defined message from runtime-managed background work.
-    ///
-    /// The default returns `false` so low-level custom bridges keep full control.
-    /// Application-builder bridges override this to support delayed messages,
-    /// background tasks, and subscriptions through the unified app API.
+    /// The default returns `false` so custom bridges keep full control.
     fn schedule_message(&mut self, _delay: Duration, _message: Message) -> bool {
         false
     }
@@ -121,6 +105,19 @@ pub trait RuntimeBridge<Message> {
 
     /// Spawn host work that may emit multiple messages before it completes.
     fn spawn_streaming_message_task(
+        &mut self,
+        _name: &'static str,
+        _priority: TaskPriority,
+        _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        _work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
+    ) -> bool {
+        false
+    }
+
+    /// Spawn host work whose intermediate messages may be coalesced.
+    /// Bridges must override this; the default refuses instead of forwarding to
+    /// ordered streaming, where `emit_latest` would degrade to ordinary emits.
+    fn spawn_latest_streaming_message_task(
         &mut self,
         _name: &'static str,
         _priority: TaskPriority,
@@ -149,10 +146,7 @@ pub trait RuntimeBridge<Message> {
     }
 
     /// Drain commands into caller-owned scratch storage.
-    ///
-    /// Implementations can override this to avoid allocating a new vector for
-    /// every runtime drain. The default preserves compatibility with bridges
-    /// that only implement [`Self::take_runtime_commands`].
+    /// The default preserves bridges that implement [`Self::take_runtime_commands`].
     fn drain_runtime_commands_into(&mut self, commands: &mut Vec<Command<Message>>) {
         commands.extend(self.take_runtime_commands());
     }
@@ -163,12 +157,21 @@ pub trait RuntimeBridge<Message> {
     }
 
     /// Drain messages into caller-owned scratch storage.
-    ///
-    /// Implementations can override this to avoid allocating a new vector for
-    /// every runtime drain. The default preserves compatibility with bridges
-    /// that only implement [`Self::take_runtime_messages`].
+    /// The default preserves bridges that implement [`Self::take_runtime_messages`].
     fn drain_runtime_messages_into(&mut self, messages: &mut Vec<Message>) {
         messages.extend(self.take_runtime_messages());
+    }
+
+    /// Drain one controller pass of messages and report whether more remain.
+    /// Coalesced lanes should keep undispatched messages bridge-owned so later
+    /// runtime work can replace them before dispatch.
+    fn drain_runtime_message_batch_into(
+        &mut self,
+        messages: &mut Vec<Message>,
+        _max_messages: usize,
+    ) -> bool {
+        self.drain_runtime_messages_into(messages);
+        false
     }
 
     // Animation policy.
@@ -179,10 +182,7 @@ pub trait RuntimeBridge<Message> {
     }
 
     /// Return the kind of animation work currently needed.
-    ///
-    /// The default preserves existing custom bridges: a bridge that overrides
-    /// only [`Self::needs_animation`] is treated as frame-message animation so
-    /// the native runtime still calls [`Self::queue_animation_frame`].
+    /// Bridges overriding only [`Self::needs_animation`] use frame messages.
     fn animation_activity(&mut self) -> RuntimeAnimationActivity {
         if self.needs_animation() {
             RuntimeAnimationActivity::frame_messages()
@@ -209,19 +209,12 @@ pub trait RuntimeBridge<Message> {
     }
 
     /// Return whether [`Self::paint_transient_overlay`] can emit primitives.
-    ///
-    /// The default is conservative so custom bridges that already override
-    /// painting keep their current behavior without also implementing this hint.
+    /// The default preserves existing custom overlay painters.
     fn has_transient_overlay_painter(&self) -> bool {
         true
     }
 
-    /// Paint transient overlay primitives for the current presentation frame.
-    ///
-    /// Use this for lightweight visuals that need frame-rate updates without
-    /// changing layout or refreshing the declarative surface snapshot. Native
-    /// backends render these over cached scene/GPU surfaces, so implementations
-    /// should keep output small and avoid structural state mutation.
+    /// Paint lightweight transient primitives over the cached scene.
     fn paint_transient_overlay(
         &mut self,
         _context: TransientOverlayContext<'_>,
@@ -231,10 +224,8 @@ pub trait RuntimeBridge<Message> {
 
     // Diagnostics and lifecycle.
 
-    /// Return whether [`Self::observe_frame_diagnostics`] consumes native frame diagnostics.
-    ///
-    /// The default is conservative so custom bridges that already observe
-    /// diagnostics keep receiving them without also implementing this hint.
+    /// Return whether [`Self::observe_frame_diagnostics`] consumes frame diagnostics.
+    /// The default preserves existing custom diagnostics observers.
     fn has_frame_diagnostics_observer(&self) -> bool {
         true
     }

@@ -11,6 +11,7 @@ pub(super) struct RuntimeWorkQueues<Message> {
     command_pending: Vec<Command<Message>>,
     messages: Vec<Message>,
     message_batch: Vec<Message>,
+    bridge_messages_remaining: bool,
 }
 
 impl<Message> RuntimeWorkQueues<Message> {
@@ -31,7 +32,8 @@ impl<Message> RuntimeWorkQueues<Message> {
     where
         Bridge: RuntimeBridge<Message>,
     {
-        bridge.drain_runtime_messages_into(&mut self.messages);
+        self.bridge_messages_remaining =
+            bridge.drain_runtime_message_batch_into(&mut self.messages, budget);
         take_runtime_message_batch_into(&mut self.messages, &mut self.message_batch, budget);
     }
 
@@ -52,7 +54,7 @@ impl<Message> RuntimeWorkQueues<Message> {
     }
 
     pub(super) fn has_remaining_work(&self) -> bool {
-        !self.commands.is_empty() || !self.messages.is_empty()
+        !self.commands.is_empty() || !self.messages.is_empty() || self.bridge_messages_remaining
     }
 }
 
@@ -64,6 +66,7 @@ impl<Message> Default for RuntimeWorkQueues<Message> {
             command_pending: Vec::new(),
             messages: Vec::new(),
             message_batch: Vec::new(),
+            bridge_messages_remaining: false,
         }
     }
 }

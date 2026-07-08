@@ -87,6 +87,39 @@ where
             },
         );
     }
+
+    /// Run keyed latest work with coalesced intermediate events tagged with its key and task ticket.
+    pub fn stream_latest<Event, Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(KeyedTaskCompletion<Key, Event>) -> Message + Send + Sync + 'static,
+        map_final: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + Send + 'static,
+    ) where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        let event_key = self.key.clone();
+        let final_key = self.key;
+        let ticket = self.ticket;
+        self.request.stream_latest(
+            work,
+            move |event| {
+                map_event(KeyedTaskCompletion {
+                    key: event_key.clone(),
+                    ticket,
+                    output: event,
+                })
+            },
+            move |output| {
+                map_final(KeyedTaskCompletion {
+                    key: final_key,
+                    ticket,
+                    output,
+                })
+            },
+        );
+    }
 }
 
 /// Cancellable builder for one keyed-latest business request.
@@ -178,6 +211,43 @@ where
         );
         token
     }
+
+    /// Run cancellable keyed latest work with coalesced intermediate events and return its cancellation token.
+    pub fn stream_latest<Event, Output>(
+        self,
+        work: impl FnOnce(BusinessWorkContext, BusinessEventSink<Event>) -> Output + Send + 'static,
+        map_event: impl Fn(KeyedTaskCompletion<Key, Event>) -> Message + Send + Sync + 'static,
+        map_final: impl FnOnce(KeyedTaskCompletion<Key, Output>) -> Message + Send + 'static,
+    ) -> CancellationToken
+    where
+        Event: Send + 'static,
+        Output: Send + 'static,
+        Message: 'static,
+    {
+        let token = self.token.clone();
+        let event_key = self.key.clone();
+        let final_key = self.key;
+        let ticket = self.ticket;
+        self.request.latest_stream_with_optional_cancellation(
+            Some(self.token),
+            work,
+            move |event| {
+                map_event(KeyedTaskCompletion {
+                    key: event_key.clone(),
+                    ticket,
+                    output: event,
+                })
+            },
+            move |output| {
+                map_final(KeyedTaskCompletion {
+                    key: final_key,
+                    ticket,
+                    output,
+                })
+            },
+        );
+        token
+    }
 }
 
 #[cfg(test)]
@@ -206,6 +276,30 @@ mod tests {
         let command = context.into_command();
         let Command::PerformStream { priority, .. } = &command else {
             panic!("expected stream command");
+        };
+        assert_eq!(*priority, TaskPriority::Interactive);
+    }
+
+    #[test]
+    fn keyed_latest_stream_latest_uses_coalescing_command() {
+        let mut context = UiUpdateContext::<String>::default();
+        let mut latest = KeyedLatestTasks::new();
+        context
+            .business()
+            .interactive("keyed-latest-stream-test")
+            .latest_for(&mut latest, ResourceKey::scoped("sample", "C:/kick.wav"))
+            .stream_latest(
+                |_context, events| {
+                    assert!(events.emit("preview"));
+                    "done"
+                },
+                |event| format!("{}:{}:{}", event.key, event.ticket.id(), event.output),
+                |output| format!("{}:{}:{}", output.key, output.ticket.id(), output.output),
+            );
+
+        let command = context.into_command();
+        let Command::PerformStreamLatest { priority, .. } = &command else {
+            panic!("expected latest stream command");
         };
         assert_eq!(*priority, TaskPriority::Interactive);
     }

@@ -32,8 +32,11 @@ const VIRTUAL_LIST_HOVER_PAINT_COUNTERS: &[&str] = &[
     "paint_primitive_count",
 ];
 const DIRTY_MARK_COUNTERS: &[&str] = &["dirty_mark_count", "allocation_sensitive_work_count"];
-const SCENE_CACHE_ALLOCATION_COUNTERS: &[&str] =
-    &["scene_rebuild_count", "allocation_sensitive_work_count"];
+const DIRTY_RELAYOUT_COUNTERS: &[&str] = &[
+    "dirty_mark_count",
+    "relayout_count",
+    "allocation_sensitive_work_count",
+];
 const SCENE_CACHE_PAINT_COUNTERS: &[&str] = &["scene_rebuild_count", "paint_primitive_count"];
 const SCENE_CACHE_INVALIDATION_COUNTERS: &[&str] = &[
     "scene_rebuild_count",
@@ -71,7 +74,7 @@ macro_rules! perf_scenario_catalog {
             ("layout_virtualized_fixed_10k", "layout", "virtual_lists", VIRTUAL_LIST_COUNTERS, LAYOUT_ITERATIONS, layout_scenarios::virtualized_fixed_10k),
             ("layout_virtualized_fixed_scroll_10k", "layout", "virtual_lists", VIRTUAL_LIST_SCROLL_COUNTERS, LAYOUT_ITERATIONS, layout_scenarios::virtualized_fixed_scroll_10k),
             ("layout_mark_dirty_subtree_10k", "layout", "scene_cache", DIRTY_MARK_COUNTERS, LAYOUT_ITERATIONS, layout_scenarios::mark_dirty_subtree_10k),
-            ("layout_dirty_virtual_cache_10k", "layout", "scene_cache", SCENE_CACHE_ALLOCATION_COUNTERS, LAYOUT_ITERATIONS, layout_scenarios::dirty_virtual_cache_10k),
+            ("layout_dirty_virtual_cache_10k", "layout", "scene_cache", DIRTY_RELAYOUT_COUNTERS, LAYOUT_ITERATIONS, layout_scenarios::dirty_virtual_cache_10k),
             ("app_virtual_list_projection_10k", "application_projection", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, app_projection::virtual_list_projection_10k),
             ("app_virtual_list_projection_generated_child_ids_10k", "application_projection", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, app_projection::virtual_list_projection_generated_child_ids_10k),
             ("app_virtual_selectable_list_projection_10k", "application_projection", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, app_projection::virtual_selectable_list_projection_10k),

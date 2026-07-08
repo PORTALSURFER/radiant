@@ -216,7 +216,8 @@ impl StatefulDirtyVirtualCacheBench {
         let materialized = output.stats.materialized_nodes as u64;
         black_box(output);
         ScenarioCounters::default()
-            .with_scene_rebuild_count(1)
+            .with_dirty_mark_count(1)
+            .with_relayout_count(1)
             .with_allocation_sensitive_work_count(materialized)
     }
 }

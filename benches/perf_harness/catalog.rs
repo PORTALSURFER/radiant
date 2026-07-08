@@ -19,19 +19,16 @@ const POINTER_COUNTERS: &[&str] = &[
     "overlay_paint_count",
     "paint_primitive_count",
 ];
-const POINTER_HOVER_COUNTERS: &[&str] = &[
-    "scene_rebuild_count",
-    "paint_only_count",
-    "surface_refresh_count",
-];
+const POINTER_HOVER_COUNTERS: &[&str] =
+    &["scene_rebuild_count", "paint_only_count", "relayout_count"];
 const POINTER_STABLE_HOVER_COUNTERS: &[&str] = &["scene_rebuild_count", "paint_only_count"];
 const VIRTUAL_LIST_COUNTERS: &[&str] = &["allocation_sensitive_work_count"];
 const VIRTUAL_LIST_SCROLL_COUNTERS: &[&str] =
-    &["surface_refresh_count", "allocation_sensitive_work_count"];
+    &["relayout_count", "allocation_sensitive_work_count"];
 const VIRTUAL_LIST_HOVER_PAINT_COUNTERS: &[&str] = &[
     "scene_rebuild_count",
     "paint_only_count",
-    "surface_refresh_count",
+    "relayout_count",
     "paint_primitive_count",
 ];
 const SCENE_CACHE_ALLOCATION_COUNTERS: &[&str] =

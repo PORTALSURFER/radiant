@@ -146,7 +146,7 @@ impl StatefulVirtualizedScrollBench {
         let measured = output.stats.measured_nodes as u64;
         black_box(output);
         ScenarioCounters::default()
-            .with_surface_refresh_count(1)
+            .with_relayout_count(1)
             .with_allocation_sensitive_work_count(measured)
     }
 }

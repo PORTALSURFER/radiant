@@ -57,7 +57,7 @@ impl StatefulVirtualizedWheelBench {
         assert!(handled);
         black_box(self.runtime.layout());
         ScenarioCounters::default()
-            .with_surface_refresh_count(1)
+            .with_relayout_count(1)
             .with_allocation_sensitive_work_count(1)
     }
 }
@@ -89,7 +89,7 @@ impl StatefulVirtualizedHoverBench {
         ScenarioCounters::default()
             .with_scene_rebuild_count(bool_counter(hovered.needs_scene_rebuild()))
             .with_paint_only_count(bool_counter(hovered.paint_only_requested))
-            .with_surface_refresh_count(1)
+            .with_relayout_count(1)
     }
 }
 
@@ -156,7 +156,7 @@ impl StatefulVirtualizedHoverPaintBench {
         ScenarioCounters::default()
             .with_scene_rebuild_count(bool_counter(hovered.needs_scene_rebuild()))
             .with_paint_only_count(bool_counter(hovered.paint_only_requested))
-            .with_surface_refresh_count(1)
+            .with_relayout_count(1)
             .with_paint_primitive_count(primitive_count)
     }
 }
@@ -186,7 +186,7 @@ impl StatefulVirtualizedNestedScrollHoverBench {
         assert!(self.runtime.hovered_scroll_affordance().is_some());
         black_box(self.runtime.layout());
         ScenarioCounters::default()
-            .with_surface_refresh_count(1)
+            .with_relayout_count(1)
             .with_allocation_sensitive_work_count(1)
     }
 }

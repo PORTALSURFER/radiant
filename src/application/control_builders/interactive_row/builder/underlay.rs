@@ -50,7 +50,7 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
             self.row = self.row.activation_modifiers();
         }
         if policy.drag_session_motion {
-            self.row = self.row.pointer_motion_active(true);
+            self.row = self.row.drag_active(true).pointer_motion_active(true);
         }
         match policy.drag {
             DenseRowDragPolicy::None => {}

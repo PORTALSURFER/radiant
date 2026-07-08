@@ -180,6 +180,49 @@ fn interactive_row_underlay_applies_dense_row_policy_input_bundle() {
 }
 
 #[test]
+fn dense_row_policy_drag_session_motion_clears_hover_for_input_only_rows() {
+    let surface = interactive_row_underlay(text("Sample"))
+        .dense_row_policy(DenseRowPolicy::new().drag_session_motion(true))
+        .input_id(777)
+        .mapped(|_| ())
+        .size(140.0, 22.0)
+        .into_surface();
+    let _ = surface.frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+        &Default::default(),
+    );
+
+    let mut row = surface
+        .find_widget(777)
+        .and_then(|widget| {
+            widget
+                .widget()
+                .as_any()
+                .downcast_ref::<crate::widgets::InteractiveRowWidget>()
+        })
+        .expect("underlay should preserve the configured input row")
+        .clone();
+
+    assert!(row.props.drag_active);
+    assert!(!row.props.drag_source);
+    assert!(!row.props.droppable);
+    assert!(row.props.pointer_motion_active);
+
+    row.common_mut().state.hovered = true;
+    assert_eq!(
+        row.handle_input(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+            WidgetInput::pointer_move(Point::new(8.0, 6.0)),
+        ),
+        None
+    );
+    assert!(
+        !row.common().state.hovered,
+        "drag-session motion rows should clear stale hover instead of painting hover chrome"
+    );
+}
+
+#[test]
 fn input_only_dense_row_policy_preserves_existing_underlay_visual_state() {
     let frame = UiSurface::new(
         interactive_row_underlay(text("Sample"))

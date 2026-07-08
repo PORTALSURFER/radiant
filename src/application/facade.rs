@@ -16,8 +16,8 @@ mod view;
 
 pub use controls::{
     ActionRowBuilder, BadgeBuilder, ButtonBuilder, ButtonRowParts, ColorMarkerBuilder,
-    DropdownBuilder, DropdownBuilderNeedsToggle, DropdownOption, DropdownOptionParts,
-    DropdownOptionSelection, DropdownParts, DropdownTriggerBuilder,
+    DenseRowPolicy, DropdownBuilder, DropdownBuilderNeedsToggle, DropdownOption,
+    DropdownOptionParts, DropdownOptionSelection, DropdownParts, DropdownTriggerBuilder,
     DropdownTriggerBuilderNeedsToggle, DropdownTriggerParts, IconButtonBuilder,
     InteractiveBadgeBuilder, InteractiveRowActions, InteractiveRowBuilder,
     InteractiveRowUnderlayBuilder, PointerTarget, PointerTargetBuilder, ProgressBarBuilder,

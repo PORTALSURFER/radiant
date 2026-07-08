@@ -141,6 +141,70 @@ fn interactive_row_underlay_exposes_common_input_presets() {
 }
 
 #[test]
+fn interactive_row_underlay_applies_dense_row_policy_input_bundle() {
+    let surface = interactive_row_underlay(text("Sample"))
+        .dense_row_policy(
+            DenseRowPolicy::new()
+                .custom_paint_hit_target()
+                .activation_modifiers()
+                .drag_session_motion(true)
+                .tracked_drag_source_with_motion(true, true),
+        )
+        .input_id(776)
+        .mapped(|_| ())
+        .size(140.0, 22.0)
+        .into_surface();
+    let _ = surface.frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+        &Default::default(),
+    );
+
+    let row = surface
+        .find_widget(776)
+        .and_then(|widget| {
+            widget
+                .widget()
+                .as_any()
+                .downcast_ref::<crate::widgets::InteractiveRowWidget>()
+        })
+        .expect("underlay should preserve the configured input row");
+
+    assert!(row.props.draggable);
+    assert!(row.props.drag_active);
+    assert!(row.props.drag_source);
+    assert!(row.props.drag_source_motion);
+    assert!(row.props.pointer_motion_active);
+    assert!(row.props.activation_modifiers);
+    assert_eq!(row.common.focus, crate::widgets::FocusBehavior::None);
+    assert!(!row.common.paint.paints_state_layers);
+}
+
+#[test]
+fn selectable_dense_row_policy_paints_selected_chrome() {
+    let frame = UiSurface::new(
+        interactive_row_underlay(text("Sample"))
+            .dense_row_policy(DenseRowPolicy::selectable(true).style(
+                crate::widgets::WidgetStyle::subtle(crate::widgets::WidgetTone::Accent),
+            ))
+            .mapped(|_| ())
+            .size(140.0, 22.0)
+            .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+        &Default::default(),
+    );
+
+    assert!(
+        frame.paint_plan.fill_rects().any(|fill| fill.color
+            == crate::theme::ThemeTokens::default()
+                .accent_mint
+                .with_alpha(120)),
+        "selectable dense-row policy should paint the standard selected fill"
+    );
+}
+
+#[test]
 fn interactive_row_underlay_derives_stable_text_input_id() {
     let view = interactive_row_underlay(text("Source"))
         .stable_input_id(42, "source-a")

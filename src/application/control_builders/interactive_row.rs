@@ -7,6 +7,6 @@ mod tests;
 
 pub use crate::widgets::InteractiveRowActions;
 pub use builder::{
-    InteractiveRowBuilder, InteractiveRowUnderlayBuilder, interactive_row,
+    DenseRowPolicy, InteractiveRowBuilder, InteractiveRowUnderlayBuilder, interactive_row,
     interactive_row_underlay, row_actions,
 };

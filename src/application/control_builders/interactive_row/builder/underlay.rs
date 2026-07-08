@@ -17,7 +17,11 @@ use crate::{
     },
 };
 
-use super::{InteractiveRowBuilder, defaults::interactive_row};
+use super::{
+    InteractiveRowBuilder,
+    defaults::interactive_row,
+    policy::{DenseRowDragPolicy, DenseRowDropPolicy, DenseRowPolicy},
+};
 
 /// Builder for arbitrary row content backed by a generic interactive row.
 pub struct InteractiveRowUnderlayBuilder<Message> {
@@ -33,6 +37,66 @@ pub struct InteractiveRowUnderlayBuilder<Message> {
 }
 
 impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
+    /// Apply a reusable dense-row behavior policy.
+    ///
+    /// Policies bundle common input, visual-state, drag, and drop behavior for
+    /// app-owned row content. Low-level row, chrome, identity, and message
+    /// methods remain available before or after this call for custom cases.
+    pub fn dense_row_policy(mut self, policy: DenseRowPolicy) -> Self {
+        if policy.custom_paint_hit_target {
+            self.row = self.row.custom_paint_hit_target();
+        }
+        if policy.activation_modifiers {
+            self.row = self.row.activation_modifiers();
+        }
+        if policy.drag_session_motion {
+            self.row = self.row.pointer_motion_active(true);
+        }
+        match policy.drag {
+            DenseRowDragPolicy::None => {}
+            DenseRowDragPolicy::Source {
+                drag_active,
+                drag_source,
+                source_motion,
+            } => {
+                self.row = if source_motion {
+                    self.row
+                        .tracked_drag_source_with_motion(drag_active, drag_source)
+                } else {
+                    self.row.tracked_drag_source(drag_active, drag_source)
+                };
+            }
+        }
+        match policy.drop {
+            DenseRowDropPolicy::None => {}
+            DenseRowDropPolicy::Target {
+                drag_active,
+                active_target,
+            } => {
+                self.row = self.row.tracked_drop_target(drag_active, active_target);
+            }
+            DenseRowDropPolicy::Candidate {
+                drag_active,
+                current_target,
+                candidate,
+                active_target,
+            } => {
+                self.row = self.row.tracked_drop_candidate(
+                    drag_active,
+                    current_target,
+                    candidate,
+                    active_target,
+                );
+            }
+        }
+        if let Some(style) = policy.style {
+            self.style = Some(style);
+        }
+        self.visual_state = policy.visual_state;
+        self.dense_chrome = self.dense_chrome || policy.dense_chrome;
+        self
+    }
+
     /// Configure the backing interactive row before binding messages.
     pub fn row(
         mut self,

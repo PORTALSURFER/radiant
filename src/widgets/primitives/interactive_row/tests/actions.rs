@@ -54,6 +54,29 @@ fn interactive_row_actions_routes_single_modifiers_or_double_to_same_action() {
 }
 
 #[test]
+fn interactive_row_actions_routes_modifier_primary_and_double_with_one_key() {
+    let actions = InteractiveRowActions::new().primary_with_modifiers_and_double_key(
+        "file",
+        |key, modifiers| (key, "activate", modifiers),
+        |key| (key, "double", PointerModifiers::default()),
+    );
+    let modifiers = PointerModifiers {
+        shift: true,
+        command: true,
+        ..PointerModifiers::default()
+    };
+
+    assert_eq!(
+        actions.route(InteractiveRowMessage::ActivateWithModifiers { modifiers }),
+        Some(("file", "activate", modifiers))
+    );
+    assert_eq!(
+        actions.route(InteractiveRowMessage::DoubleActivate),
+        Some(("file", "double", PointerModifiers::default()))
+    );
+}
+
+#[test]
 fn interactive_row_actions_routes_keyed_modifier_activation_secondary_and_drag() {
     let actions = InteractiveRowActions::new()
         .hover_key("file", |key, position| {

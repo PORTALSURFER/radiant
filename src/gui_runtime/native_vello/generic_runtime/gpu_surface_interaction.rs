@@ -33,6 +33,11 @@ where
                     self.request_redraw_if_needed();
                     return;
                 }
+                SceneRebuildMode::ImmediateWithSurfaceRefresh => {
+                    self.refresh_and_rebuild_scene_now();
+                    self.request_redraw_if_needed();
+                    return;
+                }
                 SceneRebuildMode::Interactive => {
                     let now = std::time::Instant::now();
                     if self.should_rebuild_interactive_scene_now(now) {
@@ -74,6 +79,15 @@ where
             self.request_redraw_if_needed();
             return;
         }
+        if let FrameWork::RebuildScene {
+            mode: SceneRebuildMode::ImmediateWithSurfaceRefresh,
+            ..
+        } = outcome.frame_work()
+        {
+            self.refresh_and_rebuild_scene_now();
+            self.request_redraw_if_needed();
+            return;
+        }
         if let Some(mode) = outcome.interactive_scene_rebuild_mode() {
             match mode {
                 SceneRebuildMode::InteractiveWithSurfaceRefresh => {
@@ -94,7 +108,9 @@ where
                         self.defer_interactive_scene_rebuild();
                     }
                 }
-                SceneRebuildMode::Immediate => unreachable!("filtered interactive modes only"),
+                SceneRebuildMode::Immediate | SceneRebuildMode::ImmediateWithSurfaceRefresh => {
+                    unreachable!("filtered interactive modes only")
+                }
             }
             self.request_redraw_if_needed();
             return;

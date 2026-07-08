@@ -34,6 +34,7 @@ pub(in crate::gui_runtime::native_vello) enum FrameWork {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello) enum SceneRebuildMode {
     Immediate,
+    ImmediateWithSurfaceRefresh,
     Interactive,
     InteractiveWithSurfaceRefresh,
 }
@@ -229,6 +230,18 @@ impl FrameWork {
                 reason: right_reason,
                 mode: left_mode.merge(right_mode),
             },
+            (Self::RebuildScene { reason, mode }, Self::RefreshSurface { .. }) => {
+                Self::RebuildScene {
+                    reason,
+                    mode: mode.with_surface_refresh(),
+                }
+            }
+            (Self::RefreshSurface { .. }, Self::RebuildScene { reason, mode }) => {
+                Self::RebuildScene {
+                    reason,
+                    mode: mode.with_surface_refresh(),
+                }
+            }
             (Self::RebuildScene { .. }, _) => self,
             (_, Self::RebuildScene { .. }) => other,
             (Self::RefreshSurface { .. }, _) => self,
@@ -260,6 +273,10 @@ impl FrameWork {
                 ..
             } => "rebuild_scene",
             Self::RebuildScene {
+                mode: SceneRebuildMode::ImmediateWithSurfaceRefresh,
+                ..
+            } => "refresh_surface_and_rebuild_scene",
+            Self::RebuildScene {
                 mode: SceneRebuildMode::Interactive,
                 ..
             } => "interactive_rebuild_scene",
@@ -279,8 +296,26 @@ impl SceneRebuildMode {
             (Self::InteractiveWithSurfaceRefresh, _) | (_, Self::InteractiveWithSurfaceRefresh) => {
                 Self::InteractiveWithSurfaceRefresh
             }
+            (Self::ImmediateWithSurfaceRefresh, Self::Interactive)
+            | (Self::Interactive, Self::ImmediateWithSurfaceRefresh) => {
+                Self::InteractiveWithSurfaceRefresh
+            }
+            (Self::ImmediateWithSurfaceRefresh, _) | (_, Self::ImmediateWithSurfaceRefresh) => {
+                Self::ImmediateWithSurfaceRefresh
+            }
             (Self::Interactive, _) | (_, Self::Interactive) => Self::Interactive,
             (Self::Immediate, Self::Immediate) => Self::Immediate,
+        }
+    }
+
+    fn with_surface_refresh(self) -> Self {
+        match self {
+            Self::Immediate | Self::ImmediateWithSurfaceRefresh => {
+                Self::ImmediateWithSurfaceRefresh
+            }
+            Self::Interactive | Self::InteractiveWithSurfaceRefresh => {
+                Self::InteractiveWithSurfaceRefresh
+            }
         }
     }
 }
@@ -365,6 +400,33 @@ mod tests {
     }
 
     #[test]
+    fn route_outcome_merge_preserves_surface_refresh_when_rebuilds_scene() {
+        let mut refresh_then_rebuild = GenericRouteOutcome::default();
+        refresh_then_rebuild.request_surface_refresh(FrameWorkReason::DeferredSurfaceRefresh);
+        refresh_then_rebuild.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRepaint);
+
+        assert_eq!(
+            refresh_then_rebuild.frame_work(),
+            FrameWork::RebuildScene {
+                reason: FrameWorkReason::RuntimeSurfaceRepaint,
+                mode: SceneRebuildMode::ImmediateWithSurfaceRefresh,
+            }
+        );
+
+        let mut rebuild_then_refresh = GenericRouteOutcome::default();
+        rebuild_then_refresh.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRepaint);
+        rebuild_then_refresh.request_surface_refresh(FrameWorkReason::DeferredSurfaceRefresh);
+
+        assert_eq!(
+            rebuild_then_refresh.frame_work(),
+            FrameWork::RebuildScene {
+                reason: FrameWorkReason::RuntimeSurfaceRepaint,
+                mode: SceneRebuildMode::ImmediateWithSurfaceRefresh,
+            }
+        );
+    }
+
+    #[test]
     fn route_outcome_covers_every_frame_work_variant() {
         assert_eq!(FrameWork::None.kind(), "none");
 
@@ -375,6 +437,21 @@ mod tests {
             FrameWork::RebuildScene {
                 reason: FrameWorkReason::RoutedInput,
                 mode: SceneRebuildMode::Interactive,
+            }
+        );
+
+        let mut refreshed_rebuild = GenericRouteOutcome::default();
+        refreshed_rebuild.request_surface_refresh(FrameWorkReason::DeferredSurfaceRefresh);
+        refreshed_rebuild.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRepaint);
+        assert_eq!(
+            refreshed_rebuild.frame_work_kind(),
+            "refresh_surface_and_rebuild_scene"
+        );
+        assert_eq!(
+            refreshed_rebuild.frame_work(),
+            FrameWork::RebuildScene {
+                reason: FrameWorkReason::RuntimeSurfaceRepaint,
+                mode: SceneRebuildMode::ImmediateWithSurfaceRefresh,
             }
         );
 

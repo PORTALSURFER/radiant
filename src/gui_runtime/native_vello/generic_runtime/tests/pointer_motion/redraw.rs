@@ -1,5 +1,8 @@
 use super::{
-    super::{GenericNativeRuntimeCore, GenericNativeVelloRunner, RenderFrameProfile, demo_bridge},
+    super::{
+        FrameWork, FrameWorkReason, GenericNativeRuntimeCore, GenericNativeVelloRunner,
+        RenderFrameProfile, SceneRebuildMode, demo_bridge,
+    },
     fixtures::{
         AdjacentTreeRowsBridge, DisclosureAndTreeRowBridge, LocalPointerMoveBridge,
         PointerMoveBridge, VirtualTreeRowsBridge,
@@ -223,6 +226,49 @@ fn deferred_pointer_move_refresh_invalidates_scene_texture() {
 
     assert!(runner.frame.scene_texture_dirty);
     assert!(runner.frame.composited_base_dirty);
+}
+
+#[test]
+fn deferred_pointer_move_repaint_refreshes_before_scene_rebuild() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PointerMoveBridge {
+            request_repaint_on_update: true,
+            ..PointerMoveBridge::default()
+        },
+        Vector2::new(120.0, 40.0),
+    );
+    let point = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&71)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("pointer widget should be laid out");
+
+    let first = runner.core.route_pointer_move(point);
+    assert!(first.needs_scene_rebuild());
+    runner.handle_gpu_surface_pointer_move_outcome(first, None, point);
+
+    let project_count_before_second = runner.core.runtime.bridge().project_count;
+    let second_position = Point::new(point.x + 1.0, point.y);
+    let second = runner.core.route_pointer_move(second_position);
+
+    assert_eq!(
+        second.frame_work(),
+        FrameWork::RebuildScene {
+            reason: FrameWorkReason::RuntimeSurfaceRepaint,
+            mode: SceneRebuildMode::ImmediateWithSurfaceRefresh,
+        }
+    );
+    runner.handle_gpu_surface_pointer_move_outcome(second, Some(point), second_position);
+
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        project_count_before_second + 1,
+        "deferred pointer repaint rebuilds should refresh the projected surface before painting"
+    );
 }
 
 #[test]

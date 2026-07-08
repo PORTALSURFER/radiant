@@ -267,6 +267,14 @@ where
         self.rebuild_scene();
     }
 
+    pub(super) fn refresh_and_rebuild_scene_now(&mut self) {
+        if self.timing.deferred_surface_refresh {
+            self.timing.deferred_surface_refresh = false;
+        }
+        self.core.refresh_surface();
+        self.rebuild_scene();
+    }
+
     pub(super) fn refresh_and_rebuild_scene_for_interactive_route_now(&mut self) {
         if self.timing.deferred_surface_refresh {
             self.timing.deferred_surface_refresh = false;
@@ -374,6 +382,10 @@ where
                 SceneRebuildMode::InteractiveWithSurfaceRefresh => {
                     self.refresh_and_rebuild_scene_for_interactive_route_now();
                     self.defer_auxiliary_window_sync();
+                }
+                SceneRebuildMode::ImmediateWithSurfaceRefresh => {
+                    self.refresh_and_rebuild_scene_now();
+                    sync_auxiliary_windows_now = true;
                 }
                 SceneRebuildMode::Interactive => {
                     let now = Instant::now();

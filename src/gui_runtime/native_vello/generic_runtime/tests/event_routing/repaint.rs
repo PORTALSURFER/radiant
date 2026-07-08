@@ -19,7 +19,7 @@ fn generic_core_drains_command_repaint_requests_after_routing() {
     let outcome = core.route_pointer_release(button_point, PointerButton::Primary);
 
     assert!(outcome.routed);
-    assert!(outcome.repaint_requested);
+    assert!(outcome.needs_scene_rebuild());
     assert!(!core.runtime.repaint_requested());
     assert_eq!(core.runtime.bridge().state.count, 1);
 }

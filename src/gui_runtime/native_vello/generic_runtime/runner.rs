@@ -1,12 +1,12 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
 use super::{
-    AuxiliaryNativeWindow, GenericNativeRuntimeCore, GenericRouteOutcome,
+    AuxiliaryNativeWindow, FrameWork, GenericNativeRuntimeCore, GenericRouteOutcome,
     NativeAutomationTargetExporter, NativeRunnerInputState, NativeRunnerTimingState,
-    NativeRunnerWindowState, NativeVelloFrameState, RuntimeWakeup, SurfaceSceneEncodeContext,
-    TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
-    encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
-    timed_frame_target_fps,
+    NativeRunnerWindowState, NativeVelloFrameState, RuntimeWakeup, SceneRebuildMode,
+    SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
+    animation_frame_interval_for_normalized_fps, encode_surface_paint_plan_to_scene,
+    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
 use crate::{
     gui::types::Vector2,
@@ -267,6 +267,14 @@ where
         self.rebuild_scene();
     }
 
+    pub(super) fn refresh_and_rebuild_scene_now(&mut self) {
+        if self.timing.deferred_surface_refresh {
+            self.timing.deferred_surface_refresh = false;
+        }
+        self.core.refresh_surface();
+        self.rebuild_scene();
+    }
+
     pub(super) fn refresh_and_rebuild_scene_for_interactive_route_now(&mut self) {
         if self.timing.deferred_surface_refresh {
             self.timing.deferred_surface_refresh = false;
@@ -361,12 +369,25 @@ where
             self.set_window_logical_size(size);
         }
         let mut sync_auxiliary_windows_now = false;
-        if outcome.needs_scene_rebuild() {
-            if outcome.interactive_scene_rebuild_requested {
-                if outcome.interactive_surface_refresh_requested {
+        match outcome.frame_work() {
+            FrameWork::None | FrameWork::PaintOnly { .. } | FrameWork::Exit { .. } => {}
+            FrameWork::RefreshSurface { .. } => {
+                self.timing.deferred_surface_refresh = true;
+            }
+            FrameWork::ResizeAndRebuild { .. } => {
+                self.rebuild_scene();
+                sync_auxiliary_windows_now = true;
+            }
+            FrameWork::RebuildScene { mode, .. } => match mode {
+                SceneRebuildMode::InteractiveWithSurfaceRefresh => {
                     self.refresh_and_rebuild_scene_for_interactive_route_now();
                     self.defer_auxiliary_window_sync();
-                } else {
+                }
+                SceneRebuildMode::ImmediateWithSurfaceRefresh => {
+                    self.refresh_and_rebuild_scene_now();
+                    sync_auxiliary_windows_now = true;
+                }
+                SceneRebuildMode::Interactive => {
                     let now = Instant::now();
                     if self.should_rebuild_interactive_scene_now(now) {
                         self.rebuild_scene_for_interactive_route_now();
@@ -376,12 +397,11 @@ where
                         self.defer_auxiliary_window_sync();
                     }
                 }
-            } else {
-                self.rebuild_scene();
-                sync_auxiliary_windows_now = true;
-            }
-        } else if outcome.deferred_surface_refresh_requested {
-            self.timing.deferred_surface_refresh = true;
+                SceneRebuildMode::Immediate => {
+                    self.rebuild_scene();
+                    sync_auxiliary_windows_now = true;
+                }
+            },
         }
         if outcome.needs_redraw() {
             self.request_redraw_if_needed();

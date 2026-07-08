@@ -1,5 +1,8 @@
 use super::{
-    super::{GenericNativeRuntimeCore, GenericNativeVelloRunner, RenderFrameProfile, demo_bridge},
+    super::{
+        FrameWork, FrameWorkReason, GenericNativeRuntimeCore, GenericNativeVelloRunner,
+        RenderFrameProfile, SceneRebuildMode, demo_bridge,
+    },
     fixtures::{
         AdjacentTreeRowsBridge, DisclosureAndTreeRowBridge, LocalPointerMoveBridge,
         PointerMoveBridge, VirtualTreeRowsBridge,
@@ -10,6 +13,7 @@ use crate::{
     runtime::{NativeRunOptions, PaintPrimitive},
     widgets::PointerButton,
 };
+use std::time::Instant;
 use winit::dpi::PhysicalPosition;
 
 #[test]
@@ -79,7 +83,7 @@ fn pointer_move_messages_defer_surface_refresh_until_redraw_after_hover_enters()
     assert!(second.routed);
     assert!(second.needs_redraw());
     assert!(!second.needs_scene_rebuild());
-    assert!(second.deferred_surface_refresh_requested);
+    assert!(second.is_deferred_surface_refresh());
     assert_eq!(core.runtime.bridge().moves, 2);
     assert_eq!(
         core.runtime.bridge().project_count,
@@ -116,9 +120,9 @@ fn captured_pointer_move_message_marks_interactive_refresh_for_resizes() {
 
     assert!(drag_move.routed);
     assert!(drag_move.needs_scene_rebuild());
-    assert!(!drag_move.deferred_surface_refresh_requested);
-    assert!(drag_move.interactive_surface_refresh_requested);
-    assert!(drag_move.interactive_scene_rebuild_requested);
+    assert!(!drag_move.is_deferred_surface_refresh());
+    assert!(drag_move.is_interactive_surface_refresh());
+    assert!(drag_move.is_interactive_scene_rebuild());
     assert_eq!(
         runner.core.runtime.bridge().project_count,
         project_count_before_move,
@@ -136,6 +140,55 @@ fn captured_pointer_move_message_marks_interactive_refresh_for_resizes() {
         runner.core.runtime.bridge().project_count,
         project_count_before_move + 1,
         "the first captured resize move still refreshes immediately to keep live redraw"
+    );
+}
+
+#[test]
+fn captured_pointer_move_surface_refresh_respects_interactive_cadence() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PointerMoveBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    let point = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&71)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("pointer widget should be laid out");
+
+    assert!(
+        runner
+            .core
+            .route_pointer_press(point, PointerButton::Primary)
+            .routed
+    );
+    runner.timing.last_interactive_scene_rebuild = Instant::now();
+
+    let project_count_before_move = runner.core.runtime.bridge().project_count;
+    let drag_position = Point::new(point.x + 4.0, point.y);
+    let drag_move = runner.core.route_pointer_move(drag_position);
+
+    assert!(drag_move.is_interactive_surface_refresh());
+    assert!(drag_move.is_interactive_scene_rebuild());
+
+    runner.handle_gpu_surface_pointer_move_outcome(drag_move, Some(point), drag_position);
+
+    assert_eq!(runner.core.runtime.bridge().moves, 1);
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        project_count_before_move,
+        "cadence-limited captured pointer refreshes should not reproject at raw mouse frequency"
+    );
+    assert!(
+        runner.timing.deferred_surface_refresh,
+        "the next rebuild should refresh the projected surface before painting"
+    );
+    assert!(
+        runner.timing.deferred_scene_rebuild,
+        "cadence-limited captured pointer moves should defer scene work"
     );
 }
 
@@ -167,12 +220,55 @@ fn deferred_pointer_move_refresh_invalidates_scene_texture() {
     let second = runner
         .core
         .route_pointer_move(Point::new(point.x + 1.0, point.y));
-    assert!(second.deferred_surface_refresh_requested);
+    assert!(second.is_deferred_surface_refresh());
     runner.timing.deferred_surface_refresh = true;
     runner.refresh_deferred_surface_if_needed(&mut RenderFrameProfile::default());
 
     assert!(runner.frame.scene_texture_dirty);
     assert!(runner.frame.composited_base_dirty);
+}
+
+#[test]
+fn deferred_pointer_move_repaint_refreshes_before_scene_rebuild() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PointerMoveBridge {
+            request_repaint_on_update: true,
+            ..PointerMoveBridge::default()
+        },
+        Vector2::new(120.0, 40.0),
+    );
+    let point = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&71)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("pointer widget should be laid out");
+
+    let first = runner.core.route_pointer_move(point);
+    assert!(first.needs_scene_rebuild());
+    runner.handle_gpu_surface_pointer_move_outcome(first, None, point);
+
+    let project_count_before_second = runner.core.runtime.bridge().project_count;
+    let second_position = Point::new(point.x + 1.0, point.y);
+    let second = runner.core.route_pointer_move(second_position);
+
+    assert_eq!(
+        second.frame_work(),
+        FrameWork::RebuildScene {
+            reason: FrameWorkReason::RuntimeSurfaceRepaint,
+            mode: SceneRebuildMode::ImmediateWithSurfaceRefresh,
+        }
+    );
+    runner.handle_gpu_surface_pointer_move_outcome(second, Some(point), second_position);
+
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        project_count_before_second + 1,
+        "deferred pointer repaint rebuilds should refresh the projected surface before painting"
+    );
 }
 
 #[test]

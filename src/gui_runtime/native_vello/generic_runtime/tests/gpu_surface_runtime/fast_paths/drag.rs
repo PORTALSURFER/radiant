@@ -39,7 +39,7 @@ fn active_runtime_drag_moves_through_transient_overlay_without_scene_rebuild() {
 
     let point = Point::new(80.0, 20.0);
     let moved = runner.core.route_pointer_move(point);
-    assert!(moved.paint_only_requested);
+    assert!(moved.is_paint_only());
     assert!(!moved.needs_scene_rebuild());
     runner.handle_gpu_surface_pointer_move_outcome(moved, Some(first_point), point);
     runner.paint_transient_overlays(&mut RenderFrameProfile::default());

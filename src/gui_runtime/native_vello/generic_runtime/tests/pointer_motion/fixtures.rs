@@ -3,7 +3,8 @@ use crate::{
     gui::list::{TreeGuideRow, TreeGuideStyle, VirtualListWindow},
     layout::{Point, Rect, Vector2},
     runtime::{
-        PaintFillRect, PaintPrimitive, RuntimeBridge, SurfaceNode, UiSurface, WidgetMessageMapper,
+        Command, PaintFillRect, PaintPrimitive, RuntimeBridge, SurfaceNode, UiSurface,
+        WidgetMessageMapper,
     },
     theme::ThemeTokens,
     widgets::{FocusBehavior, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
@@ -54,6 +55,7 @@ impl Widget for PointerMoveWidget {
 pub(super) struct PointerMoveBridge {
     pub(super) moves: usize,
     pub(super) project_count: usize,
+    pub(super) request_repaint_on_update: bool,
 }
 
 impl RuntimeBridge<PointerMoveMessage> for PointerMoveBridge {
@@ -65,8 +67,13 @@ impl RuntimeBridge<PointerMoveMessage> for PointerMoveBridge {
         )))
     }
 
-    fn reduce_message(&mut self, _message: PointerMoveMessage) {
+    fn update(&mut self, _message: PointerMoveMessage) -> Command<PointerMoveMessage> {
         self.moves += 1;
+        if self.request_repaint_on_update {
+            Command::request_repaint()
+        } else {
+            Command::none()
+        }
     }
 }
 

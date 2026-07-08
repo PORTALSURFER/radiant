@@ -74,6 +74,35 @@ impl<Message> Command<Message> {
         matches!(self.repaint_scope(), Some(RepaintScope::PaintOnly))
     }
 
+    pub(in crate::runtime) fn requires_fresh_surface_before_dispatch(&self) -> bool {
+        match self {
+            Self::Focus(_)
+            | Self::ScrollTo { .. }
+            | Self::ScrollIntoView { .. }
+            | Self::ScrollFixedRowIntoView { .. } => true,
+            Self::Batch(commands) => commands
+                .iter()
+                .any(Self::requires_fresh_surface_before_dispatch),
+            Self::Message(_)
+            | Self::None
+            | Self::RequestRepaint
+            | Self::RequestPaintOnly
+            | Self::SetDpiScale(_)
+            | Self::SetWindowLogicalSize(_)
+            | Self::After { .. }
+            | Self::Perform { .. }
+            | Self::PerformStream { .. }
+            | Self::PerformStreamLatest { .. }
+            | Self::ClearFocus
+            | Self::BeginExternalDrag { .. }
+            | Self::BeginDrag { .. }
+            | Self::PlatformRequest { .. }
+            | Self::EndExternalDrag
+            | Self::EndDrag
+            | Self::Exit => false,
+        }
+    }
+
     /// Return the priority for the first queued business command with `name`.
     ///
     /// This inspects both one-shot and streaming business commands and walks
@@ -108,6 +137,7 @@ impl<Message> Command<Message> {
 
 #[cfg(test)]
 mod tests {
+    use crate::layout::Vector2;
     use crate::runtime::{Command, TaskPriority};
 
     #[test]
@@ -140,5 +170,31 @@ mod tests {
             command.business_task_priority("target"),
             Some(TaskPriority::BlockingIo)
         );
+    }
+
+    #[test]
+    fn layout_dependent_commands_require_fresh_surface_before_dispatch() {
+        assert!(Command::<()>::focus(42).requires_fresh_surface_before_dispatch());
+        assert!(
+            Command::<()>::scroll_to(10, Vector2::new(0.0, 24.0))
+                .requires_fresh_surface_before_dispatch()
+        );
+        assert!(
+            Command::<()>::scroll_into_view(10, 40.0, 20.0, 0.0, 0.0)
+                .requires_fresh_surface_before_dispatch()
+        );
+        assert!(
+            Command::<()>::scroll_fixed_row_into_view(10, 5, 20.0, 1, 1, 1)
+                .requires_fresh_surface_before_dispatch()
+        );
+        assert!(
+            Command::<()>::batch([
+                Command::request_repaint(),
+                Command::scroll_to(10, Vector2::new(0.0, 24.0)),
+            ])
+            .requires_fresh_surface_before_dispatch()
+        );
+        assert!(!Command::<()>::request_repaint().requires_fresh_surface_before_dispatch());
+        assert!(!Command::<()>::clear_focus().requires_fresh_surface_before_dispatch());
     }
 }

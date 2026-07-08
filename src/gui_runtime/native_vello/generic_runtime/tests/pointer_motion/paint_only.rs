@@ -23,7 +23,7 @@ fn paint_only_pointer_move_overlay_skips_scene_rebuild_after_hover_enters() {
 
     let second = core.route_pointer_move(Point::new(point.x + 11.0, point.y));
     assert!(second.routed);
-    assert!(second.paint_only_requested);
+    assert!(second.is_paint_only());
     assert!(!second.needs_scene_rebuild());
     assert!(second.needs_redraw());
 

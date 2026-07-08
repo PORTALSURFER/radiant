@@ -73,6 +73,6 @@ fn captured_drag_hover_message_requests_scene_rebuild_without_hover_change() {
         outcome.needs_scene_rebuild(),
         "captured drag hover messages mutate app state and must rebuild the scene, not only repaint the drag preview"
     );
-    assert!(!outcome.paint_only_requested);
+    assert!(!outcome.is_paint_only());
     assert_eq!(core.runtime.bridge().hovers, 2);
 }

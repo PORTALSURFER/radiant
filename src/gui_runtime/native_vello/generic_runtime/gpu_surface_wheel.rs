@@ -108,11 +108,11 @@ where
         });
         profile.coalesced_wheel_route = elapsed;
         maybe_log_route_profile("coalesced_wheel", profile.coalesced_wheel_route, outcome);
-        if outcome.interactive_surface_refresh_requested {
+        if outcome.is_interactive_surface_refresh() {
             self.refresh_and_rebuild_scene_for_interactive_route_now();
             return;
         }
-        if outcome.interactive_scene_rebuild_requested {
+        if outcome.is_interactive_scene_rebuild() {
             self.rebuild_scene_for_interactive_route_now();
             return;
         }
@@ -137,15 +137,15 @@ where
         });
         profile.coalesced_wheel_route += elapsed;
         maybe_log_route_profile("coalesced_scroll_wheel", elapsed, outcome);
-        if outcome.interactive_surface_refresh_requested {
+        if outcome.is_interactive_surface_refresh() {
             self.refresh_and_rebuild_scene_for_interactive_route_now();
             return;
         }
-        if outcome.interactive_scene_rebuild_requested {
+        if outcome.is_interactive_scene_rebuild() {
             self.rebuild_scene_for_interactive_route_now();
             return;
         }
-        if outcome.deferred_surface_refresh_requested {
+        if outcome.is_deferred_surface_refresh() {
             self.timing.deferred_surface_refresh = true;
         }
         if outcome.needs_scene_rebuild() {

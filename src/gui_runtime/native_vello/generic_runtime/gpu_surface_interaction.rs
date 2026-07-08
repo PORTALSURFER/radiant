@@ -1,7 +1,7 @@
 //! Interaction fast paths for retained GPU surface primitives.
 
 use super::{
-    GenericNativeVelloRunner, GenericRouteOutcome,
+    FrameWork, GenericNativeVelloRunner, GenericRouteOutcome, SceneRebuildMode,
     gpu_surface_cursor::{
         clear_surface_cursor_overlay, topmost_native_hover_surface_index,
         update_surface_cursor_overlay,
@@ -26,20 +26,30 @@ where
         if !outcome.needs_redraw() {
             return;
         }
-        if outcome.interactive_scene_rebuild_requested {
-            if outcome.interactive_surface_refresh_requested {
-                self.refresh_and_rebuild_scene_for_interactive_route_now();
-                self.request_redraw_if_needed();
-                return;
+        if let FrameWork::RebuildScene { mode, .. } = outcome.frame_work() {
+            match mode {
+                SceneRebuildMode::InteractiveWithSurfaceRefresh => {
+                    self.refresh_and_rebuild_scene_for_interactive_route_now();
+                    self.request_redraw_if_needed();
+                    return;
+                }
+                SceneRebuildMode::ImmediateWithSurfaceRefresh => {
+                    self.refresh_and_rebuild_scene_now();
+                    self.request_redraw_if_needed();
+                    return;
+                }
+                SceneRebuildMode::Interactive => {
+                    let now = std::time::Instant::now();
+                    if self.should_rebuild_interactive_scene_now(now) {
+                        self.rebuild_scene_for_interactive_route_now();
+                    } else {
+                        self.defer_interactive_scene_rebuild();
+                    }
+                    self.request_redraw_if_needed();
+                    return;
+                }
+                SceneRebuildMode::Immediate => {}
             }
-            let now = std::time::Instant::now();
-            if self.should_rebuild_interactive_scene_now(now) {
-                self.rebuild_scene_for_interactive_route_now();
-            } else {
-                self.defer_interactive_scene_rebuild();
-            }
-            self.request_redraw_if_needed();
-            return;
         }
         if self.can_fast_path_gpu_surface_route(position, delta) {
             self.timing.deferred_surface_refresh = true;
@@ -60,29 +70,47 @@ where
         if !outcome.needs_redraw() {
             return;
         }
-        if outcome.paint_only_requested && !outcome.needs_scene_rebuild() {
-            if outcome.deferred_surface_refresh_requested {
-                self.timing.deferred_surface_refresh = true;
-            }
+        if outcome.is_paint_only() {
             self.request_redraw_if_needed();
             return;
         }
-        if outcome.deferred_surface_refresh_requested && !outcome.needs_scene_rebuild() {
+        if outcome.is_deferred_surface_refresh() {
             self.timing.deferred_surface_refresh = true;
             self.request_redraw_if_needed();
             return;
         }
-        if outcome.interactive_scene_rebuild_requested {
-            let should_rebuild_now = self.core.runtime.scrollbar_drag_active()
-                || self.should_rebuild_interactive_scene_now(std::time::Instant::now());
-            if should_rebuild_now {
-                if outcome.interactive_surface_refresh_requested {
-                    self.refresh_and_rebuild_scene_for_interactive_route_now();
-                } else {
-                    self.rebuild_scene_for_interactive_route_now();
+        if let FrameWork::RebuildScene {
+            mode: SceneRebuildMode::ImmediateWithSurfaceRefresh,
+            ..
+        } = outcome.frame_work()
+        {
+            self.refresh_and_rebuild_scene_now();
+            self.request_redraw_if_needed();
+            return;
+        }
+        if let Some(mode) = outcome.interactive_scene_rebuild_mode() {
+            match mode {
+                SceneRebuildMode::InteractiveWithSurfaceRefresh => {
+                    let should_rebuild_now = self.core.runtime.scrollbar_drag_active()
+                        || self.should_rebuild_interactive_scene_now(std::time::Instant::now());
+                    if should_rebuild_now {
+                        self.refresh_and_rebuild_scene_for_interactive_route_now();
+                    } else {
+                        self.defer_interactive_scene_rebuild();
+                    }
                 }
-            } else {
-                self.defer_interactive_scene_rebuild();
+                SceneRebuildMode::Interactive => {
+                    let should_rebuild_now = self.core.runtime.scrollbar_drag_active()
+                        || self.should_rebuild_interactive_scene_now(std::time::Instant::now());
+                    if should_rebuild_now {
+                        self.rebuild_scene_for_interactive_route_now();
+                    } else {
+                        self.defer_interactive_scene_rebuild();
+                    }
+                }
+                SceneRebuildMode::Immediate | SceneRebuildMode::ImmediateWithSurfaceRefresh => {
+                    unreachable!("filtered interactive modes only")
+                }
             }
             self.request_redraw_if_needed();
             return;

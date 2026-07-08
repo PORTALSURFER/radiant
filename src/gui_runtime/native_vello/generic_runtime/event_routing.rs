@@ -1,7 +1,8 @@
 //! Backend-neutral event routing helpers for the generic native runner.
 
 use super::{
-    GenericNativeRuntimeCore, GenericRouteOutcome, PointerPressStamp, pointer_press_event,
+    FrameWorkReason, GenericNativeRuntimeCore, GenericRouteOutcome, PointerPressStamp,
+    pointer_press_event,
 };
 use crate::gui::{
     focus::FocusSurface,
@@ -19,20 +20,34 @@ where
 {
     fn route_outcome(&mut self, routed: bool) -> GenericRouteOutcome {
         let pending = self.runtime.take_pending_input_command_outcome();
-        GenericRouteOutcome {
+        let repaint_requested = self.runtime.take_repaint_requested();
+        let mut outcome = GenericRouteOutcome {
             routed,
-            redraw_requested: routed || pending.surface_refresh_requested,
-            repaint_requested: self.runtime.take_repaint_requested()
-                || pending.surface_repaint_requested,
-            paint_only_requested: pending.paint_only_requested,
-            deferred_surface_refresh_requested: false,
-            interactive_surface_refresh_requested: false,
-            interactive_scene_rebuild_requested: false,
             exit_requested: self.runtime.take_exit_requested() || pending.exit_requested,
             runtime_work_remaining: pending.runtime_work_remaining,
             dpi_scale_override: pending.dpi_scale_override,
             window_logical_size: pending.window_logical_size,
+            ..GenericRouteOutcome::default()
+        };
+        if routed {
+            outcome.request_scene_rebuild(FrameWorkReason::RoutedInput);
         }
+        if pending.surface_refresh_requested {
+            outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRefresh);
+        }
+        if repaint_requested || pending.surface_repaint_requested {
+            outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRepaint);
+        }
+        if pending.paint_only_requested {
+            outcome.request_paint_only(FrameWorkReason::RuntimePaintOnly);
+        }
+        if pending.window_logical_size.is_some() {
+            outcome.request_resize_and_rebuild(FrameWorkReason::CommandResize);
+        }
+        if outcome.exit_requested {
+            outcome.request_exit();
+        }
+        outcome
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_pointer_move(
@@ -54,26 +69,41 @@ where
         {
             self.runtime.refresh();
         }
-        GenericRouteOutcome {
+        let mut route_outcome = GenericRouteOutcome {
             routed: outcome.routed(),
-            redraw_requested: outcome.hover_changed
-                || captured_pointer_refresh
-                || scroll_drag_surface_refresh,
-            deferred_surface_refresh_requested: pending.surface_refresh_requested
-                && !outcome.hover_changed
-                && !captured_pointer_refresh
-                && !scroll_drag_surface_refresh,
-            interactive_surface_refresh_requested: captured_pointer_refresh
-                || scroll_drag_surface_refresh,
-            interactive_scene_rebuild_requested: captured_pointer_refresh
-                || scroll_drag_surface_refresh,
-            repaint_requested: outcome.repaint_requested || pending.surface_repaint_requested,
-            paint_only_requested: outcome.paint_only_requested || pending.paint_only_requested,
             exit_requested: outcome.exit_requested || pending.exit_requested,
             runtime_work_remaining: pending.runtime_work_remaining,
             dpi_scale_override: pending.dpi_scale_override,
             window_logical_size: pending.window_logical_size,
+            ..GenericRouteOutcome::default()
+        };
+        if outcome.hover_changed {
+            route_outcome.request_scene_rebuild(FrameWorkReason::PointerHover);
         }
+        if captured_pointer_refresh || scroll_drag_surface_refresh {
+            route_outcome
+                .request_interactive_surface_refresh(FrameWorkReason::InteractiveSurfaceRefresh);
+        }
+        if pending.surface_refresh_requested
+            && !outcome.hover_changed
+            && !captured_pointer_refresh
+            && !scroll_drag_surface_refresh
+        {
+            route_outcome.request_surface_refresh(FrameWorkReason::DeferredSurfaceRefresh);
+        }
+        if outcome.repaint_requested || pending.surface_repaint_requested {
+            route_outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRepaint);
+        }
+        if outcome.paint_only_requested || pending.paint_only_requested {
+            route_outcome.request_paint_only(FrameWorkReason::RuntimePaintOnly);
+        }
+        if pending.window_logical_size.is_some() {
+            route_outcome.request_resize_and_rebuild(FrameWorkReason::CommandResize);
+        }
+        if route_outcome.exit_requested {
+            route_outcome.request_exit();
+        }
+        route_outcome
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_pointer_modifiers_changed(
@@ -168,21 +198,39 @@ where
         let scroll_surface_refresh =
             route == WheelOrScrollRoute::ScrollContainer && pending.surface_refresh_requested;
         let deferred_surface_refresh = pending.surface_refresh_requested && !scroll_surface_refresh;
-        GenericRouteOutcome {
+        let mut outcome = GenericRouteOutcome {
             routed,
-            redraw_requested: (routed && !deferred_surface_refresh) || scroll_surface_refresh,
-            repaint_requested: (repaint_requested || pending.surface_repaint_requested)
-                && !deferred_surface_refresh
-                && !scroll_surface_refresh,
-            paint_only_requested: pending.paint_only_requested,
-            deferred_surface_refresh_requested: deferred_surface_refresh,
-            interactive_surface_refresh_requested: scroll_surface_refresh,
-            interactive_scene_rebuild_requested: scroll_surface_refresh,
             exit_requested: exit_requested || pending.exit_requested,
             runtime_work_remaining: pending.runtime_work_remaining,
             dpi_scale_override: pending.dpi_scale_override,
             window_logical_size: pending.window_logical_size,
+            ..GenericRouteOutcome::default()
+        };
+        if routed && !deferred_surface_refresh {
+            outcome.request_scene_rebuild(FrameWorkReason::RoutedInput);
         }
+        if scroll_surface_refresh {
+            outcome.request_interactive_surface_refresh(FrameWorkReason::InteractiveSurfaceRefresh);
+        }
+        if deferred_surface_refresh {
+            outcome.request_surface_refresh(FrameWorkReason::DeferredSurfaceRefresh);
+        }
+        if (repaint_requested || pending.surface_repaint_requested)
+            && !deferred_surface_refresh
+            && !scroll_surface_refresh
+        {
+            outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRepaint);
+        }
+        if pending.paint_only_requested {
+            outcome.request_paint_only(FrameWorkReason::RuntimePaintOnly);
+        }
+        if pending.window_logical_size.is_some() {
+            outcome.request_resize_and_rebuild(FrameWorkReason::CommandResize);
+        }
+        if outcome.exit_requested {
+            outcome.request_exit();
+        }
+        outcome
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_key_press(

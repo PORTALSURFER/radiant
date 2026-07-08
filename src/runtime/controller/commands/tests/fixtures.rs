@@ -142,11 +142,16 @@ impl RuntimeBridge<usize> for DeferredFocusBridge {
     }
 
     fn update(&mut self, message: usize) -> Command<usize> {
-        if message == 1 {
-            self.show_focus_target = true;
-            Command::focus(42)
-        } else {
-            Command::none()
+        match message {
+            1 => {
+                self.show_focus_target = true;
+                Command::focus(42)
+            }
+            2 => {
+                self.show_focus_target = true;
+                Command::batch([Command::request_paint_only(), Command::focus(42)])
+            }
+            _ => Command::none(),
         }
     }
 }

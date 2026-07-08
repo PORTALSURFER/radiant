@@ -58,7 +58,8 @@ where
         let paint_only = command
             .repaint_scope()
             .is_some_and(|scope| scope.is_paint_only());
-        if !paint_only && (refresh_surface || command.requires_fresh_surface_before_dispatch()) {
+        let requires_fresh_surface = command.requires_fresh_surface_before_dispatch();
+        if (refresh_surface && !paint_only) || requires_fresh_surface {
             self.refresh();
             *deferred_surface_is_fresh = true;
         }

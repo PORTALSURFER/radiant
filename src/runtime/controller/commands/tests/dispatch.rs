@@ -31,6 +31,29 @@ fn deferred_message_dispatch_refreshes_before_focus_followup() {
 }
 
 #[test]
+fn deferred_paint_only_batch_refreshes_before_focus_followup() {
+    let mut runtime =
+        SurfaceRuntime::new(DeferredFocusBridge::default(), Vector2::new(160.0, 40.0));
+    assert_eq!(runtime.bridge().project_count, 1);
+
+    let mut outcome = CommandOutcome::default();
+    runtime.dispatch_message_inner_deferred_refresh(2, &mut outcome);
+
+    assert_eq!(
+        runtime.focused_widget(),
+        Some(42),
+        "layout-dependent follow-ups in paint-only batches should see newly projected widgets"
+    );
+    assert_eq!(
+        runtime.bridge().project_count,
+        2,
+        "paint-only batches should refresh when they contain layout-dependent follow-ups"
+    );
+    assert!(outcome.paint_only_requested);
+    assert!(outcome.surface_repaint_requested);
+}
+
+#[test]
 fn deferred_command_batch_reuses_fresh_surface_for_followups() {
     let bridge = DeferredFocusBridge {
         show_focus_target: true,

@@ -7,8 +7,9 @@ use super::{
     baseline::{BaselineMetric, MetricComparison, baseline_metric_json_line, json_escape},
 };
 
-const COUNTER_FIELDS: [&str; 14] = [
+const COUNTER_FIELDS: [&str; 15] = [
     "scene_rebuild_count",
+    "static_rebuild_count",
     "paint_only_count",
     "surface_refresh_count",
     "relayout_count",
@@ -31,19 +32,20 @@ pub(crate) struct ScenarioCounters {
 
 impl ScenarioCounters {
     const SCENE_REBUILD_COUNT: usize = 0;
-    const PAINT_ONLY_COUNT: usize = 1;
-    const SURFACE_REFRESH_COUNT: usize = 2;
-    const RELAYOUT_COUNT: usize = 3;
-    const DIRTY_MARK_COUNT: usize = 4;
-    const OVERLAY_PAINT_COUNT: usize = 5;
-    const OVERLAY_REBUILD_COUNT: usize = 6;
-    const PAINT_PRIMITIVE_COUNT: usize = 7;
-    const TEXT_CACHE_HIT_COUNT: usize = 8;
-    const RETAINED_SURFACE_CACHE_HIT_COUNT: usize = 9;
-    const GPU_SURFACE_COUNT: usize = 10;
-    const FRAME_CADENCE_DUE_COUNT: usize = 11;
-    const FRAME_CADENCE_WAIT_COUNT: usize = 12;
-    const ALLOCATION_SENSITIVE_WORK_COUNT: usize = 13;
+    const STATIC_REBUILD_COUNT: usize = 1;
+    const PAINT_ONLY_COUNT: usize = 2;
+    const SURFACE_REFRESH_COUNT: usize = 3;
+    const RELAYOUT_COUNT: usize = 4;
+    const DIRTY_MARK_COUNT: usize = 5;
+    const OVERLAY_PAINT_COUNT: usize = 6;
+    const OVERLAY_REBUILD_COUNT: usize = 7;
+    const PAINT_PRIMITIVE_COUNT: usize = 8;
+    const TEXT_CACHE_HIT_COUNT: usize = 9;
+    const RETAINED_SURFACE_CACHE_HIT_COUNT: usize = 10;
+    const GPU_SURFACE_COUNT: usize = 11;
+    const FRAME_CADENCE_DUE_COUNT: usize = 12;
+    const FRAME_CADENCE_WAIT_COUNT: usize = 13;
+    const ALLOCATION_SENSITIVE_WORK_COUNT: usize = 14;
 
     pub(crate) fn add(&mut self, other: Self) {
         for (index, value) in other.values.into_iter().enumerate() {
@@ -67,6 +69,11 @@ impl ScenarioCounters {
 
     pub(crate) fn with_scene_rebuild_count(mut self, value: u64) -> Self {
         self.values[Self::SCENE_REBUILD_COUNT] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_static_rebuild_count(mut self, value: u64) -> Self {
+        self.values[Self::STATIC_REBUILD_COUNT] = Some(value);
         self
     }
 

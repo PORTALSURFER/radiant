@@ -94,6 +94,7 @@ fn performance_harness_runner_exposes_metrics_baselines_and_listing() {
             && metrics.contains("\\\"total_us\\\"")
             && metrics.contains("\\\"avg_us\\\"")
             && metrics.contains("scene_rebuild_count")
+            && metrics.contains("static_rebuild_count")
             && metrics.contains("paint_only_count")
             && metrics.contains("surface_refresh_count")
             && metrics.contains("relayout_count")

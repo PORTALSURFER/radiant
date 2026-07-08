@@ -55,7 +55,7 @@ impl RetainedSegmentInvalidationBench {
         assert!(overlay_rebuilds > 0);
         black_box((self.revisions, static_rebuilds, overlay_rebuilds, self.next));
         ScenarioCounters::default()
-            .with_scene_rebuild_count(static_rebuilds)
+            .with_static_rebuild_count(static_rebuilds)
             .with_overlay_rebuild_count(overlay_rebuilds)
             .with_allocation_sensitive_work_count(self.masks.len() as u64)
     }

@@ -39,7 +39,7 @@ const DIRTY_RELAYOUT_COUNTERS: &[&str] = &[
 ];
 const SCENE_CACHE_PAINT_COUNTERS: &[&str] = &["scene_rebuild_count", "paint_primitive_count"];
 const SCENE_CACHE_INVALIDATION_COUNTERS: &[&str] = &[
-    "scene_rebuild_count",
+    "static_rebuild_count",
     "overlay_rebuild_count",
     "allocation_sensitive_work_count",
 ];

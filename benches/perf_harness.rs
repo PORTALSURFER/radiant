@@ -30,6 +30,7 @@ use radiant::{
     theme::ThemeTokens,
     widgets::{GpuSurfaceWidget, WidgetSizing},
 };
+use runner::ScenarioCounters;
 use std::{env, hint::black_box, sync::Arc};
 
 const GPU_ITERATIONS: usize = 60;
@@ -43,7 +44,8 @@ fn main() {
 
     let filters = runner::scenario_filters_from_args(&args);
     let category_filters = runner::category_filters_from_args(&args);
-    if runner::should_skip_unfiltered_debug_run(&filters, &category_filters) {
+    let group_filters = runner::group_filters_from_args(&args);
+    if runner::should_skip_unfiltered_debug_run(&filters, &category_filters, &group_filters) {
         runner::print_unfiltered_debug_skip();
         return;
     }
@@ -56,6 +58,7 @@ fn main() {
     let mut runner = runner::ScenarioRunner::new(runner::ScenarioRunnerConfig {
         filters,
         category_filters,
+        group_filters,
         output_format,
         baseline,
         baseline_output,
@@ -66,14 +69,16 @@ fn main() {
     runner.finish();
 }
 
-fn bench_gpu_signal_summary() {
+fn bench_gpu_signal_summary() -> ScenarioCounters {
     let samples = signal_samples(65_536, 2);
     let summary = GpuSignalSummary::from_interleaved_samples(&samples, 65_536, 2);
     assert!(!summary.levels.is_empty());
+    let level_count = summary.levels.len() as u64;
     black_box(summary);
+    ScenarioCounters::default().with_allocation_sensitive_work_count(level_count)
 }
 
-fn bench_gpu_surface_projection() {
+fn bench_gpu_surface_projection() -> ScenarioCounters {
     let image = Arc::new(ImageRgba::new(512, 64, vec![128; 512 * 64 * 4]).expect("valid image"));
     let content = GpuSurfaceContent::RgbaAtlas {
         source_rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(512.0, 64.0)),
@@ -100,10 +105,20 @@ fn bench_gpu_surface_projection() {
             .iter()
             .any(|primitive| matches!(primitive, PaintPrimitive::GpuSurface(_)))
     );
+    let gpu_surface_count = plan
+        .primitives
+        .iter()
+        .filter(|primitive| matches!(primitive, PaintPrimitive::GpuSurface(_)))
+        .count() as u64;
+    let primitive_count = plan.primitives.len() as u64;
     black_box(plan);
+    ScenarioCounters::default()
+        .with_gpu_surface_count(gpu_surface_count)
+        .with_retained_surface_cache_hit_count(0)
+        .with_paint_primitive_count(primitive_count)
 }
 
-fn bench_gpu_surface_stack_projection_128() {
+fn bench_gpu_surface_stack_projection_128() -> ScenarioCounters {
     let image = Arc::new(ImageRgba::new(640, 24, vec![96; 640 * 24 * 4]).expect("valid image"));
     let rows = (0..128)
         .map(|index| {
@@ -153,11 +168,18 @@ fn bench_gpu_surface_stack_projection_128() {
         .iter()
         .filter(|primitive| matches!(primitive, PaintPrimitive::GpuSurface(_)))
         .count();
-    assert_eq!(gpu_surface_count, 128);
+    assert_eq!(
+        gpu_surface_count, 30,
+        "GPU surface stack projection should stay bounded to visible rows"
+    );
     black_box(plan);
+    ScenarioCounters::default()
+        .with_gpu_surface_count(gpu_surface_count as u64)
+        .with_retained_surface_cache_hit_count(0)
+        .with_paint_primitive_count(gpu_surface_count as u64)
 }
 
-fn bench_gpu_custom_shader_projection() {
+fn bench_gpu_custom_shader_projection() -> ScenarioCounters {
     let descriptor = GpuShaderSurfaceDescriptor::new("perf/custom-shader")
         .wgsl_source("@vertex fn vertex_main() -> @builtin(position) vec4<f32> { return vec4<f32>(); }\n@fragment fn fragment_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }")
         .entry_point("vertex_main")
@@ -197,7 +219,12 @@ fn bench_gpu_custom_shader_projection() {
         gpu_surface.content,
         GpuSurfaceContent::CustomShader { .. }
     ));
+    let primitive_count = plan.primitives.len() as u64;
     black_box(plan);
+    ScenarioCounters::default()
+        .with_gpu_surface_count(1)
+        .with_retained_surface_cache_hit_count(0)
+        .with_paint_primitive_count(primitive_count)
 }
 
 fn signal_samples(frames: usize, bands: usize) -> Vec<f32> {

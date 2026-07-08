@@ -1,17 +1,18 @@
 //! Runtime command-drain performance scenarios.
 
+use crate::runner::ScenarioCounters;
 use radiant::{
     layout::{ContainerPolicy, Vector2},
     runtime::{Command, RuntimeBridge, SurfaceNode, SurfaceRuntime, UiSurface},
 };
 use std::{hint::black_box, sync::Arc};
 
-pub(super) fn flat_command_drain() -> impl FnMut() {
+pub(super) fn flat_command_drain() -> impl FnMut() -> ScenarioCounters {
     let mut command_drain = StatefulCommandDrainBench::new();
     move || command_drain.step()
 }
 
-pub(super) fn nested_command_drain() -> impl FnMut() {
+pub(super) fn nested_command_drain() -> impl FnMut() -> ScenarioCounters {
     let mut nested_command_drain = StatefulNestedCommandDrainBench::new();
     move || nested_command_drain.step()
 }
@@ -32,7 +33,7 @@ impl StatefulCommandDrainBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         let start = self.next_message;
         let end = start + 1_024;
         self.runtime
@@ -43,6 +44,7 @@ impl StatefulCommandDrainBench {
         self.next_message = end;
         assert_eq!(self.runtime.bridge().dispatched, end);
         black_box(self.runtime.layout());
+        ScenarioCounters::default().with_allocation_sensitive_work_count(1_024)
     }
 }
 
@@ -62,7 +64,7 @@ impl StatefulNestedCommandDrainBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         let start = self.next_message;
         let end = start + 1_024;
         self.runtime.bridge_mut().commands.extend([
@@ -73,6 +75,7 @@ impl StatefulNestedCommandDrainBench {
         self.next_message = end + 1;
         assert_eq!(self.runtime.bridge().dispatched, end + 1);
         black_box(self.runtime.layout());
+        ScenarioCounters::default().with_allocation_sensitive_work_count(1_025)
     }
 }
 

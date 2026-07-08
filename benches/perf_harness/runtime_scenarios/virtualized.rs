@@ -1,6 +1,7 @@
 #[path = "virtualized/bridges.rs"]
 mod bridges;
 
+use crate::runner::ScenarioCounters;
 use radiant::{
     layout::{Point, Vector2},
     runtime::{Event, SurfaceRuntime},
@@ -10,27 +11,27 @@ use std::hint::black_box;
 
 use bridges::{NestedScrollBridge, VirtualWheelBridge};
 
-pub(super) fn virtualized_list_wheel_10k() -> impl FnMut() {
+pub(super) fn virtualized_list_wheel_10k() -> impl FnMut() -> ScenarioCounters {
     let mut virtualized_wheel = StatefulVirtualizedWheelBench::new();
     move || virtualized_wheel.step()
 }
 
-pub(super) fn virtualized_list_hover_10k() -> impl FnMut() {
+pub(super) fn virtualized_list_hover_10k() -> impl FnMut() -> ScenarioCounters {
     let mut virtualized_hover = StatefulVirtualizedHoverBench::new();
     move || virtualized_hover.step()
 }
 
-pub(super) fn virtualized_list_stable_hover_10k() -> impl FnMut() {
+pub(super) fn virtualized_list_stable_hover_10k() -> impl FnMut() -> ScenarioCounters {
     let mut virtualized_stable_hover = StatefulVirtualizedStableHoverBench::new();
     move || virtualized_stable_hover.step()
 }
 
-pub(super) fn virtualized_list_hover_paint_10k() -> impl FnMut() {
+pub(super) fn virtualized_list_hover_paint_10k() -> impl FnMut() -> ScenarioCounters {
     let mut virtualized_hover_paint = StatefulVirtualizedHoverPaintBench::new();
     move || virtualized_hover_paint.step()
 }
 
-pub(super) fn virtualized_nested_scroll_hover_10k() -> impl FnMut() {
+pub(super) fn virtualized_nested_scroll_hover_10k() -> impl FnMut() -> ScenarioCounters {
     let mut virtualized_nested_scroll_hover = StatefulVirtualizedNestedScrollHoverBench::new();
     move || virtualized_nested_scroll_hover.step()
 }
@@ -48,13 +49,16 @@ impl StatefulVirtualizedWheelBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         self.offset = (self.offset + 360.0) % 120_000.0;
         let handled = self
             .runtime
             .wheel_or_scroll_at(Point::new(24.0, 24.0), Vector2::new(0.0, self.offset));
         assert!(handled);
         black_box(self.runtime.layout());
+        ScenarioCounters::default()
+            .with_surface_refresh_count(1)
+            .with_allocation_sensitive_work_count(1)
     }
 }
 
@@ -71,17 +75,21 @@ impl StatefulVirtualizedHoverBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         self.offset = (self.offset + 360.0) % 120_000.0;
         let scrolled = self
             .runtime
             .wheel_or_scroll_at(Point::new(24.0, 24.0), Vector2::new(0.0, self.offset));
         assert!(scrolled);
-        let hovered = self.runtime.dispatch_event(Event::PointerMove {
-            position: Point::new(24.0, 24.0),
-        });
-        assert!(hovered.is_some());
+        let hovered = self
+            .runtime
+            .dispatch_pointer_move_with_outcome(Point::new(24.0, 24.0));
+        assert!(hovered.routed());
         black_box(self.runtime.layout());
+        ScenarioCounters::default()
+            .with_scene_rebuild_count(bool_counter(hovered.needs_scene_rebuild()))
+            .with_paint_only_count(bool_counter(hovered.paint_only_requested))
+            .with_surface_refresh_count(1)
     }
 }
 
@@ -100,13 +108,16 @@ impl StatefulVirtualizedStableHoverBench {
         Self { runtime, x: 24.0 }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         self.x = if self.x < 28.0 { self.x + 1.0 } else { 24.0 };
-        let hovered = self.runtime.dispatch_event(Event::PointerMove {
-            position: Point::new(self.x, 24.0),
-        });
-        assert!(hovered.is_some());
+        let hovered = self
+            .runtime
+            .dispatch_pointer_move_with_outcome(Point::new(self.x, 24.0));
+        assert!(hovered.routed());
         black_box(self.runtime.layout());
+        ScenarioCounters::default()
+            .with_scene_rebuild_count(bool_counter(hovered.needs_scene_rebuild()))
+            .with_paint_only_count(bool_counter(hovered.paint_only_requested))
     }
 }
 
@@ -125,22 +136,28 @@ impl StatefulVirtualizedHoverPaintBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         self.offset = (self.offset + 360.0) % 120_000.0;
         let scrolled = self
             .runtime
             .wheel_or_scroll_at(Point::new(24.0, 24.0), Vector2::new(0.0, self.offset));
         assert!(scrolled);
-        let hovered = self.runtime.dispatch_event(Event::PointerMove {
-            position: Point::new(24.0, 24.0),
-        });
-        assert!(hovered.is_some());
+        let hovered = self
+            .runtime
+            .dispatch_pointer_move_with_outcome(Point::new(24.0, 24.0));
+        assert!(hovered.routed());
         let plan = self.runtime.paint_plan(&self.theme);
         assert!(
             plan.primitives.len() < 128,
             "virtualized hover paint should stay bounded to the visible window"
         );
+        let primitive_count = plan.primitives.len() as u64;
         black_box(plan);
+        ScenarioCounters::default()
+            .with_scene_rebuild_count(bool_counter(hovered.needs_scene_rebuild()))
+            .with_paint_only_count(bool_counter(hovered.paint_only_requested))
+            .with_surface_refresh_count(1)
+            .with_paint_primitive_count(primitive_count)
     }
 }
 
@@ -157,7 +174,7 @@ impl StatefulVirtualizedNestedScrollHoverBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         self.offset = (self.offset + 280.0) % 120_000.0;
         let scrolled = self
             .runtime
@@ -168,5 +185,12 @@ impl StatefulVirtualizedNestedScrollHoverBench {
         });
         assert!(self.runtime.hovered_scroll_affordance().is_some());
         black_box(self.runtime.layout());
+        ScenarioCounters::default()
+            .with_surface_refresh_count(1)
+            .with_allocation_sensitive_work_count(1)
     }
+}
+
+fn bool_counter(value: bool) -> u64 {
+    if value { 1 } else { 0 }
 }

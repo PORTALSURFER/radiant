@@ -9,6 +9,7 @@ pub(crate) const RUN_ALL_IN_DEBUG_ENV: &str = "RADIANT_PERF_RUN_ALL_IN_DEBUG";
 const BASELINE_JSONL_ARG: &str = "--baseline-jsonl";
 const WRITE_BASELINE_JSONL_ARG: &str = "--write-baseline-jsonl";
 const CATEGORY_ARG: &str = "--category";
+const GROUP_ARG: &str = "--group";
 const FAIL_ON_BASELINE_REGRESSION_ARG: &str = "--fail-on-baseline-regression";
 const FAIL_ON_MISSING_BASELINE_ARG: &str = "--fail-on-missing-baseline";
 const JSONL_ARG: &str = "--jsonl";
@@ -38,6 +39,10 @@ pub(crate) fn scenario_filters_from_args(args: &[String]) -> Vec<String> {
 
 pub(crate) fn category_filters_from_args(args: &[String]) -> Vec<String> {
     values_after_arg(args, CATEGORY_ARG)
+}
+
+pub(crate) fn group_filters_from_args(args: &[String]) -> Vec<String> {
+    values_after_arg(args, GROUP_ARG)
 }
 
 pub(crate) fn scenario_list_requested(args: &[String]) -> bool {
@@ -105,13 +110,24 @@ pub(crate) fn fail_on_missing_baseline_from_args(args: &[String]) -> bool {
 }
 
 fn consumes_next_value(arg: &str) -> bool {
-    [BASELINE_JSONL_ARG, WRITE_BASELINE_JSONL_ARG, CATEGORY_ARG].contains(&arg)
+    [
+        BASELINE_JSONL_ARG,
+        WRITE_BASELINE_JSONL_ARG,
+        CATEGORY_ARG,
+        GROUP_ARG,
+    ]
+    .contains(&arg)
 }
 
 fn has_inline_value(arg: &str) -> bool {
-    [BASELINE_JSONL_ARG, WRITE_BASELINE_JSONL_ARG, CATEGORY_ARG]
-        .iter()
-        .any(|name| arg.starts_with(&format!("{name}=")))
+    [
+        BASELINE_JSONL_ARG,
+        WRITE_BASELINE_JSONL_ARG,
+        CATEGORY_ARG,
+        GROUP_ARG,
+    ]
+    .iter()
+    .any(|name| arg.starts_with(&format!("{name}=")))
 }
 
 fn has_flag(args: &[String], name: &str) -> bool {

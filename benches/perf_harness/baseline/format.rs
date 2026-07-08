@@ -1,3 +1,5 @@
+use super::super::metrics::{ScenarioCounters, json_counter_fields};
+
 pub(in crate::runner) fn json_escape(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len());
     for ch in value.chars() {
@@ -17,14 +19,18 @@ pub(in crate::runner) fn json_escape(value: &str) -> String {
 pub(in crate::runner) fn baseline_metric_json_line(
     name: &str,
     category: &str,
+    group: &str,
     iterations: usize,
     total_us: u128,
     avg_us: f64,
+    counters: ScenarioCounters,
 ) -> String {
+    let counter_fields = json_counter_fields(counters);
     format!(
-        "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}}}",
+        "{{\"type\":\"radiant_perf\",\"scenario\":\"{}\",\"category\":\"{}\",\"group\":\"{}\",\"iterations\":{},\"total_us\":{},\"avg_us\":{:.3}{counter_fields}}}",
         json_escape(name),
         json_escape(category),
+        json_escape(group),
         iterations,
         total_us,
         avg_us

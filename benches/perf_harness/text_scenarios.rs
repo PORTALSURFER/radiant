@@ -1,5 +1,6 @@
 //! Text layout performance scenarios.
 
+use crate::runner::ScenarioCounters;
 use radiant::{
     gui::{
         text_layout::{
@@ -16,17 +17,17 @@ const TEXT_ROWS: usize = 1_024;
 const WORD_SELECTION_CARETS: usize = 1_024;
 const WORD_DELETION_STATES: usize = 1_024;
 
-pub(super) fn text_line_cache_1k() -> impl FnMut() {
+pub(super) fn text_line_cache_1k() -> impl FnMut() -> ScenarioCounters {
     let mut bench = TextLineCacheBench::new();
     move || bench.step()
 }
 
-pub(super) fn text_word_selection_1k() -> impl FnMut() {
+pub(super) fn text_word_selection_1k() -> impl FnMut() -> ScenarioCounters {
     let mut bench = TextWordSelectionBench::new();
     move || bench.step()
 }
 
-pub(super) fn text_word_deletion_1k() -> impl FnMut() {
+pub(super) fn text_word_deletion_1k() -> impl FnMut() -> ScenarioCounters {
     let mut bench = TextWordDeletionBench::new();
     move || bench.step()
 }
@@ -56,7 +57,7 @@ impl TextLineCacheBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         self.tick = self.tick.wrapping_add(1);
         let mut checksum = 0.0;
         for request in &self.rows {
@@ -83,6 +84,7 @@ impl TextLineCacheBench {
         assert!(checksum.is_finite());
         assert!(!self.cache.is_empty());
         black_box((checksum, self.tick, self.cache.len()));
+        ScenarioCounters::default().with_text_cache_hit_count(self.rows.len() as u64)
     }
 }
 
@@ -104,11 +106,12 @@ impl TextWordSelectionBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         let caret = self.carets[self.next % self.carets.len()];
         self.next = self.next.wrapping_add(1);
         assert!(self.state.select_word_at(caret));
         black_box((caret, self.state.selected_text_slice(), self.next));
+        ScenarioCounters::default().with_allocation_sensitive_work_count(1)
     }
 }
 
@@ -131,7 +134,7 @@ impl TextWordDeletionBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         let state_index = self.next % self.states.len();
         let state = &mut self.states[state_index];
         if state.char_len() < 96 {
@@ -148,6 +151,7 @@ impl TextWordDeletionBench {
         assert!(result.value_changed);
         self.next = self.next.wrapping_add(1);
         black_box((state_index, caret, state.char_len(), result, self.next));
+        ScenarioCounters::default().with_allocation_sensitive_work_count(1)
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::runner::ScenarioCounters;
 use radiant::{
     gui::types::Rgba8,
     layout::{Point, Rect, SizeModeCross, SizeModeMain, SlotParams, Vector2},
@@ -13,7 +14,7 @@ use std::{hint::black_box, sync::Arc};
 const ROWS: u64 = 10_000;
 const CURSOR_WIDGET_ID: u64 = 10;
 
-pub(super) fn pointer_overlay_paint_10k() -> impl FnMut() {
+pub(super) fn pointer_overlay_paint_10k() -> impl FnMut() -> ScenarioCounters {
     let mut bench = StatefulPointerOverlayPaintBench::new();
     move || bench.step()
 }
@@ -39,7 +40,7 @@ impl StatefulPointerOverlayPaintBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         self.cursor_x = if self.cursor_x < 320.0 {
             self.cursor_x + 3.0
         } else {
@@ -65,7 +66,16 @@ impl StatefulPointerOverlayPaintBench {
             "pointer overlay paint should emit one moving cursor primitive"
         );
         black_box(&self.overlay);
+        ScenarioCounters::default()
+            .with_scene_rebuild_count(bool_counter(outcome.needs_scene_rebuild()))
+            .with_paint_only_count(bool_counter(outcome.paint_only_requested))
+            .with_overlay_paint_count(1)
+            .with_paint_primitive_count(self.overlay.len() as u64)
     }
+}
+
+fn bool_counter(value: bool) -> u64 {
+    if value { 1 } else { 0 }
 }
 
 struct PointerOverlayBridge;

@@ -3,6 +3,7 @@ mod command_flattening;
 #[path = "surface/nodes.rs"]
 mod nodes;
 
+use crate::runner::ScenarioCounters;
 use crate::viewport;
 use radiant::{
     layout::{LayoutNode, LayoutOutput, Vector2, layout_tree},
@@ -11,32 +12,32 @@ use radiant::{
 };
 use std::{hint::black_box, sync::Arc};
 
-pub(super) fn surface_large_tree() -> impl FnMut() {
+pub(super) fn surface_large_tree() -> impl FnMut() -> ScenarioCounters {
     let runtime_surface = StatefulRuntimeSurfaceBench::new();
     move || runtime_surface.step()
 }
 
-pub(super) fn text_paint_plan_1k() -> impl FnMut() {
+pub(super) fn text_paint_plan_1k() -> impl FnMut() -> ScenarioCounters {
     let text_surface = StatefulTextPaintPlanBench::new();
     move || text_surface.step()
 }
 
-pub(super) fn horizontal_scroll_paint_1k() -> impl FnMut() {
+pub(super) fn horizontal_scroll_paint_1k() -> impl FnMut() -> ScenarioCounters {
     let horizontal_scroll_surface = StatefulHorizontalScrollPaintBench::new();
     move || horizontal_scroll_surface.step()
 }
 
-pub(super) fn refresh_large_tree() -> impl FnMut() {
+pub(super) fn refresh_large_tree() -> impl FnMut() -> ScenarioCounters {
     let mut refresh_large_tree = StatefulRefreshBench::new();
     move || refresh_large_tree.step()
 }
 
-pub(super) fn resize_large_tree() -> impl FnMut() {
+pub(super) fn resize_large_tree() -> impl FnMut() -> ScenarioCounters {
     let mut resize_large_tree = StatefulResizeBench::new();
     move || resize_large_tree.step()
 }
 
-pub(super) fn command_flattening_512() -> impl FnMut() {
+pub(super) fn command_flattening_512() -> impl FnMut() -> ScenarioCounters {
     command_flattening::command_flattening_512()
 }
 
@@ -57,12 +58,16 @@ impl StatefulRuntimeSurfaceBench {
         }
     }
 
-    fn step(&self) {
+    fn step(&self) -> ScenarioCounters {
         let output = layout_tree(&self.layout_node, viewport(960.0, 720.0));
         let plan = self.surface.paint_plan(&output, &self.theme);
         assert!(output.rects.len() >= 250);
         assert!(!plan.primitives.is_empty());
+        let primitive_count = plan.primitives.len() as u64;
         black_box((output, plan));
+        ScenarioCounters::default()
+            .with_scene_rebuild_count(1)
+            .with_paint_primitive_count(primitive_count)
     }
 }
 
@@ -83,7 +88,7 @@ impl StatefulTextPaintPlanBench {
         }
     }
 
-    fn step(&self) {
+    fn step(&self) -> ScenarioCounters {
         let output = layout_tree(&self.layout_node, viewport(960.0, 720.0));
         let plan = self.surface.paint_plan(&output, &self.theme);
         let stats = plan.stats();
@@ -95,7 +100,12 @@ impl StatefulTextPaintPlanBench {
             stats.total >= stats.text,
             "text-heavy paint plan should retain all text primitives"
         );
+        let text_count = stats.text as u64;
+        let primitive_count = stats.total as u64;
         black_box((output, plan));
+        ScenarioCounters::default()
+            .with_text_cache_hit_count(text_count)
+            .with_paint_primitive_count(primitive_count)
     }
 }
 
@@ -117,14 +127,19 @@ impl StatefulHorizontalScrollPaintBench {
         }
     }
 
-    fn step(&self) {
+    fn step(&self) -> ScenarioCounters {
         let plan = self.surface.paint_plan(&self.layout, &self.theme);
         let stats = plan.stats();
         assert!(
             stats.text > 0 && stats.text < 16,
             "horizontal clipped row paint should stay bounded to the visible clip"
         );
+        let text_count = stats.text as u64;
+        let primitive_count = stats.total as u64;
         black_box(plan);
+        ScenarioCounters::default()
+            .with_text_cache_hit_count(text_count)
+            .with_paint_primitive_count(primitive_count)
     }
 }
 
@@ -139,9 +154,12 @@ impl StatefulRefreshBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         self.runtime.refresh();
         black_box(self.runtime.layout());
+        ScenarioCounters::default()
+            .with_scene_rebuild_count(1)
+            .with_surface_refresh_count(1)
     }
 }
 
@@ -158,7 +176,7 @@ impl StatefulResizeBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         self.wide = !self.wide;
         let viewport = if self.wide {
             Vector2::new(960.0, 720.0)
@@ -167,6 +185,10 @@ impl StatefulResizeBench {
         };
         self.runtime.set_viewport(viewport);
         black_box(self.runtime.layout());
+        ScenarioCounters::default()
+            .with_scene_rebuild_count(1)
+            .with_surface_refresh_count(1)
+            .with_frame_cadence_due_count(1)
     }
 }
 

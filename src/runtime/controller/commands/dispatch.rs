@@ -319,7 +319,12 @@ where
                     let message = on_completed(Err(String::from(
                         "platform service requests are not supported by this runtime bridge",
                     )));
-                    self.dispatch_message_inner_with_refresh(message, outcome, refresh_surface);
+                    self.dispatch_message_inner_with_refresh_state(
+                        message,
+                        outcome,
+                        refresh_surface,
+                        deferred_surface_is_fresh,
+                    );
                 }
             }
             Command::EndExternalDrag => {

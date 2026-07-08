@@ -31,6 +31,12 @@ pub(super) struct DeferredFocusBridge {
 }
 
 #[derive(Default)]
+pub(super) struct DeferredPlatformFallbackBridge {
+    pub(super) show_fallback_target: bool,
+    pub(super) project_count: usize,
+}
+
+#[derive(Default)]
 pub(super) struct DeferredScrollBridge {
     pub(super) project_count: usize,
 }
@@ -142,6 +148,36 @@ impl RuntimeBridge<usize> for DeferredFocusBridge {
         } else {
             Command::none()
         }
+    }
+}
+
+impl RuntimeBridge<usize> for DeferredPlatformFallbackBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+        self.project_count += 1;
+        let mut children = vec![fixed_child(
+            22.0,
+            SurfaceNode::widget(
+                InteractiveRowWidget::new(42, WidgetSizing::fixed(Vector2::new(120.0, 22.0))),
+                WidgetMessageMapper::none(),
+            ),
+        )];
+        if self.show_fallback_target {
+            children.push(fixed_child(
+                22.0,
+                SurfaceNode::widget(
+                    InteractiveRowWidget::new(43, WidgetSizing::fixed(Vector2::new(120.0, 22.0))),
+                    WidgetMessageMapper::none(),
+                ),
+            ));
+        }
+        Arc::new(UiSurface::new(SurfaceNode::column(20, 0.0, children)))
+    }
+
+    fn update(&mut self, message: usize) -> Command<usize> {
+        if message == 1 {
+            self.show_fallback_target = true;
+        }
+        Command::none()
     }
 }
 

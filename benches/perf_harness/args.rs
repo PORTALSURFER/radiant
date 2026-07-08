@@ -147,28 +147,31 @@ fn value_after_arg(args: &[String], name: &str) -> Option<String> {
     None
 }
 
-fn values_after_arg(args: &[String], name: &str) -> Vec<String> {
+fn filter_values_after_arg(args: &[String], name: &str) -> Vec<String> {
     let mut values = Vec::new();
     let mut iter = args.iter().skip(1);
     while let Some(arg) = iter.next() {
         if arg == name {
-            if let Some(value) = iter.next() {
-                values.push(value.clone());
+            let Some(value) = iter.next() else {
+                filter_value_error(name);
+            };
+            if value.trim().is_empty() || value.starts_with('-') {
+                filter_value_error(name);
             }
+            values.push(value.clone());
             continue;
         }
         if let Some(value) = arg.strip_prefix(&format!("{name}=")) {
+            if value.trim().is_empty() {
+                filter_value_error(name);
+            }
             values.push(value.to_owned());
         }
     }
     values
 }
 
-fn filter_values_after_arg(args: &[String], name: &str) -> Vec<String> {
-    let values = values_after_arg(args, name);
-    if values.iter().any(|value| value.trim().is_empty()) {
-        eprintln!("radiant_perf filter error: {name} requires a non-empty value");
-        std::process::exit(2);
-    }
-    values
+fn filter_value_error(name: &str) -> ! {
+    eprintln!("radiant_perf filter error: {name} requires a non-empty value");
+    std::process::exit(2);
 }

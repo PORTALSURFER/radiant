@@ -2217,8 +2217,8 @@ cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl
 Each JSON line includes `type`, `scenario`, `category`, `group`, `iterations`,
 `total_us`, and `avg_us`, plus any scenario-owned counters such as
 `scene_rebuild_count`, `paint_only_count`, `surface_refresh_count`,
-`relayout_count`, `overlay_paint_count`, `overlay_rebuild_count`,
-`text_cache_hit_count`, `retained_surface_cache_hit_count`,
+`relayout_count`, `dirty_mark_count`, `overlay_paint_count`,
+`overlay_rebuild_count`, `text_cache_hit_count`, `retained_surface_cache_hit_count`,
 `gpu_surface_count`, `frame_cadence_due_count`, `frame_cadence_wait_count`,
 and `allocation_sensitive_work_count`. This keeps
 performance history parseable without scraping prose or losing which target

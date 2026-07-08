@@ -169,7 +169,7 @@ impl StatefulDirtySubtreeBench {
         self.engine.clear_dirty();
         black_box(&self.engine);
         ScenarioCounters::default()
-            .with_scene_rebuild_count(1)
+            .with_dirty_mark_count(1)
             .with_allocation_sensitive_work_count(1)
     }
 }

@@ -172,11 +172,12 @@ fn bench_gpu_surface_stack_projection_128() -> ScenarioCounters {
         gpu_surface_count, 30,
         "GPU surface stack projection should stay bounded to visible rows"
     );
+    let primitive_count = plan.primitives.len() as u64;
     black_box(plan);
     ScenarioCounters::default()
         .with_gpu_surface_count(gpu_surface_count as u64)
         .with_retained_surface_cache_hit_count(0)
-        .with_paint_primitive_count(gpu_surface_count as u64)
+        .with_paint_primitive_count(primitive_count)
 }
 
 fn bench_gpu_custom_shader_projection() -> ScenarioCounters {

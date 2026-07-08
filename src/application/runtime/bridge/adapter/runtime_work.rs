@@ -90,18 +90,27 @@ where
                 };
                 let slot = runtime.begin_stream_slot();
                 let live = Arc::new(AtomicBool::new(true));
-                let emit_runtime = Arc::clone(&runtime);
-                let emit_latest_runtime = Arc::clone(&runtime);
+                let emit_runtime = Arc::downgrade(&runtime);
+                let emit_latest_runtime = emit_runtime.clone();
                 let close_live = Arc::clone(&live);
                 let latest_live = Arc::clone(&live);
+                drop(runtime);
                 let sink = BusinessMessageSink::new_with_latest(
-                    move |message| emit_runtime.enqueue(message),
+                    move |message| {
+                        emit_runtime
+                            .upgrade()
+                            .is_some_and(|runtime| runtime.enqueue(message))
+                    },
                     move |message| {
                         if !latest_live.load(Ordering::Acquire) {
-                            emit_latest_runtime.record_stale_stream_event();
+                            if let Some(runtime) = emit_latest_runtime.upgrade() {
+                                runtime.record_stale_stream_event();
+                            }
                             return false;
                         }
-                        emit_latest_runtime.enqueue_stream_latest(slot, message)
+                        emit_latest_runtime
+                            .upgrade()
+                            .is_some_and(|runtime| runtime.enqueue_stream_latest(slot, message))
                     },
                     move || {
                         close_live.store(false, Ordering::Release);

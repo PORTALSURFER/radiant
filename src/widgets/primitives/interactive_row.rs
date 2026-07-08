@@ -241,14 +241,15 @@ impl InteractiveRowWidget {
         match self.props.pointer_motion {
             InteractiveRowPointerMotion::Always => true,
             InteractiveRowPointerMotion::DuringInteraction => {
+                let source_motion = self.props.drag_source && self.props.drag_source_motion;
+                let drop_motion = self.props.droppable
+                    && self.props.drag_active
+                    && (self.props.drop_hover || self.props.clear_drop_on_hover);
                 self.common.state.pressed
-                    || self.props.drag_active
-                    || self.props.drag_source
+                    || source_motion
+                    || drop_motion
                     || self.props.pointer_motion_active
                     || self.props.hover_messages
-                    || (self.props.droppable
-                        && self.props.drag_active
-                        && (self.props.drop_hover || self.props.clear_drop_on_hover))
             }
         }
     }

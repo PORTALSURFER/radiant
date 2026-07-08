@@ -1,5 +1,7 @@
 #[path = "tests/batching.rs"]
 mod batching;
+#[path = "tests/dispatch.rs"]
+mod dispatch;
 #[path = "tests/drag.rs"]
 mod drag;
 #[path = "tests/drain.rs"]

@@ -33,17 +33,42 @@ where
         outcome: &mut CommandOutcome,
         refresh_surface: bool,
     ) {
+        let mut deferred_surface_is_fresh = refresh_surface;
+        self.dispatch_message_inner_with_refresh_state(
+            message,
+            outcome,
+            refresh_surface,
+            &mut deferred_surface_is_fresh,
+        );
+    }
+
+    fn dispatch_message_inner_with_refresh_state(
+        &mut self,
+        message: Message,
+        outcome: &mut CommandOutcome,
+        refresh_surface: bool,
+        deferred_surface_is_fresh: &mut bool,
+    ) {
         let refresh_before = outcome.surface_refresh_requested;
         outcome.messages_dispatched += 1;
         let command = self.run_update_handler(message);
+        if !refresh_surface {
+            *deferred_surface_is_fresh = false;
+        }
         let paint_only = command
             .repaint_scope()
             .is_some_and(|scope| scope.is_paint_only());
-        if !paint_only && refresh_surface {
+        if !paint_only && (refresh_surface || command.requires_fresh_surface_before_dispatch()) {
             self.refresh();
+            *deferred_surface_is_fresh = true;
         }
         let messages_before_command = outcome.messages_dispatched;
-        self.execute_command_inner_with_refresh(command, outcome, refresh_surface);
+        self.execute_command_inner_with_refresh_state(
+            command,
+            outcome,
+            refresh_surface,
+            deferred_surface_is_fresh,
+        );
         let command_dispatched_messages = outcome.messages_dispatched > messages_before_command;
         if !paint_only || command_dispatched_messages {
             outcome.surface_refresh_requested = true;
@@ -82,7 +107,13 @@ where
         command: Command<Message>,
         outcome: &mut CommandOutcome,
     ) {
-        self.execute_command_inner_with_refresh(command, outcome, true);
+        let mut deferred_surface_is_fresh = true;
+        self.execute_command_inner_with_refresh_state(
+            command,
+            outcome,
+            true,
+            &mut deferred_surface_is_fresh,
+        );
     }
 
     pub(in crate::runtime::controller) fn execute_command_inner_deferred_refresh(
@@ -90,23 +121,48 @@ where
         command: Command<Message>,
         outcome: &mut CommandOutcome,
     ) {
-        self.execute_command_inner_with_refresh(command, outcome, false);
+        let mut deferred_surface_is_fresh = false;
+        self.execute_command_inner_with_refresh_state(
+            command,
+            outcome,
+            false,
+            &mut deferred_surface_is_fresh,
+        );
     }
 
-    fn execute_command_inner_with_refresh(
+    fn execute_command_inner_with_refresh_state(
         &mut self,
         command: Command<Message>,
         outcome: &mut CommandOutcome,
         refresh_surface: bool,
+        deferred_surface_is_fresh: &mut bool,
     ) {
+        if !refresh_surface
+            && outcome.surface_refresh_requested
+            && !*deferred_surface_is_fresh
+            && command.requires_fresh_surface_before_dispatch()
+        {
+            self.refresh();
+            *deferred_surface_is_fresh = true;
+        }
         match command {
             Command::None => {}
             Command::Message(message) => {
-                self.dispatch_message_inner_with_refresh(message, outcome, refresh_surface);
+                self.dispatch_message_inner_with_refresh_state(
+                    message,
+                    outcome,
+                    refresh_surface,
+                    deferred_surface_is_fresh,
+                );
             }
             Command::Batch(commands) => {
                 for command in commands {
-                    self.execute_command_inner_with_refresh(command, outcome, refresh_surface);
+                    self.execute_command_inner_with_refresh_state(
+                        command,
+                        outcome,
+                        refresh_surface,
+                        deferred_surface_is_fresh,
+                    );
                 }
             }
             Command::RequestRepaint => {

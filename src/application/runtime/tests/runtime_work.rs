@@ -1,8 +1,9 @@
 use super::LatestStreamGate;
 use std::{
     sync::{
+        Arc,
         atomic::{AtomicBool, Ordering},
-        mpsc, Arc,
+        mpsc,
     },
     thread,
     time::Duration,
@@ -56,9 +57,11 @@ fn latest_stream_gate_serializes_close_until_enqueue_finishes() {
         close_done_tx.send(()).expect("close done");
     });
     close_attempted_rx.recv().expect("close attempted");
-    assert!(close_done_rx
-        .recv_timeout(Duration::from_millis(20))
-        .is_err());
+    assert!(
+        close_done_rx
+            .recv_timeout(Duration::from_millis(20))
+            .is_err()
+    );
 
     release_enqueue_tx.send(()).expect("release enqueue");
     assert!(emitter.join().expect("emitter joins"));

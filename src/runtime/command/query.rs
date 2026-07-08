@@ -74,6 +74,35 @@ impl<Message> Command<Message> {
         matches!(self.repaint_scope(), Some(RepaintScope::PaintOnly))
     }
 
+    pub(in crate::runtime) fn requires_fresh_surface_before_dispatch(&self) -> bool {
+        match self {
+            Self::Focus(_) | Self::ScrollIntoView { .. } | Self::ScrollFixedRowIntoView { .. } => {
+                true
+            }
+            Self::Batch(commands) => commands
+                .iter()
+                .any(Self::requires_fresh_surface_before_dispatch),
+            Self::Message(_)
+            | Self::None
+            | Self::RequestRepaint
+            | Self::RequestPaintOnly
+            | Self::SetDpiScale(_)
+            | Self::SetWindowLogicalSize(_)
+            | Self::After { .. }
+            | Self::Perform { .. }
+            | Self::PerformStream { .. }
+            | Self::PerformStreamLatest { .. }
+            | Self::ClearFocus
+            | Self::ScrollTo { .. }
+            | Self::BeginExternalDrag { .. }
+            | Self::BeginDrag { .. }
+            | Self::PlatformRequest { .. }
+            | Self::EndExternalDrag
+            | Self::EndDrag
+            | Self::Exit => false,
+        }
+    }
+
     /// Return the priority for the first queued business command with `name`.
     ///
     /// This inspects both one-shot and streaming business commands and walks

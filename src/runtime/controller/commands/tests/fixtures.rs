@@ -2,8 +2,9 @@ use super::super::*;
 use crate::layout::ContainerPolicy;
 use crate::runtime::{
     BusinessMessageSink, PlatformCompletion, PlatformRequest, PlatformResponse,
-    PlatformServiceFallback, SurfaceNode, TaskPriority,
+    PlatformServiceFallback, SurfaceNode, TaskPriority, WidgetMessageMapper,
 };
+use crate::widgets::{InteractiveRowWidget, WidgetSizing};
 use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
@@ -21,6 +22,12 @@ pub(super) struct PlatformCommandBridge {
 #[derive(Default)]
 pub(super) struct StreamingCommandBridge {
     pub(super) dispatched: Arc<Mutex<Vec<usize>>>,
+}
+
+#[derive(Default)]
+pub(super) struct DeferredFocusBridge {
+    pub(super) show_focus_target: bool,
+    pub(super) project_count: usize,
 }
 
 impl RuntimeBridge<usize> for PlatformCommandBridge {
@@ -99,5 +106,29 @@ impl RuntimeBridge<usize> for StreamingCommandBridge {
         });
         work(sink);
         true
+    }
+}
+
+impl RuntimeBridge<usize> for DeferredFocusBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+        self.project_count += 1;
+        let node = if self.show_focus_target {
+            SurfaceNode::widget(
+                InteractiveRowWidget::new(42, WidgetSizing::fixed(Vector2::new(120.0, 22.0))),
+                WidgetMessageMapper::none(),
+            )
+        } else {
+            SurfaceNode::container(1, ContainerPolicy::default(), Vec::new())
+        };
+        Arc::new(UiSurface::new(node))
+    }
+
+    fn update(&mut self, message: usize) -> Command<usize> {
+        if message == 1 {
+            self.show_focus_target = true;
+            Command::focus(42)
+        } else {
+            Command::none()
+        }
     }
 }

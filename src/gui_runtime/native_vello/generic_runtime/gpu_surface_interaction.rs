@@ -77,7 +77,13 @@ where
         if let Some(mode) = outcome.interactive_scene_rebuild_mode() {
             match mode {
                 SceneRebuildMode::InteractiveWithSurfaceRefresh => {
-                    self.refresh_and_rebuild_scene_for_interactive_route_now();
+                    let should_rebuild_now = self.core.runtime.scrollbar_drag_active()
+                        || self.should_rebuild_interactive_scene_now(std::time::Instant::now());
+                    if should_rebuild_now {
+                        self.refresh_and_rebuild_scene_for_interactive_route_now();
+                    } else {
+                        self.defer_interactive_scene_rebuild();
+                    }
                 }
                 SceneRebuildMode::Interactive => {
                     let should_rebuild_now = self.core.runtime.scrollbar_drag_active()

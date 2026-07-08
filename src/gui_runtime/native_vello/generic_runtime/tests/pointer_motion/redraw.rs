@@ -10,6 +10,7 @@ use crate::{
     runtime::{NativeRunOptions, PaintPrimitive},
     widgets::PointerButton,
 };
+use std::time::Instant;
 use winit::dpi::PhysicalPosition;
 
 #[test]
@@ -136,6 +137,55 @@ fn captured_pointer_move_message_marks_interactive_refresh_for_resizes() {
         runner.core.runtime.bridge().project_count,
         project_count_before_move + 1,
         "the first captured resize move still refreshes immediately to keep live redraw"
+    );
+}
+
+#[test]
+fn captured_pointer_move_surface_refresh_respects_interactive_cadence() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        PointerMoveBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    let point = runner
+        .core
+        .runtime
+        .layout()
+        .rects
+        .get(&71)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("pointer widget should be laid out");
+
+    assert!(
+        runner
+            .core
+            .route_pointer_press(point, PointerButton::Primary)
+            .routed
+    );
+    runner.timing.last_interactive_scene_rebuild = Instant::now();
+
+    let project_count_before_move = runner.core.runtime.bridge().project_count;
+    let drag_position = Point::new(point.x + 4.0, point.y);
+    let drag_move = runner.core.route_pointer_move(drag_position);
+
+    assert!(drag_move.is_interactive_surface_refresh());
+    assert!(drag_move.is_interactive_scene_rebuild());
+
+    runner.handle_gpu_surface_pointer_move_outcome(drag_move, Some(point), drag_position);
+
+    assert_eq!(runner.core.runtime.bridge().moves, 1);
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        project_count_before_move,
+        "cadence-limited captured pointer refreshes should not reproject at raw mouse frequency"
+    );
+    assert!(
+        runner.timing.deferred_surface_refresh,
+        "the next rebuild should refresh the projected surface before painting"
+    );
+    assert!(
+        runner.timing.deferred_scene_rebuild,
+        "cadence-limited captured pointer moves should defer scene work"
     );
 }
 

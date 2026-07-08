@@ -134,14 +134,20 @@ pub trait RuntimeBridge<Message> {
     ///
     /// Only the latest pending intermediate message for a stream slot is kept.
     /// Completion and ordinary messages still use the ordered runtime queue.
+    ///
+    /// Bridges must override this method to support latest-stream work. The
+    /// default deliberately refuses the command instead of forwarding it to
+    /// [`Self::spawn_streaming_message_task`], because that would make
+    /// `BusinessMessageSink::emit_latest` fall back to ordinary ordered emits
+    /// and reintroduce unbounded progress traffic.
     fn spawn_latest_streaming_message_task(
         &mut self,
-        name: &'static str,
-        priority: TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
+        _name: &'static str,
+        _priority: TaskPriority,
+        _is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
+        _work: Box<dyn FnOnce(BusinessMessageSink<Message>) + Send + 'static>,
     ) -> bool {
-        self.spawn_streaming_message_task(name, priority, is_cancelled, work)
+        false
     }
 
     // Platform services.

@@ -3,6 +3,10 @@ use super::{
     fixtures::{QueuedCommandBridge, StreamingCommandBridge},
 };
 use crate::runtime::{DragPreview, DragRequest, TaskPriority};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 #[test]
 fn runtime_command_drains_are_bounded_and_request_followup_wakeup() {
@@ -112,4 +116,35 @@ fn streaming_business_command_emits_intermediate_and_final_messages() {
             .unwrap_or_else(|poisoned| poisoned.into_inner()),
         vec![1, 2, 3]
     );
+}
+
+#[test]
+fn latest_streaming_business_command_does_not_fall_back_to_ordered_stream() {
+    let bridge = StreamingCommandBridge::default();
+    let dispatched = bridge.dispatched.clone();
+    let work_ran = Arc::new(AtomicBool::new(false));
+    let work_ran_for_command = Arc::clone(&work_ran);
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(100.0, 100.0));
+
+    let outcome = runtime.execute_command(Command::perform_latest_stream_with_priority(
+        "latest-stream-test",
+        TaskPriority::Interactive,
+        None,
+        move |sink| {
+            work_ran_for_command.store(true, Ordering::Relaxed);
+            assert!(sink.emit_latest(1));
+            assert!(sink.emit_latest(2));
+            sink.close_latest();
+            assert!(sink.emit(3));
+        },
+    ));
+
+    assert!(!outcome.repaint_requested);
+    assert!(
+        dispatched
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .is_empty()
+    );
+    assert!(!work_ran.load(Ordering::Relaxed));
 }

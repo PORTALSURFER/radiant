@@ -79,6 +79,29 @@ fn normal_hover_emits_hover_position() {
 }
 
 #[test]
+fn ordinary_hover_does_not_keep_stable_pointer_motion_routed_by_default() {
+    let mut row = InteractiveRowWidget::new(19, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));
+
+    assert!(!row.accepts_pointer_move());
+    assert_eq!(
+        row.handle_input(
+            Rect::from_size(120.0, 22.0),
+            WidgetInput::pointer_move(Point::new(8.0, 6.0)),
+        ),
+        None
+    );
+    assert!(row.common.state.hovered);
+}
+
+#[test]
+fn explicit_hover_messages_keep_stable_pointer_motion_routed() {
+    let row = InteractiveRowWidget::new(20, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_hover_messages(true);
+
+    assert!(row.accepts_pointer_move());
+}
+
+#[test]
 fn handle_input_mapped_routes_custom_row_output() {
     let bounds = Rect::from_size(120.0, 22.0);
     let mut row = InteractiveRowWidget::new(10, WidgetSizing::fixed(Vector2::new(120.0, 22.0)));

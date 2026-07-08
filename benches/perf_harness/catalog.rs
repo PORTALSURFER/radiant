@@ -19,19 +19,30 @@ const POINTER_COUNTERS: &[&str] = &[
     "overlay_paint_count",
     "paint_primitive_count",
 ];
-const VIRTUAL_LIST_COUNTERS: &[&str] = &[
+const POINTER_HOVER_COUNTERS: &[&str] = &[
     "scene_rebuild_count",
+    "paint_only_count",
+    "surface_refresh_count",
+];
+const POINTER_STABLE_HOVER_COUNTERS: &[&str] = &["scene_rebuild_count", "paint_only_count"];
+const VIRTUAL_LIST_COUNTERS: &[&str] = &["allocation_sensitive_work_count"];
+const VIRTUAL_LIST_SCROLL_COUNTERS: &[&str] =
+    &["surface_refresh_count", "allocation_sensitive_work_count"];
+const VIRTUAL_LIST_HOVER_PAINT_COUNTERS: &[&str] = &[
+    "scene_rebuild_count",
+    "paint_only_count",
     "surface_refresh_count",
     "paint_primitive_count",
+];
+const SCENE_CACHE_ALLOCATION_COUNTERS: &[&str] =
+    &["scene_rebuild_count", "allocation_sensitive_work_count"];
+const SCENE_CACHE_PAINT_COUNTERS: &[&str] = &["scene_rebuild_count", "paint_primitive_count"];
+const SCENE_CACHE_INVALIDATION_COUNTERS: &[&str] = &[
+    "scene_rebuild_count",
+    "overlay_paint_count",
     "allocation_sensitive_work_count",
 ];
-const SCENE_CACHE_COUNTERS: &[&str] = &[
-    "scene_rebuild_count",
-    "surface_refresh_count",
-    "paint_only_count",
-    "overlay_paint_count",
-    "paint_primitive_count",
-];
+const SCENE_CACHE_REFRESH_COUNTERS: &[&str] = &["scene_rebuild_count", "surface_refresh_count"];
 const TEXT_PAINT_COUNTERS: &[&str] = &["paint_primitive_count"];
 const TEXT_CACHE_COUNTERS: &[&str] = &["text_cache_hit_count"];
 const TEXT_EDIT_COUNTERS: &[&str] = &["allocation_sensitive_work_count"];
@@ -60,24 +71,24 @@ macro_rules! perf_scenario_catalog {
             ("layout_wrap_1k", "layout", "text_layout", NO_COUNTERS, LAYOUT_ITERATIONS, layout_scenarios::wrap_1k),
             ("layout_virtualized_10k", "layout", "virtual_lists", VIRTUAL_LIST_COUNTERS, LAYOUT_ITERATIONS, layout_scenarios::virtualized_10k),
             ("layout_virtualized_fixed_10k", "layout", "virtual_lists", VIRTUAL_LIST_COUNTERS, LAYOUT_ITERATIONS, layout_scenarios::virtualized_fixed_10k),
-            ("layout_virtualized_fixed_scroll_10k", "layout", "virtual_lists", VIRTUAL_LIST_COUNTERS, LAYOUT_ITERATIONS, layout_scenarios::virtualized_fixed_scroll_10k),
-            ("layout_mark_dirty_subtree_10k", "layout", "scene_cache", SCENE_CACHE_COUNTERS, LAYOUT_ITERATIONS, layout_scenarios::mark_dirty_subtree_10k),
-            ("layout_dirty_virtual_cache_10k", "layout", "scene_cache", SCENE_CACHE_COUNTERS, LAYOUT_ITERATIONS, layout_scenarios::dirty_virtual_cache_10k),
+            ("layout_virtualized_fixed_scroll_10k", "layout", "virtual_lists", VIRTUAL_LIST_SCROLL_COUNTERS, LAYOUT_ITERATIONS, layout_scenarios::virtualized_fixed_scroll_10k),
+            ("layout_mark_dirty_subtree_10k", "layout", "scene_cache", SCENE_CACHE_ALLOCATION_COUNTERS, LAYOUT_ITERATIONS, layout_scenarios::mark_dirty_subtree_10k),
+            ("layout_dirty_virtual_cache_10k", "layout", "scene_cache", SCENE_CACHE_ALLOCATION_COUNTERS, LAYOUT_ITERATIONS, layout_scenarios::dirty_virtual_cache_10k),
             ("app_virtual_list_projection_10k", "application_projection", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, app_projection::virtual_list_projection_10k),
             ("app_virtual_list_projection_generated_child_ids_10k", "application_projection", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, app_projection::virtual_list_projection_generated_child_ids_10k),
             ("app_virtual_selectable_list_projection_10k", "application_projection", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, app_projection::virtual_selectable_list_projection_10k),
             ("app_virtual_list_window_projection_10k", "application_projection", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, app_projection::virtual_list_window_projection_10k),
-            ("runtime_surface_large_tree", "runtime_surface", "scene_cache", SCENE_CACHE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::surface_large_tree),
+            ("runtime_surface_large_tree", "runtime_surface", "scene_cache", SCENE_CACHE_PAINT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::surface_large_tree),
             ("runtime_text_paint_plan_1k", "runtime_surface", "text_layout", TEXT_PAINT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::text_paint_plan_1k),
             ("runtime_horizontal_scroll_paint_1k", "runtime_surface", "text_layout", TEXT_PAINT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::horizontal_scroll_paint_1k),
-            ("runtime_virtualized_list_wheel_10k", "runtime_virtualized", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_wheel_10k),
-            ("runtime_virtualized_list_hover_10k", "runtime_virtualized", "pointer_motion", POINTER_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_hover_10k),
-            ("runtime_virtualized_list_stable_hover_10k", "runtime_virtualized", "pointer_motion", POINTER_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_stable_hover_10k),
-            ("runtime_virtualized_list_hover_paint_10k", "runtime_virtualized", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_hover_paint_10k),
+            ("runtime_virtualized_list_wheel_10k", "runtime_virtualized", "virtual_lists", VIRTUAL_LIST_SCROLL_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_wheel_10k),
+            ("runtime_virtualized_list_hover_10k", "runtime_virtualized", "pointer_motion", POINTER_HOVER_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_hover_10k),
+            ("runtime_virtualized_list_stable_hover_10k", "runtime_virtualized", "pointer_motion", POINTER_STABLE_HOVER_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_stable_hover_10k),
+            ("runtime_virtualized_list_hover_paint_10k", "runtime_virtualized", "virtual_lists", VIRTUAL_LIST_HOVER_PAINT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_hover_paint_10k),
             ("runtime_pointer_overlay_paint_10k", "runtime_surface", "pointer_motion", POINTER_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::pointer_overlay_paint_10k),
-            ("runtime_retained_segment_invalidation_1k", "runtime_invalidation", "scene_cache", SCENE_CACHE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::retained_segment_invalidation_1k),
-            ("runtime_virtualized_nested_scroll_hover_10k", "runtime_virtualized", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_nested_scroll_hover_10k),
-            ("runtime_refresh_large_tree", "runtime_surface", "scene_cache", SCENE_CACHE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::refresh_large_tree),
+            ("runtime_retained_segment_invalidation_1k", "runtime_invalidation", "scene_cache", SCENE_CACHE_INVALIDATION_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::retained_segment_invalidation_1k),
+            ("runtime_virtualized_nested_scroll_hover_10k", "runtime_virtualized", "virtual_lists", VIRTUAL_LIST_SCROLL_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_nested_scroll_hover_10k),
+            ("runtime_refresh_large_tree", "runtime_surface", "scene_cache", SCENE_CACHE_REFRESH_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::refresh_large_tree),
             ("runtime_resize_large_tree", "runtime_surface", "frame_cadence", RESIZE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::resize_large_tree),
             ("runtime_animation_frame_cadence_1k", "runtime_surface", "frame_cadence", FRAME_CADENCE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::animation_frame_cadence_1k),
             ("runtime_command_flattening_512", "runtime_commands", "runtime_commands", COMMAND_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::command_flattening_512),

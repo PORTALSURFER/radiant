@@ -38,9 +38,9 @@ fn deferred_scroll_fallback_requests_interactive_surface_refresh() {
     );
 
     assert!(outcome.routed);
-    assert!(!outcome.deferred_surface_refresh_requested);
-    assert!(outcome.interactive_surface_refresh_requested);
-    assert!(outcome.interactive_scene_rebuild_requested);
+    assert!(!outcome.is_deferred_surface_refresh());
+    assert!(outcome.is_interactive_surface_refresh());
+    assert!(outcome.is_interactive_scene_rebuild());
     assert!(outcome.needs_scene_rebuild());
     assert_eq!(core.runtime.bridge().scroll_count, 1);
     assert_eq!(

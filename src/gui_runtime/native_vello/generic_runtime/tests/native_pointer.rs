@@ -204,7 +204,7 @@ fn native_pointer_diagnostics_report_hit_target_and_capture_state() {
     assert_eq!(press.diagnostic.button, Some(PointerButton::Primary));
     assert_eq!(press.diagnostic.hit_target, Some(11));
     assert_eq!(press.diagnostic.captured_widget, None);
-    assert!(press.diagnostic.outcome.redraw_requested);
+    assert!(press.diagnostic.outcome.needs_redraw());
 
     let release = harness.mouse_released_route(MouseButton::Left);
 
@@ -226,7 +226,7 @@ fn native_pointer_harness_routes_wheel_with_modifiers() {
         .runner
         .flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
 
-    assert!(route.outcome.paint_only_requested || route.outcome.deferred_surface_refresh_requested);
+    assert!(route.outcome.is_paint_only() || route.outcome.is_deferred_surface_refresh());
     assert_eq!(route.diagnostic.kind, NativePointerEventKind::MouseWheel);
     assert_eq!(route.diagnostic.result, NativePointerRouteResult::Coalesced);
     assert_eq!(route.diagnostic.hit_target, Some(61));
@@ -246,9 +246,9 @@ fn native_pointer_harness_refreshes_scroll_area_wheel_surface_interactively() {
     let route = harness.mouse_wheel_route(MouseScrollDelta::LineDelta(0.0, -2.0));
 
     assert!(route.outcome.routed);
-    assert!(!route.outcome.deferred_surface_refresh_requested);
-    assert!(route.outcome.interactive_surface_refresh_requested);
-    assert!(route.outcome.interactive_scene_rebuild_requested);
+    assert!(!route.outcome.is_deferred_surface_refresh());
+    assert!(route.outcome.is_interactive_surface_refresh());
+    assert!(route.outcome.is_interactive_scene_rebuild());
     assert!(route.outcome.needs_scene_rebuild());
     assert_eq!(route.diagnostic.kind, NativePointerEventKind::MouseWheel);
     assert_eq!(route.diagnostic.result, NativePointerRouteResult::Routed);
@@ -496,7 +496,7 @@ fn native_pointer_focus_loss_clears_retained_widget_hover() {
 
     let outcome = harness.focus_lost();
 
-    assert!(outcome.repaint_requested);
+    assert!(outcome.needs_scene_rebuild());
     assert_eq!(harness.runner.input.last_cursor, None);
     assert_eq!(harness.runner.core.runtime.hovered_widget(), None);
     assert!(

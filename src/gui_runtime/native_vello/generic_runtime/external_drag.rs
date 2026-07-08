@@ -1,6 +1,6 @@
 //! Native external drag launching for the generic Vello runtime.
 
-use super::{GenericNativeVelloRunner, GenericRouteOutcome};
+use super::{FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome};
 use crate::runtime::{ExternalDragPayload, RuntimeBridge};
 use tracing::info;
 use winit::keyboard::ModifiersState;
@@ -43,7 +43,7 @@ where
             .dispatch_external_drag_result(session, result);
         let mut route_outcome = self.core.route_command_outcome(outcome);
         if preview_cleared {
-            route_outcome.repaint_requested = true;
+            route_outcome.request_scene_rebuild(FrameWorkReason::ExternalDragPreview);
         }
         route_outcome
     }

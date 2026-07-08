@@ -102,7 +102,7 @@ where
                 }
             } else {
                 let mut outcome = CommandOutcome::default();
-                self.execute_command_inner(crate::runtime::Command::Message(message), &mut outcome);
+                self.dispatch_message_inner_deferred_refresh(message, &mut outcome);
                 deferred_surface_refresh = outcome.surface_refresh_requested;
                 self.pending_input_command_outcome.merge(outcome);
             }
@@ -117,7 +117,7 @@ where
                 }
             } else {
                 let mut outcome = CommandOutcome::default();
-                self.execute_command_inner(command, &mut outcome);
+                self.execute_command_inner_deferred_refresh(command, &mut outcome);
                 deferred_surface_refresh = outcome.surface_refresh_requested;
                 self.pending_input_command_outcome.merge(outcome);
             }

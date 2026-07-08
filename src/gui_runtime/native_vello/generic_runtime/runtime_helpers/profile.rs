@@ -18,8 +18,8 @@ pub(in crate::gui_runtime::native_vello) fn maybe_log_route_profile(
         reason,
         event_route_us = elapsed.as_micros(),
         routed = outcome.routed,
-        redraw_requested = outcome.redraw_requested,
-        repaint_requested = outcome.repaint_requested,
+        frame_work = outcome.frame_work_kind(),
+        frame_work_reason = outcome.frame_work_reason(),
         "radiant native input profile"
     );
 }

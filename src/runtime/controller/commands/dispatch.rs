@@ -16,17 +16,34 @@ where
         message: Message,
         outcome: &mut CommandOutcome,
     ) {
+        self.dispatch_message_inner_with_refresh(message, outcome, true);
+    }
+
+    pub(in crate::runtime::controller) fn dispatch_message_inner_deferred_refresh(
+        &mut self,
+        message: Message,
+        outcome: &mut CommandOutcome,
+    ) {
+        self.dispatch_message_inner_with_refresh(message, outcome, false);
+    }
+
+    fn dispatch_message_inner_with_refresh(
+        &mut self,
+        message: Message,
+        outcome: &mut CommandOutcome,
+        refresh_surface: bool,
+    ) {
         let refresh_before = outcome.surface_refresh_requested;
         outcome.messages_dispatched += 1;
         let command = self.run_update_handler(message);
         let paint_only = command
             .repaint_scope()
             .is_some_and(|scope| scope.is_paint_only());
-        if !paint_only {
+        if !paint_only && refresh_surface {
             self.refresh();
         }
         let messages_before_command = outcome.messages_dispatched;
-        self.execute_command_inner(command, outcome);
+        self.execute_command_inner_with_refresh(command, outcome, refresh_surface);
         let command_dispatched_messages = outcome.messages_dispatched > messages_before_command;
         if !paint_only || command_dispatched_messages {
             outcome.surface_refresh_requested = true;
@@ -65,12 +82,31 @@ where
         command: Command<Message>,
         outcome: &mut CommandOutcome,
     ) {
+        self.execute_command_inner_with_refresh(command, outcome, true);
+    }
+
+    pub(in crate::runtime::controller) fn execute_command_inner_deferred_refresh(
+        &mut self,
+        command: Command<Message>,
+        outcome: &mut CommandOutcome,
+    ) {
+        self.execute_command_inner_with_refresh(command, outcome, false);
+    }
+
+    fn execute_command_inner_with_refresh(
+        &mut self,
+        command: Command<Message>,
+        outcome: &mut CommandOutcome,
+        refresh_surface: bool,
+    ) {
         match command {
             Command::None => {}
-            Command::Message(message) => self.dispatch_message_inner(message, outcome),
+            Command::Message(message) => {
+                self.dispatch_message_inner_with_refresh(message, outcome, refresh_surface);
+            }
             Command::Batch(commands) => {
                 for command in commands {
-                    self.execute_command_inner(command, outcome);
+                    self.execute_command_inner_with_refresh(command, outcome, refresh_surface);
                 }
             }
             Command::RequestRepaint => {
@@ -227,7 +263,7 @@ where
                     let message = on_completed(Err(String::from(
                         "platform service requests are not supported by this runtime bridge",
                     )));
-                    self.dispatch_message_inner(message, outcome);
+                    self.dispatch_message_inner_with_refresh(message, outcome, refresh_surface);
                 }
             }
             Command::EndExternalDrag => {

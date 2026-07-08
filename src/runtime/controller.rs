@@ -133,7 +133,7 @@ where
                     self.dispatch_message(message)
                 } else {
                     let mut outcome = CommandOutcome::default();
-                    self.dispatch_message_inner(message, &mut outcome);
+                    self.dispatch_message_inner_deferred_refresh(message, &mut outcome);
                     outcome
                 };
                 self.pending_input_command_outcome.merge(outcome);

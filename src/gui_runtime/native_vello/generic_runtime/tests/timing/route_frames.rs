@@ -31,16 +31,16 @@ fn pointer_routes_drain_due_frame_message_animation() {
     runner.timing.last_timed_frame_drain = Instant::now() - interval;
     let mut outcome = GenericRouteOutcome {
         routed: true,
-        redraw_requested: true,
         ..GenericRouteOutcome::default()
     };
+    outcome.request_scene_rebuild(FrameWorkReason::RoutedInput);
 
     runner.merge_due_timed_frame_for_route(&mut outcome);
 
     assert!(outcome.routed);
     assert!(outcome.needs_redraw());
     assert!(
-        outcome.repaint_requested,
+        outcome.needs_scene_rebuild(),
         "due frame-message animation should refresh the scene even during pointer-heavy routes"
     );
 }
@@ -108,10 +108,13 @@ fn pointer_move_outcome_drain_keeps_frame_animation_moving() {
     runner.timing.last_timed_frame_drain = stale_deadline;
 
     runner.handle_gpu_surface_pointer_move_outcome(
-        GenericRouteOutcome {
-            routed: true,
-            redraw_requested: true,
-            ..GenericRouteOutcome::default()
+        {
+            let mut outcome = GenericRouteOutcome {
+                routed: true,
+                ..GenericRouteOutcome::default()
+            };
+            outcome.request_scene_rebuild(FrameWorkReason::RoutedInput);
+            outcome
         },
         Some(Point::new(4.0, 4.0)),
         Point::new(5.0, 4.0),
@@ -133,16 +136,17 @@ fn pointer_routes_do_not_overrun_timed_frame_cadence() {
     runner.timing.last_timed_frame_drain = Instant::now();
     let mut outcome = GenericRouteOutcome {
         routed: true,
-        redraw_requested: true,
         ..GenericRouteOutcome::default()
     };
+    outcome.request_scene_rebuild(FrameWorkReason::RoutedInput);
 
     runner.merge_due_timed_frame_for_route(&mut outcome);
 
     assert!(outcome.routed);
     assert!(outcome.needs_redraw());
-    assert!(
-        !outcome.repaint_requested,
+    assert_eq!(
+        outcome.frame_work_reason(),
+        "routed_input",
         "pointer routes should not queue extra frame messages before the cadence is due"
     );
 }
@@ -157,9 +161,9 @@ fn pointer_routes_skip_animation_poll_before_native_frame_cadence_is_due() {
     let interval = frame_cadence::animation_frame_interval(runner.options.normalized_target_fps());
     let mut outcome = GenericRouteOutcome {
         routed: true,
-        redraw_requested: true,
         ..GenericRouteOutcome::default()
     };
+    outcome.request_scene_rebuild(FrameWorkReason::RoutedInput);
 
     runner.timing.last_timed_frame_drain = Instant::now();
     runner.merge_due_timed_frame_for_route(&mut outcome);

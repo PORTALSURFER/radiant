@@ -45,9 +45,9 @@ fn scroll_area_scrollbar_drag_requests_interactive_surface_refresh() {
     core.route_pointer_press(press, PointerButton::Primary);
     let outcome = core.route_pointer_move(drag);
 
-    assert!(!outcome.deferred_surface_refresh_requested);
-    assert!(outcome.interactive_surface_refresh_requested);
-    assert!(outcome.interactive_scene_rebuild_requested);
+    assert!(!outcome.is_deferred_surface_refresh());
+    assert!(outcome.is_interactive_surface_refresh());
+    assert!(outcome.is_interactive_scene_rebuild());
     assert!(outcome.needs_scene_rebuild());
     assert_eq!(core.runtime.bridge().scroll_count, 1);
     assert_eq!(
@@ -385,7 +385,7 @@ fn app_virtual_list_subrow_wheel_scroll_stays_runtime_local() {
 
     assert!(outcome.routed);
     assert!(outcome.needs_scene_rebuild());
-    assert!(!outcome.interactive_surface_refresh_requested);
+    assert!(!outcome.is_interactive_surface_refresh());
     assert_eq!(
         core.runtime.bridge().scroll_count,
         0,
@@ -407,8 +407,8 @@ fn app_virtual_list_row_crossing_wheel_scroll_requests_surface_refresh() {
     );
 
     assert!(outcome.routed);
-    assert!(outcome.interactive_surface_refresh_requested);
-    assert!(outcome.interactive_scene_rebuild_requested);
+    assert!(outcome.is_interactive_surface_refresh());
+    assert!(outcome.is_interactive_scene_rebuild());
     assert_eq!(
         core.runtime.bridge().scroll_count,
         1,

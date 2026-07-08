@@ -1,6 +1,6 @@
 //! Runtime state and event routing for the generic native Vello runner.
 
-use super::GenericRouteOutcome;
+use super::{FrameWorkReason, GenericRouteOutcome};
 use crate::gui::types::{Point, Vector2};
 use crate::runtime::{
     CommandOutcome, DevtoolsOverlayOptions, RuntimeAnimationActivity, RuntimeBridge, SurfaceRuntime,
@@ -138,9 +138,9 @@ where
         }
         let mut outcome = self.drain_runtime_messages();
         if !outcome.needs_redraw() && needs_text_caret_animation {
-            outcome.redraw_requested = true;
+            outcome.request_scene_rebuild(FrameWorkReason::TextCaretAnimation);
         } else if !outcome.needs_redraw() && animation_activity.needs_animation() {
-            outcome.paint_only_requested = true;
+            outcome.request_paint_only(FrameWorkReason::TimedPaintOnlyAnimation);
         }
         outcome
     }
@@ -157,19 +157,30 @@ where
         outcome: CommandOutcome,
     ) -> GenericRouteOutcome {
         let _ = self.runtime.take_repaint_requested();
-        GenericRouteOutcome {
+        let mut route_outcome = GenericRouteOutcome {
             routed: outcome.messages_dispatched > 0,
-            redraw_requested: outcome.surface_refresh_requested,
-            repaint_requested: outcome.surface_repaint_requested,
-            paint_only_requested: outcome.paint_only_requested,
-            deferred_surface_refresh_requested: false,
-            interactive_surface_refresh_requested: false,
-            interactive_scene_rebuild_requested: false,
             exit_requested: outcome.exit_requested,
             runtime_work_remaining: outcome.runtime_work_remaining,
             dpi_scale_override: outcome.dpi_scale_override,
             window_logical_size: outcome.window_logical_size,
+            ..GenericRouteOutcome::default()
+        };
+        if outcome.surface_refresh_requested {
+            route_outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRefresh);
         }
+        if outcome.surface_repaint_requested {
+            route_outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRepaint);
+        }
+        if outcome.paint_only_requested {
+            route_outcome.request_paint_only(FrameWorkReason::RuntimePaintOnly);
+        }
+        if outcome.window_logical_size.is_some() {
+            route_outcome.request_resize_and_rebuild(FrameWorkReason::CommandResize);
+        }
+        if outcome.exit_requested {
+            route_outcome.request_exit();
+        }
+        route_outcome
     }
 
     pub(in crate::gui_runtime::native_vello) fn focused_text_selection(&self) -> Option<String> {

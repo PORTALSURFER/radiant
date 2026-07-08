@@ -26,7 +26,7 @@ fn native_routed_paint_only_pointer_move_skips_scene_rebuild() {
 
     let moved = runner.core.route_pointer_move(second);
     assert!(moved.routed);
-    assert!(moved.paint_only_requested);
+    assert!(moved.is_paint_only());
     assert!(!moved.needs_scene_rebuild());
     runner.handle_gpu_surface_pointer_move_outcome(moved, Some(first), second);
 

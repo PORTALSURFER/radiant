@@ -1,7 +1,7 @@
 //! Pointer lifecycle helpers for the generic native Vello runner.
 
 use super::{
-    GenericNativeVelloRunner, GenericRouteOutcome, logical_point_from_winit,
+    FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome, logical_point_from_winit,
     maybe_log_route_profile,
 };
 use crate::runtime::RuntimeBridge;
@@ -63,7 +63,7 @@ where
 
     pub(super) fn handle_cursor_left(&mut self, event_loop: &ActiveEventLoop) {
         let pointer_cleared = self.clear_native_pointer_presence();
-        if pointer_cleared.repaint_requested {
+        if pointer_cleared.needs_redraw() {
             self.request_redraw_if_needed();
         }
         let preview_hidden = self.core.runtime.hide_drag_preview_for_cursor_left();
@@ -98,12 +98,12 @@ where
         if let Some(previous) = self.input.last_cursor
             && self.clear_gpu_surface_cursor_overlay(previous)
         {
-            outcome.repaint_requested = true;
+            outcome.request_scene_rebuild(FrameWorkReason::NativePointerClear);
         }
         self.input.pending_scrollbar_drag = None;
         self.core.set_current_pointer_position(None);
         if self.core.runtime.clear_pointer_hover() {
-            outcome.repaint_requested = true;
+            outcome.request_scene_rebuild(FrameWorkReason::NativePointerClear);
         }
         self.input.last_cursor = None;
         self.set_native_cursor_visible(true);

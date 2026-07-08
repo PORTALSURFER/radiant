@@ -86,7 +86,9 @@ use render_profile::{
     RenderFrameProfile, maybe_log_render_profile, maybe_log_slow_render_profile,
     slow_render_profile_enabled,
 };
-pub(in crate::gui_runtime::native_vello) use route_outcome::GenericRouteOutcome;
+pub(in crate::gui_runtime::native_vello) use route_outcome::{
+    FrameWork, FrameWorkReason, GenericRouteOutcome, SceneRebuildMode,
+};
 pub use run_report::{
     NativeGenericRunError, NativeGenericRunReport, NativeGenericRuntimeArtifacts,
 };

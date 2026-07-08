@@ -79,7 +79,7 @@ fn pointer_move_messages_defer_surface_refresh_until_redraw_after_hover_enters()
     assert!(second.routed);
     assert!(second.needs_redraw());
     assert!(!second.needs_scene_rebuild());
-    assert!(second.deferred_surface_refresh_requested);
+    assert!(second.is_deferred_surface_refresh());
     assert_eq!(core.runtime.bridge().moves, 2);
     assert_eq!(
         core.runtime.bridge().project_count,
@@ -116,9 +116,9 @@ fn captured_pointer_move_message_marks_interactive_refresh_for_resizes() {
 
     assert!(drag_move.routed);
     assert!(drag_move.needs_scene_rebuild());
-    assert!(!drag_move.deferred_surface_refresh_requested);
-    assert!(drag_move.interactive_surface_refresh_requested);
-    assert!(drag_move.interactive_scene_rebuild_requested);
+    assert!(!drag_move.is_deferred_surface_refresh());
+    assert!(drag_move.is_interactive_surface_refresh());
+    assert!(drag_move.is_interactive_scene_rebuild());
     assert_eq!(
         runner.core.runtime.bridge().project_count,
         project_count_before_move,
@@ -167,7 +167,7 @@ fn deferred_pointer_move_refresh_invalidates_scene_texture() {
     let second = runner
         .core
         .route_pointer_move(Point::new(point.x + 1.0, point.y));
-    assert!(second.deferred_surface_refresh_requested);
+    assert!(second.is_deferred_surface_refresh());
     runner.timing.deferred_surface_refresh = true;
     runner.refresh_deferred_surface_if_needed(&mut RenderFrameProfile::default());
 

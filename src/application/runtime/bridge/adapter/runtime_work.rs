@@ -138,4 +138,13 @@ where
     pub(super) fn drain_runtime_message_queue_into(&mut self, messages: &mut Vec<Message>) {
         self.runtime.drain_pending_into(messages);
     }
+
+    pub(super) fn drain_runtime_message_queue_batch_into(
+        &mut self,
+        messages: &mut Vec<Message>,
+        max_messages: usize,
+    ) -> bool {
+        self.runtime
+            .drain_pending_batch_into(messages, max_messages)
+    }
 }

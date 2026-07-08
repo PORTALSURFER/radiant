@@ -161,6 +161,30 @@ impl<Message> AppRuntime<Message> {
         self.record_pending_depth(&queued);
     }
 
+    pub(super) fn drain_pending_batch_into(
+        &self,
+        pending: &mut Vec<Message>,
+        max_messages: usize,
+    ) -> bool {
+        let max_messages = max_messages.max(1);
+        if let Some(frame) = lock_runtime_state(&self.pending_frame).take() {
+            pending.insert(0, frame);
+        }
+        let available = max_messages.saturating_sub(pending.len());
+        let mut queued = lock_runtime_state(&self.pending);
+        if available > 0 {
+            let drain_count = queued.len().min(available);
+            pending.extend(
+                queued
+                    .drain(..drain_count)
+                    .map(PendingMessage::into_message),
+            );
+        }
+        let remaining = !queued.is_empty();
+        self.record_pending_depth(&queued);
+        remaining
+    }
+
     pub(super) fn take_commands(&self) -> Vec<Command<Message>> {
         drain_runtime_vec(&self.commands)
     }

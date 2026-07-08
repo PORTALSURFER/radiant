@@ -135,6 +135,14 @@ where
         self.drain_runtime_message_queue_into(messages);
     }
 
+    fn drain_runtime_message_batch_into(
+        &mut self,
+        messages: &mut Vec<Message>,
+        max_messages: usize,
+    ) -> bool {
+        self.drain_runtime_message_queue_batch_into(messages, max_messages)
+    }
+
     fn needs_animation(&mut self) -> bool {
         self.needs_runtime_animation()
     }

@@ -37,12 +37,13 @@ impl AnimationFrameCadenceBench {
                 .wrapping_mul(137)
                 .wrapping_rem(50_000);
 
-            if activity.needs_animation() && elapsed_us >= interval_us {
+            let animation_due = activity.needs_animation() && elapsed_us >= interval_us;
+            if animation_due {
                 due += 1;
             } else if activity.needs_animation() {
                 wait += 1;
             }
-            if activity.needs_animation() && !activity.needs_frame_message() {
+            if animation_due && !activity.needs_frame_message() {
                 paint_only += 1;
             }
 

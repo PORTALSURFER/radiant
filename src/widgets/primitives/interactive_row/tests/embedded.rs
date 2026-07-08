@@ -92,13 +92,15 @@ fn embedded_interactive_row_widget_routes_widget_contract() {
     };
 
     assert_eq!(Widget::common(&host).id, 12);
-    assert!(host.accepts_pointer_move());
+    assert!(!host.accepts_pointer_move());
 
     let _ = host.handle_input(bounds, WidgetInput::primary_press(pointer));
+    assert!(host.accepts_pointer_move());
     let output = host
         .handle_input(bounds, WidgetInput::primary_release(pointer))
         .expect("embedded row host should emit mapped row output");
     assert!(output.typed_ref::<InteractiveRowMessage>().is_some());
+    assert!(!host.accepts_pointer_move());
 }
 
 #[test]

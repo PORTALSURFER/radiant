@@ -235,6 +235,32 @@ impl RuntimeBridge<()> for AdjacentTreeRowsBridge {
     fn reduce_message(&mut self, _message: ()) {}
 }
 
+#[derive(Default)]
+pub(super) struct QuietInteractiveRowBridge {
+    pub(super) project_count: usize,
+    pub(super) update_count: usize,
+}
+
+impl RuntimeBridge<()> for QuietInteractiveRowBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        use crate::application::{row_actions, tree_row};
+
+        self.project_count += 1;
+        Arc::new(
+            tree_row("Quiet row")
+                .input_id(85)
+                .row_height(22.0)
+                .interactive_actions(row_actions())
+                .into_surface(),
+        )
+    }
+
+    fn update(&mut self, _message: ()) -> Command<()> {
+        self.update_count += 1;
+        Command::none()
+    }
+}
+
 pub(super) struct DisclosureAndTreeRowBridge;
 
 impl RuntimeBridge<()> for DisclosureAndTreeRowBridge {

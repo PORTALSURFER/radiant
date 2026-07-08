@@ -1,6 +1,6 @@
 //! Widget contract implementation for interactive row primitives.
 
-use super::{InteractiveRowPointerMotion, InteractiveRowWidget};
+use super::InteractiveRowWidget;
 use crate::{
     gui::types::Rect,
     layout::LayoutOutput,
@@ -27,15 +27,7 @@ impl Widget for InteractiveRowWidget {
     }
 
     fn accepts_pointer_move(&self) -> bool {
-        match self.props.pointer_motion {
-            InteractiveRowPointerMotion::Always => true,
-            InteractiveRowPointerMotion::DuringInteraction => {
-                self.common.state.pressed
-                    || self.props.drag_active
-                    || self.props.drag_source
-                    || self.props.pointer_motion_active
-            }
-        }
+        self.accepts_stable_pointer_move()
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

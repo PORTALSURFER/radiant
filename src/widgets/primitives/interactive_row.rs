@@ -75,9 +75,9 @@ pub struct InteractiveRowVisualStateParts {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum InteractiveRowPointerMotion {
     /// Always receive pointer motion, allowing normal hover updates.
-    #[default]
     Always,
     /// Receive pointer motion only while pressed, dragging, dropping, or app-active.
+    #[default]
     DuringInteraction,
 }
 
@@ -235,6 +235,23 @@ impl InteractiveRowWidget {
     pub fn with_pointer_motion_active(mut self, active: bool) -> Self {
         self.props.pointer_motion_active = active;
         self
+    }
+
+    pub(super) fn accepts_stable_pointer_move(&self) -> bool {
+        match self.props.pointer_motion {
+            InteractiveRowPointerMotion::Always => true,
+            InteractiveRowPointerMotion::DuringInteraction => {
+                let source_motion = self.props.drag_source && self.props.drag_source_motion;
+                let drop_motion = self.props.droppable
+                    && self.props.drag_active
+                    && (self.props.drop_hover || self.props.clear_drop_on_hover);
+                self.common.state.pressed
+                    || source_motion
+                    || drop_motion
+                    || self.props.pointer_motion_active
+                    || self.props.hover_messages
+            }
+        }
     }
 
     /// Route input through this row and map the row message into a typed widget output.

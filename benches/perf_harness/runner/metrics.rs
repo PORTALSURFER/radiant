@@ -7,10 +7,11 @@ use super::{
     baseline::{BaselineMetric, MetricComparison, baseline_metric_json_line, json_escape},
 };
 
-const COUNTER_FIELDS: [&str; 11] = [
+const COUNTER_FIELDS: [&str; 12] = [
     "scene_rebuild_count",
     "paint_only_count",
     "surface_refresh_count",
+    "relayout_count",
     "overlay_paint_count",
     "paint_primitive_count",
     "text_cache_hit_count",
@@ -30,14 +31,15 @@ impl ScenarioCounters {
     const SCENE_REBUILD_COUNT: usize = 0;
     const PAINT_ONLY_COUNT: usize = 1;
     const SURFACE_REFRESH_COUNT: usize = 2;
-    const OVERLAY_PAINT_COUNT: usize = 3;
-    const PAINT_PRIMITIVE_COUNT: usize = 4;
-    const TEXT_CACHE_HIT_COUNT: usize = 5;
-    const RETAINED_SURFACE_CACHE_HIT_COUNT: usize = 6;
-    const GPU_SURFACE_COUNT: usize = 7;
-    const FRAME_CADENCE_DUE_COUNT: usize = 8;
-    const FRAME_CADENCE_WAIT_COUNT: usize = 9;
-    const ALLOCATION_SENSITIVE_WORK_COUNT: usize = 10;
+    const RELAYOUT_COUNT: usize = 3;
+    const OVERLAY_PAINT_COUNT: usize = 4;
+    const PAINT_PRIMITIVE_COUNT: usize = 5;
+    const TEXT_CACHE_HIT_COUNT: usize = 6;
+    const RETAINED_SURFACE_CACHE_HIT_COUNT: usize = 7;
+    const GPU_SURFACE_COUNT: usize = 8;
+    const FRAME_CADENCE_DUE_COUNT: usize = 9;
+    const FRAME_CADENCE_WAIT_COUNT: usize = 10;
+    const ALLOCATION_SENSITIVE_WORK_COUNT: usize = 11;
 
     pub(crate) fn add(&mut self, other: Self) {
         for (index, value) in other.values.into_iter().enumerate() {
@@ -71,6 +73,11 @@ impl ScenarioCounters {
 
     pub(crate) fn with_surface_refresh_count(mut self, value: u64) -> Self {
         self.values[Self::SURFACE_REFRESH_COUNT] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_relayout_count(mut self, value: u64) -> Self {
+        self.values[Self::RELAYOUT_COUNT] = Some(value);
         self
     }
 

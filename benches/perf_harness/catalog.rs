@@ -47,6 +47,7 @@ const FRAME_CADENCE_COUNTERS: &[&str] = &[
     "frame_cadence_wait_count",
     "allocation_sensitive_work_count",
 ];
+const RESIZE_COUNTERS: &[&str] = &["relayout_count"];
 const COMMAND_COUNTERS: &[&str] = &["paint_only_count", "allocation_sensitive_work_count"];
 const COMMAND_DRAIN_COUNTERS: &[&str] = &["allocation_sensitive_work_count"];
 
@@ -77,7 +78,7 @@ macro_rules! perf_scenario_catalog {
             ("runtime_retained_segment_invalidation_1k", "runtime_invalidation", "scene_cache", SCENE_CACHE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::retained_segment_invalidation_1k),
             ("runtime_virtualized_nested_scroll_hover_10k", "runtime_virtualized", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_nested_scroll_hover_10k),
             ("runtime_refresh_large_tree", "runtime_surface", "scene_cache", SCENE_CACHE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::refresh_large_tree),
-            ("runtime_resize_large_tree", "runtime_surface", "frame_cadence", FRAME_CADENCE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::resize_large_tree),
+            ("runtime_resize_large_tree", "runtime_surface", "frame_cadence", RESIZE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::resize_large_tree),
             ("runtime_animation_frame_cadence_1k", "runtime_surface", "frame_cadence", FRAME_CADENCE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::animation_frame_cadence_1k),
             ("runtime_command_flattening_512", "runtime_commands", "runtime_commands", COMMAND_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::command_flattening_512),
             ("runtime_command_drain_1k", "runtime_commands", "runtime_commands", COMMAND_DRAIN_COUNTERS, RUNTIME_ITERATIONS, command_drain::flat_command_drain),

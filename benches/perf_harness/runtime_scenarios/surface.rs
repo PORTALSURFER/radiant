@@ -179,10 +179,7 @@ impl StatefulResizeBench {
         };
         self.runtime.set_viewport(viewport);
         black_box(self.runtime.layout());
-        ScenarioCounters::default()
-            .with_scene_rebuild_count(1)
-            .with_surface_refresh_count(1)
-            .with_frame_cadence_due_count(1)
+        ScenarioCounters::default().with_relayout_count(1)
     }
 }
 

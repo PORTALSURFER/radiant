@@ -96,6 +96,7 @@ fn performance_harness_runner_exposes_metrics_baselines_and_listing() {
             && metrics.contains("scene_rebuild_count")
             && metrics.contains("paint_only_count")
             && metrics.contains("surface_refresh_count")
+            && metrics.contains("relayout_count")
             && metrics.contains("text_cache_hit_count")
             && metrics.contains("retained_surface_cache_hit_count")
             && metrics.contains("frame_cadence_due_count")

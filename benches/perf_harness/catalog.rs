@@ -32,11 +32,9 @@ const SCENE_CACHE_COUNTERS: &[&str] = &[
     "overlay_paint_count",
     "paint_primitive_count",
 ];
-const TEXT_COUNTERS: &[&str] = &[
-    "text_cache_hit_count",
-    "paint_primitive_count",
-    "allocation_sensitive_work_count",
-];
+const TEXT_PAINT_COUNTERS: &[&str] = &["paint_primitive_count"];
+const TEXT_CACHE_COUNTERS: &[&str] = &["text_cache_hit_count"];
+const TEXT_EDIT_COUNTERS: &[&str] = &["allocation_sensitive_work_count"];
 const GPU_SURFACE_COUNTERS: &[&str] = &[
     "gpu_surface_count",
     "retained_surface_cache_hit_count",
@@ -69,8 +67,8 @@ macro_rules! perf_scenario_catalog {
             ("app_virtual_selectable_list_projection_10k", "application_projection", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, app_projection::virtual_selectable_list_projection_10k),
             ("app_virtual_list_window_projection_10k", "application_projection", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, app_projection::virtual_list_window_projection_10k),
             ("runtime_surface_large_tree", "runtime_surface", "scene_cache", SCENE_CACHE_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::surface_large_tree),
-            ("runtime_text_paint_plan_1k", "runtime_surface", "text_layout", TEXT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::text_paint_plan_1k),
-            ("runtime_horizontal_scroll_paint_1k", "runtime_surface", "text_layout", TEXT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::horizontal_scroll_paint_1k),
+            ("runtime_text_paint_plan_1k", "runtime_surface", "text_layout", TEXT_PAINT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::text_paint_plan_1k),
+            ("runtime_horizontal_scroll_paint_1k", "runtime_surface", "text_layout", TEXT_PAINT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::horizontal_scroll_paint_1k),
             ("runtime_virtualized_list_wheel_10k", "runtime_virtualized", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_wheel_10k),
             ("runtime_virtualized_list_hover_10k", "runtime_virtualized", "pointer_motion", POINTER_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_hover_10k),
             ("runtime_virtualized_list_stable_hover_10k", "runtime_virtualized", "pointer_motion", POINTER_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::virtualized_list_stable_hover_10k),
@@ -85,9 +83,9 @@ macro_rules! perf_scenario_catalog {
             ("runtime_command_drain_1k", "runtime_commands", "runtime_commands", COMMAND_DRAIN_COUNTERS, RUNTIME_ITERATIONS, command_drain::flat_command_drain),
             ("runtime_nested_command_drain_1k", "runtime_commands", "runtime_commands", COMMAND_DRAIN_COUNTERS, RUNTIME_ITERATIONS, command_drain::nested_command_drain),
             ("resource_slot_stale_completions_1k", "resource_lifecycle", "resource_lifecycle", NO_COUNTERS, RUNTIME_ITERATIONS, resource_scenarios::resource_slot_stale_completions_1k),
-            ("text_line_cache_1k", "text", "text_layout", TEXT_COUNTERS, RUNTIME_ITERATIONS, text_scenarios::text_line_cache_1k),
-            ("text_word_selection_1k", "text", "text_layout", TEXT_COUNTERS, RUNTIME_ITERATIONS, text_scenarios::text_word_selection_1k),
-            ("text_word_deletion_1k", "text", "text_layout", TEXT_COUNTERS, RUNTIME_ITERATIONS, text_scenarios::text_word_deletion_1k),
+            ("text_line_cache_1k", "text", "text_layout", TEXT_CACHE_COUNTERS, RUNTIME_ITERATIONS, text_scenarios::text_line_cache_1k),
+            ("text_word_selection_1k", "text", "text_layout", TEXT_EDIT_COUNTERS, RUNTIME_ITERATIONS, text_scenarios::text_word_selection_1k),
+            ("text_word_deletion_1k", "text", "text_layout", TEXT_EDIT_COUNTERS, RUNTIME_ITERATIONS, text_scenarios::text_word_deletion_1k),
             ("gpu_signal_summary", "gpu_data", "retained_gpu_surfaces", GPU_DATA_COUNTERS, GPU_ITERATIONS, || bench_gpu_signal_summary),
             ("gpu_surface_projection", "gpu_surface", "retained_gpu_surfaces", GPU_SURFACE_COUNTERS, GPU_ITERATIONS, || bench_gpu_surface_projection),
             ("gpu_surface_stack_projection_128", "gpu_surface", "retained_gpu_surfaces", GPU_SURFACE_COUNTERS, GPU_ITERATIONS, || bench_gpu_surface_stack_projection_128),

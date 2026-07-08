@@ -100,12 +100,9 @@ impl StatefulTextPaintPlanBench {
             stats.total >= stats.text,
             "text-heavy paint plan should retain all text primitives"
         );
-        let text_count = stats.text as u64;
         let primitive_count = stats.total as u64;
         black_box((output, plan));
-        ScenarioCounters::default()
-            .with_text_cache_hit_count(text_count)
-            .with_paint_primitive_count(primitive_count)
+        ScenarioCounters::default().with_paint_primitive_count(primitive_count)
     }
 }
 
@@ -134,12 +131,9 @@ impl StatefulHorizontalScrollPaintBench {
             stats.text > 0 && stats.text < 16,
             "horizontal clipped row paint should stay bounded to the visible clip"
         );
-        let text_count = stats.text as u64;
         let primitive_count = stats.total as u64;
         black_box(plan);
-        ScenarioCounters::default()
-            .with_text_cache_hit_count(text_count)
-            .with_paint_primitive_count(primitive_count)
+        ScenarioCounters::default().with_paint_primitive_count(primitive_count)
     }
 }
 

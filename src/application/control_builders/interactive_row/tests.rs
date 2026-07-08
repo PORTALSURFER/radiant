@@ -180,6 +180,60 @@ fn interactive_row_underlay_applies_dense_row_policy_input_bundle() {
 }
 
 #[test]
+fn input_only_dense_row_policy_preserves_existing_underlay_visual_state() {
+    let frame = UiSurface::new(
+        interactive_row_underlay(text("Sample"))
+            .selected(true)
+            .dense_row_policy(DenseRowPolicy::new().activation_modifiers())
+            .style(crate::widgets::WidgetStyle::subtle(
+                crate::widgets::WidgetTone::Accent,
+            ))
+            .mapped(|_| ())
+            .size(140.0, 22.0)
+            .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+        &Default::default(),
+    );
+
+    assert!(
+        frame.paint_plan.fill_rects().any(|fill| fill.color
+            == crate::theme::ThemeTokens::default()
+                .accent_mint
+                .with_alpha(120)),
+        "input-only dense-row policies should not clear existing selected chrome"
+    );
+}
+
+#[test]
+fn dense_row_policy_visual_state_overrides_only_configured_parts() {
+    let frame = UiSurface::new(
+        interactive_row_underlay(text("Sample"))
+            .active_target(true)
+            .dense_row_policy(DenseRowPolicy::selectable(true))
+            .style(crate::widgets::WidgetStyle::subtle(
+                crate::widgets::WidgetTone::Accent,
+            ))
+            .mapped(|_| ())
+            .size(140.0, 22.0)
+            .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+        &Default::default(),
+    );
+
+    assert!(
+        frame.paint_plan.fill_rects().any(|fill| fill.color
+            == crate::theme::ThemeTokens::default()
+                .accent_mint
+                .with_alpha(220)),
+        "selected policy should preserve separately configured active-target chrome"
+    );
+}
+
+#[test]
 fn selectable_dense_row_policy_paints_selected_chrome() {
     let frame = UiSurface::new(
         interactive_row_underlay(text("Sample"))

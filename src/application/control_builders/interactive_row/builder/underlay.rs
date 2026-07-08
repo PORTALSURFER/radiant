@@ -92,7 +92,15 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
         if let Some(style) = policy.style {
             self.style = Some(style);
         }
-        self.visual_state = policy.visual_state;
+        if let Some(selected) = policy.visual_state_overrides.selected {
+            self.visual_state.selected = selected;
+        }
+        if let Some(active_target) = policy.visual_state_overrides.active_target {
+            self.visual_state.active_target = active_target;
+        }
+        if let Some(candidate) = policy.visual_state_overrides.candidate {
+            self.visual_state.candidate = candidate;
+        }
         self.dense_chrome = self.dense_chrome || policy.dense_chrome;
         self
     }

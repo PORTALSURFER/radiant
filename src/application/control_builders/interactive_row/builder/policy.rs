@@ -26,6 +26,7 @@ use crate::widgets::{InteractiveRowVisualStateParts, WidgetStyle};
 pub struct DenseRowPolicy {
     pub(super) style: Option<WidgetStyle>,
     pub(super) visual_state: InteractiveRowVisualStateParts,
+    pub(super) visual_state_overrides: DenseRowVisualStateOverrides,
     pub(super) dense_chrome: bool,
     pub(super) custom_paint_hit_target: bool,
     pub(super) activation_modifiers: bool,
@@ -44,6 +45,7 @@ impl DenseRowPolicy {
                 active_target: false,
                 candidate: false,
             },
+            visual_state_overrides: DenseRowVisualStateOverrides::none(),
             dense_chrome: false,
             custom_paint_hit_target: false,
             activation_modifiers: false,
@@ -109,6 +111,7 @@ impl DenseRowPolicy {
     /// Mark the row as selected by host-owned state.
     pub const fn selected(mut self, selected: bool) -> Self {
         self.visual_state.selected = selected;
+        self.visual_state_overrides.selected = Some(selected);
         self.dense_chrome = true;
         self
     }
@@ -116,6 +119,7 @@ impl DenseRowPolicy {
     /// Mark the row as the committed target for a host-owned operation.
     pub const fn active_target(mut self, active_target: bool) -> Self {
         self.visual_state.active_target = active_target;
+        self.visual_state_overrides.active_target = Some(active_target);
         self.dense_chrome = true;
         self
     }
@@ -123,6 +127,7 @@ impl DenseRowPolicy {
     /// Mark the row as a valid candidate for a host-owned operation.
     pub const fn candidate(mut self, candidate: bool) -> Self {
         self.visual_state.candidate = candidate;
+        self.visual_state_overrides.candidate = Some(candidate);
         self.dense_chrome = true;
         self
     }
@@ -130,6 +135,7 @@ impl DenseRowPolicy {
     /// Apply all host-owned visual-state parts.
     pub const fn visual_state(mut self, visual_state: InteractiveRowVisualStateParts) -> Self {
         self.visual_state = visual_state;
+        self.visual_state_overrides = DenseRowVisualStateOverrides::from_parts(visual_state);
         self.dense_chrome = true;
         self
     }
@@ -165,6 +171,7 @@ impl DenseRowPolicy {
             active_target,
         };
         self.visual_state.active_target = active_target;
+        self.visual_state_overrides.active_target = Some(active_target);
         self.dense_chrome = true;
         self
     }
@@ -185,8 +192,35 @@ impl DenseRowPolicy {
         };
         self.visual_state.active_target = current_target;
         self.visual_state.candidate = candidate;
+        self.visual_state_overrides.active_target = Some(current_target);
+        self.visual_state_overrides.candidate = Some(candidate);
         self.dense_chrome = true;
         self
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub(super) struct DenseRowVisualStateOverrides {
+    pub selected: Option<bool>,
+    pub active_target: Option<bool>,
+    pub candidate: Option<bool>,
+}
+
+impl DenseRowVisualStateOverrides {
+    pub const fn none() -> Self {
+        Self {
+            selected: None,
+            active_target: None,
+            candidate: None,
+        }
+    }
+
+    pub const fn from_parts(parts: InteractiveRowVisualStateParts) -> Self {
+        Self {
+            selected: Some(parts.selected),
+            active_target: Some(parts.active_target),
+            candidate: Some(parts.candidate),
+        }
     }
 }
 

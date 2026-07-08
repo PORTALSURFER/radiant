@@ -24,6 +24,8 @@ fn runtime_surface_perf_scenarios_keep_fixtures_and_commands_focused() {
         read_project_file("benches/perf_harness/runtime_scenarios/surface/command_flattening.rs");
     let runtime_invalidation =
         read_project_file("benches/perf_harness/runtime_scenarios/invalidation.rs");
+    let runtime_frame_cadence =
+        read_project_file("benches/perf_harness/runtime_scenarios/frame_cadence.rs");
 
     assert!(
         runtime_surface.contains("surface/nodes.rs")
@@ -43,6 +45,13 @@ fn runtime_surface_perf_scenarios_keep_fixtures_and_commands_focused() {
             && runtime_invalidation.contains("bump_revisions")
             && runtime_invalidation.contains("retained_segment_invalidation_1k"),
         "runtime invalidation perf scenarios should exercise retained segment masks and revision bumps"
+    );
+    assert!(
+        runtime_scenarios_root.contains("runtime_scenarios/frame_cadence.rs")
+            && runtime_frame_cadence.contains("RuntimeAnimationActivity")
+            && runtime_frame_cadence.contains("frame_cadence_due_count")
+            && runtime_frame_cadence.contains("animation_frame_cadence_1k"),
+        "runtime frame-cadence perf scenarios should exercise public animation activity policy with parseable counters"
     );
 }
 
@@ -86,5 +95,10 @@ fn resource_and_text_perf_scenarios_cover_reusable_domain_logic() {
             && text_scenarios.contains("TextEditCommand::DeleteWordLeft")
             && text_scenarios.contains("TextEditCommand::DeleteWordRight"),
         "text perf scenarios should exercise the reusable text-line layout cache, text-input word selection, and word deletion"
+    );
+    assert!(
+        text_scenarios.contains("with_text_cache_hit_count")
+            && text_scenarios.contains("with_allocation_sensitive_work_count"),
+        "text perf scenarios should expose parseable cache and allocation-sensitive counters"
     );
 }

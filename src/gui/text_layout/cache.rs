@@ -93,6 +93,11 @@ impl TextLineLayoutCache {
         self.entries.len()
     }
 
+    /// Return the maximum number of text-line placements this cache retains.
+    pub fn capacity(&self) -> usize {
+        self.limit
+    }
+
     /// Return whether this cache currently holds no retained placements.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()

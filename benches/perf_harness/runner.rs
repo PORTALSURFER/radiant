@@ -10,9 +10,11 @@ use std::{env, time::Instant};
 pub(super) use args::{
     baseline_from_args, baseline_output_from_args, category_filters_from_args,
     fail_on_baseline_regression_from_args, fail_on_missing_baseline_from_args,
-    output_format_from_args, scenario_filters_from_args, scenario_list_requested,
+    group_filters_from_args, output_format_from_args, scenario_filters_from_args,
+    scenario_list_requested,
 };
 use baseline::{BaselineOutput, BaselineSet, BaselineSummary};
+pub(crate) use metrics::ScenarioCounters;
 use metrics::ScenarioMetric;
 
 const RUN_ALL_IN_DEBUG_ENV: &str = args::RUN_ALL_IN_DEBUG_ENV;
@@ -27,14 +29,24 @@ pub(super) enum OutputFormat {
 pub(super) struct ScenarioSpec {
     pub(super) name: &'static str,
     pub(super) category: &'static str,
+    pub(super) group: &'static str,
+    pub(super) counters: &'static [&'static str],
     pub(super) iterations: usize,
 }
 
 impl ScenarioSpec {
-    pub(super) const fn new(name: &'static str, category: &'static str, iterations: usize) -> Self {
+    pub(super) const fn new(
+        name: &'static str,
+        category: &'static str,
+        group: &'static str,
+        counters: &'static [&'static str],
+        iterations: usize,
+    ) -> Self {
         Self {
             name,
             category,
+            group,
+            counters,
             iterations,
         }
     }
@@ -43,6 +55,7 @@ impl ScenarioSpec {
 pub(super) struct ScenarioRunner {
     filters: Vec<String>,
     category_filters: Vec<String>,
+    group_filters: Vec<String>,
     output_format: OutputFormat,
     baseline: Option<BaselineSet>,
     baseline_output: Option<BaselineOutput>,
@@ -55,6 +68,7 @@ pub(super) struct ScenarioRunner {
 pub(super) struct ScenarioRunnerConfig {
     pub(super) filters: Vec<String>,
     pub(super) category_filters: Vec<String>,
+    pub(super) group_filters: Vec<String>,
     pub(super) output_format: OutputFormat,
     pub(super) baseline: Option<BaselineSet>,
     pub(super) baseline_output: Option<BaselineOutput>,
@@ -67,6 +81,7 @@ impl ScenarioRunner {
         Self {
             filters: config.filters,
             category_filters: config.category_filters,
+            group_filters: config.group_filters,
             output_format: config.output_format,
             baseline: config.baseline,
             baseline_output: config.baseline_output,
@@ -77,23 +92,33 @@ impl ScenarioRunner {
         }
     }
 
-    pub(super) fn run_scenario<Build, Bench>(
+    pub(super) fn run_scenario<Build, Bench, Sample>(
         &mut self,
         name: &str,
         category: &str,
+        group: &str,
         iterations: usize,
         build: Build,
     ) where
         Build: FnOnce() -> Bench,
-        Bench: FnMut(),
+        Bench: FnMut() -> Sample,
+        Sample: Into<ScenarioCounters>,
     {
-        if !scenario_matches_filters(name, category, &self.filters, &self.category_filters) {
+        if !scenario_matches_filters(
+            name,
+            category,
+            group,
+            &self.filters,
+            &self.category_filters,
+            &self.group_filters,
+        ) {
             return;
         }
         self.matched += 1;
         let metric = run_scenario(
             name,
             category,
+            group,
             iterations,
             build(),
             self.output_format,
@@ -106,10 +131,14 @@ impl ScenarioRunner {
     }
 
     pub(super) fn finish(self) {
-        if self.matched == 0 && (!self.filters.is_empty() || !self.category_filters.is_empty()) {
+        if self.matched == 0
+            && (!self.filters.is_empty()
+                || !self.category_filters.is_empty()
+                || !self.group_filters.is_empty())
+        {
             eprintln!(
-                "no radiant_perf scenarios matched filters: {:?} categories: {:?}",
-                self.filters, self.category_filters
+                "no radiant_perf scenarios matched filters: {:?} categories: {:?} groups: {:?}",
+                self.filters, self.category_filters, self.group_filters
             );
             std::process::exit(2);
         }
@@ -144,8 +173,16 @@ pub(super) fn print_scenario_list(scenarios: &[ScenarioSpec]) {
     println!("radiant_perf scenarios:");
     for scenario in scenarios {
         println!(
-            "{} category={} iterations={}",
-            scenario.name, scenario.category, scenario.iterations
+            "{} category={} group={} iterations={} counters={}",
+            scenario.name,
+            scenario.category,
+            scenario.group,
+            scenario.iterations,
+            if scenario.counters.is_empty() {
+                "none".to_owned()
+            } else {
+                scenario.counters.join(",")
+            }
         );
     }
 }
@@ -153,10 +190,12 @@ pub(super) fn print_scenario_list(scenarios: &[ScenarioSpec]) {
 pub(super) fn should_skip_unfiltered_debug_run(
     filters: &[String],
     category_filters: &[String],
+    group_filters: &[String],
 ) -> bool {
     cfg!(debug_assertions)
         && filters.is_empty()
         && category_filters.is_empty()
+        && group_filters.is_empty()
         && env::var_os(RUN_ALL_IN_DEBUG_ENV).is_none()
 }
 
@@ -169,35 +208,47 @@ pub(super) fn print_unfiltered_debug_skip() {
 fn scenario_matches_filters(
     name: &str,
     category: &str,
+    group: &str,
     filters: &[String],
     category_filters: &[String],
+    group_filters: &[String],
 ) -> bool {
     let name_matches = filters.is_empty() || filters.iter().any(|filter| name.contains(filter));
     let category_matches = category_filters.is_empty()
         || category_filters
             .iter()
             .any(|filter| category.contains(filter));
-    name_matches && category_matches
+    let group_matches =
+        group_filters.is_empty() || group_filters.iter().any(|filter| group.contains(filter));
+    name_matches && category_matches && group_matches
 }
 
-fn run_scenario(
+fn run_scenario<Bench, Sample>(
     name: &str,
     category: &str,
+    group: &str,
     iterations: usize,
-    mut bench: impl FnMut(),
+    mut bench: Bench,
     output_format: OutputFormat,
     baseline: Option<&BaselineSet>,
-) -> ScenarioMetric {
+) -> ScenarioMetric
+where
+    Bench: FnMut() -> Sample,
+    Sample: Into<ScenarioCounters>,
+{
     bench();
     let started = Instant::now();
+    let mut counters = ScenarioCounters::default();
     for _ in 0..iterations {
-        bench();
+        counters.add(bench().into());
     }
     ScenarioMetric::print(
         name,
         category,
+        group,
         iterations,
         started.elapsed(),
+        counters,
         output_format,
         baseline.map(|baseline| baseline.metric_for(name)),
     )

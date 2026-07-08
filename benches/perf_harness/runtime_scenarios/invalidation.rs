@@ -1,5 +1,6 @@
 //! Runtime invalidation performance scenarios.
 
+use crate::runner::ScenarioCounters;
 use radiant::gui::invalidation::{RetainedSegment, RetainedSegmentPlan, RetainedSegmentRevisions};
 use std::hint::black_box;
 
@@ -15,7 +16,7 @@ const PLAN: RetainedSegmentPlan<8> = RetainedSegmentPlan::new([
     RetainedSegment::overlay("playhead"),
 ]);
 
-pub(super) fn retained_segment_invalidation_1k() -> impl FnMut() {
+pub(super) fn retained_segment_invalidation_1k() -> impl FnMut() -> ScenarioCounters {
     let mut bench = RetainedSegmentInvalidationBench::new();
     move || bench.step()
 }
@@ -35,7 +36,7 @@ impl RetainedSegmentInvalidationBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         let mut static_rebuilds = 0_u64;
         let mut overlay_rebuilds = 0_u64;
         for offset in 0..self.masks.len() {
@@ -53,6 +54,10 @@ impl RetainedSegmentInvalidationBench {
         assert!(static_rebuilds > 0);
         assert!(overlay_rebuilds > 0);
         black_box((self.revisions, static_rebuilds, overlay_rebuilds, self.next));
+        ScenarioCounters::default()
+            .with_static_rebuild_count(static_rebuilds)
+            .with_overlay_rebuild_count(overlay_rebuilds)
+            .with_allocation_sensitive_work_count(self.masks.len() as u64)
     }
 }
 

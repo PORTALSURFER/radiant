@@ -1,5 +1,6 @@
 //! Text layout performance scenarios.
 
+use crate::runner::ScenarioCounters;
 use radiant::{
     gui::{
         text_layout::{
@@ -16,17 +17,17 @@ const TEXT_ROWS: usize = 1_024;
 const WORD_SELECTION_CARETS: usize = 1_024;
 const WORD_DELETION_STATES: usize = 1_024;
 
-pub(super) fn text_line_cache_1k() -> impl FnMut() {
+pub(super) fn text_line_cache_1k() -> impl FnMut() -> ScenarioCounters {
     let mut bench = TextLineCacheBench::new();
     move || bench.step()
 }
 
-pub(super) fn text_word_selection_1k() -> impl FnMut() {
+pub(super) fn text_word_selection_1k() -> impl FnMut() -> ScenarioCounters {
     let mut bench = TextWordSelectionBench::new();
     move || bench.step()
 }
 
-pub(super) fn text_word_deletion_1k() -> impl FnMut() {
+pub(super) fn text_word_deletion_1k() -> impl FnMut() -> ScenarioCounters {
     let mut bench = TextWordDeletionBench::new();
     move || bench.step()
 }
@@ -34,6 +35,8 @@ pub(super) fn text_word_deletion_1k() -> impl FnMut() {
 struct TextLineCacheBench {
     cache: TextLineLayoutCache,
     rows: Vec<TextLineRequest>,
+    hot_set_len: usize,
+    warmed: bool,
     tick: usize,
 }
 
@@ -49,14 +52,18 @@ struct TextLineRequest {
 
 impl TextLineCacheBench {
     fn new() -> Self {
+        let cache = TextLineLayoutCache::new();
+        let hot_set_len = cache.capacity();
         Self {
-            cache: TextLineLayoutCache::new(),
-            rows: text_line_requests(TEXT_ROWS),
+            cache,
+            rows: text_line_requests(TEXT_ROWS, hot_set_len),
+            hot_set_len,
+            warmed: false,
             tick: 0,
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         self.tick = self.tick.wrapping_add(1);
         let mut checksum = 0.0;
         for request in &self.rows {
@@ -82,7 +89,15 @@ impl TextLineCacheBench {
         }
         assert!(checksum.is_finite());
         assert!(!self.cache.is_empty());
+        assert_eq!(self.cache.len(), self.hot_set_len);
+        let cache_hits = if self.warmed {
+            self.rows.len()
+        } else {
+            self.rows.len().saturating_sub(self.hot_set_len)
+        };
+        self.warmed = true;
         black_box((checksum, self.tick, self.cache.len()));
+        ScenarioCounters::default().with_text_cache_hit_count(cache_hits as u64)
     }
 }
 
@@ -104,11 +119,12 @@ impl TextWordSelectionBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         let caret = self.carets[self.next % self.carets.len()];
         self.next = self.next.wrapping_add(1);
         assert!(self.state.select_word_at(caret));
         black_box((caret, self.state.selected_text_slice(), self.next));
+        ScenarioCounters::default().with_allocation_sensitive_work_count(1)
     }
 }
 
@@ -131,7 +147,7 @@ impl TextWordDeletionBench {
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self) -> ScenarioCounters {
         let state_index = self.next % self.states.len();
         let state = &mut self.states[state_index];
         if state.char_len() < 96 {
@@ -148,14 +164,17 @@ impl TextWordDeletionBench {
         assert!(result.value_changed);
         self.next = self.next.wrapping_add(1);
         black_box((state_index, caret, state.char_len(), result, self.next));
+        ScenarioCounters::default().with_allocation_sensitive_work_count(1)
     }
 }
 
-fn text_line_requests(count: usize) -> Vec<TextLineRequest> {
+fn text_line_requests(count: usize, hot_set_len: usize) -> Vec<TextLineRequest> {
+    let hot_set_len = hot_set_len.max(1);
     (0..count)
         .map(|index| {
-            let row = index % 128;
-            let column = index / 128;
+            let hot_index = index % hot_set_len;
+            let row = hot_index % 128;
+            let column = hot_index / 128;
             let width = 88.0 + (column % 4) as f32 * 12.0;
             let height = 18.0 + (row % 3) as f32 * 2.0;
             TextLineRequest {
@@ -165,14 +184,14 @@ fn text_line_requests(count: usize) -> Vec<TextLineRequest> {
                 ),
                 font_size: 11.0 + (row % 5) as f32,
                 insets: TextLineInsets {
-                    left: (index % 3) as f32,
-                    right: (index % 5) as f32,
-                    top: (index % 2) as f32,
-                    bottom: (index % 4) as f32,
+                    left: (hot_index % 3) as f32,
+                    right: (hot_index % 5) as f32,
+                    top: (hot_index % 2) as f32,
+                    bottom: (hot_index % 4) as f32,
                 },
-                min_top_inset: (index % 6) as f32 * 0.5,
-                family_id: (index % 8) as u64,
-                centered: index % 2 == 0,
+                min_top_inset: (hot_index % 6) as f32 * 0.5,
+                family_id: (hot_index % 8) as u64,
+                centered: hot_index % 2 == 0,
             }
         })
         .collect()

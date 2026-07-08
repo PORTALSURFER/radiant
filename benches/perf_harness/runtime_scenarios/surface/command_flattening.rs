@@ -1,13 +1,14 @@
 //! Runtime command flattening scenario.
 
+use crate::runner::ScenarioCounters;
 use radiant::runtime::Command;
 use std::hint::black_box;
 
-pub(super) fn command_flattening_512() -> impl FnMut() {
+pub(super) fn command_flattening_512() -> impl FnMut() -> ScenarioCounters {
     bench_command_flattening_512
 }
 
-fn bench_command_flattening_512() {
+fn bench_command_flattening_512() -> ScenarioCounters {
     let command = Command::batch((0..512).map(|index| {
         if index % 8 == 0 {
             Command::batch([
@@ -24,4 +25,5 @@ fn bench_command_flattening_512() {
     let messages = command.into_messages();
     assert_eq!(messages.len(), 486);
     black_box(messages);
+    ScenarioCounters::default().with_allocation_sensitive_work_count(512)
 }

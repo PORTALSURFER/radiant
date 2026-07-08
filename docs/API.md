@@ -2214,9 +2214,16 @@ Use `--jsonl` when collecting trend artifacts for scripts or CI storage:
 cargo bench --bench perf_harness runtime_virtualized_list_hover -- --jsonl
 ```
 
-Each JSON line includes `type`, `scenario`, `category`, `iterations`,
-`total_us`, and `avg_us`, so performance history can be collected without
-scraping prose or losing which target area the scenario validates.
+Each JSON line includes `type`, `scenario`, `category`, `group`, `iterations`,
+`total_us`, and `avg_us`, plus any scenario-owned counters such as
+`scene_rebuild_count`, `static_rebuild_count`, `paint_only_count`,
+`surface_refresh_count`, `relayout_count`, `dirty_mark_count`,
+`overlay_paint_count`, `overlay_rebuild_count`, `text_cache_hit_count`,
+`retained_surface_cache_hit_count`, `gpu_surface_count`,
+`frame_cadence_due_count`, `frame_cadence_wait_count`, and
+`allocation_sensitive_work_count`. This keeps
+performance history parseable without scraping prose or losing which target
+area and review-risk group the scenario validates.
 Capture a machine-local baseline artifact directly with
 `--write-baseline-jsonl`:
 
@@ -2270,9 +2277,10 @@ List the available scenarios without running them with:
 cargo bench --bench perf_harness -- --list
 ```
 
-Metric lines and list output both include each scenario's target-area category
-and default iteration count, so reviewers can quickly spot whether a run covered
-layout, runtime, text, resource, or GPU-facing work.
+Metric lines and list output both include each scenario's target-area category,
+blessed review group, default iteration count, and advertised counters, so
+reviewers can quickly spot whether a run covered layout, runtime, text,
+resource, or GPU-facing work.
 Run a whole target-area category without spelling every scenario with
 `--category`:
 
@@ -2280,11 +2288,54 @@ Run a whole target-area category without spelling every scenario with
 cargo bench --bench perf_harness -- --category runtime_virtualized --jsonl
 ```
 
+Run a blessed high-risk scenario group with `--group`:
+
+```powershell
+cargo bench --bench perf_harness -- --group pointer_motion --jsonl
+```
+
+When running from the Wavecrate repository root instead of `vendor/radiant`,
+use the same harness through the Radiant manifest:
+
+```powershell
+cargo bench --manifest-path vendor/radiant/Cargo.toml --bench perf_harness -- --group pointer_motion --jsonl
+```
+
+Blessed high-risk groups:
+
+| Group | Run before PRs touching | Focused command |
+| --- | --- | --- |
+| `pointer_motion` | hover routing, pointer-move repaint policy, paint-only overlays, menu/popover anchors, GPU-surface cursor overlays | `cargo bench --bench perf_harness -- --group pointer_motion --jsonl` |
+| `virtual_lists` | virtualized list layout, fixed-row scrolling, row-window projection, nested scroll regions, dense row builders | `cargo bench --bench perf_harness -- --group virtual_lists --jsonl` |
+| `scene_cache` | scene rebuild policy, dirty layout caches, retained invalidation masks, refresh/reprojection paths | `cargo bench --bench perf_harness -- --group scene_cache --jsonl` |
+| `text_layout` | text paint plans, text-line layout cache use, word selection/deletion, wrapping or clipped text rows | `cargo bench --bench perf_harness -- --group text_layout --jsonl` |
+| `retained_gpu_surfaces` | GPU surface projection, retained atlas/custom shader paths, signal-summary data preparation, renderer cache diagnostics | `cargo bench --bench perf_harness -- --group retained_gpu_surfaces --jsonl` |
+| `frame_cadence` | resize cadence, animation activity, paint-only frame policy, route-time frame-drain behavior | `cargo bench --bench perf_harness -- --group frame_cadence --jsonl` |
+
+Keep baselines machine-local unless a stable CI baseline is intentionally
+introduced. Capture and compare each blessed group with these copy/paste
+commands:
+
+```powershell
+cargo bench --bench perf_harness -- --group pointer_motion --jsonl --write-baseline-jsonl .\target\radiant-pointer-motion-baseline.jsonl
+cargo bench --bench perf_harness -- --group pointer_motion --jsonl --baseline-jsonl .\target\radiant-pointer-motion-baseline.jsonl
+cargo bench --bench perf_harness -- --group virtual_lists --jsonl --write-baseline-jsonl .\target\radiant-virtual-lists-baseline.jsonl
+cargo bench --bench perf_harness -- --group virtual_lists --jsonl --baseline-jsonl .\target\radiant-virtual-lists-baseline.jsonl
+cargo bench --bench perf_harness -- --group scene_cache --jsonl --write-baseline-jsonl .\target\radiant-scene-cache-baseline.jsonl
+cargo bench --bench perf_harness -- --group scene_cache --jsonl --baseline-jsonl .\target\radiant-scene-cache-baseline.jsonl
+cargo bench --bench perf_harness -- --group text_layout --jsonl --write-baseline-jsonl .\target\radiant-text-layout-baseline.jsonl
+cargo bench --bench perf_harness -- --group text_layout --jsonl --baseline-jsonl .\target\radiant-text-layout-baseline.jsonl
+cargo bench --bench perf_harness -- --group retained_gpu_surfaces --jsonl --write-baseline-jsonl .\target\radiant-retained-gpu-surfaces-baseline.jsonl
+cargo bench --bench perf_harness -- --group retained_gpu_surfaces --jsonl --baseline-jsonl .\target\radiant-retained-gpu-surfaces-baseline.jsonl
+cargo bench --bench perf_harness -- --group frame_cadence --jsonl --write-baseline-jsonl .\target\radiant-frame-cadence-baseline.jsonl
+cargo bench --bench perf_harness -- --group frame_cadence --jsonl --baseline-jsonl .\target\radiant-frame-cadence-baseline.jsonl
+```
+
 It currently covers:
 
 - Layout scenarios: `layout_deep_nesting`, `layout_wrap_1k`, `layout_virtualized_10k`,
-  `layout_virtualized_fixed_10k`, `layout_virtualized_fixed_scroll_10k`, and
-  `layout_mark_dirty_subtree_10k`
+  `layout_virtualized_fixed_10k`, `layout_virtualized_fixed_scroll_10k`,
+  `layout_mark_dirty_subtree_10k`, and `layout_dirty_virtual_cache_10k`
 - Application projection scenarios: `app_virtual_list_projection_10k`,
   `app_virtual_list_projection_generated_child_ids_10k`,
   `app_virtual_selectable_list_projection_10k`, and
@@ -2298,8 +2349,8 @@ It currently covers:
   `runtime_retained_segment_invalidation_1k`,
   `runtime_virtualized_nested_scroll_hover_10k`,
   `runtime_refresh_large_tree`, `runtime_resize_large_tree`,
-  `runtime_command_flattening_512`, `runtime_command_drain_1k`, and
-  `runtime_nested_command_drain_1k`
+  `runtime_animation_frame_cadence_1k`, `runtime_command_flattening_512`,
+  `runtime_command_drain_1k`, and `runtime_nested_command_drain_1k`
 - Resource lifecycle scenarios: `resource_slot_stale_completions_1k`
 - Text scenarios: `text_line_cache_1k`, `text_word_selection_1k`, and
   `text_word_deletion_1k`

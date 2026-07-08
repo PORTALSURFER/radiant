@@ -31,6 +31,11 @@ pub(super) struct DeferredFocusBridge {
 }
 
 #[derive(Default)]
+pub(super) struct DeferredScrollBridge {
+    pub(super) project_count: usize,
+}
+
+#[derive(Default)]
 pub(super) struct DeferredScrollFocusBridge {
     pub(super) show_focus_target: bool,
     pub(super) project_count: usize,
@@ -140,6 +145,17 @@ impl RuntimeBridge<usize> for DeferredFocusBridge {
     }
 }
 
+impl RuntimeBridge<usize> for DeferredScrollBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
+        self.project_count += 1;
+        Arc::new(UiSurface::new(scroll_test_surface(SurfaceNode::container(
+            42,
+            ContainerPolicy::default(),
+            Vec::new(),
+        ))))
+    }
+}
+
 impl RuntimeBridge<usize> for DeferredScrollFocusBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<usize>> {
         self.project_count += 1;
@@ -151,36 +167,7 @@ impl RuntimeBridge<usize> for DeferredScrollFocusBridge {
         } else {
             SurfaceNode::container(42, ContainerPolicy::default(), Vec::new())
         };
-        Arc::new(UiSurface::new(SurfaceNode::scroll_area(
-            10,
-            SurfaceNode::column(
-                11,
-                0.0,
-                vec![
-                    fixed_child(
-                        80.0,
-                        SurfaceNode::widget(
-                            InteractiveRowWidget::new(
-                                30,
-                                WidgetSizing::fixed(Vector2::new(120.0, 80.0)),
-                            ),
-                            WidgetMessageMapper::none(),
-                        ),
-                    ),
-                    fixed_child(22.0, target),
-                    fixed_child(
-                        80.0,
-                        SurfaceNode::widget(
-                            InteractiveRowWidget::new(
-                                31,
-                                WidgetSizing::fixed(Vector2::new(120.0, 80.0)),
-                            ),
-                            WidgetMessageMapper::none(),
-                        ),
-                    ),
-                ],
-            ),
-        )))
+        Arc::new(UiSurface::new(scroll_test_surface(target)))
     }
 
     fn scroll_updated(&mut self, _update: crate::runtime::ScrollUpdate) -> Option<Command<usize>> {
@@ -188,6 +175,39 @@ impl RuntimeBridge<usize> for DeferredScrollFocusBridge {
         self.show_focus_target = true;
         Some(Command::focus(42))
     }
+}
+
+fn scroll_test_surface<Message>(middle: SurfaceNode<Message>) -> SurfaceNode<Message> {
+    SurfaceNode::scroll_area(
+        10,
+        SurfaceNode::column(
+            11,
+            0.0,
+            vec![
+                fixed_child(
+                    80.0,
+                    SurfaceNode::widget(
+                        InteractiveRowWidget::new(
+                            30,
+                            WidgetSizing::fixed(Vector2::new(120.0, 80.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    ),
+                ),
+                fixed_child(22.0, middle),
+                fixed_child(
+                    80.0,
+                    SurfaceNode::widget(
+                        InteractiveRowWidget::new(
+                            31,
+                            WidgetSizing::fixed(Vector2::new(120.0, 80.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    ),
+                ),
+            ],
+        ),
+    )
 }
 
 fn fixed_child<Message>(height: f32, child: SurfaceNode<Message>) -> SurfaceChild<Message> {

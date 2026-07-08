@@ -1,6 +1,6 @@
 use super::{
     super::*,
-    fixtures::{DeferredFocusBridge, DeferredScrollFocusBridge},
+    fixtures::{DeferredFocusBridge, DeferredScrollBridge, DeferredScrollFocusBridge},
 };
 
 #[test]
@@ -49,6 +49,28 @@ fn deferred_command_batch_reuses_fresh_surface_for_followups() {
         runtime.bridge().project_count,
         2,
         "a fresh deferred surface should be reused across layout-dependent batch commands"
+    );
+}
+
+#[test]
+fn deferred_scroll_to_refreshes_before_dispatch_when_surface_is_dirty() {
+    let mut runtime =
+        SurfaceRuntime::new(DeferredScrollBridge::default(), Vector2::new(120.0, 40.0));
+    assert_eq!(runtime.bridge().project_count, 1);
+
+    let mut outcome = CommandOutcome {
+        surface_refresh_requested: true,
+        ..CommandOutcome::default()
+    };
+    runtime.execute_command_inner_deferred_refresh(
+        Command::scroll_to(10, Vector2::new(0.0, 30.0)),
+        &mut outcome,
+    );
+
+    assert_eq!(
+        runtime.bridge().project_count,
+        2,
+        "deferred ScrollTo should refresh stale projected layout before clamping offsets"
     );
 }
 

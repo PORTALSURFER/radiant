@@ -37,14 +37,14 @@ const GPU_ITERATIONS: usize = 60;
 
 fn main() {
     let args = env::args().collect::<Vec<_>>();
+    let filters = runner::scenario_filters_from_args(&args);
+    let category_filters = runner::category_filters_from_args(&args);
+    let group_filters = runner::group_filters_from_args(&args);
     if runner::scenario_list_requested(&args) {
         runner::print_scenario_list(catalog::PERF_SCENARIOS);
         return;
     }
 
-    let filters = runner::scenario_filters_from_args(&args);
-    let category_filters = runner::category_filters_from_args(&args);
-    let group_filters = runner::group_filters_from_args(&args);
     if runner::should_skip_unfiltered_debug_run(&filters, &category_filters, &group_filters) {
         runner::print_unfiltered_debug_skip();
         return;

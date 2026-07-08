@@ -38,11 +38,11 @@ pub(crate) fn scenario_filters_from_args(args: &[String]) -> Vec<String> {
 }
 
 pub(crate) fn category_filters_from_args(args: &[String]) -> Vec<String> {
-    values_after_arg(args, CATEGORY_ARG)
+    filter_values_after_arg(args, CATEGORY_ARG)
 }
 
 pub(crate) fn group_filters_from_args(args: &[String]) -> Vec<String> {
-    values_after_arg(args, GROUP_ARG)
+    filter_values_after_arg(args, GROUP_ARG)
 }
 
 pub(crate) fn scenario_list_requested(args: &[String]) -> bool {
@@ -160,6 +160,15 @@ fn values_after_arg(args: &[String], name: &str) -> Vec<String> {
         if let Some(value) = arg.strip_prefix(&format!("{name}=")) {
             values.push(value.to_owned());
         }
+    }
+    values
+}
+
+fn filter_values_after_arg(args: &[String], name: &str) -> Vec<String> {
+    let values = values_after_arg(args, name);
+    if values.iter().any(|value| value.trim().is_empty()) {
+        eprintln!("radiant_perf filter error: {name} requires a non-empty value");
+        std::process::exit(2);
     }
     values
 }

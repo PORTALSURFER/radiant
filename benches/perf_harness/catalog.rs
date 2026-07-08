@@ -60,7 +60,7 @@ const FRAME_CADENCE_COUNTERS: &[&str] = &[
     "allocation_sensitive_work_count",
 ];
 const RESIZE_COUNTERS: &[&str] = &["relayout_count"];
-const COMMAND_COUNTERS: &[&str] = &["paint_only_count", "allocation_sensitive_work_count"];
+const COMMAND_COUNTERS: &[&str] = &["allocation_sensitive_work_count"];
 const COMMAND_DRAIN_COUNTERS: &[&str] = &["allocation_sensitive_work_count"];
 
 macro_rules! perf_scenario_catalog {

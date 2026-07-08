@@ -9,9 +9,6 @@ pub(super) fn command_flattening_512() -> impl FnMut() -> ScenarioCounters {
 }
 
 fn bench_command_flattening_512() -> ScenarioCounters {
-    let paint_only_count = (0..512)
-        .filter(|index| *index % 8 != 0 && *index % 5 == 0)
-        .count() as u64;
     let command = Command::batch((0..512).map(|index| {
         if index % 8 == 0 {
             Command::batch([
@@ -28,7 +25,5 @@ fn bench_command_flattening_512() -> ScenarioCounters {
     let messages = command.into_messages();
     assert_eq!(messages.len(), 486);
     black_box(messages);
-    ScenarioCounters::default()
-        .with_paint_only_count(paint_only_count)
-        .with_allocation_sensitive_work_count(512)
+    ScenarioCounters::default().with_allocation_sensitive_work_count(512)
 }

@@ -35,6 +35,8 @@ pub(super) fn text_word_deletion_1k() -> impl FnMut() -> ScenarioCounters {
 struct TextLineCacheBench {
     cache: TextLineLayoutCache,
     rows: Vec<TextLineRequest>,
+    hot_set_len: usize,
+    warmed: bool,
     tick: usize,
 }
 
@@ -50,9 +52,13 @@ struct TextLineRequest {
 
 impl TextLineCacheBench {
     fn new() -> Self {
+        let cache = TextLineLayoutCache::new();
+        let hot_set_len = cache.capacity();
         Self {
-            cache: TextLineLayoutCache::new(),
-            rows: text_line_requests(TEXT_ROWS),
+            cache,
+            rows: text_line_requests(TEXT_ROWS, hot_set_len),
+            hot_set_len,
+            warmed: false,
             tick: 0,
         }
     }
@@ -83,8 +89,15 @@ impl TextLineCacheBench {
         }
         assert!(checksum.is_finite());
         assert!(!self.cache.is_empty());
+        assert_eq!(self.cache.len(), self.hot_set_len);
+        let cache_hits = if self.warmed {
+            self.rows.len()
+        } else {
+            self.rows.len().saturating_sub(self.hot_set_len)
+        };
+        self.warmed = true;
         black_box((checksum, self.tick, self.cache.len()));
-        ScenarioCounters::default().with_text_cache_hit_count(self.rows.len() as u64)
+        ScenarioCounters::default().with_text_cache_hit_count(cache_hits as u64)
     }
 }
 
@@ -155,11 +168,13 @@ impl TextWordDeletionBench {
     }
 }
 
-fn text_line_requests(count: usize) -> Vec<TextLineRequest> {
+fn text_line_requests(count: usize, hot_set_len: usize) -> Vec<TextLineRequest> {
+    let hot_set_len = hot_set_len.max(1);
     (0..count)
         .map(|index| {
-            let row = index % 128;
-            let column = index / 128;
+            let hot_index = index % hot_set_len;
+            let row = hot_index % 128;
+            let column = hot_index / 128;
             let width = 88.0 + (column % 4) as f32 * 12.0;
             let height = 18.0 + (row % 3) as f32 * 2.0;
             TextLineRequest {
@@ -169,14 +184,14 @@ fn text_line_requests(count: usize) -> Vec<TextLineRequest> {
                 ),
                 font_size: 11.0 + (row % 5) as f32,
                 insets: TextLineInsets {
-                    left: (index % 3) as f32,
-                    right: (index % 5) as f32,
-                    top: (index % 2) as f32,
-                    bottom: (index % 4) as f32,
+                    left: (hot_index % 3) as f32,
+                    right: (hot_index % 5) as f32,
+                    top: (hot_index % 2) as f32,
+                    bottom: (hot_index % 4) as f32,
                 },
-                min_top_inset: (index % 6) as f32 * 0.5,
-                family_id: (index % 8) as u64,
-                centered: index % 2 == 0,
+                min_top_inset: (hot_index % 6) as f32 * 0.5,
+                family_id: (hot_index % 8) as u64,
+                centered: hot_index % 2 == 0,
             }
         })
         .collect()

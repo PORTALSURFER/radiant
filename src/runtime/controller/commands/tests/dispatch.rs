@@ -1,4 +1,7 @@
-use super::{super::*, fixtures::DeferredFocusBridge};
+use super::{
+    super::*,
+    fixtures::{DeferredFocusBridge, DeferredScrollFocusBridge},
+};
 
 #[test]
 fn deferred_message_dispatch_refreshes_before_focus_followup() {
@@ -47,4 +50,31 @@ fn deferred_command_batch_reuses_fresh_surface_for_followups() {
         2,
         "a fresh deferred surface should be reused across layout-dependent batch commands"
     );
+}
+
+#[test]
+fn deferred_scroll_updated_command_refreshes_before_focus_followup() {
+    let mut runtime = SurfaceRuntime::new(
+        DeferredScrollFocusBridge::default(),
+        Vector2::new(120.0, 40.0),
+    );
+    assert_eq!(runtime.bridge().project_count, 1);
+
+    let scrolled =
+        runtime.scroll_at_with_refresh(Point::new(10.0, 10.0), Vector2::new(0.0, 30.0), false);
+
+    assert!(scrolled);
+    assert_eq!(runtime.bridge().scroll_updates, 1);
+    assert_eq!(
+        runtime.focused_widget(),
+        Some(42),
+        "deferred scroll-updated focus should see the widget revealed by the bridge hook"
+    );
+    assert_eq!(
+        runtime.bridge().project_count,
+        2,
+        "deferred scroll-updated focus should refresh once before dispatching"
+    );
+    let pending = runtime.take_pending_input_command_outcome();
+    assert!(pending.surface_refresh_requested);
 }

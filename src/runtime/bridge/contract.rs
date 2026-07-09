@@ -225,7 +225,10 @@ pub trait RuntimeBridge<Message> {
     // Diagnostics and lifecycle.
 
     /// Return whether [`Self::observe_frame_diagnostics`] consumes frame diagnostics.
-    /// The default preserves existing custom diagnostics observers.
+    ///
+    /// Native runners cache this capability when they are created, so implementations
+    /// must return a stable value for the lifetime of the bridge. The default preserves
+    /// existing custom diagnostics observers.
     fn has_frame_diagnostics_observer(&self) -> bool {
         true
     }

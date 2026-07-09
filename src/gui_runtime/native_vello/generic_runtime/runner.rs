@@ -28,6 +28,7 @@ where
     pub(super) frame: NativeVelloFrameState,
     pub(super) input: NativeRunnerInputState,
     pub(super) timing: NativeRunnerTimingState,
+    pub(super) frame_diagnostics_enabled: bool,
     pub(super) automation_targets: NativeAutomationTargetExporter,
     pub(super) auxiliary_windows: Vec<AuxiliaryNativeWindow<Message>>,
 }
@@ -50,19 +51,22 @@ where
         let debug_layout = options.frame.debug_layout;
         let devtools_overlay = options.frame.devtools;
         let retained_surface_cache = options.frame.retained_surface_cache;
+        let core = GenericNativeRuntimeCore::new_with_frame_options(
+            bridge,
+            viewport,
+            debug_layout,
+            devtools_overlay,
+        );
+        let frame_diagnostics_enabled = core.has_frame_diagnostics_observer();
         Self {
             options,
-            core: GenericNativeRuntimeCore::new_with_frame_options(
-                bridge,
-                viewport,
-                debug_layout,
-                devtools_overlay,
-            ),
+            core,
             runtime_wakeup: RuntimeWakeup::default(),
             window: NativeRunnerWindowState::default(),
             frame: NativeVelloFrameState::new(text_renderer, retained_surface_cache),
             input: NativeRunnerInputState::default(),
             timing: NativeRunnerTimingState::default(),
+            frame_diagnostics_enabled,
             automation_targets: NativeAutomationTargetExporter::from_env(),
             auxiliary_windows: Vec::new(),
         }
@@ -96,10 +100,16 @@ where
     }
 
     pub(super) fn record_frame_work(&mut self, frame_work: FrameWork) {
+        if !self.frame_diagnostics_enabled {
+            return;
+        }
         self.timing.pending_frame_work = self.timing.pending_frame_work.merge(frame_work);
     }
 
     pub(super) fn take_pending_frame_work(&mut self) -> FrameWork {
+        if !self.frame_diagnostics_enabled {
+            return FrameWork::None;
+        }
         let frame_work = self.timing.pending_frame_work;
         self.timing.pending_frame_work = FrameWork::None;
         frame_work

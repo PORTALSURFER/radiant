@@ -90,6 +90,48 @@ fn native_resize_redraw_waits_for_confirmed_frame_work() {
 }
 
 #[test]
+fn frame_diagnostics_redraw_requests_skip_tracking_without_observer() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        NoFrameDiagnosticsBridge,
+        Vector2::new(320.0, 40.0),
+    );
+
+    runner.request_redraw_for_frame_work(FrameWork::PaintOnly {
+        reason: FrameWorkReason::PointerHover,
+    });
+    runner.request_redraw_for_frame_work(FrameWork::ResizeAndRebuild {
+        reason: FrameWorkReason::NativeResize,
+    });
+
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::None,
+        "redraw requests must not mutate diagnostics-only state when no observer is registered"
+    );
+}
+
+#[test]
+fn frame_diagnostics_availability_is_cached_at_runner_start() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        CountingFrameDiagnosticsBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+
+    runner.request_redraw_for_frame_work(FrameWork::PaintOnly {
+        reason: FrameWorkReason::PointerHover,
+    });
+    assert_eq!(runner.take_pending_frame_work(), FrameWork::None);
+
+    assert_eq!(
+        runner.core.runtime.bridge().observer_checks.get(),
+        1,
+        "hot redraw and presentation paths should reuse the startup capability check"
+    );
+}
+
+#[test]
 fn pending_redraw_frame_work_merges_stronger_direct_request() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

@@ -41,6 +41,7 @@ pub(in crate::gui_runtime::native_vello) enum SceneRebuildMode {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello) enum FrameWorkReason {
+    None,
     RoutedInput,
     PointerHover,
     DeferredSurfaceRefresh,
@@ -261,7 +262,7 @@ impl FrameWork {
 
     pub(in crate::gui_runtime::native_vello) fn reason(self) -> FrameWorkReason {
         match self {
-            Self::None => FrameWorkReason::RoutedInput,
+            Self::None => FrameWorkReason::None,
             Self::PaintOnly { reason }
             | Self::RefreshSurface { reason }
             | Self::RebuildScene { reason, .. }
@@ -330,6 +331,7 @@ impl SceneRebuildMode {
 impl FrameWorkReason {
     pub(in crate::gui_runtime::native_vello) fn name(self) -> &'static str {
         match self {
+            Self::None => "none",
             Self::RoutedInput => "routed_input",
             Self::PointerHover => "pointer_hover",
             Self::DeferredSurfaceRefresh => "deferred_surface_refresh",
@@ -439,6 +441,11 @@ mod tests {
     #[test]
     fn route_outcome_covers_every_frame_work_variant() {
         assert_eq!(FrameWork::None.kind(), "none");
+        assert_eq!(FrameWork::None.reason().name(), "none");
+
+        let no_work = GenericRouteOutcome::default();
+        assert_eq!(no_work.frame_work_kind(), "none");
+        assert_eq!(no_work.frame_work_reason(), "none");
 
         let mut interactive = GenericRouteOutcome::default();
         interactive.request_interactive_scene_rebuild(FrameWorkReason::RoutedInput);

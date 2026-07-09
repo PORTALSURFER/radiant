@@ -81,6 +81,7 @@ pub(super) struct NativeRunnerTimingState {
     pub(super) pending_surface_resize: Option<PhysicalSize<u32>>,
     pub(super) pending_surface_resize_reason: Option<FrameWorkReason>,
     pub(super) pending_viewport_resize: Option<Vector2>,
+    pub(super) pending_viewport_resize_reason: Option<FrameWorkReason>,
     pub(super) surface_resize_applied_this_frame: bool,
     pub(super) pending_frame_work: FrameWork,
 }
@@ -104,6 +105,7 @@ impl Default for NativeRunnerTimingState {
             pending_surface_resize: None,
             pending_surface_resize_reason: None,
             pending_viewport_resize: None,
+            pending_viewport_resize_reason: None,
             surface_resize_applied_this_frame: false,
             pending_frame_work: FrameWork::None,
         }

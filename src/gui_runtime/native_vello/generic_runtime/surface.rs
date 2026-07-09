@@ -158,10 +158,10 @@ where
             .pending_surface_resize_reason
             .take()
             .unwrap_or(FrameWorkReason::NativeResize);
-        let applied = self.resize_surface_now(size, false);
+        let applied = self.resize_surface_now(size, false, reason);
         self.timing.surface_resize_applied_this_frame = applied;
         if applied {
-            self.record_frame_work(FrameWork::ResizeAndRebuild { reason });
+            self.record_frame_work(FrameWork::ResizeSurface { reason });
         }
     }
 
@@ -169,6 +169,7 @@ where
         &mut self,
         size: PhysicalSize<u32>,
         request_redraw: bool,
+        reason: FrameWorkReason,
     ) -> bool {
         if size.width == 0 || size.height == 0 {
             return false;
@@ -183,11 +184,12 @@ where
                 return false;
             }
             render_ctx.resize_surface(surface, size.width, size.height);
-            self.defer_viewport_resize(logical_viewport_for_size(size, self.window.dpi_scale));
+            self.defer_viewport_resize_with_reason(
+                logical_viewport_for_size(size, self.window.dpi_scale),
+                reason,
+            );
             if request_redraw {
-                self.request_redraw_for_frame_work(FrameWork::ResizeAndRebuild {
-                    reason: FrameWorkReason::NativeResize,
-                });
+                self.request_redraw_for_frame_work(FrameWork::ResizeSurface { reason });
             }
             return true;
         }
@@ -262,7 +264,7 @@ where
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                 let window = self.window.window.as_ref()?;
                 let size = window.inner_size();
-                let _ = self.resize_surface_now(size, true);
+                let _ = self.resize_surface_now(size, true, FrameWorkReason::NativeResize);
                 None
             }
             Err(wgpu::SurfaceError::OutOfMemory) => {

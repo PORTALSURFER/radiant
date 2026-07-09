@@ -19,6 +19,9 @@ pub(in crate::gui_runtime::native_vello) enum FrameWork {
     RefreshSurface {
         reason: FrameWorkReason,
     },
+    ResizeSurface {
+        reason: FrameWorkReason,
+    },
     RebuildScene {
         reason: FrameWorkReason,
         mode: SceneRebuildMode,
@@ -203,6 +206,7 @@ impl FrameWork {
             self,
             Self::PaintOnly { .. }
                 | Self::RefreshSurface { .. }
+                | Self::ResizeSurface { .. }
                 | Self::RebuildScene { .. }
                 | Self::ResizeAndRebuild { .. }
         )
@@ -225,6 +229,13 @@ impl FrameWork {
             (_, Self::Exit { .. }) => other,
             (Self::ResizeAndRebuild { .. }, _) => self,
             (_, Self::ResizeAndRebuild { .. }) => other,
+            (Self::ResizeSurface { reason }, Self::RebuildScene { .. })
+            | (Self::RebuildScene { .. }, Self::ResizeSurface { reason }) => {
+                Self::ResizeAndRebuild { reason }
+            }
+            (Self::ResizeSurface { .. }, Self::ResizeSurface { .. }) => other,
+            (Self::ResizeSurface { .. }, _) => self,
+            (_, Self::ResizeSurface { .. }) => other,
             (
                 Self::RebuildScene {
                     reason: _,
@@ -265,6 +276,7 @@ impl FrameWork {
             Self::None => FrameWorkReason::None,
             Self::PaintOnly { reason }
             | Self::RefreshSurface { reason }
+            | Self::ResizeSurface { reason }
             | Self::RebuildScene { reason, .. }
             | Self::ResizeAndRebuild { reason }
             | Self::Exit { reason } => reason,
@@ -276,6 +288,7 @@ impl FrameWork {
             Self::None => "none",
             Self::PaintOnly { .. } => "paint_only",
             Self::RefreshSurface { .. } => "refresh_surface",
+            Self::ResizeSurface { .. } => "resize_surface",
             Self::RebuildScene {
                 mode: SceneRebuildMode::Immediate,
                 ..
@@ -439,6 +452,32 @@ mod tests {
     }
 
     #[test]
+    fn resize_surface_work_only_upgrades_after_scene_rebuild() {
+        let resize = FrameWork::ResizeSurface {
+            reason: FrameWorkReason::CommandResize,
+        };
+
+        assert!(resize.needs_redraw());
+        assert!(!resize.needs_scene_rebuild());
+        assert_eq!(resize.kind(), "resize_surface");
+        assert_eq!(
+            resize.merge(FrameWork::PaintOnly {
+                reason: FrameWorkReason::RuntimePaintOnly,
+            }),
+            resize
+        );
+        assert_eq!(
+            resize.merge(FrameWork::RebuildScene {
+                reason: FrameWorkReason::RuntimeSurfaceRepaint,
+                mode: SceneRebuildMode::Immediate,
+            }),
+            FrameWork::ResizeAndRebuild {
+                reason: FrameWorkReason::CommandResize,
+            }
+        );
+    }
+
+    #[test]
     fn route_outcome_covers_every_frame_work_variant() {
         assert_eq!(FrameWork::None.kind(), "none");
         assert_eq!(FrameWork::None.reason().name(), "none");
@@ -446,6 +485,12 @@ mod tests {
         let no_work = GenericRouteOutcome::default();
         assert_eq!(no_work.frame_work_kind(), "none");
         assert_eq!(no_work.frame_work_reason(), "none");
+
+        let resize_surface = FrameWork::ResizeSurface {
+            reason: FrameWorkReason::NativeResize,
+        };
+        assert_eq!(resize_surface.kind(), "resize_surface");
+        assert_eq!(resize_surface.reason().name(), "native_resize");
 
         let mut interactive = GenericRouteOutcome::default();
         interactive.request_interactive_scene_rebuild(FrameWorkReason::RoutedInput);
@@ -476,6 +521,7 @@ mod tests {
         resize.request_resize_and_rebuild(FrameWorkReason::CommandResize);
         assert!(resize.needs_redraw());
         assert!(resize.needs_scene_rebuild());
+        assert_eq!(resize.frame_work_kind(), "resize_and_rebuild");
         assert_eq!(
             resize.frame_work(),
             FrameWork::ResizeAndRebuild {

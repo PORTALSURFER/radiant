@@ -144,7 +144,13 @@ fn deferred_viewport_resize_is_applied_at_scene_rebuild_boundary() {
         Vector2::new(320.0, 40.0),
     );
 
-    runner.defer_viewport_resize(Vector2::new(640.0, 120.0));
+    runner.record_frame_work(FrameWork::ResizeSurface {
+        reason: FrameWorkReason::CommandResize,
+    });
+    runner.defer_viewport_resize_with_reason(
+        Vector2::new(640.0, 120.0),
+        FrameWorkReason::CommandResize,
+    );
 
     assert_eq!(runner.core.runtime.viewport(), Vector2::new(320.0, 40.0));
     assert_eq!(
@@ -156,6 +162,13 @@ fn deferred_viewport_resize_is_applied_at_scene_rebuild_boundary() {
 
     assert_eq!(runner.core.runtime.viewport(), Vector2::new(640.0, 120.0));
     assert_eq!(runner.timing.pending_viewport_resize, None);
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::ResizeAndRebuild {
+            reason: FrameWorkReason::CommandResize,
+        },
+        "logical relayout should upgrade physical resize work to resize-and-rebuild"
+    );
 }
 
 #[test]
@@ -183,6 +196,9 @@ fn subpixel_equivalent_deferred_resize_reuses_encoded_scene() {
     runner.rebuild_scene();
     runner.frame.scene_texture_dirty = false;
 
+    runner.record_frame_work(FrameWork::ResizeSurface {
+        reason: FrameWorkReason::NativeResize,
+    });
     runner.defer_viewport_resize(Vector2::new(320.4, 40.0));
     runner.rebuild_deferred_scene_if_needed(&mut RenderFrameProfile::default());
 
@@ -192,6 +208,13 @@ fn subpixel_equivalent_deferred_resize_reuses_encoded_scene() {
     assert!(
         runner.frame.scene_texture_dirty,
         "the resized surface still needs a fresh texture render"
+    );
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::ResizeSurface {
+            reason: FrameWorkReason::NativeResize,
+        },
+        "subpixel-equivalent resize should not claim a scene rebuild"
     );
 }
 

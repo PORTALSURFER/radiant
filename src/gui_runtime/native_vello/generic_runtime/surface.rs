@@ -132,6 +132,7 @@ where
         self.request_redraw_for_frame_work(FrameWork::None);
     }
 
+    #[cfg(test)]
     pub(super) fn defer_surface_resize(&mut self, size: PhysicalSize<u32>) {
         self.defer_surface_resize_with_reason(size, FrameWorkReason::NativeResize);
     }

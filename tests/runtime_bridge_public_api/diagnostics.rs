@@ -97,6 +97,7 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
         },
     };
 
+    assert!(bridge.has_frame_diagnostics_observer());
     bridge.observe_frame_diagnostics(diagnostics);
 
     assert_eq!(bridge.last, Some(diagnostics));

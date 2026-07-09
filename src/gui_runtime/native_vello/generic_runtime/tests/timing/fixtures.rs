@@ -1,5 +1,6 @@
 use super::shared::*;
 use crate::runtime::{PaintPrimitive, RuntimeAnimationActivity, TransientOverlayContext};
+use std::cell::Cell;
 
 #[derive(Default)]
 pub(super) struct CountingProjectBridge {
@@ -87,6 +88,23 @@ impl RuntimeBridge<DemoMessage> for NoFrameDiagnosticsBridge {
     }
 
     fn has_frame_diagnostics_observer(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Default)]
+pub(super) struct CountingFrameDiagnosticsBridge {
+    pub(super) observer_checks: Cell<usize>,
+}
+
+impl RuntimeBridge<DemoMessage> for CountingFrameDiagnosticsBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        demo_surface(&DemoState::default())
+    }
+
+    fn has_frame_diagnostics_observer(&self) -> bool {
+        self.observer_checks
+            .set(self.observer_checks.get().saturating_add(1));
         false
     }
 }

@@ -36,7 +36,7 @@ where
             return;
         };
         let profile_enabled = render_profile_enabled();
-        let diagnostics_requested = self.core.has_frame_diagnostics_observer();
+        let diagnostics_requested = self.frame_diagnostics_enabled;
         let slow_profile_enabled = slow_render_profile_enabled();
         let mut profile = RenderFrameProfile::recording(
             profile_enabled || diagnostics_requested || slow_profile_enabled,

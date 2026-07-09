@@ -219,6 +219,39 @@ fn subpixel_equivalent_deferred_resize_reuses_encoded_scene() {
 }
 
 #[test]
+fn deferred_refresh_with_subpixel_resize_reports_resize_and_rebuild() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        CountingProjectBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let project_count = runner.core.runtime.bridge().project_count;
+    runner.timing.deferred_surface_refresh = true;
+    runner.record_frame_work(FrameWork::RefreshSurface {
+        reason: FrameWorkReason::DeferredSurfaceRefresh,
+    });
+    runner.record_frame_work(FrameWork::ResizeSurface {
+        reason: FrameWorkReason::NativeResize,
+    });
+    runner.defer_viewport_resize(Vector2::new(320.4, 40.0));
+
+    runner.rebuild_deferred_scene_if_needed(&mut RenderFrameProfile::default());
+
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        project_count + 1
+    );
+    assert_eq!(runner.core.runtime.viewport(), Vector2::new(320.4, 40.0));
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::ResizeAndRebuild {
+            reason: FrameWorkReason::NativeResize,
+        },
+        "surface refresh plus resize must report the scene rebuild performed by frame preparation"
+    );
+}
+
+#[test]
 fn deferred_auxiliary_sync_tracks_interactive_rebuild_deferral() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

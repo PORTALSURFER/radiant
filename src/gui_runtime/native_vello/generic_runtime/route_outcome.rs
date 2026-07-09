@@ -233,6 +233,10 @@ impl FrameWork {
             | (Self::RebuildScene { .. }, Self::ResizeSurface { reason }) => {
                 Self::ResizeAndRebuild { reason }
             }
+            (Self::ResizeSurface { reason }, Self::RefreshSurface { .. })
+            | (Self::RefreshSurface { .. }, Self::ResizeSurface { reason }) => {
+                Self::ResizeAndRebuild { reason }
+            }
             (Self::ResizeSurface { .. }, Self::ResizeSurface { .. }) => other,
             (Self::ResizeSurface { .. }, _) => self,
             (_, Self::ResizeSurface { .. }) => other,
@@ -452,7 +456,7 @@ mod tests {
     }
 
     #[test]
-    fn resize_surface_work_only_upgrades_after_scene_rebuild() {
+    fn resize_surface_work_upgrades_after_refresh_or_scene_rebuild() {
         let resize = FrameWork::ResizeSurface {
             reason: FrameWorkReason::CommandResize,
         };
@@ -471,6 +475,23 @@ mod tests {
                 reason: FrameWorkReason::RuntimeSurfaceRepaint,
                 mode: SceneRebuildMode::Immediate,
             }),
+            FrameWork::ResizeAndRebuild {
+                reason: FrameWorkReason::CommandResize,
+            }
+        );
+        assert_eq!(
+            resize.merge(FrameWork::RefreshSurface {
+                reason: FrameWorkReason::DeferredSurfaceRefresh,
+            }),
+            FrameWork::ResizeAndRebuild {
+                reason: FrameWorkReason::CommandResize,
+            }
+        );
+        assert_eq!(
+            FrameWork::RefreshSurface {
+                reason: FrameWorkReason::DeferredSurfaceRefresh,
+            }
+            .merge(resize),
             FrameWork::ResizeAndRebuild {
                 reason: FrameWorkReason::CommandResize,
             }

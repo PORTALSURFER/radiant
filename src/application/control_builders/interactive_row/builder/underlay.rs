@@ -49,9 +49,6 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
         if policy.activation_modifiers {
             self.row = self.row.activation_modifiers();
         }
-        if policy.drag_session_motion {
-            self.row = self.row.drag_active(true).pointer_motion_active(true);
-        }
         match policy.drag {
             DenseRowDragPolicy::None => {}
             DenseRowDragPolicy::Source {
@@ -88,6 +85,9 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
                     active_target,
                 );
             }
+        }
+        if policy.drag_session_motion {
+            self.row = self.row.drag_active(true).pointer_motion_active(true);
         }
         if let Some(style) = policy.style {
             self.style = Some(style);
@@ -485,5 +485,28 @@ pub fn interactive_row_underlay<Message: 'static>(
         visual_state: InteractiveRowVisualStateParts::default(),
         chrome: DenseInteractiveRowUnderlayChrome::default(),
         dense_chrome: false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{application::text, widgets::Widget};
+
+    #[test]
+    fn dense_row_policy_preserves_drag_session_motion_after_drop_candidate_policy() {
+        let builder = interactive_row_underlay::<()>(text("Sample")).dense_row_policy(
+            DenseRowPolicy::new()
+                .drag_session_motion(true)
+                .tracked_drop_candidate(true, false, false, false),
+        );
+        let row = builder.row.widget();
+
+        assert!(row.props.drag_active);
+        assert!(row.props.droppable);
+        assert!(!row.props.drop_hover);
+        assert!(!row.props.clear_drop_on_hover);
+        assert!(row.props.pointer_motion_active);
+        assert!(row.accepts_pointer_move());
     }
 }

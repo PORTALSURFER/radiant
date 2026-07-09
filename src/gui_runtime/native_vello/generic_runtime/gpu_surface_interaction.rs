@@ -53,7 +53,9 @@ where
         }
         if self.can_fast_path_gpu_surface_route(position, delta) {
             self.timing.deferred_surface_refresh = true;
-            self.request_redraw_for_frame_work(outcome.frame_work());
+            self.request_redraw_for_frame_work(FrameWork::RefreshSurface {
+                reason: FrameWorkReason::DeferredSurfaceRefresh,
+            });
             return;
         }
         self.rebuild_scene();

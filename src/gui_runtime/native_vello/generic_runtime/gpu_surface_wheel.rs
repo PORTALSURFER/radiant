@@ -118,6 +118,7 @@ where
         });
         profile.coalesced_wheel_route = elapsed;
         maybe_log_route_profile("coalesced_wheel", profile.coalesced_wheel_route, outcome);
+        self.record_frame_work(outcome.frame_work());
         if outcome.is_interactive_surface_refresh() {
             self.refresh_and_rebuild_scene_for_interactive_route_now();
             return;
@@ -147,6 +148,7 @@ where
         });
         profile.coalesced_wheel_route += elapsed;
         maybe_log_route_profile("coalesced_scroll_wheel", elapsed, outcome);
+        self.record_frame_work(outcome.frame_work());
         if outcome.is_interactive_surface_refresh() {
             self.refresh_and_rebuild_scene_for_interactive_route_now();
             return;

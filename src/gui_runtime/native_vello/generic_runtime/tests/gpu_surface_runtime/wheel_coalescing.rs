@@ -112,4 +112,12 @@ fn queued_gpu_surface_wheel_refreshes_scroll_fallback_immediately() {
         !runner.timing.deferred_scene_rebuild,
         "interactive scroll fallback should not present a stale scene"
     );
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::RebuildScene {
+            reason: FrameWorkReason::InteractiveSurfaceRefresh,
+            mode: SceneRebuildMode::InteractiveWithSurfaceRefresh,
+        },
+        "coalesced wheel diagnostics should report the frame work discovered while flushing input"
+    );
 }

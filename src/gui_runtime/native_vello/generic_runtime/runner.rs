@@ -69,7 +69,7 @@ where
     }
 
     pub(super) fn request_redraw_for_frame_work(&mut self, frame_work: FrameWork) {
-        self.timing.pending_frame_work = self.timing.pending_frame_work.merge(frame_work);
+        self.record_frame_work(frame_work);
         let now = Instant::now();
         if self.timing.redraw_requested && !self.pending_redraw_request_is_stale(now) {
             return;
@@ -93,6 +93,16 @@ where
             self.timing.redraw_requested = true;
             self.timing.redraw_requested_at = Some(now);
         }
+    }
+
+    pub(super) fn record_frame_work(&mut self, frame_work: FrameWork) {
+        self.timing.pending_frame_work = self.timing.pending_frame_work.merge(frame_work);
+    }
+
+    pub(super) fn take_pending_frame_work(&mut self) -> FrameWork {
+        let frame_work = self.timing.pending_frame_work;
+        self.timing.pending_frame_work = FrameWork::None;
+        frame_work
     }
 
     pub(super) fn pending_redraw_request_is_stale(&self, now: Instant) -> bool {

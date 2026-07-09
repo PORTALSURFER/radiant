@@ -1,6 +1,6 @@
 //! Per-frame model refresh and transient overlay preparation.
 
-use super::{GenericNativeVelloRunner, RenderFrameProfile};
+use super::{FrameWork, FrameWorkReason, GenericNativeVelloRunner, RenderFrameProfile};
 use crate::runtime::RuntimeBridge;
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -25,6 +25,9 @@ where
         self.frame.refresh_gpu_surface_interaction_regions();
         self.frame.refresh_post_gpu_overlay_cache();
         self.export_automation_targets();
+        self.record_frame_work(FrameWork::RefreshSurface {
+            reason: FrameWorkReason::DeferredSurfaceRefresh,
+        });
         self.timing
             .startup_timing
             .mark_deferred_model_refresh_done();

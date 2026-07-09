@@ -25,8 +25,6 @@ where
         self.timing.redraw_requested = false;
         self.timing.redraw_requested_at = None;
         self.timing.surface_resize_applied_this_frame = false;
-        let frame_work = self.timing.pending_frame_work;
-        self.timing.pending_frame_work = super::FrameWork::None;
         if !self.timing.first_frame_presented {
             self.timing.startup_timing.mark_first_redraw_started();
         }
@@ -50,6 +48,7 @@ where
         self.rebuild_deferred_scene_if_needed(&mut profile);
         self.sync_deferred_auxiliary_windows_if_needed(event_loop);
         self.paint_transient_overlays(&mut profile);
+        let frame_work = self.take_pending_frame_work();
         let render_resize_frame_directly = self.should_render_resize_frame_directly();
         let Some(surface) = self.window.render_surface.as_mut() else {
             return;

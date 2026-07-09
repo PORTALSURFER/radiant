@@ -363,6 +363,10 @@ fn native_wheel_over_virtual_list_coalesces_until_redraw() {
     assert!(runner.core.runtime.bridge().scroll_count >= 1);
     assert!(runner.core.runtime.bridge().project_count > project_count);
     assert!(
+        runner.timing.pending_frame_work.needs_scene_rebuild(),
+        "coalesced scroll-container wheel diagnostics should include frame work discovered while flushing input"
+    );
+    assert!(
         runner
             .core
             .runtime

@@ -70,6 +70,11 @@ fn queued_gpu_surface_wheel_flushes_one_coalesced_update() {
         Vector2::new(0.0, -30.0),
         Default::default(),
     );
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::None,
+        "queued input should not claim frame work before it is flushed"
+    );
     runner.flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
 
     assert_eq!(runner.core.runtime.bridge().wheel_count, 1);
@@ -83,6 +88,44 @@ fn queued_gpu_surface_wheel_flushes_one_coalesced_update() {
         "coalesced wheel routing should not refresh until redraw applies deferred refresh"
     );
     assert!(runner.timing.deferred_surface_refresh);
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::RefreshSurface {
+            reason: FrameWorkReason::DeferredSurfaceRefresh,
+        },
+        "flushed GPU wheel input should report the deferred refresh it schedules"
+    );
+}
+
+#[test]
+fn focus_loss_discards_coalesced_input_without_retaining_frame_work() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    let point = Point::new(40.0, 20.0);
+
+    runner.queue_gpu_surface_wheel(point, Vector2::new(0.0, -20.0), Default::default());
+    runner.queue_scroll_container_wheel(point, Vector2::new(0.0, -20.0), Default::default());
+    runner.queue_scrollbar_drag(point);
+
+    assert_eq!(runner.timing.pending_frame_work, FrameWork::None);
+    assert!(runner.input.pending_gpu_surface_wheel.is_some());
+    assert!(runner.input.pending_scroll_container_wheel.is_some());
+    assert!(runner.input.pending_scrollbar_drag.is_some());
+
+    runner.handle_focus_lost_before_external_drag();
+
+    assert!(runner.input.pending_gpu_surface_wheel.is_none());
+    assert!(runner.input.pending_scroll_container_wheel.is_none());
+    assert!(runner.input.pending_scrollbar_drag.is_none());
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::None,
+        "canceled coalesced input must not leak work into presentation diagnostics"
+    );
 }
 
 #[test]
@@ -111,5 +154,13 @@ fn queued_gpu_surface_wheel_refreshes_scroll_fallback_immediately() {
     assert!(
         !runner.timing.deferred_scene_rebuild,
         "interactive scroll fallback should not present a stale scene"
+    );
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::RebuildScene {
+            reason: FrameWorkReason::InteractiveSurfaceRefresh,
+            mode: SceneRebuildMode::InteractiveWithSurfaceRefresh,
+        },
+        "coalesced wheel diagnostics should report the frame work discovered while flushing input"
     );
 }

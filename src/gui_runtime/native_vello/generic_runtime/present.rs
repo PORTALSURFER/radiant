@@ -48,6 +48,7 @@ where
         self.rebuild_deferred_scene_if_needed(&mut profile);
         self.sync_deferred_auxiliary_windows_if_needed(event_loop);
         self.paint_transient_overlays(&mut profile);
+        let frame_work = self.take_pending_frame_work();
         let render_resize_frame_directly = self.should_render_resize_frame_directly();
         let Some(surface) = self.window.render_surface.as_mut() else {
             return;
@@ -87,6 +88,7 @@ where
                 profile,
                 profile_enabled,
                 diagnostics_requested,
+                frame_work,
             );
             return;
         }
@@ -175,6 +177,7 @@ where
                 profile,
                 render_to_texture_elapsed,
                 since_last_present,
+                frame_work,
             });
             self.core
                 .runtime
@@ -199,6 +202,7 @@ where
         profile: RenderFrameProfile,
         profile_enabled: bool,
         diagnostics_requested: bool,
+        frame_work: super::FrameWork,
     ) {
         let text_stats = if profile_enabled || diagnostics_requested {
             self.frame.text_renderer.take_layout_profile_counters()
@@ -237,6 +241,7 @@ where
                 profile,
                 render_to_texture_elapsed,
                 since_last_present,
+                frame_work,
             });
             self.core
                 .runtime

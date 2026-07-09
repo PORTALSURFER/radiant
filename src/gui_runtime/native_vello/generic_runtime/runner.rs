@@ -1,10 +1,10 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
 use super::{
-    AuxiliaryNativeWindow, FrameWork, GenericNativeRuntimeCore, GenericRouteOutcome,
-    NativeAutomationTargetExporter, NativeRunnerInputState, NativeRunnerTimingState,
-    NativeRunnerWindowState, NativeVelloFrameState, RuntimeWakeup, SceneRebuildMode,
-    SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
+    AuxiliaryNativeWindow, FrameWork, FrameWorkReason, GenericNativeRuntimeCore,
+    GenericRouteOutcome, NativeAutomationTargetExporter, NativeRunnerInputState,
+    NativeRunnerTimingState, NativeRunnerWindowState, NativeVelloFrameState, RuntimeWakeup,
+    SceneRebuildMode, SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
     animation_frame_interval_for_normalized_fps, encode_surface_paint_plan_to_scene,
     slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
 };
@@ -68,7 +68,8 @@ where
         }
     }
 
-    pub(super) fn request_redraw_if_needed(&mut self) {
+    pub(super) fn request_redraw_for_frame_work(&mut self, frame_work: FrameWork) {
+        self.record_frame_work(frame_work);
         let now = Instant::now();
         if self.timing.redraw_requested && !self.pending_redraw_request_is_stale(now) {
             return;
@@ -92,6 +93,16 @@ where
             self.timing.redraw_requested = true;
             self.timing.redraw_requested_at = Some(now);
         }
+    }
+
+    pub(super) fn record_frame_work(&mut self, frame_work: FrameWork) {
+        self.timing.pending_frame_work = self.timing.pending_frame_work.merge(frame_work);
+    }
+
+    pub(super) fn take_pending_frame_work(&mut self) -> FrameWork {
+        let frame_work = self.timing.pending_frame_work;
+        self.timing.pending_frame_work = FrameWork::None;
+        frame_work
     }
 
     pub(super) fn pending_redraw_request_is_stale(&self, now: Instant) -> bool {
@@ -293,14 +304,33 @@ where
         self.timing.deferred_scene_rebuild_requires_encode = true;
     }
 
+    #[cfg(test)]
     pub(super) fn defer_viewport_resize(&mut self, viewport: Vector2) {
+        self.defer_viewport_resize_with_reason(viewport, FrameWorkReason::NativeResize);
+    }
+
+    pub(super) fn defer_viewport_resize_with_reason(
+        &mut self,
+        viewport: Vector2,
+        reason: FrameWorkReason,
+    ) {
         self.timing.pending_viewport_resize = Some(viewport);
+        self.timing.pending_viewport_resize_reason = Some(reason);
         self.timing.deferred_scene_rebuild = true;
     }
 
     pub(super) fn apply_pending_viewport_resize_if_needed(&mut self) -> Option<bool> {
         let viewport = self.timing.pending_viewport_resize.take()?;
-        Some(self.core.set_viewport(viewport))
+        let reason = self
+            .timing
+            .pending_viewport_resize_reason
+            .take()
+            .unwrap_or(FrameWorkReason::NativeResize);
+        let relayout = self.core.set_viewport(viewport);
+        if relayout {
+            self.record_frame_work(FrameWork::ResizeAndRebuild { reason });
+        }
+        Some(relayout)
     }
 
     pub(super) fn defer_interactive_scene_rebuild(&mut self) {
@@ -370,7 +400,10 @@ where
         }
         let mut sync_auxiliary_windows_now = false;
         match outcome.frame_work() {
-            FrameWork::None | FrameWork::PaintOnly { .. } | FrameWork::Exit { .. } => {}
+            FrameWork::None
+            | FrameWork::PaintOnly { .. }
+            | FrameWork::ResizeSurface { .. }
+            | FrameWork::Exit { .. } => {}
             FrameWork::RefreshSurface { .. } => {
                 self.timing.deferred_surface_refresh = true;
             }
@@ -404,7 +437,7 @@ where
             },
         }
         if outcome.needs_redraw() {
-            self.request_redraw_if_needed();
+            self.request_redraw_for_frame_work(outcome.frame_work());
         }
         self.request_runtime_wakeup_if_needed(outcome);
         AppliedRouteOutcome {

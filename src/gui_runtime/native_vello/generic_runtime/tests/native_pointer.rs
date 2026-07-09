@@ -226,7 +226,7 @@ fn native_pointer_harness_routes_wheel_with_modifiers() {
         .runner
         .flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
 
-    assert!(route.outcome.is_paint_only() || route.outcome.is_deferred_surface_refresh());
+    assert_eq!(route.outcome.frame_work(), FrameWork::None);
     assert_eq!(route.diagnostic.kind, NativePointerEventKind::MouseWheel);
     assert_eq!(route.diagnostic.result, NativePointerRouteResult::Coalesced);
     assert_eq!(route.diagnostic.hit_target, Some(61));
@@ -234,6 +234,31 @@ fn native_pointer_harness_routes_wheel_with_modifiers() {
     assert_eq!(
         harness.runner.core.runtime.bridge().last_delta,
         Vector2::new(0.0, 80.0)
+    );
+}
+
+#[test]
+fn canceled_coalesced_wheel_does_not_retain_synthetic_lifecycle_work() {
+    let mut harness =
+        NativePointerHarness::new(GpuWheelBridge::default(), Vector2::new(320.0, 80.0));
+    harness.cursor_moved_logical(Point::new(40.0, 20.0));
+    harness.runner.take_pending_frame_work();
+
+    let route = harness.mouse_wheel_route(MouseScrollDelta::LineDelta(0.0, -2.0));
+    assert_eq!(route.diagnostic.result, NativePointerRouteResult::Coalesced);
+    assert_eq!(route.outcome.frame_work(), FrameWork::None);
+    assert!(harness.runner.input.pending_gpu_surface_wheel.is_some());
+
+    harness.runner.apply_route_outcome(route.outcome);
+    assert_eq!(harness.runner.timing.pending_frame_work, FrameWork::None);
+
+    harness.focus_lost();
+
+    assert!(harness.runner.input.pending_gpu_surface_wheel.is_none());
+    assert_eq!(
+        harness.runner.timing.pending_frame_work,
+        FrameWork::None,
+        "focus-loss cancellation must not leave synthetic wheel work for presentation"
     );
 }
 
@@ -308,6 +333,7 @@ fn native_wheel_flushes_stale_coalesced_scroll_before_new_wheel_input() {
         queued.diagnostic.result,
         NativePointerRouteResult::Coalesced
     );
+    assert_eq!(queued.outcome.frame_work(), FrameWork::None);
     assert_eq!(
         harness.runner.core.runtime.bridge().scroll_count,
         0,

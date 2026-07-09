@@ -177,7 +177,13 @@ where
     }
 
     fn has_frame_diagnostics_observer(&self) -> bool {
-        false
+        self.lifecycle.native_frame_diagnostics.is_some()
+    }
+
+    fn observe_frame_diagnostics(&mut self, diagnostics: crate::runtime::NativeFrameDiagnostics) {
+        if let Some(observer) = self.lifecycle.native_frame_diagnostics.as_mut() {
+            observer(&mut self.state, diagnostics);
+        }
     }
 
     fn runtime_diagnostics(&self) -> RuntimeDiagnostics {

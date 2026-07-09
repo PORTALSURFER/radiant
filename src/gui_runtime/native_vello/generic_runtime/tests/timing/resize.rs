@@ -16,6 +16,46 @@ fn deferred_surface_resize_keeps_latest_nonzero_size() {
         runner.timing.pending_surface_resize,
         Some(PhysicalSize::new(640, 360))
     );
+    assert_eq!(
+        runner.timing.pending_surface_resize_reason,
+        Some(FrameWorkReason::NativeResize)
+    );
+}
+
+#[test]
+fn native_resize_event_waits_for_confirmed_resize_before_reporting_frame_work() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+
+    runner.resize_surface(PhysicalSize::new(400, 240));
+
+    assert_eq!(
+        runner.timing.pending_surface_resize,
+        Some(PhysicalSize::new(400, 240))
+    );
+    assert_eq!(runner.timing.pending_frame_work, FrameWork::None);
+}
+
+#[test]
+fn command_resize_reason_survives_deferred_surface_resize() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+
+    runner.defer_surface_resize_with_reason(
+        PhysicalSize::new(480, 270),
+        FrameWorkReason::CommandResize,
+    );
+
+    assert_eq!(
+        runner.timing.pending_surface_resize_reason,
+        Some(FrameWorkReason::CommandResize)
+    );
 }
 
 #[test]
@@ -104,7 +144,13 @@ fn deferred_viewport_resize_is_applied_at_scene_rebuild_boundary() {
         Vector2::new(320.0, 40.0),
     );
 
-    runner.defer_viewport_resize(Vector2::new(640.0, 120.0));
+    runner.record_frame_work(FrameWork::ResizeSurface {
+        reason: FrameWorkReason::CommandResize,
+    });
+    runner.defer_viewport_resize_with_reason(
+        Vector2::new(640.0, 120.0),
+        FrameWorkReason::CommandResize,
+    );
 
     assert_eq!(runner.core.runtime.viewport(), Vector2::new(320.0, 40.0));
     assert_eq!(
@@ -116,6 +162,13 @@ fn deferred_viewport_resize_is_applied_at_scene_rebuild_boundary() {
 
     assert_eq!(runner.core.runtime.viewport(), Vector2::new(640.0, 120.0));
     assert_eq!(runner.timing.pending_viewport_resize, None);
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::ResizeAndRebuild {
+            reason: FrameWorkReason::CommandResize,
+        },
+        "logical relayout should upgrade physical resize work to resize-and-rebuild"
+    );
 }
 
 #[test]
@@ -143,6 +196,9 @@ fn subpixel_equivalent_deferred_resize_reuses_encoded_scene() {
     runner.rebuild_scene();
     runner.frame.scene_texture_dirty = false;
 
+    runner.record_frame_work(FrameWork::ResizeSurface {
+        reason: FrameWorkReason::NativeResize,
+    });
     runner.defer_viewport_resize(Vector2::new(320.4, 40.0));
     runner.rebuild_deferred_scene_if_needed(&mut RenderFrameProfile::default());
 
@@ -152,6 +208,46 @@ fn subpixel_equivalent_deferred_resize_reuses_encoded_scene() {
     assert!(
         runner.frame.scene_texture_dirty,
         "the resized surface still needs a fresh texture render"
+    );
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::ResizeSurface {
+            reason: FrameWorkReason::NativeResize,
+        },
+        "subpixel-equivalent resize should not claim a scene rebuild"
+    );
+}
+
+#[test]
+fn deferred_refresh_with_subpixel_resize_reports_resize_and_rebuild() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        CountingProjectBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let project_count = runner.core.runtime.bridge().project_count;
+    runner.timing.deferred_surface_refresh = true;
+    runner.record_frame_work(FrameWork::RefreshSurface {
+        reason: FrameWorkReason::DeferredSurfaceRefresh,
+    });
+    runner.record_frame_work(FrameWork::ResizeSurface {
+        reason: FrameWorkReason::NativeResize,
+    });
+    runner.defer_viewport_resize(Vector2::new(320.4, 40.0));
+
+    runner.rebuild_deferred_scene_if_needed(&mut RenderFrameProfile::default());
+
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        project_count + 1
+    );
+    assert_eq!(runner.core.runtime.viewport(), Vector2::new(320.4, 40.0));
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::ResizeAndRebuild {
+            reason: FrameWorkReason::NativeResize,
+        },
+        "surface refresh plus resize must report the scene rebuild performed by frame preparation"
     );
 }
 

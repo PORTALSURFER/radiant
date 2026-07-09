@@ -1,7 +1,7 @@
 //! Native pointer routing contract for the generic native Vello runner.
 
 use super::{
-    FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome, maybe_log_route_profile,
+    GenericNativeVelloRunner, GenericRouteOutcome, maybe_log_route_profile,
     pointer_button_from_winit, pointer_modifiers_from_winit, render_profile_enabled,
     scroll_delta_to_logical,
 };
@@ -177,8 +177,7 @@ where
         };
         if self.can_coalesce_gpu_surface_wheel(position, delta) {
             self.queue_gpu_surface_wheel(position, delta, modifiers);
-            let mut outcome = GenericRouteOutcome::default();
-            outcome.request_paint_only(FrameWorkReason::RuntimePaintOnly);
+            let outcome = GenericRouteOutcome::default();
             diagnostic.result = NativePointerRouteResult::Coalesced;
             diagnostic.outcome = outcome;
             diagnostic.deferred_surface_refresh = self.timing.deferred_surface_refresh;
@@ -192,8 +191,7 @@ where
             && !self.pending_interactive_scroll_flush_is_due(now);
         if can_queue_scroll_container_wheel {
             self.queue_scroll_container_wheel(position, delta, modifiers);
-            let mut outcome = GenericRouteOutcome::default();
-            outcome.request_paint_only(FrameWorkReason::RuntimePaintOnly);
+            let outcome = GenericRouteOutcome::default();
             diagnostic.result = NativePointerRouteResult::Coalesced;
             diagnostic.outcome = outcome;
             diagnostic.deferred_surface_refresh = self.timing.deferred_surface_refresh;

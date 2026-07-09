@@ -73,6 +73,76 @@ fn due_frame_animation_waits_behind_fresh_pending_redraw() {
 }
 
 #[test]
+fn native_resize_redraw_waits_for_confirmed_frame_work() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+
+    runner.resize_surface(PhysicalSize::new(640, 360));
+
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::None,
+        "native resize redraws should not report resize work before a surface size change is applied"
+    );
+}
+
+#[test]
+fn pending_redraw_frame_work_merges_stronger_direct_request() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(Instant::now());
+    runner.timing.pending_frame_work = FrameWork::PaintOnly {
+        reason: FrameWorkReason::PointerHover,
+    };
+
+    runner.request_redraw_for_frame_work(FrameWork::ResizeAndRebuild {
+        reason: FrameWorkReason::NativeResize,
+    });
+
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::ResizeAndRebuild {
+            reason: FrameWorkReason::NativeResize
+        },
+        "later direct resize work should not be hidden by an earlier paint-only redraw"
+    );
+}
+
+#[test]
+fn coalesced_routed_redraws_keep_strongest_frame_work() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let mut rebuild = GenericRouteOutcome::default();
+    rebuild.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRepaint);
+    let mut paint_only = GenericRouteOutcome::default();
+    paint_only.request_paint_only(FrameWorkReason::RuntimePaintOnly);
+
+    runner.apply_route_outcome(rebuild);
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(Instant::now());
+    runner.apply_route_outcome(paint_only);
+
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::RebuildScene {
+            reason: FrameWorkReason::RuntimeSurfaceRepaint,
+            mode: SceneRebuildMode::Immediate,
+        },
+        "paint-only routes coalesced behind a pending redraw must not hide scene work"
+    );
+}
+
+#[test]
 fn stale_pending_redraw_does_not_block_due_frame_animation() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

@@ -1,7 +1,8 @@
 //! Window, surface, and renderer setup for the generic native Vello runner.
 
 use super::{
-    GenericNativeVelloRunner, generic_window_attributes, reveal_window_after_surface_setup,
+    FrameWork, FrameWorkReason, GenericNativeVelloRunner, SceneRebuildMode,
+    generic_window_attributes, reveal_window_after_surface_setup,
 };
 use crate::{
     gui::types::Vector2,
@@ -116,7 +117,10 @@ where
             self.timing.startup_timing.mark_window_revealed();
         }
         self.timing.last_redraw = Instant::now();
-        self.request_redraw_if_needed();
+        self.request_redraw_for_frame_work(FrameWork::RebuildScene {
+            reason: FrameWorkReason::RuntimeSurfaceRepaint,
+            mode: SceneRebuildMode::Immediate,
+        });
         self.sync_auxiliary_windows(event_loop);
     }
 
@@ -124,33 +128,54 @@ where
         if size.width == 0 || size.height == 0 {
             return;
         }
-        self.defer_surface_resize(size);
-        self.request_redraw_if_needed();
+        self.defer_surface_resize_with_reason(size, FrameWorkReason::NativeResize);
+        self.request_redraw_for_frame_work(FrameWork::None);
     }
 
+    #[cfg(test)]
     pub(super) fn defer_surface_resize(&mut self, size: PhysicalSize<u32>) {
+        self.defer_surface_resize_with_reason(size, FrameWorkReason::NativeResize);
+    }
+
+    pub(super) fn defer_surface_resize_with_reason(
+        &mut self,
+        size: PhysicalSize<u32>,
+        reason: FrameWorkReason,
+    ) {
         if size.width == 0 || size.height == 0 {
             return;
         }
         self.timing.pending_surface_resize = Some(size);
+        self.timing.pending_surface_resize_reason = Some(reason);
     }
 
     pub(super) fn apply_pending_surface_resize_if_needed(&mut self) {
         let Some(size) = self.timing.pending_surface_resize.take() else {
             return;
         };
-        self.timing.surface_resize_applied_this_frame = self.resize_surface_now(size, false);
+        let reason = self
+            .timing
+            .pending_surface_resize_reason
+            .take()
+            .unwrap_or(FrameWorkReason::NativeResize);
+        let applied = self.resize_surface_now(size, false, reason);
+        self.timing.surface_resize_applied_this_frame = applied;
+        if applied {
+            self.record_frame_work(FrameWork::ResizeSurface { reason });
+        }
     }
 
     pub(super) fn resize_surface_now(
         &mut self,
         size: PhysicalSize<u32>,
         request_redraw: bool,
+        reason: FrameWorkReason,
     ) -> bool {
         if size.width == 0 || size.height == 0 {
             return false;
         }
         self.timing.pending_surface_resize = None;
+        self.timing.pending_surface_resize_reason = None;
         if let (Some(render_ctx), Some(surface)) = (
             self.window.render_ctx.as_ref(),
             self.window.render_surface.as_mut(),
@@ -159,9 +184,12 @@ where
                 return false;
             }
             render_ctx.resize_surface(surface, size.width, size.height);
-            self.defer_viewport_resize(logical_viewport_for_size(size, self.window.dpi_scale));
+            self.defer_viewport_resize_with_reason(
+                logical_viewport_for_size(size, self.window.dpi_scale),
+                reason,
+            );
             if request_redraw {
-                self.request_redraw_if_needed();
+                self.request_redraw_for_frame_work(FrameWork::ResizeSurface { reason });
             }
             return true;
         }
@@ -170,10 +198,19 @@ where
 
     pub(super) fn update_native_dpi_scale(&mut self, scale_factor: f64) {
         self.window.native_dpi_scale = DpiScale::new(scale_factor);
-        if self.apply_active_dpi_scale_to_viewport() {
+        let active_scale_changed = self.apply_active_dpi_scale_to_viewport();
+        let frame_work = if active_scale_changed {
             self.rebuild_scene();
-        }
-        self.request_redraw_if_needed();
+            FrameWork::RebuildScene {
+                reason: FrameWorkReason::NativeDpiScale,
+                mode: SceneRebuildMode::Immediate,
+            }
+        } else {
+            FrameWork::PaintOnly {
+                reason: FrameWorkReason::NativeDpiScale,
+            }
+        };
+        self.request_redraw_for_frame_work(frame_work);
     }
 
     pub(super) fn set_dpi_scale_override(&mut self, scale: DpiScale) {
@@ -190,7 +227,7 @@ where
                 self.window.dpi_scale.logical_to_physical(height).ceil() as u32,
             );
             if let Some(applied_size) = window.request_inner_size(physical_size) {
-                self.resize_surface(applied_size);
+                self.defer_surface_resize_with_reason(applied_size, FrameWorkReason::CommandResize);
             }
         }
     }
@@ -227,7 +264,7 @@ where
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                 let window = self.window.window.as_ref()?;
                 let size = window.inner_size();
-                let _ = self.resize_surface_now(size, true);
+                let _ = self.resize_surface_now(size, true, FrameWorkReason::NativeResize);
                 None
             }
             Err(wgpu::SurfaceError::OutOfMemory) => {

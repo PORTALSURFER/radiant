@@ -104,6 +104,18 @@ where
         self
     }
 
+    /// Observe structured native frame diagnostics when the backend presents a frame.
+    ///
+    /// Register this only for opt-in diagnostics. Native backends use the presence
+    /// of this hook as a hint to collect frame timing and routing metadata.
+    pub fn on_native_frame_diagnostics(
+        mut self,
+        diagnostics: impl FnMut(&mut State, crate::runtime::NativeFrameDiagnostics) + 'static,
+    ) -> Self {
+        self.lifecycle.native_frame_diagnostics = Some(Box::new(diagnostics));
+        self
+    }
+
     /// Register a startup hook.
     pub fn on_startup(
         mut self,

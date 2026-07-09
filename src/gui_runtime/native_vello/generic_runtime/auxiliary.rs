@@ -1,4 +1,7 @@
-use super::{GenericNativeVelloRunner, GenericRouteOutcome, initial_viewport, owner_window_handle};
+use super::{
+    FrameWork, FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome, SceneRebuildMode,
+    initial_viewport, owner_window_handle,
+};
 use crate::runtime::{AuxiliaryWindow, NativeRunOptions, RuntimeBridge};
 use bridge::AuxiliarySurfaceBridge;
 use placement::centered_position;
@@ -56,7 +59,11 @@ impl<Message> AuxiliaryNativeWindow<Message> {
         self.runner.core.refresh_surface();
         self.runner.rebuild_scene();
         self.show();
-        self.runner.request_redraw_if_needed();
+        self.runner
+            .request_redraw_for_frame_work(FrameWork::RebuildScene {
+                reason: FrameWorkReason::RuntimeSurfaceRefresh,
+                mode: SceneRebuildMode::ImmediateWithSurfaceRefresh,
+            });
     }
 
     pub(super) fn initialize_runtime(

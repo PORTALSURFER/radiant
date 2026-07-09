@@ -25,6 +25,8 @@ where
         self.timing.redraw_requested = false;
         self.timing.redraw_requested_at = None;
         self.timing.surface_resize_applied_this_frame = false;
+        let frame_work = self.timing.pending_frame_work;
+        self.timing.pending_frame_work = super::FrameWork::None;
         if !self.timing.first_frame_presented {
             self.timing.startup_timing.mark_first_redraw_started();
         }
@@ -87,6 +89,7 @@ where
                 profile,
                 profile_enabled,
                 diagnostics_requested,
+                frame_work,
             );
             return;
         }
@@ -175,6 +178,7 @@ where
                 profile,
                 render_to_texture_elapsed,
                 since_last_present,
+                frame_work,
             });
             self.core
                 .runtime
@@ -199,6 +203,7 @@ where
         profile: RenderFrameProfile,
         profile_enabled: bool,
         diagnostics_requested: bool,
+        frame_work: super::FrameWork,
     ) {
         let text_stats = if profile_enabled || diagnostics_requested {
             self.frame.text_renderer.take_layout_profile_counters()
@@ -237,6 +242,7 @@ where
                 profile,
                 render_to_texture_elapsed,
                 since_last_present,
+                frame_work,
             });
             self.core
                 .runtime

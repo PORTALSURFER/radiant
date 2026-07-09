@@ -404,6 +404,7 @@ where
             },
         }
         if outcome.needs_redraw() {
+            self.timing.pending_frame_work = outcome.frame_work();
             self.request_redraw_if_needed();
         }
         self.request_runtime_wakeup_if_needed(outcome);

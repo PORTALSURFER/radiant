@@ -211,6 +211,10 @@ impl FrameWork {
         )
     }
 
+    pub(in crate::gui_runtime::native_vello) fn is_paint_only(self) -> bool {
+        matches!(self, Self::PaintOnly { .. })
+    }
+
     fn merge(self, other: Self) -> Self {
         match (self, other) {
             (Self::Exit { .. }, _) => self,
@@ -252,7 +256,7 @@ impl FrameWork {
         }
     }
 
-    fn reason(self) -> FrameWorkReason {
+    pub(in crate::gui_runtime::native_vello) fn reason(self) -> FrameWorkReason {
         match self {
             Self::None => FrameWorkReason::RoutedInput,
             Self::PaintOnly { reason }
@@ -263,7 +267,7 @@ impl FrameWork {
         }
     }
 
-    fn kind(self) -> &'static str {
+    pub(in crate::gui_runtime::native_vello) fn kind(self) -> &'static str {
         match self {
             Self::None => "none",
             Self::PaintOnly { .. } => "paint_only",
@@ -321,7 +325,7 @@ impl SceneRebuildMode {
 }
 
 impl FrameWorkReason {
-    fn name(self) -> &'static str {
+    pub(in crate::gui_runtime::native_vello) fn name(self) -> &'static str {
         match self {
             Self::RoutedInput => "routed_input",
             Self::PointerHover => "pointer_hover",

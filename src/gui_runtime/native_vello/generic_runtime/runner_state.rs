@@ -1,5 +1,6 @@
 //! Focused state groups owned by the generic native Vello runner.
 
+use super::FrameWork;
 use super::PendingGpuSurfaceWheel;
 use super::PendingScrollbarDrag;
 use crate::gui::types::Point;
@@ -80,6 +81,7 @@ pub(super) struct NativeRunnerTimingState {
     pub(super) pending_surface_resize: Option<PhysicalSize<u32>>,
     pub(super) pending_viewport_resize: Option<Vector2>,
     pub(super) surface_resize_applied_this_frame: bool,
+    pub(super) pending_frame_work: FrameWork,
 }
 
 impl Default for NativeRunnerTimingState {
@@ -101,6 +103,7 @@ impl Default for NativeRunnerTimingState {
             pending_surface_resize: None,
             pending_viewport_resize: None,
             surface_resize_applied_this_frame: false,
+            pending_frame_work: FrameWork::None,
         }
     }
 }

@@ -1,5 +1,6 @@
 use super::super::{RenderFrameProfile, RetainedSurfaceEncodeStats, gpu_surface};
 use crate::gui_runtime::native_vello::TextLayoutProfileCounters;
+use crate::gui_runtime::native_vello::generic_runtime::FrameWork;
 use std::time::Duration;
 
 pub(super) struct NativeFrameDiagnosticsParts {
@@ -11,12 +12,19 @@ pub(super) struct NativeFrameDiagnosticsParts {
     pub(super) profile: RenderFrameProfile,
     pub(super) render_to_texture_elapsed: Duration,
     pub(super) since_last_present: Duration,
+    pub(super) frame_work: FrameWork,
 }
 
 pub(super) fn native_frame_diagnostics(
     parts: NativeFrameDiagnosticsParts,
 ) -> crate::runtime::NativeFrameDiagnostics {
     crate::runtime::NativeFrameDiagnostics {
+        presentation: crate::runtime::NativeFramePresentationDiagnostics {
+            frame_work_kind: parts.frame_work.kind(),
+            frame_work_reason: parts.frame_work.reason().name(),
+            paint_only: parts.frame_work.is_paint_only(),
+            scene_rebuild: parts.frame_work.needs_scene_rebuild(),
+        },
         scene: crate::runtime::NativeSceneDiagnostics {
             traversal: crate::runtime::NativeSceneTraversalDiagnostics {
                 paint_plan_primitives: parts.stats.paint_plan_primitives,

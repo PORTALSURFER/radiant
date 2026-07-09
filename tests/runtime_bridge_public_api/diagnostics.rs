@@ -1,7 +1,7 @@
 use super::*;
 use radiant::runtime::{
-    NativeCompositedBaseTiming, NativeFrameDiagnostics, NativeFrameTimingDiagnostics,
-    NativeFrameWorkTimings, NativeGpuSurfaceCustomShaderDiagnostics,
+    NativeCompositedBaseTiming, NativeFrameDiagnostics, NativeFramePresentationDiagnostics,
+    NativeFrameTimingDiagnostics, NativeFrameWorkTimings, NativeGpuSurfaceCustomShaderDiagnostics,
     NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
     NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
     NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
@@ -15,6 +15,7 @@ use std::time::Duration;
 fn runtime_bridge_can_observe_structured_frame_diagnostics() {
     let mut bridge = DiagnosticBridge::default();
     let diagnostics = NativeFrameDiagnostics {
+        presentation: NativeFramePresentationDiagnostics::default(),
         scene: NativeSceneDiagnostics {
             traversal: NativeSceneTraversalDiagnostics {
                 paint_plan_primitives: 12,

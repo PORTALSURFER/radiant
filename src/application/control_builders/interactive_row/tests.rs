@@ -141,6 +141,167 @@ fn interactive_row_underlay_exposes_common_input_presets() {
 }
 
 #[test]
+fn interactive_row_underlay_applies_dense_row_policy_input_bundle() {
+    let surface = interactive_row_underlay(text("Sample"))
+        .dense_row_policy(
+            DenseRowPolicy::new()
+                .custom_paint_hit_target()
+                .activation_modifiers()
+                .drag_session_motion(true)
+                .tracked_drag_source_with_motion(true, true),
+        )
+        .input_id(776)
+        .mapped(|_| ())
+        .size(140.0, 22.0)
+        .into_surface();
+    let _ = surface.frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+        &Default::default(),
+    );
+
+    let row = surface
+        .find_widget(776)
+        .and_then(|widget| {
+            widget
+                .widget()
+                .as_any()
+                .downcast_ref::<crate::widgets::InteractiveRowWidget>()
+        })
+        .expect("underlay should preserve the configured input row");
+
+    assert!(row.props.draggable);
+    assert!(row.props.drag_active);
+    assert!(row.props.drag_source);
+    assert!(row.props.drag_source_motion);
+    assert!(row.props.pointer_motion_active);
+    assert!(row.props.activation_modifiers);
+    assert_eq!(row.common.focus, crate::widgets::FocusBehavior::None);
+    assert!(!row.common.paint.paints_state_layers);
+}
+
+#[test]
+fn dense_row_policy_drag_session_motion_clears_hover_for_input_only_rows() {
+    let surface = interactive_row_underlay(text("Sample"))
+        .dense_row_policy(DenseRowPolicy::new().drag_session_motion(true))
+        .input_id(777)
+        .mapped(|_| ())
+        .size(140.0, 22.0)
+        .into_surface();
+    let _ = surface.frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+        &Default::default(),
+    );
+
+    let mut row = surface
+        .find_widget(777)
+        .and_then(|widget| {
+            widget
+                .widget()
+                .as_any()
+                .downcast_ref::<crate::widgets::InteractiveRowWidget>()
+        })
+        .expect("underlay should preserve the configured input row")
+        .clone();
+
+    assert!(row.props.drag_active);
+    assert!(!row.props.drag_source);
+    assert!(!row.props.droppable);
+    assert!(row.props.pointer_motion_active);
+
+    row.common_mut().state.hovered = true;
+    assert_eq!(
+        row.handle_input(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+            WidgetInput::pointer_move(Point::new(8.0, 6.0)),
+        ),
+        None
+    );
+    assert!(
+        !row.common().state.hovered,
+        "drag-session motion rows should clear stale hover instead of painting hover chrome"
+    );
+}
+
+#[test]
+fn input_only_dense_row_policy_preserves_existing_underlay_visual_state() {
+    let frame = UiSurface::new(
+        interactive_row_underlay(text("Sample"))
+            .selected(true)
+            .dense_row_policy(DenseRowPolicy::new().activation_modifiers())
+            .style(crate::widgets::WidgetStyle::subtle(
+                crate::widgets::WidgetTone::Accent,
+            ))
+            .mapped(|_| ())
+            .size(140.0, 22.0)
+            .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+        &Default::default(),
+    );
+
+    assert!(
+        frame.paint_plan.fill_rects().any(|fill| fill.color
+            == crate::theme::ThemeTokens::default()
+                .accent_mint
+                .with_alpha(120)),
+        "input-only dense-row policies should not clear existing selected chrome"
+    );
+}
+
+#[test]
+fn dense_row_policy_visual_state_overrides_only_configured_parts() {
+    let frame = UiSurface::new(
+        interactive_row_underlay(text("Sample"))
+            .active_target(true)
+            .dense_row_policy(DenseRowPolicy::selectable(true))
+            .style(crate::widgets::WidgetStyle::subtle(
+                crate::widgets::WidgetTone::Accent,
+            ))
+            .mapped(|_| ())
+            .size(140.0, 22.0)
+            .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+        &Default::default(),
+    );
+
+    assert!(
+        frame.paint_plan.fill_rects().any(|fill| fill.color
+            == crate::theme::ThemeTokens::default()
+                .accent_mint
+                .with_alpha(220)),
+        "selected policy should preserve separately configured active-target chrome"
+    );
+}
+
+#[test]
+fn selectable_dense_row_policy_paints_selected_chrome() {
+    let frame = UiSurface::new(
+        interactive_row_underlay(text("Sample"))
+            .dense_row_policy(DenseRowPolicy::selectable(true).style(
+                crate::widgets::WidgetStyle::subtle(crate::widgets::WidgetTone::Accent),
+            ))
+            .mapped(|_| ())
+            .size(140.0, 22.0)
+            .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0)),
+        &Default::default(),
+    );
+
+    assert!(
+        frame.paint_plan.fill_rects().any(|fill| fill.color
+            == crate::theme::ThemeTokens::default()
+                .accent_mint
+                .with_alpha(120)),
+        "selectable dense-row policy should paint the standard selected fill"
+    );
+}
+
+#[test]
 fn interactive_row_underlay_derives_stable_text_input_id() {
     let view = interactive_row_underlay(text("Source"))
         .stable_input_id(42, "source-a")

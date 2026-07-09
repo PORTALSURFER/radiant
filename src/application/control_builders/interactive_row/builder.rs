@@ -6,12 +6,15 @@ mod defaults;
 mod drag_drop;
 #[path = "builder/messages.rs"]
 mod messages;
+#[path = "builder/policy.rs"]
+mod policy;
 #[path = "builder/underlay.rs"]
 mod underlay;
 #[path = "builder/widget.rs"]
 mod widget;
 
 pub use defaults::{interactive_row, row_actions};
+pub use policy::DenseRowPolicy;
 pub use underlay::{InteractiveRowUnderlayBuilder, interactive_row_underlay};
 
 /// Builder for selectable, draggable, droppable dense rows.

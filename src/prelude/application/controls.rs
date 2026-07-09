@@ -2,8 +2,8 @@
 
 pub use crate::application::{
     ActionRowBuilder, BadgeBuilder, ButtonBuilder, ButtonRowParts, ColorMarkerBuilder,
-    DropdownBuilder, DropdownBuilderNeedsToggle, DropdownOption, DropdownOptionParts,
-    DropdownOptionSelection, DropdownParts, DropdownTriggerBuilder,
+    DenseRowPolicy, DropdownBuilder, DropdownBuilderNeedsToggle, DropdownOption,
+    DropdownOptionParts, DropdownOptionSelection, DropdownParts, DropdownTriggerBuilder,
     DropdownTriggerBuilderNeedsToggle, DropdownTriggerParts, FormRowParts, IconButtonBuilder,
     InteractiveBadgeBuilder, InteractiveRowActions, InteractiveRowBuilder,
     InteractiveRowUnderlayBuilder, LabeledControlParts, PointerTarget, PointerTargetBuilder,

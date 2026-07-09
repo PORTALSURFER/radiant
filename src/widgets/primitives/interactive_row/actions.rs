@@ -120,6 +120,28 @@ impl<Message> InteractiveRowActions<Message> {
         self.activate_with_modifiers_key(key, message)
     }
 
+    /// Emit modifier-aware primary activation and a separate double-activation for one row key.
+    ///
+    /// Use this for dense rows where a single click preserves modifier state
+    /// for host-owned selection policy while a double click maps to a distinct
+    /// host action such as opening, auditioning, or confirming the row.
+    pub fn primary_with_modifiers_and_double_key<Key>(
+        mut self,
+        key: Key,
+        primary_message: impl Fn(Key, PointerModifiers) -> Message + Send + Sync + 'static,
+        double_message: impl Fn(Key) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Key: Clone + Send + Sync + 'static,
+    {
+        let primary_key = key.clone();
+        self.activate_with_modifiers = Some(Arc::new(move |modifiers| {
+            primary_message(primary_key.clone(), modifiers)
+        }));
+        self.double_activate = Some(Arc::new(move || double_message(key.clone())));
+        self
+    }
+
     /// Emit a host message for double primary activation.
     pub fn double_activate(
         mut self,

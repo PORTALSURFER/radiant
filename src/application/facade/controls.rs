@@ -2,8 +2,8 @@
 
 pub use super::super::control_builders::{
     ActionRowBuilder, BadgeBuilder, ButtonBuilder, ButtonRowParts, ColorMarkerBuilder,
-    DropdownBuilder, DropdownBuilderNeedsToggle, DropdownOption, DropdownOptionParts,
-    DropdownOptionSelection, DropdownParts, DropdownTriggerBuilder,
+    DenseRowPolicy, DropdownBuilder, DropdownBuilderNeedsToggle, DropdownOption,
+    DropdownOptionParts, DropdownOptionSelection, DropdownParts, DropdownTriggerBuilder,
     DropdownTriggerBuilderNeedsToggle, DropdownTriggerParts, IconButtonBuilder,
     InteractiveBadgeBuilder, InteractiveRowActions, InteractiveRowBuilder,
     InteractiveRowUnderlayBuilder, PointerTarget, PointerTargetBuilder, ProgressBarBuilder,

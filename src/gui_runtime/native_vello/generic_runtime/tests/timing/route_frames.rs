@@ -118,6 +118,33 @@ fn pending_redraw_frame_work_merges_stronger_direct_request() {
 }
 
 #[test]
+fn coalesced_routed_redraws_keep_strongest_frame_work() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    let mut rebuild = GenericRouteOutcome::default();
+    rebuild.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRepaint);
+    let mut paint_only = GenericRouteOutcome::default();
+    paint_only.request_paint_only(FrameWorkReason::RuntimePaintOnly);
+
+    runner.apply_route_outcome(rebuild);
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(Instant::now());
+    runner.apply_route_outcome(paint_only);
+
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::RebuildScene {
+            reason: FrameWorkReason::RuntimeSurfaceRepaint,
+            mode: SceneRebuildMode::Immediate,
+        },
+        "paint-only routes coalesced behind a pending redraw must not hide scene work"
+    );
+}
+
+#[test]
 fn stale_pending_redraw_does_not_block_due_frame_animation() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

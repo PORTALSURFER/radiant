@@ -51,6 +51,9 @@ pub(in crate::gui_runtime::native_vello) enum FrameWorkReason {
     TimedPaintOnlyAnimation,
     TextCaretAnimation,
     NativePointerClear,
+    NativeResize,
+    NativeDpiScale,
+    NativeFocusRegained,
     ExternalDragPreview,
     CommandResize,
     Exit,
@@ -215,7 +218,7 @@ impl FrameWork {
         matches!(self, Self::PaintOnly { .. })
     }
 
-    fn merge(self, other: Self) -> Self {
+    pub(in crate::gui_runtime::native_vello) fn merge(self, other: Self) -> Self {
         match (self, other) {
             (Self::Exit { .. }, _) => self,
             (_, Self::Exit { .. }) => other,
@@ -337,6 +340,9 @@ impl FrameWorkReason {
             Self::TimedPaintOnlyAnimation => "timed_paint_only_animation",
             Self::TextCaretAnimation => "text_caret_animation",
             Self::NativePointerClear => "native_pointer_clear",
+            Self::NativeResize => "native_resize",
+            Self::NativeDpiScale => "native_dpi_scale",
+            Self::NativeFocusRegained => "native_focus_regained",
             Self::ExternalDragPreview => "external_drag_preview",
             Self::CommandResize => "command_resize",
             Self::Exit => "exit",

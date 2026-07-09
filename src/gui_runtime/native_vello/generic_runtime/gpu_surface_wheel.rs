@@ -1,6 +1,9 @@
 //! Wheel coalescing fast paths for retained GPU surface primitives.
 
-use super::{GenericNativeVelloRunner, RenderFrameProfile, maybe_log_route_profile};
+use super::{
+    FrameWork, FrameWorkReason, GenericNativeVelloRunner, RenderFrameProfile, SceneRebuildMode,
+    maybe_log_route_profile,
+};
 use crate::gui::types::{Point, Vector2};
 use crate::widgets::PointerModifiers;
 
@@ -41,7 +44,9 @@ where
             }
         }
         self.update_gpu_surface_cursor_overlay(position);
-        self.request_redraw_if_needed();
+        self.request_redraw_for_frame_work(FrameWork::RefreshSurface {
+            reason: FrameWorkReason::DeferredSurfaceRefresh,
+        });
     }
 
     pub(super) fn queue_scroll_container_wheel(
@@ -64,12 +69,17 @@ where
                 });
             }
         }
-        self.request_redraw_if_needed();
+        self.request_redraw_for_frame_work(FrameWork::RefreshSurface {
+            reason: FrameWorkReason::DeferredSurfaceRefresh,
+        });
     }
 
     pub(super) fn queue_scrollbar_drag(&mut self, position: Point) {
         self.input.pending_scrollbar_drag = Some(PendingScrollbarDrag { position });
-        self.request_redraw_if_needed();
+        self.request_redraw_for_frame_work(FrameWork::RebuildScene {
+            reason: FrameWorkReason::InteractiveSurfaceRefresh,
+            mode: SceneRebuildMode::InteractiveWithSurfaceRefresh,
+        });
     }
 
     pub(super) fn flush_pending_scrollbar_drag_now(&mut self) {

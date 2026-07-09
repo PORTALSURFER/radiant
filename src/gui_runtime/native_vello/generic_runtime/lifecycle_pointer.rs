@@ -1,8 +1,8 @@
 //! Pointer lifecycle helpers for the generic native Vello runner.
 
 use super::{
-    FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome, logical_point_from_winit,
-    maybe_log_route_profile,
+    FrameWork, FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome, SceneRebuildMode,
+    logical_point_from_winit, maybe_log_route_profile,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
@@ -42,7 +42,9 @@ where
         if self.can_fast_path_native_hover_move(position) {
             self.update_gpu_surface_cursor_overlay(position);
             self.update_native_cursor_at_last_position();
-            self.request_redraw_if_needed();
+            self.request_redraw_for_frame_work(FrameWork::PaintOnly {
+                reason: FrameWorkReason::PointerHover,
+            });
             return;
         }
         let cleared_previous_gpu_hover = previous
@@ -50,7 +52,9 @@ where
             && previous.is_some_and(|previous| self.clear_gpu_surface_cursor_overlay(previous));
         if cleared_previous_gpu_hover {
             self.update_native_cursor_at_last_position();
-            self.request_redraw_if_needed();
+            self.request_redraw_for_frame_work(FrameWork::PaintOnly {
+                reason: FrameWorkReason::NativePointerClear,
+            });
         }
         let started = Instant::now();
         let outcome = self.core.route_pointer_move(position);
@@ -64,7 +68,7 @@ where
     pub(super) fn handle_cursor_left(&mut self, event_loop: &ActiveEventLoop) {
         let pointer_cleared = self.clear_native_pointer_presence();
         if pointer_cleared.needs_redraw() {
-            self.request_redraw_if_needed();
+            self.request_redraw_for_frame_work(pointer_cleared.frame_work());
         }
         let preview_hidden = self.core.runtime.hide_drag_preview_for_cursor_left();
         if preview_hidden {
@@ -73,7 +77,10 @@ where
                 self.handle_route_outcome(event_loop, outcome);
             } else {
                 self.rebuild_scene();
-                self.request_redraw_if_needed();
+                self.request_redraw_for_frame_work(FrameWork::RebuildScene {
+                    reason: FrameWorkReason::ExternalDragPreview,
+                    mode: SceneRebuildMode::Immediate,
+                });
             }
             return;
         }
@@ -90,7 +97,9 @@ where
 
     pub(super) fn handle_focus_regained_after_native_modal_loop(&mut self) {
         self.timing.redraw_requested = false;
-        self.request_redraw_if_needed();
+        self.request_redraw_for_frame_work(FrameWork::PaintOnly {
+            reason: FrameWorkReason::NativeFocusRegained,
+        });
     }
 
     fn clear_native_pointer_presence(&mut self) -> GenericRouteOutcome {

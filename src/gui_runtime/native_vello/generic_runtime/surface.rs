@@ -1,7 +1,8 @@
 //! Window, surface, and renderer setup for the generic native Vello runner.
 
 use super::{
-    GenericNativeVelloRunner, generic_window_attributes, reveal_window_after_surface_setup,
+    FrameWork, FrameWorkReason, GenericNativeVelloRunner, SceneRebuildMode,
+    generic_window_attributes, reveal_window_after_surface_setup,
 };
 use crate::{
     gui::types::Vector2,
@@ -116,7 +117,10 @@ where
             self.timing.startup_timing.mark_window_revealed();
         }
         self.timing.last_redraw = Instant::now();
-        self.request_redraw_if_needed();
+        self.request_redraw_for_frame_work(FrameWork::RebuildScene {
+            reason: FrameWorkReason::RuntimeSurfaceRepaint,
+            mode: SceneRebuildMode::Immediate,
+        });
         self.sync_auxiliary_windows(event_loop);
     }
 
@@ -125,7 +129,9 @@ where
             return;
         }
         self.defer_surface_resize(size);
-        self.request_redraw_if_needed();
+        self.request_redraw_for_frame_work(FrameWork::ResizeAndRebuild {
+            reason: FrameWorkReason::NativeResize,
+        });
     }
 
     pub(super) fn defer_surface_resize(&mut self, size: PhysicalSize<u32>) {
@@ -161,7 +167,9 @@ where
             render_ctx.resize_surface(surface, size.width, size.height);
             self.defer_viewport_resize(logical_viewport_for_size(size, self.window.dpi_scale));
             if request_redraw {
-                self.request_redraw_if_needed();
+                self.request_redraw_for_frame_work(FrameWork::ResizeAndRebuild {
+                    reason: FrameWorkReason::NativeResize,
+                });
             }
             return true;
         }
@@ -170,10 +178,19 @@ where
 
     pub(super) fn update_native_dpi_scale(&mut self, scale_factor: f64) {
         self.window.native_dpi_scale = DpiScale::new(scale_factor);
-        if self.apply_active_dpi_scale_to_viewport() {
+        let active_scale_changed = self.apply_active_dpi_scale_to_viewport();
+        let frame_work = if active_scale_changed {
             self.rebuild_scene();
-        }
-        self.request_redraw_if_needed();
+            FrameWork::RebuildScene {
+                reason: FrameWorkReason::NativeDpiScale,
+                mode: SceneRebuildMode::Immediate,
+            }
+        } else {
+            FrameWork::PaintOnly {
+                reason: FrameWorkReason::NativeDpiScale,
+            }
+        };
+        self.request_redraw_for_frame_work(frame_work);
     }
 
     pub(super) fn set_dpi_scale_override(&mut self, scale: DpiScale) {

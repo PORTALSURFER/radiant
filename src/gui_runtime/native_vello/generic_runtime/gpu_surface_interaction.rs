@@ -1,7 +1,7 @@
 //! Interaction fast paths for retained GPU surface primitives.
 
 use super::{
-    FrameWork, GenericNativeVelloRunner, GenericRouteOutcome, SceneRebuildMode,
+    FrameWork, FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome, SceneRebuildMode,
     gpu_surface_cursor::{
         clear_surface_cursor_overlay, topmost_native_hover_surface_index,
         update_surface_cursor_overlay,
@@ -30,12 +30,12 @@ where
             match mode {
                 SceneRebuildMode::InteractiveWithSurfaceRefresh => {
                     self.refresh_and_rebuild_scene_for_interactive_route_now();
-                    self.request_redraw_if_needed();
+                    self.request_redraw_for_frame_work(outcome.frame_work());
                     return;
                 }
                 SceneRebuildMode::ImmediateWithSurfaceRefresh => {
                     self.refresh_and_rebuild_scene_now();
-                    self.request_redraw_if_needed();
+                    self.request_redraw_for_frame_work(outcome.frame_work());
                     return;
                 }
                 SceneRebuildMode::Interactive => {
@@ -45,7 +45,7 @@ where
                     } else {
                         self.defer_interactive_scene_rebuild();
                     }
-                    self.request_redraw_if_needed();
+                    self.request_redraw_for_frame_work(outcome.frame_work());
                     return;
                 }
                 SceneRebuildMode::Immediate => {}
@@ -53,11 +53,14 @@ where
         }
         if self.can_fast_path_gpu_surface_route(position, delta) {
             self.timing.deferred_surface_refresh = true;
-            self.request_redraw_if_needed();
+            self.request_redraw_for_frame_work(outcome.frame_work());
             return;
         }
         self.rebuild_scene();
-        self.request_redraw_if_needed();
+        self.request_redraw_for_frame_work(FrameWork::RebuildScene {
+            reason: outcome.frame_work().reason(),
+            mode: SceneRebuildMode::Immediate,
+        });
     }
 
     pub(super) fn handle_gpu_surface_pointer_move_outcome(
@@ -71,12 +74,12 @@ where
             return;
         }
         if outcome.is_paint_only() {
-            self.request_redraw_if_needed();
+            self.request_redraw_for_frame_work(outcome.frame_work());
             return;
         }
         if outcome.is_deferred_surface_refresh() {
             self.timing.deferred_surface_refresh = true;
-            self.request_redraw_if_needed();
+            self.request_redraw_for_frame_work(outcome.frame_work());
             return;
         }
         if let FrameWork::RebuildScene {
@@ -85,7 +88,7 @@ where
         } = outcome.frame_work()
         {
             self.refresh_and_rebuild_scene_now();
-            self.request_redraw_if_needed();
+            self.request_redraw_for_frame_work(outcome.frame_work());
             return;
         }
         if let Some(mode) = outcome.interactive_scene_rebuild_mode() {
@@ -112,22 +115,27 @@ where
                     unreachable!("filtered interactive modes only")
                 }
             }
-            self.request_redraw_if_needed();
+            self.request_redraw_for_frame_work(outcome.frame_work());
             return;
         }
         if outcome.routed {
             self.rebuild_scene();
-            self.request_redraw_if_needed();
+            self.request_redraw_for_frame_work(outcome.frame_work());
             return;
         }
         if self.can_fast_path_gpu_surface_pointer_move(previous, position) {
             if self.update_gpu_surface_cursor_overlay(position) {
-                self.request_redraw_if_needed();
+                self.request_redraw_for_frame_work(FrameWork::PaintOnly {
+                    reason: FrameWorkReason::PointerHover,
+                });
             }
             return;
         }
         self.rebuild_scene();
-        self.request_redraw_if_needed();
+        self.request_redraw_for_frame_work(FrameWork::RebuildScene {
+            reason: outcome.frame_work().reason(),
+            mode: SceneRebuildMode::Immediate,
+        });
     }
 
     pub(super) fn can_fast_path_gpu_surface_pointer_move(

@@ -73,6 +73,51 @@ fn due_frame_animation_waits_behind_fresh_pending_redraw() {
 }
 
 #[test]
+fn direct_redraw_request_records_frame_work_without_route_outcome() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+
+    runner.resize_surface(PhysicalSize::new(640, 360));
+
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::ResizeAndRebuild {
+            reason: FrameWorkReason::NativeResize
+        },
+        "native redraw paths should annotate diagnostics even when no route outcome was applied"
+    );
+}
+
+#[test]
+fn pending_redraw_frame_work_merges_stronger_direct_request() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+    runner.timing.redraw_requested = true;
+    runner.timing.redraw_requested_at = Some(Instant::now());
+    runner.timing.pending_frame_work = FrameWork::PaintOnly {
+        reason: FrameWorkReason::PointerHover,
+    };
+
+    runner.request_redraw_for_frame_work(FrameWork::ResizeAndRebuild {
+        reason: FrameWorkReason::NativeResize,
+    });
+
+    assert_eq!(
+        runner.timing.pending_frame_work,
+        FrameWork::ResizeAndRebuild {
+            reason: FrameWorkReason::NativeResize
+        },
+        "later direct resize work should not be hidden by an earlier paint-only redraw"
+    );
+}
+
+#[test]
 fn stale_pending_redraw_does_not_block_due_frame_animation() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),

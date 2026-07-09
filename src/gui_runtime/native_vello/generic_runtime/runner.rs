@@ -68,7 +68,8 @@ where
         }
     }
 
-    pub(super) fn request_redraw_if_needed(&mut self) {
+    pub(super) fn request_redraw_for_frame_work(&mut self, frame_work: FrameWork) {
+        self.timing.pending_frame_work = self.timing.pending_frame_work.merge(frame_work);
         let now = Instant::now();
         if self.timing.redraw_requested && !self.pending_redraw_request_is_stale(now) {
             return;
@@ -404,8 +405,7 @@ where
             },
         }
         if outcome.needs_redraw() {
-            self.timing.pending_frame_work = outcome.frame_work();
-            self.request_redraw_if_needed();
+            self.request_redraw_for_frame_work(outcome.frame_work());
         }
         self.request_runtime_wakeup_if_needed(outcome);
         AppliedRouteOutcome {

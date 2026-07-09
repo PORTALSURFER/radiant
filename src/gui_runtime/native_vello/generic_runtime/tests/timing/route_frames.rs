@@ -73,7 +73,7 @@ fn due_frame_animation_waits_behind_fresh_pending_redraw() {
 }
 
 #[test]
-fn direct_redraw_request_records_frame_work_without_route_outcome() {
+fn native_resize_redraw_waits_for_confirmed_frame_work() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
         TestFrameMessageBridge::default(),
@@ -84,10 +84,8 @@ fn direct_redraw_request_records_frame_work_without_route_outcome() {
 
     assert_eq!(
         runner.timing.pending_frame_work,
-        FrameWork::ResizeAndRebuild {
-            reason: FrameWorkReason::NativeResize
-        },
-        "native redraw paths should annotate diagnostics even when no route outcome was applied"
+        FrameWork::None,
+        "native resize redraws should not report resize work before a surface size change is applied"
     );
 }
 

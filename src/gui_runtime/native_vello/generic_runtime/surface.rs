@@ -128,24 +128,40 @@ where
         if size.width == 0 || size.height == 0 {
             return;
         }
-        self.defer_surface_resize(size);
-        self.request_redraw_for_frame_work(FrameWork::ResizeAndRebuild {
-            reason: FrameWorkReason::NativeResize,
-        });
+        self.defer_surface_resize_with_reason(size, FrameWorkReason::NativeResize);
+        self.request_redraw_for_frame_work(FrameWork::None);
     }
 
     pub(super) fn defer_surface_resize(&mut self, size: PhysicalSize<u32>) {
+        self.defer_surface_resize_with_reason(size, FrameWorkReason::NativeResize);
+    }
+
+    pub(super) fn defer_surface_resize_with_reason(
+        &mut self,
+        size: PhysicalSize<u32>,
+        reason: FrameWorkReason,
+    ) {
         if size.width == 0 || size.height == 0 {
             return;
         }
         self.timing.pending_surface_resize = Some(size);
+        self.timing.pending_surface_resize_reason = Some(reason);
     }
 
     pub(super) fn apply_pending_surface_resize_if_needed(&mut self) {
         let Some(size) = self.timing.pending_surface_resize.take() else {
             return;
         };
-        self.timing.surface_resize_applied_this_frame = self.resize_surface_now(size, false);
+        let reason = self
+            .timing
+            .pending_surface_resize_reason
+            .take()
+            .unwrap_or(FrameWorkReason::NativeResize);
+        let applied = self.resize_surface_now(size, false);
+        self.timing.surface_resize_applied_this_frame = applied;
+        if applied {
+            self.record_frame_work(FrameWork::ResizeAndRebuild { reason });
+        }
     }
 
     pub(super) fn resize_surface_now(
@@ -157,6 +173,7 @@ where
             return false;
         }
         self.timing.pending_surface_resize = None;
+        self.timing.pending_surface_resize_reason = None;
         if let (Some(render_ctx), Some(surface)) = (
             self.window.render_ctx.as_ref(),
             self.window.render_surface.as_mut(),
@@ -207,7 +224,7 @@ where
                 self.window.dpi_scale.logical_to_physical(height).ceil() as u32,
             );
             if let Some(applied_size) = window.request_inner_size(physical_size) {
-                self.resize_surface(applied_size);
+                self.defer_surface_resize_with_reason(applied_size, FrameWorkReason::CommandResize);
             }
         }
     }

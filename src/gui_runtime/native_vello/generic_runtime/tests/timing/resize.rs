@@ -16,6 +16,46 @@ fn deferred_surface_resize_keeps_latest_nonzero_size() {
         runner.timing.pending_surface_resize,
         Some(PhysicalSize::new(640, 360))
     );
+    assert_eq!(
+        runner.timing.pending_surface_resize_reason,
+        Some(FrameWorkReason::NativeResize)
+    );
+}
+
+#[test]
+fn native_resize_event_waits_for_confirmed_resize_before_reporting_frame_work() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+
+    runner.resize_surface(PhysicalSize::new(400, 240));
+
+    assert_eq!(
+        runner.timing.pending_surface_resize,
+        Some(PhysicalSize::new(400, 240))
+    );
+    assert_eq!(runner.timing.pending_frame_work, FrameWork::None);
+}
+
+#[test]
+fn command_resize_reason_survives_deferred_surface_resize() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        TestFrameMessageBridge::default(),
+        Vector2::new(320.0, 40.0),
+    );
+
+    runner.defer_surface_resize_with_reason(
+        PhysicalSize::new(480, 270),
+        FrameWorkReason::CommandResize,
+    );
+
+    assert_eq!(
+        runner.timing.pending_surface_resize_reason,
+        Some(FrameWorkReason::CommandResize)
+    );
 }
 
 #[test]

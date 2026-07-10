@@ -75,7 +75,28 @@ fn widget_callback_allocation_count<Message>(node: &SurfaceNode<Message>) -> usi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{layout::Vector2, widgets::WidgetSizing};
+    use crate::{
+        layout::Vector2,
+        widgets::{ButtonMessage, WidgetOutput, WidgetSizing},
+    };
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    #[derive(Debug)]
+    struct CountedMessage {
+        clone_count: Arc<AtomicUsize>,
+    }
+
+    impl Clone for CountedMessage {
+        fn clone(&self) -> Self {
+            self.clone_count.fetch_add(1, Ordering::Relaxed);
+            Self {
+                clone_count: Arc::clone(&self.clone_count),
+            }
+        }
+    }
 
     #[test]
     fn callback_allocation_count_distinguishes_constant_and_dynamic_button_mappers() {
@@ -85,5 +106,33 @@ mod tests {
 
         assert_eq!(constant.widget_callback_allocation_count(), 0);
         assert_eq!(dynamic.widget_callback_allocation_count(), 1);
+    }
+
+    #[test]
+    fn cloning_surface_shares_constant_message_without_cloning_it() {
+        let clone_count = Arc::new(AtomicUsize::new(0));
+        let surface = UiSurface::new(SurfaceNode::button(
+            1,
+            "Constant",
+            WidgetSizing::fixed(Vector2::new(80.0, 24.0)),
+            CountedMessage {
+                clone_count: Arc::clone(&clone_count),
+            },
+        ));
+
+        let cloned = surface.clone();
+        assert_eq!(clone_count.load(Ordering::Relaxed), 0);
+
+        assert!(
+            surface
+                .dispatch_widget_output(1, WidgetOutput::typed(ButtonMessage::Activate))
+                .is_some()
+        );
+        assert!(
+            cloned
+                .dispatch_widget_output(1, WidgetOutput::typed(ButtonMessage::Activate))
+                .is_some()
+        );
+        assert_eq!(clone_count.load(Ordering::Relaxed), 2);
     }
 }

@@ -4,17 +4,30 @@ use crate::{
     runtime::{NativeFileDrop, ScrollUpdate},
     widgets::WidgetOutput,
 };
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 type DynamicOutputMapper<Message> = Arc<dyn Fn(WidgetOutput) -> Option<Message> + Send + Sync>;
 
 enum OutputMapper<Message> {
     Dynamic(DynamicOutputMapper<Message>),
-    Constant {
-        message: Message,
-        matches: fn(&WidgetOutput) -> bool,
-        clone_message: fn(&Message) -> Message,
-    },
+    Constant(ConstantOutputMapper<Message>),
+}
+
+/// Constant binding that stays inline until it must be shared by a clone.
+struct ConstantOutputMapper<Message> {
+    message: Mutex<ConstantMessage<Message>>,
+    matches: fn(&WidgetOutput) -> bool,
+    clone_message: fn(&Message) -> Message,
+}
+
+/// Storage state for a constant host message.
+enum ConstantMessage<Message> {
+    /// Message owned inline by a freshly projected mapper.
+    Inline(Message),
+    /// Message shared after the mapper or its enclosing surface is cloned.
+    Shared(Arc<Message>),
+    /// Temporary sentinel used only while moving storage under the mutex.
+    Transitioning,
 }
 
 // SAFETY: Dynamic mappers store only a `Send + Sync` callback and do not retain
@@ -32,16 +45,59 @@ impl<Message> Clone for OutputMapper<Message> {
     fn clone(&self) -> Self {
         match self {
             Self::Dynamic(map) => Self::Dynamic(Arc::clone(map)),
-            Self::Constant {
-                message,
-                matches,
-                clone_message,
-            } => Self::Constant {
-                message: clone_message(message),
-                matches: *matches,
-                clone_message: *clone_message,
-            },
+            Self::Constant(map) => Self::Constant(map.clone()),
         }
+    }
+}
+
+impl<Message> Clone for ConstantOutputMapper<Message> {
+    fn clone(&self) -> Self {
+        let cloned = self
+            .shared_message()
+            .map_or(ConstantMessage::Transitioning, ConstantMessage::Shared);
+        Self {
+            message: Mutex::new(cloned),
+            matches: self.matches,
+            clone_message: self.clone_message,
+        }
+    }
+}
+
+impl<Message> ConstantOutputMapper<Message> {
+    fn shared_message(&self) -> Option<Arc<Message>> {
+        let mut message = lock_constant_message(&self.message);
+        let current = std::mem::replace(&mut *message, ConstantMessage::Transitioning);
+        match current {
+            ConstantMessage::Inline(current) => {
+                let current = Arc::new(current);
+                let shared = Arc::clone(&current);
+                *message = ConstantMessage::Shared(current);
+                Some(shared)
+            }
+            ConstantMessage::Shared(current) => {
+                let shared = Arc::clone(&current);
+                *message = ConstantMessage::Shared(current);
+                Some(shared)
+            }
+            ConstantMessage::Transitioning => None,
+        }
+    }
+
+    fn map_output(&self, output: &WidgetOutput) -> Option<Message> {
+        if !(self.matches)(output) {
+            return None;
+        }
+        let message = self.shared_message()?;
+        Some((self.clone_message)(message.as_ref()))
+    }
+}
+
+fn lock_constant_message<Message>(
+    message: &Mutex<ConstantMessage<Message>>,
+) -> MutexGuard<'_, ConstantMessage<Message>> {
+    match message.lock() {
+        Ok(message) => message,
+        Err(poisoned) => poisoned.into_inner(),
     }
 }
 
@@ -99,11 +155,11 @@ impl<Message> WidgetMessageMapper<Message> {
         Message: Clone + Send + Sync + 'static,
     {
         Self {
-            map: Some(OutputMapper::Constant {
-                message,
+            map: Some(OutputMapper::Constant(ConstantOutputMapper {
+                message: Mutex::new(ConstantMessage::Inline(message)),
                 matches,
                 clone_message: Message::clone,
-            }),
+            })),
             native_file_drop: None,
         }
     }
@@ -136,11 +192,7 @@ impl<Message> WidgetMessageMapper<Message> {
     pub(super) fn map_output(&self, output: WidgetOutput) -> Option<Message> {
         match self.map.as_ref()? {
             OutputMapper::Dynamic(map) => map(output),
-            OutputMapper::Constant {
-                message,
-                matches,
-                clone_message,
-            } => matches(&output).then(|| clone_message(message)),
+            OutputMapper::Constant(map) => map.map_output(&output),
         }
     }
 
@@ -176,7 +228,7 @@ mod tests {
     fn constant_mapper_stores_message_without_dynamic_callback() {
         let mapper = WidgetMessageMapper::button_message(());
 
-        assert!(matches!(mapper.map, Some(OutputMapper::Constant { .. })));
+        assert!(matches!(mapper.map, Some(OutputMapper::Constant(_))));
     }
 
     #[test]
@@ -210,6 +262,35 @@ mod tests {
                 .is_some()
         );
         assert_eq!(clone_count.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn cloning_constant_mapper_shares_message_without_cloning_it() {
+        let clone_count = Arc::new(AtomicUsize::new(0));
+        let mapper = WidgetMessageMapper::button_message(CountedMessage {
+            clone_count: Arc::clone(&clone_count),
+        });
+
+        let cloned = mapper.clone();
+        let cloned_again = cloned.clone();
+        assert_eq!(clone_count.load(Ordering::Relaxed), 0);
+
+        assert!(
+            mapper
+                .map_output(WidgetOutput::typed(ButtonMessage::Activate))
+                .is_some()
+        );
+        assert!(
+            cloned
+                .map_output(WidgetOutput::typed(ButtonMessage::Activate))
+                .is_some()
+        );
+        assert!(
+            cloned_again
+                .map_output(WidgetOutput::typed(ButtonMessage::Activate))
+                .is_some()
+        );
+        assert_eq!(clone_count.load(Ordering::Relaxed), 3);
     }
 
     #[test]

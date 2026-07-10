@@ -308,7 +308,7 @@ platform-specific adapters never enter the common wildcard surface.
 | Paint plans, SVG parsing errors, paint emitters, and primitive query helpers | Excluded | `radiant::runtime` |
 | Timelines, grids, axes, canvas selection, and other specialist visualization geometry | Excluded | `radiant::gui::visualization` |
 | Concrete low-level widgets and widget construction parts | Excluded | `radiant::widgets` |
-| Badge/flow geometry and dense-row paint policy | Excluded | The owning `radiant::gui` module |
+| Badge/flow geometry and dense-row paint helpers beyond builder signature support | Excluded | The owning `radiant::gui` module |
 
 Examples may import `radiant::runtime`, `radiant::widgets`, `radiant::layout`,
 `radiant::theme`, or `radiant::gui` beside the prelude when they demonstrate
@@ -326,7 +326,8 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | --- | --- |
 | Application setup | `window`, `app`, `IntoView`, `View`, `UiUpdateContext`, `EmbeddedFont` |
 | Basic views | `text`, `button`, `button_row`, `toolbar`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
-| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `ColorMarkerAlign`, `handle_activation_input` |
+| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `ColorMarkerAlign`, `InteractiveRowVisualStateParts`, `handle_activation_input` |
+| Row builder customization | `TreeGuideMetrics`, `TreeGuideStyle`, `StyledTreeGuideStyle`, `DenseRowPalette`, `DenseRowMarkerParts`, `DenseRowMarkerStyle`, `DenseRowOutlineStyle` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
 | Native input payloads | `NativeFileDrop`, `NativeFileDropPhase` |

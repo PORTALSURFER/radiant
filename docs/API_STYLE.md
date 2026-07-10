@@ -94,6 +94,9 @@ API audits, issue creation, and implementation work:
   stable widget keys or labels where a string is the natural domain value.
 - Prefer narrow public exports. A type should enter `radiant::prelude` only
   when normal app code benefits from seeing it by default.
+- Keep payload and customization types required by common builder signatures in
+  the prelude with those builders; reserve explicit owner-module imports for
+  specialist helpers and lower-level implementation APIs.
 
 ## Radiant Admission Test
 

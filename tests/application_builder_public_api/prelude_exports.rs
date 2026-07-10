@@ -405,6 +405,18 @@ fn prelude_exports_custom_widget_signature_types() {
     };
     let image = ui::ImageRgba::new(1, 1, vec![255, 255, 255, 255]).expect("valid image");
     let image_error = ui::ImageRgba::try_new(1, 1, vec![255]).expect_err("invalid image");
+    let rects: ui::PaintRectList = vec![rect].into();
+    let fill_batch = ui::PaintFillRectBatch {
+        widget_id: 1,
+        rects: rects.clone(),
+        color,
+    };
+    let stroke_batch = ui::PaintStrokeRectBatch {
+        widget_id: 2,
+        rects,
+        color,
+        width: 1.0,
+    };
     let cursor =
         radiant::gui::feedback::horizontal_value_cursor_rect(rect, 0.5, 2.0).expect("cursor rect");
     let text_line = ui::centered_text_line(rect, 13.0, ui::TextLineInsets::horizontal(2.0), 0.0);
@@ -423,6 +435,8 @@ fn prelude_exports_custom_widget_signature_types() {
     assert_eq!(theme.text_primary.a, 255);
     assert_eq!(color.g, 2);
     assert_eq!(image.width, 1);
+    assert_eq!(fill_batch.rects.len(), 1);
+    assert_eq!(stroke_batch.rects.len(), 1);
     let _: ui::ImageRgbaError = image_error;
 }
 

@@ -2,7 +2,7 @@
 
 pub use crate::runtime::{
     PaintClipEnd, PaintClipStart, PaintFillPath, PaintFillRect, PaintFillRectBatch, PaintFillRule,
-    PaintImage, PaintPath, PaintPathCommand, PaintPrimitive, PaintStrokeRect, PaintStrokeRectBatch,
-    PaintSvg, PaintSvgDocument, PaintTextAlign, PaintTextMetrics, PaintTextRun, PaintTransform,
-    TransientOverlayContext,
+    PaintImage, PaintPath, PaintPathCommand, PaintPrimitive, PaintRectList, PaintStrokeRect,
+    PaintStrokeRectBatch, PaintSvg, PaintSvgDocument, PaintTextAlign, PaintTextMetrics,
+    PaintTextRun, PaintTransform, TransientOverlayContext,
 };

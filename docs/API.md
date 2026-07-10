@@ -333,7 +333,7 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | Input and scroll payloads | `NativeFileDrop`, `NativeFileDropPhase`, `ScrollUpdate` |
 | Presentation callbacks | `Presentation`, `TransientOverlay`, `TransientOverlayContext` |
 | Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `SvgIconTintPalette`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
-| Paint primitives | `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`, `PaintFillRectBatch`, `PaintFillPath`, `PaintPathCommand`, `PaintTransform`, `PaintTextRun` |
+| Paint primitives | `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`, `PaintFillRectBatch`, `PaintStrokeRectBatch`, `PaintRectList`, `PaintFillPath`, `PaintPathCommand`, `PaintTransform`, `PaintTextRun` |
 
 Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`,
 `Rgba8::with_alpha_if`, `Rgba8::blend_toward`, and

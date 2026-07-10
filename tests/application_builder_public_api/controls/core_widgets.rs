@@ -218,7 +218,7 @@ fn button_builder_can_filter_secondary_activation_and_map_drag() {
 }
 
 #[test]
-fn constant_button_message_emits_only_for_primary_activation() {
+fn constant_button_message_maps_all_enabled_button_outputs() {
     use radiant::prelude::{self as ui, IntoView};
 
     let surface: UiSurface<&'static str> = ui::button("Run")
@@ -248,7 +248,7 @@ fn constant_button_message_emits_only_for_primary_activation() {
                 position: ui::Point::new(1.0, 2.0),
             }),
         ),
-        None
+        Some("run")
     );
     assert_eq!(
         surface.dispatch_widget_output(
@@ -257,7 +257,7 @@ fn constant_button_message_emits_only_for_primary_activation() {
                 position: ui::Point::new(3.0, 4.0),
             })),
         ),
-        None
+        Some("run")
     );
     assert_eq!(
         surface.dispatch_widget_output(28, WidgetOutput::typed(BadgeMessage::Activate)),
@@ -333,7 +333,7 @@ fn icon_button_builder_supports_message_and_passive_apps() {
                 position: ui::Point::new(1.0, 2.0),
             }),
         ),
-        None
+        Some(DemoMessage::Increment)
     );
 
     let passive_surface: UiSurface<DemoState> = ui::close_button().passive().id(32).into_surface();

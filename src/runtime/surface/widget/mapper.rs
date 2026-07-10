@@ -180,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn constant_mapper_clones_only_for_matching_activation_output() {
+    fn constant_button_mapper_clones_for_typed_button_outputs_only() {
         let clone_count = Arc::new(AtomicUsize::new(0));
         let mapper = WidgetMessageMapper::button_message(CountedMessage {
             clone_count: Arc::clone(&clone_count),
@@ -193,13 +193,6 @@ mod tests {
                 }))
                 .is_none()
         );
-        assert!(
-            mapper
-                .map_output(WidgetOutput::typed(ButtonMessage::SecondaryActivate {
-                    position: crate::gui::types::Point::new(1.0, 2.0),
-                }))
-                .is_none()
-        );
         assert_eq!(clone_count.load(Ordering::Relaxed), 0);
 
         assert!(
@@ -208,6 +201,15 @@ mod tests {
                 .is_some()
         );
         assert_eq!(clone_count.load(Ordering::Relaxed), 1);
+
+        assert!(
+            mapper
+                .map_output(WidgetOutput::typed(ButtonMessage::SecondaryActivate {
+                    position: crate::gui::types::Point::new(1.0, 2.0),
+                }))
+                .is_some()
+        );
+        assert_eq!(clone_count.load(Ordering::Relaxed), 2);
     }
 
     #[test]

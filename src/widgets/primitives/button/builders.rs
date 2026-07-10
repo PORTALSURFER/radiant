@@ -18,9 +18,7 @@ impl<Message> WidgetMessageMapper<Message> {
         Message: Clone + Send + Sync + 'static,
     {
         Self::constant(message, |output| {
-            output
-                .typed_copied::<ButtonMessage>()
-                .is_some_and(ButtonMessage::is_activate)
+            output.typed_ref::<ButtonMessage>().is_some()
         })
     }
 }

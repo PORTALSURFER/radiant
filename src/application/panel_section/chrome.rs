@@ -1,12 +1,12 @@
 use super::{PanelSectionHeaderParts, PanelSectionParts};
 use crate::{
-    application::{ViewNode, close_button, column, drag_handle, row, text},
+    application::{TextContent, ViewNode, close_button, column, drag_handle, row, text},
     widgets::{DragHandleMessage, WidgetStyle, WidgetTone},
 };
 
 /// Build a compact titled panel section with Radiant's neutral panel defaults.
 pub fn panel_section<Message: 'static>(
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     content: ViewNode<Message>,
     height: f32,
 ) -> ViewNode<Message> {
@@ -87,7 +87,7 @@ pub fn panel_section_resize_header<Message: 'static>(
 }
 
 fn panel_section_header<Message: 'static>(
-    title: String,
+    title: TextContent,
     trailing: Option<ViewNode<Message>>,
     height: f32,
     spacing: f32,

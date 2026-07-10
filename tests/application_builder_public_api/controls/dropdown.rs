@@ -118,8 +118,18 @@ fn application_builder_dropdown_trigger_exports_and_routes_message() {
         ),
         Some(GalleryMessage::ToggleDropdown)
     );
+    let trigger = widget_ref::<ButtonWidget, _>(&surface, 1, "dropdown trigger");
+    assert!(trigger.props.label.is_static());
+    assert_eq!(trigger.props.label, "WASAPI");
+    assert!(
+        trigger
+            .props
+            .trailing_label
+            .as_ref()
+            .is_some_and(|label| label.is_static() && label.as_str() == "v")
+    );
     let _parts = ui::DropdownTriggerParts {
-        selected_label: String::from("WASAPI"),
+        selected_label: String::from("WASAPI").into(),
         open: true,
         toggle_message: GalleryMessage::ToggleDropdown,
     };

@@ -99,8 +99,8 @@ fn property_rows_support_named_parts_construction() {
 
     let from_parts = ui::PropertyRow::from_parts(ui::PropertyRowParts {
         id: String::from("kind"),
-        label: String::from("Kind"),
-        value: String::from("Signal track"),
+        label: String::from("Kind").into(),
+        value: String::from("Signal track").into(),
     })
     .selected(true);
 

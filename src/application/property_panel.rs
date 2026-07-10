@@ -1,5 +1,5 @@
 use crate::{
-    application::{ViewNode, button, column, row, text},
+    application::{TextContent, ViewNode, button, column, row, text},
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 use std::sync::Arc;
@@ -10,9 +10,9 @@ pub struct PropertyRowParts {
     /// Stable caller-owned row id.
     pub id: String,
     /// Property label shown in the leading column.
-    pub label: String,
+    pub label: TextContent,
     /// Property value shown in the trailing column.
-    pub value: String,
+    pub value: TextContent,
 }
 
 /// One row in a generic inspector/property panel.
@@ -21,9 +21,9 @@ pub struct PropertyRow {
     /// Stable caller-owned row id.
     pub id: String,
     /// Property label shown in the leading column.
-    pub label: String,
+    pub label: TextContent,
     /// Property value shown in the trailing column.
-    pub value: String,
+    pub value: TextContent,
     /// Whether this row is currently selected.
     pub selected: bool,
 }
@@ -40,7 +40,11 @@ impl PropertyRow {
     }
 
     /// Build one property row.
-    pub fn new(id: impl ToString, label: impl Into<String>, value: impl Into<String>) -> Self {
+    pub fn new(
+        id: impl ToString,
+        label: impl Into<TextContent>,
+        value: impl Into<TextContent>,
+    ) -> Self {
         Self::from_parts(PropertyRowParts {
             id: id.to_string(),
             label: label.into(),
@@ -57,17 +61,14 @@ impl PropertyRow {
 
 /// Build a read-only inspector/property panel.
 pub fn property_panel<Message: 'static>(
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     rows: impl IntoIterator<Item = PropertyRow>,
 ) -> ViewNode<Message> {
-    column([
-        text(title.into()).height(20.0).fill_width(),
-        property_rows(rows),
-    ])
-    .style(WidgetStyle::default())
-    .fill_width()
-    .padding(6.0)
-    .spacing(4.0)
+    column([text(title).height(20.0).fill_width(), property_rows(rows)])
+        .style(WidgetStyle::default())
+        .fill_width()
+        .padding(6.0)
+        .spacing(4.0)
 }
 
 /// Build read-only inspector/property rows without adding a titled panel shell.
@@ -81,7 +82,7 @@ pub fn property_rows<Message: 'static>(
 
 /// Build an inspector/property panel whose selectable rows emit host messages.
 pub fn message_selectable_property_panel<Message>(
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     rows: impl IntoIterator<Item = PropertyRow>,
     select_message: Option<impl Fn(String) -> Message + Send + Sync + 'static>,
 ) -> ViewNode<Message>
@@ -92,7 +93,7 @@ where
         Arc::new(select_message) as Arc<dyn Fn(String) -> Message + Send + Sync>
     });
     column([
-        text(title.into()).height(20.0).fill_width(),
+        text(title).height(20.0).fill_width(),
         column(
             rows.into_iter()
                 .map(|row| message_property_row(row, select_message.as_ref().map(Arc::clone))),
@@ -180,7 +181,7 @@ where
 }
 
 fn message_property_cell<Message>(
-    value: String,
+    value: TextContent,
     key: String,
     message: Option<Message>,
 ) -> ViewNode<Message>

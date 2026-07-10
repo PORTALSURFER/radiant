@@ -3,7 +3,7 @@
 pub use crate::application::{
     Children, ColorMarkerRunBuilder, DEFAULT_ACTION_ROW_HEIGHT, DEFAULT_COLUMN_SPACING,
     DEFAULT_GRID_GAP, DEFAULT_ROW_SPACING, DEFAULT_STYLED_CONTAINER_PADDING, LayerKind,
-    MarkerRunBuilder, OverlayStack, Overlays, Scene, ToolbarAlignment, ToolbarParts,
+    MarkerRunBuilder, OverlayStack, Overlays, Scene, TextContent, ToolbarAlignment, ToolbarParts,
     WorkspaceShellBuilder, bounded_scroll_column, bounded_scroll_column_from_parts, card, children,
     column, column_key, empty, fixed_slot_if, fixed_slot_opt, grid, grid_with_gaps,
     local_drop_marker, marker_run, marker_run_colors, overlay_stack, overlays, property_panel,

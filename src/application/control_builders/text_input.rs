@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use crate::{
     application::{
-        MappedWidget, ViewNode, close_button, default_text_input_sizing, fixed_slot_if, row,
-        view_node_from_widget,
+        MappedWidget, TextContent, ViewNode, close_button, default_text_input_sizing,
+        fixed_slot_if, row, view_node_from_widget,
     },
     runtime::WidgetMessageMapper,
     widgets::{
@@ -20,8 +20,8 @@ const TEXT_INPUT_CLEAR_BUTTON_KEY: &str = "clear";
 /// Builder for text inputs that can emit messages or mutate state directly.
 pub struct TextInputBuilder {
     value: String,
-    placeholder: Option<String>,
-    completion_suffix: Option<String>,
+    placeholder: Option<TextContent>,
+    completion_suffix: Option<TextContent>,
     style: Option<WidgetStyle>,
     selection: Option<(usize, usize)>,
     chrome: TextInputChrome,
@@ -29,14 +29,14 @@ pub struct TextInputBuilder {
 
 impl TextInputBuilder {
     /// Show placeholder text when the input value is empty.
-    pub fn placeholder(mut self, placeholder: impl Into<String>) -> Self {
+    pub fn placeholder(mut self, placeholder: impl Into<TextContent>) -> Self {
         self.placeholder = Some(placeholder.into());
         self
     }
 
     /// Show inline completion text after the current value.
-    pub fn completion_suffix(mut self, suffix: impl Into<String>) -> Self {
-        let suffix = suffix.into();
+    pub fn completion_suffix(mut self, suffix: impl Into<TextContent>) -> Self {
+        let suffix: TextContent = suffix.into();
         if !suffix.is_empty() {
             self.completion_suffix = Some(suffix);
         }
@@ -136,8 +136,8 @@ impl TextInputBuilder {
             chrome,
         } = self;
         let mut input = TextInputWidget::new(0, value, default_text_input_sizing());
-        input.props.placeholder = placeholder.map(Into::into);
-        input.props.completion_suffix = completion_suffix.map(Into::into);
+        input.props.placeholder = placeholder.map(TextContent::into_paint_text);
+        input.props.completion_suffix = completion_suffix.map(TextContent::into_paint_text);
         input.props.chrome = chrome;
         if let Some((anchor, caret)) = selection {
             input.state.selection_anchor = anchor;

@@ -112,12 +112,12 @@ fn progress_canvas(state: &StatusBarState) -> View<StatusMessage> {
 }
 
 fn log_panel(state: &StatusBarState) -> View<StatusMessage> {
-    column(
-        state
-            .log
-            .recent_entries()
-            .map(|entry| text(entry.line()).truncate().height(22.0).fill_width()),
-    )
+    column(state.log.recent_entries().map(|entry| {
+        text(entry.line().to_owned())
+            .truncate()
+            .height(22.0)
+            .fill_width()
+    }))
     .spacing(2.0)
     .fill_width()
 }

@@ -1,5 +1,7 @@
 use crate::{
-    application::{View, button, drag_handle, input_underlay, row, scoped_key_id, text},
+    application::{
+        TextContent, View, button, drag_handle, input_underlay, row, scoped_key_id, text,
+    },
     widgets::{
         DragHandleMessage, WidgetId, WidgetProminence, WidgetStyle, WidgetTone, stable_widget_id,
     },
@@ -118,7 +120,7 @@ pub fn compact_details_header_row<Message>(
 /// [`compact_details_header_resize_id`] only when tests, automation, or host
 /// integrations need to address those child affordances directly.
 pub fn compact_resizable_details_header_cell<Message>(
-    label: impl Into<String>,
+    label: impl Into<TextContent>,
     width: f32,
     sort_message: Message,
     drag_message: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
@@ -140,7 +142,7 @@ where
 /// Build a compact sortable, reorderable, and resizable details-list header
 /// cell with explicit stable widget ids for the interactive surfaces.
 pub fn compact_resizable_details_header_cell_with_ids<Message>(
-    label: impl Into<String>,
+    label: impl Into<TextContent>,
     width: f32,
     ids: CompactDetailsHeaderCellIds,
     sort_message: Message,
@@ -150,7 +152,7 @@ pub fn compact_resizable_details_header_cell_with_ids<Message>(
 where
     Message: Clone + Send + Sync + 'static,
 {
-    let label = label.into();
+    let label: TextContent = label.into();
     let mut sort_drag = button("")
         .hover_chrome_only()
         .click_or_drag(sort_message, drag_message)

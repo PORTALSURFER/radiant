@@ -6,14 +6,14 @@ fn details_columns_use_logical_widths() {
         DetailsColumn::fixed("kind", "Kind", 120.5),
         DetailsColumn {
             id: String::from("kind"),
-            label: String::from("Kind"),
+            label: String::from("Kind").into(),
             width: Some(120.5),
         }
     );
     assert_eq!(
         DetailsColumn::from_parts(DetailsColumnParts {
             id: String::from("state"),
-            label: String::from("State"),
+            label: String::from("State").into(),
             width: Some(96.0),
         }),
         DetailsColumn::fixed("state", "State", 96.0)
@@ -21,7 +21,7 @@ fn details_columns_use_logical_widths() {
     assert_eq!(
         DetailsColumn::from_parts(DetailsColumnParts {
             id: String::from("name"),
-            label: String::from("Name"),
+            label: String::from("Name").into(),
             width: None,
         }),
         DetailsColumn::flexible("name", "Name")
@@ -36,9 +36,9 @@ fn details_rows_support_named_parts_construction() {
     let from_parts = ui::DetailsRow::from_parts(ui::DetailsRowParts {
         id: String::from("timeline"),
         cells: vec![
-            String::from("timeline.rs"),
-            String::from("Rust"),
-            String::from("Ready"),
+            String::from("timeline.rs").into(),
+            String::from("Rust").into(),
+            String::from("Ready").into(),
         ],
     })
     .selected(true);

@@ -61,7 +61,7 @@ fn status_row(state: &ModulationMatrixState) -> View<AppMessage> {
     .spacing(10.0)
 }
 
-fn stat_tile(label: impl Into<String>, value: impl Into<String>) -> View<AppMessage> {
+fn stat_tile(label: impl Into<TextContent>, value: impl Into<TextContent>) -> View<AppMessage> {
     column([
         text(label.into()).height(22.0).fill_width(),
         text(value.into()).height(24.0).fill_width(),

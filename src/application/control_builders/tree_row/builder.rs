@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    application::ViewNode,
+    application::{TextContent, ViewNode},
     gui::{
         list::{DenseRowMarkerStyle, DenseRowOutlineStyle, DenseRowPalette, TreeGuideMetrics},
         svg::SvgIcon,
@@ -209,9 +209,9 @@ pub struct TreeRowMessageBuilder<Message> {
 }
 
 /// Build a generic compact tree row.
-pub fn tree_row(label: impl Into<PaintText>) -> TreeRowBuilder {
+pub fn tree_row(label: impl Into<TextContent>) -> TreeRowBuilder {
     TreeRowBuilder {
-        label: label.into(),
+        label: label.into().into_paint_text(),
         depth: 0,
         expanded: false,
         has_children: false,

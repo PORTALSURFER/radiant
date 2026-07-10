@@ -26,7 +26,10 @@ pub(super) fn meter_tile(meter: TrackMeter) -> View<AppMessage> {
     .fill_width()
 }
 
-pub(super) fn stat_tile(label: impl Into<String>, value: impl Into<String>) -> View<AppMessage> {
+pub(super) fn stat_tile(
+    label: impl Into<TextContent>,
+    value: impl Into<TextContent>,
+) -> View<AppMessage> {
     column([
         text(label.into()).height(20.0).fill_width(),
         text(value.into()).height(22.0).fill_width(),

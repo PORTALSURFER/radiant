@@ -248,6 +248,8 @@ impl InteractiveBadgeBuilder {
 }
 
 /// Build an interactive badge or pill.
-pub fn interactive_badge(label: impl Into<String>) -> InteractiveBadgeBuilder {
+pub fn interactive_badge(
+    label: impl Into<crate::application::TextContent>,
+) -> InteractiveBadgeBuilder {
     badge(label).interactive()
 }

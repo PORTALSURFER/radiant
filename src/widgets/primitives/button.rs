@@ -49,6 +49,7 @@ impl ButtonWidget {
             common,
             props: ButtonProps {
                 label: parts.label,
+                trailing_label: None,
                 text_align: TextAlign::Center,
                 secondary_click: false,
                 drag: false,
@@ -82,6 +83,12 @@ impl ButtonWidget {
     /// Paint button chrome only while hovered, pressed, or focused.
     pub fn with_hover_chrome_only(mut self) -> Self {
         self.props.hover_chrome_only = true;
+        self
+    }
+
+    /// Add passive trailing text while preserving the main label storage.
+    pub fn with_trailing_label(mut self, label: impl Into<PaintText>) -> Self {
+        self.props.trailing_label = Some(label.into());
         self
     }
 
@@ -124,7 +131,10 @@ impl Widget for ButtonWidget {
     }
 
     fn automation_label(&self) -> Option<String> {
-        Some(self.props.label.as_str().to_owned())
+        Some(match self.props.trailing_label.as_ref() {
+            Some(trailing) => format!("{} {}", self.props.label, trailing),
+            None => self.props.label.as_str().to_owned(),
+        })
     }
 
     fn needs_state_synchronization(&self) -> bool {

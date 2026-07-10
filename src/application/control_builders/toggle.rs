@@ -1,6 +1,6 @@
 use crate::{
     application::{
-        MappedWidget, ViewNode, danger_style, default_toggle_sizing, primary_style,
+        MappedWidget, TextContent, ViewNode, danger_style, default_toggle_sizing, primary_style,
         view_node_from_widget,
     },
     runtime::{PaintText, WidgetMessageMapper},
@@ -58,9 +58,9 @@ impl ToggleBuilder {
 }
 
 /// Build a toggle.
-pub fn toggle(label: impl Into<String>, checked: bool) -> ToggleBuilder {
+pub fn toggle(label: impl Into<TextContent>, checked: bool) -> ToggleBuilder {
     ToggleBuilder {
-        label: PaintText::from(label.into()),
+        label: label.into().into_paint_text(),
         checked,
         compact: false,
         style: None,
@@ -79,7 +79,7 @@ pub fn checkbox(checked: bool) -> ToggleBuilder {
 
 /// Build a toggle that maps value changes by checked state.
 pub fn toggle_mapped<Message: 'static>(
-    label: impl Into<String>,
+    label: impl Into<TextContent>,
     checked: bool,
     map: impl Fn(bool) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {

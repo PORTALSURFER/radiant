@@ -2,7 +2,12 @@ use crate::{
     gui::types::{Rect, Rgba8},
     widgets::{TextInputState, TextWrap, WidgetId, WidgetStyle},
 };
-use std::{fmt, ops::Deref, sync::Arc};
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+    ops::Deref,
+    sync::Arc,
+};
 
 #[cfg(test)]
 #[path = "text/tests.rs"]
@@ -19,41 +24,92 @@ pub enum PaintTextAlign {
     Right,
 }
 
-/// Shared text payload used by backend-neutral paint primitives.
+/// Static or shared text payload used by backend-neutral paint primitives.
 ///
 /// Paint plans are owned replayable artifacts, but most widget labels are
-/// stable across frames. Sharing the text storage keeps repeated paint-plan
-/// construction from reallocating every label string.
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
-pub struct PaintText(Arc<str>);
+/// stable across frames. Static strings remain borrowed for the process
+/// lifetime, while owned and dynamic strings use shared storage. Both paths
+/// keep repeated paint-plan construction from reallocating label bytes.
+#[derive(Clone, Debug)]
+pub struct PaintText(PaintTextStorage);
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+enum PaintTextStorage {
+    Static(&'static str),
+    Shared(Arc<str>),
+}
+
+impl Default for PaintText {
+    fn default() -> Self {
+        Self::from_static("")
+    }
+}
+
+impl PartialEq for PaintText {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl Eq for PaintText {}
+
+impl Hash for PaintText {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_str().hash(state);
+    }
+}
 
 impl PaintText {
+    /// Preserve a process-lifetime string without allocating shared storage.
+    pub const fn from_static(value: &'static str) -> Self {
+        Self(PaintTextStorage::Static(value))
+    }
+
     /// Return the text as a borrowed string slice.
     pub fn as_str(&self) -> &str {
-        self.0.as_ref()
+        match &self.0 {
+            PaintTextStorage::Static(value) => value,
+            PaintTextStorage::Shared(value) => value.as_ref(),
+        }
     }
 
     /// Return true when this text has no bytes.
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.as_str().is_empty()
+    }
+
+    /// Return true when this text borrows process-lifetime static storage.
+    pub const fn is_static(&self) -> bool {
+        matches!(self.0, PaintTextStorage::Static(_))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn shares_storage_with(&self, value: &Arc<str>) -> bool {
+        matches!(&self.0, PaintTextStorage::Shared(stored) if Arc::ptr_eq(stored, value))
     }
 }
 
 impl From<String> for PaintText {
     fn from(value: String) -> Self {
-        Self(Arc::from(value))
+        Self(PaintTextStorage::Shared(Arc::from(value)))
     }
 }
 
 impl From<&str> for PaintText {
     fn from(value: &str) -> Self {
-        Self(Arc::from(value))
+        Self(PaintTextStorage::Shared(Arc::from(value)))
     }
 }
 
 impl From<&String> for PaintText {
     fn from(value: &String) -> Self {
-        Self(Arc::from(value.as_str()))
+        Self::from(value.as_str())
+    }
+}
+
+impl From<Arc<str>> for PaintText {
+    fn from(value: Arc<str>) -> Self {
+        Self(PaintTextStorage::Shared(value))
     }
 }
 

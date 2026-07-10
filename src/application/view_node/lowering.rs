@@ -235,7 +235,12 @@ impl<'a> ViewLowering<'a> {
             }
             ViewNodeKind::OverlayPanel { rect, label } => {
                 if let Some(label) = label {
-                    SurfaceNode::overlay_panel(id, rect, label, style.unwrap_or_default())
+                    SurfaceNode::overlay_panel(
+                        id,
+                        rect,
+                        label.into_paint_text(),
+                        style.unwrap_or_default(),
+                    )
                 } else {
                     SurfaceNode::overlay_marker(id, rect, style.unwrap_or_default())
                 }

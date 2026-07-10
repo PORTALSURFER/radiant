@@ -13,6 +13,7 @@ pub(super) const PERF_SCENARIOS: &[&str] = &[
     "app_virtual_selectable_list_projection_10k",
     "app_virtual_list_window_projection_10k",
     "app_constant_message_controls_projection_1k",
+    "app_static_text_controls_projection_1k",
     "runtime_surface_large_tree",
     "runtime_text_paint_plan_1k",
     "runtime_horizontal_scroll_paint_1k",

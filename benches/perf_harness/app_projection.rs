@@ -1,10 +1,13 @@
 //! Application-builder projection performance scenarios.
 
 use crate::runner::ScenarioCounters;
-use radiant::prelude::{
-    IntoView, VirtualListWindowRequest, action_row, badge, button, close_button, column,
-    determinate_progress_bar, list_row_id, resolve_virtual_list_window, selectable,
-    virtual_list_window,
+use radiant::{
+    layout::layout_tree,
+    prelude::{
+        IntoView, PaintPrimitive, Point, Rect, ThemeTokens, Vector2, VirtualListWindowRequest,
+        action_row, badge, button, close_button, column, determinate_progress_bar, list_row_id,
+        resolve_virtual_list_window, selectable, text, toggle, virtual_list_window,
+    },
 };
 use std::hint::black_box;
 
@@ -27,6 +30,46 @@ pub(super) fn virtual_list_window_projection_10k() -> impl FnMut() -> ScenarioCo
 
 pub(super) fn constant_message_controls_projection_1k() -> impl FnMut() -> ScenarioCounters {
     bench_app_constant_message_controls_projection_1k
+}
+
+pub(super) fn static_text_controls_projection_1k() -> impl FnMut() -> ScenarioCounters {
+    bench_app_static_text_controls_projection_1k
+}
+
+fn bench_app_static_text_controls_projection_1k() -> ScenarioCounters {
+    let mut controls = Vec::with_capacity(1_000);
+    for index in 0..200_u64 {
+        controls.push(text("Ready").id(index * 5 + 10));
+        controls.push(button("Play").message(()).id(index * 5 + 11));
+        controls.push(badge("Stable").message(()).id(index * 5 + 12));
+        controls.push(toggle("Enabled", true).message(|_| ()).id(index * 5 + 13));
+        controls.push(
+            selectable("Selected", false)
+                .message(|_| ())
+                .id(index * 5 + 14),
+        );
+    }
+    let surface = column(controls).into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 100_000.0)),
+    );
+    let plan = surface.paint_plan(&layout, &ThemeTokens::default());
+    let text_runs = plan
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::Text(run) => Some(run),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(text_runs.len(), 1_000);
+    let text_storage_allocation_count =
+        text_runs.iter().filter(|run| !run.text.is_static()).count() as u64;
+    black_box((&surface, &layout, &plan));
+    ScenarioCounters::default()
+        .with_text_storage_allocation_count(text_storage_allocation_count)
+        .with_allocation_sensitive_work_count(text_runs.len() as u64)
 }
 
 fn bench_app_constant_message_controls_projection_1k() -> ScenarioCounters {

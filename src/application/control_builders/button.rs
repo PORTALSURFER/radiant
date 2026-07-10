@@ -1,6 +1,6 @@
 use crate::{
     application::{
-        MappedWidget, ViewNode, danger_style, default_button_sizing, primary_style,
+        MappedWidget, TextContent, ViewNode, danger_style, default_button_sizing, primary_style,
         view_node_from_widget,
     },
     runtime::{PaintText, WidgetMessageMapper},
@@ -12,6 +12,7 @@ use crate::{
 /// Builder for buttons that emit explicit host messages.
 pub struct ButtonBuilder {
     label: PaintText,
+    trailing_label: Option<PaintText>,
     style: Option<WidgetStyle>,
     secondary_click: bool,
     drag: bool,
@@ -58,6 +59,11 @@ impl ButtonBuilder {
     /// Paint button chrome only while the control is hovered, pressed, or focused.
     pub fn hover_chrome_only(mut self) -> Self {
         self.hover_chrome_only = true;
+        self
+    }
+
+    pub(in crate::application) fn trailing_label(mut self, label: impl Into<TextContent>) -> Self {
+        self.trailing_label = Some(label.into().into_paint_text());
         self
     }
 
@@ -112,6 +118,9 @@ impl ButtonBuilder {
     ) -> ViewNode<Message> {
         let sizing = default_button_sizing(&self.label);
         let mut button = ButtonWidget::new(0, self.label, sizing);
+        if let Some(trailing_label) = self.trailing_label {
+            button = button.with_trailing_label(trailing_label);
+        }
         if self.secondary_click {
             button = button.with_secondary_click();
         }
@@ -128,9 +137,10 @@ impl ButtonBuilder {
 }
 
 /// Build a button.
-pub fn button(label: impl Into<String>) -> ButtonBuilder {
+pub fn button(label: impl Into<TextContent>) -> ButtonBuilder {
     ButtonBuilder {
-        label: PaintText::from(label.into()),
+        label: label.into().into_paint_text(),
+        trailing_label: None,
         style: None,
         secondary_click: false,
         drag: false,
@@ -139,7 +149,7 @@ pub fn button(label: impl Into<String>) -> ButtonBuilder {
 }
 
 /// Build a button that emits one cloned host message when activated.
-pub fn button_message<Message>(label: impl Into<String>, message: Message) -> ViewNode<Message>
+pub fn button_message<Message>(label: impl Into<TextContent>, message: Message) -> ViewNode<Message>
 where
     Message: Clone + Send + Sync + 'static,
 {
@@ -148,7 +158,7 @@ where
 
 /// Build a button with a custom widget-message mapper.
 pub fn button_mapped<Message: 'static>(
-    label: impl Into<String>,
+    label: impl Into<TextContent>,
     map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
     button(label).mapped(map)

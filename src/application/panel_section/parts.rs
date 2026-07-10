@@ -3,7 +3,7 @@ use super::geometry::{
     DEFAULT_PANEL_SECTION_TITLE_HEIGHT, PanelSectionGeometry,
 };
 use crate::{
-    application::{ViewNode, drag_handle, drag_handle_mapped},
+    application::{TextContent, ViewNode, drag_handle, drag_handle_mapped},
     layout::NodeId,
     widgets::{DragHandleMessage, WidgetProminence, WidgetStyle, WidgetTone},
 };
@@ -18,7 +18,7 @@ const DEFAULT_DIALOG_PANEL_TITLE_HEIGHT: f32 = 24.0;
 /// Named construction fields for a compact titled panel section.
 pub struct PanelSectionParts<Message> {
     /// Section title shown in the leading header area.
-    pub title: String,
+    pub title: TextContent,
     /// Main section content.
     pub content: ViewNode<Message>,
     /// Optional trailing header content such as an action button or drag handle.
@@ -55,7 +55,7 @@ pub struct PanelSectionHeaderParts<Message> {
 
 impl<Message> PanelSectionParts<Message> {
     /// Build titled panel-section parts with Radiant's compact neutral defaults.
-    pub fn new(title: impl Into<String>, content: ViewNode<Message>) -> Self {
+    pub fn new(title: impl Into<TextContent>, content: ViewNode<Message>) -> Self {
         Self {
             title: title.into(),
             content,
@@ -77,7 +77,11 @@ impl<Message> PanelSectionParts<Message> {
     /// This preset is intended for modal dialogs, popovers, and floating
     /// utility panels where the app owns the content and close behavior while
     /// Radiant owns consistent strong panel styling and compact dialog spacing.
-    pub fn dialog(title: impl Into<String>, content: ViewNode<Message>, tone: WidgetTone) -> Self {
+    pub fn dialog(
+        title: impl Into<TextContent>,
+        content: ViewNode<Message>,
+        tone: WidgetTone,
+    ) -> Self {
         Self::new(title, content)
             .style(WidgetStyle::strong(tone))
             .padding(DEFAULT_DIALOG_PANEL_PADDING)

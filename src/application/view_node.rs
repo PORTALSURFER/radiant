@@ -12,7 +12,7 @@ mod slot;
 use slot::SlotBehavior;
 
 use crate::{
-    application::{Overlays, PointerTarget, WidgetView},
+    application::{Overlays, PointerTarget, TextContent, WidgetView},
     gui::{input::KeyPress, shortcuts::ShortcutResolution},
     layout::{
         CrossAlign, FloatingLayerHorizontalOverflow, FloatingLayerVerticalOverflow, Insets,
@@ -126,7 +126,7 @@ pub(in crate::application) enum ViewNodeKind<Message> {
     },
     OverlayPanel {
         rect: crate::gui::types::Rect,
-        label: Option<String>,
+        label: Option<TextContent>,
     },
     FloatingLayer {
         offset: crate::gui::types::Point,

@@ -290,7 +290,7 @@ fn tree_list_items_support_named_parts_construction() {
     let from_parts = ui::TreeListItem::from_parts(ui::TreeListItemParts {
         id: String::from("arrangement/tracks"),
         depth: 2,
-        label: String::from("Tracks"),
+        label: String::from("Tracks").into(),
     })
     .branch(true)
     .selected(true)

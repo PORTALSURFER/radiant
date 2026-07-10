@@ -20,6 +20,7 @@ fn performance_docs_describe_harness_commands_and_output_contract() {
         "`text_cache_hit_count`",
         "`retained_surface_cache_hit_count`",
         "`frame_cadence_due_count`, `frame_cadence_wait_count`",
+        "`text_storage_allocation_count`",
         "Capture a machine-local baseline artifact directly",
         "`baseline_avg_us`, `baseline_ratio`, and `baseline_status`",
         "`baseline_status=missing`",

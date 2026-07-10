@@ -1,10 +1,10 @@
-use crate::application::{ViewNode, ViewNodeKind};
+use crate::application::{TextContent, ViewNode, ViewNodeKind};
 use crate::gui::types::{Point, Rect};
 use crate::layout::Vector2;
 
 /// Build a floating overlay panel in surface coordinates.
 pub fn overlay_panel<Message>(
-    label: impl Into<String>,
+    label: impl Into<TextContent>,
     x: f32,
     y: f32,
     width: f32,

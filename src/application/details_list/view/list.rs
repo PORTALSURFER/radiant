@@ -73,7 +73,11 @@ where
             .filter(|sort| sort.column_id == column.id)
             .map(|sort| sort.direction.marker())
             .unwrap_or("");
-        let label = format!("{}{}", column.label, marker);
+        let label = if marker.is_empty() {
+            column.label.clone()
+        } else {
+            format!("{}{}", column.label, marker).into()
+        };
         sized_message_cell(
             column,
             button(label)

@@ -331,6 +331,7 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
 | Input and scroll payloads | `NativeFileDrop`, `NativeFileDropPhase`, `ScrollUpdate` |
+| Runtime drag requests | `DragPreview`, `DragPreviewTextSizing`, `DragRequest` |
 | Presentation callbacks | `Presentation`, `TransientOverlay`, `TransientOverlayContext` |
 | Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `SvgIconTintPalette`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
 | Paint primitives | `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`, `PaintFillRectBatch`, `PaintStrokeRectBatch`, `PaintRectList`, `PaintFillPath`, `PaintPathCommand`, `PaintTransform`, `PaintTextRun` |

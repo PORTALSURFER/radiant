@@ -448,6 +448,21 @@ fn prelude_exports_scroll_update_callback_payload() {
 }
 
 #[test]
+fn prelude_exports_drag_preview_sizing_payload() {
+    let preview = ui::DragPreview::text_sized(
+        "Move selection",
+        ui::DragPreviewTextSizing::new(24.0)
+            .horizontal_padding(32.0)
+            .min_width(96.0)
+            .max_width(180.0),
+    );
+    let request = ui::DragRequest::new(preview, ui::Point::new(12.0, 18.0));
+
+    assert_eq!(request.preview.size.y, 24.0);
+    assert!((96.0..=180.0).contains(&request.preview.size.x));
+}
+
+#[test]
 fn svg_parse_errors_require_an_explicit_runtime_import() {
     let icon = ui::SvgIcon::from_svg(
         r#"<svg viewBox="0 0 4 4"><rect x="0" y="0" width="4" height="4"/></svg>"#,

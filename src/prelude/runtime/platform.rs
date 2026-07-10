@@ -2,8 +2,8 @@
 
 pub use crate::runtime::{
     ConfirmDialogParts, ConfirmDialogRequest, ConfirmationButtons, ConfirmationLevel,
-    ConfirmationResponse, DragPreview, DragRequest, ExternalDragEffect, ExternalDragOutcome,
-    ExternalDragPayload, ExternalDragPreview, ExternalDragRequest, FileDialogFilter,
-    FileDialogRequest, PlatformCompletion, PlatformRequest, PlatformResponse, PlatformResult,
-    PlatformResultExt, PlatformServiceFallback,
+    ConfirmationResponse, DragPreview, DragPreviewTextSizing, DragRequest, ExternalDragEffect,
+    ExternalDragOutcome, ExternalDragPayload, ExternalDragPreview, ExternalDragRequest,
+    FileDialogFilter, FileDialogRequest, PlatformCompletion, PlatformRequest, PlatformResponse,
+    PlatformResult, PlatformResultExt, PlatformServiceFallback,
 };

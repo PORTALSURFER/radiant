@@ -223,6 +223,33 @@ fn public_prelude_named_surface_stays_bounded_across_leaf_splits() {
 }
 
 #[test]
+fn public_prelude_rejects_crate_owner_wildcards() {
+    assert!(prelude_owner_wildcard_export("pub use crate::runtime::*;"));
+    assert!(prelude_owner_wildcard_export("pub use crate::widgets::*;"));
+    assert!(prelude_owner_wildcard_export(
+        "pub use crate::runtime::{self, *};"
+    ));
+    assert!(!prelude_owner_wildcard_export("pub use runtime::*;"));
+
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let offenders = explicit_prelude_export_statements(&manifest_dir)
+        .into_iter()
+        .filter(|statement| prelude_owner_wildcard_export(statement))
+        .collect::<Vec<_>>();
+
+    assert!(
+        offenders.is_empty(),
+        "prelude roots, facades, and leaves must not wildcard-export owning crate modules; \
+         keep local facade globs focused and name crate-owned exports explicitly:\n{}",
+        offenders.join("\n")
+    );
+}
+
+fn prelude_owner_wildcard_export(statement: &str) -> bool {
+    statement.starts_with("pub use crate::") && statement.contains('*')
+}
+
+#[test]
 fn public_prelude_excludes_advanced_host_paint_and_visualization_apis() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let statements = explicit_prelude_export_statements(&manifest_dir);

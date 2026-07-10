@@ -331,6 +331,7 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
 | Native input payloads | `NativeFileDrop`, `NativeFileDropPhase` |
+| Presentation callbacks | `Presentation`, `TransientOverlay`, `TransientOverlayContext` |
 | Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `SvgIconTintPalette`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
 | Paint primitives | `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`, `PaintFillRectBatch`, `PaintFillPath`, `PaintPathCommand`, `PaintTransform`, `PaintTextRun` |
 
@@ -1204,11 +1205,11 @@ ui::scene(layout::shell(state))
     .into_view();
 ```
 
-Radiant passes a `TransientOverlayContext` with the latest `SurfacePaintPlan`,
-viewport, and animation time. This keeps structural state, layout, and Vello
-scene refreshes out of animation paths for visuals such as playheads, drag
-previews, tooltip affordances, cursor markers, and lightweight spectrogram
-overlays.
+Radiant passes the common-prelude callback payload `TransientOverlayContext`
+with the latest `SurfacePaintPlan`, viewport, and animation time. This keeps
+structural state, layout, and Vello scene refreshes out of animation paths for
+visuals such as playheads, drag previews, tooltip affordances, cursor markers,
+and lightweight spectrogram overlays.
 
 For app-builder code that needs the same descriptors outside a root scene, use
 `.presentation(...)`:

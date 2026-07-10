@@ -5,7 +5,7 @@ use std::{collections::BTreeSet, fs, path::PathBuf};
 use super::{relative_path, rust_sources_under};
 
 const MAX_PRELUDE_EXPORT_GROUP_LINES: usize = 32;
-const MAX_COMMON_PRELUDE_NAMED_EXPORTS: usize = 526;
+const MAX_COMMON_PRELUDE_NAMED_EXPORTS: usize = 527;
 
 const ADVANCED_COMMON_PRELUDE_EXCLUSIONS: &[&str] = &[
     "AuxiliaryWindow",
@@ -29,7 +29,6 @@ const ADVANCED_COMMON_PRELUDE_EXCLUSIONS: &[&str] = &[
     "SurfacePaintPlan",
     "SvgParseError",
     "TimelineViewport",
-    "TransientOverlayContext",
     "UiSurface",
     "VerticalValueAxis",
     "WidgetPaint",

@@ -55,7 +55,7 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
             .colors(ui::Rgba8::new(1, 2, 3, 4), ui::Rgba8::new(5, 6, 7, 8))
             .max_track_height(5.0)
             .activatable()
-            .mapped(|_| "progress")
+            .message("progress")
             .id(25),
         ui::pointer_drop_shield(true)
             .mapped(|_| "pointer-drop")
@@ -156,6 +156,13 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
             radiant::widgets::WidgetOutput::typed(ProgressBarMessage::Activate),
         ),
         Some("progress")
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            25,
+            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
+        ),
+        None
     );
 
     let shield = widget_ref::<PointerShieldWidget, _>(&surface, 26, "pointer shield");

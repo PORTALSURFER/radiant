@@ -50,7 +50,19 @@ impl ProgressBarBuilder {
     where
         Message: Clone + Send + Sync + 'static,
     {
-        self.mapped(move |_| message.clone())
+        let (progress, style) = self.into_widget_and_style();
+        view_node_with_style(
+            MappedWidget::new(
+                progress,
+                WidgetMessageMapper::constant(message, |output| {
+                    matches!(
+                        output.typed_ref::<ProgressBarMessage>(),
+                        Some(ProgressBarMessage::Activate)
+                    )
+                }),
+            ),
+            style,
+        )
     }
 
     /// Build a display-only progress bar without host messages.

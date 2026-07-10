@@ -38,6 +38,13 @@ fn application_builder_gallery_widgets_lower_and_route_messages() {
         ),
         Some(GalleryMessage::Badge)
     );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            10,
+            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate)
+        ),
+        None
+    );
 
     let selectable = widget_ref::<SelectableWidget, _>(&surface, 11, "selectable");
     assert_eq!(selectable.props.label, "Option");

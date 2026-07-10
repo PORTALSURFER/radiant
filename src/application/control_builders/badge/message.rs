@@ -12,7 +12,14 @@ impl BadgeBuilder {
     where
         Message: Clone + Send + Sync + 'static,
     {
-        self.mapped(move |_| message.clone())
+        let sizing = default_badge_sizing(&self.label);
+        let badge = BadgeWidget::new(0, self.label, sizing).with_active(self.active);
+        let mut node = view_node_from_widget(MappedWidget::new(
+            badge,
+            WidgetMessageMapper::badge_message(message),
+        ));
+        node.style = self.style;
+        node
     }
 
     /// Emit a mapped host message when activated.

@@ -11,6 +11,19 @@ impl<Message> WidgetMessageMapper<Message> {
     pub fn badge(map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static) -> Self {
         Self::typed(map)
     }
+
+    /// Build an allocation-free badge activation binding.
+    pub(crate) fn badge_message(message: Message) -> Self
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        Self::constant(message, |output| {
+            matches!(
+                output.typed_ref::<BadgeMessage>(),
+                Some(BadgeMessage::Activate)
+            )
+        })
+    }
 }
 
 impl<Message> SurfaceNode<Message> {
@@ -24,7 +37,10 @@ impl<Message> SurfaceNode<Message> {
     where
         Message: Clone + Send + Sync + 'static,
     {
-        Self::badge_mapped(id, label, sizing, move |_| message.clone())
+        Self::widget(
+            BadgeWidget::new(id, PaintText::from(label.into()), sizing),
+            WidgetMessageMapper::badge_message(message),
+        )
     }
 
     /// Build a badge or pill leaf node with a custom widget-to-host message mapper.

@@ -2,8 +2,9 @@
 
 use crate::runner::ScenarioCounters;
 use radiant::prelude::{
-    IntoView, VirtualListWindowRequest, button, list_row_id, resolve_virtual_list_window,
-    selectable, virtual_list_window,
+    IntoView, VirtualListWindowRequest, action_row, badge, button, close_button, column,
+    determinate_progress_bar, list_row_id, resolve_virtual_list_window, selectable,
+    virtual_list_window,
 };
 use std::hint::black_box;
 
@@ -22,6 +23,33 @@ pub(super) fn virtual_selectable_list_projection_10k() -> impl FnMut() -> Scenar
 
 pub(super) fn virtual_list_window_projection_10k() -> impl FnMut() -> ScenarioCounters {
     bench_app_virtual_list_window_projection_10k
+}
+
+pub(super) fn constant_message_controls_projection_1k() -> impl FnMut() -> ScenarioCounters {
+    bench_app_constant_message_controls_projection_1k
+}
+
+fn bench_app_constant_message_controls_projection_1k() -> ScenarioCounters {
+    let mut controls = Vec::with_capacity(1_000);
+    for index in 0..200_u64 {
+        controls.push(button("Run").message(()).id(index * 5 + 10));
+        controls.push(close_button().message(()).id(index * 5 + 11));
+        controls.push(badge("Ready").message(()).id(index * 5 + 12));
+        controls.push(action_row("Open").message(()).id(index * 5 + 13));
+        controls.push(
+            determinate_progress_bar(0.5)
+                .activatable()
+                .message(())
+                .id(index * 5 + 14),
+        );
+    }
+    let surface = column(controls).into_surface();
+    assert_eq!(surface.layout_node().id(), 1);
+    let callback_allocation_count = surface.widget_callback_allocation_count() as u64;
+    black_box(surface);
+    ScenarioCounters::default()
+        .with_widget_callback_allocation_count(callback_allocation_count)
+        .with_allocation_sensitive_work_count(1_000)
 }
 
 fn bench_app_virtual_list_projection_10k() -> ScenarioCounters {

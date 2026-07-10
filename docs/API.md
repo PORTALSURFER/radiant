@@ -2220,8 +2220,8 @@ Each JSON line includes `type`, `scenario`, `category`, `group`, `iterations`,
 `surface_refresh_count`, `relayout_count`, `dirty_mark_count`,
 `overlay_paint_count`, `overlay_rebuild_count`, `text_cache_hit_count`,
 `retained_surface_cache_hit_count`, `gpu_surface_count`,
-`frame_cadence_due_count`, `frame_cadence_wait_count`, and
-`allocation_sensitive_work_count`. This keeps
+`frame_cadence_due_count`, `frame_cadence_wait_count`,
+`widget_callback_allocation_count`, and `allocation_sensitive_work_count`. This keeps
 performance history parseable without scraping prose or losing which target
 area and review-risk group the scenario validates.
 Capture a machine-local baseline artifact directly with
@@ -2339,7 +2339,9 @@ It currently covers:
 - Application projection scenarios: `app_virtual_list_projection_10k`,
   `app_virtual_list_projection_generated_child_ids_10k`,
   `app_virtual_selectable_list_projection_10k`, and
-  `app_virtual_list_window_projection_10k`
+  `app_virtual_list_window_projection_10k`, plus
+  `app_constant_message_controls_projection_1k` for allocation-sensitive
+  constant-message binding coverage
 - Runtime surface scenarios: `runtime_surface_large_tree`, `runtime_text_paint_plan_1k`,
   `runtime_horizontal_scroll_paint_1k`, `runtime_virtualized_list_wheel_10k`,
   `runtime_virtualized_list_hover_10k`,

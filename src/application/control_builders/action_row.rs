@@ -40,7 +40,26 @@ impl ActionRowBuilder {
     where
         Message: Clone + Send + Sync + 'static,
     {
-        self.mapped(move |_| message.clone())
+        let label = self.label.clone();
+        stack([
+            action_row_hit_surface(
+                self.style,
+                WidgetMessageMapper::constant(message, |output| {
+                    matches!(
+                        output.typed_ref::<InteractiveRowMessage>(),
+                        Some(InteractiveRowMessage::Activate)
+                    )
+                }),
+            ),
+            text(label.to_string())
+                .align_text(TextAlign::Left)
+                .truncate()
+                .padding_x(8.0)
+                .fill_width()
+                .height(DEFAULT_ACTION_ROW_HEIGHT),
+        ])
+        .fill_width()
+        .height(DEFAULT_ACTION_ROW_HEIGHT)
     }
 
     /// Emit a mapped host message when the row is activated.
@@ -50,7 +69,13 @@ impl ActionRowBuilder {
     ) -> ViewNode<Message> {
         let label = self.label.clone();
         stack([
-            action_row_hit_surface(self.style, map),
+            action_row_hit_surface(
+                self.style,
+                WidgetMessageMapper::dynamic(move |output| {
+                    let message = output.typed_ref::<InteractiveRowMessage>()?;
+                    matches!(message, InteractiveRowMessage::Activate).then(|| map(*message))
+                }),
+            ),
             text(label.to_string())
                 .align_text(TextAlign::Left)
                 .truncate()
@@ -73,17 +98,14 @@ pub fn action_row(label: impl Into<String>) -> ActionRowBuilder {
 
 fn action_row_hit_surface<Message: 'static>(
     style: Option<WidgetStyle>,
-    map: impl Fn(InteractiveRowMessage) -> Message + Send + Sync + 'static,
+    messages: WidgetMessageMapper<Message>,
 ) -> ViewNode<Message> {
     let mut node = view_node_from_widget(MappedWidget::new(
         InteractiveRowWidget::new(
             0,
             WidgetSizing::fixed(crate::layout::Vector2::new(1.0, DEFAULT_ACTION_ROW_HEIGHT)),
         ),
-        WidgetMessageMapper::dynamic(move |output| {
-            let message = output.typed_ref::<InteractiveRowMessage>()?;
-            matches!(message, InteractiveRowMessage::Activate).then(|| map(*message))
-        }),
+        messages,
     ));
     node.style = style;
     node.fill_width().height(DEFAULT_ACTION_ROW_HEIGHT)
@@ -129,6 +151,24 @@ mod tests {
         let position = Point::new(12.0, 12.0);
 
         assert_eq!(feedback_text(&runtime), Some("idle"));
+        runtime.dispatch_input_at(
+            position,
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Secondary,
+                modifiers: PointerModifiers::default(),
+            },
+        );
+        runtime.dispatch_input_at(
+            position,
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Secondary,
+                modifiers: PointerModifiers::default(),
+            },
+        );
+        assert_eq!(feedback_text(&runtime), Some("idle"));
+
         runtime.dispatch_input_at(
             position,
             WidgetInput::PointerPress {

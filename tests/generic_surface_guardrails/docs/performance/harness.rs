@@ -103,6 +103,7 @@ fn performance_harness_runner_exposes_metrics_baselines_and_listing() {
             && metrics.contains("text_cache_hit_count")
             && metrics.contains("retained_surface_cache_hit_count")
             && metrics.contains("frame_cadence_due_count")
+            && metrics.contains("widget_callback_allocation_count")
             && metrics.contains("\\\"baseline_avg_us\\\"")
             && metrics.contains("\\\"baseline_ratio\\\"")
             && metrics.contains("\\\"baseline_status\\\"")

@@ -66,7 +66,7 @@ impl ButtonBuilder {
     where
         Message: Clone + Send + Sync + 'static,
     {
-        self.mapped(move |_| message.clone())
+        self.with_message_mapper(WidgetMessageMapper::button_message(message))
     }
 
     /// Emit a mapped host message when activated.

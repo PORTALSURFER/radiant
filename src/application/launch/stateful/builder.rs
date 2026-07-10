@@ -92,13 +92,13 @@ impl<State> StatefulAppBuilder<State> {
         self
     }
 
-    /// Attach a state projection closure.
+    /// Attach an immutable state projection closure.
     pub fn view<Message, Project, View>(
         self,
         project: Project,
     ) -> StatefulAppWithView<State, Message, Project, View>
     where
-        Project: FnMut(&mut State) -> View,
+        Project: FnMut(&State) -> View,
         View: IntoView<Message>,
     {
         StatefulAppWithView {

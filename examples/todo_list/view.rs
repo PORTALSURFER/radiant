@@ -14,7 +14,7 @@ pub(super) enum TodoMessage {
     Delete(u64),
 }
 
-pub(super) fn project_surface(state: &mut TodoState) -> ui::View<TodoMessage> {
+pub(super) fn project_surface(state: &TodoState) -> ui::View<TodoMessage> {
     let page = ui::column([header_row(state), body_section(state)])
         .key("root")
         .subtle()
@@ -70,7 +70,7 @@ fn header_row(state: &TodoState) -> ui::View<TodoMessage> {
     .spacing(12.0)
 }
 
-fn body_section(state: &mut TodoState) -> ui::View<TodoMessage> {
+fn body_section(state: &TodoState) -> ui::View<TodoMessage> {
     ui::column([input_row(state), todo_list(state)])
         .key("body")
         .style(ui::WidgetStyle::default())

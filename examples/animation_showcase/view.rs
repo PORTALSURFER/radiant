@@ -2,7 +2,7 @@ use radiant::prelude::*;
 
 use crate::model::{AnimationMessage, AnimationState};
 
-pub(super) fn animation_view(state: &mut AnimationState) -> View<AnimationMessage> {
+pub(super) fn animation_view(state: &AnimationState) -> View<AnimationMessage> {
     column([
         text("Animation Showcase").height(28.0).fill_width(),
         text(state.status()).id(20).height(26.0).fill_width(),

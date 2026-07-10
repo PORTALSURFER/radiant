@@ -4,7 +4,7 @@ use super::{LauncherMessage, LauncherState};
 use crate::model::PopupMode;
 use radiant::prelude::*;
 
-pub(crate) fn launcher_view(state: &mut LauncherState) -> View<LauncherMessage> {
+pub(crate) fn launcher_view(state: &LauncherState) -> View<LauncherMessage> {
     column([
         text("Popup workflow")
             .id(11)

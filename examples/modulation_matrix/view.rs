@@ -5,7 +5,7 @@ use super::{
     ModulationMatrixState, ModulationMatrixWidget, SOURCE_COUNT, STATUS_WIDGET_ID,
 };
 
-pub(crate) fn project_surface(state: &mut ModulationMatrixState) -> View<AppMessage> {
+pub(crate) fn project_surface(state: &ModulationMatrixState) -> View<AppMessage> {
     column([
         header_row(state),
         custom_widget_mapped(

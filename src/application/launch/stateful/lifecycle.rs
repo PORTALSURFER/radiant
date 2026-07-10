@@ -7,7 +7,7 @@ use crate::{
 
 impl<State, Message, Project, View> StatefulAppWithView<State, Message, Project, View>
 where
-    Project: FnMut(&mut State) -> View + 'static,
+    Project: FnMut(&State) -> View + 'static,
     View: IntoView<Message> + 'static,
     Message: Send + 'static,
     State: 'static,

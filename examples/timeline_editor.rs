@@ -33,7 +33,7 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn project_surface(state: &mut TimelineEditorState) -> View<TimelineMessage> {
+fn project_surface(state: &TimelineEditorState) -> View<TimelineMessage> {
     let timeline = timeline_surface(state);
 
     column([

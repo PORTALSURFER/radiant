@@ -20,7 +20,7 @@ pub struct StatefulAppWithView<State, Message, Project, View> {
 
 impl<State, Project, View> StatefulAppWithView<State, (), Project, View>
 where
-    Project: FnMut(&mut State) -> View + 'static,
+    Project: FnMut(&State) -> View + 'static,
     View: IntoView<()> + 'static,
     State: 'static,
 {
@@ -51,7 +51,7 @@ where
 
 impl<State, Message, Project, View> StatefulAppWithView<State, Message, Project, View>
 where
-    Project: FnMut(&mut State) -> View + 'static,
+    Project: FnMut(&State) -> View + 'static,
     View: IntoView<Message> + 'static,
     Message: Send + 'static,
     State: 'static,

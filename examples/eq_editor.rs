@@ -27,7 +27,7 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn project_surface(state: &mut EqEditorState) -> View<EqMessage> {
+fn project_surface(state: &EqEditorState) -> View<EqMessage> {
     let selected = selected_band(state).copied();
 
     column([

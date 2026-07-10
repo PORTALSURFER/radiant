@@ -15,7 +15,7 @@ pub(super) enum NodeEditorMessage {
     ArmOutput(&'static str),
 }
 
-pub(super) fn project_surface(state: &mut NodeEditorState) -> View<NodeEditorMessage> {
+pub(super) fn project_surface(state: &NodeEditorState) -> View<NodeEditorMessage> {
     column([
         row([
             text("Node Editor").height(30.0).fill_width(),

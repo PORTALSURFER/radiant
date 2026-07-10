@@ -20,9 +20,7 @@ fn paint_only_command_skips_surface_reprojection() {
 #[test]
 fn app_transient_overlay_painter_reads_state_and_cached_plan() {
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
-            radiant::prelude::text(format!("Count {}", state.count)).id(10)
-        })
+        .view(|state: &DemoState| radiant::prelude::text(format!("Count {}", state.count)).id(10))
         .transient_overlay(|state, context, primitives| {
             assert_eq!(context.viewport, Vector2::new(180.0, 40.0));
             let Some(text) = context

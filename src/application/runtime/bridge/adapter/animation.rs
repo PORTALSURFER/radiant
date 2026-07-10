@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
 where
-    Project: FnMut(&mut State) -> View + 'static,
+    Project: FnMut(&State) -> View + 'static,
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
 {

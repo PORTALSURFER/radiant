@@ -5,7 +5,7 @@ use radiant::widgets::TextInputWidget;
 #[test]
 fn app_startup_commands_use_full_runtime_dispatch() {
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             UiSurface::new(SurfaceNode::row(
                 1,
                 8.0,
@@ -60,7 +60,7 @@ fn app_startup_commands_use_full_runtime_dispatch() {
 #[test]
 fn app_startup_runs_once_when_repaint_signal_is_reinstalled() {
     let mut bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
                 10,
                 format!("Startup runs: {}", state.count),
@@ -88,7 +88,7 @@ fn app_startup_runs_once_when_repaint_signal_is_reinstalled() {
 #[test]
 fn app_runtime_effects_stop_after_runtime_exit() {
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
                 10,
                 format!("Effects ({})", state.count),

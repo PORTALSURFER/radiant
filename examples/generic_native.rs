@@ -31,7 +31,7 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn project_surface(state: &mut DemoState) -> View<DemoMessage> {
+fn project_surface(state: &DemoState) -> View<DemoMessage> {
     row([
         text(format!("Generic Radiant count: {}", state.count))
             .id(10)

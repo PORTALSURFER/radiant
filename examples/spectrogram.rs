@@ -36,7 +36,7 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn project_surface(state: &mut SpectrogramState) -> View<SpectrogramMessage> {
+fn project_surface(state: &SpectrogramState) -> View<SpectrogramMessage> {
     column([
         header_row(state),
         spectrogram_view(state),

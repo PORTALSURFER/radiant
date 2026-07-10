@@ -4,7 +4,7 @@ use super::{
 };
 use radiant::prelude::*;
 
-pub(crate) fn project_surface(state: &mut MixerState) -> View<MixerMessage> {
+pub(crate) fn project_surface(state: &MixerState) -> View<MixerMessage> {
     let selected = state.selected();
     column([
         header_row(state.running),

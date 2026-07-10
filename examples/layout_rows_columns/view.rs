@@ -16,7 +16,7 @@ pub(super) enum LayoutDemoMessage {
     AdjustDepth(isize),
 }
 
-pub(super) fn project_surface(state: &mut LayoutDemoState) -> ui::View<LayoutDemoMessage> {
+pub(super) fn project_surface(state: &LayoutDemoState) -> ui::View<LayoutDemoMessage> {
     ui::column([header(), controls(state), playground(state)])
         .padding(16.0)
         .spacing(12.0)

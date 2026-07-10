@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn active_animation_frame_messages_are_coalesced_until_drained() {
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
                 10,
                 format!("Frame ({})", state.count),
@@ -37,7 +37,7 @@ fn active_animation_frame_messages_are_coalesced_until_drained() {
 #[test]
 fn animation_activity_poll_is_reused_for_frame_queue() {
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
                 10,
                 format!("Polls ({})", state.count),
@@ -64,7 +64,7 @@ fn animation_activity_poll_is_reused_for_frame_queue() {
 #[test]
 fn polling_animation_activity_does_not_queue_frame_messages() {
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
                 10,
                 format!("Frame ({})", state.count),

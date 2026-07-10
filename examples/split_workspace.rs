@@ -24,7 +24,7 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn project_surface(state: &mut WorkspaceState) -> ui::View<WorkspaceMessage> {
+fn project_surface(state: &WorkspaceState) -> ui::View<WorkspaceMessage> {
     ui::row([sidebar_view(state).width(240.0), panes_view(state).fill()])
         .padding(12.0)
         .spacing(10.0)

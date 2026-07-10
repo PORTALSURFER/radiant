@@ -5,7 +5,7 @@ use super::{
     PianoRollTool, PianoRollWidget, PianoRollWidgetParts, STATUS_WIDGET_ID,
 };
 
-pub(crate) fn project_surface(state: &mut PianoRollState) -> View<AppMessage> {
+pub(crate) fn project_surface(state: &PianoRollState) -> View<AppMessage> {
     column([
         header_row(state),
         custom_widget_mapped(

@@ -6,7 +6,7 @@ use crate::selection_overlay::SelectionOverlay;
 pub(super) const SURFACE_WIDTH: f32 = 560.0;
 pub(super) const SURFACE_HEIGHT: f32 = 220.0;
 
-pub(super) fn demo_view(state: &mut DemoState) -> View<DemoMessage> {
+pub(super) fn demo_view(state: &DemoState) -> View<DemoMessage> {
     column([
         row([
             button(if state.running { "Pause" } else { "Run" })

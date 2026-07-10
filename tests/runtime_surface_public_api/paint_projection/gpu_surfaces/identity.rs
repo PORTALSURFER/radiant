@@ -15,6 +15,14 @@ fn gpu_surface_compatibility_constructor_delegates_to_named_parts() {
         revision: 7,
         content: content.clone(),
     });
+    let _: UiSurface<()> = radiant::runtime::gpu_surface_from_parts::<()>(GpuSurfaceParts {
+        id: 42,
+        sizing: WidgetSizing::fixed(Vector2::new(80.0, 20.0)),
+        key: 9002,
+        revision: 8,
+        content: content.clone(),
+    })
+    .into_surface();
     let positional = GpuSurfaceWidget::new(
         41,
         WidgetSizing::fixed(Vector2::new(80.0, 20.0)),

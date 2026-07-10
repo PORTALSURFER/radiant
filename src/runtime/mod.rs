@@ -58,6 +58,7 @@ pub use crate::gui_runtime::{
     WindowSpecError, WindowSpecParts, run_native_vello_runtime,
     run_native_vello_runtime_with_artifacts,
 };
+pub use crate::widgets::GpuSurfaceParts;
 pub use bridge::{
     App, AuxiliaryWindow, AuxiliaryWindowClosePolicy, DeclarativeCommandRuntimeBridge,
     DeclarativeCommandRuntimeBridgeParts, DeclarativeOwnedCommandRuntimeBridge,

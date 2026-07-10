@@ -115,7 +115,7 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn example_view(state: &mut ExampleState) -> View<ExampleMessage> {
+fn example_view(state: &ExampleState) -> View<ExampleMessage> {
     row([
         column([
             text("Tree").height(22.0).fill_width(),

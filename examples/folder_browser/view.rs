@@ -6,7 +6,7 @@ const FOLDER_MENU_SIZE: ui::Vector2 = ui::Vector2 { x: 190.0, y: 126.0 };
 const FILE_MENU_SIZE: ui::Vector2 = ui::Vector2 { x: 190.0, y: 126.0 };
 const COLUMN_MENU_SIZE: ui::Vector2 = ui::Vector2 { x: 210.0, y: 250.0 };
 
-pub(super) fn project_surface(state: &mut BrowserState) -> ui::View<BrowserMessage> {
+pub(super) fn project_surface(state: &BrowserState) -> ui::View<BrowserMessage> {
     let page = ui::column([
         header(state),
         ui::row([folder_tree(state), splitter(), file_view(state)])

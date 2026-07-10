@@ -39,7 +39,7 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn project_surface(state: &mut DemoState) -> View<Message> {
+fn project_surface(state: &DemoState) -> View<Message> {
     let selected = state
         .selected
         .map(|index| format!("Selected: {index:05}"))
@@ -51,7 +51,6 @@ fn project_surface(state: &mut DemoState) -> View<Message> {
         overscan: OVERSCAN_ROWS,
         ..VirtualListWindowRequest::default()
     });
-    state.view_start = window.viewport_start;
 
     column([
         text(selected).height(28.0).fill_width(),
@@ -85,11 +84,11 @@ mod tests {
 
     #[test]
     fn virtualized_list_projects_bounded_window_from_scroll_state() {
-        let mut state = DemoState {
+        let state = DemoState {
             selected: Some(4_020),
             view_start: 4_000,
         };
-        let surface = project_surface(&mut state).into_surface();
+        let surface = project_surface(&state).into_surface();
         let layout = surface.layout_node();
 
         assert_eq!(state.view_start, 4_000);
@@ -100,6 +99,20 @@ mod tests {
         assert!(surface.find_widget(ROW_ID_BASE + 4_000).is_some());
         assert!(surface.find_widget(ROW_ID_BASE + 4_023).is_some());
         assert!(surface.find_widget(ROW_ID_BASE + 100).is_none());
+    }
+
+    #[test]
+    fn repeated_projection_leaves_host_state_unchanged() {
+        let state = DemoState {
+            selected: Some(ROW_COUNT - 1),
+            view_start: ROW_COUNT + VIEWPORT_ROWS,
+        };
+        let before = (state.selected, state.view_start);
+
+        let _first = project_surface(&state).into_surface();
+        assert_eq!((state.selected, state.view_start), before);
+        let _second = project_surface(&state).into_surface();
+        assert_eq!((state.selected, state.view_start), before);
     }
 
     #[test]

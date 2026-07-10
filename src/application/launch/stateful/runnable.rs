@@ -21,7 +21,7 @@ pub struct RunnableStatefulApp<State, Message, Project, Update, View> {
 impl<State, Message, Project, Update, View>
     RunnableStatefulApp<State, Message, Project, Update, View>
 where
-    Project: FnMut(&mut State) -> View + 'static,
+    Project: FnMut(&State) -> View + 'static,
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
     Message: Send + 'static,

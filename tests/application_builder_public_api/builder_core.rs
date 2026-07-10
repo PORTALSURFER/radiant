@@ -188,6 +188,27 @@ fn application_bridge_pulls_owned_surfaces_for_runtime_projection() {
 }
 
 #[test]
+fn application_view_projection_is_repeatable_over_immutable_host_state() {
+    use radiant::prelude as ui;
+
+    let mut bridge = ui::app(DemoState {
+        count: 7,
+        name: String::from("immutable"),
+    })
+    .view(|state: &DemoState| ui::text(format!("{}: {}", state.name, state.count)).id(10))
+    .update(|_state, DemoMessage::Increment| {})
+    .into_bridge();
+
+    for _ in 0..2 {
+        let surface = bridge.pull_surface();
+        assert_eq!(
+            widget_ref::<TextWidget, _>(&surface, 10, "text").text,
+            "immutable: 7"
+        );
+    }
+}
+
+#[test]
 fn application_builders_scope_keys_and_bind_text_inputs_to_state_fields() {
     use radiant::prelude::{self as ui, IntoView};
 

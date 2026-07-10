@@ -4,7 +4,7 @@ use super::{
 };
 use radiant::prelude::*;
 
-pub(super) fn project_surface(state: &mut StatusBarState) -> View<StatusMessage> {
+pub(super) fn project_surface(state: &StatusBarState) -> View<StatusMessage> {
     column([workspace_panel(state).fill_height(), status_bar(state)])
         .fill()
         .spacing(0.0)

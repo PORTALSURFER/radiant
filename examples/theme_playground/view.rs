@@ -5,7 +5,7 @@ use crate::{
     report::{ThemeReport, primary_style, theme_report},
 };
 
-pub(super) fn project_surface(state: &mut PlaygroundState) -> View<PlaygroundMessage> {
+pub(super) fn project_surface(state: &PlaygroundState) -> View<PlaygroundMessage> {
     let selected_style = WidgetStyle {
         tone: state.selected_tone,
         prominence: WidgetProminence::Strong,

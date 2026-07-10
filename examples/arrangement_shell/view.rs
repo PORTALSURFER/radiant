@@ -12,7 +12,7 @@ use components::{
     track_button_style,
 };
 
-pub(crate) fn project_surface(state: &mut ArrangementShellState) -> View<AppMessage> {
+pub(crate) fn project_surface(state: &ArrangementShellState) -> View<AppMessage> {
     workspace_shell(arrangement_panel(state))
         .top_bar(transport_bar(state))
         .leading_sidebar(browser_panel(state))

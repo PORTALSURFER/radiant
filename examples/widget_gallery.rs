@@ -37,7 +37,7 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn project_surface(state: &mut GalleryState) -> View<GalleryMessage> {
+fn project_surface(state: &GalleryState) -> View<GalleryMessage> {
     column([
         row([
             text("Widget Gallery").height(30.0).fill_width(),

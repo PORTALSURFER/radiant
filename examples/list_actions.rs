@@ -93,7 +93,7 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn list_actions_surface(state: &mut ListActionState) -> View<ListActionMessage> {
+fn list_actions_surface(state: &ListActionState) -> View<ListActionMessage> {
     column([
         row([
             text("List Actions").height(30.0).fill_width(),

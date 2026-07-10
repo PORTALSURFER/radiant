@@ -75,7 +75,9 @@ view's widget-message mapping or input behavior.
 
 Small stateful apps should use the same message-first model as larger apps.
 Widgets emit explicit messages, and the update handler owns durable state
-changes:
+changes. The normal `.view(...)` projection receives `&State`; prepare derived
+host state before launch or in the update path, because view construction cannot
+mutate it:
 
 ```rust
 use radiant::prelude::*;
@@ -94,7 +96,7 @@ fn main() -> radiant::Result {
     radiant::app(State::default())
         .title("Counter")
         .size(320, 120)
-        .view(|state| {
+        .view(|state: &State| {
             column([
                 text(format!("Count: {}", state.count)),
                 button("Increment").message(Message::Increment),

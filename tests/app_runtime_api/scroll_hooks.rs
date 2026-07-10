@@ -14,7 +14,7 @@ fn app_scroll_hook_observes_runtime_scroll_offsets() {
     let observed_scroll_y = Arc::new(Mutex::new(None));
     let observed_scroll_y_for_hook = Arc::clone(&observed_scroll_y);
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             UiSurface::new(SurfaceNode::scroll_area(
                 20,
                 SurfaceNode::column(
@@ -61,7 +61,7 @@ fn app_scroll_hook_observes_runtime_scroll_offsets() {
 #[test]
 fn declarative_virtual_list_window_change_routes_through_update() {
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             let viewport_start = (state.last_scroll_y / 20.0).floor() as usize;
             let window = ui::resolve_virtual_list_window(ui::VirtualListWindowRequest {
                 total_items: 20,
@@ -103,7 +103,7 @@ fn declarative_virtual_list_window_change_routes_through_update() {
 #[test]
 fn declarative_virtual_list_bottom_scroll_keeps_rows_materialized() {
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             let requested_start = (state.last_scroll_y / 20.0).floor() as usize;
             let window = ui::resolve_virtual_list_window(ui::VirtualListWindowRequest {
                 total_items: 100,
@@ -144,7 +144,7 @@ fn app_scroll_hook_observes_scrollbar_drag_offsets() {
     let observed_scroll_y = Arc::new(Mutex::new(None));
     let observed_scroll_y_for_hook = Arc::clone(&observed_scroll_y);
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             UiSurface::new(SurfaceNode::scroll_area(
                 20,
                 SurfaceNode::column(

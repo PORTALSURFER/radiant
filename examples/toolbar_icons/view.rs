@@ -2,7 +2,7 @@ use super::*;
 use crate::icon_button::IconToggleButton;
 use crate::model::{ToolId, ToolMessage, ToolbarState};
 
-pub(super) fn project_surface(state: &mut ToolbarState) -> View<ToolMessage> {
+pub(super) fn project_surface(state: &ToolbarState) -> View<ToolMessage> {
     column([
         text("Icon Toolbar").height(28.0).fill_width(),
         toolbar(state),

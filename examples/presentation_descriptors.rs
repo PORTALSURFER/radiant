@@ -45,7 +45,7 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn view(state: &mut State) -> View<Message> {
+fn view(state: &State) -> View<Message> {
     ui::column([
         ui::text(format!("Frame {}", state.frame))
             .height(24.0)

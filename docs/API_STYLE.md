@@ -58,6 +58,9 @@ API audits, issue creation, and implementation work:
 - Radiant is message-first. Views emit explicit messages; update handlers own
   durable state changes and side effects. Do not document direct state callbacks
   as a canonical application style.
+- Normal `.view(...)` projections borrow host state immutably. Derived host
+  state must be prepared before launch or in update handlers rather than during
+  view construction.
 - Use `on_click`, `on_activate`, `on_secondary_activate`, `on_change`,
   `on_drag`, and similar intent-oriented names for interaction hooks only when
   those hooks emit explicit messages or generic widget messages. Avoid names

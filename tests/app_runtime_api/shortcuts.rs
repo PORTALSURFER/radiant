@@ -16,7 +16,7 @@ fn button_label<Message>(surface: &UiSurface<Message>, widget_id: u64) -> String
 #[test]
 fn app_shortcuts_dispatch_messages_before_focused_widget_key_routing() {
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             radiant::prelude::button(format!("Count {}", state.count))
                 .message(DemoMessage::Increment)
                 .id(10)
@@ -64,7 +64,7 @@ fn app_shortcuts_dispatch_messages_before_focused_widget_key_routing() {
 #[test]
 fn scene_shortcuts_dispatch_messages_before_focused_widget_key_routing() {
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             radiant::prelude::scene(
                 radiant::prelude::button(format!("Count {}", state.count))
                     .message(DemoMessage::Increment)
@@ -106,7 +106,7 @@ fn scene_shortcuts_dispatch_messages_before_focused_widget_key_routing() {
 #[test]
 fn scene_modal_shortcut_layer_consumes_unmatched_keys() {
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             radiant::prelude::scene(
                 radiant::prelude::button(format!("Count {}", state.count))
                     .message(DemoMessage::Increment)
@@ -140,7 +140,7 @@ fn scene_modal_shortcut_layer_consumes_unmatched_keys() {
 #[test]
 fn scene_shortcut_fallback_handles_dynamic_keys() {
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             radiant::prelude::scene(
                 radiant::prelude::button(format!("Count {}", state.count))
                     .message(DemoMessage::Increment)
@@ -174,7 +174,7 @@ fn scene_shortcut_fallback_handles_dynamic_keys() {
 #[test]
 fn scene_shortcuts_fall_back_to_app_builder_shortcuts_when_unhandled() {
     let bridge = app(DemoState::default())
-        .view(|state: &mut DemoState| {
+        .view(|state: &DemoState| {
             radiant::prelude::scene(
                 radiant::prelude::button(format!("Count {}", state.count))
                     .message(DemoMessage::Increment)

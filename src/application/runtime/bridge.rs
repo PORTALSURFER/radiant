@@ -159,7 +159,7 @@ impl<State, Message> AppBridgeLifecycle<State, Message> {
 
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
 where
-    Project: FnMut(&mut State) -> View,
+    Project: FnMut(&State) -> View,
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>),
     View: IntoView<Message>,
 {

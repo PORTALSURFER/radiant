@@ -43,7 +43,7 @@ fn main() -> radiant::Result {
     .run()
 }
 
-fn project_surface(state: &mut FocusState) -> View<FocusMessage> {
+fn project_surface(state: &FocusState) -> View<FocusMessage> {
     column([
         text("Focus Controls").height(30.0).fill_width(),
         row([

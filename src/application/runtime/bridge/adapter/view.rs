@@ -9,18 +9,18 @@ use std::{any::Any, sync::Arc};
 impl<State: 'static, Message: 'static, Project, Update, View>
     AppBridge<State, Message, Project, Update, View>
 where
-    Project: FnMut(&mut State) -> View + 'static,
+    Project: FnMut(&State) -> View + 'static,
     Update: FnMut(&mut State, Message, &mut UiUpdateContext<Message>) + 'static,
     View: IntoView<Message> + 'static,
 {
     pub(super) fn project_surface_arc(&mut self) -> Arc<UiSurface<Message>> {
-        let mut view = (self.project)(&mut self.state);
+        let mut view = (self.project)(&self.state);
         self.apply_view_scene_presentation(&mut view);
         Arc::new(view.into_surface())
     }
 
     pub(super) fn pull_surface_owned(&mut self) -> UiSurface<Message> {
-        let mut view = (self.project)(&mut self.state);
+        let mut view = (self.project)(&self.state);
         self.apply_view_scene_presentation(&mut view);
         view.into_surface()
     }

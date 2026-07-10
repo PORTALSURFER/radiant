@@ -23,7 +23,7 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn styling_view(state: &mut StylingState) -> View<StylingMessage> {
+fn styling_view(state: &StylingState) -> View<StylingMessage> {
     column([
         text("Button styles").size(160.0, 28.0),
         row([

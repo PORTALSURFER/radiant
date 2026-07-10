@@ -48,7 +48,7 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn project_surface(state: &mut PanelState) -> ui::View<PanelMessage> {
+fn project_surface(state: &PanelState) -> ui::View<PanelMessage> {
     ui::column([
         ui::row([
             ui::text("Plugin Panel").height(30.0).fill_width(),

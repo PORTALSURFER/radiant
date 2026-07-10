@@ -196,7 +196,7 @@ fn app_configured_gpu_surface_parts_preserve_capabilities_and_overlays() {
 fn app_gpu_surface_input_parts_route_through_normal_message_path() {
     let atlas = Arc::new(ImageRgba::new(2, 1, vec![255; 8]).expect("valid atlas"));
     let bridge = app(DemoState::default())
-        .view(move |state: &mut DemoState| {
+        .view(move |state: &DemoState| {
             radiant::prelude::column([
                 radiant::prelude::text(format!("GPU inputs: {}", state.count)).id(91),
                 gpu_surface_input_from_parts(GpuSurfaceInputParts {
@@ -240,7 +240,7 @@ fn app_gpu_surface_input_parts_route_through_normal_message_path() {
 fn app_gpu_surface_input_helper_routes_through_normal_message_path() {
     let atlas = Arc::new(ImageRgba::new(2, 1, vec![255; 8]).expect("valid atlas"));
     let bridge = app(DemoState::default())
-        .view(move |state: &mut DemoState| {
+        .view(move |state: &DemoState| {
             radiant::prelude::column([
                 radiant::prelude::text(format!("GPU inputs: {}", state.count)).id(91),
                 gpu_surface_input(

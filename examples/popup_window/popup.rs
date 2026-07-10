@@ -30,7 +30,7 @@ pub(super) fn run_popup_window() -> radiant::Result {
     .run()
 }
 
-pub(super) fn popup_view(state: &mut PopupState) -> View<PopupMessage> {
+pub(super) fn popup_view(state: &PopupState) -> View<PopupMessage> {
     let pinned_badge = if state.pinned {
         badge("Pinned")
             .primary()

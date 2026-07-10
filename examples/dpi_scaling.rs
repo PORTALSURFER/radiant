@@ -80,7 +80,7 @@ fn apply_scale<Message>(context: &mut UiUpdateContext<Message>, choice: DpiScale
     context.set_window_logical_size(Vector2::new(BASE_WINDOW_WIDTH, BASE_WINDOW_HEIGHT));
 }
 
-fn project_surface(state: &mut DpiScalingState) -> View<DpiScalingMessage> {
+fn project_surface(state: &DpiScalingState) -> View<DpiScalingMessage> {
     let scale = state.selected.scale();
     column([
         text(format!(

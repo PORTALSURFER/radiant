@@ -16,7 +16,7 @@ use radiant::{
 };
 use std::{sync::Arc, time::Duration};
 
-pub(crate) fn view(state: &mut WaveformApp) -> ui::View<WaveformInteraction> {
+pub(crate) fn view(state: &WaveformApp) -> ui::View<WaveformInteraction> {
     let title = format!(
         "{} | {} Hz | {} channel{} | {} frames | {:.1} ms visible",
         state.source.identity,

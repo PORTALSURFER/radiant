@@ -1,4 +1,5 @@
 use crate::{
+    application::TextContent,
     gui::text_layout::{TextWidthEstimate, estimated_text_width_for_char_count_in_range},
     gui::types::Point,
     layout::Vector2,
@@ -15,8 +16,8 @@ const COMPACT_MENU_MAX_WIDTH: f32 = 380.0;
 /// One clickable item in a generic message-emitting menu.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MenuCommand<Message> {
-    pub(crate) label: String,
-    pub(crate) hotkey_hint: Option<String>,
+    pub(crate) label: TextContent,
+    pub(crate) hotkey_hint: Option<TextContent>,
     pub(crate) style: WidgetStyle,
     pub(crate) message: Message,
 }
@@ -25,9 +26,9 @@ pub struct MenuCommand<Message> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MenuCommandParts<Message> {
     /// Visible menu-item label.
-    pub label: String,
+    pub label: TextContent,
     /// Optional trailing shortcut or hotkey hint.
-    pub hotkey_hint: Option<String>,
+    pub hotkey_hint: Option<TextContent>,
     /// Visual styling applied to the backing button.
     pub style: WidgetStyle,
     /// Host message emitted when the item is activated.
@@ -46,7 +47,7 @@ impl<Message> MenuCommand<Message> {
     }
 
     /// Build a menu command that emits the supplied host message when activated.
-    pub fn new(label: impl Into<String>, message: Message) -> Self {
+    pub fn new(label: impl Into<TextContent>, message: Message) -> Self {
         Self::from_parts(MenuCommandParts {
             label: label.into(),
             hotkey_hint: None,
@@ -56,7 +57,7 @@ impl<Message> MenuCommand<Message> {
     }
 
     /// Render a trailing shortcut or hotkey hint for this command.
-    pub fn hotkey_hint(mut self, hint: impl Into<String>) -> Self {
+    pub fn hotkey_hint(mut self, hint: impl Into<TextContent>) -> Self {
         let hint = hint.into();
         self.hotkey_hint = (!hint.is_empty()).then_some(hint);
         self
@@ -90,7 +91,7 @@ impl<Message> MenuCommand<Message> {
 /// Named construction fields for a compact message-emitting menu.
 pub struct MessageMenuParts<Message> {
     /// Menu title shown above the action list.
-    pub title: String,
+    pub title: TextContent,
     /// Visual styling applied to the menu surface.
     pub style: WidgetStyle,
     /// Ordered clickable menu commands.
@@ -172,7 +173,7 @@ pub struct DismissibleContextMenuParts<Message> {
     /// Desired menu size.
     pub size: Vector2,
     /// Menu title shown above the action list.
-    pub title: String,
+    pub title: TextContent,
     /// Visual styling applied to the menu surface.
     pub style: WidgetStyle,
     /// Ordered clickable menu commands.
@@ -188,7 +189,7 @@ pub struct MessageContextMenuOverlayParts<Message> {
     /// Desired menu size.
     pub size: Vector2,
     /// Menu title shown above the action list.
-    pub title: String,
+    pub title: TextContent,
     /// Visual styling applied to the menu surface.
     pub style: WidgetStyle,
     /// Ordered clickable menu commands.

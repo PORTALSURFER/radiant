@@ -131,7 +131,7 @@ fn metric_row(label: &'static str, value: usize) -> ui::View<LayoutDemoMessage> 
 }
 
 fn panel(
-    title: impl Into<String>,
+    title: impl Into<ui::TextContent>,
     content: ui::View<LayoutDemoMessage>,
 ) -> ui::View<LayoutDemoMessage> {
     ui::column([ui::text(title).fill_width().height(24.0), content])
@@ -145,7 +145,7 @@ fn panel(
         .spacing(8.0)
 }
 
-fn fixed_tile(label: impl Into<String>, height: f32) -> ui::View<LayoutDemoMessage> {
+fn fixed_tile(label: impl Into<ui::TextContent>, height: f32) -> ui::View<LayoutDemoMessage> {
     ui::text(label)
         .style(ui::WidgetStyle::default())
         .fill_width()
@@ -153,7 +153,7 @@ fn fixed_tile(label: impl Into<String>, height: f32) -> ui::View<LayoutDemoMessa
 }
 
 fn fixed_size_tile(
-    label: impl Into<String>,
+    label: impl Into<ui::TextContent>,
     width: f32,
     height: f32,
 ) -> ui::View<LayoutDemoMessage> {
@@ -162,7 +162,7 @@ fn fixed_size_tile(
         .size(width, height)
 }
 
-fn fill_tile(label: impl Into<String>) -> ui::View<LayoutDemoMessage> {
+fn fill_tile(label: impl Into<ui::TextContent>) -> ui::View<LayoutDemoMessage> {
     ui::text(label)
         .style(ui::WidgetStyle::default())
         .fill_width()

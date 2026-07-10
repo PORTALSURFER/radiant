@@ -1,5 +1,7 @@
 use crate::{
-    application::{MappedWidget, ViewNode, default_badge_sizing, view_node_from_widget},
+    application::{
+        MappedWidget, TextContent, ViewNode, default_badge_sizing, view_node_from_widget,
+    },
     runtime::WidgetMessageMapper,
     widgets::{BadgeMessage, BadgeWidget},
 };
@@ -37,7 +39,7 @@ impl BadgeBuilder {
 }
 
 /// Build a badge that emits one cloned host message when activated.
-pub fn badge_message<Message>(label: impl Into<String>, message: Message) -> ViewNode<Message>
+pub fn badge_message<Message>(label: impl Into<TextContent>, message: Message) -> ViewNode<Message>
 where
     Message: Clone + Send + Sync + 'static,
 {
@@ -46,7 +48,7 @@ where
 
 /// Build a badge with a custom widget-message mapper.
 pub fn badge_mapped<Message: 'static>(
-    label: impl Into<String>,
+    label: impl Into<TextContent>,
     map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
     badge(label).mapped(map)

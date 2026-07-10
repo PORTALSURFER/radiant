@@ -4,7 +4,7 @@ pub struct DetailsColumn {
     /// Stable caller-owned column id.
     pub id: String,
     /// Header label.
-    pub label: String,
+    pub label: TextContent,
     /// Fixed logical width, or `None` for the flexible primary column.
     pub width: Option<f32>,
 }
@@ -15,7 +15,7 @@ pub struct DetailsColumnParts {
     /// Stable caller-owned column id.
     pub id: String,
     /// Header label.
-    pub label: String,
+    pub label: TextContent,
     /// Fixed logical width, or `None` for the flexible primary column.
     pub width: Option<f32>,
 }
@@ -31,7 +31,7 @@ impl DetailsColumn {
     }
 
     /// Build a flexible details-list column.
-    pub fn flexible(id: impl ToString, label: impl Into<String>) -> Self {
+    pub fn flexible(id: impl ToString, label: impl Into<TextContent>) -> Self {
         Self::from_parts(DetailsColumnParts {
             id: id.to_string(),
             label: label.into(),
@@ -40,7 +40,7 @@ impl DetailsColumn {
     }
 
     /// Build a fixed-width details-list column.
-    pub fn fixed(id: impl ToString, label: impl Into<String>, width: f32) -> Self {
+    pub fn fixed(id: impl ToString, label: impl Into<TextContent>, width: f32) -> Self {
         Self::from_parts(DetailsColumnParts {
             id: id.to_string(),
             label: label.into(),
@@ -293,3 +293,4 @@ mod tests {
         assert_eq!(columns, ["name", "source_folder", "rating"]);
     }
 }
+use crate::application::TextContent;

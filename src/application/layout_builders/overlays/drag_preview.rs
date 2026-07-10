@@ -1,5 +1,5 @@
 use super::panel::overlay_panel;
-use crate::application::{ViewNode, primary_style};
+use crate::application::{TextContent, ViewNode, primary_style};
 use crate::gui::types::Point;
 use crate::layout::Vector2;
 
@@ -12,7 +12,7 @@ const DRAG_PREVIEW_DEFAULT_HEIGHT: f32 = 24.0;
 ///
 /// The preview is offset from the pointer so it reads like a carried item
 /// without covering the exact drop target under the cursor.
-pub fn drag_preview<Message>(label: impl Into<String>, pointer: Point) -> ViewNode<Message> {
+pub fn drag_preview<Message>(label: impl Into<TextContent>, pointer: Point) -> ViewNode<Message> {
     drag_preview_sized(
         label,
         pointer,
@@ -22,7 +22,7 @@ pub fn drag_preview<Message>(label: impl Into<String>, pointer: Point) -> ViewNo
 
 /// Build a non-interactive drag preview with an explicit preview size.
 pub fn drag_preview_sized<Message>(
-    label: impl Into<String>,
+    label: impl Into<TextContent>,
     pointer: Point,
     size: Vector2,
 ) -> ViewNode<Message> {

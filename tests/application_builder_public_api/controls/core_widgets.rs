@@ -5,6 +5,56 @@ use radiant::widgets::{
     MarkerRunWidget, PaintBounds, SelectableWidget, SliderMessage, SliderWidget, TextInputWidget,
     TextWidget, ToggleWidget, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
 };
+use std::sync::Arc;
+
+#[test]
+fn application_text_builders_accept_static_owned_and_shared_content() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let shared: Arc<str> = Arc::from("Shared status");
+    let surface: UiSurface<()> = ui::column([
+        ui::text("Ready").id(40),
+        ui::button(String::from("Owned action")).message(()).id(41),
+        ui::badge(Arc::clone(&shared)).message(()).id(42),
+        ui::toggle("Enabled", true).message(|_| ()).id(43),
+        ui::selectable(Arc::clone(&shared), false)
+            .message(|_| ())
+            .id(44),
+    ])
+    .into_surface();
+
+    assert!(
+        widget_ref::<TextWidget, _>(&surface, 40, "text")
+            .text
+            .is_static()
+    );
+    assert!(
+        !widget_ref::<ButtonWidget, _>(&surface, 41, "button")
+            .props
+            .label
+            .is_static()
+    );
+    assert_eq!(
+        widget_ref::<BadgeWidget, _>(&surface, 42, "badge")
+            .props
+            .label
+            .as_str(),
+        shared.as_ref()
+    );
+    assert!(
+        widget_ref::<ToggleWidget, _>(&surface, 43, "toggle")
+            .props
+            .label
+            .is_static()
+    );
+    assert_eq!(
+        widget_ref::<SelectableWidget, _>(&surface, 44, "selectable")
+            .props
+            .label
+            .as_str(),
+        shared.as_ref()
+    );
+}
 
 #[test]
 fn application_builder_dense_control_panel_uses_generic_focusable_widgets() {

@@ -181,7 +181,10 @@ fn scale_button(choice: DpiScaleChoice, selected: DpiScaleChoice) -> View<DpiSca
         .fill_width()
 }
 
-fn metric_tile(label: impl Into<String>, value: impl Into<String>) -> View<DpiScalingMessage> {
+fn metric_tile(
+    label: impl Into<TextContent>,
+    value: impl Into<TextContent>,
+) -> View<DpiScalingMessage> {
     column([
         text(label.into()).height(22.0).fill_width(),
         text(value.into())

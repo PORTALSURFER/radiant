@@ -1,5 +1,5 @@
 use crate::{
-    application::{ViewNode, column, text},
+    application::{TextContent, ViewNode, column, text},
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 
@@ -9,7 +9,7 @@ const DEFAULT_LABELED_CONTROL_SPACING: f32 = 3.0;
 /// Named construction fields for a label stacked above one control.
 pub struct LabeledControlParts<Message> {
     /// Label shown above the control.
-    pub label: String,
+    pub label: TextContent,
     /// Control or composite content shown below the label.
     pub control: ViewNode<Message>,
     /// Optional fixed height for the combined label and control stack.
@@ -24,7 +24,7 @@ pub struct LabeledControlParts<Message> {
 
 impl<Message> LabeledControlParts<Message> {
     /// Build labeled-control parts with compact control-panel defaults.
-    pub fn new(label: impl Into<String>, control: ViewNode<Message>) -> Self {
+    pub fn new(label: impl Into<TextContent>, control: ViewNode<Message>) -> Self {
         Self {
             label: label.into(),
             control,
@@ -65,7 +65,7 @@ impl<Message> LabeledControlParts<Message> {
 
 /// Build a compact label-over-control group with a fixed combined height.
 pub fn labeled_control<Message: 'static>(
-    label: impl Into<String>,
+    label: impl Into<TextContent>,
     control: ViewNode<Message>,
     height: f32,
 ) -> ViewNode<Message> {

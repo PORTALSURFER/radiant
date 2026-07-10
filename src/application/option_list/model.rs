@@ -1,3 +1,4 @@
+use crate::application::TextContent;
 use crate::gui::list::bounded_list_height;
 use crate::widgets::{WidgetProminence, WidgetStyle, WidgetTone};
 
@@ -11,16 +12,16 @@ const DEFAULT_COMPACT_OPTION_LIST_GAP: f32 = 6.0;
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompactOptionListItem {
     /// Main option label.
-    pub primary_label: String,
+    pub primary_label: TextContent,
     /// Optional secondary label for group, category, shortcut, or metadata text.
-    pub secondary_label: Option<String>,
+    pub secondary_label: Option<TextContent>,
     /// Whether this row is the active keyboard or current selection.
     pub selected: bool,
 }
 
 impl CompactOptionListItem {
     /// Build a compact option-list item.
-    pub fn new(primary_label: impl Into<String>) -> Self {
+    pub fn new(primary_label: impl Into<TextContent>) -> Self {
         Self {
             primary_label: primary_label.into(),
             secondary_label: None,
@@ -29,7 +30,7 @@ impl CompactOptionListItem {
     }
 
     /// Set the optional secondary label.
-    pub fn secondary_label(mut self, secondary_label: impl Into<String>) -> Self {
+    pub fn secondary_label(mut self, secondary_label: impl Into<TextContent>) -> Self {
         self.secondary_label = Some(secondary_label.into());
         self
     }

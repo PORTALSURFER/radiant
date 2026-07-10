@@ -146,7 +146,7 @@ fn column_context_menu_items(state: &BrowserState) -> Vec<ui::MenuCommand<Browse
 }
 
 pub(super) fn panel(
-    title: impl Into<String>,
+    title: impl Into<ui::TextContent>,
     content: ui::View<BrowserMessage>,
 ) -> ui::View<BrowserMessage> {
     ui::column([ui::text(title).fill_width().height(22.0), content])

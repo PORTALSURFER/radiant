@@ -75,12 +75,12 @@ fn application_builder_menus_support_named_parts_construction() {
                 ui::message_context_menu_overlay_from_parts(ui::MessageContextMenuOverlayParts {
                     anchor: Point::new(12.0, 12.0),
                     size: Vector2::new(132.0, 88.0),
-                    title: String::from("Actions"),
+                    title: String::from("Actions").into(),
                     style: radiant::widgets::WidgetStyle::default(),
                     commands: vec![
                         ui::MenuCommand::from_parts(ui::MenuCommandParts {
-                            label: String::from("Inspect"),
-                            hotkey_hint: Some(String::from("Cmd-I")),
+                            label: String::from("Inspect").into(),
+                            hotkey_hint: Some(String::from("Cmd-I").into()),
                             style: radiant::widgets::WidgetStyle::default(),
                             message: Message::Select("inspect"),
                         }),

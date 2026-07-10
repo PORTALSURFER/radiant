@@ -1,6 +1,7 @@
 use crate::{
     application::{
-        ViewNode, danger_style, default_badge_sizing, primary_style, view_node_from_widget,
+        TextContent, ViewNode, danger_style, default_badge_sizing, primary_style,
+        view_node_from_widget,
     },
     runtime::PaintText,
     widgets::{BadgeWidget, WidgetProminence, WidgetStyle},
@@ -59,9 +60,9 @@ impl BadgeBuilder {
 }
 
 /// Build a badge or pill.
-pub fn badge(label: impl Into<String>) -> BadgeBuilder {
+pub fn badge(label: impl Into<TextContent>) -> BadgeBuilder {
     BadgeBuilder {
-        label: PaintText::from(label.into()),
+        label: label.into().into_paint_text(),
         style: None,
         active: false,
     }

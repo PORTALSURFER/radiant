@@ -7,6 +7,8 @@ use crate::{gui::types::Point, runtime::PaintText, widgets::TextAlign};
 pub struct ButtonProps {
     /// User-visible label rendered inside the button surface.
     pub label: PaintText,
+    /// Optional trailing label rendered without joining or reallocating the main label.
+    pub trailing_label: Option<PaintText>,
     /// Horizontal label alignment inside the button surface.
     pub text_align: TextAlign,
     /// Whether secondary/right clicks should emit a distinct activation message.

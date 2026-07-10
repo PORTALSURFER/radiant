@@ -26,7 +26,7 @@ impl DropdownOptionSelection {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DropdownOption<Message> {
     /// Visible option label.
-    pub label: String,
+    pub label: TextContent,
     /// Whether this option represents the current value.
     pub selected: bool,
     /// Host message emitted when the option is selected.
@@ -37,7 +37,7 @@ pub struct DropdownOption<Message> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DropdownOptionParts<Message> {
     /// Visible option label.
-    pub label: String,
+    pub label: TextContent,
     /// Whether this option represents the current value.
     pub selection: DropdownOptionSelection,
     /// Host message emitted when the option is selected.
@@ -56,7 +56,7 @@ impl<Message> DropdownOption<Message> {
 
     /// Build one dropdown option from an explicit selection state.
     pub fn from_selection(
-        label: impl Into<String>,
+        label: impl Into<TextContent>,
         selection: DropdownOptionSelection,
         message: Message,
     ) -> Self {
@@ -68,18 +68,18 @@ impl<Message> DropdownOption<Message> {
     }
 
     /// Build one dropdown option that represents the current value.
-    pub fn selected(label: impl Into<String>, message: Message) -> Self {
+    pub fn selected(label: impl Into<TextContent>, message: Message) -> Self {
         Self::from_selection(label, DropdownOptionSelection::Selected, message)
     }
 
     /// Build one dropdown option that does not represent the current value.
-    pub fn unselected(label: impl Into<String>, message: Message) -> Self {
+    pub fn unselected(label: impl Into<TextContent>, message: Message) -> Self {
         Self::from_selection(label, DropdownOptionSelection::Unselected, message)
     }
 
     /// Build one dropdown option from a concrete value and current selection.
     pub fn for_value<Value>(
-        label: impl Into<String>,
+        label: impl Into<TextContent>,
         value: Value,
         selected: &Value,
         message: impl FnOnce(Value) -> Message,
@@ -93,7 +93,7 @@ impl<Message> DropdownOption<Message> {
 
     /// Build one dropdown option from an optional value and current optional selection.
     pub fn for_optional_value<Value>(
-        label: impl Into<String>,
+        label: impl Into<TextContent>,
         value: Option<Value>,
         selected: Option<&Value>,
         message: impl FnOnce(Option<Value>) -> Message,
@@ -110,7 +110,7 @@ impl<Message> DropdownOption<Message> {
     }
 
     /// Build one dropdown option.
-    pub fn new(label: impl Into<String>, selected: bool, message: Message) -> Self {
+    pub fn new(label: impl Into<TextContent>, selected: bool, message: Message) -> Self {
         Self::from_selection(
             label,
             DropdownOptionSelection::from_selected(selected),
@@ -123,7 +123,7 @@ impl<Message> DropdownOption<Message> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DropdownParts<Message> {
     /// Visible label for the currently selected value.
-    pub selected_label: String,
+    pub selected_label: TextContent,
     /// Whether the option list is expanded over the toggle.
     pub open: bool,
     /// Host message emitted when the collapsed control is activated.
@@ -137,9 +137,10 @@ pub struct DropdownParts<Message> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DropdownTriggerParts<Message> {
     /// Visible label for the currently selected value.
-    pub selected_label: String,
+    pub selected_label: TextContent,
     /// Whether the menu owned by the host is currently open.
     pub open: bool,
     /// Host message emitted when the collapsed control is activated.
     pub toggle_message: Message,
 }
+use crate::application::TextContent;

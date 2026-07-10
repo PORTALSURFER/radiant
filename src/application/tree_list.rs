@@ -1,5 +1,5 @@
 use crate::{
-    application::{View, column, scroll},
+    application::{TextContent, View, column, scroll},
     widgets::DragHandleMessage,
 };
 use std::sync::Arc;
@@ -16,7 +16,7 @@ pub struct TreeListItemParts {
     /// Zero-based visual depth.
     pub depth: usize,
     /// Row label.
-    pub label: String,
+    pub label: TextContent,
 }
 
 /// One visible row in a compact tree list.
@@ -27,7 +27,7 @@ pub struct TreeListItem {
     /// Zero-based visual depth.
     pub depth: usize,
     /// Row label.
-    pub label: String,
+    pub label: TextContent,
     /// Whether this row can be expanded or collapsed.
     pub has_children: bool,
     /// Whether this branch is currently expanded.
@@ -56,7 +56,7 @@ impl TreeListItem {
     }
 
     /// Build one visible tree-list row.
-    pub fn new(id: impl ToString, depth: usize, label: impl Into<String>) -> Self {
+    pub fn new(id: impl ToString, depth: usize, label: impl Into<TextContent>) -> Self {
         Self::from_parts(TreeListItemParts {
             id: id.to_string(),
             depth,

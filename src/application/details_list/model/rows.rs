@@ -4,7 +4,7 @@ pub struct DetailsRow {
     /// Stable caller-owned row id.
     pub id: String,
     /// Cell text in the same order as the columns.
-    pub cells: Vec<String>,
+    pub cells: Vec<TextContent>,
     /// Whether this row is currently selected.
     pub selected: bool,
 }
@@ -15,7 +15,7 @@ pub struct DetailsRowParts {
     /// Stable caller-owned row id.
     pub id: String,
     /// Cell text in the same order as the columns.
-    pub cells: Vec<String>,
+    pub cells: Vec<TextContent>,
 }
 
 impl DetailsRow {
@@ -29,7 +29,7 @@ impl DetailsRow {
     }
 
     /// Build one details-list row.
-    pub fn new(id: impl ToString, cells: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn new(id: impl ToString, cells: impl IntoIterator<Item = impl Into<TextContent>>) -> Self {
         Self::from_parts(DetailsRowParts {
             id: id.to_string(),
             cells: cells.into_iter().map(Into::into).collect(),
@@ -42,3 +42,4 @@ impl DetailsRow {
         self
     }
 }
+use crate::application::TextContent;

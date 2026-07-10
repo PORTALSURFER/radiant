@@ -1,5 +1,5 @@
 use crate::{
-    application::{ViewNode, button, stack},
+    application::{TextContent, ViewNode, button, stack},
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 
@@ -28,7 +28,7 @@ pub struct DropdownBuilderNeedsToggle<Message> {
 }
 
 struct DropdownBuilderState<Message> {
-    selected_label: String,
+    selected_label: TextContent,
     open: bool,
     options: Vec<DropdownOption<Message>>,
 }
@@ -41,19 +41,19 @@ pub struct DropdownBuilder<Message> {
 
 /// Builder for a dropdown trigger whose menu is projected elsewhere.
 pub struct DropdownTriggerBuilderNeedsToggle {
-    selected_label: String,
+    selected_label: TextContent,
     open: bool,
 }
 
 /// Builder for a dropdown trigger after the required toggle message is set.
 pub struct DropdownTriggerBuilder<Message> {
-    selected_label: String,
+    selected_label: TextContent,
     open: bool,
     toggle_message: Message,
 }
 
 impl<Message> DropdownBuilderState<Message> {
-    fn new(selected_label: impl Into<String>, open: bool) -> Self {
+    fn new(selected_label: impl Into<TextContent>, open: bool) -> Self {
         Self {
             selected_label: selected_label.into(),
             open,
@@ -89,7 +89,12 @@ impl<Message> DropdownBuilderNeedsToggle<Message> {
     }
 
     /// Add one selectable option before assigning the required toggle message.
-    pub fn option(mut self, label: impl Into<String>, selected: bool, message: Message) -> Self {
+    pub fn option(
+        mut self,
+        label: impl Into<TextContent>,
+        selected: bool,
+        message: Message,
+    ) -> Self {
         self.state
             .options
             .push(DropdownOption::new(label, selected, message));
@@ -100,7 +105,7 @@ impl<Message> DropdownBuilderNeedsToggle<Message> {
     /// assigning the required toggle message.
     pub fn option_with_selection(
         mut self,
-        label: impl Into<String>,
+        label: impl Into<TextContent>,
         selection: DropdownOptionSelection,
         message: Message,
     ) -> Self {
@@ -125,7 +130,12 @@ impl<Message> DropdownBuilderNeedsToggle<Message> {
 
 impl<Message> DropdownBuilder<Message> {
     /// Add one selectable option.
-    pub fn option(mut self, label: impl Into<String>, selected: bool, message: Message) -> Self {
+    pub fn option(
+        mut self,
+        label: impl Into<TextContent>,
+        selected: bool,
+        message: Message,
+    ) -> Self {
         self.state
             .options
             .push(DropdownOption::new(label, selected, message));
@@ -135,7 +145,7 @@ impl<Message> DropdownBuilder<Message> {
     /// Add one selectable option with an explicit selection state.
     pub fn option_with_selection(
         mut self,
-        label: impl Into<String>,
+        label: impl Into<TextContent>,
         selection: DropdownOptionSelection,
         message: Message,
     ) -> Self {
@@ -193,7 +203,7 @@ impl<Message> DropdownTriggerBuilder<Message> {
 
 /// Build a generic dropdown.
 pub fn dropdown<Message>(
-    selected_label: impl Into<String>,
+    selected_label: impl Into<TextContent>,
     open: bool,
 ) -> DropdownBuilderNeedsToggle<Message> {
     DropdownBuilderNeedsToggle {
@@ -204,7 +214,7 @@ pub fn dropdown<Message>(
 /// Build only the trigger for a dropdown whose menu is rendered by the host as
 /// an external overlay.
 pub fn dropdown_trigger(
-    selected_label: impl Into<String>,
+    selected_label: impl Into<TextContent>,
     open: bool,
 ) -> DropdownTriggerBuilderNeedsToggle {
     DropdownTriggerBuilderNeedsToggle {
@@ -244,7 +254,7 @@ pub fn dropdown_trigger_from_parts<Message>(
 where
     Message: Clone + Send + Sync + 'static,
 {
-    let mut trigger = button(format!("{}  v", parts.selected_label));
+    let mut trigger = button(parts.selected_label).trailing_label("v");
     if parts.open {
         trigger = trigger.style(WidgetStyle::new(
             WidgetTone::Accent,

@@ -1,7 +1,7 @@
 use crate::{
     application::{
-        MappedWidget, ViewNode, danger_style, default_selectable_sizing, primary_style,
-        view_node_from_widget,
+        MappedWidget, TextContent, ViewNode, danger_style, default_selectable_sizing,
+        primary_style, view_node_from_widget,
     },
     gui::types::Rgba8,
     runtime::{PaintText, WidgetMessageMapper},
@@ -122,9 +122,9 @@ impl SelectableBuilder {
 }
 
 /// Build a selectable control.
-pub fn selectable(label: impl Into<String>, selected: bool) -> SelectableBuilder {
+pub fn selectable(label: impl Into<TextContent>, selected: bool) -> SelectableBuilder {
     SelectableBuilder {
-        label: PaintText::from(label.into()),
+        label: label.into().into_paint_text(),
         selected,
         style: None,
         color_marker: None,
@@ -133,7 +133,7 @@ pub fn selectable(label: impl Into<String>, selected: bool) -> SelectableBuilder
 
 /// Build a selectable control that maps value changes by selected state.
 pub fn selectable_mapped<Message: 'static>(
-    label: impl Into<String>,
+    label: impl Into<TextContent>,
     selected: bool,
     map: impl Fn(bool) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {

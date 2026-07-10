@@ -27,6 +27,10 @@ const CONSTANT_MESSAGE_COUNTERS: &[&str] = &[
     "widget_callback_allocation_count",
     "allocation_sensitive_work_count",
 ];
+const STATIC_TEXT_COUNTERS: &[&str] = &[
+    "text_storage_allocation_count",
+    "allocation_sensitive_work_count",
+];
 const VIRTUAL_LIST_SCROLL_COUNTERS: &[&str] =
     &["relayout_count", "allocation_sensitive_work_count"];
 const VIRTUAL_LIST_HOVER_PAINT_COUNTERS: &[&str] = &[
@@ -84,6 +88,7 @@ macro_rules! perf_scenario_catalog {
             ("app_virtual_selectable_list_projection_10k", "application_projection", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, app_projection::virtual_selectable_list_projection_10k),
             ("app_virtual_list_window_projection_10k", "application_projection", "virtual_lists", VIRTUAL_LIST_COUNTERS, RUNTIME_ITERATIONS, app_projection::virtual_list_window_projection_10k),
             ("app_constant_message_controls_projection_1k", "application_projection", "virtual_lists", CONSTANT_MESSAGE_COUNTERS, RUNTIME_ITERATIONS, app_projection::constant_message_controls_projection_1k),
+            ("app_static_text_controls_projection_1k", "application_projection", "text_layout", STATIC_TEXT_COUNTERS, RUNTIME_ITERATIONS, app_projection::static_text_controls_projection_1k),
             ("runtime_surface_large_tree", "runtime_surface", "scene_cache", SCENE_CACHE_PAINT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::surface_large_tree),
             ("runtime_text_paint_plan_1k", "runtime_surface", "text_layout", TEXT_PAINT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::text_paint_plan_1k),
             ("runtime_horizontal_scroll_paint_1k", "runtime_surface", "text_layout", TEXT_PAINT_COUNTERS, RUNTIME_ITERATIONS, runtime_scenarios::horizontal_scroll_paint_1k),

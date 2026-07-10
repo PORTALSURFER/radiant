@@ -117,6 +117,31 @@ messages, or request runtime exit. Reducer-style aliases remain available for
 advanced lifecycle control during the breaking migration, but ordinary
 application code should stay message-first.
 
+Immutable application labels use `TextContent`, which normal builders accept
+through `Into<TextContent>`. Literals such as `text("Ready")` and
+`button("Play")` remain in static storage through paint-plan construction.
+Owned `String` values move into shared storage once, while an existing
+`Arc<str>` is cloned without copying its bytes:
+
+```rust
+use radiant::prelude::*;
+use std::sync::Arc;
+
+let status: Arc<str> = Arc::from("Ready");
+let view: View<()> = column([
+    text("Static label"),
+    text(String::from("Owned label")),
+    text(Arc::clone(&status)),
+]);
+```
+
+This applies to normal text, button, badge, toggle, selectable, menu,
+dropdown, option-list, details-list, panel, and other immutable display
+content. Text-input values remain owned `String` state because editing requires
+mutable value and selection ownership; immutable placeholders and completion
+suffixes use `TextContent`. A non-static borrowed `&str` must be converted to an
+owned `String` or shared `Arc<str>` before it enters an owned view tree.
+
 ### Non-Blocking App Contract
 
 Radiant application handlers are UI reducers. They run on the UI/event/render
@@ -2263,7 +2288,8 @@ Each JSON line includes `type`, `scenario`, `category`, `group`, `iterations`,
 `overlay_paint_count`, `overlay_rebuild_count`, `text_cache_hit_count`,
 `retained_surface_cache_hit_count`, `gpu_surface_count`,
 `frame_cadence_due_count`, `frame_cadence_wait_count`,
-`widget_callback_allocation_count`, and `allocation_sensitive_work_count`. This keeps
+`widget_callback_allocation_count`, `text_storage_allocation_count`, and
+`allocation_sensitive_work_count`. This keeps
 performance history parseable without scraping prose or losing which target
 area and review-risk group the scenario validates.
 Capture a machine-local baseline artifact directly with
@@ -2383,7 +2409,8 @@ It currently covers:
   `app_virtual_selectable_list_projection_10k`, and
   `app_virtual_list_window_projection_10k`, plus
   `app_constant_message_controls_projection_1k` for allocation-sensitive
-  constant-message binding coverage
+  constant-message binding coverage and `app_static_text_controls_projection_1k`
+  for zero-allocation static label projection
 - Runtime surface scenarios: `runtime_surface_large_tree`, `runtime_text_paint_plan_1k`,
   `runtime_horizontal_scroll_paint_1k`, `runtime_virtualized_list_wheel_10k`,
   `runtime_virtualized_list_hover_10k`,

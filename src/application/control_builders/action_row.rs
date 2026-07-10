@@ -1,6 +1,6 @@
 use crate::{
-    application::{MappedWidget, ViewNode, stack, text, view_node_from_widget},
-    runtime::{PaintText, WidgetMessageMapper},
+    application::{MappedWidget, TextContent, ViewNode, stack, text, view_node_from_widget},
+    runtime::WidgetMessageMapper,
     widgets::{
         InteractiveRowMessage, InteractiveRowWidget, TextAlign, WidgetProminence, WidgetSizing,
         WidgetStyle,
@@ -16,7 +16,7 @@ pub const DEFAULT_ACTION_ROW_HEIGHT: f32 = 28.0;
 /// command surfaces where the interaction surface and label should compose
 /// predictably without an application-owned custom widget.
 pub struct ActionRowBuilder {
-    label: PaintText,
+    label: TextContent,
     style: Option<WidgetStyle>,
 }
 
@@ -51,7 +51,7 @@ impl ActionRowBuilder {
                     )
                 }),
             ),
-            text(label.to_string())
+            text(label)
                 .align_text(TextAlign::Left)
                 .truncate()
                 .padding_x(8.0)
@@ -76,7 +76,7 @@ impl ActionRowBuilder {
                     matches!(message, InteractiveRowMessage::Activate).then(|| map(*message))
                 }),
             ),
-            text(label.to_string())
+            text(label)
                 .align_text(TextAlign::Left)
                 .truncate()
                 .padding_x(8.0)
@@ -89,9 +89,9 @@ impl ActionRowBuilder {
 }
 
 /// Build a compact clickable action row.
-pub fn action_row(label: impl Into<String>) -> ActionRowBuilder {
+pub fn action_row(label: impl Into<TextContent>) -> ActionRowBuilder {
     ActionRowBuilder {
-        label: PaintText::from(label.into()),
+        label: label.into(),
         style: None,
     }
 }

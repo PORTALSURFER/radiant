@@ -1,7 +1,7 @@
 use crate::{
     application::{
-        AnchoredPopoverAnchor, AnchoredPopoverParts, ViewNode, anchored_popover_from_parts, button,
-        column, dismiss_layer, row, stack, text,
+        AnchoredPopoverAnchor, AnchoredPopoverParts, TextContent, ViewNode,
+        anchored_popover_from_parts, button, column, dismiss_layer, row, stack, text,
     },
     gui::{
         text_layout::{TextWidthEstimate, estimated_text_width_for_char_count},
@@ -35,7 +35,7 @@ const MENU_HOTKEY_HINT_HORIZONTAL_PADDING: f32 = 16.0;
 
 /// Build a compact vertical menu that emits host messages.
 pub fn message_menu<Message>(
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     commands: impl IntoIterator<Item = MenuCommand<Message>>,
 ) -> ViewNode<Message>
 where
@@ -90,7 +90,7 @@ pub fn message_menu_height(command_count: usize) -> f32 {
 pub fn dismissible_context_menu<Message>(
     anchor: Point,
     size: Vector2,
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     commands: impl IntoIterator<Item = MenuCommand<Message>>,
     dismiss_message: Message,
 ) -> ViewNode<Message>
@@ -114,7 +114,7 @@ where
 pub fn dismissible_context_menu_with_width<Message>(
     anchor: Point,
     width: f32,
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     commands: impl IntoIterator<Item = MenuCommand<Message>>,
     dismiss_message: Message,
 ) -> ViewNode<Message>
@@ -130,7 +130,7 @@ where
 /// width and height policy.
 pub fn dismissible_context_menu_auto_width<Message>(
     anchor: Point,
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     commands: impl IntoIterator<Item = MenuCommand<Message>>,
     dismiss_message: Message,
 ) -> ViewNode<Message>
@@ -151,7 +151,7 @@ where
 pub fn dismissible_context_menu_with_width_policy<Message>(
     anchor: Point,
     width_policy: MessageMenuWidthPolicy,
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     commands: impl IntoIterator<Item = MenuCommand<Message>>,
     dismiss_message: Message,
 ) -> ViewNode<Message>
@@ -171,7 +171,7 @@ where
 pub fn message_context_menu_overlay<Message>(
     anchor: Point,
     size: Vector2,
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     commands: impl IntoIterator<Item = MenuCommand<Message>>,
 ) -> ViewNode<Message>
 where
@@ -191,7 +191,7 @@ where
 pub fn message_context_menu_overlay_with_width<Message>(
     anchor: Point,
     width: f32,
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     commands: impl IntoIterator<Item = MenuCommand<Message>>,
 ) -> ViewNode<Message>
 where
@@ -206,7 +206,7 @@ where
 /// compact width and height policy.
 pub fn message_context_menu_overlay_auto_width<Message>(
     anchor: Point,
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     commands: impl IntoIterator<Item = MenuCommand<Message>>,
 ) -> ViewNode<Message>
 where
@@ -225,7 +225,7 @@ where
 pub fn message_context_menu_overlay_with_width_policy<Message>(
     anchor: Point,
     width_policy: MessageMenuWidthPolicy,
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     commands: impl IntoIterator<Item = MenuCommand<Message>>,
 ) -> ViewNode<Message>
 where
@@ -254,7 +254,7 @@ where
 pub fn anchored_message_menu_overlay<Message>(
     anchor: Point,
     size: Vector2,
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     commands: impl IntoIterator<Item = MenuCommand<Message>>,
 ) -> ViewNode<Message>
 where
@@ -273,7 +273,7 @@ where
 /// compact width and height policy.
 pub fn anchored_message_menu_overlay_auto_width<Message>(
     anchor: Point,
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     commands: impl IntoIterator<Item = MenuCommand<Message>>,
 ) -> ViewNode<Message>
 where
@@ -292,7 +292,7 @@ where
 pub fn anchored_message_menu_overlay_with_width_policy<Message>(
     anchor: Point,
     width_policy: MessageMenuWidthPolicy,
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     commands: impl IntoIterator<Item = MenuCommand<Message>>,
 ) -> ViewNode<Message>
 where

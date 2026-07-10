@@ -3,7 +3,7 @@ use super::{
 };
 use crate::{
     application::{
-        AnchoredLayerParts, LayerHorizontalAnchor, LayerVerticalAnchor, ViewNode,
+        AnchoredLayerParts, LayerHorizontalAnchor, LayerVerticalAnchor, TextContent, ViewNode,
         anchored_layer_from_parts,
     },
     layout::Vector2,
@@ -13,7 +13,7 @@ use crate::{
 /// Named construction fields for a fixed-size dialog panel in an anchored layer.
 pub struct DialogLayerParts<Message> {
     /// Dialog title shown in the standard panel header.
-    pub title: String,
+    pub title: TextContent,
     /// Main dialog content.
     pub content: ViewNode<Message>,
     /// Visual tone applied to Radiant's standard strong dialog chrome.
@@ -33,7 +33,7 @@ pub struct DialogLayerParts<Message> {
 impl<Message> DialogLayerParts<Message> {
     /// Build anchored dialog-layer parts with Radiant's standard dialog chrome.
     pub fn new(
-        title: impl Into<String>,
+        title: impl Into<TextContent>,
         content: ViewNode<Message>,
         tone: WidgetTone,
         size: Vector2,
@@ -153,7 +153,7 @@ pub fn panel_section_layer_from_parts<Message: 'static>(
 /// Radiant's standard dialog panel chrome without spelling out the lower-level
 /// panel-section and anchored-layer parts.
 pub fn dialog_layer<Message: 'static>(
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     content: ViewNode<Message>,
     tone: WidgetTone,
     size: Vector2,
@@ -196,7 +196,7 @@ where
 /// [`closeable_panel_section_layer_from_parts`] for callers that need custom
 /// panel parts, anchoring, or insets.
 pub fn closeable_dialog_layer<Message>(
-    title: impl Into<String>,
+    title: impl Into<TextContent>,
     content: ViewNode<Message>,
     tone: WidgetTone,
     size: Vector2,

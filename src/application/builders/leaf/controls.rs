@@ -1,7 +1,7 @@
 use super::core::view_node_from_widget;
 use crate::{
+    application::TextContent,
     application::{ViewNode, ViewNodeKind},
-    runtime::PaintText,
     widgets::{BadgeWidget, ButtonWidget, CardWidget, TextInputWidget, TextWidget, ToggleWidget},
 };
 
@@ -11,33 +11,36 @@ use super::super::defaults::{
 };
 
 /// Build a non-interactive text view with generated identity and default sizing.
-pub fn text<Message: 'static>(value: impl Into<String>) -> ViewNode<Message> {
+pub fn text<Message: 'static>(value: impl Into<TextContent>) -> ViewNode<Message> {
     view_node_from_widget(TextWidget::new(
         0,
-        PaintText::from(value.into()),
+        value.into().into_paint_text(),
         default_text_sizing(),
     ))
 }
 
 /// Build a fixed-height single-line text view that fills available width.
-pub fn text_line<Message: 'static>(value: impl Into<String>, height: f32) -> ViewNode<Message> {
+pub fn text_line<Message: 'static>(
+    value: impl Into<TextContent>,
+    height: f32,
+) -> ViewNode<Message> {
     text(value).fill_width().height(height).truncate()
 }
 
 /// Build a passive button view for retained surfaces that need button chrome
 /// without host messages.
-pub fn passive_button<Message: 'static>(label: impl Into<String>) -> ViewNode<Message> {
+pub fn passive_button<Message: 'static>(label: impl Into<TextContent>) -> ViewNode<Message> {
     view_node_from_widget(ButtonWidget::new(
         0,
-        PaintText::from(label.into()),
+        label.into().into_paint_text(),
         default_button_sizing(""),
     ))
 }
 
 /// Build a passive badge view for retained surfaces that need badge chrome
 /// without host messages.
-pub fn passive_badge<Message: 'static>(label: impl Into<String>) -> ViewNode<Message> {
-    let label = PaintText::from(label.into());
+pub fn passive_badge<Message: 'static>(label: impl Into<TextContent>) -> ViewNode<Message> {
+    let label = label.into().into_paint_text();
     let sizing = default_badge_sizing(&label);
     view_node_from_widget(BadgeWidget::new(0, label, sizing))
 }
@@ -45,13 +48,13 @@ pub fn passive_badge<Message: 'static>(label: impl Into<String>) -> ViewNode<Mes
 /// Build a passive toggle view for retained surfaces that need toggle chrome
 /// without host messages.
 pub fn passive_toggle<Message: 'static>(
-    label: impl Into<String>,
+    label: impl Into<TextContent>,
     checked: bool,
 ) -> ViewNode<Message> {
     view_node_from_widget(
         ToggleWidget::new(
             0,
-            PaintText::from(label.into()),
+            label.into().into_paint_text(),
             default_toggle_sizing("", true),
         )
         .with_checked(checked),
@@ -62,12 +65,12 @@ pub fn passive_toggle<Message: 'static>(
 /// input chrome without host messages.
 pub fn passive_text_input<Message: 'static>(
     value: impl Into<String>,
-    placeholder: impl Into<String>,
+    placeholder: impl Into<TextContent>,
 ) -> ViewNode<Message> {
     let mut input = TextInputWidget::new(0, value, default_text_input_sizing());
     let placeholder = placeholder.into();
     if !placeholder.is_empty() {
-        input.props.placeholder = Some(placeholder.into());
+        input.props.placeholder = Some(placeholder.into_paint_text());
     }
     view_node_from_widget(input)
 }

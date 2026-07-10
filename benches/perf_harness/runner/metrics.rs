@@ -7,7 +7,7 @@ use super::{
     baseline::{BaselineMetric, MetricComparison, baseline_metric_json_line, json_escape},
 };
 
-const COUNTER_FIELDS: [&str; 16] = [
+const COUNTER_FIELDS: [&str; 17] = [
     "scene_rebuild_count",
     "static_rebuild_count",
     "paint_only_count",
@@ -23,6 +23,7 @@ const COUNTER_FIELDS: [&str; 16] = [
     "frame_cadence_due_count",
     "frame_cadence_wait_count",
     "widget_callback_allocation_count",
+    "text_storage_allocation_count",
     "allocation_sensitive_work_count",
 ];
 
@@ -47,7 +48,8 @@ impl ScenarioCounters {
     const FRAME_CADENCE_DUE_COUNT: usize = 12;
     const FRAME_CADENCE_WAIT_COUNT: usize = 13;
     const WIDGET_CALLBACK_ALLOCATION_COUNT: usize = 14;
-    const ALLOCATION_SENSITIVE_WORK_COUNT: usize = 15;
+    const TEXT_STORAGE_ALLOCATION_COUNT: usize = 15;
+    const ALLOCATION_SENSITIVE_WORK_COUNT: usize = 16;
 
     pub(crate) fn add(&mut self, other: Self) {
         for (index, value) in other.values.into_iter().enumerate() {
@@ -141,6 +143,11 @@ impl ScenarioCounters {
 
     pub(crate) fn with_widget_callback_allocation_count(mut self, value: u64) -> Self {
         self.values[Self::WIDGET_CALLBACK_ALLOCATION_COUNT] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_text_storage_allocation_count(mut self, value: u64) -> Self {
+        self.values[Self::TEXT_STORAGE_ALLOCATION_COUNT] = Some(value);
         self
     }
 

@@ -16,13 +16,13 @@ impl<Message> SurfaceNode<Message> {
     pub fn overlay_panel(
         id: NodeId,
         rect: Rect,
-        label: impl Into<String>,
+        label: impl Into<PaintText>,
         style: WidgetStyle,
     ) -> Self {
         Self::Overlay(SurfaceOverlay {
             id,
             rect,
-            label: Some(PaintText::from(label.into())),
+            label: Some(label.into()),
             style,
         })
     }

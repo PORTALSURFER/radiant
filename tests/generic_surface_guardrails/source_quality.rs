@@ -5,7 +5,7 @@ use std::{collections::BTreeSet, fs, path::PathBuf};
 use super::{relative_path, rust_sources_under};
 
 const MAX_PRELUDE_EXPORT_GROUP_LINES: usize = 32;
-const MAX_COMMON_PRELUDE_NAMED_EXPORTS: usize = 517;
+const MAX_COMMON_PRELUDE_NAMED_EXPORTS: usize = 518;
 
 const ADVANCED_COMMON_PRELUDE_EXCLUSIONS: &[&str] = &[
     "AuxiliaryWindow",

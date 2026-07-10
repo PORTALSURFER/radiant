@@ -2,13 +2,13 @@ use super::{DemoMessage, DemoState, text_value};
 use radiant::{
     app,
     gui::types::{ImageRgba, Rect, Vector2},
-    prelude::{
+    prelude::{IntoView, Rgba8},
+    runtime::{
         GpuSurfaceCapabilities, GpuSurfaceConfiguredParts, GpuSurfaceContent, GpuSurfaceInputParts,
-        GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, IntoView, Rgba8,
-        gpu_surface, gpu_surface_configured_from_parts, gpu_surface_input,
+        GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, PaintPrimitive,
+        SurfaceRuntime, gpu_surface, gpu_surface_configured_from_parts, gpu_surface_input,
         gpu_surface_input_from_parts, gpu_surface_with_capabilities,
     },
-    runtime::{PaintPrimitive, SurfaceRuntime},
     theme::ThemeTokens,
     widgets::WidgetInput,
 };

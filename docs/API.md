@@ -333,6 +333,7 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | Input and scroll payloads | `NativeFileDrop`, `NativeFileDropPhase`, `ScrollUpdate` |
 | Shortcut routing | `KeyPress`, `ShortcutResolution`, `FocusSurface` |
 | Runtime drag requests | `DragPreview`, `DragPreviewTextSizing`, `DragRequest` |
+| Auxiliary windows | `AuxiliaryWindow`, `AuxiliaryWindowClosePolicy` |
 | Presentation callbacks | `Presentation`, `TransientOverlay`, `TransientOverlayContext` |
 | Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `SvgIconTintPalette`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
 | Paint primitives | `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`, `PaintFillRectBatch`, `PaintStrokeRectBatch`, `PaintRectList`, `PaintFillPath`, `PaintPathCommand`, `PaintTransform`, `PaintTextRun` |
@@ -545,12 +546,15 @@ one typed item open at a time and centralize toggle/close behavior. Use
 rows, overlays, or drag/drop targets need to request invalidation only when the
 exclusive item actually changed.
 Stateful apps can project secondary top-level windows with
-`.auxiliary_windows(...)` and `AuxiliaryWindow::new(...)`. Use
+`.auxiliary_windows(...)` and the common-prelude
+`AuxiliaryWindow::utility(...)` constructor. Use
 `.on_close(message)` to route native close requests back into the host reducer.
 Frequently reopened utility windows such as settings panels and inspectors can
 also call `.cache_on_close()` so native close hides and retains the prepared
 window; a later projection with the same key updates and shows the cached
 window instead of recreating the native window and renderer state.
+Windows that require advanced native configuration can explicitly import
+`NativeRunOptions` and call `AuxiliaryWindow::new(...)` instead.
 Applications that need lightweight UI-cadence diagnostics can explicitly import
 `FrameCadenceMonitor` with `FrameCadenceConfig` to classify first-frame,
 warning-spike, error-spike, periodic, and normal frame deltas while keeping

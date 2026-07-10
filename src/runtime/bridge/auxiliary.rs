@@ -27,6 +27,24 @@ pub struct AuxiliaryWindow<Message> {
 }
 
 impl<Message> AuxiliaryWindow<Message> {
+    /// Construct a common secondary utility-window projection.
+    ///
+    /// Use [`Self::new`] with explicit [`NativeRunOptions`] when the window
+    /// requires advanced native configuration.
+    pub fn utility(
+        key: impl Into<String>,
+        title: impl Into<String>,
+        width: f32,
+        height: f32,
+        surface: Arc<UiSurface<Message>>,
+    ) -> Self {
+        Self::new(
+            key,
+            NativeRunOptions::utility_window(title, width, height),
+            surface,
+        )
+    }
+
     /// Construct one auxiliary window projection.
     pub fn new(
         key: impl Into<String>,

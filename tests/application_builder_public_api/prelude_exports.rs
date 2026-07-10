@@ -463,6 +463,23 @@ fn prelude_exports_drag_preview_sizing_payload() {
 }
 
 #[test]
+fn prelude_exports_auxiliary_window_projection_payloads() {
+    use radiant::prelude::IntoView;
+
+    let window: ui::AuxiliaryWindow<()> = ui::AuxiliaryWindow::utility(
+        "settings",
+        "Settings",
+        320.0,
+        240.0,
+        std::sync::Arc::new(ui::empty().into_surface()),
+    )
+    .cache_on_close();
+
+    assert_eq!(window.close_policy, ui::AuxiliaryWindowClosePolicy::Hide);
+    assert!(window.caches_on_close());
+}
+
+#[test]
 fn svg_parse_errors_require_an_explicit_runtime_import() {
     let icon = ui::SvgIcon::from_svg(
         r#"<svg viewBox="0 0 4 4"><rect x="0" y="0" width="4" height="4"/></svg>"#,

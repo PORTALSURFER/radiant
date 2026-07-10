@@ -218,6 +218,97 @@ fn button_builder_can_filter_secondary_activation_and_map_drag() {
 }
 
 #[test]
+fn constant_button_message_emits_only_for_primary_activation() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<&'static str> = ui::button("Run")
+        .secondary_clicks()
+        .draggable()
+        .message("run")
+        .id(28)
+        .into_surface();
+
+    assert_eq!(
+        surface.dispatch_widget_output(28, WidgetOutput::typed(ButtonMessage::Activate)),
+        Some("run")
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            28,
+            WidgetOutput::typed(ButtonMessage::ActivateWithModifiers {
+                modifiers: Default::default(),
+            }),
+        ),
+        Some("run")
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            28,
+            WidgetOutput::typed(ButtonMessage::SecondaryActivate {
+                position: ui::Point::new(1.0, 2.0),
+            }),
+        ),
+        None
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            28,
+            WidgetOutput::typed(ButtonMessage::Drag(DragHandleMessage::Moved {
+                position: ui::Point::new(3.0, 4.0),
+            })),
+        ),
+        None
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(28, WidgetOutput::typed(BadgeMessage::Activate)),
+        None
+    );
+}
+
+#[test]
+fn dynamic_button_mappers_keep_secondary_and_filtered_behavior() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let mapped: UiSurface<&'static str> = ui::button("Mapped")
+        .mapped(|message| {
+            if message.is_activate() {
+                "activate"
+            } else {
+                "other"
+            }
+        })
+        .id(29)
+        .into_surface();
+    assert_eq!(
+        mapped.dispatch_widget_output(
+            29,
+            WidgetOutput::typed(ButtonMessage::SecondaryActivate {
+                position: ui::Point::new(1.0, 2.0),
+            }),
+        ),
+        Some("other")
+    );
+
+    let filtered: UiSurface<&'static str> = ui::button("Filtered")
+        .filter_mapped(|message| message.is_activate().then_some("activate"))
+        .id(30)
+        .into_surface();
+    assert_eq!(
+        filtered.dispatch_widget_output(30, WidgetOutput::typed(ButtonMessage::Activate)),
+        Some("activate")
+    );
+    assert_eq!(
+        filtered.dispatch_widget_output(
+            30,
+            WidgetOutput::typed(ButtonMessage::SecondaryActivate {
+                position: ui::Point::new(1.0, 2.0),
+            }),
+        ),
+        None
+    );
+}
+
+#[test]
 fn icon_button_builder_supports_message_and_passive_apps() {
     use radiant::prelude::{self as ui, IntoView};
 
@@ -230,6 +321,19 @@ fn icon_button_builder_supports_message_and_passive_apps() {
             .common
             .state
             .active
+    );
+    assert_eq!(
+        message_surface.dispatch_widget_output(31, WidgetOutput::typed(ButtonMessage::Activate)),
+        Some(DemoMessage::Increment)
+    );
+    assert_eq!(
+        message_surface.dispatch_widget_output(
+            31,
+            WidgetOutput::typed(ButtonMessage::SecondaryActivate {
+                position: ui::Point::new(1.0, 2.0),
+            }),
+        ),
+        None
     );
 
     let passive_surface: UiSurface<DemoState> = ui::close_button().passive().id(32).into_surface();

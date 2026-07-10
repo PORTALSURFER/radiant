@@ -117,6 +117,10 @@ impl<Message> SurfaceWidget<Message> {
         self.widget.common().tooltip.as_deref()
     }
 
+    pub(in crate::runtime::surface) fn uses_dynamic_output_callback(&self) -> bool {
+        self.messages.uses_dynamic_output_callback()
+    }
+
     pub(in crate::runtime) fn receives_wheel_input(&self) -> bool {
         !self.widget.common().state.disabled && self.widget.accepts_wheel_input()
     }

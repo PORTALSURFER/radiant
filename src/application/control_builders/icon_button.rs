@@ -79,7 +79,13 @@ impl IconButtonBuilder {
     where
         Message: Clone + Send + Sync + 'static,
     {
-        self.mapped(move |_| message.clone())
+        let (widget, style) = self.into_widget_and_style();
+        let mut node = view_node_from_widget(MappedWidget::new(
+            widget,
+            WidgetMessageMapper::icon_button_message(message),
+        ));
+        node.style = style;
+        node
     }
 
     /// Emit a mapped host message when activated.

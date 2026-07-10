@@ -11,6 +11,18 @@ impl<Message> WidgetMessageMapper<Message> {
     pub fn button(map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static) -> Self {
         Self::typed(map)
     }
+
+    /// Build an allocation-free button activation binding.
+    pub(crate) fn button_message(message: Message) -> Self
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        Self::constant(message, |output| {
+            output
+                .typed_copied::<ButtonMessage>()
+                .is_some_and(ButtonMessage::is_activate)
+        })
+    }
 }
 
 impl<Message> SurfaceNode<Message> {
@@ -24,7 +36,10 @@ impl<Message> SurfaceNode<Message> {
     where
         Message: Clone + Send + Sync + 'static,
     {
-        Self::button_mapped(id, label, sizing, move |_| message.clone())
+        Self::widget(
+            ButtonWidget::new(id, PaintText::from(label.into()), sizing),
+            WidgetMessageMapper::button_message(message),
+        )
     }
 
     /// Build a button leaf node with a custom widget-to-host message mapper.

@@ -1,3 +1,3 @@
-//! Common native launch-signature prelude exports.
+//! Common native launch and input-signature prelude exports.
 
-pub use crate::runtime::EmbeddedFont;
+pub use crate::runtime::{EmbeddedFont, NativeFileDrop, NativeFileDropPhase};

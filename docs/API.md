@@ -236,7 +236,8 @@ interaction:
 Radiant routes hover, cancel, and drop events to the topmost accepting target
 using the normal surface traversal and attaches `NativeFileDrop::target_widget`
 before emitting the host message. Use `NativeFileDropPhase` to distinguish the
-event phase. The app-builder `.on_native_file_drop(...)` hook remains available
+event phase. Both callback payload types are part of the common prelude. The
+app-builder `.on_native_file_drop(...)` hook remains available
 as an advanced compatibility fallback for hosts that intentionally handle
 targeted drops outside the view tree. Interactive row and badge builders can use
 `InteractiveRowActions` when they only need common activation, secondary-click,
@@ -328,6 +329,7 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `handle_activation_input` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
+| Native input payloads | `NativeFileDrop`, `NativeFileDropPhase` |
 | Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `SvgIconTintPalette`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
 | Paint primitives | `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`, `PaintFillRectBatch`, `PaintFillPath`, `PaintPathCommand`, `PaintTransform`, `PaintTextRun` |
 

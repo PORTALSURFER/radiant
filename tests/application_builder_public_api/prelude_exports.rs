@@ -467,6 +467,13 @@ fn native_run_reports_require_an_explicit_runtime_import() {
 }
 
 #[test]
+fn prelude_exports_native_file_drop_callback_payloads() {
+    let event = ui::NativeFileDrop::cancel(None, None);
+
+    assert_eq!(event.phase, ui::NativeFileDropPhase::Cancel);
+}
+
+#[test]
 fn advanced_apis_remain_public_through_their_owning_modules() {
     fn assert_public<T>() {}
 

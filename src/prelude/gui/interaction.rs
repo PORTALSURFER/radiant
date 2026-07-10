@@ -1,6 +1,7 @@
 //! Backend-neutral interaction and state prelude exports.
 
 pub use crate::gui::{
+    focus::FocusSurface,
     input::{KeyCode, KeyPress},
     invalidation::RevisionCounter,
     selection::SelectionSet,

@@ -370,10 +370,12 @@ fn selectable_builder_supports_color_marker_adornment() {
 
     let color = ui::Rgba8::new(20, 120, 80, 255);
     let surface: UiSurface<()> = ui::selectable("Ready", true)
-        .color_marker(Some(color))
-        .color_marker_side(6)
-        .color_marker_inset(2)
-        .color_marker_align(ui::ColorMarkerAlign::Left)
+        .color_marker_props(
+            ui::ColorMarkerProps::new(Some(color))
+                .side(6)
+                .inset(2)
+                .align(ui::ColorMarkerAlign::Left),
+        )
         .message(|_| ())
         .id(28)
         .into_surface();

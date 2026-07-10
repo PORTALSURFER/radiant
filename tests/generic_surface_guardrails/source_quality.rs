@@ -176,6 +176,25 @@ fn public_prelude_export_groups_stay_focused() {
 }
 
 #[test]
+fn public_prelude_guardrails_scan_root_and_leaf_sources() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let statements = explicit_prelude_export_statements(&manifest_dir);
+
+    assert!(
+        statements
+            .iter()
+            .any(|statement| statement == "pub use application::*;"),
+        "prelude export guardrails must scan the src/prelude.rs root facade"
+    );
+    assert!(
+        statements
+            .iter()
+            .any(|statement| statement.contains("StatefulAppBuilder")),
+        "prelude export guardrails must scan focused leaf export groups"
+    );
+}
+
+#[test]
 fn public_prelude_named_surface_stays_bounded_across_leaf_splits() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let statements = explicit_prelude_export_statements(&manifest_dir);
@@ -197,7 +216,7 @@ fn public_prelude_named_surface_stays_bounded_across_leaf_splits() {
 
     assert!(
         named_export_count <= MAX_COMMON_PRELUDE_NAMED_EXPORTS,
-        "radiant::prelude exposes {named_export_count} named items across its leaf modules; \
+        "radiant::prelude exposes {named_export_count} named items across its root and leaf modules; \
          keep the reviewed common surface at or below {MAX_COMMON_PRELUDE_NAMED_EXPORTS} and \
          move specialist APIs to their owning public modules"
     );
@@ -230,8 +249,8 @@ fn public_prelude_excludes_advanced_host_paint_and_visualization_apis() {
 }
 
 fn explicit_prelude_export_statements(manifest_dir: &std::path::Path) -> Vec<String> {
-    rust_sources_under(&manifest_dir.join("src/prelude"))
-        .into_iter()
+    std::iter::once(manifest_dir.join("src/prelude.rs"))
+        .chain(rust_sources_under(&manifest_dir.join("src/prelude")))
         .flat_map(|path| {
             let source = fs::read_to_string(&path).unwrap_or_else(|err| {
                 panic!(

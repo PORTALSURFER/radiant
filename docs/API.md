@@ -327,7 +327,7 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | Application setup | `window`, `app`, `IntoView`, `View`, `UiUpdateContext`, `EmbeddedFont` |
 | Basic views | `text`, `button`, `button_row`, `toolbar`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
 | Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `ColorMarkerAlign`, `InteractiveRowVisualStateParts`, `handle_activation_input` |
-| Row builder customization | `TreeGuideMetrics`, `TreeGuideStyle`, `StyledTreeGuideStyle`, `DenseRowPalette`, `DenseRowMarkerParts`, `DenseRowMarkerStyle`, `DenseRowOutlineStyle` |
+| Row and virtual-tree customization | `TreeGuideRow`, `TreeGuideMetrics`, `TreeGuideStyle`, `StyledTreeGuideStyle`, `DenseRowPalette`, `DenseRowMarkerParts`, `DenseRowMarkerStyle`, `DenseRowOutlineStyle` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
 | Input and scroll payloads | `NativeFileDrop`, `NativeFileDropPhase`, `ScrollUpdate` |

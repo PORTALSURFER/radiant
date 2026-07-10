@@ -1,4 +1,5 @@
 use super::primitives::push_rect;
+use radiant::gui::visualization::{HorizontalValueAxis, VerticalValueAxis};
 use radiant::prelude::*;
 
 pub(super) fn append_grid(

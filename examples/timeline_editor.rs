@@ -7,6 +7,7 @@ mod timeline_widget;
 mod model;
 
 use radiant::prelude::*;
+use radiant::runtime::retained_canvas;
 
 use model::*;
 use timeline_widget::ArrangementTimelineWidget;

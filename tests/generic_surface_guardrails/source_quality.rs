@@ -5,6 +5,39 @@ use std::{collections::BTreeSet, fs, path::PathBuf};
 use super::{relative_path, rust_sources_under};
 
 const MAX_PRELUDE_EXPORT_GROUP_LINES: usize = 32;
+const MAX_COMMON_PRELUDE_NAMED_EXPORTS: usize = 515;
+
+const ADVANCED_COMMON_PRELUDE_EXCLUSIONS: &[&str] = &[
+    "AuxiliaryWindow",
+    "BusinessRuntimeDiagnostics",
+    "CanvasInvalidation",
+    "CanvasSelectionGeometry",
+    "DeclarativeSurfaceRuntime",
+    "DenseGridLayout",
+    "FrameCadenceMonitor",
+    "GpuSurfaceContent",
+    "GpuSurfaceWidget",
+    "HorizontalValueAxis",
+    "InvalidationMask",
+    "NativeFrameDiagnostics",
+    "NativeGenericRunReport",
+    "NativeGpuSurfaceDiagnostics",
+    "NativeRunOptions",
+    "RetainedSegment",
+    "RetainedSurfaceCachePolicy",
+    "RuntimeRunReport",
+    "SurfacePaintPlan",
+    "SvgParseError",
+    "TimelineViewport",
+    "TransientOverlayContext",
+    "UiSurface",
+    "VerticalValueAxis",
+    "WidgetPaint",
+    "gpu_surface",
+    "push_fill_rect",
+    "push_sampled_curve_stroke",
+    "retained_canvas",
+];
 
 fn public_prelude_source(manifest_dir: &std::path::Path) -> String {
     let root = manifest_dir.join("src/prelude.rs");
@@ -140,6 +173,91 @@ fn public_prelude_export_groups_stay_focused() {
         "prelude export groups should stay small enough to scan; split broad groups before they rebuild the old giant import list:\n{}",
         oversized.join("\n")
     );
+}
+
+#[test]
+fn public_prelude_named_surface_stays_bounded_across_leaf_splits() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let statements = explicit_prelude_export_statements(&manifest_dir);
+    let named_export_count = statements
+        .iter()
+        .filter(|statement| !statement.contains("::*"))
+        .map(|statement| {
+            statement
+                .split_once('{')
+                .and_then(|(_, tail)| tail.rsplit_once('}').map(|(items, _)| items))
+                .map_or(1, |items| {
+                    items
+                        .split(',')
+                        .filter(|item| !item.trim().is_empty())
+                        .count()
+                })
+        })
+        .sum::<usize>();
+
+    assert!(
+        named_export_count <= MAX_COMMON_PRELUDE_NAMED_EXPORTS,
+        "radiant::prelude exposes {named_export_count} named items across its leaf modules; \
+         keep the reviewed common surface at or below {MAX_COMMON_PRELUDE_NAMED_EXPORTS} and \
+         move specialist APIs to their owning public modules"
+    );
+}
+
+#[test]
+fn public_prelude_excludes_advanced_host_paint_and_visualization_apis() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let statements = explicit_prelude_export_statements(&manifest_dir);
+    let offenders = ADVANCED_COMMON_PRELUDE_EXCLUSIONS
+        .iter()
+        .filter(|name| {
+            statements.iter().any(|statement| {
+                statement
+                    .split(|character: char| {
+                        !(character.is_ascii_alphanumeric() || character == '_')
+                    })
+                    .any(|token| token == **name)
+            })
+        })
+        .copied()
+        .collect::<Vec<_>>();
+
+    assert!(
+        offenders.is_empty(),
+        "advanced APIs must require imports from radiant::runtime, radiant::gui, or \
+         radiant::widgets instead of leaking through radiant::prelude: {}",
+        offenders.join(", ")
+    );
+}
+
+fn explicit_prelude_export_statements(manifest_dir: &std::path::Path) -> Vec<String> {
+    rust_sources_under(&manifest_dir.join("src/prelude"))
+        .into_iter()
+        .flat_map(|path| {
+            let source = fs::read_to_string(&path).unwrap_or_else(|err| {
+                panic!(
+                    "prelude export group {} should be readable: {err}",
+                    path.display()
+                )
+            });
+            let mut statements = Vec::new();
+            let mut current = None::<String>;
+            for line in source.lines() {
+                let trimmed = line.trim();
+                if current.is_none() && trimmed.starts_with("pub use ") {
+                    current = Some(trimmed.to_owned());
+                } else if let Some(statement) = current.as_mut() {
+                    statement.push(' ');
+                    statement.push_str(trimmed);
+                }
+                if trimmed.ends_with(';')
+                    && let Some(statement) = current.take()
+                {
+                    statements.push(statement);
+                }
+            }
+            statements
+        })
+        .collect()
 }
 
 #[test]

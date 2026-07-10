@@ -2,10 +2,7 @@
 
 pub use crate::gui::{
     input::{KeyCode, KeyPress},
-    invalidation::{
-        InvalidationMask, RetainedSegment, RetainedSegmentKind, RetainedSegmentMask,
-        RetainedSegmentPlan, RetainedSegmentRevisions, RevisionCounter,
-    },
+    invalidation::RevisionCounter,
     selection::SelectionSet,
     shortcuts::{
         ShortcutCatalog, ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution,

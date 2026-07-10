@@ -3,7 +3,7 @@
 use radiant::prelude::*;
 use radiant::{
     gui::types::{Point, Vector2},
-    runtime::{Event, SurfaceRuntime, declarative_runtime_bridge},
+    runtime::{Event, SurfacePaintPlan, SurfaceRuntime, declarative_runtime_bridge},
     theme::ThemeTokens,
     widgets::PointerButton,
 };

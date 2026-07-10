@@ -1,6 +1,7 @@
 //! Stack animated normal widget overlays above a retained GPU surface.
 
 use radiant::prelude::*;
+use radiant::runtime::{GpuSurfaceContent, SurfacePaintPlan, gpu_surface};
 use radiant::widgets::{PaintBounds, WidgetId};
 use std::{
     sync::{Arc, OnceLock},

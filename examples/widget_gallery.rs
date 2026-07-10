@@ -1,6 +1,7 @@
 //! Gallery of reusable application-builder widgets.
 
 use radiant::prelude::*;
+use radiant::widgets::ColorMarkerAlign;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum GalleryMessage {

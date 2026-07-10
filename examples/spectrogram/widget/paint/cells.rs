@@ -2,6 +2,7 @@ use super::SpectrogramPaintFrame;
 use super::color::spectrogram_color;
 use super::primitives::push_rect;
 use crate::model::{BINS, SpectralColumn};
+use radiant::gui::visualization::{DenseGridCell, DenseGridRasterLayout};
 use radiant::prelude::*;
 
 struct ColumnPaint<'a> {

@@ -21,8 +21,8 @@ fn widget_sizing_uses_named_parts_for_intrinsic_bounds() {
         source.contains("Self::from_parts(WidgetSizingParts {")
             && contract.contains("WidgetSizingParts")
             && widgets.contains("WidgetSizingParts")
-            && prelude.contains("WidgetSizingParts"),
-        "widget sizing compatibility constructor and public exports should keep the named-parts path available"
+            && !prelude.contains("WidgetSizingParts"),
+        "widget sizing named parts should remain public through widgets without entering the common prelude"
     );
 }
 

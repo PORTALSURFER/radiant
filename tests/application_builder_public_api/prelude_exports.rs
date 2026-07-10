@@ -405,7 +405,8 @@ fn prelude_exports_custom_widget_signature_types() {
     };
     let image = ui::ImageRgba::new(1, 1, vec![255, 255, 255, 255]).expect("valid image");
     let image_error = ui::ImageRgba::try_new(1, 1, vec![255]).expect_err("invalid image");
-    let cursor = ui::horizontal_value_cursor_rect(rect, 0.5, 2.0).expect("cursor rect");
+    let cursor =
+        radiant::gui::feedback::horizontal_value_cursor_rect(rect, 0.5, 2.0).expect("cursor rect");
     let text_line = ui::centered_text_line(rect, 13.0, ui::TextLineInsets::horizontal(2.0), 0.0);
     let baseline = ui::centered_text_baseline(text_line, 13.0).expect("text baseline");
 
@@ -426,7 +427,7 @@ fn prelude_exports_custom_widget_signature_types() {
 }
 
 #[test]
-fn prelude_exports_svg_icon_vector_painting() {
+fn svg_parse_errors_require_an_explicit_runtime_import() {
     let icon = ui::SvgIcon::from_svg(
         r#"<svg viewBox="0 0 4 4"><rect x="0" y="0" width="4" height="4"/></svg>"#,
     )
@@ -443,17 +444,18 @@ fn prelude_exports_svg_icon_vector_painting() {
         primitives.as_slice(),
         [ui::PaintPrimitive::Svg(_)]
     ));
-    let _: ui::SvgParseError = icon_error;
+    let _: radiant::runtime::SvgParseError = icon_error;
 }
 
 #[test]
-fn prelude_exports_native_run_report_error_boundary() {
-    let report: ui::RuntimeRunReport<(), ui::NativeGenericRunError> = ui::RuntimeRunReport {
-        artifacts: (),
-        result: Err(ui::NativeGenericRunError::EventLoopRun(
-            "stopped".to_string(),
-        )),
-    };
+fn native_run_reports_require_an_explicit_runtime_import() {
+    let report: radiant::runtime::RuntimeRunReport<(), radiant::runtime::NativeGenericRunError> =
+        radiant::runtime::RuntimeRunReport {
+            artifacts: (),
+            result: Err(radiant::runtime::NativeGenericRunError::EventLoopRun(
+                "stopped".to_string(),
+            )),
+        };
 
     assert_eq!(
         report
@@ -462,6 +464,16 @@ fn prelude_exports_native_run_report_error_boundary() {
             .to_string(),
         "native event loop failed: stopped"
     );
+}
+
+#[test]
+fn advanced_apis_remain_public_through_their_owning_modules() {
+    fn assert_public<T>() {}
+
+    assert_public::<radiant::runtime::NativeFrameDiagnostics>();
+    assert_public::<radiant::runtime::SurfacePaintPlan>();
+    assert_public::<radiant::runtime::GpuSurfaceContent>();
+    assert_public::<radiant::gui::visualization::TimelineViewport>();
 }
 
 #[test]

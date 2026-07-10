@@ -1,6 +1,7 @@
 //! Multi-window manifest built without opening platform windows.
 
 use radiant::prelude::*;
+use radiant::runtime::{WindowManifest, WindowSpec};
 
 fn main() {
     let manifest = build_window_manifest();

@@ -3,6 +3,7 @@ use super::{
     paint::STATUS_PROGRESS_KEY,
 };
 use radiant::prelude::*;
+use radiant::runtime::retained_canvas;
 
 pub(super) fn project_surface(state: &StatusBarState) -> View<StatusMessage> {
     column([workspace_panel(state).fill_height(), status_bar(state)])

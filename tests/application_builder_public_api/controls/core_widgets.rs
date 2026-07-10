@@ -1,6 +1,6 @@
 use super::super::*;
 use radiant::widgets::{
-    BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerRunWidget,
+    BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, ColorMarkerAlign, ColorMarkerRunWidget,
     ColorMarkerWidget, DragHandleMessage, FeedbackOverlayWidget, FocusBehavior, IconButtonWidget,
     MarkerRunWidget, PaintBounds, SelectableWidget, SliderMessage, SliderWidget, TextInputWidget,
     TextWidget, ToggleWidget, WidgetOutput, WidgetProminence, WidgetStyle, WidgetTone,
@@ -348,7 +348,7 @@ fn color_marker_is_prelude_accessible_and_passive() {
     let surface: UiSurface<()> = ui::color_marker(Some(color))
         .side(6)
         .inset(2)
-        .align(ui::ColorMarkerAlign::Left)
+        .align(ColorMarkerAlign::Left)
         .view()
         .id(23)
         .into_surface();
@@ -357,7 +357,7 @@ fn color_marker_is_prelude_accessible_and_passive() {
     assert_eq!(marker.props.color, Some(color));
     assert_eq!(marker.props.side, 6);
     assert_eq!(marker.props.inset, 2);
-    assert_eq!(marker.props.align, ui::ColorMarkerAlign::Left);
+    assert_eq!(marker.props.align, ColorMarkerAlign::Left);
     assert_eq!(
         surface.dispatch_widget_output(23, WidgetOutput::typed(())),
         None
@@ -373,7 +373,7 @@ fn selectable_builder_supports_color_marker_adornment() {
         .color_marker(Some(color))
         .color_marker_side(6)
         .color_marker_inset(2)
-        .color_marker_align(ui::ColorMarkerAlign::Left)
+        .color_marker_align(ColorMarkerAlign::Left)
         .message(|_| ())
         .id(28)
         .into_surface();
@@ -383,7 +383,7 @@ fn selectable_builder_supports_color_marker_adornment() {
     assert_eq!(marker.color, Some(color));
     assert_eq!(marker.side, 6);
     assert_eq!(marker.inset, 2);
-    assert_eq!(marker.align, ui::ColorMarkerAlign::Left);
+    assert_eq!(marker.align, ColorMarkerAlign::Left);
 
     let ordered_surface: UiSurface<()> = ui::selectable("Queued", false)
         .color_marker_side(7)

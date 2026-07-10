@@ -1,7 +1,7 @@
 use super::super::*;
 use radiant::widgets::{
-    PointerShieldMessage, PointerShieldWidget, ProgressBarMessage, ProgressBarWidget, SliderWidget,
-    TextInputMessage, TextInputWidget,
+    IconButtonWidget, InteractiveRowWidget, PointerShieldMessage, PointerShieldWidget,
+    ProgressBarMessage, ProgressBarWidget, SliderWidget, TextInputMessage, TextInputWidget,
 };
 
 #[test]
@@ -74,7 +74,7 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
     ])
     .into_surface();
 
-    let row = widget_ref::<ui::InteractiveRowWidget, _>(&surface, 20, "interactive row");
+    let row = widget_ref::<InteractiveRowWidget, _>(&surface, 20, "interactive row");
     assert!(row.props.draggable);
     assert!(row.props.droppable);
     assert!(row.props.drop_hover);
@@ -91,7 +91,7 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
         ),
         Some("row")
     );
-    let drop_only = widget_ref::<ui::InteractiveRowWidget, _>(&surface, 24, "drop-only row");
+    let drop_only = widget_ref::<InteractiveRowWidget, _>(&surface, 24, "drop-only row");
     assert!(drop_only.props.droppable);
     assert!(!drop_only.props.drop_hover);
     assert_eq!(
@@ -131,7 +131,7 @@ fn application_builders_expose_interactive_row_scrollbar_icon_button_and_compact
         Some("scroll")
     );
 
-    let icon_button = widget_ref::<ui::IconButtonWidget, _>(&surface, 22, "icon button");
+    let icon_button = widget_ref::<IconButtonWidget, _>(&surface, 22, "icon button");
     assert!(icon_button.common.state.active);
     assert_eq!(
         surface.dispatch_widget_output(

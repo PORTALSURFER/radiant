@@ -3,6 +3,7 @@
 use radiant::gui::types::ImageRgba;
 use radiant::layout::{Point, Rect, Vector2};
 use radiant::prelude::*;
+use radiant::runtime::{GpuSurfaceContent, gpu_surface_input};
 use radiant::widgets::{PointerButton, WidgetInput};
 use std::sync::{Arc, OnceLock};
 

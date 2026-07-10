@@ -283,17 +283,43 @@ not a separate framework: every builder lowers into the same `UiSurface`,
 available through the explicit `radiant::runtime`, `radiant::widgets`,
 `radiant::layout`, `radiant::theme`, and `radiant::gui` modules.
 
-The prelude boundary is intentionally conservative. It should contain common
-app-facing types that ordinary declarative UI code reaches for repeatedly:
-builders, messages, widget contracts, geometry used in signatures, theme
-tokens, backend-neutral paint primitives, and typed runtime commands. Advanced
-host-control APIs, renderer or windowing implementation details, backend crates
-such as Vello/WGPU/winit, and platform-specific adapters stay on explicit
-modules. Examples may import `radiant::runtime`, `radiant::widgets`,
-`radiant::layout`, `radiant::theme`, or `radiant::gui` beside the prelude when
-they are demonstrating custom widgets, tests, retained surfaces, diagnostics,
-or other advanced control; that explicit import is the signal that the example
-has moved beyond the common app import set.
+The prelude boundary is intentionally conservative. Its focused source groups
+are reviewed allowlists, and a source guardrail bounds their combined named
+surface so splitting an oversized group into more files cannot bypass review.
+It contains app-facing types that ordinary declarative UI code reaches for
+repeatedly: builders, messages, core widget contracts, geometry used in
+signatures, theme tokens, backend-neutral paint primitives, and typed runtime
+commands. Advanced host-control APIs, paint-plan construction and inspection,
+GPU/custom-shader surfaces, native diagnostics and run reports, retained
+projection machinery, and specialist visualization geometry require explicit
+imports from their owning modules.
+Advanced host-control APIs, renderer or windowing implementation details, and
+platform-specific adapters never enter the common wildcard surface.
+
+| API family | Prelude disposition | Explicit owner when excluded |
+| --- | --- | --- |
+| Application/view builders and their signature support | Included | `radiant::application` |
+| Basic controls, layout, overlays, lists, menus, theme, and geometry | Included | Owning `radiant::application`, `radiant::gui`, `radiant::layout`, or `radiant::theme` module |
+| Core custom-widget contracts and backend-neutral paint primitives | Included | `radiant::widgets` and `radiant::runtime` |
+| Generic normalized color ramps | Included | `radiant::gui::visualization` |
+| Native options, diagnostics, run errors, and run reports | Excluded | `radiant::runtime` |
+| GPU surfaces, retained canvases, custom shaders, and window manifests | Excluded | `radiant::runtime` |
+| Paint plans, SVG parsing errors, paint emitters, and primitive query helpers | Excluded | `radiant::runtime` |
+| Timelines, grids, axes, canvas selection, and other specialist visualization geometry | Excluded | `radiant::gui::visualization` |
+| Concrete low-level widgets and widget construction parts | Excluded | `radiant::widgets` |
+| Badge/flow geometry and dense-row paint policy | Excluded | The owning `radiant::gui` module |
+
+Examples may import `radiant::runtime`, `radiant::widgets`, `radiant::layout`,
+`radiant::theme`, or `radiant::gui` beside the prelude when they demonstrate
+custom widgets, tests, retained surfaces, diagnostics, or other advanced
+control; that explicit import is the signal that the example has moved beyond
+the common app import set. For example:
+
+```rust
+use radiant::gui::visualization::TimelineViewport;
+use radiant::prelude::*;
+use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
+```
 
 | Area | Common prelude entries |
 | --- | --- |
@@ -314,7 +340,8 @@ bounds, instead of repeating `Point` plus `Vector2` construction. Dense
 visualizations can use `ColorRamp` and `ColorRampStop` for normalized heatmap
 and intensity palettes without local interpolation helpers.
 
-Custom canvas, image, GPU surface, and overlay widgets can use
+Custom canvas, image, GPU surface, and overlay widgets can explicitly import
+their advanced contracts from `radiant::widgets` and `radiant::runtime`, then use
 `WidgetCommon::fixed(...)` when a fixed-size custom widget can declare identity
 and intrinsic size together, then chain `WidgetCommon::without_default_chrome()`
 when it still needs Radiant's sizing, focus, hit testing, and style contracts
@@ -347,10 +374,10 @@ without an app-local transparent hit-target widget. Use
 `.dense_chrome_palette(...)`, `.leading_marker(...)`, `.trailing_marker(...)`,
 and `.outline(...)` when app-owned row state needs custom fills, edge markers,
 or outlines while Radiant still owns generic row input and dense-state
-projection. Custom matrix or heatmap widgets can use `DenseGridLayout` and
+projection. Custom matrix or heatmap widgets can explicitly import `DenseGridLayout` and
 `DenseGridCell` for reusable row/column cell projection and hit testing.
 
-For paint-plan emission, `WidgetPaint`, `push_fill_rect`,
+For paint-plan emission, explicitly import `WidgetPaint`, `push_fill_rect`,
 `push_fill_rect_batch`, `push_stroke_rect`, `push_stroke_rect_batch`,
 `push_fill_polygon`, `push_stroke_polyline`, `push_text`,
 `PaintTextMetrics`, and `push_text_run_with_metrics` provide the reusable
@@ -361,7 +388,7 @@ geometry should only enter the paint plan if it has finite positive area. Use
 widget and local code would otherwise thread the same primitive buffer and
 widget id through every helper call.
 
-Timeline, waveform, progress, and scrubber-style custom widgets can use
+Timeline, waveform, progress, and scrubber-style custom widgets can explicitly import
 `push_horizontal_progress_fill`,
 `push_horizontal_value_range_fill`,
 `push_horizontal_value_range_edge_fills`,
@@ -376,7 +403,8 @@ curves, and analysis overlays can use `SampledCurveStrokeParts`,
 filtering, bounds clamping, point-buffer allocation, and stroke emission on
 Radiant's generic paint path while the host owns the curve math.
 
-Tests, automation, and embedded hosts that inspect paint plans can use
+Tests, automation, and embedded hosts that inspect paint plans should import
+`SurfacePaintPlan` from `radiant::runtime`, then use
 `SurfacePaintPlan::text_runs()`, `text_labels()`, `text_label_strings()`,
 `first_text_run(...)`, `contains_text(...)`, `first_text_run_after_x(...)`,
 `contains_text_after_x(...)`, `first_text_rect(...)`,
@@ -517,7 +545,7 @@ Frequently reopened utility windows such as settings panels and inspectors can
 also call `.cache_on_close()` so native close hides and retains the prepared
 window; a later projection with the same key updates and shows the cached
 window instead of recreating the native window and renderer state.
-Applications that need lightweight UI-cadence diagnostics can use
+Applications that need lightweight UI-cadence diagnostics can explicitly import
 `FrameCadenceMonitor` with `FrameCadenceConfig` to classify first-frame,
 warning-spike, error-spike, periodic, and normal frame deltas while keeping
 application-specific context in the host log payload.

@@ -1,4 +1,5 @@
 use super::*;
+use radiant::gui::list::{TreeGuideRow, TreeGuideStyle};
 
 #[test]
 fn application_builder_lists_keep_row_heights_stable_across_item_counts() {
@@ -231,13 +232,13 @@ fn application_builder_virtual_tree_list_windowed_uses_window_messages() {
         window_end: 16,
     };
     let guides = (0..256)
-        .map(|index| ui::TreeGuideRow::new(index % 2, index % 3 == 0))
+        .map(|index| TreeGuideRow::new(index % 2, index % 3 == 0))
         .collect::<Vec<_>>();
     let surface: UiSurface<DemoMessage> = ui::virtual_tree_list_windowed(
         window,
         28.0,
         &guides,
-        ui::TreeGuideStyle::new(10.0, 28.0, ui::Rgba8::new(90, 120, 160, 255)),
+        TreeGuideStyle::new(10.0, 28.0, ui::Rgba8::new(90, 120, 160, 255)),
         |index| {
             ui::list_row_id(
                 30_000 + index as u64,

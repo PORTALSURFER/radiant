@@ -1,5 +1,5 @@
 use crate::gpu_content::demo_gpu_content;
-use radiant::prelude::GpuSurfaceContent;
+use radiant::runtime::GpuSurfaceContent;
 use std::sync::Arc;
 
 #[test]

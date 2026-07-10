@@ -3,6 +3,7 @@ use super::super::paint::{push_rect, push_stroke, send_color};
 use super::super::panel::{MeterReadout, MixerPanelWidget};
 use super::fader;
 use super::meter;
+use radiant::gui::feedback::vertical_value_knob_rect;
 use radiant::prelude::*;
 
 pub(super) fn append_fader_drag_overlay(

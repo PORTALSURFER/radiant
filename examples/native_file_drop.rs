@@ -1,6 +1,7 @@
 //! Declarative native file-drop target routing.
 
 use radiant::prelude::*;
+use radiant::runtime::{NativeFileDrop, NativeFileDropPhase};
 
 #[derive(Clone, Debug)]
 enum Message {

@@ -1,4 +1,7 @@
 use super::*;
+use radiant::gui::visualization::{
+    HorizontalValueAxis, SampledCurveStrokeParts, push_sampled_curve_stroke,
+};
 
 #[path = "paint/grid.rs"]
 mod grid;

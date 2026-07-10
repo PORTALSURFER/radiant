@@ -1,4 +1,5 @@
 use super::primitives::push_text;
+use radiant::gui::visualization::VerticalValueAxis;
 use radiant::prelude::*;
 
 pub(super) fn append_labels(

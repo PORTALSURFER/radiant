@@ -1,4 +1,10 @@
-use radiant::prelude::*;
+use radiant::{
+    gui::{
+        feedback::{vertical_bipolar_fill_rect, vertical_bipolar_value_at_point},
+        visualization::{DenseGridCell, DenseGridLabelLayout, DenseGridLayout},
+    },
+    prelude::*,
+};
 
 use super::{DESTINATION_COUNT, MatrixCell, SOURCE_COUNT};
 

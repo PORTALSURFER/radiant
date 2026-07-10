@@ -1,5 +1,9 @@
 use super::super::model::{CHANNEL_COUNT, SEND_COUNT};
 use super::MixerPanelWidget;
+use radiant::gui::{
+    feedback::vertical_value_at_point,
+    visualization::{HorizontalStripLayout, HorizontalValueAxis, VerticalStripStackLayout},
+};
 use radiant::prelude::*;
 
 impl MixerPanelWidget {

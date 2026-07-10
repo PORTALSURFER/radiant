@@ -1,6 +1,7 @@
 //! Passive widget chrome built through the same ViewNode API as applications.
 
 use radiant::prelude as ui;
+use radiant::runtime::canvas;
 
 fn main() -> radiant::Result {
     radiant::window("Radiant Passive Widgets")
@@ -33,7 +34,7 @@ fn project_surface() -> ui::ViewNode<()> {
         .height(36.0),
         ui::row([
             ui::text("Canvas slot").size(110.0, 22.0).width(110.0),
-            ui::canvas().id(13).size(120.0, 18.0).width(120.0),
+            canvas().id(13).size(120.0, 18.0).width(120.0),
             ui::spacer().id(14).width(20.0),
             ui::text("after spacer").size(120.0, 22.0).width(120.0),
         ])

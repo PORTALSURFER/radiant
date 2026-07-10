@@ -37,7 +37,7 @@ fn retained_canvas_metadata_reaches_backend_neutral_paint_plan() {
 
 #[test]
 fn retained_canvas_builder_projects_metadata_and_input_mapping() {
-    let surface = radiant::prelude::retained_canvas(44)
+    let surface = radiant::runtime::retained_canvas(44)
         .revision(7)
         .dirty_mask(3)
         .volatile(true)

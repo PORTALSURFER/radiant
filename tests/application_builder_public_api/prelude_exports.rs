@@ -405,7 +405,20 @@ fn prelude_exports_custom_widget_signature_types() {
     };
     let image = ui::ImageRgba::new(1, 1, vec![255, 255, 255, 255]).expect("valid image");
     let image_error = ui::ImageRgba::try_new(1, 1, vec![255]).expect_err("invalid image");
-    let cursor = ui::horizontal_value_cursor_rect(rect, 0.5, 2.0).expect("cursor rect");
+    let rects: ui::PaintRectList = vec![rect].into();
+    let fill_batch = ui::PaintFillRectBatch {
+        widget_id: 1,
+        rects: rects.clone(),
+        color,
+    };
+    let stroke_batch = ui::PaintStrokeRectBatch {
+        widget_id: 2,
+        rects,
+        color,
+        width: 1.0,
+    };
+    let cursor =
+        radiant::gui::feedback::horizontal_value_cursor_rect(rect, 0.5, 2.0).expect("cursor rect");
     let text_line = ui::centered_text_line(rect, 13.0, ui::TextLineInsets::horizontal(2.0), 0.0);
     let baseline = ui::centered_text_baseline(text_line, 13.0).expect("text baseline");
 
@@ -422,11 +435,52 @@ fn prelude_exports_custom_widget_signature_types() {
     assert_eq!(theme.text_primary.a, 255);
     assert_eq!(color.g, 2);
     assert_eq!(image.width, 1);
+    assert_eq!(fill_batch.rects.len(), 1);
+    assert_eq!(stroke_batch.rects.len(), 1);
     let _: ui::ImageRgbaError = image_error;
 }
 
 #[test]
-fn prelude_exports_svg_icon_vector_painting() {
+fn prelude_exports_scroll_update_callback_payload() {
+    fn scroll_message(_update: ui::ScrollUpdate) {}
+
+    let _: ui::View<()> = ui::scroll(ui::text("Scrollable")).on_scroll_update(scroll_message);
+}
+
+#[test]
+fn prelude_exports_drag_preview_sizing_payload() {
+    let preview = ui::DragPreview::text_sized(
+        "Move selection",
+        ui::DragPreviewTextSizing::new(24.0)
+            .horizontal_padding(32.0)
+            .min_width(96.0)
+            .max_width(180.0),
+    );
+    let request = ui::DragRequest::new(preview, ui::Point::new(12.0, 18.0));
+
+    assert_eq!(request.preview.size.y, 24.0);
+    assert!((96.0..=180.0).contains(&request.preview.size.x));
+}
+
+#[test]
+fn prelude_exports_auxiliary_window_projection_payloads() {
+    use radiant::prelude::IntoView;
+
+    let window: ui::AuxiliaryWindow<()> = ui::AuxiliaryWindow::utility(
+        "settings",
+        "Settings",
+        320.0,
+        240.0,
+        std::sync::Arc::new(ui::empty().into_surface()),
+    )
+    .cache_on_close();
+
+    assert_eq!(window.close_policy, ui::AuxiliaryWindowClosePolicy::Hide);
+    assert!(window.caches_on_close());
+}
+
+#[test]
+fn svg_parse_errors_require_an_explicit_runtime_import() {
     let icon = ui::SvgIcon::from_svg(
         r#"<svg viewBox="0 0 4 4"><rect x="0" y="0" width="4" height="4"/></svg>"#,
     )
@@ -443,17 +497,18 @@ fn prelude_exports_svg_icon_vector_painting() {
         primitives.as_slice(),
         [ui::PaintPrimitive::Svg(_)]
     ));
-    let _: ui::SvgParseError = icon_error;
+    let _: radiant::runtime::SvgParseError = icon_error;
 }
 
 #[test]
-fn prelude_exports_native_run_report_error_boundary() {
-    let report: ui::RuntimeRunReport<(), ui::NativeGenericRunError> = ui::RuntimeRunReport {
-        artifacts: (),
-        result: Err(ui::NativeGenericRunError::EventLoopRun(
-            "stopped".to_string(),
-        )),
-    };
+fn native_run_reports_require_an_explicit_runtime_import() {
+    let report: radiant::runtime::RuntimeRunReport<(), radiant::runtime::NativeGenericRunError> =
+        radiant::runtime::RuntimeRunReport {
+            artifacts: (),
+            result: Err(radiant::runtime::NativeGenericRunError::EventLoopRun(
+                "stopped".to_string(),
+            )),
+        };
 
     assert_eq!(
         report
@@ -462,6 +517,23 @@ fn prelude_exports_native_run_report_error_boundary() {
             .to_string(),
         "native event loop failed: stopped"
     );
+}
+
+#[test]
+fn prelude_exports_native_file_drop_callback_payloads() {
+    let event = ui::NativeFileDrop::cancel(None, None);
+
+    assert_eq!(event.phase, ui::NativeFileDropPhase::Cancel);
+}
+
+#[test]
+fn advanced_apis_remain_public_through_their_owning_modules() {
+    fn assert_public<T>() {}
+
+    assert_public::<radiant::runtime::NativeFrameDiagnostics>();
+    assert_public::<radiant::runtime::SurfacePaintPlan>();
+    assert_public::<radiant::runtime::GpuSurfaceContent>();
+    assert_public::<radiant::gui::visualization::TimelineViewport>();
 }
 
 #[test]

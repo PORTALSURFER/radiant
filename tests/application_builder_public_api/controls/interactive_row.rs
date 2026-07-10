@@ -8,8 +8,19 @@ enum RowMessage {
 }
 
 fn action_row() -> ui::View<RowMessage> {
+    let accent = ui::Rgba8::new(80, 160, 220, 255);
     ui::interactive_row_underlay(ui::text_line("Item", 22.0))
         .input_id(44)
+        .visual_state(ui::InteractiveRowVisualStateParts {
+            selected: true,
+            ..ui::InteractiveRowVisualStateParts::default()
+        })
+        .dense_chrome_palette(ui::DenseRowPalette::new().selected(accent.with_alpha(96)))
+        .leading_marker(ui::DenseRowMarkerStyle::new(
+            ui::DenseRowMarkerParts::leading(2.0),
+            accent,
+        ))
+        .outline(ui::DenseRowOutlineStyle::new(0.5, accent, 1.5))
         .actions(
             ui::InteractiveRowActions::new()
                 .activate(|| RowMessage::Activate)

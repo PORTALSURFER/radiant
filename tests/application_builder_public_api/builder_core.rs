@@ -8,6 +8,34 @@ use radiant::{
 };
 
 #[test]
+fn application_builder_named_shortcut_resolver_uses_prelude_focus_surface() {
+    use radiant::prelude as ui;
+
+    fn resolve_shortcut(
+        _state: &mut DemoState,
+        _pending_chord: Option<ui::KeyPress>,
+        _press: ui::KeyPress,
+        focus: ui::FocusSurface,
+    ) -> ui::ShortcutResolution<DemoMessage> {
+        assert_eq!(focus, ui::FocusSurface::None);
+        ui::ShortcutResolution::action(DemoMessage::Increment)
+    }
+
+    let mut bridge = ui::app(DemoState::default())
+        .view(|_| ui::text("Shortcut target"))
+        .shortcuts(resolve_shortcut)
+        .update(|_state, _message| {})
+        .into_bridge();
+    let resolution = bridge.resolve_key_press(
+        None,
+        ui::KeyPress::new(ui::KeyCode::Enter),
+        ui::FocusSurface::None,
+    );
+
+    assert_eq!(resolution.action, Some(DemoMessage::Increment));
+}
+
+#[test]
 fn application_builder_accepts_widgets_through_widget_view_trait() {
     use radiant::prelude::{self as ui, IntoView, MappedWidget};
 

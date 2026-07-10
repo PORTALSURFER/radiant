@@ -1,4 +1,5 @@
 use super::*;
+use radiant::gui::focus::FocusSurface;
 
 #[test]
 fn piano_roll_tick_advances_synthetic_playhead_without_midi_or_dsp() {

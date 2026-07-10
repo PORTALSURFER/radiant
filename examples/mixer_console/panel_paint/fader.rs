@@ -1,6 +1,9 @@
 use super::super::model::ratio_for_gain;
 use super::super::paint::{push_rect, push_stroke};
 use super::super::panel::MixerPanelWidget;
+use radiant::gui::feedback::{
+    vertical_center_track_rect, vertical_value_knob_rect, vertical_value_line_rect,
+};
 use radiant::prelude::*;
 
 pub(super) fn append_fader(

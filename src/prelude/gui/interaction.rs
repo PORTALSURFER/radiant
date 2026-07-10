@@ -1,11 +1,9 @@
 //! Backend-neutral interaction and state prelude exports.
 
 pub use crate::gui::{
+    focus::FocusSurface,
     input::{KeyCode, KeyPress},
-    invalidation::{
-        InvalidationMask, RetainedSegment, RetainedSegmentKind, RetainedSegmentMask,
-        RetainedSegmentPlan, RetainedSegmentRevisions, RevisionCounter,
-    },
+    invalidation::RevisionCounter,
     selection::SelectionSet,
     shortcuts::{
         ShortcutCatalog, ShortcutGesture, ShortcutLayer, ShortcutModifier, ShortcutResolution,

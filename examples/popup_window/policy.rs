@@ -1,7 +1,7 @@
 //! Native popup window policies used by the popup example surfaces.
 
 use super::model::{POPUP_POSITION, POPUP_PREWARM_POSITION, PopupLaunch};
-use radiant::prelude::*;
+use radiant::runtime::{NativePopupOptions, WindowSpec};
 
 pub(super) fn popup_policy(initially_visible: bool) -> NativePopupOptions {
     popup_policy_at(POPUP_POSITION, initially_visible, initially_visible)

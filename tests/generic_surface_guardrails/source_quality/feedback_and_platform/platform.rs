@@ -48,8 +48,8 @@ fn window_specs_use_named_parts_for_manifest_identity_and_options() {
         builders.contains("Self::from_parts(WindowSpecParts {")
             && manifest.contains("WindowSpecParts")
             && runtime.contains("WindowSpecParts")
-            && prelude.contains("WindowSpecParts"),
-        "window spec compatibility constructors and public exports should keep the named-parts path available"
+            && !prelude.contains("WindowSpecParts"),
+        "window spec named parts should remain public through runtime without entering the common prelude"
     );
 }
 

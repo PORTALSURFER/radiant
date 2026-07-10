@@ -1,4 +1,7 @@
-use radiant::prelude::*;
+use radiant::{
+    gui::visualization::{HorizontalLogValueAxis, VerticalValueAxis},
+    prelude::*,
+};
 
 use super::super::model::{MAX_FREQ_HZ, MAX_GAIN_DB, MIN_FREQ_HZ, MIN_GAIN_DB};
 

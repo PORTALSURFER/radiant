@@ -236,7 +236,8 @@ interaction:
 Radiant routes hover, cancel, and drop events to the topmost accepting target
 using the normal surface traversal and attaches `NativeFileDrop::target_widget`
 before emitting the host message. Use `NativeFileDropPhase` to distinguish the
-event phase. The app-builder `.on_native_file_drop(...)` hook remains available
+event phase. Both callback payload types are part of the common prelude. The
+app-builder `.on_native_file_drop(...)` hook remains available
 as an advanced compatibility fallback for hosts that intentionally handle
 targeted drops outside the view tree. Interactive row and badge builders can use
 `InteractiveRowActions` when they only need common activation, secondary-click,
@@ -283,27 +284,59 @@ not a separate framework: every builder lowers into the same `UiSurface`,
 available through the explicit `radiant::runtime`, `radiant::widgets`,
 `radiant::layout`, `radiant::theme`, and `radiant::gui` modules.
 
-The prelude boundary is intentionally conservative. It should contain common
-app-facing types that ordinary declarative UI code reaches for repeatedly:
-builders, messages, widget contracts, geometry used in signatures, theme
-tokens, backend-neutral paint primitives, and typed runtime commands. Advanced
-host-control APIs, renderer or windowing implementation details, backend crates
-such as Vello/WGPU/winit, and platform-specific adapters stay on explicit
-modules. Examples may import `radiant::runtime`, `radiant::widgets`,
-`radiant::layout`, `radiant::theme`, or `radiant::gui` beside the prelude when
-they are demonstrating custom widgets, tests, retained surfaces, diagnostics,
-or other advanced control; that explicit import is the signal that the example
-has moved beyond the common app import set.
+The prelude boundary is intentionally conservative. Its focused source groups
+are reviewed allowlists, and a source guardrail bounds their combined named
+surface so splitting an oversized group into more files cannot bypass review.
+It contains app-facing types that ordinary declarative UI code reaches for
+repeatedly: builders, messages, core widget contracts, geometry used in
+signatures, theme tokens, backend-neutral paint primitives, and typed runtime
+commands. Advanced host-control APIs, paint-plan construction and inspection,
+GPU/custom-shader surfaces, native diagnostics and run reports, retained
+projection machinery, and specialist visualization geometry require explicit
+imports from their owning modules.
+Advanced host-control APIs, renderer or windowing implementation details, and
+platform-specific adapters never enter the common wildcard surface.
+
+| API family | Prelude disposition | Explicit owner when excluded |
+| --- | --- | --- |
+| Application/view builders and their signature support | Included | `radiant::application` |
+| Basic controls, layout, overlays, lists, menus, theme, and geometry | Included | Owning `radiant::application`, `radiant::gui`, `radiant::layout`, or `radiant::theme` module |
+| Core custom-widget contracts and backend-neutral paint primitives | Included | `radiant::widgets` and `radiant::runtime` |
+| Generic normalized color ramps | Included | `radiant::gui::visualization` |
+| Native options, diagnostics, run errors, and run reports | Excluded | `radiant::runtime` |
+| GPU surfaces, retained canvases, custom shaders, and window manifests | Excluded | `radiant::runtime` |
+| Paint plans, SVG parsing errors, paint emitters, and primitive query helpers | Excluded | `radiant::runtime` |
+| Timelines, grids, axes, canvas selection, and other specialist visualization geometry | Excluded | `radiant::gui::visualization` |
+| Concrete low-level widgets and widget construction parts | Excluded | `radiant::widgets` |
+| Badge/flow geometry and dense-row paint helpers beyond builder signature support | Excluded | The owning `radiant::gui` module |
+
+Examples may import `radiant::runtime`, `radiant::widgets`, `radiant::layout`,
+`radiant::theme`, or `radiant::gui` beside the prelude when they demonstrate
+custom widgets, tests, retained surfaces, diagnostics, or other advanced
+control; that explicit import is the signal that the example has moved beyond
+the common app import set. For example:
+
+```rust
+use radiant::gui::visualization::TimelineViewport;
+use radiant::prelude::*;
+use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
+```
 
 | Area | Common prelude entries |
 | --- | --- |
 | Application setup | `window`, `app`, `IntoView`, `View`, `UiUpdateContext`, `EmbeddedFont` |
 | Basic views | `text`, `button`, `button_row`, `toolbar`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
-| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `handle_activation_input` |
+| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `ColorMarkerProps`, `ColorMarkerAlign`, `InteractiveRowVisualStateParts`, `handle_activation_input` |
+| Row and virtual-tree customization | `TreeGuideRow`, `TreeGuideMetrics`, `TreeGuideStyle`, `StyledTreeGuideStyle`, `DenseRowPalette`, `DenseRowMarkerParts`, `DenseRowMarkerStyle`, `DenseRowOutlineStyle` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
+| Input and scroll payloads | `NativeFileDrop`, `NativeFileDropPhase`, `ScrollUpdate` |
+| Shortcut routing | `KeyPress`, `ShortcutResolution`, `FocusSurface` |
+| Runtime drag requests | `DragPreview`, `DragPreviewTextSizing`, `DragRequest` |
+| Auxiliary windows | `AuxiliaryWindow`, `AuxiliaryWindowClosePolicy` |
+| Presentation callbacks | `Presentation`, `TransientOverlay`, `TransientOverlayContext` |
 | Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `SvgIconTintPalette`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
-| Paint primitives | `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`, `PaintFillRectBatch`, `PaintFillPath`, `PaintPathCommand`, `PaintTransform`, `PaintTextRun` |
+| Paint primitives | `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`, `PaintFillRectBatch`, `PaintStrokeRectBatch`, `PaintRectList`, `PaintFillPath`, `PaintPathCommand`, `PaintTransform`, `PaintTextRun` |
 
 Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`,
 `Rgba8::with_alpha_if`, `Rgba8::blend_toward`, and
@@ -314,7 +347,8 @@ bounds, instead of repeating `Point` plus `Vector2` construction. Dense
 visualizations can use `ColorRamp` and `ColorRampStop` for normalized heatmap
 and intensity palettes without local interpolation helpers.
 
-Custom canvas, image, GPU surface, and overlay widgets can use
+Custom canvas, image, GPU surface, and overlay widgets can explicitly import
+their advanced contracts from `radiant::widgets` and `radiant::runtime`, then use
 `WidgetCommon::fixed(...)` when a fixed-size custom widget can declare identity
 and intrinsic size together, then chain `WidgetCommon::without_default_chrome()`
 when it still needs Radiant's sizing, focus, hit testing, and style contracts
@@ -347,10 +381,10 @@ without an app-local transparent hit-target widget. Use
 `.dense_chrome_palette(...)`, `.leading_marker(...)`, `.trailing_marker(...)`,
 and `.outline(...)` when app-owned row state needs custom fills, edge markers,
 or outlines while Radiant still owns generic row input and dense-state
-projection. Custom matrix or heatmap widgets can use `DenseGridLayout` and
+projection. Custom matrix or heatmap widgets can explicitly import `DenseGridLayout` and
 `DenseGridCell` for reusable row/column cell projection and hit testing.
 
-For paint-plan emission, `WidgetPaint`, `push_fill_rect`,
+For paint-plan emission, explicitly import `WidgetPaint`, `push_fill_rect`,
 `push_fill_rect_batch`, `push_stroke_rect`, `push_stroke_rect_batch`,
 `push_fill_polygon`, `push_stroke_polyline`, `push_text`,
 `PaintTextMetrics`, and `push_text_run_with_metrics` provide the reusable
@@ -361,7 +395,7 @@ geometry should only enter the paint plan if it has finite positive area. Use
 widget and local code would otherwise thread the same primitive buffer and
 widget id through every helper call.
 
-Timeline, waveform, progress, and scrubber-style custom widgets can use
+Timeline, waveform, progress, and scrubber-style custom widgets can explicitly import
 `push_horizontal_progress_fill`,
 `push_horizontal_value_range_fill`,
 `push_horizontal_value_range_edge_fills`,
@@ -376,7 +410,8 @@ curves, and analysis overlays can use `SampledCurveStrokeParts`,
 filtering, bounds clamping, point-buffer allocation, and stroke emission on
 Radiant's generic paint path while the host owns the curve math.
 
-Tests, automation, and embedded hosts that inspect paint plans can use
+Tests, automation, and embedded hosts that inspect paint plans should import
+`SurfacePaintPlan` from `radiant::runtime`, then use
 `SurfacePaintPlan::text_runs()`, `text_labels()`, `text_label_strings()`,
 `first_text_run(...)`, `contains_text(...)`, `first_text_run_after_x(...)`,
 `contains_text_after_x(...)`, `first_text_rect(...)`,
@@ -511,13 +546,16 @@ one typed item open at a time and centralize toggle/close behavior. Use
 rows, overlays, or drag/drop targets need to request invalidation only when the
 exclusive item actually changed.
 Stateful apps can project secondary top-level windows with
-`.auxiliary_windows(...)` and `AuxiliaryWindow::new(...)`. Use
+`.auxiliary_windows(...)` and the common-prelude
+`AuxiliaryWindow::utility(...)` constructor. Use
 `.on_close(message)` to route native close requests back into the host reducer.
 Frequently reopened utility windows such as settings panels and inspectors can
 also call `.cache_on_close()` so native close hides and retains the prepared
 window; a later projection with the same key updates and shows the cached
 window instead of recreating the native window and renderer state.
-Applications that need lightweight UI-cadence diagnostics can use
+Windows that require advanced native configuration can explicitly import
+`NativeRunOptions` and call `AuxiliaryWindow::new(...)` instead.
+Applications that need lightweight UI-cadence diagnostics can explicitly import
 `FrameCadenceMonitor` with `FrameCadenceConfig` to classify first-frame,
 warning-spike, error-spike, periodic, and normal frame deltas while keeping
 application-specific context in the host log payload.
@@ -1173,11 +1211,11 @@ ui::scene(layout::shell(state))
     .into_view();
 ```
 
-Radiant passes a `TransientOverlayContext` with the latest `SurfacePaintPlan`,
-viewport, and animation time. This keeps structural state, layout, and Vello
-scene refreshes out of animation paths for visuals such as playheads, drag
-previews, tooltip affordances, cursor markers, and lightweight spectrogram
-overlays.
+Radiant passes the common-prelude callback payload `TransientOverlayContext`
+with the latest `SurfacePaintPlan`, viewport, and animation time. This keeps
+structural state, layout, and Vello scene refreshes out of animation paths for
+visuals such as playheads, drag previews, tooltip affordances, cursor markers,
+and lightweight spectrogram overlays.
 
 For app-builder code that needs the same descriptors outside a root scene, use
 `.presentation(...)`:
@@ -1747,7 +1785,9 @@ Apps that need a one-off declarative scroll mapping can attach
 when a high-frequency scroll surface should suppress host messages for
 unchanged logical state. Lower-level hosts can still observe runtime-owned
 scroll containers with app-builder `.on_scroll(...)` or, for custom bridges,
-`RuntimeBridge::scroll_updated(ScrollUpdate)`.
+`RuntimeBridge::scroll_updated(ScrollUpdate)`. `ScrollUpdate` stays in the
+common prelude because each of these normal callback and helper signatures
+shares that payload.
 `virtual_list_view_start_after_scroll_delta` applies signed logical-row scroll
 deltas to virtual-list viewport starts with the same allocation-free clamping
 contract, leaving hit testing and platform input normalization to the host or

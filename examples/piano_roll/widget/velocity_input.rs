@@ -1,4 +1,4 @@
-use radiant::gui::visualization::VerticalValueMarker;
+use radiant::gui::visualization::{VerticalValueAxis, VerticalValueMarker};
 use radiant::prelude::*;
 use radiant::widgets::PointerModifiers;
 

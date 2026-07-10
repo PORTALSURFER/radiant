@@ -1,6 +1,7 @@
 //! Frame-driven animation through the application builder.
 
 use radiant::prelude::*;
+use radiant::runtime::retained_canvas_with;
 use radiant::theme::ThemeTokens;
 
 #[path = "animation_showcase/model.rs"]

@@ -1,6 +1,7 @@
 use super::super::model::{MixerChannel, ratio_for_meter_db};
 use super::super::paint::{meter_color, push_rect, push_text};
 use super::super::panel::{MeterReadout, MixerPanelWidget};
+use radiant::gui::feedback::{vertical_meter_lane_fill_rect, vertical_value_line_rect};
 use radiant::prelude::*;
 
 pub(super) fn append_meter(

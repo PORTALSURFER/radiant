@@ -1,4 +1,5 @@
 use radiant::prelude::*;
+use radiant::runtime::retained_canvas;
 
 use crate::model::{
     NodeEditorState, begin_connection_from, connect_pending_output_to, connection_summary,

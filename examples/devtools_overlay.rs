@@ -1,6 +1,7 @@
 //! Native devtools overlay example.
 
 use radiant::prelude::*;
+use radiant::runtime::NativeRunOptions;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum DemoMessage {

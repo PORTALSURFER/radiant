@@ -62,9 +62,9 @@ fn scroll_commands_use_named_parts_for_reveal_requests() {
             && update_context_surface.contains("pub fn scroll_fixed_row_into_view_from_parts")
             && runtime.contains("ScrollIntoViewParts")
             && runtime.contains("ScrollFixedRowIntoViewParts")
-            && prelude.contains("ScrollIntoViewParts")
-            && prelude.contains("ScrollFixedRowIntoViewParts"),
-        "scroll reveal named request parts should be available through runtime and prelude paths"
+            && !prelude.contains("ScrollIntoViewParts")
+            && !prelude.contains("ScrollFixedRowIntoViewParts"),
+        "scroll reveal named request parts should remain public through runtime without entering the common prelude"
     );
 }
 

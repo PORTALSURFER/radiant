@@ -35,6 +35,12 @@ mod surface;
 mod update_snapshot;
 
 pub use crate::application::runtime::{BusinessEventSink, BusinessWorkContext};
+pub use crate::application::{
+    GpuSurfaceConfiguredParts, GpuSurfaceInputParts, RetainedCanvasBuilder, canvas, gpu_surface,
+    gpu_surface_configured_from_parts, gpu_surface_from_parts, gpu_surface_input,
+    gpu_surface_input_from_parts, gpu_surface_with_capabilities, retained_canvas,
+    retained_canvas_with,
+};
 pub use crate::gui::automation::{
     AUTOMATION_ACTION_FOCUS, AUTOMATION_ACTION_PRESS, AUTOMATION_ACTION_SELECT,
     AUTOMATION_ACTION_SET_TEXT, AUTOMATION_ACTION_SET_VALUE, AUTOMATION_ACTION_TOGGLE,
@@ -52,6 +58,7 @@ pub use crate::gui_runtime::{
     WindowSpecError, WindowSpecParts, run_native_vello_runtime,
     run_native_vello_runtime_with_artifacts,
 };
+pub use crate::widgets::GpuSurfaceParts;
 pub use bridge::{
     App, AuxiliaryWindow, AuxiliaryWindowClosePolicy, DeclarativeCommandRuntimeBridge,
     DeclarativeCommandRuntimeBridgeParts, DeclarativeOwnedCommandRuntimeBridge,

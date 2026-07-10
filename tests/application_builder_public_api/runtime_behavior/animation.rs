@@ -258,6 +258,26 @@ fn presentation_frame_clock_can_use_state_dependent_frame_message_rate() {
 fn presentation_transient_overlay_uses_paint_only_frame_activity() {
     use radiant::prelude as ui;
 
+    fn paint_overlay(
+        state: &mut DemoState,
+        context: ui::TransientOverlayContext<'_>,
+        primitives: &mut Vec<ui::PaintPrimitive>,
+    ) {
+        primitives.push(ui::PaintPrimitive::FillRect(ui::PaintFillRect {
+            widget_id: 10,
+            rect: ui::Rect::from_min_size(
+                ui::Point::new(context.animation_time.as_secs_f32(), 0.0),
+                ui::Vector2::new(4.0, 4.0),
+            ),
+            color: ui::Rgba8 {
+                r: state.count as u8,
+                g: 128,
+                b: 255,
+                a: 255,
+            },
+        }));
+    }
+
     let bridge = ui::app(DemoState::default())
         .view(|state| {
             ui::text(format!("Frame {}", state.count))
@@ -269,21 +289,7 @@ fn presentation_transient_overlay_uses_paint_only_frame_activity() {
                 ui::TransientOverlay::new(7_u64)
                     .paint_only()
                     .when(|_| true)
-                    .paint(|state: &mut DemoState, context, primitives| {
-                        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-                            widget_id: 10,
-                            rect: ui::Rect::from_min_size(
-                                ui::Point::new(context.animation_time.as_secs_f32(), 0.0),
-                                ui::Vector2::new(4.0, 4.0),
-                            ),
-                            color: ui::Rgba8 {
-                                r: state.count as u8,
-                                g: 128,
-                                b: 255,
-                                a: 255,
-                            },
-                        }));
-                    }),
+                    .paint(paint_overlay),
             ),
         )
         .update(|state, message| match message {

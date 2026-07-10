@@ -4,7 +4,7 @@ use crate::selection_overlay::SelectionOverlay;
 use crate::transient_overlay::{paint_transient_blob, triangle_wave};
 use crate::view::{SURFACE_HEIGHT, SURFACE_WIDTH};
 use radiant::prelude::*;
-use radiant::runtime::{RuntimeBridge, SurfaceRuntime, TransientOverlayContext};
+use radiant::runtime::{RuntimeBridge, SurfaceRuntime, TransientOverlayContext, gpu_surface};
 use radiant::theme::ThemeTokens;
 use std::{cell::Cell, rc::Rc, time::Duration};
 

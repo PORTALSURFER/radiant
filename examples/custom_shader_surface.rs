@@ -1,6 +1,7 @@
 //! Backend-neutral custom shader GPU surface composed through Radiant builders.
 
 use radiant::prelude::*;
+use radiant::runtime::{GpuShaderSurfaceDescriptor, GpuSurfaceContent, gpu_surface};
 use std::sync::Arc;
 
 #[derive(Default)]

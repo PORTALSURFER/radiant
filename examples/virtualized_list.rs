@@ -81,7 +81,6 @@ fn project_surface(state: &DemoState) -> View<Message> {
 mod tests {
     use super::*;
     use radiant::layout::LayoutNode;
-    use radiant::runtime::ScrollUpdate;
 
     #[test]
     fn virtualized_list_projects_bounded_window_from_scroll_state() {

@@ -427,6 +427,13 @@ fn prelude_exports_custom_widget_signature_types() {
 }
 
 #[test]
+fn prelude_exports_scroll_update_callback_payload() {
+    fn scroll_message(_update: ui::ScrollUpdate) {}
+
+    let _: ui::View<()> = ui::scroll(ui::text("Scrollable")).on_scroll_update(scroll_message);
+}
+
+#[test]
 fn svg_parse_errors_require_an_explicit_runtime_import() {
     let icon = ui::SvgIcon::from_svg(
         r#"<svg viewBox="0 0 4 4"><rect x="0" y="0" width="4" height="4"/></svg>"#,

@@ -8,9 +8,11 @@ mod native;
 mod paint;
 mod platform;
 mod resources;
+mod scroll;
 
 pub use commands::*;
 pub use native::*;
 pub use paint::*;
 pub use platform::*;
 pub use resources::*;
+pub use scroll::*;

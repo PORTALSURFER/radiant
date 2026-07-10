@@ -330,7 +330,7 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | Row builder customization | `TreeGuideMetrics`, `TreeGuideStyle`, `StyledTreeGuideStyle`, `DenseRowPalette`, `DenseRowMarkerParts`, `DenseRowMarkerStyle`, `DenseRowOutlineStyle` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
-| Native input payloads | `NativeFileDrop`, `NativeFileDropPhase` |
+| Input and scroll payloads | `NativeFileDrop`, `NativeFileDropPhase`, `ScrollUpdate` |
 | Presentation callbacks | `Presentation`, `TransientOverlay`, `TransientOverlayContext` |
 | Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `SvgIconTintPalette`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
 | Paint primitives | `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`, `PaintFillRectBatch`, `PaintFillPath`, `PaintPathCommand`, `PaintTransform`, `PaintTextRun` |
@@ -1779,7 +1779,9 @@ Apps that need a one-off declarative scroll mapping can attach
 when a high-frequency scroll surface should suppress host messages for
 unchanged logical state. Lower-level hosts can still observe runtime-owned
 scroll containers with app-builder `.on_scroll(...)` or, for custom bridges,
-`RuntimeBridge::scroll_updated(ScrollUpdate)`.
+`RuntimeBridge::scroll_updated(ScrollUpdate)`. `ScrollUpdate` stays in the
+common prelude because each of these normal callback and helper signatures
+shares that payload.
 `virtual_list_view_start_after_scroll_delta` applies signed logical-row scroll
 deltas to virtual-list viewport starts with the same allocation-free clamping
 contract, leaving hit testing and platform input normalization to the host or

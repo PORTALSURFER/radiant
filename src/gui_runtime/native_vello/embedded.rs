@@ -14,7 +14,7 @@ use super::generic_runtime::{
     GpuSurfaceInteractionRegion, RetainedSurfaceFrameCache, SceneClipState, SceneTextRunBuffer,
     SurfaceSceneEncodeContext, encode_surface_paint_plan_to_scene,
 };
-use super::{NativeTextRenderer, startup_renderer_options};
+use super::{NativeTextOptions, NativeTextRenderer, startup_renderer_options};
 use crate::{
     gui::types::Vector2,
     runtime::{
@@ -126,6 +126,34 @@ impl EmbeddedVelloRenderer {
         logical_size: Vector2,
         dpi_scale: DpiScale,
     ) -> Result<Self, EmbeddedVelloError> {
+        unsafe {
+            Self::new_with_text_options(
+                handle,
+                logical_size,
+                dpi_scale,
+                &NativeTextOptions::default(),
+            )
+        }
+    }
+
+    /// Create a Vello surface for a host-owned native view with explicit font policy.
+    ///
+    /// Use this constructor when an embedded host supplies portable fonts through
+    /// [`NativeTextOptions::embedded_fonts`] or preferred font files through
+    /// [`NativeTextOptions::font_paths`]. The options are read while creating the renderer;
+    /// the host does not need to keep them alive afterward.
+    ///
+    /// # Safety
+    ///
+    /// The raw handles wrapped by `handle` must remain valid and renderable until this renderer is
+    /// dropped. Creation and all later methods must run on a thread permitted to access the native
+    /// surface by the embedding platform.
+    pub unsafe fn new_with_text_options(
+        handle: EmbeddedVelloSurfaceHandle,
+        logical_size: Vector2,
+        dpi_scale: DpiScale,
+        text_options: &NativeTextOptions,
+    ) -> Result<Self, EmbeddedVelloError> {
         let logical_size = sanitized_logical_size(logical_size);
         let (width, height) = physical_size(logical_size, dpi_scale);
         let mut render_context = RenderContext::new();
@@ -158,7 +186,7 @@ impl EmbeddedVelloRenderer {
             renderer,
             scene: Scene::new(),
             scaled_scene: Scene::new(),
-            text_renderer: NativeTextRenderer::with_options(&Default::default()),
+            text_renderer: NativeTextRenderer::with_options(text_options),
             bridge: EmbeddedSceneBridge,
             retained_cache: RetainedSurfaceFrameCache::with_policy(
                 RetainedSurfaceCachePolicy::default(),

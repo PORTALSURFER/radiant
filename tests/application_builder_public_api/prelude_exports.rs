@@ -478,8 +478,19 @@ fn runtime_exports_embedded_vello_renderer_contract() {
         radiant::runtime::EmbeddedVelloSurfaceHandle,
         radiant::gui::types::Vector2,
         radiant::theme::DpiScale,
-    ) -> Result<radiant::runtime::EmbeddedVelloRenderer, radiant::runtime::EmbeddedVelloError> =
-        radiant::runtime::EmbeddedVelloRenderer::new;
+    ) -> Result<
+        radiant::runtime::EmbeddedVelloRenderer,
+        radiant::runtime::EmbeddedVelloError,
+    > = radiant::runtime::EmbeddedVelloRenderer::new;
+    let _: unsafe fn(
+        radiant::runtime::EmbeddedVelloSurfaceHandle,
+        radiant::gui::types::Vector2,
+        radiant::theme::DpiScale,
+        &radiant::runtime::NativeTextOptions,
+    ) -> Result<
+        radiant::runtime::EmbeddedVelloRenderer,
+        radiant::runtime::EmbeddedVelloError,
+    > = radiant::runtime::EmbeddedVelloRenderer::new_with_text_options;
 }
 
 #[test]

@@ -453,6 +453,10 @@ plugin hosts, should use `EmbeddedVelloSurfaceHandle` and
 while Radiant creates the WGPU surface and reuses the same Vello scene encoder
 as `run_native_vello_runtime`. Call `resize(...)` when the host view or backing
 scale changes and call `Renderer::render(...)` from the host redraw path.
+Portable or sandboxed hosts should create the renderer with
+`EmbeddedVelloRenderer::new_with_text_options(...)` and pass
+`NativeTextOptions` containing embedded fonts or host-approved font paths;
+`EmbeddedVelloRenderer::new(...)` keeps the system-fallback default.
 Embedded rendering supports the normal vector, gradient, clip, text, image, and
 SVG paint plan; retained GPU/custom surfaces fail explicitly because those need
 the standalone runtime's additional compositing and host callbacks.

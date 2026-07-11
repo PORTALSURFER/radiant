@@ -56,13 +56,31 @@ impl fmt::Display for GpuSurfaceContentError {
             Self::EmptySignalSummary => {
                 write!(formatter, "invalid GPU signal summary: no summary levels")
             }
-            Self::InvalidSignalSummaryLevel {
+            Self::InvalidSignalSummaryLevelWidth {
                 level_index,
-                bucket_count,
-                band_count,
+                bucket_frames,
+                previous_bucket_frames,
             } => write!(
                 formatter,
-                "invalid GPU signal summary level {level_index}: {bucket_count} buckets are not complete {band_count}-band groups"
+                "invalid GPU signal summary level {level_index}: bucket width {bucket_frames} must be nonzero and strictly greater than previous width {previous_bucket_frames:?}"
+            ),
+            Self::InvalidSignalSummaryLevelBucketCount {
+                level_index,
+                bucket_frames,
+                bucket_count,
+                expected_bucket_count,
+            } => write!(
+                formatter,
+                "invalid GPU signal summary level {level_index} at width {bucket_frames}: received {bucket_count} buckets, expected exactly {expected_bucket_count}"
+            ),
+            Self::InvalidSignalSummaryBucketExtrema {
+                level_index,
+                bucket_index,
+                min,
+                max,
+            } => write!(
+                formatter,
+                "invalid GPU signal summary level {level_index} bucket {bucket_index}: extrema [{min}, {max}] must be finite and ordered"
             ),
             Self::InvalidSignalGainPreview { preview } => write!(
                 formatter,

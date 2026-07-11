@@ -61,14 +61,36 @@ pub enum GpuSurfaceContentError {
     },
     /// A signal-summary payload contains no valid summary levels.
     EmptySignalSummary,
-    /// A signal-summary level does not contain complete interleaved band buckets.
-    InvalidSignalSummaryLevel {
+    /// A signal-summary level has a zero or non-ascending bucket width.
+    InvalidSignalSummaryLevelWidth {
         /// Invalid summary level index.
         level_index: usize,
-        /// Number of buckets in the invalid level.
+        /// Invalid source-frame width represented by one bucket.
+        bucket_frames: usize,
+        /// Previous level width when this is not the first level.
+        previous_bucket_frames: Option<usize>,
+    },
+    /// A signal-summary level has the wrong number of interleaved buckets.
+    InvalidSignalSummaryLevelBucketCount {
+        /// Invalid summary level index.
+        level_index: usize,
+        /// Source-frame width represented by one bucket.
+        bucket_frames: usize,
+        /// Number of interleaved buckets supplied by the host.
         bucket_count: usize,
-        /// Expected interleaved band count.
-        band_count: usize,
+        /// Exact bucket count required by the declared frame and band shape.
+        expected_bucket_count: usize,
+    },
+    /// A signal-summary bucket contains non-finite or reversed extrema.
+    InvalidSignalSummaryBucketExtrema {
+        /// Invalid summary level index.
+        level_index: usize,
+        /// Interleaved bucket index inside the level.
+        bucket_index: usize,
+        /// Invalid minimum value.
+        min: f32,
+        /// Invalid maximum value.
+        max: f32,
     },
     /// A GPU signal gain preview contains a non-finite control value.
     InvalidSignalGainPreview {

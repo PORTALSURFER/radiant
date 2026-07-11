@@ -57,7 +57,10 @@ fn runtime_controller_groups_work_interaction_and_traversal_state() {
 #[test]
 fn runtime_controller_context_and_scratch_modules_use_explicit_dependencies() {
     let context = controller_source("src/runtime/controller/context.rs");
-    let context_frame = controller_source("src/runtime/controller/context/frame.rs");
+    let context_frame = controller_source("src/runtime/controller/context/frame/projection.rs");
+    let context_frame_model = controller_source("src/runtime/controller/context/frame/model.rs");
+    let context_frame_tooltip =
+        controller_source("src/runtime/controller/context/frame/tooltip.rs");
     let scratch = controller_source("src/runtime/controller/scratch.rs");
     let focus = controller_source("src/runtime/controller/focus.rs");
 
@@ -72,11 +75,8 @@ fn runtime_controller_context_and_scratch_modules_use_explicit_dependencies() {
         "runtime controller context should name view, layout, geometry, bridge, and widget dependencies without inheriting the controller root"
     );
     assert!(
-        context_frame.contains("use super::super::SurfaceRuntime;")
+        context_frame.contains("use super::super::super::SurfaceRuntime;")
             && context_frame.contains("gui::types::{Point, Rect}")
-            && context_frame
-                .contains("gui::text_layout::{TextWidthEstimate, estimated_text_width_in_range}")
-            && context_frame.contains("layout::{LayoutOutput, Vector2}")
             && context_frame.contains("PaintPrimitive")
             && context_frame.contains("RuntimeBridge")
             && context_frame.contains("SurfaceFrame")
@@ -86,7 +86,13 @@ fn runtime_controller_context_and_scratch_modules_use_explicit_dependencies() {
             && context_frame.contains("widgets::WidgetId")
             && !context_frame.starts_with("use super::super::*;")
             && context_frame.contains("fn append_widget_runtime_overlay")
-            && context_frame.contains("fn append_drag_preview_overlay"),
+            && context_frame.contains("fn append_drag_preview_overlay")
+            && context_frame_model.contains("layout::LayoutOutput")
+            && context_frame_model.contains("runtime::SurfacePaintPlan")
+            && context_frame_tooltip
+                .contains("gui::text_layout::{TextWidthEstimate, estimated_text_width_in_range}")
+            && context_frame_tooltip.contains("layout::Vector2")
+            && context_frame_tooltip.contains("fn append_widget_tooltip_overlay"),
         "runtime controller context frame helpers should name paint, layout, geometry, theme, bridge, and widget dependencies without inheriting the controller root"
     );
     assert!(

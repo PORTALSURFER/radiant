@@ -5,8 +5,9 @@ fn surface_paint_plan_buffering_stays_with_capacity_policy() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let projection = fs::read_to_string(manifest_dir.join("src/runtime/surface/projection.rs"))
         .expect("surface paint projection should be readable");
-    let frame = fs::read_to_string(manifest_dir.join("src/runtime/controller/context/frame.rs"))
-        .expect("runtime frame paint projection should be readable");
+    let frame =
+        fs::read_to_string(manifest_dir.join("src/runtime/controller/context/frame/projection.rs"))
+            .expect("runtime frame paint projection should be readable");
     let capacity = fs::read_to_string(manifest_dir.join("src/runtime/surface/paint/capacity.rs"))
         .expect("surface paint capacity policy should be readable");
     let capacity_tests =

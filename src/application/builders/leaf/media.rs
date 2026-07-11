@@ -16,6 +16,6 @@ pub fn canvas<Message: 'static>() -> ViewNode<Message> {
 
 /// Build a non-interactive raster image view.
 pub fn image<Message: 'static>(image: Arc<ImageRgba>) -> ViewNode<Message> {
-    let size = Vector2::new(image.width.max(1) as f32, image.height.max(1) as f32);
+    let size = Vector2::new(image.width().max(1) as f32, image.height().max(1) as f32);
     view_node_from_widget(ImageWidget::new(0, image, WidgetSizing::fixed(size)))
 }

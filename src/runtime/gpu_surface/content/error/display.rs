@@ -4,6 +4,21 @@ use std::fmt;
 impl fmt::Display for GpuSurfaceContentError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidAtlasByteLength {
+                width,
+                height,
+                actual_len,
+                expected_len,
+            } => match expected_len {
+                Some(expected_len) => write!(
+                    formatter,
+                    "invalid GPU atlas {width}x{height}: expected {expected_len} RGBA bytes, got {actual_len}"
+                ),
+                None => write!(
+                    formatter,
+                    "invalid GPU atlas {width}x{height}: RGBA byte length overflows usize"
+                ),
+            },
             Self::EmptyAtlas { width, height } => {
                 write!(
                     formatter,

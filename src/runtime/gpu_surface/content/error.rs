@@ -8,6 +8,17 @@ mod display;
 /// Error returned when retained GPU-surface content cannot be rendered safely.
 #[derive(Clone, Debug, PartialEq)]
 pub enum GpuSurfaceContentError {
+    /// An RGBA atlas byte payload does not match its declared dimensions.
+    InvalidAtlasByteLength {
+        /// Atlas width in pixels.
+        width: usize,
+        /// Atlas height in pixels.
+        height: usize,
+        /// Actual atlas byte length.
+        actual_len: usize,
+        /// Expected byte length, or `None` when the dimensions overflow `usize`.
+        expected_len: Option<usize>,
+    },
     /// An RGBA atlas has zero width or height.
     EmptyAtlas {
         /// Atlas width in pixels.

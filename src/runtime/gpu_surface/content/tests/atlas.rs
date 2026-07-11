@@ -58,3 +58,46 @@ fn rgba_atlas_source_rect_rejects_invalid_geometry_before_bounds() {
         })
     );
 }
+
+#[test]
+fn rgba_atlas_rejects_short_long_and_overflowing_payloads_before_geometry() {
+    let source_rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1.0, 1.0));
+    let cases = [
+        (
+            ImageRgba::from_parts_unchecked(2, 2, vec![255; 15]),
+            GpuSurfaceContentError::InvalidAtlasByteLength {
+                width: 2,
+                height: 2,
+                actual_len: 15,
+                expected_len: Some(16),
+            },
+        ),
+        (
+            ImageRgba::from_parts_unchecked(2, 2, vec![255; 17]),
+            GpuSurfaceContentError::InvalidAtlasByteLength {
+                width: 2,
+                height: 2,
+                actual_len: 17,
+                expected_len: Some(16),
+            },
+        ),
+        (
+            ImageRgba::from_parts_unchecked(usize::MAX, 2, Vec::new()),
+            GpuSurfaceContentError::InvalidAtlasByteLength {
+                width: usize::MAX,
+                height: 2,
+                actual_len: 0,
+                expected_len: None,
+            },
+        ),
+    ];
+
+    for (atlas, expected_error) in cases {
+        let content = GpuSurfaceContent::RgbaAtlas {
+            source_rect,
+            atlas: Arc::new(atlas),
+        };
+        assert_eq!(content.validate(), Err(expected_error));
+        assert!(!content.is_renderable());
+    }
+}

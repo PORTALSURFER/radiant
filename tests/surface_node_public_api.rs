@@ -192,7 +192,7 @@ fn surface_node_stack_and_card_helpers_project_grouped_surface() {
         plan.primitives
             .iter()
             .filter_map(|primitive| match primitive {
-                PaintPrimitive::Image(draw) => Some((draw.widget_id, draw.image.width)),
+                PaintPrimitive::Image(draw) => Some((draw.widget_id, draw.image.width())),
                 _ => None,
             })
             .collect::<Vec<_>>(),

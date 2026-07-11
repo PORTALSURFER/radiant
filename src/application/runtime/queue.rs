@@ -134,8 +134,25 @@ impl<Message> AppRuntime<Message> {
         self.business.spawn(name, priority, is_cancelled, work)
     }
 
-    pub(super) fn can_spawn_business_tasks(&self) -> bool {
-        self.business.is_available()
+    pub(super) fn spawn_business_task_with_payload<Payload>(
+        &self,
+        name: &'static str,
+        priority: TaskPriority,
+        payload: Payload,
+        work: impl FnOnce(Payload) + Send + 'static,
+    ) -> Result<(), Payload>
+    where
+        Payload: Send + 'static,
+    {
+        if !self.is_alive() {
+            return Err(payload);
+        }
+        self.business
+            .spawn_with_payload(name, priority, payload, work)
+    }
+
+    pub(super) fn can_spawn_business_tasks(&self, priority: TaskPriority) -> bool {
+        self.business.is_available(priority)
     }
 
     pub(super) fn diagnostics_snapshot(&self) -> RuntimeDiagnostics {

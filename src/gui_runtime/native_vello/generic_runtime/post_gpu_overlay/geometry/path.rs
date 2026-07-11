@@ -141,36 +141,53 @@ fn lyon_path(path: &crate::runtime::PaintPath) -> Option<Path> {
     let mut has_any_segment = false;
     for command in path.commands() {
         match *command {
-            PaintPathCommand::MoveTo(to) if to.is_finite() => {
+            PaintPathCommand::MoveTo(to) => {
+                if !to.is_finite() {
+                    return None;
+                }
                 if open {
                     builder.end(false);
                 }
                 builder.begin(to_lyon(to));
                 open = true;
             }
-            PaintPathCommand::LineTo(to) if open && to.is_finite() => {
-                builder.line_to(to_lyon(to));
-                has_any_segment = true;
+            PaintPathCommand::LineTo(to) => {
+                if !to.is_finite() {
+                    return None;
+                }
+                if open {
+                    builder.line_to(to_lyon(to));
+                    has_any_segment = true;
+                }
             }
-            PaintPathCommand::QuadTo { control, to }
-                if open && control.is_finite() && to.is_finite() =>
-            {
-                builder.quadratic_bezier_to(to_lyon(control), to_lyon(to));
-                has_any_segment = true;
+            PaintPathCommand::QuadTo { control, to } => {
+                if !control.is_finite() || !to.is_finite() {
+                    return None;
+                }
+                if open {
+                    builder.quadratic_bezier_to(to_lyon(control), to_lyon(to));
+                    has_any_segment = true;
+                }
             }
             PaintPathCommand::CurveTo {
                 control1,
                 control2,
                 to,
-            } if open && control1.is_finite() && control2.is_finite() && to.is_finite() => {
-                builder.cubic_bezier_to(to_lyon(control1), to_lyon(control2), to_lyon(to));
-                has_any_segment = true;
+            } => {
+                if !control1.is_finite() || !control2.is_finite() || !to.is_finite() {
+                    return None;
+                }
+                if open {
+                    builder.cubic_bezier_to(to_lyon(control1), to_lyon(control2), to_lyon(to));
+                    has_any_segment = true;
+                }
             }
-            PaintPathCommand::Close if open => {
-                builder.end(true);
-                open = false;
+            PaintPathCommand::Close => {
+                if open {
+                    builder.end(true);
+                    open = false;
+                }
             }
-            _ => {}
         }
     }
     if open {

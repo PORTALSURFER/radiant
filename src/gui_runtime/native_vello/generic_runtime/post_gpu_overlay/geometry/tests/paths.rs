@@ -63,6 +63,21 @@ fn transformed_gradient_path() -> PaintPrimitive {
     )
 }
 
+fn invalid_path() -> PaintPrimitive {
+    let path = PaintPath::from([
+        PaintPathCommand::MoveTo(Point::new(10.0, 10.0)),
+        PaintPathCommand::LineTo(Point::new(70.0, 10.0)),
+        PaintPathCommand::LineTo(Point::new(f32::NAN, 40.0)),
+        PaintPathCommand::LineTo(Point::new(10.0, 40.0)),
+        PaintPathCommand::Close,
+    ]);
+    PaintPrimitive::FillPath(PaintFillPath::new(
+        94,
+        path,
+        PaintBrush::solid(Rgba8::new(20, 30, 40, 120)),
+    ))
+}
+
 #[test]
 fn replayable_gradient_fill_path_preserves_alpha_ramp() {
     let primitive = gradient_path();
@@ -164,4 +179,30 @@ fn transformed_gradient_fill_path_samples_in_logical_surface_coordinates() {
         .fold(f32::NEG_INFINITY, f32::max);
     assert!(min_alpha < 0.01);
     assert!(max_alpha > 0.78);
+}
+
+#[test]
+fn invalid_fill_path_is_not_replayed_as_partial_geometry() {
+    let primitive = invalid_path();
+    let regions = [UiRect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(100.0, 50.0),
+    )];
+    let mut full_vertices = Vec::new();
+    let mut region_vertices = Vec::new();
+
+    replayable_vertices_into(
+        std::slice::from_ref(&primitive),
+        Vector2::new(100.0, 50.0),
+        &mut full_vertices,
+    );
+    replayable_vertices_in_regions_into(
+        std::slice::from_ref(&primitive),
+        Vector2::new(100.0, 50.0),
+        &regions,
+        &mut region_vertices,
+    );
+
+    assert!(full_vertices.is_empty());
+    assert!(region_vertices.is_empty());
 }

@@ -348,7 +348,12 @@ fn validate_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
             _ => {}
         }
         let unsupported = match primitive {
-            PaintPrimitive::GpuSurface(_) => Some(EmbeddedVelloUnsupportedPrimitive::GpuSurface),
+            PaintPrimitive::GpuSurface(surface)
+                if surface.rect.has_finite_positive_area() && surface.content.is_renderable() =>
+            {
+                Some(EmbeddedVelloUnsupportedPrimitive::GpuSurface)
+            }
+            PaintPrimitive::GpuSurface(_) => None,
             PaintPrimitive::CustomSurface(_) => {
                 Some(EmbeddedVelloUnsupportedPrimitive::CustomSurface)
             }
@@ -394,9 +399,10 @@ impl RuntimeBridge<()> for EmbeddedSceneBridge {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gui::types::{ImageRgba, Rect};
     use crate::runtime::{
-        PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintPath,
-        PaintPathCommand,
+        GpuSurfaceCapabilities, GpuSurfaceContent, PaintClipEnd, PaintClipStart,
+        PaintCustomSurface, PaintFillPath, PaintGpuSurface, PaintPath, PaintPathCommand,
     };
     use crate::theme::ThemeTokens;
     use crate::widgets::PaintBounds;
@@ -445,6 +451,48 @@ mod tests {
     }
 
     #[test]
+    fn embedded_vello_rejects_renderable_gpu_surfaces_before_rendering() {
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::GpuSurface(test_gpu_surface(
+                Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+            )));
+
+        assert_eq!(
+            validate_plan(&plan),
+            Err(EmbeddedVelloError::UnsupportedPrimitive(
+                EmbeddedVelloUnsupportedPrimitive::GpuSurface
+            ))
+        );
+    }
+
+    #[test]
+    fn embedded_vello_ignores_gpu_surfaces_without_renderable_geometry() {
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::GpuSurface(test_gpu_surface(
+                Rect::from_xy_size(0.0, 0.0, 0.0, 10.0),
+            )));
+
+        assert_eq!(validate_plan(&plan), Ok(()));
+    }
+
+    #[test]
+    fn embedded_vello_ignores_gpu_surfaces_without_renderable_content() {
+        let mut surface = test_gpu_surface(Rect::from_xy_size(0.0, 0.0, 10.0, 10.0));
+        surface.content = GpuSurfaceContent::RgbaAtlas {
+            source_rect: Rect::from_xy_size(0.0, 0.0, 2.0, 2.0),
+            atlas: Arc::new(
+                ImageRgba::new(1, 1, vec![255, 255, 255, 255]).expect("valid test atlas"),
+            ),
+        };
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives.push(PaintPrimitive::GpuSurface(surface));
+
+        assert_eq!(validate_plan(&plan), Ok(()));
+    }
+
+    #[test]
     fn embedded_vello_ignores_unsupported_surfaces_inside_suppressed_clips() {
         let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
         plan.primitives
@@ -483,5 +531,22 @@ mod tests {
             clock.elapsed_at(started_at + Duration::from_millis(750)),
             Duration::from_millis(750)
         );
+    }
+
+    fn test_gpu_surface(rect: Rect) -> PaintGpuSurface {
+        PaintGpuSurface {
+            widget_id: 3,
+            key: 1,
+            revision: 1,
+            rect,
+            content: GpuSurfaceContent::RgbaAtlas {
+                source_rect: Rect::from_xy_size(0.0, 0.0, 1.0, 1.0),
+                atlas: Arc::new(
+                    ImageRgba::new(1, 1, vec![255, 255, 255, 255]).expect("valid test atlas"),
+                ),
+            },
+            capabilities: GpuSurfaceCapabilities::default(),
+            overlays: Vec::new(),
+        }
     }
 }

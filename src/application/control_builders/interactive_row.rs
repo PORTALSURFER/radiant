@@ -3,6 +3,7 @@
 mod builder;
 
 #[cfg(test)]
+#[path = "interactive_row/tests/mod.rs"]
 mod tests;
 
 pub use crate::widgets::InteractiveRowActions;

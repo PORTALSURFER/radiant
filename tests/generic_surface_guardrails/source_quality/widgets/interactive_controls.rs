@@ -104,9 +104,26 @@ fn interactive_row_primitive_keeps_surface_mappers_focused() {
     let input =
         fs::read_to_string(manifest_dir.join("src/widgets/primitives/interactive_row/input.rs"))
             .expect("interactive-row input module should be readable");
-    let actions =
-        fs::read_to_string(manifest_dir.join("src/widgets/primitives/interactive_row/actions.rs"))
-            .expect("interactive-row actions module should be readable");
+    let actions = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/interactive_row/actions/mod.rs"),
+    )
+    .expect("interactive-row actions model should be readable");
+    let action_activation = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/interactive_row/actions/activation.rs"),
+    )
+    .expect("interactive-row activation actions should be readable");
+    let action_secondary = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/interactive_row/actions/secondary.rs"),
+    )
+    .expect("interactive-row secondary actions should be readable");
+    let action_drag_drop = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/interactive_row/actions/drag_drop.rs"),
+    )
+    .expect("interactive-row drag/drop actions should be readable");
+    let action_routing = fs::read_to_string(
+        manifest_dir.join("src/widgets/primitives/interactive_row/actions/routing.rs"),
+    )
+    .expect("interactive-row action routing should be readable");
     let paint =
         fs::read_to_string(manifest_dir.join("src/widgets/primitives/interactive_row/paint.rs"))
             .expect("interactive-row paint module should be readable");
@@ -148,7 +165,14 @@ fn interactive_row_primitive_keeps_surface_mappers_focused() {
     );
     assert!(
         actions.contains("pub struct InteractiveRowActions")
-            && actions.contains("pub fn route(&self, message: InteractiveRowMessage)")
+            && actions.contains("mod activation;")
+            && actions.contains("mod secondary;")
+            && actions.contains("mod drag_drop;")
+            && actions.contains("mod routing;")
+            && action_activation.contains("pub fn activate_with_modifiers")
+            && action_secondary.contains("pub fn primary_secondary_key")
+            && action_drag_drop.contains("pub fn tracked_drop_candidate_key")
+            && action_routing.contains("pub fn route(&self, message: InteractiveRowMessage)")
             && !actions.contains("InteractiveRowWidget"),
         "interactive-row action routing should live outside the primitive model and not depend on widget state"
     );

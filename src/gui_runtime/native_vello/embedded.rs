@@ -209,6 +209,9 @@ impl EmbeddedVelloRenderer {
             Some(Affine::scale(self.dpi_scale.factor() as f64)),
         );
 
+        // Acquire first because Lost/Outdated recovery recreates the target view.
+        // The scene must render into the post-recovery target presented below.
+        let surface_texture = self.acquire_surface_texture()?;
         let dev_id = self.render_surface.dev_id;
         {
             let device = &self.render_context.devices[dev_id].device;
@@ -229,7 +232,6 @@ impl EmbeddedVelloRenderer {
                 .map_err(|error| EmbeddedVelloError::Render(error.to_string()))?;
         }
 
-        let surface_texture = self.acquire_surface_texture()?;
         let device = &self.render_context.devices[dev_id].device;
         let queue = &self.render_context.devices[dev_id].queue;
         let surface_view = surface_texture

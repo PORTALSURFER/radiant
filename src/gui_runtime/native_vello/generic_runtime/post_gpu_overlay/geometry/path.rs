@@ -12,7 +12,10 @@ use lyon_tessellation::{
     path::Path,
 };
 
-use super::{OverlayVertex, clip_x, clip_y, rgba_to_float, target_has_finite_positive_size};
+use super::{
+    OPAQUE_REVEALED_FILL_ALPHA, OverlayVertex, clip_x, clip_y, rgba_to_float,
+    target_has_finite_positive_size,
+};
 
 #[derive(Clone, Copy)]
 struct PathVertex {
@@ -44,7 +47,10 @@ pub(super) fn push_fill_path_vertices_in_regions(
     fill: &PaintFillPath,
     regions: &[UiRect],
 ) {
-    if !target_has_finite_positive_size(target_size) || regions.is_empty() {
+    if !target_has_finite_positive_size(target_size)
+        || regions.is_empty()
+        || brush_is_opaque(fill.brush)
+    {
         return;
     }
     let Some(geometry) = tessellated_geometry(fill) else {
@@ -71,6 +77,16 @@ pub(super) fn push_fill_path_vertices_in_regions(
                 }
             }
             push_triangle_fan(vertices, target_size, &input);
+        }
+    }
+}
+
+fn brush_is_opaque(brush: PaintBrush) -> bool {
+    match brush {
+        PaintBrush::Solid(color) => color.a >= OPAQUE_REVEALED_FILL_ALPHA,
+        PaintBrush::LinearGradient(gradient) => {
+            gradient.start_color.a >= OPAQUE_REVEALED_FILL_ALPHA
+                && gradient.end_color.a >= OPAQUE_REVEALED_FILL_ALPHA
         }
     }
 }

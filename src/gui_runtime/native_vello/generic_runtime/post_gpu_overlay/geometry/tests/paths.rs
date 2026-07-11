@@ -23,6 +23,21 @@ fn gradient_path() -> PaintPrimitive {
     ))
 }
 
+fn opaque_path() -> PaintPrimitive {
+    let path = PaintPath::from([
+        PaintPathCommand::MoveTo(Point::new(10.0, 10.0)),
+        PaintPathCommand::LineTo(Point::new(70.0, 10.0)),
+        PaintPathCommand::LineTo(Point::new(70.0, 40.0)),
+        PaintPathCommand::LineTo(Point::new(10.0, 40.0)),
+        PaintPathCommand::Close,
+    ]);
+    PaintPrimitive::FillPath(PaintFillPath::new(
+        92,
+        path,
+        PaintBrush::solid(Rgba8::new(20, 30, 40, 255)),
+    ))
+}
+
 #[test]
 fn replayable_gradient_fill_path_preserves_alpha_ramp() {
     let primitive = gradient_path();
@@ -75,4 +90,30 @@ fn replayable_gradient_fill_path_clips_to_gpu_regions() {
         (-0.6001..=-0.1999).contains(&vertex.position[0])
             && (-0.2001..=0.2001).contains(&vertex.position[1])
     }));
+}
+
+#[test]
+fn opaque_fill_path_skips_gpu_region_replay_but_remains_full_overlay_replay() {
+    let primitive = opaque_path();
+    let regions = [UiRect::from_min_size(
+        Point::new(20.0, 20.0),
+        Vector2::new(20.0, 10.0),
+    )];
+    let mut full_vertices = Vec::new();
+    let mut region_vertices = Vec::new();
+
+    replayable_vertices_into(
+        std::slice::from_ref(&primitive),
+        Vector2::new(100.0, 50.0),
+        &mut full_vertices,
+    );
+    replayable_vertices_in_regions_into(
+        std::slice::from_ref(&primitive),
+        Vector2::new(100.0, 50.0),
+        &regions,
+        &mut region_vertices,
+    );
+
+    assert!(!full_vertices.is_empty());
+    assert!(region_vertices.is_empty());
 }

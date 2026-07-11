@@ -23,7 +23,7 @@ mod text_runs;
 pub(in crate::gui_runtime::native_vello) use cache::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,
 };
-use clip::SceneClipState;
+pub(in crate::gui_runtime::native_vello) use clip::SceneClipState;
 use custom_surface::encode_custom_surface;
 use image::encode_image;
 use shape::{

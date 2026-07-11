@@ -11,7 +11,7 @@ use vello::{
 };
 
 use super::generic_runtime::{
-    GpuSurfaceInteractionRegion, RetainedSurfaceFrameCache, SceneTextRunBuffer,
+    GpuSurfaceInteractionRegion, RetainedSurfaceFrameCache, SceneClipState, SceneTextRunBuffer,
     SurfaceSceneEncodeContext, encode_surface_paint_plan_to_scene,
 };
 use super::{NativeTextRenderer, startup_renderer_options};
@@ -278,7 +278,20 @@ impl Renderer for EmbeddedVelloRenderer {
 }
 
 fn validate_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
+    let mut clip_state = SceneClipState::default();
     for primitive in &plan.primitives {
+        match primitive {
+            PaintPrimitive::ClipStart(clip) => {
+                clip_state.begin(clip.rect);
+                continue;
+            }
+            PaintPrimitive::ClipEnd(_) => {
+                clip_state.end();
+                continue;
+            }
+            _ if clip_state.is_suppressed() => continue,
+            _ => {}
+        }
         let unsupported = match primitive {
             PaintPrimitive::GpuSurface(_) => Some(EmbeddedVelloUnsupportedPrimitive::GpuSurface),
             PaintPrimitive::CustomSurface(_) => {
@@ -326,7 +339,10 @@ impl RuntimeBridge<()> for EmbeddedSceneBridge {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runtime::{PaintCustomSurface, PaintFillPath, PaintPath, PaintPathCommand};
+    use crate::runtime::{
+        PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintPath,
+        PaintPathCommand,
+    };
     use crate::theme::ThemeTokens;
     use crate::widgets::PaintBounds;
 
@@ -371,6 +387,27 @@ mod tests {
                 EmbeddedVelloUnsupportedPrimitive::CustomSurface
             ))
         );
+    }
+
+    #[test]
+    fn embedded_vello_ignores_unsupported_surfaces_inside_suppressed_clips() {
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::ClipStart(PaintClipStart {
+                node_id: 1,
+                rect: crate::gui::types::Rect::from_xy_size(0.0, 0.0, 0.0, 10.0),
+            }));
+        plan.primitives
+            .push(PaintPrimitive::CustomSurface(PaintCustomSurface {
+                widget_id: 2,
+                rect: crate::gui::types::Rect::from_xy_size(0.0, 0.0, 1.0, 1.0),
+                bounds: PaintBounds::ClipToRect,
+                retained: None,
+            }));
+        plan.primitives
+            .push(PaintPrimitive::ClipEnd(PaintClipEnd { node_id: 1 }));
+
+        assert_eq!(validate_plan(&plan), Ok(()));
     }
 
     #[test]

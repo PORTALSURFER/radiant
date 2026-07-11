@@ -101,7 +101,7 @@ use runtime_helpers::{
 };
 use runtime_wakeup::RuntimeWakeup;
 pub(in crate::gui_runtime::native_vello) use scene::{
-    RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneTextRunBuffer,
+    RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneClipState, SceneTextRunBuffer,
     SurfaceSceneEncodeContext, encode_surface_paint_plan_to_scene,
 };
 use surface_size::RenderSurfacePixelSize;

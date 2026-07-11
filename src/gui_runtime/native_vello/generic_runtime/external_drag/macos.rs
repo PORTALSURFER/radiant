@@ -7,7 +7,9 @@ use std::{
     ffi::{CStr, c_char, c_void},
     path::{Path, PathBuf},
     sync::OnceLock,
+    time::Instant,
 };
+use tracing::debug;
 
 type Id = *mut c_void;
 type Sel = *mut c_void;
@@ -60,6 +62,7 @@ unsafe extern "C" {
 pub(super) fn start_external_drag(
     request: &ExternalDragRequest,
 ) -> Result<ExternalDragOutcome, String> {
+    let startup_started_at = Instant::now();
     let ExternalDragPayload::Files(paths) = &request.payload;
     if paths.is_empty() {
         return Err(String::from("No files to drag"));
@@ -68,7 +71,9 @@ pub(super) fn start_external_drag(
     let app = unsafe { shared_application()? };
     let (window, view) = unsafe { key_window_and_content_view(app)? };
     let event = unsafe { external_drag_event(app, window)? };
+    let items_started_at = Instant::now();
     let items = unsafe { dragging_items(paths)? };
+    let items_elapsed = items_started_at.elapsed();
     let source = unsafe { dragging_source()? };
     let session = unsafe {
         msg_id_id_id_id(
@@ -84,6 +89,15 @@ pub(super) fn start_external_drag(
             "NSView beginDraggingSessionWithItems returned nil",
         ));
     }
+    debug!(
+        target: "radiant::external_drag",
+        event = "external_drag.macos.session_started",
+        path_count = paths.len(),
+        preview = ?drag_preview_kind(paths.len()),
+        item_build_ms = items_elapsed.as_secs_f64() * 1000.0,
+        startup_ms = startup_started_at.elapsed().as_secs_f64() * 1000.0,
+        "macOS external drag session started"
+    );
     Ok(ExternalDragOutcome {
         effect: ExternalDragEffect::Copy,
     })
@@ -195,10 +209,10 @@ unsafe fn key_window_and_content_view(app: Id) -> Result<(Id, Id), String> {
 
 unsafe fn dragging_items(paths: &[PathBuf]) -> Result<Id, String> {
     let items = unsafe { ns_mutable_array(paths.len())? };
+    let contents = unsafe { drag_preview_contents(paths)? };
     for path in paths {
         let url = unsafe { file_url_for_path(path)? };
         let item = unsafe { ns_dragging_item(url)? };
-        let contents = unsafe { file_icon_for_path(path)? };
         unsafe {
             msg_void_rect_id(
                 item,
@@ -210,6 +224,30 @@ unsafe fn dragging_items(paths: &[PathBuf]) -> Result<Id, String> {
         }
     }
     Ok(items)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DragPreviewKind {
+    FileIcon,
+    SharedFileTypeIcon,
+}
+
+fn drag_preview_kind(path_count: usize) -> DragPreviewKind {
+    if path_count <= 1 {
+        DragPreviewKind::FileIcon
+    } else {
+        DragPreviewKind::SharedFileTypeIcon
+    }
+}
+
+unsafe fn drag_preview_contents(paths: &[PathBuf]) -> Result<Id, String> {
+    let first = paths
+        .first()
+        .ok_or_else(|| String::from("No files to drag"))?;
+    match drag_preview_kind(paths.len()) {
+        DragPreviewKind::FileIcon => unsafe { file_icon_for_path(first) },
+        DragPreviewKind::SharedFileTypeIcon => unsafe { file_type_icon_for_path(first) },
+    }
 }
 
 unsafe fn ns_mutable_array(capacity: usize) -> Result<Id, String> {
@@ -267,6 +305,30 @@ unsafe fn file_icon_for_path(path: &Path) -> Result<Id, String> {
     let icon = unsafe { msg_id_id(workspace, selector(c"iconForFile:"), ns_path) };
     if icon.is_null() {
         Err(format!("NSWorkspace iconForFile returned nil for {path}"))
+    } else {
+        Ok(icon)
+    }
+}
+
+unsafe fn file_type_icon_for_path(path: &Path) -> Result<Id, String> {
+    let file_type = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .filter(|extension| !extension.is_empty())
+        .unwrap_or("public.data");
+    let ns_file_type = unsafe { ns_string(file_type)? };
+    let workspace = unsafe {
+        let class = class(c"NSWorkspace")?;
+        msg_id(class, selector(c"sharedWorkspace"))
+    };
+    if workspace.is_null() {
+        return Err(String::from("NSWorkspace sharedWorkspace returned nil"));
+    }
+    let icon = unsafe { msg_id_id(workspace, selector(c"iconForFileType:"), ns_file_type) };
+    if icon.is_null() {
+        Err(format!(
+            "NSWorkspace iconForFileType returned nil for {file_type}"
+        ))
     } else {
         Ok(icon)
     }
@@ -517,4 +579,25 @@ fn path_to_string(path: &Path) -> Result<String, String> {
             path.display()
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DragPreviewKind, drag_preview_kind};
+
+    #[test]
+    fn single_file_drag_keeps_file_specific_preview() {
+        assert_eq!(drag_preview_kind(1), DragPreviewKind::FileIcon);
+    }
+
+    #[test]
+    fn multi_file_drag_uses_one_shared_file_type_preview_at_every_scale() {
+        for path_count in [2, 10, 100, 1_000] {
+            assert_eq!(
+                drag_preview_kind(path_count),
+                DragPreviewKind::SharedFileTypeIcon,
+                "selection size {path_count} should not trigger per-file icon lookup"
+            );
+        }
+    }
 }

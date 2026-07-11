@@ -6,6 +6,7 @@ use super::{
 };
 use crate::runtime::RuntimeBridge;
 use std::time::Instant;
+use tracing::debug;
 use winit::{dpi::PhysicalPosition, event_loop::ActiveEventLoop, keyboard::ModifiersState};
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -66,6 +67,13 @@ where
     }
 
     pub(super) fn handle_cursor_left(&mut self, event_loop: &ActiveEventLoop) {
+        if self.core.runtime.external_drag_armed() {
+            debug!(
+                target: "radiant::external_drag",
+                event = "external_drag.pointer_exited",
+                "Pointer exited with external drag armed"
+            );
+        }
         let pointer_cleared = self.clear_native_pointer_presence();
         if pointer_cleared.needs_redraw() {
             self.request_redraw_for_frame_work(pointer_cleared.frame_work());

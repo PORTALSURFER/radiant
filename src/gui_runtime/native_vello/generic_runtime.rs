@@ -94,8 +94,9 @@ pub use run_report::{
 };
 use runner::GenericNativeVelloRunner;
 use runner_state::{NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState};
+pub(in crate::gui_runtime::native_vello) use runtime_helpers::GpuSurfaceInteractionRegion;
 use runtime_helpers::{
-    GpuSurfaceInteractionRegion, maybe_log_route_profile, render_profile_enabled,
+    maybe_log_route_profile, render_profile_enabled,
     scroll_delta_to_logical,
 };
 use runtime_wakeup::RuntimeWakeup;

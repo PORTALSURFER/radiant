@@ -466,6 +466,23 @@ fn prelude_exports_scroll_update_callback_payload() {
 }
 
 #[test]
+fn runtime_exports_embedded_vello_renderer_contract() {
+    fn assert_renderer<T>()
+    where
+        T: radiant::runtime::Renderer<Error = radiant::runtime::EmbeddedVelloError>,
+    {
+    }
+
+    assert_renderer::<radiant::runtime::EmbeddedVelloRenderer>();
+    let _: unsafe fn(
+        radiant::runtime::EmbeddedVelloSurfaceHandle,
+        radiant::gui::types::Vector2,
+        radiant::theme::DpiScale,
+    ) -> Result<radiant::runtime::EmbeddedVelloRenderer, radiant::runtime::EmbeddedVelloError> =
+        radiant::runtime::EmbeddedVelloRenderer::new;
+}
+
+#[test]
 fn prelude_exports_drag_preview_sizing_payload() {
     let preview = ui::DragPreview::text_sized(
         "Move selection",

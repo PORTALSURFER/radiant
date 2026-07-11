@@ -5,7 +5,7 @@ mod input;
 mod profile;
 mod rect_occlusion;
 
-pub(super) use gpu_surface_regions::{
+pub(in crate::gui_runtime::native_vello) use gpu_surface_regions::{
     GpuSurfaceInteractionRegion, GpuSurfaceInteractionScratch,
     collect_gpu_surface_interaction_regions_with_scratch,
 };

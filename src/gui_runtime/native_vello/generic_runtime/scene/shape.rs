@@ -1,13 +1,13 @@
 use crate::{
     gui::types::{Point, Rect as UiRect, Rgba8},
     gui_runtime::native_vello::{color_from_rgba, to_kurbo_rect},
-    runtime::{PaintFillRule, PaintPath, PaintRectList, PaintTransform},
+    runtime::{PaintBrush, PaintFillRule, PaintPath, PaintRectList, PaintTransform},
 };
 use kurbo::Stroke;
 use vello::{
     Scene,
     kurbo::{Affine, BezPath, Point as KurboPoint},
-    peniko::Fill,
+    peniko::{Fill, Gradient},
 };
 
 mod geometry;
@@ -16,7 +16,7 @@ use geometry::{paintable_stroke_width, polygon_path, polyline_path, to_kurbo_pat
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_path_fill(
     scene: &mut Scene,
-    color: Rgba8,
+    brush: &PaintBrush,
     transform: PaintTransform,
     fill_rule: PaintFillRule,
     path: &PaintPath,
@@ -28,16 +28,30 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_path_
         return;
     };
 
-    scene.fill(
-        match fill_rule {
-            PaintFillRule::NonZero => Fill::NonZero,
-            PaintFillRule::EvenOdd => Fill::EvenOdd,
-        },
-        Affine::new(transform.coefficients()),
-        color_from_rgba(color),
-        None,
-        &path,
-    );
+    let fill_rule = match fill_rule {
+        PaintFillRule::NonZero => Fill::NonZero,
+        PaintFillRule::EvenOdd => Fill::EvenOdd,
+    };
+    let transform = Affine::new(transform.coefficients());
+    match *brush {
+        PaintBrush::Solid(color) => {
+            scene.fill(fill_rule, transform, color_from_rgba(color), None, &path);
+        }
+        PaintBrush::LinearGradient(gradient) if gradient.is_paintable() => {
+            let mut brush = Gradient::new_linear(
+                KurboPoint::new(gradient.start.x as f64, gradient.start.y as f64),
+                KurboPoint::new(gradient.end.x as f64, gradient.end.y as f64),
+            );
+            brush
+                .stops
+                .push((0.0, color_from_rgba(gradient.start_color)).into());
+            brush
+                .stops
+                .push((1.0, color_from_rgba(gradient.end_color)).into());
+            scene.fill(fill_rule, transform, &brush, None, &path);
+        }
+        PaintBrush::LinearGradient(_) => {}
+    }
 }
 
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_rect(

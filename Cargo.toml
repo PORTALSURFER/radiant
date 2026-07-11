@@ -159,6 +159,10 @@ name = "waveform_view"
 path = "examples/waveform_view.rs"
 
 [[example]]
+name = "curve_area_fill"
+path = "examples/curve_area_fill.rs"
+
+[[example]]
 name = "timeline_editor"
 path = "examples/timeline_editor.rs"
 

@@ -40,6 +40,17 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         ],
     ),
     (
+        "curve_area_fill",
+        &[
+            "SampledCurveAreaFillParts::new(",
+            "SampledCurveAreaBaseline::Bottom",
+            "PaintBrush::linear_gradient(",
+            "PaintLinearGradient::vertical(",
+            "push_sampled_curve_area_fill(",
+            "example_emits_one_gradient_fill_path_and_one_curve_stroke",
+        ],
+    ),
+    (
         "layout_diagnostics",
         &[
             "LayoutDebugOptions::all_enabled()",

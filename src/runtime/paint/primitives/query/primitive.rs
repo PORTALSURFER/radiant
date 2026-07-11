@@ -1,6 +1,6 @@
 use super::super::{
-    PaintClipStart, PaintFillPolygon, PaintFillRect, PaintGpuSurface, PaintPrimitive,
-    PaintStrokePolyline, PaintStrokeRect, PaintSvg, PaintTextInput, PaintTextRun,
+    PaintClipStart, PaintFillPath, PaintFillPolygon, PaintFillRect, PaintGpuSurface,
+    PaintPrimitive, PaintStrokePolyline, PaintStrokeRect, PaintSvg, PaintTextInput, PaintTextRun,
 };
 use crate::{gui::types::Rect, widgets::WidgetId};
 use std::{iter, slice};
@@ -34,6 +34,14 @@ impl PaintPrimitive {
     pub fn fill_rect(&self) -> Option<&PaintFillRect> {
         match self {
             Self::FillRect(fill) => Some(fill),
+            _ => None,
+        }
+    }
+
+    /// Return the filled path carried by this primitive, if any.
+    pub fn fill_path(&self) -> Option<&PaintFillPath> {
+        match self {
+            Self::FillPath(fill) => Some(fill),
             _ => None,
         }
     }

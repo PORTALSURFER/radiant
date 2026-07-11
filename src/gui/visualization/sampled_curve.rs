@@ -1,6 +1,8 @@
 use crate::{
     gui::types::{Point, Rect, Rgba8},
-    runtime::{PaintPrimitive, PaintStrokePolyline},
+    runtime::{
+        PaintBrush, PaintFillPath, PaintPath, PaintPathCommand, PaintPrimitive, PaintStrokePolyline,
+    },
     widgets::WidgetId,
 };
 use std::sync::Arc;
@@ -19,6 +21,62 @@ pub struct SampledCurveStrokeParts {
     pub color: Rgba8,
     /// Stroke width in logical pixels.
     pub stroke_width: f32,
+}
+
+/// Baseline used to close a sampled curve into a filled area.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SampledCurveAreaBaseline {
+    /// Close the area against the top edge of the curve bounds.
+    Top,
+    /// Close the area against the bottom edge of the curve bounds.
+    Bottom,
+    /// Close the area against a logical Y coordinate, clamped to the bounds.
+    Y(f32),
+}
+
+impl SampledCurveAreaBaseline {
+    fn y(self, bounds: Rect) -> Option<f32> {
+        let y = match self {
+            Self::Top => bounds.min.y,
+            Self::Bottom => bounds.max.y,
+            Self::Y(y) => y,
+        };
+        y.is_finite().then(|| y.clamp(bounds.min.y, bounds.max.y))
+    }
+}
+
+/// Named fields for appending a sampled curve-area fill to a paint plan.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SampledCurveAreaFillParts {
+    /// Widget that owns the generated fill primitive.
+    pub widget_id: WidgetId,
+    /// Bounds used to clamp sampled curve points and the baseline.
+    pub bounds: Rect,
+    /// Number of intervals to sample.
+    pub steps: usize,
+    /// Baseline used to close the sampled curve area.
+    pub baseline: SampledCurveAreaBaseline,
+    /// Solid or gradient brush used to fill the area.
+    pub brush: PaintBrush,
+}
+
+impl SampledCurveAreaFillParts {
+    /// Build sampled curve-area fill parts.
+    pub const fn new(
+        widget_id: WidgetId,
+        bounds: Rect,
+        steps: usize,
+        baseline: SampledCurveAreaBaseline,
+        brush: PaintBrush,
+    ) -> Self {
+        Self {
+            widget_id,
+            bounds,
+            steps,
+            baseline,
+            brush,
+        }
+    }
 }
 
 impl SampledCurveStrokeParts {
@@ -100,6 +158,107 @@ pub fn push_sampled_curve_stroke(
     true
 }
 
+/// Sample a visual curve and close each contiguous segment against a baseline.
+///
+/// The result contains one compact backend-neutral path with one subpath per
+/// contiguous visible curve segment. Invalid or hidden samples split segments
+/// instead of bridging across missing data. Each emitted subpath contains at
+/// least two curve points.
+pub fn sampled_curve_area_path(
+    bounds: Rect,
+    steps: usize,
+    baseline: SampledCurveAreaBaseline,
+    mut point_at: impl FnMut(f32) -> Option<Point>,
+) -> PaintPath {
+    if !bounds.has_finite_positive_area() {
+        return PaintPath::empty();
+    }
+    let Some(baseline_y) = baseline.y(bounds) else {
+        return PaintPath::empty();
+    };
+    let steps = steps.max(1);
+    let mut commands = Vec::with_capacity(steps + 5);
+    let mut segment_start = None;
+    let mut segment_points = 0usize;
+    let mut last_x = 0.0;
+
+    for step in 0..=steps {
+        let t = step as f32 / steps as f32;
+        let point = point_at(t).filter(|point| point.is_finite()).map(|point| {
+            Point::new(
+                point.x.clamp(bounds.min.x, bounds.max.x),
+                point.y.clamp(bounds.min.y, bounds.max.y),
+            )
+        });
+        let Some(point) = point else {
+            finish_area_segment(
+                &mut commands,
+                &mut segment_start,
+                &mut segment_points,
+                last_x,
+                baseline_y,
+            );
+            continue;
+        };
+        if segment_start.is_none() {
+            segment_start = Some(commands.len());
+            commands.push(PaintPathCommand::MoveTo(Point::new(point.x, baseline_y)));
+        }
+        commands.push(PaintPathCommand::LineTo(point));
+        segment_points += 1;
+        last_x = point.x;
+    }
+    finish_area_segment(
+        &mut commands,
+        &mut segment_start,
+        &mut segment_points,
+        last_x,
+        baseline_y,
+    );
+    PaintPath::from(commands)
+}
+
+/// Append one sampled curve-area path fill to a paint primitive buffer.
+///
+/// Returns `true` when at least one contiguous segment with two curve points
+/// was sampled. The helper emits one `FillPath` primitive regardless of sample
+/// count, keeping renderer submission and brush evaluation constant-sized.
+pub fn push_sampled_curve_area_fill(
+    primitives: &mut Vec<PaintPrimitive>,
+    parts: SampledCurveAreaFillParts,
+    point_at: impl FnMut(f32) -> Option<Point>,
+) -> bool {
+    let path = sampled_curve_area_path(parts.bounds, parts.steps, parts.baseline, point_at);
+    if path.is_empty() {
+        return false;
+    }
+    primitives.push(PaintPrimitive::FillPath(PaintFillPath::new(
+        parts.widget_id,
+        path,
+        parts.brush,
+    )));
+    true
+}
+
+fn finish_area_segment(
+    commands: &mut Vec<PaintPathCommand>,
+    segment_start: &mut Option<usize>,
+    segment_points: &mut usize,
+    last_x: f32,
+    baseline_y: f32,
+) {
+    let Some(start) = segment_start.take() else {
+        return;
+    };
+    if *segment_points >= 2 {
+        commands.push(PaintPathCommand::LineTo(Point::new(last_x, baseline_y)));
+        commands.push(PaintPathCommand::Close);
+    } else {
+        commands.truncate(start);
+    }
+    *segment_points = 0;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,6 +321,85 @@ mod tests {
             |_| None,
         ));
 
+        assert!(primitives.is_empty());
+    }
+
+    #[test]
+    fn sampled_curve_area_path_closes_against_bottom_baseline() {
+        let path = sampled_curve_area_path(bounds(), 2, SampledCurveAreaBaseline::Bottom, |t| {
+            Some(Point::new(10.0 + t * 100.0, 50.0 - t * 20.0))
+        });
+
+        assert_eq!(
+            path.commands(),
+            [
+                PaintPathCommand::MoveTo(Point::new(10.0, 60.0)),
+                PaintPathCommand::LineTo(Point::new(10.0, 50.0)),
+                PaintPathCommand::LineTo(Point::new(60.0, 40.0)),
+                PaintPathCommand::LineTo(Point::new(110.0, 30.0)),
+                PaintPathCommand::LineTo(Point::new(110.0, 60.0)),
+                PaintPathCommand::Close,
+            ]
+        );
+    }
+
+    #[test]
+    fn sampled_curve_area_path_splits_missing_data_without_bridging() {
+        let path = sampled_curve_area_path(bounds(), 5, SampledCurveAreaBaseline::Top, |t| {
+            ((t - 0.4).abs() > 0.01).then(|| Point::new(10.0 + t * 100.0, 30.0 + t * 10.0))
+        });
+
+        assert_eq!(
+            path.commands()
+                .iter()
+                .filter(|command| matches!(command, PaintPathCommand::Close))
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn push_sampled_curve_area_fill_emits_one_gradient_path_at_high_sample_count() {
+        let mut primitives = Vec::new();
+        let gradient = crate::runtime::PaintLinearGradient::vertical(
+            bounds(),
+            Rgba8::new(10, 20, 30, 100),
+            Rgba8::new(10, 20, 30, 0),
+        );
+
+        assert!(push_sampled_curve_area_fill(
+            &mut primitives,
+            SampledCurveAreaFillParts::new(
+                42,
+                bounds(),
+                4096,
+                SampledCurveAreaBaseline::Bottom,
+                PaintBrush::linear_gradient(gradient),
+            ),
+            |t| Some(Point::new(10.0 + t * 100.0, 40.0)),
+        ));
+
+        assert_eq!(primitives.len(), 1);
+        let fill = primitives[0].fill_path().expect("curve area fill path");
+        assert_eq!(fill.widget_id, 42);
+        assert_eq!(fill.brush, PaintBrush::linear_gradient(gradient));
+        assert_eq!(fill.path.commands().len(), 4100);
+    }
+
+    #[test]
+    fn sampled_curve_area_fill_skips_invalid_baseline_or_single_point_segment() {
+        let mut primitives = Vec::new();
+        assert!(!push_sampled_curve_area_fill(
+            &mut primitives,
+            SampledCurveAreaFillParts::new(
+                42,
+                bounds(),
+                2,
+                SampledCurveAreaBaseline::Y(f32::NAN),
+                PaintBrush::solid(Rgba8::new(1, 2, 3, 4)),
+            ),
+            |t| (t == 0.0).then(|| Point::new(10.0, 30.0)),
+        ));
         assert!(primitives.is_empty());
     }
 }

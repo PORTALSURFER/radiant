@@ -4,7 +4,10 @@ use crate::{
 };
 use std::sync::Arc;
 
-use super::path::{PaintFillRule, PaintPath, PaintTransform};
+use super::{
+    PaintBrush,
+    path::{PaintFillRule, PaintPath, PaintTransform},
+};
 
 /// Shared immutable point list used by polygon and polyline paint primitives.
 pub type PaintPointList = Arc<[Point]>;
@@ -49,8 +52,33 @@ pub struct PaintFillPath {
     pub transform: PaintTransform,
     /// Fill rule used for self-intersecting or nested path regions.
     pub fill_rule: PaintFillRule,
-    /// Fill color.
-    pub color: Rgba8,
+    /// Brush used to fill the path.
+    pub brush: PaintBrush,
+}
+
+impl PaintFillPath {
+    /// Build an identity-transformed path fill using non-zero winding.
+    pub fn new(widget_id: WidgetId, path: PaintPath, brush: PaintBrush) -> Self {
+        Self {
+            widget_id,
+            path,
+            transform: PaintTransform::IDENTITY,
+            fill_rule: PaintFillRule::NonZero,
+            brush,
+        }
+    }
+
+    /// Override the transform applied while rendering the path.
+    pub const fn transform(mut self, transform: PaintTransform) -> Self {
+        self.transform = transform;
+        self
+    }
+
+    /// Override the path fill rule.
+    pub const fn fill_rule(mut self, fill_rule: PaintFillRule) -> Self {
+        self.fill_rule = fill_rule;
+        self
+    }
 }
 
 /// Stroked rectangle primitive in logical surface coordinates.

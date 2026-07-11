@@ -417,6 +417,20 @@ fn prelude_exports_custom_widget_signature_types() {
         color,
         width: 1.0,
     };
+    let gradient = radiant::runtime::PaintLinearGradient::vertical(
+        rect,
+        color.with_alpha(96),
+        color.with_alpha(0),
+    );
+    let fill_path = radiant::runtime::PaintFillPath::new(
+        3,
+        ui::PaintPath::from([
+            ui::PaintPathCommand::MoveTo(rect.min),
+            ui::PaintPathCommand::LineTo(rect.max),
+            ui::PaintPathCommand::Close,
+        ]),
+        radiant::runtime::PaintBrush::linear_gradient(gradient),
+    );
     let cursor =
         radiant::gui::feedback::horizontal_value_cursor_rect(rect, 0.5, 2.0).expect("cursor rect");
     let text_line = ui::centered_text_line(rect, 13.0, ui::TextLineInsets::horizontal(2.0), 0.0);
@@ -437,6 +451,10 @@ fn prelude_exports_custom_widget_signature_types() {
     assert_eq!(image.width, 1);
     assert_eq!(fill_batch.rects.len(), 1);
     assert_eq!(stroke_batch.rects.len(), 1);
+    assert_eq!(
+        fill_path.brush,
+        radiant::runtime::PaintBrush::linear_gradient(gradient)
+    );
     let _: ui::ImageRgbaError = image_error;
 }
 

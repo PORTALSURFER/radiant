@@ -49,6 +49,7 @@ cargo run --example hello_world
 cargo run --example generic_native
 cargo run --example widget_gallery
 cargo run --example waveform_view
+cargo run --example curve_area_fill
 cargo run --example timeline_editor
 cargo run --example eq_editor
 cargo run --example spectrogram

@@ -97,7 +97,7 @@ where
             PaintPrimitive::FillPath(fill) => {
                 encode_path_fill(
                     scene,
-                    fill.color,
+                    &fill.brush,
                     fill.transform,
                     fill.fill_rule,
                     &fill.path,

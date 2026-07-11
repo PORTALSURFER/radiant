@@ -453,6 +453,9 @@ plugin hosts, should use `EmbeddedVelloSurfaceHandle` and
 while Radiant creates the WGPU surface and reuses the same Vello scene encoder
 as `run_native_vello_runtime`. Call `resize(...)` when the host view or backing
 scale changes and call `Renderer::render(...)` from the host redraw path.
+Trait-based renders use elapsed monotonic time automatically for animated paint
+such as focused text-input carets; use `render_at(...)` when the host needs to
+supply an explicit deterministic animation time.
 Portable or sandboxed hosts should create the renderer with
 `EmbeddedVelloRenderer::new_with_text_options(...)` and pass
 `NativeTextOptions` containing embedded fonts or host-approved font paths;

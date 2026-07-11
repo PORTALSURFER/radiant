@@ -1,6 +1,10 @@
 //! Host-driven Vello rendering for embedded native surfaces.
 
-use std::{fmt, sync::Arc, time::Duration};
+use std::{
+    fmt,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 use vello::{
@@ -111,6 +115,7 @@ pub struct EmbeddedVelloRenderer {
     gpu_surface_interaction_regions: Vec<GpuSurfaceInteractionRegion>,
     logical_size: Vector2,
     dpi_scale: DpiScale,
+    animation_clock: EmbeddedAnimationClock,
 }
 
 impl EmbeddedVelloRenderer {
@@ -195,6 +200,7 @@ impl EmbeddedVelloRenderer {
             gpu_surface_interaction_regions: Vec::new(),
             logical_size,
             dpi_scale,
+            animation_clock: EmbeddedAnimationClock::start(),
         })
     }
 
@@ -301,7 +307,28 @@ impl Renderer for EmbeddedVelloRenderer {
     type Error = EmbeddedVelloError;
 
     fn render(&mut self, plan: &SurfacePaintPlan) -> Result<(), Self::Error> {
-        self.render_at(plan, Duration::ZERO)
+        let animation_time = self.animation_clock.elapsed();
+        self.render_at(plan, animation_time)
+    }
+}
+
+struct EmbeddedAnimationClock {
+    started_at: Instant,
+}
+
+impl EmbeddedAnimationClock {
+    fn start() -> Self {
+        Self {
+            started_at: Instant::now(),
+        }
+    }
+
+    fn elapsed(&self) -> Duration {
+        self.elapsed_at(Instant::now())
+    }
+
+    fn elapsed_at(&self, now: Instant) -> Duration {
+        now.saturating_duration_since(self.started_at)
     }
 }
 
@@ -443,6 +470,18 @@ mod tests {
         assert_eq!(
             physical_size(Vector2::new(420.0, 282.0), DpiScale::new(2.0)),
             (840, 564)
+        );
+    }
+
+    #[test]
+    fn embedded_animation_clock_reports_elapsed_monotonic_time() {
+        let started_at = Instant::now();
+        let clock = EmbeddedAnimationClock { started_at };
+
+        assert_eq!(clock.elapsed_at(started_at), Duration::ZERO);
+        assert_eq!(
+            clock.elapsed_at(started_at + Duration::from_millis(750)),
+            Duration::from_millis(750)
         );
     }
 }

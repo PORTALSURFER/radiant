@@ -390,6 +390,13 @@ machinery can remain internal or advanced-only where custom hosts and tests
 need it, but the normal app path should make the business runtime the only
 practical way to run host business work off the UI path.
 
+Internally, runtime diagnostics keep public snapshot and policy models separate
+from synchronized lifecycle recording. Surface frame context keeps borrowed
+frame models, paint projection, and tooltip shaping in focused owners. Business
+update requests keep lane/resource selection, command dispatch, cooperative
+cancellation, and latest-stream closure separate while preserving one stable
+`UiUpdateContext::business()` API.
+
 ## Declarative GUI Model
 
 Radiant should move toward a clean declarative GUI model.

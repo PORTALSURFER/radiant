@@ -87,6 +87,10 @@ fn ui_update_context_keeps_followup_command_groups_in_focused_modules() {
         manifest_dir.join("src/application/runtime/update_context/business/request.rs"),
     )
     .expect("application update context business request helpers should be readable");
+    let business_request_dispatch = fs::read_to_string(
+        manifest_dir.join("src/application/runtime/update_context/business/request/dispatch.rs"),
+    )
+    .expect("application update context business request dispatch should be readable");
     let business_latest = fs::read_to_string(
         manifest_dir.join("src/application/runtime/update_context/business/latest.rs"),
     )
@@ -146,7 +150,7 @@ fn ui_update_context_keeps_followup_command_groups_in_focused_modules() {
             && business_request.contains("pub fn latest_for<Key>")
             && business_request.contains("pub fn resource<Output>")
             && business_request.contains("pub fn cancellable(self)")
-            && business_request.contains("pub fn run<Output>")
+            && business_request_dispatch.contains("pub fn run<Output>")
             && business_latest.contains("pub struct BusinessLatestRequest")
             && business_keyed_latest.contains("pub struct BusinessKeyedLatestRequest")
             && business_resource.contains("pub struct BusinessResourceRequest"),
@@ -213,10 +217,10 @@ fn business_work_context_is_worker_only_capability() {
         manifest_dir.join("src/application/runtime/update_context/business/work_context.rs"),
     )
     .expect("business work context should be readable");
-    let request = fs::read_to_string(
-        manifest_dir.join("src/application/runtime/update_context/business/request.rs"),
+    let request_dispatch = fs::read_to_string(
+        manifest_dir.join("src/application/runtime/update_context/business/request/dispatch.rs"),
     )
-    .expect("business request should be readable");
+    .expect("business request dispatch should be readable");
 
     assert!(
         work_context.contains("pub struct BusinessWorkContext")
@@ -225,7 +229,7 @@ fn business_work_context_is_worker_only_capability() {
         "BusinessWorkContext should be public as a worker closure argument but not app-constructible"
     );
     assert!(
-        request.contains("move || work(BusinessWorkContext::new(worker_token))"),
+        request_dispatch.contains("move || work(BusinessWorkContext::new(worker_token))"),
         "business runtime should create BusinessWorkContext only inside worker command execution"
     );
 }

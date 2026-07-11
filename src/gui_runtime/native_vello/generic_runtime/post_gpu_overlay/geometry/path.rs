@@ -124,9 +124,10 @@ fn painted_triangle(
     ];
     let painted = local.map(|point| {
         let local = Point::new(point.x, point.y);
+        let transformed = transform_point(local, fill.transform);
         PathVertex {
-            point: transform_point(local, fill.transform),
-            color: brush_color(fill.brush, local),
+            point: transformed,
+            color: brush_color(fill.brush, transformed),
         }
     });
     (painted.iter().all(|vertex| vertex.point.is_finite())

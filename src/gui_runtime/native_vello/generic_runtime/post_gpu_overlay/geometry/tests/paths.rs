@@ -1,6 +1,7 @@
 use super::super::*;
 use crate::runtime::{
     PaintBrush, PaintFillPath, PaintLinearGradient, PaintPath, PaintPathCommand, PaintPrimitive,
+    PaintTransform,
 };
 
 fn gradient_path() -> PaintPrimitive {
@@ -36,6 +37,30 @@ fn opaque_path() -> PaintPrimitive {
         path,
         PaintBrush::solid(Rgba8::new(20, 30, 40, 255)),
     ))
+}
+
+fn transformed_gradient_path() -> PaintPrimitive {
+    let local_bounds = UiRect::from_min_size(Point::new(10.0, 0.0), Vector2::new(60.0, 10.0));
+    let surface_bounds = UiRect::from_min_size(Point::new(10.0, 20.0), Vector2::new(60.0, 10.0));
+    let path = PaintPath::from([
+        PaintPathCommand::MoveTo(local_bounds.min),
+        PaintPathCommand::LineTo(Point::new(local_bounds.max.x, local_bounds.min.y)),
+        PaintPathCommand::LineTo(local_bounds.max),
+        PaintPathCommand::LineTo(Point::new(local_bounds.min.x, local_bounds.max.y)),
+        PaintPathCommand::Close,
+    ]);
+    PaintPrimitive::FillPath(
+        PaintFillPath::new(
+            93,
+            path,
+            PaintBrush::linear_gradient(PaintLinearGradient::vertical(
+                surface_bounds,
+                Rgba8::new(255, 80, 40, 200),
+                Rgba8::new(255, 80, 40, 0),
+            )),
+        )
+        .transform(PaintTransform::translate(0.0, 20.0)),
+    )
 }
 
 #[test]
@@ -116,4 +141,27 @@ fn opaque_fill_path_skips_gpu_region_replay_but_remains_full_overlay_replay() {
 
     assert!(!full_vertices.is_empty());
     assert!(region_vertices.is_empty());
+}
+
+#[test]
+fn transformed_gradient_fill_path_samples_in_logical_surface_coordinates() {
+    let primitive = transformed_gradient_path();
+    let mut vertices = Vec::new();
+
+    replayable_vertices_into(
+        std::slice::from_ref(&primitive),
+        Vector2::new(100.0, 50.0),
+        &mut vertices,
+    );
+
+    let min_alpha = vertices
+        .iter()
+        .map(|vertex| vertex.color[3])
+        .fold(f32::INFINITY, f32::min);
+    let max_alpha = vertices
+        .iter()
+        .map(|vertex| vertex.color[3])
+        .fold(f32::NEG_INFINITY, f32::max);
+    assert!(min_alpha < 0.01);
+    assert!(max_alpha > 0.78);
 }

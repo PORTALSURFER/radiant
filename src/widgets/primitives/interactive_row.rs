@@ -5,6 +5,7 @@ use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, Wid
 use crate::widgets::interaction::{InteractiveRowMessage, WidgetInput, WidgetOutput};
 use crate::widgets::primitives::support::WidgetCommon;
 
+#[path = "interactive_row/actions/mod.rs"]
 mod actions;
 mod builders;
 mod embedded;

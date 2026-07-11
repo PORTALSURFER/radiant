@@ -8,7 +8,7 @@ mod drag_drop;
 mod messages;
 #[path = "builder/policy.rs"]
 mod policy;
-#[path = "builder/underlay.rs"]
+#[path = "builder/underlay/mod.rs"]
 mod underlay;
 #[path = "builder/widget.rs"]
 mod widget;

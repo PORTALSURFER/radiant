@@ -384,9 +384,25 @@ fn application_interactive_row_builder_keeps_policy_and_underlay_focused() {
     )
     .expect("interactive-row message mapping module should be readable");
     let underlay = fs::read_to_string(
-        manifest_dir.join("src/application/control_builders/interactive_row/builder/underlay.rs"),
+        manifest_dir
+            .join("src/application/control_builders/interactive_row/builder/underlay/mod.rs"),
     )
-    .expect("interactive-row underlay module should be readable");
+    .expect("interactive-row underlay model root should be readable");
+    let underlay_model = fs::read_to_string(
+        manifest_dir
+            .join("src/application/control_builders/interactive_row/builder/underlay/model.rs"),
+    )
+    .expect("interactive-row underlay model helpers should be readable");
+    let underlay_policy = fs::read_to_string(
+        manifest_dir
+            .join("src/application/control_builders/interactive_row/builder/underlay/policy.rs"),
+    )
+    .expect("interactive-row underlay policy helpers should be readable");
+    let underlay_projection =
+        fs::read_to_string(manifest_dir.join(
+            "src/application/control_builders/interactive_row/builder/underlay/projection.rs",
+        ))
+        .expect("interactive-row underlay projection helpers should be readable");
     let widget = fs::read_to_string(
         manifest_dir.join("src/application/control_builders/interactive_row/builder/widget.rs"),
     )
@@ -395,7 +411,7 @@ fn application_interactive_row_builder_keeps_policy_and_underlay_focused() {
     assert!(
         root.contains("#[path = \"builder/drag_drop.rs\"]")
             && root.contains("#[path = \"builder/messages.rs\"]")
-            && root.contains("#[path = \"builder/underlay.rs\"]")
+            && root.contains("#[path = \"builder/underlay/mod.rs\"]")
             && root.contains("#[path = \"builder/widget.rs\"]")
             && root.contains("pub struct InteractiveRowBuilder")
             && !root.contains("pub struct InteractiveRowUnderlayBuilder")
@@ -409,7 +425,17 @@ fn application_interactive_row_builder_keeps_policy_and_underlay_focused() {
             && drag_drop.contains("pub fn tracked_drop_candidate")
             && messages.contains("fn with_message_mapper")
             && underlay.contains("pub struct InteractiveRowUnderlayBuilder")
-            && underlay.contains("pub fn interactive_row_underlay")
+            && underlay.contains("mod model;")
+            && underlay.contains("mod policy;")
+            && underlay.contains("mod projection;")
+            && underlay_model.contains("pub fn stable_row_identity")
+            && underlay_model.contains("pub fn dense_chrome_palette")
+            && underlay_policy.contains("pub fn dense_row_policy")
+            && underlay_policy.contains("pub fn tracked_drag_source")
+            && underlay_policy.contains("pub fn tracked_drop_candidate")
+            && underlay_projection.contains("pub fn interactive_row_underlay")
+            && underlay_projection.contains("fn finish(")
+            && underlay_projection.contains("impl Widget for DenseInteractiveRowUnderlayWidget")
             && widget.contains("pub fn widget(self) -> InteractiveRowWidget"),
         "interactive-row drag/drop policy, message mapping, underlay composition, and widget lowering should have focused owners"
     );

@@ -3,9 +3,27 @@
 use super::{
     GpuShaderSurfaceDescriptor, GpuSignalGainPreview, GpuSignalRenderShape, GpuSurfaceContentError,
 };
-use crate::{gui::types::Rect, runtime::GpuSignalSummary};
+use crate::{
+    gui::types::{ImageRgba, Rect},
+    runtime::GpuSignalSummary,
+};
 
-pub(super) fn validate_atlas_source_rect(
+pub(super) fn validate_atlas(
+    atlas: &ImageRgba,
+    source_rect: Rect,
+) -> Result<(), GpuSurfaceContentError> {
+    if let Err(error) = atlas.validate_byte_len() {
+        return Err(GpuSurfaceContentError::InvalidAtlasByteLength {
+            width: error.width,
+            height: error.height,
+            actual_len: error.actual_len,
+            expected_len: error.expected_len,
+        });
+    }
+    validate_atlas_source_rect(source_rect, atlas.width(), atlas.height())
+}
+
+fn validate_atlas_source_rect(
     source_rect: Rect,
     atlas_width: usize,
     atlas_height: usize,

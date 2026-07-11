@@ -147,9 +147,9 @@ where
                 stats.image_count = stats.image_count.saturating_add(1);
                 encode_image(
                     scene,
-                    Arc::clone(&draw.image.pixels),
-                    draw.image.width,
-                    draw.image.height,
+                    Arc::clone(draw.image.shared_pixels()),
+                    draw.image.width(),
+                    draw.image.height(),
                     draw.source_rect,
                     draw.rect,
                 );

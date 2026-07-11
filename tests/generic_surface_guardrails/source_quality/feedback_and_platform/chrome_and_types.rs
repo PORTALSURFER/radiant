@@ -48,11 +48,21 @@ fn image_rgba_buffer_keeps_diagnostics_and_tests_focused() {
         .expect("image buffer source should be readable");
     let tests = fs::read_to_string(manifest_dir.join("src/gui/types/image/tests.rs"))
         .expect("image buffer behavior tests should be readable");
+    let image_definition = source
+        .split("pub struct ImageRgbaError")
+        .next()
+        .expect("image buffer definition should precede its diagnostic");
 
     assert!(
         source.contains("pub struct ImageRgba")
             && source.contains("pub struct ImageRgbaError")
             && source.contains("pub fn try_new")
+            && source.contains("pub const fn width(&self)")
+            && source.contains("pub const fn height(&self)")
+            && source.contains("pub fn pixels(&self)")
+            && !image_definition.contains("pub width: usize")
+            && !image_definition.contains("pub height: usize")
+            && !image_definition.contains("pub pixels: Arc<[u8]>")
             && source.contains("#[path = \"image/tests.rs\"]")
             && !source.contains("fn image_rgba_try_new_reports_length_mismatch"),
         "RGBA image buffer and diagnostics should live in gui/types/image.rs while behavior tests stay delegated"

@@ -66,9 +66,9 @@ fn snap_primitive(primitive: &Primitive) -> SnapshotPrimitive {
         },
         Primitive::Image(draw_image) => SnapshotPrimitive::Image {
             rect: snap_rect(draw_image.rect),
-            width: u32::try_from(draw_image.image.width).unwrap_or(0),
-            height: u32::try_from(draw_image.image.height).unwrap_or(0),
-            pixels: draw_image.image.pixels.as_ref().to_vec(),
+            width: u32::try_from(draw_image.image.width()).unwrap_or(0),
+            height: u32::try_from(draw_image.image.height()).unwrap_or(0),
+            pixels: draw_image.image.pixels().to_vec(),
         },
         Primitive::Svg(draw_svg) => SnapshotPrimitive::Svg {
             rect: snap_rect(draw_svg.rect),

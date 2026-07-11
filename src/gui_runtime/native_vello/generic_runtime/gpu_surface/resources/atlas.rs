@@ -20,13 +20,15 @@ impl GpuSurfaceRenderer {
             .textures
             .get(&surface.key)
             .is_some_and(|texture| {
-                texture.matches_atlas(device, surface.revision, atlas.width, atlas.height)
+                texture.matches_atlas(device, surface.revision, atlas.width(), atlas.height())
             })
         {
             stats.atlas.texture_cache_hits += 1;
             return;
         }
-        let Some(extent) = GpuAtlasTextureExtent::new(atlas.width, atlas.height) else {
+        let Some(extent) =
+            GpuAtlasTextureExtent::new(atlas.width(), atlas.height(), atlas.pixels().len())
+        else {
             return;
         };
 
@@ -51,7 +53,7 @@ impl GpuSurfaceRenderer {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            atlas.pixels.as_ref(),
+            atlas.pixels(),
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(extent.bytes_per_row),
@@ -69,8 +71,8 @@ impl GpuSurfaceRenderer {
             GpuSurfaceTexture {
                 device: wgpu_device_id(device),
                 revision: surface.revision,
-                width: atlas.width,
-                height: atlas.height,
+                width: atlas.width(),
+                height: atlas.height(),
                 _texture: texture,
                 view,
             },
@@ -87,7 +89,11 @@ struct GpuAtlasTextureExtent {
 }
 
 impl GpuAtlasTextureExtent {
-    fn new(width: usize, height: usize) -> Option<Self> {
+    fn new(width: usize, height: usize, byte_len: usize) -> Option<Self> {
+        let expected_byte_len = width.checked_mul(height)?.checked_mul(4)?;
+        if byte_len != expected_byte_len {
+            return None;
+        }
         let width = u32::try_from(width).ok()?;
         let height = u32::try_from(height).ok()?;
         if width == 0 || height == 0 {
@@ -108,17 +114,30 @@ mod tests {
 
     #[test]
     fn gpu_atlas_texture_extent_rejects_empty_or_oversized_dimensions() {
-        assert_eq!(GpuAtlasTextureExtent::new(0, 1), None);
-        assert_eq!(GpuAtlasTextureExtent::new(1, 0), None);
-        assert_eq!(GpuAtlasTextureExtent::new(u32::MAX as usize + 1, 1), None);
-        assert_eq!(GpuAtlasTextureExtent::new(1, u32::MAX as usize + 1), None);
-        assert_eq!(GpuAtlasTextureExtent::new(u32::MAX as usize, 1), None);
+        assert_eq!(GpuAtlasTextureExtent::new(0, 1, 0), None);
+        assert_eq!(GpuAtlasTextureExtent::new(1, 0, 0), None);
+        assert_eq!(
+            GpuAtlasTextureExtent::new(u32::MAX as usize + 1, 1, (u32::MAX as usize + 1) * 4),
+            None
+        );
+        assert_eq!(
+            GpuAtlasTextureExtent::new(1, u32::MAX as usize + 1, (u32::MAX as usize + 1) * 4),
+            None
+        );
+        assert_eq!(GpuAtlasTextureExtent::new(u32::MAX as usize, 1, 0), None);
+    }
+
+    #[test]
+    fn gpu_atlas_texture_extent_rejects_short_long_and_overflowing_payloads() {
+        assert_eq!(GpuAtlasTextureExtent::new(2, 2, 15), None);
+        assert_eq!(GpuAtlasTextureExtent::new(2, 2, 17), None);
+        assert_eq!(GpuAtlasTextureExtent::new(usize::MAX, 2, 0), None);
     }
 
     #[test]
     fn gpu_atlas_texture_extent_reports_upload_layout() {
         assert_eq!(
-            GpuAtlasTextureExtent::new(8, 4),
+            GpuAtlasTextureExtent::new(8, 4, 8 * 4 * 4),
             Some(GpuAtlasTextureExtent {
                 width: 8,
                 height: 4,

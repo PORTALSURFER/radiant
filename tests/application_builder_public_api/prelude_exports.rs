@@ -448,7 +448,7 @@ fn prelude_exports_custom_widget_signature_types() {
     assert!(layout.rects.is_empty());
     assert_eq!(theme.text_primary.a, 255);
     assert_eq!(color.g, 2);
-    assert_eq!(image.width, 1);
+    assert_eq!(image.width(), 1);
     assert_eq!(fill_batch.rects.len(), 1);
     assert_eq!(stroke_batch.rects.len(), 1);
     assert_eq!(

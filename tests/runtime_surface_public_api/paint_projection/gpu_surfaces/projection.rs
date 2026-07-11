@@ -71,7 +71,7 @@ fn gpu_surface_widget_projects_generic_retained_gpu_primitive() {
     let GpuSurfaceContent::RgbaAtlas { atlas, .. } = &gpu.content else {
         panic!("expected rgba atlas gpu content");
     };
-    assert_eq!(atlas.width, 2);
+    assert_eq!(atlas.width(), 2);
 }
 
 #[test]

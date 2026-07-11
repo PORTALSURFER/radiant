@@ -20,22 +20,27 @@ where
         request: PlatformRequest,
         on_completed: PlatformCompletion<Message>,
     ) -> Result<(), PlatformServiceFallback<Message>> {
-        if !self.runtime.is_alive() || !self.runtime.can_spawn_business_tasks() {
+        if !self.runtime.is_alive()
+            || !self
+                .runtime
+                .can_spawn_business_tasks(TaskPriority::Interactive)
+        {
             return Err(Box::new((request, on_completed)));
         }
         let runtime = std::sync::Arc::downgrade(&self.runtime);
-        let _ = self.runtime.spawn_business_task(
-            "radiant-platform-service",
-            TaskPriority::Interactive,
-            None,
-            move || {
-                let response = perform_platform_request(request);
-                if let Some(runtime) = runtime.upgrade() {
-                    let _ = runtime.enqueue(on_completed(response));
-                }
-            },
-        );
-        Ok(())
+        self.runtime
+            .spawn_business_task_with_payload(
+                "radiant-platform-service",
+                TaskPriority::Interactive,
+                (request, on_completed),
+                move |(request, on_completed)| {
+                    let response = perform_platform_request(request);
+                    if let Some(runtime) = runtime.upgrade() {
+                        let _ = runtime.enqueue(on_completed(response));
+                    }
+                },
+            )
+            .map_err(Box::new)
     }
 }
 

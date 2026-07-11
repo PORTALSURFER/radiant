@@ -88,15 +88,43 @@ pub(super) fn validate_signal_summary_shape(
     if summary.levels.is_empty() {
         return Err(GpuSurfaceContentError::EmptySignalSummary);
     }
+    let mut previous_bucket_frames = None;
     for (level_index, level) in summary.levels.iter().enumerate() {
-        let bucket_count = level.buckets.len();
-        if bucket_count < band_count || bucket_count % band_count != 0 {
-            return Err(GpuSurfaceContentError::InvalidSignalSummaryLevel {
+        if level.bucket_frames == 0
+            || previous_bucket_frames.is_some_and(|previous| level.bucket_frames <= previous)
+        {
+            return Err(GpuSurfaceContentError::InvalidSignalSummaryLevelWidth {
                 level_index,
-                bucket_count,
-                band_count,
+                bucket_frames: level.bucket_frames,
+                previous_bucket_frames,
             });
         }
+        let bucket_count = level.buckets.len();
+        let expected_bucket_count = frames
+            .div_ceil(level.bucket_frames)
+            .max(1)
+            .saturating_mul(band_count);
+        if bucket_count != expected_bucket_count {
+            return Err(
+                GpuSurfaceContentError::InvalidSignalSummaryLevelBucketCount {
+                    level_index,
+                    bucket_frames: level.bucket_frames,
+                    bucket_count,
+                    expected_bucket_count,
+                },
+            );
+        }
+        for (bucket_index, bucket) in level.buckets.iter().enumerate() {
+            if !bucket.min.is_finite() || !bucket.max.is_finite() || bucket.min > bucket.max {
+                return Err(GpuSurfaceContentError::InvalidSignalSummaryBucketExtrema {
+                    level_index,
+                    bucket_index,
+                    min: bucket.min,
+                    max: bucket.max,
+                });
+            }
+        }
+        previous_bucket_frames = Some(level.bucket_frames);
     }
     Ok(())
 }

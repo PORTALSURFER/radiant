@@ -354,9 +354,10 @@ fn validate_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
                 Some(EmbeddedVelloUnsupportedPrimitive::GpuSurface)
             }
             PaintPrimitive::GpuSurface(_) => None,
-            PaintPrimitive::CustomSurface(_) => {
+            PaintPrimitive::CustomSurface(custom) if custom.rect.has_finite_positive_area() => {
                 Some(EmbeddedVelloUnsupportedPrimitive::CustomSurface)
             }
+            PaintPrimitive::CustomSurface(_) => None,
             _ => None,
         };
         if let Some(primitive) = unsupported {
@@ -448,6 +449,20 @@ mod tests {
                 EmbeddedVelloUnsupportedPrimitive::CustomSurface
             ))
         );
+    }
+
+    #[test]
+    fn embedded_vello_ignores_custom_surfaces_without_renderable_geometry() {
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::CustomSurface(PaintCustomSurface {
+                widget_id: 2,
+                rect: Rect::from_xy_size(0.0, 0.0, 0.0, 0.0),
+                bounds: PaintBounds::ClipToRect,
+                retained: None,
+            }));
+
+        assert_eq!(validate_plan(&plan), Ok(()));
     }
 
     #[test]

@@ -161,29 +161,48 @@ mod platform {
     pub(super) fn uninstall_native_file_open_handler(
         registration: &mut NativeFileOpenRegistration,
     ) {
-        if registration.installed {
-            let status = unsafe {
-                AERemoveEventHandler(
-                    K_CORE_EVENT_CLASS,
-                    K_AE_OPEN_DOCUMENTS,
-                    Some(open_documents_handler),
-                    0,
-                )
-            };
-            if status != NO_ERR {
-                tracing::warn!(
-                    status,
-                    "radiant generic native vello: failed to remove macOS file-open handler"
-                );
-            }
+        let mut removal_status = NO_ERR;
+        let removed = teardown_native_file_open_handler(
+            &mut registration.installed,
+            &mut registration.refcon,
+            || {
+                removal_status = unsafe {
+                    AERemoveEventHandler(
+                        K_CORE_EVENT_CLASS,
+                        K_AE_OPEN_DOCUMENTS,
+                        Some(open_documents_handler),
+                        0,
+                    )
+                };
+                removal_status == NO_ERR
+            },
+            |refcon| unsafe {
+                drop(Box::from_raw(refcon));
+            },
+        );
+        if !removed {
+            tracing::warn!(
+                status = removal_status,
+                "radiant generic native vello: failed to remove macOS file-open handler; retaining callback refcon until process exit"
+            );
         }
-        if !registration.refcon.is_null() {
-            unsafe {
-                drop(Box::from_raw(registration.refcon));
-            }
-            registration.refcon = ptr::null_mut();
+    }
+
+    fn teardown_native_file_open_handler<Refcon>(
+        installed: &mut bool,
+        refcon: &mut *mut Refcon,
+        remove_handler: impl FnOnce() -> bool,
+        release_refcon: impl FnOnce(*mut Refcon),
+    ) -> bool {
+        if *installed && !remove_handler() {
+            return false;
         }
-        registration.installed = false;
+        *installed = false;
+        if !refcon.is_null() {
+            release_refcon(*refcon);
+            *refcon = ptr::null_mut();
+        }
+        true
     }
 
     unsafe extern "C" fn open_documents_handler(
@@ -305,6 +324,73 @@ mod platform {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use std::sync::Arc;
+
+        #[test]
+        fn failed_handler_removal_keeps_refcon_backing_alive() {
+            let backing = Arc::new(());
+            let backing_weak = Arc::downgrade(&backing);
+            let mut refcon = Box::into_raw(Box::new(backing));
+            let mut installed = true;
+            let mut releases = 0;
+
+            let removed = teardown_native_file_open_handler(
+                &mut installed,
+                &mut refcon,
+                || false,
+                |_| releases += 1,
+            );
+
+            assert!(!removed);
+            assert!(installed);
+            assert!(!refcon.is_null());
+            assert!(backing_weak.upgrade().is_some());
+            assert_eq!(releases, 0);
+
+            unsafe {
+                drop(Box::from_raw(refcon));
+            }
+        }
+
+        #[test]
+        fn successful_and_repeated_teardown_release_refcon_exactly_once() {
+            let backing = Arc::new(());
+            let backing_weak = Arc::downgrade(&backing);
+            let mut refcon = Box::into_raw(Box::new(backing));
+            let mut installed = true;
+            let mut removals = 0;
+            let mut releases = 0;
+
+            assert!(teardown_native_file_open_handler(
+                &mut installed,
+                &mut refcon,
+                || {
+                    removals += 1;
+                    true
+                },
+                |refcon| {
+                    releases += 1;
+                    unsafe {
+                        drop(Box::from_raw(refcon));
+                    }
+                },
+            ));
+            assert!(!installed);
+            assert!(refcon.is_null());
+            assert!(backing_weak.upgrade().is_none());
+
+            assert!(teardown_native_file_open_handler(
+                &mut installed,
+                &mut refcon,
+                || {
+                    removals += 1;
+                    true
+                },
+                |_| releases += 1,
+            ));
+            assert_eq!(removals, 1);
+            assert_eq!(releases, 1);
+        }
 
         #[test]
         fn file_url_to_path_decodes_percent_escaped_paths() {

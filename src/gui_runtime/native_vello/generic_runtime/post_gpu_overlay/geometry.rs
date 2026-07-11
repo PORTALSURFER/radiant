@@ -1,3 +1,4 @@
+mod path;
 mod text;
 
 use crate::{
@@ -6,6 +7,7 @@ use crate::{
 };
 
 use super::vertex::OverlayVertex;
+use path::{push_fill_path_vertices, push_fill_path_vertices_in_regions};
 use text::push_text_vertices;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime) fn primitive_is_replayable(
@@ -13,7 +15,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) fn primitive_is_replay
 ) -> bool {
     matches!(
         primitive,
-        PaintPrimitive::FillRect(_)
+        PaintPrimitive::FillPath(_)
+            | PaintPrimitive::FillRect(_)
             | PaintPrimitive::FillRectBatch(_)
             | PaintPrimitive::StrokeRect(_)
             | PaintPrimitive::StrokeRectBatch(_)
@@ -56,6 +59,9 @@ pub(super) fn append_replayable_vertices(
 ) {
     for primitive in primitives {
         match primitive {
+            PaintPrimitive::FillPath(fill) => {
+                push_fill_path_vertices(vertices, target_size, fill);
+            }
             PaintPrimitive::FillRect(fill) => {
                 push_rect_vertices(vertices, target_size, fill.rect, fill.color);
             }
@@ -89,6 +95,9 @@ pub(super) fn append_replayable_vertices_in_regions(
     }
     for primitive in primitives {
         match primitive {
+            PaintPrimitive::FillPath(fill) => {
+                push_fill_path_vertices_in_regions(vertices, target_size, fill, regions);
+            }
             PaintPrimitive::FillRect(fill) if fill.color.a >= OPAQUE_REVEALED_FILL_ALPHA => {}
             PaintPrimitive::FillRectBatch(fill) if fill.color.a >= OPAQUE_REVEALED_FILL_ALPHA => {}
             PaintPrimitive::FillRect(fill) => {

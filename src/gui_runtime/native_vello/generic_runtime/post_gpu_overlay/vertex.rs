@@ -8,7 +8,7 @@ use crate::gui_runtime::native_vello::{
 #[derive(Clone, Copy, Debug)]
 pub(super) struct OverlayVertex {
     pub(super) position: [f32; 2],
-    color: [f32; 4],
+    pub(super) color: [f32; 4],
 }
 
 impl OverlayVertex {

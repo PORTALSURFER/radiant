@@ -16,8 +16,9 @@ use vello::{
 
 use super::generic_runtime::{
     GpuSurfaceInteractionRegion, RetainedSurfaceFrameCache, SceneClipState, SceneTextRunBuffer,
-    SurfaceSceneEncodeContext, SurfaceVisibleSuffixScratch, encode_surface_paint_plan_to_scene,
-    gpu_surface_requires_compositing, surface_rect_has_visible_region,
+    SurfaceOcclusionPolicy, SurfaceSceneEncodeContext, SurfaceVisibleSuffixScratch,
+    encode_surface_paint_plan_to_scene, gpu_surface_requires_compositing,
+    surface_rect_has_visible_region,
 };
 use super::{NativeTextOptions, NativeTextRenderer, startup_renderer_options};
 use crate::{
@@ -370,6 +371,7 @@ fn validate_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
                             custom.rect,
                             plan.primitives.get(..index).unwrap_or_default(),
                             plan.primitives.get(index + 1..).unwrap_or_default(),
+                            SurfaceOcclusionPolicy::Exact,
                             &mut surface_visibility,
                         ),
                         PaintBounds::AllowOverflow => true,
@@ -514,6 +516,37 @@ mod tests {
             }));
 
         assert_eq!(validate_plan(&plan), Ok(()));
+    }
+
+    #[test]
+    fn embedded_vello_rejects_retained_custom_surfaces_under_translucent_suffixes() {
+        let rect = Rect::from_xy_size(0.0, 0.0, 10.0, 10.0);
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::CustomSurface(PaintCustomSurface {
+                widget_id: 2,
+                rect,
+                bounds: PaintBounds::ClipToRect,
+                retained: Some(RetainedSurfaceDescriptor {
+                    key: 1,
+                    revision: 1,
+                    dirty_mask: 0,
+                    volatile: false,
+                }),
+            }));
+        plan.primitives
+            .push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: 3,
+                rect,
+                color: crate::gui::types::Rgba8::new(20, 30, 40, 254),
+            }));
+
+        assert_eq!(
+            validate_plan(&plan),
+            Err(EmbeddedVelloError::UnsupportedPrimitive(
+                EmbeddedVelloUnsupportedPrimitive::CustomSurface
+            ))
+        );
     }
 
     #[test]

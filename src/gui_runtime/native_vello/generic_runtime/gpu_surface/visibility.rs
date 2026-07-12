@@ -7,6 +7,7 @@ use crate::runtime::{PaintGpuSurface, PaintPrimitive};
 
 mod occlusion;
 
+pub(in crate::gui_runtime::native_vello) use occlusion::SurfaceOcclusionPolicy;
 pub(super) use occlusion::surface_occlusion_regions_into;
 
 #[cfg(test)]
@@ -59,13 +60,20 @@ pub(in crate::gui_runtime::native_vello) fn gpu_surface_requires_compositing(
     {
         return false;
     }
-    surface_rect_has_visible_region(surface.rect, prefix, suffix, scratch)
+    surface_rect_has_visible_region(
+        surface.rect,
+        prefix,
+        suffix,
+        SurfaceOcclusionPolicy::GpuCompositor,
+        scratch,
+    )
 }
 
 pub(in crate::gui_runtime::native_vello) fn surface_rect_has_visible_region(
     surface_rect: UiRect,
     prefix: &[PaintPrimitive],
     suffix: &[PaintPrimitive],
+    policy: SurfaceOcclusionPolicy,
     scratch: &mut SurfaceVisibleSuffixScratch,
 ) -> bool {
     scratch.visible_regions.clear();
@@ -76,6 +84,7 @@ pub(in crate::gui_runtime::native_vello) fn surface_rect_has_visible_region(
         surface_rect,
         prefix,
         suffix,
+        policy,
         &mut scratch.occlusion_regions,
         &mut scratch.clip_stack,
     );

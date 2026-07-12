@@ -27,7 +27,8 @@ pub(super) use stats::GpuSurfaceRenderStats;
 pub(super) use visibility::gpu_surface_visible_suffix_regions_into_with_scratch;
 use visibility::surface_occlusion_regions_into;
 pub(in crate::gui_runtime::native_vello) use visibility::{
-    SurfaceVisibleSuffixScratch, gpu_surface_requires_compositing, surface_rect_has_visible_region,
+    SurfaceOcclusionPolicy, SurfaceVisibleSuffixScratch, gpu_surface_requires_compositing,
+    surface_rect_has_visible_region,
 };
 
 #[derive(Default)]
@@ -75,6 +76,7 @@ impl GpuSurfaceRenderer {
                 surface.rect,
                 primitives.get(..index).unwrap_or_default(),
                 primitives.get(index + 1..).unwrap_or_default(),
+                SurfaceOcclusionPolicy::GpuCompositor,
                 &mut occlusion_regions,
                 &mut self.occlusion_clip_stack,
             );
@@ -127,6 +129,7 @@ impl GpuSurfaceRenderer {
             surface_rect,
             &[],
             suffix,
+            SurfaceOcclusionPolicy::GpuCompositor,
             &mut self.occlusion_regions,
             &mut self.occlusion_clip_stack,
         );

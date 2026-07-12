@@ -25,6 +25,8 @@ fn native_gpu_surface_visibility_occlusion_stays_focused() {
     assert!(
         occlusion.contains("const OPAQUE_SUFFIX_OCCLUSION_ALPHA")
             && occlusion.contains("fn surface_occlusion_regions")
+            && occlusion.contains("Self::Exact => u8::MAX")
+            && occlusion.contains("Self::GpuCompositor => OPAQUE_SUFFIX_OCCLUSION_ALPHA")
             && occlusion.contains("PaintPrimitive::FillRect(fill)")
             && occlusion.contains("PaintPrimitive::OverlayPanel(panel)")
             && occlusion.contains("PaintPrimitive::ClipStart(clip)")

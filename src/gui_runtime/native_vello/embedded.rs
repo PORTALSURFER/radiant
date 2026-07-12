@@ -27,6 +27,7 @@ use crate::{
         UiSurface,
     },
     theme::DpiScale,
+    widgets::PaintBounds,
 };
 
 /// Native primitive requiring a host-specific compositing pass unavailable to the embedded
@@ -363,12 +364,16 @@ fn validate_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
             PaintPrimitive::GpuSurface(_) => None,
             PaintPrimitive::CustomSurface(custom)
                 if custom.retained.is_some()
-                    && surface_rect_has_visible_region(
-                        custom.rect,
-                        plan.primitives.get(..index).unwrap_or_default(),
-                        plan.primitives.get(index + 1..).unwrap_or_default(),
-                        &mut surface_visibility,
-                    ) =>
+                    && custom.rect.has_finite_positive_area()
+                    && match custom.bounds {
+                        PaintBounds::ClipToRect => surface_rect_has_visible_region(
+                            custom.rect,
+                            plan.primitives.get(..index).unwrap_or_default(),
+                            plan.primitives.get(index + 1..).unwrap_or_default(),
+                            &mut surface_visibility,
+                        ),
+                        PaintBounds::AllowOverflow => true,
+                    } =>
             {
                 Some(EmbeddedVelloUnsupportedPrimitive::CustomSurface)
             }
@@ -422,7 +427,7 @@ mod tests {
         PaintOverlayPanel, PaintPath, PaintPathCommand,
     };
     use crate::theme::ThemeTokens;
-    use crate::widgets::{PaintBounds, RetainedSurfaceDescriptor, WidgetStyle};
+    use crate::widgets::{RetainedSurfaceDescriptor, WidgetStyle};
 
     #[test]
     fn embedded_vello_accepts_gradient_fill_paths() {
@@ -509,6 +514,37 @@ mod tests {
             }));
 
         assert_eq!(validate_plan(&plan), Ok(()));
+    }
+
+    #[test]
+    fn embedded_vello_rejects_covered_retained_custom_surfaces_that_allow_overflow() {
+        let rect = Rect::from_xy_size(0.0, 0.0, 10.0, 10.0);
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::CustomSurface(PaintCustomSurface {
+                widget_id: 2,
+                rect,
+                bounds: PaintBounds::AllowOverflow,
+                retained: Some(RetainedSurfaceDescriptor {
+                    key: 1,
+                    revision: 1,
+                    dirty_mask: 0,
+                    volatile: false,
+                }),
+            }));
+        plan.primitives
+            .push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: 3,
+                rect,
+                color: crate::gui::types::Rgba8::new(20, 30, 40, 255),
+            }));
+
+        assert_eq!(
+            validate_plan(&plan),
+            Err(EmbeddedVelloError::UnsupportedPrimitive(
+                EmbeddedVelloUnsupportedPrimitive::CustomSurface
+            ))
+        );
     }
 
     #[test]

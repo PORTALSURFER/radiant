@@ -16,20 +16,21 @@ fn native_gpu_surface_visibility_occlusion_stays_focused() {
     assert!(
         visibility.contains("mod occlusion;")
             && visibility.contains("visible_rects_after_occlusion")
-            && visibility.contains("opaque_suffix_regions_into(")
+            && visibility.contains("surface_occlusion_regions_into(")
             && visibility.contains("&mut scratch.occlusion_regions")
             && !visibility.contains("const OPAQUE_SUFFIX_OCCLUSION_ALPHA")
             && !visibility.contains("PaintPrimitive::FillRect(fill)"),
-        "GPU surface visibility should delegate opaque suffix collection"
+        "GPU surface visibility should delegate shared surface occlusion collection"
     );
     assert!(
         occlusion.contains("const OPAQUE_SUFFIX_OCCLUSION_ALPHA")
-            && occlusion.contains("fn opaque_suffix_regions")
+            && occlusion.contains("fn surface_occlusion_regions")
             && occlusion.contains("PaintPrimitive::FillRect(fill)")
             && occlusion.contains("PaintPrimitive::OverlayPanel(panel)")
             && occlusion.contains("PaintPrimitive::ClipStart(clip)")
+            && occlusion.contains("append_rect_outside_clip(surface_rect, clip, regions)")
             && occlusion.contains("update_clip_stack(primitive, clip_stack)")
             && occlusion.contains("clipped_occlusion_region(surface_rect, fill.rect, clip_stack)"),
-        "opaque suffix occlusion filtering should live in visibility/occlusion.rs"
+        "surface clip and opaque suffix occlusion should live in visibility/occlusion.rs"
     );
 }

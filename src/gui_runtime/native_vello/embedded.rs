@@ -701,6 +701,35 @@ mod tests {
     }
 
     #[test]
+    fn embedded_vello_ignores_host_surfaces_outside_active_clip() {
+        let surface_rect = Rect::from_xy_size(0.0, 0.0, 10.0, 10.0);
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::ClipStart(PaintClipStart {
+                node_id: 4,
+                rect: Rect::from_xy_size(20.0, 20.0, 10.0, 10.0),
+            }));
+        plan.primitives
+            .push(PaintPrimitive::GpuSurface(test_gpu_surface(surface_rect)));
+        plan.primitives
+            .push(PaintPrimitive::CustomSurface(PaintCustomSurface {
+                widget_id: 5,
+                rect: surface_rect,
+                bounds: PaintBounds::ClipToRect,
+                retained: Some(RetainedSurfaceDescriptor {
+                    key: 1,
+                    revision: 1,
+                    dirty_mask: 0,
+                    volatile: false,
+                }),
+            }));
+        plan.primitives
+            .push(PaintPrimitive::ClipEnd(PaintClipEnd { node_id: 4 }));
+
+        assert_eq!(validate_plan(&plan), Ok(()));
+    }
+
+    #[test]
     fn embedded_vello_ignores_custom_shaders_without_native_pipeline_inputs() {
         let mut surface = test_gpu_surface(Rect::from_xy_size(0.0, 0.0, 10.0, 10.0));
         surface.content = GpuSurfaceContent::CustomShader {

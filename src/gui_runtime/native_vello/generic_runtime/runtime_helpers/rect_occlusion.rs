@@ -61,6 +61,14 @@ fn subtract_rect(rect: Rect, occlusion: Rect, output: &mut Vec<Rect>) {
     );
 }
 
+pub(in crate::gui_runtime::native_vello::generic_runtime) fn append_rect_outside_clip(
+    rect: Rect,
+    clip: Rect,
+    output: &mut Vec<Rect>,
+) {
+    subtract_rect(rect, clip, output);
+}
+
 fn push_positive_rect(output: &mut Vec<Rect>, rect: Rect) {
     if rect.width() > 0.0 && rect.height() > 0.0 {
         output.push(rect);

@@ -1,10 +1,12 @@
 use crate::gui::types::Rect as UiRect;
-use crate::gui_runtime::native_vello::generic_runtime::runtime_helpers::intersect_rect;
+use crate::gui_runtime::native_vello::generic_runtime::runtime_helpers::{
+    append_rect_outside_clip, intersect_rect,
+};
 use crate::runtime::PaintPrimitive;
 
 const OPAQUE_SUFFIX_OCCLUSION_ALPHA: u8 = 240;
 
-pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn opaque_suffix_regions_into(
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn surface_occlusion_regions_into(
     surface_rect: UiRect,
     prefix: &[PaintPrimitive],
     suffix: &[PaintPrimitive],
@@ -15,6 +17,11 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn opaque
     clip_stack.clear();
     for primitive in prefix {
         update_clip_stack(primitive, clip_stack);
+    }
+    match clip_stack.last().copied() {
+        Some(Some(clip)) => append_rect_outside_clip(surface_rect, clip, regions),
+        Some(None) => regions.push(surface_rect),
+        None => {}
     }
     for primitive in suffix {
         match primitive {
@@ -90,7 +97,7 @@ mod tests {
     use crate::gui::types::{Point, Rgba8, Vector2};
 
     #[test]
-    fn opaque_suffix_regions_ignore_translucent_fills() {
+    fn surface_occlusion_regions_ignore_translucent_fills() {
         let surface = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0));
         let suffix = [
             PaintPrimitive::FillRect(crate::runtime::PaintFillRect {
@@ -117,7 +124,7 @@ mod tests {
 
         let mut regions = Vec::new();
         let mut clip_stack = Vec::new();
-        opaque_suffix_regions_into(surface, &[], &suffix, &mut regions, &mut clip_stack);
+        surface_occlusion_regions_into(surface, &[], &suffix, &mut regions, &mut clip_stack);
 
         assert_eq!(regions.len(), 1);
         assert_eq!(
@@ -127,7 +134,7 @@ mod tests {
     }
 
     #[test]
-    fn opaque_suffix_regions_into_reuses_existing_storage() {
+    fn surface_occlusion_regions_into_reuses_existing_storage() {
         let surface = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0));
         let suffix = [PaintPrimitive::FillRect(crate::runtime::PaintFillRect {
             widget_id: 7,
@@ -142,10 +149,10 @@ mod tests {
         let mut regions = Vec::with_capacity(8);
         let mut clip_stack = Vec::with_capacity(4);
 
-        opaque_suffix_regions_into(surface, &[], &suffix, &mut regions, &mut clip_stack);
+        surface_occlusion_regions_into(surface, &[], &suffix, &mut regions, &mut clip_stack);
         let capacity = regions.capacity();
         let clip_capacity = clip_stack.capacity();
-        opaque_suffix_regions_into(surface, &[], &[], &mut regions, &mut clip_stack);
+        surface_occlusion_regions_into(surface, &[], &[], &mut regions, &mut clip_stack);
 
         assert_eq!(capacity, 8);
         assert_eq!(regions.capacity(), capacity);
@@ -154,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn opaque_suffix_regions_respect_nested_clip_intersections() {
+    fn surface_occlusion_regions_respect_nested_clip_intersections() {
         let surface = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0));
         let suffix = [
             PaintPrimitive::ClipStart(crate::runtime::PaintClipStart {
@@ -181,7 +188,7 @@ mod tests {
         let mut regions = Vec::new();
         let mut clip_stack = Vec::new();
 
-        opaque_suffix_regions_into(surface, &[], &suffix, &mut regions, &mut clip_stack);
+        surface_occlusion_regions_into(surface, &[], &suffix, &mut regions, &mut clip_stack);
 
         assert_eq!(
             regions,
@@ -193,7 +200,7 @@ mod tests {
     }
 
     #[test]
-    fn opaque_suffix_regions_clip_overlay_panels() {
+    fn surface_occlusion_regions_clip_overlay_panels() {
         let surface = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0));
         let suffix = [
             PaintPrimitive::ClipStart(crate::runtime::PaintClipStart {
@@ -211,7 +218,7 @@ mod tests {
         let mut regions = Vec::new();
         let mut clip_stack = Vec::new();
 
-        opaque_suffix_regions_into(surface, &[], &suffix, &mut regions, &mut clip_stack);
+        surface_occlusion_regions_into(surface, &[], &suffix, &mut regions, &mut clip_stack);
 
         assert_eq!(
             regions,

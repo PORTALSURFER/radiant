@@ -7,7 +7,7 @@ use crate::runtime::{PaintGpuSurface, PaintPrimitive};
 
 mod occlusion;
 
-pub(super) use occlusion::opaque_suffix_regions_into;
+pub(super) use occlusion::surface_occlusion_regions_into;
 
 #[cfg(test)]
 pub(crate) fn gpu_surface_visible_suffix_regions_into(
@@ -72,7 +72,7 @@ pub(in crate::gui_runtime::native_vello) fn surface_rect_has_visible_region(
     if !surface_rect.has_finite_positive_area() {
         return false;
     }
-    opaque_suffix_regions_into(
+    surface_occlusion_regions_into(
         surface_rect,
         prefix,
         suffix,
@@ -214,6 +214,52 @@ mod tests {
             regions[0],
             UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0))
         );
+    }
+
+    #[test]
+    fn gpu_surface_visible_suffix_regions_intersect_active_prefix_clips() {
+        let clip = UiRect::from_min_size(Point::new(20.0, 10.0), Vector2::new(50.0, 30.0));
+        let primitives = [
+            PaintPrimitive::ClipStart(crate::runtime::PaintClipStart {
+                node_id: 1,
+                rect: clip,
+            }),
+            gpu_surface(2),
+            PaintPrimitive::ClipEnd(crate::runtime::PaintClipEnd { node_id: 1 }),
+        ];
+        let mut regions = Vec::new();
+
+        gpu_surface_visible_suffix_regions_into(&primitives, &mut regions);
+
+        assert_eq!(regions, [clip]);
+    }
+
+    #[test]
+    fn gpu_surface_visible_suffix_regions_skip_covered_clipped_portions() {
+        let clip = UiRect::from_min_size(Point::new(20.0, 10.0), Vector2::new(50.0, 30.0));
+        let primitives = [
+            PaintPrimitive::ClipStart(crate::runtime::PaintClipStart {
+                node_id: 1,
+                rect: clip,
+            }),
+            gpu_surface(2),
+            PaintPrimitive::FillRect(crate::runtime::PaintFillRect {
+                widget_id: 3,
+                rect: clip,
+                color: Rgba8 {
+                    r: 47,
+                    g: 47,
+                    b: 47,
+                    a: 255,
+                },
+            }),
+            PaintPrimitive::ClipEnd(crate::runtime::PaintClipEnd { node_id: 1 }),
+        ];
+        let mut regions = Vec::new();
+
+        gpu_surface_visible_suffix_regions_into(&primitives, &mut regions);
+
+        assert!(regions.is_empty());
     }
 
     #[test]

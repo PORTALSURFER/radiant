@@ -12,5 +12,6 @@ pub(in crate::gui_runtime::native_vello) use gpu_surface_regions::{
 pub(super) use input::scroll_delta_to_logical;
 pub(super) use profile::{maybe_log_route_profile, render_profile_enabled};
 pub(super) use rect_occlusion::{
-    intersect_rect, visible_rects_after_occlusion, visible_rects_after_occlusion_into,
+    append_rect_outside_clip, intersect_rect, visible_rects_after_occlusion,
+    visible_rects_after_occlusion_into,
 };

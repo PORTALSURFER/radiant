@@ -17,8 +17,8 @@ use vello::{
 use super::generic_runtime::{
     GpuSurfaceInteractionRegion, RetainedSurfaceFrameCache, SceneClipState, SceneTextRunBuffer,
     SurfaceOcclusionPolicy, SurfaceSceneEncodeContext, SurfaceVisibleSuffixScratch,
-    encode_surface_paint_plan_to_scene, gpu_surface_requires_compositing,
-    surface_rect_has_visible_region,
+    encode_surface_paint_plan_to_scene, gpu_surface_requires_compositing_in_viewport,
+    surface_rect_has_visible_region_in_viewport,
 };
 use super::{NativeTextOptions, NativeTextRenderer, startup_renderer_options};
 use crate::{
@@ -226,7 +226,7 @@ impl EmbeddedVelloRenderer {
         plan: &SurfacePaintPlan,
         animation_time: Duration,
     ) -> Result<(), EmbeddedVelloError> {
-        validate_plan(plan)?;
+        validate_plan_in_viewport(plan, embedded_viewport(self.logical_size))?;
         encode_surface_paint_plan_to_scene(
             plan,
             SurfaceSceneEncodeContext {
@@ -335,7 +335,10 @@ impl EmbeddedAnimationClock {
     }
 }
 
-fn validate_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
+fn validate_plan_in_viewport(
+    plan: &SurfacePaintPlan,
+    viewport: crate::gui::types::Rect,
+) -> Result<(), EmbeddedVelloError> {
     let mut clip_state = SceneClipState::default();
     let mut surface_visibility = SurfaceVisibleSuffixScratch::default();
     for (index, primitive) in plan.primitives.iter().enumerate() {
@@ -353,8 +356,9 @@ fn validate_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
         }
         let unsupported = match primitive {
             PaintPrimitive::GpuSurface(surface)
-                if gpu_surface_requires_compositing(
+                if gpu_surface_requires_compositing_in_viewport(
                     surface,
+                    viewport,
                     plan.primitives.get(..index).unwrap_or_default(),
                     plan.primitives.get(index + 1..).unwrap_or_default(),
                     &mut surface_visibility,
@@ -367,8 +371,9 @@ fn validate_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
                 if custom.retained.is_some()
                     && custom.rect.has_finite_positive_area()
                     && match custom.bounds {
-                        PaintBounds::ClipToRect => surface_rect_has_visible_region(
+                        PaintBounds::ClipToRect => surface_rect_has_visible_region_in_viewport(
                             custom.rect,
+                            viewport,
                             plan.primitives.get(..index).unwrap_or_default(),
                             plan.primitives.get(index + 1..).unwrap_or_default(),
                             SurfaceOcclusionPolicy::Exact,
@@ -387,6 +392,18 @@ fn validate_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
         }
     }
     Ok(())
+}
+
+fn embedded_viewport(logical_size: Vector2) -> crate::gui::types::Rect {
+    crate::gui::types::Rect::from_xy_size(0.0, 0.0, logical_size.x, logical_size.y)
+}
+
+#[cfg(test)]
+fn validate_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
+    validate_plan_in_viewport(
+        plan,
+        crate::gui::types::Rect::from_xy_size(-10_000.0, -10_000.0, 20_000.0, 20_000.0),
+    )
 }
 
 fn sanitized_logical_size(size: Vector2) -> Vector2 {
@@ -760,6 +777,31 @@ mod tests {
             .push(PaintPrimitive::ClipEnd(PaintClipEnd { node_id: 4 }));
 
         assert_eq!(validate_plan(&plan), Ok(()));
+    }
+
+    #[test]
+    fn embedded_vello_ignores_clipped_host_surfaces_outside_viewport() {
+        let surface_rect = Rect::from_xy_size(20.0, 20.0, 10.0, 10.0);
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::GpuSurface(test_gpu_surface(surface_rect)));
+        plan.primitives
+            .push(PaintPrimitive::CustomSurface(PaintCustomSurface {
+                widget_id: 5,
+                rect: surface_rect,
+                bounds: PaintBounds::ClipToRect,
+                retained: Some(RetainedSurfaceDescriptor {
+                    key: 1,
+                    revision: 1,
+                    dirty_mask: 0,
+                    volatile: false,
+                }),
+            }));
+
+        assert_eq!(
+            validate_plan_in_viewport(&plan, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0)),
+            Ok(())
+        );
     }
 
     #[test]

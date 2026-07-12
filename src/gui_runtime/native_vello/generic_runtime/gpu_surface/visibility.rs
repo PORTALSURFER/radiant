@@ -1,8 +1,8 @@
 use super::custom_shader::custom_shader_descriptor_is_supported;
 use crate::gui::types::Rect as UiRect;
 use crate::gui_runtime::native_vello::generic_runtime::runtime_helpers::{
-    SurfaceOcclusionPolicy, surface_occlusion_regions_into, visible_rects_after_occlusion,
-    visible_rects_after_occlusion_into,
+    SurfaceOcclusionPolicy, intersect_rect, surface_occlusion_regions_into,
+    visible_rects_after_occlusion, visible_rects_after_occlusion_into,
 };
 use crate::runtime::{PaintGpuSurface, PaintPrimitive};
 
@@ -47,6 +47,16 @@ pub(in crate::gui_runtime::native_vello) fn gpu_surface_requires_compositing(
     suffix: &[PaintPrimitive],
     scratch: &mut SurfaceVisibleSuffixScratch,
 ) -> bool {
+    gpu_surface_requires_compositing_in_viewport(surface, surface.rect, prefix, suffix, scratch)
+}
+
+pub(in crate::gui_runtime::native_vello) fn gpu_surface_requires_compositing_in_viewport(
+    surface: &PaintGpuSurface,
+    viewport: UiRect,
+    prefix: &[PaintPrimitive],
+    suffix: &[PaintPrimitive],
+    scratch: &mut SurfaceVisibleSuffixScratch,
+) -> bool {
     scratch.visible_regions.clear();
     if !surface.rect.has_finite_positive_area() || !surface.content.is_renderable() {
         return false;
@@ -56,13 +66,29 @@ pub(in crate::gui_runtime::native_vello) fn gpu_surface_requires_compositing(
     {
         return false;
     }
-    surface_rect_has_visible_region(
+    surface_rect_has_visible_region_in_viewport(
         surface.rect,
+        viewport,
         prefix,
         suffix,
         SurfaceOcclusionPolicy::GpuCompositor,
         scratch,
     )
+}
+
+pub(in crate::gui_runtime::native_vello) fn surface_rect_has_visible_region_in_viewport(
+    surface_rect: UiRect,
+    viewport: UiRect,
+    prefix: &[PaintPrimitive],
+    suffix: &[PaintPrimitive],
+    policy: SurfaceOcclusionPolicy,
+    scratch: &mut SurfaceVisibleSuffixScratch,
+) -> bool {
+    scratch.visible_regions.clear();
+    let Some(surface_rect) = intersect_rect(surface_rect, viewport) else {
+        return false;
+    };
+    surface_rect_has_visible_region(surface_rect, prefix, suffix, policy, scratch)
 }
 
 pub(in crate::gui_runtime::native_vello) fn surface_rect_has_visible_region(

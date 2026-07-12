@@ -7,7 +7,7 @@ use crate::runtime::{PaintGpuSurface, PaintPrimitive};
 
 mod occlusion;
 
-pub(super) use occlusion::gpu_surface_opaque_suffix_regions_into;
+pub(super) use occlusion::opaque_suffix_regions_into;
 
 #[cfg(test)]
 pub(crate) fn gpu_surface_visible_suffix_regions_into(
@@ -72,7 +72,7 @@ pub(in crate::gui_runtime::native_vello) fn surface_rect_has_visible_region(
     if !surface_rect.has_finite_positive_area() {
         return false;
     }
-    gpu_surface_opaque_suffix_regions_into(
+    opaque_suffix_regions_into(
         surface_rect,
         prefix,
         suffix,

@@ -4,7 +4,7 @@ use crate::runtime::PaintPrimitive;
 
 const OPAQUE_SUFFIX_OCCLUSION_ALPHA: u8 = 240;
 
-pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn gpu_surface_opaque_suffix_regions_into(
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn opaque_suffix_regions_into(
     surface_rect: UiRect,
     prefix: &[PaintPrimitive],
     suffix: &[PaintPrimitive],
@@ -34,6 +34,12 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn gpu_su
                     if let Some(region) = clipped_occlusion_region(surface_rect, rect, clip_stack) {
                         regions.push(region);
                     }
+                }
+            }
+            PaintPrimitive::OverlayPanel(panel) => {
+                if let Some(region) = clipped_occlusion_region(surface_rect, panel.rect, clip_stack)
+                {
+                    regions.push(region);
                 }
             }
             _ => {}
@@ -84,7 +90,7 @@ mod tests {
     use crate::gui::types::{Point, Rgba8, Vector2};
 
     #[test]
-    fn gpu_surface_opaque_suffix_regions_ignore_translucent_fills() {
+    fn opaque_suffix_regions_ignore_translucent_fills() {
         let surface = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0));
         let suffix = [
             PaintPrimitive::FillRect(crate::runtime::PaintFillRect {
@@ -111,13 +117,7 @@ mod tests {
 
         let mut regions = Vec::new();
         let mut clip_stack = Vec::new();
-        gpu_surface_opaque_suffix_regions_into(
-            surface,
-            &[],
-            &suffix,
-            &mut regions,
-            &mut clip_stack,
-        );
+        opaque_suffix_regions_into(surface, &[], &suffix, &mut regions, &mut clip_stack);
 
         assert_eq!(regions.len(), 1);
         assert_eq!(
@@ -127,7 +127,7 @@ mod tests {
     }
 
     #[test]
-    fn gpu_surface_opaque_suffix_regions_into_reuses_existing_storage() {
+    fn opaque_suffix_regions_into_reuses_existing_storage() {
         let surface = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0));
         let suffix = [PaintPrimitive::FillRect(crate::runtime::PaintFillRect {
             widget_id: 7,
@@ -142,16 +142,10 @@ mod tests {
         let mut regions = Vec::with_capacity(8);
         let mut clip_stack = Vec::with_capacity(4);
 
-        gpu_surface_opaque_suffix_regions_into(
-            surface,
-            &[],
-            &suffix,
-            &mut regions,
-            &mut clip_stack,
-        );
+        opaque_suffix_regions_into(surface, &[], &suffix, &mut regions, &mut clip_stack);
         let capacity = regions.capacity();
         let clip_capacity = clip_stack.capacity();
-        gpu_surface_opaque_suffix_regions_into(surface, &[], &[], &mut regions, &mut clip_stack);
+        opaque_suffix_regions_into(surface, &[], &[], &mut regions, &mut clip_stack);
 
         assert_eq!(capacity, 8);
         assert_eq!(regions.capacity(), capacity);
@@ -160,7 +154,7 @@ mod tests {
     }
 
     #[test]
-    fn gpu_surface_opaque_suffix_regions_respect_nested_clip_intersections() {
+    fn opaque_suffix_regions_respect_nested_clip_intersections() {
         let surface = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0));
         let suffix = [
             PaintPrimitive::ClipStart(crate::runtime::PaintClipStart {
@@ -187,19 +181,43 @@ mod tests {
         let mut regions = Vec::new();
         let mut clip_stack = Vec::new();
 
-        gpu_surface_opaque_suffix_regions_into(
-            surface,
-            &[],
-            &suffix,
-            &mut regions,
-            &mut clip_stack,
-        );
+        opaque_suffix_regions_into(surface, &[], &suffix, &mut regions, &mut clip_stack);
 
         assert_eq!(
             regions,
             [UiRect::from_min_size(
                 Point::new(10.0, 0.0),
                 Vector2::new(30.0, 80.0)
+            )]
+        );
+    }
+
+    #[test]
+    fn opaque_suffix_regions_clip_overlay_panels() {
+        let surface = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0));
+        let suffix = [
+            PaintPrimitive::ClipStart(crate::runtime::PaintClipStart {
+                node_id: 1,
+                rect: UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(40.0, 80.0)),
+            }),
+            PaintPrimitive::OverlayPanel(crate::runtime::PaintOverlayPanel {
+                widget_id: 7,
+                rect: surface,
+                label: None,
+                style: crate::widgets::WidgetStyle::default(),
+            }),
+            PaintPrimitive::ClipEnd(crate::runtime::PaintClipEnd { node_id: 1 }),
+        ];
+        let mut regions = Vec::new();
+        let mut clip_stack = Vec::new();
+
+        opaque_suffix_regions_into(surface, &[], &suffix, &mut regions, &mut clip_stack);
+
+        assert_eq!(
+            regions,
+            [UiRect::from_min_size(
+                Point::new(0.0, 0.0),
+                Vector2::new(40.0, 80.0)
             )]
         );
     }

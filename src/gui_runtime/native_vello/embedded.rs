@@ -419,10 +419,10 @@ mod tests {
     use crate::runtime::{
         GpuShaderSurfaceDescriptor, GpuSurfaceCapabilities, GpuSurfaceContent, PaintClipEnd,
         PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillRect, PaintGpuSurface,
-        PaintPath, PaintPathCommand,
+        PaintOverlayPanel, PaintPath, PaintPathCommand,
     };
     use crate::theme::ThemeTokens;
-    use crate::widgets::{PaintBounds, RetainedSurfaceDescriptor};
+    use crate::widgets::{PaintBounds, RetainedSurfaceDescriptor, WidgetStyle};
 
     #[test]
     fn embedded_vello_accepts_gradient_fill_paths() {
@@ -506,6 +506,35 @@ mod tests {
                 widget_id: 3,
                 rect: Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
                 color: crate::gui::types::Rgba8::new(20, 30, 40, 255),
+            }));
+
+        assert_eq!(validate_plan(&plan), Ok(()));
+    }
+
+    #[test]
+    fn embedded_vello_ignores_host_surfaces_covered_by_overlay_panel() {
+        let rect = Rect::from_xy_size(0.0, 0.0, 10.0, 10.0);
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::GpuSurface(test_gpu_surface(rect)));
+        plan.primitives
+            .push(PaintPrimitive::CustomSurface(PaintCustomSurface {
+                widget_id: 2,
+                rect,
+                bounds: PaintBounds::ClipToRect,
+                retained: Some(RetainedSurfaceDescriptor {
+                    key: 1,
+                    revision: 1,
+                    dirty_mask: 0,
+                    volatile: false,
+                }),
+            }));
+        plan.primitives
+            .push(PaintPrimitive::OverlayPanel(PaintOverlayPanel {
+                widget_id: 3,
+                rect,
+                label: None,
+                style: WidgetStyle::default(),
             }));
 
         assert_eq!(validate_plan(&plan), Ok(()));

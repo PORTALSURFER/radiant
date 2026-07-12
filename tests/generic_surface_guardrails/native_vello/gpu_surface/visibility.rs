@@ -16,7 +16,7 @@ fn native_gpu_surface_visibility_occlusion_stays_focused() {
     assert!(
         visibility.contains("mod occlusion;")
             && visibility.contains("visible_rects_after_occlusion")
-            && visibility.contains("gpu_surface_opaque_suffix_regions_into(")
+            && visibility.contains("opaque_suffix_regions_into(")
             && visibility.contains("&mut scratch.occlusion_regions")
             && !visibility.contains("const OPAQUE_SUFFIX_OCCLUSION_ALPHA")
             && !visibility.contains("PaintPrimitive::FillRect(fill)"),
@@ -24,8 +24,9 @@ fn native_gpu_surface_visibility_occlusion_stays_focused() {
     );
     assert!(
         occlusion.contains("const OPAQUE_SUFFIX_OCCLUSION_ALPHA")
-            && occlusion.contains("fn gpu_surface_opaque_suffix_regions")
+            && occlusion.contains("fn opaque_suffix_regions")
             && occlusion.contains("PaintPrimitive::FillRect(fill)")
+            && occlusion.contains("PaintPrimitive::OverlayPanel(panel)")
             && occlusion.contains("PaintPrimitive::ClipStart(clip)")
             && occlusion.contains("update_clip_stack(primitive, clip_stack)")
             && occlusion.contains("clipped_occlusion_region(surface_rect, fill.rect, clip_stack)"),

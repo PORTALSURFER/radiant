@@ -369,16 +369,18 @@ fn validate_plan_in_viewport(
             PaintPrimitive::GpuSurface(_) => None,
             PaintPrimitive::CustomSurface(custom)
                 if custom.retained.is_some()
-                    && custom.rect.has_finite_positive_area()
                     && match custom.bounds {
-                        PaintBounds::ClipToRect => surface_rect_has_visible_region_in_viewport(
-                            custom.rect,
-                            viewport,
-                            plan.primitives.get(..index).unwrap_or_default(),
-                            plan.primitives.get(index + 1..).unwrap_or_default(),
-                            SurfaceOcclusionPolicy::Exact,
-                            &mut surface_visibility,
-                        ),
+                        PaintBounds::ClipToRect => {
+                            custom.rect.has_finite_positive_area()
+                                && surface_rect_has_visible_region_in_viewport(
+                                    custom.rect,
+                                    viewport,
+                                    plan.primitives.get(..index).unwrap_or_default(),
+                                    plan.primitives.get(index + 1..).unwrap_or_default(),
+                                    SurfaceOcclusionPolicy::Exact,
+                                    &mut surface_visibility,
+                                )
+                        }
                         PaintBounds::AllowOverflow => true,
                     } =>
             {
@@ -587,6 +589,30 @@ mod tests {
                 widget_id: 3,
                 rect,
                 color: crate::gui::types::Rgba8::new(20, 30, 40, 255),
+            }));
+
+        assert_eq!(
+            validate_plan(&plan),
+            Err(EmbeddedVelloError::UnsupportedPrimitive(
+                EmbeddedVelloUnsupportedPrimitive::CustomSurface
+            ))
+        );
+    }
+
+    #[test]
+    fn embedded_vello_rejects_zero_sized_retained_custom_surfaces_that_allow_overflow() {
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::CustomSurface(PaintCustomSurface {
+                widget_id: 2,
+                rect: Rect::from_xy_size(0.0, 0.0, 0.0, 0.0),
+                bounds: PaintBounds::AllowOverflow,
+                retained: Some(RetainedSurfaceDescriptor {
+                    key: 1,
+                    revision: 1,
+                    dirty_mask: 0,
+                    volatile: false,
+                }),
             }));
 
         assert_eq!(

@@ -200,8 +200,10 @@ where
     }
 
     pub(super) fn update_gpu_surface_cursor_overlay(&mut self, position: Point) -> bool {
-        let target_index =
-            topmost_native_hover_surface_index(&self.frame.last_paint_plan.primitives, position);
+        let target_index = topmost_native_hover_surface_index(
+            &self.frame.gpu_surface_interaction_regions,
+            position,
+        );
         let mut changed = false;
         for (index, primitive) in self.frame.last_paint_plan.primitives.iter_mut().enumerate() {
             let PaintPrimitive::GpuSurface(surface) = primitive else {

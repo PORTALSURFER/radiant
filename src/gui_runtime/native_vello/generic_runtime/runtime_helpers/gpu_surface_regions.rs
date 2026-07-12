@@ -35,7 +35,7 @@ pub(in crate::gui_runtime::native_vello) fn collect_gpu_surface_interaction_regi
         let PaintPrimitive::GpuSurface(surface) = primitive else {
             continue;
         };
-        let Some(region) = GpuSurfaceInteractionRegion::from_gpu_surface(surface) else {
+        let Some(region) = GpuSurfaceInteractionRegion::from_gpu_surface(index, surface) else {
             continue;
         };
         push_visible_interaction_regions(

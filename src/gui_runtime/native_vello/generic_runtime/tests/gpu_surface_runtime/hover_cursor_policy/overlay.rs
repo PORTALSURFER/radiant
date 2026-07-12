@@ -1,5 +1,5 @@
 use super::super::super::super::gpu_surface_cursor::{
-    clear_surface_cursor_overlay, topmost_native_hover_surface_index, update_surface_cursor_overlay,
+    clear_surface_cursor_overlay, update_surface_cursor_overlay,
 };
 use super::super::*;
 use super::fixtures::*;
@@ -74,7 +74,7 @@ fn native_hover_cursor_updates_topmost_surface_and_clears_stale_cursors() {
         }),
     ];
 
-    let target = topmost_native_hover_surface_index(&primitives, Point::new(30.0, 10.0));
+    let target = visible_hover_surface_index(&primitives, Point::new(30.0, 10.0));
 
     assert_eq!(target, Some(1));
     for (index, primitive) in primitives.iter_mut().enumerate() {

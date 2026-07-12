@@ -10,6 +10,7 @@ use std::sync::Arc;
 fn gpu_surface_interaction_region_collection_reuses_existing_buffer() {
     let mut regions = Vec::with_capacity(8);
     regions.push(GpuSurfaceInteractionRegion {
+        primitive_index: 99,
         widget_id: 99,
         rect: Rect::from_min_size(Point::new(99.0, 99.0), Vector2::new(1.0, 1.0)),
         fast_pointer_move: true,
@@ -74,6 +75,7 @@ fn gpu_surface_interaction_region_collection_reuses_existing_buffer() {
         regions,
         [
             GpuSurfaceInteractionRegion {
+                primitive_index: 2,
                 widget_id: 7,
                 rect,
                 fast_pointer_move: true,
@@ -81,6 +83,7 @@ fn gpu_surface_interaction_region_collection_reuses_existing_buffer() {
                 runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
             },
             GpuSurfaceInteractionRegion {
+                primitive_index: 3,
                 widget_id: 7,
                 rect: native_hover_rect,
                 fast_pointer_move: false,
@@ -242,6 +245,7 @@ fn gpu_surface_interaction_regions_keep_full_region_without_intersecting_occlude
     assert_eq!(
         regions,
         [GpuSurfaceInteractionRegion {
+            primitive_index: 0,
             widget_id: 7,
             rect: surface_rect,
             fast_pointer_move: true,

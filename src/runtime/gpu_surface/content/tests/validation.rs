@@ -55,6 +55,116 @@ fn gpu_surface_content_validation_reports_summary_shape_errors() {
     );
 }
 
+fn summary_content(frames: usize, levels: Vec<GpuSignalSummaryLevel>) -> GpuSurfaceContent {
+    GpuSurfaceContent::SignalSummaryBands {
+        frames,
+        band_count: 1,
+        frame_range: [0.0, frames as f32],
+        summary: Arc::new(GpuSignalSummary {
+            frames,
+            band_count: 1,
+            levels,
+        }),
+        gain_preview: None,
+        sample_slide_frame_offset: 0,
+    }
+}
+
+fn level(bucket_frames: usize, extrema: &[(f32, f32)]) -> GpuSignalSummaryLevel {
+    GpuSignalSummaryLevel {
+        bucket_frames,
+        buckets: extrema
+            .iter()
+            .map(|(min, max)| GpuSignalSummaryBucket {
+                min: *min,
+                max: *max,
+            })
+            .collect::<Vec<_>>()
+            .into(),
+    }
+}
+
+#[test]
+fn gpu_surface_content_validation_accepts_valid_multi_level_summary() {
+    let content = summary_content(
+        4,
+        vec![
+            level(1, &[(0.0, 0.1), (-0.2, 0.2), (-0.3, 0.4), (0.0, 0.5)]),
+            level(2, &[(-0.2, 0.2), (-0.3, 0.5)]),
+            level(4, &[(-0.3, 0.5)]),
+        ],
+    );
+
+    assert_eq!(content.validate(), Ok(()));
+}
+
+#[test]
+fn gpu_surface_content_validation_rejects_zero_and_nonascending_level_widths() {
+    let zero = summary_content(1, vec![level(0, &[(0.0, 0.0)])]);
+    assert_eq!(
+        zero.validate(),
+        Err(GpuSurfaceContentError::InvalidSignalSummaryLevelWidth {
+            level_index: 0,
+            bucket_frames: 0,
+            previous_bucket_frames: None,
+        })
+    );
+
+    let descending = summary_content(
+        4,
+        vec![
+            level(2, &[(-1.0, 1.0), (-1.0, 1.0)]),
+            level(1, &[(0.0, 0.0); 4]),
+        ],
+    );
+    assert_eq!(
+        descending.validate(),
+        Err(GpuSurfaceContentError::InvalidSignalSummaryLevelWidth {
+            level_index: 1,
+            bucket_frames: 1,
+            previous_bucket_frames: Some(2),
+        })
+    );
+}
+
+#[test]
+fn gpu_surface_content_validation_rejects_wrong_summary_bucket_count() {
+    let content = summary_content(4, vec![level(2, &[(-1.0, 1.0)])]);
+
+    assert_eq!(
+        content.validate(),
+        Err(
+            GpuSurfaceContentError::InvalidSignalSummaryLevelBucketCount {
+                level_index: 0,
+                bucket_frames: 2,
+                bucket_count: 1,
+                expected_bucket_count: 2,
+            }
+        )
+    );
+}
+
+#[test]
+fn gpu_surface_content_validation_rejects_non_finite_and_reversed_extrema() {
+    for (min, max) in [(f32::NAN, 1.0), (-1.0, f32::INFINITY), (1.0, -1.0)] {
+        let content = summary_content(1, vec![level(1, &[(min, max)])]);
+        match content.validate() {
+            Err(GpuSurfaceContentError::InvalidSignalSummaryBucketExtrema {
+                level_index,
+                bucket_index,
+                min: actual_min,
+                max: actual_max,
+            }) => {
+                assert_eq!(level_index, 0);
+                assert_eq!(bucket_index, 0);
+                assert!(actual_min.to_bits() == min.to_bits());
+                assert!(actual_max.to_bits() == max.to_bits());
+            }
+            other => panic!("expected invalid extrema error, got {other:?}"),
+        }
+    }
+}
+
 #[test]
 fn gpu_surface_content_validation_rejects_zero_band_summary_before_level_checks() {
     let content = GpuSurfaceContent::SignalSummaryBands {

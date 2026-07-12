@@ -17,7 +17,7 @@ use windows::Win32::System::Com::{
     DATADIR_GET, FORMATETC, IAdviseSink, IDataObject, IEnumFORMATETC, STGMEDIUM, STGMEDIUM_0,
     TYMED_HGLOBAL,
 };
-use windows::Win32::System::Ole::{DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_NONE};
+use windows::Win32::System::Ole::{DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_NONE, ReleaseStgMedium};
 use windows::Win32::UI::Shell::SHCreateStdEnumFmtEtc;
 use windows::core::{BOOL, HRESULT, Ref, implement};
 
@@ -65,6 +65,22 @@ impl FileDropDataObject {
             pUnkForRelease: ManuallyDrop::new(None),
         })
     }
+}
+
+fn finish_set_data<F>(
+    result: windows::core::Result<()>,
+    medium: *const STGMEDIUM,
+    release: BOOL,
+    release_medium: F,
+) -> windows::core::Result<()>
+where
+    F: FnOnce(*mut STGMEDIUM),
+{
+    if result.is_ok() && release.as_bool() {
+        debug_assert!(!medium.is_null());
+        release_medium(medium.cast_mut());
+    }
+    result
 }
 
 #[allow(non_snake_case)]
@@ -118,23 +134,31 @@ impl windows::Win32::System::Com::IDataObject_Impl for FileDropDataObject_Impl {
         &self,
         pformatetc: *const FORMATETC,
         pmedium: *const STGMEDIUM,
-        _frelease: BOOL,
+        frelease: BOOL,
     ) -> windows::core::Result<()> {
-        if pformatetc.is_null() || pmedium.is_null() {
-            return Err(windows::core::Error::from(E_INVALIDARG));
-        }
-        let fmt = unsafe { &*pformatetc };
-        if fmt.cfFormat != self.performed_drop_effect || (fmt.tymed & TYMED_HGLOBAL.0 as u32) == 0 {
-            return Err(windows::core::Error::from(
-                windows::Win32::Foundation::E_NOTIMPL,
-            ));
-        }
-        let medium = unsafe { &*pmedium };
-        if medium.tymed != TYMED_HGLOBAL.0 as u32 {
-            return Err(windows::core::Error::from(E_INVALIDARG));
-        }
-        self.performed_effect.set(drop_effect_from_medium(medium)?);
-        Ok(())
+        let result = (|| {
+            if pformatetc.is_null() || pmedium.is_null() {
+                return Err(windows::core::Error::from(E_INVALIDARG));
+            }
+            let fmt = unsafe { &*pformatetc };
+            if fmt.cfFormat != self.performed_drop_effect
+                || (fmt.tymed & TYMED_HGLOBAL.0 as u32) == 0
+            {
+                return Err(windows::core::Error::from(
+                    windows::Win32::Foundation::E_NOTIMPL,
+                ));
+            }
+            let medium = unsafe { &*pmedium };
+            if medium.tymed != TYMED_HGLOBAL.0 as u32 {
+                return Err(windows::core::Error::from(E_INVALIDARG));
+            }
+            self.performed_effect.set(drop_effect_from_medium(medium)?);
+            Ok(())
+        })();
+
+        finish_set_data(result, pmedium, frelease, |medium| unsafe {
+            ReleaseStgMedium(medium);
+        })
     }
 
     fn EnumFormatEtc(&self, dwdirection: u32) -> windows::core::Result<IEnumFORMATETC> {
@@ -178,7 +202,55 @@ impl windows::Win32::System::Com::IDataObject_Impl for FileDropDataObject_Impl {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
     use windows::Win32::Foundation::HGLOBAL;
+
+    fn controlled_medium() -> STGMEDIUM {
+        STGMEDIUM {
+            tymed: TYMED_HGLOBAL.0 as u32,
+            u: STGMEDIUM_0 {
+                hGlobal: HGLOBAL(std::ptr::null_mut()),
+            },
+            pUnkForRelease: ManuallyDrop::new(None),
+        }
+    }
+
+    fn count_releases(release: BOOL, repetitions: usize) -> usize {
+        let release_count = Cell::new(0);
+        let medium = controlled_medium();
+        for _ in 0..repetitions {
+            finish_set_data(Ok(()), &raw const medium, release, |_| {
+                release_count.set(release_count.get() + 1);
+            })
+            .expect("controlled SetData operation should succeed");
+        }
+        release_count.get()
+    }
+
+    #[test]
+    fn transferred_medium_is_released_once_per_successful_set_data() {
+        assert_eq!(count_releases(BOOL::from(true), 8), 8);
+    }
+
+    #[test]
+    fn caller_owned_medium_is_never_released() {
+        assert_eq!(count_releases(BOOL::from(false), 8), 0);
+    }
+
+    #[test]
+    fn failed_set_data_does_not_take_medium_ownership() {
+        let release_count = Cell::new(0);
+        let medium = controlled_medium();
+        let result = finish_set_data(
+            Err(windows::core::Error::from(E_INVALIDARG)),
+            &raw const medium,
+            BOOL::from(true),
+            |_| release_count.set(release_count.get() + 1),
+        );
+
+        assert!(result.is_err());
+        assert_eq!(release_count.get(), 0);
+    }
 
     #[test]
     fn drop_effect_medium_read_rejects_unlocked_null_handle() {

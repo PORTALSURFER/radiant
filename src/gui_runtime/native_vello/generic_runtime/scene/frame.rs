@@ -62,9 +62,9 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn encode_paint
             Primitive::Image(draw) => {
                 encode_image(
                     scene,
-                    Arc::clone(&draw.image.pixels),
-                    draw.image.width,
-                    draw.image.height,
+                    Arc::clone(draw.image.shared_pixels()),
+                    draw.image.width(),
+                    draw.image.height(),
                     None,
                     draw.rect,
                 );

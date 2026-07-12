@@ -361,7 +361,7 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | Auxiliary windows | `AuxiliaryWindow`, `AuxiliaryWindowClosePolicy` |
 | Presentation callbacks | `Presentation`, `TransientOverlay`, `TransientOverlayContext` |
 | Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `SvgIconTintPalette`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
-| Paint primitives | `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`, `PaintFillRectBatch`, `PaintStrokeRectBatch`, `PaintRectList`, `PaintFillPath`, `PaintPathCommand`, `PaintTransform`, `PaintTextRun` |
+| Paint primitives | `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`, `PaintFillRectBatch`, `PaintStrokeRectBatch`, `PaintRectList`, `PaintPathCommand`, `PaintTransform`, `PaintTextRun` |
 
 Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`,
 `Rgba8::with_alpha_if`, `Rgba8::blend_toward`, and
@@ -433,7 +433,36 @@ widgets that draw sampled curves such as EQ responses, automation curves, fade
 curves, and analysis overlays can use `SampledCurveStrokeParts`,
 `sampled_curve_points`, and `push_sampled_curve_stroke` to keep finite-point
 filtering, bounds clamping, point-buffer allocation, and stroke emission on
-Radiant's generic paint path while the host owns the curve math.
+Radiant's generic paint path while the host owns the curve math. Use
+`SampledCurveAreaFillParts`, `SampledCurveAreaBaseline`, and
+`push_sampled_curve_area_fill` when the sampled curve also needs a filled area
+against the top, bottom, or a caller-supplied Y baseline. The helper emits one
+`PaintFillPath` regardless of sample count, splits missing samples into separate
+closed subpaths, and accepts either `PaintBrush::solid(...)` or a
+`PaintLinearGradient`. `PaintLinearGradient::vertical(...)` is the compact path
+for translucent curve fills that fade toward their baseline. Import the brush
+and path types explicitly from `radiant::runtime`; they remain specialist
+custom-paint APIs rather than common prelude entries.
+
+Run `cargo run --example curve_area_fill` to inspect the shared area-fill path,
+vertical gradient brush, and missing-sample segmentation in a native window.
+
+Native hosts that already own a platform view and event loop, such as audio
+plugin hosts, should use `EmbeddedVelloSurfaceHandle` and
+`EmbeddedVelloRenderer`. The host keeps lifecycle and input-event ownership,
+while Radiant creates the WGPU surface and reuses the same Vello scene encoder
+as `run_native_vello_runtime`. Call `resize(...)` when the host view or backing
+scale changes and call `Renderer::render(...)` from the host redraw path.
+Trait-based renders use elapsed monotonic time automatically for animated paint
+such as focused text-input carets; use `render_at(...)` when the host needs to
+supply an explicit deterministic animation time.
+Portable or sandboxed hosts should create the renderer with
+`EmbeddedVelloRenderer::new_with_text_options(...)` and pass
+`NativeTextOptions` containing embedded fonts or host-approved font paths;
+`EmbeddedVelloRenderer::new(...)` keeps the system-fallback default.
+Embedded rendering supports the normal vector, gradient, clip, text, image, and
+SVG paint plan; retained GPU/custom surfaces fail explicitly because those need
+the standalone runtime's additional compositing and host callbacks.
 
 Tests, automation, and embedded hosts that inspect paint plans should import
 `SurfacePaintPlan` from `radiant::runtime`, then use
@@ -456,7 +485,7 @@ app-local primitive filtering. Transient overlays can use
 `first_widget_rect(...)` or `first_widget_rect_by_priority(...)` to anchor
 frame-time paint to a cached paint plan. Use `PaintPrimitive::text_run()`,
 `text_input()`, `clip_start()`, `fill_rect()`, `stroke_rect()`,
-`fill_polygon()`, `stroke_polyline()`, `svg()`, and `gpu_surface()` to query
+`fill_path()`, `fill_polygon()`, `stroke_polyline()`, `svg()`, and `gpu_surface()` to query
 common paint primitives without app-local exhaustive primitive matches.
 
 ## Large Virtual Lists
@@ -2509,7 +2538,7 @@ manual validation:
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
-| Custom widgets and retained GPU surfaces | `custom_widget`, `gpu_surface`, `custom_shader_surface`, `gpu_surface_stack_overlay`, `waveform_view`, `spectrogram` |
+| Custom widgets and retained GPU surfaces | `custom_widget`, `curve_area_fill`, `gpu_surface`, `custom_shader_surface`, `gpu_surface_stack_overlay`, `waveform_view`, `spectrogram` |
 | Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `plugin_panel`, `eq_editor`, `spectrogram`, `mixer_console`, `piano_roll`, `modulation_matrix`, `arrangement_shell`, `inspector_panel`, `split_workspace` |
 | Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame` |
 | Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling` |

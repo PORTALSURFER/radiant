@@ -32,7 +32,11 @@ pub use grid::{
     DenseGridCell, DenseGridLabelLayout, DenseGridLabelLayoutParts, DenseGridLayout,
     DenseGridLayoutParts, DenseGridRasterLayout, DenseGridRasterLayoutParts, DenseGridRowOrigin,
 };
-pub use sampled_curve::{SampledCurveStrokeParts, push_sampled_curve_stroke, sampled_curve_points};
+pub use sampled_curve::{
+    SampledCurveAreaBaseline, SampledCurveAreaFillParts, SampledCurveStrokeParts,
+    push_sampled_curve_area_fill, push_sampled_curve_stroke, sampled_curve_area_path,
+    sampled_curve_points,
+};
 pub use signal::{
     ChannelViewMode, SignalChromeParts, SignalChromeState, SignalRasterPreview,
     SignalRasterPreviewParts, SignalToolFlags, SignalToolState,

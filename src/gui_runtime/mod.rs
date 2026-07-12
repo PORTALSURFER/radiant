@@ -31,6 +31,8 @@ pub struct RuntimeRunReport<Artifacts, Error = String> {
 }
 
 pub use native_vello::{
+    EmbeddedVelloError, EmbeddedVelloRenderer, EmbeddedVelloSurfaceHandle,
+    EmbeddedVelloUnsupportedPrimitive,
     NativeGenericRunError, NativeGenericRunReport, NativeGenericRuntimeArtifacts,
     NativeStartupTimingArtifact, run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
 };

@@ -21,6 +21,7 @@ raw-window-handle = "0.6"
 pollster = "0.4.0"
 vello = "0.7.0"
 kurbo = "0.13.0"
+lyon_tessellation = "1.0"
 skrifa = "0.40.0"
 tracing = "0.1.41"
 serde = { version = "1.0.228", features = ["derive"] }
@@ -157,6 +158,10 @@ path = "examples/passive_widgets.rs"
 [[example]]
 name = "waveform_view"
 path = "examples/waveform_view.rs"
+
+[[example]]
+name = "curve_area_fill"
+path = "examples/curve_area_fill.rs"
 
 [[example]]
 name = "timeline_editor"

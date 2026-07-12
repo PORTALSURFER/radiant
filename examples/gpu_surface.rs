@@ -57,7 +57,7 @@ fn demo_view(state: &DemoState) -> View<DemoMessage> {
             GpuSurfaceContent::RgbaAtlas {
                 source_rect: Rect::from_min_size(
                     Point::new(0.0, 0.0),
-                    Vector2::new(atlas.width as f32, atlas.height as f32),
+                    Vector2::new(atlas.width() as f32, atlas.height() as f32),
                 ),
                 atlas,
             },

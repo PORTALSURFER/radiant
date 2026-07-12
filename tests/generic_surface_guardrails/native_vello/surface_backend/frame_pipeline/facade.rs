@@ -130,6 +130,8 @@ fn native_frame_preparation_stays_out_of_present_driver() {
     let present = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/present.rs");
     let frame_prepare =
         read_runtime_source("src/gui_runtime/native_vello/generic_runtime/frame_prepare.rs");
+    let runner = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/runner.rs");
+    let scene = read_runtime_source("src/gui_runtime/native_vello/generic_runtime/scene.rs");
 
     assert!(
         module.contains("mod frame_prepare;"),
@@ -147,6 +149,12 @@ fn native_frame_preparation_stays_out_of_present_driver() {
             && frame_prepare.contains("fn paint_transient_overlays")
             && frame_prepare.contains("refresh_gpu_surface_interaction_regions"),
         "deferred model refresh, paint-plan refresh, GPU-region cache refresh, and transient overlay painting should stay in frame_prepare"
+    );
+    assert!(
+        runner.contains("self.frame.refresh_gpu_surface_interaction_regions();")
+            && !scene.contains("gpu_surface_interaction_regions")
+            && !scene.contains("GpuSurfaceInteractionRegion::from_gpu_surface"),
+        "normal scene rebuilds should refresh shared clipped GPU interaction regions after encoding"
     );
     assert!(
         frame_prepare.contains("use super::{")

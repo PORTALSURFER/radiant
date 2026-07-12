@@ -239,10 +239,10 @@ where
                 viewport,
                 retained_cache: &mut self.frame.retained_surface_cache,
                 text_runs: &mut self.frame.scene_text_runs,
-                gpu_surface_interaction_regions: &mut self.frame.gpu_surface_interaction_regions,
                 animation_time: self.timing.animation_origin.elapsed(),
             },
         );
+        self.frame.refresh_gpu_surface_interaction_regions();
         self.frame.refresh_post_gpu_overlay_cache();
         self.restore_native_hover_cursor_overlay();
         self.frame.mark_scene_content_dirty();

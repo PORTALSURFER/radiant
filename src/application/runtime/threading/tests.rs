@@ -204,6 +204,51 @@ fn business_thread_pool_rejects_work_when_no_workers_are_available() {
 }
 
 #[test]
+fn business_lane_availability_is_priority_specific() {
+    let pool = BusinessThreadPool::without_interactive_workers_for_test();
+
+    assert!(!pool.is_available(TaskPriority::Interactive));
+    assert!(pool.is_available(TaskPriority::Background));
+    assert!(!pool.is_available(TaskPriority::BlockingIo));
+    assert!(!pool.is_available(TaskPriority::Idle));
+}
+
+#[test]
+fn unavailable_business_lane_returns_payload_without_running_work() {
+    let pool = BusinessThreadPool::without_interactive_workers_for_test();
+    let ran = Arc::new(AtomicBool::new(false));
+    let ran_task = Arc::clone(&ran);
+
+    let result = pool.spawn_with_payload(
+        "recoverable-interactive",
+        TaskPriority::Interactive,
+        String::from("request"),
+        move |_| ran_task.store(true, Ordering::Release),
+    );
+
+    assert_eq!(result, Err(String::from("request")));
+    assert!(!ran.load(Ordering::Acquire));
+}
+
+#[test]
+fn disconnected_business_lane_returns_payload_without_running_work() {
+    let pool = BusinessThreadPool::with_disconnected_interactive_lane_for_test();
+    let ran = Arc::new(AtomicBool::new(false));
+    let ran_task = Arc::clone(&ran);
+
+    let result = pool.spawn_with_payload(
+        "disconnected-interactive",
+        TaskPriority::Interactive,
+        String::from("request"),
+        move |_| ran_task.store(true, Ordering::Release),
+    );
+
+    assert_eq!(result, Err(String::from("request")));
+    assert!(!ran.load(Ordering::Acquire));
+    assert_eq!(pool.diagnostics.snapshot().business.rejected, 1);
+}
+
+#[test]
 fn business_thread_pool_records_lifecycle_diagnostics() {
     let pool = BusinessThreadPool::new(1);
     let (sender, receiver) = mpsc::channel();

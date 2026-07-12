@@ -1,16 +1,21 @@
 use crate::{
     gui::types::{Point, Rect},
-    runtime::{GpuSurfaceOverlay, PaintGpuSurface, PaintPrimitive},
+    runtime::{GpuSurfaceOverlay, PaintGpuSurface},
 };
 
+use super::GpuSurfaceInteractionRegion;
+
 pub(super) fn topmost_native_hover_surface_index(
-    primitives: &[PaintPrimitive],
+    regions: &[GpuSurfaceInteractionRegion],
     position: Point,
 ) -> Option<usize> {
-    primitives.iter().rposition(|primitive| match primitive {
-        PaintPrimitive::GpuSurface(surface) => surface_supports_native_hover(surface, position),
-        _ => false,
-    })
+    regions
+        .iter()
+        .rev()
+        .find(|region| {
+            region.runtime_overlays.pointer_vertical_line.is_some() && region.contains(position)
+        })
+        .map(|region| region.primitive_index)
 }
 
 pub(super) fn update_surface_cursor_overlay(
@@ -70,18 +75,6 @@ pub(super) fn clear_surface_cursor_overlay(surface: &mut PaintGpuSurface) -> boo
         .overlays
         .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::RuntimeVerticalLine { .. }));
     previous_len != surface.overlays.len()
-}
-
-fn surface_supports_native_hover(surface: &PaintGpuSurface, position: Point) -> bool {
-    surface
-        .capabilities
-        .runtime_overlays
-        .pointer_vertical_line
-        .is_some()
-        && surface.rect.has_finite_positive_area()
-        && position.is_finite()
-        && surface.content.is_renderable()
-        && surface.rect.contains(position)
 }
 
 fn pointer_ratio_for_surface(rect: Rect, position: Point) -> Option<f32> {

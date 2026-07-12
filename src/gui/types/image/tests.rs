@@ -1,4 +1,16 @@
 use super::{ImageRgba, ImageRgbaError};
+use std::sync::Arc;
+
+#[test]
+fn image_rgba_exposes_read_only_dimensions_and_pixels() {
+    let pixels: Arc<[u8]> = vec![1, 2, 3, 4, 5, 6, 7, 8].into();
+    let image = ImageRgba::try_from_shared(2, 1, Arc::clone(&pixels)).expect("valid image");
+
+    assert_eq!(image.width(), 2);
+    assert_eq!(image.height(), 1);
+    assert_eq!(image.pixels(), pixels.as_ref());
+    assert!(Arc::ptr_eq(image.shared_pixels(), &pixels));
+}
 
 #[test]
 fn image_rgba_try_new_reports_length_mismatch() {

@@ -50,6 +50,8 @@ pub use crate::gui::automation::{
 };
 pub use crate::gui_runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS,
+    EmbeddedVelloError, EmbeddedVelloRenderer, EmbeddedVelloSurfaceHandle,
+    EmbeddedVelloUnsupportedPrimitive,
     NativeFrameOptions, NativeGenericRunError, NativeGenericRunReport,
     NativeGenericRuntimeArtifacts, NativeGpuBackend, NativeGpuOptions, NativePopupOptions,
     NativeRunOptions, NativeRunOptionsError, NativeStartupTimingArtifact, NativeTextOptions,
@@ -115,15 +117,15 @@ pub use gpu_surface::{
     GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays,
 };
 pub use paint::{
-    PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillPolygon,
+    PaintBrush, PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillPolygon,
     PaintFillRect, PaintFillRectBatch, PaintFillRule, PaintGpuSurface, PaintImage,
-    PaintOverlayPanel, PaintPath, PaintPathCommand, PaintPointList, PaintPrimitive, PaintRectList,
-    PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintStrokeRectBatch, PaintSvg,
-    PaintSvgDocument, PaintText, PaintTextAlign, PaintTextInput, PaintTextMetrics, PaintTextRun,
-    PaintTransform, Renderer, SurfacePaintPlan, SurfacePaintStats, SvgParseError,
-    TransientOverlayContext, WidgetPaint, push_fill_polygon, push_fill_rect, push_fill_rect_batch,
-    push_stroke_polyline, push_stroke_rect, push_stroke_rect_batch, push_text,
-    push_text_run_with_metrics, push_visible_fill_rect,
+    PaintLinearGradient, PaintOverlayPanel, PaintPath, PaintPathCommand, PaintPointList,
+    PaintPrimitive, PaintRectList, PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect,
+    PaintStrokeRectBatch, PaintSvg, PaintSvgDocument, PaintText, PaintTextAlign, PaintTextInput,
+    PaintTextMetrics, PaintTextRun, PaintTransform, Renderer, SurfacePaintPlan, SurfacePaintStats,
+    SvgParseError, TransientOverlayContext, WidgetPaint, push_fill_polygon, push_fill_rect,
+    push_fill_rect_batch, push_stroke_polyline, push_stroke_rect, push_stroke_rect_batch,
+    push_text, push_text_run_with_metrics, push_visible_fill_rect,
 };
 pub(crate) use paint::{
     blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,

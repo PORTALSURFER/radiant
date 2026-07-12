@@ -41,6 +41,10 @@ fn geometry_tests_stay_grouped_by_replay_concern() {
         "src/gui_runtime/native_vello/generic_runtime/post_gpu_overlay/geometry/tests/regions.rs",
     ))
     .expect("post GPU overlay region tests should be readable");
+    let paths = fs::read_to_string(manifest_dir.join(
+        "src/gui_runtime/native_vello/generic_runtime/post_gpu_overlay/geometry/tests/paths.rs",
+    ))
+    .expect("post GPU overlay path tests should be readable");
     let fixtures = fs::read_to_string(manifest_dir.join(
         "src/gui_runtime/native_vello/generic_runtime/post_gpu_overlay/geometry/tests/fixtures.rs",
     ))
@@ -51,6 +55,7 @@ fn geometry_tests_stay_grouped_by_replay_concern() {
             && root.contains("mod suffix;")
             && root.contains("mod vertices;")
             && root.contains("mod regions;")
+            && root.contains("mod paths;")
             && !root.contains("fn replayable_vertices_batch_fill_and_stroke_rectangles"),
         "post GPU overlay geometry test root should index focused replay groups instead of owning all cases"
     );
@@ -60,6 +65,7 @@ fn geometry_tests_stay_grouped_by_replay_concern() {
             && regions.contains(
                 "fn replayable_vertices_in_regions_clip_translucent_fills_to_gpu_regions"
             )
+            && paths.contains("fn replayable_gradient_fill_path_preserves_alpha_ramp")
             && fixtures.contains("fn translucent_white"),
         "post GPU overlay geometry tests should stay grouped by suffix, full-target vertices, region clipping, and fixtures"
     );

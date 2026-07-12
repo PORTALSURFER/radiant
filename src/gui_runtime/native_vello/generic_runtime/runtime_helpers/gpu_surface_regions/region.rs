@@ -5,6 +5,7 @@ use crate::{
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::gui_runtime::native_vello) struct GpuSurfaceInteractionRegion {
+    pub(in crate::gui_runtime::native_vello) primitive_index: usize,
     pub(in crate::gui_runtime::native_vello) widget_id: crate::widgets::WidgetId,
     pub(in crate::gui_runtime::native_vello) rect: Rect,
     pub(in crate::gui_runtime::native_vello) fast_pointer_move: bool,
@@ -14,6 +15,7 @@ pub(in crate::gui_runtime::native_vello) struct GpuSurfaceInteractionRegion {
 
 impl GpuSurfaceInteractionRegion {
     pub(in crate::gui_runtime::native_vello) fn from_gpu_surface(
+        primitive_index: usize,
         surface: &PaintGpuSurface,
     ) -> Option<Self> {
         if !surface.rect.has_finite_positive_area() || !surface.content.is_renderable() {
@@ -30,6 +32,7 @@ impl GpuSurfaceInteractionRegion {
             return None;
         }
         Some(Self {
+            primitive_index,
             widget_id: surface.widget_id,
             rect: surface.rect,
             fast_pointer_move: surface.capabilities.fast_pointer_move,

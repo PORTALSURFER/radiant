@@ -135,6 +135,63 @@ impl BusinessThreadPool {
         }
     }
 
+    pub(super) fn spawn_with_payload<Payload>(
+        &self,
+        name: &'static str,
+        priority: TaskPriority,
+        payload: Payload,
+        work: impl FnOnce(Payload) + Send + 'static,
+    ) -> Result<(), Payload>
+    where
+        Payload: Send + 'static,
+    {
+        let lane = self.lane(priority);
+        let Some(sender) = &lane.sender else {
+            self.diagnostics.record_business_rejected(name, priority);
+            tracing::warn!(
+                work.name = name,
+                "Radiant app runtime has no requested business lane available; refusing to block the UI path"
+            );
+            return Err(payload);
+        };
+        let payload = Arc::new(Mutex::new(Some(payload)));
+        let queued_payload = Arc::clone(&payload);
+        let submission = sender.send(BusinessJob {
+            priority,
+            name,
+            queued_at: std::time::Instant::now(),
+            is_cancelled: None,
+            work: Box::new(move || {
+                let payload = queued_payload
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .take()
+                    .expect("accepted business payload should run exactly once");
+                work(payload);
+            }),
+        });
+        match submission {
+            Ok(()) => {
+                self.diagnostics.record_business_queued(name, priority);
+                Ok(())
+            }
+            Err(error) => {
+                drop(error.0);
+                self.diagnostics.record_business_rejected(name, priority);
+                tracing::warn!(
+                    work.name = name,
+                    "Radiant app runtime failed to queue recoverable work on the requested business lane"
+                );
+                let payload = payload
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .take()
+                    .expect("rejected business payload should remain recoverable");
+                Err(payload)
+            }
+        }
+    }
+
     fn lane(&self, priority: TaskPriority) -> &BusinessLane {
         match priority {
             TaskPriority::Interactive => &self.interactive,
@@ -144,17 +201,37 @@ impl BusinessThreadPool {
         }
     }
 
-    pub(super) const fn is_available(&self) -> bool {
-        self.interactive.sender.is_some()
-            || self.background.sender.is_some()
-            || self.blocking_io.sender.is_some()
-            || self.idle.sender.is_some()
+    pub(super) fn is_available(&self, priority: TaskPriority) -> bool {
+        self.lane(priority).sender.is_some()
     }
 
     #[cfg(test)]
     fn without_workers_for_test() -> Self {
         Self {
             interactive: BusinessLane::empty(),
+            background: BusinessLane::empty(),
+            blocking_io: BusinessLane::empty(),
+            idle: BusinessLane::empty(),
+            diagnostics: Arc::new(RuntimeDiagnosticsRecorder::default()),
+        }
+    }
+
+    #[cfg(test)]
+    fn without_interactive_workers_for_test() -> Self {
+        let diagnostics = Arc::new(RuntimeDiagnosticsRecorder::default());
+        Self {
+            interactive: BusinessLane::empty(),
+            background: BusinessLane::spawn(TaskPriority::Background, 1, Arc::clone(&diagnostics)),
+            blocking_io: BusinessLane::empty(),
+            idle: BusinessLane::empty(),
+            diagnostics,
+        }
+    }
+
+    #[cfg(test)]
+    fn with_disconnected_interactive_lane_for_test() -> Self {
+        Self {
+            interactive: BusinessLane::disconnected(),
             background: BusinessLane::empty(),
             blocking_io: BusinessLane::empty(),
             idle: BusinessLane::empty(),
@@ -173,6 +250,16 @@ impl BusinessLane {
     fn empty() -> Self {
         Self {
             sender: None,
+            _workers: Vec::new(),
+        }
+    }
+
+    #[cfg(test)]
+    fn disconnected() -> Self {
+        let (sender, receiver) = mpsc::channel();
+        drop(receiver);
+        Self {
+            sender: Some(sender),
             _workers: Vec::new(),
         }
     }

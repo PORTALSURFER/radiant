@@ -51,7 +51,7 @@ fn native_gpu_surface_modules_use_explicit_imports() {
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/signal.rs",
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/resources/signal/summary.rs",
         "src/gui_runtime/native_vello/generic_runtime/gpu_surface/visibility.rs",
-        "src/gui_runtime/native_vello/generic_runtime/gpu_surface/visibility/occlusion.rs",
+        "src/gui_runtime/native_vello/generic_runtime/runtime_helpers/surface_occlusion.rs",
     ] {
         let source = gpu_surface_source(path);
         let production_source = source

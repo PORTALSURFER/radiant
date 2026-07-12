@@ -1,38 +1,38 @@
 use crate::gui_runtime::native_vello::UiRect;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) struct SceneClipState {
+pub(in crate::gui_runtime::native_vello) struct SceneClipState {
     pushed_depth: usize,
     suppressed_depth: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum SceneClipBegin {
+pub(in crate::gui_runtime::native_vello) enum SceneClipBegin {
     PushLayer,
     Suppress,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum SceneClipEnd {
+pub(in crate::gui_runtime::native_vello) enum SceneClipEnd {
     PopLayer,
     Suppressed,
     Unmatched,
 }
 
 impl SceneClipBegin {
-    pub(super) fn pushes_layer(self) -> bool {
+    pub(in crate::gui_runtime::native_vello) fn pushes_layer(self) -> bool {
         matches!(self, Self::PushLayer)
     }
 }
 
 impl SceneClipEnd {
-    pub(super) fn pops_layer(self) -> bool {
+    pub(in crate::gui_runtime::native_vello) fn pops_layer(self) -> bool {
         matches!(self, Self::PopLayer)
     }
 }
 
 impl SceneClipState {
-    pub(super) fn begin(&mut self, rect: UiRect) -> SceneClipBegin {
+    pub(in crate::gui_runtime::native_vello) fn begin(&mut self, rect: UiRect) -> SceneClipBegin {
         if self.is_suppressed() || !rect.has_finite_positive_area() {
             self.suppressed_depth = self.suppressed_depth.saturating_add(1);
             return SceneClipBegin::Suppress;
@@ -41,7 +41,7 @@ impl SceneClipState {
         SceneClipBegin::PushLayer
     }
 
-    pub(super) fn end(&mut self) -> SceneClipEnd {
+    pub(in crate::gui_runtime::native_vello) fn end(&mut self) -> SceneClipEnd {
         if self.suppressed_depth > 0 {
             self.suppressed_depth -= 1;
             return SceneClipEnd::Suppressed;
@@ -53,7 +53,7 @@ impl SceneClipState {
         SceneClipEnd::Unmatched
     }
 
-    pub(super) fn is_suppressed(&self) -> bool {
+    pub(in crate::gui_runtime::native_vello) fn is_suppressed(&self) -> bool {
         self.suppressed_depth > 0
     }
 }

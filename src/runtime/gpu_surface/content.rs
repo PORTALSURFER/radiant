@@ -13,7 +13,7 @@ pub use model::{
     GpuSignalRenderShape,
 };
 use validation::{
-    validate_atlas_source_rect, validate_shader_descriptor, validate_signal_gain_preview,
+    validate_atlas, validate_shader_descriptor, validate_signal_gain_preview,
     validate_signal_render_shape, validate_signal_summary_shape,
 };
 
@@ -65,9 +65,7 @@ impl GpuSurfaceContent {
     /// Validate this retained GPU-surface payload and return typed diagnostics.
     pub fn validate(&self) -> Result<(), GpuSurfaceContentError> {
         match self {
-            Self::RgbaAtlas { source_rect, atlas } => {
-                validate_atlas_source_rect(*source_rect, atlas.width, atlas.height)
-            }
+            Self::RgbaAtlas { source_rect, atlas } => validate_atlas(atlas, *source_rect),
             Self::SignalBands {
                 frames,
                 band_count,

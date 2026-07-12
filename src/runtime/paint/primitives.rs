@@ -1,3 +1,4 @@
+mod brush;
 mod clip;
 mod path;
 mod plan;
@@ -8,6 +9,7 @@ mod surface;
 mod svg;
 mod text;
 
+pub use brush::{PaintBrush, PaintLinearGradient};
 pub use clip::{PaintClipEnd, PaintClipStart};
 pub use path::{PaintFillRule, PaintPath, PaintPathCommand, PaintTransform};
 pub use plan::{PaintPrimitive, Renderer, SurfacePaintPlan, TransientOverlayContext};

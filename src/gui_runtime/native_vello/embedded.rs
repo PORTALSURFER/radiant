@@ -410,9 +410,9 @@ mod tests {
     use super::*;
     use crate::gui::types::{ImageRgba, Rect};
     use crate::runtime::{
-        GpuSurfaceCapabilities, GpuSurfaceContent, PaintClipEnd, PaintClipStart,
-        PaintCustomSurface, PaintFillPath, PaintFillRect, PaintGpuSurface, PaintPath,
-        PaintPathCommand,
+        GpuShaderSurfaceDescriptor, GpuSurfaceCapabilities, GpuSurfaceContent, PaintClipEnd,
+        PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillRect, PaintGpuSurface,
+        PaintPath, PaintPathCommand,
     };
     use crate::theme::ThemeTokens;
     use crate::widgets::{PaintBounds, RetainedSurfaceDescriptor};
@@ -565,6 +565,39 @@ mod tests {
                 rect: Rect::from_xy_size(0.0, 0.0, 5.0, 10.0),
                 color: crate::gui::types::Rgba8::new(20, 30, 40, 255),
             }));
+
+        assert_eq!(
+            validate_plan(&plan),
+            Err(EmbeddedVelloError::UnsupportedPrimitive(
+                EmbeddedVelloUnsupportedPrimitive::GpuSurface
+            ))
+        );
+    }
+
+    #[test]
+    fn embedded_vello_ignores_custom_shaders_without_native_pipeline_inputs() {
+        let mut surface = test_gpu_surface(Rect::from_xy_size(0.0, 0.0, 10.0, 10.0));
+        surface.content = GpuSurfaceContent::CustomShader {
+            descriptor: Arc::new(GpuShaderSurfaceDescriptor::new("test/backend-owned")),
+        };
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives.push(PaintPrimitive::GpuSurface(surface));
+
+        assert_eq!(validate_plan(&plan), Ok(()));
+    }
+
+    #[test]
+    fn embedded_vello_rejects_visible_custom_shaders_with_native_pipeline_inputs() {
+        let mut surface = test_gpu_surface(Rect::from_xy_size(0.0, 0.0, 10.0, 10.0));
+        surface.content = GpuSurfaceContent::CustomShader {
+            descriptor: Arc::new(
+                GpuShaderSurfaceDescriptor::new("test/native")
+                    .wgsl_source("native shader source")
+                    .fragment_entry_point("fragment_main"),
+            ),
+        };
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives.push(PaintPrimitive::GpuSurface(surface));
 
         assert_eq!(
             validate_plan(&plan),

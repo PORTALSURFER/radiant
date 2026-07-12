@@ -1,3 +1,4 @@
+use super::custom_shader::custom_shader_descriptor_is_supported;
 use crate::gui::types::Rect as UiRect;
 use crate::gui_runtime::native_vello::generic_runtime::runtime_helpers::{
     visible_rects_after_occlusion, visible_rects_after_occlusion_into,
@@ -48,6 +49,11 @@ pub(in crate::gui_runtime::native_vello) fn gpu_surface_requires_compositing(
 ) -> bool {
     scratch.visible_regions.clear();
     if !surface.rect.has_finite_positive_area() || !surface.content.is_renderable() {
+        return false;
+    }
+    if let crate::runtime::GpuSurfaceContent::CustomShader { descriptor } = &surface.content
+        && !custom_shader_descriptor_is_supported(descriptor)
+    {
         return false;
     }
     gpu_surface_opaque_suffix_regions_into(surface.rect, suffix, &mut scratch.occlusion_regions);

@@ -113,11 +113,17 @@ fn supported_custom_shader_descriptor<'a>(
     let GpuSurfaceContent::CustomShader { descriptor } = &surface.content else {
         return None;
     };
-    if descriptor.wgsl_source.is_none() || descriptor.fragment_entry_point.is_none() {
+    if !custom_shader_descriptor_is_supported(descriptor) {
         record_unsupported_custom_shader(descriptor, stats);
         return None;
     }
     Some(descriptor)
+}
+
+pub(super) fn custom_shader_descriptor_is_supported(
+    descriptor: &GpuShaderSurfaceDescriptor,
+) -> bool {
+    descriptor.wgsl_source.is_some() && descriptor.fragment_entry_point.is_some()
 }
 
 #[cfg(test)]

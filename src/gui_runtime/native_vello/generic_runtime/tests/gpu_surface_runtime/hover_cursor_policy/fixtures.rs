@@ -2,6 +2,26 @@ use super::super::*;
 use crate::gui::types::ImageRgba;
 use std::sync::Arc;
 
+pub(super) fn visible_hover_surface_index(
+    primitives: &[PaintPrimitive],
+    position: Point,
+) -> Option<usize> {
+    use super::super::super::super::{
+        gpu_surface_cursor::topmost_native_hover_surface_index,
+        runtime_helpers::{
+            GpuSurfaceInteractionScratch, collect_gpu_surface_interaction_regions_with_scratch,
+        },
+    };
+
+    let mut regions = Vec::new();
+    collect_gpu_surface_interaction_regions_with_scratch(
+        primitives,
+        &mut regions,
+        &mut GpuSurfaceInteractionScratch::default(),
+    );
+    topmost_native_hover_surface_index(&regions, position)
+}
+
 pub(super) fn hover_capabilities(line: GpuSurfaceLineStyle) -> GpuSurfaceCapabilities {
     GpuSurfaceCapabilities {
         fast_pointer_move: true,

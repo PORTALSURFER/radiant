@@ -2,6 +2,25 @@ use super::super::*;
 use winit::dpi::PhysicalPosition;
 
 #[test]
+fn normal_scene_rebuild_clips_gpu_hover_interaction_regions() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ClippedGpuHoverBridge,
+        Vector2::new(200.0, 40.0),
+    );
+
+    runner.rebuild_scene();
+
+    assert!(runner.can_fast_path_native_hover_move(Point::new(20.0, 20.0)));
+    assert!(!runner.can_fast_path_native_hover_move(Point::new(120.0, 20.0)));
+    assert_eq!(runner.frame.gpu_surface_interaction_regions.len(), 1);
+    assert_eq!(
+        runner.frame.gpu_surface_interaction_regions[0].rect.width(),
+        80.0
+    );
+}
+
+#[test]
 fn native_gpu_hover_fast_path_is_disabled_during_pointer_capture() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
@@ -124,6 +143,18 @@ struct GpuHoverExitBridge {
     pointer_moves: usize,
 }
 
+#[derive(Default)]
+struct ClippedGpuHoverBridge;
+
+impl RuntimeBridge<GpuHoverExitMessage> for ClippedGpuHoverBridge {
+    fn project_surface(&mut self) -> std::sync::Arc<UiSurface<GpuHoverExitMessage>> {
+        std::sync::Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+            TestGpuHoverSurface::clipped(80.0),
+            WidgetMessageMapper::typed(|message: GpuHoverExitMessage| message),
+        )))
+    }
+}
+
 impl RuntimeBridge<GpuHoverExitMessage> for GpuHoverExitBridge {
     fn project_surface(&mut self) -> std::sync::Arc<UiSurface<GpuHoverExitMessage>> {
         std::sync::Arc::new(UiSurface::new(SurfaceNode::container(
@@ -219,6 +250,7 @@ impl RuntimeBridge<GpuHoverExitMessage> for GpuHoverCoveredBridge {
 #[derive(Clone, Debug)]
 struct TestGpuHoverSurface {
     common: WidgetCommon,
+    clip_width: Option<f32>,
 }
 
 impl TestGpuHoverSurface {
@@ -226,7 +258,17 @@ impl TestGpuHoverSurface {
         let mut common = WidgetCommon::new(61, WidgetSizing::fixed(Vector2::new(200.0, 40.0)));
         common.paint.paints_focus = false;
         common.paint.paints_state_layers = false;
-        Self { common }
+        Self {
+            common,
+            clip_width: None,
+        }
+    }
+
+    fn clipped(width: f32) -> Self {
+        Self {
+            clip_width: Some(width),
+            ..Self::new()
+        }
     }
 }
 
@@ -250,6 +292,15 @@ impl Widget for TestGpuHoverSurface {
         _layout: &crate::layout::LayoutOutput,
         _theme: &crate::theme::ThemeTokens,
     ) {
+        if let Some(width) = self.clip_width {
+            primitives.push(PaintPrimitive::ClipStart(crate::runtime::PaintClipStart {
+                node_id: self.common.id,
+                rect: Rect::from_min_size(
+                    bounds.min,
+                    Vector2::new(width.min(bounds.width()), bounds.height()),
+                ),
+            }));
+        }
         primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {
             widget_id: self.common.id,
             key: 61,
@@ -278,6 +329,11 @@ impl Widget for TestGpuHoverSurface {
             },
             overlays: Vec::new(),
         }));
+        if self.clip_width.is_some() {
+            primitives.push(PaintPrimitive::ClipEnd(crate::runtime::PaintClipEnd {
+                node_id: self.common.id,
+            }));
+        }
     }
 }
 

@@ -69,6 +69,10 @@ use frame_cadence::{
 };
 use frame_state::NativeVelloFrameState;
 use gpu_surface::GpuSurfaceRenderer;
+pub(in crate::gui_runtime::native_vello) use gpu_surface::{
+    SurfaceVisibleSuffixScratch, gpu_surface_requires_compositing_in_viewport,
+    surface_rect_has_visible_region_in_viewport,
+};
 use gpu_surface_wheel::PendingGpuSurfaceWheel;
 use gpu_surface_wheel::PendingScrollbarDrag;
 use input::{
@@ -94,13 +98,16 @@ pub use run_report::{
 };
 use runner::GenericNativeVelloRunner;
 use runner_state::{NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState};
+pub(in crate::gui_runtime::native_vello) use runtime_helpers::{
+    GpuSurfaceInteractionRegion, SurfaceOcclusionPolicy,
+};
 use runtime_helpers::{
-    GpuSurfaceInteractionRegion, maybe_log_route_profile, render_profile_enabled,
+    maybe_log_route_profile, render_profile_enabled,
     scroll_delta_to_logical,
 };
 use runtime_wakeup::RuntimeWakeup;
 pub(in crate::gui_runtime::native_vello) use scene::{
-    RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneTextRunBuffer,
+    RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneClipState, SceneTextRunBuffer,
     SurfaceSceneEncodeContext, encode_surface_paint_plan_to_scene,
 };
 use surface_size::RenderSurfacePixelSize;

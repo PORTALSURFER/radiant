@@ -447,6 +447,23 @@ custom-paint APIs rather than common prelude entries.
 Run `cargo run --example curve_area_fill` to inspect the shared area-fill path,
 vertical gradient brush, and missing-sample segmentation in a native window.
 
+Native hosts that already own a platform view and event loop, such as audio
+plugin hosts, should use `EmbeddedVelloSurfaceHandle` and
+`EmbeddedVelloRenderer`. The host keeps lifecycle and input-event ownership,
+while Radiant creates the WGPU surface and reuses the same Vello scene encoder
+as `run_native_vello_runtime`. Call `resize(...)` when the host view or backing
+scale changes and call `Renderer::render(...)` from the host redraw path.
+Trait-based renders use elapsed monotonic time automatically for animated paint
+such as focused text-input carets; use `render_at(...)` when the host needs to
+supply an explicit deterministic animation time.
+Portable or sandboxed hosts should create the renderer with
+`EmbeddedVelloRenderer::new_with_text_options(...)` and pass
+`NativeTextOptions` containing embedded fonts or host-approved font paths;
+`EmbeddedVelloRenderer::new(...)` keeps the system-fallback default.
+Embedded rendering supports the normal vector, gradient, clip, text, image, and
+SVG paint plan; retained GPU/custom surfaces fail explicitly because those need
+the standalone runtime's additional compositing and host callbacks.
+
 Tests, automation, and embedded hosts that inspect paint plans should import
 `SurfacePaintPlan` from `radiant::runtime`, then use
 `SurfacePaintPlan::text_runs()`, `text_labels()`, `text_label_strings()`,

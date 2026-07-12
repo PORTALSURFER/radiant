@@ -50,6 +50,8 @@ pub use crate::gui::automation::{
 };
 pub use crate::gui_runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS,
+    EmbeddedVelloError, EmbeddedVelloRenderer, EmbeddedVelloSurfaceHandle,
+    EmbeddedVelloUnsupportedPrimitive,
     NativeFrameOptions, NativeGenericRunError, NativeGenericRunReport,
     NativeGenericRuntimeArtifacts, NativeGpuBackend, NativeGpuOptions, NativePopupOptions,
     NativeRunOptions, NativeRunOptionsError, NativeStartupTimingArtifact, NativeTextOptions,

@@ -1,14 +1,10 @@
 use super::custom_shader::custom_shader_descriptor_is_supported;
 use crate::gui::types::Rect as UiRect;
 use crate::gui_runtime::native_vello::generic_runtime::runtime_helpers::{
-    visible_rects_after_occlusion, visible_rects_after_occlusion_into,
+    SurfaceOcclusionPolicy, surface_occlusion_regions_into, visible_rects_after_occlusion,
+    visible_rects_after_occlusion_into,
 };
 use crate::runtime::{PaintGpuSurface, PaintPrimitive};
-
-mod occlusion;
-
-pub(in crate::gui_runtime::native_vello) use occlusion::SurfaceOcclusionPolicy;
-pub(super) use occlusion::surface_occlusion_regions_into;
 
 #[cfg(test)]
 pub(crate) fn gpu_surface_visible_suffix_regions_into(

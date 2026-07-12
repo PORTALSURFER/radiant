@@ -1,6 +1,7 @@
 //! Native GPU renderer for retained generic GPU-surface paint primitives.
 
 use super::device::{wgpu_device_id, wgpu_target_matches};
+use super::runtime_helpers::{SurfaceOcclusionPolicy, surface_occlusion_regions_into};
 use crate::gui::types::{Rect as UiRect, Vector2};
 use crate::runtime::{GpuSurfaceContent, PaintPrimitive};
 use vello::wgpu;
@@ -25,10 +26,8 @@ use resources::GpuSurfaceResourceCache;
 pub(super) use signal_pipeline::GPU_SIGNAL_SHADER;
 pub(super) use stats::GpuSurfaceRenderStats;
 pub(super) use visibility::gpu_surface_visible_suffix_regions_into_with_scratch;
-use visibility::surface_occlusion_regions_into;
 pub(in crate::gui_runtime::native_vello) use visibility::{
-    SurfaceOcclusionPolicy, SurfaceVisibleSuffixScratch, gpu_surface_requires_compositing,
-    surface_rect_has_visible_region,
+    SurfaceVisibleSuffixScratch, gpu_surface_requires_compositing, surface_rect_has_visible_region,
 };
 
 #[derive(Default)]

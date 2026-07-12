@@ -21,7 +21,7 @@ impl SurfaceOcclusionPolicy {
     }
 }
 
-pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn surface_occlusion_regions_into(
+pub(in crate::gui_runtime::native_vello) fn surface_occlusion_regions_into(
     surface_rect: UiRect,
     prefix: &[PaintPrimitive],
     suffix: &[PaintPrimitive],

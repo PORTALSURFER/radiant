@@ -70,7 +70,7 @@ use frame_cadence::{
 use frame_state::NativeVelloFrameState;
 use gpu_surface::GpuSurfaceRenderer;
 pub(in crate::gui_runtime::native_vello) use gpu_surface::{
-    SurfaceOcclusionPolicy, SurfaceVisibleSuffixScratch, gpu_surface_requires_compositing,
+    SurfaceVisibleSuffixScratch, gpu_surface_requires_compositing,
     surface_rect_has_visible_region,
 };
 use gpu_surface_wheel::PendingGpuSurfaceWheel;
@@ -98,7 +98,9 @@ pub use run_report::{
 };
 use runner::GenericNativeVelloRunner;
 use runner_state::{NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState};
-pub(in crate::gui_runtime::native_vello) use runtime_helpers::GpuSurfaceInteractionRegion;
+pub(in crate::gui_runtime::native_vello) use runtime_helpers::{
+    GpuSurfaceInteractionRegion, SurfaceOcclusionPolicy,
+};
 use runtime_helpers::{
     maybe_log_route_profile, render_profile_enabled,
     scroll_delta_to_logical,

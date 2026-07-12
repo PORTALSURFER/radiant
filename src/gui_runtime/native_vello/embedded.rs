@@ -354,7 +354,9 @@ fn validate_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
                 Some(EmbeddedVelloUnsupportedPrimitive::GpuSurface)
             }
             PaintPrimitive::GpuSurface(_) => None,
-            PaintPrimitive::CustomSurface(custom) if custom.rect.has_finite_positive_area() => {
+            PaintPrimitive::CustomSurface(custom)
+                if custom.rect.has_finite_positive_area() && custom.retained.is_some() =>
+            {
                 Some(EmbeddedVelloUnsupportedPrimitive::CustomSurface)
             }
             PaintPrimitive::CustomSurface(_) => None,
@@ -406,7 +408,7 @@ mod tests {
         PaintCustomSurface, PaintFillPath, PaintGpuSurface, PaintPath, PaintPathCommand,
     };
     use crate::theme::ThemeTokens;
-    use crate::widgets::PaintBounds;
+    use crate::widgets::{PaintBounds, RetainedSurfaceDescriptor};
 
     #[test]
     fn embedded_vello_accepts_gradient_fill_paths() {
@@ -433,14 +435,19 @@ mod tests {
     }
 
     #[test]
-    fn embedded_vello_rejects_host_custom_surfaces_before_rendering() {
+    fn embedded_vello_rejects_retained_host_custom_surfaces_before_rendering() {
         let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
         plan.primitives
             .push(PaintPrimitive::CustomSurface(PaintCustomSurface {
                 widget_id: 2,
                 rect: crate::gui::types::Rect::from_xy_size(0.0, 0.0, 1.0, 1.0),
                 bounds: PaintBounds::ClipToRect,
-                retained: None,
+                retained: Some(RetainedSurfaceDescriptor {
+                    key: 1,
+                    revision: 1,
+                    dirty_mask: 0,
+                    volatile: false,
+                }),
             }));
 
         assert_eq!(
@@ -449,6 +456,20 @@ mod tests {
                 EmbeddedVelloUnsupportedPrimitive::CustomSurface
             ))
         );
+    }
+
+    #[test]
+    fn embedded_vello_accepts_non_retained_custom_surface_fallbacks() {
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::CustomSurface(PaintCustomSurface {
+                widget_id: 2,
+                rect: Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+                bounds: PaintBounds::ClipToRect,
+                retained: None,
+            }));
+
+        assert_eq!(validate_plan(&plan), Ok(()));
     }
 
     #[test]

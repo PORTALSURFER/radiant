@@ -2,7 +2,7 @@ use crate::gui::types::Rect as UiRect;
 use crate::gui_runtime::native_vello::generic_runtime::runtime_helpers::{
     visible_rects_after_occlusion, visible_rects_after_occlusion_into,
 };
-use crate::runtime::PaintPrimitive;
+use crate::runtime::{PaintGpuSurface, PaintPrimitive};
 
 mod occlusion;
 
@@ -18,7 +18,7 @@ pub(crate) fn gpu_surface_visible_suffix_regions_into(
 }
 
 #[derive(Default)]
-pub(in crate::gui_runtime::native_vello::generic_runtime) struct GpuSurfaceVisibleSuffixScratch {
+pub(in crate::gui_runtime::native_vello) struct GpuSurfaceVisibleSuffixScratch {
     occlusion_regions: Vec<UiRect>,
     visible_regions: Vec<UiRect>,
     occlusion_scratch: Vec<UiRect>,
@@ -34,30 +34,34 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) fn gpu_surface_visible
         let PaintPrimitive::GpuSurface(surface) = primitive else {
             continue;
         };
-        if !surface.rect.has_finite_positive_area() {
-            continue;
-        }
-        if !surface.content.is_renderable() {
-            continue;
-        }
         let suffix = primitives.get(index + 1..).unwrap_or_default();
-        gpu_surface_opaque_suffix_regions_into(
-            surface.rect,
-            suffix,
-            &mut scratch.occlusion_regions,
-        );
-        if scratch.occlusion_regions.is_empty() {
-            regions.push(surface.rect);
-            continue;
+        if gpu_surface_requires_compositing(surface, suffix, scratch) {
+            regions.extend(scratch.visible_regions.iter().copied());
         }
-        visible_rects_after_occlusion_into(
-            surface.rect,
-            scratch.occlusion_regions.iter().copied(),
-            &mut scratch.visible_regions,
-            &mut scratch.occlusion_scratch,
-        );
-        regions.extend(scratch.visible_regions.iter().copied());
     }
+}
+
+pub(in crate::gui_runtime::native_vello) fn gpu_surface_requires_compositing(
+    surface: &PaintGpuSurface,
+    suffix: &[PaintPrimitive],
+    scratch: &mut GpuSurfaceVisibleSuffixScratch,
+) -> bool {
+    scratch.visible_regions.clear();
+    if !surface.rect.has_finite_positive_area() || !surface.content.is_renderable() {
+        return false;
+    }
+    gpu_surface_opaque_suffix_regions_into(surface.rect, suffix, &mut scratch.occlusion_regions);
+    if scratch.occlusion_regions.is_empty() {
+        scratch.visible_regions.push(surface.rect);
+        return true;
+    }
+    visible_rects_after_occlusion_into(
+        surface.rect,
+        scratch.occlusion_regions.iter().copied(),
+        &mut scratch.visible_regions,
+        &mut scratch.occlusion_scratch,
+    );
+    !scratch.visible_regions.is_empty()
 }
 
 pub(crate) fn visible_surface_regions(

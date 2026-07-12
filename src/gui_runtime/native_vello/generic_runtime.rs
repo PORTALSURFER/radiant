@@ -69,6 +69,9 @@ use frame_cadence::{
 };
 use frame_state::NativeVelloFrameState;
 use gpu_surface::GpuSurfaceRenderer;
+pub(in crate::gui_runtime::native_vello) use gpu_surface::{
+    GpuSurfaceVisibleSuffixScratch, gpu_surface_requires_compositing,
+};
 use gpu_surface_wheel::PendingGpuSurfaceWheel;
 use gpu_surface_wheel::PendingScrollbarDrag;
 use input::{

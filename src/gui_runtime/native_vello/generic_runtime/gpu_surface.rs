@@ -25,8 +25,9 @@ use resources::GpuSurfaceResourceCache;
 pub(super) use signal_pipeline::GPU_SIGNAL_SHADER;
 pub(super) use stats::GpuSurfaceRenderStats;
 use visibility::gpu_surface_opaque_suffix_regions_into;
-pub(super) use visibility::{
-    GpuSurfaceVisibleSuffixScratch, gpu_surface_visible_suffix_regions_into_with_scratch,
+pub(super) use visibility::gpu_surface_visible_suffix_regions_into_with_scratch;
+pub(in crate::gui_runtime::native_vello) use visibility::{
+    GpuSurfaceVisibleSuffixScratch, gpu_surface_requires_compositing,
 };
 
 #[derive(Default)]

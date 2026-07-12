@@ -381,7 +381,14 @@ fn validate_plan_in_viewport(
                                     &mut surface_visibility,
                                 )
                         }
-                        PaintBounds::AllowOverflow => true,
+                        PaintBounds::AllowOverflow => surface_rect_has_visible_region_in_viewport(
+                            viewport,
+                            viewport,
+                            plan.primitives.get(..index).unwrap_or_default(),
+                            plan.primitives.get(index + 1..).unwrap_or_default(),
+                            SurfaceOcclusionPolicy::Exact,
+                            &mut surface_visibility,
+                        ),
                     } =>
             {
                 Some(EmbeddedVelloUnsupportedPrimitive::CustomSurface)
@@ -620,6 +627,35 @@ mod tests {
             Err(EmbeddedVelloError::UnsupportedPrimitive(
                 EmbeddedVelloUnsupportedPrimitive::CustomSurface
             ))
+        );
+    }
+
+    #[test]
+    fn embedded_vello_ignores_overflowing_retained_surfaces_hidden_by_active_clip() {
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::ClipStart(PaintClipStart {
+                node_id: 1,
+                rect: Rect::from_xy_size(20.0, 20.0, 10.0, 10.0),
+            }));
+        plan.primitives
+            .push(PaintPrimitive::CustomSurface(PaintCustomSurface {
+                widget_id: 2,
+                rect: Rect::from_xy_size(0.0, 0.0, 0.0, 0.0),
+                bounds: PaintBounds::AllowOverflow,
+                retained: Some(RetainedSurfaceDescriptor {
+                    key: 1,
+                    revision: 1,
+                    dirty_mask: 0,
+                    volatile: false,
+                }),
+            }));
+        plan.primitives
+            .push(PaintPrimitive::ClipEnd(PaintClipEnd { node_id: 1 }));
+
+        assert_eq!(
+            validate_plan_in_viewport(&plan, Rect::from_xy_size(0.0, 0.0, 10.0, 10.0)),
+            Ok(())
         );
     }
 

@@ -87,8 +87,9 @@ fn native_external_drag_platform_selection_stays_focused() {
 
     assert!(
         orchestration.contains("mod platform;")
-            && orchestration
-                .contains("use super::{GenericNativeVelloRunner, GenericRouteOutcome};")
+            && orchestration.contains(
+                "use super::{FrameWorkReason, GenericNativeVelloRunner, GenericRouteOutcome};"
+            )
             && orchestration.contains("use crate::runtime::{ExternalDragPayload, RuntimeBridge};")
             && orchestration.contains("use tracing::info;")
             && orchestration.contains("platform::start_external_drag(&session.request)")

@@ -353,6 +353,7 @@ fn validate_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
             PaintPrimitive::GpuSurface(surface)
                 if gpu_surface_requires_compositing(
                     surface,
+                    plan.primitives.get(..index).unwrap_or_default(),
                     plan.primitives.get(index + 1..).unwrap_or_default(),
                     &mut gpu_visibility,
                 ) =>
@@ -565,6 +566,35 @@ mod tests {
                 rect: Rect::from_xy_size(0.0, 0.0, 5.0, 10.0),
                 color: crate::gui::types::Rgba8::new(20, 30, 40, 255),
             }));
+
+        assert_eq!(
+            validate_plan(&plan),
+            Err(EmbeddedVelloError::UnsupportedPrimitive(
+                EmbeddedVelloUnsupportedPrimitive::GpuSurface
+            ))
+        );
+    }
+
+    #[test]
+    fn embedded_vello_rejects_gpu_surface_partly_covered_by_clipped_opaque_fill() {
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::GpuSurface(test_gpu_surface(
+                Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+            )));
+        plan.primitives
+            .push(PaintPrimitive::ClipStart(PaintClipStart {
+                node_id: 4,
+                rect: Rect::from_xy_size(0.0, 0.0, 5.0, 10.0),
+            }));
+        plan.primitives
+            .push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: 5,
+                rect: Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+                color: crate::gui::types::Rgba8::new(20, 30, 40, 255),
+            }));
+        plan.primitives
+            .push(PaintPrimitive::ClipEnd(PaintClipEnd { node_id: 4 }));
 
         assert_eq!(
             validate_plan(&plan),

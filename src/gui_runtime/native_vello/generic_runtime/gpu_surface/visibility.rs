@@ -23,6 +23,7 @@ pub(in crate::gui_runtime::native_vello) struct GpuSurfaceVisibleSuffixScratch {
     occlusion_regions: Vec<UiRect>,
     visible_regions: Vec<UiRect>,
     occlusion_scratch: Vec<UiRect>,
+    clip_stack: Vec<Option<UiRect>>,
 }
 
 pub(in crate::gui_runtime::native_vello::generic_runtime) fn gpu_surface_visible_suffix_regions_into_with_scratch(
@@ -36,7 +37,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) fn gpu_surface_visible
             continue;
         };
         let suffix = primitives.get(index + 1..).unwrap_or_default();
-        if gpu_surface_requires_compositing(surface, suffix, scratch) {
+        let prefix = primitives.get(..index).unwrap_or_default();
+        if gpu_surface_requires_compositing(surface, prefix, suffix, scratch) {
             regions.extend(scratch.visible_regions.iter().copied());
         }
     }
@@ -44,6 +46,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) fn gpu_surface_visible
 
 pub(in crate::gui_runtime::native_vello) fn gpu_surface_requires_compositing(
     surface: &PaintGpuSurface,
+    prefix: &[PaintPrimitive],
     suffix: &[PaintPrimitive],
     scratch: &mut GpuSurfaceVisibleSuffixScratch,
 ) -> bool {
@@ -56,7 +59,13 @@ pub(in crate::gui_runtime::native_vello) fn gpu_surface_requires_compositing(
     {
         return false;
     }
-    gpu_surface_opaque_suffix_regions_into(surface.rect, suffix, &mut scratch.occlusion_regions);
+    gpu_surface_opaque_suffix_regions_into(
+        surface.rect,
+        prefix,
+        suffix,
+        &mut scratch.occlusion_regions,
+        &mut scratch.clip_stack,
+    );
     if scratch.occlusion_regions.is_empty() {
         scratch.visible_regions.push(surface.rect);
         return true;
@@ -132,10 +141,12 @@ mod tests {
             occlusion_regions: Vec::with_capacity(8),
             visible_regions: Vec::with_capacity(8),
             occlusion_scratch: Vec::with_capacity(8),
+            clip_stack: Vec::with_capacity(8),
         };
         let occlusion_capacity = scratch.occlusion_regions.capacity();
         let visible_capacity = scratch.visible_regions.capacity();
         let occlusion_scratch_capacity = scratch.occlusion_scratch.capacity();
+        let clip_stack_capacity = scratch.clip_stack.capacity();
 
         gpu_surface_visible_suffix_regions_into_with_scratch(
             &primitives,
@@ -154,6 +165,7 @@ mod tests {
             scratch.occlusion_scratch.capacity(),
             occlusion_scratch_capacity
         );
+        assert_eq!(scratch.clip_stack.capacity(), clip_stack_capacity);
     }
 
     #[test]

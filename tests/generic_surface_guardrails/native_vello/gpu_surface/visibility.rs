@@ -26,7 +26,9 @@ fn native_gpu_surface_visibility_occlusion_stays_focused() {
         occlusion.contains("const OPAQUE_SUFFIX_OCCLUSION_ALPHA")
             && occlusion.contains("fn gpu_surface_opaque_suffix_regions")
             && occlusion.contains("PaintPrimitive::FillRect(fill)")
-            && occlusion.contains("intersect_rect(surface_rect, fill.rect)"),
+            && occlusion.contains("PaintPrimitive::ClipStart(clip)")
+            && occlusion.contains("update_clip_stack(primitive, clip_stack)")
+            && occlusion.contains("clipped_occlusion_region(surface_rect, fill.rect, clip_stack)"),
         "opaque suffix occlusion filtering should live in visibility/occlusion.rs"
     );
 }

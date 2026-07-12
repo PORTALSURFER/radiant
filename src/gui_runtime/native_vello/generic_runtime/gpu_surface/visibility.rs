@@ -14,12 +14,12 @@ pub(crate) fn gpu_surface_visible_suffix_regions_into(
     primitives: &[PaintPrimitive],
     regions: &mut Vec<UiRect>,
 ) {
-    let mut scratch = GpuSurfaceVisibleSuffixScratch::default();
+    let mut scratch = SurfaceVisibleSuffixScratch::default();
     gpu_surface_visible_suffix_regions_into_with_scratch(primitives, regions, &mut scratch);
 }
 
 #[derive(Default)]
-pub(in crate::gui_runtime::native_vello) struct GpuSurfaceVisibleSuffixScratch {
+pub(in crate::gui_runtime::native_vello) struct SurfaceVisibleSuffixScratch {
     occlusion_regions: Vec<UiRect>,
     visible_regions: Vec<UiRect>,
     occlusion_scratch: Vec<UiRect>,
@@ -29,7 +29,7 @@ pub(in crate::gui_runtime::native_vello) struct GpuSurfaceVisibleSuffixScratch {
 pub(in crate::gui_runtime::native_vello::generic_runtime) fn gpu_surface_visible_suffix_regions_into_with_scratch(
     primitives: &[PaintPrimitive],
     regions: &mut Vec<UiRect>,
-    scratch: &mut GpuSurfaceVisibleSuffixScratch,
+    scratch: &mut SurfaceVisibleSuffixScratch,
 ) {
     regions.clear();
     for (index, primitive) in primitives.iter().enumerate() {
@@ -48,7 +48,7 @@ pub(in crate::gui_runtime::native_vello) fn gpu_surface_requires_compositing(
     surface: &PaintGpuSurface,
     prefix: &[PaintPrimitive],
     suffix: &[PaintPrimitive],
-    scratch: &mut GpuSurfaceVisibleSuffixScratch,
+    scratch: &mut SurfaceVisibleSuffixScratch,
 ) -> bool {
     scratch.visible_regions.clear();
     if !surface.rect.has_finite_positive_area() || !surface.content.is_renderable() {
@@ -59,19 +59,32 @@ pub(in crate::gui_runtime::native_vello) fn gpu_surface_requires_compositing(
     {
         return false;
     }
+    surface_rect_has_visible_region(surface.rect, prefix, suffix, scratch)
+}
+
+pub(in crate::gui_runtime::native_vello) fn surface_rect_has_visible_region(
+    surface_rect: UiRect,
+    prefix: &[PaintPrimitive],
+    suffix: &[PaintPrimitive],
+    scratch: &mut SurfaceVisibleSuffixScratch,
+) -> bool {
+    scratch.visible_regions.clear();
+    if !surface_rect.has_finite_positive_area() {
+        return false;
+    }
     gpu_surface_opaque_suffix_regions_into(
-        surface.rect,
+        surface_rect,
         prefix,
         suffix,
         &mut scratch.occlusion_regions,
         &mut scratch.clip_stack,
     );
     if scratch.occlusion_regions.is_empty() {
-        scratch.visible_regions.push(surface.rect);
+        scratch.visible_regions.push(surface_rect);
         return true;
     }
     visible_rects_after_occlusion_into(
-        surface.rect,
+        surface_rect,
         scratch.occlusion_regions.iter().copied(),
         &mut scratch.visible_regions,
         &mut scratch.occlusion_scratch,
@@ -137,7 +150,7 @@ mod tests {
             }),
         ];
         let mut regions = Vec::new();
-        let mut scratch = GpuSurfaceVisibleSuffixScratch {
+        let mut scratch = SurfaceVisibleSuffixScratch {
             occlusion_regions: Vec::with_capacity(8),
             visible_regions: Vec::with_capacity(8),
             occlusion_scratch: Vec::with_capacity(8),

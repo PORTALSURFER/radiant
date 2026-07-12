@@ -27,7 +27,7 @@ pub(super) use stats::GpuSurfaceRenderStats;
 use visibility::gpu_surface_opaque_suffix_regions_into;
 pub(super) use visibility::gpu_surface_visible_suffix_regions_into_with_scratch;
 pub(in crate::gui_runtime::native_vello) use visibility::{
-    GpuSurfaceVisibleSuffixScratch, gpu_surface_requires_compositing,
+    SurfaceVisibleSuffixScratch, gpu_surface_requires_compositing, surface_rect_has_visible_region,
 };
 
 #[derive(Default)]

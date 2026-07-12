@@ -15,9 +15,9 @@ use vello::{
 };
 
 use super::generic_runtime::{
-    GpuSurfaceInteractionRegion, GpuSurfaceVisibleSuffixScratch, RetainedSurfaceFrameCache,
-    SceneClipState, SceneTextRunBuffer, SurfaceSceneEncodeContext,
-    encode_surface_paint_plan_to_scene, gpu_surface_requires_compositing,
+    GpuSurfaceInteractionRegion, RetainedSurfaceFrameCache, SceneClipState, SceneTextRunBuffer,
+    SurfaceSceneEncodeContext, SurfaceVisibleSuffixScratch, encode_surface_paint_plan_to_scene,
+    gpu_surface_requires_compositing, surface_rect_has_visible_region,
 };
 use super::{NativeTextOptions, NativeTextRenderer, startup_renderer_options};
 use crate::{
@@ -335,7 +335,7 @@ impl EmbeddedAnimationClock {
 
 fn validate_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
     let mut clip_state = SceneClipState::default();
-    let mut gpu_visibility = GpuSurfaceVisibleSuffixScratch::default();
+    let mut surface_visibility = SurfaceVisibleSuffixScratch::default();
     for (index, primitive) in plan.primitives.iter().enumerate() {
         match primitive {
             PaintPrimitive::ClipStart(clip) => {
@@ -355,14 +355,20 @@ fn validate_plan(plan: &SurfacePaintPlan) -> Result<(), EmbeddedVelloError> {
                     surface,
                     plan.primitives.get(..index).unwrap_or_default(),
                     plan.primitives.get(index + 1..).unwrap_or_default(),
-                    &mut gpu_visibility,
+                    &mut surface_visibility,
                 ) =>
             {
                 Some(EmbeddedVelloUnsupportedPrimitive::GpuSurface)
             }
             PaintPrimitive::GpuSurface(_) => None,
             PaintPrimitive::CustomSurface(custom)
-                if custom.rect.has_finite_positive_area() && custom.retained.is_some() =>
+                if custom.retained.is_some()
+                    && surface_rect_has_visible_region(
+                        custom.rect,
+                        plan.primitives.get(..index).unwrap_or_default(),
+                        plan.primitives.get(index + 1..).unwrap_or_default(),
+                        &mut surface_visibility,
+                    ) =>
             {
                 Some(EmbeddedVelloUnsupportedPrimitive::CustomSurface)
             }
@@ -475,6 +481,31 @@ mod tests {
                 rect: Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
                 bounds: PaintBounds::ClipToRect,
                 retained: None,
+            }));
+
+        assert_eq!(validate_plan(&plan), Ok(()));
+    }
+
+    #[test]
+    fn embedded_vello_ignores_retained_custom_surfaces_covered_by_opaque_suffixes() {
+        let mut plan = SurfacePaintPlan::empty(&ThemeTokens::default());
+        plan.primitives
+            .push(PaintPrimitive::CustomSurface(PaintCustomSurface {
+                widget_id: 2,
+                rect: Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+                bounds: PaintBounds::ClipToRect,
+                retained: Some(RetainedSurfaceDescriptor {
+                    key: 1,
+                    revision: 1,
+                    dirty_mask: 0,
+                    volatile: false,
+                }),
+            }));
+        plan.primitives
+            .push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: 3,
+                rect: Rect::from_xy_size(0.0, 0.0, 10.0, 10.0),
+                color: crate::gui::types::Rgba8::new(20, 30, 40, 255),
             }));
 
         assert_eq!(validate_plan(&plan), Ok(()));

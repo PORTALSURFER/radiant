@@ -4,7 +4,7 @@ use super::{
     CompositedBaseFrame, GpuSurfaceInteractionRegion, GpuSurfaceRenderer, PostGpuOverlayRenderer,
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SceneTextRunBuffer,
     gpu_surface::{
-        GpuSurfaceVisibleSuffixScratch, gpu_surface_visible_suffix_regions_into_with_scratch,
+        SurfaceVisibleSuffixScratch, gpu_surface_visible_suffix_regions_into_with_scratch,
     },
     post_gpu_overlay,
     runtime_helpers::{
@@ -39,7 +39,7 @@ pub(super) struct NativeVelloFrameState {
     pub(super) gpu_surface_interaction_regions: Vec<GpuSurfaceInteractionRegion>,
     gpu_surface_interaction_scratch: GpuSurfaceInteractionScratch,
     pub(super) post_gpu_overlay_gpu_regions: Vec<UiRect>,
-    post_gpu_overlay_gpu_regions_scratch: GpuSurfaceVisibleSuffixScratch,
+    post_gpu_overlay_gpu_regions_scratch: SurfaceVisibleSuffixScratch,
     pub(super) post_gpu_overlay_suffix_start: Option<usize>,
     pub(super) post_gpu_overlay_has_replayable_suffix: bool,
     pub(super) scene_texture_dirty: bool,
@@ -68,7 +68,7 @@ impl NativeVelloFrameState {
             gpu_surface_interaction_regions: Vec::new(),
             gpu_surface_interaction_scratch: GpuSurfaceInteractionScratch::default(),
             post_gpu_overlay_gpu_regions: Vec::new(),
-            post_gpu_overlay_gpu_regions_scratch: GpuSurfaceVisibleSuffixScratch::default(),
+            post_gpu_overlay_gpu_regions_scratch: SurfaceVisibleSuffixScratch::default(),
             post_gpu_overlay_suffix_start: None,
             post_gpu_overlay_has_replayable_suffix: false,
             scene_texture_dirty: true,

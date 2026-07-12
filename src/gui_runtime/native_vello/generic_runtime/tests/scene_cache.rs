@@ -92,13 +92,12 @@ fn scene_encoding_flushes_text_before_later_non_text_primitives() {
 }
 
 #[test]
-fn scene_encoding_collects_fast_pointer_gpu_surface_hit_rects() {
+fn scene_encoding_counts_gpu_surfaces_without_projecting_interactions() {
     let mut bridge = demo_bridge();
     let mut scene = Scene::new();
     let mut text_renderer = NativeTextRenderer::new();
     let mut retained_cache = RetainedSurfaceFrameCache::default();
     let mut text_runs = SceneTextRunBuffer::new();
-    let mut interaction_regions = Vec::new();
     let rect = Rect::from_min_size(Point::new(8.0, 12.0), Vector2::new(64.0, 32.0));
     let plan = SurfacePaintPlan {
         clear_color: ThemeTokens::default().clear_color,
@@ -131,22 +130,11 @@ fn scene_encoding_collects_fast_pointer_gpu_surface_hit_rects() {
             viewport: Vector2::new(320.0, 180.0),
             retained_cache: &mut retained_cache,
             text_runs: &mut text_runs,
-            gpu_surface_interaction_regions: &mut interaction_regions,
             animation_time: Duration::ZERO,
         },
     );
 
     assert_eq!(stats.gpu_surface_count, 1);
-    assert_eq!(
-        interaction_regions,
-        [GpuSurfaceInteractionRegion {
-            widget_id: 42,
-            rect,
-            fast_pointer_move: true,
-            coalesce_vertical_wheel: false,
-            runtime_overlays: GpuSurfaceRuntimeOverlays::default(),
-        }]
-    );
 }
 
 fn encode_plan<Bridge, Message>(
@@ -161,7 +149,6 @@ fn encode_plan<Bridge, Message>(
 where
     Bridge: RuntimeBridge<Message>,
 {
-    let mut gpu_surface_interaction_regions = Vec::new();
     encode_surface_paint_plan_to_scene(
         plan,
         SurfaceSceneEncodeContext {
@@ -171,7 +158,6 @@ where
             viewport,
             retained_cache,
             text_runs,
-            gpu_surface_interaction_regions: &mut gpu_surface_interaction_regions,
             animation_time: Duration::ZERO,
         },
     )

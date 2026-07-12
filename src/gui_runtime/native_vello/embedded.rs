@@ -15,10 +15,9 @@ use vello::{
 };
 
 use super::generic_runtime::{
-    GpuSurfaceInteractionRegion, RetainedSurfaceFrameCache, SceneClipState, SceneTextRunBuffer,
-    SurfaceOcclusionPolicy, SurfaceSceneEncodeContext, SurfaceVisibleSuffixScratch,
-    encode_surface_paint_plan_to_scene, gpu_surface_requires_compositing_in_viewport,
-    surface_rect_has_visible_region_in_viewport,
+    RetainedSurfaceFrameCache, SceneClipState, SceneTextRunBuffer, SurfaceOcclusionPolicy,
+    SurfaceSceneEncodeContext, SurfaceVisibleSuffixScratch, encode_surface_paint_plan_to_scene,
+    gpu_surface_requires_compositing_in_viewport, surface_rect_has_visible_region_in_viewport,
 };
 use super::{NativeTextOptions, NativeTextRenderer, startup_renderer_options};
 use crate::{
@@ -115,7 +114,6 @@ pub struct EmbeddedVelloRenderer {
     bridge: EmbeddedSceneBridge,
     retained_cache: RetainedSurfaceFrameCache,
     text_runs: SceneTextRunBuffer,
-    gpu_surface_interaction_regions: Vec<GpuSurfaceInteractionRegion>,
     logical_size: Vector2,
     dpi_scale: DpiScale,
     animation_clock: EmbeddedAnimationClock,
@@ -200,7 +198,6 @@ impl EmbeddedVelloRenderer {
                 RetainedSurfaceCachePolicy::default(),
             ),
             text_runs: SceneTextRunBuffer::new(),
-            gpu_surface_interaction_regions: Vec::new(),
             logical_size,
             dpi_scale,
             animation_clock: EmbeddedAnimationClock::start(),
@@ -236,7 +233,6 @@ impl EmbeddedVelloRenderer {
                 viewport: self.logical_size,
                 retained_cache: &mut self.retained_cache,
                 text_runs: &mut self.text_runs,
-                gpu_surface_interaction_regions: &mut self.gpu_surface_interaction_regions,
                 animation_time,
             },
         );

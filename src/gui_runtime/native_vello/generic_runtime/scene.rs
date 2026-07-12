@@ -1,6 +1,5 @@
 //! Scene encoding for generic runtime paint plans.
 
-use super::runtime_helpers::GpuSurfaceInteractionRegion;
 use crate::{
     gui::types::{Rgba8, Vector2},
     gui_runtime::native_vello::{NativeTextRenderer, to_kurbo_rect},
@@ -50,12 +49,10 @@ where
         viewport,
         retained_cache,
         text_runs,
-        gpu_surface_interaction_regions,
         animation_time,
     } = context;
     scene.reset();
     text_runs.clear();
-    gpu_surface_interaction_regions.clear();
     let mut stats = RetainedSurfaceEncodeStats {
         paint_plan_primitives: plan.primitives.len(),
         ..RetainedSurfaceEncodeStats::default()
@@ -154,11 +151,8 @@ where
                     draw.rect,
                 );
             }
-            PaintPrimitive::GpuSurface(surface) => {
+            PaintPrimitive::GpuSurface(_) => {
                 stats.gpu_surface_count = stats.gpu_surface_count.saturating_add(1);
-                if let Some(region) = GpuSurfaceInteractionRegion::from_gpu_surface(surface) {
-                    gpu_surface_interaction_regions.push(region);
-                }
             }
             PaintPrimitive::CustomSurface(custom) => {
                 encode_custom_surface(
@@ -191,6 +185,5 @@ pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, Br
     pub viewport: Vector2,
     pub retained_cache: &'a mut RetainedSurfaceFrameCache,
     pub text_runs: &'a mut SceneTextRunBuffer,
-    pub gpu_surface_interaction_regions: &'a mut Vec<GpuSurfaceInteractionRegion>,
     pub animation_time: Duration,
 }

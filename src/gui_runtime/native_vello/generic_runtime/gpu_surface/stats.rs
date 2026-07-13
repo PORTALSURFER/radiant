@@ -18,6 +18,8 @@ pub(crate) struct GpuSurfaceAtlasRenderStats {
 pub(crate) struct GpuSurfaceSignalRenderStats {
     pub(crate) summary_builds: usize,
     pub(crate) summary_cache_hits: usize,
+    pub(crate) summary_validation_runs: usize,
+    pub(crate) summary_validation_cache_hits: usize,
     pub(crate) body_renders: usize,
     pub(crate) body_cache_hits: usize,
     pub(crate) body_encode_elapsed: Duration,

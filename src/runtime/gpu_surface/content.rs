@@ -14,7 +14,7 @@ pub use model::{
 };
 use validation::{
     validate_atlas, validate_shader_descriptor, validate_signal_gain_preview,
-    validate_signal_render_shape, validate_signal_summary_shape,
+    validate_signal_render_shape, validate_signal_summary_shape, validate_signal_summary_structure,
 };
 
 /// Backend-neutral retained GPU surface content.
@@ -150,6 +150,68 @@ impl GpuSurfaceContent {
             }
             Self::RgbaAtlas { .. } | Self::CustomShader { .. } => None,
         }
+    }
+
+    pub(crate) fn signal_summary_payload_is_valid(&self) -> bool {
+        let Self::SignalSummaryBands {
+            frames,
+            band_count,
+            summary,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        validate_signal_summary_shape(*frames, *band_count, summary).is_ok()
+    }
+
+    pub(crate) fn signal_summary_render_shape_after_payload_validation(
+        &self,
+    ) -> Option<GpuSignalRenderShape> {
+        let Self::SignalSummaryBands {
+            frames,
+            band_count,
+            frame_range,
+            summary,
+            gain_preview,
+            sample_slide_frame_offset: _,
+        } = self
+        else {
+            return None;
+        };
+        validate_signal_gain_preview(*gain_preview).ok()?;
+        validate_signal_render_shape(
+            *frames,
+            *band_count,
+            *frame_range,
+            summary.frames,
+            summary_sample_count(summary),
+        )
+        .ok()
+    }
+
+    pub(crate) fn is_retained_renderable(&self) -> bool {
+        let Self::SignalSummaryBands {
+            frames,
+            band_count,
+            frame_range,
+            summary,
+            gain_preview,
+            sample_slide_frame_offset: _,
+        } = self
+        else {
+            return self.is_renderable();
+        };
+        validate_signal_summary_structure(*frames, *band_count, summary).is_ok()
+            && validate_signal_gain_preview(*gain_preview).is_ok()
+            && validate_signal_render_shape(
+                *frames,
+                *band_count,
+                *frame_range,
+                summary.frames,
+                summary_sample_count(summary),
+            )
+            .is_ok()
     }
 }
 

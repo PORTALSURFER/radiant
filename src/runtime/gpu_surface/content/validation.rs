@@ -92,6 +92,27 @@ pub(super) fn validate_signal_summary_shape(
     band_count: usize,
     summary: &GpuSignalSummary,
 ) -> Result<(), GpuSurfaceContentError> {
+    validate_signal_summary_structure(frames, band_count, summary)?;
+    for (level_index, level) in summary.levels.iter().enumerate() {
+        for (bucket_index, bucket) in level.buckets.iter().enumerate() {
+            if !bucket.min.is_finite() || !bucket.max.is_finite() || bucket.min > bucket.max {
+                return Err(GpuSurfaceContentError::InvalidSignalSummaryBucketExtrema {
+                    level_index,
+                    bucket_index,
+                    min: bucket.min,
+                    max: bucket.max,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn validate_signal_summary_structure(
+    frames: usize,
+    band_count: usize,
+    summary: &GpuSignalSummary,
+) -> Result<(), GpuSurfaceContentError> {
     if band_count == 0 {
         return Err(GpuSurfaceContentError::InvalidSignalBandCount);
     }
@@ -131,16 +152,6 @@ pub(super) fn validate_signal_summary_shape(
                     expected_bucket_count,
                 },
             );
-        }
-        for (bucket_index, bucket) in level.buckets.iter().enumerate() {
-            if !bucket.min.is_finite() || !bucket.max.is_finite() || bucket.min > bucket.max {
-                return Err(GpuSurfaceContentError::InvalidSignalSummaryBucketExtrema {
-                    level_index,
-                    bucket_index,
-                    min: bucket.min,
-                    max: bucket.max,
-                });
-            }
         }
         previous_bucket_frames = Some(level.bucket_frames);
     }

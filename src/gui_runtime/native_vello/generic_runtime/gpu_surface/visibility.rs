@@ -58,7 +58,7 @@ pub(in crate::gui_runtime::native_vello) fn gpu_surface_requires_compositing_in_
     scratch: &mut SurfaceVisibleSuffixScratch,
 ) -> bool {
     scratch.visible_regions.clear();
-    if !surface.rect.has_finite_positive_area() || !surface.content.is_renderable() {
+    if !surface.rect.has_finite_positive_area() || !surface.content.is_retained_renderable() {
         return false;
     }
     if let crate::runtime::GpuSurfaceContent::CustomShader { descriptor } = &surface.content

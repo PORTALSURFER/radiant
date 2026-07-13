@@ -18,7 +18,7 @@ impl GpuSurfaceInteractionRegion {
         primitive_index: usize,
         surface: &PaintGpuSurface,
     ) -> Option<Self> {
-        if !surface.rect.has_finite_positive_area() || !surface.content.is_renderable() {
+        if !surface.rect.has_finite_positive_area() || !surface.content.is_retained_renderable() {
             return None;
         }
         if !surface.capabilities.fast_pointer_move

@@ -1,7 +1,7 @@
 use super::atlas::TextureViewRenderRequest;
 use super::gpu_surface_types::{
-    GpuSurfaceTextureIdentity, SignalBodyCacheKey, SignalBodyCacheKeyParts, SignalBufferCacheKey,
-    SignalUniforms,
+    CachedSignalSummaryValidation, GpuSurfaceTextureIdentity, SignalBodyCacheKey,
+    SignalBodyCacheKeyParts, SignalBufferCacheKey, SignalUniforms,
 };
 use super::passes::surface_pixel_extent;
 use super::stats::GpuSurfaceRenderStats;
@@ -54,12 +54,10 @@ impl GpuSurfaceRenderer {
         &mut self,
         target: &mut GpuSurfaceRenderTarget<'_>,
         surface: &PaintGpuSurface,
+        shape: GpuSignalRenderShape,
         occlusion_regions: &[UiRect],
         stats: &mut GpuSurfaceRenderStats,
     ) {
-        let Some(shape) = surface.content.signal_render_shape() else {
-            return;
-        };
         let Some(source) = self.signal_render_source(surface, shape, stats) else {
             return;
         };
@@ -133,6 +131,51 @@ impl GpuSurfaceRenderer {
             gain_preview: signal_gain_preview(&surface.content),
             sample_slide_frame_offset,
         })
+    }
+
+    pub(super) fn validated_signal_render_shape(
+        &mut self,
+        surface: &PaintGpuSurface,
+        stats: &mut GpuSurfaceRenderStats,
+    ) -> Option<GpuSignalRenderShape> {
+        let GpuSurfaceContent::SignalSummaryBands {
+            frames,
+            band_count,
+            summary,
+            ..
+        } = &surface.content
+        else {
+            return surface.content.signal_render_shape();
+        };
+        let valid = if let Some(cached) = self
+            .resources
+            .signal_summary_validations
+            .get(&surface.key)
+            .filter(|cached| cached.matches(*frames, *band_count, summary))
+        {
+            stats.signal.summary_validation_cache_hits += 1;
+            cached.valid
+        } else {
+            stats.signal.summary_validation_runs += 1;
+            let valid = surface.content.signal_summary_payload_is_valid();
+            self.resources.signal_summary_validations.insert(
+                surface.key,
+                CachedSignalSummaryValidation {
+                    frames: *frames,
+                    band_count: *band_count,
+                    summary: Arc::clone(summary),
+                    valid,
+                },
+            );
+            valid
+        };
+        valid
+            .then(|| {
+                surface
+                    .content
+                    .signal_summary_render_shape_after_payload_validation()
+            })
+            .flatten()
     }
 }
 
@@ -219,5 +262,129 @@ fn signal_bucket_frame_range(source: &SignalRenderSource) -> [f32; 2] {
         [start, end]
     } else {
         [0.0, frames]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        gui::types::{Point, Rect, Vector2},
+        runtime::{GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceCapabilities},
+    };
+
+    fn summary_surface(
+        key: u64,
+        frames: usize,
+        band_count: usize,
+        summary: Arc<GpuSignalSummary>,
+    ) -> PaintGpuSurface {
+        PaintGpuSurface {
+            widget_id: 1,
+            key,
+            revision: 1,
+            rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 200.0)),
+            content: GpuSurfaceContent::SignalSummaryBands {
+                frames,
+                band_count,
+                frame_range: [0.0, frames as f32],
+                summary,
+                gain_preview: None,
+                sample_slide_frame_offset: 0,
+            },
+            capabilities: GpuSurfaceCapabilities::default(),
+            overlays: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn retained_summary_validation_runs_once_per_summary_identity() {
+        let samples = vec![0.25; 16_384];
+        let summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
+            &samples,
+            samples.len(),
+            1,
+        ));
+        let surface = summary_surface(7, samples.len(), 1, Arc::clone(&summary));
+        let mut renderer = GpuSurfaceRenderer::default();
+        let mut stats = GpuSurfaceRenderStats::default();
+
+        assert!(
+            renderer
+                .validated_signal_render_shape(&surface, &mut stats)
+                .is_some()
+        );
+        assert!(
+            renderer
+                .validated_signal_render_shape(&surface, &mut stats)
+                .is_some()
+        );
+
+        assert_eq!(stats.signal.summary_validation_runs, 1);
+        assert_eq!(stats.signal.summary_validation_cache_hits, 1);
+
+        let replacement = summary_surface(7, samples.len(), 1, Arc::new((*summary).clone()));
+        assert!(
+            renderer
+                .validated_signal_render_shape(&replacement, &mut stats)
+                .is_some()
+        );
+        assert_eq!(stats.signal.summary_validation_runs, 2);
+    }
+
+    #[test]
+    fn retained_summary_validation_rejects_and_caches_malformed_payloads() {
+        let malformed = Arc::new(GpuSignalSummary {
+            frames: 1,
+            band_count: 1,
+            levels: vec![GpuSignalSummaryLevel {
+                bucket_frames: 1,
+                buckets: Arc::from([GpuSignalSummaryBucket {
+                    min: f32::NAN,
+                    max: 1.0,
+                }]),
+            }],
+        });
+        let surface = summary_surface(9, 1, 1, malformed);
+        let mut renderer = GpuSurfaceRenderer::default();
+        let mut stats = GpuSurfaceRenderStats::default();
+
+        assert_eq!(
+            renderer.validated_signal_render_shape(&surface, &mut stats),
+            None
+        );
+        assert_eq!(
+            renderer.validated_signal_render_shape(&surface, &mut stats),
+            None
+        );
+
+        assert_eq!(stats.signal.summary_validation_runs, 1);
+        assert_eq!(stats.signal.summary_validation_cache_hits, 1);
+    }
+
+    #[test]
+    fn retained_summary_validation_rechecks_declared_shape_changes() {
+        let summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
+            &[0.0, 0.5, -0.5, 1.0],
+            4,
+            1,
+        ));
+        let valid = summary_surface(11, 4, 1, Arc::clone(&summary));
+        let changed_shape = summary_surface(11, 5, 1, summary);
+        let mut renderer = GpuSurfaceRenderer::default();
+        let mut stats = GpuSurfaceRenderStats::default();
+
+        assert!(
+            renderer
+                .validated_signal_render_shape(&valid, &mut stats)
+                .is_some()
+        );
+        assert_eq!(
+            renderer.validated_signal_render_shape(&changed_shape, &mut stats),
+            None
+        );
+
+        assert_eq!(stats.signal.summary_validation_runs, 2);
+        assert_eq!(stats.signal.summary_validation_cache_hits, 0);
     }
 }

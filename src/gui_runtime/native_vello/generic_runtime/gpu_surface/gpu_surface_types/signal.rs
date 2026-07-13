@@ -31,6 +31,28 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Ca
         Arc<GpuSignalSummary>,
 }
 
+pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct CachedSignalSummaryValidation
+{
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) frames: usize,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) band_count: usize,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) summary:
+        Arc<GpuSignalSummary>,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) valid: bool,
+}
+
+impl CachedSignalSummaryValidation {
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn matches(
+        &self,
+        frames: usize,
+        band_count: usize,
+        summary: &Arc<GpuSignalSummary>,
+    ) -> bool {
+        self.frames == frames
+            && self.band_count == band_count
+            && Arc::ptr_eq(&self.summary, summary)
+    }
+}
+
 pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct SignalBodyTexture {
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) device: usize,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) cache_key:

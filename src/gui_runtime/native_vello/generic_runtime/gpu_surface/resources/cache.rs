@@ -1,7 +1,7 @@
 use super::super::active_keys::ActiveGpuSurfaceKeys;
 use super::super::gpu_surface_types::{
-    CachedSignalSummary, CustomShaderBinding, CustomShaderPipeline, GpuSurfaceCompositeBinding,
-    GpuSurfaceTexture, SignalBodyTexture, SignalBuffer,
+    CachedSignalSummary, CachedSignalSummaryValidation, CustomShaderBinding, CustomShaderPipeline,
+    GpuSurfaceCompositeBinding, GpuSurfaceTexture, SignalBodyTexture, SignalBuffer,
 };
 use std::collections::HashMap;
 
@@ -22,6 +22,8 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) struct Gp
         HashMap<u64, SignalBuffer>,
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) signal_summaries:
         HashMap<u64, CachedSignalSummary>,
+    pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) signal_summary_validations:
+        HashMap<u64, CachedSignalSummaryValidation>,
 }
 
 impl GpuSurfaceResourceCache {
@@ -41,6 +43,8 @@ impl GpuSurfaceResourceCache {
         self.signals.retain(|key, _| active_keys.contains(key));
         self.signal_summaries
             .retain(|key, _| active_keys.contains(key));
+        self.signal_summary_validations
+            .retain(|key, _| active_keys.contains(key));
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::gpu_surface) fn clear(&mut self) {
@@ -51,5 +55,6 @@ impl GpuSurfaceResourceCache {
         self.signal_bodies.clear();
         self.signals.clear();
         self.signal_summaries.clear();
+        self.signal_summary_validations.clear();
     }
 }

@@ -69,9 +69,22 @@ impl GpuSurfaceRenderer {
             if !surface.rect.has_finite_positive_area() {
                 continue;
             }
-            if !surface.content.is_renderable() {
-                continue;
-            }
+            let signal_shape = match &surface.content {
+                GpuSurfaceContent::SignalBands { .. }
+                | GpuSurfaceContent::SignalSummaryBands { .. } => {
+                    let Some(shape) = self.validated_signal_render_shape(surface, &mut stats)
+                    else {
+                        continue;
+                    };
+                    Some(shape)
+                }
+                GpuSurfaceContent::RgbaAtlas { .. } | GpuSurfaceContent::CustomShader { .. } => {
+                    if !surface.content.is_renderable() {
+                        continue;
+                    }
+                    None
+                }
+            };
             surface_occlusion_regions_into(
                 surface.rect,
                 primitives.get(..index).unwrap_or_default(),
@@ -91,10 +104,22 @@ impl GpuSurfaceRenderer {
                     );
                 }
                 GpuSurfaceContent::SignalBands { .. } => {
-                    self.render_signal(target, surface, &occlusion_regions, &mut stats);
+                    self.render_signal(
+                        target,
+                        surface,
+                        signal_shape.expect("signal content resolved a render shape"),
+                        &occlusion_regions,
+                        &mut stats,
+                    );
                 }
                 GpuSurfaceContent::SignalSummaryBands { .. } => {
-                    self.render_signal(target, surface, &occlusion_regions, &mut stats);
+                    self.render_signal(
+                        target,
+                        surface,
+                        signal_shape.expect("signal content resolved a render shape"),
+                        &occlusion_regions,
+                        &mut stats,
+                    );
                 }
                 GpuSurfaceContent::CustomShader { .. } => {
                     self.render_custom_shader(target, surface, &occlusion_regions, &mut stats);
@@ -165,7 +190,28 @@ mod tests {
         let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
         let mut stats = GpuSurfaceRenderStats::default();
 
-        renderer.cached_signal_summary(7, 1, 4, 1, &samples, &mut stats);
+        let summary = renderer.cached_signal_summary(7, 1, 4, 1, &samples, &mut stats);
+        let surface = crate::runtime::PaintGpuSurface {
+            widget_id: 7,
+            key: 7,
+            revision: 1,
+            rect: UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0)),
+            content: GpuSurfaceContent::SignalSummaryBands {
+                frames: 4,
+                band_count: 1,
+                frame_range: [0.0, 4.0],
+                summary,
+                gain_preview: None,
+                sample_slide_frame_offset: 0,
+            },
+            capabilities: Default::default(),
+            overlays: Vec::new(),
+        };
+        assert!(
+            renderer
+                .validated_signal_render_shape(&surface, &mut stats)
+                .is_some()
+        );
 
         renderer.prune_inactive_resources();
 
@@ -174,6 +220,7 @@ mod tests {
         assert!(renderer.resources.signal_bodies.is_empty());
         assert!(renderer.resources.signals.is_empty());
         assert!(renderer.resources.signal_summaries.is_empty());
+        assert!(renderer.resources.signal_summary_validations.is_empty());
     }
 
     #[test]

@@ -9,7 +9,7 @@ pub(super) fn push_gpu_surface_widget_paint(
     surface: &GpuSurfaceWidget,
     bounds: Rect,
 ) {
-    if !surface.content.is_renderable() {
+    if !surface.content.is_retained_renderable() {
         return;
     }
     primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {

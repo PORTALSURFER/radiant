@@ -13,8 +13,8 @@ pub(super) use custom_shader::{
 };
 pub(super) use pipeline::{GpuSurfacePipeline, SignalPipeline};
 pub(super) use signal::{
-    CachedSignalSummary, SignalBodyCacheKey, SignalBodyCacheKeyParts, SignalBodyTexture,
-    SignalBuffer, SignalBufferCacheKey,
+    CachedSignalSummary, CachedSignalSummaryValidation, SignalBodyCacheKey,
+    SignalBodyCacheKeyParts, SignalBodyTexture, SignalBuffer, SignalBufferCacheKey,
 };
 pub(super) use texture::GpuSurfaceTexture;
 pub(super) use uniforms::{

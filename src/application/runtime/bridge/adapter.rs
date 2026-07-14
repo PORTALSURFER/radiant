@@ -44,6 +44,9 @@ where
     }
 
     fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, Message> {
+        // App views can introduce scene-scoped overlays after any state
+        // refresh, so this capability must remain stable for the bridge
+        // lifetime even when the initial projection has no overlay.
         let capabilities = RuntimeHostCapabilities::new()
             .with_input()
             .with_tasks()
@@ -51,7 +54,8 @@ where
             .with_queues()
             .with_animation()
             .with_runtime_diagnostics()
-            .with_lifecycle();
+            .with_lifecycle()
+            .with_transient_overlays();
         let capabilities = if self.lifecycle.auxiliary_windows.is_some() {
             capabilities.with_windows()
         } else {
@@ -61,11 +65,6 @@ where
             capabilities
         } else {
             capabilities.with_retained_surfaces()
-        };
-        let capabilities = if self.has_app_transient_overlay_painter() {
-            capabilities.with_transient_overlays()
-        } else {
-            capabilities
         };
         if self.lifecycle.native_frame_diagnostics.is_some() {
             capabilities.with_frame_diagnostics()

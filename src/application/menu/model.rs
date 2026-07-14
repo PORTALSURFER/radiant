@@ -1,8 +1,6 @@
 use crate::{
     application::TextContent,
     gui::text_layout::{TextWidthEstimate, estimated_text_width_for_char_count_in_range},
-    gui::types::Point,
-    layout::Vector2,
     widgets::{WidgetProminence, WidgetStyle, WidgetTone},
 };
 
@@ -88,14 +86,14 @@ impl<Message> MenuCommand<Message> {
     }
 }
 
-/// Named construction fields for a compact message-emitting menu.
-pub struct MessageMenuParts<Message> {
+/// Internal construction fields for a compact message-emitting menu.
+pub(super) struct MessageMenuParts<Message> {
     /// Menu title shown above the action list.
-    pub title: TextContent,
+    pub(super) title: TextContent,
     /// Visual styling applied to the menu surface.
-    pub style: WidgetStyle,
+    pub(super) style: WidgetStyle,
     /// Ordered clickable menu commands.
-    pub commands: Vec<MenuCommand<Message>>,
+    pub(super) commands: Vec<MenuCommand<Message>>,
 }
 
 /// Deterministic width policy for message-emitting menus.
@@ -164,34 +162,4 @@ fn command_menu_width_chars<Message>(command: &MenuCommand<Message>) -> usize {
         return label_chars;
     };
     label_chars + COMPACT_MENU_HOTKEY_GAP_CHARS + hint.chars().count()
-}
-
-/// Named construction fields for a full-surface dismissible context-menu layer.
-pub struct DismissibleContextMenuParts<Message> {
-    /// Requested anchor point in surface coordinates.
-    pub anchor: Point,
-    /// Desired menu size.
-    pub size: Vector2,
-    /// Menu title shown above the action list.
-    pub title: TextContent,
-    /// Visual styling applied to the menu surface.
-    pub style: WidgetStyle,
-    /// Ordered clickable menu commands.
-    pub commands: Vec<MenuCommand<Message>>,
-    /// Message emitted when the user activates the backing dismiss layer.
-    pub dismiss_message: Message,
-}
-
-/// Named construction fields for a foreground-only message context-menu layer.
-pub struct MessageContextMenuOverlayParts<Message> {
-    /// Requested anchor point in surface coordinates.
-    pub anchor: Point,
-    /// Desired menu size.
-    pub size: Vector2,
-    /// Menu title shown above the action list.
-    pub title: TextContent,
-    /// Visual styling applied to the menu surface.
-    pub style: WidgetStyle,
-    /// Ordered clickable menu commands.
-    pub commands: Vec<MenuCommand<Message>>,
 }

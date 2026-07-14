@@ -1,6 +1,19 @@
 use super::super::*;
 
 #[test]
+fn application_builder_context_menu_exports_compact_default() {
+    use radiant::prelude as ui;
+
+    let _view = ui::context_menu("Actions", [ui::MenuCommand::new("Close", ())])
+        .anchor(Point::new(12.0, 12.0))
+        .view();
+    let _dismissible = ui::context_menu("Actions", [ui::MenuCommand::new("Close", ())])
+        .anchor(Point::new(12.0, 12.0))
+        .dismiss_on(())
+        .view();
+}
+
+#[test]
 fn application_builder_context_menu_overlay_routes_items() {
     use radiant::prelude as ui;
 
@@ -16,15 +29,16 @@ fn application_builder_context_menu_overlay_routes_items() {
                     .id(10)
                     .height(24.0)
                     .fill_width(),
-                ui::message_context_menu_overlay(
-                    Point::new(260.0, 150.0),
-                    Vector2::new(140.0, 92.0),
+                ui::context_menu(
                     "Actions",
                     [
                         ui::MenuCommand::new("Inspect", Message::Select("inspect")).primary(),
                         ui::MenuCommand::new("Delete", Message::Select("delete")).danger(),
                     ],
                 )
+                .anchor(Point::new(260.0, 150.0))
+                .size(Vector2::new(140.0, 92.0))
+                .view()
                 .id(20),
             ])
         })
@@ -60,7 +74,7 @@ fn application_builder_context_menu_overlay_routes_items() {
 }
 
 #[test]
-fn application_builder_menus_support_named_parts_construction() {
+fn application_builder_context_menu_exposes_fluent_advanced_configuration() {
     use radiant::prelude as ui;
 
     #[derive(Clone, Debug, PartialEq)]
@@ -72,12 +86,9 @@ fn application_builder_menus_support_named_parts_construction() {
         .view(|state| {
             ui::stack([
                 ui::text(format!("Selected: {}", state.name)).id(31),
-                ui::message_context_menu_overlay_from_parts(ui::MessageContextMenuOverlayParts {
-                    anchor: Point::new(12.0, 12.0),
-                    size: Vector2::new(132.0, 88.0),
-                    title: String::from("Actions").into(),
-                    style: radiant::widgets::WidgetStyle::default(),
-                    commands: vec![
+                ui::context_menu(
+                    "Actions",
+                    [
                         ui::MenuCommand::from_parts(ui::MenuCommandParts {
                             label: String::from("Inspect").into(),
                             hotkey_hint: Some(String::from("Cmd-I").into()),
@@ -86,7 +97,12 @@ fn application_builder_menus_support_named_parts_construction() {
                         }),
                         ui::MenuCommand::new("Delete", Message::Select("delete")).danger(),
                     ],
-                })
+                )
+                .anchor(Point::new(12.0, 12.0))
+                .width(132.0)
+                .width_policy(ui::MessageMenuWidthPolicy::compact())
+                .style(radiant::widgets::WidgetStyle::default())
+                .view()
                 .id(30),
             ])
         })
@@ -104,7 +120,7 @@ fn application_builder_menus_support_named_parts_construction() {
             focus_order[0],
             radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
         )
-        .expect("named-parts menu item should emit a state action");
+        .expect("fluent menu item should emit a state action");
     let command = bridge.update(message);
 
     assert!(command.requests_repaint());

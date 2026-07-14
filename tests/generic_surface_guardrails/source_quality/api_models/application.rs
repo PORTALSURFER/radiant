@@ -50,6 +50,11 @@ fn application_facade_uses_explicit_public_exports() {
     );
     assert!(
         details_facade.contains("CompactOptionListParts")
+            && details_facade.contains("CompactOptionListBuilder")
+            && details_facade.contains("compact_option_list")
+            && !details_facade.contains("compact_option_list_from_parts")
+            && !details_facade.contains("compact_option_list_anchored")
+            && !details_facade.contains("compact_option_list_floating_above")
             && !menus_facade.contains("CompactOptionListParts")
             && overlays_facade.contains("DropdownMenuOverlayBelowParts")
             && overlays_facade.contains("floating_layer_below")
@@ -57,7 +62,7 @@ fn application_facade_uses_explicit_public_exports() {
             && !layout_facade.contains("DropdownMenuOverlayBelowParts")
             && surfaces_facade.contains("DynamicWidgetParts")
             && !view_facade.contains("DynamicWidgetParts"),
-        "application facade groups should follow prelude API roles instead of implementation-module ownership"
+        "application facade groups should follow prelude API roles, and compact option lists should keep one fluent entry point"
     );
 }
 

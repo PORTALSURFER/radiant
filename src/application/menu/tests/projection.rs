@@ -1,8 +1,7 @@
 use super::MenuMessage;
 use crate::{
     application::{
-        IntoView, MenuCommand, MessageMenuWidthPolicy, message_context_menu_overlay,
-        message_menu_height,
+        IntoView, MenuCommand, MessageMenuWidthPolicy, context_menu, message_menu_height,
     },
     gui::{
         text_layout::{TextWidthEstimate, estimated_text_width},
@@ -108,13 +107,11 @@ fn projected_menu_frame<const N: usize>(
     commands: [MenuCommand<MenuMessage>; N],
 ) -> crate::runtime::SurfaceFrame {
     UiSurface::new(
-        message_context_menu_overlay(
-            Point::new(80.0, 90.0),
-            Vector2::new(width, message_menu_height(N)),
-            "Actions",
-            commands,
-        )
-        .into_node(),
+        context_menu("Actions", commands)
+            .anchor(Point::new(80.0, 90.0))
+            .size(Vector2::new(width, message_menu_height(N)))
+            .view()
+            .into_node(),
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 360.0)),

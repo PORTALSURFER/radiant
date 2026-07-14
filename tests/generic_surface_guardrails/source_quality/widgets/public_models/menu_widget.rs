@@ -16,7 +16,7 @@ fn application_menu_keeps_model_projection_actions_and_tests_focused() {
             && root.contains("mod model;")
             && root.contains("mod overlays;")
             && root.contains("mod projection;")
-            && actions.contains("pub fn message_menu_from_parts")
+            && actions.contains("fn message_menu_from_parts")
             && actions.contains("menu_command_row(index, command, command_text)")
             && projection.contains("pub(super) fn menu_command_row")
             && projection.contains("struct MenuCommandTextColumns")
@@ -29,7 +29,7 @@ fn application_menu_keeps_model_projection_actions_and_tests_focused() {
 }
 
 #[test]
-fn application_menus_use_named_parts_for_context_overlay_fields() {
+fn application_menus_expose_one_fluent_context_menu_surface() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path = manifest_dir.join("src/application/menu.rs");
     let source = fs::read_to_string(&source_path)
@@ -44,57 +44,39 @@ fn application_menus_use_named_parts_for_context_overlay_fields() {
         .expect("application menu facade should be readable");
     let prelude = public_prelude_source(&manifest_dir);
 
-    for parts in [
-        "pub struct MenuCommandParts",
-        "pub struct MessageMenuParts",
-        "pub struct MessageContextMenuOverlayParts",
-    ] {
-        assert!(
-            model.contains(parts),
-            "application menu APIs should expose named parts for {parts}"
-        );
-    }
-    for constructor in [
-        (
-            "pub fn from_parts(parts: MenuCommandParts<Message>) -> Self",
-            &model,
-        ),
-        (
-            "pub fn message_menu_from_parts<Message>(parts: MessageMenuParts<Message>)",
-            &actions,
-        ),
-        (
-            "pub fn message_context_menu_overlay_from_parts<Message>",
-            &overlays,
-        ),
-    ] {
-        assert!(
-            constructor.1.contains(constructor.0),
-            "application menu APIs should expose named-parts constructor {}",
-            constructor.0
-        );
-    }
+    assert!(model.contains("pub struct MenuCommandParts"));
+    assert!(
+        model.contains("pub fn from_parts(parts: MenuCommandParts<Message>) -> Self"),
+        "menu command named parts remain a useful semantic configuration contract"
+    );
     assert!(
         source.contains("mod actions;")
             && source.contains("mod model;")
             && source.contains("mod overlays;")
             && source.contains("mod projection;")
-            && source.contains("MessageContextMenuOverlayParts,")
-            && !source.contains("pub struct MenuCommandParts<Message>")
-            && !source.contains("pub struct MessageContextMenuOverlayParts<Message>")
+            && source.contains("ContextMenuBuilder")
+            && source.contains("AnchoredContextMenuBuilder")
+            && !source.contains("MessageContextMenuOverlayParts")
+            && !source.contains("DismissibleContextMenuParts")
             && model.contains("Self::from_parts(MenuCommandParts {")
-            && overlays.contains("anchored_message_menu_overlay(anchor, size, title, commands)")
-            && facade.contains("MessageContextMenuOverlayParts")
+            && actions.contains("pub(super) fn message_menu_from_parts")
+            && overlays.contains("pub fn context_menu<Message>")
+            && overlays.contains("pub fn anchor(self, anchor: Point)")
+            && overlays.contains("pub fn width_policy")
+            && overlays.contains("pub fn dismiss_on")
+            && overlays.contains("pub fn view(self) -> ViewNode<Message>")
+            && facade.contains("ContextMenuBuilder")
+            && facade.contains("context_menu")
             && facade.contains("MenuCommandParts")
-            && !facade.contains("MenuItemParts")
-            && !facade.contains(" ContextMenuOverlayParts")
-            && !facade.contains("{ContextMenuOverlayParts")
-            && prelude.contains("MessageContextMenuOverlayParts")
-            && prelude.contains("message_context_menu_overlay_from_parts")
-            && !prelude.contains("MenuItemParts")
-            && !prelude.contains(" context_menu_overlay_from_parts")
-            && !prelude.contains("{context_menu_overlay_from_parts"),
-        "menu model types should live outside the builder root while normal public exports stay message-first"
+            && !facade.contains("message_context_menu_overlay")
+            && !facade.contains("dismissible_context_menu")
+            && !facade.contains("anchored_message_menu_overlay")
+            && prelude.contains("ContextMenuBuilder")
+            && prelude.contains("context_menu")
+            && !prelude.contains("message_context_menu_overlay")
+            && !prelude.contains("dismissible_context_menu")
+            && !prelude.contains("anchored_message_menu_overlay"),
+        "context menus should expose one fluent builder without suffix or weak parts exports"
     );
 }
 

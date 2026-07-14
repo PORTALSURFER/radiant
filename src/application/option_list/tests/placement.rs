@@ -1,6 +1,6 @@
 use super::super::{
-    CompactOptionListAnchoredParts, CompactOptionListFloatingAboveParts, CompactOptionListItem,
-    CompactOptionListParts, compact_option_list_anchored, compact_option_list_floating_above,
+    CompactOptionListAnchor, CompactOptionListFloatingAbove, CompactOptionListItem,
+    CompactOptionListParts, compact_option_list,
 };
 use crate::{
     application::{IntoView, LayerHorizontalAnchor, LayerVerticalAnchor, stack, text},
@@ -15,9 +15,9 @@ fn compact_option_list_floating_above_positions_popup_before_trigger() {
     let list = CompactOptionListParts::new(items, 80.0)
         .row_height(18.0)
         .vertical_chrome(6.0);
-    let popup = compact_option_list_floating_above::<()>(CompactOptionListFloatingAboveParts::new(
-        list, 10.0, 64.0, 4.0, 160.0,
-    ));
+    let popup = compact_option_list::<()>(list)
+        .floating_above(CompactOptionListFloatingAbove::new(10.0, 64.0, 4.0, 160.0))
+        .view();
 
     let frame = UiSurface::new(stack([text("").size(220.0, 120.0), popup]).into_node()).frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(220.0, 120.0)),
@@ -44,14 +44,16 @@ fn compact_option_list_anchored_positions_popup_from_parent_edges() {
     let list = CompactOptionListParts::new(items, 80.0)
         .row_height(18.0)
         .vertical_chrome(6.0);
-    let popup = compact_option_list_anchored::<()>(CompactOptionListAnchoredParts::new(
-        list,
-        160.0,
-        LayerHorizontalAnchor::Start,
-        LayerVerticalAnchor::End,
-        12.0,
-        24.0,
-    ));
+    let popup = compact_option_list::<()>(list)
+        .anchored(
+            CompactOptionListAnchor::new(
+                160.0,
+                LayerHorizontalAnchor::Start,
+                LayerVerticalAnchor::End,
+            )
+            .inset(12.0, 24.0),
+        )
+        .view();
 
     let frame = UiSurface::new(stack([text("").size(220.0, 120.0), popup]).into_node()).frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(220.0, 120.0)),

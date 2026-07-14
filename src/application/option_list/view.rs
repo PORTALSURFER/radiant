@@ -1,4 +1,12 @@
-use super::model::{CompactOptionListItem, CompactOptionListParts};
+use std::sync::Arc;
+
+use super::{
+    model::{CompactOptionListItem, CompactOptionListParts},
+    placement::{
+        CompactOptionListAnchor, CompactOptionListFloatingAbove, CompactOptionListPlacement,
+        place_compact_option_list,
+    },
+};
 use crate::application::{
     BoundedScrollColumnParts, ViewNode, bounded_scroll_column_from_parts, pointer_target, row, text,
 };
@@ -6,47 +14,103 @@ use crate::widgets::{
     PointerButton, PointerShieldMessage, WidgetProminence, WidgetStyle, WidgetTone,
 };
 
-/// Build a compact selected option list from ordered items.
-pub fn compact_option_list<Message: 'static>(
-    items: Vec<CompactOptionListItem>,
-    primary_label_width: f32,
-) -> ViewNode<Message> {
-    compact_option_list_from_parts(CompactOptionListParts::new(items, primary_label_width))
+type OptionListMessageMap<Message> = Arc<dyn Fn(usize) -> Option<Message> + Send + Sync + 'static>;
+
+/// Fluent builder for compact option-list content, interaction, and placement.
+pub struct CompactOptionListBuilder<Message> {
+    parts: CompactOptionListParts,
+    activate: Option<OptionListMessageMap<Message>>,
+    hover: Option<OptionListMessageMap<Message>>,
+    placement: CompactOptionListPlacement,
 }
 
-/// Build a compact selected option list from named parts.
-pub fn compact_option_list_from_parts<Message: 'static>(
+/// Start a compact option list from its reusable content and row configuration.
+pub fn compact_option_list<Message>(
     parts: CompactOptionListParts,
-) -> ViewNode<Message> {
-    compact_option_list_from_parts_with_activation(parts, |_| None::<Message>)
-}
-
-/// Build a compact selected option list and map row activation to host messages.
-pub fn compact_option_list_from_parts_with_activation<Message: 'static>(
-    parts: CompactOptionListParts,
-    activate: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
-) -> ViewNode<Message> {
-    compact_option_list_from_parts_with_interaction_impl(
+) -> CompactOptionListBuilder<Message> {
+    CompactOptionListBuilder {
         parts,
-        activate,
-        |_| None::<Message>,
-        false,
-    )
+        activate: None,
+        hover: None,
+        placement: CompactOptionListPlacement::Inline,
+    }
 }
 
-/// Build a compact selected option list and map row hover/activation to host messages.
-pub fn compact_option_list_from_parts_with_interaction<Message: 'static>(
-    parts: CompactOptionListParts,
-    activate: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
-    hover: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
-) -> ViewNode<Message> {
-    compact_option_list_from_parts_with_interaction_impl(parts, activate, hover, true)
+impl<Message> CompactOptionListBuilder<Message> {
+    /// Emit a host message when an option row is activated.
+    pub fn on_activate(
+        mut self,
+        activate: impl Fn(usize) -> Message + Send + Sync + 'static,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        self.activate = Some(Arc::new(move |index| Some(activate(index))));
+        self
+    }
+
+    /// Conditionally emit a host message when an option row is activated.
+    pub fn filter_map_activate(
+        mut self,
+        activate: impl Fn(usize) -> Option<Message> + Send + Sync + 'static,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        self.activate = Some(Arc::new(activate));
+        self
+    }
+
+    /// Emit a host message when the pointer hovers an option row.
+    pub fn on_hover(mut self, hover: impl Fn(usize) -> Message + Send + Sync + 'static) -> Self
+    where
+        Message: 'static,
+    {
+        self.hover = Some(Arc::new(move |index| Some(hover(index))));
+        self
+    }
+
+    /// Conditionally emit a host message when the pointer hovers an option row.
+    pub fn filter_map_hover(
+        mut self,
+        hover: impl Fn(usize) -> Option<Message> + Send + Sync + 'static,
+    ) -> Self
+    where
+        Message: 'static,
+    {
+        self.hover = Some(Arc::new(hover));
+        self
+    }
+
+    /// Place the option list in a fixed-size layer anchored to its parent.
+    pub fn anchored(mut self, anchor: CompactOptionListAnchor) -> Self {
+        self.placement = CompactOptionListPlacement::Anchored(anchor);
+        self
+    }
+
+    /// Place the option list in a local floating layer above a trigger.
+    pub fn floating_above(mut self, placement: CompactOptionListFloatingAbove) -> Self {
+        self.placement = CompactOptionListPlacement::FloatingAbove(placement);
+        self
+    }
+
+    /// Build the configured compact option-list view.
+    pub fn view(self) -> ViewNode<Message>
+    where
+        Message: 'static,
+    {
+        let height = self.parts.height();
+        let pointer_move = self.hover.is_some();
+        let interactive = self.activate.is_some() || pointer_move;
+        let child = compact_option_list_view(self.parts, self.activate, self.hover, pointer_move);
+        place_compact_option_list(self.placement, child, height, interactive)
+    }
 }
 
-pub(super) fn compact_option_list_from_parts_with_interaction_impl<Message: 'static>(
+fn compact_option_list_view<Message: 'static>(
     parts: CompactOptionListParts,
-    activate: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
-    hover: impl Fn(usize) -> Option<Message> + Clone + Send + Sync + 'static,
+    activate: Option<OptionListMessageMap<Message>>,
+    hover: Option<OptionListMessageMap<Message>>,
     pointer_move: bool,
 ) -> ViewNode<Message> {
     let max_visible_rows = parts.max_visible_rows;
@@ -68,8 +132,8 @@ pub(super) fn compact_option_list_from_parts_with_interaction_impl<Message: 'sta
                 index,
                 item,
                 row_metrics,
-                activate.clone(),
-                hover.clone(),
+                activate.as_ref().map(Arc::clone),
+                hover.as_ref().map(Arc::clone),
                 pointer_move,
             )
         })
@@ -92,8 +156,8 @@ fn compact_option_list_row<Message: 'static>(
     index: usize,
     item: CompactOptionListItem,
     metrics: CompactOptionListRowMetrics,
-    activate: impl Fn(usize) -> Option<Message> + Send + Sync + 'static,
-    hover: impl Fn(usize) -> Option<Message> + Send + Sync + 'static,
+    activate: Option<OptionListMessageMap<Message>>,
+    hover: Option<OptionListMessageMap<Message>>,
     pointer_move: bool,
 ) -> ViewNode<Message> {
     let primary_label = text(item.primary_label)
@@ -127,8 +191,10 @@ fn compact_option_list_row<Message: 'static>(
                 PointerShieldMessage::PointerRelease {
                     button: PointerButton::Primary,
                     ..
-                } => activate(index),
-                PointerShieldMessage::PointerMove { .. } => hover(index),
+                } => activate.as_ref().and_then(|activate| activate(index)),
+                PointerShieldMessage::PointerMove { .. } => {
+                    hover.as_ref().and_then(|hover| hover(index))
+                }
                 _ => None,
             })
             .key(format!("compact-option-list-row-hit-{index}")),

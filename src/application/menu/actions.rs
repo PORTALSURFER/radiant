@@ -33,8 +33,9 @@ where
     })
 }
 
-/// Build a compact message-emitting menu from named parts.
-pub fn message_menu_from_parts<Message>(parts: MessageMenuParts<Message>) -> ViewNode<Message>
+pub(super) fn message_menu_from_parts<Message>(
+    parts: MessageMenuParts<Message>,
+) -> ViewNode<Message>
 where
     Message: Clone + Send + Sync + 'static,
 {

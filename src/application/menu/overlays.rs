@@ -1,4 +1,4 @@
-//! Anchored and dismissible menu overlays plus compatibility entry points.
+//! Fluent construction for anchored and dismissible context menus.
 
 use crate::{
     application::{
@@ -11,256 +11,129 @@ use crate::{
 };
 
 use super::{
-    DismissibleContextMenuParts, MenuCommand, MessageContextMenuOverlayParts, MessageMenuParts,
-    MessageMenuWidthPolicy, message_menu_from_parts, message_menu_height,
+    MenuCommand, MessageMenuWidthPolicy,
+    actions::{message_menu_from_parts, message_menu_height},
+    model::MessageMenuParts,
 };
 
-/// Build a full-surface context-menu layer with an input-only dismiss backing.
-pub fn dismissible_context_menu<Message>(
+/// Fluent context-menu builder before its required surface anchor is supplied.
+pub struct ContextMenuBuilder<Message> {
+    title: TextContent,
+    style: WidgetStyle,
+    commands: Vec<MenuCommand<Message>>,
+}
+
+/// Fluent context-menu builder after its required surface anchor is supplied.
+pub struct AnchoredContextMenuBuilder<Message> {
     anchor: Point,
-    size: Vector2,
+    title: TextContent,
+    style: WidgetStyle,
+    commands: Vec<MenuCommand<Message>>,
+    sizing: ContextMenuSizing,
+    dismiss_message: Option<Message>,
+}
+
+enum ContextMenuSizing {
+    WidthPolicy(MessageMenuWidthPolicy),
+    Width(f32),
+    Exact(Vector2),
+}
+
+/// Start a foreground-only context menu with Radiant's compact automatic-width policy.
+///
+/// Call [`ContextMenuBuilder::anchor`] to supply the required surface anchor.
+/// The anchored builder can then opt into an exact size, a fixed width, a
+/// different width policy, or an outside-click dismissal message before
+/// producing the final view.
+pub fn context_menu<Message>(
     title: impl Into<TextContent>,
     commands: impl IntoIterator<Item = MenuCommand<Message>>,
-    dismiss_message: Message,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    dismissible_context_menu_from_parts(DismissibleContextMenuParts {
-        anchor,
-        size,
+) -> ContextMenuBuilder<Message> {
+    ContextMenuBuilder {
         title: title.into(),
         style: WidgetStyle::new(WidgetTone::Neutral, WidgetProminence::Strong),
         commands: commands.into_iter().collect(),
-        dismiss_message,
-    })
+    }
 }
 
-/// Build a full-surface context-menu layer with standard compact menu height.
-pub fn dismissible_context_menu_with_width<Message>(
-    anchor: Point,
-    width: f32,
-    title: impl Into<TextContent>,
-    commands: impl IntoIterator<Item = MenuCommand<Message>>,
-    dismiss_message: Message,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    let commands = commands.into_iter().collect::<Vec<_>>();
-    let size = Vector2::new(width, message_menu_height(commands.len()));
-    dismissible_context_menu(anchor, size, title, commands, dismiss_message)
+impl<Message> ContextMenuBuilder<Message> {
+    /// Anchor the menu at a point in surface coordinates.
+    pub fn anchor(self, anchor: Point) -> AnchoredContextMenuBuilder<Message> {
+        AnchoredContextMenuBuilder {
+            anchor,
+            title: self.title,
+            style: self.style,
+            commands: self.commands,
+            sizing: ContextMenuSizing::WidthPolicy(MessageMenuWidthPolicy::compact()),
+            dismiss_message: None,
+        }
+    }
 }
 
-/// Build a full-surface context-menu layer with Radiant's default compact menu policy.
-pub fn dismissible_context_menu_auto_width<Message>(
-    anchor: Point,
-    title: impl Into<TextContent>,
-    commands: impl IntoIterator<Item = MenuCommand<Message>>,
-    dismiss_message: Message,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    dismissible_context_menu_with_width_policy(
-        anchor,
-        MessageMenuWidthPolicy::compact(),
-        title,
-        commands,
-        dismiss_message,
-    )
-}
+impl<Message> AnchoredContextMenuBuilder<Message> {
+    /// Use an exact logical size for the menu overlay.
+    pub fn size(mut self, size: Vector2) -> Self {
+        self.sizing = ContextMenuSizing::Exact(size);
+        self
+    }
 
-/// Build a full-surface context-menu layer with a deterministic width policy.
-pub fn dismissible_context_menu_with_width_policy<Message>(
-    anchor: Point,
-    width_policy: MessageMenuWidthPolicy,
-    title: impl Into<TextContent>,
-    commands: impl IntoIterator<Item = MenuCommand<Message>>,
-    dismiss_message: Message,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    let title = title.into();
-    let commands = commands.into_iter().collect::<Vec<_>>();
-    let size = menu_size(width_policy, &title, &commands);
-    dismissible_context_menu(anchor, size, title, commands, dismiss_message)
-}
+    /// Use a fixed width and the standard compact height for the command count.
+    pub fn width(mut self, width: f32) -> Self {
+        self.sizing = ContextMenuSizing::Width(width);
+        self
+    }
 
-/// Build a foreground-only message context-menu layer.
-pub fn message_context_menu_overlay<Message>(
-    anchor: Point,
-    size: Vector2,
-    title: impl Into<TextContent>,
-    commands: impl IntoIterator<Item = MenuCommand<Message>>,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    anchored_message_menu_overlay(anchor, size, title, commands)
-}
+    /// Size the menu from its title and commands with a deterministic policy.
+    pub fn width_policy(mut self, width_policy: MessageMenuWidthPolicy) -> Self {
+        self.sizing = ContextMenuSizing::WidthPolicy(width_policy);
+        self
+    }
 
-/// Build a foreground-only message context-menu layer with standard compact height.
-pub fn message_context_menu_overlay_with_width<Message>(
-    anchor: Point,
-    width: f32,
-    title: impl Into<TextContent>,
-    commands: impl IntoIterator<Item = MenuCommand<Message>>,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    anchored_message_menu_overlay_with_width(anchor, width, title, commands)
-}
+    /// Apply visual styling to the menu surface.
+    pub fn style(mut self, style: WidgetStyle) -> Self {
+        self.style = style;
+        self
+    }
 
-/// Build a foreground-only message context-menu layer using the compact policy.
-pub fn message_context_menu_overlay_auto_width<Message>(
-    anchor: Point,
-    title: impl Into<TextContent>,
-    commands: impl IntoIterator<Item = MenuCommand<Message>>,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    anchored_message_menu_overlay_auto_width(anchor, title, commands)
-}
+    /// Emit a message when the user activates the full-surface dismiss backing.
+    pub fn dismiss_on(mut self, message: Message) -> Self {
+        self.dismiss_message = Some(message);
+        self
+    }
 
-/// Build a foreground-only message context-menu layer with a width policy.
-pub fn message_context_menu_overlay_with_width_policy<Message>(
-    anchor: Point,
-    width_policy: MessageMenuWidthPolicy,
-    title: impl Into<TextContent>,
-    commands: impl IntoIterator<Item = MenuCommand<Message>>,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    anchored_message_menu_overlay_with_width_policy(anchor, width_policy, title, commands)
-}
+    /// Build the configured context-menu view.
+    pub fn view(self) -> ViewNode<Message>
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        let size = self.size_for_content();
+        let menu = anchored_popover_from_parts(AnchoredPopoverParts::below(
+            message_menu_from_parts(MessageMenuParts {
+                title: self.title,
+                style: self.style,
+                commands: self.commands,
+            }),
+            AnchoredPopoverAnchor::pointer(self.anchor),
+            Vector2::new(size.x.max(1.0), size.y.max(1.0)),
+        ));
+        match self.dismiss_message {
+            Some(message) => {
+                stack([dismiss_layer(message).key("context-menu-dismiss"), menu]).fill()
+            }
+            None => menu,
+        }
+    }
 
-/// Build a foreground-only message context-menu layer from named parts.
-pub fn message_context_menu_overlay_from_parts<Message>(
-    parts: MessageContextMenuOverlayParts<Message>,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    anchored_message_menu_overlay_from_parts(parts)
-}
-
-/// Build a foreground-only anchored message-menu layer.
-pub fn anchored_message_menu_overlay<Message>(
-    anchor: Point,
-    size: Vector2,
-    title: impl Into<TextContent>,
-    commands: impl IntoIterator<Item = MenuCommand<Message>>,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    anchored_message_menu_overlay_from_parts(MessageContextMenuOverlayParts {
-        anchor,
-        size,
-        title: title.into(),
-        style: WidgetStyle::new(WidgetTone::Neutral, WidgetProminence::Strong),
-        commands: commands.into_iter().collect(),
-    })
-}
-
-fn anchored_message_menu_overlay_with_width<Message>(
-    anchor: Point,
-    width: f32,
-    title: impl Into<TextContent>,
-    commands: impl IntoIterator<Item = MenuCommand<Message>>,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    let commands = commands.into_iter().collect::<Vec<_>>();
-    let size = Vector2::new(width, message_menu_height(commands.len()));
-    anchored_message_menu_overlay(anchor, size, title, commands)
-}
-
-/// Build an anchored message-menu layer using the standard compact policy.
-pub fn anchored_message_menu_overlay_auto_width<Message>(
-    anchor: Point,
-    title: impl Into<TextContent>,
-    commands: impl IntoIterator<Item = MenuCommand<Message>>,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    anchored_message_menu_overlay_with_width_policy(
-        anchor,
-        MessageMenuWidthPolicy::compact(),
-        title,
-        commands,
-    )
-}
-
-/// Build an anchored message-menu layer with a deterministic width policy.
-pub fn anchored_message_menu_overlay_with_width_policy<Message>(
-    anchor: Point,
-    width_policy: MessageMenuWidthPolicy,
-    title: impl Into<TextContent>,
-    commands: impl IntoIterator<Item = MenuCommand<Message>>,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    let title = title.into();
-    let commands = commands.into_iter().collect::<Vec<_>>();
-    let size = menu_size(width_policy, &title, &commands);
-    anchored_message_menu_overlay(anchor, size, title, commands)
-}
-
-/// Build a foreground-only anchored message-menu layer from named parts.
-pub fn anchored_message_menu_overlay_from_parts<Message>(
-    parts: MessageContextMenuOverlayParts<Message>,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    let size = Vector2::new(parts.size.x.max(1.0), parts.size.y.max(1.0));
-    anchored_popover_from_parts(AnchoredPopoverParts::below(
-        message_menu_from_parts(MessageMenuParts {
-            title: parts.title,
-            style: parts.style,
-            commands: parts.commands,
-        }),
-        AnchoredPopoverAnchor::pointer(parts.anchor),
-        size,
-    ))
-}
-
-/// Build a dismissible context-menu layer from named parts.
-pub fn dismissible_context_menu_from_parts<Message>(
-    parts: DismissibleContextMenuParts<Message>,
-) -> ViewNode<Message>
-where
-    Message: Clone + Send + Sync + 'static,
-{
-    stack([
-        dismiss_layer(parts.dismiss_message).key("context-menu-dismiss"),
-        anchored_message_menu_overlay_from_parts(MessageContextMenuOverlayParts {
-            anchor: parts.anchor,
-            size: parts.size,
-            title: parts.title,
-            style: parts.style,
-            commands: parts.commands,
-        }),
-    ])
-    .fill()
-}
-
-fn menu_size<Message>(
-    width_policy: MessageMenuWidthPolicy,
-    title: &str,
-    commands: &[MenuCommand<Message>],
-) -> Vector2 {
-    Vector2::new(
-        width_policy.width_for_title_and_commands(title, commands),
-        message_menu_height(commands.len()),
-    )
+    fn size_for_content(&self) -> Vector2 {
+        match self.sizing {
+            ContextMenuSizing::WidthPolicy(policy) => Vector2::new(
+                policy.width_for_title_and_commands(&self.title, &self.commands),
+                message_menu_height(self.commands.len()),
+            ),
+            ContextMenuSizing::Width(width) => {
+                Vector2::new(width, message_menu_height(self.commands.len()))
+            }
+            ContextMenuSizing::Exact(size) => size,
+        }
+    }
 }

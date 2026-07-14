@@ -23,11 +23,7 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
     ),
     (
         "context_menu",
-        &[
-            "message_context_menu_overlay(",
-            "MenuCommand::new(",
-            ".danger()",
-        ],
+        &["context_menu(", "MenuCommand::new(", ".danger()"],
     ),
     (
         "paint_helpers",

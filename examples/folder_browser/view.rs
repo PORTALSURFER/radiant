@@ -54,9 +54,7 @@ fn header(state: &BrowserState) -> ui::View<BrowserMessage> {
 fn context_menu_layer(state: &BrowserState) -> ui::View<BrowserMessage> {
     let anchor = state.context.context_position.unwrap_or_default();
     if let Some(folder_id) = state.context.context_folder.as_ref() {
-        return ui::message_context_menu_overlay(
-            anchor,
-            FOLDER_MENU_SIZE,
+        return ui::context_menu(
             folder_context_menu_title(state, folder_id),
             [
                 ui::MenuCommand::new("Rename", BrowserMessage::BeginFolderRenameFromContext)
@@ -66,21 +64,23 @@ fn context_menu_layer(state: &BrowserState) -> ui::View<BrowserMessage> {
                 ui::MenuCommand::new("Cancel", BrowserMessage::CloseFolderContextMenu).subtle(),
             ],
         )
+        .anchor(anchor)
+        .size(FOLDER_MENU_SIZE)
+        .view()
         .key("context-menu-overlay");
     }
     if let Some(column_id) = state.context.context_column.as_ref() {
-        return ui::message_context_menu_overlay(
-            anchor,
-            COLUMN_MENU_SIZE,
+        return ui::context_menu(
             column_context_menu_title(state, column_id),
             column_context_menu_items(state),
         )
+        .anchor(anchor)
+        .size(COLUMN_MENU_SIZE)
+        .view()
         .key("context-menu-overlay");
     }
     if let Some(file_id) = state.context.context_file.as_ref() {
-        return ui::message_context_menu_overlay(
-            anchor,
-            FILE_MENU_SIZE,
+        return ui::context_menu(
             file_context_menu_title(state, file_id),
             [
                 ui::MenuCommand::new("Rename", BrowserMessage::BeginFileRenameFromContext)
@@ -89,6 +89,9 @@ fn context_menu_layer(state: &BrowserState) -> ui::View<BrowserMessage> {
                 ui::MenuCommand::new("Cancel", BrowserMessage::CloseFileContextMenu).subtle(),
             ],
         )
+        .anchor(anchor)
+        .size(FILE_MENU_SIZE)
+        .view()
         .key("context-menu-overlay");
     }
     ui::text("").key("context-menu-overlay")

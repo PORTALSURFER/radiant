@@ -330,9 +330,7 @@ fn modal_slot() -> ViewNode<SceneExampleMessage> {
 }
 
 fn context_menu_slot() -> ViewNode<SceneExampleMessage> {
-    message_context_menu_overlay(
-        Point::new(328.0, 226.0),
-        Vector2::new(168.0, 116.0),
+    context_menu(
         "Context menu",
         [
             MenuCommand::new("Inspect", SceneExampleMessage::CloseContextMenu).primary(),
@@ -340,6 +338,9 @@ fn context_menu_slot() -> ViewNode<SceneExampleMessage> {
             MenuCommand::new("Close", SceneExampleMessage::CloseContextMenu).subtle(),
         ],
     )
+    .anchor(Point::new(328.0, 226.0))
+    .size(Vector2::new(168.0, 116.0))
+    .view()
     .key("scene-context-menu")
 }
 

@@ -51,9 +51,7 @@ fn main() -> radiant::Result {
             if state.menu_open {
                 stack([
                     page,
-                    anchored_message_menu_overlay(
-                        state.anchor,
-                        Vector2::new(180.0, 144.0),
+                    context_menu(
                         "Actions",
                         [
                             MenuCommand::new("Inspect", ContextMenuMessage::ApplyAction("Inspect"))
@@ -68,6 +66,9 @@ fn main() -> radiant::Result {
                             MenuCommand::new("Cancel", ContextMenuMessage::CloseMenu).subtle(),
                         ],
                     )
+                    .anchor(state.anchor)
+                    .size(Vector2::new(180.0, 144.0))
+                    .view()
                     .key("context-menu-overlay"),
                 ])
                 .fill_width()

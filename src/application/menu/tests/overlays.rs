@@ -1,9 +1,7 @@
 use super::{MenuMessage, click, painted_menu_rect};
 use crate::{
     application::{
-        IntoView, MenuCommand, MessageMenuWidthPolicy, dismissible_context_menu,
-        dismissible_context_menu_with_width, dismissible_context_menu_with_width_policy,
-        message_context_menu_overlay, message_menu_height,
+        IntoView, MenuCommand, MessageMenuWidthPolicy, context_menu, message_menu_height,
     },
     gui::{
         text_layout::TextWidthEstimate,
@@ -19,14 +17,12 @@ fn dismissible_context_menu_backing_emits_dismiss_message() {
         Vec::<MenuMessage>::new(),
         |_| {
             UiSurface::new(
-                dismissible_context_menu(
-                    Point::new(80.0, 90.0),
-                    Vector2::new(200.0, 96.0),
-                    "Actions",
-                    [MenuCommand::new("Open", MenuMessage::Open)],
-                    MenuMessage::Close,
-                )
-                .into_node(),
+                context_menu("Actions", [MenuCommand::new("Open", MenuMessage::Open)])
+                    .anchor(Point::new(80.0, 90.0))
+                    .size(Vector2::new(200.0, 96.0))
+                    .dismiss_on(MenuMessage::Close)
+                    .view()
+                    .into_node(),
             )
         },
         |messages: &mut Vec<MenuMessage>, message| messages.push(message),
@@ -41,16 +37,17 @@ fn dismissible_context_menu_backing_emits_dismiss_message() {
 #[test]
 fn dismissible_context_menu_with_width_uses_standard_menu_height() {
     let frame = UiSurface::new(
-        dismissible_context_menu_with_width(
-            Point::new(80.0, 90.0),
-            200.0,
+        context_menu(
             "Actions",
             [
                 MenuCommand::new("Open", MenuMessage::Open),
                 MenuCommand::new("Delete", MenuMessage::Delete).danger(),
             ],
-            MenuMessage::Close,
         )
+        .anchor(Point::new(80.0, 90.0))
+        .width(200.0)
+        .dismiss_on(MenuMessage::Close)
+        .view()
         .into_node(),
     )
     .frame(
@@ -118,14 +115,12 @@ fn dismissible_context_menu_with_width_policy_sizes_from_longest_label() {
     ];
     let expected_width = policy.width_for_title_and_commands("Actions", &commands);
     let frame = UiSurface::new(
-        dismissible_context_menu_with_width_policy(
-            Point::new(80.0, 90.0),
-            policy,
-            "Actions",
-            commands,
-            MenuMessage::Close,
-        )
-        .into_node(),
+        context_menu("Actions", commands)
+            .anchor(Point::new(80.0, 90.0))
+            .width_policy(policy)
+            .dismiss_on(MenuMessage::Close)
+            .view()
+            .into_node(),
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 360.0)),
@@ -145,13 +140,14 @@ fn menu_overlay_frame(anchor: Point, size: Vector2) -> crate::runtime::SurfaceFr
 }
 
 fn menu_overlay(anchor: Point, size: Vector2) -> crate::application::ViewNode<MenuMessage> {
-    message_context_menu_overlay(
-        anchor,
-        size,
+    context_menu(
         "Actions",
         [
             MenuCommand::new("Open", MenuMessage::Open),
             MenuCommand::new("Delete", MenuMessage::Delete).danger(),
         ],
     )
+    .anchor(anchor)
+    .size(size)
+    .view()
 }

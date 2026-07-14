@@ -1860,24 +1860,19 @@ code. Application-builder surfaces can use
 `bounded_scroll_column_from_parts(...)` when the host owns row projection but
 Radiant should own the capped scroll viewport, empty-list behavior, chrome
 padding, and viewport styling. Use `CompactOptionListItem`,
-`CompactOptionListParts`, `compact_option_list(...)`, and
-`compact_option_list_from_parts(...)` for selected primary/secondary option
-rows in autocomplete popups, command palettes, compact pickers, and similar
-transient result lists while the host keeps ownership of option values and
-messages. Use `compact_option_list_from_parts_with_activation(...)` and
-`compact_option_list_anchored_with_activation(...)` when primary option-label
-activation should map a clicked row index into a host message without the host
-rebuilding the compact-list row chrome. Use
-`compact_option_list_from_parts_with_interaction(...)` and
-`compact_option_list_anchored_with_interaction(...)` when pointer hover and
-activation should both map row indices into host messages while preserving the
-same compact-list chrome. Use `CompactOptionListFloatingAboveParts` and
-`compact_option_list_floating_above(...)` when such a result list should be
-anchored above an editor or trigger inside the same stack layer without
-app-local height and floating-offset arithmetic. Use
-`CompactOptionListAnchoredParts` and `compact_option_list_anchored(...)` when
-the same list should be projected in a parent-anchored overlay layer, such as a
-full-surface autocomplete layer above a bottom panel.
+`CompactOptionListParts`, and `compact_option_list(...)` for selected
+primary/secondary option rows in autocomplete popups, command palettes,
+compact pickers, and similar transient result lists while the host keeps
+ownership of option values and messages. The returned builder composes
+`.on_activate(...)`, `.on_hover(...)`, `.filter_map_activate(...)`, and
+`.filter_map_hover(...)` without multiplying constructor names. Use
+`.floating_above(CompactOptionListFloatingAbove::new(...))` when such a result
+list should be anchored above an editor or trigger inside the same stack layer
+without app-local height and offset arithmetic. Use
+`.anchored(CompactOptionListAnchor::new(...))` when the same list should be
+projected in a parent-anchored overlay layer, such as a full-surface
+autocomplete layer above a bottom panel. Finish every configuration with
+`.view()`.
 Compact toolbars and action strips can use
 `layout::fixed_width_row_rects_start`, `layout::fixed_width_row_rects_end`, and
 `layout::visible_suffix_widths` to place fixed-width controls through the
@@ -2752,20 +2747,17 @@ Use `dropdown_menu_overlay_below_stacked_labeled_control(...)` when a dropdown
 trigger lives inside a compact stacked labeled-control panel and the menu should
 anchor below the current `StackedLayoutCursor` item without repeating label
 offset arithmetic in the host.
-Dismissible context menus can use `dismissible_context_menu_auto_width(...)`
-when Radiant should derive compact menu width from the title and command labels
-while also using the standard compact menu height. Use
-`dismissible_context_menu_with_width_policy(...)` with
-`MessageMenuWidthPolicy` when an app needs custom min/max menu width bounds, or
-`dismissible_context_menu_with_width(...)` when the width is deliberately fixed.
-When a context menu is declared as a `Scene` layer and should use
-`Layer::dismiss_on_outside_click(...)`, use
-`anchored_message_menu_overlay_auto_width(...)` or its explicit-width variants
-for the foreground-only menu content so dismissal stays owned by the scene
-layer policy. The older `message_context_menu_overlay_*` helpers remain
-compatibility wrappers over the same anchored menu primitive.
-These helpers avoid app-local `message_menu_height(...)` sizing and hard-coded
-context-menu width constants.
+Context menus use one fluent `context_menu(title, commands)` entry point.
+Supply the required surface point with `.anchor(...)`; the builder then uses
+Radiant's compact automatic-width policy and foreground-only placement by
+default. Use `.width_policy(MessageMenuWidthPolicy)` for custom min/max bounds,
+`.width(...)` for a deliberately fixed width with standard compact height, or
+`.size(...)` for an exact logical size. Add `.dismiss_on(message)` when the
+menu should own a full-surface outside-click backing; omit it when a `Scene`
+layer owns dismissal through `Layer::dismiss_on_outside_click(...)`. Finish the
+configuration with `.view()`. This keeps sizing, anchoring, styling, and
+dismissal discoverable on one builder and avoids app-local
+`message_menu_height(...)` arithmetic for the common automatic-width case.
 Run `cargo run --example scene` for the preferred root-scene sandbox. It
 keeps the root `Scene` focused on base layout, shortcuts, frame clocks, and
 paint-only overlays while status-bar, browser, and workspace components declare
@@ -2774,8 +2766,8 @@ view-local transient layers.
 Run `cargo run --example native_file_drop` for a view-local native OS file-drop
 target that maps `NativeFileDrop` events into normal app messages.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
-that composes `MenuCommand`, `message_menu(...)`, and
-`anchored_message_menu_overlay(...)` with normal app messages.
+that composes `MenuCommand`, `message_menu(...)`, and `context_menu(...)` with
+normal app messages.
 Run `cargo run --example floating_overlay` for a floating-layer sandbox that
 positions an overlay menu without changing the underlying page layout.
 Run `cargo run --example split_workspace` for an editor-style split workspace

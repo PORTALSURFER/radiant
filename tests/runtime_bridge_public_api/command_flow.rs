@@ -184,6 +184,40 @@ fn declarative_command_bridges_support_named_parts_construction() {
     assert!(owned_bridge.pull_surface().find_widget(10).is_some());
 }
 
+#[test]
+fn generic_trait_reduction_updates_shared_and_owned_command_bridges() {
+    let mut shared = declarative_command_runtime_bridge(
+        DemoState::default(),
+        project_command_surface,
+        |state: &mut DemoState, message| match message {
+            CommandDemoMessage::Increment => {
+                state.count += 1;
+                Command::request_repaint()
+            }
+            _ => Command::none(),
+        },
+    );
+    reduce_through_runtime_bridge(&mut shared, CommandDemoMessage::Increment);
+    assert_eq!(shared.state().count, 1);
+
+    let mut owned = declarative_owned_command_runtime_bridge(
+        DemoState::default(),
+        project_owned_command_surface,
+        |state: &mut DemoState, message| match message {
+            CommandDemoMessage::Rename(name) => {
+                state.name = name;
+                Command::request_repaint()
+            }
+            _ => Command::none(),
+        },
+    );
+    reduce_through_runtime_bridge(
+        &mut owned,
+        CommandDemoMessage::Rename(String::from("Generic")),
+    );
+    assert_eq!(owned.state().name, "Generic");
+}
+
 enum CommandDemoMessage {
     Start,
     Increment,

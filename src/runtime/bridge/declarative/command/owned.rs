@@ -84,6 +84,10 @@ where
         (self.project)(&mut self.state)
     }
 
+    fn reduce_message(&mut self, message: Message) {
+        DeclarativeOwnedCommandRuntimeBridge::reduce_message(self, message);
+    }
+
     fn update(&mut self, message: Message) -> Command<Message> {
         (self.update)(&mut self.state, message)
     }

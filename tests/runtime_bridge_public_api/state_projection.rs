@@ -71,6 +71,31 @@ fn owned_runtime_bridge_projects_without_shared_surface_requirement() {
 }
 
 #[test]
+fn generic_trait_reduction_updates_shared_and_owned_declarative_bridges() {
+    let mut shared = declarative_runtime_bridge(
+        DemoState::default(),
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+        },
+    );
+    reduce_through_runtime_bridge(&mut shared, DemoMessage::Increment);
+    assert_eq!(shared.state().count, 1);
+
+    let mut owned = declarative_owned_runtime_bridge(
+        DemoState::default(),
+        project_owned_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+        },
+    );
+    reduce_through_runtime_bridge(&mut owned, DemoMessage::Rename(String::from("Generic")));
+    assert_eq!(owned.state().name, "Generic");
+}
+
+#[test]
 fn runtime_bridge_is_the_public_app_contract() {
     let mut bridge = declarative_runtime_bridge(
         DemoState::default(),

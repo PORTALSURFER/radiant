@@ -86,6 +86,10 @@ where
         (self.project)(&mut self.state)
     }
 
+    fn reduce_message(&mut self, message: Message) {
+        DeclarativeOwnedRuntimeBridge::reduce_message(self, message);
+    }
+
     fn update(&mut self, message: Message) -> crate::runtime::Command<Message> {
         self.reduce_message(message);
         crate::runtime::Command::none()

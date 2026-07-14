@@ -60,6 +60,13 @@ fn project_app_once(app: &mut impl App<DemoMessage>) -> Arc<UiSurface<DemoMessag
     app.project_surface()
 }
 
+fn reduce_through_runtime_bridge<Bridge, Message>(bridge: &mut Bridge, message: Message)
+where
+    Bridge: RuntimeBridge<Message>,
+{
+    bridge.reduce_message(message);
+}
+
 fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {
     let title = TextWidget::new(
         10,

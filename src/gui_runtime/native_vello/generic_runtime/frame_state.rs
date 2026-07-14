@@ -8,7 +8,8 @@ use super::{
     },
     post_gpu_overlay,
     runtime_helpers::{
-        GpuSurfaceInteractionScratch, collect_gpu_surface_interaction_regions_with_scratch,
+        GpuSurfaceInteractionScratch, SurfaceOcclusionPlan,
+        collect_gpu_surface_interaction_regions_with_scratch,
     },
 };
 use crate::theme::DpiScale;
@@ -37,6 +38,7 @@ pub(super) struct NativeVelloFrameState {
     pub(super) last_scene_stats: RetainedSurfaceEncodeStats,
     pub(super) scene_text_runs: SceneTextRunBuffer,
     pub(super) gpu_surface_interaction_regions: Vec<GpuSurfaceInteractionRegion>,
+    pub(super) surface_occlusion_plan: SurfaceOcclusionPlan,
     gpu_surface_interaction_scratch: GpuSurfaceInteractionScratch,
     pub(super) post_gpu_overlay_gpu_regions: Vec<UiRect>,
     post_gpu_overlay_gpu_regions_scratch: SurfaceVisibleSuffixScratch,
@@ -66,6 +68,7 @@ impl NativeVelloFrameState {
             last_scene_stats: RetainedSurfaceEncodeStats::default(),
             scene_text_runs: SceneTextRunBuffer::new(),
             gpu_surface_interaction_regions: Vec::new(),
+            surface_occlusion_plan: SurfaceOcclusionPlan::default(),
             gpu_surface_interaction_scratch: GpuSurfaceInteractionScratch::default(),
             post_gpu_overlay_gpu_regions: Vec::new(),
             post_gpu_overlay_gpu_regions_scratch: SurfaceVisibleSuffixScratch::default(),
@@ -104,8 +107,11 @@ impl NativeVelloFrameState {
     }
 
     pub(super) fn refresh_gpu_surface_interaction_regions(&mut self) {
+        self.surface_occlusion_plan
+            .preprocess(&self.last_paint_plan.primitives);
         collect_gpu_surface_interaction_regions_with_scratch(
             &self.last_paint_plan.primitives,
+            &self.surface_occlusion_plan,
             &mut self.gpu_surface_interaction_regions,
             &mut self.gpu_surface_interaction_scratch,
         );
@@ -128,6 +134,7 @@ impl NativeVelloFrameState {
             });
         gpu_surface_visible_suffix_regions_into_with_scratch(
             &self.last_paint_plan.primitives,
+            &self.surface_occlusion_plan,
             &mut self.post_gpu_overlay_gpu_regions,
             &mut self.post_gpu_overlay_gpu_regions_scratch,
         );

@@ -1,7 +1,10 @@
 //! Native GPU renderer for retained generic GPU-surface paint primitives.
 
 use super::device::{wgpu_device_id, wgpu_target_matches};
-use super::runtime_helpers::{SurfaceOcclusionPolicy, surface_occlusion_regions_into};
+use super::runtime_helpers::{
+    SurfaceOcclusionPlan, SurfaceOcclusionPolicy, SurfaceOcclusionQueryScratch,
+    planned_surface_occlusion_regions_into,
+};
 use crate::gui::types::{Rect as UiRect, Vector2};
 use crate::runtime::{GpuSurfaceContent, PaintPrimitive};
 use vello::wgpu;
@@ -26,6 +29,9 @@ use resources::GpuSurfaceResourceCache;
 pub(super) use signal_pipeline::GPU_SIGNAL_SHADER;
 pub(super) use stats::GpuSurfaceRenderStats;
 pub(super) use visibility::gpu_surface_visible_suffix_regions_into_with_scratch;
+pub use visibility::{
+    GpuSurfaceOcclusionPlanningScratch, plan_gpu_surface_occlusion_for_diagnostics,
+};
 pub(in crate::gui_runtime::native_vello) use visibility::{
     SurfaceVisibleSuffixScratch, gpu_surface_requires_compositing_in_viewport,
     surface_rect_has_visible_region_in_viewport,
@@ -40,7 +46,7 @@ pub(super) struct GpuSurfaceRenderer {
     resources: GpuSurfaceResourceCache,
     active_keys: ActiveGpuSurfaceKeys,
     occlusion_regions: Vec<UiRect>,
-    occlusion_clip_stack: Vec<Option<UiRect>>,
+    occlusion_query_scratch: SurfaceOcclusionQueryScratch,
 }
 
 pub(super) struct GpuSurfaceRenderTarget<'a> {
@@ -58,6 +64,7 @@ impl GpuSurfaceRenderer {
         &mut self,
         target: &mut GpuSurfaceRenderTarget<'_>,
         primitives: &[PaintPrimitive],
+        occlusion_plan: &SurfaceOcclusionPlan,
     ) -> GpuSurfaceRenderStats {
         let mut stats = GpuSurfaceRenderStats::default();
         let mut occlusion_regions = std::mem::take(&mut self.occlusion_regions);
@@ -85,13 +92,13 @@ impl GpuSurfaceRenderer {
                     None
                 }
             };
-            surface_occlusion_regions_into(
+            planned_surface_occlusion_regions_into(
                 surface.rect,
-                primitives.get(..index).unwrap_or_default(),
-                primitives.get(index + 1..).unwrap_or_default(),
+                index,
+                occlusion_plan,
                 SurfaceOcclusionPolicy::GpuCompositor,
                 &mut occlusion_regions,
-                &mut self.occlusion_clip_stack,
+                &mut self.occlusion_query_scratch,
             );
             match &surface.content {
                 GpuSurfaceContent::RgbaAtlas { source_rect, .. } => {
@@ -150,13 +157,27 @@ impl GpuSurfaceRenderer {
         surface_rect: UiRect,
         suffix: &[PaintPrimitive],
     ) -> &[UiRect] {
-        surface_occlusion_regions_into(
+        let mut primitives = Vec::with_capacity(suffix.len() + 1);
+        primitives.push(PaintPrimitive::FillRect(crate::runtime::PaintFillRect {
+            widget_id: 0,
+            rect: surface_rect,
+            color: crate::gui::types::Rgba8 {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+        }));
+        primitives.extend_from_slice(suffix);
+        let mut plan = SurfaceOcclusionPlan::default();
+        plan.preprocess(&primitives);
+        planned_surface_occlusion_regions_into(
             surface_rect,
-            &[],
-            suffix,
+            0,
+            &plan,
             SurfaceOcclusionPolicy::GpuCompositor,
             &mut self.occlusion_regions,
-            &mut self.occlusion_clip_stack,
+            &mut self.occlusion_query_scratch,
         );
         &self.occlusion_regions
     }
@@ -227,11 +248,9 @@ mod tests {
     fn gpu_surface_renderer_reuses_occlusion_scratch_storage() {
         let mut renderer = GpuSurfaceRenderer {
             occlusion_regions: Vec::with_capacity(8),
-            occlusion_clip_stack: Vec::with_capacity(4),
             ..GpuSurfaceRenderer::default()
         };
         let capacity = renderer.occlusion_regions.capacity();
-        let clip_capacity = renderer.occlusion_clip_stack.capacity();
         let surface_rect = UiRect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0));
         let suffix = [PaintPrimitive::FillRect(crate::runtime::PaintFillRect {
             widget_id: 7,
@@ -250,6 +269,7 @@ mod tests {
                 .len(),
             1
         );
+        let query_capacity = renderer.occlusion_query_scratch.capacity();
         assert!(
             renderer
                 .collect_occlusion_regions_for_test(surface_rect, &[])
@@ -257,6 +277,6 @@ mod tests {
         );
 
         assert_eq!(renderer.occlusion_regions.capacity(), capacity);
-        assert_eq!(renderer.occlusion_clip_stack.capacity(), clip_capacity);
+        assert_eq!(renderer.occlusion_query_scratch.capacity(), query_capacity);
     }
 }

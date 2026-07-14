@@ -15,9 +15,10 @@ use vello::{
 };
 
 use super::generic_runtime::{
-    RetainedSurfaceFrameCache, SceneClipState, SceneTextRunBuffer, SurfaceOcclusionPolicy,
-    SurfaceSceneEncodeContext, SurfaceVisibleSuffixScratch, encode_surface_paint_plan_to_scene,
-    gpu_surface_requires_compositing_in_viewport, surface_rect_has_visible_region_in_viewport,
+    RetainedSurfaceFrameCache, SceneClipState, SceneTextRunBuffer, SurfaceOcclusionPlan,
+    SurfaceOcclusionPolicy, SurfaceSceneEncodeContext, SurfaceVisibleSuffixScratch,
+    encode_surface_paint_plan_to_scene, gpu_surface_requires_compositing_in_viewport,
+    surface_rect_has_visible_region_in_viewport,
 };
 use super::{NativeTextOptions, NativeTextRenderer, startup_renderer_options};
 use crate::{
@@ -117,6 +118,8 @@ pub struct EmbeddedVelloRenderer {
     logical_size: Vector2,
     dpi_scale: DpiScale,
     animation_clock: EmbeddedAnimationClock,
+    surface_occlusion_plan: SurfaceOcclusionPlan,
+    surface_visibility: SurfaceVisibleSuffixScratch,
 }
 
 impl EmbeddedVelloRenderer {
@@ -201,6 +204,8 @@ impl EmbeddedVelloRenderer {
             logical_size,
             dpi_scale,
             animation_clock: EmbeddedAnimationClock::start(),
+            surface_occlusion_plan: SurfaceOcclusionPlan::default(),
+            surface_visibility: SurfaceVisibleSuffixScratch::default(),
         })
     }
 
@@ -223,7 +228,13 @@ impl EmbeddedVelloRenderer {
         plan: &SurfacePaintPlan,
         animation_time: Duration,
     ) -> Result<(), EmbeddedVelloError> {
-        validate_plan_in_viewport(plan, embedded_viewport(self.logical_size))?;
+        self.surface_occlusion_plan.preprocess(&plan.primitives);
+        validate_plan_in_viewport_with_scratch(
+            plan,
+            embedded_viewport(self.logical_size),
+            &self.surface_occlusion_plan,
+            &mut self.surface_visibility,
+        )?;
         encode_surface_paint_plan_to_scene(
             plan,
             SurfaceSceneEncodeContext {
@@ -332,12 +343,24 @@ impl EmbeddedAnimationClock {
     }
 }
 
+#[cfg(test)]
 fn validate_plan_in_viewport(
     plan: &SurfacePaintPlan,
     viewport: crate::gui::types::Rect,
 ) -> Result<(), EmbeddedVelloError> {
-    let mut clip_state = SceneClipState::default();
+    let mut occlusion_plan = SurfaceOcclusionPlan::default();
+    occlusion_plan.preprocess(&plan.primitives);
     let mut surface_visibility = SurfaceVisibleSuffixScratch::default();
+    validate_plan_in_viewport_with_scratch(plan, viewport, &occlusion_plan, &mut surface_visibility)
+}
+
+fn validate_plan_in_viewport_with_scratch(
+    plan: &SurfacePaintPlan,
+    viewport: crate::gui::types::Rect,
+    occlusion_plan: &SurfaceOcclusionPlan,
+    surface_visibility: &mut SurfaceVisibleSuffixScratch,
+) -> Result<(), EmbeddedVelloError> {
+    let mut clip_state = SceneClipState::default();
     for (index, primitive) in plan.primitives.iter().enumerate() {
         match primitive {
             PaintPrimitive::ClipStart(clip) => {
@@ -355,10 +378,10 @@ fn validate_plan_in_viewport(
             PaintPrimitive::GpuSurface(surface)
                 if gpu_surface_requires_compositing_in_viewport(
                     surface,
+                    index,
                     viewport,
-                    plan.primitives.get(..index).unwrap_or_default(),
-                    plan.primitives.get(index + 1..).unwrap_or_default(),
-                    &mut surface_visibility,
+                    occlusion_plan,
+                    surface_visibility,
                 ) =>
             {
                 Some(EmbeddedVelloUnsupportedPrimitive::GpuSurface)
@@ -371,20 +394,20 @@ fn validate_plan_in_viewport(
                             custom.rect.has_finite_positive_area()
                                 && surface_rect_has_visible_region_in_viewport(
                                     custom.rect,
+                                    index,
                                     viewport,
-                                    plan.primitives.get(..index).unwrap_or_default(),
-                                    plan.primitives.get(index + 1..).unwrap_or_default(),
+                                    occlusion_plan,
                                     SurfaceOcclusionPolicy::Exact,
-                                    &mut surface_visibility,
+                                    surface_visibility,
                                 )
                         }
                         PaintBounds::AllowOverflow => surface_rect_has_visible_region_in_viewport(
                             viewport,
+                            index,
                             viewport,
-                            plan.primitives.get(..index).unwrap_or_default(),
-                            plan.primitives.get(index + 1..).unwrap_or_default(),
+                            occlusion_plan,
                             SurfaceOcclusionPolicy::Exact,
-                            &mut surface_visibility,
+                            surface_visibility,
                         ),
                     } =>
             {

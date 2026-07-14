@@ -175,6 +175,14 @@ and frame presentation live under
 stay there or behind explicit GPU-surface contracts, not leak into normal
 application-builder code.
 
+The native compositor preprocesses each paint plan's clip state and opaque
+suffix coverage once into a reusable spatial index. GPU rendering,
+interaction-region projection, post-GPU overlay visibility, and embedded
+unsupported-surface validation query that shared plan instead of reconstructing
+clip stacks or rescanning primitive suffixes per surface. The planner and query
+scratch buffers persist across frames so steady-state planning does not require
+recurring heap allocation.
+
 Frame cadence, invalidation, and render reuse are separate responsibilities.
 Native runtimes should be able to maintain a steady 60Hz presentation cadence
 while rebuilding only the work invalidated by host state, layout, paint, text,

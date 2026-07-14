@@ -49,10 +49,9 @@ pub use crate::gui::automation::{
     AutomationTarget, GuiAutomationSnapshot, GuiAutomationTargetSnapshot,
 };
 pub use crate::gui_runtime::{
-    DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, MAX_NATIVE_TARGET_FPS, MIN_NATIVE_TARGET_FPS,
-    EmbeddedVelloError, EmbeddedVelloRenderer, EmbeddedVelloSurfaceHandle,
-    EmbeddedVelloUnsupportedPrimitive,
-    NativeFrameOptions, NativeGenericRunError, NativeGenericRunReport,
+    DEFAULT_NATIVE_WINDOW_TITLE, EmbeddedFont, EmbeddedVelloError, EmbeddedVelloRenderer,
+    EmbeddedVelloSurfaceHandle, EmbeddedVelloUnsupportedPrimitive, MAX_NATIVE_TARGET_FPS,
+    MIN_NATIVE_TARGET_FPS, NativeFrameOptions, NativeGenericRunError, NativeGenericRunReport,
     NativeGenericRuntimeArtifacts, NativeGpuBackend, NativeGpuOptions, NativePopupOptions,
     NativeRunOptions, NativeRunOptionsError, NativeStartupTimingArtifact, NativeTextOptions,
     NativeWindowBehavior, NativeWindowGeometry, NativeWindowMode, NativeWindowOptions,
@@ -90,19 +89,19 @@ pub use devtools::{
 };
 pub use diagnostics::{
     BusinessRuntimeDiagnostics, BusinessTaskDiagnostic, BusinessTaskDiagnosticState,
-    DEFAULT_SLOW_UPDATE_HANDLER_THRESHOLD, NativeCompositedBaseTiming, NativeFrameDiagnostics,
-    NativeFramePresentationDiagnostics, NativeFrameTimingDiagnostics, NativeFrameWorkTimings,
-    NativeGpuSurfaceAtlasDiagnostics, NativeGpuSurfaceCompositeDiagnostics,
-    NativeGpuSurfaceCustomShaderDiagnostics, NativeGpuSurfaceCustomShaderFailureDiagnostics,
-    NativeGpuSurfaceDiagnostics, NativeGpuSurfaceSignalDiagnostics,
-    NativeGpuSurfaceUnsupportedCustomShaderDiagnostics, NativeGpuTimingStatus,
-    NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics, NativeSceneMediaDiagnostics,
-    NativeSceneSurfaceDiagnostics, NativeSceneTextDiagnostics, NativeSceneTraversalDiagnostics,
-    NativeTextCacheCounters, NativeTextCacheDiagnostics, NativeTextDiagnostics,
-    NativeTextQualityDiagnostics, NativeTextQualityStatus, NativeTransientOverlayTiming,
-    RetainedSurfaceCachePolicy, RuntimeDiagnostics, RuntimeMessageQueueDiagnostics,
-    SLOW_UPDATE_HANDLER_GUIDANCE, UiRuntimeDiagnostics, UiUpdateHandlerDiagnostic,
-    UiUpdateHandlerDiagnosticsMode, UiUpdateHandlerDiagnosticsPolicy,
+    DEFAULT_SLOW_UPDATE_HANDLER_THRESHOLD, GpuSurfaceOcclusionPlanningDiagnostics,
+    NativeCompositedBaseTiming, NativeFrameDiagnostics, NativeFramePresentationDiagnostics,
+    NativeFrameTimingDiagnostics, NativeFrameWorkTimings, NativeGpuSurfaceAtlasDiagnostics,
+    NativeGpuSurfaceCompositeDiagnostics, NativeGpuSurfaceCustomShaderDiagnostics,
+    NativeGpuSurfaceCustomShaderFailureDiagnostics, NativeGpuSurfaceDiagnostics,
+    NativeGpuSurfaceSignalDiagnostics, NativeGpuSurfaceUnsupportedCustomShaderDiagnostics,
+    NativeGpuTimingStatus, NativeRetainedSurfaceDiagnostics, NativeSceneDiagnostics,
+    NativeSceneMediaDiagnostics, NativeSceneSurfaceDiagnostics, NativeSceneTextDiagnostics,
+    NativeSceneTraversalDiagnostics, NativeTextCacheCounters, NativeTextCacheDiagnostics,
+    NativeTextDiagnostics, NativeTextQualityDiagnostics, NativeTextQualityStatus,
+    NativeTransientOverlayTiming, RetainedSurfaceCachePolicy, RuntimeDiagnostics,
+    RuntimeMessageQueueDiagnostics, SLOW_UPDATE_HANDLER_GUIDANCE, UiRuntimeDiagnostics,
+    UiUpdateHandlerDiagnostic, UiUpdateHandlerDiagnosticsMode, UiUpdateHandlerDiagnosticsPolicy,
 };
 pub(crate) use diagnostics::{RuntimeDiagnosticsRecorder, elapsed_since};
 pub(crate) use drag::DragSession;

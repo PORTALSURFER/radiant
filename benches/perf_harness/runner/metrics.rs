@@ -7,7 +7,7 @@ use super::{
     baseline::{BaselineMetric, MetricComparison, baseline_metric_json_line, json_escape},
 };
 
-const COUNTER_FIELDS: [&str; 17] = [
+const COUNTER_FIELDS: [&str; 20] = [
     "scene_rebuild_count",
     "static_rebuild_count",
     "paint_only_count",
@@ -25,6 +25,9 @@ const COUNTER_FIELDS: [&str; 17] = [
     "widget_callback_allocation_count",
     "text_storage_allocation_count",
     "allocation_sensitive_work_count",
+    "gpu_surface_occlusion_primitive_visit_count",
+    "gpu_surface_occlusion_index_node_visit_count",
+    "gpu_surface_occlusion_candidate_visit_count",
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -50,6 +53,9 @@ impl ScenarioCounters {
     const WIDGET_CALLBACK_ALLOCATION_COUNT: usize = 14;
     const TEXT_STORAGE_ALLOCATION_COUNT: usize = 15;
     const ALLOCATION_SENSITIVE_WORK_COUNT: usize = 16;
+    const GPU_SURFACE_OCCLUSION_PRIMITIVE_VISIT_COUNT: usize = 17;
+    const GPU_SURFACE_OCCLUSION_INDEX_NODE_VISIT_COUNT: usize = 18;
+    const GPU_SURFACE_OCCLUSION_CANDIDATE_VISIT_COUNT: usize = 19;
 
     pub(crate) fn add(&mut self, other: Self) {
         for (index, value) in other.values.into_iter().enumerate() {
@@ -153,6 +159,21 @@ impl ScenarioCounters {
 
     pub(crate) fn with_allocation_sensitive_work_count(mut self, value: u64) -> Self {
         self.values[Self::ALLOCATION_SENSITIVE_WORK_COUNT] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_gpu_surface_occlusion_primitive_visit_count(mut self, value: u64) -> Self {
+        self.values[Self::GPU_SURFACE_OCCLUSION_PRIMITIVE_VISIT_COUNT] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_gpu_surface_occlusion_index_node_visit_count(mut self, value: u64) -> Self {
+        self.values[Self::GPU_SURFACE_OCCLUSION_INDEX_NODE_VISIT_COUNT] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_gpu_surface_occlusion_candidate_visit_count(mut self, value: u64) -> Self {
+        self.values[Self::GPU_SURFACE_OCCLUSION_CANDIDATE_VISIT_COUNT] = Some(value);
         self
     }
 }

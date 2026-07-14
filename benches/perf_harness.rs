@@ -18,14 +18,16 @@ mod runtime_scenarios;
 mod text_scenarios;
 
 use radiant::{
-    gui::types::ImageRgba,
+    gui::types::{ImageRgba, Rgba8},
+    gui_runtime::{GpuSurfaceOcclusionPlanningScratch, plan_gpu_surface_occlusion_for_diagnostics},
     layout::{
         Constraints, ContainerKind, ContainerPolicy, Point, Rect, SizeModeCross, SizeModeMain,
         SlotParams, Vector2, layout_tree,
     },
     runtime::{
         GpuShaderSurfaceDescriptor, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent,
-        GpuSurfaceRuntimeOverlays, PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface,
+        GpuSurfaceRuntimeOverlays, PaintClipEnd, PaintClipStart, PaintFillRect, PaintGpuSurface,
+        PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface,
     },
     theme::ThemeTokens,
     widgets::{GpuSurfaceWidget, WidgetSizing},
@@ -178,6 +180,83 @@ fn bench_gpu_surface_stack_projection_128() -> ScenarioCounters {
         .with_gpu_surface_count(gpu_surface_count as u64)
         .with_retained_surface_cache_hit_count(0)
         .with_paint_primitive_count(primitive_count)
+}
+
+fn bench_gpu_surface_occlusion(
+    surface_count: usize,
+    max_index_node_visits: usize,
+) -> impl FnMut() -> ScenarioCounters {
+    let primitives = gpu_surface_occlusion_stack(surface_count);
+    let primitive_count = primitives.len();
+    let mut scratch = GpuSurfaceOcclusionPlanningScratch::default();
+    move || {
+        let diagnostics =
+            plan_gpu_surface_occlusion_for_diagnostics(black_box(&primitives), &mut scratch);
+        assert_eq!(diagnostics.paint_primitives_visited, primitive_count);
+        assert_eq!(diagnostics.gpu_surfaces_planned, surface_count);
+        assert_eq!(diagnostics.visible_gpu_surfaces, surface_count);
+        assert!(
+            diagnostics.index_nodes_visited <= max_index_node_visits,
+            "{surface_count} GPU surfaces visited {} occlusion index nodes (threshold {max_index_node_visits})",
+            diagnostics.index_nodes_visited,
+        );
+        assert!(
+            diagnostics.occluder_candidates_visited <= surface_count.saturating_mul(2),
+            "stacked surfaces should inspect only spatially overlapping opaque candidates"
+        );
+        black_box(diagnostics);
+        ScenarioCounters::default()
+            .with_gpu_surface_count(surface_count as u64)
+            .with_paint_primitive_count(primitive_count as u64)
+            .with_gpu_surface_occlusion_primitive_visit_count(
+                diagnostics.paint_primitives_visited as u64,
+            )
+            .with_gpu_surface_occlusion_index_node_visit_count(
+                diagnostics.index_nodes_visited as u64,
+            )
+            .with_gpu_surface_occlusion_candidate_visit_count(
+                diagnostics.occluder_candidates_visited as u64,
+            )
+    }
+}
+
+fn gpu_surface_occlusion_stack(surface_count: usize) -> Vec<PaintPrimitive> {
+    let image = Arc::new(ImageRgba::new(640, 24, vec![96; 640 * 24 * 4]).expect("valid image"));
+    let mut primitives = Vec::with_capacity(surface_count.saturating_mul(4));
+    for index in 0..surface_count {
+        let y = index as f32 * 28.0;
+        let row = Rect::from_xy_size(0.0, y, 640.0, 24.0);
+        primitives.push(PaintPrimitive::ClipStart(PaintClipStart {
+            node_id: 50_000 + index as u64,
+            rect: row,
+        }));
+        primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {
+            widget_id: 60_000 + index as u64,
+            key: 70_000 + index as u64,
+            revision: 1,
+            rect: row,
+            content: GpuSurfaceContent::RgbaAtlas {
+                source_rect: Rect::from_xy_size(0.0, 0.0, 640.0, 24.0),
+                atlas: Arc::clone(&image),
+            },
+            capabilities: GpuSurfaceCapabilities::default(),
+            overlays: Vec::new(),
+        }));
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: 80_000 + index as u64,
+            rect: Rect::from_xy_size(480.0, y, 160.0, 24.0),
+            color: Rgba8 {
+                r: 32,
+                g: 32,
+                b: 32,
+                a: 255,
+            },
+        }));
+        primitives.push(PaintPrimitive::ClipEnd(PaintClipEnd {
+            node_id: 50_000 + index as u64,
+        }));
+    }
+    primitives
 }
 
 fn bench_gpu_custom_shader_projection() -> ScenarioCounters {

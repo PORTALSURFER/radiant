@@ -1,17 +1,12 @@
 use super::AppBridge;
 use crate::{
     application::{IntoView, UiUpdateContext},
-    gui::{
-        focus::FocusSurface, input::KeyPress, repaint::RepaintSignal, shortcuts::ShortcutResolution,
-    },
-    runtime::{
-        Command, NativeFileOpen, PaintPrimitive, RuntimeAnimationActivity, RuntimeBridge,
-        RuntimeDiagnostics, TransientOverlayContext, UiSurface,
-    },
+    runtime::{Command, RuntimeBridge, RuntimeHostCapabilities, UiSurface},
 };
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 mod animation;
+mod capabilities;
 mod launch_animation;
 mod lifecycle;
 mod paint;
@@ -36,10 +31,6 @@ where
         self.pull_surface_owned()
     }
 
-    fn project_auxiliary_windows(&mut self) -> Vec<crate::runtime::AuxiliaryWindow<Message>> {
-        self.project_app_auxiliary_windows()
-    }
-
     fn update(&mut self, message: Message) -> Command<Message> {
         self.update_message(message)
     }
@@ -52,149 +43,34 @@ where
         self.update_message_with_runtime(message, snapshot)
     }
 
-    fn scroll_updated(&mut self, update: crate::runtime::ScrollUpdate) -> Option<Command<Message>> {
-        self.scroll_updated_command(update)
-    }
-
-    fn native_file_drop(&mut self, drop: crate::runtime::NativeFileDrop) -> Command<Message> {
-        self.native_file_drop_command(drop)
-    }
-
-    fn native_file_open(&mut self, open: NativeFileOpen) -> Command<Message> {
-        self.native_file_open_command(open)
-    }
-
-    fn resolve_key_press(
-        &mut self,
-        pending_chord: Option<KeyPress>,
-        press: KeyPress,
-        focus: FocusSurface,
-    ) -> ShortcutResolution<Message> {
-        self.resolve_shortcut(pending_chord, press, focus)
-    }
-
-    fn install_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
-        self.install_runtime_repaint_signal(signal);
-    }
-
-    fn schedule_message(&mut self, delay: Duration, message: Message) -> bool {
-        self.schedule_runtime_message(delay, message)
-    }
-
-    fn spawn_message_task(
-        &mut self,
-        name: &'static str,
-        priority: crate::runtime::TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce() -> Message + Send + 'static>,
-    ) -> bool {
-        self.spawn_runtime_message_task(name, priority, is_cancelled, work)
-    }
-
-    fn spawn_streaming_message_task(
-        &mut self,
-        name: &'static str,
-        priority: crate::runtime::TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce(crate::runtime::BusinessMessageSink<Message>) + Send + 'static>,
-    ) -> bool {
-        self.spawn_runtime_streaming_message_task(name, priority, is_cancelled, work)
-    }
-
-    fn spawn_latest_streaming_message_task(
-        &mut self,
-        name: &'static str,
-        priority: crate::runtime::TaskPriority,
-        is_cancelled: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>>,
-        work: Box<dyn FnOnce(crate::runtime::BusinessMessageSink<Message>) + Send + 'static>,
-    ) -> bool {
-        self.spawn_runtime_latest_streaming_message_task(name, priority, is_cancelled, work)
-    }
-
-    fn request_platform_service(
-        &mut self,
-        request: crate::runtime::PlatformRequest,
-        on_completed: crate::runtime::PlatformCompletion<Message>,
-    ) -> Result<(), crate::runtime::PlatformServiceFallback<Message>> {
-        self.request_app_platform_service(request, on_completed)
-    }
-
-    fn take_runtime_commands(&mut self) -> Vec<Command<Message>> {
-        self.take_runtime_command_queue()
-    }
-
-    fn drain_runtime_commands_into(&mut self, commands: &mut Vec<Command<Message>>) {
-        self.drain_runtime_command_queue_into(commands);
-    }
-
-    fn take_runtime_messages(&mut self) -> Vec<Message> {
-        self.take_runtime_message_queue()
-    }
-
-    fn drain_runtime_messages_into(&mut self, messages: &mut Vec<Message>) {
-        self.drain_runtime_message_queue_into(messages);
-    }
-
-    fn drain_runtime_message_batch_into(
-        &mut self,
-        messages: &mut Vec<Message>,
-        max_messages: usize,
-    ) -> bool {
-        self.drain_runtime_message_queue_batch_into(messages, max_messages)
-    }
-
-    fn needs_animation(&mut self) -> bool {
-        self.needs_runtime_animation()
-    }
-
-    fn animation_activity(&mut self) -> RuntimeAnimationActivity {
-        self.runtime_animation_activity()
-    }
-
-    fn queue_animation_frame(&mut self) -> bool {
-        self.queue_runtime_animation_frame()
-    }
-
-    fn render_retained_surface(
-        &mut self,
-        descriptor: crate::widgets::RetainedSurfaceDescriptor,
-        rect: crate::gui::types::Rect,
-        viewport: crate::layout::Vector2,
-    ) -> Option<crate::gui::paint::PaintFrame> {
-        self.render_app_retained_surface(descriptor, rect, viewport)
-    }
-
-    fn has_transient_overlay_painter(&self) -> bool {
-        self.has_app_transient_overlay_painter()
-    }
-
-    fn paint_transient_overlay(
-        &mut self,
-        context: TransientOverlayContext<'_>,
-        primitives: &mut Vec<PaintPrimitive>,
-    ) {
-        self.paint_app_transient_overlay(context, primitives);
-    }
-
-    fn has_frame_diagnostics_observer(&self) -> bool {
-        self.lifecycle.native_frame_diagnostics.is_some()
-    }
-
-    fn observe_frame_diagnostics(&mut self, diagnostics: crate::runtime::NativeFrameDiagnostics) {
-        if let Some(observer) = self.lifecycle.native_frame_diagnostics.as_mut() {
-            observer(&mut self.state, diagnostics);
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, Message> {
+        let capabilities = RuntimeHostCapabilities::new()
+            .with_input()
+            .with_tasks()
+            .with_platform()
+            .with_queues()
+            .with_animation()
+            .with_runtime_diagnostics()
+            .with_lifecycle();
+        let capabilities = if self.lifecycle.auxiliary_windows.is_some() {
+            capabilities.with_windows()
+        } else {
+            capabilities
+        };
+        let capabilities = if self.lifecycle.retained_painters.is_empty() {
+            capabilities
+        } else {
+            capabilities.with_retained_surfaces()
+        };
+        let capabilities = if self.has_app_transient_overlay_painter() {
+            capabilities.with_transient_overlays()
+        } else {
+            capabilities
+        };
+        if self.lifecycle.native_frame_diagnostics.is_some() {
+            capabilities.with_frame_diagnostics()
+        } else {
+            capabilities
         }
-    }
-
-    fn runtime_diagnostics(&self) -> RuntimeDiagnostics {
-        self.runtime.diagnostics_snapshot()
-    }
-
-    fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
-        self.runtime_exit_artifact()
-    }
-
-    fn close_requested(&mut self) -> bool {
-        self.allow_close_requested()
     }
 }

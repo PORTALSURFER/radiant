@@ -13,8 +13,8 @@ use radiant::{
     },
     layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams},
     runtime::{
-        Command, PaintFillRect, PaintPrimitive, RuntimeBridge, SurfaceNode, SurfaceRuntime,
-        UiSurface,
+        Command, PaintFillRect, PaintPrimitive, RuntimeBridge, RuntimeHostCapabilities,
+        RuntimeQueueHost, SurfaceNode, SurfaceRuntime, UiSurface,
     },
     theme::ThemeTokens,
     widgets::{ButtonWidget, TextWidget, WidgetInput, WidgetKey, WidgetSizing},
@@ -70,6 +70,12 @@ impl RuntimeBridge<DemoMessage> for DrainIntoBridge {
         ))))
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_queues()
+    }
+}
+
+impl RuntimeQueueHost<DemoMessage> for DrainIntoBridge {
     fn drain_runtime_commands_into(&mut self, commands: &mut Vec<Command<DemoMessage>>) {
         self.drained_commands_into = true;
         commands.append(&mut self.commands);

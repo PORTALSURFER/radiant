@@ -56,8 +56,8 @@ fn spectrogram_runtime_frame_messages_advance_visual_state() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(980.0, 560.0));
     let initial_status = status_text(&runtime);
 
-    assert!(runtime.bridge_mut().needs_animation());
-    assert!(runtime.bridge_mut().queue_animation_frame());
+    assert!(runtime.host_animation_activity().needs_animation());
+    assert!(runtime.host_queue_animation_frame());
     let outcome = runtime.drain_runtime_messages();
 
     assert_eq!(outcome.messages_dispatched, 1);

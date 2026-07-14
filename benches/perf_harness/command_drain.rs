@@ -3,7 +3,10 @@
 use crate::runner::ScenarioCounters;
 use radiant::{
     layout::{ContainerPolicy, Vector2},
-    runtime::{Command, RuntimeBridge, SurfaceNode, SurfaceRuntime, UiSurface},
+    runtime::{
+        Command, RuntimeBridge, RuntimeHostCapabilities, RuntimeQueueHost, SurfaceNode,
+        SurfaceRuntime, UiSurface,
+    },
 };
 use std::{hint::black_box, sync::Arc};
 
@@ -107,6 +110,12 @@ impl RuntimeBridge<usize> for QueuedCommandDrainBridge {
         self.dispatched = message + 1;
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+        RuntimeHostCapabilities::new().with_queues()
+    }
+}
+
+impl RuntimeQueueHost<usize> for QueuedCommandDrainBridge {
     fn drain_runtime_commands_into(&mut self, commands: &mut Vec<Command<usize>>) {
         commands.append(&mut self.commands);
     }

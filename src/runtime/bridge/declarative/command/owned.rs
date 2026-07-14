@@ -59,6 +59,11 @@ where
         &mut self.state
     }
 
+    /// Reduce one host message while discarding follow-up commands.
+    pub fn reduce_message(&mut self, message: Message) {
+        let _ = (self.update)(&mut self.state, message);
+    }
+
     /// Consume the bridge and return the owned host state.
     pub fn into_state(self) -> State {
         self.state
@@ -77,10 +82,6 @@ where
 
     fn pull_surface(&mut self) -> UiSurface<Message> {
         (self.project)(&mut self.state)
-    }
-
-    fn reduce_message(&mut self, message: Message) {
-        let _ = (self.update)(&mut self.state, message);
     }
 
     fn update(&mut self, message: Message) -> Command<Message> {

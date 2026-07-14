@@ -186,7 +186,7 @@ where
 
     pub(super) fn sync_auxiliary_windows(&mut self, event_loop: &ActiveEventLoop) {
         self.timing.deferred_auxiliary_window_sync = false;
-        let projections = self.core.runtime.bridge_mut().project_auxiliary_windows();
+        let projections = self.core.runtime.host_project_auxiliary_windows();
         for window in &mut self.auxiliary_windows {
             if !auxiliary_projection_contains_key(&projections, window.key()) {
                 window.hide();

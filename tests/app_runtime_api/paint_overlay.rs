@@ -57,7 +57,7 @@ fn app_transient_overlay_painter_reads_state_and_cached_plan() {
     let _ = runtime.dispatch_message(DemoMessage::Increment);
     let mut overlay = Vec::new();
 
-    runtime.bridge_mut().paint_transient_overlay(
+    runtime.host_paint_transient_overlay(
         radiant::runtime::TransientOverlayContext::new(
             &plan,
             Vector2::new(180.0, 40.0),

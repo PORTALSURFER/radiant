@@ -1,5 +1,6 @@
 use super::*;
 use radiant::gui::repaint::RepaintSignal;
+use radiant::runtime::{RuntimeHostCapabilities, RuntimeLifecycleHost, RuntimeTaskHost};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -49,6 +50,12 @@ impl RuntimeBridge<DemoMessage> for RepaintSignalBridge {
         project_surface(&mut DemoState::default())
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_tasks()
+    }
+}
+
+impl RuntimeTaskHost<DemoMessage> for RepaintSignalBridge {
     fn install_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
         self.signal = Some(signal);
     }
@@ -71,6 +78,12 @@ impl RuntimeBridge<DemoMessage> for RuntimeExitBridge {
         project_surface(&mut DemoState::default())
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_lifecycle()
+    }
+}
+
+impl RuntimeLifecycleHost for RuntimeExitBridge {
     fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
         Some(serde_json::json!({
             "status": "clean",

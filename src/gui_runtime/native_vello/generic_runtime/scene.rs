@@ -3,7 +3,7 @@
 use crate::{
     gui::types::{Rgba8, Vector2},
     gui_runtime::native_vello::{NativeTextRenderer, to_kurbo_rect},
-    runtime::{PaintPrimitive, RuntimeBridge},
+    runtime::{PaintPrimitive, RuntimeBridge, RuntimeRetainedSurfaceCapability},
 };
 use std::{sync::Arc, time::Duration};
 use vello::{Scene, kurbo::Affine, peniko::Fill};
@@ -23,7 +23,7 @@ pub(in crate::gui_runtime::native_vello) use cache::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,
 };
 pub(in crate::gui_runtime::native_vello) use clip::SceneClipState;
-use custom_surface::encode_custom_surface;
+use custom_surface::{CustomSurfaceEncodeContext, encode_custom_surface};
 use image::encode_image;
 use shape::{
     encode_path_fill, encode_polygon_fill, encode_polygon_stroke, encode_polyline_stroke,
@@ -46,6 +46,7 @@ where
         scene,
         text_renderer,
         bridge,
+        retained_surface,
         viewport,
         retained_cache,
         text_runs,
@@ -156,13 +157,16 @@ where
             }
             PaintPrimitive::CustomSurface(custom) => {
                 encode_custom_surface(
-                    scene,
-                    text_renderer,
-                    bridge,
-                    viewport,
-                    retained_cache,
+                    CustomSurfaceEncodeContext {
+                        scene,
+                        text_renderer,
+                        bridge,
+                        retained_surface,
+                        viewport,
+                        retained_cache,
+                        stats: &mut stats,
+                    },
                     custom,
-                    &mut stats,
                 );
             }
         }
@@ -182,6 +186,7 @@ pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, Br
     pub scene: &'a mut Scene,
     pub text_renderer: &'a mut NativeTextRenderer,
     pub bridge: &'a mut Bridge,
+    pub retained_surface: Option<RuntimeRetainedSurfaceCapability<Bridge>>,
     pub viewport: Vector2,
     pub retained_cache: &'a mut RetainedSurfaceFrameCache,
     pub text_runs: &'a mut SceneTextRunBuffer,

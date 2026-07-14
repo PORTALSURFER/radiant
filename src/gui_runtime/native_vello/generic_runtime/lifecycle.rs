@@ -54,7 +54,7 @@ where
             return;
         }
         match event {
-            WindowEvent::CloseRequested if self.core.runtime.bridge_mut().close_requested() => {
+            WindowEvent::CloseRequested if self.core.runtime.host_close_requested() => {
                 event_loop.exit();
             }
             WindowEvent::CloseRequested => {}

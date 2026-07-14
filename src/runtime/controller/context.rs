@@ -66,7 +66,7 @@ where
 
     /// Return a generic runtime diagnostics snapshot for tests and debug panels.
     pub fn runtime_diagnostics(&self) -> RuntimeDiagnostics {
-        let mut snapshot = self.bridge.runtime_diagnostics();
+        let mut snapshot = self.host_runtime_diagnostics();
         snapshot.ui = self.diagnostics.snapshot().ui;
         snapshot
     }

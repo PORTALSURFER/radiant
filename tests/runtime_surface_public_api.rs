@@ -17,8 +17,9 @@ use radiant::{
         Command, Element, Event, FocusTraversal, GpuShaderSurfaceDescriptor,
         GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceOverlay,
         GpuSurfaceParts, GpuSurfaceRuntimeOverlays, LayerKind, PaintPrimitive, Renderer,
-        RepaintScope, RuntimeBridge, SurfaceChild, SurfaceLayer, SurfaceNode, SurfacePaintPlan,
-        SurfaceRuntime, UiSurface, View, WidgetMessageMapper, declarative_command_runtime_bridge,
+        RepaintScope, RuntimeBridge, RuntimeHostCapabilities, RuntimeInputHost, RuntimeQueueHost,
+        RuntimeTaskHost, SurfaceChild, SurfaceLayer, SurfaceNode, SurfacePaintPlan, SurfaceRuntime,
+        UiSurface, View, WidgetMessageMapper, declarative_command_runtime_bridge,
         declarative_runtime_bridge,
     },
     theme::ThemeTokens,
@@ -765,6 +766,12 @@ impl RuntimeBridge<DemoMessage> for ShortcutDemoBridge {
         Command::none()
     }
 
+    fn host_capabilities(&self) -> radiant::runtime::RuntimeHostCapabilities<Self, DemoMessage> {
+        radiant::runtime::RuntimeHostCapabilities::new().with_input()
+    }
+}
+
+impl radiant::runtime::RuntimeInputHost<DemoMessage> for ShortcutDemoBridge {
     fn resolve_key_press(
         &mut self,
         _pending_chord: Option<KeyPress>,

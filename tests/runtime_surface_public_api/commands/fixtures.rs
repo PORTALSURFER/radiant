@@ -64,6 +64,12 @@ impl RuntimeBridge<DemoMessage> for RuntimeCommandBridge {
         Command::none()
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_tasks().with_queues()
+    }
+}
+
+impl RuntimeTaskHost<DemoMessage> for RuntimeCommandBridge {
     fn schedule_message(&mut self, delay: Duration, message: DemoMessage) -> bool {
         let pending = Arc::clone(&self.pending);
         std::thread::spawn(move || {
@@ -92,7 +98,9 @@ impl RuntimeBridge<DemoMessage> for RuntimeCommandBridge {
         });
         true
     }
+}
 
+impl RuntimeQueueHost<DemoMessage> for RuntimeCommandBridge {
     fn take_runtime_messages(&mut self) -> Vec<DemoMessage> {
         std::mem::take(&mut *self.pending.lock().expect("pending messages poisoned"))
     }

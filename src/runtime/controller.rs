@@ -10,6 +10,7 @@ mod events;
 mod focus;
 mod hit_order;
 mod hit_test;
+mod host;
 mod input;
 mod interaction_state;
 mod pointer;
@@ -63,6 +64,7 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     bridge: Bridge,
+    host_capabilities: super::RuntimeHostCapabilities<Bridge, Message>,
     viewport: Rect,
     surface: UiSurface<Message>,
     layout_root: crate::layout::LayoutNode,

@@ -38,20 +38,20 @@ fn animation_controls_disable_and_reset_frame_driven_updates() {
     });
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 220.0));
 
-    assert!(runtime.bridge_mut().needs_animation());
-    assert!(runtime.bridge_mut().queue_animation_frame());
+    assert!(runtime.host_animation_activity().needs_animation());
+    assert!(runtime.host_queue_animation_frame());
     let outcome = runtime.drain_runtime_messages();
     assert_eq!(outcome.messages_dispatched, 1);
     assert_status_contains(&runtime, "Running | frame 43 | phase 0.24");
 
     click_widget(&mut runtime, 40);
-    assert!(!runtime.bridge_mut().needs_animation());
+    assert!(!runtime.host_animation_activity().needs_animation());
     let outcome = runtime.drain_runtime_messages();
     assert_eq!(outcome.messages_dispatched, 0);
     assert_status_contains(&runtime, "Paused | frame 43 | phase 0.24");
 
     click_widget(&mut runtime, 41);
-    assert!(!runtime.bridge_mut().needs_animation());
+    assert!(!runtime.host_animation_activity().needs_animation());
     assert_status_contains(&runtime, "Paused | frame 0 | phase 0.00");
 }
 
@@ -84,7 +84,7 @@ fn reset_stops_running_animation_on_first_frame() {
 
     click_widget(&mut runtime, 41);
 
-    assert!(!runtime.bridge_mut().needs_animation());
+    assert!(!runtime.host_animation_activity().needs_animation());
     assert_status_contains(&runtime, "Paused | frame 0 | phase 0.00");
     assert_button_label(&runtime, 40, "Run");
 }
@@ -98,14 +98,14 @@ fn reset_ignores_already_queued_animation_frame() {
     });
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 220.0));
 
-    assert!(runtime.bridge_mut().needs_animation());
-    assert!(runtime.bridge_mut().queue_animation_frame());
+    assert!(runtime.host_animation_activity().needs_animation());
+    assert!(runtime.host_queue_animation_frame());
     click_widget(&mut runtime, 41);
 
     let outcome = runtime.drain_runtime_messages();
 
     assert_eq!(outcome.messages_dispatched, 1);
-    assert!(!runtime.bridge_mut().needs_animation());
+    assert!(!runtime.host_animation_activity().needs_animation());
     assert_status_contains(&runtime, "Paused | frame 0 | phase 0.00");
     assert_button_label(&runtime, 40, "Run");
 }
@@ -121,8 +121,8 @@ fn animation_controls_survive_pending_frame_between_press_and_release() {
     let rect = runtime.layout().rects[&40];
     let point = rect.center();
 
-    assert!(runtime.bridge_mut().needs_animation());
-    assert!(runtime.bridge_mut().queue_animation_frame());
+    assert!(runtime.host_animation_activity().needs_animation());
+    assert!(runtime.host_queue_animation_frame());
     runtime.dispatch_event(Event::PointerPress {
         position: point,
         button: PointerButton::Primary,
@@ -136,7 +136,7 @@ fn animation_controls_survive_pending_frame_between_press_and_release() {
         modifiers: Default::default(),
     });
 
-    assert!(!runtime.bridge_mut().needs_animation());
+    assert!(!runtime.host_animation_activity().needs_animation());
     assert_status_contains(&runtime, "Paused | frame 43 | phase 0.24");
 }
 

@@ -1405,13 +1405,69 @@ host-owned. Low-level hosts can still provide a custom bridge or use
 `declarative_command_runtime_bridge(state, project, update)` when embedding
 Radiant outside the application builder.
 
-`RuntimeBridge` remains the single explicit adapter trait for custom hosts, but
-its hooks are organized by responsibility rather than by backend: surface
-projection, state updates and input policy, runtime scheduling, platform
-services, runtime-owned queues, animation policy, retained/transient rendering,
-diagnostics, and lifecycle. Most applications should reach those responsibilities
-through `radiant::app(...)`; custom bridges should override only the groups they
-own instead of using the trait as a second application framework.
+`RuntimeBridge` is the minimal projection and update contract for custom hosts.
+Optional host behavior is declared through `RuntimeHostCapabilities` and focused
+traits for input policy, task scheduling, platform services, runtime queues,
+animation, windows, retained surfaces, transient overlays, diagnostics, and
+lifecycle. `RuntimeHostCapabilities` is cached once when `SurfaceRuntime` is
+created, so availability remains stable and absent capabilities add no dynamic
+lookup or allocation to frame paths. Most applications should still reach these
+responsibilities through `radiant::app(...)`; the capability traits extend the
+same runtime model instead of creating a second custom-host framework.
+
+A minimal custom host only projects a surface and handles messages:
+
+```rust
+use radiant::runtime::{Command, RuntimeBridge, UiSurface};
+use std::sync::Arc;
+
+struct MinimalHost {
+    surface: Arc<UiSurface<()>>,
+}
+
+impl RuntimeBridge<()> for MinimalHost {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        Arc::clone(&self.surface)
+    }
+
+    fn update(&mut self, _message: ()) -> Command<()> {
+        Command::none()
+    }
+}
+```
+
+An advanced capability host implements and registers only the hooks it owns:
+
+```rust
+use radiant::runtime::{
+    NativeFrameDiagnostics, PaintPrimitive, RuntimeBridge,
+    RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities,
+    RuntimeTransientOverlayHost, TransientOverlayContext,
+};
+
+impl RuntimeTransientOverlayHost for AdvancedHost {
+    fn paint_transient_overlay(
+        &mut self,
+        context: TransientOverlayContext<'_>,
+        primitives: &mut Vec<PaintPrimitive>,
+    ) {
+        self.paint_overlay(context, primitives);
+    }
+}
+
+impl RuntimeFrameDiagnosticsHost for AdvancedHost {
+    fn observe_frame_diagnostics(&mut self, diagnostics: NativeFrameDiagnostics) {
+        self.record_frame(diagnostics);
+    }
+}
+
+// Inside `impl RuntimeBridge<Message> for AdvancedHost`:
+// fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, Message> {
+//     RuntimeHostCapabilities::new()
+//         .with_transient_overlays()
+//         .with_frame_diagnostics()
+// }
+```
 Stateful embedding tests and custom hosts that do need a `SurfaceRuntime` can
 skip the intermediate bridge variable with `SurfaceRuntime::new_declarative(...)`
 or `SurfaceRuntime::new_declarative_owned(...)`, depending on whether the view
@@ -2471,9 +2527,9 @@ window runtime.
 
 For interactive native runs, set `RADIANT_NATIVE_RENDER_PROFILE=1` before
 launch to emit a per-frame `radiant native render profile` tracing line. The
-same counters are also exposed to custom hosts through
-`RuntimeBridge::observe_frame_diagnostics(...)` as `NativeFrameDiagnostics`, so
-apps can collect frame diagnostics without parsing logs. The scene diagnostics
+same counters are also exposed to custom hosts through the explicitly registered
+`RuntimeFrameDiagnosticsHost` capability as `NativeFrameDiagnostics`, so apps
+can collect frame diagnostics without parsing logs. The scene diagnostics
 are grouped into `traversal`, `text`, `media`, and `surfaces` buckets so hosts
 can inspect paint-plan traversal, text encoding, image/SVG encoding, and
 GPU/custom-surface handoff without treating the payload as one flat counter bag.

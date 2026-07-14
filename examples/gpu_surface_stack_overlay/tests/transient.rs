@@ -4,7 +4,7 @@ use crate::selection_overlay::SelectionOverlay;
 use crate::transient_overlay::{paint_transient_blob, triangle_wave};
 use crate::view::{SURFACE_HEIGHT, SURFACE_WIDTH};
 use radiant::prelude::*;
-use radiant::runtime::{RuntimeBridge, SurfaceRuntime, TransientOverlayContext, gpu_surface};
+use radiant::runtime::{SurfaceRuntime, TransientOverlayContext, gpu_surface};
 use radiant::theme::ThemeTokens;
 use std::{cell::Cell, rc::Rc, time::Duration};
 
@@ -50,18 +50,18 @@ fn animated_transient_overlay_requests_paint_only_frames() {
         Vector2::new(SURFACE_WIDTH, SURFACE_HEIGHT),
     );
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
     assert!(activity.needs_animation());
     assert!(!activity.needs_frame_message());
     assert_eq!(activity.target_fps(), Some(60));
     assert!(
-        !runtime.bridge_mut().queue_animation_frame(),
+        !runtime.host_queue_animation_frame(),
         "paint-only overlay animation must not enqueue app frame messages"
     );
 
     let plan = runtime.paint_plan(&ThemeTokens::default());
     let mut primitives = Vec::new();
-    runtime.bridge_mut().paint_transient_overlay(
+    runtime.host_paint_transient_overlay(
         TransientOverlayContext::new(
             &plan,
             Vector2::new(SURFACE_WIDTH, SURFACE_HEIGHT),

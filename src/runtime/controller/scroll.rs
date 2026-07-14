@@ -109,7 +109,7 @@ where
             self.repaint_requested |= !deferred_surface_refresh;
             return;
         }
-        if let Some(command) = self.bridge.scroll_updated(update) {
+        if let Some(command) = self.host_scroll_updated(update) {
             if refresh_after_message {
                 let outcome = self.execute_command(command);
                 if !outcome.surface_refresh_requested {

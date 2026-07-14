@@ -31,8 +31,9 @@ focused internal modules. The main ownership rule is:
 
 Normal application code should start through `radiant::prelude`,
 `radiant::window(...)`, or `radiant::app(...)`. These builders lower into the
-same `UiSurface`, `SurfaceNode`, `WidgetId`, `Command`, and `RuntimeBridge`
-contracts exposed through the explicit runtime modules.
+same `UiSurface`, `SurfaceNode`, `WidgetId`, `Command`, minimal `RuntimeBridge`,
+and cached `RuntimeHostCapabilities` contracts exposed through the explicit
+runtime modules.
 
 The normal app-facing surface is intentionally non-blocking. Update handlers
 may mutate durable UI/application state, apply business or platform-service
@@ -126,7 +127,7 @@ new focused export leaf or a module split, not a formatting workaround.
 - `src/runtime` owns backend-neutral retained surfaces, runtime commands,
   widget traversal, input dispatch, focus, scroll state, resource slots,
   platform requests, paint plans, diagnostics, GPU-surface payload contracts,
-  and the `RuntimeBridge` boundary.
+  and the `RuntimeBridge` plus explicit host-capability boundary.
 - `src/widgets` owns built-in widget contracts and named-part construction for
   primitive widgets.
 - `src/gui` owns reusable backend-neutral GUI models: layout, forms, feedback,
@@ -208,7 +209,7 @@ Radiant is Windows-first today, but core GUI, runtime, widget, layout, and
 paint-plan code should stay platform-neutral. Windows-specific integration
 belongs in native runtime/windowing modules or explicitly named platform
 adapters. Platform services such as file dialogs and URL opening flow through
-typed `PlatformRequest` commands and `RuntimeBridge::request_platform_service`.
+typed `PlatformRequest` commands and the opt-in `RuntimePlatformHost` capability.
 Application update handlers request those services through Radiant context
 helpers instead of calling platform APIs directly. The portable library
 boundary should keep compiling for future Linux and macOS targets even while

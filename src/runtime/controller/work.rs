@@ -1,6 +1,7 @@
 //! Runtime-owned command and message queues used by bounded drain passes.
 
-use super::{Command, RuntimeBridge};
+use super::Command;
+use crate::runtime::RuntimeQueueCapability;
 use crate::runtime::controller::commands::batching::{
     take_runtime_command_batch_into, take_runtime_message_batch_into,
 };
@@ -15,11 +16,15 @@ pub(super) struct RuntimeWorkQueues<Message> {
 }
 
 impl<Message> RuntimeWorkQueues<Message> {
-    pub(super) fn drain_bridge_commands<Bridge>(&mut self, bridge: &mut Bridge, budget: usize)
-    where
-        Bridge: RuntimeBridge<Message>,
-    {
-        bridge.drain_runtime_commands_into(&mut self.commands);
+    pub(super) fn drain_bridge_commands<Bridge>(
+        &mut self,
+        bridge: &mut Bridge,
+        capability: Option<&RuntimeQueueCapability<Bridge, Message>>,
+        budget: usize,
+    ) {
+        if let Some(capability) = capability {
+            (capability.drain_runtime_commands_into)(bridge, &mut self.commands);
+        }
         take_runtime_command_batch_into(
             &mut self.commands,
             &mut self.command_batch,
@@ -28,12 +33,15 @@ impl<Message> RuntimeWorkQueues<Message> {
         );
     }
 
-    pub(super) fn drain_bridge_messages<Bridge>(&mut self, bridge: &mut Bridge, budget: usize)
-    where
-        Bridge: RuntimeBridge<Message>,
-    {
-        self.bridge_messages_remaining =
-            bridge.drain_runtime_message_batch_into(&mut self.messages, budget);
+    pub(super) fn drain_bridge_messages<Bridge>(
+        &mut self,
+        bridge: &mut Bridge,
+        capability: Option<&RuntimeQueueCapability<Bridge, Message>>,
+        budget: usize,
+    ) {
+        self.bridge_messages_remaining = capability.is_some_and(|capability| {
+            (capability.drain_runtime_message_batch_into)(bridge, &mut self.messages, budget)
+        });
         take_runtime_message_batch_into(&mut self.messages, &mut self.message_batch, budget);
     }
 

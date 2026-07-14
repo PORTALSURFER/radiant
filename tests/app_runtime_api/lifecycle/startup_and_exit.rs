@@ -41,11 +41,9 @@ fn app_startup_commands_use_full_runtime_dispatch() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(300.0, 48.0));
     let repaint_called = Arc::new(AtomicBool::new(false));
-    runtime
-        .bridge_mut()
-        .install_repaint_signal(Arc::new(CountingRepaintSignal {
-            called: Arc::clone(&repaint_called),
-        }));
+    runtime.host_install_repaint_signal(Arc::new(CountingRepaintSignal {
+        called: Arc::clone(&repaint_called),
+    }));
 
     let startup = runtime.drain_runtime_messages();
     assert!(startup.repaint_requested);
@@ -73,12 +71,19 @@ fn app_startup_runs_once_when_repaint_signal_is_reinstalled() {
         .handle_message(|_state, _message: DemoMessage, _context| {})
         .into_bridge();
 
-    bridge.install_repaint_signal(Arc::new(CountingRepaintSignal {
-        called: Arc::new(AtomicBool::new(false)),
-    }));
-    bridge.install_repaint_signal(Arc::new(CountingRepaintSignal {
-        called: Arc::new(AtomicBool::new(false)),
-    }));
+    let capabilities = bridge.host_capabilities();
+    assert!(capabilities.install_repaint_signal(
+        &mut bridge,
+        Arc::new(CountingRepaintSignal {
+            called: Arc::new(AtomicBool::new(false)),
+        }),
+    ));
+    assert!(capabilities.install_repaint_signal(
+        &mut bridge,
+        Arc::new(CountingRepaintSignal {
+            called: Arc::new(AtomicBool::new(false)),
+        }),
+    ));
 
     let surface = bridge.project_surface();
 
@@ -107,16 +112,14 @@ fn app_runtime_effects_stop_after_runtime_exit() {
         })
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 40.0));
-    runtime
-        .bridge_mut()
-        .install_repaint_signal(Arc::new(CountingRepaintSignal {
-            called: Arc::new(AtomicBool::new(false)),
-        }));
+    runtime.host_install_repaint_signal(Arc::new(CountingRepaintSignal {
+        called: Arc::new(AtomicBool::new(false)),
+    }));
 
     let active = drain_until_messages(&mut runtime, 1);
     assert!(active.messages_dispatched > 0);
 
-    let _ = runtime.bridge_mut().on_runtime_exit();
+    let _ = runtime.host_on_runtime_exit();
     let delayed = runtime.execute_command(Command::after(
         Duration::from_millis(5),
         DemoMessage::Increment,

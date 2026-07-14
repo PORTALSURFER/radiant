@@ -9,16 +9,22 @@ where
         let mut outcome = CommandOutcome::default();
         let (command_budget, message_budget) = self.runtime_drain_budget();
 
-        self.runtime_work
-            .drain_bridge_commands(&mut self.bridge, command_budget);
+        self.runtime_work.drain_bridge_commands(
+            &mut self.bridge,
+            self.host_capabilities.queues.as_ref(),
+            command_budget,
+        );
         let mut command_batch = self.runtime_work.take_command_batch();
         while let Some(command) = command_batch.pop() {
             self.execute_command_inner(command, &mut outcome);
         }
         self.runtime_work.restore_command_batch(command_batch);
 
-        self.runtime_work
-            .drain_bridge_messages(&mut self.bridge, message_budget);
+        self.runtime_work.drain_bridge_messages(
+            &mut self.bridge,
+            self.host_capabilities.queues.as_ref(),
+            message_budget,
+        );
         let mut message_batch = self.runtime_work.take_message_batch();
         while let Some(message) = message_batch.pop() {
             self.dispatch_message_inner(message, &mut outcome);

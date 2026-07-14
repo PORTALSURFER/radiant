@@ -8,6 +8,7 @@ use radiant::runtime::{
     NativeSceneSurfaceDiagnostics, NativeSceneTraversalDiagnostics, NativeTextCacheCounters,
     NativeTextCacheDiagnostics, NativeTextDiagnostics, NativeTextQualityDiagnostics,
     NativeTextQualityStatus, NativeTransientOverlayTiming, RuntimeBridge,
+    RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities,
 };
 use std::time::Duration;
 
@@ -97,7 +98,7 @@ fn runtime_bridge_can_observe_structured_frame_diagnostics() {
         },
     };
 
-    assert!(bridge.has_frame_diagnostics_observer());
+    assert!(bridge.host_capabilities().has_frame_diagnostics());
     bridge.observe_frame_diagnostics(diagnostics);
 
     assert_eq!(bridge.last, Some(diagnostics));
@@ -155,6 +156,12 @@ impl RuntimeBridge<()> for DiagnosticBridge {
         Arc::new(UiSurface::new(SurfaceNode::column(1, 0.0, Vec::new())))
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+        RuntimeHostCapabilities::new().with_frame_diagnostics()
+    }
+}
+
+impl RuntimeFrameDiagnosticsHost for DiagnosticBridge {
     fn observe_frame_diagnostics(&mut self, diagnostics: NativeFrameDiagnostics) {
         self.last = Some(diagnostics);
     }

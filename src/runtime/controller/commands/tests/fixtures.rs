@@ -2,7 +2,9 @@ use super::super::*;
 use crate::layout::{Constraints, ContainerPolicy, SizeModeCross, SizeModeMain, SlotParams};
 use crate::runtime::{
     BusinessMessageSink, PlatformCompletion, PlatformRequest, PlatformResponse,
-    PlatformServiceFallback, SurfaceChild, SurfaceNode, TaskPriority, WidgetMessageMapper,
+    PlatformServiceFallback, RuntimeHostCapabilities, RuntimeInputHost, RuntimePlatformHost,
+    RuntimeQueueHost, RuntimeTaskHost, SurfaceChild, SurfaceNode, TaskPriority,
+    WidgetMessageMapper,
 };
 use crate::widgets::{InteractiveRowWidget, WidgetSizing};
 use std::sync::{Arc, Mutex};
@@ -61,6 +63,12 @@ impl RuntimeBridge<usize> for PlatformCommandBridge {
         self.dispatched.push(message);
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+        RuntimeHostCapabilities::new().with_platform()
+    }
+}
+
+impl RuntimePlatformHost<usize> for PlatformCommandBridge {
     fn request_platform_service(
         &mut self,
         request: PlatformRequest,
@@ -86,6 +94,12 @@ impl RuntimeBridge<usize> for QueuedCommandBridge {
         self.dispatched.push(message);
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+        RuntimeHostCapabilities::new().with_queues()
+    }
+}
+
+impl RuntimeQueueHost<usize> for QueuedCommandBridge {
     fn drain_runtime_commands_into(&mut self, commands: &mut Vec<Command<usize>>) {
         commands.append(&mut self.commands);
     }
@@ -107,6 +121,12 @@ impl RuntimeBridge<usize> for StreamingCommandBridge {
             .push(message);
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+        RuntimeHostCapabilities::new().with_tasks()
+    }
+}
+
+impl RuntimeTaskHost<usize> for StreamingCommandBridge {
     fn spawn_streaming_message_task(
         &mut self,
         _name: &'static str,
@@ -211,6 +231,12 @@ impl RuntimeBridge<usize> for DeferredScrollFocusBridge {
         Arc::new(UiSurface::new(scroll_test_surface(target)))
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, usize> {
+        RuntimeHostCapabilities::new().with_input()
+    }
+}
+
+impl RuntimeInputHost<usize> for DeferredScrollFocusBridge {
     fn scroll_updated(&mut self, _update: crate::runtime::ScrollUpdate) -> Option<Command<usize>> {
         self.scroll_updates += 1;
         self.show_focus_target = true;

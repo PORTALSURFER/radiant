@@ -120,6 +120,7 @@ where
                 dpi_scale: self.window.dpi_scale,
             },
             &self.frame.last_paint_plan,
+            &self.frame.surface_occlusion_plan,
             &self.frame.transient_overlay_primitives,
             self.frame.last_scene_stats.gpu_surface_count > 0,
         );

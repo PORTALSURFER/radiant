@@ -19,7 +19,7 @@ fn native_gpu_surface_visibility_occlusion_stays_focused() {
 
     assert!(
         visibility.contains("visible_rects_after_occlusion")
-            && visibility.contains("surface_occlusion_regions_into(")
+            && visibility.contains("planned_surface_occlusion_regions_into(")
             && visibility.contains("&mut scratch.occlusion_regions")
             && !visibility.contains("const OPAQUE_SUFFIX_OCCLUSION_ALPHA")
             && !visibility.contains("PaintPrimitive::FillRect(fill)"),
@@ -27,21 +27,24 @@ fn native_gpu_surface_visibility_occlusion_stays_focused() {
     );
     assert!(
         occlusion.contains("const OPAQUE_SUFFIX_OCCLUSION_ALPHA")
-            && occlusion.contains("fn surface_occlusion_regions")
+            && occlusion.contains("struct SurfaceOcclusionPlan")
+            && occlusion.contains("fn preprocess(")
+            && occlusion.contains("fn rebuild_spatial_index")
+            && occlusion.contains("fn planned_surface_occlusion_regions_into(")
             && occlusion.contains("Self::Exact => u8::MAX")
             && occlusion.contains("Self::GpuCompositor => OPAQUE_SUFFIX_OCCLUSION_ALPHA")
             && occlusion.contains("PaintPrimitive::FillRect(fill)")
             && occlusion.contains("PaintPrimitive::OverlayPanel(panel)")
             && occlusion.contains("PaintPrimitive::ClipStart(clip)")
             && occlusion.contains("append_rect_outside_clip(surface_rect, clip, regions)")
-            && occlusion.contains("update_clip_stack(primitive, clip_stack)")
-            && occlusion.contains("clipped_occlusion_region(surface_rect, fill.rect, clip_stack)"),
+            && occlusion.contains("!bounds.overlaps(surface_rect)")
+            && occlusion.contains("occluder.primitive_index > primitive_index"),
         "surface clip and opaque suffix occlusion should live in runtime_helpers/surface_occlusion.rs"
     );
     assert!(
-        interaction.contains("surface_occlusion_regions_into(")
-            && interaction.contains("primitives.get(..index)")
-            && interaction.contains("&mut scratch.clip_stack")
+        interaction.contains("planned_surface_occlusion_regions_into(")
+            && interaction.contains("plan: &SurfaceOcclusionPlan")
+            && interaction.contains("&mut scratch.query_scratch")
             && !interaction.contains("const OPAQUE_SUFFIX_OCCLUSION_ALPHA")
             && !interaction.contains("fn push_opaque_fill_rects"),
         "GPU interaction regions should share render-time surface occlusion"

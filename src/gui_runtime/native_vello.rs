@@ -8,8 +8,8 @@ use crate::gui::{
 use crate::runtime::PaintTextInput;
 use vello::{Scene, wgpu};
 
-mod generic_runtime;
 mod embedded;
+mod generic_runtime;
 mod runtime_config;
 mod runtime_event;
 mod startup;
@@ -28,7 +28,8 @@ pub use self::{
         EmbeddedVelloUnsupportedPrimitive,
     },
     generic_runtime::{
-        NativeGenericRunError, NativeGenericRunReport, NativeGenericRuntimeArtifacts,
+        GpuSurfaceOcclusionPlanningScratch, NativeGenericRunError, NativeGenericRunReport,
+        NativeGenericRuntimeArtifacts, plan_gpu_surface_occlusion_for_diagnostics,
         run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
     },
     startup::NativeStartupTimingArtifact,

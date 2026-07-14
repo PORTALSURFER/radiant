@@ -1,3 +1,22 @@
+/// CPU work performed while preprocessing and querying one GPU-surface occlusion plan.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct GpuSurfaceOcclusionPlanningDiagnostics {
+    /// Paint primitives visited while preprocessing the plan.
+    pub paint_primitives_visited: usize,
+    /// Clip-resolved opaque rectangles added to the spatial suffix index.
+    pub occluder_rects_indexed: usize,
+    /// GPU surfaces considered by visibility planning.
+    pub gpu_surfaces_planned: usize,
+    /// GPU surfaces with at least one visible region.
+    pub visible_gpu_surfaces: usize,
+    /// Spatial index nodes visited across all surface queries.
+    pub index_nodes_visited: usize,
+    /// Leaf occluder candidates tested across all surface queries.
+    pub occluder_candidates_visited: usize,
+    /// Visible rectangles produced after clip and opaque-suffix subtraction.
+    pub visible_regions_produced: usize,
+}
+
 /// GPU-surface cache and render diagnostics for one native frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NativeGpuSurfaceDiagnostics {

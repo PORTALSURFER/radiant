@@ -6,6 +6,8 @@ mod profile;
 mod rect_occlusion;
 mod surface_occlusion;
 
+#[cfg(test)]
+pub(in crate::gui_runtime::native_vello) use gpu_surface_regions::collect_gpu_surface_interaction_regions;
 pub(in crate::gui_runtime::native_vello) use gpu_surface_regions::{
     GpuSurfaceInteractionRegion, GpuSurfaceInteractionScratch,
     collect_gpu_surface_interaction_regions_with_scratch,
@@ -17,5 +19,6 @@ pub(super) use rect_occlusion::{
     visible_rects_after_occlusion_into,
 };
 pub(in crate::gui_runtime::native_vello) use surface_occlusion::{
-    SurfaceOcclusionPolicy, surface_occlusion_regions_into,
+    SurfaceOcclusionPlan, SurfaceOcclusionPolicy, SurfaceOcclusionQueryScratch,
+    SurfaceOcclusionQueryStats, planned_surface_occlusion_regions_into,
 };

@@ -124,27 +124,40 @@ fn gpu_surface_interaction_region_collection_reuses_scratch_buffers() {
     ];
     let mut regions = Vec::new();
     let mut scratch = GpuSurfaceInteractionScratch {
-        opaque_rects: Vec::with_capacity(8),
+        occlusion_regions: Vec::with_capacity(8),
         visible_rects: Vec::with_capacity(8),
         occlusion_scratch: Vec::with_capacity(8),
-        clip_stack: Vec::with_capacity(8),
+        query_scratch: SurfaceOcclusionQueryScratch::default(),
     };
-    let opaque_capacity = scratch.opaque_rects.capacity();
+    let occlusion_regions_capacity = scratch.occlusion_regions.capacity();
     let visible_capacity = scratch.visible_rects.capacity();
     let occlusion_capacity = scratch.occlusion_scratch.capacity();
-    let clip_stack_capacity = scratch.clip_stack.capacity();
+    let mut plan = SurfaceOcclusionPlan::default();
+    plan.preprocess(&primitives);
 
-    collect_gpu_surface_interaction_regions_with_scratch(&primitives, &mut regions, &mut scratch);
     collect_gpu_surface_interaction_regions_with_scratch(
-        &[PaintPrimitive::GpuSurface(test_surface(surface_rect))],
+        &primitives,
+        &plan,
+        &mut regions,
+        &mut scratch,
+    );
+    let query_capacity = scratch.query_scratch.capacity();
+    let one_surface = [PaintPrimitive::GpuSurface(test_surface(surface_rect))];
+    plan.preprocess(&one_surface);
+    collect_gpu_surface_interaction_regions_with_scratch(
+        &one_surface,
+        &plan,
         &mut regions,
         &mut scratch,
     );
 
-    assert_eq!(scratch.opaque_rects.capacity(), opaque_capacity);
+    assert_eq!(
+        scratch.occlusion_regions.capacity(),
+        occlusion_regions_capacity
+    );
     assert_eq!(scratch.visible_rects.capacity(), visible_capacity);
     assert_eq!(scratch.occlusion_scratch.capacity(), occlusion_capacity);
-    assert_eq!(scratch.clip_stack.capacity(), clip_stack_capacity);
+    assert_eq!(scratch.query_scratch.capacity(), query_capacity);
 }
 
 #[test]

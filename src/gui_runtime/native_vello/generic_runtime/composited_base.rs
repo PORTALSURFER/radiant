@@ -1,5 +1,6 @@
 //! Cached composed frame used by paint-only transient overlay presentations.
 
+use super::runtime_helpers::SurfaceOcclusionPlan;
 use super::{GpuSurfaceRenderer, RenderFrameProfile, RenderSurfacePixelSize, gpu_surface};
 #[cfg(test)]
 use crate::gui::types::{Point, Rect as UiRect, Rgba8, Vector2};
@@ -35,6 +36,7 @@ pub(super) fn present_base_frame(
     surface: &RenderSurface<'_>,
     target: &mut BaseFramePresentTarget<'_>,
     paint_plan: &SurfacePaintPlan,
+    occlusion_plan: &SurfaceOcclusionPlan,
     transient_overlay_primitives: &[PaintPrimitive],
     has_gpu_surfaces: bool,
 ) -> gpu_surface::GpuSurfaceRenderStats {
@@ -44,6 +46,7 @@ pub(super) fn present_base_frame(
             surface,
             target,
             paint_plan,
+            occlusion_plan,
             has_gpu_surfaces,
         );
     }
@@ -68,6 +71,7 @@ pub(super) fn present_base_frame(
             surface,
             target,
             paint_plan,
+            occlusion_plan,
             has_gpu_surfaces,
         )
     } else {
@@ -88,6 +92,7 @@ fn present_live_base(
     surface: &RenderSurface<'_>,
     target: &mut BaseFramePresentTarget<'_>,
     paint_plan: &SurfacePaintPlan,
+    occlusion_plan: &SurfaceOcclusionPlan,
     has_gpu_surfaces: bool,
 ) -> gpu_surface::GpuSurfaceRenderStats {
     surface.blitter.copy(
@@ -111,6 +116,7 @@ fn present_live_base(
             dpi_scale: target.dpi_scale,
         },
         &paint_plan.primitives,
+        occlusion_plan,
     )
 }
 
@@ -120,6 +126,7 @@ fn refresh_composited_base_frame(
     surface: &RenderSurface<'_>,
     target: &mut BaseFramePresentTarget<'_>,
     paint_plan: &SurfacePaintPlan,
+    occlusion_plan: &SurfaceOcclusionPlan,
     has_gpu_surfaces: bool,
 ) -> gpu_surface::GpuSurfaceRenderStats {
     let (stats, elapsed) = state.profile.measure(|| {
@@ -142,6 +149,7 @@ fn refresh_composited_base_frame(
                     dpi_scale: target.dpi_scale,
                 },
                 &paint_plan.primitives,
+                occlusion_plan,
             )
         } else {
             gpu_surface::GpuSurfaceRenderStats::default()

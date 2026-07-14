@@ -2,8 +2,8 @@
 
 use crate::{
     app_projection, bench_gpu_custom_shader_projection, bench_gpu_signal_summary,
-    bench_gpu_surface_projection, bench_gpu_surface_stack_projection_128, command_drain,
-    layout_scenarios, resource_scenarios,
+    bench_gpu_surface_occlusion, bench_gpu_surface_projection,
+    bench_gpu_surface_stack_projection_128, command_drain, layout_scenarios, resource_scenarios,
     runner::{ScenarioRunner, ScenarioSpec},
     runtime_scenarios, text_scenarios,
 };
@@ -60,6 +60,13 @@ const GPU_SURFACE_COUNTERS: &[&str] = &[
     "retained_surface_cache_hit_count",
     "paint_primitive_count",
 ];
+const GPU_SURFACE_OCCLUSION_COUNTERS: &[&str] = &[
+    "gpu_surface_count",
+    "paint_primitive_count",
+    "gpu_surface_occlusion_primitive_visit_count",
+    "gpu_surface_occlusion_index_node_visit_count",
+    "gpu_surface_occlusion_candidate_visit_count",
+];
 const GPU_DATA_COUNTERS: &[&str] = &["allocation_sensitive_work_count"];
 const FRAME_CADENCE_COUNTERS: &[&str] = &[
     "paint_only_count",
@@ -112,6 +119,9 @@ macro_rules! perf_scenario_catalog {
             ("gpu_signal_summary", "gpu_data", "retained_gpu_surfaces", GPU_DATA_COUNTERS, GPU_ITERATIONS, || bench_gpu_signal_summary),
             ("gpu_surface_projection", "gpu_surface", "retained_gpu_surfaces", GPU_SURFACE_COUNTERS, GPU_ITERATIONS, || bench_gpu_surface_projection),
             ("gpu_surface_stack_projection_128", "gpu_surface", "retained_gpu_surfaces", GPU_SURFACE_COUNTERS, GPU_ITERATIONS, || bench_gpu_surface_stack_projection_128),
+            ("gpu_surface_occlusion_1", "gpu_surface", "retained_gpu_surfaces", GPU_SURFACE_OCCLUSION_COUNTERS, GPU_ITERATIONS, || bench_gpu_surface_occlusion(1, 16)),
+            ("gpu_surface_occlusion_30", "gpu_surface", "retained_gpu_surfaces", GPU_SURFACE_OCCLUSION_COUNTERS, GPU_ITERATIONS, || bench_gpu_surface_occlusion(30, 640)),
+            ("gpu_surface_occlusion_128", "gpu_surface", "retained_gpu_surfaces", GPU_SURFACE_OCCLUSION_COUNTERS, GPU_ITERATIONS, || bench_gpu_surface_occlusion(128, 3_200)),
             ("gpu_custom_shader_projection", "gpu_surface", "retained_gpu_surfaces", GPU_SURFACE_COUNTERS, GPU_ITERATIONS, || bench_gpu_custom_shader_projection),
             ]
         }

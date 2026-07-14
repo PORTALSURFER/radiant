@@ -2457,7 +2457,7 @@ Blessed high-risk groups:
 | `virtual_lists` | virtualized list layout, fixed-row scrolling, row-window projection, nested scroll regions, dense row builders | `cargo bench --bench perf_harness -- --group virtual_lists --jsonl` |
 | `scene_cache` | scene rebuild policy, dirty layout caches, retained invalidation masks, refresh/reprojection paths | `cargo bench --bench perf_harness -- --group scene_cache --jsonl` |
 | `text_layout` | text paint plans, text-line layout cache use, word selection/deletion, wrapping or clipped text rows | `cargo bench --bench perf_harness -- --group text_layout --jsonl` |
-| `retained_gpu_surfaces` | GPU surface projection, retained atlas/custom shader paths, signal-summary data preparation, renderer cache diagnostics | `cargo bench --bench perf_harness -- --group retained_gpu_surfaces --jsonl` |
+| `retained_gpu_surfaces` | GPU surface projection and compositor occlusion planning, retained atlas/custom shader paths, signal-summary data preparation, renderer cache diagnostics | `cargo bench --bench perf_harness -- --group retained_gpu_surfaces --jsonl` |
 | `frame_cadence` | resize cadence, animation activity, paint-only frame policy, route-time frame-drain behavior | `cargo bench --bench perf_harness -- --group frame_cadence --jsonl` |
 
 Keep baselines machine-local unless a stable CI baseline is intentionally

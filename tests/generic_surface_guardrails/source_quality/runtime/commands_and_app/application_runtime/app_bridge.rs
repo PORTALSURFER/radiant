@@ -66,3 +66,37 @@ fn app_bridge_groups_lifecycle_hooks_and_runtime_flags() {
         "launch-level animation compatibility should stay isolated outside the normal animation adapter"
     );
 }
+
+#[test]
+fn app_view_projection_carries_scene_lifecycle_without_concrete_type_probes() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let adapter =
+        fs::read_to_string(manifest_dir.join("src/application/runtime/bridge/adapter/view.rs"))
+            .expect("application view adapter should be readable");
+    let into_view = fs::read_to_string(manifest_dir.join("src/application/launch/into_view.rs"))
+        .expect("IntoView contract should be readable");
+    let lowering = fs::read_to_string(manifest_dir.join("src/application/view_node/lowering.rs"))
+        .expect("application view lowering should be readable");
+
+    assert!(
+        adapter.contains(".into_projection()")
+            && adapter.contains("projection.into_parts()")
+            && adapter.contains("scene.apply(&mut self.lifecycle)")
+            && !adapter.contains("dyn Any")
+            && !adapter.contains("downcast"),
+        "the app adapter should consume the typed projection artifact without probing concrete view types"
+    );
+    assert!(
+        into_view.contains("fn into_projection(self) -> ViewProjection<Message>;")
+            && into_view.contains("pub struct ViewProjection<Message>")
+            && into_view.contains("pub fn from_surface(surface: UiSurface<Message>) -> Self")
+            && !into_view.contains("IntoView<Message> for SurfaceNode<Message>")
+            && !into_view.contains("IntoView<Message> for UiSurface<Message>"),
+        "IntoView implementors should explicitly produce a lifecycle-preserving or metadata-free projection"
+    );
+    assert!(
+        lowering.contains("self.scene.capture(presentation, shortcuts)")
+            && lowering.contains("ViewProjection::with_scene(UiSurface::new(root), scene)"),
+        "ViewNode lowering should collect Scene metadata while producing the runtime surface"
+    );
+}

@@ -12,6 +12,7 @@ use radiant::{
         types::{Point, Rect, Rgba8, Vector2},
     },
     layout::{Constraints, SizeModeCross, SizeModeMain, SlotParams},
+    prelude::ViewProjection,
     runtime::{
         Command, PaintFillRect, PaintPrimitive, RuntimeBridge, RuntimeHostCapabilities,
         RuntimeQueueHost, SurfaceNode, SurfaceRuntime, UiSurface,

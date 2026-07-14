@@ -5,8 +5,8 @@ use crate::{
     widgets::WidgetStyle,
 };
 
-impl ViewLowering<'_> {
-    pub(super) fn lower_container<Message>(
+impl<Message> ViewLowering<'_, Message> {
+    pub(super) fn lower_container(
         &mut self,
         id: NodeId,
         policy: ContainerPolicy,

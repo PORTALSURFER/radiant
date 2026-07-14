@@ -14,6 +14,7 @@ mod into_view;
 mod stateful;
 mod window;
 
-pub use into_view::IntoView;
+pub(in crate::application) use into_view::SceneProjection;
+pub use into_view::{IntoView, ViewProjection};
 pub use stateful::{RunnableStatefulApp, StatefulAppBuilder, StatefulAppWithView};
 pub use window::WindowBuilder;

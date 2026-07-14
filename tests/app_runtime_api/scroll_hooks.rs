@@ -2,7 +2,7 @@ use super::{DemoMessage, DemoState, intrinsic_slot, text_value};
 use radiant::{
     app,
     gui::types::{Point, Vector2},
-    prelude as ui,
+    prelude::{self as ui, ViewProjection},
     runtime::{Event, PaintPrimitive, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface},
     theme::ThemeTokens,
     widgets::{PointerButton, TextWidget, WidgetSizing},
@@ -15,7 +15,7 @@ fn app_scroll_hook_observes_runtime_scroll_offsets() {
     let observed_scroll_y_for_hook = Arc::clone(&observed_scroll_y);
     let bridge = app(DemoState::default())
         .view(|state: &DemoState| {
-            UiSurface::new(SurfaceNode::scroll_area(
+            ViewProjection::from_surface(UiSurface::new(SurfaceNode::scroll_area(
                 20,
                 SurfaceNode::column(
                     21,
@@ -34,7 +34,7 @@ fn app_scroll_hook_observes_runtime_scroll_offsets() {
                         })
                         .collect(),
                 ),
-            ))
+            )))
         })
         .on_scroll(move |state, update, _context| {
             state.last_scroll_y = update.offset.y;
@@ -145,7 +145,7 @@ fn app_scroll_hook_observes_scrollbar_drag_offsets() {
     let observed_scroll_y_for_hook = Arc::clone(&observed_scroll_y);
     let bridge = app(DemoState::default())
         .view(|state: &DemoState| {
-            UiSurface::new(SurfaceNode::scroll_area(
+            ViewProjection::from_surface(UiSurface::new(SurfaceNode::scroll_area(
                 20,
                 SurfaceNode::column(
                     21,
@@ -164,7 +164,7 @@ fn app_scroll_hook_observes_scrollbar_drag_offsets() {
                         })
                         .collect(),
                 ),
-            ))
+            )))
         })
         .on_scroll(move |state, update, _context| {
             state.last_scroll_y = update.offset.y;

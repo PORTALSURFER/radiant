@@ -1,22 +1,131 @@
 use crate::{
+    application::{AppBridgeLifecycle, Presentation},
     gui::types::Rect,
+    gui::{input::KeyPress, shortcuts::ShortcutResolution},
     layout::{LayoutOutput, Vector2},
     runtime::{SurfaceFrame, SurfaceNode, UiSurface},
     theme::ThemeTokens,
     widgets::{WidgetId, WidgetInput, WidgetOutput},
 };
+use std::any::Any;
 
-/// Converts application view values into the existing runtime surface.
+/// One lowered application view plus its Scene lifecycle bindings.
+///
+/// `ViewProjection` is the lossless application projection artifact. Custom
+/// [`IntoView`] wrappers should delegate [`IntoView::into_projection`] to the
+/// wrapped value so Scene frame clocks, transient overlays, and shortcuts stay
+/// attached. A projection built with [`Self::from_surface`] is explicitly
+/// metadata-free.
+pub struct ViewProjection<Message> {
+    surface: UiSurface<Message>,
+    scene: SceneProjection<Message>,
+}
+
+impl<Message> ViewProjection<Message> {
+    /// Build an explicitly metadata-free projection from a lowered surface.
+    pub fn from_surface(surface: UiSurface<Message>) -> Self {
+        Self {
+            surface,
+            scene: SceneProjection::default(),
+        }
+    }
+
+    /// Borrow the lowered runtime surface.
+    pub fn surface(&self) -> &UiSurface<Message> {
+        &self.surface
+    }
+
+    /// Consume the projection and return its lowered runtime surface.
+    ///
+    /// This intentionally discards application-only Scene lifecycle bindings.
+    /// Return the `ViewProjection` itself from a stateful app projection when
+    /// those bindings must remain active.
+    pub fn into_surface(self) -> UiSurface<Message> {
+        self.surface
+    }
+
+    pub(in crate::application) fn with_scene(
+        surface: UiSurface<Message>,
+        scene: SceneProjection<Message>,
+    ) -> Self {
+        Self { surface, scene }
+    }
+
+    pub(in crate::application) fn into_parts(
+        self,
+    ) -> (UiSurface<Message>, SceneProjection<Message>) {
+        (self.surface, self.scene)
+    }
+}
+
+pub(in crate::application) struct SceneProjection<Message> {
+    presentations: Vec<Box<dyn Any>>,
+    shortcuts: Option<Box<dyn Fn(KeyPress) -> ShortcutResolution<Message>>>,
+}
+
+impl<Message> Default for SceneProjection<Message> {
+    fn default() -> Self {
+        Self {
+            presentations: Vec::new(),
+            shortcuts: None,
+        }
+    }
+}
+
+impl<Message: 'static> SceneProjection<Message> {
+    pub(in crate::application) fn capture(
+        &mut self,
+        presentation: Option<Box<dyn Any>>,
+        shortcuts: Option<Box<dyn Fn(KeyPress) -> ShortcutResolution<Message>>>,
+    ) {
+        if self.shortcuts.is_none() {
+            self.shortcuts = shortcuts;
+        }
+        if let Some(presentation) = presentation {
+            self.presentations.push(presentation);
+        }
+    }
+
+    pub(in crate::application) fn apply<State: 'static>(
+        self,
+        lifecycle: &mut AppBridgeLifecycle<State, Message>,
+    ) {
+        lifecycle.clear_scene_presentation();
+        lifecycle.scene_shortcuts = self.shortcuts;
+        for presentation in self.presentations {
+            if let Ok(presentation) = presentation.downcast::<Presentation<State, Message>>() {
+                presentation.apply_to_scene_lifecycle(lifecycle);
+            }
+        }
+    }
+}
+
+/// Converts application view values into a lossless application projection.
 pub trait IntoView<Message> {
+    /// Lower this value into one surface plus its Scene lifecycle bindings.
+    ///
+    /// This method is required so custom wrappers must explicitly preserve a
+    /// wrapped projection or construct a metadata-free one.
+    fn into_projection(self) -> ViewProjection<Message>;
+
     /// Lower this value into a runtime surface node.
-    fn into_node(self) -> SurfaceNode<Message>;
+    ///
+    /// This explicitly discards application-only Scene lifecycle bindings.
+    fn into_node(self) -> SurfaceNode<Message>
+    where
+        Self: Sized,
+    {
+        self.into_projection().into_surface().into_root()
+    }
 
     /// Lower this value into a top-level runtime surface.
+    ///
+    /// This explicitly discards application-only Scene lifecycle bindings.
     fn into_surface(self) -> UiSurface<Message>
     where
         Self: Sized,
     {
-        UiSurface::new(self.into_node())
+        self.into_projection().into_surface()
     }
 
     /// Resolve this view into layout rectangles for a host-controlled viewport.
@@ -101,18 +210,8 @@ pub trait IntoView<Message> {
     }
 }
 
-impl<Message> IntoView<Message> for SurfaceNode<Message> {
-    fn into_node(self) -> SurfaceNode<Message> {
-        self
-    }
-}
-
-impl<Message> IntoView<Message> for UiSurface<Message> {
-    fn into_node(self) -> SurfaceNode<Message> {
-        self.into_root()
-    }
-
-    fn into_surface(self) -> UiSurface<Message> {
+impl<Message> IntoView<Message> for ViewProjection<Message> {
+    fn into_projection(self) -> ViewProjection<Message> {
         self
     }
 }

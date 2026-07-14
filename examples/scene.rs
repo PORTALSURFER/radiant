@@ -111,6 +111,7 @@ fn main() -> radiant::Result {
                 )
                 .into_view()
                 .fill()
+                .into_projection()
         })
         .update(|state, message| match message {
             SceneExampleMessage::ToggleLocalOverlay => state.toggle_local_overlay(),

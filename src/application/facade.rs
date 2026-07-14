@@ -110,5 +110,6 @@ pub use surfaces::{
 };
 pub use view::{
     IntoView, MappedWidget, MappedWidgetParts, RunnableStatefulApp, StatefulAppBuilder,
-    StatefulAppWithView, ViewNode, WidgetView, WidgetViewContext, WindowBuilder, app, window,
+    StatefulAppWithView, ViewNode, ViewProjection, WidgetView, WidgetViewContext, WindowBuilder,
+    app, window,
 };

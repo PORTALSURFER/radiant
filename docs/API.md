@@ -73,6 +73,33 @@ Focused widget and mapper tests can also call
 directly on an `IntoView` value when the test only needs to verify one projected
 view's widget-message mapping or input behavior.
 
+`IntoView::into_projection()` is the lossless stateful-application boundary. It
+returns a `ViewProjection<Message>` containing the lowered `UiSurface` together
+with Scene frame-clock, transient-overlay, and shortcut bindings. Custom
+wrappers must delegate this required method to their wrapped value:
+
+```rust
+use radiant::prelude::*;
+
+struct WrappedView<Message>(ViewNode<Message>);
+
+impl<Message: 'static> IntoView<Message> for WrappedView<Message> {
+    fn into_projection(self) -> ViewProjection<Message> {
+        self.0.into_projection()
+    }
+}
+```
+
+A stateful app may also return `ViewProjection<Message>` directly when it wants
+to lower a Scene before returning from `.view(...)`. Bare `SurfaceNode` and
+`UiSurface` values do not implement `IntoView`; low-level adapters must make
+metadata rejection explicit with `ViewProjection::from_surface(...)`. Calling
+`IntoView::into_node()`, `IntoView::into_surface()`, or
+`ViewProjection::into_surface()` intentionally strips application-only Scene
+lifecycle bindings for layout, paint-frame, test, and low-level host use; do not
+round-trip a Scene through those surface-only methods before returning it from a
+stateful app projection.
+
 Small stateful apps should use the same message-first model as larger apps.
 Widgets emit explicit messages, and the update handler owns durable state
 changes. The normal `.view(...)` projection receives `&State`; prepare derived

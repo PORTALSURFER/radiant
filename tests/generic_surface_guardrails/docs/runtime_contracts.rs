@@ -148,6 +148,27 @@ fn api_docs_describe_scene_presentation_compatibility_policy() {
 }
 
 #[test]
+fn api_docs_describe_lossless_view_projection_contract() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("docs/API.md should be readable");
+    let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    for required in [
+        "`IntoView::into_projection()` is the lossless stateful-application boundary.",
+        "Custom wrappers must delegate this required method",
+        "Bare `SurfaceNode` and `UiSurface` values do not implement `IntoView`",
+        "metadata rejection explicit with `ViewProjection::from_surface(...)`",
+        "intentionally strips application-only Scene lifecycle bindings",
+    ] {
+        assert!(
+            normalized_docs.contains(required),
+            "API docs should describe the lossless view projection contract with `{required}`"
+        );
+    }
+}
+
+#[test]
 fn api_docs_describe_declarative_lifecycle_identity_contract() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))

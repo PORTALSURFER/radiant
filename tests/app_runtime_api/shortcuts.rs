@@ -1,4 +1,5 @@
 use super::*;
+use radiant::prelude::IntoView as _;
 
 fn button_label<Message>(surface: &UiSurface<Message>, widget_id: u64) -> String {
     surface
@@ -11,6 +12,14 @@ fn button_label<Message>(surface: &UiSurface<Message>, widget_id: u64) -> String
         .props
         .label
         .to_string()
+}
+
+struct WrappedScene(radiant::prelude::ViewNode<DemoMessage>);
+
+impl radiant::prelude::IntoView<DemoMessage> for WrappedScene {
+    fn into_projection(self) -> radiant::prelude::ViewProjection<DemoMessage> {
+        radiant::prelude::IntoView::into_projection(self.0)
+    }
 }
 
 #[test]
@@ -100,6 +109,92 @@ fn scene_shortcuts_dispatch_messages_before_focused_widget_key_routing() {
         Some(WidgetKey::Enter),
         FocusSurface::None
     ));
+    assert_eq!(button_label(runtime.surface(), 10), "Count 1");
+}
+
+#[test]
+fn wrapped_scene_projection_preserves_shortcuts() {
+    let bridge = app(DemoState::default())
+        .view(|state: &DemoState| {
+            WrappedScene(
+                radiant::prelude::scene(
+                    radiant::prelude::button(format!("Count {}", state.count))
+                        .message(DemoMessage::Increment)
+                        .id(10),
+                )
+                .shortcuts(
+                    ShortcutCatalog::new().layer(
+                        ShortcutLayer::new()
+                            .bind(KeyPress::with_command(KeyCode::I), DemoMessage::Increment),
+                    ),
+                )
+                .into_view(),
+            )
+        })
+        .handle_message(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+            _ => {}
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 40.0));
+
+    assert!(runtime.dispatch_key_press(
+        KeyPress::with_command(KeyCode::I),
+        None,
+        FocusSurface::None
+    ));
+    assert_eq!(button_label(runtime.surface(), 10), "Count 1");
+}
+
+#[test]
+fn nested_scene_projection_preserves_presentation_and_shortcut_precedence() {
+    let bridge = app(DemoState::default())
+        .view(|state: &DemoState| {
+            radiant::prelude::scene(
+                radiant::prelude::scene(
+                    radiant::prelude::button(format!("Count {}", state.count))
+                        .message(DemoMessage::Increment)
+                        .id(10),
+                )
+                .frame_clock(
+                    radiant::prelude::FrameClock::message(DemoMessage::Increment)
+                        .when(|_state: &mut DemoState| true),
+                )
+                .shortcuts(
+                    ShortcutCatalog::new().layer(
+                        ShortcutLayer::new()
+                            .bind(KeyPress::with_command(KeyCode::I), DemoMessage::Increment),
+                    ),
+                )
+                .into_view(),
+            )
+            .frame_clock(
+                radiant::prelude::FrameClock::message(DemoMessage::Noop)
+                    .when(|_state: &mut DemoState| true),
+            )
+            .shortcuts(ShortcutCatalog::new().layer(
+                ShortcutLayer::new().bind(KeyPress::with_command(KeyCode::I), DemoMessage::Noop),
+            ))
+            .into_view()
+            .into_projection()
+        })
+        .handle_message(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Noop => {}
+            _ => {}
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 40.0));
+
+    assert!(runtime.dispatch_key_press(
+        KeyPress::with_command(KeyCode::I),
+        None,
+        FocusSurface::None
+    ));
+    assert_eq!(button_label(runtime.surface(), 10), "Count 0");
+
+    assert!(runtime.host_queue_animation_frame());
+    assert_eq!(runtime.drain_runtime_messages().messages_dispatched, 1);
     assert_eq!(button_label(runtime.surface(), 10), "Count 1");
 }
 

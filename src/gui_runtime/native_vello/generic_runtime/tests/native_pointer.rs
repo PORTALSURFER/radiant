@@ -4,6 +4,7 @@ use crate::gui::{
     input::{KeyCode, KeyPress},
     shortcuts::ShortcutResolution,
 };
+use crate::runtime::{RuntimeHostCapabilities, RuntimeInputHost};
 use crate::widgets::WidgetKey;
 use std::time::{Duration, Instant};
 use winit::{
@@ -35,6 +36,12 @@ impl RuntimeBridge<()> for PointerSnapshotShortcutBridge {
         Command::none()
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+        RuntimeHostCapabilities::new().with_input()
+    }
+}
+
+impl RuntimeInputHost<()> for PointerSnapshotShortcutBridge {
     fn resolve_key_press(
         &mut self,
         _pending_chord: Option<KeyPress>,

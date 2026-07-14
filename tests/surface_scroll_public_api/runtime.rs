@@ -2,8 +2,9 @@ use super::{DemoMessage, intrinsic_slot};
 use radiant::{
     layout::{Point, Vector2},
     runtime::{
-        Command, RuntimeBridge, ScrollFixedRowIntoViewParts, ScrollIntoViewParts, ScrollUpdate,
-        SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, declarative_runtime_bridge,
+        Command, RuntimeBridge, RuntimeHostCapabilities, RuntimeInputHost,
+        ScrollFixedRowIntoViewParts, ScrollIntoViewParts, ScrollUpdate, SurfaceChild, SurfaceNode,
+        SurfaceRuntime, UiSurface, declarative_runtime_bridge,
     },
     widgets::WidgetSizing,
 };
@@ -23,6 +24,12 @@ impl RuntimeBridge<DemoMessage> for ScrollObserverBridge {
         Arc::clone(&self.surface)
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_input()
+    }
+}
+
+impl RuntimeInputHost<DemoMessage> for ScrollObserverBridge {
     fn scroll_updated(&mut self, update: ScrollUpdate) -> Option<Command<DemoMessage>> {
         self.updates += 1;
         self.last_update = Some(update);

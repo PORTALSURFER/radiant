@@ -1,4 +1,7 @@
 use super::super::*;
+use crate::runtime::{
+    NativeFrameDiagnostics, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities,
+};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(in super::super) struct GpuWheelMessage {
@@ -175,6 +178,14 @@ impl RuntimeBridge<GpuWheelMessage> for GpuWheelBridge {
         self.wheel_count += 1;
         self.last_delta = message.delta;
     }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, GpuWheelMessage> {
+        RuntimeHostCapabilities::new().with_frame_diagnostics()
+    }
+}
+
+impl RuntimeFrameDiagnosticsHost for GpuWheelBridge {
+    fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
 }
 
 impl RuntimeBridge<String> for GpuWheelScrollBridge {
@@ -197,4 +208,12 @@ impl RuntimeBridge<String> for GpuWheelScrollBridge {
             self.scroll_count += 1;
         }
     }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, String> {
+        RuntimeHostCapabilities::new().with_frame_diagnostics()
+    }
+}
+
+impl RuntimeFrameDiagnosticsHost for GpuWheelScrollBridge {
+    fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
 }

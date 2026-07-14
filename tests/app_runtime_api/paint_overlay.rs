@@ -57,7 +57,7 @@ fn app_transient_overlay_painter_reads_state_and_cached_plan() {
     let _ = runtime.dispatch_message(DemoMessage::Increment);
     let mut overlay = Vec::new();
 
-    runtime.bridge_mut().paint_transient_overlay(
+    runtime.host_paint_transient_overlay(
         radiant::runtime::TransientOverlayContext::new(
             &plan,
             Vector2::new(180.0, 40.0),
@@ -68,6 +68,63 @@ fn app_transient_overlay_painter_reads_state_and_cached_plan() {
 
     let [PaintPrimitive::FillRect(fill)] = overlay.as_slice() else {
         panic!("expected one transient fill rect");
+    };
+    assert_eq!(fill.color.r, 1);
+}
+
+#[test]
+fn app_scene_overlay_capability_survives_an_initial_projection_without_overlay() {
+    use radiant::prelude as ui;
+
+    let bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::scene(ui::text(format!("Count {}", state.count)).id(10))
+                .overlay_opt((state.count > 0).then(|| {
+                    ui::TransientOverlay::new(7_u64).paint(
+                        |state: &mut DemoState, _context, primitives| {
+                            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+                                widget_id: 10,
+                                rect: Rect::from_min_size(
+                                    Point::new(4.0, 4.0),
+                                    Vector2::new(8.0, 8.0),
+                                ),
+                                color: Rgba8 {
+                                    r: state.count as u8,
+                                    g: 128,
+                                    b: 255,
+                                    a: 255,
+                                },
+                            }));
+                        },
+                    )
+                }))
+                .into_view()
+        })
+        .handle_message(|state, message, _context| {
+            if matches!(message, DemoMessage::Increment) {
+                state.count += 1;
+            }
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 40.0));
+
+    assert!(runtime.host_capabilities().has_transient_overlay());
+    let outcome = runtime.dispatch_message(DemoMessage::Increment);
+    assert!(outcome.surface_refresh_requested);
+
+    let plan = runtime.paint_plan(&ThemeTokens::default());
+    let mut overlay = Vec::new();
+    runtime.host_paint_transient_overlay(
+        radiant::runtime::TransientOverlayContext::new(
+            &plan,
+            Vector2::new(180.0, 40.0),
+            std::time::Duration::ZERO,
+        ),
+        &mut overlay,
+    );
+
+    let [PaintPrimitive::FillRect(fill)] = overlay.as_slice() else {
+        panic!("expected the newly projected scene overlay to paint");
     };
     assert_eq!(fill.color.r, 1);
 }

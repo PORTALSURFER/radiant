@@ -230,12 +230,14 @@ where
         let _ = self.apply_pending_viewport_resize_if_needed();
         self.core.paint_plan_into(&mut self.frame.last_paint_plan);
         let viewport = self.core.runtime.viewport();
+        let retained_surface = self.core.runtime.retained_surface_capability();
         self.frame.last_scene_stats = encode_surface_paint_plan_to_scene(
             &self.frame.last_paint_plan,
             SurfaceSceneEncodeContext {
                 scene: &mut self.frame.scene,
                 text_renderer: &mut self.frame.text_renderer,
                 bridge: self.core.runtime.bridge_mut(),
+                retained_surface,
                 viewport,
                 retained_cache: &mut self.frame.retained_surface_cache,
                 text_runs: &mut self.frame.scene_text_runs,

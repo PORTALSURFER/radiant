@@ -30,17 +30,17 @@ fn waveform_playback_uses_paint_only_transient_playhead() {
         Vector2::new(1280.0, 560.0),
     );
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
     assert!(activity.needs_animation());
     assert!(!activity.needs_frame_message());
     assert!(
-        !runtime.bridge_mut().queue_animation_frame(),
+        !runtime.host_queue_animation_frame(),
         "waveform playhead animation should not enqueue app frame messages"
     );
 
     let plan = runtime.paint_plan(&ThemeTokens::default());
     let mut primitives = Vec::new();
-    runtime.bridge_mut().paint_transient_overlay(
+    runtime.host_paint_transient_overlay(
         TransientOverlayContext::new(
             &plan,
             Vector2::new(1280.0, 560.0),

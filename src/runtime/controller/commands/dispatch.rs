@@ -191,7 +191,7 @@ where
                 outcome.window_logical_size = Some(size);
             }
             Command::After { delay, message } => {
-                if self.bridge.schedule_message(delay, message) {
+                if self.host_schedule_message(delay, message) {
                     outcome.repaint_requested = true;
                 }
             }
@@ -201,10 +201,7 @@ where
                 is_cancelled,
                 work,
             } => {
-                if self
-                    .bridge
-                    .spawn_message_task(name, priority, is_cancelled, work)
-                {
+                if self.host_spawn_message_task(name, priority, is_cancelled, work) {
                     outcome.repaint_requested = true;
                 }
             }
@@ -214,10 +211,7 @@ where
                 is_cancelled,
                 work,
             } => {
-                if self
-                    .bridge
-                    .spawn_streaming_message_task(name, priority, is_cancelled, work)
-                {
+                if self.host_spawn_streaming_message_task(name, priority, is_cancelled, work) {
                     outcome.repaint_requested = true;
                 }
             }
@@ -227,12 +221,8 @@ where
                 is_cancelled,
                 work,
             } => {
-                if self.bridge.spawn_latest_streaming_message_task(
-                    name,
-                    priority,
-                    is_cancelled,
-                    work,
-                ) {
+                if self.host_spawn_latest_streaming_message_task(name, priority, is_cancelled, work)
+                {
                     outcome.repaint_requested = true;
                 }
             }
@@ -315,7 +305,7 @@ where
                 request,
                 on_completed,
             } => {
-                if let Err(fallback) = self.bridge.request_platform_service(request, on_completed) {
+                if let Err(fallback) = self.host_request_platform_service(request, on_completed) {
                     let (_request, on_completed) = *fallback;
                     let message = on_completed(Err(String::from(
                         "platform service requests are not supported by this runtime bridge",

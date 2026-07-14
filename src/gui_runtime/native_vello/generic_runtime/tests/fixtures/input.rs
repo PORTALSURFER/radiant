@@ -5,6 +5,9 @@ use crate::gui::list::{
     resolve_virtual_list_window,
 };
 use crate::layout::{SizeModeCross, SizeModeMain};
+use crate::runtime::{
+    NativeFrameDiagnostics, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities,
+};
 
 #[derive(Default)]
 pub(in super::super) struct CanvasBridge {
@@ -120,6 +123,14 @@ impl RuntimeBridge<String> for WheelRefreshBridge {
             self.wheel_count += 1;
         }
     }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, String> {
+        RuntimeHostCapabilities::new().with_frame_diagnostics()
+    }
+}
+
+impl RuntimeFrameDiagnosticsHost for WheelRefreshBridge {
+    fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
 }
 
 impl RuntimeBridge<String> for ScrollRefreshBridge {
@@ -161,6 +172,14 @@ impl RuntimeBridge<String> for ScrollRefreshBridge {
             self.scroll_count += 1;
         }
     }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, String> {
+        RuntimeHostCapabilities::new().with_frame_diagnostics()
+    }
+}
+
+impl RuntimeFrameDiagnosticsHost for ScrollRefreshBridge {
+    fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
 }
 
 impl RuntimeBridge<VirtualListWindowChange> for AppVirtualListBridge {
@@ -188,4 +207,12 @@ impl RuntimeBridge<VirtualListWindowChange> for AppVirtualListBridge {
         self.scroll_count += 1;
         self.window = message.window;
     }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, VirtualListWindowChange> {
+        RuntimeHostCapabilities::new().with_frame_diagnostics()
+    }
+}
+
+impl RuntimeFrameDiagnosticsHost for AppVirtualListBridge {
+    fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
 }

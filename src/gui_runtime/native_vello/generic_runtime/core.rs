@@ -90,14 +90,14 @@ where
         animation_time: std::time::Duration,
     ) {
         let viewport = self.runtime.viewport();
-        self.runtime.bridge_mut().paint_transient_overlay(
+        self.runtime.host_paint_transient_overlay(
             crate::runtime::TransientOverlayContext::new(plan, viewport, animation_time),
             primitives,
         );
     }
 
     pub(super) fn has_transient_overlay_painter(&self) -> bool {
-        self.runtime.bridge().has_transient_overlay_painter()
+        self.runtime.has_transient_overlay_host()
     }
 
     pub(super) fn paint_runtime_overlay(
@@ -113,7 +113,7 @@ where
     }
 
     pub(super) fn has_frame_diagnostics_observer(&self) -> bool {
-        self.runtime.bridge().has_frame_diagnostics_observer()
+        self.runtime.has_frame_diagnostics_host()
     }
 
     pub(super) fn refresh_surface(&mut self) {
@@ -121,11 +121,11 @@ where
     }
 
     pub(super) fn animation_activity(&mut self) -> RuntimeAnimationActivity {
-        self.runtime.bridge_mut().animation_activity()
+        self.runtime.host_animation_activity()
     }
 
     pub(super) fn queue_animation_frame(&mut self) -> bool {
-        self.runtime.bridge_mut().queue_animation_frame()
+        self.runtime.host_queue_animation_frame()
     }
 
     pub(super) fn drain_timed_frame(

@@ -1,5 +1,9 @@
 use super::shared::*;
-use crate::runtime::{PaintPrimitive, RuntimeAnimationActivity, TransientOverlayContext};
+use crate::runtime::{
+    NativeFrameDiagnostics, PaintPrimitive, RuntimeAnimationActivity, RuntimeAnimationHost,
+    RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities, RuntimeQueueHost,
+    RuntimeTransientOverlayHost, TransientOverlayContext,
+};
 use std::cell::Cell;
 
 #[derive(Default)]
@@ -16,6 +20,14 @@ impl RuntimeBridge<DemoMessage> for CountingProjectBridge {
     fn update(&mut self, _message: DemoMessage) -> Command<DemoMessage> {
         Command::none()
     }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_frame_diagnostics()
+    }
+}
+
+impl RuntimeFrameDiagnosticsHost for CountingProjectBridge {
+    fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
 }
 
 #[derive(Default)]
@@ -28,13 +40,19 @@ impl RuntimeBridge<DemoMessage> for CountingAnimationActivityBridge {
         demo_surface(&DemoState::default())
     }
 
-    fn animation_activity(&mut self) -> RuntimeAnimationActivity {
-        self.animation_activity_polls += 1;
-        RuntimeAnimationActivity::idle()
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_animation()
     }
 
     fn update(&mut self, _message: DemoMessage) -> Command<DemoMessage> {
         Command::none()
+    }
+}
+
+impl RuntimeAnimationHost for CountingAnimationActivityBridge {
+    fn animation_activity(&mut self) -> RuntimeAnimationActivity {
+        self.animation_activity_polls += 1;
+        RuntimeAnimationActivity::idle()
     }
 }
 
@@ -48,10 +66,16 @@ impl RuntimeBridge<DemoMessage> for NoTransientOverlayBridge {
         demo_surface(&DemoState::default())
     }
 
-    fn has_transient_overlay_painter(&self) -> bool {
-        false
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_frame_diagnostics()
     }
+}
 
+impl RuntimeFrameDiagnosticsHost for NoTransientOverlayBridge {
+    fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
+}
+
+impl RuntimeTransientOverlayHost for NoTransientOverlayBridge {
     fn paint_transient_overlay(
         &mut self,
         _context: TransientOverlayContext<'_>,
@@ -62,15 +86,21 @@ impl RuntimeBridge<DemoMessage> for NoTransientOverlayBridge {
 }
 
 #[derive(Default)]
-pub(super) struct DefaultTransientOverlayBridge {
+pub(super) struct OptInTransientOverlayBridge {
     pub(super) paint_calls: usize,
 }
 
-impl RuntimeBridge<DemoMessage> for DefaultTransientOverlayBridge {
+impl RuntimeBridge<DemoMessage> for OptInTransientOverlayBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
         demo_surface(&DemoState::default())
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_transient_overlays()
+    }
+}
+
+impl RuntimeTransientOverlayHost for OptInTransientOverlayBridge {
     fn paint_transient_overlay(
         &mut self,
         _context: TransientOverlayContext<'_>,
@@ -86,10 +116,6 @@ impl RuntimeBridge<DemoMessage> for NoFrameDiagnosticsBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
         demo_surface(&DemoState::default())
     }
-
-    fn has_frame_diagnostics_observer(&self) -> bool {
-        false
-    }
 }
 
 #[derive(Default)]
@@ -102,19 +128,27 @@ impl RuntimeBridge<DemoMessage> for CountingFrameDiagnosticsBridge {
         demo_surface(&DemoState::default())
     }
 
-    fn has_frame_diagnostics_observer(&self) -> bool {
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
         self.observer_checks
             .set(self.observer_checks.get().saturating_add(1));
-        false
+        RuntimeHostCapabilities::new()
     }
 }
 
-pub(super) struct DefaultFrameDiagnosticsBridge;
+pub(super) struct OptInFrameDiagnosticsBridge;
 
-impl RuntimeBridge<DemoMessage> for DefaultFrameDiagnosticsBridge {
+impl RuntimeBridge<DemoMessage> for OptInFrameDiagnosticsBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
         demo_surface(&DemoState::default())
     }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_frame_diagnostics()
+    }
+}
+
+impl RuntimeFrameDiagnosticsHost for OptInFrameDiagnosticsBridge {
+    fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
 }
 
 #[derive(Default)]
@@ -127,6 +161,19 @@ impl RuntimeBridge<DemoMessage> for TestFrameMessageBridge {
         demo_surface(&DemoState::default())
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new()
+            .with_animation()
+            .with_queues()
+            .with_frame_diagnostics()
+    }
+
+    fn update(&mut self, _message: DemoMessage) -> Command<DemoMessage> {
+        Command::request_repaint()
+    }
+}
+
+impl RuntimeAnimationHost for TestFrameMessageBridge {
     fn needs_animation(&mut self) -> bool {
         true
     }
@@ -135,7 +182,9 @@ impl RuntimeBridge<DemoMessage> for TestFrameMessageBridge {
         self.queued = true;
         true
     }
+}
 
+impl RuntimeQueueHost<DemoMessage> for TestFrameMessageBridge {
     fn take_runtime_messages(&mut self) -> Vec<DemoMessage> {
         if std::mem::take(&mut self.queued) {
             vec![DemoMessage::Increment]
@@ -143,8 +192,8 @@ impl RuntimeBridge<DemoMessage> for TestFrameMessageBridge {
             Vec::new()
         }
     }
+}
 
-    fn update(&mut self, _message: DemoMessage) -> Command<DemoMessage> {
-        Command::request_repaint()
-    }
+impl RuntimeFrameDiagnosticsHost for TestFrameMessageBridge {
+    fn observe_frame_diagnostics(&mut self, _diagnostics: NativeFrameDiagnostics) {}
 }

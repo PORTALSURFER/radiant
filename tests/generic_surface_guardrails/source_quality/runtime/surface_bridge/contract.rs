@@ -38,37 +38,68 @@ fn runtime_bridge_app_contract_stays_in_focused_module() {
 }
 
 #[test]
-fn runtime_bridge_contract_documents_adapter_hook_groups() {
+fn runtime_bridge_contract_stays_minimal_and_routes_optional_host_capabilities() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let contract = fs::read_to_string(manifest_dir.join("src/runtime/bridge/contract.rs"))
         .expect("runtime bridge contract module should be readable");
+    let capabilities = fs::read_to_string(manifest_dir.join("src/runtime/bridge/capabilities.rs"))
+        .expect("runtime bridge capability facade should be readable");
     let docs =
         fs::read_to_string(manifest_dir.join("docs/API.md")).expect("API docs should be readable");
     let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
 
     assert!(
-        contract.lines().count() <= 250,
-        "RuntimeBridge contract should stay concise enough to scan as one public adapter surface"
+        contract.lines().count() <= 80,
+        "RuntimeBridge should stay focused on projection, update, and one capability table"
     );
-    for group in [
-        "Surface projection.",
-        "State updates and input policy.",
-        "Runtime scheduling and host work.",
-        "Platform services.",
-        "Runtime-owned queues.",
-        "Animation policy.",
-        "Retained and transient rendering hooks.",
-        "Diagnostics and lifecycle.",
+    for core_method in [
+        "fn project_surface",
+        "fn pull_surface",
+        "fn reduce_message",
+        "fn update(",
+        "fn update_with_runtime",
+        "fn host_capabilities",
     ] {
         assert!(
-            contract.contains(group),
-            "RuntimeBridge should document adapter hook group `{group}`"
+            contract.contains(core_method),
+            "RuntimeBridge should retain core method `{core_method}`"
+        );
+    }
+    for optional_hook in [
+        "fn paint_transient_overlay",
+        "fn observe_frame_diagnostics",
+        "fn request_platform_service",
+        "fn spawn_message_task",
+        "fn on_runtime_exit",
+    ] {
+        assert!(
+            !contract.contains(optional_hook),
+            "optional hook `{optional_hook}` belongs in a focused capability trait"
+        );
+    }
+    for capability in [
+        "RuntimeInputHost",
+        "RuntimeTaskHost",
+        "RuntimePlatformHost",
+        "RuntimeQueueHost",
+        "RuntimeAnimationHost",
+        "RuntimeWindowHost",
+        "RuntimeRetainedSurfaceHost",
+        "RuntimeTransientOverlayHost",
+        "RuntimeDiagnosticsHost",
+        "RuntimeFrameDiagnosticsHost",
+        "RuntimeLifecycleHost",
+    ] {
+        assert!(
+            capabilities.contains(capability),
+            "focused host capability `{capability}` should stay exported"
         );
     }
     assert!(
-        normalized_docs.contains("`RuntimeBridge` remains the single explicit adapter trait")
-            && normalized_docs.contains("surface projection, state updates and input policy, runtime scheduling, platform services, runtime-owned queues, animation policy, retained/transient rendering, diagnostics, and lifecycle")
-            && normalized_docs.contains("custom bridges should override only the groups they own"),
-        "API docs should explain RuntimeBridge hook groups without presenting them as a second app framework"
+        normalized_docs.contains("`RuntimeBridge` is the minimal projection and update contract")
+            && normalized_docs.contains("`RuntimeHostCapabilities` is cached once")
+            && normalized_docs.contains("minimal custom host")
+            && normalized_docs.contains("advanced capability host"),
+        "API docs should explain the minimal bridge and explicit capability model"
     );
 }

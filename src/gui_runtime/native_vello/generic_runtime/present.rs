@@ -181,8 +181,7 @@ where
             });
             self.core
                 .runtime
-                .bridge_mut()
-                .observe_frame_diagnostics(diagnostics);
+                .host_observe_frame_diagnostics(diagnostics);
         }
         self.timing.last_redraw = now;
         self.mark_first_presented();
@@ -245,8 +244,7 @@ where
             });
             self.core
                 .runtime
-                .bridge_mut()
-                .observe_frame_diagnostics(diagnostics);
+                .host_observe_frame_diagnostics(diagnostics);
         }
         self.timing.last_redraw = now;
         self.mark_first_presented();

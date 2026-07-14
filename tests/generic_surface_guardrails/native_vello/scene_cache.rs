@@ -23,20 +23,25 @@ fn native_vello_scene_encoder_keeps_custom_surfaces_in_focused_module() {
     assert!(
         scene.contains("mod custom_surface;")
             && scene.contains("mod cache;")
-            && scene.contains("use custom_surface::encode_custom_surface;"),
+            && scene.contains(
+                "use custom_surface::{CustomSurfaceEncodeContext, encode_custom_surface};"
+            ),
         "central scene encoder should delegate retained custom-surface rendering"
     );
     assert!(
-        !scene.contains("render_retained_surface(")
-            && custom_surface.contains("render_retained_surface(")
-            && custom_surface.contains("retained_cache.cached_frame")
+        !scene.contains("capability.render(")
+            && custom_surface.contains("RuntimeRetainedSurfaceCapability")
+            && custom_surface.contains("capability.render(")
+            && custom_surface.contains(".cached_frame(retained, custom.rect, context.viewport)")
             && custom_surface.contains("encode_custom_surface_fallback"),
         "retained custom-surface cache/bridge/fallback logic should stay in the focused custom-surface encoder"
     );
     assert!(
         custom_surface.contains("gui::types::{Rgba8, Vector2}")
             && custom_surface.contains("gui_runtime::native_vello::NativeTextRenderer")
-            && custom_surface.contains("runtime::{PaintCustomSurface, RuntimeBridge}")
+            && custom_surface.contains(
+                "runtime::{PaintCustomSurface, RuntimeBridge, RuntimeRetainedSurfaceCapability}"
+            )
             && custom_surface.contains("use vello::Scene;")
             && !custom_surface.contains("gui_runtime::native_vello::*"),
         "custom-surface scene encoding should name native text, geometry, runtime bridge, custom-surface, color, and Vello scene dependencies explicitly"

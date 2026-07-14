@@ -4,6 +4,7 @@ use crate::gui::{
     input::{KeyCode, KeyPress},
     shortcuts::ShortcutResolution,
 };
+use crate::runtime::{RuntimeHostCapabilities, RuntimeInputHost};
 use crate::widgets::{TextEditCommand, WidgetKey};
 
 #[test]
@@ -310,6 +311,12 @@ impl RuntimeBridge<DemoMessage> for ShortcutDemoBridge {
         }
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_input()
+    }
+}
+
+impl RuntimeInputHost<DemoMessage> for ShortcutDemoBridge {
     fn resolve_key_press(
         &mut self,
         _pending_chord: Option<KeyPress>,
@@ -338,6 +345,12 @@ impl RuntimeBridge<DemoMessage> for FocusTextInputShortcutBridge {
         }
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_input()
+    }
+}
+
+impl RuntimeInputHost<DemoMessage> for FocusTextInputShortcutBridge {
     fn resolve_key_press(
         &mut self,
         _pending_chord: Option<KeyPress>,

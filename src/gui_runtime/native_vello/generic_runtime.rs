@@ -179,8 +179,7 @@ where
     runner
         .core
         .runtime
-        .bridge_mut()
-        .install_repaint_signal(repaint_signal);
+        .host_install_repaint_signal(repaint_signal);
     let run_result = event_loop
         .run_app(&mut runner)
         .map_err(|err| NativeGenericRunError::EventLoopRun(err.to_string()));
@@ -197,7 +196,7 @@ where
             err
         ),
     }
-    let shutdown_timing = runner.core.runtime.bridge_mut().on_runtime_exit();
+    let shutdown_timing = runner.core.runtime.host_on_runtime_exit();
     NativeGenericRunReport {
         artifacts: NativeGenericRuntimeArtifacts {
             startup_timing: runner.timing.startup_timing.export_artifact(),

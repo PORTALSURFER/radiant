@@ -127,6 +127,7 @@ fn scene_encoding_counts_gpu_surfaces_without_projecting_interactions() {
             scene: &mut scene,
             text_renderer: &mut text_renderer,
             bridge: &mut bridge,
+            retained_surface: None,
             viewport: Vector2::new(320.0, 180.0),
             retained_cache: &mut retained_cache,
             text_runs: &mut text_runs,
@@ -149,12 +150,14 @@ fn encode_plan<Bridge, Message>(
 where
     Bridge: RuntimeBridge<Message>,
 {
+    let retained_surface = bridge.host_capabilities().retained_surface;
     encode_surface_paint_plan_to_scene(
         plan,
         SurfaceSceneEncodeContext {
             scene,
             text_renderer,
             bridge,
+            retained_surface,
             viewport,
             retained_cache,
             text_runs,

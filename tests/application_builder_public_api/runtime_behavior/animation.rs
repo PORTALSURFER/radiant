@@ -1,5 +1,25 @@
 use super::*;
 
+fn direct_bridge_animation_activity<Bridge>(
+    bridge: &mut Bridge,
+) -> radiant::runtime::RuntimeAnimationActivity
+where
+    Bridge: RuntimeBridge<DemoMessage>,
+{
+    let capabilities = bridge.host_capabilities();
+    capabilities
+        .animation_activity(bridge)
+        .unwrap_or_else(radiant::runtime::RuntimeAnimationActivity::idle)
+}
+
+fn direct_bridge_queue_animation_frame<Bridge>(bridge: &mut Bridge) -> bool
+where
+    Bridge: RuntimeBridge<DemoMessage>,
+{
+    let capabilities = bridge.host_capabilities();
+    capabilities.queue_animation_frame(bridge).unwrap_or(false)
+}
+
 #[test]
 fn application_builder_animation_frames_route_through_public_app_path() {
     use radiant::prelude as ui;
@@ -18,13 +38,13 @@ fn application_builder_animation_frames_route_through_public_app_path() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    assert!(runtime.bridge_mut().needs_animation());
-    let activity = runtime.bridge_mut().animation_activity();
+    assert!(runtime.host_animation_activity().needs_animation());
+    let activity = runtime.host_animation_activity();
     assert!(activity.needs_animation());
     assert!(activity.needs_frame_message());
-    assert!(runtime.bridge_mut().needs_animation());
-    assert!(runtime.bridge_mut().queue_animation_frame());
-    assert!(!runtime.bridge_mut().queue_animation_frame());
+    assert!(runtime.host_animation_activity().needs_animation());
+    assert!(runtime.host_queue_animation_frame());
+    assert!(!runtime.host_queue_animation_frame());
     let drained = runtime.drain_runtime_messages();
 
     assert_eq!(drained.messages_dispatched, 1);
@@ -69,12 +89,12 @@ fn animated_transient_overlay_uses_paint_only_frame_activity() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    assert!(runtime.bridge_mut().needs_animation());
-    let activity = runtime.bridge_mut().animation_activity();
+    assert!(runtime.host_animation_activity().needs_animation());
+    let activity = runtime.host_animation_activity();
     assert!(activity.needs_animation());
     assert!(!activity.needs_frame_message());
     assert_eq!(activity.target_fps(), None);
-    assert!(!runtime.bridge_mut().queue_animation_frame());
+    assert!(!runtime.host_queue_animation_frame());
 
     let drained = runtime.drain_runtime_messages();
     assert_eq!(drained.messages_dispatched, 0);
@@ -119,11 +139,11 @@ fn animated_transient_overlay_can_cap_paint_only_frame_rate() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
     assert!(activity.needs_animation());
     assert!(!activity.needs_frame_message());
     assert_eq!(activity.target_fps(), Some(24));
-    assert!(!runtime.bridge_mut().queue_animation_frame());
+    assert!(!runtime.host_queue_animation_frame());
 }
 
 #[test]
@@ -145,7 +165,7 @@ fn app_frame_animation_keeps_native_cadence_when_overlay_is_capped() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
     assert!(activity.needs_animation());
     assert!(activity.needs_frame_message());
     assert_eq!(activity.target_fps(), None);
@@ -171,11 +191,11 @@ fn presentation_frame_clock_queues_frame_messages() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
     assert!(activity.needs_animation());
     assert!(activity.needs_frame_message());
     assert_eq!(activity.target_fps(), None);
-    assert!(runtime.bridge_mut().queue_animation_frame());
+    assert!(runtime.host_queue_animation_frame());
 
     let drained = runtime.drain_runtime_messages();
 
@@ -209,7 +229,7 @@ fn presentation_frame_clock_can_cap_frame_message_rate() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
 
     assert!(activity.needs_animation());
     assert!(activity.needs_frame_message());
@@ -239,16 +259,16 @@ fn presentation_frame_clock_can_use_state_dependent_frame_message_rate() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
     assert!(activity.needs_animation());
     assert!(activity.needs_frame_message());
     assert_eq!(activity.target_fps(), Some(30));
 
-    assert!(runtime.bridge_mut().queue_animation_frame());
+    assert!(runtime.host_queue_animation_frame());
     let drained = runtime.drain_runtime_messages();
     assert_eq!(drained.messages_dispatched, 1);
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
     assert!(activity.needs_animation());
     assert!(activity.needs_frame_message());
     assert_eq!(activity.target_fps(), None);
@@ -298,12 +318,12 @@ fn presentation_transient_overlay_uses_paint_only_frame_activity() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
 
     assert!(activity.needs_animation());
     assert!(!activity.needs_frame_message());
     assert_eq!(activity.target_fps(), None);
-    assert!(!runtime.bridge_mut().queue_animation_frame());
+    assert!(!runtime.host_queue_animation_frame());
 }
 
 #[test]
@@ -331,7 +351,7 @@ fn presentation_transient_overlay_can_cap_paint_only_frame_rate() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
 
     assert!(activity.needs_animation());
     assert!(!activity.needs_frame_message());
@@ -364,13 +384,8 @@ fn presentation_frame_clock_repaint_scope_requests_paint_only_after_frame_update
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    assert!(
-        runtime
-            .bridge_mut()
-            .animation_activity()
-            .needs_frame_message()
-    );
-    assert!(runtime.bridge_mut().queue_animation_frame());
+    assert!(runtime.host_animation_activity().needs_frame_message());
+    assert!(runtime.host_queue_animation_frame());
     let command = runtime.bridge_mut().update(DemoMessage::Increment);
 
     assert!(command.requests_paint_only());
@@ -396,8 +411,8 @@ fn presentation_frame_clock_without_repaint_scope_requests_surface_after_frame_u
         })
         .into_bridge();
 
-    assert!(bridge.animation_activity().needs_frame_message());
-    assert!(bridge.queue_animation_frame());
+    assert!(direct_bridge_animation_activity(&mut bridge).needs_frame_message());
+    assert!(direct_bridge_queue_animation_frame(&mut bridge));
     let command = bridge.update(DemoMessage::Increment);
 
     assert_eq!(command.repaint_scope(), Some(RepaintScope::Surface));
@@ -424,8 +439,8 @@ fn frame_clock_origin_takes_precedence_over_ordinary_repaint_policy() {
         .repaint_policy(ui::RepaintPolicy::none())
         .into_bridge();
 
-    assert!(bridge.animation_activity().needs_frame_message());
-    assert!(bridge.queue_animation_frame());
+    assert!(direct_bridge_animation_activity(&mut bridge).needs_frame_message());
+    assert!(direct_bridge_queue_animation_frame(&mut bridge));
     let command = bridge.update(DemoMessage::Increment);
 
     assert_eq!(command.repaint_scope(), Some(RepaintScope::Surface));
@@ -453,10 +468,10 @@ fn scene_frame_clock_queues_frame_message_when_active() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
     assert!(activity.needs_animation());
     assert!(activity.needs_frame_message());
-    assert!(runtime.bridge_mut().queue_animation_frame());
+    assert!(runtime.host_queue_animation_frame());
 
     let drained = runtime.drain_runtime_messages();
 
@@ -490,8 +505,8 @@ fn scene_frame_clock_without_repaint_scope_requests_surface_after_frame_update()
         .into_bridge();
     bridge.project_surface();
 
-    assert!(bridge.animation_activity().needs_frame_message());
-    assert!(bridge.queue_animation_frame());
+    assert!(direct_bridge_animation_activity(&mut bridge).needs_frame_message());
+    assert!(direct_bridge_queue_animation_frame(&mut bridge));
     let command = bridge.update(DemoMessage::Increment);
 
     assert_eq!(command.repaint_scope(), Some(RepaintScope::Surface));
@@ -520,11 +535,11 @@ fn scene_frame_clock_stays_idle_when_inactive() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
 
     assert!(!activity.needs_animation());
     assert!(!activity.needs_frame_message());
-    assert!(!runtime.bridge_mut().queue_animation_frame());
+    assert!(!runtime.host_queue_animation_frame());
 }
 
 #[test]
@@ -558,13 +573,13 @@ fn scene_transient_overlay_requests_paint_only_frames() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
 
     assert!(activity.needs_animation());
     assert!(!activity.needs_frame_message());
     assert_eq!(activity.target_fps(), None);
-    assert!(!runtime.bridge_mut().queue_animation_frame());
-    assert!(runtime.bridge_mut().has_transient_overlay_painter());
+    assert!(!runtime.host_queue_animation_frame());
+    assert!(runtime.has_transient_overlay_host());
 }
 
 #[test]
@@ -593,7 +608,7 @@ fn scene_transient_overlay_respects_target_fps() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
 
     assert!(activity.needs_animation());
     assert!(!activity.needs_frame_message());
@@ -623,14 +638,9 @@ fn scene_presentation_merges_with_layer_projection_without_affecting_input() {
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
 
-    assert!(
-        runtime
-            .bridge_mut()
-            .animation_activity()
-            .needs_frame_message()
-    );
+    assert!(runtime.host_animation_activity().needs_frame_message());
     assert_eq!(runtime.widget_at(ui::Point::new(16.0, 12.0)), Some(42));
-    assert!(runtime.bridge_mut().queue_animation_frame());
+    assert!(runtime.host_queue_animation_frame());
     let drained = runtime.drain_runtime_messages();
 
     assert_eq!(drained.messages_dispatched, 1);

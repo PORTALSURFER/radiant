@@ -26,11 +26,15 @@ fn application_builder_named_shortcut_resolver_uses_prelude_focus_surface() {
         .shortcuts(resolve_shortcut)
         .update(|_state, _message| {})
         .into_bridge();
-    let resolution = bridge.resolve_key_press(
-        None,
-        ui::KeyPress::new(ui::KeyCode::Enter),
-        ui::FocusSurface::None,
-    );
+    let capabilities = bridge.host_capabilities();
+    let resolution = capabilities
+        .resolve_key_press(
+            &mut bridge,
+            None,
+            ui::KeyPress::new(ui::KeyCode::Enter),
+            ui::FocusSurface::None,
+        )
+        .expect("shortcut capability should be enabled");
 
     assert_eq!(resolution.action, Some(DemoMessage::Increment));
 }

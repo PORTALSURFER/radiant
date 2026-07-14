@@ -22,10 +22,10 @@ fn main() -> radiant::Result {
 }
 ```
 
-Low-level runtime objects such as `RuntimeBridge`, `UiSurface`, `SurfaceNode`,
-and `NativeRunOptions` remain supported for custom hosts, embedded surfaces,
-diagnostics, and advanced widgets. They are explicit control surfaces, not a
-second framework.
+Low-level runtime objects such as the minimal `RuntimeBridge`, cached
+`RuntimeHostCapabilities`, `UiSurface`, `SurfaceNode`, and `NativeRunOptions`
+remain supported for custom hosts, embedded surfaces, diagnostics, and advanced
+widgets. They are explicit control surfaces, not a second framework.
 
 ## Documentation Map
 

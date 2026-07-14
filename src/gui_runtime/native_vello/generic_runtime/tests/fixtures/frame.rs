@@ -1,4 +1,5 @@
 use super::{super::*, demo::*};
+use crate::runtime::{RuntimeAnimationHost, RuntimeHostCapabilities, RuntimeQueueHost};
 
 pub(in super::super) struct AnimatingBridge;
 
@@ -19,6 +20,12 @@ impl RuntimeBridge<DemoMessage> for AnimatingBridge {
         demo_surface(&DemoState::default())
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_animation()
+    }
+}
+
+impl RuntimeAnimationHost for AnimatingBridge {
     fn needs_animation(&mut self) -> bool {
         true
     }
@@ -33,6 +40,12 @@ impl RuntimeBridge<DemoMessage> for PaintOnlyFrameBridge {
         Command::request_paint_only()
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DemoMessage> {
+        RuntimeHostCapabilities::new().with_queues()
+    }
+}
+
+impl RuntimeQueueHost<DemoMessage> for PaintOnlyFrameBridge {
     fn take_runtime_messages(&mut self) -> Vec<DemoMessage> {
         if std::mem::take(&mut self.pending_frame) {
             vec![DemoMessage::Increment]

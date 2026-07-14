@@ -230,6 +230,7 @@ impl EmbeddedVelloRenderer {
                 scene: &mut self.scene,
                 text_renderer: &mut self.text_renderer,
                 bridge: &mut self.bridge,
+                retained_surface: None,
                 viewport: self.logical_size,
                 retained_cache: &mut self.retained_cache,
                 text_runs: &mut self.text_runs,

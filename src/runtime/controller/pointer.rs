@@ -115,13 +115,11 @@ where
             if let Some(message) = self.native_file_drop_message(target, drop.clone()) {
                 return self.dispatch_message(message);
             }
-            let command = self.bridge_mut().native_file_drop(drop);
+            let command = self.host_native_file_drop(drop);
             return self.execute_command(command);
         }
         let target = self.native_file_drop_target(drop.position);
-        let command = self
-            .bridge_mut()
-            .native_file_drop(drop.with_target_widget(target));
+        let command = self.host_native_file_drop(drop.with_target_widget(target));
         self.execute_command(command)
     }
 

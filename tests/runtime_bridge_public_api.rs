@@ -16,6 +16,8 @@ use radiant::{
 };
 use std::sync::Arc;
 
+#[path = "runtime_bridge_public_api/capabilities.rs"]
+mod capabilities;
 #[path = "runtime_bridge_public_api/command_flow.rs"]
 mod command_flow;
 #[path = "runtime_bridge_public_api/diagnostics.rs"]
@@ -56,6 +58,13 @@ where
 
 fn project_app_once(app: &mut impl App<DemoMessage>) -> Arc<UiSurface<DemoMessage>> {
     app.project_surface()
+}
+
+fn reduce_through_runtime_bridge<Bridge, Message>(bridge: &mut Bridge, message: Message)
+where
+    Bridge: RuntimeBridge<Message>,
+{
+    bridge.reduce_message(message);
 }
 
 fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {

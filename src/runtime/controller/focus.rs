@@ -107,8 +107,7 @@ where
         focus: FocusSurface,
     ) -> bool {
         let resolution =
-            self.bridge
-                .resolve_key_press(self.interaction.focus.pending_key_chord, press, focus);
+            self.host_resolve_key_press(self.interaction.focus.pending_key_chord, press, focus);
         self.interaction.focus.pending_key_chord = resolution.pending_chord;
         if let Some(message) = resolution.action {
             let outcome = self.dispatch_message(message);

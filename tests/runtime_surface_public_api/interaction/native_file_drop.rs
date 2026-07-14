@@ -126,15 +126,21 @@ fn native_file_drop_falls_back_to_app_hook_without_declarative_target() {
             ))
         }
 
-        fn native_file_drop(&mut self, drop: NativeFileDrop) -> Command<DropMessage> {
-            Command::message(DropMessage::Fallback {
-                target: drop.target_widget,
-            })
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DropMessage> {
+            RuntimeHostCapabilities::new().with_input()
         }
 
         fn update(&mut self, message: DropMessage) -> Command<DropMessage> {
             self.messages.lock().expect("drop messages").push(message);
             Command::none()
+        }
+    }
+
+    impl RuntimeInputHost<DropMessage> for FallbackBridge {
+        fn native_file_drop(&mut self, drop: NativeFileDrop) -> Command<DropMessage> {
+            Command::message(DropMessage::Fallback {
+                target: drop.target_widget,
+            })
         }
     }
 
@@ -172,15 +178,21 @@ fn native_file_drop_accepting_view_without_mapper_falls_back_with_declarative_ta
             ))
         }
 
-        fn native_file_drop(&mut self, drop: NativeFileDrop) -> Command<DropMessage> {
-            Command::message(DropMessage::Fallback {
-                target: drop.target_widget,
-            })
+        fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, DropMessage> {
+            RuntimeHostCapabilities::new().with_input()
         }
 
         fn update(&mut self, message: DropMessage) -> Command<DropMessage> {
             self.messages.lock().expect("drop messages").push(message);
             Command::none()
+        }
+    }
+
+    impl RuntimeInputHost<DropMessage> for FallbackBridge {
+        fn native_file_drop(&mut self, drop: NativeFileDrop) -> Command<DropMessage> {
+            Command::message(DropMessage::Fallback {
+                target: drop.target_widget,
+            })
         }
     }
 

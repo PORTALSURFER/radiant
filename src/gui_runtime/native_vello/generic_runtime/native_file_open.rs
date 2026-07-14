@@ -24,8 +24,7 @@ where
         let command = self
             .core
             .runtime
-            .bridge_mut()
-            .native_file_open(NativeFileOpen::new(paths));
+            .host_native_file_open(NativeFileOpen::new(paths));
         let outcome = self.core.runtime.execute_command(command);
         let routed = self.core.route_command_outcome(outcome);
         self.handle_route_outcome(event_loop, routed);

@@ -28,10 +28,10 @@ fn empty_overlay_paint_skips_app_and_runtime_overlay_callbacks() {
 }
 
 #[test]
-fn default_transient_overlay_hint_preserves_custom_bridge_callback() {
+fn explicit_transient_overlay_capability_runs_custom_bridge_callback() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
-        DefaultTransientOverlayBridge::default(),
+        OptInTransientOverlayBridge::default(),
         Vector2::new(120.0, 40.0),
     );
 
@@ -41,16 +41,16 @@ fn default_transient_overlay_hint_preserves_custom_bridge_callback() {
 }
 
 #[test]
-fn frame_diagnostics_hint_can_skip_default_app_callback_work() {
+fn minimal_bridge_skips_frame_diagnostics_callback_work() {
     let core = GenericNativeRuntimeCore::new(NoFrameDiagnosticsBridge, Vector2::new(120.0, 40.0));
 
     assert!(!core.has_frame_diagnostics_observer());
 }
 
 #[test]
-fn default_frame_diagnostics_hint_preserves_custom_bridge_callback() {
+fn explicit_frame_diagnostics_capability_enables_callback_work() {
     let core =
-        GenericNativeRuntimeCore::new(DefaultFrameDiagnosticsBridge, Vector2::new(120.0, 40.0));
+        GenericNativeRuntimeCore::new(OptInFrameDiagnosticsBridge, Vector2::new(120.0, 40.0));
 
     assert!(core.has_frame_diagnostics_observer());
 }

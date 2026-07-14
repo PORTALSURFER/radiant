@@ -104,6 +104,10 @@ fn frame_diagnostics_redraw_requests_skip_tracking_without_observer() {
         reason: FrameWorkReason::NativeResize,
     });
 
+    let profile = RenderFrameProfile::recording(runner.frame_diagnostics_enabled);
+
+    assert!(!runner.frame_diagnostics_enabled);
+    assert!(!profile.record_timings);
     assert_eq!(
         runner.timing.pending_frame_work,
         FrameWork::None,

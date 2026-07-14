@@ -22,12 +22,16 @@ where
     pub fn new(mut bridge: Bridge, viewport: Vector2) -> Self {
         let viewport = normalized_viewport(viewport);
         let surface = bridge.pull_surface();
+        // The initial projection lets declarative hosts discover scene-provided
+        // capabilities before this immutable dispatch table is cached.
+        let host_capabilities = bridge.host_capabilities();
         let SurfaceRuntimeProjection {
             layout_root,
             traversal,
         } = surface.runtime_projection();
         let mut runtime = Self {
             bridge,
+            host_capabilities,
             viewport,
             surface,
             layout_root,

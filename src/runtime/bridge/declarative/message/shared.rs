@@ -63,6 +63,11 @@ where
         &mut self.state
     }
 
+    /// Reduce one host message into the owned state.
+    pub fn reduce_message(&mut self, message: Message) {
+        (self.reduce)(&mut self.state, message);
+    }
+
     /// Consume the bridge and return the owned host state.
     pub fn into_state(self) -> State {
         self.state
@@ -80,7 +85,12 @@ where
     }
 
     fn reduce_message(&mut self, message: Message) {
-        (self.reduce)(&mut self.state, message);
+        DeclarativeRuntimeBridge::reduce_message(self, message);
+    }
+
+    fn update(&mut self, message: Message) -> crate::runtime::Command<Message> {
+        self.reduce_message(message);
+        crate::runtime::Command::none()
     }
 }
 

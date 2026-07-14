@@ -1,5 +1,6 @@
 use super::super::*;
 use crate::gui::paint::{PaintFrame, Primitive};
+use crate::runtime::{RuntimeHostCapabilities, RuntimeRetainedSurfaceHost};
 
 #[derive(Default)]
 pub(super) struct RetainedBridge {
@@ -39,6 +40,12 @@ impl RuntimeBridge<()> for RetainedBridge {
         )))
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+        RuntimeHostCapabilities::new().with_retained_surfaces()
+    }
+}
+
+impl RuntimeRetainedSurfaceHost for RetainedBridge {
     fn render_retained_surface(
         &mut self,
         _descriptor: crate::widgets::RetainedSurfaceDescriptor,
@@ -109,6 +116,12 @@ impl RuntimeBridge<()> for MultiRetainedBridge {
         )))
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+        RuntimeHostCapabilities::new().with_retained_surfaces()
+    }
+}
+
+impl RuntimeRetainedSurfaceHost for MultiRetainedBridge {
     fn render_retained_surface(
         &mut self,
         descriptor: crate::widgets::RetainedSurfaceDescriptor,
@@ -152,6 +165,12 @@ impl RuntimeBridge<()> for MissingRetainedBridge {
         )))
     }
 
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+        RuntimeHostCapabilities::new().with_retained_surfaces()
+    }
+}
+
+impl RuntimeRetainedSurfaceHost for MissingRetainedBridge {
     fn render_retained_surface(
         &mut self,
         _descriptor: crate::widgets::RetainedSurfaceDescriptor,

@@ -26,7 +26,7 @@ fn resource_completions_use_named_parts_for_request_results() {
     assert!(
         resource.contains("ResourceCompletionParts")
             && runtime.contains("ResourceCompletionParts")
-            && prelude.contains("ResourceCompletionParts"),
-        "resource completion parts should remain publicly exported through runtime and prelude"
+            && !prelude.contains("ResourceCompletionParts"),
+        "resource completion parts should remain available from runtime ownership without entering the common prelude"
     );
 }

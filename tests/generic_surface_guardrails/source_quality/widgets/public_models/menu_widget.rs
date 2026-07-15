@@ -112,8 +112,8 @@ fn application_widget_views_use_named_parts_for_custom_widget_mapping() {
     assert!(
         view_facade.contains("MappedWidgetParts")
             && surface_facade.contains("DynamicWidgetParts")
-            && prelude.contains("MappedWidgetParts")
-            && prelude.contains("DynamicWidgetParts"),
-        "custom widget view parts should stay publicly exported through application facades and prelude"
+            && !prelude.contains("MappedWidgetParts")
+            && !prelude.contains("DynamicWidgetParts"),
+        "custom widget view parts should remain available from application ownership without entering the common prelude"
     );
 }

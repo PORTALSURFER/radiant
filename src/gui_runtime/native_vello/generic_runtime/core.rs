@@ -120,6 +120,10 @@ where
         self.runtime.refresh();
     }
 
+    pub(super) fn refresh_surface_with_scope(&mut self, scope: crate::runtime::RepaintScope) {
+        self.runtime.refresh_with_scope(scope);
+    }
+
     pub(super) fn animation_activity(&mut self) -> RuntimeAnimationActivity {
         self.runtime.host_animation_activity()
     }
@@ -166,7 +170,11 @@ where
             ..GenericRouteOutcome::default()
         };
         if outcome.surface_refresh_requested {
-            route_outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRefresh);
+            if outcome.surface_refresh_applied {
+                route_outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRepaint);
+            } else {
+                route_outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRefresh);
+            }
         }
         if outcome.surface_repaint_requested {
             route_outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRepaint);

@@ -16,6 +16,7 @@ mod repaint;
 mod scroll;
 
 pub use repaint::RepaintScope;
+pub use repaint::{SurfaceInvalidation, SurfaceRevisions};
 pub use scroll::{ScrollFixedRowIntoViewParts, ScrollIntoViewParts};
 
 /// Runtime hint for host-owned background work scheduled through Radiant.
@@ -118,6 +119,10 @@ pub enum Command<Message> {
     RequestRepaint,
     /// Request redraw without forcing declarative surface reprojection.
     RequestPaintOnly,
+    /// Request fresh projection/traversal while reusing revision-proven layout.
+    RequestProjectionRefresh,
+    /// Request fresh projection/traversal and a layout pass.
+    RequestLayoutRefresh,
     /// Override the active native DPI scale for runtime adapters that own native windows.
     SetDpiScale(DpiScale),
     /// Request a native-window logical viewport size from runtime adapters that own windows.

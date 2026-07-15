@@ -240,7 +240,7 @@ where
             return Some(RepaintScope::Surface);
         };
 
-        let can_use_paint_only = match pending.source {
+        let repaint_scope = match pending.source {
             FrameRepaintSource::App => {
                 let Some(policy) = self.lifecycle.frame_repaint_policy.as_mut() else {
                     return Some(RepaintScope::Surface);
@@ -255,11 +255,7 @@ where
             }
         };
 
-        Some(if can_use_paint_only {
-            RepaintScope::PaintOnly
-        } else {
-            RepaintScope::Surface
-        })
+        Some(repaint_scope)
     }
 
     fn run_startup_once(&mut self) {

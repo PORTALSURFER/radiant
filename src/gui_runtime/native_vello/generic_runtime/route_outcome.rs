@@ -1,8 +1,11 @@
+use crate::runtime::RepaintScope;
+
 /// Routing result consumed by redraw, scene refresh, and runtime wakeup policy.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(in crate::gui_runtime::native_vello) struct GenericRouteOutcome {
     pub(in crate::gui_runtime::native_vello) routed: bool,
     pub(in crate::gui_runtime::native_vello) frame_work: FrameWork,
+    pub(in crate::gui_runtime::native_vello) surface_refresh_scope: Option<RepaintScope>,
     pub(in crate::gui_runtime::native_vello) exit_requested: bool,
     pub(in crate::gui_runtime::native_vello) runtime_work_remaining: bool,
     pub(in crate::gui_runtime::native_vello) dpi_scale_override: Option<crate::theme::DpiScale>,
@@ -134,10 +137,20 @@ impl GenericRouteOutcome {
         self.request_frame_work(FrameWork::PaintOnly { reason });
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn request_surface_refresh(
         &mut self,
         reason: FrameWorkReason,
     ) {
+        self.request_surface_refresh_with_scope(reason, RepaintScope::Surface);
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn request_surface_refresh_with_scope(
+        &mut self,
+        reason: FrameWorkReason,
+        scope: RepaintScope,
+    ) {
+        self.merge_surface_refresh_scope(scope);
         self.request_frame_work(FrameWork::RefreshSurface { reason });
     }
 
@@ -162,14 +175,37 @@ impl GenericRouteOutcome {
         });
     }
 
+    #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn request_interactive_surface_refresh(
         &mut self,
         reason: FrameWorkReason,
     ) {
+        self.request_interactive_surface_refresh_with_scope(reason, RepaintScope::Surface);
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn request_interactive_surface_refresh_with_scope(
+        &mut self,
+        reason: FrameWorkReason,
+        scope: RepaintScope,
+    ) {
+        self.merge_surface_refresh_scope(scope);
         self.request_frame_work(FrameWork::RebuildScene {
             reason,
             mode: SceneRebuildMode::InteractiveWithSurfaceRefresh,
         });
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn surface_refresh_scope_or_surface(
+        self,
+    ) -> RepaintScope {
+        self.surface_refresh_scope.unwrap_or(RepaintScope::Surface)
+    }
+
+    fn merge_surface_refresh_scope(&mut self, scope: RepaintScope) {
+        self.surface_refresh_scope = Some(
+            self.surface_refresh_scope
+                .map_or(scope, |current| current.merge(scope)),
+        );
     }
 
     pub(in crate::gui_runtime::native_vello) fn request_resize_and_rebuild(
@@ -188,6 +224,9 @@ impl GenericRouteOutcome {
     pub(in crate::gui_runtime::native_vello) fn merge(&mut self, other: Self) {
         self.routed |= other.routed;
         self.frame_work = self.frame_work.merge(other.frame_work);
+        if let Some(scope) = other.surface_refresh_scope {
+            self.merge_surface_refresh_scope(scope);
+        }
         self.exit_requested |= other.exit_requested;
         if self.exit_requested {
             self.frame_work = self.frame_work.merge(FrameWork::Exit {
@@ -372,6 +411,7 @@ impl FrameWorkReason {
 #[cfg(test)]
 mod tests {
     use super::{FrameWork, FrameWorkReason, GenericRouteOutcome, SceneRebuildMode};
+    use crate::runtime::RepaintScope;
 
     #[test]
     fn route_outcome_frame_work_distinguishes_paint_only_from_scene_rebuild() {
@@ -426,6 +466,27 @@ mod tests {
             }
         );
         assert!(outcome.runtime_work_remaining);
+    }
+
+    #[test]
+    fn route_outcome_merge_preserves_broadest_surface_refresh_scope() {
+        let mut outcome = GenericRouteOutcome::default();
+        outcome.request_surface_refresh_with_scope(
+            FrameWorkReason::DeferredSurfaceRefresh,
+            RepaintScope::Projection,
+        );
+        let mut other = GenericRouteOutcome::default();
+        other.request_interactive_surface_refresh_with_scope(
+            FrameWorkReason::InteractiveSurfaceRefresh,
+            RepaintScope::Layout,
+        );
+
+        outcome.merge(other);
+
+        assert_eq!(
+            outcome.surface_refresh_scope_or_surface(),
+            RepaintScope::Layout
+        );
     }
 
     #[test]

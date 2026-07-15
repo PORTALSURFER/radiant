@@ -224,6 +224,8 @@ mod focus_text;
 #[cfg(test)]
 #[path = "runtime_surface_public_api/interaction.rs"]
 mod interaction;
+#[path = "runtime_surface_public_api/invalidation.rs"]
+mod invalidation;
 #[cfg(test)]
 #[path = "runtime_surface_public_api/paint_projection.rs"]
 mod paint_projection;

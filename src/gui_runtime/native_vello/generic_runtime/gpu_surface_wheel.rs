@@ -113,7 +113,9 @@ where
         maybe_log_route_profile("coalesced_wheel", profile.coalesced_wheel_route, outcome);
         if outcome.is_interactive_surface_refresh() {
             self.record_frame_work(outcome.frame_work());
-            self.refresh_and_rebuild_scene_for_interactive_route_now();
+            self.refresh_and_rebuild_scene_for_interactive_route_now_with_scope(
+                outcome.surface_refresh_scope_or_surface(),
+            );
             return;
         }
         if outcome.is_interactive_scene_rebuild() {
@@ -122,7 +124,7 @@ where
             return;
         }
         if outcome.needs_redraw() {
-            self.timing.deferred_surface_refresh = true;
+            self.defer_surface_refresh_with_scope(outcome.surface_refresh_scope_or_surface());
             self.record_frame_work(FrameWork::RefreshSurface {
                 reason: FrameWorkReason::DeferredSurfaceRefresh,
             });
@@ -149,7 +151,9 @@ where
         maybe_log_route_profile("coalesced_scroll_wheel", elapsed, outcome);
         self.record_frame_work(outcome.frame_work());
         if outcome.is_interactive_surface_refresh() {
-            self.refresh_and_rebuild_scene_for_interactive_route_now();
+            self.refresh_and_rebuild_scene_for_interactive_route_now_with_scope(
+                outcome.surface_refresh_scope_or_surface(),
+            );
             return;
         }
         if outcome.is_interactive_scene_rebuild() {
@@ -157,7 +161,7 @@ where
             return;
         }
         if outcome.is_deferred_surface_refresh() {
-            self.timing.deferred_surface_refresh = true;
+            self.defer_surface_refresh_with_scope(outcome.surface_refresh_scope_or_surface());
         }
         if outcome.needs_scene_rebuild() {
             self.rebuild_scene_for_interactive_route_now();

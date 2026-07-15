@@ -1,4 +1,5 @@
 use super::{CommandOutcome, SurfaceRuntime};
+use crate::runtime::RepaintScope;
 use crate::runtime::RuntimeUpdateSnapshot;
 use crate::runtime::UiUpdateHandlerDiagnosticsMode;
 use crate::{
@@ -54,14 +55,23 @@ where
         let command = self.run_update_handler(message);
         if !refresh_surface {
             *deferred_surface_is_fresh = false;
+            outcome.surface_refresh_applied = false;
         }
-        let paint_only = command
-            .repaint_scope()
-            .is_some_and(|scope| scope.is_paint_only());
+        let repaint_scope = command.repaint_scope().unwrap_or(RepaintScope::Surface);
         let requires_fresh_surface = command.requires_fresh_surface_before_dispatch();
+        let effective_scope = if requires_fresh_surface {
+            RepaintScope::Surface
+        } else {
+            repaint_scope
+        };
+        let paint_only = effective_scope.is_paint_only();
+        if paint_only {
+            self.refresh_with_scope(RepaintScope::PaintOnly);
+        }
         if (refresh_surface && !paint_only) || requires_fresh_surface {
-            self.refresh();
+            self.refresh_with_scope(effective_scope);
             *deferred_surface_is_fresh = true;
+            outcome.record_applied_surface_refresh(effective_scope);
         }
         let messages_before_command = outcome.messages_dispatched;
         self.execute_command_inner_with_refresh_state(
@@ -73,6 +83,11 @@ where
         let command_dispatched_messages = outcome.messages_dispatched > messages_before_command;
         if !paint_only || command_dispatched_messages {
             outcome.surface_refresh_requested = true;
+            outcome.surface_refresh_scope = Some(
+                outcome
+                    .surface_refresh_scope
+                    .map_or(effective_scope, |current| current.merge(effective_scope)),
+            );
         } else {
             outcome.surface_refresh_requested = refresh_before;
         }
@@ -108,6 +123,9 @@ where
         command: Command<Message>,
         outcome: &mut CommandOutcome,
     ) {
+        if command.requests_paint_only() {
+            self.refresh_with_scope(RepaintScope::PaintOnly);
+        }
         let mut deferred_surface_is_fresh = true;
         self.execute_command_inner_with_refresh_state(
             command,
@@ -122,6 +140,9 @@ where
         command: Command<Message>,
         outcome: &mut CommandOutcome,
     ) {
+        if command.requests_paint_only() {
+            self.refresh_with_scope(RepaintScope::PaintOnly);
+        }
         let mut deferred_surface_is_fresh = false;
         self.execute_command_inner_with_refresh_state(
             command,
@@ -143,8 +164,9 @@ where
             && !*deferred_surface_is_fresh
             && command.requires_fresh_surface_before_dispatch()
         {
-            self.refresh();
+            self.refresh_with_scope(RepaintScope::Surface);
             *deferred_surface_is_fresh = true;
+            outcome.record_applied_surface_refresh(RepaintScope::Surface);
         }
         match command {
             Command::None => {}
@@ -176,18 +198,30 @@ where
                 outcome.repaint_requested = true;
                 outcome.paint_only_requested = true;
             }
+            Command::RequestProjectionRefresh => {
+                self.repaint_requested = true;
+                outcome.repaint_requested = true;
+                outcome.surface_repaint_requested = true;
+                outcome.request_surface_refresh(RepaintScope::Projection);
+            }
+            Command::RequestLayoutRefresh => {
+                self.repaint_requested = true;
+                outcome.repaint_requested = true;
+                outcome.surface_repaint_requested = true;
+                outcome.request_surface_refresh(RepaintScope::Layout);
+            }
             Command::SetDpiScale(scale) => {
                 self.repaint_requested = true;
                 outcome.repaint_requested = true;
                 outcome.surface_repaint_requested = true;
-                outcome.surface_refresh_requested = true;
+                outcome.request_surface_refresh(RepaintScope::Surface);
                 outcome.dpi_scale_override = Some(scale);
             }
             Command::SetWindowLogicalSize(size) => {
                 self.repaint_requested = true;
                 outcome.repaint_requested = true;
                 outcome.surface_repaint_requested = true;
-                outcome.surface_refresh_requested = true;
+                outcome.request_surface_refresh(RepaintScope::Surface);
                 outcome.window_logical_size = Some(size);
             }
             Command::After { delay, message } => {

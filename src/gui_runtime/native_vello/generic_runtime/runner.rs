@@ -290,20 +290,50 @@ where
         self.rebuild_scene();
     }
 
-    pub(super) fn refresh_and_rebuild_scene_now(&mut self) {
-        if self.timing.deferred_surface_refresh {
-            self.timing.deferred_surface_refresh = false;
-        }
-        self.core.refresh_surface();
+    pub(super) fn refresh_and_rebuild_scene_now_with_scope(
+        &mut self,
+        scope: crate::runtime::RepaintScope,
+    ) {
+        let scope = self
+            .take_deferred_surface_refresh_scope()
+            .map_or(scope, |pending| pending.merge(scope));
+        self.core.refresh_surface_with_scope(scope);
         self.rebuild_scene();
     }
 
-    pub(super) fn refresh_and_rebuild_scene_for_interactive_route_now(&mut self) {
-        if self.timing.deferred_surface_refresh {
-            self.timing.deferred_surface_refresh = false;
-        }
-        self.core.refresh_surface();
+    pub(super) fn refresh_and_rebuild_scene_for_interactive_route_now_with_scope(
+        &mut self,
+        scope: crate::runtime::RepaintScope,
+    ) {
+        let scope = self
+            .take_deferred_surface_refresh_scope()
+            .map_or(scope, |pending| pending.merge(scope));
+        self.core.refresh_surface_with_scope(scope);
         self.rebuild_scene_for_interactive_route_now();
+    }
+
+    pub(super) fn defer_surface_refresh_with_scope(&mut self, scope: crate::runtime::RepaintScope) {
+        self.timing.deferred_surface_refresh = true;
+        self.timing.deferred_surface_refresh_scope = Some(
+            self.timing
+                .deferred_surface_refresh_scope
+                .map_or(scope, |pending| pending.merge(scope)),
+        );
+    }
+
+    pub(super) fn take_deferred_surface_refresh_scope(
+        &mut self,
+    ) -> Option<crate::runtime::RepaintScope> {
+        if !self.timing.deferred_surface_refresh {
+            return None;
+        }
+        self.timing.deferred_surface_refresh = false;
+        Some(
+            self.timing
+                .deferred_surface_refresh_scope
+                .take()
+                .unwrap_or(crate::runtime::RepaintScope::Surface),
+        )
     }
 
     pub(super) fn should_rebuild_interactive_scene_now(&self, now: Instant) -> bool {
@@ -346,7 +376,15 @@ where
     }
 
     pub(super) fn defer_interactive_scene_rebuild(&mut self) {
-        self.timing.deferred_surface_refresh = true;
+        self.defer_surface_refresh_with_scope(crate::runtime::RepaintScope::Surface);
+        self.defer_scene_rebuild();
+    }
+
+    pub(super) fn defer_interactive_scene_rebuild_with_scope(
+        &mut self,
+        scope: crate::runtime::RepaintScope,
+    ) {
+        self.defer_surface_refresh_with_scope(scope);
         self.defer_scene_rebuild();
     }
 
@@ -417,7 +455,7 @@ where
             | FrameWork::ResizeSurface { .. }
             | FrameWork::Exit { .. } => {}
             FrameWork::RefreshSurface { .. } => {
-                self.timing.deferred_surface_refresh = true;
+                self.defer_surface_refresh_with_scope(outcome.surface_refresh_scope_or_surface());
             }
             FrameWork::ResizeAndRebuild { .. } => {
                 self.rebuild_scene();
@@ -425,11 +463,15 @@ where
             }
             FrameWork::RebuildScene { mode, .. } => match mode {
                 SceneRebuildMode::InteractiveWithSurfaceRefresh => {
-                    self.refresh_and_rebuild_scene_for_interactive_route_now();
+                    self.refresh_and_rebuild_scene_for_interactive_route_now_with_scope(
+                        outcome.surface_refresh_scope_or_surface(),
+                    );
                     self.defer_auxiliary_window_sync();
                 }
                 SceneRebuildMode::ImmediateWithSurfaceRefresh => {
-                    self.refresh_and_rebuild_scene_now();
+                    self.refresh_and_rebuild_scene_now_with_scope(
+                        outcome.surface_refresh_scope_or_surface(),
+                    );
                     sync_auxiliary_windows_now = true;
                 }
                 SceneRebuildMode::Interactive => {

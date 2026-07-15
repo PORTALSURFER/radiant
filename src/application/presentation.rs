@@ -172,6 +172,20 @@ impl<State: 'static, Message> FrameClock<State, Message> {
         self
     }
 
+    /// Select frame invalidation from stable structural, layout, and projection revisions.
+    ///
+    /// This is the preferred frame-clock contract for state that can expose cheap,
+    /// deterministic revisions. An unchanged snapshot uses paint-only redraw;
+    /// projection-only changes reuse layout; layout changes relayout; structural
+    /// changes retain the correctness-first full-surface fallback.
+    pub fn surface_revisions(
+        mut self,
+        revisions: impl FnMut(&mut State) -> crate::runtime::SurfaceRevisions + 'static,
+    ) -> Self {
+        self.repaint_policy = Some(Box::new(RevisionFrameRepaintPolicy { revisions }));
+        self
+    }
+
     fn into_parts(self) -> FrameClockParts<State, Message> {
         let Self {
             message,
@@ -206,6 +220,30 @@ struct TypedFrameRepaintPolicy<Scope, BeforeFrame, CanUsePaintOnly> {
     _scope: std::marker::PhantomData<Scope>,
 }
 
+struct RevisionFrameRepaintPolicy<Revisions> {
+    revisions: Revisions,
+}
+
+impl<State, Revisions> AppFrameRepaintPolicy<State> for RevisionFrameRepaintPolicy<Revisions>
+where
+    Revisions: FnMut(&mut State) -> crate::runtime::SurfaceRevisions,
+{
+    fn capture_before_frame(&mut self, state: &mut State) -> Box<dyn Any> {
+        Box::new((self.revisions)(state))
+    }
+
+    fn resolve_after_frame(
+        &mut self,
+        state: &mut State,
+        scope: Box<dyn Any>,
+    ) -> crate::runtime::RepaintScope {
+        let Ok(previous) = scope.downcast::<crate::runtime::SurfaceRevisions>() else {
+            return crate::runtime::RepaintScope::Surface;
+        };
+        (self.revisions)(state).repaint_scope_since(*previous)
+    }
+}
+
 impl<Scope, BeforeFrame, CanUsePaintOnly>
     TypedFrameRepaintPolicy<Scope, BeforeFrame, CanUsePaintOnly>
 {
@@ -229,12 +267,20 @@ where
         Box::new((self.before_frame)(state))
     }
 
-    fn resolve_after_frame(&mut self, state: &mut State, scope: Box<dyn Any>) -> bool {
+    fn resolve_after_frame(
+        &mut self,
+        state: &mut State,
+        scope: Box<dyn Any>,
+    ) -> crate::runtime::RepaintScope {
         let Ok(scope) = scope.downcast::<Scope>() else {
-            return false;
+            return crate::runtime::RepaintScope::Surface;
         };
         let scope = *scope;
-        (self.can_use_paint_only)(state, scope)
+        if (self.can_use_paint_only)(state, scope) {
+            crate::runtime::RepaintScope::PaintOnly
+        } else {
+            crate::runtime::RepaintScope::Surface
+        }
     }
 }
 

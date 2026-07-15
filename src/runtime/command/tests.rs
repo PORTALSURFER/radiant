@@ -161,6 +161,21 @@ fn repaint_scope_merges_nested_batches_with_surface_winning() {
 }
 
 #[test]
+fn repaint_scope_orders_revision_backed_stages_by_required_work() {
+    let projection = Command::<()>::batch([
+        Command::repaint(RepaintScope::PaintOnly),
+        Command::repaint(RepaintScope::Projection),
+    ]);
+    let layout = Command::<()>::batch([
+        Command::repaint(RepaintScope::Projection),
+        Command::repaint(RepaintScope::Layout),
+    ]);
+
+    assert_eq!(projection.repaint_scope(), Some(RepaintScope::Projection));
+    assert_eq!(layout.repaint_scope(), Some(RepaintScope::Layout));
+}
+
+#[test]
 fn dpi_scale_commands_request_surface_repaint_without_flattening_messages() {
     let command = Command::<&str>::set_dpi_scale(crate::theme::DpiScale::new(2.0));
 

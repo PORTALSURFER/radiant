@@ -12,6 +12,10 @@ fn paint_only_command_skips_surface_reprojection() {
 
     assert!(outcome.repaint_requested);
     assert!(!outcome.surface_refresh_requested);
+    assert_eq!(
+        runtime.last_refresh_diagnostics().invalidation,
+        radiant::runtime::SurfaceInvalidation::PaintOnly
+    );
     assert_eq!(runtime.bridge().count, 1);
     assert_eq!(runtime.bridge().project_count, 1);
     assert_eq!(text_value(runtime.surface(), 10), "PaintOnly (0)");

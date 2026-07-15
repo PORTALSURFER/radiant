@@ -29,6 +29,8 @@ impl<Message> Command<Message> {
             Self::None
             | Self::RequestRepaint
             | Self::RequestPaintOnly
+            | Self::RequestProjectionRefresh
+            | Self::RequestLayoutRefresh
             | Self::SetDpiScale(_)
             | Self::SetWindowLogicalSize(_)
             | Self::Focus(_)

@@ -65,5 +65,9 @@ pub(in crate::application) type AppNativeFrameDiagnostics<State> =
     Box<dyn FnMut(&mut State, NativeFrameDiagnostics)>;
 pub(in crate::application) trait AppFrameRepaintPolicy<State> {
     fn capture_before_frame(&mut self, state: &mut State) -> Box<dyn Any>;
-    fn resolve_after_frame(&mut self, state: &mut State, scope: Box<dyn Any>) -> bool;
+    fn resolve_after_frame(
+        &mut self,
+        state: &mut State,
+        scope: Box<dyn Any>,
+    ) -> crate::runtime::RepaintScope;
 }

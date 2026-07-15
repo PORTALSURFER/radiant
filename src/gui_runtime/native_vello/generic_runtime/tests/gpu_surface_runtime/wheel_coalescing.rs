@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime::{RepaintScope, SurfaceInvalidation};
 
 #[test]
 fn deferred_scroll_routes_message_without_refreshing_surface_until_requested() {
@@ -23,6 +24,49 @@ fn deferred_scroll_routes_message_without_refreshing_surface_until_requested() {
 
     core.refresh_surface();
     assert_eq!(core.runtime.bridge().project_count, 2);
+}
+
+#[test]
+fn deferred_wheel_refresh_preserves_typed_scope_until_frame_preparation() {
+    for (scope, expected_layout_passes) in
+        [(RepaintScope::Projection, 0), (RepaintScope::Layout, 1)]
+    {
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            WheelRefreshBridge {
+                repaint_scope: Some(scope),
+                ..WheelRefreshBridge::default()
+            },
+            Vector2::new(240.0, 40.0),
+        );
+        let layout_before = runner.core.runtime.refresh_counters().layout;
+        let outcome = runner.core.route_scroll_deferred_refresh_with_modifiers(
+            Point::new(12.0, 12.0),
+            Vector2::new(0.0, -40.0),
+            Default::default(),
+        );
+
+        assert!(outcome.is_deferred_surface_refresh());
+        assert_eq!(outcome.surface_refresh_scope_or_surface(), scope);
+        runner.apply_route_outcome(outcome);
+        assert_eq!(runner.timing.deferred_surface_refresh_scope, Some(scope));
+
+        runner.refresh_deferred_surface_if_needed(&mut RenderFrameProfile::default());
+
+        assert_eq!(
+            runner.core.runtime.refresh_counters().layout,
+            layout_before + expected_layout_passes
+        );
+        assert_eq!(
+            runner.core.runtime.last_refresh_diagnostics().invalidation,
+            match scope {
+                RepaintScope::Projection => SurfaceInvalidation::Projection,
+                RepaintScope::Layout => SurfaceInvalidation::Layout,
+                RepaintScope::Surface => SurfaceInvalidation::Surface,
+                RepaintScope::PaintOnly => SurfaceInvalidation::PaintOnly,
+            }
+        );
+    }
 }
 
 #[test]

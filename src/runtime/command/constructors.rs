@@ -74,6 +74,8 @@ impl<Message> Command<Message> {
     pub const fn repaint(scope: RepaintScope) -> Self {
         match scope {
             RepaintScope::Surface => Self::RequestRepaint,
+            RepaintScope::Layout => Self::RequestLayoutRefresh,
+            RepaintScope::Projection => Self::RequestProjectionRefresh,
             RepaintScope::PaintOnly => Self::RequestPaintOnly,
         }
     }

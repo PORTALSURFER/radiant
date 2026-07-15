@@ -29,3 +29,32 @@ fn surface_runtime_reports_window_size_requests_as_surface_refreshes() {
     assert!(outcome.surface_refresh_requested);
     assert!(!outcome.paint_only_requested);
 }
+
+#[test]
+fn typed_refreshes_do_not_narrow_window_or_dpi_surface_fallbacks() {
+    let bridge = RuntimeCommandBridge::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 80.0));
+    let initial_layout_count = runtime.refresh_counters().layout;
+
+    let dpi = runtime.execute_command(Command::batch([
+        Command::set_dpi_scale(DpiScale::new(2.0)),
+        Command::repaint(RepaintScope::Projection),
+    ]));
+
+    assert_eq!(
+        dpi.surface_invalidation(),
+        radiant::runtime::SurfaceInvalidation::Surface
+    );
+    assert_eq!(runtime.refresh_counters().layout, initial_layout_count + 1);
+
+    let window = runtime.execute_command(Command::batch([
+        Command::set_window_logical_size(Vector2::new(760.0, 520.0)),
+        Command::repaint(RepaintScope::Layout),
+    ]));
+
+    assert_eq!(
+        window.surface_invalidation(),
+        radiant::runtime::SurfaceInvalidation::Surface
+    );
+    assert_eq!(runtime.refresh_counters().layout, initial_layout_count + 2);
+}

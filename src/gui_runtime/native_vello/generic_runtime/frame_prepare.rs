@@ -12,8 +12,10 @@ where
             return;
         }
 
-        let (_, elapsed) = profile.measure(|| self.core.refresh_surface());
-        self.timing.deferred_surface_refresh = false;
+        let scope = self
+            .take_deferred_surface_refresh_scope()
+            .unwrap_or(crate::runtime::RepaintScope::Surface);
+        let (_, elapsed) = profile.measure(|| self.core.refresh_surface_with_scope(scope));
         profile.refresh_surface = elapsed;
 
         let (_, elapsed) = profile.measure(|| {
@@ -41,10 +43,10 @@ where
         let mut skipped_rebuild = false;
         let (_, elapsed) = profile.measure(|| {
             let requires_encode = self.timing.deferred_scene_rebuild_requires_encode;
-            let refreshed_surface = self.timing.deferred_surface_refresh;
-            if refreshed_surface {
-                self.core.refresh_surface();
-                self.timing.deferred_surface_refresh = false;
+            let refresh_scope = self.take_deferred_surface_refresh_scope();
+            let refreshed_surface = refresh_scope.is_some();
+            if let Some(scope) = refresh_scope {
+                self.core.refresh_surface_with_scope(scope);
             }
             let viewport_relayout = self
                 .apply_pending_viewport_resize_if_needed()

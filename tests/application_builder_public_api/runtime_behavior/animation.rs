@@ -507,6 +507,69 @@ fn presentation_frame_clock_repaint_scope_requests_paint_only_after_frame_update
 }
 
 #[test]
+fn presentation_frame_clock_surface_revisions_request_projection_only_refresh() {
+    use radiant::prelude as ui;
+    use radiant::runtime::{RepaintScope, SurfaceRevisions};
+
+    let mut bridge = ui::app(DemoState::default())
+        .view(|state| ui::text(format!("Frame {}", state.count)).id(10))
+        .presentation(ui::Presentation::new().frame_clock(
+            ui::FrameClock::message(DemoMessage::Increment).surface_revisions(
+                |state: &mut DemoState| SurfaceRevisions::new(0, 0, state.count as u64),
+            ),
+        ))
+        .handle_message(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+        })
+        .into_bridge();
+
+    assert!(direct_bridge_animation_activity(&mut bridge).needs_frame_message());
+    assert!(direct_bridge_queue_animation_frame(&mut bridge));
+
+    let command = bridge.update(DemoMessage::Increment);
+
+    assert_eq!(command.repaint_scope(), Some(RepaintScope::Projection));
+}
+
+#[test]
+fn revision_backed_frame_drain_projects_once_and_reuses_layout() {
+    use radiant::prelude as ui;
+    use radiant::runtime::{RepaintScope, SurfaceRevisions};
+
+    let bridge = ui::app(DemoState::default())
+        .view(|state| ui::text(format!("Frame {}", state.count)).id(10))
+        .presentation(ui::Presentation::new().frame_clock(
+            ui::FrameClock::message(DemoMessage::Increment).surface_revisions(
+                |state: &mut DemoState| SurfaceRevisions::new(0, 0, state.count as u64),
+            ),
+        ))
+        .handle_message(|state, message, _context| match message {
+            DemoMessage::Increment => state.count += 1,
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
+    let before = runtime.refresh_counters();
+
+    assert!(runtime.host_animation_activity().needs_frame_message());
+    assert!(runtime.host_queue_animation_frame());
+    let outcome = runtime.drain_runtime_messages();
+    let after = runtime.refresh_counters();
+
+    assert_eq!(
+        outcome.surface_refresh_scope,
+        Some(RepaintScope::Projection)
+    );
+    assert!(outcome.surface_refresh_applied);
+    assert_eq!(
+        after.application_projection,
+        before.application_projection + 1
+    );
+    assert_eq!(after.runtime_projection, before.runtime_projection + 1);
+    assert_eq!(after.widget_state_sync, before.widget_state_sync + 1);
+    assert_eq!(after.layout, before.layout);
+}
+
+#[test]
 fn presentation_frame_clock_without_repaint_scope_requests_surface_after_frame_update() {
     use radiant::prelude as ui;
     use radiant::runtime::RepaintScope;

@@ -13,15 +13,20 @@ pub(super) struct NativeFrameDiagnosticsParts {
     pub(super) render_to_texture_elapsed: Duration,
     pub(super) since_last_present: Duration,
     pub(super) frame_work: FrameWork,
+    pub(super) surface_refresh: crate::runtime::SurfaceRefreshDiagnostics,
+    pub(super) surface_refresh_total: Duration,
 }
 
 pub(super) fn native_frame_diagnostics(
     parts: NativeFrameDiagnosticsParts,
 ) -> crate::runtime::NativeFrameDiagnostics {
+    let surface_invalidation =
+        surface_invalidation_name(parts.frame_work, parts.surface_refresh.invalidation);
     crate::runtime::NativeFrameDiagnostics {
         presentation: crate::runtime::NativeFramePresentationDiagnostics {
             frame_work_kind: parts.frame_work.kind(),
             frame_work_reason: parts.frame_work.reason().name(),
+            surface_invalidation,
             paint_only: parts.frame_work.is_paint_only(),
             scene_rebuild: parts.frame_work.needs_scene_rebuild(),
         },
@@ -141,7 +146,11 @@ pub(super) fn native_frame_diagnostics(
             gpu_timing_status: crate::runtime::NativeGpuTimingStatus::CpuEnvelopeOnly,
             frame_work: crate::runtime::NativeFrameWorkTimings {
                 coalesced_wheel_route: parts.profile.coalesced_wheel_route,
-                refresh_surface: parts.profile.refresh_surface,
+                refresh_surface: parts.surface_refresh_total,
+                application_projection: parts.surface_refresh.timings.application_projection,
+                runtime_projection: parts.surface_refresh.timings.runtime_projection,
+                widget_state_sync: parts.surface_refresh.timings.widget_state_sync,
+                layout: parts.surface_refresh.timings.layout,
                 paint_plan: parts.profile.paint_plan,
                 render_to_texture: parts.render_to_texture_elapsed,
                 full_screen_blit: parts.profile.full_screen_blit,
@@ -157,5 +166,93 @@ pub(super) fn native_frame_diagnostics(
             submit_present: parts.profile.submit_present,
             since_last_present: parts.since_last_present,
         },
+    }
+}
+
+fn surface_invalidation_name(
+    frame_work: FrameWork,
+    invalidation: crate::runtime::SurfaceInvalidation,
+) -> &'static str {
+    if invalidation == crate::runtime::SurfaceInvalidation::None && frame_work.is_paint_only() {
+        return crate::runtime::SurfaceInvalidation::PaintOnly.name();
+    }
+    invalidation.name()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NativeFrameDiagnosticsParts, native_frame_diagnostics, surface_invalidation_name};
+    use crate::gui_runtime::native_vello::generic_runtime::{
+        FrameWork, FrameWorkReason, RenderFrameProfile, SceneRebuildMode,
+    };
+    use crate::runtime::{
+        RetainedSurfaceCachePolicy, SurfaceInvalidation, SurfaceRefreshDiagnostics,
+        SurfaceRefreshTimings,
+    };
+    use std::time::Duration;
+
+    #[test]
+    fn paint_only_frame_reports_paint_only_without_a_runtime_refresh() {
+        assert_eq!(
+            surface_invalidation_name(
+                FrameWork::PaintOnly {
+                    reason: FrameWorkReason::TimedPaintOnlyAnimation,
+                },
+                SurfaceInvalidation::None,
+            ),
+            "paint_only"
+        );
+        assert_eq!(
+            surface_invalidation_name(
+                FrameWork::RebuildScene {
+                    reason: FrameWorkReason::RoutedInput,
+                    mode: SceneRebuildMode::Immediate,
+                },
+                SurfaceInvalidation::None,
+            ),
+            "none"
+        );
+        assert_eq!(
+            surface_invalidation_name(FrameWork::None, SurfaceInvalidation::Surface),
+            "surface"
+        );
+    }
+
+    #[test]
+    fn native_frame_diagnostics_use_the_accumulated_refresh_total() {
+        let diagnostics = native_frame_diagnostics(NativeFrameDiagnosticsParts {
+            stats: Default::default(),
+            text_stats: Default::default(),
+            retained_policy: RetainedSurfaceCachePolicy::default(),
+            retained_entries: 0,
+            gpu_surface_stats: Default::default(),
+            profile: RenderFrameProfile::default(),
+            render_to_texture_elapsed: Duration::ZERO,
+            since_last_present: Duration::ZERO,
+            frame_work: FrameWork::RebuildScene {
+                reason: FrameWorkReason::RuntimeSurfaceRepaint,
+                mode: SceneRebuildMode::Immediate,
+            },
+            surface_refresh: SurfaceRefreshDiagnostics {
+                invalidation: SurfaceInvalidation::Layout,
+                timings: SurfaceRefreshTimings {
+                    application_projection: Duration::from_micros(2),
+                    runtime_projection: Duration::from_micros(3),
+                    widget_state_sync: Duration::from_micros(5),
+                    layout: Duration::from_micros(7),
+                },
+            },
+            surface_refresh_total: Duration::from_micros(23),
+        });
+
+        assert_eq!(diagnostics.presentation.surface_invalidation, "layout");
+        assert_eq!(
+            diagnostics.timings.frame_work.refresh_surface,
+            Duration::from_micros(23)
+        );
+        assert_eq!(
+            diagnostics.timings.cpu_envelope_total(),
+            Duration::from_micros(23)
+        );
     }
 }

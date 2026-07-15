@@ -47,6 +47,10 @@ where
             pending_input_command_outcome: CommandOutcome::default(),
             runtime_work: RuntimeWorkQueues::default(),
             diagnostics: Default::default(),
+            last_refresh_diagnostics: super::super::SurfaceRefreshDiagnostics::startup(),
+            pending_frame_refresh_diagnostics: super::super::SurfaceRefreshDiagnostics::startup(),
+            pending_frame_refresh_total: std::time::Duration::ZERO,
+            refresh_counters: super::super::SurfaceRefreshCounters::startup(),
             update_handler_diagnostics_policy: Default::default(),
             devtools_overlay: DevtoolsOverlayOptions::default(),
         };
@@ -75,38 +79,7 @@ where
         true
     }
 
-    /// Reproject the latest host state into a fresh immutable surface snapshot.
-    pub fn refresh(&mut self) {
-        let mut next_surface = self.bridge.pull_surface();
-        std::mem::swap(
-            &mut self.traversal.widgets.paths.previous,
-            &mut self.traversal.widgets.paths.current,
-        );
-        let mut traversal = self.take_reusable_traversal_index(true);
-        let layout_root = next_surface.runtime_projection_reusing_with_scratch(
-            &mut traversal,
-            &mut self.scratch.projection_scroll_stack,
-            &mut self.scratch.projection_child_path,
-        );
-        let sync_policy = self.widget_state_sync_policy();
-        next_surface.synchronize_widget_state_from_paths(
-            &self.surface,
-            &traversal.stateful_widget_order,
-            &traversal.widget_paths,
-            &self.traversal.widgets.paths.previous,
-            sync_policy,
-        );
-        self.surface = next_surface;
-        self.layout_root = layout_root;
-        self.restore_pointer_capture_state();
-        self.relayout_with_traversal(traversal);
-        self.clear_stale_interaction_state();
-        if let Some(widget_id) = self.interaction.focus.focused_widget {
-            self.restore_focused_widget_state(widget_id);
-        }
-    }
-
-    fn widget_state_sync_policy(&self) -> WidgetStateSyncPolicy {
+    pub(in crate::runtime::controller) fn widget_state_sync_policy(&self) -> WidgetStateSyncPolicy {
         self.interaction
             .pointer
             .capture
@@ -119,7 +92,7 @@ where
             })
     }
 
-    fn clear_stale_interaction_state(&mut self) {
+    pub(in crate::runtime::controller) fn clear_stale_interaction_state(&mut self) {
         if self
             .interaction
             .focus

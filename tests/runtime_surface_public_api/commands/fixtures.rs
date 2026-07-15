@@ -3,6 +3,7 @@ use super::*;
 pub(super) enum CommandDemoMessage {
     Start,
     MixedRepaint,
+    ProjectionRefresh,
     Increment,
     Rename(String),
 }
@@ -34,6 +35,7 @@ impl RuntimeBridge<CommandDemoMessage> for CommandDemoBridge {
                 Command::request_paint_only(),
                 Command::repaint(RepaintScope::Surface),
             ]),
+            CommandDemoMessage::ProjectionRefresh => Command::repaint(RepaintScope::Projection),
             CommandDemoMessage::Increment => {
                 self.state.count += 1;
                 Command::none()

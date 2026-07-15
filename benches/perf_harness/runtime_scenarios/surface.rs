@@ -7,7 +7,7 @@ use crate::runner::ScenarioCounters;
 use crate::viewport;
 use radiant::{
     layout::{LayoutNode, LayoutOutput, Vector2, layout_tree},
-    runtime::{RuntimeBridge, SurfaceRuntime, UiSurface},
+    runtime::{RepaintScope, RuntimeBridge, SurfaceRuntime, UiSurface},
     theme::ThemeTokens,
 };
 use std::{hint::black_box, sync::Arc};
@@ -28,7 +28,12 @@ pub(super) fn horizontal_scroll_paint_1k() -> impl FnMut() -> ScenarioCounters {
 }
 
 pub(super) fn refresh_large_tree() -> impl FnMut() -> ScenarioCounters {
-    let mut refresh_large_tree = StatefulRefreshBench::new();
+    let mut refresh_large_tree = StatefulRefreshBench::new(RepaintScope::Surface);
+    move || refresh_large_tree.step()
+}
+
+pub(super) fn projection_refresh_large_tree() -> impl FnMut() -> ScenarioCounters {
+    let mut refresh_large_tree = StatefulRefreshBench::new(RepaintScope::Projection);
     move || refresh_large_tree.step()
 }
 
@@ -67,6 +72,7 @@ impl StatefulRuntimeSurfaceBench {
         black_box((output, plan));
         ScenarioCounters::default()
             .with_scene_rebuild_count(1)
+            .with_paint_plan_rebuild_count(1)
             .with_paint_primitive_count(primitive_count)
     }
 }
@@ -139,19 +145,31 @@ impl StatefulHorizontalScrollPaintBench {
 
 struct StatefulRefreshBench {
     runtime: SurfaceRuntime<RefreshBridge, ()>,
+    scope: RepaintScope,
 }
 
 impl StatefulRefreshBench {
-    fn new() -> Self {
+    fn new(scope: RepaintScope) -> Self {
         Self {
             runtime: SurfaceRuntime::new(RefreshBridge { revision: 0 }, Vector2::new(960.0, 720.0)),
+            scope,
         }
     }
 
     fn step(&mut self) -> ScenarioCounters {
-        self.runtime.refresh();
+        let before = self.runtime.refresh_counters();
+        self.runtime.refresh_with_scope(self.scope);
+        let after = self.runtime.refresh_counters();
         black_box(self.runtime.layout());
-        ScenarioCounters::default().with_surface_refresh_count(1)
+        ScenarioCounters::default()
+            .with_surface_refresh_count(1)
+            .with_application_projection_count(
+                after.application_projection - before.application_projection,
+            )
+            .with_runtime_projection_count(after.runtime_projection - before.runtime_projection)
+            .with_widget_state_sync_count(after.widget_state_sync - before.widget_state_sync)
+            .with_layout_count(after.layout - before.layout)
+            .with_paint_plan_rebuild_count(0)
     }
 }
 

@@ -37,14 +37,15 @@ impl CommandOutcome {
     pub(in crate::runtime) fn merge(&mut self, other: Self) {
         let refresh_requested = self.surface_refresh_requested;
         let refresh_applied = self.surface_refresh_applied;
+        let refresh_scope = self.resolved_surface_refresh_scope();
+        let other_refresh_scope = other.resolved_surface_refresh_scope();
         self.messages_dispatched += other.messages_dispatched;
         self.repaint_requested |= other.repaint_requested;
         self.paint_only_requested |= other.paint_only_requested;
         self.surface_repaint_requested |= other.surface_repaint_requested;
         let other_refresh_requested = other.surface_refresh_requested;
         self.surface_refresh_requested |= other_refresh_requested;
-        self.surface_refresh_scope = match (self.surface_refresh_scope, other.surface_refresh_scope)
-        {
+        self.surface_refresh_scope = match (refresh_scope, other_refresh_scope) {
             (Some(current), Some(next)) => Some(current.merge(next)),
             (Some(scope), None) | (None, Some(scope)) => Some(scope),
             (None, None) => None,
@@ -61,9 +62,27 @@ impl CommandOutcome {
         self.window_logical_size = other.window_logical_size.or(self.window_logical_size);
     }
 
+    pub(in crate::runtime) fn request_surface_refresh(&mut self, scope: RepaintScope) {
+        let scope = self
+            .resolved_surface_refresh_scope()
+            .map_or(scope, |current| current.merge(scope));
+        self.surface_refresh_requested = true;
+        self.surface_refresh_scope = Some(scope);
+    }
+
+    const fn resolved_surface_refresh_scope(&self) -> Option<RepaintScope> {
+        if !self.surface_refresh_requested {
+            return None;
+        }
+        Some(match self.surface_refresh_scope {
+            Some(scope) => scope,
+            None => RepaintScope::Surface,
+        })
+    }
+
     /// Return the typed invalidation stage selected by this command pass.
     pub const fn surface_invalidation(&self) -> SurfaceInvalidation {
-        SurfaceInvalidation::from_repaint_scope(self.surface_refresh_scope)
+        SurfaceInvalidation::from_repaint_scope(self.resolved_surface_refresh_scope())
     }
 }
 
@@ -78,7 +97,7 @@ where
     pub(super) fn finish_command_outcome(&mut self, outcome: CommandOutcome) -> CommandOutcome {
         self.refresh_if_requested(
             outcome.surface_refresh_requested && !outcome.surface_refresh_applied,
-            outcome.surface_refresh_scope,
+            outcome.resolved_surface_refresh_scope(),
         );
         if outcome.surface_refresh_requested {
             self.repaint_requested = true;
@@ -118,5 +137,18 @@ mod tests {
 
         assert_eq!(pending.surface_refresh_scope, Some(RepaintScope::Surface));
         assert!(!pending.surface_refresh_applied);
+    }
+
+    #[test]
+    fn typed_refresh_does_not_narrow_an_implicit_surface_fallback() {
+        let mut pending = CommandOutcome {
+            surface_refresh_requested: true,
+            surface_refresh_scope: None,
+            ..CommandOutcome::default()
+        };
+
+        pending.request_surface_refresh(RepaintScope::Projection);
+
+        assert_eq!(pending.surface_refresh_scope, Some(RepaintScope::Surface));
     }
 }

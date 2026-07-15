@@ -202,40 +202,26 @@ where
                 self.repaint_requested = true;
                 outcome.repaint_requested = true;
                 outcome.surface_repaint_requested = true;
-                outcome.surface_refresh_requested = true;
-                outcome.surface_refresh_scope = Some(
-                    outcome
-                        .surface_refresh_scope
-                        .map_or(RepaintScope::Projection, |current| {
-                            current.merge(RepaintScope::Projection)
-                        }),
-                );
+                outcome.request_surface_refresh(RepaintScope::Projection);
             }
             Command::RequestLayoutRefresh => {
                 self.repaint_requested = true;
                 outcome.repaint_requested = true;
                 outcome.surface_repaint_requested = true;
-                outcome.surface_refresh_requested = true;
-                outcome.surface_refresh_scope = Some(
-                    outcome
-                        .surface_refresh_scope
-                        .map_or(RepaintScope::Layout, |current| {
-                            current.merge(RepaintScope::Layout)
-                        }),
-                );
+                outcome.request_surface_refresh(RepaintScope::Layout);
             }
             Command::SetDpiScale(scale) => {
                 self.repaint_requested = true;
                 outcome.repaint_requested = true;
                 outcome.surface_repaint_requested = true;
-                outcome.surface_refresh_requested = true;
+                outcome.request_surface_refresh(RepaintScope::Surface);
                 outcome.dpi_scale_override = Some(scale);
             }
             Command::SetWindowLogicalSize(size) => {
                 self.repaint_requested = true;
                 outcome.repaint_requested = true;
                 outcome.surface_repaint_requested = true;
-                outcome.surface_refresh_requested = true;
+                outcome.request_surface_refresh(RepaintScope::Surface);
                 outcome.window_logical_size = Some(size);
             }
             Command::After { delay, message } => {

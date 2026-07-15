@@ -1,6 +1,6 @@
 //! Sample tree and details data for the tree/details example.
 
-use radiant::prelude::DetailsRow;
+use radiant::application::DetailsRow;
 
 pub(super) fn tree_children(id: &str) -> Option<&'static [(&'static str, &'static str)]> {
     match id {

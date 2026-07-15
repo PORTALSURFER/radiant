@@ -1,4 +1,5 @@
 use radiant::prelude::*;
+use radiant::runtime::PaintTextAlign;
 
 use super::super::{
     geometry::{is_black_key, pitch_label, row_height_for},

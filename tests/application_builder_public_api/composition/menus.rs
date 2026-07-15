@@ -1,4 +1,5 @@
 use super::super::*;
+use radiant::application as app;
 
 #[test]
 fn application_builder_context_menu_exports_compact_default() {
@@ -89,7 +90,7 @@ fn application_builder_context_menu_exposes_fluent_advanced_configuration() {
                 ui::context_menu(
                     "Actions",
                     [
-                        ui::MenuCommand::from_parts(ui::MenuCommandParts {
+                        ui::MenuCommand::from_parts(app::MenuCommandParts {
                             label: String::from("Inspect").into(),
                             hotkey_hint: Some(String::from("Cmd-I").into()),
                             style: radiant::widgets::WidgetStyle::default(),

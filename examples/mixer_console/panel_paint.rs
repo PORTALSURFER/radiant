@@ -2,6 +2,7 @@ use super::model::CHANNEL_COUNT;
 use super::paint::{push_rect, push_text};
 use super::panel::MixerPanelWidget;
 use radiant::prelude::*;
+use radiant::runtime::PaintTextAlign;
 
 #[path = "panel_paint/fader.rs"]
 mod fader;

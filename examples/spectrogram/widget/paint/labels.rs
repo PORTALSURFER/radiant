@@ -1,6 +1,7 @@
 use super::primitives::push_text;
 use radiant::gui::visualization::VerticalValueAxis;
 use radiant::prelude::*;
+use radiant::runtime::PaintTextAlign;
 
 pub(super) fn append_labels(
     primitives: &mut Vec<PaintPrimitive>,

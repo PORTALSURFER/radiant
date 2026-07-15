@@ -1,4 +1,5 @@
 use radiant::prelude::*;
+use radiant::runtime::{PaintClipEnd, PaintClipStart};
 
 use super::widget::PianoRollWidget;
 

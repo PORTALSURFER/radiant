@@ -1,4 +1,5 @@
 use radiant::prelude::{self as ui, IntoView};
+use radiant::{gui::list as gui_list, widgets as widget_api};
 
 #[derive(Clone, Debug, PartialEq)]
 enum RowMessage {
@@ -11,13 +12,13 @@ fn action_row() -> ui::View<RowMessage> {
     let accent = ui::Rgba8::new(80, 160, 220, 255);
     ui::interactive_row_underlay(ui::text_line("Item", 22.0))
         .input_id(44)
-        .visual_state(ui::InteractiveRowVisualStateParts {
+        .visual_state(widget_api::InteractiveRowVisualStateParts {
             selected: true,
-            ..ui::InteractiveRowVisualStateParts::default()
+            ..widget_api::InteractiveRowVisualStateParts::default()
         })
         .dense_chrome_palette(ui::DenseRowPalette::new().selected(accent.with_alpha(96)))
         .leading_marker(ui::DenseRowMarkerStyle::new(
-            ui::DenseRowMarkerParts::leading(2.0),
+            gui_list::DenseRowMarkerParts::leading(2.0),
             accent,
         ))
         .outline(ui::DenseRowOutlineStyle::new(0.5, accent, 1.5))

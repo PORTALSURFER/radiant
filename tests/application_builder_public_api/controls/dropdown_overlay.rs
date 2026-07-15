@@ -1,5 +1,5 @@
 use radiant::{
-    prelude as ui,
+    application as app, prelude as ui,
     runtime::{Event, PaintPrimitive, SurfaceRuntime},
     theme::ThemeTokens,
     widgets::PointerButton,
@@ -30,7 +30,7 @@ fn application_builder_dropdown_overlay_routes_above_dismiss_layer() {
                     17.0,
                     3.0,
                     Some(100.0),
-                    vec![ui::DropdownOption::from_parts(ui::DropdownOptionParts {
+                    vec![ui::DropdownOption::from_parts(app::DropdownOptionParts {
                         label: "WASAPI".into(),
                         selection: ui::DropdownOptionSelection::Unselected,
                         message: OverlayMessage::Pick,
@@ -41,7 +41,7 @@ fn application_builder_dropdown_overlay_routes_above_dismiss_layer() {
                     48.0,
                     3.0,
                     Some(100.0),
-                    vec![ui::DropdownOption::from_parts(ui::DropdownOptionParts {
+                    vec![ui::DropdownOption::from_parts(app::DropdownOptionParts {
                         label: "CoreAudio".into(),
                         selection: ui::DropdownOptionSelection::Unselected,
                         message: OverlayMessage::Pick,

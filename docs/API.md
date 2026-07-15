@@ -341,19 +341,38 @@ are reviewed allowlists, and a source guardrail bounds their combined named
 surface so splitting an oversized group into more files cannot bypass review.
 It contains app-facing types that ordinary declarative UI code reaches for
 repeatedly: builders, messages, core widget contracts, geometry used in
-signatures, theme tokens, backend-neutral paint primitives, and typed runtime
-commands. Advanced host-control APIs, paint-plan construction and inspection,
-GPU/custom-shader surfaces, native diagnostics and run reports, retained
-projection machinery, and specialist visualization geometry require explicit
-imports from their owning modules.
+signatures, theme tokens, the paint and overlay types required by common trait
+signatures, and typed runtime commands. Named-parts constructors, specialist
+details-list and virtual-tree manipulation, low-level paint construction, raw
+platform protocols, external-drag models, advanced host control, paint-plan
+inspection, GPU/custom-shader surfaces, native diagnostics and run reports,
+retained projection machinery, and specialist visualization geometry require
+explicit imports from their owning modules.
 Advanced host-control APIs, renderer or windowing implementation details, and
 platform-specific adapters never enter the common wildcard surface.
+
+The reviewed inventory currently contains 395 named exports. The guardrail cap
+is 475, leaving 80 exports (20.3% of the current surface) for genuinely common
+future API without forcing local reshuffles. Source-quality tests compute and
+verify both the aggregate and this per-subsystem inventory:
+
+| Prelude subsystem | Named exports | Ordinary caller role |
+| --- | ---: | --- |
+| Application | 227 | Canonical app/view/control builders and required signature types |
+| GUI | 101 | Common state/update models, geometry, input, text, and list policies |
+| Layout | 1 | Layout signature output |
+| Runtime | 27 | Common commands, resources, platform-service inputs/results, and callback signature types |
+| Theme | 1 | Theme signature tokens |
+| Widgets | 38 | Common widget contracts, messages, sizing, and style models |
 
 | API family | Prelude disposition | Explicit owner when excluded |
 | --- | --- | --- |
 | Application/view builders and their signature support | Included | `radiant::application` |
 | Basic controls, layout, overlays, lists, menus, theme, and geometry | Included | Owning `radiant::application`, `radiant::gui`, `radiant::layout`, or `radiant::theme` module |
-| Core custom-widget contracts and backend-neutral paint primitives | Included | `radiant::widgets` and `radiant::runtime` |
+| Core custom-widget contracts plus `PaintPrimitive` and `TransientOverlayContext` signature types | Included | `radiant::widgets` and `radiant::runtime` |
+| Named-parts constructors and `_from_parts` entry points | Excluded | The owning `radiant::application`, `radiant::gui`, `radiant::runtime`, or `radiant::widgets` module |
+| Details-list drag, resize, placement, sortable-list, and virtual-tree helpers | Excluded | `radiant::application` |
+| Raw platform request/response protocols and external-drag models | Excluded | `radiant::runtime` |
 | Generic normalized color ramps | Included | `radiant::gui::visualization` |
 | Native options, diagnostics, run errors, and run reports | Excluded | `radiant::runtime` |
 | GPU surfaces, retained canvases, custom shaders, and window manifests | Excluded | `radiant::runtime` |
@@ -378,17 +397,18 @@ use radiant::runtime::{NativeFrameDiagnostics, SurfacePaintPlan};
 | --- | --- |
 | Application setup | `window`, `app`, `IntoView`, `View`, `UiUpdateContext`, `EmbeddedFont` |
 | Basic views | `text`, `button`, `button_row`, `toolbar`, `row`, `column`, `scroll`, `scroll_column`, `list`, `list_row`, `empty`, `spacer`, `toggle`, `text_input`, `dropdown_trigger`, `custom_widget` |
-| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `ColorMarkerProps`, `ColorMarkerAlign`, `InteractiveRowVisualStateParts`, `handle_activation_input` |
-| Row and virtual-tree customization | `TreeGuideRow`, `TreeGuideMetrics`, `TreeGuideStyle`, `StyledTreeGuideStyle`, `DenseRowPalette`, `DenseRowMarkerParts`, `DenseRowMarkerStyle`, `DenseRowOutlineStyle` |
+| Widget authoring | `Widget`, `WidgetCommon`, `WidgetSizing`, `WidgetInput`, `WidgetOutput`, `PointerButton`, `FocusBehavior`, `ActivationInputPolicy`, `ColorMarkerProps`, `ColorMarkerAlign`, `handle_activation_input` |
+| Common row and list policy | `TreeGuideRow`, `TreeGuideMetrics`, `TreeGuideStyle`, `StyledTreeGuideStyle`, `DenseRowPalette`, `DenseRowMarkerStyle`, `DenseRowOutlineStyle`, `VirtualListWindow` |
 | Geometry and theme | `Rect`, `Point`, `Vector2`, `LayoutOutput`, `ImageRgba`, `ImageRgbaError`, `Rgba8`, `ThemeTokens` |
 | Generic chrome and feedback | `StatusSegments`, `StatusLineLog`, `StatusLineEntry`, `ContentViewChrome` |
 | Input and scroll payloads | `NativeFileDrop`, `NativeFileDropPhase`, `ScrollUpdate` |
 | Shortcut routing | `KeyPress`, `ShortcutResolution`, `FocusSurface` |
 | Runtime drag requests | `DragPreview`, `DragPreviewTextSizing`, `DragRequest` |
+| Platform-service inputs/results | `FileDialogRequest`, `FileDialogFilter`, `ConfirmDialogRequest`, `ConfirmationLevel`, `ConfirmationButtons`, `ConfirmationResponse`, `PlatformResult`, `PlatformResultExt` |
 | Auxiliary windows | `AuxiliaryWindow`, `AuxiliaryWindowClosePolicy` |
 | Presentation callbacks | `Presentation`, `TransientOverlay`, `TransientOverlayContext` |
 | Assets and paint helpers | `SvgIcon`, `SvgIconTintCache`, `SvgIconTintPalette`, `horizontal_progress_fill_rect`, `horizontal_line_rect`, `vertical_line_rect` |
-| Paint primitives | `PaintPrimitive`, `PaintClipStart`, `PaintClipEnd`, `PaintFillRect`, `PaintFillRectBatch`, `PaintStrokeRectBatch`, `PaintRectList`, `PaintPathCommand`, `PaintTransform`, `PaintTextRun` |
+| Paint callback signature | `PaintPrimitive` |
 
 Custom widgets can use `Rgba8::new`, `Rgba8::with_alpha`,
 `Rgba8::with_alpha_if`, `Rgba8::blend_toward`, and
@@ -644,6 +664,9 @@ Higher-level application helpers follow the same logical-coordinate sizing
 model as view modifiers: fixed details-list columns use `f32` logical widths
 through `DetailsColumn::fixed(...)`, matching `.size(...)`, `.fixed(...)`, and
 other layout builders instead of introducing a separate integer sizing model.
+Details-list state, drag, resize, placement, sortable-list, and virtual-tree
+APIs are specialist contracts. Import the names used by a details surface from
+`radiant::application`; they intentionally do not enter `radiant::prelude::*`.
 Sortable details lists can use `SortDirection::apply_ordering(...)` after
 computing an ascending domain ordering, so hosts keep column-specific sort keys
 while Radiant owns the common ascending/descending direction policy.
@@ -1161,12 +1184,13 @@ to a JSON path. The native Vello runtime exports
 replacement and unchanged-payload suppression; set
 `RADIANT_AUTOMATION_TARGET_EXPORT_PRETTY=1` for readable JSON during manual
 automation work.
-For host-visible platform services, reducers can queue typed
-`PlatformRequest` commands through `UiUpdateContext::platform_request(...)`,
-`pick_folder(...)`, `pick_file(...)`, `save_file(...)`, `open_path(...)`,
+For host-visible platform services, ordinary reducers should use
+`UiUpdateContext::pick_folder(...)`, `pick_file(...)`, `save_file(...)`, `open_path(...)`,
 `reveal_path(...)`, `open_url(...)`, `copy_text(...)`,
 `copy_file_paths(...)`, `read_text(...)`, `read_file_paths(...)`, or
-`confirm(...)`. Custom bridges handle those requests via
+`confirm(...)`. Hosts that genuinely need the raw protocol can explicitly
+import `PlatformRequest` and call `UiUpdateContext::platform_request(...)`.
+Custom bridges handle those requests via
 `RuntimeBridge::request_platform_service(...)`; bridges that do not provide a
 platform service return an explicit unsupported error through the normal
 completion callback instead of blocking the UI thread or forcing app code to
@@ -1528,6 +1552,9 @@ next to each other. This keeps the explicit widget API aligned with the
 declarative builder model: stable IDs, content, state, and layout contracts are
 named at the construction boundary instead of being inferred from argument
 order.
+Named-parts types and `_from_parts` entry points are imported from their owning
+module; they remain public advanced construction contracts without expanding
+the common wildcard surface.
 Named `Parts` types are not required for every small value object. Keep them
 public when they prevent long positional argument lists, carry optional or
 defaultable configuration, encode semantic distinctions that raw booleans or

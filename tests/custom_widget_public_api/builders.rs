@@ -1,5 +1,6 @@
 use super::support::{CustomStatusWidget, CustomWidgetMessage, DemoMessage, DemoState};
 use radiant::{
+    application as app,
     layout::Vector2,
     prelude::IntoView,
     runtime::{SurfaceRuntime, UiSurface, WidgetMessageMapper},
@@ -46,7 +47,7 @@ fn application_builder_custom_widget_views_support_named_parts_construction() {
     use radiant::prelude as ui;
 
     let surface: UiSurface<DemoMessage> = ui::row([
-        ui::widget(ui::MappedWidget::from_parts(ui::MappedWidgetParts {
+        ui::widget(ui::MappedWidget::from_parts(app::MappedWidgetParts {
             widget: CustomStatusWidget::new(1),
             messages: WidgetMessageMapper::dynamic(|output| {
                 output
@@ -55,7 +56,7 @@ fn application_builder_custom_widget_views_support_named_parts_construction() {
             }),
         }))
         .id(41),
-        ui::widget(ui::DynamicWidget::from_parts(ui::DynamicWidgetParts {
+        ui::widget(ui::DynamicWidget::from_parts(app::DynamicWidgetParts {
             widget: Box::new(CustomStatusWidget::new(2)),
             map: Arc::new(|output| {
                 output

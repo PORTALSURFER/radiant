@@ -1,11 +1,97 @@
 //! Source-quality guardrails for focused modules and readable public models.
 
-use std::{collections::BTreeSet, fs, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::PathBuf,
+};
 
 use super::{relative_path, rust_sources_under};
 
 const MAX_PRELUDE_EXPORT_GROUP_LINES: usize = 32;
-const MAX_COMMON_PRELUDE_NAMED_EXPORTS: usize = 535;
+const MAX_COMMON_PRELUDE_NAMED_EXPORTS: usize = 475;
+const MIN_COMMON_PRELUDE_HEADROOM_PERCENT: usize = 10;
+
+const EXPECTED_COMMON_PRELUDE_NAMED_EXPORTS_BY_SUBSYSTEM: &[(&str, usize)] = &[
+    ("application", 227),
+    ("gui", 101),
+    ("layout", 1),
+    ("runtime", 27),
+    ("theme", 1),
+    ("widgets", 38),
+];
+
+const SPECIALIST_DETAILS_COMMON_PRELUDE_EXCLUSIONS: &[&str] = &[
+    "CompactDetailsAnchoredCellBuilder",
+    "CompactDetailsHeaderCellIds",
+    "DetailsColumn",
+    "DetailsColumnDragFeedback",
+    "DetailsColumnPlacement",
+    "DetailsColumnReorderDrag",
+    "DetailsColumnResizeDrag",
+    "DetailsColumnWidthUpdate",
+    "DetailsRow",
+    "DetailsSort",
+    "SortDirection",
+    "TreeListItem",
+    "VirtualTreeListBuilder",
+    "compact_details_anchored_cell",
+    "compact_details_cell",
+    "compact_details_header_resize_id",
+    "compact_details_header_row",
+    "compact_details_header_sort_drag_id",
+    "compact_details_row",
+    "compact_resizable_details_header_cell",
+    "compact_resizable_details_header_cell_with_ids",
+    "details_column_drag_content_left",
+    "details_column_drag_feedback",
+    "details_column_reorder_index",
+    "details_sort_label",
+    "message_selectable_property_panel",
+    "message_selectable_sortable_details_list",
+    "message_sortable_details_list",
+    "message_tree_list",
+    "message_tree_list_with_drag",
+    "reorder_details_columns_by_id",
+    "reorder_visible_details_columns_by_id",
+    "update_details_column_reorder_drag",
+    "update_details_column_resize_drag",
+    "update_visible_details_column_reorder_drag",
+    "virtual_tree_list_window",
+    "virtual_tree_list_windowed",
+];
+
+const LOW_LEVEL_PAINT_COMMON_PRELUDE_EXCLUSIONS: &[&str] = &[
+    "PaintClipEnd",
+    "PaintClipStart",
+    "PaintFillRect",
+    "PaintFillRectBatch",
+    "PaintFillRule",
+    "PaintImage",
+    "PaintPath",
+    "PaintPathCommand",
+    "PaintRectList",
+    "PaintStrokeRect",
+    "PaintStrokeRectBatch",
+    "PaintSvg",
+    "PaintSvgDocument",
+    "PaintTextAlign",
+    "PaintTextMetrics",
+    "PaintTextRun",
+    "PaintTransform",
+];
+
+const PLATFORM_PROTOCOL_COMMON_PRELUDE_EXCLUSIONS: &[&str] = &[
+    "ExternalDragEffect",
+    "ExternalDragOutcome",
+    "ExternalDragPayload",
+    "ExternalDragPreview",
+    "ExternalDragRequest",
+    "PlatformCompletion",
+    "PlatformRequest",
+    "PlatformResponse",
+    "PlatformServiceFallback",
+];
 
 const ADVANCED_COMMON_PRELUDE_EXCLUSIONS: &[&str] = &[
     "BusinessRuntimeDiagnostics",
@@ -196,27 +282,36 @@ fn public_prelude_guardrails_scan_root_and_leaf_sources() {
 fn public_prelude_named_surface_stays_bounded_across_leaf_splits() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let statements = explicit_prelude_export_statements(&manifest_dir);
-    let named_export_count = statements
-        .iter()
-        .filter(|statement| !statement.contains("::*"))
-        .map(|statement| {
-            statement
-                .split_once('{')
-                .and_then(|(_, tail)| tail.rsplit_once('}').map(|(items, _)| items))
-                .map_or(1, |items| {
-                    items
-                        .split(',')
-                        .filter(|item| !item.trim().is_empty())
-                        .count()
-                })
-        })
-        .sum::<usize>();
+    let named_export_count = named_export_count(&statements);
+    let headroom = MAX_COMMON_PRELUDE_NAMED_EXPORTS.saturating_sub(named_export_count);
+    let minimum_headroom = named_export_count
+        .saturating_mul(MIN_COMMON_PRELUDE_HEADROOM_PERCENT)
+        .div_ceil(100);
 
     assert!(
-        named_export_count <= MAX_COMMON_PRELUDE_NAMED_EXPORTS,
+        named_export_count <= MAX_COMMON_PRELUDE_NAMED_EXPORTS && headroom >= minimum_headroom,
         "radiant::prelude exposes {named_export_count} named items across its root and leaf modules; \
-         keep the reviewed common surface at or below {MAX_COMMON_PRELUDE_NAMED_EXPORTS} and \
-         move specialist APIs to their owning public modules"
+         keep the reviewed common surface at or below {MAX_COMMON_PRELUDE_NAMED_EXPORTS} with \
+         at least {MIN_COMMON_PRELUDE_HEADROOM_PERCENT}% headroom ({minimum_headroom} items at \
+         the current surface, only {headroom} available) and move specialist APIs to their \
+         owning public modules"
+    );
+}
+
+#[test]
+fn public_prelude_named_surface_reports_exact_subsystem_inventory() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let actual = named_prelude_exports_by_subsystem(&manifest_dir);
+    let expected = EXPECTED_COMMON_PRELUDE_NAMED_EXPORTS_BY_SUBSYSTEM
+        .iter()
+        .map(|(subsystem, count)| ((*subsystem).to_owned(), *count))
+        .collect::<BTreeMap<_, _>>();
+
+    assert_eq!(
+        actual, expected,
+        "common-prelude subsystem inventory changed; review the caller role of every added or \
+         removed export, update the exact inventory deliberately, and keep the aggregate \
+         headroom guardrail green"
     );
 }
 
@@ -248,28 +343,47 @@ fn prelude_owner_wildcard_export(statement: &str) -> bool {
 }
 
 #[test]
-fn public_prelude_excludes_advanced_host_paint_and_visualization_apis() {
+fn public_prelude_excludes_owner_role_apis() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let statements = explicit_prelude_export_statements(&manifest_dir);
-    let offenders = ADVANCED_COMMON_PRELUDE_EXCLUSIONS
-        .iter()
-        .filter(|name| {
-            statements.iter().any(|statement| {
-                statement
-                    .split(|character: char| {
-                        !(character.is_ascii_alphanumeric() || character == '_')
-                    })
-                    .any(|token| token == **name)
-            })
+    let tokens = prelude_export_tokens(&statements);
+    let role_exclusions = [
+        (
+            "advanced host, paint, and visualization",
+            ADVANCED_COMMON_PRELUDE_EXCLUSIONS,
+        ),
+        (
+            "specialist details-list",
+            SPECIALIST_DETAILS_COMMON_PRELUDE_EXCLUSIONS,
+        ),
+        ("low-level paint", LOW_LEVEL_PAINT_COMMON_PRELUDE_EXCLUSIONS),
+        (
+            "platform protocol and external-drag",
+            PLATFORM_PROTOCOL_COMMON_PRELUDE_EXCLUSIONS,
+        ),
+    ];
+    let mut offenders = role_exclusions
+        .into_iter()
+        .flat_map(|(role, exclusions)| {
+            exclusions
+                .iter()
+                .filter(|name| tokens.contains(**name))
+                .map(move |name| format!("{role}: {name}"))
         })
-        .copied()
         .collect::<Vec<_>>();
+    offenders.extend(
+        tokens
+            .iter()
+            .filter(|token| token.ends_with("Parts") || token.contains("_from_parts"))
+            .map(|token| format!("named-parts construction: {token}")),
+    );
 
     assert!(
         offenders.is_empty(),
-        "advanced APIs must require imports from radiant::runtime, radiant::gui, or \
-         radiant::widgets instead of leaking through radiant::prelude: {}",
-        offenders.join(", ")
+        "owner-role APIs must require explicit imports from radiant::application, \
+         radiant::runtime, radiant::gui, or radiant::widgets instead of leaking through \
+         radiant::prelude:\n{}",
+        offenders.join("\n")
     );
 }
 
@@ -283,24 +397,88 @@ fn explicit_prelude_export_statements(manifest_dir: &std::path::Path) -> Vec<Str
                     path.display()
                 )
             });
-            let mut statements = Vec::new();
-            let mut current = None::<String>;
-            for line in source.lines() {
-                let trimmed = line.trim();
-                if current.is_none() && trimmed.starts_with("pub use ") {
-                    current = Some(trimmed.to_owned());
-                } else if let Some(statement) = current.as_mut() {
-                    statement.push(' ');
-                    statement.push_str(trimmed);
-                }
-                if trimmed.ends_with(';')
-                    && let Some(statement) = current.take()
-                {
-                    statements.push(statement);
-                }
-            }
-            statements
+            explicit_export_statements(&source)
         })
+        .collect()
+}
+
+fn explicit_export_statements(source: &str) -> Vec<String> {
+    let mut statements = Vec::new();
+    let mut current = None::<String>;
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if current.is_none() && trimmed.starts_with("pub use ") {
+            current = Some(trimmed.to_owned());
+        } else if let Some(statement) = current.as_mut() {
+            statement.push(' ');
+            statement.push_str(trimmed);
+        }
+        if trimmed.ends_with(';')
+            && let Some(statement) = current.take()
+        {
+            statements.push(statement);
+        }
+    }
+    statements
+}
+
+fn named_export_count(statements: &[String]) -> usize {
+    statements
+        .iter()
+        .filter(|statement| !statement.contains("::*"))
+        .map(|statement| {
+            statement
+                .split_once('{')
+                .and_then(|(_, tail)| tail.rsplit_once('}').map(|(items, _)| items))
+                .map_or(1, |items| {
+                    items
+                        .split(',')
+                        .filter(|item| !item.trim().is_empty())
+                        .count()
+                })
+        })
+        .sum()
+}
+
+fn named_prelude_exports_by_subsystem(manifest_dir: &std::path::Path) -> BTreeMap<String, usize> {
+    let prelude_dir = manifest_dir.join("src/prelude");
+    rust_sources_under(&prelude_dir)
+        .into_iter()
+        .fold(BTreeMap::new(), |mut counts, path| {
+            let relative = path.strip_prefix(&prelude_dir).unwrap_or_else(|err| {
+                panic!(
+                    "prelude export group {} should be below {}: {err}",
+                    path.display(),
+                    prelude_dir.display()
+                )
+            });
+            let subsystem = relative
+                .components()
+                .next()
+                .and_then(|component| component.as_os_str().to_str())
+                .expect("prelude export group should have a UTF-8 subsystem path")
+                .trim_end_matches(".rs")
+                .to_owned();
+            let source = fs::read_to_string(&path).unwrap_or_else(|err| {
+                panic!(
+                    "prelude export group {} should be readable: {err}",
+                    path.display()
+                )
+            });
+            *counts.entry(subsystem).or_default() +=
+                named_export_count(&explicit_export_statements(&source));
+            counts
+        })
+}
+
+fn prelude_export_tokens(statements: &[String]) -> BTreeSet<&str> {
+    statements
+        .iter()
+        .flat_map(|statement| {
+            statement
+                .split(|character: char| !(character.is_ascii_alphanumeric() || character == '_'))
+        })
+        .filter(|token| !token.is_empty())
         .collect()
 }
 

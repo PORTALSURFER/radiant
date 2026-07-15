@@ -1,3 +1,4 @@
+use radiant::gui::list as gui_list;
 use radiant::prelude::{self as ui, IntoView};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -22,7 +23,7 @@ fn tree_row_builder_is_available_from_prelude() {
         .palette(ui::DenseRowPalette::new().selected(accent.with_alpha(96)))
         .drop_target_outline(ui::DenseRowOutlineStyle::new(0.5, accent, 1.5))
         .selected_hover_marker(ui::DenseRowMarkerStyle::new(
-            ui::DenseRowMarkerParts::leading(2.0),
+            gui_list::DenseRowMarkerParts::leading(2.0),
             accent,
         ))
         .drag_drop_state(ui::TreeRowDragDropState {

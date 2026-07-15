@@ -1,4 +1,5 @@
 use super::*;
+use radiant::application as app;
 
 #[test]
 fn application_builder_lists_keep_row_heights_stable_across_item_counts() {
@@ -77,8 +78,8 @@ fn application_builder_default_containers_use_dense_spacing() {
 fn application_builder_toolbar_splits_main_and_trailing_controls() {
     use radiant::prelude::{self as ui, IntoView};
 
-    let surface: UiSurface<DemoMessage> = ui::toolbar_from_parts(
-        ui::ToolbarParts::new([ui::button("Left")
+    let surface: UiSurface<DemoMessage> = app::toolbar_from_parts(
+        app::ToolbarParts::new([ui::button("Left")
             .message(DemoMessage::Increment)
             .id(10)
             .width(40.0)])
@@ -233,7 +234,7 @@ fn application_builder_virtual_tree_list_windowed_uses_window_messages() {
     let guides = (0..256)
         .map(|index| ui::TreeGuideRow::new(index % 2, index % 3 == 0))
         .collect::<Vec<_>>();
-    let surface: UiSurface<DemoMessage> = ui::virtual_tree_list_windowed(
+    let surface: UiSurface<DemoMessage> = app::virtual_tree_list_windowed(
         window,
         28.0,
         &guides,
@@ -285,9 +286,7 @@ fn application_builder_list_row_id_uses_direct_numeric_identity() {
 
 #[test]
 fn tree_list_items_support_named_parts_construction() {
-    use radiant::prelude as ui;
-
-    let from_parts = ui::TreeListItem::from_parts(ui::TreeListItemParts {
+    let from_parts = app::TreeListItem::from_parts(app::TreeListItemParts {
         id: String::from("arrangement/tracks"),
         depth: 2,
         label: String::from("Tracks").into(),
@@ -297,7 +296,7 @@ fn tree_list_items_support_named_parts_construction() {
     .draggable(true)
     .drop_target(true);
 
-    let positional = ui::TreeListItem::new("arrangement/tracks", 2, "Tracks")
+    let positional = app::TreeListItem::new("arrangement/tracks", 2, "Tracks")
         .branch(true)
         .selected(true)
         .draggable(true)

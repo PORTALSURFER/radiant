@@ -2,6 +2,7 @@ use super::{StripPaintState, style};
 use crate::mixer_console::paint::push_text;
 use crate::mixer_console::panel::MixerPanelWidget;
 use radiant::prelude::*;
+use radiant::runtime::PaintTextAlign;
 
 pub(super) fn append_footer(
     widget: &MixerPanelWidget,

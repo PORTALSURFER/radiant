@@ -36,5 +36,5 @@ fn default_waveform_source_uses_synthetic_signal_without_input_path() {
     assert!(!file.mono_samples.is_empty());
     assert_eq!(file.frames, file.mono_samples.len());
     let image = render_waveform_image(&file, WaveformViewport::full(file.frames), 320, 96);
-    assert_eq!(image.width, 320);
+    assert_eq!(image.width(), 320);
 }

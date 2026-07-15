@@ -6,6 +6,7 @@ use radiant::gui::visualization::{
     DragHandleRole, HorizontalValueAxis, canvas_selection_edge_handles,
     canvas_selection_edge_visual_rect, canvas_selection_rect, drag_handle_at_point,
 };
+use radiant::runtime::{PaintFillRect, PaintStrokeRect};
 
 const HANDLE_HIT_WIDTH: f32 = 18.0;
 const HANDLE_VISUAL_WIDTH: f32 = 8.0;

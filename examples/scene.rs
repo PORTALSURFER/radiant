@@ -3,6 +3,7 @@
 use radiant::Layer;
 use radiant::layout::{Point, Vector2};
 use radiant::prelude::*;
+use radiant::runtime::PaintFillRect;
 
 #[derive(Clone, Debug)]
 struct SceneExampleState {

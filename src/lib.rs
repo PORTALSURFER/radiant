@@ -38,7 +38,7 @@
 //! - [`theme`]: reusable visual tokens for generic widgets and containers
 
 /// Readable application and view builder implementation.
-mod application;
+pub mod application;
 /// Shared environment-flag parsing helpers used by runtime internals.
 mod env_flags;
 /// Reusable static guardrails for Radiant host application tests.

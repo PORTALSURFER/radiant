@@ -1,11 +1,12 @@
 use super::super::*;
+use radiant::application as app;
 
 #[test]
 fn application_builder_panel_section_applies_fixed_height_and_routes_trailing_action() {
     use radiant::prelude::{self as ui, IntoView};
 
-    let surface: UiSurface<DemoMessage> = ui::panel_section_from_parts(
-        ui::PanelSectionParts::new(
+    let surface: UiSurface<DemoMessage> = app::panel_section_from_parts(
+        app::PanelSectionParts::new(
             "Collections",
             ui::text("Recently used").fill_width().height(20.0),
         )
@@ -47,7 +48,7 @@ fn panel_section_header_parts_builds_standard_resize_header() {
     use radiant::prelude::{self as ui, IntoView};
 
     let surface: UiSurface<DemoMessage> = ui::panel_section_from_header_parts(
-        ui::PanelSectionHeaderParts::resize_header(
+        app::PanelSectionHeaderParts::resize_header(
             "resize-header",
             22.0,
             ui::text("Panel content"),
@@ -82,8 +83,8 @@ fn panel_section_header_parts_builds_standard_resize_header() {
 fn closeable_panel_section_routes_standard_close_button_message() {
     use radiant::prelude::{self as ui, IntoView};
 
-    let surface: UiSurface<DemoMessage> = ui::closeable_panel_section_from_parts(
-        ui::PanelSectionParts::new("Job Details", ui::text("Ready")).height(80.0),
+    let surface: UiSurface<DemoMessage> = app::closeable_panel_section_from_parts(
+        app::PanelSectionParts::new("Job Details", ui::text("Ready")).height(80.0),
         DemoMessage::Increment,
     )
     .id(1)
@@ -104,9 +105,9 @@ fn closeable_panel_section_routes_standard_close_button_message() {
 fn panel_section_layer_exports_anchored_panel_geometry() {
     use radiant::prelude::{self as ui, IntoView};
 
-    let surface: UiSurface<DemoMessage> = ui::panel_section_layer_from_parts(
-        ui::PanelSectionLayerParts::new(
-            ui::PanelSectionParts::new("Inspector", ui::text("Ready").id(90)),
+    let surface: UiSurface<DemoMessage> = app::panel_section_layer_from_parts(
+        app::PanelSectionLayerParts::new(
+            app::PanelSectionParts::new("Inspector", ui::text("Ready").id(90)),
             ui::Vector2::new(160.0, 90.0),
         )
         .horizontal(ui::LayerHorizontalAnchor::End)
@@ -133,9 +134,9 @@ fn panel_section_layer_exports_anchored_panel_geometry() {
 fn closeable_panel_section_layer_routes_standard_close_button_message() {
     use radiant::prelude::{self as ui, IntoView};
 
-    let surface: UiSurface<DemoMessage> = ui::closeable_panel_section_layer_from_parts(
-        ui::PanelSectionLayerParts::new(
-            ui::PanelSectionParts::new("Inspector", ui::text("Ready")),
+    let surface: UiSurface<DemoMessage> = app::closeable_panel_section_layer_from_parts(
+        app::PanelSectionLayerParts::new(
+            app::PanelSectionParts::new("Inspector", ui::text("Ready")),
             ui::Vector2::new(160.0, 90.0),
         ),
         DemoMessage::Increment,
@@ -171,8 +172,8 @@ fn dialog_layer_helpers_project_standard_dialogs() {
             ui::Vector2::new(180.0, 96.0),
             DemoMessage::Increment,
         ),
-        ui::dialog_layer_from_parts(
-            ui::DialogLayerParts::new(
+        app::dialog_layer_from_parts(
+            app::DialogLayerParts::new(
                 "Anchored",
                 ui::text("Anchored dialog body"),
                 ui::WidgetTone::Accent,
@@ -194,8 +195,8 @@ fn dialog_layer_helpers_project_standard_dialogs() {
 fn closeable_dialog_layer_parts_route_standard_close_button_message() {
     use radiant::prelude::{self as ui, IntoView};
 
-    let surface: UiSurface<DemoMessage> = ui::closeable_dialog_layer_from_parts(
-        ui::DialogLayerParts::new(
+    let surface: UiSurface<DemoMessage> = app::closeable_dialog_layer_from_parts(
+        app::DialogLayerParts::new(
             "Anchored",
             ui::text("Anchored closeable dialog body"),
             ui::WidgetTone::Neutral,
@@ -223,8 +224,8 @@ fn closeable_dialog_layer_parts_route_standard_close_button_message() {
 fn panel_section_parts_support_named_overrides() {
     use radiant::prelude as ui;
 
-    let parts: ui::PanelSectionParts<DemoMessage> =
-        ui::PanelSectionParts::new("Inspector", ui::text("Ready"))
+    let parts: app::PanelSectionParts<DemoMessage> =
+        app::PanelSectionParts::new("Inspector", ui::text("Ready"))
             .height(90.0)
             .padding(8.0)
             .spacing(6.0)

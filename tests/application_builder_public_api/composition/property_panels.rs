@@ -1,4 +1,5 @@
 use super::super::*;
+use radiant::application as app;
 
 #[test]
 fn application_builder_property_panel_routes_row_selection() {
@@ -11,7 +12,7 @@ fn application_builder_property_panel_routes_row_selection() {
 
     let mut bridge = ui::app(DemoState::default())
         .view(|state| {
-            ui::message_selectable_property_panel(
+            app::message_selectable_property_panel(
                 "Inspector",
                 [
                     ui::PropertyRow::new("name", "Name", state.name.clone())
@@ -97,7 +98,7 @@ fn application_builder_property_rows_can_compose_without_panel_shell() {
 fn property_rows_support_named_parts_construction() {
     use radiant::prelude as ui;
 
-    let from_parts = ui::PropertyRow::from_parts(ui::PropertyRowParts {
+    let from_parts = ui::PropertyRow::from_parts(app::PropertyRowParts {
         id: String::from("kind"),
         label: String::from("Kind").into(),
         value: String::from("Signal track").into(),

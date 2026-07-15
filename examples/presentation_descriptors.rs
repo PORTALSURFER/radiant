@@ -1,9 +1,8 @@
 //! Typed presentation descriptors for frame clocks and paint-only overlays.
 
 use radiant::prelude as ui;
-use ui::{
-    PaintFillRect, PaintPrimitive, Point, Rect, Rgba8, TransientOverlayContext, Vector2, View,
-};
+use radiant::runtime::PaintFillRect;
+use ui::{PaintPrimitive, Point, Rect, Rgba8, TransientOverlayContext, Vector2, View};
 
 #[derive(Clone)]
 enum Message {

@@ -97,6 +97,18 @@ API audits, issue creation, and implementation work:
 - Keep payload and customization types required by common builder signatures in
   the prelude with those builders; reserve explicit owner-module imports for
   specialist helpers and lower-level implementation APIs.
+- Keep named-parts construction models and `_from_parts` entry points on their
+  owning modules. Their public availability is useful for advanced composition,
+  but wildcard imports should favor the canonical fluent or positional entry
+  point instead of exposing every construction variant.
+- Details-list drag, resize, placement, sortable-list, and virtual-tree APIs;
+  low-level paint construction; raw platform request/response protocols; and
+  external-drag models require explicit owner-module imports. Signature types
+  needed to implement common traits or call canonical platform helpers may stay
+  in the prelude after role review.
+- Preserve measurable aggregate headroom: the common-prelude cap must remain no
+  higher than 475 named exports and at least 10% above the reviewed inventory.
+  Exact per-subsystem inventory tests make every role change deliberate.
 
 ## Radiant Admission Test
 

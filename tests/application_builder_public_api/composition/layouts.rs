@@ -1,4 +1,5 @@
 use super::super::*;
+use radiant::application as app;
 
 #[test]
 fn application_builder_todo_layout_does_not_overlap_header_input_and_list() {
@@ -98,8 +99,8 @@ fn application_builder_centered_layer_centers_fixed_size_child() {
 fn centered_layer_parts_support_named_construction() {
     use radiant::prelude as ui;
 
-    let parts: ui::CenteredLayerParts<()> =
-        ui::CenteredLayerParts::new(ui::text("Dialog"), Vector2::new(320.0, 180.0));
+    let parts: app::CenteredLayerParts<()> =
+        app::CenteredLayerParts::new(ui::text("Dialog"), Vector2::new(320.0, 180.0));
 
     assert_eq!(parts.size, Vector2::new(320.0, 180.0));
 }
@@ -154,7 +155,7 @@ fn floating_layer_anchor_helpers_position_content_around_trigger() {
 fn floating_layer_anchor_parts_support_named_interactive_construction() {
     use radiant::prelude as ui;
 
-    let parts: ui::FloatingLayerAnchorParts<()> = ui::FloatingLayerAnchorParts::new(
+    let parts: app::FloatingLayerAnchorParts<()> = app::FloatingLayerAnchorParts::new(
         ui::text("Popup"),
         Vector2::new(160.0, 80.0),
         12.0,

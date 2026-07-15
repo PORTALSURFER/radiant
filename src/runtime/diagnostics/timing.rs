@@ -22,7 +22,7 @@ pub struct NativeFrameTimingDiagnostics {
 pub struct NativeFrameWorkTimings {
     /// Time spent routing a coalesced GPU-surface wheel event.
     pub coalesced_wheel_route: Duration,
-    /// Time spent refreshing the runtime surface snapshot.
+    /// Aggregate time spent refreshing runtime surface snapshots for this frame.
     pub refresh_surface: Duration,
     /// Time spent pulling the host application projection.
     pub application_projection: Duration,
@@ -77,11 +77,9 @@ impl NativeFrameTimingDiagnostics {
 impl NativeFrameWorkTimings {
     /// Return the sum of tracked CPU-side frame preparation buckets.
     ///
-    /// `refresh_surface` is the aggregate parent bucket when frame preparation
-    /// performs a deferred refresh; the projection, widget-sync, and layout
-    /// fields are its diagnostic breakdown and are not counted twice. Eager
-    /// message-dispatch refreshes have no aggregate bucket, so their stage
-    /// timings are summed directly.
+    /// `refresh_surface` is the aggregate parent bucket for every refresh
+    /// accumulated before this presentation; the projection, widget-sync, and
+    /// layout fields are its diagnostic breakdown and are not counted twice.
     pub fn total(self) -> Duration {
         self.coalesced_wheel_route
             + self.surface_refresh_total()

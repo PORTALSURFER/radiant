@@ -5,7 +5,49 @@ use super::{
         DeferredScrollFocusBridge,
     },
 };
-use crate::runtime::{FileDialogRequest, PlatformRequest};
+use crate::runtime::{FileDialogRequest, PlatformRequest, RepaintScope, SurfaceInvalidation};
+
+#[test]
+fn frame_refresh_diagnostics_accumulate_eager_refreshes_until_consumed() {
+    let mut runtime =
+        SurfaceRuntime::new(DeferredFocusBridge::default(), Vector2::new(160.0, 40.0));
+    let _ = runtime.take_frame_refresh_diagnostics();
+
+    runtime.refresh_with_scope(RepaintScope::Projection);
+    let projection = runtime.last_refresh_diagnostics();
+    runtime.refresh_with_scope(RepaintScope::Layout);
+    let layout = runtime.last_refresh_diagnostics();
+
+    let (frame, total) = runtime.take_frame_refresh_diagnostics();
+    assert_eq!(frame.invalidation, SurfaceInvalidation::Layout);
+    assert_eq!(
+        frame.timings.application_projection,
+        projection
+            .timings
+            .application_projection
+            .saturating_add(layout.timings.application_projection)
+    );
+    assert_eq!(
+        frame.timings.runtime_projection,
+        projection
+            .timings
+            .runtime_projection
+            .saturating_add(layout.timings.runtime_projection)
+    );
+    assert_eq!(
+        frame.timings.widget_state_sync,
+        projection
+            .timings
+            .widget_state_sync
+            .saturating_add(layout.timings.widget_state_sync)
+    );
+    assert_eq!(frame.timings.layout, layout.timings.layout);
+    assert!(total >= frame.timings.total());
+
+    let (consumed, consumed_total) = runtime.take_frame_refresh_diagnostics();
+    assert_eq!(consumed.invalidation, SurfaceInvalidation::None);
+    assert_eq!(consumed_total, std::time::Duration::ZERO);
+}
 
 #[test]
 fn deferred_message_dispatch_refreshes_before_focus_followup() {

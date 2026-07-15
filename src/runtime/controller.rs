@@ -83,6 +83,8 @@ where
     runtime_work: RuntimeWorkQueues<Message>,
     diagnostics: RuntimeDiagnosticsRecorder,
     last_refresh_diagnostics: SurfaceRefreshDiagnostics,
+    pending_frame_refresh_diagnostics: SurfaceRefreshDiagnostics,
+    pending_frame_refresh_total: std::time::Duration,
     refresh_counters: SurfaceRefreshCounters,
     update_handler_diagnostics_policy: UiUpdateHandlerDiagnosticsPolicy,
     pub(in crate::runtime) devtools_overlay: DevtoolsOverlayOptions,

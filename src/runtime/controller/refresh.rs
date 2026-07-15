@@ -41,6 +41,29 @@ pub struct SurfaceRefreshTimings {
     pub layout: Duration,
 }
 
+impl SurfaceRefreshTimings {
+    /// Return the sum of the independently measured refresh stages.
+    pub fn total(self) -> Duration {
+        self.application_projection
+            .saturating_add(self.runtime_projection)
+            .saturating_add(self.widget_state_sync)
+            .saturating_add(self.layout)
+    }
+
+    fn merge(&mut self, other: Self) {
+        self.application_projection = self
+            .application_projection
+            .saturating_add(other.application_projection);
+        self.runtime_projection = self
+            .runtime_projection
+            .saturating_add(other.runtime_projection);
+        self.widget_state_sync = self
+            .widget_state_sync
+            .saturating_add(other.widget_state_sync);
+        self.layout = self.layout.saturating_add(other.layout);
+    }
+}
+
 /// Diagnostics for the most recent typed surface invalidation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SurfaceRefreshDiagnostics {
@@ -62,6 +85,20 @@ impl SurfaceRefreshDiagnostics {
             },
         }
     }
+
+    fn merge(&mut self, other: Self) {
+        self.invalidation = SurfaceInvalidation::from_repaint_scope(
+            match (
+                self.invalidation.repaint_scope(),
+                other.invalidation.repaint_scope(),
+            ) {
+                (Some(current), Some(next)) => Some(current.merge(next)),
+                (Some(scope), None) | (None, Some(scope)) => Some(scope),
+                (None, None) => None,
+            },
+        );
+        self.timings.merge(other.timings);
+    }
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -79,12 +116,16 @@ where
     /// unchanged structural/layout revision. Startup, resize, identity changes,
     /// and unknown custom-host changes should use `Surface`.
     pub fn refresh_with_scope(&mut self, scope: RepaintScope) {
+        let refresh_started = Instant::now();
         let invalidation = SurfaceInvalidation::from_repaint_scope(Some(scope));
         if scope.is_paint_only() {
-            self.last_refresh_diagnostics = SurfaceRefreshDiagnostics {
-                invalidation,
-                timings: SurfaceRefreshTimings::default(),
-            };
+            self.record_refresh_diagnostics(
+                SurfaceRefreshDiagnostics {
+                    invalidation,
+                    timings: SurfaceRefreshTimings::default(),
+                },
+                Duration::ZERO,
+            );
             return;
         }
 
@@ -141,15 +182,18 @@ where
             self.restore_focused_widget_state(widget_id);
         }
 
-        self.last_refresh_diagnostics = SurfaceRefreshDiagnostics {
-            invalidation,
-            timings: SurfaceRefreshTimings {
-                application_projection,
-                runtime_projection,
-                widget_state_sync,
-                layout,
+        self.record_refresh_diagnostics(
+            SurfaceRefreshDiagnostics {
+                invalidation,
+                timings: SurfaceRefreshTimings {
+                    application_projection,
+                    runtime_projection,
+                    widget_state_sync,
+                    layout,
+                },
             },
-        };
+            refresh_started.elapsed(),
+        );
     }
 
     /// Return diagnostics for the most recent typed invalidation stage.
@@ -157,8 +201,23 @@ where
         self.last_refresh_diagnostics
     }
 
-    pub(crate) fn take_last_refresh_diagnostics(&mut self) -> SurfaceRefreshDiagnostics {
-        std::mem::take(&mut self.last_refresh_diagnostics)
+    fn record_refresh_diagnostics(
+        &mut self,
+        diagnostics: SurfaceRefreshDiagnostics,
+        total: Duration,
+    ) {
+        self.last_refresh_diagnostics = diagnostics;
+        self.pending_frame_refresh_diagnostics.merge(diagnostics);
+        self.pending_frame_refresh_total = self.pending_frame_refresh_total.saturating_add(total);
+    }
+
+    pub(crate) fn take_frame_refresh_diagnostics(
+        &mut self,
+    ) -> (SurfaceRefreshDiagnostics, Duration) {
+        (
+            std::mem::take(&mut self.pending_frame_refresh_diagnostics),
+            std::mem::take(&mut self.pending_frame_refresh_total),
+        )
     }
 
     /// Return cumulative refresh-stage counts for this runtime.

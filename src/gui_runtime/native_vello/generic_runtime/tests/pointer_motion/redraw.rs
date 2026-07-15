@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     layout::{Point, Vector2},
-    runtime::{NativeRunOptions, PaintPrimitive},
+    runtime::{NativeRunOptions, PaintPrimitive, RepaintScope, SurfaceInvalidation},
     widgets::PointerButton,
 };
 use std::time::Instant;
@@ -90,6 +90,56 @@ fn pointer_move_messages_defer_surface_refresh_until_redraw_after_hover_enters()
         2,
         "stable pointer-move messages should reduce immediately but coalesce surface projection until redraw"
     );
+}
+
+#[test]
+fn pointer_move_preserves_typed_refresh_scope() {
+    for (scope, expected_layout_passes) in
+        [(RepaintScope::Projection, 0), (RepaintScope::Layout, 1)]
+    {
+        let mut runner = GenericNativeVelloRunner::new(
+            NativeRunOptions::default(),
+            PointerMoveBridge {
+                repaint_scope: Some(scope),
+                ..PointerMoveBridge::default()
+            },
+            Vector2::new(120.0, 40.0),
+        );
+        let point = runner
+            .core
+            .runtime
+            .layout()
+            .rects
+            .get(&71)
+            .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+            .expect("pointer widget should be laid out");
+
+        let first = runner.core.route_pointer_move(point);
+        assert!(first.needs_scene_rebuild());
+        let layout_before_second_move = runner.core.runtime.refresh_counters().layout;
+
+        let routed = runner
+            .core
+            .route_pointer_move(Point::new(point.x + 1.0, point.y));
+        assert!(routed.needs_scene_rebuild());
+        assert_eq!(routed.surface_refresh_scope_or_surface(), scope);
+
+        runner.apply_route_outcome(routed);
+
+        assert_eq!(
+            runner.core.runtime.refresh_counters().layout,
+            layout_before_second_move + expected_layout_passes
+        );
+        assert_eq!(
+            runner.core.runtime.last_refresh_diagnostics().invalidation,
+            match scope {
+                RepaintScope::Projection => SurfaceInvalidation::Projection,
+                RepaintScope::Layout => SurfaceInvalidation::Layout,
+                RepaintScope::Surface => SurfaceInvalidation::Surface,
+                RepaintScope::PaintOnly => SurfaceInvalidation::PaintOnly,
+            }
+        );
+    }
 }
 
 #[test]

@@ -6,7 +6,7 @@ use crate::gui::list::{
 };
 use crate::layout::{SizeModeCross, SizeModeMain};
 use crate::runtime::{
-    NativeFrameDiagnostics, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities,
+    NativeFrameDiagnostics, RepaintScope, RuntimeFrameDiagnosticsHost, RuntimeHostCapabilities,
 };
 
 #[derive(Default)]
@@ -23,6 +23,7 @@ pub(in super::super) struct ScrollbarBridge {
 pub(in super::super) struct WheelRefreshBridge {
     pub(in super::super) wheel_count: usize,
     pub(in super::super) project_count: usize,
+    pub(in super::super) repaint_scope: Option<RepaintScope>,
 }
 
 #[derive(Default)]
@@ -118,10 +119,12 @@ impl RuntimeBridge<String> for WheelRefreshBridge {
         )))
     }
 
-    fn reduce_message(&mut self, message: String) {
+    fn update(&mut self, message: String) -> Command<String> {
         if message == "wheel" {
             self.wheel_count += 1;
         }
+        self.repaint_scope
+            .map_or_else(Command::none, Command::repaint)
     }
 
     fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, String> {

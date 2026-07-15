@@ -29,12 +29,16 @@ where
         if let FrameWork::RebuildScene { mode, .. } = outcome.frame_work() {
             match mode {
                 SceneRebuildMode::InteractiveWithSurfaceRefresh => {
-                    self.refresh_and_rebuild_scene_for_interactive_route_now();
+                    self.refresh_and_rebuild_scene_for_interactive_route_now_with_scope(
+                        outcome.surface_refresh_scope_or_surface(),
+                    );
                     self.request_redraw_for_frame_work(outcome.frame_work());
                     return;
                 }
                 SceneRebuildMode::ImmediateWithSurfaceRefresh => {
-                    self.refresh_and_rebuild_scene_now();
+                    self.refresh_and_rebuild_scene_now_with_scope(
+                        outcome.surface_refresh_scope_or_surface(),
+                    );
                     self.request_redraw_for_frame_work(outcome.frame_work());
                     return;
                 }
@@ -52,7 +56,7 @@ where
             }
         }
         if self.can_fast_path_gpu_surface_route(position, delta) {
-            self.timing.deferred_surface_refresh = true;
+            self.defer_surface_refresh_with_scope(outcome.surface_refresh_scope_or_surface());
             self.request_redraw_for_frame_work(FrameWork::RefreshSurface {
                 reason: FrameWorkReason::DeferredSurfaceRefresh,
             });
@@ -80,7 +84,7 @@ where
             return;
         }
         if outcome.is_deferred_surface_refresh() {
-            self.timing.deferred_surface_refresh = true;
+            self.defer_surface_refresh_with_scope(outcome.surface_refresh_scope_or_surface());
             self.request_redraw_for_frame_work(outcome.frame_work());
             return;
         }
@@ -89,7 +93,9 @@ where
             ..
         } = outcome.frame_work()
         {
-            self.refresh_and_rebuild_scene_now();
+            self.refresh_and_rebuild_scene_now_with_scope(
+                outcome.surface_refresh_scope_or_surface(),
+            );
             self.request_redraw_for_frame_work(outcome.frame_work());
             return;
         }
@@ -99,9 +105,13 @@ where
                     let should_rebuild_now = self.core.runtime.scrollbar_drag_active()
                         || self.should_rebuild_interactive_scene_now(std::time::Instant::now());
                     if should_rebuild_now {
-                        self.refresh_and_rebuild_scene_for_interactive_route_now();
+                        self.refresh_and_rebuild_scene_for_interactive_route_now_with_scope(
+                            outcome.surface_refresh_scope_or_surface(),
+                        );
                     } else {
-                        self.defer_interactive_scene_rebuild();
+                        self.defer_interactive_scene_rebuild_with_scope(
+                            outcome.surface_refresh_scope_or_surface(),
+                        );
                     }
                 }
                 SceneRebuildMode::Interactive => {

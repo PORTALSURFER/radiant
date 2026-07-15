@@ -10,7 +10,7 @@ use crate::gui::{
     types::{Point, Vector2},
 };
 use crate::runtime::WheelOrScrollRoute;
-use crate::runtime::{Event, RuntimeBridge};
+use crate::runtime::{Event, RepaintScope, RuntimeBridge};
 use crate::widgets::{PointerButton, PointerModifiers, TextEditCommand, WidgetInput, WidgetKey};
 use std::time::Instant;
 
@@ -62,12 +62,16 @@ where
             outcome.pointer_captured && pending.surface_refresh_requested;
         let scroll_drag_surface_refresh =
             self.runtime.scrollbar_drag_active() && pending.surface_refresh_requested;
+        let surface_refresh_scope = pending
+            .surface_invalidation()
+            .repaint_scope()
+            .unwrap_or(RepaintScope::Surface);
         if pending.surface_refresh_requested
             && outcome.hover_changed
             && !captured_pointer_refresh
             && !scroll_drag_surface_refresh
         {
-            self.runtime.refresh();
+            self.runtime.refresh_with_scope(surface_refresh_scope);
         }
         let mut route_outcome = GenericRouteOutcome {
             routed: outcome.routed(),
@@ -81,15 +85,20 @@ where
             route_outcome.request_scene_rebuild(FrameWorkReason::PointerHover);
         }
         if captured_pointer_refresh || scroll_drag_surface_refresh {
-            route_outcome
-                .request_interactive_surface_refresh(FrameWorkReason::InteractiveSurfaceRefresh);
+            route_outcome.request_interactive_surface_refresh_with_scope(
+                FrameWorkReason::InteractiveSurfaceRefresh,
+                surface_refresh_scope,
+            );
         }
         if pending.surface_refresh_requested
             && !outcome.hover_changed
             && !captured_pointer_refresh
             && !scroll_drag_surface_refresh
         {
-            route_outcome.request_surface_refresh(FrameWorkReason::DeferredSurfaceRefresh);
+            route_outcome.request_surface_refresh_with_scope(
+                FrameWorkReason::DeferredSurfaceRefresh,
+                surface_refresh_scope,
+            );
         }
         if outcome.repaint_requested || pending.surface_repaint_requested {
             route_outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRepaint);
@@ -198,6 +207,10 @@ where
         let scroll_surface_refresh =
             route == WheelOrScrollRoute::ScrollContainer && pending.surface_refresh_requested;
         let deferred_surface_refresh = pending.surface_refresh_requested && !scroll_surface_refresh;
+        let surface_refresh_scope = pending
+            .surface_invalidation()
+            .repaint_scope()
+            .unwrap_or(RepaintScope::Surface);
         let mut outcome = GenericRouteOutcome {
             routed,
             exit_requested: exit_requested || pending.exit_requested,
@@ -210,10 +223,16 @@ where
             outcome.request_scene_rebuild(FrameWorkReason::RoutedInput);
         }
         if scroll_surface_refresh {
-            outcome.request_interactive_surface_refresh(FrameWorkReason::InteractiveSurfaceRefresh);
+            outcome.request_interactive_surface_refresh_with_scope(
+                FrameWorkReason::InteractiveSurfaceRefresh,
+                surface_refresh_scope,
+            );
         }
         if deferred_surface_refresh {
-            outcome.request_surface_refresh(FrameWorkReason::DeferredSurfaceRefresh);
+            outcome.request_surface_refresh_with_scope(
+                FrameWorkReason::DeferredSurfaceRefresh,
+                surface_refresh_scope,
+            );
         }
         if (repaint_requested || pending.surface_repaint_requested)
             && !deferred_surface_refresh

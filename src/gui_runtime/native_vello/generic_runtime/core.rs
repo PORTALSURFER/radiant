@@ -120,6 +120,10 @@ where
         self.runtime.refresh();
     }
 
+    pub(super) fn refresh_surface_with_scope(&mut self, scope: crate::runtime::RepaintScope) {
+        self.runtime.refresh_with_scope(scope);
+    }
+
     pub(super) fn animation_activity(&mut self) -> RuntimeAnimationActivity {
         self.runtime.host_animation_activity()
     }

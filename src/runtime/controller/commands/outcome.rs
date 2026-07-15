@@ -70,6 +70,13 @@ impl CommandOutcome {
         self.surface_refresh_scope = Some(scope);
     }
 
+    pub(in crate::runtime) fn record_applied_surface_refresh(&mut self, scope: RepaintScope) {
+        let covers_pending = self
+            .resolved_surface_refresh_scope()
+            .is_none_or(|pending| scope.merge(pending) == scope);
+        self.surface_refresh_applied |= covers_pending;
+    }
+
     const fn resolved_surface_refresh_scope(&self) -> Option<RepaintScope> {
         if !self.surface_refresh_requested {
             return None;

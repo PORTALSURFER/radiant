@@ -82,3 +82,35 @@ fn direct_typed_refresh_commands_apply_the_requested_stage() {
         "layout commands must run exactly one layout pass"
     );
 }
+
+#[test]
+fn narrower_eager_refresh_does_not_consume_broader_pending_refresh() {
+    let bridge = CommandDemoBridge {
+        state: DemoState::default(),
+    };
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+    let before = runtime.refresh_counters();
+
+    let outcome = runtime.execute_command(Command::batch([
+        Command::repaint(RepaintScope::Layout),
+        Command::message(CommandDemoMessage::ProjectionRefresh),
+    ]));
+
+    assert_eq!(
+        outcome.surface_invalidation(),
+        radiant::runtime::SurfaceInvalidation::Layout
+    );
+    assert!(!outcome.surface_refresh_applied);
+    let after = runtime.refresh_counters();
+    assert_eq!(
+        after.application_projection,
+        before.application_projection + 2
+    );
+    assert_eq!(after.runtime_projection, before.runtime_projection + 2);
+    assert_eq!(after.widget_state_sync, before.widget_state_sync + 2);
+    assert_eq!(after.layout, before.layout + 1);
+    assert_eq!(
+        runtime.last_refresh_diagnostics().invalidation,
+        radiant::runtime::SurfaceInvalidation::Layout
+    );
+}

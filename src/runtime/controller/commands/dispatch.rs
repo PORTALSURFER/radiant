@@ -71,7 +71,7 @@ where
         if (refresh_surface && !paint_only) || requires_fresh_surface {
             self.refresh_with_scope(effective_scope);
             *deferred_surface_is_fresh = true;
-            outcome.surface_refresh_applied = true;
+            outcome.record_applied_surface_refresh(effective_scope);
         }
         let messages_before_command = outcome.messages_dispatched;
         self.execute_command_inner_with_refresh_state(
@@ -166,7 +166,7 @@ where
         {
             self.refresh_with_scope(RepaintScope::Surface);
             *deferred_surface_is_fresh = true;
-            outcome.surface_refresh_applied = true;
+            outcome.record_applied_surface_refresh(RepaintScope::Surface);
         }
         match command {
             Command::None => {}

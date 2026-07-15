@@ -21,6 +21,41 @@
 //! use radiant::prelude::*;
 //! let _: Option<TimelineViewport> = None;
 //! ```
+//!
+//! Specialist details-list APIs stay on `radiant::application`:
+//!
+//! ```compile_fail
+//! use radiant::prelude::*;
+//! let _: Option<DetailsColumnResizeDrag> = None;
+//! ```
+//!
+//! Low-level paint construction stays on `radiant::runtime` even though the
+//! `PaintPrimitive` signature type remains common for `Widget` implementations:
+//!
+//! ```compile_fail
+//! use radiant::prelude::*;
+//! let _: Option<PaintFillRect> = None;
+//! ```
+//!
+//! Raw platform protocols and external-drag models also require explicit
+//! `radiant::runtime` imports:
+//!
+//! ```compile_fail
+//! use radiant::prelude::*;
+//! let _: Option<PlatformRequest> = None;
+//! ```
+//!
+//! ```compile_fail
+//! use radiant::prelude::*;
+//! let _: Option<ExternalDragRequest> = None;
+//! ```
+//!
+//! Named-parts construction models stay on their owning modules:
+//!
+//! ```compile_fail
+//! use radiant::prelude::*;
+//! let _: Option<StatusSegmentsParts> = None;
+//! ```
 
 mod application;
 mod gui;

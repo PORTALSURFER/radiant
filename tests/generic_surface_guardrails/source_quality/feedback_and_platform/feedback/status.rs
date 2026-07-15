@@ -51,8 +51,8 @@ fn status_line_entries_use_named_parts_for_source_and_message() {
         source.contains("Self::from_parts(StatusLineEntryParts {")
             && status.contains("StatusLineEntryParts")
             && feedback.contains("StatusLineEntryParts")
-            && prelude.contains("StatusLineEntryParts"),
-        "status-line entry compatibility constructor and public exports should keep the named-parts path available"
+            && !prelude.contains("StatusLineEntryParts"),
+        "status-line entry parts should remain available from gui ownership without entering the common prelude"
     );
     for required in [
         "mod drag_overlay;",

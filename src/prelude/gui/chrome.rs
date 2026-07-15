@@ -4,7 +4,6 @@ pub use crate::gui::{
     chrome::{
         ContentViewActivityChrome, ContentViewChrome, ContentViewFooterChrome,
         ContentViewSearchChrome, ContentViewSortChrome, ContentViewTabs, StatusSegments,
-        StatusSegmentsParts,
     },
     disclosure::ExclusiveOpen,
 };

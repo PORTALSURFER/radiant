@@ -1,4 +1,5 @@
 use radiant::prelude::*;
+use radiant::runtime::PaintTextAlign;
 
 use super::super::{
     TOTAL_BEATS,

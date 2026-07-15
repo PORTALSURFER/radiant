@@ -313,25 +313,25 @@ fn ui_update_context_exposes_platform_service_helpers() {
 #[test]
 fn platform_response_helpers_cover_common_request_outcomes() {
     let path = std::path::PathBuf::from(r"C:\samples\kick.wav");
-    let response = radiant::prelude::PlatformResponse::Path(path.clone());
+    let response = radiant::runtime::PlatformResponse::Path(path.clone());
 
     assert_eq!(response.path(), Some(path.as_path()));
     assert_eq!(response.clone().into_path(), Some(path.clone()));
     assert_eq!(response.into_path_or_canceled(), Ok(Some(path)));
 
     assert_eq!(
-        radiant::prelude::PlatformResponse::Canceled.into_path_or_canceled(),
+        radiant::runtime::PlatformResponse::Canceled.into_path_or_canceled(),
         Ok(None)
     );
-    assert!(radiant::prelude::PlatformResponse::Canceled.is_canceled());
+    assert!(radiant::runtime::PlatformResponse::Canceled.is_canceled());
 
-    assert!(radiant::prelude::PlatformResponse::Completed.is_completed());
+    assert!(radiant::runtime::PlatformResponse::Completed.is_completed());
     assert_eq!(
-        radiant::prelude::PlatformResponse::Completed.into_completed(),
+        radiant::runtime::PlatformResponse::Completed.into_completed(),
         Ok(())
     );
 
-    let confirmation = radiant::prelude::PlatformResponse::Confirmation(
+    let confirmation = radiant::runtime::PlatformResponse::Confirmation(
         radiant::prelude::ConfirmationResponse::Accepted,
     );
     assert_eq!(
@@ -343,11 +343,11 @@ fn platform_response_helpers_cover_common_request_outcomes() {
         Some(radiant::prelude::ConfirmationResponse::Accepted)
     );
 
-    let text = radiant::prelude::PlatformResponse::Text(String::from("C:/samples/kick.wav"));
+    let text = radiant::runtime::PlatformResponse::Text(String::from("C:/samples/kick.wav"));
     assert_eq!(text.into_text(), Some(String::from("C:/samples/kick.wav")));
 
     let paths = vec![std::path::PathBuf::from(r"C:\samples\kick.wav")];
-    let file_paths = radiant::prelude::PlatformResponse::FilePaths(paths.clone());
+    let file_paths = radiant::runtime::PlatformResponse::FilePaths(paths.clone());
     assert_eq!(file_paths.into_file_paths(), Some(paths));
 }
 
@@ -361,7 +361,7 @@ fn ui_update_context_exposes_drag_session_cleanup_helper() {
 #[test]
 fn confirm_dialog_supports_named_parts_construction() {
     let request =
-        radiant::prelude::ConfirmDialogRequest::from_parts(radiant::prelude::ConfirmDialogParts {
+        radiant::prelude::ConfirmDialogRequest::from_parts(radiant::runtime::ConfirmDialogParts {
             title: "Overwrite file".to_owned(),
             message: "Replace the existing export?".to_owned(),
             level: radiant::prelude::ConfirmationLevel::Warning,

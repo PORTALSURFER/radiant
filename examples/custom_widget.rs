@@ -1,6 +1,7 @@
 //! User-authored widget object integrated through Radiant's application builder.
 
 use radiant::prelude::*;
+use radiant::runtime::{PaintFillRect, PaintTextAlign, PaintTextRun};
 
 #[derive(Default)]
 struct DemoState {

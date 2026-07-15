@@ -1,6 +1,6 @@
 #[test]
 fn details_columns_use_logical_widths() {
-    use radiant::prelude::{DetailsColumn, DetailsColumnParts};
+    use radiant::application::{DetailsColumn, DetailsColumnParts};
 
     assert_eq!(
         DetailsColumn::fixed("kind", "Kind", 120.5),
@@ -31,7 +31,7 @@ fn details_columns_use_logical_widths() {
 
 #[test]
 fn details_rows_support_named_parts_construction() {
-    use radiant::prelude as ui;
+    use radiant::application as ui;
 
     let from_parts = ui::DetailsRow::from_parts(ui::DetailsRowParts {
         id: String::from("timeline"),
@@ -53,7 +53,7 @@ fn details_rows_support_named_parts_construction() {
 
 #[test]
 fn details_sort_supports_named_parts_construction() {
-    use radiant::prelude as ui;
+    use radiant::application as ui;
 
     let from_parts = ui::DetailsSort::from_parts(ui::DetailsSortParts {
         column_id: String::from("kind"),
@@ -73,7 +73,7 @@ fn details_sort_supports_named_parts_construction() {
 
 #[test]
 fn details_column_drag_helpers_cover_resize_and_reorder_state() {
-    use radiant::prelude as ui;
+    use radiant::application as ui;
     use radiant::prelude::Point;
 
     let resize = ui::DetailsColumnResizeDrag::new("name", 100.0, 240.0);
@@ -104,7 +104,7 @@ fn details_column_drag_helpers_cover_resize_and_reorder_state() {
 #[test]
 fn compact_details_row_exposes_details_list_density() {
     use super::*;
-    use radiant::prelude as ui;
+    use radiant::application as ui;
     use radiant::prelude::IntoView;
 
     let surface: UiSurface<DemoState> = ui::column([ui::compact_details_row([
@@ -127,7 +127,7 @@ fn compact_details_row_exposes_details_list_density() {
 #[test]
 fn compact_details_cell_exposes_details_list_cell_sizing() {
     use super::*;
-    use radiant::prelude as ui;
+    use radiant::application as ui;
     use radiant::prelude::IntoView;
 
     let surface: UiSurface<DemoState> = ui::column([ui::compact_details_row([
@@ -150,13 +150,13 @@ fn compact_details_cell_exposes_details_list_cell_sizing() {
 #[test]
 fn compact_details_anchored_cell_exposes_fluent_normal_path() {
     use super::*;
-    use radiant::prelude as ui;
+    use radiant::application as ui;
     use radiant::prelude::IntoView;
 
     let surface: UiSurface<DemoState> =
         ui::column([ui::compact_details_row([ui::compact_details_anchored_cell(
             ui::text("OK").id(10),
-            ui::Vector2::new(24.0, 14.0),
+            Vector2::new(24.0, 14.0),
         )
         .width(64.0)
         .horizontal(ui::LayerHorizontalAnchor::End)
@@ -179,7 +179,7 @@ fn compact_details_anchored_cell_exposes_fluent_normal_path() {
 #[test]
 fn compact_details_header_row_exposes_details_list_header_chrome() {
     use super::*;
-    use radiant::prelude as ui;
+    use radiant::application as ui;
     use radiant::prelude::IntoView;
 
     let surface: UiSurface<DemoState> = ui::column([ui::compact_details_header_row([
@@ -202,7 +202,7 @@ fn compact_details_header_row_exposes_details_list_header_chrome() {
 #[test]
 fn compact_resizable_details_header_cell_builds_standard_interactive_cell() {
     use super::*;
-    use radiant::{prelude as ui, prelude::IntoView, runtime::PaintPrimitive};
+    use radiant::{application as ui, prelude::IntoView, runtime::PaintPrimitive};
 
     #[derive(Clone)]
     enum HeaderMessage {

@@ -1,11 +1,12 @@
 use super::super::*;
+use radiant::application::{DetailsSort, SortDirection};
 
 impl BrowserState {
     pub(crate) fn sort_by(&mut self, column_id: String) {
         if self.columns.sort.column_id == column_id {
             self.columns.sort.direction = self.columns.sort.direction.toggled();
         } else {
-            self.columns.sort = ui::DetailsSort::new(column_id, ui::SortDirection::Ascending);
+            self.columns.sort = DetailsSort::new(column_id, SortDirection::Ascending);
         }
     }
 
@@ -34,14 +35,14 @@ impl BrowserState {
         }
         column.visible = !column.visible;
         if !column.visible && self.columns.sort.column_id == column.id {
-            self.columns.sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+            self.columns.sort = DetailsSort::new("name", SortDirection::Ascending);
         }
         self.context.context_column = Some(column.id.clone());
     }
 
     pub(crate) fn reset_file_columns(&mut self) {
         self.columns.file_columns = default_file_columns();
-        self.columns.sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        self.columns.sort = DetailsSort::new("name", SortDirection::Ascending);
         self.context.context_column = None;
         self.status = String::from("Reset file columns");
     }

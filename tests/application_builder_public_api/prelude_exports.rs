@@ -1,4 +1,6 @@
-use radiant::{gui::types::Rgba8, layout::LayoutOutput, prelude as ui, theme::ThemeTokens};
+use radiant::{
+    gui::types::Rgba8, layout::LayoutOutput, prelude as ui, runtime as rt, theme::ThemeTokens,
+};
 
 #[test]
 fn prelude_supports_hello_world_imports() {
@@ -256,16 +258,9 @@ fn prelude_views_can_dispatch_widget_inputs_directly() {
 
 #[test]
 fn prelude_exports_application_chrome_models() {
-    let status = ui::StatusSegments::from_parts(ui::StatusSegmentsParts {
-        left: "Ready".to_owned(),
-        center: "Autosave on".to_owned(),
-        right: "Idle".to_owned(),
-    });
+    let status = ui::StatusSegments::new("Ready", "Autosave on", "Idle");
     let mut log = ui::StatusLineLog::new(2);
-    let entry = ui::StatusLineEntry::from_parts(ui::StatusLineEntryParts {
-        source: "worker".to_owned(),
-        message: "finished".to_owned(),
-    });
+    let entry = ui::StatusLineEntry::new("worker", "finished");
     let chrome = ui::ContentViewChrome::default();
 
     log.publish(entry.source(), entry.message());
@@ -284,15 +279,8 @@ fn prelude_exports_application_chrome_models() {
 
 #[test]
 fn prelude_exports_list_selection_controller() {
-    let column = ui::ColumnSummary::from_parts(ui::ColumnSummaryParts {
-        title: "Inbox".to_owned(),
-        item_count: 42,
-    });
-    let metrics = ui::VirtualListStackMetrics::from_parts(ui::VirtualListStackMetricsParts {
-        item_extent: 24.0,
-        item_gap: 4.0,
-        max_viewport_len: Some(6),
-    });
+    let column = ui::ColumnSummary::new("Inbox", 42);
+    let metrics = ui::VirtualListStackMetrics::new(24.0, 4.0).with_max_viewport_len(6);
     let mut selection = ui::ListSelectionController::new();
     let mut cycle = ui::CyclicListSelectionCycle::new();
 
@@ -365,7 +353,7 @@ fn prelude_exports_custom_widget_authoring_contract() {
             _layout: &LayoutOutput,
             _theme: &ThemeTokens,
         ) {
-            primitives.push(ui::PaintPrimitive::FillRect(ui::PaintFillRect {
+            primitives.push(ui::PaintPrimitive::FillRect(rt::PaintFillRect {
                 widget_id: self.common.id,
                 rect: bounds,
                 color: Rgba8 {
@@ -393,7 +381,7 @@ fn prelude_exports_custom_widget_authoring_contract() {
 }
 
 #[test]
-fn prelude_exports_custom_widget_signature_types() {
+fn prelude_keeps_custom_widget_signature_types_and_runtime_owns_paint_construction() {
     let rect = ui::Rect::from_min_size(ui::Point::new(0.0, 0.0), ui::Vector2::new(8.0, 4.0));
     let layout = ui::LayoutOutput::default();
     let theme = ui::ThemeTokens::default();
@@ -405,13 +393,13 @@ fn prelude_exports_custom_widget_signature_types() {
     };
     let image = ui::ImageRgba::new(1, 1, vec![255, 255, 255, 255]).expect("valid image");
     let image_error = ui::ImageRgba::try_new(1, 1, vec![255]).expect_err("invalid image");
-    let rects: ui::PaintRectList = vec![rect].into();
-    let fill_batch = ui::PaintFillRectBatch {
+    let rects: rt::PaintRectList = vec![rect].into();
+    let fill_batch = rt::PaintFillRectBatch {
         widget_id: 1,
         rects: rects.clone(),
         color,
     };
-    let stroke_batch = ui::PaintStrokeRectBatch {
+    let stroke_batch = rt::PaintStrokeRectBatch {
         widget_id: 2,
         rects,
         color,
@@ -424,10 +412,10 @@ fn prelude_exports_custom_widget_signature_types() {
     );
     let fill_path = radiant::runtime::PaintFillPath::new(
         3,
-        ui::PaintPath::from([
-            ui::PaintPathCommand::MoveTo(rect.min),
-            ui::PaintPathCommand::LineTo(rect.max),
-            ui::PaintPathCommand::Close,
+        rt::PaintPath::from([
+            rt::PaintPathCommand::MoveTo(rect.min),
+            rt::PaintPathCommand::LineTo(rect.max),
+            rt::PaintPathCommand::Close,
         ]),
         radiant::runtime::PaintBrush::linear_gradient(gradient),
     );

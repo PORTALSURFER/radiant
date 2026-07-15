@@ -1,6 +1,7 @@
 use super::*;
 use crate::icons::ToolbarIcon;
 use crate::model::{ToolId, ToolMessage};
+use radiant::runtime::{PaintFillRect, PaintStrokeRect};
 use radiant::widgets::resolve_widget_visual_tokens;
 
 #[derive(Clone, Debug)]

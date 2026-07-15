@@ -1,9 +1,10 @@
 use std::path::Path;
 
 use super::super::*;
+use radiant::application::{compact_details_header_row, compact_details_row};
 
 pub(super) fn details_header(state: &BrowserState) -> ui::View<BrowserMessage> {
-    ui::compact_details_header_row(
+    compact_details_header_row(
         state
             .visible_file_columns()
             .iter()
@@ -67,7 +68,7 @@ pub(super) fn file_details_row(state: &BrowserState, file: &FileEntry) -> ui::Vi
             sized_cell(column, cell)
         })
         .collect::<Vec<_>>();
-    ui::compact_details_row(cells)
+    compact_details_row(cells)
         .key(format!("file-row-{}", file.id))
         .style(if selected {
             ui::WidgetStyle::subtle(ui::WidgetTone::Accent)

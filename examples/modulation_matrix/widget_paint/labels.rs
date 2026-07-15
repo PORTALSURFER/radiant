@@ -5,6 +5,7 @@ use super::super::{
     widget::ModulationMatrixWidget,
 };
 use radiant::prelude::*;
+use radiant::runtime::PaintTextAlign;
 
 pub(super) fn append_labels(
     widget: &ModulationMatrixWidget,

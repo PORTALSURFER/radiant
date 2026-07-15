@@ -2,6 +2,7 @@ use super::*;
 use radiant::gui::visualization::{
     HorizontalValueAxis, SampledCurveStrokeParts, push_sampled_curve_stroke,
 };
+use radiant::runtime::PaintTextAlign;
 
 #[path = "paint/grid.rs"]
 mod grid;

@@ -4,6 +4,7 @@ use std::{
 };
 
 use super::*;
+use radiant::application::{DetailsSort, SortDirection};
 
 #[derive(Clone, Debug)]
 pub(super) struct BrowserState {
@@ -48,7 +49,7 @@ pub(super) struct BrowserRenameState {
 #[derive(Clone, Debug)]
 pub(super) struct BrowserColumnState {
     pub(super) file_columns: Vec<FileColumn>,
-    pub(super) sort: ui::DetailsSort,
+    pub(super) sort: DetailsSort,
     pub(super) resize: Option<ColumnResize>,
 }
 
@@ -100,7 +101,7 @@ impl BrowserState {
             },
             columns: BrowserColumnState {
                 file_columns: default_file_columns(),
-                sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
+                sort: DetailsSort::new("name", SortDirection::Ascending),
                 resize: None,
             },
             folders: vec![root_folder],

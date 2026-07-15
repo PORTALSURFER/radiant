@@ -9,11 +9,11 @@ fn synthetic_waveform_renders_nonblank_mono_image() {
 
     let image = render_waveform_image(&file, WaveformViewport::full(file.frames), 128, 48);
 
-    assert_eq!(image.width, 128);
-    assert_eq!(image.height, 48);
+    assert_eq!(image.width(), 128);
+    assert_eq!(image.height(), 48);
     assert!(
         image
-            .pixels
+            .pixels()
             .chunks_exact(4)
             .any(|pixel| pixel[0] > 240 && pixel[1] > 180 && pixel[2] > 150),
         "waveform ridge should produce visible bright pixels"

@@ -57,8 +57,8 @@ fn column_summaries_use_named_parts_for_title_and_count() {
         source.contains("Self::from_parts(ColumnSummaryParts {")
             && editable.contains("ColumnSummaryParts")
             && list.contains("ColumnSummaryParts")
-            && prelude.contains("ColumnSummaryParts"),
-        "column summary compatibility constructor and public exports should keep the named-parts path available"
+            && !prelude.contains("ColumnSummaryParts"),
+        "column summary named parts should remain available from gui ownership without entering the common prelude"
     );
 }
 
@@ -85,7 +85,7 @@ fn virtual_list_stack_metrics_use_named_parts_for_geometry() {
         source.contains("Self::from_parts(VirtualListStackMetricsParts {")
             && virtual_list.contains("VirtualListStackMetricsParts")
             && list.contains("VirtualListStackMetricsParts")
-            && prelude.contains("VirtualListStackMetricsParts"),
-        "virtual-list stack metric constructor and public exports should keep the named-parts path available"
+            && !prelude.contains("VirtualListStackMetricsParts"),
+        "virtual-list stack metric parts should remain available from gui ownership without entering the common prelude"
     );
 }

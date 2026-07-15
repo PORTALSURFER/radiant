@@ -1,4 +1,5 @@
 use super::*;
+use radiant::runtime::{PaintStrokeRect, PaintTextAlign, PaintTextRun};
 
 #[test]
 fn piano_roll_widget_paints_keyboard_grid_notes_and_playhead() {

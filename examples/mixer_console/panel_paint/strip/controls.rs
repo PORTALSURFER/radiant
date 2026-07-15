@@ -2,6 +2,7 @@ use super::StripPaintState;
 use crate::mixer_console::paint::{push_rect, push_stroke, push_text};
 use crate::mixer_console::panel::MixerPanelWidget;
 use radiant::prelude::*;
+use radiant::runtime::PaintTextAlign;
 
 #[derive(Clone, Copy)]
 struct StripButton {

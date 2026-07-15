@@ -392,13 +392,14 @@ fn presentation_frame_clock_can_use_state_dependent_frame_message_rate() {
 #[test]
 fn presentation_transient_overlay_uses_paint_only_frame_activity() {
     use radiant::prelude as ui;
+    use radiant::runtime::PaintFillRect;
 
     fn paint_overlay(
         state: &mut DemoState,
         context: ui::TransientOverlayContext<'_>,
         primitives: &mut Vec<ui::PaintPrimitive>,
     ) {
-        primitives.push(ui::PaintPrimitive::FillRect(ui::PaintFillRect {
+        primitives.push(ui::PaintPrimitive::FillRect(PaintFillRect {
             widget_id: 10,
             rect: ui::Rect::from_min_size(
                 ui::Point::new(context.animation_time.as_secs_f32(), 0.0),

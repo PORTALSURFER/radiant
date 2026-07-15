@@ -1,4 +1,5 @@
 use super::super::*;
+use radiant::application as app;
 
 #[test]
 fn application_builder_labeled_control_routes_inner_control() {
@@ -32,8 +33,8 @@ fn application_builder_labeled_control_routes_inner_control() {
 fn application_builder_labeled_control_supports_named_overrides() {
     use radiant::prelude as ui;
 
-    let parts: ui::LabeledControlParts<DemoMessage> =
-        ui::LabeledControlParts::new("Output", ui::text("Device default"))
+    let parts: app::LabeledControlParts<DemoMessage> =
+        app::LabeledControlParts::new("Output", ui::text("Device default"))
             .height(48.0)
             .label_height(16.0)
             .spacing(5.0)

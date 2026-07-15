@@ -1,4 +1,5 @@
 use super::super::*;
+use radiant::application as app;
 use radiant::widgets::{
     BadgeMessage, BadgeWidget, CardWidget, SelectableMessage, SelectableWidget,
 };
@@ -71,12 +72,12 @@ fn application_builder_dropdown_exports_and_routes_messages() {
 
     let surface: UiSurface<GalleryMessage> = ui::dropdown("WASAPI", true)
         .toggle_message(GalleryMessage::ToggleDropdown)
-        .option_from_parts(ui::DropdownOptionParts {
+        .option_from_parts(app::DropdownOptionParts {
             label: "System default".into(),
             selection: ui::DropdownOptionSelection::Unselected,
             message: GalleryMessage::Pick("default"),
         })
-        .option_from_parts(ui::DropdownOptionParts {
+        .option_from_parts(app::DropdownOptionParts {
             label: "WASAPI".into(),
             selection: ui::DropdownOptionSelection::Selected,
             message: GalleryMessage::Pick("wasapi"),
@@ -128,7 +129,7 @@ fn application_builder_dropdown_trigger_exports_and_routes_message() {
             .as_ref()
             .is_some_and(|label| label.is_static() && label.as_str() == "v")
     );
-    let _parts = ui::DropdownTriggerParts {
+    let _parts = app::DropdownTriggerParts {
         selected_label: String::from("WASAPI").into(),
         open: true,
         toggle_message: GalleryMessage::ToggleDropdown,

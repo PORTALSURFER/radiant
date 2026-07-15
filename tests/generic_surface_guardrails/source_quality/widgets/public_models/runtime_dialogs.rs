@@ -18,7 +18,7 @@ fn confirm_dialogs_use_named_parts_for_public_prompt_fields() {
     assert!(
         source.contains("Self::from_parts(ConfirmDialogParts {")
             && runtime.contains("ConfirmDialogParts")
-            && prelude.contains("ConfirmDialogParts"),
-        "confirmation dialog compatibility constructor and public exports should keep the named-parts path available"
+            && !prelude.contains("ConfirmDialogParts"),
+        "confirmation dialog parts should remain available from runtime ownership without entering the common prelude"
     );
 }

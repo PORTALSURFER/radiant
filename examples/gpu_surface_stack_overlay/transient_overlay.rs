@@ -1,5 +1,6 @@
 use super::*;
 use crate::model::DemoState;
+use radiant::runtime::PaintFillRect;
 
 pub(super) fn paint_transient_blob(
     state: &DemoState,

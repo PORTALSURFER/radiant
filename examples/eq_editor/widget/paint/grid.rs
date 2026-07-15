@@ -1,6 +1,7 @@
 use super::{push_rect, push_text};
 use crate::widget::{EqEditorWidget, x_for_freq, y_for_gain};
 use radiant::prelude::*;
+use radiant::runtime::PaintTextAlign;
 
 pub(super) fn append_grid(
     widget: &EqEditorWidget,

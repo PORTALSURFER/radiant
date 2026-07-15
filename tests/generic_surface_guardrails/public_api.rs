@@ -7,6 +7,7 @@ fn public_module_tree_exposes_one_progressive_api_surface() {
         .expect("Radiant lib.rs should be readable");
     let public_modules = public_module_names(&lib);
     let expected = BTreeSet::from([
+        "application".to_owned(),
         "guardrails".to_owned(),
         "gui".to_owned(),
         "gui_runtime".to_owned(),
@@ -19,7 +20,7 @@ fn public_module_tree_exposes_one_progressive_api_surface() {
 
     assert_eq!(
         public_modules, expected,
-        "Radiant's crate root should expose only generic public modules"
+        "Radiant's crate root should expose only its documented role-based public modules"
     );
     assert!(
         !manifest_dir.join("src/compat.rs").exists()

@@ -1,4 +1,5 @@
 use super::*;
+use radiant::application::{DetailsSort, SortDirection};
 
 const TEST_ROOT: &str = "demo-root";
 const TEST_ALPHA: &str = "demo-root/alpha";
@@ -48,7 +49,7 @@ fn test_state() -> BrowserState {
         },
         columns: BrowserColumnState {
             file_columns: default_file_columns(),
-            sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
+            sort: DetailsSort::new("name", SortDirection::Ascending),
             resize: None,
         },
         folders: vec![root],

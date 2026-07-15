@@ -517,6 +517,14 @@ work are separate contracts:
   shaping.
 - Frame-clock messages that only update presentation state should resolve to
   `PaintOnly` when the cached base surface remains valid.
+- Hosts with deterministic invalidation keys should expose explicit structural,
+  layout, and projection revisions. The runtime may then select typed stages
+  from paint-only through projection-with-layout-reuse, relayout, and the
+  correctness-first full-surface fallback; it must never infer reuse safety from
+  message names.
+- Startup, resize, widget identity changes, and unknown custom-host projections
+  must retain the full-surface fallback. Layout reuse is valid only while both
+  the structural topology and geometry revision remain unchanged.
 - Transient cursor, hover, drag, playhead, and progress overlays should prefer
   overlay or paint-only paths over structural surface refreshes.
 - Retained surfaces should expose stable keys, revisions, dirty masks, and

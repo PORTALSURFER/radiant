@@ -35,6 +35,8 @@ impl<Message> Command<Message> {
             Self::None
             | Self::RequestRepaint
             | Self::RequestPaintOnly
+            | Self::RequestProjectionRefresh
+            | Self::RequestLayoutRefresh
             | Self::After { .. }
             | Self::Perform { .. }
             | Self::PerformStream { .. }
@@ -66,6 +68,8 @@ impl<Message> Command<Message> {
             Self::None
             | Self::RequestRepaint
             | Self::RequestPaintOnly
+            | Self::RequestProjectionRefresh
+            | Self::RequestLayoutRefresh
             | Self::After { .. }
             | Self::Perform { .. }
             | Self::PerformStream { .. }

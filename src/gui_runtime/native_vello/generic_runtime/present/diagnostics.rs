@@ -13,6 +13,7 @@ pub(super) struct NativeFrameDiagnosticsParts {
     pub(super) render_to_texture_elapsed: Duration,
     pub(super) since_last_present: Duration,
     pub(super) frame_work: FrameWork,
+    pub(super) surface_refresh: crate::runtime::SurfaceRefreshDiagnostics,
 }
 
 pub(super) fn native_frame_diagnostics(
@@ -22,6 +23,7 @@ pub(super) fn native_frame_diagnostics(
         presentation: crate::runtime::NativeFramePresentationDiagnostics {
             frame_work_kind: parts.frame_work.kind(),
             frame_work_reason: parts.frame_work.reason().name(),
+            surface_invalidation: parts.surface_refresh.invalidation.name(),
             paint_only: parts.frame_work.is_paint_only(),
             scene_rebuild: parts.frame_work.needs_scene_rebuild(),
         },
@@ -142,6 +144,10 @@ pub(super) fn native_frame_diagnostics(
             frame_work: crate::runtime::NativeFrameWorkTimings {
                 coalesced_wheel_route: parts.profile.coalesced_wheel_route,
                 refresh_surface: parts.profile.refresh_surface,
+                application_projection: parts.surface_refresh.timings.application_projection,
+                runtime_projection: parts.surface_refresh.timings.runtime_projection,
+                widget_state_sync: parts.surface_refresh.timings.widget_state_sync,
+                layout: parts.surface_refresh.timings.layout,
                 paint_plan: parts.profile.paint_plan,
                 render_to_texture: parts.render_to_texture_elapsed,
                 full_screen_blit: parts.profile.full_screen_blit,

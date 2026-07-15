@@ -166,7 +166,11 @@ where
             ..GenericRouteOutcome::default()
         };
         if outcome.surface_refresh_requested {
-            route_outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRefresh);
+            if outcome.surface_refresh_applied {
+                route_outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRepaint);
+            } else {
+                route_outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRefresh);
+            }
         }
         if outcome.surface_repaint_requested {
             route_outcome.request_scene_rebuild(FrameWorkReason::RuntimeSurfaceRepaint);

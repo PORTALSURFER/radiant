@@ -51,6 +51,15 @@ fn deferred_paint_only_batch_refreshes_before_focus_followup() {
     );
     assert!(outcome.paint_only_requested);
     assert!(outcome.surface_repaint_requested);
+    assert!(outcome.surface_refresh_requested);
+    assert_eq!(
+        outcome.surface_invalidation(),
+        crate::runtime::SurfaceInvalidation::Surface
+    );
+    assert_eq!(
+        runtime.last_refresh_diagnostics().invalidation,
+        crate::runtime::SurfaceInvalidation::Surface
+    );
 }
 
 #[test]

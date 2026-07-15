@@ -8,6 +8,8 @@ impl<Message> Command<Message> {
             Self::Message(_)
             | Self::RequestRepaint
             | Self::RequestPaintOnly
+            | Self::RequestProjectionRefresh
+            | Self::RequestLayoutRefresh
             | Self::After { .. }
             | Self::Perform { .. }
             | Self::PerformStream { .. }
@@ -45,6 +47,8 @@ impl<Message> Command<Message> {
                 Some(RepaintScope::Surface)
             }
             Self::RequestPaintOnly => Some(RepaintScope::PaintOnly),
+            Self::RequestProjectionRefresh => Some(RepaintScope::Projection),
+            Self::RequestLayoutRefresh => Some(RepaintScope::Layout),
             Self::Batch(commands) => commands
                 .iter()
                 .filter_map(Self::repaint_scope)
@@ -87,6 +91,8 @@ impl<Message> Command<Message> {
             | Self::None
             | Self::RequestRepaint
             | Self::RequestPaintOnly
+            | Self::RequestProjectionRefresh
+            | Self::RequestLayoutRefresh
             | Self::SetDpiScale(_)
             | Self::SetWindowLogicalSize(_)
             | Self::After { .. }

@@ -24,6 +24,14 @@ pub struct NativeFrameWorkTimings {
     pub coalesced_wheel_route: Duration,
     /// Time spent refreshing the runtime surface snapshot.
     pub refresh_surface: Duration,
+    /// Time spent pulling the host application projection.
+    pub application_projection: Duration,
+    /// Time spent rebuilding runtime projection and traversal.
+    pub runtime_projection: Duration,
+    /// Time spent synchronizing stateful widgets.
+    pub widget_state_sync: Duration,
+    /// Time spent recomputing layout.
+    pub layout: Duration,
     /// Time spent building the backend-neutral paint plan.
     pub paint_plan: Duration,
     /// Time spent rendering the scene to the cached texture.

@@ -27,6 +27,8 @@ pub struct NativeFramePresentationDiagnostics {
     pub frame_work_kind: &'static str,
     /// Stable reason label for the frame-work request.
     pub frame_work_reason: &'static str,
+    /// Typed surface invalidation stage selected by the runtime.
+    pub surface_invalidation: &'static str,
     /// Whether the frame-work path stayed on paint-only redraw.
     pub paint_only: bool,
     /// Whether the frame-work path required a scene rebuild.
@@ -38,6 +40,7 @@ impl Default for NativeFramePresentationDiagnostics {
         Self {
             frame_work_kind: "none",
             frame_work_reason: "none",
+            surface_invalidation: "none",
             paint_only: false,
             scene_rebuild: false,
         }

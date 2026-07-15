@@ -7,7 +7,7 @@ use super::{
     baseline::{BaselineMetric, MetricComparison, baseline_metric_json_line, json_escape},
 };
 
-const COUNTER_FIELDS: [&str; 20] = [
+const COUNTER_FIELDS: [&str; 25] = [
     "scene_rebuild_count",
     "static_rebuild_count",
     "paint_only_count",
@@ -28,6 +28,11 @@ const COUNTER_FIELDS: [&str; 20] = [
     "gpu_surface_occlusion_primitive_visit_count",
     "gpu_surface_occlusion_index_node_visit_count",
     "gpu_surface_occlusion_candidate_visit_count",
+    "application_projection_count",
+    "runtime_projection_count",
+    "widget_state_sync_count",
+    "layout_count",
+    "paint_plan_rebuild_count",
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -56,6 +61,11 @@ impl ScenarioCounters {
     const GPU_SURFACE_OCCLUSION_PRIMITIVE_VISIT_COUNT: usize = 17;
     const GPU_SURFACE_OCCLUSION_INDEX_NODE_VISIT_COUNT: usize = 18;
     const GPU_SURFACE_OCCLUSION_CANDIDATE_VISIT_COUNT: usize = 19;
+    const APPLICATION_PROJECTION_COUNT: usize = 20;
+    const RUNTIME_PROJECTION_COUNT: usize = 21;
+    const WIDGET_STATE_SYNC_COUNT: usize = 22;
+    const LAYOUT_COUNT: usize = 23;
+    const PAINT_PLAN_REBUILD_COUNT: usize = 24;
 
     pub(crate) fn add(&mut self, other: Self) {
         for (index, value) in other.values.into_iter().enumerate() {
@@ -174,6 +184,31 @@ impl ScenarioCounters {
 
     pub(crate) fn with_gpu_surface_occlusion_candidate_visit_count(mut self, value: u64) -> Self {
         self.values[Self::GPU_SURFACE_OCCLUSION_CANDIDATE_VISIT_COUNT] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_application_projection_count(mut self, value: u64) -> Self {
+        self.values[Self::APPLICATION_PROJECTION_COUNT] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_runtime_projection_count(mut self, value: u64) -> Self {
+        self.values[Self::RUNTIME_PROJECTION_COUNT] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_widget_state_sync_count(mut self, value: u64) -> Self {
+        self.values[Self::WIDGET_STATE_SYNC_COUNT] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_layout_count(mut self, value: u64) -> Self {
+        self.values[Self::LAYOUT_COUNT] = Some(value);
+        self
+    }
+
+    pub(crate) fn with_paint_plan_rebuild_count(mut self, value: u64) -> Self {
+        self.values[Self::PAINT_PLAN_REBUILD_COUNT] = Some(value);
         self
     }
 }

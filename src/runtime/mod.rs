@@ -75,13 +75,14 @@ pub use bridge::{
 pub(crate) use bridge::{RuntimeQueueCapability, RuntimeRetainedSurfaceCapability};
 pub use command::{
     BusinessMessageSink, Command, RepaintScope, ScrollFixedRowIntoViewParts, ScrollIntoViewParts,
-    TaskPriority,
+    SurfaceInvalidation, SurfaceRevisions, TaskPriority,
 };
 pub(crate) use controller::WheelOrScrollRoute;
 pub use controller::{
     CommandOutcome, DeclarativeOwnedSurfaceRuntime, DeclarativeSurfaceRuntime, Event,
     FocusTraversal, PointerClickOutcome, PointerMoveOutcome, RuntimeContext, RuntimeSurfaceFrame,
-    RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceRuntime,
+    RuntimeSurfaceFrameRef, ScrollUpdate, SurfaceRefreshCounters, SurfaceRefreshDiagnostics,
+    SurfaceRefreshTimings, SurfaceRuntime,
 };
 pub use devtools::{
     DevtoolsLayoutDiagnostic, DevtoolsNodeKind, DevtoolsNodeSnapshot, DevtoolsOverlayOptions,

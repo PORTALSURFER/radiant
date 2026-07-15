@@ -14,6 +14,7 @@ mod host;
 mod input;
 mod interaction_state;
 mod pointer;
+mod refresh;
 mod scratch;
 mod scroll;
 mod state;
@@ -23,6 +24,7 @@ mod work;
 pub use commands::CommandOutcome;
 pub use context::{RuntimeContext, RuntimeSurfaceFrame, RuntimeSurfaceFrameRef};
 pub use events::{Event, PointerClickOutcome, PointerMoveOutcome};
+pub use refresh::{SurfaceRefreshCounters, SurfaceRefreshDiagnostics, SurfaceRefreshTimings};
 pub use scroll::ScrollUpdate;
 pub(crate) use scroll::WheelOrScrollRoute;
 
@@ -80,6 +82,8 @@ where
     pending_input_command_outcome: CommandOutcome,
     runtime_work: RuntimeWorkQueues<Message>,
     diagnostics: RuntimeDiagnosticsRecorder,
+    last_refresh_diagnostics: SurfaceRefreshDiagnostics,
+    refresh_counters: SurfaceRefreshCounters,
     update_handler_diagnostics_policy: UiUpdateHandlerDiagnosticsPolicy,
     pub(in crate::runtime) devtools_overlay: DevtoolsOverlayOptions,
 }

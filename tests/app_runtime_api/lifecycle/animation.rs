@@ -4,10 +4,12 @@ use super::*;
 fn active_animation_frame_messages_are_coalesced_until_drained() {
     let bridge = app(DemoState::default())
         .view(|state: &DemoState| {
-            UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
-                10,
-                format!("Frame ({})", state.count),
-                WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),
+            ViewProjection::from_surface(UiSurface::new(SurfaceNode::static_widget(
+                TextWidget::new(
+                    10,
+                    format!("Frame ({})", state.count),
+                    WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),
+                ),
             )))
         })
         .animation(|_| true)
@@ -38,10 +40,12 @@ fn active_animation_frame_messages_are_coalesced_until_drained() {
 fn animation_activity_poll_is_reused_for_frame_queue() {
     let bridge = app(DemoState::default())
         .view(|state: &DemoState| {
-            UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
-                10,
-                format!("Polls ({})", state.count),
-                WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),
+            ViewProjection::from_surface(UiSurface::new(SurfaceNode::static_widget(
+                TextWidget::new(
+                    10,
+                    format!("Polls ({})", state.count),
+                    WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),
+                ),
             )))
         })
         .animation(|state| {
@@ -65,10 +69,12 @@ fn animation_activity_poll_is_reused_for_frame_queue() {
 fn polling_animation_activity_does_not_queue_frame_messages() {
     let bridge = app(DemoState::default())
         .view(|state: &DemoState| {
-            UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
-                10,
-                format!("Frame ({})", state.count),
-                WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),
+            ViewProjection::from_surface(UiSurface::new(SurfaceNode::static_widget(
+                TextWidget::new(
+                    10,
+                    format!("Frame ({})", state.count),
+                    WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),
+                ),
             )))
         })
         .animation(|_| true)

@@ -1,14 +1,14 @@
 use super::{ViewNode, ViewNodeKind};
 use crate::{
     application::{
-        AppBridgeLifecycle, IdGenerator, IntoView, Presentation, ROOT_KEY_SCOPE, WidgetViewContext,
-        view_node::lowering_defaults::ViewNodeContainerDefaults,
+        IdGenerator, IntoView, ROOT_KEY_SCOPE, ViewProjection, WidgetViewContext,
+        launch::SceneProjection, view_node::lowering_defaults::ViewNodeContainerDefaults,
     },
     layout::{
         ContainerKind, ContainerPolicy, GridPolicy, NodeId, VirtualizationAxis,
         VirtualizationPolicy, WrapPolicy,
     },
-    runtime::{SurfaceChild, SurfaceLayer, SurfaceNode},
+    runtime::{SurfaceChild, SurfaceLayer, SurfaceNode, UiSurface},
 };
 
 #[path = "lowering/children.rs"]
@@ -20,89 +20,31 @@ impl<Message> IntoView<Message> for ViewNode<Message>
 where
     Message: 'static,
 {
-    fn into_node(self) -> SurfaceNode<Message> {
+    fn into_projection(self) -> ViewProjection<Message> {
         let mut reserved = Vec::new();
         self.collect_reserved_ids(ROOT_KEY_SCOPE, &mut reserved);
         let mut ids = IdGenerator::new(reserved);
-        ViewLowering::new(&mut ids).lower_node(self, ROOT_KEY_SCOPE)
+        let mut scene = SceneProjection::default();
+        let root = ViewLowering::new(&mut ids, &mut scene).lower_node(self, ROOT_KEY_SCOPE);
+        ViewProjection::with_scene(UiSurface::new(root), scene)
     }
 }
 
-impl<Message: 'static> ViewNode<Message> {
-    pub(in crate::application) fn apply_scene_presentation<State: 'static>(
-        &mut self,
-        lifecycle: &mut AppBridgeLifecycle<State, Message>,
-    ) {
-        self.drain_scene_presentation_into(lifecycle);
-    }
-
-    fn drain_scene_presentation_into<State: 'static>(
-        &mut self,
-        lifecycle: &mut AppBridgeLifecycle<State, Message>,
-    ) {
-        match &mut self.kind {
-            ViewNodeKind::Scene {
-                base,
-                layers,
-                presentation,
-                shortcuts,
-            } => {
-                if lifecycle.scene_shortcuts.is_none() {
-                    lifecycle.scene_shortcuts = shortcuts.take();
-                }
-                if let Some(presentation) = presentation.take()
-                    && let Ok(presentation) =
-                        presentation.downcast::<Presentation<State, Message>>()
-                {
-                    let presentation = *presentation;
-                    presentation.apply_to_scene_lifecycle(lifecycle);
-                }
-                base.drain_scene_presentation_into(lifecycle);
-                for layer in layers {
-                    if let Some(input) = layer.input.as_mut() {
-                        input.drain_scene_presentation_into(lifecycle);
-                    }
-                    layer.view.drain_scene_presentation_into(lifecycle);
-                }
-            }
-            ViewNodeKind::Row { children, .. }
-            | ViewNodeKind::Column { children, .. }
-            | ViewNodeKind::Grid { children, .. }
-            | ViewNodeKind::Wrap { children, .. }
-            | ViewNodeKind::Stack { children } => {
-                for child in children {
-                    child.drain_scene_presentation_into(lifecycle);
-                }
-            }
-            ViewNodeKind::Scroll { child }
-            | ViewNodeKind::VirtualScroll { child, .. }
-            | ViewNodeKind::FloatingLayer { child, .. } => {
-                child.drain_scene_presentation_into(lifecycle);
-            }
-            ViewNodeKind::Runtime(_)
-            | ViewNodeKind::Widget(_)
-            | ViewNodeKind::OverlayPanel { .. } => {}
-        }
-    }
-}
-
-pub(super) struct ViewLowering<'a> {
+pub(super) struct ViewLowering<'a, Message> {
     ids: &'a mut IdGenerator,
+    scene: &'a mut SceneProjection<Message>,
 }
 
-impl<'a> ViewLowering<'a> {
-    fn new(ids: &'a mut IdGenerator) -> Self {
-        Self { ids }
+impl<'a, Message: 'static> ViewLowering<'a, Message> {
+    fn new(ids: &'a mut IdGenerator, scene: &'a mut SceneProjection<Message>) -> Self {
+        Self { ids, scene }
     }
 
-    fn next_node_id<Message>(&mut self, node: &ViewNode<Message>, scope: u64) -> NodeId {
+    fn next_node_id(&mut self, node: &ViewNode<Message>, scope: u64) -> NodeId {
         node.resolved_id(scope).unwrap_or_else(|| self.ids.next())
     }
 
-    fn lower_node<Message>(&mut self, node: ViewNode<Message>, scope: u64) -> SurfaceNode<Message>
-    where
-        Message: 'static,
-    {
+    fn lower_node(&mut self, node: ViewNode<Message>, scope: u64) -> SurfaceNode<Message> {
         let id = self.next_node_id(&node, scope);
         let child_scope = id;
         let style = node.style;
@@ -124,7 +66,13 @@ impl<'a> ViewLowering<'a> {
             };
 
         let lowered = match node.kind {
-            ViewNodeKind::Scene { base, layers, .. } => {
+            ViewNodeKind::Scene {
+                base,
+                layers,
+                presentation,
+                shortcuts,
+            } => {
+                self.scene.capture(presentation, shortcuts);
                 let mut base = *base;
                 let mut collected_layers = Vec::new();
                 base.drain_overlay_layers_in_declaration_order(&mut collected_layers);

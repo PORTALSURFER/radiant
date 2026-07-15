@@ -1,10 +1,10 @@
 use super::super::AppBridge;
 use crate::{
-    application::{IntoView, UiUpdateContext, ViewNode},
+    application::{IntoView, UiUpdateContext},
     gui::{focus::FocusSurface, input::KeyPress, shortcuts::ShortcutResolution},
     runtime::{Command, ScrollUpdate, UiSurface},
 };
-use std::{any::Any, sync::Arc};
+use std::sync::Arc;
 
 impl<State: 'static, Message: 'static, Project, Update, View>
     AppBridge<State, Message, Project, Update, View>
@@ -14,23 +14,17 @@ where
     View: IntoView<Message> + 'static,
 {
     pub(super) fn project_surface_arc(&mut self) -> Arc<UiSurface<Message>> {
-        let mut view = (self.project)(&self.state);
-        self.apply_view_scene_presentation(&mut view);
-        Arc::new(view.into_surface())
+        let projection = (self.project)(&self.state).into_projection();
+        let (surface, scene) = projection.into_parts();
+        scene.apply(&mut self.lifecycle);
+        Arc::new(surface)
     }
 
     pub(super) fn pull_surface_owned(&mut self) -> UiSurface<Message> {
-        let mut view = (self.project)(&self.state);
-        self.apply_view_scene_presentation(&mut view);
-        view.into_surface()
-    }
-
-    fn apply_view_scene_presentation(&mut self, view: &mut View) {
-        self.lifecycle.clear_scene_presentation();
-        let Some(view) = (view as &mut dyn Any).downcast_mut::<ViewNode<Message>>() else {
-            return;
-        };
-        view.apply_scene_presentation(&mut self.lifecycle);
+        let projection = (self.project)(&self.state).into_projection();
+        let (surface, scene) = projection.into_parts();
+        scene.apply(&mut self.lifecycle);
+        surface
     }
 
     pub(super) fn update_message(&mut self, message: Message) -> Command<Message> {

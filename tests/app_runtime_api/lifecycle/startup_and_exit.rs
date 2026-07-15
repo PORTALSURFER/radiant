@@ -6,7 +6,7 @@ use radiant::widgets::TextInputWidget;
 fn app_startup_commands_use_full_runtime_dispatch() {
     let bridge = app(DemoState::default())
         .view(|state: &DemoState| {
-            UiSurface::new(SurfaceNode::row(
+            ViewProjection::from_surface(UiSurface::new(SurfaceNode::row(
                 1,
                 8.0,
                 vec![
@@ -21,7 +21,7 @@ fn app_startup_commands_use_full_runtime_dispatch() {
                         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
                     ))),
                 ],
-            ))
+            )))
         })
         .on_startup(|state, context| {
             state.name = String::from("ready");
@@ -59,10 +59,12 @@ fn app_startup_commands_use_full_runtime_dispatch() {
 fn app_startup_runs_once_when_repaint_signal_is_reinstalled() {
     let mut bridge = app(DemoState::default())
         .view(|state: &DemoState| {
-            UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
-                10,
-                format!("Startup runs: {}", state.count),
-                WidgetSizing::fixed(Vector2::new(160.0, 20.0)).with_baseline(14.0),
+            ViewProjection::from_surface(UiSurface::new(SurfaceNode::static_widget(
+                TextWidget::new(
+                    10,
+                    format!("Startup runs: {}", state.count),
+                    WidgetSizing::fixed(Vector2::new(160.0, 20.0)).with_baseline(14.0),
+                ),
             )))
         })
         .on_startup(|state, _context| {
@@ -94,10 +96,12 @@ fn app_startup_runs_once_when_repaint_signal_is_reinstalled() {
 fn app_runtime_effects_stop_after_runtime_exit() {
     let bridge = app(DemoState::default())
         .view(|state: &DemoState| {
-            UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
-                10,
-                format!("Effects ({})", state.count),
-                WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),
+            ViewProjection::from_surface(UiSurface::new(SurfaceNode::static_widget(
+                TextWidget::new(
+                    10,
+                    format!("Effects ({})", state.count),
+                    WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),
+                ),
             )))
         })
         .subscriptions(|_| {

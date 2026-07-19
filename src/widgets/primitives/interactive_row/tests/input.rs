@@ -103,15 +103,12 @@ fn explicit_hover_messages_keep_stable_pointer_motion_routed() {
 
 #[test]
 fn inert_drag_active_rows_do_not_accept_stable_pointer_motion() {
-    let drag_active =
-        InteractiveRowWidget::new(21, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
-            .with_drag_active(true);
-    let drag_source =
-        InteractiveRowWidget::new(22, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
-            .with_drag_source(true);
-    let drop_only =
-        InteractiveRowWidget::new(23, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
-            .with_drop_target_mode(true, false);
+    let drag_active = InteractiveRowWidget::new(21, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_drag_active(true);
+    let drag_source = InteractiveRowWidget::new(22, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_drag_source(true);
+    let drop_only = InteractiveRowWidget::new(23, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_drop_target_mode(true, false);
     let non_candidate =
         InteractiveRowWidget::new(24, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
             .with_tracked_drop_candidate(true, false, false, false);
@@ -128,12 +125,10 @@ fn active_drag_work_keeps_stable_pointer_motion_routed() {
         InteractiveRowWidget::new(25, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
             .with_drag_source(true)
             .with_drag_source_motion(true);
-    let drop_hover =
-        InteractiveRowWidget::new(26, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
-            .with_tracked_drop_candidate(true, false, true, false);
-    let drop_clear =
-        InteractiveRowWidget::new(27, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
-            .with_tracked_drop_candidate(true, false, false, true);
+    let drop_hover = InteractiveRowWidget::new(26, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_tracked_drop_candidate(true, false, true, false);
+    let drop_clear = InteractiveRowWidget::new(27, WidgetSizing::fixed(Vector2::new(120.0, 22.0)))
+        .with_tracked_drop_candidate(true, false, false, true);
 
     assert!(source_motion.accepts_pointer_move());
     assert!(drop_hover.accepts_pointer_move());

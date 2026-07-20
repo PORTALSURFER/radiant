@@ -100,7 +100,8 @@ fn draggable_button_emits_drag_lifecycle_instead_of_click_when_moved() {
             },
         ),
         Some(ButtonMessage::Drag(DragHandleMessage::Started {
-            position: Point::new(10.0, 10.0)
+            origin: Point::new(10.0, 10.0),
+            position: Point::new(12.0, 14.0),
         }))
     );
     assert_eq!(
@@ -156,7 +157,8 @@ fn draggable_button_release_after_capture_state_restore_ends_drag() {
     assert_eq!(
         button.handle_input(bounds, WidgetInput::pointer_move(move_point)),
         Some(ButtonMessage::Drag(DragHandleMessage::Started {
-            position: press_point
+            origin: press_point,
+            position: move_point,
         }))
     );
 
@@ -180,15 +182,17 @@ fn draggable_button_focus_loss_cancels_drag() {
     let mut button =
         ButtonWidget::new(16, "Folder", WidgetSizing::fixed(Vector2::new(80.0, 28.0))).with_drag();
     let press_point = Point::new(10.0, 10.0);
+    let move_point = Point::new(30.0, 10.0);
 
     assert_eq!(
         button.handle_input(bounds, WidgetInput::primary_press(press_point)),
         None
     );
     assert_eq!(
-        button.handle_input(bounds, WidgetInput::pointer_move(Point::new(30.0, 10.0))),
+        button.handle_input(bounds, WidgetInput::pointer_move(move_point)),
         Some(ButtonMessage::Drag(DragHandleMessage::Started {
-            position: press_point
+            origin: press_point,
+            position: move_point,
         }))
     );
     assert_eq!(

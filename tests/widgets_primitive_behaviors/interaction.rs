@@ -189,9 +189,8 @@ fn interactive_row_message_helpers_project_common_custom_row_intents() {
 
 #[test]
 fn drag_handle_message_helpers_project_phase_and_position() {
-    let start = DragHandleMessage::Started {
-        position: Point::new(10.0, 4.0),
-    };
+    let origin = Point::new(8.0, 2.0);
+    let start = DragHandleMessage::started_from(origin, Point::new(10.0, 4.0));
     let moved = DragHandleMessage::Moved {
         position: Point::new(12.0, 8.0),
     };
@@ -208,6 +207,7 @@ fn drag_handle_message_helpers_project_phase_and_position() {
     assert_eq!(ended.position(), Point::new(14.0, 9.0));
 
     assert_eq!(start.started_position(), Some(Point::new(10.0, 4.0)));
+    assert_eq!(start.started_origin(), Some(origin));
     assert_eq!(start.moved_position(), None);
     assert_eq!(start.ended_position(), None);
     assert_eq!(moved.started_position(), None);
@@ -833,9 +833,7 @@ fn drag_handle_emits_captured_drag_lifecycle() {
                 modifiers: Default::default(),
             },
         ),
-        Some(DragHandleMessage::Started {
-            position: Point::new(12.0, 12.0),
-        })
+        Some(DragHandleMessage::started(Point::new(12.0, 12.0)))
     );
     assert!(handle.common.state.pressed);
     assert!(handle.common.state.active);

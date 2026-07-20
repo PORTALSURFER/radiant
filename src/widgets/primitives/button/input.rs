@@ -36,9 +36,7 @@ pub(super) fn handle_button_input(
                     } else {
                         button.state.dragged = true;
                         button.common.state.active = true;
-                        DragHandleMessage::Started {
-                            position: press_position,
-                        }
+                        DragHandleMessage::started_from(press_position, position)
                     };
                     return Some(ButtonMessage::Drag(message));
                 }

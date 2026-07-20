@@ -292,8 +292,8 @@ pub fn update_panel_resize_drag(
     max_size: f32,
 ) -> Option<f32> {
     match message {
-        DragHandleMessage::Started { position } => {
-            *active_drag = Some(PanelResizeDrag::new(edge, position, current_size));
+        DragHandleMessage::Started { origin, .. } => {
+            *active_drag = Some(PanelResizeDrag::new(edge, origin, current_size));
             None
         }
         DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {

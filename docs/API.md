@@ -803,14 +803,17 @@ and descendant guide overlays. Keep `EmbeddedInteractiveRowWidget` for unusual
 custom-painted rows that need visuals beyond `tree_row(...)`.
 Use the single-activation helpers when double-click has a separate host action
 such as rename, drill-in, or open-in-place behavior. Drag-capable controls can use
-`DragHandleMessage::phase()`, `position()`, `started_position()`,
+`DragHandleMessage::phase()`, `position()`, `started_origin()`, `started_position()`,
 `moved_position()`, `ended_position()`, `finished_position()`, `is_started()`,
 `is_moved()`, `is_ended()`, `is_finished()`, and `is_cancelled()` when reducers
 need generic drag lifecycle information or cancellation cleanup without duplicating the
 `Started` / `Moved` / `Ended` / `Cancelled` variant shape. Use
-`DragHandleMessage::started(...)`, `moved(...)`, `ended(...)`,
+`DragHandleMessage::started(...)`, `started_from(...)`, `moved(...)`, `ended(...)`,
 `double_activate(...)`, and `cancelled(...)` when tests, reducers, or custom
-widgets need to construct drag lifecycle messages directly. Use
+widgets need to construct drag lifecycle messages directly. Threshold-based
+controls use `started_from(...)` so reducers can preserve displacement from the
+primary-press origin while painting immediate feedback at the current pointer.
+Use
 `DragHandlePhase::as_str()` for stable lowercase diagnostic labels. Reducers that
 resolve or cancel a drag gesture with both an in-window preview and an armed
 native external-drag payload can call `UiUpdateContext::end_drag_session()` instead

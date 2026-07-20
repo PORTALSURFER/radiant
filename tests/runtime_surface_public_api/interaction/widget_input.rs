@@ -35,9 +35,7 @@ fn surface_runtime_preserves_captured_drag_state_across_repaint_refreshes() {
     assert_eq!(
         runtime.bridge().state().as_slice(),
         &[
-            DragHandleMessage::Started {
-                position: Point::new(12.0, 12.0),
-            },
+            DragHandleMessage::started(Point::new(12.0, 12.0)),
             DragHandleMessage::Moved {
                 position: Point::new(12.0, 72.0),
             },

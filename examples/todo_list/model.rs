@@ -108,7 +108,7 @@ impl TodoState {
 
     pub(super) fn drag_item(&mut self, id: u64, message: ui::DragHandleMessage) {
         match message {
-            ui::DragHandleMessage::Started { position } => {
+            ui::DragHandleMessage::Started { position, .. } => {
                 if let Some(index) = self.index_of(id) {
                     let title = self.items[index].title.clone();
                     self.drag = Some(TodoDragState {

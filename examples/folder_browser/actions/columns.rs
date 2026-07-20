@@ -49,7 +49,7 @@ impl BrowserState {
 
     pub(crate) fn resize_file_column(&mut self, column_id: String, message: ui::DragHandleMessage) {
         match message {
-            ui::DragHandleMessage::Started { position } => {
+            ui::DragHandleMessage::Started { origin, .. } => {
                 if let Some(column) = self
                     .columns
                     .file_columns
@@ -58,7 +58,7 @@ impl BrowserState {
                 {
                     self.columns.resize = Some(ColumnResize {
                         column_id,
-                        start_x: position.x,
+                        start_x: origin.x,
                         start_width: column.width,
                     });
                 }
@@ -90,7 +90,7 @@ impl BrowserState {
 
     pub(crate) fn resize_tree(&mut self, message: ui::DragHandleMessage) {
         match message {
-            ui::DragHandleMessage::Started { position }
+            ui::DragHandleMessage::Started { position, .. }
             | ui::DragHandleMessage::Moved { position }
             | ui::DragHandleMessage::Ended { position } => {
                 self.tree.tree_width =

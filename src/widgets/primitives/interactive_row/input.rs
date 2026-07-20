@@ -43,7 +43,10 @@ impl InteractiveRowWidget {
                         DragHandleMessage::Moved { position }
                     } else {
                         self.dragged = true;
-                        DragHandleMessage::Started { position }
+                        DragHandleMessage::started_from(
+                            self.pressed_position.unwrap_or(position),
+                            position,
+                        )
                     };
                     return Some(InteractiveRowMessage::Drag(message));
                 }

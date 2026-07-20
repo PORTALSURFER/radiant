@@ -41,9 +41,7 @@ fn file_column_resize_clamps_width() {
 
     state.resize_file_column(
         String::from("kind"),
-        ui::DragHandleMessage::Started {
-            position: radiant::layout::Point::new(100.0, 0.0),
-        },
+        ui::DragHandleMessage::started(radiant::layout::Point::new(100.0, 0.0)),
     );
     state.resize_file_column(
         String::from("kind"),

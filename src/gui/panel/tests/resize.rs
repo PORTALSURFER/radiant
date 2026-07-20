@@ -42,9 +42,7 @@ fn update_panel_resize_drag_manages_drag_lifecycle() {
     assert_eq!(
         update_panel_resize_drag(
             &mut drag,
-            DragHandleMessage::Started {
-                position: Point::new(100.0, 0.0)
-            },
+            DragHandleMessage::started(Point::new(100.0, 0.0)),
             PanelResizeEdge::Right,
             240.0,
             48.0,
@@ -136,9 +134,7 @@ fn update_collapsible_panel_resize_drag_preserves_normal_resize_lifecycle() {
     assert_eq!(
         update_collapsible_panel_resize_drag(
             &mut drag,
-            DragHandleMessage::Started {
-                position: Point::new(0.0, 120.0)
-            },
+            DragHandleMessage::started(Point::new(0.0, 120.0)),
             PanelResizeEdge::Top,
             148.0,
             72.0,
@@ -172,9 +168,7 @@ fn panel_resize_state_updates_durable_size_and_drag_lifecycle() {
 
     assert_eq!(
         state.resize(
-            DragHandleMessage::Started {
-                position: Point::new(100.0, 0.0)
-            },
+            DragHandleMessage::started(Point::new(100.0, 0.0)),
             constraints,
         ),
         None
@@ -297,9 +291,7 @@ fn panel_resize_state_restores_last_dragged_collapsible_size() {
         CollapsiblePanelResizeConstraints::new(PanelResizeEdge::Top, 72.0, 240.0, 48.0);
 
     state.resize_collapsible(
-        DragHandleMessage::Started {
-            position: Point::new(0.0, 120.0),
-        },
+        DragHandleMessage::started(Point::new(0.0, 120.0)),
         constraints,
     );
     state.resize_collapsible(

@@ -29,7 +29,7 @@ pub(super) fn handle_drag_handle_input(
         } if bounds.contains(position) => {
             handle.common.state.pressed = true;
             handle.common.state.active = true;
-            Some(DragHandleMessage::Started { position })
+            Some(DragHandleMessage::started(position))
         }
         WidgetInput::PointerDoubleClick {
             position,
@@ -105,9 +105,7 @@ mod tests {
                 bounds,
                 WidgetInput::primary_press(Point::new(8.0, 6.0)),
             ),
-            Some(DragHandleMessage::Started {
-                position: Point::new(8.0, 6.0)
-            })
+            Some(DragHandleMessage::started(Point::new(8.0, 6.0)))
         );
         assert_eq!(
             handle_drag_handle_input(&mut handle, bounds, WidgetInput::FocusChanged(false)),

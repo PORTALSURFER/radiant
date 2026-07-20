@@ -73,9 +73,7 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
                 modifiers: Default::default(),
             },
         ),
-        radiant::widgets::DragHandleMessage::Started {
-            position: Point::new(10.0, 10.0),
-        },
+        radiant::widgets::DragHandleMessage::started(Point::new(10.0, 10.0)),
     );
     assert_typed_widget_output(
         Widget::handle_input(

@@ -5,7 +5,9 @@ use crate::gui::types::Point;
 pub enum DragHandleMessage {
     /// Primary pointer drag started.
     Started {
-        /// Pointer position in the widget host's logical coordinate space.
+        /// Pointer position where the primary press began.
+        origin: Point,
+        /// Current pointer position when the drag crossed its start threshold.
         position: Point,
     },
     /// Captured pointer moved while the drag is active.
@@ -61,7 +63,15 @@ impl DragHandlePhase {
 impl DragHandleMessage {
     /// Build a drag-start message at `position`.
     pub const fn started(position: Point) -> Self {
-        Self::Started { position }
+        Self::Started {
+            origin: position,
+            position,
+        }
+    }
+
+    /// Build a threshold-crossing drag start from `origin` to `position`.
+    pub const fn started_from(origin: Point, position: Point) -> Self {
+        Self::Started { origin, position }
     }
 
     /// Build an active drag-motion message at `position`.
@@ -98,7 +108,7 @@ impl DragHandleMessage {
     /// Return this drag message's pointer position.
     pub fn position(self) -> Point {
         match self {
-            Self::Started { position }
+            Self::Started { position, .. }
             | Self::Moved { position }
             | Self::Ended { position }
             | Self::DoubleActivate { position }
@@ -109,7 +119,15 @@ impl DragHandleMessage {
     /// Return the pointer position when this message starts an interaction.
     pub fn started_position(self) -> Option<Point> {
         match self {
-            Self::Started { position } => Some(position),
+            Self::Started { position, .. } => Some(position),
+            _ => None,
+        }
+    }
+
+    /// Return the primary-press origin when this message starts an interaction.
+    pub fn started_origin(self) -> Option<Point> {
+        match self {
+            Self::Started { origin, .. } => Some(origin),
             _ => None,
         }
     }
@@ -210,6 +228,7 @@ mod tests {
     #[test]
     fn drag_handle_message_constructors_preserve_variant_semantics() {
         let start = Point::new(1.0, 2.0);
+        let threshold = Point::new(2.0, 3.0);
         let move_to = Point::new(3.0, 4.0);
         let end = Point::new(5.0, 6.0);
         let double = Point::new(7.0, 8.0);
@@ -217,7 +236,17 @@ mod tests {
 
         assert_eq!(
             DragHandleMessage::started(start),
-            DragHandleMessage::Started { position: start }
+            DragHandleMessage::Started {
+                origin: start,
+                position: start,
+            }
+        );
+        assert_eq!(
+            DragHandleMessage::started_from(start, threshold),
+            DragHandleMessage::Started {
+                origin: start,
+                position: threshold,
+            }
         );
         assert_eq!(
             DragHandleMessage::moved(move_to),
@@ -236,6 +265,14 @@ mod tests {
             DragHandleMessage::Cancelled { position: cancel }
         );
         assert!(DragHandleMessage::started(start).is_started());
+        assert_eq!(
+            DragHandleMessage::started_from(start, threshold).started_origin(),
+            Some(start)
+        );
+        assert_eq!(
+            DragHandleMessage::started_from(start, threshold).started_position(),
+            Some(threshold)
+        );
         assert!(DragHandleMessage::moved(move_to).is_moved());
         assert!(DragHandleMessage::ended(end).is_ended());
         assert!(DragHandleMessage::double_activate(double).is_double_activate());

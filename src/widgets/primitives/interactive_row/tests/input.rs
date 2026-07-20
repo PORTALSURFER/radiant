@@ -195,6 +195,32 @@ fn small_pressed_motion_does_not_start_row_drag() {
 }
 
 #[test]
+fn coalesced_row_drag_preserves_press_origin_and_current_pointer() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let mut row =
+        InteractiveRowWidget::new(13, WidgetSizing::fixed(Vector2::new(120.0, 22.0))).with_drag();
+    let origin = Point::new(8.0, 6.0);
+    let destination = Point::new(90.0, 16.0);
+
+    assert_eq!(
+        row.handle_input(bounds, WidgetInput::primary_press(origin)),
+        None
+    );
+    assert_eq!(
+        row.handle_input(bounds, WidgetInput::pointer_move(destination)),
+        Some(InteractiveRowMessage::Drag(
+            DragHandleMessage::started_from(origin, destination)
+        ))
+    );
+    assert_eq!(
+        row.handle_input(bounds, WidgetInput::primary_release(destination)),
+        Some(InteractiveRowMessage::Drag(DragHandleMessage::ended(
+            destination
+        )))
+    );
+}
+
+#[test]
 fn focus_loss_preserves_started_row_drag() {
     let bounds = Rect::from_size(120.0, 22.0);
     let mut row =
@@ -210,7 +236,8 @@ fn focus_loss_preserves_started_row_drag() {
     assert_eq!(
         row.handle_input(bounds, WidgetInput::PointerMove { position: moved }),
         Some(InteractiveRowMessage::Drag(DragHandleMessage::Started {
-            position: moved
+            origin: start,
+            position: moved,
         }))
     );
     assert_eq!(

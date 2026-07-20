@@ -135,9 +135,7 @@ fn update_details_column_resize_drag_manages_drag_lifecycle() {
         update_details_column_resize_drag(
             &mut drag,
             "name",
-            DragHandleMessage::Started {
-                position: crate::gui::types::Point::new(100.0, 0.0)
-            },
+            DragHandleMessage::started(crate::gui::types::Point::new(100.0, 0.0)),
             Some(240.0),
             48.0,
             420.0,
@@ -190,9 +188,7 @@ fn update_details_column_resize_drag_ignores_unknown_starts_and_orphaned_motion(
         update_details_column_resize_drag(
             &mut drag,
             "missing",
-            DragHandleMessage::Started {
-                position: crate::gui::types::Point::new(100.0, 0.0)
-            },
+            DragHandleMessage::started(crate::gui::types::Point::new(100.0, 0.0)),
             None,
             48.0,
             420.0,
@@ -238,9 +234,7 @@ fn update_details_column_reorder_drag_reorders_and_clears_on_end() {
         &mut drag,
         &mut columns,
         "rating",
-        DragHandleMessage::Started {
-            position: crate::gui::types::Point::new(300.0, 0.0)
-        },
+        DragHandleMessage::started(crate::gui::types::Point::new(300.0, 0.0)),
         &placements(),
         10.0,
         String::as_str,
@@ -288,6 +282,52 @@ fn update_details_column_reorder_drag_reorders_and_clears_on_end() {
 }
 
 #[test]
+fn update_details_column_reorder_drag_handles_one_coalesced_move() {
+    let mut drag = None;
+    let mut columns = vec![
+        String::from("name"),
+        String::from("rating"),
+        String::from("extension"),
+        String::from("size"),
+    ];
+    let placements = vec![
+        DetailsColumnPlacement::new("name", 240.0),
+        DetailsColumnPlacement::new("rating", 68.0),
+        DetailsColumnPlacement::new("extension", 54.0),
+        DetailsColumnPlacement::new("size", 78.0),
+    ];
+    let origin = crate::gui::types::Point::new(300.0, 0.0);
+    let destination = crate::gui::types::Point::new(520.0, 0.0);
+
+    assert!(!update_details_column_reorder_drag(
+        &mut drag,
+        &mut columns,
+        "rating",
+        DragHandleMessage::started_from(origin, destination),
+        &placements,
+        10.0,
+        String::as_str,
+    ));
+    assert_eq!(
+        drag.as_ref().map(|drag| drag.pointer),
+        Some(destination),
+        "the first threshold-crossing event must place feedback at the current pointer"
+    );
+
+    assert!(update_details_column_reorder_drag(
+        &mut drag,
+        &mut columns,
+        "ignored",
+        DragHandleMessage::ended(destination),
+        &placements,
+        10.0,
+        String::as_str,
+    ));
+    assert_eq!(columns, ["name", "extension", "size", "rating"]);
+    assert_eq!(drag, None);
+}
+
+#[test]
 fn update_details_column_reorder_drag_cancel_clears_without_reorder() {
     let mut drag = None;
     let mut columns = vec![
@@ -305,9 +345,7 @@ fn update_details_column_reorder_drag_cancel_clears_without_reorder() {
         &mut drag,
         &mut columns,
         "rating",
-        DragHandleMessage::Started {
-            position: crate::gui::types::Point::new(300.0, 0.0)
-        },
+        DragHandleMessage::started(crate::gui::types::Point::new(300.0, 0.0)),
         &placements,
         10.0,
         String::as_str,
@@ -360,9 +398,7 @@ fn update_visible_details_column_reorder_drag_preserves_hidden_columns() {
         &mut drag,
         &mut columns,
         "rating",
-        DragHandleMessage::Started {
-            position: crate::gui::types::Point::new(300.0, 0.0)
-        },
+        DragHandleMessage::started(crate::gui::types::Point::new(300.0, 0.0)),
         &placements,
         10.0,
         String::as_str,

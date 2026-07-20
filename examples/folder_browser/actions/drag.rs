@@ -5,7 +5,7 @@ use super::super::*;
 impl BrowserState {
     pub(crate) fn handle_folder_drag(&mut self, source_id: String, message: ui::DragHandleMessage) {
         match message {
-            ui::DragHandleMessage::Started { position } => {
+            ui::DragHandleMessage::Started { position, .. } => {
                 self.tree.folder_drag = Some(FolderDrag {
                     source_id,
                     target_id: self.folder_drop_target_for_y(position.y),

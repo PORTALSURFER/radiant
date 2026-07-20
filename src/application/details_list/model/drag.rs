@@ -63,11 +63,11 @@ pub fn update_details_column_resize_drag(
     max_width: f32,
 ) -> Option<DetailsColumnWidthUpdate> {
     match message {
-        DragHandleMessage::Started { position } => {
+        DragHandleMessage::Started { origin, .. } => {
             let current_width = current_width?;
             *active_drag = Some(DetailsColumnResizeDrag::new(
                 column_id,
-                position.x,
+                origin.x,
                 current_width,
             ));
             None
@@ -287,10 +287,10 @@ pub fn update_details_column_reorder_drag<T>(
     id: impl Fn(&T) -> &str,
 ) -> bool {
     match message {
-        DragHandleMessage::Started { position } => {
+        DragHandleMessage::Started { origin, position } => {
             let column_id = column_id.to_string();
             let Some(content_left) =
-                details_column_drag_content_left(placements, &column_id, position.x, column_gap)
+                details_column_drag_content_left(placements, &column_id, origin.x, column_gap)
             else {
                 return false;
             };
@@ -346,10 +346,10 @@ pub fn update_visible_details_column_reorder_drag<T>(
     is_visible: impl Fn(&T) -> bool,
 ) -> bool {
     match message {
-        DragHandleMessage::Started { position } => {
+        DragHandleMessage::Started { origin, position } => {
             let column_id = column_id.to_string();
             let Some(content_left) =
-                details_column_drag_content_left(placements, &column_id, position.x, column_gap)
+                details_column_drag_content_left(placements, &column_id, origin.x, column_gap)
             else {
                 return false;
             };

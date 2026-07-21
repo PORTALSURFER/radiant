@@ -7,8 +7,9 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        FocusBehavior, InteractiveRowWidget, PointerButton, PointerModifiers, TextInputWidget,
-        Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
+        FocusBehavior, InteractiveRowWidget, PointerButton, PointerModifiers, PointerShieldMessage,
+        PointerShieldWidget, TextInputWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput,
+        WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -67,6 +68,32 @@ impl RuntimeBridge<usize> for FocusLossOutputBridge {
 #[derive(Default)]
 struct PointerSnapshotBridge {
     snapshots: Vec<Option<Point>>,
+}
+
+struct PointerPolicyStackBridge;
+
+impl RuntimeBridge<u64> for PointerPolicyStackBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<u64>> {
+        Arc::new(UiSurface::new(SurfaceNode::stack(
+            1,
+            vec![
+                SurfaceChild::fill(SurfaceNode::widget(
+                    PointerShieldWidget::new(10, WidgetSizing::fixed(Vector2::new(1.0, 1.0))),
+                    WidgetMessageMapper::typed(|_: PointerShieldMessage| 10),
+                )),
+                SurfaceChild::fill(SurfaceNode::widget(
+                    PointerShieldWidget::new(20, WidgetSizing::fixed(Vector2::new(1.0, 1.0)))
+                        .with_pointer_press(false)
+                        .with_pointer_release(false)
+                        .with_pointer_drop(false)
+                        .with_wheel(false),
+                    WidgetMessageMapper::typed(|_: PointerShieldMessage| 20),
+                )),
+            ],
+        )))
+    }
+
+    fn reduce_message(&mut self, _message: u64) {}
 }
 
 impl RuntimeBridge<()> for PointerSnapshotBridge {
@@ -182,6 +209,26 @@ fn pointer_events_feed_latest_position_to_update_snapshot() {
             Some(Point::new(11.0, 12.0)),
         ]
     );
+}
+
+#[test]
+fn pointer_press_skips_stacked_widgets_that_reject_press_input() {
+    let mut runtime = SurfaceRuntime::new(PointerPolicyStackBridge, Vector2::new(200.0, 80.0));
+    let point = Point::new(40.0, 30.0);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(point)),
+        Some(10)
+    );
+    assert_eq!(runtime.pointer_capture(), Some(10));
+
+    let mut double_click_runtime =
+        SurfaceRuntime::new(PointerPolicyStackBridge, Vector2::new(200.0, 80.0));
+    assert_eq!(
+        double_click_runtime.dispatch_event(Event::primary_double_click(point)),
+        Some(10)
+    );
+    assert_eq!(double_click_runtime.pointer_capture(), Some(10));
 }
 
 #[test]

@@ -21,7 +21,12 @@ where
             self.clear_focus();
             return None;
         }
-        let Some(widget_id) = self.widget_at(position) else {
+        let input = WidgetInput::PointerPress {
+            position,
+            button,
+            modifiers,
+        };
+        let Some(widget_id) = self.widget_at_for_input(position, &input) else {
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
             self.interaction.pointer.scroll_drag_capture = None;
@@ -29,14 +34,7 @@ where
             return None;
         };
         self.interaction.pointer.capture = Some(widget_id);
-        self.dispatch_input_at(
-            position,
-            WidgetInput::PointerPress {
-                position,
-                button,
-                modifiers,
-            },
-        )
+        self.dispatch_input_at(position, input)
     }
 
     pub(in crate::runtime::controller::events) fn dispatch_pointer_double_click_event(
@@ -45,21 +43,19 @@ where
         button: PointerButton,
         modifiers: PointerModifiers,
     ) -> Option<WidgetId> {
-        let Some(widget_id) = self.widget_at(position) else {
+        let input = WidgetInput::PointerDoubleClick {
+            position,
+            button,
+            modifiers,
+        };
+        let Some(widget_id) = self.widget_at_for_input(position, &input) else {
             self.interaction.pointer.capture = None;
             self.interaction.pointer.capture_state = None;
             self.clear_focus();
             return None;
         };
         self.interaction.pointer.capture = Some(widget_id);
-        let routed = self.dispatch_input_at_output(
-            position,
-            WidgetInput::PointerDoubleClick {
-                position,
-                button,
-                modifiers,
-            },
-        );
+        let routed = self.dispatch_input_at_output(position, input);
         match routed {
             Some((widget_id, true)) => Some(widget_id),
             _ => self.dispatch_input_at(

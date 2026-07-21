@@ -60,7 +60,7 @@ mod surface;
 mod surface_size;
 mod window;
 
-use activation::ActivationRevealController;
+use activation::{ActivationRevealController, ApplicationReopenRegistration};
 use automation_export::NativeAutomationTargetExporter;
 use auxiliary::{AuxiliaryNativeWindow, AuxiliaryWindowEventResult};
 use composited_base::CompositedBaseFrame;
@@ -176,7 +176,10 @@ where
     let viewport = initial_viewport(&options);
     let native_file_open_events =
         native_file_open::install_native_file_open_handler(event_loop.create_proxy());
+    let application_reopen_proxy =
+        activation::needs_application_reopen_handler(&options).then(|| event_loop.create_proxy());
     let mut runner = GenericNativeVelloRunner::new(options, bridge, viewport);
+    runner.application_reopen_proxy = application_reopen_proxy;
     let proxy = event_loop.create_proxy();
     let repaint_signal: Arc<dyn RepaintSignal> = runner.runtime_wakeup.install_proxy(proxy);
     runner

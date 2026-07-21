@@ -222,6 +222,48 @@ fn foreground_switch_during_startup_defers_activation_until_user_returns() {
         controller.surface_ready(false, Some(73), std::time::Instant::now()),
         activation::SurfaceReadyActivationAction::AwaitExternalActivation
     );
+    assert!(!controller.observe_application_active(true));
+    assert!(controller.observe_user_reopen(true));
+}
+
+#[test]
+fn late_activation_after_foreground_switch_stays_fenced() {
+    let now = std::time::Instant::now();
+    let mut controller = activation::ActivationRevealController::with_launch_foreground_process(
+        activation::StartupActivationPolicy::DelayedNormalWindow,
+        Some(41),
+    );
+
+    assert_eq!(
+        controller.surface_ready(false, Some(41), now),
+        activation::SurfaceReadyActivationAction::RequestActivation
+    );
+    assert_eq!(
+        controller.activation_poll(now + std::time::Duration::from_millis(100), Some(73)),
+        activation::ActivationPoll::ForegroundChanged
+    );
+    assert!(!controller.observe_application_active(true));
+    assert!(controller.observe_user_reopen(true));
+}
+
+#[test]
+fn timed_out_activation_requires_explicit_reopen_intent() {
+    let now = std::time::Instant::now();
+    let mut controller = activation::ActivationRevealController::with_launch_foreground_process(
+        activation::StartupActivationPolicy::DelayedNormalWindow,
+        Some(41),
+    );
+
+    assert_eq!(
+        controller.surface_ready(false, Some(41), now),
+        activation::SurfaceReadyActivationAction::RequestActivation
+    );
+    assert_eq!(
+        controller.activation_poll(now + std::time::Duration::from_secs(2), Some(41)),
+        activation::ActivationPoll::TimedOut
+    );
+    assert!(!controller.observe_application_active(true));
+    assert!(!controller.observe_user_reopen(false));
     assert!(controller.observe_application_active(true));
 }
 

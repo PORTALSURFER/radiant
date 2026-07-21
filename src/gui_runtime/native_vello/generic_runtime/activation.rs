@@ -9,6 +9,15 @@ use std::time::{Duration, Instant};
 use tracing::{info, warn};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopBuilder};
 
+mod platform;
+mod reopen;
+
+pub(super) use reopen::ApplicationReopenRegistration;
+
+pub(super) fn needs_application_reopen_handler(options: &NativeRunOptions) -> bool {
+    StartupActivationPolicy::for_options(options) == StartupActivationPolicy::DelayedNormalWindow
+}
+
 const ACTIVATION_CONFIRMATION_POLL_INTERVAL: Duration = Duration::from_millis(16);
 const ACTIVATION_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(1);
 
@@ -48,7 +57,8 @@ pub(super) enum SurfaceReadyActivationAction {
 enum PendingReveal {
     None,
     Requested { poll_until: Instant },
-    AwaitingExternalActivation,
+    AwaitingUserIntent,
+    UserRequested,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -115,7 +125,7 @@ impl ActivationRevealController {
             current_foreground_process,
             self.application_process,
         ) {
-            self.pending = PendingReveal::AwaitingExternalActivation;
+            self.pending = PendingReveal::AwaitingUserIntent;
             return SurfaceReadyActivationAction::AwaitExternalActivation;
         }
         self.pending = PendingReveal::Requested {
@@ -125,11 +135,29 @@ impl ActivationRevealController {
     }
 
     pub(super) fn observe_application_active(&mut self, application_active: bool) -> bool {
-        if !application_active || self.pending == PendingReveal::None {
+        if !application_active
+            || !matches!(
+                self.pending,
+                PendingReveal::Requested { .. } | PendingReveal::UserRequested
+            )
+        {
             return false;
         }
         self.pending = PendingReveal::None;
         true
+    }
+
+    pub(super) fn observe_user_reopen(&mut self, application_active: bool) -> bool {
+        if self.pending != PendingReveal::AwaitingUserIntent {
+            return false;
+        }
+        if application_active {
+            self.pending = PendingReveal::None;
+            true
+        } else {
+            self.pending = PendingReveal::UserRequested;
+            false
+        }
     }
 
     pub(super) fn activation_poll(
@@ -145,11 +173,11 @@ impl ActivationRevealController {
             current_foreground_process,
             self.application_process,
         ) {
-            self.pending = PendingReveal::AwaitingExternalActivation;
+            self.pending = PendingReveal::AwaitingUserIntent;
             return ActivationPoll::ForegroundChanged;
         }
         if now >= poll_until {
-            self.pending = PendingReveal::AwaitingExternalActivation;
+            self.pending = PendingReveal::AwaitingUserIntent;
             return ActivationPoll::TimedOut;
         }
         ActivationPoll::WaitUntil((now + ACTIVATION_CONFIRMATION_POLL_INTERVAL).min(poll_until))
@@ -191,6 +219,16 @@ impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    pub(super) fn install_application_reopen_handler_if_needed(&mut self) {
+        if self.application_reopen_events.is_some() {
+            return;
+        }
+        let Some(proxy) = self.application_reopen_proxy.take() else {
+            return;
+        };
+        self.application_reopen_events = Some(reopen::install_application_reopen_handler(proxy));
+    }
+
     pub(super) fn reveal_prepared_window_at_activation_boundary(&mut self) {
         let now = Instant::now();
         let application_active = platform::application_is_active();
@@ -242,6 +280,24 @@ where
         }
     }
 
+    pub(super) fn handle_application_reopen_intent(&mut self) {
+        let application_active = platform::application_is_active();
+        if self
+            .activation_reveal
+            .observe_user_reopen(application_active)
+        {
+            self.record_application_active("user-reopen");
+            self.reveal_prepared_window("user-reopen");
+        } else {
+            info!(
+                target: "radiant::native::activation",
+                event = "radiant.window.activation.user-intent",
+                application_active,
+                "Radiant observed an explicit application reopen intent"
+            );
+        }
+    }
+
     pub(super) fn schedule_activation_confirmation_poll(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -286,6 +342,8 @@ where
         let Some(window) = self.window.window.as_ref() else {
             return;
         };
+        self.application_reopen_events.take();
+        self.application_reopen_proxy.take();
         window.set_visible(true);
         self.timing.startup_timing.mark_window_revealed();
         info!(
@@ -298,74 +356,5 @@ where
             reason: FrameWorkReason::RuntimeSurfaceRepaint,
             mode: SceneRebuildMode::Immediate,
         });
-    }
-}
-
-#[cfg(target_os = "macos")]
-mod platform {
-    use super::ApplicationActivationMethod;
-    use objc2::{runtime::NSObjectProtocol, sel};
-    use objc2_app_kit::{NSApplication, NSWorkspace};
-    use objc2_foundation::MainThreadMarker;
-    use winit::{event_loop::EventLoopBuilder, platform::macos::EventLoopBuilderExtMacOS};
-
-    pub(super) fn configure_event_loop_activation<T>(
-        builder: &mut EventLoopBuilder<T>,
-        activate_ignoring_other_apps: bool,
-    ) {
-        builder.with_activate_ignoring_other_apps(activate_ignoring_other_apps);
-    }
-
-    pub(super) fn frontmost_process_id() -> Option<i32> {
-        let _main_thread = MainThreadMarker::new()?;
-        let workspace = unsafe { NSWorkspace::sharedWorkspace() };
-        let application = unsafe { workspace.frontmostApplication()? };
-        Some(unsafe { application.processIdentifier() })
-    }
-
-    pub(super) fn application_is_active() -> bool {
-        application().is_some_and(|application| unsafe { application.isActive() })
-    }
-
-    pub(super) fn request_application_activation() -> ApplicationActivationMethod {
-        let Some(application) = application() else {
-            return ApplicationActivationMethod::Unavailable;
-        };
-        if application.respondsToSelector(sel!(activate)) {
-            unsafe { application.activate() };
-            ApplicationActivationMethod::Modern
-        } else {
-            #[allow(deprecated)]
-            application.activateIgnoringOtherApps(true);
-            ApplicationActivationMethod::Compatibility
-        }
-    }
-
-    fn application() -> Option<objc2::rc::Retained<NSApplication>> {
-        MainThreadMarker::new().map(NSApplication::sharedApplication)
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-mod platform {
-    use super::ApplicationActivationMethod;
-    use winit::event_loop::EventLoopBuilder;
-
-    pub(super) fn configure_event_loop_activation<T>(
-        _builder: &mut EventLoopBuilder<T>,
-        _activate_ignoring_other_apps: bool,
-    ) {
-    }
-
-    pub(super) const fn frontmost_process_id() -> Option<i32> {
-        None
-    }
-
-    pub(super) const fn application_is_active() -> bool {
-        true
-    }
-
-    pub(super) const fn request_application_activation() -> ApplicationActivationMethod {
-        ApplicationActivationMethod::Unavailable
     }
 }

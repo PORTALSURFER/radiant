@@ -1,8 +1,8 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
 use super::{
-    ActivationRevealController, AuxiliaryNativeWindow, FrameWork, FrameWorkReason,
-    GenericNativeRuntimeCore, GenericRouteOutcome, NativeAutomationTargetExporter,
+    ActivationRevealController, ApplicationReopenRegistration, AuxiliaryNativeWindow, FrameWork,
+    FrameWorkReason, GenericNativeRuntimeCore, GenericRouteOutcome, NativeAutomationTargetExporter,
     NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
     NativeVelloFrameState, RuntimeWakeup, SceneRebuildMode, SurfaceSceneEncodeContext,
     TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
@@ -16,7 +16,7 @@ use crate::{
 };
 use std::time::{Duration, Instant};
 use tracing::{info, warn};
-use winit::event_loop::ActiveEventLoop;
+use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
 
 pub(super) struct GenericNativeVelloRunner<Bridge, Message>
 where
@@ -26,6 +26,8 @@ where
     pub(super) core: GenericNativeRuntimeCore<Bridge, Message>,
     pub(super) runtime_wakeup: RuntimeWakeup,
     pub(super) activation_reveal: ActivationRevealController,
+    pub(super) application_reopen_proxy: Option<EventLoopProxy<super::RuntimeUserEvent>>,
+    pub(super) application_reopen_events: Option<ApplicationReopenRegistration>,
     pub(super) window: NativeRunnerWindowState,
     pub(super) frame: NativeVelloFrameState,
     pub(super) input: NativeRunnerInputState,
@@ -66,6 +68,8 @@ where
             core,
             runtime_wakeup: RuntimeWakeup::default(),
             activation_reveal,
+            application_reopen_proxy: None,
+            application_reopen_events: None,
             window: NativeRunnerWindowState::default(),
             frame: NativeVelloFrameState::new(text_renderer, retained_surface_cache),
             input: NativeRunnerInputState::default(),

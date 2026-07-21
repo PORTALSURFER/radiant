@@ -47,6 +47,15 @@ where
             })
     }
 
+    pub(crate) fn host_native_focus_regained(&mut self) -> Command<Message> {
+        self.host_capabilities
+            .input
+            .as_ref()
+            .map_or_else(Command::none, |capability| {
+                (capability.native_focus_regained)(&mut self.bridge)
+            })
+    }
+
     pub(crate) fn host_resolve_key_press(
         &mut self,
         pending_chord: Option<KeyPress>,

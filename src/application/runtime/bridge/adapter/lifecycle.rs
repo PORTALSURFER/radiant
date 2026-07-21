@@ -40,4 +40,13 @@ where
         native_file_open(&mut self.state, open, &mut context);
         context.into_command()
     }
+
+    pub(super) fn native_focus_regained_command(&mut self) -> Command<Message> {
+        let Some(native_focus_regained) = self.lifecycle.native_focus_regained.as_mut() else {
+            return Command::none();
+        };
+        let mut context = UiUpdateContext::default();
+        native_focus_regained(&mut self.state, &mut context);
+        context.into_command()
+    }
 }

@@ -1,9 +1,10 @@
 use super::subscription::spawn_subscription;
 use super::{
     AppAnimation, AppAuxiliaryWindows, AppCloseRequested, AppFrameClockActivity, AppFrameMessage,
-    AppFrameRepaintPolicy, AppNativeFileDrop, AppNativeFileOpen, AppNativeFrameDiagnostics,
-    AppRuntime, AppScroll, AppShortcuts, AppShutdown, AppStartup, AppSubscriptions,
-    RetainedPainter, TransientOverlayActivity, TransientOverlayPainter, UiUpdateContext,
+    AppFrameRepaintPolicy, AppNativeFileDrop, AppNativeFileOpen, AppNativeFocusRegained,
+    AppNativeFrameDiagnostics, AppRuntime, AppScroll, AppShortcuts, AppShutdown, AppStartup,
+    AppSubscriptions, RetainedPainter, TransientOverlayActivity, TransientOverlayPainter,
+    UiUpdateContext,
 };
 use crate::runtime::RuntimeUpdateSnapshot;
 use crate::{
@@ -92,6 +93,9 @@ pub(in crate::application) struct AppBridgeLifecycle<State, Message> {
     pub(in crate::application) native_file_drop: Option<AppNativeFileDrop<State, Message>>,
     /// Native file-open observer.
     pub(in crate::application) native_file_open: Option<AppNativeFileOpen<State, Message>>,
+    /// Native main-window focus-regained observer.
+    pub(in crate::application) native_focus_regained:
+        Option<AppNativeFocusRegained<State, Message>>,
     /// Native frame diagnostics observer.
     pub(in crate::application) native_frame_diagnostics: Option<AppNativeFrameDiagnostics<State>>,
     /// Startup hook.
@@ -132,6 +136,7 @@ impl<State, Message> Default for AppBridgeLifecycle<State, Message> {
             scroll: None,
             native_file_drop: None,
             native_file_open: None,
+            native_focus_regained: None,
             native_frame_diagnostics: None,
             startup: None,
             shutdown: None,

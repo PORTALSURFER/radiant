@@ -26,6 +26,10 @@ where
         self.native_file_open_command(open)
     }
 
+    fn native_focus_regained(&mut self) -> Command<Message> {
+        self.native_focus_regained_command()
+    }
+
     fn resolve_key_press(
         &mut self,
         pending_chord: Option<KeyPress>,

@@ -56,6 +56,62 @@ impl RuntimeInputHost<()> for PointerSnapshotShortcutBridge {
     }
 }
 
+#[derive(Default)]
+struct FocusRegainedBridge {
+    focus_regained_calls: usize,
+    reduced_messages: usize,
+}
+
+impl RuntimeBridge<()> for FocusRegainedBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        Arc::new(UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy::default(),
+            Vec::new(),
+        )))
+    }
+
+    fn reduce_message(&mut self, (): ()) {
+        self.reduced_messages += 1;
+    }
+
+    fn host_capabilities(&self) -> RuntimeHostCapabilities<Self, ()> {
+        RuntimeHostCapabilities::new().with_input()
+    }
+}
+
+impl RuntimeInputHost<()> for FocusRegainedBridge {
+    fn native_focus_regained(&mut self) -> Command<()> {
+        self.focus_regained_calls += 1;
+        Command::message(())
+    }
+}
+
+#[test]
+fn native_focus_regained_notifies_host_and_routes_its_command() {
+    let mut harness =
+        NativePointerHarness::new(FocusRegainedBridge::default(), Vector2::new(320.0, 40.0));
+
+    harness.focus_lost();
+    harness.focus_regained();
+
+    let bridge = harness.runner.core.runtime.bridge();
+    assert_eq!(bridge.focus_regained_calls, 1);
+    assert_eq!(bridge.reduced_messages, 1);
+}
+
+#[test]
+fn initial_native_focus_does_not_report_focus_regained() {
+    let mut harness =
+        NativePointerHarness::new(FocusRegainedBridge::default(), Vector2::new(320.0, 40.0));
+
+    harness.focus_regained();
+
+    let bridge = harness.runner.core.runtime.bridge();
+    assert_eq!(bridge.focus_regained_calls, 0);
+    assert_eq!(bridge.reduced_messages, 0);
+}
+
 #[test]
 fn native_pointer_harness_routes_cursor_and_mouse_to_runner_state() {
     let mut harness = NativePointerHarness::new(demo_bridge(), Vector2::new(320.0, 40.0));

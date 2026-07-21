@@ -97,17 +97,24 @@ where
     }
 
     pub(super) fn handle_focus_lost_before_external_drag(&mut self) -> GenericRouteOutcome {
+        self.window.native_focus_lost = true;
         let mut outcome = self.clear_native_pointer_presence();
         outcome.merge(self.clear_native_modifier_state());
         outcome.merge(self.core.route_focus_lost());
         outcome
     }
 
-    pub(super) fn handle_focus_regained_after_native_modal_loop(&mut self) {
+    pub(super) fn handle_focus_regained_after_native_modal_loop(&mut self) -> GenericRouteOutcome {
         self.timing.redraw_requested = false;
         self.request_redraw_for_frame_work(FrameWork::PaintOnly {
             reason: FrameWorkReason::NativeFocusRegained,
         });
+        if !std::mem::take(&mut self.window.native_focus_lost) {
+            return GenericRouteOutcome::default();
+        }
+        let command = self.core.runtime.host_native_focus_regained();
+        let outcome = self.core.runtime.execute_command(command);
+        self.core.route_command_outcome(outcome)
     }
 
     fn clear_native_pointer_presence(&mut self) -> GenericRouteOutcome {

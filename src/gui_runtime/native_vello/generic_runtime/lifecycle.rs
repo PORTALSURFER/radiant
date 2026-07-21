@@ -71,7 +71,10 @@ where
                     self.handle_route_outcome(event_loop, outcome);
                 }
             }
-            WindowEvent::Focused(true) => self.handle_focus_regained_after_native_modal_loop(),
+            WindowEvent::Focused(true) => {
+                let routed = self.handle_focus_regained_after_native_modal_loop();
+                self.handle_route_outcome(event_loop, routed);
+            }
             WindowEvent::CursorEntered { .. } => self.handle_cursor_entered(),
             WindowEvent::CursorMoved { position, .. } => {
                 self.handle_cursor_moved(position);

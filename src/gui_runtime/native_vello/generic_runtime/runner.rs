@@ -1,12 +1,13 @@
 //! Runner state and redraw coordination for the generic native Vello runtime.
 
 use super::{
-    AuxiliaryNativeWindow, FrameWork, FrameWorkReason, GenericNativeRuntimeCore,
-    GenericRouteOutcome, NativeAutomationTargetExporter, NativeRunnerInputState,
-    NativeRunnerTimingState, NativeRunnerWindowState, NativeVelloFrameState, RuntimeWakeup,
-    SceneRebuildMode, SurfaceSceneEncodeContext, TimedFrameCadence, animation_frame_interval,
-    animation_frame_interval_for_normalized_fps, encode_surface_paint_plan_to_scene,
-    slow_render_profile_enabled, timed_frame_cadence, timed_frame_target_fps,
+    ActivationRevealController, AuxiliaryNativeWindow, FrameWork, FrameWorkReason,
+    GenericNativeRuntimeCore, GenericRouteOutcome, NativeAutomationTargetExporter,
+    NativeRunnerInputState, NativeRunnerTimingState, NativeRunnerWindowState,
+    NativeVelloFrameState, RuntimeWakeup, SceneRebuildMode, SurfaceSceneEncodeContext,
+    TimedFrameCadence, animation_frame_interval, animation_frame_interval_for_normalized_fps,
+    encode_surface_paint_plan_to_scene, slow_render_profile_enabled, timed_frame_cadence,
+    timed_frame_target_fps,
 };
 use crate::{
     gui::types::Vector2,
@@ -24,6 +25,7 @@ where
     pub(super) options: NativeRunOptions,
     pub(super) core: GenericNativeRuntimeCore<Bridge, Message>,
     pub(super) runtime_wakeup: RuntimeWakeup,
+    pub(super) activation_reveal: ActivationRevealController,
     pub(super) window: NativeRunnerWindowState,
     pub(super) frame: NativeVelloFrameState,
     pub(super) input: NativeRunnerInputState,
@@ -47,6 +49,7 @@ where
     const REDRAW_REISSUE_LOG_AFTER: Duration = Duration::from_millis(32);
 
     pub(super) fn new(options: NativeRunOptions, bridge: Bridge, viewport: Vector2) -> Self {
+        let activation_reveal = ActivationRevealController::new(&options);
         let text_renderer = NativeTextRenderer::with_options(&options.text);
         let debug_layout = options.frame.debug_layout;
         let devtools_overlay = options.frame.devtools;
@@ -62,6 +65,7 @@ where
             options,
             core,
             runtime_wakeup: RuntimeWakeup::default(),
+            activation_reveal,
             window: NativeRunnerWindowState::default(),
             frame: NativeVelloFrameState::new(text_renderer, retained_surface_cache),
             input: NativeRunnerInputState::default(),

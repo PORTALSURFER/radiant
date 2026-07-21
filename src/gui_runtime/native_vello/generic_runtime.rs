@@ -19,6 +19,7 @@ use std::time::Duration;
 #[cfg(test)]
 use vello::Scene;
 
+mod activation;
 mod automation_export;
 mod auxiliary;
 mod composited_base;
@@ -59,6 +60,7 @@ mod surface;
 mod surface_size;
 mod window;
 
+use activation::ActivationRevealController;
 use automation_export::NativeAutomationTargetExporter;
 use auxiliary::{AuxiliaryNativeWindow, AuxiliaryWindowEventResult};
 use composited_base::CompositedBaseFrame;
@@ -161,6 +163,7 @@ where
         };
     }
     let mut event_loop_builder = EventLoop::<RuntimeUserEvent>::with_user_event();
+    activation::configure_event_loop_activation(&mut event_loop_builder, &options);
     let event_loop = match event_loop_builder.build() {
         Ok(event_loop) => event_loop,
         Err(err) => {

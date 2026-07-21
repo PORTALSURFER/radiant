@@ -135,6 +135,7 @@ where
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
+        self.observe_pending_window_activation();
         let animation_activity = self.core.animation_activity();
         let now = Instant::now();
         let needs_text_caret_animation = self.core.has_focused_text_input();
@@ -160,6 +161,7 @@ where
                     event_loop.set_control_flow(ControlFlow::WaitUntil(
                         self.frame_wait_deadline(next_wake),
                     ));
+                    self.schedule_activation_confirmation_poll(event_loop, now);
                     return;
                 }
                 let expected_interval = animation_frame_interval(frame_target_fps);
@@ -198,5 +200,6 @@ where
                 event_loop.set_control_flow(ControlFlow::WaitUntil(next_wake));
             }
         }
+        self.schedule_activation_confirmation_poll(event_loop, now);
     }
 }

@@ -186,7 +186,7 @@ where
             return NativeWheelRoute::new(outcome, diagnostic);
         }
         let can_queue_scroll_container_wheel = self
-            .can_coalesce_scroll_container_wheel(position, delta)
+            .can_coalesce_scroll_container_wheel(position, delta, modifiers)
             && self.timing.redraw_requested
             && !self.pending_interactive_scroll_flush_is_due(now);
         if can_queue_scroll_container_wheel {

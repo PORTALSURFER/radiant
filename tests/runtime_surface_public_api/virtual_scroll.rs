@@ -10,6 +10,82 @@ use radiant::{
 };
 use std::sync::Arc;
 
+#[derive(Clone, Debug)]
+struct CustomWheelHitWidget {
+    common: WidgetCommon,
+}
+
+impl CustomWheelHitWidget {
+    fn new(id: u64) -> Self {
+        Self {
+            common: WidgetCommon::new(
+                id,
+                radiant::widgets::WidgetSizing::fixed(Vector2::new(120.0, 40.0)),
+            ),
+        }
+    }
+}
+
+impl Widget for CustomWheelHitWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(
+        &mut self,
+        _bounds: Rect,
+        input: WidgetInput,
+    ) -> Option<radiant::widgets::WidgetOutput> {
+        matches!(input, WidgetInput::Wheel { .. })
+            .then(|| radiant::widgets::WidgetOutput::typed(DemoMessage::Increment))
+    }
+
+    fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
+        input.pointer_position().is_some_and(|point| point.x < 60.0)
+    }
+
+    fn accepts_wheel_input(&self) -> bool {
+        true
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &radiant::layout::LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+#[test]
+fn wheel_routing_honors_custom_pointer_hit_policy() {
+    let bridge = declarative_runtime_bridge(
+        0_usize,
+        |_state: &mut usize| {
+            Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+                CustomWheelHitWidget::new(1),
+                WidgetMessageMapper::typed(|message: DemoMessage| message),
+            )))
+        },
+        |count: &mut usize, message| {
+            if message == DemoMessage::Increment {
+                *count += 1;
+            }
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 40.0));
+
+    assert!(runtime.wheel_or_scroll_at(Point::new(30.0, 20.0), Vector2::new(0.0, -40.0)));
+    assert_eq!(*runtime.bridge().state(), 1);
+    assert!(!runtime.wheel_or_scroll_at(Point::new(90.0, 20.0), Vector2::new(0.0, -40.0)));
+    assert_eq!(*runtime.bridge().state(), 1);
+}
+
 #[test]
 fn surface_runtime_scrolls_virtual_list_with_cached_layout_and_bounded_paint_plan() {
     let bridge = declarative_runtime_bridge(

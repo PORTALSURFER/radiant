@@ -31,6 +31,11 @@ vello_svg = { version = "0.9.0", default-features = false }
 rfd = "0.16.0"
 open = "5.3.3"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5.2"
+objc2-app-kit = { version = "0.2.2", features = ["libc", "NSApplication", "NSRunningApplication", "NSWorkspace"] }
+objc2-foundation = { version = "0.2.2", features = ["NSThread"] }
+
 [features]
 default = []
 gui-performance = []

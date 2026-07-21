@@ -25,6 +25,7 @@ where
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.window.window.is_none() {
+            self.install_application_reopen_handler_if_needed();
             self.initialize_runtime(event_loop);
         }
     }
@@ -127,6 +128,10 @@ where
                 self.handle_route_outcome(event_loop, outcome);
             }
             RuntimeUserEvent::OpenFiles(paths) => self.handle_native_file_open(event_loop, paths),
+            RuntimeUserEvent::ApplicationReopenRequested => {
+                self.handle_application_reopen_intent();
+                self.observe_pending_window_activation();
+            }
         }
     }
 
@@ -135,6 +140,7 @@ where
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
+        self.observe_pending_window_activation();
         let animation_activity = self.core.animation_activity();
         let now = Instant::now();
         let needs_text_caret_animation = self.core.has_focused_text_input();
@@ -160,6 +166,7 @@ where
                     event_loop.set_control_flow(ControlFlow::WaitUntil(
                         self.frame_wait_deadline(next_wake),
                     ));
+                    self.schedule_activation_confirmation_poll(event_loop, now);
                     return;
                 }
                 let expected_interval = animation_frame_interval(frame_target_fps);
@@ -198,5 +205,6 @@ where
                 event_loop.set_control_flow(ControlFlow::WaitUntil(next_wake));
             }
         }
+        self.schedule_activation_confirmation_poll(event_loop, now);
     }
 }

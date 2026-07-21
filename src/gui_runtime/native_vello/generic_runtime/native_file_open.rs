@@ -78,8 +78,7 @@ mod platform {
     }
 
     type AppleEvent = AEDesc;
-    type AEEventHandler =
-        Option<unsafe extern "C" fn(*const AppleEvent, *mut AppleEvent, isize) -> OSErr>;
+    type AEEventHandler = Option<unsafe extern "C" fn(*const c_void, *mut c_void, isize) -> OSErr>;
 
     #[link(name = "ApplicationServices", kind = "framework")]
     unsafe extern "C" {
@@ -205,14 +204,14 @@ mod platform {
     }
 
     unsafe extern "C" fn open_documents_handler(
-        event: *const AppleEvent,
-        _reply: *mut AppleEvent,
+        event: *const c_void,
+        _reply: *mut c_void,
         refcon: isize,
     ) -> OSErr {
         if event.is_null() || refcon == 0 {
             return ERR_AE_EVENT_NOT_HANDLED;
         }
-        let paths = unsafe { document_paths_from_event(event) };
+        let paths = unsafe { document_paths_from_event(event.cast::<AppleEvent>()) };
         if paths.is_empty() {
             return NO_ERR;
         }

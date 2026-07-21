@@ -113,8 +113,7 @@ where
         self.rebuild_scene();
         self.timing.startup_timing.mark_first_scene_ready();
         if reveal_window_after_surface_setup(&self.options) {
-            window.set_visible(true);
-            self.timing.startup_timing.mark_window_revealed();
+            self.reveal_prepared_window_at_activation_boundary();
         }
         self.timing.last_redraw = Instant::now();
         self.request_redraw_for_frame_work(FrameWork::RebuildScene {

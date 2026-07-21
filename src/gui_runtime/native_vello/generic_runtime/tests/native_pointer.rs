@@ -92,11 +92,24 @@ fn native_focus_regained_notifies_host_and_routes_its_command() {
     let mut harness =
         NativePointerHarness::new(FocusRegainedBridge::default(), Vector2::new(320.0, 40.0));
 
+    harness.focus_lost();
     harness.focus_regained();
 
     let bridge = harness.runner.core.runtime.bridge();
     assert_eq!(bridge.focus_regained_calls, 1);
     assert_eq!(bridge.reduced_messages, 1);
+}
+
+#[test]
+fn initial_native_focus_does_not_report_focus_regained() {
+    let mut harness =
+        NativePointerHarness::new(FocusRegainedBridge::default(), Vector2::new(320.0, 40.0));
+
+    harness.focus_regained();
+
+    let bridge = harness.runner.core.runtime.bridge();
+    assert_eq!(bridge.focus_regained_calls, 0);
+    assert_eq!(bridge.reduced_messages, 0);
 }
 
 #[test]

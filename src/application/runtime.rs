@@ -61,6 +61,8 @@ pub(in crate::application) type AppNativeFileDrop<State, Message> =
     Box<dyn FnMut(&mut State, NativeFileDrop, &mut UiUpdateContext<Message>)>;
 pub(in crate::application) type AppNativeFileOpen<State, Message> =
     Box<dyn FnMut(&mut State, NativeFileOpen, &mut UiUpdateContext<Message>)>;
+pub(in crate::application) type AppNativeFocusRegained<State, Message> =
+    Box<dyn FnMut(&mut State, &mut UiUpdateContext<Message>)>;
 pub(in crate::application) type AppNativeFrameDiagnostics<State> =
     Box<dyn FnMut(&mut State, NativeFrameDiagnostics)>;
 pub(in crate::application) trait AppFrameRepaintPolicy<State> {

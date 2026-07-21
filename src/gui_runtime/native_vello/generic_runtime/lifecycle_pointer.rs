@@ -103,11 +103,14 @@ where
         outcome
     }
 
-    pub(super) fn handle_focus_regained_after_native_modal_loop(&mut self) {
+    pub(super) fn handle_focus_regained_after_native_modal_loop(&mut self) -> GenericRouteOutcome {
         self.timing.redraw_requested = false;
         self.request_redraw_for_frame_work(FrameWork::PaintOnly {
             reason: FrameWorkReason::NativeFocusRegained,
         });
+        let command = self.core.runtime.host_native_focus_regained();
+        let outcome = self.core.runtime.execute_command(command);
+        self.core.route_command_outcome(outcome)
     }
 
     fn clear_native_pointer_presence(&mut self) -> GenericRouteOutcome {

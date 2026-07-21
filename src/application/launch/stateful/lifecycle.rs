@@ -104,6 +104,15 @@ where
         self
     }
 
+    /// Observe the native main window regaining operating-system focus.
+    pub fn on_native_focus_regained(
+        mut self,
+        focus_regained: impl FnMut(&mut State, &mut UiUpdateContext<Message>) + 'static,
+    ) -> Self {
+        self.lifecycle.native_focus_regained = Some(Box::new(focus_regained));
+        self
+    }
+
     /// Observe structured native frame diagnostics when the backend presents a frame.
     ///
     /// Register this only for opt-in diagnostics. Native backends use the presence

@@ -88,7 +88,8 @@ where
     }
 
     pub(in super::super) fn focus_regained(&mut self) {
-        self.runner.handle_focus_regained_after_native_modal_loop();
+        let outcome = self.runner.handle_focus_regained_after_native_modal_loop();
+        self.apply_route_outcome(outcome);
     }
 
     pub(in super::super) fn focus_lost(&mut self) -> GenericRouteOutcome {

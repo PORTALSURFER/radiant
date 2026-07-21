@@ -152,15 +152,25 @@ where
         true
     }
 
-    pub(crate) fn wheel_widget_accepts_at(&self, point: Point, delta: Vector2) -> bool {
-        self.wheel_widget_at(point, delta).is_some()
+    pub(crate) fn wheel_widget_accepts_at(
+        &self,
+        point: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+    ) -> bool {
+        self.wheel_widget_at(point, delta, modifiers).is_some()
     }
 
-    fn wheel_widget_at(&self, point: Point, delta: Vector2) -> Option<WidgetId> {
+    fn wheel_widget_at(
+        &self,
+        point: Point,
+        delta: Vector2,
+        modifiers: PointerModifiers,
+    ) -> Option<WidgetId> {
         let input = WidgetInput::Wheel {
             position: point,
             delta,
-            modifiers: PointerModifiers::default(),
+            modifiers,
         };
         self.traversal
             .widgets

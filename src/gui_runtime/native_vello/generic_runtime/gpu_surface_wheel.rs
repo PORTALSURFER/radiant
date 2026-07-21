@@ -189,10 +189,14 @@ where
         &self,
         position: Point,
         delta: Vector2,
+        modifiers: PointerModifiers,
     ) -> bool {
         let is_vertical = delta.y.abs() >= delta.x.abs() && delta.y.abs() > f32::EPSILON;
         is_vertical
-            && !self.core.runtime.wheel_widget_accepts_at(position, delta)
+            && !self
+                .core
+                .runtime
+                .wheel_widget_accepts_at(position, delta, modifiers)
             && self
                 .core
                 .runtime

@@ -1,17 +1,120 @@
 use super::*;
+use crate::application::IntoView;
 use crate::gui::{
     focus::FocusSurface,
     input::{KeyCode, KeyPress},
     shortcuts::ShortcutResolution,
 };
 use crate::runtime::{RuntimeHostCapabilities, RuntimeInputHost};
-use crate::widgets::WidgetKey;
+use crate::{
+    layout::LayoutOutput,
+    theme::ThemeTokens,
+    widgets::{PointerModifiers, Widget, WidgetCommon, WidgetKey, WidgetOutput, WidgetSizing},
+};
 use std::time::{Duration, Instant};
 use winit::{
     dpi::PhysicalPosition,
     event::{MouseButton, MouseScrollDelta},
     keyboard::ModifiersState,
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ModifierWheelMessage {
+    Wheel,
+}
+
+#[derive(Clone, Debug)]
+struct ModifierWheelWidget {
+    common: WidgetCommon,
+}
+
+impl ModifierWheelWidget {
+    fn new(id: u64) -> Self {
+        Self {
+            common: WidgetCommon::new(id, WidgetSizing::fixed(Vector2::new(120.0, 80.0))),
+        }
+    }
+}
+
+impl Widget for ModifierWheelWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        matches!(input, WidgetInput::Wheel { .. })
+            .then(|| WidgetOutput::typed(ModifierWheelMessage::Wheel))
+    }
+
+    fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
+        matches!(input, WidgetInput::Wheel { modifiers, .. } if modifiers.shift)
+    }
+
+    fn accepts_wheel_input(&self) -> bool {
+        true
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+#[derive(Default)]
+struct ModifierWheelBridge;
+
+impl RuntimeBridge<ModifierWheelMessage> for ModifierWheelBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<ModifierWheelMessage>> {
+        let rows = (0..20)
+            .map(|index| {
+                crate::application::text(format!("Row {index}"))
+                    .height(20.0)
+                    .fill_width()
+            })
+            .collect();
+        crate::application::overlay_stack(crate::application::bounded_scroll_column(
+            rows, 4, 20.0, 0.0,
+        ))
+        .input(crate::application::custom_widget_direct(
+            ModifierWheelWidget::new(4),
+        ))
+        .into_view()
+        .into_surface()
+        .into()
+    }
+
+    fn reduce_message(&mut self, _message: ModifierWheelMessage) {}
+}
+
+#[test]
+fn scroll_coalescing_preserves_modifier_sensitive_wheel_ownership() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ModifierWheelBridge,
+        Vector2::new(120.0, 80.0),
+    );
+    runner.rebuild_scene();
+    let point = Point::new(40.0, 20.0);
+    let delta = Vector2::new(0.0, -40.0);
+
+    assert!(runner.can_coalesce_scroll_container_wheel(point, delta, PointerModifiers::default()));
+    assert!(!runner.can_coalesce_scroll_container_wheel(
+        point,
+        delta,
+        PointerModifiers {
+            shift: true,
+            ..PointerModifiers::default()
+        }
+    ));
+}
 
 #[derive(Default)]
 struct PointerSnapshotShortcutBridge {

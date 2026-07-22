@@ -88,8 +88,8 @@ use input::{
 use native_pointer::{
     NativeMouseInputRoute, NativePointerEventKind, NativePointerRouteResult, NativeWheelRoute,
 };
-use pointer_click::pointer_press_event;
-use popup_drag::should_start_native_window_drag;
+use pointer_click::{is_double_click, pointer_press_event};
+use popup_drag::{should_start_native_window_drag, should_toggle_native_window_maximized};
 use post_gpu_overlay::PostGpuOverlayRenderer;
 use render_profile::{
     RenderFrameProfile, maybe_log_render_profile, maybe_log_slow_render_profile,

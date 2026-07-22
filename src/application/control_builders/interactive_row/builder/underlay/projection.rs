@@ -95,6 +95,8 @@ pub(super) struct DenseInteractiveRowUnderlayWidget {
 pub(super) struct DenseInteractiveRowUnderlayChrome {
     pub(super) palette: Option<DenseRowPalette>,
     pub(super) leading_marker: Option<DenseRowMarkerStyle>,
+    pub(super) leading_overlay_marker: Option<DenseRowMarkerStyle>,
+    pub(super) pressed_leading_overlay_marker: Option<DenseRowMarkerStyle>,
     pub(super) trailing_marker: Option<DenseRowMarkerStyle>,
     pub(super) hover_trailing_marker: Option<DenseRowMarkerStyle>,
     pub(super) outline: Option<DenseRowOutlineStyle>,
@@ -115,6 +117,13 @@ impl DenseInteractiveRowUnderlayChrome {
 
     fn apply_to(self, mut chrome: DenseRowChromeParts) -> DenseRowChromeParts {
         chrome.leading_marker = self.leading_marker;
+        chrome.leading_overlay_marker = self.leading_overlay_marker.or_else(|| {
+            chrome
+                .state
+                .pressed
+                .then_some(self.pressed_leading_overlay_marker)
+                .flatten()
+        });
         chrome.trailing_marker = self.trailing_marker;
         if chrome.state.hovered && chrome.trailing_marker.is_none() {
             chrome.trailing_marker = self.hover_trailing_marker;

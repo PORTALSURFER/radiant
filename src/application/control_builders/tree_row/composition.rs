@@ -98,6 +98,7 @@ impl TreeRowBuilder {
             palette: self.palette,
             drop_target_outline: self.drop_target_outline,
             selected_marker: self.selected_marker,
+            focus_marker: self.focus_marker,
             selected_trailing_marker: self.selected_trailing_marker,
             hover_trailing_marker: self.hover_trailing_marker,
             focus_outline: self.focus_outline,

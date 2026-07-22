@@ -1,7 +1,7 @@
 //! Native pointer routing contract for the generic native Vello runner.
 
 use super::{
-    GenericNativeVelloRunner, GenericRouteOutcome, maybe_log_route_profile,
+    GenericNativeVelloRunner, GenericRouteOutcome, is_double_click, maybe_log_route_profile,
     pointer_button_from_winit, pointer_modifiers_from_winit, render_profile_enabled,
     scroll_delta_to_logical,
 };
@@ -55,6 +55,7 @@ pub(super) struct NativeMouseInputRoute {
     pub(super) position: Option<Point>,
     pub(super) button: Option<PointerButton>,
     pub(super) state: ElementState,
+    pub(super) double_click: bool,
     #[cfg(test)]
     pub(super) diagnostic: NativePointerRouteDiagnostic,
 }
@@ -65,6 +66,7 @@ impl NativeMouseInputRoute {
         position: Option<Point>,
         button: Option<PointerButton>,
         state: ElementState,
+        double_click: bool,
         _diagnostic: NativePointerRouteDiagnostic,
     ) -> Self {
         Self {
@@ -72,6 +74,7 @@ impl NativeMouseInputRoute {
             position,
             button,
             state,
+            double_click,
             #[cfg(test)]
             diagnostic: _diagnostic,
         }
@@ -115,6 +118,14 @@ where
         let position = self.input.last_cursor;
         let button = pointer_button_from_winit(button);
         let modifiers = self.pointer_modifiers();
+        let double_click = state == ElementState::Pressed
+            && self.core.last_pointer_press.is_some_and(|last| {
+                position.is_some_and(|position| {
+                    button.is_some_and(|button| {
+                        is_double_click(last, Instant::now(), position, button)
+                    })
+                })
+            });
         let mut diagnostic = self.native_pointer_diagnostic(kind, position, button, modifiers);
         let Some(position) = position else {
             diagnostic.result = NativePointerRouteResult::NoCursor;
@@ -124,6 +135,7 @@ where
                 None,
                 button,
                 state,
+                double_click,
                 diagnostic,
             );
         };
@@ -135,6 +147,7 @@ where
                 Some(position),
                 None,
                 state,
+                double_click,
                 diagnostic,
             );
         };
@@ -155,7 +168,14 @@ where
         maybe_log_route_profile("pointer_button", started.elapsed(), outcome);
         diagnostic = self.complete_native_pointer_diagnostic(diagnostic, outcome);
         self.maybe_log_native_pointer_diagnostic(diagnostic);
-        NativeMouseInputRoute::new(outcome, Some(position), Some(button), state, diagnostic)
+        NativeMouseInputRoute::new(
+            outcome,
+            Some(position),
+            Some(button),
+            state,
+            double_click,
+            diagnostic,
+        )
     }
 
     pub(super) fn route_native_mouse_wheel(&mut self, delta: MouseScrollDelta) -> NativeWheelRoute {

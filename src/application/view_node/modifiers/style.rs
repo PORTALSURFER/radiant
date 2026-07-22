@@ -11,6 +11,15 @@ impl<Message> ViewNode<Message> {
         self
     }
 
+    /// Remove this container's own fill, border, and styled padding.
+    ///
+    /// Use this when a parent surface already owns the surrounding chrome and
+    /// the view should contribute layout, scrolling, and input only.
+    pub fn without_chrome(mut self) -> Self {
+        self.style = None;
+        self
+    }
+
     /// Allow this styled container to show hover chrome.
     pub fn hoverable(mut self) -> Self {
         self.hoverable = true;

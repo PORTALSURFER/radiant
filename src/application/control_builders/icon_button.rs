@@ -4,7 +4,9 @@ use crate::{
     application::{MappedWidget, ViewNode, primary_style, view_node_from_widget},
     gui::svg::SvgIcon,
     runtime::WidgetMessageMapper,
-    widgets::{ButtonMessage, IconButtonWidget, WidgetProminence, WidgetSizing, WidgetStyle},
+    widgets::{
+        ButtonMessage, FocusBehavior, IconButtonWidget, WidgetProminence, WidgetSizing, WidgetStyle,
+    },
 };
 
 const CLOSE_ICON_SVG: &str = r##"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
@@ -26,6 +28,8 @@ pub struct IconButtonBuilder {
     enabled: bool,
     active: bool,
     bare: bool,
+    hover_icon: Option<SvgIcon>,
+    focus: Option<FocusBehavior>,
 }
 
 impl IconButtonBuilder {
@@ -60,9 +64,21 @@ impl IconButtonBuilder {
         self
     }
 
+    /// Override how this icon button participates in keyboard/pointer focus.
+    pub fn focus(mut self, focus: FocusBehavior) -> Self {
+        self.focus = Some(focus);
+        self
+    }
+
     /// Paint only the retained icon while preserving hit testing and activation.
     pub fn bare(mut self) -> Self {
         self.bare = true;
+        self
+    }
+
+    /// Swap to a retained icon variant while hovered or pressed.
+    pub fn hover_icon(mut self, icon: SvgIcon) -> Self {
+        self.hover_icon = Some(icon);
         self
     }
 
@@ -111,6 +127,12 @@ impl IconButtonBuilder {
         if self.bare {
             widget = widget.bare();
         }
+        if let Some(hover_icon) = self.hover_icon {
+            widget = widget.with_hover_icon(hover_icon);
+        }
+        if let Some(focus) = self.focus {
+            widget.common.focus = focus;
+        }
         widget.common.state.disabled = !self.enabled;
         widget.common.state.active = self.active;
         (widget, self.style)
@@ -125,6 +147,8 @@ pub fn icon_button(icon: SvgIcon) -> IconButtonBuilder {
         enabled: true,
         active: false,
         bare: false,
+        hover_icon: None,
+        focus: None,
     }
 }
 

@@ -1,7 +1,9 @@
 //! Drag handle paint command generation.
 
 use crate::gui::types::{Point, Rect};
-use crate::runtime::{PaintPrimitive, PaintStrokePolyline, PaintStrokeRect, inset_rect};
+use crate::runtime::{
+    PaintFillRect, PaintPrimitive, PaintStrokePolyline, PaintStrokeRect, inset_rect,
+};
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::drag_handle::DragHandleWidget;
 
@@ -13,6 +15,13 @@ pub(super) fn push_drag_handle_widget_paint(
 ) {
     if !handle.common.paint.paints_state_layers {
         return;
+    }
+    if handle.full_height_rail {
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: handle.common.id,
+            rect: bounds,
+            color: theme.border_emphasis,
+        }));
     }
     if handle.hover_chrome_only
         && !handle.common.state.hovered

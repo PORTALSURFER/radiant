@@ -2,8 +2,9 @@
 
 use super::{
     AuxiliaryWindowEventResult, GenericNativeVelloRunner, RuntimeUserEvent, TimedFrameCadence,
-    animation_frame_interval, should_start_native_window_drag, slow_render_profile_enabled,
-    timed_frame_cadence, timed_frame_target_fps,
+    animation_frame_interval, should_start_native_window_drag,
+    should_toggle_native_window_maximized, slow_render_profile_enabled, timed_frame_cadence,
+    timed_frame_target_fps,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::{Duration, Instant};
@@ -86,6 +87,24 @@ where
             WindowEvent::MouseInput { button, state, .. } => {
                 let route = self.route_native_mouse_input(button, state);
                 if route.is_pressed()
+                    && let (Some(position), Some(button)) = (route.position, route.button)
+                    && should_toggle_native_window_maximized(
+                        &self.options,
+                        position,
+                        button,
+                        route.outcome.routed,
+                        route.double_click,
+                    )
+                    && let Some(window) = self.window.window.clone()
+                {
+                    window.set_maximized(!window.is_maximized());
+                    // Native zoom transitions can resize outside a live-resize
+                    // gesture. Force one complete app-owned scene refresh so
+                    // retained and composited layers cannot remain at the old
+                    // viewport while the new surface is already visible.
+                    self.defer_interactive_scene_rebuild();
+                    window.request_redraw();
+                } else if route.is_pressed()
                     && let (Some(position), Some(button)) = (route.position, route.button)
                     && should_start_native_window_drag(
                         &self.options,

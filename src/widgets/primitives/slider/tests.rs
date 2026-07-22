@@ -69,6 +69,35 @@ fn slider_paints_progress_track_without_thumb_handle() {
 }
 
 #[test]
+fn slider_can_paint_a_custom_height_track_border() {
+    let slider = SliderWidget::new(9, 0.0, WidgetSizing::fixed(Vector2::new(112.0, 16.0)))
+        .with_track_height(8.0)
+        .with_track_border(true);
+    let bounds = Rect::from_min_size(Point::default(), Vector2::new(112.0, 16.0));
+    let mut primitives = Vec::new();
+
+    slider.append_paint(
+        &mut primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+
+    let borders = primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::StrokeRect(stroke) => Some(stroke),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(borders.len(), 1);
+    assert_eq!(borders[0].rect.width(), 112.0);
+    assert_eq!(borders[0].rect.height(), 8.0);
+    assert_eq!(borders[0].width, 1.0);
+    assert_eq!(borders[0].color, ThemeTokens::default().border_emphasis);
+}
+
+#[test]
 fn focused_slider_responds_to_keyboard_steps() {
     let mut slider = SliderWidget::new(10, 0.5, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
 

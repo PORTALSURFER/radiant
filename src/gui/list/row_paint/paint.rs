@@ -41,6 +41,8 @@ pub struct DenseRowChromeParts {
     pub palette: DenseRowPalette,
     /// Optional leading-edge marker.
     pub leading_marker: Option<DenseRowMarkerStyle>,
+    /// Optional second leading-edge marker painted after the primary marker.
+    pub leading_overlay_marker: Option<DenseRowMarkerStyle>,
     /// Optional trailing-edge marker.
     pub trailing_marker: Option<DenseRowMarkerStyle>,
     /// Optional inset outline.
@@ -54,6 +56,7 @@ impl DenseRowChromeParts {
             state,
             palette,
             leading_marker: None,
+            leading_overlay_marker: None,
             trailing_marker: None,
             outline: None,
         }
@@ -69,6 +72,24 @@ impl DenseRowChromeParts {
     pub const fn leading_marker_if(mut self, condition: bool, marker: DenseRowMarkerStyle) -> Self {
         if condition {
             self.leading_marker = Some(marker);
+        }
+        self
+    }
+
+    /// Add a second leading-edge marker painted after the primary marker.
+    pub const fn leading_overlay_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.leading_overlay_marker = Some(marker);
+        self
+    }
+
+    /// Add a second leading-edge marker when `condition` is true.
+    pub const fn leading_overlay_marker_if(
+        mut self,
+        condition: bool,
+        marker: DenseRowMarkerStyle,
+    ) -> Self {
+        if condition {
+            self.leading_overlay_marker = Some(marker);
         }
         self
     }
@@ -179,6 +200,9 @@ pub fn push_dense_row_chrome(
     let initial_len = primitives.len();
     push_dense_row_fill(primitives, widget_id, bounds, parts.state, parts.palette);
     if let Some(marker) = parts.leading_marker {
+        push_dense_row_vertical_marker(primitives, widget_id, bounds, marker.parts, marker.color);
+    }
+    if let Some(marker) = parts.leading_overlay_marker {
         push_dense_row_vertical_marker(primitives, widget_id, bounds, marker.parts, marker.color);
     }
     if let Some(marker) = parts.trailing_marker {

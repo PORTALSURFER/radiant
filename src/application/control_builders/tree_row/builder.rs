@@ -40,6 +40,7 @@ pub struct TreeRowBuilder {
     pub(super) palette: Option<DenseRowPalette>,
     pub(super) drop_target_outline: Option<DenseRowOutlineStyle>,
     pub(super) selected_marker: Option<DenseRowMarkerStyle>,
+    pub(super) focus_marker: Option<DenseRowMarkerStyle>,
     pub(super) selected_trailing_marker: Option<DenseRowMarkerStyle>,
     pub(super) hover_trailing_marker: Option<DenseRowMarkerStyle>,
     pub(super) focus_outline: Option<DenseRowOutlineStyle>,
@@ -177,6 +178,12 @@ impl TreeRowBuilder {
         self
     }
 
+    /// Set a leading marker painted for keyboard focus and pointer-down focus.
+    pub fn focus_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.focus_marker = Some(marker);
+        self
+    }
+
     /// Set a trailing marker painted whenever the row is selected.
     pub fn selected_trailing_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
         self.selected_trailing_marker = Some(marker);
@@ -264,6 +271,7 @@ pub fn tree_row(label: impl Into<TextContent>) -> TreeRowBuilder {
         palette: None,
         drop_target_outline: None,
         selected_marker: None,
+        focus_marker: None,
         selected_trailing_marker: None,
         hover_trailing_marker: None,
         focus_outline: None,

@@ -11,7 +11,7 @@ pub(super) fn push_slider_widget_paint(
     bounds: Rect,
     theme: &ThemeTokens,
 ) {
-    let track = track_rect(bounds);
+    let track = track_rect(bounds, slider.props.track_height);
     let tokens = crate::widgets::resolve_widget_visual_tokens(
         theme,
         slider.common.style,
@@ -28,6 +28,14 @@ pub(super) fn push_slider_widget_paint(
         rect: Rect::from_min_max(track.min, Point::new(track.min.x + fill_width, track.max.y)),
         color: tokens.emphasis,
     }));
+    if slider.props.paints_track_border {
+        primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+            widget_id: slider.common.id,
+            rect: track,
+            color: theme.border_emphasis,
+            width: 1.0,
+        }));
+    }
     if slider.common.state.focused && slider.common.paint.paints_focus {
         primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
             widget_id: slider.common.id,

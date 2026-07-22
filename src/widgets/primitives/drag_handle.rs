@@ -22,6 +22,8 @@ pub struct DragHandleWidget {
     pub common: WidgetCommon,
     /// Whether idle handle chrome should be hidden until hover, press, or focus.
     pub hover_chrome_only: bool,
+    /// Whether the handle paints a continuous passive rail through its bounds.
+    pub full_height_rail: bool,
 }
 
 /// Named construction fields for [`DragHandleWidget`].
@@ -41,6 +43,7 @@ impl DragHandleWidget {
         Self {
             common,
             hover_chrome_only: false,
+            full_height_rail: false,
         }
     }
 
@@ -52,6 +55,12 @@ impl DragHandleWidget {
     /// Paint handle chrome only while hovered, pressed, or focused.
     pub fn with_hover_chrome_only(mut self) -> Self {
         self.hover_chrome_only = true;
+        self
+    }
+
+    /// Paint a continuous passive rail while preserving drag interaction.
+    pub fn with_full_height_rail(mut self) -> Self {
+        self.full_height_rail = true;
         self
     }
 
@@ -160,5 +169,32 @@ mod tests {
             &ThemeTokens::default(),
         );
         assert!(!primitives.is_empty());
+    }
+
+    #[test]
+    fn full_height_rail_remains_visible_with_hover_only_chrome() {
+        let handle = DragHandleWidget::new(9, WidgetSizing::fixed(Vector2::new(1.0, 80.0)))
+            .with_hover_chrome_only()
+            .with_full_height_rail();
+        let bounds = Rect::from_min_size(Point::default(), Vector2::new(1.0, 80.0));
+        let mut primitives = Vec::new();
+
+        handle.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        let rails = primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillRect(fill) => Some(fill),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(rails.len(), 1);
+        assert_eq!(rails[0].rect, bounds);
+        assert_eq!(rails[0].color, ThemeTokens::default().border_emphasis);
     }
 }

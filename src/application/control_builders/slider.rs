@@ -12,6 +12,8 @@ pub struct SliderBuilder {
     style: Option<WidgetStyle>,
     sizing: Option<crate::layout::Vector2>,
     paints_focus: Option<bool>,
+    track_height: Option<f32>,
+    paints_track_border: bool,
 }
 
 impl SliderBuilder {
@@ -46,6 +48,18 @@ impl SliderBuilder {
         self
     }
 
+    /// Use an explicit centered track height in logical pixels.
+    pub fn track_height(mut self, height: f32) -> Self {
+        self.track_height = Some(height);
+        self
+    }
+
+    /// Paint a passive one-pixel outline around the track.
+    pub fn track_border(mut self) -> Self {
+        self.paints_track_border = true;
+        self
+    }
+
     /// Emit a host message mapped from the normalized slider value.
     pub fn message<Message: 'static>(
         self,
@@ -61,6 +75,10 @@ impl SliderBuilder {
         if let Some(paint) = self.paints_focus {
             slider.common.paint.paints_focus = paint;
         }
+        if let Some(track_height) = self.track_height {
+            slider = slider.with_track_height(track_height);
+        }
+        slider = slider.with_track_border(self.paints_track_border);
         let mut node = view_node_from_widget(MappedWidget::new(
             slider,
             WidgetMessageMapper::slider(move |message| match message {
@@ -79,6 +97,8 @@ pub fn slider(value: f32) -> SliderBuilder {
         style: None,
         sizing: None,
         paints_focus: None,
+        track_height: None,
+        paints_track_border: false,
     }
 }
 

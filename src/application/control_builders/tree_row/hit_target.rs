@@ -33,6 +33,7 @@ pub(super) struct TreeRowHitTarget<Message> {
     palette: Option<DenseRowPalette>,
     drop_target_outline: Option<DenseRowOutlineStyle>,
     selected_marker: Option<DenseRowMarkerStyle>,
+    focus_marker: Option<DenseRowMarkerStyle>,
     selected_trailing_marker: Option<DenseRowMarkerStyle>,
     hover_trailing_marker: Option<DenseRowMarkerStyle>,
     focus_outline: Option<DenseRowOutlineStyle>,
@@ -52,6 +53,7 @@ pub(super) struct TreeRowHitTargetParts<Message> {
     pub(super) palette: Option<DenseRowPalette>,
     pub(super) drop_target_outline: Option<DenseRowOutlineStyle>,
     pub(super) selected_marker: Option<DenseRowMarkerStyle>,
+    pub(super) focus_marker: Option<DenseRowMarkerStyle>,
     pub(super) selected_trailing_marker: Option<DenseRowMarkerStyle>,
     pub(super) hover_trailing_marker: Option<DenseRowMarkerStyle>,
     pub(super) focus_outline: Option<DenseRowOutlineStyle>,
@@ -100,6 +102,7 @@ impl<Message> TreeRowHitTarget<Message> {
             palette: parts.palette,
             drop_target_outline: parts.drop_target_outline,
             selected_marker: parts.selected_marker,
+            focus_marker: parts.focus_marker,
             selected_trailing_marker: parts.selected_trailing_marker,
             hover_trailing_marker: parts.hover_trailing_marker,
             focus_outline: parts.focus_outline,
@@ -147,6 +150,11 @@ impl<Message> TreeRowHitTarget<Message> {
             && let Some(marker) = self.selected_marker
         {
             chrome = chrome.leading_marker(marker);
+        }
+        if (self.focused || state.pressed)
+            && let Some(marker) = self.focus_marker
+        {
+            chrome = chrome.leading_overlay_marker(marker);
         }
         if self.selected
             && let Some(marker) = self.selected_trailing_marker

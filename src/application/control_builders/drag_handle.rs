@@ -8,12 +8,19 @@ use crate::{
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DragHandleBuilder {
     hover_chrome_only: bool,
+    full_height_rail: bool,
 }
 
 impl DragHandleBuilder {
     /// Paint handle chrome only while hovered, pressed, or focused.
     pub fn hover_chrome_only(mut self) -> Self {
         self.hover_chrome_only = true;
+        self
+    }
+
+    /// Paint a continuous passive rail through the handle bounds.
+    pub fn full_height_rail(mut self) -> Self {
+        self.full_height_rail = true;
         self
     }
 
@@ -26,6 +33,9 @@ impl DragHandleBuilder {
         if self.hover_chrome_only {
             handle = handle.with_hover_chrome_only();
         }
+        if self.full_height_rail {
+            handle = handle.with_full_height_rail();
+        }
         view_node_from_widget(MappedWidget::new(
             handle,
             WidgetMessageMapper::drag_handle(map),
@@ -37,6 +47,7 @@ impl DragHandleBuilder {
 pub fn drag_handle() -> DragHandleBuilder {
     DragHandleBuilder {
         hover_chrome_only: false,
+        full_height_rail: false,
     }
 }
 

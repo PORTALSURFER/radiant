@@ -7,17 +7,21 @@ fn dense_row_chrome_parts_conditionally_adds_markers_and_outline() {
 
     let enabled = DenseRowChromeParts::new(DenseRowVisualState::default(), palette())
         .leading_marker_if(true, marker)
+        .leading_overlay_marker_if(true, marker)
         .trailing_marker_if(true, marker)
         .outline_if(true, outline);
     assert_eq!(enabled.leading_marker, Some(marker));
+    assert_eq!(enabled.leading_overlay_marker, Some(marker));
     assert_eq!(enabled.trailing_marker, Some(marker));
     assert_eq!(enabled.outline, Some(outline));
 
     let disabled = DenseRowChromeParts::new(DenseRowVisualState::default(), palette())
         .leading_marker_if(false, marker)
+        .leading_overlay_marker_if(false, marker)
         .trailing_marker_if(false, marker)
         .outline_if(false, outline);
     assert_eq!(disabled.leading_marker, None);
+    assert_eq!(disabled.leading_overlay_marker, None);
     assert_eq!(disabled.trailing_marker, None);
     assert_eq!(disabled.outline, None);
 }

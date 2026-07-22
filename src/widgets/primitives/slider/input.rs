@@ -17,7 +17,13 @@ pub(super) fn handle_slider_input(
                 .common
                 .state
                 .pressed
-                .then(|| slider.set_value(value_for_position(bounds, position)))
+                .then(|| {
+                    slider.set_value(value_for_position(
+                        bounds,
+                        position,
+                        slider.props.track_height,
+                    ))
+                })
                 .flatten()
         }
         WidgetInput::PointerPress {
@@ -28,7 +34,11 @@ pub(super) fn handle_slider_input(
             slider.common.state.hovered = true;
             slider.common.state.pressed = true;
             slider.common.state.focused = true;
-            slider.set_value(value_for_position(bounds, position))
+            slider.set_value(value_for_position(
+                bounds,
+                position,
+                slider.props.track_height,
+            ))
         }
         WidgetInput::PointerRelease {
             position,
@@ -38,7 +48,13 @@ pub(super) fn handle_slider_input(
             let was_pressed = slider.common.state.pressed;
             slider.common.state.pressed = false;
             was_pressed
-                .then(|| slider.set_value(value_for_position(bounds, position)))
+                .then(|| {
+                    slider.set_value(value_for_position(
+                        bounds,
+                        position,
+                        slider.props.track_height,
+                    ))
+                })
                 .flatten()
         }
         WidgetInput::FocusChanged(focused) => {

@@ -126,6 +126,33 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
         self
     }
 
+    /// Add a second leading-edge marker painted after the primary marker.
+    pub fn leading_overlay_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.chrome.leading_overlay_marker = Some(marker);
+        self.dense_chrome = true;
+        self
+    }
+
+    /// Add a second leading-edge marker when `condition` is true.
+    pub fn leading_overlay_marker_if(
+        mut self,
+        condition: bool,
+        marker: DenseRowMarkerStyle,
+    ) -> Self {
+        if condition {
+            self.chrome.leading_overlay_marker = Some(marker);
+            self.dense_chrome = true;
+        }
+        self
+    }
+
+    /// Add a second leading-edge marker while the primary pointer is held down.
+    pub fn pressed_leading_overlay_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.chrome.pressed_leading_overlay_marker = Some(marker);
+        self.dense_chrome = true;
+        self
+    }
+
     /// Add a trailing-edge marker to the dense-row underlay chrome.
     pub fn trailing_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
         self.chrome.trailing_marker = Some(marker);

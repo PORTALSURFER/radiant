@@ -26,6 +26,18 @@ pub(super) fn should_start_native_window_drag(
             .is_some_and(|height| top_drag_region_contains(height, position))
 }
 
+pub(super) fn should_toggle_native_window_maximized(
+    options: &NativeRunOptions,
+    position: Point,
+    button: PointerButton,
+    routed: bool,
+    double_click: bool,
+) -> bool {
+    double_click
+        && !options.is_popup()
+        && should_start_native_window_drag(options, position, button, routed)
+}
+
 fn popup_drag_region_contains(popup: &NativePopupOptions, position: Point) -> bool {
     popup
         .drag_region_height
@@ -100,6 +112,39 @@ mod tests {
             &options,
             Point::new(120.0, 20.0),
             PointerButton::Primary,
+            true,
+        ));
+    }
+
+    #[test]
+    fn integrated_titlebar_double_click_toggles_regular_window_maximized_state() {
+        let mut options = NativeRunOptions::default();
+        options.window.behavior.integrated_titlebar = true;
+        options
+            .window
+            .behavior
+            .integrated_titlebar_drag_region_height = Some(38.0);
+        let position = Point::new(120.0, 20.0);
+
+        assert!(should_toggle_native_window_maximized(
+            &options,
+            position,
+            PointerButton::Primary,
+            false,
+            true,
+        ));
+        assert!(!should_toggle_native_window_maximized(
+            &options,
+            position,
+            PointerButton::Primary,
+            false,
+            false,
+        ));
+        assert!(!should_toggle_native_window_maximized(
+            &options,
+            position,
+            PointerButton::Primary,
+            true,
             true,
         ));
     }

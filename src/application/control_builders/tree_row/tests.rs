@@ -176,11 +176,33 @@ fn styled_tree_row_resolves_dense_chrome_from_frame_theme() {
 }
 
 #[test]
+fn selected_tree_row_paints_persistent_leading_marker() {
+    let marker = Rgba8::new(240, 80, 60, 255);
+    let view = tree_row("Folder")
+        .selected(true)
+        .selected_marker(DenseRowMarkerStyle::new(
+            DenseRowMarkerParts::leading(2.0),
+            marker,
+        ))
+        .interactive_actions(InteractiveRowActions::new().activate(|| TreeRowMessage::Activate));
+
+    let frame = view.view_frame_at_size_with_default_theme(Vector2::new(160.0, 22.0));
+
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == marker && fill.rect.width() == 2.0)
+    );
+}
+
+#[test]
 fn selected_hover_tree_row_paints_configured_fill_and_marker() {
     let selected_hover = Rgba8::new(20, 40, 60, 180);
     let marker = Rgba8::new(220, 80, 40, 245);
     let mut target = TreeRowHitTarget::new(TreeRowHitTargetParts {
         label: "Folder".into(),
+        label_inset_x: 4.0,
         selected: true,
         focused: false,
         drag_drop: Default::default(),
@@ -191,6 +213,10 @@ fn selected_hover_tree_row_paints_configured_fill_and_marker() {
             Rgba8::new(0, 0, 0, 0),
             1.0,
         )),
+        selected_marker: None,
+        selected_trailing_marker: None,
+        hover_trailing_marker: None,
+        focus_outline: None,
         selected_hover_marker: Some(DenseRowMarkerStyle::new(
             DenseRowMarkerParts::leading(3.0),
             marker,
@@ -223,6 +249,7 @@ fn selected_idle_tree_row_keeps_normal_label_color() {
     let highlighted = Rgba8::new(255, 255, 255, 255);
     let target = TreeRowHitTarget::new(TreeRowHitTargetParts {
         label: "Folder".into(),
+        label_inset_x: 4.0,
         selected: true,
         focused: true,
         drag_drop: Default::default(),
@@ -233,6 +260,10 @@ fn selected_idle_tree_row_keeps_normal_label_color() {
             Rgba8::new(0, 0, 0, 0),
             1.0,
         )),
+        selected_marker: None,
+        selected_trailing_marker: None,
+        hover_trailing_marker: None,
+        focus_outline: None,
         selected_hover_marker: None,
         normal_label_color: Some(normal),
         highlighted_label_color: highlighted,
@@ -252,6 +283,7 @@ fn selected_hovered_tree_row_uses_highlighted_label_color() {
     let highlighted = Rgba8::new(255, 255, 255, 255);
     let mut target = TreeRowHitTarget::new(TreeRowHitTargetParts {
         label: "Folder".into(),
+        label_inset_x: 4.0,
         selected: true,
         focused: true,
         drag_drop: Default::default(),
@@ -262,6 +294,10 @@ fn selected_hovered_tree_row_uses_highlighted_label_color() {
             Rgba8::new(0, 0, 0, 0),
             1.0,
         )),
+        selected_marker: None,
+        selected_trailing_marker: None,
+        hover_trailing_marker: None,
+        focus_outline: None,
         selected_hover_marker: None,
         normal_label_color: Some(normal),
         highlighted_label_color: highlighted,
@@ -277,10 +313,12 @@ fn selected_hovered_tree_row_uses_highlighted_label_color() {
 }
 
 #[test]
-fn focused_tree_row_paints_selected_fill() {
+fn focused_tree_row_paints_focus_outline_without_selected_fill() {
     let selected = Rgba8::new(20, 40, 60, 180);
+    let focus = Rgba8::new(220, 220, 216, 255);
     let target = TreeRowHitTarget::new(TreeRowHitTargetParts {
         label: "Folder".into(),
+        label_inset_x: 4.0,
         selected: false,
         focused: true,
         drag_drop: Default::default(),
@@ -291,6 +329,10 @@ fn focused_tree_row_paints_selected_fill() {
             Rgba8::new(0, 0, 0, 0),
             1.0,
         )),
+        selected_marker: None,
+        selected_trailing_marker: None,
+        hover_trailing_marker: None,
+        focus_outline: Some(crate::gui::list::DenseRowOutlineStyle::new(0.5, focus, 1.0)),
         selected_hover_marker: None,
         normal_label_color: None,
         highlighted_label_color: Rgba8::new(255, 255, 255, 255),
@@ -301,11 +343,8 @@ fn focused_tree_row_paints_selected_fill() {
 
     let plan = target.paint_plan_with_defaults(bounds);
 
-    assert!(
-        plan.fill_rects()
-            .any(|fill| fill.rect == bounds && fill.color == selected),
-        "focused tree row should use the selected fill without pointer-hover emphasis"
-    );
+    assert!(!plan.fill_rects().any(|fill| fill.color == selected));
+    assert!(plan.stroke_rects().any(|stroke| stroke.color == focus));
 }
 
 #[test]
@@ -315,6 +354,7 @@ fn selected_focused_tree_row_paints_selected_fill_without_marker() {
     let marker = Rgba8::new(220, 80, 40, 245);
     let target = TreeRowHitTarget::new(TreeRowHitTargetParts {
         label: "Folder".into(),
+        label_inset_x: 4.0,
         selected: true,
         focused: true,
         drag_drop: Default::default(),
@@ -329,6 +369,10 @@ fn selected_focused_tree_row_paints_selected_fill_without_marker() {
             Rgba8::new(0, 0, 0, 0),
             1.0,
         )),
+        selected_marker: None,
+        selected_trailing_marker: None,
+        hover_trailing_marker: None,
+        focus_outline: None,
         selected_hover_marker: Some(DenseRowMarkerStyle::new(
             DenseRowMarkerParts::leading(3.0),
             marker,

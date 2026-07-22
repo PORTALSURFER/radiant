@@ -66,12 +66,12 @@ fn gpu_signal_shader_keeps_waveform_bands_visually_distinct() {
     assert!(shader.contains("band_gamma = array<f32, 4>(1.03, 0.94, 0.42, 1.70)"));
     assert!(shader.contains("raw_signal = projected_band_peak"));
     assert!(shader.contains("display_peak"));
-    assert!(shader.contains("vec4<f32>(0.00, 0.52, 0.74, 0.98)"));
-    assert!(shader.contains("vec4<f32>(0.70, 0.16, 0.00, 0.96)"));
-    assert!(shader.contains("vec4<f32>(0.96, 0.98, 0.94, 0.74)"));
+    assert!(shader.contains("vec4<f32>(0.655, 0.231, 0.188, 0.88)"));
+    assert!(shader.contains("vec4<f32>(0.843, 0.290, 0.220, 0.92)"));
+    assert!(shader.contains("vec4<f32>(0.847, 0.839, 0.816, 0.78)"));
     assert!(shader.contains("let low_gradient = smoothstep(0.16, 0.92, shell_light);"));
     assert!(shader.contains("let mid_gradient = smoothstep(0.12, 0.90, shell_light);"));
-    assert!(shader.contains("let high_edge = mix(vec3<f32>(0.68, 0.84, 0.86), high_body"));
+    assert!(shader.contains("let high_edge = mix(vec3<f32>(0.66, 0.67, 0.66), high_body"));
     assert!(shader.contains("coverage_softness = 0.24;"));
     assert!(shader.contains("coverage_softness = 0.14;"));
     assert!(shader.contains("band_alpha_scale = 0.46 + inner_light * 0.30;"));

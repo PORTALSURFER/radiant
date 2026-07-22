@@ -41,6 +41,20 @@ pub(super) fn generic_window_attributes(options: &NativeRunOptions) -> WindowAtt
     platform::apply_top_level_attributes(attrs, options)
 }
 
+pub(super) fn configure_created_top_level_window(window: &Window, options: &NativeRunOptions) {
+    platform::configure_created_top_level_window(window, options);
+}
+
+pub(super) fn drag_app_owned_window(
+    window: &Window,
+    options: &NativeRunOptions,
+) -> Result<(), winit::error::ExternalError> {
+    platform::set_integrated_titlebar_window_movable(window, options, true);
+    let result = window.drag_window();
+    platform::set_integrated_titlebar_window_movable(window, options, false);
+    result
+}
+
 fn apply_popup_window_attributes(
     mut attrs: WindowAttributes,
     popup: NativePopupOptions,

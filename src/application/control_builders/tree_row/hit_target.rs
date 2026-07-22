@@ -32,9 +32,14 @@ pub(super) struct TreeRowHitTarget<Message> {
     style: Option<WidgetStyle>,
     palette: Option<DenseRowPalette>,
     drop_target_outline: Option<DenseRowOutlineStyle>,
+    selected_marker: Option<DenseRowMarkerStyle>,
+    selected_trailing_marker: Option<DenseRowMarkerStyle>,
+    hover_trailing_marker: Option<DenseRowMarkerStyle>,
+    focus_outline: Option<DenseRowOutlineStyle>,
     selected_hover_marker: Option<DenseRowMarkerStyle>,
     normal_label_color: Option<Rgba8>,
     highlighted_label_color: Rgba8,
+    label_inset_x: f32,
     trailing_icon: Option<SvgIcon>,
 }
 
@@ -46,9 +51,14 @@ pub(super) struct TreeRowHitTargetParts<Message> {
     pub(super) style: Option<WidgetStyle>,
     pub(super) palette: Option<DenseRowPalette>,
     pub(super) drop_target_outline: Option<DenseRowOutlineStyle>,
+    pub(super) selected_marker: Option<DenseRowMarkerStyle>,
+    pub(super) selected_trailing_marker: Option<DenseRowMarkerStyle>,
+    pub(super) hover_trailing_marker: Option<DenseRowMarkerStyle>,
+    pub(super) focus_outline: Option<DenseRowOutlineStyle>,
     pub(super) selected_hover_marker: Option<DenseRowMarkerStyle>,
     pub(super) normal_label_color: Option<Rgba8>,
     pub(super) highlighted_label_color: Rgba8,
+    pub(super) label_inset_x: f32,
     pub(super) trailing_icon: Option<SvgIcon>,
     pub(super) actions: InteractiveRowActions<Message>,
 }
@@ -89,9 +99,14 @@ impl<Message> TreeRowHitTarget<Message> {
             style: parts.style,
             palette: parts.palette,
             drop_target_outline: parts.drop_target_outline,
+            selected_marker: parts.selected_marker,
+            selected_trailing_marker: parts.selected_trailing_marker,
+            hover_trailing_marker: parts.hover_trailing_marker,
+            focus_outline: parts.focus_outline,
             selected_hover_marker: parts.selected_hover_marker,
             normal_label_color: parts.normal_label_color,
             highlighted_label_color: parts.highlighted_label_color,
+            label_inset_x: parts.label_inset_x,
             trailing_icon: parts.trailing_icon,
         }
     }
@@ -105,9 +120,7 @@ impl<Message> TreeRowHitTarget<Message> {
     }
 
     fn visual_state(&self) -> crate::gui::list::DenseRowVisualState {
-        let mut state = self.row.dense_visual_state(self.visual_state_parts());
-        state.selected |= self.focused;
-        state
+        self.row.dense_visual_state(self.visual_state_parts())
     }
 
     fn palette(&self, theme: &ThemeTokens) -> DenseRowPalette {
@@ -130,11 +143,30 @@ impl<Message> TreeRowHitTarget<Message> {
         let state = self.visual_state();
         let mut chrome = DenseRowChromeParts::new(state, self.palette(theme))
             .outline_if(self.drag_drop.drop_target, self.drop_target_outline(theme));
+        if self.selected
+            && let Some(marker) = self.selected_marker
+        {
+            chrome = chrome.leading_marker(marker);
+        }
+        if self.selected
+            && let Some(marker) = self.selected_trailing_marker
+        {
+            chrome = chrome.trailing_marker(marker);
+        } else if state.hovered
+            && let Some(marker) = self.hover_trailing_marker
+        {
+            chrome = chrome.trailing_marker(marker);
+        }
         if state.selected
             && state.hovered
             && let Some(marker) = self.selected_hover_marker
         {
             chrome = chrome.leading_marker(marker);
+        }
+        if self.focused
+            && let Some(outline) = self.focus_outline
+        {
+            chrome = chrome.outline(outline);
         }
         chrome
     }
@@ -187,7 +219,8 @@ where
             primitives,
             bounds,
             self.chrome_parts(theme),
-            DenseRowLabelParts::new(self.label.clone(), self.label_color(theme)),
+            DenseRowLabelParts::new(self.label.clone(), self.label_color(theme))
+                .inset_x(self.label_inset_x),
         );
         if let Some(icon) = &self.trailing_icon {
             icon.append_paint(primitives, self.row.id(), trailing_icon_rect(bounds));

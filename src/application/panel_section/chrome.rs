@@ -24,10 +24,12 @@ pub fn panel_section_from_parts<Message: 'static>(
         parts.header_spacing,
     );
     let mut section = column([header, parts.content])
-        .style(parts.style)
         .padding(parts.padding)
         .spacing(parts.spacing)
         .fill_width();
+    if parts.chrome {
+        section = section.style(parts.style);
+    }
     if let Some(height) = parts.height {
         section = section.height(height);
     }
@@ -39,10 +41,12 @@ pub fn panel_section_from_header_parts<Message: 'static>(
     parts: PanelSectionHeaderParts<Message>,
 ) -> ViewNode<Message> {
     let mut section = column([parts.header, parts.content])
-        .style(parts.style)
         .padding(parts.padding)
         .spacing(parts.spacing)
         .fill_width();
+    if parts.chrome {
+        section = section.style(parts.style);
+    }
     if let Some(height) = parts.height {
         section = section.height(height);
     }

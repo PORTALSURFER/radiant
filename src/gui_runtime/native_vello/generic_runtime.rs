@@ -89,7 +89,7 @@ use native_pointer::{
     NativeMouseInputRoute, NativePointerEventKind, NativePointerRouteResult, NativeWheelRoute,
 };
 use pointer_click::pointer_press_event;
-use popup_drag::should_start_popup_window_drag;
+use popup_drag::should_start_native_window_drag;
 use post_gpu_overlay::PostGpuOverlayRenderer;
 use render_profile::{
     RenderFrameProfile, maybe_log_render_profile, maybe_log_slow_render_profile,
@@ -114,8 +114,8 @@ pub(in crate::gui_runtime::native_vello) use scene::{
 };
 use surface_size::RenderSurfacePixelSize;
 use window::{
-    generic_window_attributes, hide_window_after_first_present, owner_window_handle,
-    reveal_window_after_first_present, reveal_window_after_surface_setup,
+    configure_created_top_level_window, generic_window_attributes, hide_window_after_first_present,
+    owner_window_handle, reveal_window_after_first_present, reveal_window_after_surface_setup,
 };
 
 struct GenericSharedPixelBytes(Arc<[u8]>);

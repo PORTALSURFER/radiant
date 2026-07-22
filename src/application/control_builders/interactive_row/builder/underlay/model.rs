@@ -142,6 +142,14 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
         self
     }
 
+    /// Add a trailing-edge marker while the row is hovered, unless a stronger
+    /// host-owned trailing marker is already present.
+    pub fn hover_trailing_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.chrome.hover_trailing_marker = Some(marker);
+        self.dense_chrome = true;
+        self
+    }
+
     /// Add an inset outline to the dense-row underlay chrome.
     pub fn outline(mut self, outline: DenseRowOutlineStyle) -> Self {
         self.chrome.outline = Some(outline);
@@ -155,6 +163,16 @@ impl<Message: 'static> InteractiveRowUnderlayBuilder<Message> {
             self.chrome.outline = Some(outline);
             self.dense_chrome = true;
         }
+        self
+    }
+
+    /// Add an inset outline while the primary pointer is held down.
+    ///
+    /// Release clears the retained pressed state, so pointer focus remains a
+    /// transient visual independent from host-owned keyboard focus.
+    pub fn pressed_outline(mut self, outline: DenseRowOutlineStyle) -> Self {
+        self.chrome.pressed_outline = Some(outline);
+        self.dense_chrome = true;
         self
     }
 }

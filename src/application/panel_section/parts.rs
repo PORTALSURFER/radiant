@@ -27,6 +27,8 @@ pub struct PanelSectionParts<Message> {
     pub height: Option<f32>,
     /// Visual styling applied to the section container.
     pub style: WidgetStyle,
+    /// Whether the section container paints its own fill and border chrome.
+    pub chrome: bool,
     /// Inner container padding.
     pub padding: f32,
     /// Vertical spacing between the header and content.
@@ -47,6 +49,8 @@ pub struct PanelSectionHeaderParts<Message> {
     pub height: Option<f32>,
     /// Visual styling applied to the section container.
     pub style: WidgetStyle,
+    /// Whether the section container paints its own fill and border chrome.
+    pub chrome: bool,
     /// Inner container padding.
     pub padding: f32,
     /// Vertical spacing between the header and content.
@@ -65,6 +69,7 @@ impl<Message> PanelSectionParts<Message> {
                 tone: WidgetTone::Neutral,
                 prominence: WidgetProminence::Subtle,
             },
+            chrome: true,
             padding: DEFAULT_PANEL_SECTION_PADDING,
             spacing: DEFAULT_PANEL_SECTION_SPACING,
             header_spacing: DEFAULT_PANEL_SECTION_HEADER_SPACING,
@@ -120,6 +125,12 @@ impl<Message> PanelSectionParts<Message> {
     /// Override section container style.
     pub fn style(mut self, style: WidgetStyle) -> Self {
         self.style = style;
+        self
+    }
+
+    /// Let the surrounding application shell own the section fill and dividers.
+    pub fn without_chrome(mut self) -> Self {
+        self.chrome = false;
         self
     }
 
@@ -194,6 +205,7 @@ impl<Message> PanelSectionHeaderParts<Message> {
                 tone: WidgetTone::Neutral,
                 prominence: WidgetProminence::Subtle,
             },
+            chrome: true,
             padding: DEFAULT_PANEL_SECTION_PADDING,
             spacing: DEFAULT_PANEL_SECTION_SPACING,
         }
@@ -244,6 +256,12 @@ impl<Message> PanelSectionHeaderParts<Message> {
     /// Override section container style.
     pub fn style(mut self, style: WidgetStyle) -> Self {
         self.style = style;
+        self
+    }
+
+    /// Let the surrounding application shell own the section fill and dividers.
+    pub fn without_chrome(mut self) -> Self {
+        self.chrome = false;
         self
     }
 

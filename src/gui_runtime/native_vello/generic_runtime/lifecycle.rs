@@ -2,7 +2,7 @@
 
 use super::{
     AuxiliaryWindowEventResult, GenericNativeVelloRunner, RuntimeUserEvent, TimedFrameCadence,
-    animation_frame_interval, should_start_popup_window_drag, slow_render_profile_enabled,
+    animation_frame_interval, should_start_native_window_drag, slow_render_profile_enabled,
     timed_frame_cadence, timed_frame_target_fps,
 };
 use crate::runtime::RuntimeBridge;
@@ -87,16 +87,16 @@ where
                 let route = self.route_native_mouse_input(button, state);
                 if route.is_pressed()
                     && let (Some(position), Some(button)) = (route.position, route.button)
-                    && should_start_popup_window_drag(
+                    && should_start_native_window_drag(
                         &self.options,
                         position,
                         button,
                         route.outcome.routed,
                     )
                     && let Some(window) = self.window.window.as_ref()
-                    && let Err(err) = window.drag_window()
+                    && let Err(err) = super::window::drag_app_owned_window(window, &self.options)
                 {
-                    warn!("radiant generic native vello: popup window drag failed: {err}");
+                    warn!("radiant generic native vello: app-owned window drag failed: {err}");
                 }
                 self.handle_route_outcome(event_loop, route.outcome);
             }

@@ -54,6 +54,17 @@ pub struct NativeWindowBehavior {
     pub maximized: bool,
     /// Whether native window decorations remain enabled.
     pub decorations: bool,
+    /// Whether app content extends through the native titlebar when supported.
+    ///
+    /// On macOS this keeps the traffic-light controls while hiding the native
+    /// title and making the titlebar transparent. Other platforms currently
+    /// retain their normal decorated-window presentation.
+    pub integrated_titlebar: bool,
+    /// Height of the unrouted titlebar region that can move an integrated window.
+    ///
+    /// App controls route their pointer presses before this policy runs, so
+    /// sliders and other drag gestures remain independent of window movement.
+    pub integrated_titlebar_drag_region_height: Option<f32>,
     /// Whether native file drag-and-drop should be enabled when supported.
     ///
     /// Unsupported platforms may ignore this option. Keeping the capability on
@@ -111,6 +122,8 @@ impl Default for NativeWindowBehavior {
         Self {
             maximized: false,
             decorations: true,
+            integrated_titlebar: false,
+            integrated_titlebar_drag_region_height: None,
             drag_and_drop: true,
             owner_window_handle: None,
             skip_taskbar: false,

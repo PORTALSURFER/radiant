@@ -229,3 +229,48 @@ fn interactive_row_underlay_dense_chrome_accepts_custom_paint_parts() {
         "custom underlay chrome should paint the outline"
     );
 }
+
+#[test]
+fn pressed_underlay_marker_overrides_faded_host_focus_until_release() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(140.0, 22.0));
+    let faded = Rgba8::new(230, 230, 226, 48);
+    let pressed = Rgba8::new(230, 230, 226, 255);
+    let mut surface = interactive_row_underlay(text("Sample"))
+        .input_id(774)
+        .leading_overlay_marker(DenseRowMarkerStyle::new(
+            DenseRowMarkerParts::leading(6.0),
+            faded,
+        ))
+        .pressed_leading_overlay_marker(DenseRowMarkerStyle::new(
+            DenseRowMarkerParts::leading(6.0),
+            pressed,
+        ))
+        .mapped(|_| ())
+        .size(140.0, 22.0)
+        .into_surface();
+    let paints = |surface: &crate::runtime::UiSurface<()>, color| {
+        surface
+            .find_widget(774)
+            .expect("interactive row underlay")
+            .widget()
+            .paint_plan_with_defaults(bounds)
+            .fill_rects()
+            .any(|fill| fill.color == color && fill.rect.width() == 6.0)
+    };
+
+    assert!(paints(&surface, faded));
+    surface.dispatch_widget_input(
+        774,
+        bounds,
+        WidgetInput::primary_press(Point::new(12.0, 8.0)),
+    );
+    assert!(paints(&surface, pressed));
+    assert!(!paints(&surface, faded));
+    surface.dispatch_widget_input(
+        774,
+        bounds,
+        WidgetInput::primary_release(Point::new(12.0, 8.0)),
+    );
+    assert!(!paints(&surface, pressed));
+    assert!(paints(&surface, faded));
+}

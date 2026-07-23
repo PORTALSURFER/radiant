@@ -276,6 +276,33 @@ fn focus_loss_clears_pressed_row_before_drag_starts() {
 }
 
 #[test]
+fn double_click_press_keeps_visual_pressed_until_release_without_single_activation() {
+    let bounds = Rect::from_size(120.0, 22.0);
+    let position = Point::new(8.0, 6.0);
+    let mut row =
+        InteractiveRowWidget::new(15, WidgetSizing::fixed(Vector2::new(120.0, 22.0))).with_drag();
+
+    assert_eq!(
+        row.handle_input(bounds, WidgetInput::primary_double_click(position)),
+        Some(InteractiveRowMessage::DoubleActivate)
+    );
+    assert!(row.common.state.pressed);
+    assert!(row.double_activated);
+    assert_eq!(
+        row.handle_input(bounds, WidgetInput::pointer_move(Point::new(30.0, 6.0))),
+        None,
+        "the second click must not accidentally enter drag mode"
+    );
+    assert_eq!(
+        row.handle_input(bounds, WidgetInput::primary_release(position)),
+        None,
+        "double activation must not be followed by a single activation"
+    );
+    assert!(!row.common.state.pressed);
+    assert!(!row.double_activated);
+}
+
+#[test]
 fn synchronize_from_previous_clears_retained_drag_when_host_drag_becomes_idle() {
     let start = Point::new(8.0, 6.0);
     let mut previous =

@@ -28,6 +28,7 @@ pub struct InteractiveRowWidget {
     pub props: InteractiveRowProps,
     pressed_position: Option<Point>,
     dragged: bool,
+    double_activated: bool,
 }
 
 /// Immutable interactive row configuration.
@@ -103,6 +104,7 @@ impl InteractiveRowWidget {
             props: InteractiveRowProps::default(),
             pressed_position: None,
             dragged: false,
+            double_activated: false,
         }
     }
 

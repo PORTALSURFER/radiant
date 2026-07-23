@@ -117,24 +117,21 @@ impl DenseInteractiveRowUnderlayChrome {
 
     fn apply_to(self, mut chrome: DenseRowChromeParts) -> DenseRowChromeParts {
         chrome.leading_marker = self.leading_marker;
-        chrome.leading_overlay_marker = self.leading_overlay_marker.or_else(|| {
-            chrome
-                .state
-                .pressed
-                .then_some(self.pressed_leading_overlay_marker)
-                .flatten()
-        });
+        chrome.leading_overlay_marker = if chrome.state.pressed {
+            self.pressed_leading_overlay_marker
+                .or(self.leading_overlay_marker)
+        } else {
+            self.leading_overlay_marker
+        };
         chrome.trailing_marker = self.trailing_marker;
         if chrome.state.hovered && chrome.trailing_marker.is_none() {
             chrome.trailing_marker = self.hover_trailing_marker;
         }
-        chrome.outline = self.outline.or_else(|| {
-            chrome
-                .state
-                .pressed
-                .then_some(self.pressed_outline)
-                .flatten()
-        });
+        chrome.outline = if chrome.state.pressed {
+            self.pressed_outline.or(self.outline)
+        } else {
+            self.outline
+        };
         chrome
     }
 }

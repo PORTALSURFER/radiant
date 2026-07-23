@@ -54,6 +54,41 @@ fn tree_row_routes_interactive_actions() {
 }
 
 #[test]
+fn tree_row_pointer_focus_uses_full_marker_only_until_release() {
+    let faded = Rgba8::new(230, 230, 226, 0);
+    let pressed = Rgba8::new(230, 230, 226, 255);
+    let view = tree_row("Folder")
+        .focus_marker(DenseRowMarkerStyle::new(
+            DenseRowMarkerParts::leading(6.0),
+            faded,
+        ))
+        .pressed_focus_marker(DenseRowMarkerStyle::new(
+            DenseRowMarkerParts::leading(6.0),
+            pressed,
+        ))
+        .input_id(92)
+        .interactive_actions(InteractiveRowActions::new().activate(|| TreeRowMessage::Activate));
+    let mut surface = view.into_surface();
+    let bounds = Rect::from_size(160.0, 22.0);
+    let position = Point::new(12.0, 10.0);
+    let paints_pressed_marker = |surface: &crate::runtime::UiSurface<TreeRowMessage>| {
+        surface
+            .find_widget(92)
+            .expect("tree row hit target")
+            .widget()
+            .paint_plan_with_defaults(bounds)
+            .fill_rects()
+            .any(|fill| fill.color == pressed && fill.rect.width() == 6.0)
+    };
+
+    assert!(!paints_pressed_marker(&surface));
+    surface.dispatch_widget_input(92, bounds, WidgetInput::primary_press(position));
+    assert!(paints_pressed_marker(&surface));
+    surface.dispatch_widget_input(92, bounds, WidgetInput::primary_release(position));
+    assert!(!paints_pressed_marker(&surface));
+}
+
+#[test]
 fn tree_row_stable_row_identity_keys_row_and_hit_target() {
     let row_key = "folder-row-source-a";
     fn keyed_row(row_key: &'static str) -> crate::application::ViewNode<TreeRowMessage> {
@@ -215,6 +250,7 @@ fn selected_hover_tree_row_paints_configured_fill_and_marker() {
         )),
         selected_marker: None,
         focus_marker: None,
+        pressed_focus_marker: None,
         selected_trailing_marker: None,
         hover_trailing_marker: None,
         focus_outline: None,
@@ -263,6 +299,7 @@ fn selected_idle_tree_row_keeps_normal_label_color() {
         )),
         selected_marker: None,
         focus_marker: None,
+        pressed_focus_marker: None,
         selected_trailing_marker: None,
         hover_trailing_marker: None,
         focus_outline: None,
@@ -298,6 +335,7 @@ fn selected_hovered_tree_row_uses_highlighted_label_color() {
         )),
         selected_marker: None,
         focus_marker: None,
+        pressed_focus_marker: None,
         selected_trailing_marker: None,
         hover_trailing_marker: None,
         focus_outline: None,
@@ -334,6 +372,7 @@ fn focused_tree_row_paints_focus_outline_without_selected_fill() {
         )),
         selected_marker: None,
         focus_marker: None,
+        pressed_focus_marker: None,
         selected_trailing_marker: None,
         hover_trailing_marker: None,
         focus_outline: Some(crate::gui::list::DenseRowOutlineStyle::new(0.5, focus, 1.0)),
@@ -375,6 +414,7 @@ fn selected_focused_tree_row_paints_selected_fill_without_marker() {
         )),
         selected_marker: None,
         focus_marker: None,
+        pressed_focus_marker: None,
         selected_trailing_marker: None,
         hover_trailing_marker: None,
         focus_outline: None,

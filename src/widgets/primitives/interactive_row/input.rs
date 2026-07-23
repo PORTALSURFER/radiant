@@ -35,7 +35,7 @@ impl InteractiveRowWidget {
                     }
                     return None;
                 }
-                if self.common.state.pressed && self.props.draggable {
+                if self.common.state.pressed && !self.double_activated && self.props.draggable {
                     if !self.dragged && !drag_start_threshold_met(self.pressed_position, position) {
                         return None;
                     }
@@ -75,6 +75,7 @@ impl InteractiveRowWidget {
                 self.common.state.focused = true;
                 self.pressed_position = Some(position);
                 self.dragged = false;
+                self.double_activated = false;
                 None
             }
             WidgetInput::PointerPress {
@@ -91,9 +92,11 @@ impl InteractiveRowWidget {
                 ..
             } if bounds.contains(position) => {
                 self.common.state.hovered = true;
-                self.common.state.pressed = false;
-                self.pressed_position = None;
+                self.common.state.pressed = true;
+                self.common.state.focused = true;
+                self.pressed_position = Some(position);
                 self.dragged = false;
+                self.double_activated = true;
                 Some(InteractiveRowMessage::DoubleActivate)
             }
             WidgetInput::PointerRelease {
@@ -110,15 +113,19 @@ impl InteractiveRowWidget {
                     self.common.state.hovered = true;
                     self.pressed_position = None;
                     self.dragged = false;
+                    self.double_activated = false;
                     return Some(InteractiveRowMessage::Drop);
                 }
-                let activated =
-                    self.common.state.pressed && !self.dragged && bounds.contains(position);
+                let activated = self.common.state.pressed
+                    && !self.double_activated
+                    && !self.dragged
+                    && bounds.contains(position);
                 let dragged = self.props.drag_source || (self.common.state.pressed && self.dragged);
                 self.common.state.pressed = false;
                 self.common.state.hovered = bounds.contains(position);
                 self.pressed_position = None;
                 self.dragged = false;
+                self.double_activated = false;
                 if dragged {
                     return Some(InteractiveRowMessage::Drag(DragHandleMessage::Ended {
                         position,
@@ -146,6 +153,7 @@ impl InteractiveRowWidget {
                     self.common.state.pressed = false;
                     self.pressed_position = None;
                     self.dragged = false;
+                    self.double_activated = false;
                 }
                 None
             }
@@ -159,6 +167,7 @@ impl InteractiveRowWidget {
                     self.common.state.pressed = false;
                     self.pressed_position = None;
                     self.dragged = false;
+                    self.double_activated = false;
                 }
                 None
             }

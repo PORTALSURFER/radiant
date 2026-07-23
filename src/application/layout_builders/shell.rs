@@ -1,7 +1,7 @@
 //! Generic application shell layout builder.
 
 use crate::{
-    application::{Overlays, ViewNode, column, row},
+    application::{Overlays, ViewNode, column, row, stack_layers},
     widgets::WidgetStyle,
 };
 
@@ -11,6 +11,7 @@ pub struct WorkspaceShellBuilder<Message> {
     top_bar: Option<ViewNode<Message>>,
     leading_sidebars: Vec<ViewNode<Message>>,
     trailing_sidebars: Vec<ViewNode<Message>>,
+    workspace_overlays: Vec<ViewNode<Message>>,
     status_bar: Option<ViewNode<Message>>,
     outer_spacing: f32,
     workspace_spacing: f32,
@@ -19,7 +20,7 @@ pub struct WorkspaceShellBuilder<Message> {
     overlays: Option<Overlays<Message>>,
 }
 
-impl<Message> WorkspaceShellBuilder<Message> {
+impl<Message: 'static> WorkspaceShellBuilder<Message> {
     /// Add the top bar region above the workspace row.
     pub fn top_bar(mut self, view: ViewNode<Message>) -> Self {
         self.top_bar = Some(view);
@@ -35,6 +36,12 @@ impl<Message> WorkspaceShellBuilder<Message> {
     /// Add the trailing sidebar region after the main workspace.
     pub fn trailing_sidebar(mut self, view: ViewNode<Message>) -> Self {
         self.trailing_sidebars.push(view);
+        self
+    }
+
+    /// Paint an interactive layer above the complete workspace row.
+    pub fn workspace_overlay(mut self, view: ViewNode<Message>) -> Self {
+        self.workspace_overlays.push(view);
         self
     }
 
@@ -84,10 +91,12 @@ impl<Message> WorkspaceShellBuilder<Message> {
         let workspace_row = row(workspace_children)
             .fill()
             .spacing(self.workspace_spacing);
+        let workspace_region =
+            stack_layers(std::iter::once(workspace_row).chain(self.workspace_overlays)).fill();
 
         let mut shell_children = Vec::new();
         shell_children.extend(self.top_bar);
-        shell_children.push(workspace_row);
+        shell_children.push(workspace_region);
         shell_children.extend(self.status_bar);
 
         let mut shell = column(shell_children)
@@ -111,6 +120,7 @@ pub fn workspace_shell<Message>(workspace: ViewNode<Message>) -> WorkspaceShellB
         top_bar: None,
         leading_sidebars: Vec::new(),
         trailing_sidebars: Vec::new(),
+        workspace_overlays: Vec::new(),
         status_bar: None,
         outer_spacing: 4.0,
         workspace_spacing: 4.0,
@@ -201,5 +211,22 @@ mod tests {
         .text_label_strings();
 
         assert_eq!(labels, ["Top", "Main", "Floating"]);
+    }
+
+    #[test]
+    fn workspace_shell_paints_workspace_overlays_after_the_complete_workspace_row() {
+        let labels = scene::<()>(
+            workspace_shell(text("Main"))
+                .leading_sidebar(text("Sidebar"))
+                .workspace_overlay(text("Resize rail"))
+                .status_bar(text("Status"))
+                .build(),
+        )
+        .into_view()
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 180.0))
+        .paint_plan
+        .text_label_strings();
+
+        assert_eq!(labels, ["Sidebar", "Main", "Resize rail", "Status"]);
     }
 }

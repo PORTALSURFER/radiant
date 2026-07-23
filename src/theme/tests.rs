@@ -54,6 +54,9 @@ fn dark_theme_matches_editorial_terminal_palette() {
     assert_eq!(theme.bg_primary, Rgba8::new(27, 30, 30, 255));
     assert_eq!(theme.surface_overlay, Rgba8::new(42, 45, 45, 255));
     assert_eq!(theme.border, Rgba8::new(58, 61, 61, 255));
+    assert_eq!(theme.border_emphasis, Rgba8::new(64, 67, 66, 255));
+    assert_eq!(theme.grid_strong, Rgba8::new(54, 57, 57, 255));
+    assert_eq!(theme.grid_soft, Rgba8::new(40, 43, 43, 255));
     assert_eq!(theme.accent_mint, Rgba8::new(233, 88, 67, 255));
     assert_eq!(theme.text_primary, Rgba8::new(216, 215, 211, 255));
     assert_eq!(theme.text_muted, Rgba8::new(153, 155, 154, 255));

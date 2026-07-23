@@ -38,10 +38,12 @@ impl Widget for InteractiveRowWidget {
             }
             self.pressed_position = previous.pressed_position;
             self.dragged = previous.dragged;
+            self.double_activated = previous.double_activated;
             if retained_drag_ended(previous, self) {
                 self.common.state.pressed = false;
                 self.pressed_position = None;
                 self.dragged = false;
+                self.double_activated = false;
             }
         }
     }

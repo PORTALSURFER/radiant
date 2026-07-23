@@ -263,3 +263,31 @@ fn badge_builder_passive_paints_without_host_message() {
 
     assert!(paints_label, "passive badge should paint its label");
 }
+
+#[test]
+fn outlined_badge_keeps_background_fill_and_paints_accent_border() {
+    let theme = crate::theme::ThemeTokens::default();
+    let frame = UiSurface::new(
+        badge("ONE-SHOT ×")
+            .primary()
+            .active(true)
+            .outline()
+            .passive::<()>()
+            .size(100.0, 22.0)
+            .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 22.0)),
+        &theme,
+    );
+
+    assert!(frame.paint_plan.primitives.iter().any(
+        |primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color == theme.bg_primary)
+    ));
+    assert!(frame.paint_plan.primitives.iter().any(
+        |primitive| matches!(primitive, PaintPrimitive::StrokeRect(stroke) if stroke.color != theme.bg_primary && stroke.width == 1.0)
+    ));
+    assert!(frame.paint_plan.primitives.iter().any(
+        |primitive| matches!(primitive, PaintPrimitive::Text(text) if text.text == "ONE-SHOT ×" && text.color == theme.text_primary)
+    ));
+}

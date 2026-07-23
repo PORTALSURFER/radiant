@@ -16,6 +16,34 @@ pub(super) fn push_drag_handle_widget_paint(
     if !handle.common.paint.paints_state_layers {
         return;
     }
+    let tokens = crate::widgets::resolve_widget_visual_tokens(
+        theme,
+        handle.common.style,
+        handle.common.state,
+    );
+    let active_color = if handle.common.state.pressed {
+        theme.accent_danger
+    } else {
+        tokens.emphasis
+    };
+    let hover_highlight_visible = handle.hover_highlight_visible();
+    if let Some(width) = handle.trailing_rail_width {
+        let width = width.min(bounds.width());
+        let rail = Rect::from_min_size(
+            Point::new(bounds.max.x - width, bounds.min.y),
+            crate::gui::types::Vector2::new(width, bounds.height()),
+        );
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: handle.common.id,
+            rect: rail,
+            color: if hover_highlight_visible || handle.common.state.pressed {
+                active_color
+            } else {
+                theme.border_emphasis
+            },
+        }));
+        return;
+    }
     if handle.full_height_rail {
         primitives.push(PaintPrimitive::FillRect(PaintFillRect {
             widget_id: handle.common.id,
@@ -24,20 +52,15 @@ pub(super) fn push_drag_handle_widget_paint(
         }));
     }
     if handle.hover_chrome_only
-        && !handle.common.state.hovered
+        && !hover_highlight_visible
         && !handle.common.state.pressed
         && !handle.common.state.focused
     {
         return;
     }
-    let tokens = crate::widgets::resolve_widget_visual_tokens(
-        theme,
-        handle.common.style,
-        handle.common.state,
-    );
     let color = if handle.common.state.pressed {
         theme.accent_danger
-    } else if handle.common.state.hovered {
+    } else if hover_highlight_visible {
         tokens.emphasis
     } else {
         theme.text_muted
@@ -59,7 +82,7 @@ pub(super) fn push_drag_handle_widget_paint(
             },
         }));
     }
-    if handle.common.state.hovered || handle.common.state.pressed {
+    if hover_highlight_visible || handle.common.state.pressed {
         primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
             widget_id: handle.common.id,
             rect: inset_rect(bounds, 2.0, 2.0),

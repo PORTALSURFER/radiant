@@ -12,6 +12,7 @@ pub struct BadgeBuilder {
     pub(super) label: PaintText,
     pub(super) style: Option<WidgetStyle>,
     pub(super) active: bool,
+    pub(super) outline: bool,
 }
 
 impl BadgeBuilder {
@@ -45,6 +46,12 @@ impl BadgeBuilder {
         self
     }
 
+    /// Paint this badge as an outlined chip rather than a filled pill.
+    pub fn outline(mut self) -> Self {
+        self.outline = true;
+        self
+    }
+
     /// Build a passive badge view without host messages.
     pub fn passive<Message: 'static>(self) -> ViewNode<Message> {
         self.passive_view()
@@ -52,7 +59,9 @@ impl BadgeBuilder {
 
     pub(super) fn passive_view<Message: 'static>(self) -> ViewNode<Message> {
         let sizing = default_badge_sizing(&self.label);
-        let badge = BadgeWidget::new(0, self.label, sizing).with_active(self.active);
+        let badge = BadgeWidget::new(0, self.label, sizing)
+            .with_active(self.active)
+            .with_outline(self.outline);
         let mut node = view_node_from_widget(badge);
         node.style = self.style;
         node
@@ -65,5 +74,6 @@ pub fn badge(label: impl Into<TextContent>) -> BadgeBuilder {
         label: label.into().into_paint_text(),
         style: None,
         active: false,
+        outline: false,
     }
 }

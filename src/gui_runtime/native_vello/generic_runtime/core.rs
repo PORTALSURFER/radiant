@@ -29,6 +29,14 @@ impl<Bridge, Message> GenericNativeRuntimeCore<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    pub(super) fn timed_repaint_deadline(&self) -> Option<Instant> {
+        self.runtime.timed_repaint_deadline()
+    }
+
+    pub(super) fn advance_timed_repaints(&mut self, now: Instant) -> bool {
+        self.runtime.advance_timed_repaints(now)
+    }
+
     #[cfg(test)]
     pub(in crate::gui_runtime::native_vello) fn new(bridge: Bridge, viewport: Vector2) -> Self {
         Self::new_with_debug_layout(bridge, viewport, false)

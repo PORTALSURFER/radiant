@@ -59,6 +59,12 @@ impl InteractiveBadgeBuilder {
         self
     }
 
+    /// Paint the badge visual as an outlined chip.
+    pub fn outline(mut self) -> Self {
+        self.badge = self.badge.outline();
+        self
+    }
+
     /// Override the transparent interaction surface sizing.
     pub fn sizing(mut self, sizing: WidgetSizing) -> Self {
         self.row = self.row.sizing(sizing);

@@ -15,7 +15,24 @@ pub(super) fn handle_drag_handle_input(
 
     match input {
         WidgetInput::PointerMove { position } => {
-            handle.common.state.hovered = bounds.contains(position);
+            let contains_pointer = bounds.contains(position);
+            if handle.hover_suppressed_until_exit {
+                handle.common.state.hovered = false;
+                handle.hover_started_at = None;
+                handle.hover_highlight_revealed = false;
+                if !contains_pointer {
+                    handle.hover_suppressed_until_exit = false;
+                }
+            } else {
+                if contains_pointer && !handle.common.state.hovered {
+                    handle.hover_started_at = Some(std::time::Instant::now());
+                    handle.hover_highlight_revealed = handle.hover_highlight_delay.is_zero();
+                } else if !contains_pointer {
+                    handle.hover_started_at = None;
+                    handle.hover_highlight_revealed = false;
+                }
+                handle.common.state.hovered = contains_pointer;
+            }
             handle
                 .common
                 .state
@@ -27,6 +44,9 @@ pub(super) fn handle_drag_handle_input(
             button: PointerButton::Primary,
             ..
         } if bounds.contains(position) => {
+            handle.hover_suppressed_until_exit = false;
+            handle.hover_started_at = None;
+            handle.hover_highlight_revealed = false;
             handle.common.state.pressed = true;
             handle.common.state.active = true;
             Some(DragHandleMessage::started(position))
@@ -36,6 +56,9 @@ pub(super) fn handle_drag_handle_input(
             button: PointerButton::Primary,
             ..
         } if bounds.contains(position) => {
+            handle.hover_suppressed_until_exit = false;
+            handle.hover_started_at = None;
+            handle.hover_highlight_revealed = true;
             handle.common.state.hovered = true;
             handle.common.state.pressed = false;
             handle.common.state.active = false;
@@ -48,6 +71,12 @@ pub(super) fn handle_drag_handle_input(
         } => {
             handle.common.state.pressed = false;
             handle.common.state.active = false;
+            if handle.trailing_rail_width.is_some() {
+                handle.common.state.hovered = false;
+                handle.hover_suppressed_until_exit = bounds.contains(position);
+            }
+            handle.hover_started_at = None;
+            handle.hover_highlight_revealed = false;
             Some(DragHandleMessage::Ended { position })
         }
         WidgetInput::FocusChanged(focused) => {
@@ -56,6 +85,8 @@ pub(super) fn handle_drag_handle_input(
             if cancel_drag {
                 handle.common.state.pressed = false;
                 handle.common.state.active = false;
+                handle.hover_started_at = handle.common.state.hovered.then(std::time::Instant::now);
+                handle.hover_highlight_revealed = handle.hover_highlight_delay.is_zero();
                 return Some(DragHandleMessage::Cancelled {
                     position: bounds.center(),
                 });

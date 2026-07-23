@@ -22,6 +22,8 @@ pub struct IconButtonWidget {
     pub common: WidgetCommon,
     /// Retained icon painted in the button bounds.
     pub icon: SvgIcon,
+    /// Optional retained icon painted while hovered or pressed.
+    pub hover_icon: Option<SvgIcon>,
     /// Whether the button paints standard button chrome behind the icon.
     pub chrome: IconButtonChrome,
 }
@@ -56,6 +58,7 @@ impl IconButtonWidget {
         Self {
             common,
             icon: parts.icon,
+            hover_icon: None,
             chrome: IconButtonChrome::Standard,
         }
     }
@@ -68,6 +71,12 @@ impl IconButtonWidget {
     /// Return this icon button without the standard button fill or border.
     pub fn bare(mut self) -> Self {
         self.chrome = IconButtonChrome::Bare;
+        self
+    }
+
+    /// Use a different retained icon while hovered or pressed.
+    pub fn with_hover_icon(mut self, icon: SvgIcon) -> Self {
+        self.hover_icon = Some(icon);
         self
     }
 }
@@ -147,7 +156,14 @@ impl Widget for IconButtonWidget {
             (bounds.width() - side) * 0.5,
             (bounds.height() - side) * 0.5,
         );
-        self.icon.append_paint(primitives, self.common.id, rect);
+        let icon = if !self.common.state.disabled
+            && (self.common.state.hovered || self.common.state.pressed)
+        {
+            self.hover_icon.as_ref().unwrap_or(&self.icon)
+        } else {
+            &self.icon
+        };
+        icon.append_paint(primitives, self.common.id, rect);
     }
 }
 
@@ -246,6 +262,65 @@ mod tests {
             )),
             "bare icon button should not paint button chrome"
         );
+    }
+
+    #[test]
+    fn bare_icon_button_can_swap_fill_icon_on_hover_without_extra_chrome() {
+        let idle_icon = SvgIcon::from_svg(
+            r##"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <circle fill="#999999" cx="8" cy="8" r="4"/>
+</svg>"##,
+        )
+        .expect("valid idle icon");
+        let hover_icon = SvgIcon::from_svg(
+            r##"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <circle fill="#ff6655" cx="8" cy="8" r="4"/>
+</svg>"##,
+        )
+        .expect("valid hover icon");
+        let bounds = Rect::from_min_size(
+            Point::new(0.0, 0.0),
+            crate::layout::Vector2::new(22.0, 18.0),
+        );
+        let theme = ThemeTokens::default();
+        let mut widget = IconButtonWidget::new(
+            103,
+            idle_icon,
+            WidgetSizing::fixed(crate::layout::Vector2::new(22.0, 18.0)),
+        )
+        .bare()
+        .with_hover_icon(hover_icon);
+        let mut idle = Vec::new();
+        widget.append_paint(&mut idle, bounds, &Default::default(), &theme);
+
+        widget.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(11.0, 9.0),
+            },
+        );
+        let mut hovered = Vec::new();
+        widget.append_paint(&mut hovered, bounds, &Default::default(), &theme);
+
+        let idle_svg = idle
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::Svg(svg) => Some(&svg.document),
+                _ => None,
+            })
+            .expect("idle icon paint");
+        let hover_svg = hovered
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::Svg(svg) => Some(&svg.document),
+                _ => None,
+            })
+            .expect("hover icon paint");
+        assert_ne!(idle_svg, hover_svg);
+        assert!(!hovered.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(_) | PaintPrimitive::StrokePolygon(_)
+        )));
     }
 
     fn accent_overlay_alpha(

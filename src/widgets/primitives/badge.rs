@@ -16,7 +16,7 @@ mod input;
 mod model;
 mod paint;
 
-pub use model::{BadgeProps, BadgeState};
+pub use model::{BadgeChrome, BadgeProps, BadgeState};
 
 /// Public badge/pill primitive.
 #[derive(Clone, Debug, PartialEq)]
@@ -51,7 +51,10 @@ impl BadgeWidget {
         };
         Self {
             common,
-            props: BadgeProps { label: parts.label },
+            props: BadgeProps {
+                label: parts.label,
+                chrome: BadgeChrome::Filled,
+            },
             state: BadgeState::default(),
         }
     }
@@ -68,6 +71,16 @@ impl BadgeWidget {
     /// Set the active visual state for this badge.
     pub fn with_active(mut self, active: bool) -> Self {
         self.common.state.active = active;
+        self
+    }
+
+    /// Use an outlined rather than filled badge surface.
+    pub fn with_outline(mut self, outline: bool) -> Self {
+        self.props.chrome = if outline {
+            BadgeChrome::Outline
+        } else {
+            BadgeChrome::Filled
+        };
         self
     }
 

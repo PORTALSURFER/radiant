@@ -39,9 +39,16 @@ pub struct TreeRowBuilder {
     pub(super) hit_key: Option<String>,
     pub(super) palette: Option<DenseRowPalette>,
     pub(super) drop_target_outline: Option<DenseRowOutlineStyle>,
+    pub(super) selected_marker: Option<DenseRowMarkerStyle>,
+    pub(super) focus_marker: Option<DenseRowMarkerStyle>,
+    pub(super) pressed_focus_marker: Option<DenseRowMarkerStyle>,
+    pub(super) selected_trailing_marker: Option<DenseRowMarkerStyle>,
+    pub(super) hover_trailing_marker: Option<DenseRowMarkerStyle>,
+    pub(super) focus_outline: Option<DenseRowOutlineStyle>,
     pub(super) selected_hover_marker: Option<DenseRowMarkerStyle>,
     pub(super) normal_label_color: Option<Rgba8>,
     pub(super) highlighted_label_color: Rgba8,
+    pub(super) label_inset_x: f32,
     pub(super) trailing_icon: Option<SvgIcon>,
 }
 
@@ -166,6 +173,46 @@ impl TreeRowBuilder {
         self
     }
 
+    /// Set a leading marker painted whenever the row is selected.
+    pub fn selected_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.selected_marker = Some(marker);
+        self
+    }
+
+    /// Set a leading marker painted for keyboard focus and pointer-down focus.
+    pub fn focus_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.focus_marker = Some(marker);
+        self
+    }
+
+    /// Set a leading marker painted only while the primary pointer is held.
+    ///
+    /// This can remain fully visible while a separate keyboard-focus marker
+    /// uses a time-varying alpha.
+    pub fn pressed_focus_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.pressed_focus_marker = Some(marker);
+        self
+    }
+
+    /// Set a trailing marker painted whenever the row is selected.
+    pub fn selected_trailing_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.selected_trailing_marker = Some(marker);
+        self
+    }
+
+    /// Set a trailing marker painted while the row is hovered and no selected
+    /// trailing marker is active.
+    pub fn hover_trailing_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
+        self.hover_trailing_marker = Some(marker);
+        self
+    }
+
+    /// Set an outline painted whenever the host marks the row keyboard-focused.
+    pub fn focus_outline(mut self, outline: DenseRowOutlineStyle) -> Self {
+        self.focus_outline = Some(outline);
+        self
+    }
+
     /// Set a leading marker painted only when the row is both selected and hovered.
     pub fn selected_hover_marker(mut self, marker: DenseRowMarkerStyle) -> Self {
         self.selected_hover_marker = Some(marker);
@@ -181,6 +228,12 @@ impl TreeRowBuilder {
     /// Override the highlighted label color.
     pub fn highlighted_label_color(mut self, color: Rgba8) -> Self {
         self.highlighted_label_color = color;
+        self
+    }
+
+    /// Set the horizontal gap between leading row chrome and the label.
+    pub fn label_inset_x(mut self, inset: f32) -> Self {
+        self.label_inset_x = inset.max(0.0);
         self
     }
 
@@ -227,9 +280,16 @@ pub fn tree_row(label: impl Into<TextContent>) -> TreeRowBuilder {
         hit_key: None,
         palette: None,
         drop_target_outline: None,
+        selected_marker: None,
+        focus_marker: None,
+        pressed_focus_marker: None,
+        selected_trailing_marker: None,
+        hover_trailing_marker: None,
+        focus_outline: None,
         selected_hover_marker: None,
         normal_label_color: None,
         highlighted_label_color: DEFAULT_HIGHLIGHTED_LABEL_COLOR,
+        label_inset_x: 4.0,
         trailing_icon: None,
     }
 }

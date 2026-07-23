@@ -2,7 +2,8 @@
 
 use super::{
     FrameWork, FrameWorkReason, GenericNativeVelloRunner, SceneRebuildMode,
-    generic_window_attributes, reveal_window_after_surface_setup,
+    configure_created_top_level_window, generic_window_attributes,
+    reveal_window_after_surface_setup,
 };
 use crate::{
     gui::types::Vector2,
@@ -39,6 +40,7 @@ where
                 return;
             }
         };
+        configure_created_top_level_window(&window, &self.options);
         self.timing.startup_timing.mark_window_created();
         self.window.id = Some(window.id());
         self.window.native_dpi_scale = DpiScale::new(window.scale_factor());

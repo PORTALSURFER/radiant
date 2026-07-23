@@ -30,7 +30,7 @@ pub(in crate::gui_runtime::native_vello) fn pointer_press_event(
     }
 }
 
-fn is_double_click(
+pub(super) fn is_double_click(
     last: PointerPressStamp,
     now: Instant,
     position: Point,

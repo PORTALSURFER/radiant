@@ -19,6 +19,7 @@ use crate::widgets::interaction::{SliderMessage, WidgetInput, WidgetOutput};
 pub use model::{SliderProps, SliderState};
 
 const DEFAULT_KEYBOARD_STEP: f32 = 0.05;
+const DEFAULT_TRACK_HEIGHT: f32 = 6.0;
 
 /// Public horizontal slider primitive.
 #[derive(Clone, Debug, PartialEq)]
@@ -52,6 +53,8 @@ impl SliderWidget {
             common,
             props: SliderProps {
                 keyboard_step: DEFAULT_KEYBOARD_STEP,
+                track_height: DEFAULT_TRACK_HEIGHT,
+                paints_track_border: false,
             },
             state: SliderState {
                 value: clamp_fraction(parts.value),
@@ -70,9 +73,21 @@ impl SliderWidget {
         self
     }
 
+    /// Return this slider with an explicit centered track height.
+    pub fn with_track_height(mut self, height: f32) -> Self {
+        self.props.track_height = height;
+        self
+    }
+
+    /// Return this slider with a passive one-pixel track outline.
+    pub fn with_track_border(mut self, paints_border: bool) -> Self {
+        self.props.paints_track_border = paints_border;
+        self
+    }
+
     /// Return the current thumb rectangle inside the provided bounds.
     pub fn thumb_rect(&self, bounds: Rect) -> Rect {
-        geometry::thumb_rect(bounds, self.state.value)
+        geometry::thumb_rect(bounds, self.state.value, self.props.track_height)
     }
 
     /// Route one backend-neutral interaction into the slider.

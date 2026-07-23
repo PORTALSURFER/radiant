@@ -14,6 +14,7 @@ use crate::{
 };
 use std::any::Any;
 use std::collections::BTreeMap;
+use std::time::Instant;
 
 /// Pointer routing behavior while a widget owns pointer capture.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -84,6 +85,21 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
     /// work on guaranteed no-op state synchronization.
     fn needs_state_synchronization(&self) -> bool {
         true
+    }
+
+    /// Return the next deadline at which widget-local visual state must advance.
+    ///
+    /// Native runtimes use this to wake for finite delays such as hover intent
+    /// without polling continuously or requiring another pointer event.
+    fn timed_repaint_deadline(&self) -> Option<Instant> {
+        None
+    }
+
+    /// Advance widget-local visual state whose deadline has elapsed.
+    ///
+    /// Return `true` when paint output changed and the surface must be redrawn.
+    fn advance_timed_repaint(&mut self, _now: Instant) -> bool {
+        false
     }
 
     /// Return whether this widget accepts text-editing input while focused.

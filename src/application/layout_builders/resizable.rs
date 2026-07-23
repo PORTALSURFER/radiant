@@ -14,6 +14,7 @@ pub struct ResizableBuilder<Message> {
     handle_key: Option<String>,
     handle_style: Option<WidgetStyle>,
     hover_chrome_only: bool,
+    full_height_rail: bool,
 }
 
 impl<Message: 'static> ResizableBuilder<Message> {
@@ -47,6 +48,12 @@ impl<Message: 'static> ResizableBuilder<Message> {
         self
     }
 
+    /// Paint the resize boundary as one continuous passive rail.
+    pub fn full_height_rail(mut self) -> Self {
+        self.full_height_rail = true;
+        self
+    }
+
     /// Finish the resizable content with a mapped trailing resize handle.
     pub fn resize_handle(
         self,
@@ -55,6 +62,9 @@ impl<Message: 'static> ResizableBuilder<Message> {
         let mut handle_builder = drag_handle();
         if self.hover_chrome_only {
             handle_builder = handle_builder.hover_chrome_only();
+        }
+        if self.full_height_rail {
+            handle_builder = handle_builder.full_height_rail();
         }
 
         let mut handle = handle_builder
@@ -95,6 +105,7 @@ pub fn resizable<Message>(content: ViewNode<Message>) -> ResizableBuilder<Messag
         handle_key: None,
         handle_style: None,
         hover_chrome_only: false,
+        full_height_rail: false,
     }
 }
 

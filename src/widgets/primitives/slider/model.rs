@@ -5,6 +5,10 @@
 pub struct SliderProps {
     /// Normalized amount applied for each arrow-key step.
     pub keyboard_step: f32,
+    /// Height of the centered horizontal track in logical pixels.
+    pub track_height: f32,
+    /// Whether to outline the track independently of keyboard focus.
+    pub paints_track_border: bool,
 }
 
 /// Mutable slider interaction state.

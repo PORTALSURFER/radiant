@@ -2,8 +2,9 @@
 
 use super::{
     AuxiliaryWindowEventResult, GenericNativeVelloRunner, RuntimeUserEvent, TimedFrameCadence,
-    animation_frame_interval, should_start_popup_window_drag, slow_render_profile_enabled,
-    timed_frame_cadence, timed_frame_target_fps,
+    animation_frame_interval, should_start_native_window_drag,
+    should_toggle_native_window_maximized, slow_render_profile_enabled, timed_frame_cadence,
+    timed_frame_target_fps,
 };
 use crate::runtime::RuntimeBridge;
 use std::time::{Duration, Instant};
@@ -87,16 +88,34 @@ where
                 let route = self.route_native_mouse_input(button, state);
                 if route.is_pressed()
                     && let (Some(position), Some(button)) = (route.position, route.button)
-                    && should_start_popup_window_drag(
+                    && should_toggle_native_window_maximized(
+                        &self.options,
+                        position,
+                        button,
+                        route.outcome.routed,
+                        route.double_click,
+                    )
+                    && let Some(window) = self.window.window.clone()
+                {
+                    window.set_maximized(!window.is_maximized());
+                    // Native zoom transitions can resize outside a live-resize
+                    // gesture. Force one complete app-owned scene refresh so
+                    // retained and composited layers cannot remain at the old
+                    // viewport while the new surface is already visible.
+                    self.defer_interactive_scene_rebuild();
+                    window.request_redraw();
+                } else if route.is_pressed()
+                    && let (Some(position), Some(button)) = (route.position, route.button)
+                    && should_start_native_window_drag(
                         &self.options,
                         position,
                         button,
                         route.outcome.routed,
                     )
                     && let Some(window) = self.window.window.as_ref()
-                    && let Err(err) = window.drag_window()
+                    && let Err(err) = super::window::drag_app_owned_window(window, &self.options)
                 {
-                    warn!("radiant generic native vello: popup window drag failed: {err}");
+                    warn!("radiant generic native vello: app-owned window drag failed: {err}");
                 }
                 self.handle_route_outcome(event_loop, route.outcome);
             }
@@ -146,6 +165,14 @@ where
         self.observe_pending_window_activation();
         let animation_activity = self.core.animation_activity();
         let now = Instant::now();
+        if self.core.advance_timed_repaints(now) {
+            self.rebuild_scene();
+            self.request_redraw_for_frame_work(super::FrameWork::RebuildScene {
+                reason: super::FrameWorkReason::RuntimeSurfaceRepaint,
+                mode: super::SceneRebuildMode::Immediate,
+            });
+        }
+        let timed_repaint_deadline = self.core.timed_repaint_deadline();
         let needs_text_caret_animation = self.core.has_focused_text_input();
         let frame_target_fps = timed_frame_target_fps(
             self.options.normalized_target_fps(),
@@ -159,10 +186,15 @@ where
             animation_activity.needs_animation() || needs_text_caret_animation,
         );
         match cadence {
-            TimedFrameCadence::Idle => event_loop.set_control_flow(ControlFlow::Wait),
+            TimedFrameCadence::Idle => match timed_repaint_deadline {
+                Some(deadline) => event_loop.set_control_flow(ControlFlow::WaitUntil(deadline)),
+                None => event_loop.set_control_flow(ControlFlow::Wait),
+            },
             TimedFrameCadence::WaitUntil(next_frame) => {
+                let next_wake =
+                    timed_repaint_deadline.map_or(next_frame, |deadline| next_frame.min(deadline));
                 event_loop
-                    .set_control_flow(ControlFlow::WaitUntil(self.frame_wait_deadline(next_frame)));
+                    .set_control_flow(ControlFlow::WaitUntil(self.frame_wait_deadline(next_wake)));
             }
             TimedFrameCadence::DrainNow { next_wake } => {
                 if self.should_defer_timed_frame_drain_for_pending_redraw(now) {
@@ -205,6 +237,8 @@ where
                     return;
                 }
                 self.handle_route_outcome(event_loop, outcome);
+                let next_wake =
+                    timed_repaint_deadline.map_or(next_wake, |deadline| next_wake.min(deadline));
                 event_loop.set_control_flow(ControlFlow::WaitUntil(next_wake));
             }
         }

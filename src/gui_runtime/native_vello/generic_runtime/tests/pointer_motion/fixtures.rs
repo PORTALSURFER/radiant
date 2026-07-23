@@ -7,9 +7,27 @@ use crate::{
         UiSurface, WidgetMessageMapper,
     },
     theme::ThemeTokens,
-    widgets::{FocusBehavior, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
+    widgets::{
+        DragHandleWidget, FocusBehavior, Widget, WidgetCommon, WidgetInput, WidgetOutput,
+        WidgetSizing,
+    },
 };
 use std::sync::Arc;
+
+pub(super) struct DelayedDragHandleBridge;
+
+impl RuntimeBridge<()> for DelayedDragHandleBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        Arc::new(UiSurface::new(SurfaceNode::widget(
+            DragHandleWidget::new(70, WidgetSizing::fixed(Vector2::new(8.0, 40.0)))
+                .with_hover_chrome_only()
+                .with_trailing_rail(1.0),
+            WidgetMessageMapper::none(),
+        )))
+    }
+
+    fn reduce_message(&mut self, _message: ()) {}
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct PointerMoveMessage;

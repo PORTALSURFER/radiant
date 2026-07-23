@@ -165,6 +165,14 @@ where
         self.observe_pending_window_activation();
         let animation_activity = self.core.animation_activity();
         let now = Instant::now();
+        if self.core.advance_timed_repaints(now) {
+            self.rebuild_scene();
+            self.request_redraw_for_frame_work(super::FrameWork::RebuildScene {
+                reason: super::FrameWorkReason::RuntimeSurfaceRepaint,
+                mode: super::SceneRebuildMode::Immediate,
+            });
+        }
+        let timed_repaint_deadline = self.core.timed_repaint_deadline();
         let needs_text_caret_animation = self.core.has_focused_text_input();
         let frame_target_fps = timed_frame_target_fps(
             self.options.normalized_target_fps(),
@@ -178,10 +186,15 @@ where
             animation_activity.needs_animation() || needs_text_caret_animation,
         );
         match cadence {
-            TimedFrameCadence::Idle => event_loop.set_control_flow(ControlFlow::Wait),
+            TimedFrameCadence::Idle => match timed_repaint_deadline {
+                Some(deadline) => event_loop.set_control_flow(ControlFlow::WaitUntil(deadline)),
+                None => event_loop.set_control_flow(ControlFlow::Wait),
+            },
             TimedFrameCadence::WaitUntil(next_frame) => {
+                let next_wake =
+                    timed_repaint_deadline.map_or(next_frame, |deadline| next_frame.min(deadline));
                 event_loop
-                    .set_control_flow(ControlFlow::WaitUntil(self.frame_wait_deadline(next_frame)));
+                    .set_control_flow(ControlFlow::WaitUntil(self.frame_wait_deadline(next_wake)));
             }
             TimedFrameCadence::DrainNow { next_wake } => {
                 if self.should_defer_timed_frame_drain_for_pending_redraw(now) {
@@ -224,6 +237,8 @@ where
                     return;
                 }
                 self.handle_route_outcome(event_loop, outcome);
+                let next_wake =
+                    timed_repaint_deadline.map_or(next_wake, |deadline| next_wake.min(deadline));
                 event_loop.set_control_flow(ControlFlow::WaitUntil(next_wake));
             }
         }

@@ -42,6 +42,16 @@ pub struct UiSurface<Message> {
     root: SurfaceNode<Message>,
 }
 
+impl<Message> UiSurface<Message> {
+    pub(in crate::runtime) fn timed_repaint_deadline(&self) -> Option<std::time::Instant> {
+        self.root.timed_repaint_deadline()
+    }
+
+    pub(in crate::runtime) fn advance_timed_repaints(&mut self, now: std::time::Instant) -> bool {
+        self.root.advance_timed_repaints(now)
+    }
+}
+
 /// Public declarative view snapshot alias for host applications.
 ///
 /// `View<Message>` is the framework vocabulary for the top-level immutable UI

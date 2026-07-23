@@ -11,6 +11,7 @@ use crate::{
     },
     widgets::WidgetStyle,
 };
+use std::time::Instant;
 
 /// One slot-owned child attachment inside a surface container.
 pub struct SurfaceChild<Message> {
@@ -127,6 +128,78 @@ pub enum SurfaceNode<Message> {
 }
 
 impl<Message> SurfaceNode<Message> {
+    pub(in crate::runtime) fn timed_repaint_deadline(&self) -> Option<Instant> {
+        fn earlier(current: Option<Instant>, candidate: Option<Instant>) -> Option<Instant> {
+            match (current, candidate) {
+                (Some(current), Some(candidate)) => Some(current.min(candidate)),
+                (current, candidate) => current.or(candidate),
+            }
+        }
+
+        match self {
+            Self::Scene(scene) => {
+                scene
+                    .layers
+                    .iter()
+                    .fold(scene.base.timed_repaint_deadline(), |deadline, layer| {
+                        earlier(
+                            earlier(
+                                deadline,
+                                layer
+                                    .input
+                                    .as_ref()
+                                    .and_then(SurfaceNode::timed_repaint_deadline),
+                            ),
+                            layer.node.timed_repaint_deadline(),
+                        )
+                    })
+            }
+            Self::Container(container) => {
+                container.children.iter().fold(None, |deadline, child| {
+                    earlier(deadline, child.child.timed_repaint_deadline())
+                })
+            }
+            Self::Widget(widget) => widget.widget().timed_repaint_deadline(),
+            Self::Overlay(_) => None,
+            Self::FloatingLayer(layer) => layer
+                .container
+                .children
+                .iter()
+                .fold(None, |deadline, child| {
+                    earlier(deadline, child.child.timed_repaint_deadline())
+                }),
+        }
+    }
+
+    pub(in crate::runtime) fn advance_timed_repaints(&mut self, now: Instant) -> bool {
+        match self {
+            Self::Scene(scene) => {
+                let mut changed = scene.base.advance_timed_repaints(now);
+                for layer in &mut scene.layers {
+                    if let Some(input) = &mut layer.input {
+                        changed |= input.advance_timed_repaints(now);
+                    }
+                    changed |= layer.node.advance_timed_repaints(now);
+                }
+                changed
+            }
+            Self::Container(container) => {
+                container.children.iter_mut().fold(false, |changed, child| {
+                    child.child.advance_timed_repaints(now) || changed
+                })
+            }
+            Self::Widget(widget) => widget.widget_mut().advance_timed_repaint(now),
+            Self::Overlay(_) => false,
+            Self::FloatingLayer(layer) => layer
+                .container
+                .children
+                .iter_mut()
+                .fold(false, |changed, child| {
+                    child.child.advance_timed_repaints(now) || changed
+                }),
+        }
+    }
+
     /// Return the stable node id.
     pub fn id(&self) -> NodeId {
         match self {

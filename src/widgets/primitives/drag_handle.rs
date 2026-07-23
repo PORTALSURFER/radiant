@@ -35,6 +35,8 @@ pub struct DragHandleWidget {
     pub hover_highlight_delay: Duration,
     /// Monotonic start time for the current hover-intent window.
     pub hover_started_at: Option<Instant>,
+    /// Whether the delayed hover highlight has reached its reveal deadline.
+    pub hover_highlight_revealed: bool,
 }
 
 /// Named construction fields for [`DragHandleWidget`].
@@ -59,6 +61,7 @@ impl DragHandleWidget {
             hover_suppressed_until_exit: false,
             hover_highlight_delay: Duration::ZERO,
             hover_started_at: None,
+            hover_highlight_revealed: false,
         }
     }
 
@@ -88,9 +91,7 @@ impl DragHandleWidget {
 
     pub(super) fn hover_highlight_visible(&self) -> bool {
         self.common.state.hovered
-            && self
-                .hover_started_at
-                .is_none_or(|started_at| started_at.elapsed() >= self.hover_highlight_delay)
+            && (self.hover_highlight_delay.is_zero() || self.hover_highlight_revealed)
     }
 
     /// Route one backend-neutral interaction into the handle.
@@ -119,6 +120,29 @@ impl Widget for DragHandleWidget {
         self.common.state = previous.common.state;
         self.hover_suppressed_until_exit = previous.hover_suppressed_until_exit;
         self.hover_started_at = previous.hover_started_at;
+        self.hover_highlight_revealed = previous.hover_highlight_revealed;
+    }
+
+    fn timed_repaint_deadline(&self) -> Option<Instant> {
+        (self.common.state.hovered
+            && !self.hover_highlight_revealed
+            && !self.hover_highlight_delay.is_zero())
+        .then(|| {
+            self.hover_started_at?
+                .checked_add(self.hover_highlight_delay)
+        })
+        .flatten()
+    }
+
+    fn advance_timed_repaint(&mut self, now: Instant) -> bool {
+        let Some(deadline) = self.timed_repaint_deadline() else {
+            return false;
+        };
+        if now < deadline {
+            return false;
+        }
+        self.hover_highlight_revealed = true;
+        true
     }
 
     fn accepts_pointer_move(&self) -> bool {
@@ -171,7 +195,8 @@ mod tests {
         assert!(primitives.is_empty());
 
         let _ = handle.handle_input(bounds, WidgetInput::pointer_move(Point::new(4.0, 20.0)));
-        handle.hover_started_at = Some(Instant::now() - HOVER_HIGHLIGHT_DELAY);
+        let deadline = handle.timed_repaint_deadline().expect("hover deadline");
+        assert!(handle.advance_timed_repaint(deadline));
         handle.append_paint(
             &mut primitives,
             bounds,
@@ -269,7 +294,8 @@ mod tests {
             .expect("crossing trailing rail");
         assert_eq!(crossing.color, theme.border_emphasis);
 
-        handle.hover_started_at = Some(Instant::now() - HOVER_HIGHLIGHT_DELAY);
+        let deadline = handle.timed_repaint_deadline().expect("hover deadline");
+        assert!(handle.advance_timed_repaint(deadline));
         primitives.clear();
         handle.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
         let hovered = primitives
@@ -309,7 +335,8 @@ mod tests {
 
         let _ = handle.handle_input(bounds, WidgetInput::pointer_move(Point::new(8.0, 20.0)));
         let _ = handle.handle_input(bounds, WidgetInput::pointer_move(Point::new(2.0, 20.0)));
-        handle.hover_started_at = Some(Instant::now() - HOVER_HIGHLIGHT_DELAY);
+        let deadline = handle.timed_repaint_deadline().expect("re-entry deadline");
+        assert!(handle.advance_timed_repaint(deadline));
         primitives.clear();
         handle.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
         let reentered = primitives
@@ -358,7 +385,10 @@ mod tests {
             Some(theme.border_emphasis)
         );
 
-        handle.hover_started_at = Some(Instant::now() - HOVER_HIGHLIGHT_DELAY);
+        let deadline = handle
+            .timed_repaint_deadline()
+            .expect("focus-loss deadline");
+        assert!(handle.advance_timed_repaint(deadline));
         let delayed = handle.paint_plan(bounds, &LayoutOutput::default(), &theme);
         assert_ne!(
             delayed.fill_rects().next().map(|fill| fill.color),

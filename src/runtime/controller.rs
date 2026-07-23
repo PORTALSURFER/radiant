@@ -109,6 +109,14 @@ impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
 {
+    pub(crate) fn timed_repaint_deadline(&self) -> Option<std::time::Instant> {
+        self.surface.timed_repaint_deadline()
+    }
+
+    pub(crate) fn advance_timed_repaints(&mut self, now: std::time::Instant) -> bool {
+        self.surface.advance_timed_repaints(now)
+    }
+
     /// Route one normalized widget interaction by widget id.
     ///
     /// Returns `true` when the interaction targeted a projected widget, even if

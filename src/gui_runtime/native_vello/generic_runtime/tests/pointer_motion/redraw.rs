@@ -4,8 +4,8 @@ use super::{
         RenderFrameProfile, SceneRebuildMode, demo_bridge,
     },
     fixtures::{
-        AdjacentTreeRowsBridge, DisclosureAndTreeRowBridge, LocalPointerMoveBridge,
-        PointerMoveBridge, VirtualTreeRowsBridge,
+        AdjacentTreeRowsBridge, DelayedDragHandleBridge, DisclosureAndTreeRowBridge,
+        LocalPointerMoveBridge, PointerMoveBridge, VirtualTreeRowsBridge,
     },
 };
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
     runtime::{NativeRunOptions, PaintPrimitive, RepaintScope, SurfaceInvalidation},
     widgets::PointerButton,
 };
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use winit::dpi::PhysicalPosition;
 
 #[test]
@@ -37,6 +37,41 @@ fn pointer_move_inside_same_widget_does_not_request_redundant_redraw() {
     let second = core.route_pointer_move(second_point);
     assert!(second.routed);
     assert!(!second.needs_redraw());
+}
+
+#[test]
+fn stationary_drag_handle_hover_advances_at_runtime_deadline() {
+    let mut core = GenericNativeRuntimeCore::new(DelayedDragHandleBridge, Vector2::new(8.0, 40.0));
+    let bounds = core
+        .runtime
+        .layout()
+        .rects
+        .get(&70)
+        .copied()
+        .expect("drag handle should be laid out");
+
+    let enter = core.route_pointer_move(bounds.center());
+    assert!(enter.needs_scene_rebuild());
+    let deadline = core
+        .timed_repaint_deadline()
+        .expect("hover entry should schedule one finite repaint deadline");
+    assert!(!core.advance_timed_repaints(deadline - Duration::from_millis(1)));
+    assert!(
+        core.advance_timed_repaints(deadline),
+        "the runtime must reveal delayed hover chrome without another pointer event"
+    );
+    assert_eq!(core.timed_repaint_deadline(), None);
+
+    let handle = core
+        .runtime
+        .surface()
+        .find_widget(70)
+        .expect("drag handle")
+        .widget()
+        .as_any()
+        .downcast_ref::<crate::widgets::DragHandleWidget>()
+        .expect("drag handle type");
+    assert!(handle.hover_highlight_revealed);
 }
 
 #[test]

@@ -23,27 +23,27 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     color = blend(vec3<f32>(0.106, 0.118, 0.122), vignette * 0.18, color);
 
     let band_colors = array<vec4<f32>, 4>(
-        vec4<f32>(0.655, 0.231, 0.188, 0.88),
-        vec4<f32>(0.843, 0.290, 0.220, 0.92),
-        vec4<f32>(0.847, 0.839, 0.816, 0.78),
+        vec4<f32>(0.239, 0.282, 0.722, 0.94),
+        vec4<f32>(0.878, 0.278, 0.184, 0.92),
+        vec4<f32>(0.910, 0.925, 0.929, 0.82),
         vec4<f32>(0.925, 0.910, 0.875, 0.05),
     );
     let inner_colors = array<vec3<f32>, 4>(
-        vec3<f32>(0.561, 0.188, 0.157),
-        vec3<f32>(0.776, 0.259, 0.200),
-        vec3<f32>(0.910, 0.898, 0.866),
+        vec3<f32>(0.176, 0.224, 0.596),
+        vec3<f32>(0.769, 0.204, 0.125),
+        vec3<f32>(0.957, 0.957, 0.941),
         vec3<f32>(0.925, 0.910, 0.875),
     );
     let ridge_colors = array<vec3<f32>, 4>(
-        vec3<f32>(0.914, 0.345, 0.263),
-        vec3<f32>(0.941, 0.416, 0.333),
-        vec3<f32>(0.953, 0.941, 0.906),
+        vec3<f32>(0.420, 0.494, 0.945),
+        vec3<f32>(0.965, 0.392, 0.286),
+        vec3<f32>(0.992, 0.984, 0.965),
         vec3<f32>(0.953, 0.941, 0.906),
     );
     let glow_colors = array<vec3<f32>, 4>(
-        vec3<f32>(0.208, 0.106, 0.098),
-        vec3<f32>(0.290, 0.129, 0.110),
-        vec3<f32>(0.647, 0.620, 0.569),
+        vec3<f32>(0.075, 0.098, 0.282),
+        vec3<f32>(0.302, 0.102, 0.071),
+        vec3<f32>(0.690, 0.710, 0.722),
         vec3<f32>(0.510, 0.486, 0.443),
     );
     let band_scales = array<f32, 4>(0.93, 0.43, 0.046, 0.02);
@@ -143,15 +143,15 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
         var ridge_seed = ridge_colors[band];
         if (band == 0u) {
             low_depth = smoothstep(0.03, 0.82, visible_peak);
-            let low_inner_warm = low_depth * inside * inside * 0.06;
-            let low_outer_coral = low_depth * smoothstep(0.40, 0.95, shell_light) * 0.08;
+            let low_inner_blue = low_depth * inside * inside * 0.06;
+            let low_outer_violet = low_depth * smoothstep(0.40, 0.95, shell_light) * 0.08;
             let low_edge = low_depth * (1.0 - smoothstep(aa * 0.8, aa * 4.0, edge)) * 0.03;
             let belly = clamp(1.0 - inside, 0.0, 1.0);
             low_belly = low_depth * belly * belly * 0.025;
-            low_lift = vec3<f32>(0.032, 0.010, 0.008) * low_outer_coral
-                + vec3<f32>(0.028, 0.008, 0.006) * low_inner_warm
-                + vec3<f32>(0.014, 0.004, 0.003) * low_edge;
-            ridge_seed = mix(ridge_seed, vec3<f32>(0.914, 0.345, 0.263), low_depth * 0.06);
+            low_lift = vec3<f32>(0.010, 0.012, 0.038) * low_outer_violet
+                + vec3<f32>(0.008, 0.012, 0.034) * low_inner_blue
+                + vec3<f32>(0.004, 0.006, 0.018) * low_edge;
+            ridge_seed = mix(ridge_seed, vec3<f32>(0.420, 0.494, 0.945), low_depth * 0.08);
         }
         var low_band = 0.0;
         if (band == 0u) {
@@ -168,26 +168,26 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
         );
         if (band == 0u) {
             let low_gradient = smoothstep(0.16, 0.92, shell_light);
-            let low_center = mix(vec3<f32>(0.455, 0.145, 0.125), band_colors[band].rgb, inside * 0.10);
-            let low_edge = mix(vec3<f32>(0.820, 0.270, 0.215), ridge_colors[band], low_gradient * 0.54);
+            let low_center = mix(vec3<f32>(0.118, 0.173, 0.494), band_colors[band].rgb, inside * 0.12);
+            let low_edge = mix(vec3<f32>(0.345, 0.408, 0.855), ridge_colors[band], low_gradient * 0.58);
             body_rgb = mix(low_center, low_edge, low_gradient * 0.52 + heat_mix * 0.035);
-            body_rgb = body_rgb + vec3<f32>(0.026, 0.006, 0.004) * inner_light * low_depth;
+            body_rgb = body_rgb + vec3<f32>(0.012, 0.016, 0.055) * inner_light * low_depth;
         } else if (band == 1u) {
             let mid_gradient = smoothstep(0.12, 0.90, shell_light);
-            let mid_center = mix(vec3<f32>(0.650, 0.180, 0.135), band_colors[band].rgb, inside * 0.08);
-            let mid_edge = mix(vec3<f32>(0.900, 0.320, 0.245), ridge_colors[band], mid_gradient * 0.46);
+            let mid_center = mix(vec3<f32>(0.620, 0.130, 0.080), band_colors[band].rgb, inside * 0.08);
+            let mid_edge = mix(vec3<f32>(0.930, 0.300, 0.190), ridge_colors[band], mid_gradient * 0.46);
             body_rgb = mix(mid_center, mid_edge, mid_gradient * 0.44 + heat_mix * 0.030);
             body_rgb = body_rgb + vec3<f32>(0.035, 0.006, 0.000) * inner_light * intensity;
         } else if (band == 2u) {
             let high_core_tint = smoothstep(0.065, 0.68, shaped_peak) * (0.58 + inner_light * 0.24);
             let high_air = smoothstep(0.18, 0.90, shell_light) * 0.12;
             let high_body = mix(
-                vec3<f32>(0.78, 0.79, 0.78),
-                vec3<f32>(0.95, 0.94, 0.90),
+                vec3<f32>(0.82, 0.85, 0.86),
+                vec3<f32>(0.99, 0.98, 0.95),
                 high_core_tint,
             );
-            let high_edge = mix(vec3<f32>(0.66, 0.67, 0.66), high_body, inner_light * 0.84 + heat_mix * 0.06);
-            body_rgb = high_edge + vec3<f32>(0.045, 0.040, 0.032) * high_air;
+            let high_edge = mix(vec3<f32>(0.72, 0.76, 0.78), high_body, inner_light * 0.84 + heat_mix * 0.06);
+            body_rgb = high_edge + vec3<f32>(0.040, 0.046, 0.050) * high_air;
         }
         let ridge_rgb = mix(
             ridge_seed,

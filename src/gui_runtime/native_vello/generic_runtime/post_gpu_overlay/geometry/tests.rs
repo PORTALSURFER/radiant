@@ -1,5 +1,7 @@
 #[path = "tests/fixtures.rs"]
 mod fixtures;
+#[path = "tests/icons.rs"]
+mod icons;
 #[path = "tests/paths.rs"]
 mod paths;
 #[path = "tests/regions.rs"]

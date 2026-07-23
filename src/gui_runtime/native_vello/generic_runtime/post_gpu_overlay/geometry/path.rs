@@ -1,7 +1,7 @@
 use crate::{
     gui::types::{Point, Rect as UiRect, Rgba8, Vector2},
     runtime::{
-        PaintBrush, PaintFillPath, PaintFillRule, PaintLinearGradient, PaintPathCommand,
+        PaintBrush, PaintFillPath, PaintFillRule, PaintLinearGradient, PaintPath, PaintPathCommand,
         PaintTransform,
     },
 };
@@ -16,6 +16,7 @@ use super::{
     OPAQUE_REVEALED_FILL_ALPHA, OverlayVertex, clip_x, clip_y, rgba_to_float,
     target_has_finite_positive_size,
 };
+use vello_svg::usvg::tiny_skia_path::{Path as TinyPath, PathSegment};
 
 #[derive(Clone, Copy)]
 struct PathVertex {
@@ -47,9 +48,40 @@ pub(super) fn push_fill_path_vertices_in_regions(
     fill: &PaintFillPath,
     regions: &[UiRect],
 ) {
+    push_fill_path_vertices_in_regions_with_opacity_policy(
+        vertices,
+        target_size,
+        fill,
+        regions,
+        true,
+    );
+}
+
+pub(super) fn push_fill_path_vertices_in_regions_including_opaque(
+    vertices: &mut Vec<OverlayVertex>,
+    target_size: Vector2,
+    fill: &PaintFillPath,
+    regions: &[UiRect],
+) {
+    push_fill_path_vertices_in_regions_with_opacity_policy(
+        vertices,
+        target_size,
+        fill,
+        regions,
+        false,
+    );
+}
+
+fn push_fill_path_vertices_in_regions_with_opacity_policy(
+    vertices: &mut Vec<OverlayVertex>,
+    target_size: Vector2,
+    fill: &PaintFillPath,
+    regions: &[UiRect],
+    skip_opaque: bool,
+) {
     if !target_has_finite_positive_size(target_size)
         || regions.is_empty()
-        || brush_is_opaque(fill.brush)
+        || (skip_opaque && brush_is_opaque(fill.brush))
     {
         return;
     }
@@ -194,6 +226,32 @@ fn lyon_path(path: &crate::runtime::PaintPath) -> Option<Path> {
         builder.end(false);
     }
     has_any_segment.then(|| builder.build())
+}
+
+pub(super) fn paint_path_from_tiny_skia(path: &TinyPath) -> Option<PaintPath> {
+    let mut commands = Vec::new();
+    for segment in path.segments() {
+        let command = match segment {
+            PathSegment::MoveTo(point) => PaintPathCommand::MoveTo(tiny_point(point)),
+            PathSegment::LineTo(point) => PaintPathCommand::LineTo(tiny_point(point)),
+            PathSegment::QuadTo(control, to) => PaintPathCommand::QuadTo {
+                control: tiny_point(control),
+                to: tiny_point(to),
+            },
+            PathSegment::CubicTo(control1, control2, to) => PaintPathCommand::CurveTo {
+                control1: tiny_point(control1),
+                control2: tiny_point(control2),
+                to: tiny_point(to),
+            },
+            PathSegment::Close => PaintPathCommand::Close,
+        };
+        commands.push(command);
+    }
+    (!commands.is_empty()).then(|| PaintPath::from(commands))
+}
+
+fn tiny_point(point: vello_svg::usvg::tiny_skia_path::Point) -> Point {
+    Point::new(point.x, point.y)
 }
 
 fn to_lyon(value: Point) -> LyonPoint {

@@ -2,9 +2,7 @@
 
 use crate::gui::{svg::SvgIcon, types::Rect};
 use crate::layout::LayoutOutput;
-use crate::runtime::{
-    PaintFillPolygon, PaintPrimitive, PaintStrokePolygon, diagonal_cut_rect_points, inset_rect,
-};
+use crate::runtime::{PaintPrimitive, inset_rect};
 use crate::theme::ThemeTokens;
 use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{
@@ -129,27 +127,6 @@ impl Widget for IconButtonWidget {
         if self.chrome == IconButtonChrome::Standard {
             push_button_chrome(primitives, &self.common, bounds, theme);
         }
-        if self.chrome == IconButtonChrome::Standard
-            && !self.common.state.disabled
-            && (self.common.state.hovered || self.common.state.pressed)
-        {
-            let mut fill = theme.accent_danger;
-            fill.a = if self.common.state.pressed { 92 } else { 48 };
-            let mut border = theme.accent_danger;
-            border.a = if self.common.state.pressed { 240 } else { 180 };
-            let points = diagonal_cut_rect_points(inset_rect(bounds, 1.0, 1.0));
-            primitives.push(PaintPrimitive::FillPolygon(PaintFillPolygon {
-                widget_id: self.common.id,
-                points: std::sync::Arc::clone(&points),
-                color: fill,
-            }));
-            primitives.push(PaintPrimitive::StrokePolygon(PaintStrokePolygon {
-                widget_id: self.common.id,
-                points,
-                color: border,
-                width: 1.0,
-            }));
-        }
         let side = bounds.width().min(bounds.height()).clamp(8.0, 16.0);
         let rect = inset_rect(
             bounds,
@@ -177,7 +154,7 @@ mod tests {
     };
 
     #[test]
-    fn icon_button_paints_clear_hover_and_pressed_feedback() {
+    fn icon_button_uses_single_semantic_chrome_layer_for_interaction_states() {
         let icon = SvgIcon::from_svg(
             r##"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
   <rect fill="#ffffff" x="4" y="4" width="8" height="8"/>
@@ -203,6 +180,11 @@ mod tests {
         );
         let mut hover = Vec::new();
         widget.append_paint(&mut hover, bounds, &Default::default(), &theme);
+        let hover_tokens = crate::widgets::resolve_widget_visual_tokens(
+            &theme,
+            widget.common.style,
+            widget.common.state,
+        );
 
         widget.handle_input(
             bounds,
@@ -214,12 +196,21 @@ mod tests {
         );
         let mut pressed = Vec::new();
         widget.append_paint(&mut pressed, bounds, &Default::default(), &theme);
+        let pressed_tokens = crate::widgets::resolve_widget_visual_tokens(
+            &theme,
+            widget.common.style,
+            widget.common.state,
+        );
 
-        let hover_overlay = accent_overlay_alpha(&hover, theme.accent_danger)
-            .expect("hover should paint an accent overlay");
-        let pressed_overlay = accent_overlay_alpha(&pressed, theme.accent_danger)
-            .expect("pressed should paint an accent overlay");
-        assert!(pressed_overlay > hover_overlay);
+        assert_eq!(
+            chrome_colors(&hover),
+            (hover_tokens.fill, hover_tokens.border)
+        );
+        assert_eq!(
+            chrome_colors(&pressed),
+            (pressed_tokens.fill, pressed_tokens.border)
+        );
+        assert_ne!(hover_tokens.fill, pressed_tokens.fill);
     }
 
     #[test]
@@ -323,19 +314,29 @@ mod tests {
         )));
     }
 
-    fn accent_overlay_alpha(
+    fn chrome_colors(
         primitives: &[PaintPrimitive],
-        accent: crate::gui::types::Rgba8,
-    ) -> Option<u8> {
-        primitives.iter().find_map(|primitive| match primitive {
-            PaintPrimitive::FillPolygon(fill)
-                if fill.color.r == accent.r
-                    && fill.color.g == accent.g
-                    && fill.color.b == accent.b =>
-            {
-                Some(fill.color.a)
-            }
-            _ => None,
-        })
+    ) -> (crate::gui::types::Rgba8, crate::gui::types::Rgba8) {
+        let fills = primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillPolygon(fill) => Some(fill.color),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let strokes = primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::StrokePolygon(stroke) => Some(stroke.color),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(fills.len(), 1, "icon button should paint one chrome fill");
+        assert_eq!(
+            strokes.len(),
+            1,
+            "icon button should paint one chrome border"
+        );
+        (fills[0], strokes[0])
     }
 }

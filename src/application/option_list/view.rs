@@ -183,7 +183,10 @@ fn compact_option_list_row<Message: 'static>(
     .pointer_target(
         pointer_target(true)
             .pointer_move(pointer_move)
-            .pointer_press(false)
+            // Consume the press even though activation is release-driven so
+            // an interactive surface beneath a floating list cannot capture
+            // the pointer and steal the matching release.
+            .pointer_press(true)
             .pointer_release(true)
             .pointer_drop(false)
             .wheel(false)

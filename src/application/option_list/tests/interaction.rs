@@ -3,7 +3,7 @@ use super::super::{
     CompactOptionListParts, compact_option_list,
 };
 use crate::{
-    application::{IntoView, LayerHorizontalAnchor, LayerVerticalAnchor, stack, text},
+    application::{IntoView, LayerHorizontalAnchor, LayerVerticalAnchor, button, stack, text},
     gui::types::Point,
     layout::Vector2,
     widgets::WidgetInput,
@@ -131,7 +131,7 @@ fn compact_option_list_anchored_activation_maps_clicked_row_index() {
                     .inset(8.0, 8.0),
                 )
                 .view();
-            stack([text("").size(160.0, 100.0), popup]).into_surface()
+            stack([button("Underlay").message(99).size(160.0, 100.0), popup]).into_surface()
         },
         |state, message| state.push(message),
     );
@@ -142,8 +142,9 @@ fn compact_option_list_anchored_activation_maps_clicked_row_index() {
         .first_text_rect("Snare")
         .expect("second anchored option should paint");
 
-    runtime.dispatch_primary_click(click_rect.center());
+    let click = runtime.dispatch_primary_click(click_rect.center());
 
+    assert!(click.completed_on_same_widget());
     assert_eq!(runtime.bridge().state(), &[1]);
 }
 

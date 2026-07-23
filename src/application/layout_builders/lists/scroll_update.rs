@@ -32,6 +32,32 @@ pub(super) fn resolve_virtual_list_window_change(
     }
 }
 
+/// Return whether a runtime scroll update needs the host to materialize a new
+/// row window.
+///
+/// A fixed-row scroll container can continue moving while its visible viewport
+/// remains inside the rows already projected by the host. Deferring host
+/// updates for that interval avoids rebuilding the retained row widgets for
+/// every wheel or touchpad increment. A changed viewport height must still be
+/// reported so the host can keep its logical viewport contract in sync.
+pub(crate) fn virtual_list_window_needs_materialization(
+    current: VirtualListWindow,
+    next: VirtualListWindow,
+    offset_y: f32,
+    row_height: f32,
+    viewport_height: f32,
+) -> bool {
+    let row_height = row_height.max(1.0);
+    let visible_end = ((offset_y.max(0.0) + viewport_height.max(0.0)) / row_height)
+        .ceil()
+        .max(0.0) as usize;
+    let visible_end = visible_end.min(next.total_items);
+    current.total_items != next.total_items
+        || current.viewport_len() != next.viewport_len()
+        || next.viewport_start < current.window_start
+        || visible_end > current.window_end
+}
+
 /// Resolve a fixed-row virtual-list window change from a runtime scroll update.
 pub fn virtual_list_window_change_for_scroll(
     update: ScrollUpdate,

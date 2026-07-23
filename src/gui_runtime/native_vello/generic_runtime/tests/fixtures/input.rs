@@ -36,6 +36,7 @@ pub(in super::super) struct AppVirtualListBridge {
     pub(in super::super) window: VirtualListWindow,
     pub(in super::super) scroll_count: usize,
     pub(in super::super) project_count: usize,
+    retain_materialized_window: bool,
 }
 
 impl Default for AppVirtualListBridge {
@@ -52,6 +53,16 @@ impl Default for AppVirtualListBridge {
             }),
             scroll_count: 0,
             project_count: 0,
+            retain_materialized_window: false,
+        }
+    }
+}
+
+impl AppVirtualListBridge {
+    pub(in super::super) fn retaining_materialized_window() -> Self {
+        Self {
+            retain_materialized_window: true,
+            ..Self::default()
         }
     }
 }
@@ -189,20 +200,25 @@ impl RuntimeBridge<VirtualListWindowChange> for AppVirtualListBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<VirtualListWindowChange>> {
         self.project_count += 1;
         let window = self.window;
+        let list = crate::application::virtual_list_windowed(|index| {
+            crate::application::text(format!("Row {index}"))
+                .height(20.0)
+                .fill_width()
+        })
+        .row_height(20.0)
+        .window(window)
+        .overscan_px(20.0);
+        let list = if self.retain_materialized_window {
+            list.retain_materialized_window()
+        } else {
+            list
+        };
         Arc::new(
-            crate::application::virtual_list_windowed(|index| {
-                crate::application::text(format!("Row {index}"))
-                    .height(20.0)
-                    .fill_width()
-            })
-            .row_height(20.0)
-            .window(window)
-            .overscan_px(20.0)
-            .on_window_changed(|change| change)
-            .view()
-            .id(81)
-            .fill()
-            .into_surface(),
+            list.on_window_changed(|change| change)
+                .view()
+                .id(81)
+                .fill()
+                .into_surface(),
         )
     }
 

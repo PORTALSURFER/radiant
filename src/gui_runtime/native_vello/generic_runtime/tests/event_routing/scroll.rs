@@ -424,3 +424,52 @@ fn app_virtual_list_row_crossing_wheel_scroll_requests_surface_refresh() {
         "surface refresh is still left to the runner so stale rows are not presented"
     );
 }
+
+#[test]
+fn retained_virtual_list_window_defers_wheel_reprojection_until_overscan_is_exhausted() {
+    let mut core = GenericNativeRuntimeCore::new(
+        AppVirtualListBridge::retaining_materialized_window(),
+        Vector2::new(240.0, 80.0),
+    );
+    let position = Point::new(20.0, 20.0);
+
+    let within_overscan = core.route_scroll_deferred_refresh_with_modifiers(
+        position,
+        Vector2::new(0.0, 20.0),
+        PointerModifiers::default(),
+    );
+
+    assert!(within_overscan.routed);
+    assert!(!within_overscan.is_interactive_surface_refresh());
+    assert_eq!(core.runtime.bridge().scroll_count, 0);
+    assert_eq!(core.runtime.bridge().project_count, 1);
+
+    let at_materialized_edge = core.route_scroll_deferred_refresh_with_modifiers(
+        position,
+        Vector2::new(0.0, 20.0),
+        PointerModifiers::default(),
+    );
+
+    assert!(at_materialized_edge.routed);
+    assert!(at_materialized_edge.is_interactive_surface_refresh());
+    assert_eq!(core.runtime.bridge().scroll_count, 1);
+    assert_eq!(core.runtime.bridge().project_count, 1);
+}
+
+#[test]
+fn retained_virtual_list_window_refreshes_before_a_partial_trailing_row_is_exposed() {
+    let mut core = GenericNativeRuntimeCore::new(
+        AppVirtualListBridge::retaining_materialized_window(),
+        Vector2::new(240.0, 80.0),
+    );
+    let outcome = core.route_scroll_deferred_refresh_with_modifiers(
+        Point::new(20.0, 20.0),
+        Vector2::new(0.0, 25.0),
+        PointerModifiers::default(),
+    );
+
+    assert!(outcome.routed);
+    assert!(outcome.is_interactive_surface_refresh());
+    assert_eq!(core.runtime.bridge().scroll_count, 1);
+    assert_eq!(core.runtime.bridge().window.viewport_start, 1);
+}

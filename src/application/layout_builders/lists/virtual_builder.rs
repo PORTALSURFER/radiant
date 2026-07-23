@@ -1,4 +1,6 @@
-use super::scroll_update::resolve_virtual_list_window_change;
+use super::scroll_update::{
+    resolve_virtual_list_window_change, virtual_list_window_needs_materialization,
+};
 use super::virtual_window::virtual_list_window_body;
 use crate::application::ViewNode;
 use crate::application::layout_builders::column;
@@ -15,6 +17,7 @@ pub struct VirtualListBuilder<Message, Project> {
     overscan_px: f32,
     project: Project,
     on_window_changed: Option<Box<dyn Fn(VirtualListWindowChange) -> Message + Send + Sync>>,
+    retain_materialized_window: bool,
 }
 
 /// Builder for fixed-row virtual lists whose host already materialized the current window.
@@ -30,6 +33,7 @@ pub struct MaterializedVirtualListBuilder<'a, Message, Item, Project> {
     overscan_px: f32,
     project: Project,
     on_window_changed: Option<Box<dyn Fn(VirtualListWindowChange) -> Message + Send + Sync>>,
+    retain_materialized_window: bool,
 }
 
 impl<Message, Project> VirtualListBuilder<Message, Project> {
@@ -59,6 +63,17 @@ impl<Message, Project> VirtualListBuilder<Message, Project> {
         self.on_window_changed = Some(Box::new(message));
         self
     }
+
+    /// Emit a window change only when scrolling reaches the materialized edge.
+    ///
+    /// The runtime continues scrolling through rows covered by `overscan_px`,
+    /// retaining the host's current materialized window. This is useful when
+    /// rebuilding application-owned rows is expensive and the host only needs
+    /// updates before the viewport would expose an unmaterialized row.
+    pub fn retain_materialized_window(mut self) -> Self {
+        self.retain_materialized_window = true;
+        self
+    }
 }
 
 impl<'a, Message, Item, Project> MaterializedVirtualListBuilder<'a, Message, Item, Project> {
@@ -82,6 +97,17 @@ impl<'a, Message, Item, Project> MaterializedVirtualListBuilder<'a, Message, Ite
         self.on_window_changed = Some(Box::new(message));
         self
     }
+
+    /// Emit a window change only when scrolling reaches the materialized edge.
+    ///
+    /// The runtime continues scrolling through rows covered by `overscan_px`,
+    /// retaining the host's current materialized window. This is useful when
+    /// rebuilding application-owned rows is expensive and the host only needs
+    /// updates before the viewport would expose an unmaterialized row.
+    pub fn retain_materialized_window(mut self) -> Self {
+        self.retain_materialized_window = true;
+        self
+    }
 }
 
 impl<Message: 'static, Project> VirtualListBuilder<Message, Project>
@@ -94,6 +120,7 @@ where
         let window = self.window;
         let overscan_px = self.overscan_px;
         let on_window_changed = self.on_window_changed.take();
+        let retain_materialized_window = self.retain_materialized_window;
         let mut view = virtual_list_window_body(
             window,
             row_height,
@@ -118,7 +145,16 @@ where
                     window,
                     overscan_px,
                 );
-                (change.window != window).then(|| message(change))
+                (change.window != window
+                    && (!retain_materialized_window
+                        || virtual_list_window_needs_materialization(
+                            window,
+                            change.window,
+                            update.offset.y,
+                            row_height,
+                            update.viewport.y,
+                        )))
+                .then(|| message(change))
             });
         }
         view
@@ -136,6 +172,7 @@ where
         let overscan_px = self.overscan_px;
         let items = self.items;
         let on_window_changed = self.on_window_changed.take();
+        let retain_materialized_window = self.retain_materialized_window;
         let mut project = self.project;
         let mut view = virtual_list_window_body(
             window,
@@ -163,7 +200,16 @@ where
                     window,
                     overscan_px,
                 );
-                (change.window != window).then(|| message(change))
+                (change.window != window
+                    && (!retain_materialized_window
+                        || virtual_list_window_needs_materialization(
+                            window,
+                            change.window,
+                            update.offset.y,
+                            row_height,
+                            update.viewport.y,
+                        )))
+                .then(|| message(change))
             });
         }
         view
@@ -184,6 +230,7 @@ pub fn virtual_list_windowed<Message, Project>(
         overscan_px: 0.0,
         project,
         on_window_changed: None,
+        retain_materialized_window: false,
     }
 }
 
@@ -205,5 +252,6 @@ pub fn virtual_list_materialized_windowed<'a, Message, Item, Project>(
         overscan_px: 0.0,
         project,
         on_window_changed: None,
+        retain_materialized_window: false,
     }
 }

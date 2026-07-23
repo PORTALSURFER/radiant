@@ -1,4 +1,5 @@
 use super::*;
+use crate::application::layout_builders::lists::scroll_update::virtual_list_window_needs_materialization;
 use crate::{
     gui::{
         list::VirtualListWindow,
@@ -60,4 +61,76 @@ fn virtual_list_window_change_uses_runtime_viewport_height() {
     assert_eq!(change.window.viewport_end, 50);
     assert_eq!(change.window.window_start, 38);
     assert_eq!(change.window.window_end, 52);
+}
+
+#[test]
+fn virtual_list_window_retains_materialized_rows_until_the_viewport_reaches_an_edge() {
+    let current = VirtualListWindow {
+        total_items: 100,
+        viewport_start: 20,
+        viewport_end: 30,
+        window_start: 16,
+        window_end: 34,
+    };
+
+    let inside_overscan = VirtualListWindow {
+        viewport_start: 22,
+        viewport_end: 32,
+        ..current
+    };
+    let beyond_trailing_edge = VirtualListWindow {
+        viewport_start: 25,
+        viewport_end: 35,
+        ..current
+    };
+    let resized_viewport = VirtualListWindow {
+        viewport_start: 20,
+        viewport_end: 31,
+        ..current
+    };
+
+    assert!(!virtual_list_window_needs_materialization(
+        current,
+        inside_overscan,
+        22.0 * 20.0,
+        20.0,
+        200.0,
+    ));
+    assert!(virtual_list_window_needs_materialization(
+        current,
+        beyond_trailing_edge,
+        25.0 * 20.0,
+        20.0,
+        200.0,
+    ));
+    assert!(virtual_list_window_needs_materialization(
+        current,
+        resized_viewport,
+        20.0 * 20.0,
+        20.0,
+        220.0,
+    ));
+}
+
+#[test]
+fn virtual_list_window_retention_covers_a_partially_visible_trailing_row() {
+    let current = VirtualListWindow {
+        total_items: 100,
+        viewport_start: 0,
+        viewport_end: 4,
+        window_start: 0,
+        window_end: 5,
+    };
+    let next = VirtualListWindow {
+        viewport_start: 1,
+        viewport_end: 5,
+        ..current
+    };
+
+    assert!(!virtual_list_window_needs_materialization(
+        current, next, 20.0, 20.0, 80.0,
+    ));
+    assert!(virtual_list_window_needs_materialization(
+        current, next, 25.0, 20.0, 80.0,
+    ));
 }

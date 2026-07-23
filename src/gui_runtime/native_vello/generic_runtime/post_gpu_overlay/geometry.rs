@@ -1,4 +1,6 @@
 mod path;
+mod polygon;
+mod svg;
 mod text;
 
 use crate::{
@@ -8,6 +10,11 @@ use crate::{
 
 use super::vertex::OverlayVertex;
 use path::{push_fill_path_vertices, push_fill_path_vertices_in_regions};
+use polygon::{
+    push_fill_polygon_vertices, push_fill_polygon_vertices_in_regions,
+    push_stroke_polygon_vertices, push_stroke_polygon_vertices_in_regions,
+};
+use svg::{push_svg_vertices, push_svg_vertices_in_regions};
 use text::push_text_vertices;
 
 pub(in crate::gui_runtime::native_vello::generic_runtime) fn primitive_is_replayable(
@@ -16,10 +23,13 @@ pub(in crate::gui_runtime::native_vello::generic_runtime) fn primitive_is_replay
     matches!(
         primitive,
         PaintPrimitive::FillPath(_)
+            | PaintPrimitive::FillPolygon(_)
             | PaintPrimitive::FillRect(_)
             | PaintPrimitive::FillRectBatch(_)
             | PaintPrimitive::StrokeRect(_)
             | PaintPrimitive::StrokeRectBatch(_)
+            | PaintPrimitive::StrokePolygon(_)
+            | PaintPrimitive::Svg(_)
             | PaintPrimitive::Text(_)
     )
 }
@@ -62,6 +72,9 @@ pub(super) fn append_replayable_vertices(
             PaintPrimitive::FillPath(fill) => {
                 push_fill_path_vertices(vertices, target_size, fill);
             }
+            PaintPrimitive::FillPolygon(fill) => {
+                push_fill_polygon_vertices(vertices, target_size, fill);
+            }
             PaintPrimitive::FillRect(fill) => {
                 push_rect_vertices(vertices, target_size, fill.rect, fill.color);
             }
@@ -75,6 +88,12 @@ pub(super) fn append_replayable_vertices(
             }
             PaintPrimitive::StrokeRectBatch(stroke) => {
                 push_stroke_batch_vertices(vertices, target_size, stroke);
+            }
+            PaintPrimitive::StrokePolygon(stroke) => {
+                push_stroke_polygon_vertices(vertices, target_size, stroke);
+            }
+            PaintPrimitive::Svg(svg) => {
+                push_svg_vertices(vertices, target_size, svg);
             }
             PaintPrimitive::Text(text) => {
                 push_text_vertices(vertices, target_size, text);
@@ -97,6 +116,9 @@ pub(super) fn append_replayable_vertices_in_regions(
         match primitive {
             PaintPrimitive::FillPath(fill) => {
                 push_fill_path_vertices_in_regions(vertices, target_size, fill, regions);
+            }
+            PaintPrimitive::FillPolygon(fill) => {
+                push_fill_polygon_vertices_in_regions(vertices, target_size, fill, regions);
             }
             PaintPrimitive::FillRect(fill) if fill.color.a >= OPAQUE_REVEALED_FILL_ALPHA => {}
             PaintPrimitive::FillRectBatch(fill) if fill.color.a >= OPAQUE_REVEALED_FILL_ALPHA => {}
@@ -135,6 +157,12 @@ pub(super) fn append_replayable_vertices_in_regions(
                         }
                     }
                 }
+            }
+            PaintPrimitive::StrokePolygon(stroke) => {
+                push_stroke_polygon_vertices_in_regions(vertices, target_size, stroke, regions);
+            }
+            PaintPrimitive::Svg(svg) => {
+                push_svg_vertices_in_regions(vertices, target_size, svg, regions);
             }
             PaintPrimitive::Text(text_run) => {
                 for region in regions {

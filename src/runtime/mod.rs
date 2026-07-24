@@ -36,9 +36,12 @@ mod update_snapshot;
 
 pub use crate::application::runtime::{BusinessEventSink, BusinessWorkContext};
 pub use crate::application::{
-    GpuSurfaceConfiguredParts, GpuSurfaceInputParts, RetainedCanvasBuilder, canvas, gpu_surface,
+    GpuSurfaceConfiguredParts, GpuSurfaceInputParts, RenderCanvasConfiguredParts,
+    RenderCanvasInputParts, RetainedCanvasBuilder, canvas, gpu_surface,
     gpu_surface_configured_from_parts, gpu_surface_from_parts, gpu_surface_input,
-    gpu_surface_input_from_parts, gpu_surface_with_capabilities, retained_canvas,
+    gpu_surface_input_from_parts, gpu_surface_with_capabilities, render_canvas,
+    render_canvas_configured_from_parts, render_canvas_from_parts, render_canvas_input,
+    render_canvas_input_from_parts, render_canvas_with_capabilities, retained_canvas,
     retained_canvas_with,
 };
 pub use crate::gui::automation::{
@@ -59,7 +62,7 @@ pub use crate::gui_runtime::{
     WindowSpecError, WindowSpecParts, run_native_vello_runtime,
     run_native_vello_runtime_with_artifacts,
 };
-pub use crate::widgets::GpuSurfaceParts;
+pub use crate::widgets::{GpuSurfaceParts, RenderCanvasParts};
 pub use bridge::{
     App, AuxiliaryWindow, AuxiliaryWindowClosePolicy, DeclarativeCommandRuntimeBridge,
     DeclarativeCommandRuntimeBridgeParts, DeclarativeOwnedCommandRuntimeBridge,
@@ -118,18 +121,20 @@ pub use gpu_surface::{
     GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview,
     GpuSignalRenderShape, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,
     GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceContentError, GpuSurfaceLineStyle,
-    GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays,
+    GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, RenderCanvasCapabilities, RenderCanvasContent,
+    RenderCanvasContentError, RenderCanvasLineStyle, RenderCanvasOverlay,
+    RenderCanvasRuntimeOverlays,
 };
 pub use paint::{
     PaintBrush, PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillPolygon,
     PaintFillRect, PaintFillRectBatch, PaintFillRule, PaintGpuSurface, PaintImage,
     PaintLinearGradient, PaintOverlayPanel, PaintPath, PaintPathCommand, PaintPointList,
-    PaintPrimitive, PaintRectList, PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect,
-    PaintStrokeRectBatch, PaintSvg, PaintSvgDocument, PaintText, PaintTextAlign, PaintTextInput,
-    PaintTextMetrics, PaintTextRun, PaintTransform, Renderer, SurfacePaintPlan, SurfacePaintStats,
-    SvgParseError, TransientOverlayContext, WidgetPaint, push_fill_polygon, push_fill_rect,
-    push_fill_rect_batch, push_stroke_polyline, push_stroke_rect, push_stroke_rect_batch,
-    push_text, push_text_run_with_metrics, push_visible_fill_rect,
+    PaintPrimitive, PaintRectList, PaintRenderCanvas, PaintStrokePolygon, PaintStrokePolyline,
+    PaintStrokeRect, PaintStrokeRectBatch, PaintSvg, PaintSvgDocument, PaintText, PaintTextAlign,
+    PaintTextInput, PaintTextMetrics, PaintTextRun, PaintTransform, Renderer, SurfacePaintPlan,
+    SurfacePaintStats, SvgParseError, TransientOverlayContext, WidgetPaint, push_fill_polygon,
+    push_fill_rect, push_fill_rect_batch, push_stroke_polyline, push_stroke_rect,
+    push_stroke_rect_batch, push_text, push_text_run_with_metrics, push_visible_fill_rect,
 };
 pub(crate) use paint::{
     blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,

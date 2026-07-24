@@ -1,5 +1,5 @@
 use super::*;
-use crate::gpu_content::demo_gpu_content;
+use crate::gpu_content::demo_render_canvas_content;
 use crate::model::{DemoMessage, DemoState};
 use crate::selection_overlay::SelectionOverlay;
 
@@ -26,7 +26,7 @@ pub(super) fn demo_view(state: &DemoState) -> View<DemoMessage> {
         .spacing(12.0)
         .fill_width(),
         stack([
-            gpu_surface(42, 1, demo_gpu_content())
+            render_canvas(42, 1, demo_render_canvas_content())
                 .id(10)
                 .size(SURFACE_WIDTH, SURFACE_HEIGHT),
             custom_widget_mapped(SelectionOverlay::new(state), |message| message)

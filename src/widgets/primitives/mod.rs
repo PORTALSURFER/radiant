@@ -35,7 +35,7 @@ pub use feedback_overlay::{
     FeedbackOverlayEdge, FeedbackOverlayProgress, FeedbackOverlayProps, FeedbackOverlayWidget,
     FeedbackOverlayWidgetParts,
 };
-pub use gpu_surface::{GpuSurfaceParts, GpuSurfaceWidget};
+pub use gpu_surface::{GpuSurfaceParts, GpuSurfaceWidget, RenderCanvasParts, RenderCanvasWidget};
 pub use icon_button::{IconButtonWidget, IconButtonWidgetParts};
 pub use image::{ImageProps, ImageWidget, ImageWidgetParts};
 pub use interactive_row::{

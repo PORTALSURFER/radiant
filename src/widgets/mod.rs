@@ -70,9 +70,10 @@ pub use interaction::{
     ActivationInputPolicy, ActivationInputResult, BadgeMessage, ButtonMessage, CanvasGestureEvent,
     CanvasGestureState, CanvasMessage, CanvasPointer, CustomWidgetOutput, DragHandleMessage,
     DragHandlePhase, GpuSurfaceMessage, InteractiveRowMessage, ListItemMessage, PointerButton,
-    PointerModifiers, PointerShieldMessage, ScrollbarMessage, SelectableMessage, SliderMessage,
-    TextEditCommand, TextInputMessage, TextInputMessageKind, TextInputMessageParts, ToggleMessage,
-    WidgetCursor, WidgetInput, WidgetKey, WidgetOutput, handle_activation_input,
+    PointerModifiers, PointerShieldMessage, RenderCanvasMessage, ScrollbarMessage,
+    SelectableMessage, SliderMessage, TextEditCommand, TextInputMessage, TextInputMessageKind,
+    TextInputMessageParts, ToggleMessage, WidgetCursor, WidgetInput, WidgetKey, WidgetOutput,
+    handle_activation_input,
 };
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, BadgeWidgetParts, ButtonProps, ButtonState, ButtonWidget,
@@ -87,12 +88,12 @@ pub use primitives::{
     InteractiveRowWidget, InteractiveRowWidgetParts, ListItemWidget, ListItemWidgetParts,
     MarkerRunAlign, MarkerRunProps, MarkerRunWidget, MarkerRunWidgetParts, PointerShieldProps,
     PointerShieldWidget, PointerShieldWidgetParts, ProgressBarMessage, ProgressBarMode,
-    ProgressBarProps, ProgressBarWidget, ProgressBarWidgetParts, RetainedSurfaceDescriptor,
-    ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget, ScrollbarWidgetParts,
-    SelectableProps, SelectableWidget, SelectableWidgetParts, SliderProps, SliderState,
-    SliderWidget, SliderWidgetParts, TextAlign, TextBackgroundRole, TextColorRole, TextInputChrome,
-    TextInputEditResult, TextInputProps, TextInputState, TextInputWidget, TextInputWidgetParts,
-    TextWidget, TextWidgetParts, TextWrap, ToggleProps, ToggleState, ToggleWidget,
-    ToggleWidgetParts, WidgetCommon,
+    ProgressBarProps, ProgressBarWidget, ProgressBarWidgetParts, RenderCanvasParts,
+    RenderCanvasWidget, RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarProps, ScrollbarState,
+    ScrollbarWidget, ScrollbarWidgetParts, SelectableProps, SelectableWidget,
+    SelectableWidgetParts, SliderProps, SliderState, SliderWidget, SliderWidgetParts, TextAlign,
+    TextBackgroundRole, TextColorRole, TextInputChrome, TextInputEditResult, TextInputProps,
+    TextInputState, TextInputWidget, TextInputWidgetParts, TextWidget, TextWidgetParts, TextWrap,
+    ToggleProps, ToggleState, ToggleWidget, ToggleWidgetParts, WidgetCommon,
 };
 pub use theme::{WidgetVisualTokens, resolve_widget_visual_tokens};

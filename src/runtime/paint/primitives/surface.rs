@@ -51,3 +51,6 @@ pub struct PaintGpuSurface {
     /// Optional lightweight overlays composited by the native GPU backend.
     pub overlays: Vec<GpuSurfaceOverlay>,
 }
+
+/// Renderer-neutral retained render-canvas paint entry.
+pub type PaintRenderCanvas = PaintGpuSurface;

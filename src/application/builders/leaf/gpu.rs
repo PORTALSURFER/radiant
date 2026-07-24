@@ -22,6 +22,9 @@ pub struct GpuSurfaceInputParts<Map> {
     pub map: Map,
 }
 
+/// Renderer-neutral named inputs for an input-emitting retained render canvas.
+pub type RenderCanvasInputParts<Map> = GpuSurfaceInputParts<Map>;
+
 /// Named construction inputs for a configured retained GPU surface view.
 ///
 /// This keeps retained resource identity, content generation, runtime
@@ -40,6 +43,9 @@ pub struct GpuSurfaceConfiguredParts {
     /// Optional lightweight overlays composited by the native GPU backend.
     pub overlays: Vec<GpuSurfaceOverlay>,
 }
+
+/// Renderer-neutral named inputs for a configured retained render canvas.
+pub type RenderCanvasConfiguredParts = GpuSurfaceConfiguredParts;
 
 impl GpuSurfaceConfiguredParts {
     /// Build configured GPU surface parts from the required retained payload.
@@ -64,6 +70,60 @@ impl GpuSurfaceConfiguredParts {
         self.overlays = overlays;
         self
     }
+}
+
+/// Build a retained render canvas with generated application identity.
+pub fn render_canvas<Message: 'static>(
+    key: u64,
+    revision: u64,
+    content: crate::runtime::RenderCanvasContent,
+) -> ViewNode<Message> {
+    gpu_surface(key, revision, content)
+}
+
+/// Build a retained render canvas from named construction inputs.
+pub fn render_canvas_from_parts<Message: 'static>(
+    parts: crate::widgets::RenderCanvasParts,
+) -> ViewNode<Message> {
+    gpu_surface_from_parts(parts)
+}
+
+/// Build a configured retained render canvas from named construction inputs.
+pub fn render_canvas_configured_from_parts<Message: 'static>(
+    parts: RenderCanvasConfiguredParts,
+) -> ViewNode<Message> {
+    gpu_surface_configured_from_parts(parts)
+}
+
+/// Build a retained render canvas with runtime interaction capabilities.
+pub fn render_canvas_with_capabilities<Message: 'static>(
+    key: u64,
+    revision: u64,
+    content: crate::runtime::RenderCanvasContent,
+    capabilities: crate::runtime::RenderCanvasCapabilities,
+) -> ViewNode<Message> {
+    gpu_surface_with_capabilities(key, revision, content, capabilities)
+}
+
+/// Build an input-emitting retained render canvas.
+pub fn render_canvas_input<Message: 'static>(
+    key: u64,
+    revision: u64,
+    content: crate::runtime::RenderCanvasContent,
+    map: impl Fn(WidgetInput) -> Message + Send + Sync + 'static,
+) -> ViewNode<Message> {
+    gpu_surface_input(key, revision, content, map)
+}
+
+/// Build an input-emitting retained render canvas from named construction inputs.
+pub fn render_canvas_input_from_parts<Message, Map>(
+    parts: RenderCanvasInputParts<Map>,
+) -> ViewNode<Message>
+where
+    Message: 'static,
+    Map: Fn(WidgetInput) -> Message + Send + Sync + 'static,
+{
+    gpu_surface_input_from_parts(parts)
 }
 
 /// Build a retained GPU surface view with generated application identity.

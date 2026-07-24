@@ -521,7 +521,7 @@ Tests, automation, and embedded hosts that inspect paint plans should import
 `contains_paint_primitives()`, `clip_starts()`, `rects()`,
 `contains_rect_matching(...)`, `paint_rects()`,
 `contains_paint_rect_matching(...)`, `fill_rects()`, `stroke_rects()`,
-`fill_polygons()`, `stroke_polylines()`, `svgs()`, and `gpu_surfaces()`.
+`fill_polygons()`, `stroke_polylines()`, `svgs()`, and `render_canvases()`.
 Widget-specific query helpers such as `fill_rects_for_widget(...)`,
 `visible_fill_rects_for_widget(...)`,
 `contains_visible_fill_rect_for_widget(...)`,
@@ -532,7 +532,7 @@ app-local primitive filtering. Transient overlays can use
 `first_widget_rect(...)` or `first_widget_rect_by_priority(...)` to anchor
 frame-time paint to a cached paint plan. Use `PaintPrimitive::text_run()`,
 `text_input()`, `clip_start()`, `fill_rect()`, `stroke_rect()`,
-`fill_path()`, `fill_polygon()`, `stroke_polyline()`, `svg()`, and `gpu_surface()` to query
+`fill_path()`, `fill_polygon()`, `stroke_polyline()`, `svg()`, and `render_canvas()` to query
 common paint primitives without app-local exhaustive primitive matches.
 
 ## Large Virtual Lists
@@ -1405,19 +1405,23 @@ Retained canvas views reserve stable cached surfaces with
 `retained_canvas(key).revision(...).dirty_mask(...).volatile(...).on_input(...)`, while the
 app painter owns the corresponding backend-neutral `PaintFrame`.
 GPU-heavy retained views can be placed directly with
-`gpu_surface(key, revision, GpuSurfaceContent::...)`. This lowers through the
+`render_canvas(key, revision, RenderCanvasContent::...)`. This lowers through the
 same generated-ID, layout, focus, hit-test, and paint-plan path as standard
 widgets, then emits `PaintPrimitive::GpuSurface` for native GPU backends.
 Applications that need custom capability flags, runtime pointer-line policies,
 or runtime-owned overlay behavior can use
-`gpu_surface_with_capabilities(key, revision, content, capabilities)`.
-Use `GpuSurfaceConfiguredParts` with `gpu_surface_configured_from_parts(...)`
+`render_canvas_with_capabilities(key, revision, content, capabilities)`.
+Use `RenderCanvasConfiguredParts` with
+`render_canvas_configured_from_parts(...)`
 for advanced named-field construction that also needs lightweight
 backend-composited overlays.
-GPU surfaces that need host-visible input can use
-`gpu_surface_input(key, revision, content, |input| Message::GpuInput(input))`;
-plain `gpu_surface(...)` remains passive so pointer motion over retained visual
+Render canvases that need host-visible input can use
+`render_canvas_input(key, revision, content, |input| Message::CanvasInput(input))`;
+plain `render_canvas(...)` remains passive so pointer motion over retained visual
 surfaces does not force unnecessary message dispatch or relayout.
+The former `gpu_surface*` builders and `GpuSurface*` construction names remain
+available only through explicit application or runtime module imports as
+transitional compatibility APIs; they are not part of the common prelude.
 
 ## Soft-Deprecated First-Use Boilerplate
 
@@ -2171,9 +2175,10 @@ clamping.
 Standard widgets emit Vello-friendly paint primitives such as fills, batched
 same-color rectangle fills, strokes, text, images, clips, and overlays.
 Specialized realtime visuals can instead emit `PaintPrimitive::GpuSurface`
-through the application builders `gpu_surface(...)`,
-`gpu_surface_with_capabilities(...)`, `gpu_surface_configured_from_parts(...)`,
-or `gpu_surface_input(...)`, or through `GpuSurfaceWidget` in lower-level host
+through the application builders `render_canvas(...)`,
+`render_canvas_with_capabilities(...)`,
+`render_canvas_configured_from_parts(...)`, or `render_canvas_input(...)`,
+or through `RenderCanvasWidget` in lower-level host
 code. GPU surfaces are still normal Radiant widgets: they own stable identity,
 receive layout bounds, can route widget input, and paint through the same
 `SurfacePaintPlan` as Vello-backed widgets.
@@ -2183,15 +2188,15 @@ texture, signal, or shader data: waveform bodies, meters, scopes, large preview
 atlases, and other surfaces that benefit from backend-owned GPU caches. Keep
 normal panels, controls, labels, selection chrome, and editor overlays in
 standard Radiant widgets unless they need custom GPU resources. The public
-contract is `key` plus `revision` plus validated `GpuSurfaceContent`; bump the
+contract is `key` plus `revision` plus validated `RenderCanvasContent`; bump the
 revision only when the retained GPU payload changes, and keep transient cursor
 or drag previews in overlays or paint-only repaint paths. This preserves one
 Radiant widget model instead of creating separate Vello and WGPU application
 models.
 
 `PaintGpuSurface` supports the built-in v1 content payloads
-`GpuSurfaceContent::RgbaAtlas`, `SignalBands`, and `SignalSummaryBands`, plus
-`GpuSurfaceContent::CustomShader` for advanced surfaces that need to carry
+`RenderCanvasContent::RgbaAtlas`, `SignalBands`, and `SignalSummaryBands`, plus
+`RenderCanvasContent::CustomShader` for advanced surfaces that need to carry
 backend-neutral shader identity, optional WGSL source, explicit vertex and
 fragment entry-point names, and opaque uniform/storage bytes through the normal
 widget, layout, input, and paint-plan path. `entry_point` names the vertex
@@ -2221,13 +2226,13 @@ or stage entry points report skipped surfaces through
 `custom_shader.unsupported.uniform_bytes`, and
 `custom_shader.unsupported.storage_bytes` instead of silently treating them as
 built-in atlas or signal content.
-`GpuSurfaceContent::validate()` returns a typed `GpuSurfaceContentError` for
+`RenderCanvasContent::validate()` returns a typed `RenderCanvasContentError` for
 invalid atlas rectangles, signal ranges, empty payloads, and summary-shape
 mismatches. `is_renderable()` and `signal_render_shape()` remain convenience
 checks over the same shared payload contract used by widget projection and
 native renderers, so invalid signal shapes or empty texture sources do not leak
 into backend work.
-Runtime behavior is declared explicitly through `GpuSurfaceCapabilities`:
+Runtime behavior is declared explicitly through `RenderCanvasCapabilities`:
 `fast_pointer_move` allows pointer-motion overlay updates without reprojecting
 the app surface, `coalesce_vertical_wheel` allows vertical wheel deltas to be
 batched until redraw, and `runtime_overlays.pointer_vertical_line` lets the
@@ -2646,7 +2651,7 @@ manual validation:
 | Layout, scrolling, and virtualization | `layout_rows_columns`, `grid_gallery`, `scroll`, `sizing`, `list`, `virtualized_list` |
 | Styling, theming, and reusable widgets | `styling`, `theme_playground`, `widget_gallery`, `toolbar_icons`, `svg`, `form`, `volume_slider`, `passive_widgets` |
 | Input, focus, menus, and editor interactions | `focus_controls`, `keys`, `scene`, `context_menu`, `floating_overlay`, `tree_and_details`, `folder_browser`, `paint_helpers` |
-| Custom widgets and retained GPU surfaces | `custom_widget`, `curve_area_fill`, `gpu_surface`, `custom_shader_surface`, `gpu_surface_stack_overlay`, `waveform_view`, `spectrogram` |
+| Custom widgets and retained GPU surfaces | `custom_widget`, `curve_area_fill`, `render_canvas`, `custom_shader_surface`, `render_canvas_stack_overlay`, `waveform_view`, `spectrogram` |
 | Advanced creative-tool surfaces | `node_editor`, `timeline_editor`, `plugin_panel`, `eq_editor`, `spectrogram`, `mixer_console`, `piano_roll`, `modulation_matrix`, `arrangement_shell`, `inspector_panel`, `split_workspace` |
 | Text, diagnostics, and performance inspection | `typography`, `layout_diagnostics`, `rendering_benchmark`, `host_surface_frame` |
 | Window and host integration | `multi_window_manifest`, `popup_window`, `host_surface_frame`, `dpi_scaling` |
@@ -2699,7 +2704,7 @@ path.
 summaries, viewport interaction, overlay painting, and GPU-surface projection
 without teaching file decoding or audio preprocessing as Radiant API guidance.
 The waveform view keeps the dense signal body in a
-retained `GpuSurfaceContent::SignalSummaryBands` surface. It still
+retained `RenderCanvasContent::SignalSummaryBands` surface. It still
 demonstrates the advanced launch-level `.animated_transient_overlay_at(...)`
 hook for a playback playhead anchored through
 `SurfacePaintPlan::first_widget_rect`; new root app composition should prefer
@@ -2713,11 +2718,11 @@ flow.
 Run `cargo run --example todo_list` for text input, submit binding, row
 selection, drag handles, drop markers, and scroll composition in one small app.
 Run `cargo run --example form` for text binding and boolean controls.
-Run `cargo run --example gpu_surface` for a small retained-GPU-surface sandbox
-that uses the prelude `gpu_surface(...)` application builder with generated
+Run `cargo run --example render_canvas` for a small retained-canvas sandbox
+that uses the prelude `render_canvas(...)` application builder with generated
 demo atlas data.
 Run `cargo run --example custom_shader_surface` for a checked custom shader
-surface sandbox that builds `GpuSurfaceContent::CustomShader` with a
+surface sandbox that builds `RenderCanvasContent::CustomShader` with a
 backend-neutral `GpuShaderSurfaceDescriptor` carrying executable WGSL source
 for the native surface-uniform ABI. Native runs expose custom shader
 render/cache/failure diagnostics; shader module, pipeline, or bind-group
@@ -2896,7 +2901,7 @@ Run `cargo run --example animation_showcase` for an advanced frame-driven UI
 sandbox that uses the lower-level `.animation(...)` and `.on_frame(...)`
 stateful application hooks. Prefer `Scene::frame_clock(...)` for new root
 surface frame-message animation.
-Run `cargo run --example gpu_surface_stack_overlay` for a retained GPU surface
+Run `cargo run --example render_canvas_stack_overlay` for a retained GPU surface
 with normal widget overlays plus a transient animated blob that repaints every
 frame through the advanced launch-level `.animated_transient_overlay_at(...)`
 hook without refreshing the declarative surface, rebuilding the cached Vello

@@ -20,10 +20,10 @@ pub use primitives::{
     PaintBrush, PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillPolygon,
     PaintFillRect, PaintFillRectBatch, PaintFillRule, PaintGpuSurface, PaintImage,
     PaintLinearGradient, PaintOverlayPanel, PaintPath, PaintPathCommand, PaintPointList,
-    PaintPrimitive, PaintRectList, PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect,
-    PaintStrokeRectBatch, PaintSvg, PaintSvgDocument, PaintText, PaintTextAlign, PaintTextInput,
-    PaintTextRun, PaintTransform, Renderer, SurfacePaintPlan, SurfacePaintStats, SvgParseError,
-    TransientOverlayContext,
+    PaintPrimitive, PaintRectList, PaintRenderCanvas, PaintStrokePolygon, PaintStrokePolyline,
+    PaintStrokeRect, PaintStrokeRectBatch, PaintSvg, PaintSvgDocument, PaintText, PaintTextAlign,
+    PaintTextInput, PaintTextRun, PaintTransform, Renderer, SurfacePaintPlan, SurfacePaintStats,
+    SvgParseError, TransientOverlayContext,
 };
 pub(super) use scroll::{
     push_scroll_affordance, resolve_scroll_affordance, scroll_content_clip_rect,

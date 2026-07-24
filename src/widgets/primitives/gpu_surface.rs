@@ -35,6 +35,9 @@ pub struct GpuSurfaceParts {
     pub content: GpuSurfaceContent,
 }
 
+/// Renderer-neutral construction fields for a retained render canvas.
+pub type RenderCanvasParts = GpuSurfaceParts;
+
 /// Reusable widget that reserves a retained native GPU surface.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GpuSurfaceWidget {
@@ -53,6 +56,9 @@ pub struct GpuSurfaceWidget {
     /// Whether routed widget input should be emitted as host-mappable output.
     pub emits_input: bool,
 }
+
+/// Renderer-neutral retained canvas widget implementation.
+pub type RenderCanvasWidget = GpuSurfaceWidget;
 
 impl GpuSurfaceWidget {
     /// Build a retained GPU surface widget from named construction inputs.

@@ -76,7 +76,7 @@ fn focused_examples_are_registered_and_keep_expected_public_contracts() {
             name,
             "custom_widget"
                 | "eq_editor"
-                | "gpu_surface_stack_overlay"
+                | "render_canvas_stack_overlay"
                 | "arrangement_shell"
                 | "mixer_console"
                 | "modulation_matrix"

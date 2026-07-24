@@ -1,10 +1,10 @@
 use super::*;
 use crate::view::{SURFACE_HEIGHT, SURFACE_WIDTH};
 
-pub(super) fn demo_gpu_content() -> GpuSurfaceContent {
+pub(super) fn demo_render_canvas_content() -> RenderCanvasContent {
     let width = SURFACE_WIDTH as usize;
     let height = SURFACE_HEIGHT as usize;
-    GpuSurfaceContent::RgbaAtlas {
+    RenderCanvasContent::RgbaAtlas {
         atlas: Arc::clone(demo_gpu_atlas()),
         source_rect: Rect::from_min_size(
             Point::new(0.0, 0.0),

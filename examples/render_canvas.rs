@@ -1,9 +1,9 @@
-//! Retained GPU surface composed through Radiant's application builders.
+//! Retained render canvas composed through Radiant's application builders.
 
 use radiant::gui::types::ImageRgba;
 use radiant::layout::{Point, Rect, Vector2};
 use radiant::prelude::*;
-use radiant::runtime::{GpuSurfaceContent, gpu_surface_input};
+use radiant::runtime::{RenderCanvasContent, render_canvas_input};
 use radiant::widgets::{PointerButton, WidgetInput};
 use std::sync::{Arc, OnceLock};
 
@@ -45,16 +45,16 @@ fn build_demo_atlas() -> Arc<ImageRgba> {
 fn demo_view(state: &DemoState) -> View<DemoMessage> {
     let atlas = Arc::clone(demo_atlas());
     let status = if state.pressed {
-        "GPU surface input: pressed"
+        "render canvas input: pressed"
     } else {
-        "GPU surface input: idle"
+        "render canvas input: idle"
     };
     column([
-        text("GPU surface").size(180.0, 28.0),
-        gpu_surface_input(
+        text("render canvas").size(180.0, 28.0),
+        render_canvas_input(
             7,
             1,
-            GpuSurfaceContent::RgbaAtlas {
+            RenderCanvasContent::RgbaAtlas {
                 source_rect: Rect::from_min_size(
                     Point::new(0.0, 0.0),
                     Vector2::new(atlas.width() as f32, atlas.height() as f32),
@@ -101,7 +101,7 @@ mod tests {
     use radiant::theme::ThemeTokens;
 
     #[test]
-    fn gpu_surface_example_lowers_to_retained_gpu_primitive() {
+    fn render_canvas_example_lowers_to_retained_gpu_primitive() {
         let surface = demo_view(&DemoState::default()).into_surface();
         let layout = radiant::layout::layout_tree(
             &surface.layout_node(),
@@ -118,7 +118,7 @@ mod tests {
             });
 
         let Some(gpu) = gpu else {
-            panic!("example should emit a GPU surface primitive");
+            panic!("example should emit a render canvas primitive");
         };
         assert_eq!(gpu.key, 7);
         assert_eq!(gpu.revision, 1);
@@ -127,7 +127,7 @@ mod tests {
     }
 
     #[test]
-    fn gpu_surface_example_reuses_static_atlas_payload() {
+    fn render_canvas_example_reuses_static_atlas_payload() {
         assert!(
             Arc::ptr_eq(demo_atlas(), demo_atlas()),
             "view reprojection should reuse the generated GPU atlas payload"
@@ -135,7 +135,7 @@ mod tests {
     }
 
     #[test]
-    fn gpu_surface_example_routes_input_to_state() {
+    fn render_canvas_example_routes_input_to_state() {
         let bridge = radiant::app(DemoState::default())
             .view(|state| demo_view(state))
             .update(|state, message| match message {
@@ -169,6 +169,6 @@ mod tests {
             .map(|widget| widget.text.as_str());
 
         assert!(handled);
-        assert_eq!(text, Some("GPU surface input: pressed"));
+        assert_eq!(text, Some("render canvas input: pressed"));
     }
 }

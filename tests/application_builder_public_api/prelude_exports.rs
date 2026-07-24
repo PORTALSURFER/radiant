@@ -3,6 +3,26 @@ use radiant::{
 };
 
 #[test]
+fn prelude_exports_renderer_neutral_render_canvas_builder() {
+    use radiant::prelude::*;
+    use std::sync::Arc;
+
+    let atlas =
+        Arc::new(radiant::gui::types::ImageRgba::new(1, 1, vec![255; 4]).expect("valid atlas"));
+    let view: View<()> = render_canvas(
+        7,
+        1,
+        radiant::runtime::RenderCanvasContent::RgbaAtlas {
+            source_rect: radiant::layout::Rect::from_size(1.0, 1.0),
+            atlas,
+        },
+    );
+
+    let frame = view.view_frame_at_size_with_default_theme(Vector2::new(80.0, 40.0));
+    assert!(frame.paint_plan.render_canvases().next().is_some());
+}
+
+#[test]
 fn prelude_supports_hello_world_imports() {
     use radiant::prelude::*;
 
@@ -566,7 +586,7 @@ fn advanced_apis_remain_public_through_their_owning_modules() {
 
     assert_public::<radiant::runtime::NativeFrameDiagnostics>();
     assert_public::<radiant::runtime::SurfacePaintPlan>();
-    assert_public::<radiant::runtime::GpuSurfaceContent>();
+    assert_public::<radiant::runtime::RenderCanvasContent>();
     assert_public::<radiant::gui::visualization::TimelineViewport>();
 }
 

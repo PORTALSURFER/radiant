@@ -11,8 +11,8 @@ use radiant::{
     layout::LayoutOutput,
     prelude as ui,
     runtime::{
-        GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceOverlay,
-        GpuSurfaceRuntimeOverlays, PaintGpuSurface, PaintPrimitive,
+        PaintGpuSurface, PaintPrimitive, RenderCanvasCapabilities, RenderCanvasContent,
+        RenderCanvasLineStyle, RenderCanvasOverlay, RenderCanvasRuntimeOverlays,
     },
     theme::ThemeTokens,
     widgets::{FocusBehavior, PaintBounds, Widget, WidgetCommon, WidgetInput, WidgetOutput},
@@ -104,7 +104,7 @@ impl Widget for WaveformWidget {
             .cursor_ratio
             .filter(|ratio| ratio.is_finite())
             .map(|ratio| {
-                vec![GpuSurfaceOverlay::VerticalCursor {
+                vec![RenderCanvasOverlay::VerticalCursor {
                     ratio: ratio.clamp(0.0, 1.0),
                     color: Rgba8 {
                         r: 255,
@@ -122,7 +122,7 @@ impl Widget for WaveformWidget {
             key: self.source.identity_hash(),
             revision: 0,
             rect: bounds,
-            content: GpuSurfaceContent::SignalSummaryBands {
+            content: RenderCanvasContent::SignalSummaryBands {
                 frames: self.source.frames,
                 band_count: BAND_COUNT,
                 frame_range: [self.viewport.start as f32, self.viewport.end as f32],
@@ -130,11 +130,11 @@ impl Widget for WaveformWidget {
                 gain_preview: None,
                 sample_slide_frame_offset: 0,
             },
-            capabilities: GpuSurfaceCapabilities {
+            capabilities: RenderCanvasCapabilities {
                 fast_pointer_move: true,
                 coalesce_vertical_wheel: true,
-                runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
-                    GpuSurfaceLineStyle {
+                runtime_overlays: RenderCanvasRuntimeOverlays::pointer_vertical_line(
+                    RenderCanvasLineStyle {
                         color: Rgba8 {
                             r: 255,
                             g: 255,

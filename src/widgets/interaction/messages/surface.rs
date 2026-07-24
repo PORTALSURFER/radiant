@@ -19,3 +19,6 @@ pub enum GpuSurfaceMessage {
         input: WidgetInput,
     },
 }
+
+/// Renderer-neutral interaction message emitted by a retained render canvas.
+pub type RenderCanvasMessage = GpuSurfaceMessage;

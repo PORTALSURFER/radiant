@@ -18,6 +18,6 @@ pub use shape::{
     PaintRectList, PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintStrokeRectBatch,
 };
 pub use stats::SurfacePaintStats;
-pub use surface::{PaintCustomSurface, PaintGpuSurface, PaintImage};
+pub use surface::{PaintCustomSurface, PaintGpuSurface, PaintImage, PaintRenderCanvas};
 pub use svg::{PaintSvg, PaintSvgDocument, SvgParseError};
 pub use text::{PaintOverlayPanel, PaintText, PaintTextAlign, PaintTextInput, PaintTextRun};

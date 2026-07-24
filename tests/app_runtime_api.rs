@@ -22,12 +22,12 @@ use radiant::{
 };
 use std::sync::Arc;
 
-#[path = "app_runtime_api/gpu_surface.rs"]
-mod gpu_surface;
 #[path = "app_runtime_api/lifecycle.rs"]
 mod lifecycle;
 #[path = "app_runtime_api/paint_overlay.rs"]
 mod paint_overlay;
+#[path = "app_runtime_api/render_canvas.rs"]
+mod render_canvas;
 #[path = "app_runtime_api/runtime_diagnostics.rs"]
 mod runtime_diagnostics;
 #[path = "app_runtime_api/runtime_work.rs"]
@@ -43,7 +43,7 @@ mod tasks_platform;
 enum DemoMessage {
     Increment,
     Noop,
-    GpuInput(WidgetInput),
+    CanvasInput(WidgetInput),
     VirtualListWindowChanged(radiant::prelude::VirtualListWindowChange),
 }
 

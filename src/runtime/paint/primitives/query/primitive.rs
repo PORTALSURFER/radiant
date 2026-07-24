@@ -87,6 +87,11 @@ impl PaintPrimitive {
         }
     }
 
+    /// Return the retained render-canvas entry represented by this primitive.
+    pub fn render_canvas(&self) -> Option<&PaintGpuSurface> {
+        self.gpu_surface()
+    }
+
     /// Return whether this primitive represents paint rather than clip bookkeeping.
     pub const fn is_paint(&self) -> bool {
         !matches!(self, Self::ClipStart(_) | Self::ClipEnd(_))

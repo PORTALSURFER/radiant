@@ -1,7 +1,7 @@
 use super::*;
 use radiant::{
     layout::LayoutOutput,
-    runtime::{GpuSurfaceOverlay, PaintGpuSurface, SurfaceRuntime, TransientOverlayContext},
+    runtime::{PaintGpuSurface, RenderCanvasOverlay, SurfaceRuntime, TransientOverlayContext},
     theme::ThemeTokens,
     widgets::{Widget, WidgetInput},
 };

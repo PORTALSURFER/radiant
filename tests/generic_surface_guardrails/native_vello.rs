@@ -4,6 +4,8 @@ use std::{fs, path::PathBuf};
 
 use super::{relative_path, rust_sources_under};
 
+#[path = "native_vello/activation.rs"]
+mod activation;
 #[path = "native_vello/gpu_surface.rs"]
 mod gpu_surface;
 #[path = "native_vello/public_api_svg.rs"]

@@ -56,14 +56,19 @@ pub(super) enum SurfaceReadyActivationAction {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PendingReveal {
     None,
-    Requested { poll_until: Instant },
+    Requested {
+        poll_until: Instant,
+    },
     AwaitingUserIntent,
+    #[cfg(any(target_os = "macos", test))]
     UserRequested,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ApplicationActivationMethod {
+    #[cfg(target_os = "macos")]
     Modern,
+    #[cfg(target_os = "macos")]
     Compatibility,
     Unavailable,
 }
@@ -71,7 +76,9 @@ pub(super) enum ApplicationActivationMethod {
 impl ApplicationActivationMethod {
     const fn label(self) -> &'static str {
         match self {
+            #[cfg(target_os = "macos")]
             Self::Modern => "modern",
+            #[cfg(target_os = "macos")]
             Self::Compatibility => "compatibility",
             Self::Unavailable => "unavailable",
         }
@@ -135,18 +142,23 @@ impl ActivationRevealController {
     }
 
     pub(super) fn observe_application_active(&mut self, application_active: bool) -> bool {
-        if !application_active
-            || !matches!(
-                self.pending,
-                PendingReveal::Requested { .. } | PendingReveal::UserRequested
-            )
-        {
+        if !application_active {
+            return false;
+        }
+        let pending_activation = match self.pending {
+            PendingReveal::Requested { .. } => true,
+            #[cfg(any(target_os = "macos", test))]
+            PendingReveal::UserRequested => true,
+            PendingReveal::None | PendingReveal::AwaitingUserIntent => false,
+        };
+        if !pending_activation {
             return false;
         }
         self.pending = PendingReveal::None;
         true
     }
 
+    #[cfg(any(target_os = "macos", test))]
     pub(super) fn observe_user_reopen(&mut self, application_active: bool) -> bool {
         if self.pending != PendingReveal::AwaitingUserIntent {
             return false;
@@ -280,6 +292,7 @@ where
         }
     }
 
+    #[cfg(target_os = "macos")]
     pub(super) fn handle_application_reopen_intent(&mut self) {
         let application_active = platform::application_is_active();
         if self

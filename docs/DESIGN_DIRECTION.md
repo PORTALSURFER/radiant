@@ -1214,8 +1214,14 @@ view; `resource(...)` derives ordinary view continuity from its containing
 node. The view primitive preserves the last ready content during refresh when
 requested, preventing image or waveform flicker. An explicit `ResourceKey` is
 reserved for advanced shared ownership or continuity across a structural
-replacement. Individual rows can load or disappear without retaining background
-work or renderer resources after their keyed owner is gone.
+replacement. A projected consumer contributes a `ResourceInterest` of visible,
+prefetch, or persistent priority; disappearance releases that interest rather
+than automatically cancelling a shared effect. The bounded resource scheduler
+deduplicates work by resource identity and cancels it only when no interest
+remains or a newer generation supersedes it. Visible interest outranks prefetch,
+and rapidly changing viewport interest is coalesced, so scrolling does not
+repeatedly start and cancel waveform, artwork, or metadata work for the same
+rows.
 
 Resource branch closures are immediate owned view factories: `resource` selects
 one branch during projection, invokes it synchronously with an owned or shared
@@ -2085,6 +2091,15 @@ schema version; it is intentionally neither required nor permitted to cross the
 window/UI boundary as shared widget state. This rules out borrowed application
 references and accidental task capture while allowing ordinary `!Send` UI-local
 types without synchronization overhead.
+
+Runtime-local state is bounded per window. Mounted nodes retain their slots;
+focused, pointer-captured, IME-composing, actively edited, or otherwise
+interacting nodes are pinned until their interaction ends. Inactive virtualized
+nodes use a bounded retention policy—visible-only by default, with an explicit
+small recent-item policy where measured reuse justifies it. Eviction runs on the
+owning UI runtime, releases state deterministically, and never reuses a slot for
+a different identity or schema. Large durable data belongs in application state
+or a renderer-managed resource, not an unbounded widget state slot.
 
 Custom widgets do not bypass declarative invalidation, container layout, normal
 hit testing, or renderer-owned resource lifetime. A changed widget projection
@@ -2970,7 +2985,10 @@ frame
 It also records counts needed to explain time: projected nodes, measured nodes,
 layout cache hits/misses, paint primitives, encoded text runs, GPU uploads,
 pipeline/bind-group rebuilds and cache hits, retained render-canvas reuse, and
-presentation outcome.
+presentation outcome. Memory and churn counters include resident runtime-state
+slots, pinned and evicted virtualized slots, retained state bytes where an
+extension declares them, resource-interest transitions, shared-effect admission,
+cancellation, restart, and retained payload bytes.
 
 ### Detailed scopes
 

@@ -19,7 +19,7 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
     (
         "waveform_view",
         &[
-            "GpuSurfaceContent::SignalSummaryBands",
+            "RenderCanvasContent::SignalSummaryBands",
             ".animated_transient_overlay_at(",
             "paint_playhead_overlay(",
             "first_widget_rect(",

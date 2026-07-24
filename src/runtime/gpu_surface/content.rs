@@ -10,7 +10,8 @@ mod validation;
 pub use error::GpuSurfaceContentError;
 pub use model::{
     GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview,
-    GpuSignalRenderShape,
+    GpuSignalRenderShape, RenderCanvasShaderSurfaceDescriptor,
+    RenderCanvasShaderSurfaceDescriptorParts,
 };
 use validation::{
     validate_atlas, validate_shader_descriptor, validate_signal_gain_preview,

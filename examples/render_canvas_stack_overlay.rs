@@ -1,26 +1,26 @@
-//! Stack animated normal widget overlays above a retained GPU surface.
+//! Stack animated normal widget overlays above a retained render canvas.
 
 use radiant::prelude::*;
-use radiant::runtime::{GpuSurfaceContent, SurfacePaintPlan, gpu_surface};
+use radiant::runtime::{RenderCanvasContent, SurfacePaintPlan, render_canvas};
 use radiant::widgets::{PaintBounds, WidgetId};
 use std::{
     sync::{Arc, OnceLock},
     time::Duration,
 };
 
-#[path = "gpu_surface_stack_overlay/gpu_content.rs"]
+#[path = "render_canvas_stack_overlay/gpu_content.rs"]
 mod gpu_content;
-#[path = "gpu_surface_stack_overlay/model.rs"]
+#[path = "render_canvas_stack_overlay/model.rs"]
 mod model;
-#[path = "gpu_surface_stack_overlay/selection_overlay.rs"]
+#[path = "render_canvas_stack_overlay/selection_overlay.rs"]
 mod selection_overlay;
-#[path = "gpu_surface_stack_overlay/transient_overlay.rs"]
+#[path = "render_canvas_stack_overlay/transient_overlay.rs"]
 mod transient_overlay;
-#[path = "gpu_surface_stack_overlay/view.rs"]
+#[path = "render_canvas_stack_overlay/view.rs"]
 mod view;
 
 #[cfg(test)]
-#[path = "gpu_surface_stack_overlay/tests.rs"]
+#[path = "render_canvas_stack_overlay/tests.rs"]
 mod tests;
 
 use model::{DemoMessage, DemoState};
@@ -29,7 +29,7 @@ use view::demo_view;
 
 fn main() -> radiant::Result {
     radiant::app(DemoState::default())
-        .title("Radiant GPU Surface Stack Overlay")
+        .title("Radiant Render Canvas Stack Overlay")
         .size(640, 344)
         .view(demo_view)
         .animated_transient_overlay_at(

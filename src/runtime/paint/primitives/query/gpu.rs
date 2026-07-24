@@ -7,4 +7,9 @@ impl SurfacePaintPlan {
             .iter()
             .filter_map(PaintPrimitive::gpu_surface)
     }
+
+    /// Iterate over retained render-canvas paint entries in paint order.
+    pub fn render_canvases(&self) -> impl Iterator<Item = &PaintGpuSurface> {
+        self.gpu_surfaces()
+    }
 }

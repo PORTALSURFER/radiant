@@ -7,8 +7,19 @@ mod signal_summary;
 pub use content::{
     GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview,
     GpuSignalRenderShape, GpuSurfaceContent, GpuSurfaceContentError,
+    RenderCanvasShaderSurfaceDescriptor, RenderCanvasShaderSurfaceDescriptorParts,
 };
 pub use signal_summary::{GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel};
+
+/// Renderer-neutral retained canvas content.
+///
+/// The current native implementation stores this payload in the retained GPU
+/// surface path, but application code should use this canvas vocabulary rather
+/// than naming the active renderer.
+pub type RenderCanvasContent = GpuSurfaceContent;
+
+/// Validation error returned for invalid retained canvas content.
+pub type RenderCanvasContentError = GpuSurfaceContentError;
 
 /// Runtime interaction capabilities for retained GPU surfaces.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -22,12 +33,18 @@ pub struct GpuSurfaceCapabilities {
     pub runtime_overlays: GpuSurfaceRuntimeOverlays,
 }
 
+/// Runtime interaction capabilities for a retained render canvas.
+pub type RenderCanvasCapabilities = GpuSurfaceCapabilities;
+
 /// Runtime-owned overlay policies for retained GPU surfaces.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct GpuSurfaceRuntimeOverlays {
     /// Optional pointer-following vertical line style.
     pub pointer_vertical_line: Option<GpuSurfaceLineStyle>,
 }
+
+/// Runtime-owned overlay policies for retained render canvases.
+pub type RenderCanvasRuntimeOverlays = GpuSurfaceRuntimeOverlays;
 
 impl GpuSurfaceRuntimeOverlays {
     /// Build runtime overlays with a pointer-following vertical line enabled.
@@ -46,6 +63,9 @@ pub struct GpuSurfaceLineStyle {
     /// Line width in logical pixels.
     pub width: f32,
 }
+
+/// Generic line styling for retained render-canvas overlays.
+pub type RenderCanvasLineStyle = GpuSurfaceLineStyle;
 
 /// Lightweight GPU-surface overlay.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -78,3 +98,6 @@ pub enum GpuSurfaceOverlay {
         color: Rgba8,
     },
 }
+
+/// Lightweight retained render-canvas overlay.
+pub type RenderCanvasOverlay = GpuSurfaceOverlay;

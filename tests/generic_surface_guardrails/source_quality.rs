@@ -13,7 +13,7 @@ const MAX_COMMON_PRELUDE_NAMED_EXPORTS: usize = 475;
 const MIN_COMMON_PRELUDE_HEADROOM_PERCENT: usize = 10;
 
 const EXPECTED_COMMON_PRELUDE_NAMED_EXPORTS_BY_SUBSYSTEM: &[(&str, usize)] = &[
-    ("application", 227),
+    ("application", 230),
     ("gui", 101),
     ("layout", 1),
     ("runtime", 27),

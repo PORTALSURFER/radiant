@@ -37,7 +37,19 @@ fn gpu_queries_return_matching_primitives_in_paint_order() {
         vec![33]
     );
     assert_eq!(
+        plan.render_canvases()
+            .map(|surface| surface.widget_id)
+            .collect::<Vec<_>>(),
+        vec![33]
+    );
+    assert_eq!(
         plan.primitives[0].gpu_surface().map(|surface| surface.rect),
+        Some(gpu_rect)
+    );
+    assert_eq!(
+        plan.primitives[0]
+            .render_canvas()
+            .map(|surface| surface.rect),
         Some(gpu_rect)
     );
 }

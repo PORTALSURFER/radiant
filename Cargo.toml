@@ -245,16 +245,16 @@ name = "custom_widget"
 path = "examples/custom_widget.rs"
 
 [[example]]
-name = "gpu_surface"
-path = "examples/gpu_surface.rs"
+name = "render_canvas"
+path = "examples/render_canvas.rs"
 
 [[example]]
 name = "custom_shader_surface"
 path = "examples/custom_shader_surface.rs"
 
 [[example]]
-name = "gpu_surface_stack_overlay"
-path = "examples/gpu_surface_stack_overlay.rs"
+name = "render_canvas_stack_overlay"
+path = "examples/render_canvas_stack_overlay.rs"
 
 [[bench]]
 name = "perf_harness"

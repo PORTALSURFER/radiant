@@ -44,6 +44,16 @@ pub struct GpuShaderSurfaceDescriptorParts {
     pub vertex_count: u32,
 }
 
+/// Renderer-neutral descriptor for a custom render-canvas shader payload.
+///
+/// This alias keeps the current retained implementation reusable while
+/// keeping normal application code independent of the active renderer.
+pub type RenderCanvasShaderSurfaceDescriptor = GpuShaderSurfaceDescriptor;
+
+/// Renderer-neutral construction parts for a custom render-canvas shader
+/// payload.
+pub type RenderCanvasShaderSurfaceDescriptorParts = GpuShaderSurfaceDescriptorParts;
+
 impl GpuShaderSurfaceDescriptor {
     /// Build a descriptor from named parts.
     pub fn from_parts(parts: GpuShaderSurfaceDescriptorParts) -> Self {

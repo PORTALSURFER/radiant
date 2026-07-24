@@ -1,10 +1,10 @@
-use crate::gpu_content::demo_gpu_content;
+use crate::gpu_content::demo_render_canvas_content;
 use crate::model::{DemoMessage, DemoState};
 use crate::selection_overlay::SelectionOverlay;
 use crate::transient_overlay::{paint_transient_blob, triangle_wave};
 use crate::view::{SURFACE_HEIGHT, SURFACE_WIDTH};
 use radiant::prelude::*;
-use radiant::runtime::{SurfaceRuntime, TransientOverlayContext, gpu_surface};
+use radiant::runtime::{SurfaceRuntime, TransientOverlayContext, render_canvas};
 use radiant::theme::ThemeTokens;
 use std::{cell::Cell, rc::Rc, time::Duration};
 
@@ -24,7 +24,7 @@ fn animated_transient_overlay_requests_paint_only_frames() {
         radiant::app(DemoState::default())
             .view(|state| {
                 stack([
-                    gpu_surface(42, 1, demo_gpu_content())
+                    render_canvas(42, 1, demo_render_canvas_content())
                         .id(10)
                         .size(SURFACE_WIDTH, SURFACE_HEIGHT),
                     custom_widget_mapped(SelectionOverlay::new(state), |message: DemoMessage| {

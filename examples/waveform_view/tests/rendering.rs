@@ -71,7 +71,7 @@ fn waveform_widget_paints_cached_body_and_cursor_overlay() {
                 ..
             }) if matches!(
                 overlays.as_slice(),
-                [GpuSurfaceOverlay::VerticalCursor { ratio, .. }] if (*ratio - 0.42).abs() < 0.001
+                [RenderCanvasOverlay::VerticalCursor { ratio, .. }] if (*ratio - 0.42).abs() < 0.001
             )
         )),
         "playhead/cursor state should render as a lightweight GPU-surface overlay"

@@ -4,10 +4,11 @@ use radiant::{
     gui::types::{ImageRgba, Rect, Vector2},
     prelude::{IntoView, Rgba8},
     runtime::{
-        GpuSurfaceCapabilities, GpuSurfaceConfiguredParts, GpuSurfaceContent, GpuSurfaceInputParts,
-        GpuSurfaceLineStyle, GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, PaintPrimitive,
-        SurfaceRuntime, gpu_surface, gpu_surface_configured_from_parts, gpu_surface_input,
-        gpu_surface_input_from_parts, gpu_surface_with_capabilities,
+        PaintPrimitive, RenderCanvasCapabilities, RenderCanvasConfiguredParts, RenderCanvasContent,
+        RenderCanvasInputParts, RenderCanvasLineStyle, RenderCanvasOverlay,
+        RenderCanvasRuntimeOverlays, SurfaceRuntime, render_canvas,
+        render_canvas_configured_from_parts, render_canvas_input, render_canvas_input_from_parts,
+        render_canvas_with_capabilities,
     },
     theme::ThemeTokens,
     widgets::WidgetInput,
@@ -15,12 +16,12 @@ use radiant::{
 use std::sync::Arc;
 
 #[test]
-fn app_gpu_surface_builder_lowers_through_normal_view_path() {
+fn app_render_canvas_builder_lowers_through_normal_view_path() {
     let atlas = Arc::new(ImageRgba::new(2, 1, vec![255; 8]).expect("valid atlas"));
-    let view = radiant::prelude::row([gpu_surface::<DemoMessage>(
+    let view = radiant::prelude::row([render_canvas::<DemoMessage>(
         41,
         7,
-        GpuSurfaceContent::RgbaAtlas {
+        RenderCanvasContent::RgbaAtlas {
             source_rect: Rect::from_min_size(
                 radiant::layout::Point::new(0.0, 0.0),
                 Vector2::new(2.0, 1.0),
@@ -51,7 +52,7 @@ fn app_gpu_surface_builder_lowers_through_normal_view_path() {
             PaintPrimitive::GpuSurface(gpu) => Some(gpu),
             _ => None,
         })
-        .expect("app GPU surface should emit a retained GPU paint primitive");
+        .expect("app render canvas should emit a retained GPU paint primitive");
     assert_eq!(gpu.widget_id, 90);
     assert_eq!(gpu.key, 41);
     assert_eq!(gpu.revision, 7);
@@ -62,16 +63,16 @@ fn app_gpu_surface_builder_lowers_through_normal_view_path() {
             Vector2::new(240.0, 120.0)
         )
     );
-    let GpuSurfaceContent::RgbaAtlas { atlas: emitted, .. } = &gpu.content else {
+    let RenderCanvasContent::RgbaAtlas { atlas: emitted, .. } = &gpu.content else {
         panic!("expected RGBA atlas content");
     };
     assert!(Arc::ptr_eq(&atlas, emitted));
 }
 
 #[test]
-fn app_gpu_surface_capabilities_helper_preserves_capabilities() {
+fn app_render_canvas_capabilities_helper_preserves_capabilities() {
     let atlas = Arc::new(ImageRgba::new(2, 1, vec![255; 8]).expect("valid atlas"));
-    let line = GpuSurfaceLineStyle {
+    let line = RenderCanvasLineStyle {
         color: Rgba8 {
             r: 255,
             g: 255,
@@ -80,20 +81,20 @@ fn app_gpu_surface_capabilities_helper_preserves_capabilities() {
         },
         width: 1.0,
     };
-    let view = gpu_surface_with_capabilities::<DemoMessage>(
+    let view = render_canvas_with_capabilities::<DemoMessage>(
         41,
         7,
-        GpuSurfaceContent::RgbaAtlas {
+        RenderCanvasContent::RgbaAtlas {
             source_rect: Rect::from_min_size(
                 radiant::layout::Point::new(0.0, 0.0),
                 Vector2::new(2.0, 1.0),
             ),
             atlas,
         },
-        GpuSurfaceCapabilities {
+        RenderCanvasCapabilities {
             fast_pointer_move: true,
             coalesce_vertical_wheel: true,
-            runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(line),
+            runtime_overlays: RenderCanvasRuntimeOverlays::pointer_vertical_line(line),
         },
     )
     .id(90)
@@ -115,7 +116,7 @@ fn app_gpu_surface_capabilities_helper_preserves_capabilities() {
             PaintPrimitive::GpuSurface(gpu) => Some(gpu),
             _ => None,
         })
-        .expect("configured GPU surface should emit a retained GPU paint primitive");
+        .expect("configured render canvas should emit a retained GPU paint primitive");
 
     assert_eq!(gpu.widget_id, 90);
     assert!(gpu.capabilities.fast_pointer_move);
@@ -127,9 +128,9 @@ fn app_gpu_surface_capabilities_helper_preserves_capabilities() {
 }
 
 #[test]
-fn app_configured_gpu_surface_parts_preserve_capabilities_and_overlays() {
+fn app_configured_render_canvas_parts_preserve_capabilities_and_overlays() {
     let atlas = Arc::new(ImageRgba::new(2, 1, vec![255; 8]).expect("valid atlas"));
-    let line = GpuSurfaceLineStyle {
+    let line = RenderCanvasLineStyle {
         color: Rgba8 {
             r: 255,
             g: 255,
@@ -138,11 +139,11 @@ fn app_configured_gpu_surface_parts_preserve_capabilities_and_overlays() {
         },
         width: 1.0,
     };
-    let view = gpu_surface_configured_from_parts::<DemoMessage>(
-        GpuSurfaceConfiguredParts::new(
+    let view = render_canvas_configured_from_parts::<DemoMessage>(
+        RenderCanvasConfiguredParts::new(
             41,
             7,
-            GpuSurfaceContent::RgbaAtlas {
+            RenderCanvasContent::RgbaAtlas {
                 source_rect: Rect::from_min_size(
                     radiant::layout::Point::new(0.0, 0.0),
                     Vector2::new(2.0, 1.0),
@@ -150,12 +151,12 @@ fn app_configured_gpu_surface_parts_preserve_capabilities_and_overlays() {
                 atlas,
             },
         )
-        .capabilities(GpuSurfaceCapabilities {
+        .capabilities(RenderCanvasCapabilities {
             fast_pointer_move: true,
             coalesce_vertical_wheel: true,
-            runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(line),
+            runtime_overlays: RenderCanvasRuntimeOverlays::pointer_vertical_line(line),
         })
-        .overlays(vec![GpuSurfaceOverlay::VerticalCursor {
+        .overlays(vec![RenderCanvasOverlay::VerticalCursor {
             ratio: 0.5,
             color: line.color,
             width: line.width,
@@ -180,7 +181,7 @@ fn app_configured_gpu_surface_parts_preserve_capabilities_and_overlays() {
             PaintPrimitive::GpuSurface(gpu) => Some(gpu),
             _ => None,
         })
-        .expect("configured GPU surface should emit a retained GPU paint primitive");
+        .expect("configured render canvas should emit a retained GPU paint primitive");
 
     assert_eq!(gpu.widget_id, 90);
     assert!(gpu.capabilities.fast_pointer_move);
@@ -193,30 +194,30 @@ fn app_configured_gpu_surface_parts_preserve_capabilities_and_overlays() {
 }
 
 #[test]
-fn app_gpu_surface_input_parts_route_through_normal_message_path() {
+fn app_render_canvas_input_parts_route_through_normal_message_path() {
     let atlas = Arc::new(ImageRgba::new(2, 1, vec![255; 8]).expect("valid atlas"));
     let bridge = app(DemoState::default())
         .view(move |state: &DemoState| {
             radiant::prelude::column([
-                radiant::prelude::text(format!("GPU inputs: {}", state.count)).id(91),
-                gpu_surface_input_from_parts(GpuSurfaceInputParts {
+                radiant::prelude::text(format!("render-canvas inputs: {}", state.count)).id(91),
+                render_canvas_input_from_parts(RenderCanvasInputParts {
                     key: 41,
                     revision: 7,
-                    content: GpuSurfaceContent::RgbaAtlas {
+                    content: RenderCanvasContent::RgbaAtlas {
                         source_rect: Rect::from_min_size(
                             radiant::layout::Point::new(0.0, 0.0),
                             Vector2::new(2.0, 1.0),
                         ),
                         atlas: Arc::clone(&atlas),
                     },
-                    map: DemoMessage::GpuInput,
+                    map: DemoMessage::CanvasInput,
                 })
                 .id(90)
                 .size(240.0, 120.0),
             ])
         })
         .handle_message(|state, message, _context| {
-            if let DemoMessage::GpuInput(WidgetInput::PointerPress { .. }) = message {
+            if let DemoMessage::CanvasInput(WidgetInput::PointerPress { .. }) = message {
                 state.count += 1;
             }
         })
@@ -233,34 +234,34 @@ fn app_gpu_surface_input_parts_route_through_normal_message_path() {
     );
 
     assert!(handled);
-    assert_eq!(text_value(runtime.surface(), 91), "GPU inputs: 1");
+    assert_eq!(text_value(runtime.surface(), 91), "render-canvas inputs: 1");
 }
 
 #[test]
-fn app_gpu_surface_input_helper_routes_through_normal_message_path() {
+fn app_render_canvas_input_helper_routes_through_normal_message_path() {
     let atlas = Arc::new(ImageRgba::new(2, 1, vec![255; 8]).expect("valid atlas"));
     let bridge = app(DemoState::default())
         .view(move |state: &DemoState| {
             radiant::prelude::column([
-                radiant::prelude::text(format!("GPU inputs: {}", state.count)).id(91),
-                gpu_surface_input(
+                radiant::prelude::text(format!("render-canvas inputs: {}", state.count)).id(91),
+                render_canvas_input(
                     41,
                     7,
-                    GpuSurfaceContent::RgbaAtlas {
+                    RenderCanvasContent::RgbaAtlas {
                         source_rect: Rect::from_min_size(
                             radiant::layout::Point::new(0.0, 0.0),
                             Vector2::new(2.0, 1.0),
                         ),
                         atlas: Arc::clone(&atlas),
                     },
-                    DemoMessage::GpuInput,
+                    DemoMessage::CanvasInput,
                 )
                 .id(90)
                 .size(240.0, 120.0),
             ])
         })
         .handle_message(|state, message, _context| {
-            if let DemoMessage::GpuInput(WidgetInput::PointerPress { .. }) = message {
+            if let DemoMessage::CanvasInput(WidgetInput::PointerPress { .. }) = message {
                 state.count += 1;
             }
         })
@@ -277,5 +278,5 @@ fn app_gpu_surface_input_helper_routes_through_normal_message_path() {
     );
 
     assert!(handled);
-    assert_eq!(text_value(runtime.surface(), 91), "GPU inputs: 1");
+    assert_eq!(text_value(runtime.surface(), 91), "render-canvas inputs: 1");
 }

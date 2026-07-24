@@ -14,7 +14,8 @@ fn gpu_surface_widget_uses_named_parts_for_retained_resource_identity() {
     assert!(
         source.contains("Self::from_parts(GpuSurfaceParts {")
             && widgets.contains("GpuSurfaceParts")
-            && application_builder.contains("pub fn gpu_surface_from_parts"),
-        "GPU surface compatibility constructors, public exports, and application builders should keep the named-parts path available"
+            && application_builder.contains("pub fn gpu_surface_from_parts")
+            && application_builder.contains("pub fn render_canvas_from_parts"),
+        "retained canvas constructors, public exports, and application builders should keep named-parts paths available"
     );
 }

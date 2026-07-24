@@ -1,7 +1,7 @@
-//! Backend-neutral custom shader GPU surface composed through Radiant builders.
+//! Backend-neutral custom shader render canvas composed through Radiant builders.
 
 use radiant::prelude::*;
-use radiant::runtime::{GpuShaderSurfaceDescriptor, GpuSurfaceContent, gpu_surface};
+use radiant::runtime::{RenderCanvasContent, RenderCanvasShaderSurfaceDescriptor, render_canvas};
 use std::sync::Arc;
 
 #[derive(Default)]
@@ -56,9 +56,9 @@ fn fragment_main(in: VertexOut) -> @location(0) vec4<f32> {
 }
 "#;
 
-fn shader_descriptor() -> Arc<GpuShaderSurfaceDescriptor> {
+fn shader_descriptor() -> Arc<RenderCanvasShaderSurfaceDescriptor> {
     Arc::new(
-        GpuShaderSurfaceDescriptor::new("demo/custom-meter")
+        RenderCanvasShaderSurfaceDescriptor::new("demo/custom-meter")
             .wgsl_source(DEMO_SHADER_WGSL)
             .entry_point("vertex_main")
             .fragment_entry_point("fragment_main")
@@ -69,10 +69,10 @@ fn shader_descriptor() -> Arc<GpuShaderSurfaceDescriptor> {
 fn demo_view(_state: &DemoState) -> View<DemoMessage> {
     column([
         text("Custom shader surface").size(260.0, 28.0),
-        gpu_surface(
+        render_canvas(
             91,
             4,
-            GpuSurfaceContent::CustomShader {
+            RenderCanvasContent::CustomShader {
                 descriptor: shader_descriptor(),
             },
         )
@@ -104,7 +104,7 @@ mod tests {
     use radiant::theme::ThemeTokens;
 
     #[test]
-    fn custom_shader_surface_example_lowers_to_gpu_surface_primitive() {
+    fn custom_shader_surface_example_lowers_to_render_canvas_primitive() {
         let surface = demo_view(&DemoState).into_surface();
         let layout = radiant::layout::layout_tree(
             &surface.layout_node(),
@@ -121,14 +121,14 @@ mod tests {
             });
 
         let Some(gpu) = gpu else {
-            panic!("example should emit a custom shader GPU surface primitive");
+            panic!("example should emit a custom shader render canvas primitive");
         };
         assert_eq!(gpu.widget_id, 21);
         assert_eq!(gpu.key, 91);
         assert_eq!(gpu.revision, 4);
         assert_eq!(gpu.rect.width(), 360.0);
         assert_eq!(gpu.rect.height(), 140.0);
-        let GpuSurfaceContent::CustomShader { descriptor } = &gpu.content else {
+        let RenderCanvasContent::CustomShader { descriptor } = &gpu.content else {
             panic!("expected custom shader content");
         };
         assert_eq!(descriptor.shader_key, "demo/custom-meter");
@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn custom_shader_surface_example_descriptor_is_valid() {
-        let content = GpuSurfaceContent::CustomShader {
+        let content = RenderCanvasContent::CustomShader {
             descriptor: shader_descriptor(),
         };
 

@@ -1100,6 +1100,17 @@ small overscan window, while the remaining entries are reachable through the
 overflow menu and accessibility model. Selection or focus automatically reveals
 its tab without measuring or painting the whole set.
 
+Tab bodies are lazy: the active tab's content factory is the only one invoked
+by default. `TabRetention::active_only()` is the normal policy; an application
+may explicitly retain a small recent keyed set when measured reuse justifies it.
+Inactive bodies are unmounted and release runtime-local state under the normal
+retention policy, while durable editor state remains application-owned. Focus,
+IME composition, pointer capture, and an active edit transaction are pinned
+only for the active body; switching tabs resolves or cancels those interactions
+through their normal lifecycle before unmounting. Profiles report active,
+retained, mounted, and evicted tab bodies so a large editor session cannot hide
+projection or memory cost behind its tab strip.
+
 ```rust
 container(
     row([text("Connection"), status_indicator(state.connection)]).gap(8),
@@ -1189,7 +1200,13 @@ and its ancestor aggregates; a stable visible anchor and local offset preserve
 scroll position. Large filter or restructure work is admitted in bounded stages
 under the normal CPU scheduler, with the previous valid visible range retained
 until replacement is ready. Profiles report indexed nodes, affected range,
-incremental work, anchor correction, and deferred tree work.
+incremental work, anchor correction, and deferred tree work. Each visible index
+has a monotonic revision. Pointer, keyboard, drag/drop, and accessibility
+actions carry both that revision and a stable item key; if the displayed index
+is replaced before delivery, Radiant resolves the key against the current index
+only when it remains eligible, otherwise cancels or re-queries the action.
+This prevents a staged filter or restructure from applying an interaction to a
+stale row.
 
 ### Effect-backed resource views
 
@@ -2059,10 +2076,14 @@ opt into `WidgetHitTest` and report a local opaque or pass-through hit shape.
 Radiant applies the node's resolved bounds and clips, builds the normal hit-test
 index, and routes through uncovered regions to eligible content beneath; custom
 widgets never install a parallel pointer-routing system. Custom hit shapes are
-pure, bounded, and allocation-free. The runtime first resolves a cached
-axis-aligned bounds candidate from its spatial index, then evaluates a custom
-local shape only for that candidate; shape data is cached by geometry and
-interaction revision and never scanned across unrelated nodes on pointer move.
+pure, bounded, and allocation-free. The runtime obtains cached axis-aligned
+bounds candidates from its spatial index in front-to-back z order, evaluates a
+custom local shape only for each such candidate, and stops at the first opaque
+hit; pass-through candidates continue the same normal walk beneath. Shape data
+is cached by geometry and interaction revision and never scanned across
+unrelated nodes on pointer move. The runtime profiles candidate count and
+overlap depth, with development diagnostics for pathological pass-through stacks
+rather than silent pointer-move degradation.
 
 Widgets may opt into the same `Animatable` capability as containers. They
 declare immutable target properties and transitions, while Radiant's central

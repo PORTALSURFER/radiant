@@ -150,6 +150,7 @@ where
                 self.handle_route_outcome(event_loop, outcome);
             }
             RuntimeUserEvent::OpenFiles(paths) => self.handle_native_file_open(event_loop, paths),
+            #[cfg(target_os = "macos")]
             RuntimeUserEvent::ApplicationReopenRequested => {
                 self.handle_application_reopen_intent();
                 self.observe_pending_window_activation();

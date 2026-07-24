@@ -123,7 +123,8 @@ pub use gpu_surface::{
     GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceContentError, GpuSurfaceLineStyle,
     GpuSurfaceOverlay, GpuSurfaceRuntimeOverlays, RenderCanvasCapabilities, RenderCanvasContent,
     RenderCanvasContentError, RenderCanvasLineStyle, RenderCanvasOverlay,
-    RenderCanvasRuntimeOverlays,
+    RenderCanvasRuntimeOverlays, RenderCanvasShaderSurfaceDescriptor,
+    RenderCanvasShaderSurfaceDescriptorParts,
 };
 pub use paint::{
     PaintBrush, PaintClipEnd, PaintClipStart, PaintCustomSurface, PaintFillPath, PaintFillPolygon,

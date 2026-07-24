@@ -2723,7 +2723,7 @@ that uses the prelude `render_canvas(...)` application builder with generated
 demo atlas data.
 Run `cargo run --example custom_shader_surface` for a checked custom shader
 surface sandbox that builds `RenderCanvasContent::CustomShader` with a
-backend-neutral `GpuShaderSurfaceDescriptor` carrying executable WGSL source
+backend-neutral `RenderCanvasShaderSurfaceDescriptor` carrying executable WGSL source
 for the native surface-uniform ABI. Native runs expose custom shader
 render/cache/failure diagnostics; shader module, pipeline, or bind-group
 validation failures are counted separately from missing handoff data. Backends

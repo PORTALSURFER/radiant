@@ -103,7 +103,7 @@ pub(super) const CONTRACTS: &[ExampleContract] = &[
         "custom_shader_surface",
         &[
             "render_canvas(",
-            "GpuShaderSurfaceDescriptor::new",
+            "RenderCanvasShaderSurfaceDescriptor::new",
             "RenderCanvasContent::CustomShader",
             "custom_shader_surface_example_lowers_to_render_canvas_primitive",
             "custom_shader_surface_example_descriptor_is_valid",

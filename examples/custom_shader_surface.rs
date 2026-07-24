@@ -1,7 +1,7 @@
 //! Backend-neutral custom shader render canvas composed through Radiant builders.
 
 use radiant::prelude::*;
-use radiant::runtime::{GpuShaderSurfaceDescriptor, RenderCanvasContent, render_canvas};
+use radiant::runtime::{RenderCanvasContent, RenderCanvasShaderSurfaceDescriptor, render_canvas};
 use std::sync::Arc;
 
 #[derive(Default)]
@@ -56,9 +56,9 @@ fn fragment_main(in: VertexOut) -> @location(0) vec4<f32> {
 }
 "#;
 
-fn shader_descriptor() -> Arc<GpuShaderSurfaceDescriptor> {
+fn shader_descriptor() -> Arc<RenderCanvasShaderSurfaceDescriptor> {
     Arc::new(
-        GpuShaderSurfaceDescriptor::new("demo/custom-meter")
+        RenderCanvasShaderSurfaceDescriptor::new("demo/custom-meter")
             .wgsl_source(DEMO_SHADER_WGSL)
             .entry_point("vertex_main")
             .fragment_entry_point("fragment_main")

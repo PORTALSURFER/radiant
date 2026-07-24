@@ -7,6 +7,7 @@ mod signal_summary;
 pub use content::{
     GpuShaderSurfaceDescriptor, GpuShaderSurfaceDescriptorParts, GpuSignalGainPreview,
     GpuSignalRenderShape, GpuSurfaceContent, GpuSurfaceContentError,
+    RenderCanvasShaderSurfaceDescriptor, RenderCanvasShaderSurfaceDescriptorParts,
 };
 pub use signal_summary::{GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel};
 

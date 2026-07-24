@@ -1,23 +1,30 @@
 # Radiant Architecture Design
 
-This document is the normative architecture contract for Radiant. It defines
-the intended implementation model for the public API, layout tree, and
-rendering pipeline.
+This document is the normative target-state architecture contract for Radiant.
+It defines the intended implementation model for the public API, layout tree,
+and rendering pipeline.
 
 `TARGET.md` defines the broader direction and product boundary for Radiant.
-`API.md` defines the public application-facing contract. This document makes
-the implementation architecture behind those contracts explicit: how
-containers and widgets differ, how declarative views become frames, and which
-boundaries remain stable as the implementation evolves.
+`API.md` documents the currently shipped application-facing API. This document
+defines the target design; when the two differ, this document is authoritative
+for new architecture and API decisions until the current API is aligned. It
+makes the intended implementation architecture explicit: how containers and
+widgets differ, how declarative views become frames, and which boundaries remain
+stable as the implementation evolves.
 
 ## Reading This Design
 
 New readers should begin with Design Goals, Node Model, Canonical Application
 API, Rendering Backend Architecture, and Responsive Frame and Background
 Architecture. The later profiling, debugging, and verification sections define
-the operational contracts that prove the design in practice.
+the operational contracts that prove the design in practice. Unless a snippet
+is explicitly marked as current implementation, Rust examples in this document
+show the intended target API and may precede the corresponding implementation.
+In this normative document, **must** denotes a required contract, **should**
+denotes the expected default unless a documented reason applies, and **may**
+denotes a permitted option.
 
-The document has four terms that remain consistent throughout:
+The document has six terms that remain consistent throughout:
 
 - **Container:** owns child placement and optional chrome.
 - **Leaf node:** non-container visual content; an interactive leaf node is a
@@ -28,6 +35,8 @@ The document has four terms that remain consistent throughout:
   painting.
 - **Render canvas:** a leaf node with specialized retained rendering for dense
   or custom visuals.
+- **Native presentation surface:** the operating system's per-window render and
+  presentation target; it is neither a render canvas nor a floating panel.
 
 Primitive painting and render canvases are rendering mechanisms. Base content
 and transient overlays are composition lifetimes; either mechanism may be used
@@ -80,8 +89,8 @@ dynamic-dispatch scene graph.
 The declarative UI tree, layout state, input state, and native renderer state
 are thread-confined to the window/UI runtime. They do not require `Send` or
 `Sync` merely because background work exists. Background workers exchange owned
-messages, immutable snapshots, or bounded payload handles with the UI runtime;
-they never borrow or mutate live UI nodes.
+transfer payloads, immutable snapshots, or bounded payload handles with the UI
+runtime; they never borrow or mutate live UI nodes.
 
 This permits efficient UI-local state without locks while Rust's types enforce
 cross-thread transfer at the message boundary. The audio/realtime boundary uses
@@ -89,12 +98,15 @@ the same principle with bounded non-blocking transfer.
 
 Thread bounds are capability-specific, never blanket application requirements.
 An ordinary `Message`, widget, view, command mapper, and runtime-local state may
-remain `!Send` and `!Sync`. Constructing a worker `Effect` requires only that
-its captured work and completion payload can cross that worker boundary; sharing
-an immutable `Arc<T>` between threads additionally requires `T: Send + Sync`.
-UI-thread platform effects and per-window render work impose no unnecessary
-cross-thread bounds. The compiler therefore rejects an unsafe transfer exactly
-where it is requested rather than making the whole GUI API less ergonomic.
+remain `!Send` and `!Sync`. A worker effect instead produces an owned
+`Output: Send + 'static`; its completion mapper runs later on the owning UI
+runtime and turns that output into the application `Message`. Captured worker
+work and its output therefore meet the cross-thread bound without imposing it on
+the application's message type. Sharing an immutable `Arc<T>` between threads
+additionally requires `T: Send + Sync`. UI-thread platform effects and
+per-window render work impose no unnecessary cross-thread bounds. The compiler
+therefore rejects an unsafe transfer exactly where it is requested rather than
+making the whole GUI API less ergonomic.
 
 Radiant encodes UI affinity structurally. `ViewNode`, layout/input contexts,
 widget runtime slots, and native resource handles carry an internal UI-local
@@ -193,12 +205,23 @@ monomorphization-heavy compile-time costs without measured benefit.
 behavior is introduced through focused capability traits—such as
 `WidgetSemantics`, `WidgetHitTest`, `ContainerSemantics`, `LayoutInteraction`,
 `VirtualLayoutPolicy`, or `Animatable`—rather than by adding required methods
-to every custom implementation. Each capability has an explicit contract
-version and graceful absence behavior; Radiant discovers only the capabilities
-an extension declares. A changed interpretation requires a new capability
-version or a semver-major trait revision, never a silent change to existing
-widget or container behavior. This gives application-owned controls and layouts
-a durable Rust extension boundary without freezing the rest of the GUI library.
+to every custom implementation. Capability discovery is explicit at the
+extension boundary: a widget returns a `WidgetCapabilities` descriptor from its
+defaulted `capabilities` method, while a custom container supplies an owned
+`LayoutCapabilities<Message>` descriptor when it is projected. Radiant never
+attempts to infer arbitrary optional trait implementations after type erasure;
+that is not a stable-Rust capability.
+
+Each descriptor contains only the capabilities that its extension intentionally
+exports, with an explicit contract version and graceful absence behavior. A
+changed interpretation requires a new capability version or a semver-major
+trait revision, never a silent change to existing widget or container behavior.
+Every capability placed in a descriptor is object-safe by contract: it has no
+generic methods, unconstrained associated types, or `Self`-returning operations
+that cannot be called through its erased entry. A capability that needs a richer
+generic API supplies a small explicit erased adapter at this boundary instead.
+This gives application-owned controls and layouts a durable Rust extension
+boundary without freezing the rest of the GUI library.
 
 ## State Domains and Scheduling
 
@@ -263,7 +286,10 @@ editing.
 
 All deferred work uses one owned effect model. `Effect<Message>` covers worker
 tasks, platform operations, timers, asset preparation, and other asynchronous
-work. Every effect has a typed key, generation, cancellation policy, and owner
+work. A worker entry is conceptually `Effect::worker<Output: Send + 'static>`:
+only its owned task and `Output` cross threads, while its owned UI-local
+`Output -> Message` completion mapper runs after delivery to the UI runtime.
+Every effect has a typed key, generation, cancellation policy, and owner
 (application, window, overlay, or keyed node). Replacing a key cancels or
 supersedes its older effect; destroying its owner cancels dependent work; late
 results are rejected before reduction. There is no second, ad hoc task lifecycle
@@ -745,6 +771,25 @@ trait LayoutPolicy {
 }
 ```
 
+Optional container behavior is declared alongside the policy at construction,
+not guessed after the policy is type-erased. This keeps the layout core
+non-generic while giving an interaction capability its required message type.
+
+```rust
+layout(TimelineLayout::new(state.timeline_zoom), children)
+    .capabilities(
+        LayoutCapabilities::new()
+            .interaction(TimelineInteraction::new(state.timeline_id))
+            .semantics(TimelineRegion::new("Arrangement")),
+    );
+```
+
+The owned descriptor holds the explicitly supplied capability entries, such as
+`LayoutInteraction<Message>`, `ContainerSemantics`, `VirtualLayoutPolicy`, or
+`Animatable`; absent entries are simply unavailable. It is the one stable
+registration point the erased runtime needs—there is no trait-introspection or
+specialization requirement.
+
 `PlaceChildren` validates slot completion. Every declared child is placed
 exactly once or explicitly omitted with a declared reason such as
 virtualization or conditional layout; duplicate placement and implicit
@@ -757,16 +802,34 @@ visual placement alone never silently changes accessibility or keyboard order.
 measured hot path may derive or explicitly provide structure, geometry, chrome,
 and interaction components so Radiant can choose narrower invalidation. The
 default always takes the broader correct path; custom containers never select
-raw repaint or cache scopes themselves.
+raw repaint or cache scopes themselves. The interaction component includes the
+exact exported `LayoutCapabilities` descriptor and every capability's own
+interaction or layout revision, so a changed hit region, semantic order,
+animation target, or layout gesture cannot reuse stale container behavior.
 
 Radiant derives child and container identity, owns clipping, hit testing,
 accessibility traversal, focus routing, damage propagation, and runtime-local
 state lifetime. A policy that needs scrolling, split resizing, docking preview,
-or another container-specific gesture opts into the focused `LayoutInteraction`
-capability. That capability may claim only its declared layout hit regions,
-update runtime-local container state, request layout or transient-overlay work,
-and emit a message for settled persistence. It cannot turn the container into a
-semantic widget or mutate application state directly.
+or another container-specific gesture opts into the focused
+`LayoutInteraction<Message>` capability. `LayoutPolicy` itself deliberately
+remains non-generic; only this optional input-to-message boundary carries the
+application message type.
+
+```rust
+trait LayoutInteraction<Message> {
+    fn handle_layout_input(
+        &self,
+        input: LayoutInput,
+        context: &mut LayoutEventContext<Message>,
+    );
+}
+```
+
+That capability may claim only its declared layout hit regions, update
+runtime-local container state, request layout or transient-overlay work, and
+emit a typed message for settled persistence through `LayoutEventContext`. It
+cannot turn the container into a semantic widget or mutate application state
+directly.
 
 Container interaction state uses a generated `ContainerStateId` containing the
 container's runtime identity, concrete state type, and schema version. The
@@ -947,6 +1010,19 @@ framework helper.
 - Multi-child containers receive children at construction time; their fluent
   methods configure layout and chrome rather than assemble ordinary children.
 - Builder methods set independent optional properties.
+- Every event-emitting builder uses the same typed mapper convention. A
+  zero-payload event accepts an owned `Message`; an event with data accepts a
+  non-capturing enum variant/function or an owned UI-local
+  `impl Fn(Event) -> Message + 'static`. A mapper may capture owned context
+  such as a row key, but never a mutable application borrow.
+  Thus `on_change`, `on_drop`, `on_input`, and `on_*_change` are predictable
+  message bindings, never retained mutable callbacks or differently shaped
+  per-primitive APIs. The runtime invokes a high-rate mapper only after that
+  event has passed its declared coalescing policy; mapping must be pure and
+  non-blocking. An owned closure has a conservative interaction revision by
+  default, so reconciliation never reuses a stale captured handler. A measured
+  hot path may use `EventMapper::with_revision(revision, mapper)` when it can
+  supply an exact comparable revision for the mapper's captured behavior.
 - Style uses coherent style values or theme tokens.
 - Complex reusable controls are custom widgets or application-owned
   compositions.
@@ -1291,7 +1367,7 @@ coordinate_viewport(
     render_canvas(WaveformCanvas::new(state.waveform.clone())),
 )
 .initial_transform(state.waveform_view)
-.visible_range(Message::WaveformRangeVisible)
+.on_visible_range_change(Message::WaveformRangeVisible)
 .on_transform_settled(Message::SetWaveformView)
 .on_input(Message::WaveformInput)
 .selection_overlay(range_selection(state.waveform_selection))
@@ -1489,7 +1565,7 @@ focused.
 ```rust
 clip_tile(clip)
     .selected(state.selection.contains(clip.id))
-    .on_press(SelectionPolicy::replace_or_toggle(
+    .selection_policy(SelectionPolicy::replace_or_toggle(
         Message::SelectClip(clip.id),
     ))
     .focusable();
@@ -1721,7 +1797,7 @@ scene(
 
 The base scene remains reusable while a permitted transient overlay changes.
 
-## Window Overlays and Floating Surfaces
+## Window Overlays and Floating Panels
 
 Every window has one structured base layout tree and one window-owned overlay
 host. The overlay host is outside normal container layout, but it remains part
@@ -1982,7 +2058,10 @@ path may derive or explicitly supply separate structure, geometry, paint, and
 interaction components. Reconciliation compares those components with the
 prior widget of the same generated runtime identity and selects the
 corresponding safe invalidation path. Public widgets never request raw repaint
-scopes.
+scopes. The interaction component includes the exact exported
+`WidgetCapabilities` descriptor and each capability's revision, so a changed
+semantic role, hit shape, text-editing behavior, overlay behavior, or animation
+contract never leaves stale interaction state active.
 
 Revision components are exact comparable typed values. Hashes may be used as a
 fast rejection prefilter, but a matching hash never by itself proves unchanged
@@ -2021,6 +2100,32 @@ classDiagram
 Containers do not move into the widget trait merely to achieve a uniform type
 hierarchy. Custom widgets remain supported through a stable extension point.
 
+Optional widget behavior is declared through one defaulted descriptor method,
+before the widget is erased into the runtime entry. The ordinary widget path
+returns no capabilities and pays no configuration cost.
+
+```rust
+trait Widget<Message> {
+    // measure, input, and paint core omitted
+
+    fn capabilities(&self) -> WidgetCapabilities<'_, Message> {
+        WidgetCapabilities::none()
+    }
+}
+```
+
+`WidgetCapabilities` contains explicit optional references to capabilities such
+as `WidgetSemantics`, `WidgetHitTest`, text editing, overlay paint, or
+`Animatable`. Radiant obtains that short-lived descriptor through the widget's
+object-safe method whenever it needs a capability; the concrete widget remains
+owned by the erased entry for that call. It does not attempt unsupported runtime
+trait discovery on an erased `dyn Widget<Message>` or retain self-referential
+capability references. `capabilities()` is pure, allocation-free, and returns a
+compact descriptor; the runtime calls it only after normal visibility, clip, or
+input-candidate culling has selected the node. A custom extension therefore
+cannot turn a pointer move, semantic query, or paint pass into hidden setup
+work.
+
 An interactive custom widget opts into the focused `WidgetSemantics` capability
 when it contributes accessibility information. That capability appends typed
 role, label, value, state, relationships, and supported actions to Radiant's
@@ -2047,6 +2152,10 @@ impl Widget<Message> for MeterWidget {
     }
     fn append_paint(&self, context: &mut PaintContext<'_>) {
         // Paint only inside assigned bounds; no layout or renderer-cache access.
+    }
+
+    fn capabilities(&self) -> WidgetCapabilities<'_, Message> {
+        WidgetCapabilities::new().semantics(self)
     }
 }
 ```
@@ -2487,7 +2596,7 @@ impl RenderCanvas for SpectrogramCanvas {
     type Payload = Arc<SpectrogramTiles>;
 
     fn program(&self) -> CanvasProgramId { CanvasProgramId::spectrogram() }
-    fn payload(&self) -> Self::Payload { self.tiles.clone() }
+    fn payload(&self) -> &Self::Payload { &self.tiles }
     fn uniforms(&self) -> CanvasUniforms { self.uniforms }
     fn upload_plan(
         &self,
@@ -2498,15 +2607,18 @@ impl RenderCanvas for SpectrogramCanvas {
 }
 ```
 
-`CanvasPayload` is an immutable, bounded trait with an exact stable content
-identity derived from its owned value or shared allocation; application code
-never manually toggles a renderer revision. It also provides a viewport-aware
-upload plan: visible tiles or ranges, detail level, immutable tile identities,
-and the delta from the previous payload. The runtime requests only the tiles
-intersecting the resolved clip and chosen level of detail, then uploads only
-changed declared ranges. Waveforms, spectrograms, timelines, and large editors
-therefore reuse offscreen tiles and decimation levels instead of rebuilding or
-uploading their entire data set after a small change.
+`CanvasPayload` is an immutable, bounded shared handle with an exact stable
+content identity derived from its owned value or shared allocation; application
+code never manually toggles a renderer revision. A canvas exposes that handle
+by reference, never by moving a payload value during reconciliation. When a
+submitted frame must outlive the canvas node, the renderer retains only the
+payload handle it needs until its fence completes. The payload also provides a
+viewport-aware upload plan: visible tiles or ranges, detail level, immutable
+tile identities, and the delta from the previous payload. The runtime requests
+only the tiles intersecting the resolved clip and chosen level of detail, then
+uploads only changed declared ranges. Waveforms, spectrograms, timelines, and
+large editors therefore reuse offscreen tiles and decimation levels instead of
+rebuilding or uploading their entire data set after a small change.
 
 `CanvasUniforms` is a compact typed value, and `CanvasGraph` is a closed,
 validated IR rather than arbitrary backend shader source. Registration validates
@@ -2589,6 +2701,23 @@ not a parallel scene graph. Transient overlay status is orthogonal: a transient
 overlay normally uses primitive painting, and only uses a render canvas when
 its own content genuinely requires specialized rendering.
 
+When one declared container effect spans multiple ordered segments, the renderer
+creates one ordered compositing group. Group opacity, non-normal blending,
+filters, or explicit isolation therefore apply once to the combined result,
+not independently to each paint segment or render canvas. Ordinary rectangular
+clips, transforms, and normal alpha composition stay direct and do not create
+an intermediate target. A group target is admitted, cached, budgeted, and
+retired under the same measured render-boundary policy as other offscreen
+resources; it is never created merely because two rendering mechanisms are
+adjacent. This preserves visual semantics without making offscreen composition
+the default cost of mixed content.
+
+A compositing group's exact revision includes its ordered child membership,
+effect parameters, resolved clip and transform, every child render-boundary
+revision, and native target generation. A matching revision is required before
+the group target is reused; otherwise the runtime rebuilds the group or takes
+the direct-composition path when isolation is no longer needed.
+
 ### Reuse and invalidation
 
 Each reusable layer has an explicit revision contract.
@@ -2599,6 +2728,7 @@ Each reusable layer has an explicit revision contract.
 | Paint plan | layout, theme, or base widget paint data changes | transient-only frames |
 | Retained paint segments | base paint plan, physical target size, DPI, or renderer resource generation changes | overlay-only frames |
 | Render canvas resources | canvas identity, derived content revision, geometry, or renderer resource generation changes | unchanged canvas content and bounds |
+| Compositing group target | group membership/order, effect parameters, clip/transform, child render-boundary revision, or target generation changes | unchanged ordered group inputs and target |
 | Transient overlay | transient state changes | never retained beyond its valid frame unless its own contract permits it |
 
 The runtime owns these revisions. Application code provides stable widget and
@@ -2656,7 +2786,7 @@ buffer sampling, or would require excessive CPU-side geometry generation.
 | Content | Preferred path | Reason |
 | --- | --- | --- |
 | Button, panel, text, icon, simple curve | Primitive painting | High-quality ordinary UI paint data |
-| Slowly changing EQ curve | Primitive painting or render canvas, chosen by measurement | The simple path is usually sufficient; specialized rendering is justified only at meaningful update density |
+| Slowly changing EQ curve | Primitive painting or render canvas, chosen by measurement | Primitive painting is usually sufficient; specialized rendering is justified only at meaningful update density |
 | Interactive EQ editor with dense analysis | Render canvas plus primitive-painted handles | Retained data draw path; precise editing chrome remains declarative |
 | Waveform with large zoomable sample data | Render canvas | Buffer/texture-backed decimation and viewport updates avoid CPU geometry churn |
 | Spectrogram | Render canvas | Texture/tile sampling and color mapping are naturally specialized rendering work |
@@ -2825,7 +2955,8 @@ this order:
 4. Determine whether base paint content changed.
 5. Determine which retained render canvases changed independently.
 6. Determine whether only transient overlay content changed.
-7. Execute only the required stages, then compose and present once.
+7. Execute only the required stages. Compose and present once only when visible
+   work changed; otherwise return to idle with no submission.
 
 ```mermaid
 flowchart TD
@@ -2836,9 +2967,11 @@ flowchart TD
   Geometry -- yes --> Layout
   Geometry -- no --> Base{"Base paint?"}
   Base -- yes --> Encode["Project + plan + base encode"]
-  Base -- no --> Surface{"Render canvas revision?"}
-  Canvas -- yes --> Gpu["Update changed render-canvas passes"]
-  Surface -- no --> Overlay["Overlay-only composition"]
+  Base -- no --> CanvasChanged{"Render canvas revision?"}
+  CanvasChanged -- yes --> Gpu["Update changed render-canvas passes"]
+  CanvasChanged -- no --> OverlayChanged{"Transient overlay revision?"}
+  OverlayChanged -- yes --> Overlay["Overlay-only composition"]
+  OverlayChanged -- no --> Idle["No visible work; sleep"]
   Layout --> Compose["Compose + present"]
   Encode --> Compose
   Gpu --> Compose

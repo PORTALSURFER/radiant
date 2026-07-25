@@ -39,6 +39,12 @@ pub(super) struct NativePointerGesture {
     pub(super) consume_control: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct NativePointerGestureLatch {
+    pub(super) physical_button: MouseButton,
+    pub(super) gesture: NativePointerGesture,
+}
+
 pub(super) fn native_pointer_press_gesture(
     button: Option<PointerButton>,
     modifiers: winit::keyboard::ModifiersState,

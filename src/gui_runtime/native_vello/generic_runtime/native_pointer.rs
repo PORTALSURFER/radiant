@@ -1,5 +1,6 @@
 //! Native pointer routing contract for the generic native Vello runner.
 
+use super::input::NativePointerGestureLatch;
 use super::{
     GenericNativeVelloRunner, GenericRouteOutcome, is_double_click, maybe_log_route_profile,
     native_pointer_press_gesture, pointer_button_from_winit, pointer_modifiers_for_native_gesture,
@@ -117,13 +118,22 @@ where
         };
         let position = self.input.last_cursor;
         let physical_button = pointer_button_from_winit(button);
+        let latched_gesture = self
+            .input
+            .effective_pointer_gesture
+            .filter(|latch| latch.physical_button == button);
         let gesture = match state {
             ElementState::Pressed => {
                 let gesture = native_pointer_press_gesture(physical_button, self.input.modifiers);
-                self.input.effective_pointer_gesture = gesture;
+                if let Some(gesture) = gesture.filter(|gesture| gesture.consume_control) {
+                    self.input.effective_pointer_gesture = Some(NativePointerGestureLatch {
+                        physical_button: button,
+                        gesture,
+                    });
+                }
                 gesture
             }
-            ElementState::Released => self.input.effective_pointer_gesture.or_else(|| {
+            ElementState::Released => latched_gesture.map(|latch| latch.gesture).or_else(|| {
                 physical_button.map(|button| super::input::NativePointerGesture {
                     button,
                     consume_control: false,
@@ -155,7 +165,7 @@ where
                 double_click,
                 diagnostic,
             );
-            if state == ElementState::Released {
+            if latched_gesture.is_some() {
                 self.input.effective_pointer_gesture = None;
             }
             return route;
@@ -171,7 +181,7 @@ where
                 double_click,
                 diagnostic,
             );
-            if state == ElementState::Released {
+            if latched_gesture.is_some() {
                 self.input.effective_pointer_gesture = None;
             }
             return route;
@@ -204,7 +214,7 @@ where
             double_click,
             diagnostic,
         );
-        if state == ElementState::Released {
+        if latched_gesture.is_some() {
             self.input.effective_pointer_gesture = None;
         }
         route
@@ -216,7 +226,7 @@ where
         let consume_control = self
             .input
             .effective_pointer_gesture
-            .is_some_and(|gesture| gesture.consume_control);
+            .is_some_and(|latch| latch.gesture.consume_control);
         let modifiers = self.pointer_modifiers_for_gesture(consume_control);
         let now = Instant::now();
         self.flush_stale_pending_wheel_input(now);
@@ -283,7 +293,7 @@ where
         let consume_control = self
             .input
             .effective_pointer_gesture
-            .is_some_and(|gesture| gesture.consume_control);
+            .is_some_and(|latch| latch.gesture.consume_control);
         let mut diagnostic = self.native_pointer_diagnostic(
             NativePointerEventKind::ModifiersChanged,
             self.input.last_cursor,

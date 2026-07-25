@@ -406,9 +406,13 @@ fn macos_control_left_is_one_latched_secondary_gesture() {
     assert_eq!(
         harness.runner.input.effective_pointer_gesture,
         Some(
-            crate::gui_runtime::native_vello::generic_runtime::input::NativePointerGesture {
-                button: PointerButton::Secondary,
-                consume_control: true,
+            crate::gui_runtime::native_vello::generic_runtime::input::NativePointerGestureLatch {
+                physical_button: MouseButton::Left,
+                gesture:
+                    crate::gui_runtime::native_vello::generic_runtime::input::NativePointerGesture {
+                        button: PointerButton::Secondary,
+                        consume_control: true,
+                    },
             }
         )
     );
@@ -475,6 +479,38 @@ fn macos_control_left_release_keeps_latched_button_during_capture() {
     harness.modifiers_changed(ModifiersState::empty());
     let release = harness.mouse_released_route(MouseButton::Left);
     assert_eq!(release.button, Some(PointerButton::Secondary));
+    assert!(harness.runner.input.effective_pointer_gesture.is_none());
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn macos_control_left_latch_survives_interleaved_physical_buttons() {
+    let mut harness = NativePointerHarness::new(demo_bridge(), Vector2::new(320.0, 40.0));
+    harness.cursor_moved_logical(Point::new(12.0, 12.0));
+    harness.modifiers_changed(ModifiersState::CONTROL);
+
+    let press = harness.mouse_pressed_route(MouseButton::Left);
+    assert_eq!(press.button, Some(PointerButton::Secondary));
+    assert!(!press.diagnostic.modifiers.command);
+    assert!(harness.runner.input.effective_pointer_gesture.is_some());
+
+    for interleaved in [MouseButton::Right, MouseButton::Other(5)] {
+        let interleaved_press = harness.mouse_pressed_route(interleaved);
+        let interleaved_release = harness.mouse_released_route(interleaved);
+        if interleaved == MouseButton::Right {
+            assert_eq!(interleaved_press.button, Some(PointerButton::Secondary));
+            assert_eq!(interleaved_release.button, Some(PointerButton::Secondary));
+        } else {
+            assert_eq!(interleaved_press.button, None);
+            assert_eq!(interleaved_release.button, None);
+        }
+        assert!(harness.runner.input.effective_pointer_gesture.is_some());
+    }
+
+    harness.modifiers_changed(ModifiersState::empty());
+    let release = harness.mouse_released_route(MouseButton::Left);
+    assert_eq!(release.button, Some(PointerButton::Secondary));
+    assert!(!release.diagnostic.modifiers.command);
     assert!(harness.runner.input.effective_pointer_gesture.is_none());
 }
 
